@@ -28,7 +28,12 @@
       res: { kelp: 0, coral: 0, silt: 0, bone: 0, iron: 0, science: 0, fuel: 0 },
       lvl: { kelp: 0, weir: 0, warmnest: 0, ballast: 0, nest: 0, reef: 0, siltpit: 0, workshop: 0, furnace: 0, library: 0, hearth: 0, geyser: 0, miracle: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
-      jobs: { gather: 0, craft: 0, scholar: 0 },
+      /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
+       * 缺 planter 时 economy.tick 里 `s.jobs.planter * BLD.foodJob` 变成
+       * `undefined * 0.5 = NaN`，经 addRes 的 Math.min 污染整个菌毯池、
+       * 再顺着 lvlSum 污染破壳系数（与存档迁移那次同源）。
+       * 今后加职业，这里、migrateRun 的默认表都得同步。 */
+      jobs: { planter: 0, gather: 0, craft: 0, scholar: 0 },
       pop: CFG.POP_START,
       peak: CFG.POP_START,
       deaths: 0,

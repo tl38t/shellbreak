@@ -78,9 +78,18 @@
     var save = Math.min(BLD.foodSaveCap, (s.lvl.warmnest || 0) * BLD.foodSave);
     return s.pop * CFG.FOOD_PER * (1 - save);
   }
-  // 菌毯产出：菌圃基准 × 喷口导流堤（+3%/级）× 季节 × 环境系数
+  /* 菌毯产出。逐句照抄猫国 game.js:3666 calcResourcePerTick("catnip") 的语句顺序——
+   * 顺序本身就是设计，不能重排：
+   *   3670  perTick = getEffect("catnipPerTickBase")          ← 建筑侧（菌圃）
+   *   3685  perTick *= calendar.getWeatherMod(res)            ← 季节乘在这一步，只作用于建筑侧
+   *   3700  perTick += village.getResProduction()["catnip"]   ← 职业侧（圃丁）后加，
+   *                                                            因此 **不被季节打折**
+   *   3711  perTick *= 1 + getEffect("catnipRatio")           ← 喷口导流堤放大两条来源
+   * 把季节挪到「(建筑+职业)×季节」会让圃丁在寒流季集体饿死，与原作不符。 */
   function foodRate(s, cold) {
-    return s.lvl.kelp * BLD.food * (1 + (s.lvl.weir || 0) * BLD.foodWeir) * season(s.t).mult * (cold || 1);
+    var byBuild = s.lvl.kelp * BLD.food * season(s.t).mult * (cold || 1);  // 建筑侧：吃季节
+    var byJob = s.jobs.planter * BLD.foodJob;                              // 职业侧：不吃季节
+    return (byBuild + byJob) * (1 + (s.lvl.weir || 0) * BLD.foodWeir);     // 增旋钮：两条一起放大
   }
   // 地热产出：热泉井 × 匠人 × 环境系数 × 点火术
   function fuelRate(s, cold) {

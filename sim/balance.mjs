@@ -92,9 +92,17 @@ function runOne(strategy) {
     sec += STEP;
     if (sec >= 1) {
       sec = 0;
-      // 职业：先保证匠人不为空（地热要它），冰封期再向匠人倾斜
+      /* 职业：食物优先——照猫国 village.js 的 farmer 1.0/tick vs catnipPerKitten -0.85/tick
+       * 那个模型：先按当下口粮缺口算「该有几个圃丁」，剩下的人力才按策略比例分。
+       * 原先写死 gather/craft/scholar 三段比例，圃丁恒为 0，结果没有人种菌毯，
+       * 峰值族民卡在 1、破冰 48h 也凿不穿。吃饭排在雇人前面是这套循环的起点。 */
       var cold = SB.economy.isCold(s);
-      var ratio = (RATIO[strategy] || RATIO.rational)[cold ? 'cold' : 'warm'];
+      var byBuild = s.lvl.kelp * SB.BLD.food * SB.economy.season(s.t).mult * (cold ? 0.6 : 1);
+      var planter = Math.ceil((s.pop * CFG.FOOD_PER - byBuild) / SB.BLD.foodJob);
+      var ratio = Object.assign(
+        { planter: planter },
+        (RATIO[strategy] || RATIO.rational)[cold ? 'cold' : 'warm']
+      );
       SB.folk.autoAssign(s, ratio);
 
       for (let n = 0; n < 3; n++) {          // 每步最多建 3 项，模拟人手

@@ -241,6 +241,52 @@ console.log('\n=== 食物三旋钮 ===');
   s.lvl.kelp = 0;
 }
 
+/* ---------------- 食物双源（建筑 + 圃丁）---------------- */
+/* 照猫国 game.js:3666 calcResourcePerTick("catnip") 的语句顺序落地。
+ * 这里最容易改错的一条：季节那行（源码 3685 行）必须夹在「取建筑侧」与
+ * 「加职业侧」之间。谁把它挪到 (建筑+职业)×季节，圃丁一到寒流季就集体饿死，
+ * 而单看暖流季的代码永远发现不了——所以下面三条必须分开断言。 */
+console.log('\n=== 食物双源 ===');
+{
+  const s = SB.game.run();
+  const M = SB.SEASONS;
+  check('职业表含圃丁', SB.JOBS.some(j => j.id === 'planter'), SB.JOBS.map(j => j.id).join(' / '));
+
+  // 建筑侧：只有菌圃在产
+  s.lvl.kelp = 1; s.lvl.weir = 0; s.jobs.planter = 0; s.pop = 1;
+  s.t = 0;                                   // 第 1 季 = 暖流季
+  const warmB = SB.economy.foodRate(s, 1);
+  s.t = SB.CFG.SEASON_TICKS * 3;             // 第 4 季 = 寒流季
+  const coldB = SB.economy.foodRate(s, 1);
+  check('季节减产只打建筑侧', Math.abs(coldB / warmB - M[3].mult / M[0].mult) < 1e-9,
+    '暖流 ' + warmB.toFixed(4) + ' → 寒流 ' + coldB.toFixed(4));
+
+  // 职业侧：只有圃丁在产
+  s.lvl.kelp = 0; s.jobs.planter = 1;
+  s.t = 0;
+  const warmJ = SB.economy.foodRate(s, 1);
+  s.t = SB.CFG.SEASON_TICKS * 3;
+  const coldJ = SB.economy.foodRate(s, 1);
+  check('圃丁产出不吃季节减产', Math.abs(coldJ / warmJ - 1) < 1e-9,
+    '暖流 ' + warmJ.toFixed(4) + ' / 寒流 ' + coldJ.toFixed(4));
+
+  // 两条来源相加进同一池
+  s.t = 0; s.lvl.kelp = 1; s.jobs.planter = 1;
+  const both = SB.economy.foodRate(s, 1);
+  check('建筑与圃丁的产出相加进同一池', Math.abs(both - (warmB + warmJ)) < 1e-9,
+    '建筑 ' + warmB.toFixed(4) + ' + 圃丁 ' + warmJ.toFixed(4) + ' = ' + both.toFixed(4));
+
+  // 圃丁必须真的比菌圃值钱，否则「雇人 vs 铺田」这条取舍不存在
+  check('圃丁单位产出高于菌圃（雇人 vs 铺田有意义）', SB.BLD.foodJob > SB.BLD.food * 2,
+    '圃丁 ' + SB.BLD.foodJob + ' vs 菌圃 ' + SB.BLD.food + '/级');
+
+  // 口粮必须真的构成约束：一个圃丁养不到 2 个人，否则前期永远不会缺粮
+  const perPlanter = SB.BLD.foodJob / SB.CFG.FOOD_PER;
+  check('一个圃丁养不饱两个人（食物是前期真约束）', perPlanter < 2,
+    perPlanter.toFixed(2) + ' 人/圃丁（猫国 ' + (1.0 / 0.85).toFixed(2) + '）');
+  s.lvl.kelp = 0; s.jobs.planter = 0;
+}
+
 /* ---------------- 一局 Real Player ---------------- */
 /* 必须与 sim/balance.mjs 同构。注意 free() 要连买得起一起判：
  * 只判「未满级」会让 geyser（要精铁）永远排在队首且永远失败，
