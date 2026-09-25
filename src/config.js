@@ -20,7 +20,7 @@
      * （峰值 60 人 vs 原先 54），破壳系数从 34 涨到 74，同样 200000 会拖到 14.5h，
      * 顶出 8-14h 断言带。上下调这里只改变「一局多长」，不改变任何取舍结构——
      * 它是长度旋钮，不是难度旋钮。 */
-    ICE_SHELL: 187000,
+    ICE_SHELL: 100000,
     FRAGILE_AT: 0.25,     // 低于此比例进入「冰封期」：产出 ×0.6 + 冻伤
     FLOOR_AT: 0.25,       // 基础自动削壳停手线：卡在 25% 必须建祭坛才凿得穿。
                           // 判定必须用 <=，否则会卡在 25% 的死锁
@@ -70,9 +70,10 @@
     // 对齐猫国开局（js/village.js:3 kittens:0 / jobs 全 0，叙事上是 1 只猫）：
     // 本作开局 1 名族民、职业全 0，唯一起步手段是手动采集（见 paneVillage 的采集按钮）。
     POP_START: 1,
-    /* 每人每秒吃的菌毯。这里是 **比例对齐** 而不是抄绝对值：
-     * 只看 dimensionless 的关系——「一个圃丁养几个人」= BLD.foodJob / FOOD_PER。
-     * 猫国是 1.0 / 0.85 = 1.176 人，本作取 0.50 / 0.30 = 1.67 人（略宽松，因为一局 10h 而猫国几十 h）。
+    /* 每人每秒吃的藻食。这里是 **比例对齐** 而不是抄绝对值：
+     * 只看 dimensionless 的关系——「一个采集者养几个人」= UNIT.kelp / FOOD_PER。
+     * 猫国是 1.0 / 0.85 = 1.176 人（farmer vs catnipPerKitten），本作取 0.50 / 0.30 = 1.67 人
+     * （略宽松，因为一局 10h 而猫国几十 h）。
      * 原先取 0.06 时一块菌圃能养 9 人，食物从头到尾不是约束，开局循环等于不存在；
      * 直接照抄猫国 0.85 又会让口粮相对采集产出贵 14 倍，没人当得起采集者，整局卡死。 */
     FOOD_PER: 0.30,
@@ -95,9 +96,16 @@
      *   ③ 副项：建筑存量只按 B_W 折算，防止「堆建筑」重新取代「养人口」
      */
     TIDE: {
-      POP_GATE: 35,          // 峰值族民不高于此值，破冰不发洋流点
+      /* 峰值族民不高于此值，破冰不发洋流点。
+       * ⚠️ 这个门槛是跟着人口天花板走的，不是随手定的常数：
+       * 食物体系按猫国比例重做后（一块菌圃养 0.30 人、一个采集者养 1.67 人），
+       * 住房 ratio 2.5（猫国木屋原值，不动）把一局的人口天花板压到 **22 人**。
+       * 门槛若沿用旧时代的 35，正常通关也发 0 点——整套周目收益在实机里不可达。
+       * 取 18：留出 4 人余量（冻死一两个不跌破），实测通关约 4 点，
+       * 刚好对应洋流商店首档（1~4 点），「一局打得好不好」玩家能直接感觉到。 */
+      POP_GATE: 18,
       POP_SLOPE: 36,         // 门槛以上每 1 名族民 36 分（标定：54 人 ≈ 6.5 点 / 100 人 ≈ 11 点 / 200 人 ≈ 20 点）
-      POP_ESC: { at: 150, k: 54 },  // 150 人以上斜率再抬到 54——猫国的「全力」段
+      POP_ESC: { at: 150, k: 54 },  // 150 人以上斜率再抬到 54——猫国的「全力」段（一期到不了）
       LAYER: 200,            // 每破一层的固定分
       B_W: 0.02              // 建筑存量的折算权重（副项）
     },
@@ -124,8 +132,17 @@
     fuel:    { name: '地热', short: '热' }
   };
 
-  // 每采集者每秒基础产出
-  var UNIT = { coral: 0.12, silt: 0.09, bone: 0.08, iron: 0.06, sci: 0.03 };
+  /* 每采集者每秒基础产出。
+   * ⚠️ 开局唯一职业「采集者」产的是 **藻食**，不是珊瑚。这条对齐 docs/DESIGN_v0.3.md §4：
+   *   「采集者 gatherer | 藻食（手动也能点） | 开局唯一」，
+   *   以及 §5 的红线「新项目首建成本锁定 10，且 **用藻食而非珊瑚**」。
+   * 珊瑚是第二条线，在猫国对应 wood，由「礁凿」科技解锁的珊瑚匠产出；
+   * 本阶段没有科技树在跑，改由建筑「礁口采石场」承担（见 BUILDINGS.quarry）。
+   * 把采集做成产珊瑚 = 把食物线和材料线接反，开局就多一条玩家用不上的资源。 */
+  /* coral = 猫国 wood，silt = 猫国 minerals，两条是分开的线：
+   * coral →(workshop) bone，silt →(furnace) iron。改成采集者顺手产两边之后，
+   * furnace 没有原料、iron 恒为 0，geyser/miracle 全建不起来，整局卡死在 25%。 */
+  var UNIT = { kelp: 0.50, coral: 0.12, silt: 0.09, bone: 0.08, iron: 0.06, sci: 0.03 };
 
   /* 每建筑每级的效果。food 系列是食物三旋钮，照抄猫国建设者的四条食物路径
    * （js/game2.js:3666 calcResourcePerTick("catnip")）里的「产 / 增 / 省 / 储」：
@@ -135,19 +152,19 @@
    *   储 = barn catnipMax +7500
    * 猫国省耗是 −0.5%/级，本作 −2%/级起步更快，因为我们的 FOOD_PER(0.06) 只有猫国的 1/14。 */
   var BLD = {
-    /* 菌圃：菌毯 +0.09/级/秒。与 FOOD_PER(0.30) 的比值 = 一块田养 0.30 人
+    /* 菌圃：藻食 +0.09/级/秒。与 FOOD_PER(0.30) 的比值 = 一块田养 0.30 人
      * （猫国是 0.125/0.85 = 0.147 人，本作略宽松）。这个比值决定开局到底会不会缺粮——
      * 原先取 0.55 时比值变成「养 9 人」，食物永远吃不完，前期没有任何取舍。 */
     food: 0.09,
-    /* 圃丁（farmer 对应物）：菌毯 +0.50/人/秒，且 **不吃季节**。
-     * 是菌圃的 5.6 倍（猫国同一比值 8:1），这个差距构成「铺田 vs 雇人」两条路径的分野：
-     * 铺田便宜但要占地方和珊瑚，雇人立刻见效但要占人力。 */
-    foodJob: 0.50,
     foodWeir: 0.03,    // 喷口导流堤：菌毯产出 +3%/级
     foodSave: 0.02,    // 保温巢：族口粮 −2%/级
     foodSaveCap: 0.60, // 保温巢：口粮最多省 60%
     kelpCap: 800,      // 压舱仓：菌毯上限 +800/级
-    sci: 0.05, reefMul: 0.08, warm: 0.10, house: 6, houseBase: 6, fuel: 0.010
+    /* house：每座住房 +2（docs/DESIGN_v0.3.md §5「巢窟 | 人口上限 +1」）。
+     * 原先取 6 是因为住房还兼着「人口不能涨太快」的刹车；把一个乘数塞进住房成本里，
+     * 等于让玩家只能靠「不盖房」来限人口，那是把设计问题藏起来。人口上限该由
+     * 人口自身的食物消耗去卡（见 FOOD_PER），住房只负责「够住不够住」。 */
+    sci: 0.05, reefMul: 0.08, warm: 0.10, house: 2, houseBase: 6, fuel: 0.010
   };
 
   /* 建筑表。四条字段照抄猫国建设者（github.com/nuclear-unicorn/kittensgame，js/buildings.js）：
@@ -161,23 +178,38 @@
    *   need                建筑前置。属于加工链的物理依赖，不是解锁手段，所以与上面四项并存。
    *
    * 没有等级上限（同猫国）：升到买不动为止，成本是唯一刹车。 */
+  /* ---- 开局两座（docs/DESIGN_v0.3.md §5「开局可建 **2 座，成本都是藻食**」）----
+   * 这是猫国「开局列表里只有猫薄荷田一张脸」在我方的落点。成本栏必须是 **藻食**：
+   * 若首建要珊瑚，开局 0 珊瑚就建不了第一座，循环从第一步就断——这正是文档里
+   * 「旧项目首座建筑要 100 珊瑚（实测 277 秒），是猫国的 10 倍，开局空转」那一条病，
+   * 文档开的药方就是「首建成本锁定 10，且 **用藻食而非珊瑚**」。 */
   var BUILDINGS = [
-    { id: 'kelp',     name: '深海菌圃', ratio: 1.12, cost: {coral: 15},    desc: '菌毯 +0.55/秒 × 季节系数',
-      defaultUnlockable: true, unlockRatio: 0.3 },
+    { id: 'kelp',     name: '深海菌圃', ratio: 1.12, cost: {kelp: 15},    desc: '自动产藻食 +0.09/级/秒，吃季节减产',
+      defaultUnlockable: true },
+    { id: 'nest',     name: '礁口巢',   ratio: 2.50, cost: {kelp: 10},    desc: '住房 +2',
+      defaultUnlockable: true },
+    /* ---- 珊瑚线（猫国 wood）改由建筑承担，不等科技 ----
+     * 文档 §4 写的是「珊瑚匠 coralwright | 珊瑚 | 解锁科技：礁凿」，本阶段科技树不在跑，
+     * 没有珊瑚来源的话后面 8 座建筑全部建不起来。所以首座采石场用 **藻食** 买、产珊瑚：
+     * 材料线从食物线换出来，而不是从科技换出来。 */
+    { id: 'quarry',   name: '礁口采石场', ratio: 1.15, cost: {kelp: 40},  desc: '产珊瑚——材料线（珊瑚）的入口',
+      unlockRatio: 0.3 },
+    /* ---- 矿砂线（猫国 minerals，与珊瑚是两条独立的线）----
+     * 采集者只产藻食之后，矿砂曾一度没有任何来源：furnace 转不出精铁，
+     * iron 恒为 0，geyser（要 iron 62）与 miracle（要 iron 300）永远建不起来，
+     * 整局卡死在 25% 那道墙上——那次卡死不是设计，是断线。 */
+    { id: 'siltpit',  name: '砂矿坑',     ratio: 1.15, cost: {coral: 200}, desc: '产矿砂——材料线（矿砂）的入口',
+      unlockRatio: 0.3 },
     /* ---- 食物三旋钮（猫国 pasture / aqueduct / barn 的对应物）----
      * 顺序照猫国的调用顺序排：产（kelp）→ 增（weir）→ 省（warmnest）→ 储（ballast）。
      * 三个 id 都是新的，零存档成本。 */
-    { id: 'weir',     name: '喷口导流堤', ratio: 1.15, cost: {silt: 60},   desc: '菌毯产出 +3%/级',
+    { id: 'weir',     name: '喷口导流堤', ratio: 1.15, cost: {kelp: 60},   desc: '菌毯产出 +3%/级',
       unlockRatio: 0.3 },
     { id: 'warmnest', name: '保温巢',   ratio: 1.15, cost: {coral: 150},  desc: '族口粮 −2%/级（最高 −60%）',
       unlockRatio: 0.3 },
     { id: 'ballast',  name: '压舱仓',   ratio: 1.15, cost: {coral: 120},  desc: '菌毯上限 +800/级',
       unlockRatio: 0.3 },
     { id: 'reef',     name: '礁石平台', ratio: 1.15, cost: {coral: 87},    desc: '采集产出 +8%/级',
-      unlockRatio: 0.3 },
-    { id: 'nest',     name: '珊瑚巢',   ratio: 2.50, cost: {coral: 112},   desc: '住房 +6',
-      unlockScheme: { name: 'bone', threshold: 60 } },
-    { id: 'siltpit',  name: '砂矿坑',   ratio: 1.15, cost: {coral: 225},   desc: '采集者开采矿砂',
       unlockRatio: 0.3 },
     { id: 'workshop', name: '骨材工坊', ratio: 1.15, cost: {coral: 400},   desc: '解锁 珊瑚→骨材',
       unlockRatio: 0.3 },
@@ -221,16 +253,20 @@
     { id: 'd3',    name: '内生热泉',  cost: 18, desc: '冰壳再薄 10%（每级）',         kind: 'thin', n: 3, apply: { thin: 1 }, nest: 'd2' }
   ];
 
-  /* 职业表。猫国 master 的解锁链（2026-09-25 实拉官方源码核实）：
-   *   woodcutter  defaultUnlocked，wood 0.018/tick   ← 唯一开局职业
+  /* 职业表。对齐 docs/DESIGN_v0.3.md §4「开局 **1 名族民，职业 = 采集者，资源 = 藻食**」：
+   *   「采集者 gatherer | 藻食（手动也能点） | **开局唯一**」
+   * 所以本表开局只有 gather 挂着（其余在 UI 里不露头，靠 habitat 的解锁判定），
+   * 它产的是藻食而非珊瑚——珊瑚是「礁凿」科技那条线的产物。
+   * 上一轮自创的 `planter 圃丁` 已删除：文档里 farmer 是「藻食 +40%（采集者降级为保底）」、
+   * 靠「藻圃」科技解锁的**第二条**职业，让它在开局就产 0.5/秒等于越级，
+   * 且与采集者产同一资源，玩家无从取舍。
+   * 猫国 master 参照（2026-09-25 实拉官方源码）：
+   *   woodcutter  defaultUnlocked，wood 0.018/tick
    *   farmer      科技 agriculture(100 science) 解锁，catnip 1.0/tick
-   *   scholar     建筑 library(25 wood) 解锁，science 0.035/tick（同时开 science 页）
-   *   miner       建筑 mine(100 wood) 解锁，minerals 0.05/tick
-   *   hunter/priest/geologist/engineer 由科技解锁（本轮不算科技，暂不入表）
-   * planter 是 farmer 的对应物，本轮按「建筑解锁职业」这一条猫国已有机制接入。 */
+   *   scholar     建筑 library(25 wood) 解锁，science 0.035/tick
+   *   miner       建筑 mine(100 wood) 解锁，minerals 0.05/tick */
   var JOBS = [
-    { id: 'gather',  name: '采集者', desc: '采珊瑚 / 矿砂' },
-    { id: 'planter', name: '圃丁',   desc: '种菌毯，产食且不吃季节减产' },
+    { id: 'gather',  name: '采集者', desc: '采集藻食，手动点击也能点' },
     { id: 'craft',   name: '匠人',   desc: '驱动加工、地热与祭坛' },
     { id: 'scholar', name: '学者',   desc: '产出学问' }
   ];

@@ -39,8 +39,10 @@
       return;
     }
     if (d.gather) {
-      // 猫国 Gather catnip 的对应物：点一下 +1 珊瑚（走 addRes，受仓储上限约束）
-      SB.economy.addRes(s, 'coral', 1);
+      /* 猫国 Gather catnip 的对应物：点一下 +1 **藻食**（走 addRes，受仓储上限约束）。
+       * 产珊瑚是上一轮的错案——设计文档 §5 红线是「首建成本用藻食而非珊瑚」，
+       * 手动采集产珊瑚的话，开局 0 珊瑚就建不起任何东西。 */
+      SB.economy.addRes(s, 'kelp', 1);
       SB.game.markDirty(); SB.game.renderAll();
       return;
     }

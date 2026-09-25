@@ -8,6 +8,7 @@ import { loadAll } from './load-sb.mjs';
 
 const errors = [];
 const checks = [];
+const noop = () => {};                 // emit 的空实现：本文件里部分断言直接跑 economy.tick
 function check(name, cond, detail) {
   checks.push({ name, ok: !!cond, detail: detail || '' });
   console.log((cond ? '  ✓ ' : '  ✗ ') + name + (detail ? '  ' + detail : ''));
@@ -130,12 +131,21 @@ function frames(n) {
   }
 }
 
-/* ---------------- 开局解锁链（对齐猫国：开局只有猫薄荷田）---------------- */
+/* ---------------- 开局解锁链（对齐猫国：开局列表里只有猫薄荷田一张脸）----------------
+ * docs/DESIGN_v0.3.md §5 定的是 **开局可建 2 座，成本都是藻食**：礁口巢（藻食 10）
+ * 与深海菌圃（藻食 15）。先前的断言写死「只有 1 座」是按旧设计锁的，随文档改。 */
 console.log('\n=== 开局解锁链 ===');
 {
   const s = SB.game.run();
   const open = SB.BUILDINGS.filter(b => SB.habitat.unlocked(s, b)).map(b => b.id);
-  check('新开局只有深海菌圃可建', open.length === 1 && open[0] === 'kelp', open.join(',') || '（无）');
+  check('新开局只露头两座（礁口巢 + 深海菌圃）',
+    open.length === 2 && open.indexOf('kelp') >= 0 && open.indexOf('nest') >= 0, open.join(',') || '（无）');
+
+  /* 两座的定价资源必须都是藻食：文档 §5 的红线。
+   * 首建若用珊瑚，开局 0 珊瑚就建不起任何东西，循环第一步即断。 */
+  const starts = SB.BUILDINGS.filter(b => b.defaultUnlockable);
+  check('露头的建筑成本全是藻食', starts.length === 2 && starts.every(b => b.cost.kelp > 0),
+    starts.map(b => b.id + '=' + JSON.stringify(b.cost)).join(' / '));
 
   /* ---- 开局对齐（照猫国 js/village.js: kittens 全 0 / jobs 全 0 / 资源全 0）---- */
   check('开局 1 名族民', s.pop === 1 && s.peak === 1, 'pop=' + s.pop);
@@ -147,9 +157,26 @@ console.log('\n=== 开局解锁链 ===');
     JSON.stringify(s.res));
   check('开局闲置 1 人', SB.folk.idle(s) === 1, 'idle=' + SB.folk.idle(s));
 
-  // 手动采集：点一下 +1 珊瑚（猫国 Gather catnip 的对应物）
+  /* 手动采集：点一下 +1 **藻食**（猫国 Gather catnip 的对应物）。
+   * 这条是本轮的重做核心——上一版做成 +1 珊瑚，直接违反 docs/DESIGN_v0.3.md §5 的红线
+   * 「首建成本锁定 10，且用藻食而非珊瑚」，而且开局 0 珊瑚时循环第一步就断。 */
   fire({ dataset: { gather: '1' } });
-  check('手动采集 +1 珊瑚', s.res.coral === 1, 'coral=' + s.res.coral);
+  check('手动采集 +1 藻食（不是珊瑚）', s.res.kelp === 1, 'kelp=' + s.res.kelp + ' coral=' + s.res.coral);
+
+  /* 首建必须用藻食：这是 §5 那条红线的可验证形式。
+   * 若首建改回珊瑚，开局 0 珊瑚 → 建不起第一座 → 循环从第一步就死。 */
+  check('首座建筑用藻食定价', (SB.habitat.buildingById('kelp') || {}).cost &&
+    SB.habitat.buildingById('kelp').cost.kelp > 0,
+    JSON.stringify(SB.habitat.buildingById('kelp').cost));
+
+  // 采集者产的是藻食而非珊瑚（材料线由采石场建筑承担，见 economy.tick 第 1 步）
+  {
+    const t = SB.state.freshRun(false);
+    t.jobs.gather = 1; t.lvl.quarry = 0; t.lvl.workshop = 0;
+    SB.economy.tick(t, 1, noop);
+    check('采集者产藻食不产珊瑚', t.res.kelp > 0 && t.res.coral === 0,
+      'kelp=' + t.res.kelp.toFixed(3) + ' coral=' + t.res.coral.toFixed(3));
+  }
 
   // 闲置池分配：＋ 从闲置雇，− 退回闲置，总和 ≤ pop
   check('＋ 从闲置池雇佣', clickJob('gather', 1) && s.jobs.gather === 1 && SB.folk.idle(s) === 0,
@@ -182,12 +209,15 @@ console.log('\n=== 开局解锁链 ===');
   SB.game.markDirty(); SB.game.render();
   check('露头后建筑面板同步出现工坊行', g('pane-village').indexOf('骨材工坊') !== -1);
 
-  // 骨材链条：骨材达阈值才解锁珊瑚巢
-  s.res.coral = 0; s.res.bone = 0;
-  check('骨材不足时珊瑚巢仍锁着', !SB.habitat.unlocked(s, SB.habitat.buildingById('nest')), 'bone 0 < 60');
-  s.res.bone = 60;
-  check('骨材达 60 时珊瑚巢解锁', SB.habitat.unlocked(s, SB.habitat.buildingById('nest')), 'bone 60');
-  s.res.bone = 0;
+  /* unlockScheme 链条：矿砂达阈值才解锁热泉井。
+   * 原先这里测的是珊瑚巢（bone 60），但 docs/DESIGN_v0.3.md §5 定的是
+   * 「开局可建 2 座：礁口巢 藻食 10 / 藻田 藻食 15」——礁口巢改成 defaultUnlockable 了，
+   * 这条 unlockScheme 断言得换到还挂着该字段的建筑上（热泉井：iron 60）。 */
+  s.res.coral = 0; s.res.bone = 0; s.res.iron = 0;
+  check('精铁不足时热泉井仍锁着', !SB.habitat.unlocked(s, SB.habitat.buildingById('geyser')), 'iron 0 < 60');
+  s.res.iron = 60;
+  check('精铁达 60 时热泉井解锁', SB.habitat.unlocked(s, SB.habitat.buildingById('geyser')), 'iron 60');
+  s.res.iron = 0;
 
   // 科技前置：熔炉要「冶炼术」
   s.res.coral = 9e5; s.res.bone = 9e5;
@@ -241,19 +271,23 @@ console.log('\n=== 食物三旋钮 ===');
   s.lvl.kelp = 0;
 }
 
-/* ---------------- 食物双源（建筑 + 圃丁）---------------- */
+/* ---------------- 食物双源（建筑 + 采集者）---------------- */
 /* 照猫国 game.js:3666 calcResourcePerTick("catnip") 的语句顺序落地。
  * 这里最容易改错的一条：季节那行（源码 3685 行）必须夹在「取建筑侧」与
- * 「加职业侧」之间。谁把它挪到 (建筑+职业)×季节，圃丁一到寒流季就集体饿死，
+ * 「加职业侧」之间。谁把它挪到 (建筑+职业)×季节，采集者一到寒流季就集体饿死，
  * 而单看暖流季的代码永远发现不了——所以下面三条必须分开断言。 */
 console.log('\n=== 食物双源 ===');
 {
   const s = SB.game.run();
   const M = SB.SEASONS;
-  check('职业表含圃丁', SB.JOBS.some(j => j.id === 'planter'), SB.JOBS.map(j => j.id).join(' / '));
+  /* 采集者是开局唯一职业、且产食（docs/DESIGN_v0.3.md §4）。
+   * 上一轮自创的「圃丁」已删——它与采集者产同一资源，玩家无从取舍。 */
+  check('职业表只有采集者产食', SB.JOBS.filter(j => /藻食|菌毯/.test(j.desc)).map(j => j.id).join() === 'gather',
+    SB.JOBS.map(j => j.id).join(' / '));
+  check('已无圃丁残留职业', !SB.JOBS.some(j => j.id === 'planter'), SB.JOBS.map(j => j.id).join(' / '));
 
   // 建筑侧：只有菌圃在产
-  s.lvl.kelp = 1; s.lvl.weir = 0; s.jobs.planter = 0; s.pop = 1;
+  s.lvl.kelp = 1; s.lvl.weir = 0; s.jobs.gather = 0; s.pop = 1;
   s.t = 0;                                   // 第 1 季 = 暖流季
   const warmB = SB.economy.foodRate(s, 1);
   s.t = SB.CFG.SEASON_TICKS * 3;             // 第 4 季 = 寒流季
@@ -261,30 +295,41 @@ console.log('\n=== 食物双源 ===');
   check('季节减产只打建筑侧', Math.abs(coldB / warmB - M[3].mult / M[0].mult) < 1e-9,
     '暖流 ' + warmB.toFixed(4) + ' → 寒流 ' + coldB.toFixed(4));
 
-  // 职业侧：只有圃丁在产
-  s.lvl.kelp = 0; s.jobs.planter = 1;
+  // 职业侧：只有采集者在产
+  s.lvl.kelp = 0; s.jobs.gather = 1;
   s.t = 0;
   const warmJ = SB.economy.foodRate(s, 1);
   s.t = SB.CFG.SEASON_TICKS * 3;
   const coldJ = SB.economy.foodRate(s, 1);
-  check('圃丁产出不吃季节减产', Math.abs(coldJ / warmJ - 1) < 1e-9,
+  check('采集者产出不吃季节减产', Math.abs(coldJ / warmJ - 1) < 1e-9,
     '暖流 ' + warmJ.toFixed(4) + ' / 寒流 ' + coldJ.toFixed(4));
 
   // 两条来源相加进同一池
-  s.t = 0; s.lvl.kelp = 1; s.jobs.planter = 1;
+  s.t = 0; s.lvl.kelp = 1; s.jobs.gather = 1;
   const both = SB.economy.foodRate(s, 1);
-  check('建筑与圃丁的产出相加进同一池', Math.abs(both - (warmB + warmJ)) < 1e-9,
-    '建筑 ' + warmB.toFixed(4) + ' + 圃丁 ' + warmJ.toFixed(4) + ' = ' + both.toFixed(4));
+  check('建筑与采集者的产出相加进同一池', Math.abs(both - (warmB + warmJ)) < 1e-9,
+    '建筑 ' + warmB.toFixed(4) + ' + 采集者 ' + warmJ.toFixed(4) + ' = ' + both.toFixed(4));
 
-  // 圃丁必须真的比菌圃值钱，否则「雇人 vs 铺田」这条取舍不存在
-  check('圃丁单位产出高于菌圃（雇人 vs 铺田有意义）', SB.BLD.foodJob > SB.BLD.food * 2,
-    '圃丁 ' + SB.BLD.foodJob + ' vs 菌圃 ' + SB.BLD.food + '/级');
+  // 采集者必须真的比菌圃值钱，否则「雇人 vs 铺田」这条取舍不存在
+  check('采集者单位产出高于菌圃（雇人 vs 铺田有意义）', SB.UNIT.kelp > SB.BLD.food * 2,
+    '采集者 ' + SB.UNIT.kelp + ' vs 菌圃 ' + SB.BLD.food + '/级');
 
-  // 口粮必须真的构成约束：一个圃丁养不到 2 个人，否则前期永远不会缺粮
-  const perPlanter = SB.BLD.foodJob / SB.CFG.FOOD_PER;
-  check('一个圃丁养不饱两个人（食物是前期真约束）', perPlanter < 2,
-    perPlanter.toFixed(2) + ' 人/圃丁（猫国 ' + (1.0 / 0.85).toFixed(2) + '）');
-  s.lvl.kelp = 0; s.jobs.planter = 0;
+  // 口粮必须真的构成约束：一个采集者养不到 2 个人，否则前期永远不会缺粮
+  const perGather = SB.UNIT.kelp / SB.CFG.FOOD_PER;
+  check('一个采集者养不饱两个人（食物是前期真约束）', perGather < 2,
+    perGather.toFixed(2) + ' 人/采集者（猫国 ' + (1.0 / 0.85).toFixed(2) + '）');
+
+  /* 珊瑚只由采石场出。采集者若顺手产珊瑚，材料线就又绕回了食物线，
+   * 开局那条「点采集 → 攒藻食 → 建菌圃」的循环会被资源种类稀释。 */
+  const t = SB.state.freshRun(false);
+  t.jobs.gather = 2; t.lvl.quarry = 0;
+  SB.economy.tick(t, 1, noop);
+  check('采集者不产珊瑚', t.res.coral === 0, 'coral=' + t.res.coral.toFixed(3));
+  t.lvl.quarry = 1; t.lvl.kelp = 0; t.jobs.gather = 0; t.res.coral = 0;
+  SB.economy.tick(t, 1, noop);
+  check('采石场是珊瑚唯一入口', t.res.coral > 0, 'coral=' + t.res.coral.toFixed(3));
+
+  s.lvl.kelp = 0; s.jobs.gather = 0;
 }
 
 /* ---------------- 一局 Real Player ---------------- */
@@ -303,9 +348,12 @@ function wantBuild(s) {
   if (freeB(s, 'warmnest') && s.pop >= 6 && s.lvl.warmnest < 30) return 'warmnest';
   if (freeB(s, 'ballast') && s.lvl.kelp > 0 && s.lvl.ballast < 12) return 'ballast';
   if (freeB(s, 'nest') && s.pop >= SB.economy.houseCap(s) - 1) return 'nest';
-  const unlock = ['workshop', 'geyser', 'miracle', 'furnace', 'library', 'hearth', 'reef', 'siltpit'];
+  /* 材料线两条入口（quarry 产珊瑚 / siltpit 产矿砂）必须排在加工建筑之前：
+   * 采集者只产藻食，珊瑚与矿砂全靠这两座，漏了它们 coral/silt 恒为 0，
+   * workshop 转不出骨材、furnace 转不出精铁，geyser/miracle 全建不起来。 */
+  const unlock = ['quarry', 'siltpit', 'workshop', 'geyser', 'miracle', 'furnace', 'library', 'hearth', 'reef'];
   for (const id of unlock) if (freeB(s, id) && s.lvl[id] === 0) return id;
-  for (const id of ['kelp', 'nest', 'workshop', 'furnace', 'library', 'hearth', 'reef', 'siltpit', 'geyser', 'miracle'])
+  for (const id of ['kelp', 'quarry', 'siltpit', 'nest', 'workshop', 'furnace', 'library', 'hearth', 'reef', 'geyser', 'miracle'])
     if (freeB(s, id)) return id;
   return null;
 }
@@ -323,9 +371,15 @@ while (frame < MAX_FRAMES) {
   const s = SB.game.run();
   if (!s || s.broken) { runHours = s.t / 3600; break; }
 
-  // 职业调配
+  /* 职业调配：与 sim/balance.mjs 同构的「食物优先」——
+   * 先按口粮缺口算该有几个采集者，剩下的人力再按策略比例分。
+   * 照抄三段比例的话没人产藻食，峰值族民卡在 1、整局 48h 也凿不穿。 */
   const cold = SB.economy.isCold(s);
-  SB.folk.autoAssign(s, cold ? { gather: 0.30, craft: 0.60, scholar: 0.10 } : { gather: 0.60, craft: 0.20, scholar: 0.20 });
+  const byBuild = s.lvl.kelp * SB.BLD.food * SB.economy.season(s.t).mult * (cold ? 0.6 : 1);
+  let need = Math.ceil((s.pop * SB.CFG.FOOD_PER - byBuild) / SB.UNIT.kelp);
+  need = s.pop > 1 ? Math.min(need, s.pop - 1) : s.pop;
+  SB.folk.autoAssign(s, Object.assign({ gather: need },
+    cold ? { craft: 0.60, scholar: 0.10 } : { craft: 0.20, scholar: 0.20 }));
   // 建造
   for (let n = 0; n < 3; n++) {
     const id = wantBuild(s);
@@ -429,8 +483,11 @@ console.log('\n=== 存档迁移 ===');
   const bare = SB.state.migrateRun({ t: '垃圾数据' });
   check('残缺存档迁移后仍是完整可跑结构',
     !!bare.lvl && !!bare.res && !!bare.jobs && typeof bare.shell === 'number' && isFinite(bare.shell));
+  /* 用 quarry 测：它是这轮改名上线的建筑（旧 id siltpit 已不存在）。
+   * 缺键回到旧表时 costOf 会返回 undefined，isFinite(undefined) 是 false。 */
   check('迁移后成本计算恢复有穷值',
-    isFinite(SB.economy.costOf(m, 'weir').silt), 'weir 成本 ' + SB.economy.costOf(m, 'weir').silt);
+    isFinite(SB.economy.costOf(m, 'quarry').kelp) && isFinite(SB.economy.costOf(m, 'weir').kelp),
+    'quarry=' + JSON.stringify(SB.economy.costOf(m, 'quarry')) + ' weir=' + JSON.stringify(SB.economy.costOf(m, 'weir')));
 }
 
 /* ---------------- 重置 / 清档 ---------------- */

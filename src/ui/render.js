@@ -56,9 +56,11 @@
   function paneVillage() {
     var s = res(); let h = '';
     /* 猫国开局唯一产能是手动点 "Gather catnip"（点一下 +1 猫薄荷）。
-     * 本作对应物：点一下 +1 珊瑚——开局 1 人全闲置、零自动收入时的起手式。 */
+     * 本作对应物：点一下 +1 藻食——对齐 docs/DESIGN_v0.3.md §4「采集者 gatherer |
+     * 藻食（手动也能点）」。手动采集产珊瑚是错的：那会把采集接到材料线上，
+     * 而首建第一座建筑（15 藻食）就用珊瑚，开局 0 珊瑚直接断循环。 */
     h += '<div class="row"><div><div class="nm">手动采集</div>' +
-      '<div class="ds">点一下拾取 1 珊瑚。开局没有自动收入，攒够珊瑚建起第一座菌圃，再雇族民接手。</div></div>' +
+      '<div class="ds">点一下拾取 1 藻食。开局 1 人、0 自动收入，靠这个攒够 15 藻食建起第一座菌圃。</div></div>' +
       '<button class="btn buy" data-gather="1">采集 +1</button></div>';
     for (var i = 0; i < SB.BUILDINGS.length; i++) {
       var b = SB.BUILDINGS[i];
@@ -108,7 +110,7 @@
         '<button class="btn" data-job="' + j.id + '" data-d="-1"' + (s.jobs[j.id] <= 0 ? ' disabled' : '') + '>−</button>' +
         '<button class="btn" data-job="' + j.id + '" data-d="1"' + (idle <= 0 ? ' disabled' : '') + '>＋</button></div></div>';
     }
-    h += '<div class="note">开局 1 名族民全闲置：先点「采集」攒珊瑚建菌圃，再生人、雇职业。</div>';
+    h += '<div class="note">开局 1 名族民全闲置：先在「巢穴」页点采集攒藻食建菌圃，再生人、雇职业。</div>';
     return h;
   }
 

@@ -7,12 +7,14 @@
   'use strict';
   var SB = root.SB || (root.SB = {});
 
-  /* 职业表。圃丁排首位不是排版偏好：它产的是口粮，喂不饱就没人生育、整局停摆，
-   * 配工顺序必须是「先吃饭、再干活」。 */
-  var IDS = ['planter', 'gather', 'craft', 'scholar'];
+  /* 职业表。采集者排首位不是排版偏好：它产的是口粮，喂不饱就没人生育、整局停摆，
+   * 配工顺序必须是「先吃饭、再干活」。
+   * 上一轮自创的「圃丁」已删（docs/DESIGN_v0.3.md §4：开局唯一职业就是采集者，
+   * 产藻食），食物线只剩采集者这一条，不存在两个职业抢同一件事。 */
+  var IDS = ['gather', 'craft', 'scholar'];
 
   function sum(s) {
-    return (s.jobs.planter || 0) + s.jobs.gather + s.jobs.craft + (s.jobs.scholar || 0);
+    return s.jobs.gather + s.jobs.craft + (s.jobs.scholar || 0);
   }
   function idle(s) { return s.pop - sum(s); }
 
@@ -51,23 +53,21 @@
     var pop = s.pop;
     if (pop <= 0) return;
 
-    /* 圃丁目标是「绝对人数」而不是比例：该雇几个由当下口粮缺口决定
+    /* 采集者（食物）的目标是「绝对人数」而不是比例：该雇几个由当下口粮缺口决定
      * （见 sim/balance.mjs 的配工段），这里只负责把它落实。
      * 传 0~1 之间的小数则仍按比例解释，保留原有写法。 */
-    var p = ratio && ratio.planter != null ? ratio.planter : 0;
-    if (p > 0 && p < 1) p = Math.round(pop * p);
-    p = Math.max(0, Math.min(Math.round(p), pop));
+    var g = ratio && ratio.gather != null ? ratio.gather : 0;
+    if (g > 0 && g < 1) g = Math.round(pop * g);
+    g = Math.max(0, Math.min(Math.round(g), pop));
     /* 至少留一人干活，否则整局没有资源进项；但 pop=1 时例外——
-     * 那时他要么是圃丁（攒够余粮生第二人）要么是采集者（永远生不出人），
-     * 开局只能选前者，所以 pop=1 全部当圃丁。 */
-    if (pop > 1 && p > pop - 1) p = pop - 1;
+     * 那时他要么当采集者（攒够余粮生第二人）要么闲置（永远生不出人），
+     * 开局只能选前者，所以 pop=1 全部当采集者。 */
+    if (pop > 1 && g > pop - 1) g = pop - 1;
 
-    var rest = pop - p;
-    var g = Math.max(1, Math.round(rest * (ratio.gather != null ? ratio.gather : 0.6)));
-    if (g > rest) g = rest;
-    var c = Math.min(rest - g, Math.round(rest * (ratio.craft != null ? ratio.craft : 0.25)));
-    var sc = Math.max(0, rest - g - c);
-    var target = { planter: p, gather: g, craft: c, scholar: sc };
+    var rest = pop - g;
+    var c = Math.min(rest, Math.round(rest * (ratio.craft != null ? ratio.craft : 0.25)));
+    var sc = Math.max(0, rest - c);
+    var target = { gather: g, craft: c, scholar: sc };
 
     var diff = pop - (s.jobs.gather + s.jobs.craft + s.jobs.scholar);
     while (diff > 0) {

@@ -82,14 +82,19 @@
    * 顺序本身就是设计，不能重排：
    *   3670  perTick = getEffect("catnipPerTickBase")          ← 建筑侧（菌圃）
    *   3685  perTick *= calendar.getWeatherMod(res)            ← 季节乘在这一步，只作用于建筑侧
-   *   3700  perTick += village.getResProduction()["catnip"]   ← 职业侧（圃丁）后加，
+   *   3700  perTick += village.getResProduction()["catnip"]   ← 职业侧（采集者）后加，
    *                                                            因此 **不被季节打折**
    *   3711  perTick *= 1 + getEffect("catnipRatio")           ← 喷口导流堤放大两条来源
-   * 把季节挪到「(建筑+职业)×季节」会让圃丁在寒流季集体饿死，与原作不符。 */
+   * 把季节挪到「(建筑+职业)×季节」会让采集者在寒流季集体饿死，与原作不符。 */
   function foodRate(s, cold) {
-    var byBuild = s.lvl.kelp * BLD.food * season(s.t).mult * (cold || 1);  // 建筑侧：吃季节
-    var byJob = s.jobs.planter * BLD.foodJob;                              // 职业侧：不吃季节
-    return (byBuild + byJob) * (1 + (s.lvl.weir || 0) * BLD.foodWeir);     // 增旋钮：两条一起放大
+    var byBuild = s.lvl.kelp * BLD.food * season(s.t).mult;   // 建筑侧：吃季节
+    var byJob = s.jobs.gather * UNIT.kelp;                    // 职业侧：不吃季节
+    /* 只放大食物，别把 gatherMul（礁石平台/深潜/洋流增益）乘进来——
+     * 那些倍率是「采集产出」的，礁石平台不该让菌圃增产。
+     * 之前错乘进来，食物产出虚高到 38/秒而消耗只有 2.6/秒，
+     * 藻食全都撞在仓储上限上白流，人口却仍卡在 22 人的住房上限。 */
+    return (byBuild + byJob) * (cold || 1)
+      * (1 + (s.lvl.weir || 0) * BLD.foodWeir);               // 增旋钮：两条来源一起放大
   }
   // 地热产出：热泉井 × 匠人 × 环境系数 × 点火术
   function fuelRate(s, cold) {
@@ -104,9 +109,13 @@
     var cold = isCold(s) ? 0.6 : 1;
     var j = s.jobs;
 
-    // 1) 采集
-    addRes(s, 'coral', j.gather * UNIT.coral * gatherMul(s) * cold);
-    addRes(s, 'silt', j.gather * UNIT.silt * gatherMul(s) * cold);
+    /* 1) 材料线两条入口。采集者产的是藻食（食物线，见 foodRate），不产材料：
+     * docs/DESIGN_v0.3.md §4 把珊瑚划给「珊瑚匠 coralwright / 解锁科技 礁凿」、
+     * 矿砂划给「采砂者」，本阶段科技树不在跑，改由两座建筑分别承担。
+     * 只留珊瑚一条会让矿砂无源 → furnace 转不出 iron → geyser/miracle 建不起来，
+     * 整局卡死在 25%（这条死法与「设计上的那道墙」长得一模一样，只靠时长分不出来）。 */
+    if (s.lvl.quarry > 0) addRes(s, 'coral', s.lvl.quarry * UNIT.coral * gatherMul(s) * cold);
+    if (s.lvl.siltpit > 0) addRes(s, 'silt', s.lvl.siltpit * UNIT.silt * gatherMul(s) * cold);
 
     // 2) 加工（匠人驱动，受环境系数）
     if (s.lvl.workshop > 0 && j.craft > 0) {
