@@ -123,6 +123,7 @@
       s.famine++;
       if (s.famine >= 60 && s.pop > 1) {
         s.pop--; s.famine = 0; s.famineDeaths++;
+        SB.folk.reconcile(s);   // 减员后超额职业位退回闲置池
         if (emit) emit('菌毯耗尽，有人饿死了。');
       }
     } else s.famine = 0;
@@ -140,6 +141,7 @@
       var risk = CFG.FREEZE_CHANCE * (1 - warmCap(s) * 2) * dt;
       if (s.pop > 1 && risk > 0 && Math.random() < risk) {
         s.pop--; s.frostDeaths++;
+        SB.folk.reconcile(s);   // 减员后超额职业位退回闲置池
         if (emit) emit('冰封期冻死了一名族民。');
       }
     }

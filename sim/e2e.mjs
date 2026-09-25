@@ -137,6 +137,34 @@ console.log('\n=== 开局解锁链 ===');
   const open = SB.BUILDINGS.filter(b => SB.habitat.unlocked(s, b)).map(b => b.id);
   check('新开局只有深海菌圃可建', open.length === 1 && open[0] === 'kelp', open.join(',') || '（无）');
 
+  /* ---- 开局对齐（照猫国 js/village.js: kittens 全 0 / jobs 全 0 / 资源全 0）---- */
+  check('开局 1 名族民', s.pop === 1 && s.peak === 1, 'pop=' + s.pop);
+  check('开局职业全 0（没人被预分配）',
+    s.jobs.gather === 0 && s.jobs.craft === 0 && s.jobs.scholar === 0,
+    'gather=' + s.jobs.gather + ' craft=' + s.jobs.craft + ' scholar=' + s.jobs.scholar);
+  check('开局资源全 0',
+    Object.keys(s.res).every(k => s.res[k] === 0),
+    JSON.stringify(s.res));
+  check('开局闲置 1 人', SB.folk.idle(s) === 1, 'idle=' + SB.folk.idle(s));
+
+  // 手动采集：点一下 +1 珊瑚（猫国 Gather catnip 的对应物）
+  fire({ dataset: { gather: '1' } });
+  check('手动采集 +1 珊瑚', s.res.coral === 1, 'coral=' + s.res.coral);
+
+  // 闲置池分配：＋ 从闲置雇，− 退回闲置，总和 ≤ pop
+  check('＋ 从闲置池雇佣', clickJob('gather', 1) && s.jobs.gather === 1 && SB.folk.idle(s) === 0,
+    'gather=' + s.jobs.gather + ' idle=' + SB.folk.idle(s));
+  check('没有闲置时 ＋ 无效', !clickJob('craft', 1), 'craft=' + s.jobs.craft);
+  check('− 退回闲置（不补给别的职业）',
+    clickJob('gather', -1) && s.jobs.gather === 0 && SB.folk.idle(s) === 1,
+    'gather=' + s.jobs.gather + ' idle=' + SB.folk.idle(s));
+
+  // ironWill（猫国：无猫不饿死）：pop 1 时菌毯耗尽也不减员
+  s.res.kelp = 0; s.famine = 0;
+  frames(700);   // 70 秒逻辑时间 > famine 60 秒阈值
+  check('pop 1 饿死保护（ironWill）', s.pop === 1 && s.famine > 0, 'pop=' + s.pop + ' famine=' + s.famine);
+  s.famine = 0;
+
   // 渲染层必须跟解锁判定一致：未露头的建筑整行不出现（照猫国）
   const pane0 = g('pane-village');
   check('开局建筑面板只渲染深海菌圃一行',

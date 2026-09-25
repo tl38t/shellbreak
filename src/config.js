@@ -63,7 +63,9 @@
     CAP_PER_LVL: 400,              // 每 1 建筑级提供的仓储容量（菌毯除外）
 
     // ---- 族民 ----
-    POP_START: 3,
+    // 对齐猫国开局（js/village.js:3 kittens:0 / jobs 全 0，叙事上是 1 只猫）：
+    // 本作开局 1 名族民、职业全 0，唯一起步手段是手动采集（见 paneVillage 的采集按钮）。
+    POP_START: 1,
     FOOD_PER: 0.06,               // 每人每秒吃的菌毯
     GROW_NEED: 100,                // 连续盈余多少秒生一个（S3：从 10 放慢到 45）
     GROW_KEEP: 20,                // 菌毯余量高于此才开始生育
@@ -144,7 +146,7 @@
    *
    * 没有等级上限（同猫国）：升到买不动为止，成本是唯一刹车。 */
   var BUILDINGS = [
-    { id: 'kelp',     name: '深海菌圃', ratio: 1.12, cost: {coral: 100},   desc: '菌毯 +0.55/秒 × 季节系数',
+    { id: 'kelp',     name: '深海菌圃', ratio: 1.12, cost: {coral: 15},    desc: '菌毯 +0.55/秒 × 季节系数',
       defaultUnlockable: true, unlockRatio: 0.3 },
     /* ---- 食物三旋钮（猫国 pasture / aqueduct / barn 的对应物）----
      * 顺序照猫国的调用顺序排：产（kelp）→ 增（weir）→ 省（warmnest）→ 储（ballast）。

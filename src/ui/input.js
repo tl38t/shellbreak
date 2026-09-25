@@ -38,6 +38,12 @@
       }
       return;
     }
+    if (d.gather) {
+      // 猫国 Gather catnip 的对应物：点一下 +1 珊瑚（走 addRes，受仓储上限约束）
+      SB.economy.addRes(s, 'coral', 1);
+      SB.game.markDirty(); SB.game.renderAll();
+      return;
+    }
     if (d.job) {
       if (SB.folk.assign(s, d.job, +d.d)) {
         SB.game.markDirty(); SB.game.renderAll();

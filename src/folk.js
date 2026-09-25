@@ -1,6 +1,7 @@
 /* 天壳 / SHELLBREAK — 族民职业分配
- * 三条职业互为转移目标，总量恒等于 pop。
- * 已修的坑：减员时必须补给「当前最少」的职业，否则玩家会看到「点了减号人却跑去别处」。
+ * 照猫国建设者的单向雇佣模型：族民默认「闲置」，＋ 从闲置池雇佣，− 退回闲置池。
+ * 职业总和 ≤ pop，永远不互相抢人——旧版「− 一个立刻补给别的职业」的转移制
+ * 让玩家永远调不出自己想要的状态（比如「全部闲置」），已废弃。
  */
 (function (root) {
   'use strict';
@@ -9,28 +10,39 @@
   var IDS = ['gather', 'craft', 'scholar'];
 
   function sum(s) { return s.jobs.gather + s.jobs.craft + s.jobs.scholar; }
+  function idle(s) { return s.pop - sum(s); }
 
+  /* 单步分配：＋ 需要闲置池有人；− 把该职业退回闲置池。
+   * 返回 false 表示动作无效（没闲置可雇 / 该职业没人），UI 层据此不重渲染。 */
   function assign(s, job, delta) {
     if (delta > 0) {
-      var from = IDS.filter(function (o) { return o !== job && s.jobs[o] > 0; });
-      if (!from.length) return false;
-      // 从人数最多的那一类抽调
-      from.sort(function (a, b) { return s.jobs[b] - s.jobs[a]; });
-      s.jobs[from[0]]--; s.jobs[job]++;
+      if (idle(s) <= 0) return false;
+      s.jobs[job]++;
       return true;
     }
     if (s.jobs[job] <= 0) return false;
     s.jobs[job]--;
-    var to = IDS.filter(function (o) { return o !== job; });
-    to.sort(function (a, b) { return s.jobs[a] - s.jobs[b]; });   // 补给最少的
-    s.jobs[to[0]]++;
     return true;
   }
 
-  /* 自动配工：按目标比例一次性调到位。
+  /* 人口减员后把超额职业位退回闲置池（死亡不吃掉在岗编制）。
+   * 饿死/冻死在 economy.tick 里 pop-- 后调用，保证恒等式 jobs 总和 ≤ pop。 */
+  function reconcile(s) {
+    var over = sum(s) - s.pop;
+    while (over > 0) {
+      var top = null;
+      for (var i = 0; i < IDS.length; i++) {
+        if (s.jobs[IDS[i]] > 0 && (!top || s.jobs[IDS[i]] > s.jobs[top])) top = IDS[i];
+      }
+      if (!top) break;
+      s.jobs[top]--; over--;
+    }
+  }
+
+  /* 自动配工（sim 机器人用）：按目标比例一次性把闲置分掉。
    * 关键：人口在两次决策之间会变化（出生/死亡），jobs 总和常常 ≠ pop。
    * 必须先消化这个差额（把新人补给缺口最大的职类），否则所有职类都低于目标、
-   * 找不到供体，整个分配空转——表现就是「面板上还有 8 个人没活干，但按钮点了没反应」。 */
+   * 找不到供体，整个分配空转。 */
   function autoAssign(s, ratio) {
     var pop = s.pop;
     if (pop <= 0) return;
@@ -81,5 +93,5 @@
     }
   }
 
-  SB.folk = { assign: assign, autoAssign: autoAssign, sum: sum, IDS: IDS };
+  SB.folk = { assign: assign, autoAssign: autoAssign, reconcile: reconcile, sum: sum, idle: idle, IDS: IDS };
 })(typeof window !== 'undefined' ? window : globalThis);

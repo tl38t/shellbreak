@@ -24,9 +24,11 @@
     var iceShell = Math.round(CFG.ICE_SHELL * Math.pow(0.9, thin));
     return {
       t: 0,
-      res: { kelp: 60, coral: 0, silt: 0, bone: 0, iron: 0, science: 0, fuel: 0 },
+      // 对齐猫国开局：资源全空（猫国 resources.js 全部 value:0），收入靠手动采集起步
+      res: { kelp: 0, coral: 0, silt: 0, bone: 0, iron: 0, science: 0, fuel: 0 },
       lvl: { kelp: 0, weir: 0, warmnest: 0, ballast: 0, nest: 0, reef: 0, siltpit: 0, workshop: 0, furnace: 0, library: 0, hearth: 0, geyser: 0, miracle: 0 },
-      jobs: { gather: 3, craft: 0, scholar: 0 },
+      // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
+      jobs: { gather: 0, craft: 0, scholar: 0 },
       pop: CFG.POP_START,
       peak: CFG.POP_START,
       deaths: 0,

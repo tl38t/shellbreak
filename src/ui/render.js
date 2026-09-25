@@ -55,6 +55,11 @@
 
   function paneVillage() {
     var s = res(); let h = '';
+    /* 猫国开局唯一产能是手动点 "Gather catnip"（点一下 +1 猫薄荷）。
+     * 本作对应物：点一下 +1 珊瑚——开局 1 人全闲置、零自动收入时的起手式。 */
+    h += '<div class="row"><div><div class="nm">手动采集</div>' +
+      '<div class="ds">点一下拾取 1 珊瑚。开局没有自动收入，攒够珊瑚建起第一座菌圃，再雇族民接手。</div></div>' +
+      '<button class="btn buy" data-gather="1">采集 +1</button></div>';
     for (var i = 0; i < SB.BUILDINGS.length; i++) {
       var b = SB.BUILDINGS[i];
       /* 照猫国建设者：没露头的建筑整行不渲染——开局列表里只有深海菌圃一张脸，
@@ -90,15 +95,20 @@
       (gap > 0 ? '还差 ' + gap + ' 人有洋流点' : '已过门槛 ' + T.POP_GATE) + '</span></div>' +
       '<div class="ds">破冰时超过 ' + T.POP_GATE + ' 的部分才折算洋流点，每 1 人 ' + T.POP_SLOPE +
       ' 分（' + T.POP_ESC.at + ' 人以上 ' + T.POP_ESC.k + ' 分）。住房没有硬上限，堆珊瑚巢就是养人口。</div></div></div>';
+    /* 照猫国：族民默认闲置，＋ 雇 / − 退。没有闲置时 ＋ 禁用，
+     * 职业总和永远 ≤ pop——不搞「减 A 立刻补给 B」的转移制。 */
+    var idle = SB.folk.idle(s);
+    h += '<div class="row"><div><div class="nm">闲置 <b>' + idle + '</b></div>' +
+      '<div class="ds">没活干的族民。点职业行的 ＋ 雇佣，− 退回闲置。</div></div></div>';
     for (var i = 0; i < SB.JOBS.length; i++) {
       var j = SB.JOBS[i];
       h += '<div class="row"><div><div class="nm">' + j.name + ' <b id="j-' + j.id + '">' + s.jobs[j.id] + '</b></div>' +
         '<div class="ds">' + j.desc + '</div></div>' +
         '<div style="display:flex;gap:4px">' +
         '<button class="btn" data-job="' + j.id + '" data-d="-1"' + (s.jobs[j.id] <= 0 ? ' disabled' : '') + '>−</button>' +
-        '<button class="btn" data-job="' + j.id + '" data-d="1">＋</button></div></div>';
+        '<button class="btn" data-job="' + j.id + '" data-d="1"' + (idle <= 0 ? ' disabled' : '') + '>＋</button></div></div>';
     }
-    h += '<div class="note">手动调配职业比例是这局的主要操作——尤其是冰封期该堆几个匠人。</div>';
+    h += '<div class="note">开局 1 名族民全闲置：先点「采集」攒珊瑚建菌圃，再生人、雇职业。</div>';
     return h;
   }
 
