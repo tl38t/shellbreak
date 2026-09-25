@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="0zlehYCbuD5f1DImLSdD1w">
+<head data-page-node-id="SHpRYBRRIDcP8Bx75nsUrT">
+<meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
+<title>天壳 · SHELLBREAK</title>
+<link rel="stylesheet" href="css/main.css?v=3" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+</head>
+<body data-page-node-id="6EizOSKr1rrrICybgB8xui">
+<div class="wrap" data-page-node-id="R3GyesNvCCnIGdybfi94vw">
+  <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">天壳 <small data-page-node-id="hp4Kyh6NeGNVYnRp4XyHzx">SHELLBREAK · 原始时代 → 破冰重置</small></h1>
+  <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">文明越大，壳越薄。在冰壳把你冻死之前凿穿它。</div>
+
+  <div class="card" data-page-node-id="sT3O7PuNiGltaiSUpAeb44">
+    <div class="grid" id="res" data-page-node-id="7G9KZbNOPP20HFvS1BGVPa"></div>
+    <div class="note" id="seasonLine" data-page-node-id="5eTQ7IfQqAjHKHmSL35dpJ"></div>
+  </div>
+
+  <div class="card" data-page-node-id="Qt6uTfn92BgbfljGBJcAXF">
+    <div class="shellbar" data-page-node-id="eynVQQUb0BxQL8DGBH7d94">
+      <span data-page-node-id="bc4bEQ2I69f1zi5HW9nok7">天壳 · 冰封层厚度</span>
+      <span id="shellTxt" data-page-node-id="IVUYeiy2RdxuRqCHPwPrny"></span>
+    </div>
+    <div class="shellwrap" data-page-node-id="WyCg3jiyRbnXHXsZ0AMT8P"><div class="shellfill" id="shellFill" style="width:100%" data-page-node-id="M0LEEsFsp1Glfe5fCUzIMn"></div></div>
+    <div class="note" id="shellHint" data-page-node-id="LSdy9fhV1CRs5Ah36ogATZ"></div>
+  </div>
+
+  <div class="tabs" data-page-node-id="Iwq243yLf7atqw3YKGoPWL">
+    <div class="tab on" data-tab="village" data-page-node-id="BSR2cRGflazOwzxnhvPnJ3">巢穴</div>
+    <div class="tab" data-tab="folk" data-page-node-id="S1PgmZRsoxXJOq6GZkGuGV">族民</div>
+    <div class="tab" data-tab="tech" data-page-node-id="rILZuBt5zAaFz2Kz16ijXA">学问</div>
+    <div class="tab" data-tab="dig" data-page-node-id="nceC5is2qjcujupm14G1J0">剥壳工程</div>
+    <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl">洋流商店</div>
+  </div>
+
+  <div class="card" id="pane-village" data-page-node-id="Fuoti5loQT1P876HC45wlI"></div>
+  <div class="card hidden" id="pane-folk" data-page-node-id="yEByXFxaxi1sTAKvW94q1J"></div>
+  <div class="card hidden" id="pane-tech" data-page-node-id="DpzQCGONsy3uHYX4tBbics"></div>
+  <div class="card hidden" id="pane-dig" data-page-node-id="En1N5HOL57AR32HOBpWmW4"></div>
+  <div class="card hidden" id="pane-meta" data-page-node-id="OsoF8zzJJXG46B5FmuHcwv"></div>
+
+  <div class="card" data-page-node-id="v486295fD7Ww5xIRjRWFIF">
+    <div class="foot" data-page-node-id="Mup8CMe6kDpRa78GiFXAQ6">
+      <span style="color:var(--dim);font-size:12px" data-page-node-id="ZVzwoY0IIRU3gKJFOmvhJ9">速度</span>
+      <button class="spd on" data-spd="1" data-page-node-id="4O1Jq8opVCNyUAXQGbsBGk">1×</button>
+      <button class="spd" data-spd="5" data-page-node-id="S4In78ez5Sl1ufg83psJZW">5×</button>
+      <button class="spd" data-spd="10" data-page-node-id="k10new0a1B2c">10×</button>
+      <button class="spd" data-spd="20" data-page-node-id="OhTKrV2yqDNOiBqpzO44Cz">20×</button>
+      <button class="btn" id="btnReset" data-page-node-id="RstBtn01Reset">重开本周目</button>
+      <button class="btn danger" id="btnWipe" data-page-node-id="WipeBtn01Danger">清空存档</button>
+      <span id="clock" style="margin-left:auto;color:var(--dim);font-size:12px" data-page-node-id="1A5pLAjiAdlCtbmGV6OJtE"></span>
+    </div>
+    <div class="foot" data-page-node-id="ZNV0CXzr3oW6dMIZCrEVYF">
+      <button class="big" id="btnBreak" disabled data-page-node-id="sc3WiBhKuDYmDEddAM85xY">凿穿冰壳</button>
+      <span id="breakHint" style="font-size:12px;color:var(--dim)" data-page-node-id="d8HcLfglHR68VzJOqVA6LG"></span>
+    </div>
+    <div class="log" id="log" data-page-node-id="IX7irOvtve8VlhblV4gx2P"></div>
+  </div>
+</div>
+
+<div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
+
+<!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
+<script src="src/config.js?v=3"></script>
+<script src="src/state.js?v=3"></script>
+<script src="src/economy.js?v=3"></script>
+<script src="src/shell.js?v=3"></script>
+<script src="src/habitat.js?v=3"></script>
+<script src="src/folk.js?v=3"></script>
+<script src="src/prestige.js?v=3"></script>
+<script src="src/ui/render.js?v=3"></script>
+<script src="src/game.js?v=3"></script>
+<script src="src/ui/input.js?v=3"></script>
+<script src="src/main.js?v=3"></script>
+</body>
+</html>
