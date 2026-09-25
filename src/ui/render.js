@@ -57,19 +57,22 @@
     var s = res(); let h = '';
     for (var i = 0; i < SB.BUILDINGS.length; i++) {
       var b = SB.BUILDINGS[i];
+      /* 照猫国建设者：没露头的建筑整行不渲染——开局列表里只有深海菌圃一张脸，
+       * 其余随 unlockRatio(0.3) / unlockScheme / requiredTech 逐个出现。
+       * 建过一级的永久可见，避免资源花掉跌破阈值时整行闪烁消失。 */
+      var lv = s.lvl[b.id] || 0;
+      if (lv <= 0 && !SB.habitat.unlocked(s, b)) continue;
       var c = SB.economy.costOf(s, b.id);
       var ok = SB.economy.canAfford(s, c);
-      var locked = !SB.habitat.unlocked(s, b);
       var blocked = !SB.habitat.needMet(s, b);
-      var why = locked ? SB.habitat.lockReason(s, b) : null;
       var label = blocked ? '需 ' + (SB.habitat.buildingById(b.need) || {}).name
-        : (why ? '未解锁 ' + why : (ok ? '建造' : ' ' + SB.economy.costTxt(c)));
+        : (ok ? '建造' : ' ' + SB.economy.costTxt(c));
       // 没有等级上限，所以只显示当前级数，不显示 x/上限
       h += '<div class="row"><div><div class="nm">' + b.name +
-        ' <span class="tag" data-lv="' + b.id + '">' + s.lvl[b.id] + '</span></div>' +
+        ' <span class="tag" data-lv="' + b.id + '">' + lv + '</span></div>' +
         '<div class="ds">' + b.desc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
-        (why ? '（解锁需要 ' + why + '）' : '') + '</div></div>' +
-        '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !locked ? '' : ' disabled') + '>' + label + '</button></div>';
+        '</div></div>' +
+        '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked ? '' : ' disabled') + '>' + label + '</button></div>';
     }
     return h;
   }

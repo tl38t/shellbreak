@@ -65,8 +65,40 @@
   function loadRun() {
     try {
       var raw = root.localStorage && root.localStorage.getItem(CFG.RUN_KEY);
-      return raw ? JSON.parse(raw) : null;
+      return raw ? migrateRun(JSON.parse(raw)) : null;
     } catch (e) { return null; }
+  }
+  /* 存档迁移：旧档缺新键（如 P1 新增的 weir/warmnest/ballast）时，
+   * undefined 会顺着 lvlSum / costOf 污染成 NaN——破壳系数、壳厚、建筑成本全灭，
+   * 玩家看到的是「NaN / 200000」和一排 NaN 价格。以 freshRun 为底逐键合并，
+   * 非有限数（含 JSON 里的 null）一律回默认值，未知顶层字段丢弃。
+   * 旧档永远能安全载入，新加字段不再需要玩家清档。 */
+  function migrateRun(raw) {
+    var base = freshRun(false);
+    if (!raw || typeof raw !== 'object') return base;
+    var out = {}, k;
+    for (k in base) out[k] = base[k];
+    for (k in raw) if (k in base) out[k] = raw[k];
+    function fixTable(obj, ref) {
+      var o = {}, key;
+      for (key in ref) {
+        var v = obj ? obj[key] : undefined;
+        o[key] = (typeof v === 'number' && isFinite(v)) ? v : ref[key];
+      }
+      return o;
+    }
+    out.res = fixTable(raw.res, base.res);
+    out.lvl = fixTable(raw.lvl, base.lvl);
+    out.jobs = fixTable(raw.jobs, base.jobs);
+    out.perk = Object.assign(emptyPerks(), (raw.perk && typeof raw.perk === 'object') ? raw.perk : {});
+    out.techs = (raw.techs && typeof raw.techs === 'object') ? raw.techs : {};
+    var nums = ['t', 'shell', 'iceShell', 'baseShell', 'pop', 'peak', 'coldTicks',
+      'deaths', 'frostDeaths', 'famineDeaths', 'famine'];
+    for (var i = 0; i < nums.length; i++) {
+      var v2 = out[nums[i]];
+      if (typeof v2 !== 'number' || !isFinite(v2)) out[nums[i]] = base[nums[i]];
+    }
+    return out;
   }
   function saveRun(run) {
     try { root.localStorage && root.localStorage.setItem(CFG.RUN_KEY, JSON.stringify(run)); } catch (e) {}
@@ -79,6 +111,7 @@
     emptyMeta: emptyMeta,
     emptyPerks: emptyPerks,
     freshRun: freshRun,
+    migrateRun: migrateRun,
     loadMeta: loadMeta,
     saveMeta: saveMeta,
     loadRun: loadRun,

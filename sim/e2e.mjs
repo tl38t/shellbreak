@@ -137,6 +137,13 @@ console.log('\n=== 开局解锁链 ===');
   const open = SB.BUILDINGS.filter(b => SB.habitat.unlocked(s, b)).map(b => b.id);
   check('新开局只有深海菌圃可建', open.length === 1 && open[0] === 'kelp', open.join(',') || '（无）');
 
+  // 渲染层必须跟解锁判定一致：未露头的建筑整行不出现（照猫国）
+  const pane0 = g('pane-village');
+  check('开局建筑面板只渲染深海菌圃一行',
+    pane0.indexOf('深海菌圃') !== -1 && pane0.indexOf('骨材工坊') === -1 &&
+    pane0.indexOf('压舱仓') === -1 && pane0.indexOf('破冰祭坛') === -1,
+    '面板含菌圃=' + (pane0.indexOf('深海菌圃') !== -1));
+
   // 藻田之外不能硬建：解锁判定必须拦得住
   const blocked = SB.habitat.build(s, 'workshop') || SB.habitat.build(s, 'nest');
   check('未解锁的建筑建不起来', !blocked, 'workshop/nest 均被拦下');
@@ -144,6 +151,8 @@ console.log('\n=== 开局解锁链 ===');
   // 攒够珊瑚后工坊该自己露头
   s.res.coral = 400;
   check('库存达首级价 30% 时工坊解锁', SB.habitat.unlocked(s, SB.habitat.buildingById('workshop')), 'coral 400 ≥ 120');
+  SB.game.markDirty(); SB.game.render();
+  check('露头后建筑面板同步出现工坊行', g('pane-village').indexOf('骨材工坊') !== -1);
 
   // 骨材链条：骨材达阈值才解锁珊瑚巢
   s.res.coral = 0; s.res.bone = 0;
@@ -321,6 +330,34 @@ try {
 }
 check('刷新后可从存档恢复', !!(SB2 && SB2.game && SB2.game.run() && SB2.game.run().lvl),
   SB2 && SB2.game.run() ? '恢复建筑级 ' + SB2.game.run().lvl.kelp : '');
+
+/* ---------------- 存档迁移 ---------------- */
+/* 用户真实事故：P1 加了 weir/warmnest/ballast 三个新 lvl 键后，旧档载入全是
+ * undefined/NaN（成本 NaN、破壳系数 NaN、壳厚 NaN/200000）。迁移层必须兜住。 */
+console.log('\n=== 存档迁移 ===');
+{
+  // 模拟 P1 之前的旧档：lvl 缺三个新键，且带一个被 JSON 固化成 null 的坏值
+  const oldSave = {
+    t: 7200, res: { kelp: 199, coral: 300, silt: 0, bone: 0, iron: 0, science: 5, fuel: 0 },
+    lvl: { kelp: 35, nest: 2, workshop: 1, weir: null },
+    jobs: { gather: 3, craft: 1, scholar: 0 }, pop: 9, peak: 9,
+    shell: 150000, iceShell: 200000, baseShell: 200000,
+    perk: { gather: 1 }, techs: { calendar: true }, broken: false
+  };
+  const m = SB.state.migrateRun(oldSave);
+  check('旧档缺失的新建筑键补零', m.lvl.weir === 0 && m.lvl.warmnest === 0 && m.lvl.ballast === 0,
+    'weir=' + m.lvl.weir + ' warmnest=' + m.lvl.warmnest + ' ballast=' + m.lvl.ballast);
+  check('旧档 null 值被消毒为 0', m.lvl.weir === 0 && m.lvl.nest === 2);
+  check('旧档已有进度原样保留',
+    m.lvl.kelp === 35 && m.res.coral === 300 && m.pop === 9 && m.t === 7200 && m.peak === 9);
+  check('迁移后 lvlSum 无 NaN 污染', SB.economy.lvlSum(m) === 38, 'lvlSum=' + SB.economy.lvlSum(m));
+  check('旧档科技与增益保留', m.techs.calendar === true && m.perk.gather === 1);
+  const bare = SB.state.migrateRun({ t: '垃圾数据' });
+  check('残缺存档迁移后仍是完整可跑结构',
+    !!bare.lvl && !!bare.res && !!bare.jobs && typeof bare.shell === 'number' && isFinite(bare.shell));
+  check('迁移后成本计算恢复有穷值',
+    isFinite(SB.economy.costOf(m, 'weir').silt), 'weir 成本 ' + SB.economy.costOf(m, 'weir').silt);
+}
 
 /* ---------------- 重置 / 清档 ---------------- */
 console.log('\n=== 重置与清档 ===');
