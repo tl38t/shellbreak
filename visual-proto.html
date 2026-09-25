@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="ccU4HR2E4AIjT2m8w9pI27">
+<head data-page-node-id="UCrRW6i6tptrA49vg7bMwc">
+<meta charset="utf-8" data-page-node-id="ciudBGxBxqCO8EZ3KEHZEw">
+<meta name="viewport" content="width=device-width,initial-scale=1" data-page-node-id="JUtuC05f2fWqiLvWZ1mUU6">
+<title>TIDEBREAK · 视觉原型 v0.1（纪元母题层）</title>
+<style>
+:root{
+  --bg-abyss:#0B1E2D; --bg-deep:#123047; --surface:#E8F1F5; --line:#7FA8C0;
+  --accent:#6FE3D2; --glow:#35F0C0; --ink:#123047; --ink-dim:#5C7891;
+  --text:#DCE9F0; --text-dim:#7FA8C0;
+  --mat:#5DCAA5; --shell:#85B7EB; --research:#7F77DD; --oxidant:#4FC3F7;
+  --sulfide:#D85A30; --reductant:#BA7517; --tidal:#F2C14E;
+  --top:8; --bot:3;
+}
+body.era-2{--accent:#7FE9C8;--glow:#35F0C0}
+body.era-3{--accent:#FF7A45;--glow:#FF9E6B}
+body.era-4{--accent:#4FC3F7;--glow:#BFE9FF}
+body.era-5{--accent:#F2C14E;--glow:#FFE0A3}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg-abyss); color:var(--text);
+  font:14px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+body.nofx *{animation:none!important;transition:none!important}
+
+/* ── 背景母题层：五个纪元各一套，只换变量与显隐 ── */
+#bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  background:radial-gradient(120% 80% at 50% 120%,var(--bg-deep) 0%,var(--bg-abyss) 60%)}
+.mote{position:absolute;border-radius:50%;background:var(--glow);opacity:0;
+  animation:drift 14s linear infinite}
+@keyframes drift{
+  0%{transform:translateY(0) scale(.8);opacity:0}
+  20%{opacity:.5} 80%{opacity:.35}
+  100%{transform:translateY(-38vh) scale(1.5);opacity:0}
+}
+.halo{position:absolute;left:50%;top:58%;width:70vw;height:70vw;transform:translate(-50%,-50%);
+  border-radius:50%;opacity:.16;background:var(--glow);
+  animation:breathe 7s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.10}50%{opacity:.26}}
+.vent{position:absolute;left:0;right:0;bottom:0;height:22vh;
+  background:linear-gradient(0deg,#FF7A45 0%,transparent 100%);opacity:0;transition:opacity 1.2s}
+.current{position:absolute;left:0;right:0;height:2px;opacity:0;
+  background:linear-gradient(90deg,transparent,var(--glow),transparent);
+  animation:flow 9s linear infinite}
+@keyframes flow{0%{transform:translateX(-30%)}100%{transform:translateX(30%)}}
+.jupiter{position:absolute;left:50%;top:-14vh;width:46vh;height:46vh;margin-left:-23vh;
+  border-radius:50%;opacity:0;transition:opacity 1.4s;
+  background:#F2C14E radial-gradient(circle at 38% 34%,#FFF0C4 0%,#E8A33C 42%,#8B5A22 100%)}
+.crack{position:absolute;left:50%;top:50%;width:2px;height:2px;opacity:0;transition:opacity 1.4s}
+.crack::before,.crack::after{content:"";position:absolute;background:#F2C14E;transform-origin:0 0}
+.crack::before{width:1px;height:150vh;transform:rotate(24deg)}
+.crack::after{width:1px;height:160vh;transform:rotate(-38deg)}
+
+/* ── 活图层：底图不动，动的都是独立元素 ── */
+.fauna{position:absolute;left:0;right:0;top:0;bottom:0;opacity:0;transition:opacity 1.6s}
+.fauna i{position:absolute;bottom:var(--fy,20vh);left:-24vw;width:22vw;height:6vh;
+  opacity:var(--fo,.16);background:var(--glow);
+  border-radius:52% 48% 46% 54%/58% 54% 46% 42%;
+  animation:swim var(--dur,52s) ease-in-out var(--dly,0s) infinite}
+.fauna i:nth-child(2){--fy:31vh;--dur:68s;--dly:-18s;--fo:.11;width:16vw}
+.fauna i:nth-child(3){--fy:14vh;--dur:44s;--dly:-31s;--fo:.08;width:27vw}
+@keyframes swim{
+  0%{transform:translateX(0) scaleY(1)}
+  50%{transform:translateX(122vw) scaleY(.86)}
+  100%{transform:translateX(244vw) scaleY(1)}
+}
+.lamp{position:absolute;left:0;right:0;bottom:8vh;height:30vh;opacity:1;
+  transition:opacity 2.2s ease}
+.lamp i{position:absolute;left:var(--x);bottom:var(--y);width:22px;height:22px;
+  margin:-9px 0 0 -9px;border-radius:50%;
+  background:radial-gradient(circle,rgba(242,193,78,.95) 0%,rgba(242,193,78,.4) 26%,rgba(242,193,78,0) 68%);
+  animation:flicker var(--fd,6s) ease-in-out var(--dly,0s) infinite}
+@keyframes flicker{0%,100%{opacity:var(--o,.85)}50%{opacity:calc(var(--o,.85)*.35)}}
+.lamp.tide-low i:nth-child(n+5){opacity:.06;animation:none}
+body.era-1 .fauna{opacity:.5} body.era-2 .fauna{opacity:.7}
+body.era-3 .fauna{opacity:.3} body.era-4 .fauna{opacity:.45}
+.lamp{opacity:0} body.era-1 .lamp,body.era-2 .lamp{opacity:.55}
+body.era-3 .lamp,body.era-4 .lamp,body.era-5 .lamp{opacity:1}
+
+body.era-1 .motes .mote:nth-child(-n+6){display:block}
+body.era-1 .halo,body.era-1 .vent,body.era-1 .current,body.era-1 .jupiter,body.era-1 .crack{opacity:0}
+body.era-2 .motes .mote:nth-child(-n+9){display:block}
+body.era-3 .vent{opacity:.22}
+body.era-3 .motes .mote:nth-child(-n+12){display:block}
+body.era-4 .current:nth-of-type(1){opacity:.5}
+body.era-4 .current:nth-of-type(2){opacity:.35;animation-duration:13s}
+body.era-5 .jupiter{opacity:.5}
+body.era-5 .crack{opacity:.55}
+
+/* ── 骨架 ── */
+.app{position:relative;z-index:1;max-width:1360px;margin:0 auto;padding:0 16px 96px}
+.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:14px 0 10px;border-bottom:1px solid rgba(127,168,192,.25);margin-bottom:16px}
+.brand{font-weight:600;letter-spacing:.12em;font-size:15px}
+.era-name{font-size:13px;color:var(--text-dim)}
+.spacer{flex:1}
+.era-pick{display:flex;gap:6px}
+.era-pick button{background:transparent;border:1px solid rgba(127,168,192,.35);color:var(--text-dim);
+  border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;transition:.2s}
+.era-pick button:hover{border-color:var(--accent);color:var(--accent)}
+.era-pick button.on{background:rgba(111,227,210,.14);border-color:var(--accent);color:var(--accent)}
+.ghost{border:1px solid rgba(127,168,192,.35);background:transparent;color:var(--text-dim);
+  border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+
+.grid{display:grid;grid-template-columns:280px 1fr 340px;gap:16px;align-items:start}
+.panel{background:var(--surface);color:var(--ink);border-radius:10px;padding:14px;
+  box-shadow:0 1px 0 rgba(0,0,0,.25)}
+.ph{font-size:12px;color:var(--ink-dim);letter-spacing:.08em;margin:0 0 10px}
+
+/* 上/下极光带：把 min(上,下) 画出来 */
+.poles{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.pole{display:flex;align-items:center;gap:8px}
+.pole span{font-size:11px;color:var(--ink-dim);width:56px;flex:none}
+.bar{flex:1;height:8px;border-radius:4px;background:rgba(18,48,71,.12);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:4px;background:var(--oxidant);
+  width:calc(var(--pct) * 1%);transition:width .8s ease}
+.pole.bottom .bar i{background:var(--reductant)}
+.readout{font-size:11px;margin-top:6px}
+.readout b{font-size:15px;color:var(--sulfide)}
+
+.res{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid rgba(18,48,71,.08)}
+.res:first-of-type{border-top:0}
+.chip{width:20px;height:20px;border-radius:4px;flex:none}
+.res .k{flex:1;font-size:13px}
+.res .v{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600}
+
+.gather{width:100%;padding:16px;border-radius:10px;cursor:pointer;
+  background:var(--ink);color:var(--surface);border:0;font-size:15px;font-weight:600;
+  letter-spacing:.06em;margin-bottom:12px}
+.gather:active{transform:scale(.985)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.item{display:flex;align-items:center;gap:9px;padding:10px;border-radius:8px;
+  background:rgba(18,48,71,.05);border:1px solid rgba(18,48,71,.08)}
+.item .chip{width:24px;height:24px}
+.item .n{font-size:12px;color:var(--ink)}
+.item .c{font-size:11px;color:var(--ink-dim)}
+.tech{padding:9px 11px;border-radius:8px;margin-bottom:8px;cursor:pointer;
+  background:rgba(18,48,71,.05);border:1px solid rgba(18,48,71,.08)}
+.tech.done{background:rgba(93,202,165,.16);border-color:transparent}
+.tech.locked{border-style:dashed;opacity:.5}
+.tech em{font-style:normal;font-size:11px;color:var(--ink-dim);display:block;margin-top:2px}
+.tech:hover{border-color:var(--accent)}
+
+.tabbar{display:none}
+
+/* ── 平板：两栏 ── */
+@media (max-width:1023px){
+  .grid{grid-template-columns:1fr 320px}
+  .col-res{order:-1;grid-column:1/-1}
+  .res-row{flex-wrap:wrap;gap:6px;display:flex}
+}
+/* ── 手机：单列 + 底部 tab ── */
+@media (max-width:640px){
+  .grid{grid-template-columns:1fr}
+  .col-res,.col-tech{grid-column:auto}
+  .tabbar{display:flex;position:sticky;bottom:0;z-index:5;margin:14px -16px 0;
+    background:var(--bg-deep);border-top:1px solid rgba(127,168,192,.25);padding:8px 12px}
+  .tabbar button{flex:1;background:transparent;border:0;color:var(--text-dim);font-size:12px;
+    padding:6px;cursor:pointer}
+  .tabbar button.on{color:var(--accent)}
+  .app{padding-bottom:120px}
+}
+/* 桌面端预览手机宽度的开关 */
+.app.pv{max-width:390px;margin:0 auto}
+.app.pv .tabbar{display:flex}
+@media (hover:hover){.tech:hover{background:rgba(18,48,71,.09)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body class="era-1" data-page-node-id="6uSgsnZkAgWrzL5H5TUW23">
+
+<div id="bg" data-page-node-id="vttraR4H1IHghqhtHFjxex">
+  <div class="halo" data-page-node-id="i9XXlek348HWkODF7GTTm4"></div>
+  <div class="vent" data-page-node-id="tP2MTQ6xl8ATFnM3nlhpfI"></div>
+  <div class="current" data-page-node-id="1EC3sO3UBFdGeBJeG0WM8p"></div>
+  <div class="current" data-page-node-id="XXMEUiIOtGDIHVKClXixgU"></div>
+  <div class="jupiter" data-page-node-id="QnqvN8pQwf1GLp4rMUAMuu"></div>
+  <div class="crack" data-page-node-id="mT9Vrg3DZGQmhniTOV6uJM"></div>
+  <div class="motes" id="motes" data-page-node-id="bzC8MMgKQCNRu2wvhR9k5V"></div>
+  <div class="fauna" id="fauna" data-page-node-id="f0a1c2d3"><i></i><i></i><i></i></div>
+  <div class="lamp" id="lamp" data-page-node-id="l9m8n7o6"></div>
+  <script>
+    var cs=['rgba(95,220,190,.55)','rgba(150,225,235,.45)','rgba(190,235,255,.4)','rgba(255,180,140,.4)'];
+    var bg=document.getElementById('motes');
+    for(var i=0;i<14;i++){
+      var d=document.createElement('div');d.className='mote';
+      d.style.left=(4+Math.random()*92)+'%';
+      d.style.width=d.style.height=(2+Math.random()*3)+'px';
+      d.style.background=cs[i%4];
+      d.style.animationDelay=(-Math.random()*14)+'s';
+      d.style.animationDuration=(12+Math.random()*10)+'s';
+      bg.appendChild(d);
+    }
+  </script>
+</div>
+
+<div class="app" id="app" data-page-node-id="3SfN02CsbZedfNJ8xTO4Xk">
+  <div class="topbar" data-page-node-id="jz88BoOT1CTLKJPyoX8EFg">
+    <span class="brand" data-page-node-id="TXAvJL80IQHQcs7CxBDhT4">TIDEBREAK</span>
+    <span class="era-name" id="eraLabel" data-page-node-id="IqAr0G52EHz0t5ZPcYHCS7">暗流纪 · 活下去</span>
+    <span class="spacer" data-page-node-id="GOxVlvlLJg2pod282oJh1z"></span>
+    <div class="era-pick" id="pick" data-page-node-id="PUl2ufm9CNw2o0IR1cqcMH">
+      <button data-e="1" class="on" data-page-node-id="5CrxhkCaQd8N6oUta9PUpN">暗流</button>
+      <button data-e="2" data-page-node-id="d9YJRNFQJd6qnV8tVwWbtG">冷焰</button>
+      <button data-e="3" data-page-node-id="LWuWWCElqqjg0FfJzWsKSm">硫泉</button>
+      <button data-e="4" data-page-node-id="T34YFlaEWUccANvhRdaFDz">洋流</button>
+      <button data-e="5" data-page-node-id="SHSciXAAaTT1fQGI4SROur">破壳</button>
+    </div>
+    <button class="ghost" id="pv" data-page-node-id="1hJdy9h5aPnKFYqQfbTBpl">看手机视图</button>
+  </div>
+
+  <div class="grid" data-page-node-id="0IaVhqqojK963SixUgFFV2">
+    <!-- 左：资源 + 上/下极 -->
+    <section class="col-res panel" data-page-node-id="OI1UujzUyon6khIthHGA1u">
+      <p class="ph" data-page-node-id="oPoSdbybAVNZdmoyuocCLf">资源 · 占位图标</p>
+      <div class="poles" data-page-node-id="M7O2zSvFUwblg7cfcFgWqd">
+        <div class="pole" data-page-node-id="lidDyqUs0IHDx13oN3CWUE"><span data-page-node-id="YbDLYG39tubDbcCalFWAQ1">↑ 上极</span><div class="bar" data-page-node-id="x68mM0yI5z3dkcB9pdR4nx"><i style="--pct:8" data-page-node-id="Y6VIzo0XWpQSBHx9Mgq7C5"></i></div></div>
+        <div class="pole bottom" data-page-node-id="N3nSzZWrNi9Up1I2gIcQOJ"><span data-page-node-id="HJz7SjUHMrQMllZ2Vixivy">↓ 下极</span><div class="bar" data-page-node-id="xa2wRHCxQRK8YHWGOSEDzf"><i style="--pct:3" data-page-node-id="EAWW8GCyBiOeqMuoCYl2Af"></i></div></div>
+        <div class="readout" data-page-node-id="lEDYLbRCpOHDEsvLWeAAaR">产能 <b id="out" data-page-node-id="YMGkJFWS5iDHFGOFzvbsKC">3.0</b> / 秒 · 受下极限制</div>
+        <div class="readout" style="margin-top:8px;opacity:.78">潮汐 · <b id="tide">平潮</b> · 每 7 秒一相位，涨潮时城市全亮</div>
+      </div>
+      <div class="res-row" data-page-node-id="5LmWmzl3Vt3inyuGzdMySG">
+        <div class="res" data-page-node-id="KiD87T1YPvznDtuCz4euYJ"><i class="chip" style="background:var(--mat)" data-page-node-id="pcVGPNOrpRNiCD8bWpMrMk"></i><span class="k" data-page-node-id="n2haa1lpDifLdGiwYlC9l3">菌毯</span><span class="v" id="mat" data-page-node-id="Wv6COE7Zmhc2WS3DvNAm3r">0</span></div>
+        <div class="res" data-page-node-id="IPI5TQ7TfFGk0zh0xmwFsU"><i class="chip" style="background:var(--shell)" data-page-node-id="VBO3aa18fvz738OlfDDCJ7"></i><span class="k" data-page-node-id="bjnCn5Oe5x7ZMBX23d5lgN">壳礁</span><span class="v" data-page-node-id="NPaWwNNnD7u9oUamgSaWMH">0</span></div>
+        <div class="res" data-page-node-id="hesqUv2CKNTBEGyi9WUbtt"><i class="chip" style="background:var(--research)" data-page-node-id="mj5ict3HTppQ434e7u4aXj"></i><span class="k" data-page-node-id="M6ouZ2aM6bAeFpQD1LVuhG">研究</span><span class="v" data-page-node-id="ArwrKGyKatczob1ea9cep0">0</span></div>
+        <div class="res" data-page-node-id="jbCVorjrswDzA622jHSPYB"><i class="chip" style="background:var(--oxidant)" data-page-node-id="RoFaUF2cEii3LwPliCtumP"></i><span class="k" data-page-node-id="0fWUN83ijKqNGIT4L7KgfR">氧化剂</span><span class="v" data-page-node-id="wqpFKYKt0ivgNlCHZXA0Py">—</span></div>
+        <div class="res" data-page-node-id="aY4AY6ssIFwMp4pncE6cxq"><i class="chip" style="background:var(--reductant)" data-page-node-id="vnI7HVvM4wEsmj0MzkeSAJ"></i><span class="k" data-page-node-id="Vr6vzl12NnwWrvHZIWBgLN">还原剂</span><span class="v" data-page-node-id="qlLsP9lf9QuFGjAMJFfJ53">—</span></div>
+      </div>
+      <p class="ph" style="margin-top:14px" data-page-node-id="vHnLeLJBuEVs6BdvAePfuA">未解锁资源不进 DOM</p>
+      <div style="font-size:12px;color:var(--ink-dim)" data-page-node-id="9dE2mEyMfxdinDOoFRnx0V">硫铁 / 潮汐能 在此纪元尚未出现</div>
+    </section>
+
+    <!-- 中：主面板 -->
+    <section class="col-main panel" data-page-node-id="gbsaoRdNTC6ryLzaZdgF7g">
+      <p class="ph" data-page-node-id="ZoguQ8fVpXT7t0LqewUPkq">主面板 · 采集</p>
+      <button class="gather" id="gather" data-page-node-id="xhDN6nlwjIW678wFeHOzIR">采 集 菌 毯</button>
+      <div class="grid2" data-page-node-id="f0pGkvQhKyDnad5Pw0JsgS">
+        <div class="item" data-page-node-id="AQiub9CZXKf353HJGNGz2S"><i class="chip" style="background:var(--mat)" data-page-node-id="oR7x4wFyKNEy7TUxvx3M47"></i><div data-page-node-id="Rb5GeQPpwONXX5QPykgsh8"><div class="n" data-page-node-id="XNRzwP5sjA69CazEwBP9Bf">菌毯田</div><div class="c" data-page-node-id="lvioi46ic2bb68pXhaHkbA">菌毯 15</div></div></div>
+        <div class="item" data-page-node-id="fzFXv3i4RD0j2yiSpZGqFM"><i class="chip" style="background:var(--shell)" data-page-node-id="BJPDRWwunrjXKyvlkl40kE"></i><div data-page-node-id="EUVW9uW3rkDxrOv82iuyUs"><div class="n" data-page-node-id="wzRmSBM7zfqLZYIoYXYLiS">冰窟</div><div class="c" data-page-node-id="PKrrUqfAtogLWvfd7ivOdQ">菌毯 10 · 人口 +1</div></div></div>
+        <div class="item" data-page-node-id="1H6k5UcAyXeI5mgmruD3Eq"><i class="chip" style="background:var(--mat)" data-page-node-id="Psi2VcLyeE1xiJdkrL4CGQ"></i><div data-page-node-id="qgFT2TryTwqORGyrjU0jU8"><div class="n" data-page-node-id="51IHv0N3pOUijetFj8SbDN">陶窖</div><div class="c" data-page-node-id="Ur5CF5Q3al3udP5oQVlkrL">未揭示</div></div></div>
+        <div class="item" data-page-node-id="H261eOVOUd6C2EaVDlkTbx"><i class="chip" style="background:var(--shell)" data-page-node-id="JVpdCO2jDZE1ce8WZ5V3px"></i><div data-page-node-id="sfOLzBO4ZFMJ0gus6qyMhH"><div class="n" data-page-node-id="Hjt3scsuBNKiIC1SFv9rdD">礁矿</div><div class="c" data-page-node-id="UsEMpDewwoEhqqRvI5kJyd">未揭示</div></div></div>
+      </div>
+      <p class="ph" style="margin-top:16px" data-page-node-id="2WFcJXASFzTwgJG8zYMTE1">职业</p>
+      <div class="grid2" data-page-node-id="ruFEvULq5RmcnmsRqJNDFE">
+        <div class="item" data-page-node-id="JjLhC83W335NzybQmJLdcH"><i class="chip" style="background:var(--mat)" data-page-node-id="imVLBgEUh9QqVsiuIGvn45"></i><div data-page-node-id="CWmvamlyeBG3MBJvM6UQzN"><div class="n" data-page-node-id="VPM3U6FZumqQbR6ul3AZ0C">采集者 ×1</div><div class="c" data-page-node-id="Pduu0GY74WvXxavvtDlndU">开局唯一职业</div></div></div>
+        <div class="item" style="opacity:.4" data-page-node-id="bDHeBzlD9eBNVE58uUpncT"><i class="chip" data-page-node-id="vByNcRDEeBIFP9RTKmJym3"></i><div data-page-node-id="lpWaNfPfMdC1nINnqqJ38K"><div class="n" data-page-node-id="J1Ci4XSFPVxBh01vW4tGMU">菌农 · 未解锁</div><div class="c" data-page-node-id="eXIXv5fZPJv1HGQ1spDlr1">菌圃</div></div></div>
+      </div>
+    </section>
+
+    <!-- 右：科技树 -->
+    <section class="col-tech panel" data-page-node-id="kQuUFGBLzEJPTWPSfQZEue">
+      <p class="ph" data-page-node-id="fXY1M3zrWx8Lkv7jkvGcPW">科技 · 暗流纪 11 项</p>
+      <div class="tech done" data-page-node-id="6FCOqZHzjLpmXo4rqL0jfl"><b data-page-node-id="iBJWYMHHGJM5JvhwECRfRj">陶窖</b><em data-page-node-id="1Q8oQuwiSC9NZWdAvWD1Xo">25 · 菌毯上限 +50 · 默认可见</em></div>
+      <div class="tech done" data-page-node-id="4wBcWVAZOSSoVBhXsCW85E"><b data-page-node-id="bp6NnuaSWLa89s4XzBW9k3">菌圃</b><em data-page-node-id="dZs5hZ8jvacYuBJBCBENPV">25 · 菌农 · 默认可见</em></div>
+      <div class="tech done" data-page-node-id="O811Uw4Mu8JR3rhwTuOzOz"><b data-page-node-id="7VTjbXvXj6TMIdLvS8c6KW">礁凿</b><em data-page-node-id="DfcQrVUHiRlxEgVmkNFlyT">50 · 壳礁 · 默认可见</em></div>
+      <div class="tech" data-page-node-id="4w2HHD2YP4FRi0yHHdRT9i"><b data-page-node-id="8rZivUGLjrZ1sAXAbueCI3">浮筏</b><em data-page-node-id="gVUCa7yZBDnPyuAcGrNky6">50 · 揭示条件：建成第一座冰窟</em></div>
+      <div class="tech" data-page-node-id="1o6EwJZYfUmuqzOJHaosGZ"><b data-page-node-id="dUBmVxWGoACr8sFT7M02vm">望壳</b><em data-page-node-id="C08HuqNdzBRSMF7FuGx3fv">50 · 建筑总数达 4</em></div>
+      <div class="tech" data-page-node-id="Rt3SjbKavZaZIaUp24EXlg"><b data-page-node-id="gcTUw0x2uOyc7BrpoxgQi0">骨器</b><em data-page-node-id="Up8CIEuXHF6egBJCQkFY1o">50 · 战力 +2/人</em></div>
+      <div class="tech" data-page-node-id="wn2d4uIHLkk3fcUgAIGqqy"><b data-page-node-id="JTRvh7AVFxL4SNAtpJFqS9">结绳</b><em data-page-node-id="7aEDXw9L2Nk7Gsalhm6KGK">50 · 免费 · 学者与研究上线</em></div>
+      <div class="tech locked" data-page-node-id="accbEX2k0UGCtq7iMKdFTw"><b data-page-node-id="79AsFBt99f0iesbHDfkMtv">?</b><em data-page-node-id="vQoAR3mNtgGQRp27rL3PxA">未揭示</em></div>
+    </section>
+  </div>
+
+  <nav class="tabbar" data-page-node-id="yYji0h50JdEqjee4PklFKm">
+    <button class="on" data-page-node-id="ur60ILe08gAbWADXHcbgtr">采集</button><button data-page-node-id="7DFazW2NPOwz8EujbDiQjb">建筑</button>
+    <button data-page-node-id="f8z5UCqY1WI5wCcG7tHmt4">科技</button><button data-page-node-id="A4ICcANKEO5WtuwDwDwYm7">职业</button><button data-page-node-id="94tWEHIXyOTEN7Rzb4ORo4">深渊</button>
+  </nav>
+</div>
+
+<script>
+(function(){
+  if(location.search.indexOf('fx=off')>=0){document.body.classList.add('nofx');return}
+  /* 活图层：底图静止，只有独立元素在动 */
+  var lamp=document.getElementById('lamp'), motes=document.getElementById('motes');
+  var LX=[7,16,25,34,43,52,61,70,79,88,29,56];
+  for(var i=0;i<12;i++){
+    var d=document.createElement('i');
+    d.style.setProperty('--x',LX[i]+'%');
+    d.style.setProperty('--y',(i%3)*13+'%');
+    d.style.setProperty('--dly',(-i*1.7)+'s');
+    d.style.setProperty('--fd',(5.2+(i%4)*0.8)+'s');
+    lamp.appendChild(d);
+  }
+  var PHASE=['退潮 · 城市半熄','初涨','平潮','涨潮 · 城市全亮'], tideEl=document.getElementById('tide');
+  var pi=2, timer=null, MO=motes.style;
+  function applyTide(){
+    lamp.classList.toggle('tide-low',pi===0||pi===1);
+    MO.opacity=[.45,.78,1,.88][pi];
+    if(tideEl)tideEl.textContent=PHASE[pi];
+  }
+  function startTide(){ if(!timer)timer=setInterval(function(){pi=(pi+1)%4;applyTide()},7000) }
+  function stopTide(){ clearInterval(timer); timer=null }
+  applyTide(); startTide();
+  document.addEventListener('visibilitychange',function(){
+    document.hidden?stopTide():startTide();
+  });
+
+  var body=document.body, era=1;
+  var names={1:'暗流纪 · 活下去',2:'冷焰纪 · 第一次有光',3:'硫泉纪 · 材料革命',4:'洋流纪 · 探索与远征',5:'破壳纪 · 工业化'};
+  var bots={1:3,2:3,3:8,4:8,5:8};
+  var top=8;
+  document.getElementById('pick').onclick=function(e){
+    var b=e.target.closest('button'); if(!b)return;
+    era=+b.dataset.e;
+    body.className='era-'+era;
+    document.getElementById('eraLabel').textContent=names[era];
+    [].forEach.call(this.children,function(x){x.classList.toggle('on',x===b)});
+    var bars=document.querySelectorAll('.bar i');
+    bars[0].style.setProperty('--pct',top);
+    bars[1].style.setProperty('--pct',bots[era]);
+    draw();
+  };
+  function draw(){
+    var p=Math.min(top,bots[era]);
+    document.getElementById('out').textContent=p.toFixed(1);
+    document.querySelector('.readout').innerHTML='产能 <b id="out">'+p.toFixed(1)+'</b> / 秒'+
+      (p<top?' · 受下极限制':' · 两极接通');
+  }
+  var matEl=document.getElementById('mat'), mat=0;
+  document.getElementById('gather').onclick=function(){
+    mat++; matEl.textContent=mat;
+    document.documentElement.style.setProperty('--mat','#5DCAA5');
+  };
+  var app=document.getElementById('pv');
+  app.onclick=function(){
+    var on=document.getElementById('app').classList.toggle('pv');
+    this.textContent=on?'看桌面视图':'看手机视图';
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,8 +1,47 @@
-# 天壳 · SHELLBREAK
+# 渊海天壳 TIDEBREAK · 工作区
+
+> **唯一工作区：`D:/shellbreak`。** `D:/tidebreak` 已于 2026-09-25 归档至
+> `D:/_archive/tidebreak-baseline-20260925`（git 基线 `49ec6e2` 也在里面），代码与文档不再有第二份。
 
 > 文明越大，壳越薄。在冰壳把你冻死之前凿穿它。
 
 一期范围：**原始时代 → 破冰重置**。大气壳、星海、贸易、深渊低语留到二期。
+
+## 这一版在做什么
+
+「渊海天壳」是**一份**游戏，此前被拆成两半实现，2026-09-25 合并回本目录：
+
+| 来源 | 落到这里的东西 |
+|---|---|
+| `shellbreak` | 天壳主体：`shell.js` 破壳系数 / 自动削壳 25% 下限 / 祭坛削壳 / `prestige.js` 洋流点结算 / 周目 / `sim/` 回归套件 |
+| `tidebreak` | `docs/` 11 份设计文档、`visual-proto.html`、`src/techs.js`（44 项文明6式科技表） |
+
+**尚未接线的部分（等口径拍板，勿擅自改）**：
+
+- `src/techs.js` 里的 44 项科技（era 1–4 × survive/live/know，带 `reqs`/`cond`/`eff`）
+  与 `config.js` 现有的 8 项科技 id **零重叠**，是替换关系而非叠加。
+  一旦替换，`src/shell.js:30 breakCoef()` 的 `0.80 × 科技数` 会从 +6.4 变成 **+35.2**，
+  破壳系数翻倍，README 底部全部标定作废，必须重跑 `balance.mjs` 重标定。
+- `tidebreak` 的 `actions.js`（分层铁律：渲染不得改状态）与 `render.js`（Civ6 节点图，
+  `TW=154/TH=96` 网格 + 四态节点）**未并入**，与 `game.js` 持 S + `economy.tick` 内联七步
+  的架构冲突，并入等于重排主循环。
+
+## 文档地图
+
+`docs/` 下的设计文档全部来自被归档的 tidebreak，只做保留不做修订：
+
+| 文件 | 内容 |
+|---|---|
+| `DESIGN_v0.1 ~ v0.3` | 玩法设计演进 |
+| `ERA_OVERVIEW_v0.1 ~ v0.2` | 纪元划分 |
+| `TECH_TREE_v0.1 ~ v0.2` | 科技树（44 项） |
+| `EUROPA_SETTING_v0.1` | 木卫二世界观 |
+| `WAR_TERRITORY_v0.1` | 战争与领地 |
+| `ART_VISION_v0.1` | 视觉方向 + 性能预算 §5 |
+| `PHASE1_DESIGN.md` | 一期裁剪方案 |
+| `MERGE_PLAN_v0.1.md` | 合并盘点与 8 条待定决策（A–H） |
+
+⚠️ 设计文档与代码长期对不上，引用代码现状前必须现场核实。
 
 ## 运行
 
