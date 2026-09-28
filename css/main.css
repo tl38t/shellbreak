@@ -22,6 +22,12 @@ h1 small{font-size:12px;color:var(--dim);letter-spacing:0}
 .res b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
 .res span{font-size:11px;color:var(--dim)}
 .res.neg b{color:var(--red)}
+/* 仓储上限：上限不写出来，玩家只会看到「藻食停在 800 不动」而不知道是撞了上限在白流 */
+.res i.cap{font-style:normal;font-size:11px;color:var(--dim);margin-left:5px;font-variant-numeric:tabular-nums}
+.res i.cap.full{color:var(--red)}
+.res i.rate{font-style:normal;font-size:11px;margin-left:5px;font-variant-numeric:tabular-nums}
+.res i.rate.up{color:var(--green)}
+.res i.rate.down{color:var(--red)}
 .shellwrap{position:relative;height:26px;background:#06121f;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .shellfill{height:100%;background:linear-gradient(90deg,#1b6ea8,#4dd8e6);transition:width .2s}
 .shellfill.cold{background:linear-gradient(90deg,#7e5cff,#a78bfa)}
@@ -30,10 +36,31 @@ h1 small{font-size:12px;color:var(--dim);letter-spacing:0}
 .tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
 .tab{background:var(--panel2);border:1px solid var(--line);color:var(--dim);padding:6px 13px;border-radius:7px;cursor:pointer;font-size:13px}
 .tab.on{background:#123a52;color:var(--cyan);border-color:var(--cyan)}
+/* 未开启的 tab（现在的用法只有「科技」，门 = 建成 5 座深海藻场）。
+ * 灰着而不是隐藏：玩家该看出「这一页将来会有东西」，而不是以为页签只有四个。
+ * opacity 而不是换色，是为了同时压住文字与描边；触屏不做 hover 也可以看清它不可点。 */
+.tab.locked{opacity:.4;cursor:not-allowed}
+/* 族民 tab 的生育进度条：贴在按钮底边的 3px 细条，随生育计时填满 */
+.tab{position:relative;overflow:hidden}
+.tab i.growbar{position:absolute;left:3px;right:3px;bottom:2px;height:3px;border-radius:2px;background:linear-gradient(90deg,#2f9e6e,#5be3a4);pointer-events:none}
+.tab i.growbar.blocked{background:repeating-linear-gradient(45deg,#8c2f3f 0 3px,#c8485c 3px 6px)}
+.row .gbar{margin:5px 0 4px;height:4px;border-radius:2px;background:#132238;overflow:hidden}
+.row .gbar i{display:block;height:100%;background:linear-gradient(90deg,#2f9e6e,#5be3a4)}
+.nm .bad,.ds.badtxt{color:var(--red)}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #132238}
 .row:last-child{border:0}
 .row .nm{font-weight:600}
 .row .ds{font-size:11px;color:var(--dim)}
+/* ── 自然环境卡（天壳 + 海底火山）──
+ * 这两条读数是同一类东西（「外面现在什么样」），归到一张卡里，用一条虚线分成上下两块。
+ * .secttl 是**块的标题**，不是又一行数据 —— 所以给左侧色条 + 字距，跟 .row .nm 区分开：
+ * 玩家不该把它读成「上面还有一行没写完的名字」。
+ * ⚠️ .row.envsplit 必须写在这条之后：`.row:last-child{border:0}` 会把 border 整个清零
+ *    （包括上面这条虚线），两者特异性相同，靠书写顺序决胜。 */
+.secttl{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;
+  letter-spacing:1.5px;color:var(--cyan);margin:0 0 9px}
+.secttl::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--cyan)}
+.row.envsplit{border-top:1px dashed #1c3350;border-bottom:0;margin-top:10px;padding-top:10px}
 .btn{background:#123a52;border:1px solid #1d5a7d;color:var(--cyan);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px}
 @media (hover:hover){ .btn:hover:not(:disabled){background:#17496a} }
 .btn:active:not(:disabled){background:#0f3d59}
@@ -61,3 +88,120 @@ input[type=checkbox]{accent-color:var(--cyan)}
 .hidden{display:none!important}
 .log{font-size:11px;color:var(--dim);max-height:96px;overflow:auto;margin-top:8px}
 .note{font-size:11px;color:var(--dim);margin-top:6px}
+/* 叙事弹窗（科研面板开门）：排比短句，左留白 + 大行距，跟数据面板区分开 */
+.story{margin:2px 0 12px;padding:2px 0 2px 12px;border-left:2px solid var(--amber)}
+.story p{margin:0 0 7px;color:var(--txt);font-size:14px;line-height:1.85}
+.story p:last-child{margin-bottom:0}
+
+/* ── 科技长卷（五纪元 / 尤里卡 / 研究进度）── */
+/* 纪元导航（2026-09-26）：一排按钮取代原先五张竖排纪元卡片 ——
+ * 卡片吃掉了一整屏，手机上要滑很久才够到树。按钮只留「名字 + 进度」，
+ * 文本（箴言/描述）挪进长卷标题区那张**唯一**的详情卡（.eracard 只剩一张）。
+ * ⚠️ 按钮上是 `title`，里头的信息（名字/箴言/进度）在详情卡里全都看得见，
+ *    所以不需要补那个「桌面 hover 才有的信息 → 手机给 ⓘ」的等价物。 */
+.eranav{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.erabtn{display:inline-flex;align-items:center;gap:5px;font:inherit;cursor:pointer;
+  padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);
+  color:var(--dim);transition:border-color .12s,background .12s}
+.erabtn .g{font-size:15px;font-weight:800;line-height:1}
+.erabtn .n{font-size:12px;font-weight:700}
+.erabtn .c{font-size:9px;padding:1px 5px;border-radius:3px;background:#153048;color:var(--dim)}
+.erabtn.cur .c{background:#123a52;color:var(--cyan)}
+.erabtn.on{border-color:#3d6c92;background:#12283c;color:var(--txt)}
+.erabtn:active{background:#16283c}
+.eracard{border:1px solid var(--line);border-left-width:3px;border-radius:8px;padding:11px 13px;margin-bottom:13px;background:var(--panel2)}
+.eracard.active{background:#101f30}
+.eracard .erahd{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.eracard .glyph{font-size:21px;font-weight:800;line-height:1}
+.eracard .enm{font-size:16px;font-weight:700}
+.eracard .emotto{font-size:11px;color:var(--dim)}
+.eracard .estate{margin-left:auto;font-size:10px;padding:1px 7px;border-radius:4px}
+.eracard .edesc{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.6}
+/* 关键节点的整条状态：走 ✅ / 未达 ❌，肉眼看一眼就知道还差哪个 */
+.keysline{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.keysline span{font-size:10px;padding:1px 7px;border-radius:4px;background:#153048;color:var(--dim)}
+.keysline span.done{background:#1a4632;color:var(--green)}
+.minibar{height:3px;background:#06121f;border-radius:2px;overflow:hidden;margin:4px 0}
+.minibar i{display:block;height:100%;background:var(--cyan)}
+.minibar i.full{background:var(--green)}
+/* ── 科技树横卷（文明 6 式）────────────────────────────────────────
+ * ⚠️ 节点的宽/高/左上坐标由渲染写成内联 style（数字取自 tech.GEO 与 layout），
+ *    **CSS 里不写死尺寸** —— 尺寸是几何的一部分，两边各存一份迟早对不上。
+ *    ⚠️ 手机端靠 .techscroll 横向滚动看后面的纪元，所以这里是 overflow-x:auto
+ *       而不是给 canvas 定宽；宽度由内联的 width 决定。 */
+/* cursor:grab 是给桌面鼠标看的提示（按住可拖）；:active 给按下瞬间的 grabbing，
+ * 省掉一套 JS 去加临时 class。⚠️ 别写成 cursor:all-scroll / move —— 它暗示「整页可拖」，
+ * 而这只有长卷这一条能拖。user-select 压住拖动过程中顺手选中的文字。 */
+.techscroll{overflow-x:auto;overflow-y:hidden;margin-top:9px;padding:0 0 8px;border-top:1px dashed #1c3350;
+  cursor:grab;-webkit-user-select:none;user-select:none}
+.techscroll:active{cursor:grabbing}
+.techscroll::-webkit-scrollbar{height:7px}
+.techscroll::-webkit-scrollbar-thumb{background:#1f3a52;border-radius:4px}
+.techcanvas{position:relative}
+.techlines{position:absolute;left:0;top:0;pointer-events:none}
+.tel{fill:none;stroke:#22405a;stroke-width:2}
+.tel.open{stroke:#3d6c92}
+.tel.done{stroke:#3f9d86}
+.tnband{position:absolute;top:10px;height:17px;line-height:17px;font-size:11px;font-weight:700;
+  display:flex;align-items:center;gap:5px;border-bottom:1px solid #1c3350}
+.tnband .tng{font-size:14px}
+.tnband .tnc{margin-left:auto;font-size:9px;font-weight:400;color:var(--dim)}
+.technode{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;
+  border:1px solid #24506e;border-radius:6px;background:#0d1c2b;padding:4px 6px 5px}
+/* ⚠️ 子项一律不许被压缩（flex-shrink:0）。卡片高是数据里的定值（tech.js GEO.H），
+ *   内容一超高，默认的 shrink:1 不会「溢出可见」，而是把效果行/条件行**压扁**
+ *   —— 字被拦腰截断（用户 2026-09-26 报的「显示不全」就是这个）。
+ *   关掉压缩之后，真超高会变成「底部按钮被裁掉」这种一眼能看出的症状，而不是字被压扁。 */
+.technode>*{flex:none}
+.technode.open{border-color:#3f7fa8;background:#11283c}
+.technode.done{border-color:#2f6b56;background:#0f2019}
+.technode.lock{opacity:.62}
+.technode.fut{opacity:.45}
+@media (hover:hover){.technode:hover{border-color:var(--cyan)}}
+.technode.done:hover{border-color:var(--green)}
+.technode .tnhd{display:flex;align-items:baseline;gap:4px;min-width:0}
+.technode .tnm{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.technode .tntag{flex:none;font-size:8px;padding:0 3px;border-radius:3px;margin-left:auto;
+  background:#3a2a12;color:var(--amber)}
+.technode .tntag.ok{background:#1a4632;color:var(--green)}
+/* 效果说明：最多两行，第三行起**省略号**收尾。
+ *   原来只有 max-height:26px，超出就是硬切（半截字）；line-clamp 让它退化成「…」，
+ *   一眼能看出是「还有话没说完」而不是渲染坏了。 */
+.technode .tne{font-size:9.5px;color:#6f7f96;line-height:1.35;margin-top:2px;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  max-height:26px;overflow:hidden}
+.technode .tnc2{font-size:9px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.technode .tnc2 b{color:var(--cyan);font-weight:600}
+.technode .minibar{margin-top:3px;height:3px}
+.technode .btn{margin-top:auto;width:100%;font-size:10px;padding:2px 0}
+.technode.done .btn{color:var(--dim)}
+/* ── 政体卡与政策卡槽（文明 6 式，2026-09-27）─────────────────────
+ * ⚠️ 尺寸不写死在 flex 上：宽度是面板布局的一部分，与 JS 里的 min-width 成对出现在
+ *    渲染层内联 style 里（同一条纪律，见上面 .techcanvas 那条注）。
+ * ⚠️ .govcard 与 .slotbox 都不许用生硬的边框加粗来表达「选中/已装填」——
+ *    那会让一列卡片里有一半的框变粗，看起来像渲染坏了。用**底色 + 边框色**两处区分，
+ *    弱状态（未解锁 / 不对口 / 空置）一律靠 opacity 与虚线，不靠颜色堆叠。 */
+.govcard{border:1px solid #24506e;border-radius:6px;background:#0d1c2b;padding:8px 10px}
+.govcard.on{border-color:#3f7fa8;background:#11283c}
+.govcard .ds{font-size:12px;color:var(--dim);line-height:1.5;margin-top:3px}
+.govcard .govslots{font-size:11px;color:var(--cyan);margin:6px 0 7px}
+.govcard .btn{width:100%;font-size:10px;padding:2px 0}
+.slotbox{border:1px dashed #24506e;border-radius:6px;background:#0d1c2b;padding:8px 10px;
+  width:150px;box-sizing:border-box}
+.slotbox .slottt{font-size:11px;color:var(--cyan)}
+.slotbox .slotcard{font-size:13px;font-weight:700;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slotbox .slotcard.empty{color:var(--dim);font-weight:400}
+.slotbox .slotcard.bad{color:var(--red)}
+.slotbox .slotsub{font-size:11px;color:var(--dim);line-height:1.45;margin-top:2px;
+  white-space:normal;word-break:break-all}
+.slotbox .slotsub.bad{color:var(--red)}
+.slotbox .btn{margin-top:auto;width:100%;font-size:10px;padding:2px 0}
+/* 政策卡的类型标签复用 .tag 的位置，另给每种类型一个底色——
+ * ⚠️ 四种底色都压在同一亮度区间，避免「哪个标签更显眼」变成阅读顺序。 */
+.tag.twild{background:#123a2a;color:var(--green)}
+.tag.tprod{background:#3a2a12;color:var(--amber)}
+.tag.tsci{background:#12283c;color:#7fb8e6}
+.tag.tgrow{background:#3a1f2a;color:#e691b0}
+.row.dim{opacity:.55}
+.teaser{font-size:11px;color:var(--dim);margin-top:8px;padding-top:7px;border-top:1px dashed #1c3350;line-height:1.6}
+.teaser b{color:var(--amber)}

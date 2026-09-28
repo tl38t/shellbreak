@@ -1,44 +1,64 @@
-# 天壳 SHELLBREAK — 长期项目笔记
+# 天壳 SHELLBREAK — 活问题与索引
 
-## 猫国建设者（Kittens Game）对照基准
-反向调研的参照物。开局状态（2026-09-24 实证，raw 源码 + wiki 双证）：
-- `js/village.js:3` `kittens: 0` / `maxKittens: 0` / `kittensPerTickBase: 0.01`；`resetState()` 里 `this.sim.kittens = []`。
-- 职业 `jobs[]` 全部 `value: 0`，woodcutter 才 `defaultUnlocked: true` —— 开局没有任何人被分配职业。
-- `js/buildings.js` 所有建筑 `val` 恒为 0（save 时 `val===0` 直接不落盘），**没有任何建筑开局带等级**。
-- `js/resources.js` 所有资源 `value: 0`（构造/`resetState` 均置 0），开局资源全空。
-- 唯一起步产能 = 手动点 "Gather catnip" 按钮（wiki: 点一下 +1 猫薄荷），
-  攒 **10 猫薄荷**才能建第一座 Catnip Field（成本 10，priceRatio 1.12，产出 0.125/tick）。
-- wiki 开场文本 "You begin with a single kitten gathering catnip in a forest" ——
-  叙事上是 **1 只猫**，代码变量是 0，靠 ironWill（无猫不饿死）兜底。
-⇒ 猫国开局 = **0-1 人口 / 0 资源 / 0 建筑 / 无自动产能**，玩家必须手动点十下起步。
+> ⚠️ 判据**不在这** —— 2026-09-27 整体外迁到 `docs/JUDGMENTS.md`。
+> 本文件只留「当前未决 + 硬纪律 + 索引」，目标是**写完就不用再清理**。
+> ⚠️ 末尾哨兵 `<<<SB-EOF>>>`：看不到它 = 本文件被吃了。但「用工具读文件」不受此限。
 
-## 开局对齐（2026-09-24 定案方向）
-用户判断「一开始就不该有建筑」，读清后扩展为：我们凭空多了 3 个自动采集者。
-- 现状开局：`pop 3` (`jobs.gather 3`)、`kelp 60`、建筑全 0、匠人 0（地热恒 0）。
-- 实测首座藻田 277 秒（成本 100 珊瑚 ÷ 采集 0.36/秒），藻食 333 秒见底 —— 开局空转 4.6 分钟。
-- 目标开局：1 人 / 职业全 0 / 资源全 0 / 首座建筑成本降到 10-25 / 手动采集起步。
+## 一、当前未决（开工先看这里）
 
-## 猫国关键数值（2026-09-25 实拉 master 复核，引用前以此为准）
-- **`agriculture` 科技没被删**，在 `js/sci.js:29-36`（`unlocks:{jobs:["farmer"], ...}`，100 science）。
-  此前记「已从 master 删除」是 grep 范围不够导致的误判。
-- 职业 modifier/秒：`woodcutter` wood 0.018(defaultUnlocked) / `farmer` catnip 1.0 /
-  `scholar` science 0.035 / `hunter` 0.06 / `miner` minerals 0.05 / `priest` faith 0.0015 /
-  `geologist` coal 0.015。
-- 建筑解锁职业：`library`(wood 25, defaultUnlockable)→{jobs:["scholar"],tabs:["science"]}；
-  `mine`(wood 100)→{jobs:["miner"]}。
-- `field`：`catnipPerTickBase: 0.125`、priceRatio 1.12、unlockRatio 0.3、defaultUnlockable。
-- `catnipPerKitten: -0.85` ⇒ **一块田养 0.147 人、一个 farmer 养 1.176 人**。
-- ⚠️ **食物双源 `game.js:3666 calcResourcePerTick` 的语句顺序即设计，不可重排**：
-  建筑侧 → `×季节`（只打建筑侧）→ 加职业侧（不吃季节）→ `×(1+catnipRatio)`。
-  写成 `(建筑+职业)×季节` 会让圃丁在寒流季集体饿死，而暖流季永远测不出来。
+- `herd`/`writing` 的 `cond` 四选一（A 照猫国删 / B 资源类 / C 累计采集 / D 职业类）—— 待用户拍。
+  `writing` 的 `n:5` 是级联的前一级，要一起看。
+- **单局总时长实测 7.79h（2026-09-28，**真开局**口径）**，目标窗 8-14h ⇒ **只差 0.21h**，**待用户拍**。
+  结构：era1 全清 1.52h(19%) / 整棵树全清 5.00h / **破冰段独占 5.31h(68%)**。
+  ⚠️ 旧记的 5.40h / 1.20h **已作废**——整局模拟当时没重开局，接着断言夹具的 state 跑；
+    5.74h / 1.53h 则是「夹具漏还原」那版。三版都是虚高，真开局一跑高出 27%。
+  ⇒ **报时长必须声明「真开局 / 夹具态」；夹具态的数一律不要再引用。**
+  ⇒ 旋钮在破冰那一段，不在 era1。**改常数凑绿 = 标定，停；改代码让 bot 跑得穿 = bug，可做。**
+  判据：`docs/JUDGMENTS.md` §「少括号」+「**测试夹具漏还原**」+「**整局模拟仍然没走真开局**」
+  +「**随机源只有注释没有实现**」；数值见 `docs/CURRENT_FACTS.md` 时长结构节。
+- 24 处指向已删 `sim/balance.mjs` 的注释/文档（src 7 / e2e 4 / README 5 / docs 8）。
+- 石梁 / 海潮方碑 4 个数已拍「全照建议」（2026-09-28）：工坊 craftRatio 0.05/级、
+  三件工具 150/200/(200+50)、奇观 石梁20+珊瑚300、matMax 200 ⇒ **不再列未决**。
 
-## 工程纪律（本项目）
-- sim 回归必须跑绿：`node sim/balance.mjs`、`node sim/e2e.mjs`；数值只改 `src/config.js`。
-- cache-buster：`src/*.js` 与 `index.html` 的 `?v=` 版本号同步 bump。
-- 冻结/只读约定：不做未授权的发布类动作。
-- ⚠️ **加职业必须同时改三处**（缺一处就是 NaN 事故，已踩两次）：
-  `SB.JOBS`(config) · `freshRun`/`migrateRun` 默认表(state) · 所有 `s.jobs.X` 算式。
-  症状：`undefined * number = NaN` → 经 `addRes` 的 `Math.min` 污染资源池 → 顺 lvlSum 污染破壳系数。
-  判据：**多个策略跑出逐位相同的结果，先怀疑 NaN 短路，不是「代码没生效」。**
-- 照抄猫国时区分「机制照抄」与「数值照抄」：机制 100% 照源码（含语句顺序）；
-  数值若时间尺度不同，只对齐 dimensionless 比值（如「一个圃丁养几个人」），别抄绝对值。
+## 二、硬纪律（不可协商）
+
+- **顺序铁律**：「单局总时长 / 8-14h 窗」最后统一算，中途不为它调常数（那叫标定不是修 bug）。
+- **标定权在用户**：数值倍率 / 成本调档 / 参数扫描一律等拍板；我只能定**结构**与**落点**。
+- ⚠️ **「算」本身也要等拍板**（2026-09-28 用户明令）：不是「调数值要拍板」，是
+  **算时长这个动作**不许我先跑。追一个抖动的数字能一路改到量具，量具一脏，之前所有
+  数字的分母都不可信 —— 比调错数值更糟。回归照跑（`e2e` 不断链），但别去读核算段的输出。
+  `sim/balance.mjs` 已被下令删除，**任何形式都不许跑**（含写探针扫参数、含临时造 bot）。
+- **唯一回归手段 = `node sim/e2e.mjs`**；全局标定类断言走 `defer()`，核算时才 `--balance`。
+- **时长核算三条前置（漏一条数字就是假的）**：① 先 `SB.game.startRun()` 真开局（不许接着断言
+  夹具的 state）；② 沙箱 rng 钉固定种子（`SB_SEED`）；③ bot 会手动采集珊瑚（真开局唯一进项）。
+- **先证「数学上可能吗」，再问「为什么」**：15 项红时先算目标值到底能不能达到，
+  别直接归因给「口径变了 / 历史欠账」。2026-09-28 因此把 coral=0 的因果搞反过一次
+  （真因是 `capOf` 少括号、珊瑚上限恒 0，不是断言该改测藻食），修掉括号后 15 项一次全绿。
+- 回归补充：`node sim/e2e.mjs` 绿；数值只改 `src/config.js`；`?v=` 只在 `index.html` bump 一次。
+- 发布类动作（commit / push / 上传）一律等用户明说。
+- **判据：改常数让断言变绿 = 标定 → 停；改代码让 NaN / 死锁 / 永远建不起来消失 = bug → 可做。**
+- ⚠️ **读记忆的是注入层，不是我**（2026-09-27 明令）：我选不了「读 / 不读」，只能选
+  ① 写入按天批量、② 找历史细节走 Read 日志、③ 容量只在我自己动笔前算一次且**不写进回答**。
+
+## 三、判据库在哪（动手前 Read）
+
+| 内容 | 文件 |
+|---|---|
+| **全部工程判据**（断链 / 量纲 / 死锁 / 数值 / UI 断言 / 已死文档） | **`docs/JUDGMENTS.md` ← 默认先读这个** |
+| 本作结构事实：资源线 / 人口 / 科技树形状 / 仓储三轴 / 解锁权 | `docs/CURRENT_FACTS.md` |
+| UI/DOM 与断言纪律坑 | skill `shellbreak-from-prototype` §四·五 |
+| vm 沙箱 e2e 五坑（浅拷贝 / 新 document / 记忆化 / runHours / s 夹具） | skill §二·七 |
+| headless Chrome 上屏验证（`--dump-dom`、512px 下限） | skill §二·五 |
+| 猫国对照基准（数值一律 per tick，**×5 才是每秒**） | `docs/KITTENS_BASELINE.md` §二 |
+| 逐日决策过程 | `.workbuddy/memory/YYYY-MM-DD.md`，早于当天的 `mv` 进 `archive/` |
+
+## 四、写入纪律
+
+- **进一出一**：往本文件加一条，必须同时外迁一节。**净零增长**，不是「下次记得压缩」。
+- **Tier 1 才留下**：能在 5 秒内定位那个 bug 的判据。其余外迁。
+- **写入按天批量**，不逐次动笔（用户 2026-09-27 明令）。
+- **日志次日 `mv` 进 `archive/`**（单日实测可到 110 KB，占我的上下文）。
+- 容量只在**自己动笔前**算一次，且只当内部判据：不为它造命令，不写进回答。
+
+---
+<<<SB-EOF>>>

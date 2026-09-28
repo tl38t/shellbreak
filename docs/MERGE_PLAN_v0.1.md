@@ -36,12 +36,12 @@ docs/ PHASE1_DESIGN.md（仅此一份）
 | 自动削壳 | `0.40 × 系数` 点/秒，削到 25% 停手 |
 | 祭坛削壳 | `1.10 × 级` 点/秒；耗地热 `0.55 × 级 ×(1+0.35×(级−1))`/秒 |
 | 地热产出 | `热泉井级 × 0.010 × 匠人数 × 环境系数 ×(点火术 1.4)` |
-| 资源（7） | `kelp` 菌毯 · `coral` 珊瑚 · `silt` 矿砂 · `bone` 骨材 · `iron` 精铁 · `science` 学问 · `fuel` 地热 |
+| 资源（7） | `kelp` 菌毯 · `coral` 珊瑚 · `silt` 矿砂 · `bone` 骨材 · `iron` 精铁 · `science` 科技 · `fuel` 地热 |
 | 职业（3） | `gather` 采集者 · `craft` 匠人 · `scholar` 学者 |
 | 建筑（10） | 深海菌圃 / 礁石平台 / 珊瑚巢 / 砂矿坑 / 骨材工坊 / 熔炉 / 聆听巢 / 取暖石 / 热泉井 / 破冰祭坛 |
 | 科技（8） | `calendar` `heat` `bonework` `smelt` `pick` `ignition` `dive` `siegeT` |
 | 解锁机制 | `defaultUnlockable` / `unlockRatio` / `unlockScheme` / `requiredTech` 四种 |
-| 主循环 | `game.js` 直接持有 `S`；`economy.tick` 七步内联（采集→加工→地热→学问→口粮→生育→冻伤→天壳） |
+| 主循环 | `game.js` 直接持有 `S`；`economy.tick` 七步内联（采集→加工→地热→科技→口粮→生育→冻伤→天壳） |
 | P1 新增 | `weir` 喷口导流堤（菌毯 +3%/级）· `warmnest` 保温巢（口粮 −2%/级，封顶 −60%）· `ballast` 压舱仓（菌毯上限 +800/级） |
 | 回归 | `balance 6/6` · `e2e 44/44` |
 | README 基线 | rational 10.65h / rush 9.80h / e2e 10.42h / 峰值 54 人 / 建筑总级 365 / 破壳系数 73.4 |

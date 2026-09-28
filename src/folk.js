@@ -11,10 +11,51 @@
    * 配工顺序必须是「先吃饭、再干活」。
    * 上一轮自创的「圃丁」已删（docs/DESIGN_v0.3.md §4：开局唯一职业就是采集者，
    * 产藻食），食物线只剩采集者这一条，不存在两个职业抢同一件事。 */
-  var IDS = ['gather', 'craft', 'scholar'];
+  /* ⚠️ 这里是一份**字面量**职业清单，与 config.js 的 JOBS 是两份独立的表——
+   * 加职业必须两处都加，漏了会出现「UI 上雇得到、配工引擎看不见」（人派进去却不出产）。
+   * 顺序有意义：配工引擎在转移循环里按数组顺序找 donor，采集者排首位保证它先被填满。 */
+  /* ⚠️ 2026-09-27 加了 scribe（书手）：这一行漏它 ⇒ 人派进去不出市政点，
+   *    UI 上明明雇得到、面板上永远 0。与 config.js 的 JOBS 是**两份表**，一起加。 */
+  var IDS = ['gather', 'coralwright', 'quarrier', 'miner', 'craft', 'scholar', 'scribe'];
+
+  /* 「种植」之后的采集者改称农民（用户 2026-09-26 原话：采集者职业变为农民）。
+   * 【为什么用改称而不是新增 farmer 职业】见 config.js JOBS.gather 的注——
+   * 要的是同一个人换了身份，不是多一个产同一资源的职业。
+   * 【这里只管名字】+50% 产出走 tech 的 `farm` 乘区（economy.js 的 foodRate 读它），
+   * 两处分开是为了让「显示为农民」和「产得更多」不会互相牵连：换了名字但没研究种植时，
+   * 显示仍是采集者，产出也不该变。 */
+  var FARM_JOB = 'gather', FARM_TECH = 'plant', FARM_NAME = '农民';
+  function jobName(s, jid) {
+    var base = (SB.JOBS || []).filter(function (x) { return x.id === jid; })[0];
+    var n = base ? base.name : jid;
+    if (jid === FARM_JOB && s && s.techs && s.techs[FARM_TECH]) n = FARM_NAME;
+    return n;
+  }
+
+  /* 职业解锁走科技树（techs.js 里各科技 eff.unlockJob），与建筑同理用反查表，
+   * 保证「解锁来源只有一处」。采集者 gather 无解锁条件——它是开局唯一能干活的人，
+   * 若它也要求研究某项科技，玩家在第一次研究完成前没有任何产出。 */
+  var JOB_TECH = {};
+  function jobTechOf(jid) {
+    if (!JOB_TECH[jid]) {
+      var T = SB.TECHS || [];
+      for (var i = 0; i < T.length; i++) {
+        var e = T[i].eff;
+        if (e && e.unlockJob && e.unlockJob.indexOf(jid) >= 0) JOB_TECH[jid] = T[i].id;
+      }
+    }
+    return JOB_TECH[jid] || null;
+  }
+  function jobUnlocked(s, jid) {
+    if (jid === 'gather') return true;
+    var tid = jobTechOf(jid);
+    return !tid || !!s.techs[tid];
+  }
 
   function sum(s) {
-    return s.jobs.gather + s.jobs.craft + (s.jobs.scholar || 0);
+    var n = 0;
+    for (var i = 0; i < IDS.length; i++) n += (s.jobs[IDS[i]] || 0);
+    return n;
   }
   function idle(s) { return s.pop - sum(s); }
 
@@ -22,6 +63,14 @@
    * 返回 false 表示动作无效（没闲置可雇 / 该职业没人），UI 层据此不重渲染。 */
   function assign(s, job, delta) {
     if (delta > 0) {
+      /* ⚠️ 未解锁的职业不能雇。这是**根因侧**的守卫，不是 UI 的礼貌：
+       * UI 已经把未解锁的行整行不渲染（render.js paneFolk），但按钮只是表现层，
+       * 任何调用路径（未来的 QA 探针 / 脚本 / 事件被伪造）都该被同一判据拦住。
+       * 判据与 autoAssign 的 others 过滤、render 的渲染过滤**同源**（都读 jobUnlocked），
+       * 而 jobUnlocked 又只反查 techs.js 的 eff.unlockJob ⇒ 解锁权仍只有一处。
+       * ⚠️ 只拦 delta>0：老档若有人卡在「职业有人但科技丢失」的不一致态上，
+       *    − 必须仍然退得掉，否则闲置池永远收不回这个人（行也还在，见 render）。 */
+      if (!jobUnlocked(s, job)) return false;
       if (idle(s) <= 0) return false;
       s.jobs[job]++;
       return true;
@@ -60,16 +109,41 @@
     if (g > 0 && g < 1) g = Math.round(pop * g);
     g = Math.max(0, Math.min(Math.round(g), pop));
     /* 至少留一人干活，否则整局没有资源进项；但 pop=1 时例外——
-     * 那时他要么当采集者（攒够余粮生第二人）要么闲置（永远生不出人），
-     * 开局只能选前者，所以 pop=1 全部当采集者。 */
+     * ⚠️ 2026-09-26 这条旧理由作废了：硬上限下「pop=1 全部当采集者」永远生不出人
+     *    （上限 0，没有住房就不算住满也不长人，见 economy.isFull），
+     *    于是 pop=1 必须有人去凿珊瑚才能盖起第一座礁口巢。规则见下面的 needCoral。 */
     if (pop > 1 && g > pop - 1) g = pop - 1;
 
-    var rest = pop - g;
-    var c = Math.min(rest, Math.round(rest * (ratio.craft != null ? ratio.craft : 0.25)));
-    var sc = Math.max(0, rest - c);
-    var target = { gather: g, craft: c, scholar: sc };
+    /* ⚠️ 这里曾经有一条「开局破局」：藻场铺起来、一座房都没有、珊瑚不够首级造价时，
+     *   扣一个人去凿珊瑚。它随 2026-09-26 把「凿珊瑚」改回付费科技（现价 25）而**整体作废** ——
+     *   珊瑚匠开局不可雇，这个条件恒为 false，留着只会让后人以为珊瑚匠能开局就上。
+     *   开局的珊瑚进项从此改走 config.js 的 GATHER（手动点「采珊瑚」按钮），
+     *   由 sim/balance.mjs 的主循环模拟那个点击 —— 玩家怎么破局，bot 就怎么破局。
+     *   ⚠️ 教训：**别为了让 sim 跑通去改产品侧设计**。当时 balance 死锁是因为 bot 不会点
+     *   按钮，正解是给 bot 补上手速，不是把科技免费送掉。 */
 
-    var diff = pop - (s.jobs.gather + s.jobs.craft + s.jobs.scholar);
+    /* 其余职业按比例分掉剩余人力。以前写死 craft/scholar 两档，加了珊瑚匠之后
+     * 写死会让剩下的 0.12 权重没人接（rest 里只剩 scholar），珊瑚永远 0。 */
+    var rest = pop - g;
+    var others = [], w = {}, sumW = 0, i2;
+    for (i2 = 0; i2 < IDS.length; i2++) if (IDS[i2] !== 'gather') others.push(IDS[i2]);
+    /* 未解锁的职业不参与分配：否则 sim 会把人派到 UI 上根本不存在的职业，
+     * 玩家看到的是「闲置池空了但什么都没产」。 */
+    others = others.filter(function (x) { return jobUnlocked(s, x); });
+    for (i2 = 0; i2 < others.length; i2++) {
+      var wv = (ratio && ratio[others[i2]] != null) ? Math.max(0, ratio[others[i2]]) : 0;
+      w[others[i2]] = wv; sumW += wv;
+    }
+    var target = { gather: g }, acc = 0;
+    for (i2 = 0; i2 < others.length; i2++) {
+      var k = others[i2];
+      target[k] = sumW > 0 ? Math.round(rest * w[k] / sumW) : (k === 'craft' ? rest : 0);
+      acc += target[k];
+    }
+    // 取整残差补给学者，避免总量差 1 导致下一轮空转
+    if (target.scholar !== undefined) target.scholar = Math.max(0, rest - (acc - target.scholar));
+
+    var diff = pop - sum(s);
     while (diff > 0) {
       var best = null, gap = 0;
       for (var i = 0; i < IDS.length; i++) {
@@ -110,5 +184,9 @@
     }
   }
 
-  SB.folk = { assign: assign, autoAssign: autoAssign, reconcile: reconcile, sum: sum, idle: idle, IDS: IDS };
+  SB.folk = {
+    assign: assign, autoAssign: autoAssign, reconcile: reconcile,
+    sum: sum, idle: idle, IDS: IDS, jobUnlocked: jobUnlocked, jobTechOf: jobTechOf,
+    jobName: jobName
+  };
 })(typeof window !== 'undefined' ? window : globalThis);
