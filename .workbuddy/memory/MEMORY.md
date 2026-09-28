@@ -16,7 +16,14 @@
   ⇒ 旋钮在破冰那一段，不在 era1。**改常数凑绿 = 标定，停；改代码让 bot 跑得穿 = bug，可做。**
   判据：`docs/JUDGMENTS.md` §「少括号」+「**测试夹具漏还原**」+「**整局模拟仍然没走真开局**」
   +「**随机源只有注释没有实现**」；数值见 `docs/CURRENT_FACTS.md` 时长结构节。
-- 24 处指向已删 `sim/balance.mjs` 的注释/文档（src 7 / e2e 4 / README 5 / docs 8）。
+- **git 环境事实（2026-09-28 实测，会反复踩）**：本仓**从未配置过 remote**（`origin` 都不存在）
+  ⇒ `git push` 必 `fatal: No configured push destination`；本机**也没配 git 身份**
+  ⇒ `git commit` 会 `fatal: unable to auto-detect email address`。
+  本项目历史身份全是占位 `baseline <baseline@local>`，沿用即可：
+  `git -c user.name=baseline -c user.email=baseline@local commit`（**用一次性参数，不写进全局配置**）。
+  ⚠️ 提交前**必须白名单 `git add`**：`docs/` 下混着两个工具产物（`*.xlsx` 与 `docs/.*.ref/build.py`），
+  一把抓 `git add .` 会把它们带进仓库；`tech-tree-demo.html` 也是否进仓要看用户。
+  （原「24 处 balance.mjs 注释/文档」已清——残留只在历史日志里，那属于记录不该改。）
 - 石梁 / 海潮方碑 4 个数已拍「全照建议」（2026-09-28）：工坊 craftRatio 0.05/级、
   三件工具 150/200/(200+50)、奇观 石梁20+珊瑚300、matMax 200 ⇒ **不再列未决**。
 
