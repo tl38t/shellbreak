@@ -71,6 +71,16 @@
      *    壳铸 +30%），那两处读的是 T.craft，与这条轴互不干涉 —— 键名都带 craft。 */
     var T = SB.tech ? SB.tech.mul(s) : null;
     if (T) m += T.craftRatio || 0;
+    /* ④ 政体（2026-09-29）：独裁统治 +10% 工坊效率。走与建筑级/科技/奇观**同一条加法乘区**，
+     *    所以三个 +5% + 独裁 +10% = 25%，不是 1.05³×1.10。读当前采用的政体，没采用 = 0。
+     *    ⚠️ 接法同构于上面三源：数据在政体表、读在这里，每加一个效果键都要问「谁在读它」。
+     *    ⚠️ `SB.civic` 可能晚加载，用存在判保护（craftRatio 在结算时才调用，模块顶层不碰它）。 */
+    if (SB.civic) m += SB.civic.govCraftRatio(s) || 0;
+    /* ⑤ 工坊升级（2026-09-29）：自动工坊 upg_autoshop 给 craftRatio:0.10。
+     *    与上面四源同一条加法乘区 ⇒ 三个 +5% + 独裁 +10% + 自动工坊 +10% = 35%。
+     *    读 SB.economy.upgSum（聚合函数统一藏在 economy，避免各模块重算漏键）。
+     *    ⚠️ `SB.economy` 可能晚加载，用存在判保护（craftRatio 结算时才调用，模块顶层不碰它）。 */
+    if (SB.economy && SB.economy.upgSum) m += SB.economy.upgSum(s, 'craftRatio') || 0;
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
@@ -221,7 +231,16 @@
     var w = wonderById(id);
     if (!w) return '没有这座奇观';
     if (s.wonders && s.wonders[id]) return '已经建成了';
-    if (s.techs && !s.techs[w.need]) {
+    /* ⚠️ 2026-09-28 修：`w.need &&` 这一层**不能省**。
+     *    奇观可以**没有** need（大图书馆在「通识」删掉后就是这种状态），而少了这道判据，
+     *    `s.techs[undefined]` 是 undefined ⇒ `!undefined` 恒 true ⇒ **没有门的奇观被判成
+     *    「需要先研究『undefined』」锁住** —— 玩家看到的是一个不存在的科技名，而真正拦着
+     *    的是下面那条成本（大图书馆要 1000 精铁，早就超过基础容量）。
+     *    这与文件里另外三处 need 门（`c.need` / `u.need` / `t.need`）的写法already不一致，
+     *    那边都带了判据 —— 只有这里漏了，等于奇观这条路上多出一道「字段缺失就凭空锁死」的门。
+     *    落回打不出名字时（need 指向一个已删的科技 id）它打的是 **id 而不是 undefined**，
+     *    这样悬空的 need 至少在界面上露得出来，不会变成一个看不懂的空门。 */
+    if (w.need && s.techs && !s.techs[w.need]) {
       var t = SB.tech && SB.tech.byId ? SB.tech.byId(w.need) : null;
       return '需要先研究「' + (t ? t.name : w.need) + '」';
     }
@@ -236,6 +255,19 @@
     for (k in w.cost) s.res[k] -= w.cost[k];
     s.wonders = s.wonders || {};
     s.wonders[id] = true;
+    /* 一次性奖励（大图书馆的 +1000 科技点，2026-09-28 用户规格）。
+     * ⚠️ 排在**置位之后**、也只在这里发一次：奇观是买断制（上面 wonderBlocked 会拦
+     *    第二次），所以「只发一次」是买断制自带的，不需要另设防重标记。
+     * ⚠️ 走 wonder.oneShot 那条出口而不是在这重写 `s.res.science += 1000`——
+     *    数值写在 config 的数据表里，别处不许散读（wonder.js 纪律③的同一条道理）。
+     * ⚠️ 用 addRes 而不是直接赋值：科技点无上限是对的，但 addRes 顺手做了
+     *    `Math.min(cap, ...)` 那层保护，直接赋值等于绕过它（将来给 science 设上限时
+     *    这一处会漏）。 */
+    var grant = SB.wonder && SB.wonder.oneShot ? SB.wonder.oneShot(s) : null;
+    if (grant) {
+      for (k in grant) SB.economy.addRes(s, k, grant[k]);
+      if (emit) emit('一次性获得 ' + grant.science + ' 科技点。');
+    }
     if (emit) emit('建成了「' + w.name + '」：' + w.desc);
     return true;
   }

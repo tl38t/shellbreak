@@ -130,10 +130,10 @@
       SB.game.pumpCivic(s, emit);
       return;
     }
-    if (d.cardclear) {
-      /* 拔下＝装填 null。它同样算「调整政策卡」，但走 setCard(null) 而不是自己写
-       * 一句 `s.card = null` —— 否则收费与拦逆权的判据就会在两处各写一遍。 */
-      if (SB.civic.setCard(s, null, emit)) {
+    if (d.cardclear !== undefined && d.cardclear !== null && d.cardclear !== '') {
+      /* 逐槽拔下：data-cardclear 带槽位下标，走 removeCard（指定槽的收费判据在
+       * civics.cardBlocked 里统一管，别在这儿另写一遍）。 */
+      if (SB.civic.removeCard(s, +d.cardclear, emit)) {
         SB.game.markDirty(); SB.game.renderAll();
       }
       SB.game.pumpCivic(s, emit);
@@ -212,6 +212,15 @@
     var t = e.target || {};
     if (t.id === 'miracleToggle') {
       SB.game.toggleMiracle(t.checked);
+    }
+    /* 宗教命名框（2026-09-29）：data-religion 的 input 在 blur/回车（change 事件）时写回名字。
+     * ⚠️ 只写不重建：renderReligion 用 gate 签名节流，改名不触发重画 ⇒ 输入框焦点/内容不动。 */
+    if (t.dataset && t.dataset.religion !== undefined) {
+      var s = run(); if (!s) return;
+      s.religionName = (t.value || '').slice(0, 16);
+      SB.game.markDirty();
+      SB.game.maybeReligionPopup(s);   // 写入第一个名字 = 建立宗教 ⇒ 播「轮回」弹窗
+      SB.game.renderAll();
     }
   }
 

@@ -201,8 +201,35 @@
        *    鼓舞要求原话是「完成科技海潮占卜」，指向**那一项**，不是「总数 ≥ N」。
        *    用计数表达会把「随便学够 N 项」当成达成，玩家永远读不懂自己差什么。 */
       case 'tech': return !!(s.techs && s.techs[c.id]);
+      /* `wonder` —— **已经建成几座奇观**（2026-09-28 市政《戏剧与诗歌》的尤里卡条件）。
+       * ⚠️ 走 `SB.wonder.count` 而不是直接读 `s.wonders`：wonder.js 的纪律③要求
+       *    「效果只从 wonder.js 出」，尤里卡虽然不是效果，但同样不该在别处冒出
+       *    第二个 s.wonders 读取点——那条纪律就是为了防止「加了奇观忘了接线」。 */
+      case 'wonder': {
+        var wc = (SB.wonder && SB.wonder.count) ? SB.wonder.count(s) : 0;
+        return wc >= c.n;
+      }
       case 'coef': return SB.shell.breakCoef(s) >= c.n;
       case 'eraTechs': return eraTechCount(s, c.era) >= c.n;
+      /* `tools` —— **买齐一组指定工具**（2026-09-29 ERA3 学徒制尤里卡）。
+       * ⚠️ 查的是 `s.tools[id]`（工坊买断后置真），与 toolMul 同源：工具买了才生效。
+       *   ids 是数组，全部为真才算达成（「买齐三件铁制工具」）。 */
+      case 'tools': {
+        var _ids = c.ids || [], _k;
+        for (_k = 0; _k < _ids.length; _k++) if (!(s.tools && s.tools[_ids[_k]])) return false;
+        return true;
+      }
+      /* `gov` —— **启用指定槽位档的政体**（2026-09-29 ERA3 城堡尤里卡）。
+       * ⚠️ 比的是政体槽位数（slots.wild），排除酋邦制 tribe 的 1 槽；
+       *   三槽政体 = autocracy / oligarchy / classical_republic（civics.js GOVS）。 */
+      case 'gov': {
+        var _g = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
+        return !!(s.gov && _g && _g.slots && (_g.slots.wild || 0) >= (c.wild || 3));
+      }
+      /* `upgrade` —— **已安装某件工坊升级**（2026-09-29 ERA3 金属精炼尤里卡）。
+       * ⚠️ 查 `s.upgrades[id]`（workshop.upgradeBuy 置真）；与 unlockBuild 不同，
+       *   这条指向工坊制品而非建筑，避免「尤里卡查自己解锁的建筑」那种死锁。 */
+      case 'upgrade': return !!(s.upgrades && s.upgrades[c.id]);
       default: return false;
     }
   }
@@ -229,12 +256,31 @@
       case 'job': return { txt: '匠人 ' + (s.jobs[c.j] || 0) + ' 人 / ' + c.n, now: s.jobs[c.j] || 0, need: c.n };
       case 'techs': return { txt: '已掌握科技 ' + techCount(s) + ' / ' + c.n, now: techCount(s), need: c.n };
       case 'tech': return { txt: '掌握科技「' + byId(c.id).name + '」', now: (s.techs && s.techs[c.id]) ? 1 : 0, need: 1 };
+      case 'wonder': {
+        var wonderN = (SB.wonder && SB.wonder.count) ? SB.wonder.count(s) : 0;
+        return { txt: '已建成奇观 ' + wonderN + ' / ' + c.n, now: wonderN, need: c.n };
+      }
       case 'coef': {
         var cf = SB.shell.breakCoef(s);
         return { txt: '破壳系数 ' + cf.toFixed(1) + ' / ' + c.n, now: cf, need: c.n };
       }
       case 'eraTechs': return { txt: eraName(c.era) + '科技 ' + eraTechCount(s, c.era) + ' / ' + c.n,
         now: eraTechCount(s, c.era), need: c.n };
+      /* 三类新尤里卡（2026-09-29）的「还差多少」文案，与 condMet 同口径。 */
+      case 'tools': {
+        var _ids2 = c.ids || [], _miss = 0;
+        for (var _m = 0; _m < _ids2.length; _m++) if (!(s.tools && s.tools[_ids2[_m]])) _miss++;
+        return { txt: '买齐铁制工具（缺 ' + _miss + ' 件）', now: _ids2.length - _miss, need: _ids2.length };
+      }
+      case 'gov': {
+        var _g2 = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
+        var _ok = !!(s.gov && _g2 && _g2.slots && (_g2.slots.wild || 0) >= (c.wild || 3));
+        return { txt: _ok ? '已启用三槽政体' : '需启用三槽政体（独裁/寡头/古典共和）', now: _ok ? 1 : 0, need: 1 };
+      }
+      case 'upgrade': {
+        var _up = !!(s.upgrades && s.upgrades[c.id]);
+        return { txt: '完成工坊升级「' + c.id + '」', now: _up ? 1 : 0, need: 1 };
+      }
     }
     return null;
   }

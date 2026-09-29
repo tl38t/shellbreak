@@ -4,7 +4,7 @@
 <meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
 <title>天壳 · SHELLBREAK</title>
-<link rel="stylesheet" href="css/main.css?v=64" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=85" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="wrap" data-page-node-id="R3GyesNvCCnIGdybfi94vw">
@@ -14,6 +14,10 @@
   <div class="card" data-page-node-id="sT3O7PuNiGltaiSUpAeb44">
     <div class="grid" id="res" data-page-node-id="7G9KZbNOPP20HFvS1BGVPa"></div>
   </div>
+  <!-- 宗教命名框（2026-09-29）：持久容器，由 ui/render.js 的 renderReligion 用「仅 gate 变化才重建」的
+       签名节流管理；⚠️ 不放进 #res（每帧重建）也不放进 civic pane（每 2 秒重建），否则 <input> 每敲
+       一字就被换掉、丢焦点。初始 display:none，renderReligion 在《神学》解锁后翻成显示。 -->
+  <div class="card" id="religionBox" style="display:none" data-page-node-id="ReligionBox01"></div>
 
   <div class="card" data-page-node-id="Qt6uTfn92BgbfljGBJcAXF">
     <div class="secttl" data-page-node-id="EnvSectTtl01">自然环境</div>
@@ -42,7 +46,7 @@
     <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-page-node-id="WrkTab01Workshop">工坊</div>
     <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-page-node-id="WdrTab01Wonder">奇观</div>
     <div class="tab" data-tab="dig" data-page-node-id="nceC5is2qjcujupm14G1J0">剥壳工程</div>
-    <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl">洋流商店</div>
+    <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl">轮回商店</div>
   </div>
 
   <div class="card" id="pane-village" data-page-node-id="Fuoti5loQT1P876HC45wlI"></div>
@@ -76,26 +80,26 @@
 <div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=64"></script>
+<script src="src/config.js?v=85"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=64"></script>
-<script src="src/tech.js?v=64"></script>
+<script src="src/techs.js?v=85"></script>
+<script src="src/tech.js?v=85"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics.js?v=64"></script>
-<script src="src/state.js?v=64"></script>
-<script src="src/workshop.js?v=64"></script>
-<script src="src/wonder.js?v=64"></script>
-<script src="src/economy.js?v=64"></script>
-<script src="src/shell.js?v=64"></script>
-<script src="src/habitat.js?v=64"></script>
-<script src="src/folk.js?v=64"></script>
-<script src="src/prestige.js?v=64"></script>
-<script src="src/ui/render.js?v=64"></script>
-<script src="src/game.js?v=64"></script>
-<script src="src/ui/input.js?v=64"></script>
-<script src="src/main.js?v=64"></script>
+<script src="src/civics.js?v=85"></script>
+<script src="src/state.js?v=85"></script>
+<script src="src/workshop.js?v=85"></script>
+<script src="src/wonder.js?v=85"></script>
+<script src="src/economy.js?v=85"></script>
+<script src="src/shell.js?v=85"></script>
+<script src="src/habitat.js?v=85"></script>
+<script src="src/folk.js?v=85"></script>
+<script src="src/prestige.js?v=85"></script>
+<script src="src/ui/render.js?v=85"></script>
+<script src="src/game.js?v=85"></script>
+<script src="src/ui/input.js?v=85"></script>
+<script src="src/main.js?v=85"></script>
 </body>
 </html>

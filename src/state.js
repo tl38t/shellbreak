@@ -8,11 +8,16 @@
   var CFG = SB.CFG;
 
   function emptyMeta() {
-    return { tide: 0, spent: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null };
+    /* religionSeen：是否建立过宗教（解锁「轮回」系统）。一旦置真，永久保留（跨周目），
+     *   因为「以后每周目都是这样」——重置按钮改名轮回、轮回点可获取，都是它的副作用。
+     * shopUnlocked：轮回商店（meta 页）的解锁开关，仅在「首次轮回」后翻真。
+     *   它与 religionSeen 是两件事：建立宗教后已能攒轮回点，但花点要等真正轮回过一次。 */
+    return { tide: 0, spent: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null,
+      religionSeen: false, shopUnlocked: false };
   }
   function emptyPerks() { return { gather: 0, coef: 0, thin: 0 }; }
 
-  /* 生成一周目。inherit: true 时继承上一周目的增益（洋流点/破层级/已购增益）。
+  /* 生成一周目。inherit: true 时继承上一周目的增益（轮回点/破层级/已购增益）。
    * 注意：破层级 layers 一期恒为 1（破冰 = 第 1 层），结构上留给二期大气壳。 */
   function freshRun(keepPerks) {
     var prev = SB.S;
@@ -44,8 +49,16 @@
        *      还是 NaN ⇒ 产物进了资源池却读出来是 NaN，面板显示 `NaN 铁制支架`，
        *      而升级项扣费 `undefined - 50 = NaN` 又把池子整个污染。
        *    与上面 stone/warmstone/culture/stoneBeam 那几条注完全同源，不是新纪律。 */
+      /* ⚠️ 2026-09-28 加 luxury（奢侈品）：与 culture / stoneBeam / ironBracket 那条
+       *    注同源漏洞键 ⇒ NaN（商人产它、addRes 收它）。它的特别之处是**有产出
+       *    没有开销**：tick 里那条 `addRes(s,'luxury',...)` 现在每帧都跑，漏了这一键
+       *    会在开局几秒内就把 s.res 整个染成 NaN——比石梁那次更慢、更难发现。 */
       res: { kelp: 0, coral: 0, stone: 0, silt: 0, warmstone: 0, iron: 0, science: 0, fuel: 0, culture: 0,
-        stoneBeam: 0, ironBracket: 0, rope: 0 },
+        stoneBeam: 0, ironBracket: 0, rope: 0, hardCoral: 0, luxury: 0, faith: 0,
+        /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件。三者均无 CAP_BASE 上限键
+         *   ⇒ capOf 自动 Infinity（钢无上限抄猫国）。这里只 seed 初始台账，防止 addRes 漏键染 NaN。
+         *   hydro 是每 tick 净流入（汽轮机产 - 工坊耗），单局会有正负波动，但落点恒定记 0。 */
+        steel: 0, hydro: 0, steelPart: 0 },
       /* lvl 的键必须与 SB.BUILDINGS 的 id 一一对应（quarry 已随「采石场改职业」移除）。
        * ⚠️ 漏一个键 = 一次 NaN 事故：`undefined * 0.12` 经 addRes 的 Math.min
        * 污染资源池，再顺着 lvlSum 污染破壳系数。与「加职业漏加表」「存档缺键」同类。 */
@@ -61,8 +74,21 @@
      *    任何东西（warmCap 已不读它），加回来只会让人误以为机制还在建筑上。 */
       /* ⚠️ kelpstore（海藻仓）是 2026-09-26 第三轮新增——藻食容量从压舱仓拆出来
        *   独立成一座（对标猫国 barn）。漏这个键的后果与上面 lvl 缺键那条同源：
-       *   `s.lvl.kelpstore * BLD.kelpCap` 成 NaN，经 addRes 的 Math.min 污染藻食池。 */
-      lvl: { kelp: 0, kelpstore: 0, weir: 0, warmnest: 0, ballast: 0, nest: 0, coralhouse: 0, hall: 0, reef: 0, siltpit: 0, workshop: 0, furnace: 0, library: 0, geyser: 0, miracle: 0 },
+       *   `s.lvl.kelpstore * BLD.kelpCap` 成 NaN，经 addRes 的 Math.min 污染藻食池。
+       * ⚠️⚠️【这张表还是 migrateRun 里 fixTable 的 ref，不只是"开局全 0"】
+       *    fixTable 按 **ref 的键**遍历 ⇒ 表里没有的建筑 id，**读档时会被整条丢掉**。
+       *    2026-09-28 实证：建起广场 → 存档 → 刷新，广场等级静默归零（不报错，
+       *    症状只有"它没了"）。institute 早就漏了，square 是新漏的。
+       *    ⇒ 加建筑必须回来补这一个键；e2e 有一条断言按 SB.BUILDINGS 逐个对，漏了会红。 */
+      /* ⚠️⚠️【temple 又是一处漏键】2026-09-28 加神庙时只改了 BUILDINGS，忘了这里 ⇒
+       *    e2e「每座建筑都在状态表的 lvl 里」当场红。这个键漏掉不是 NaN，是**读档静默丢**：
+       *    fixTable 按 ref 的键遍历 ⇒ 老档里建着的神庙整条被丢掉，等级从 0 开始。
+       *    同一批已经漏过三次（square / institute / lighthouse），现在这里补齐，
+       *    断言每条钉正反两面（有幽灵键 / 有缺键），下次加建筑前先跑一遍它。 */
+      lvl: { kelp: 0, kelpstore: 0, weir: 0, warmnest: 0, ballast: 0, nest: 0, coralhouse: 0, hall: 0, siltpit: 0, workshop: 0, furnace: 0, library: 0, institute: 0, square: 0, temple: 0, lighthouse: 0, miracle: 0,
+        /* ERA3 热液能系统（2026-09-29）：金属精炼解锁的两座建筑。lvl 漏键 = undefined × 数 = NaN，
+         *   经 lvlSum / costOf 污染破壳系数；与「加建筑漏 lvl」同类，必须一一对应。 */
+        hydroturbine: 0, hydroshop: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * UNIT.kelp` 变成
@@ -73,8 +99,14 @@
        * 缺键的后果见上面 lvl 那条注——economy 里 `s.jobs.quarrier * UNIT.stone`
        * 会变成 NaN 并顺着 addRes 污染石头池，再经 lvlSum 碰破壳系数。 */
       /* ⚠️ 2026-09-27 加 scribe（书手）：规则与上面 lvl/jobs 那几条注同源——
-       *    `s.jobs.scribe * UNIT.culture` 在缺键时成 NaN，顺着 addRes 污染市政点池。 */
-      jobs: { gather: 0, coralwright: 0, quarrier: 0, miner: 0, craft: 0, scholar: 0, scribe: 0 },
+       *    `s.jobs.scribe * UNIT.culture` 在缺键时成 NaN，顺着 addRes 污染市政点池。
+       * ⚠️ 2026-09-28 加 merchant（商人）：**这次漏了，而且漏法比 NaN 更阴**——
+       *    economy 那侧全都写了 `(s.jobs.merchant || 0)`，所以没有 NaN 事故；
+       *    真正出事的是 UI：`render.js` 的那道守卫是 `s.jobs[j.id] <= 0`，而
+       *      `undefined <= 0` 是 **false** ⇒ 守卫以为「这行有人」⇒ 还没解锁的商人
+       *      **照样被渲染出来**。玩家看到职业行、点 ＋ 却雇不到人，而没有任何报错。
+       *    ⇒ 加职业时这份字面量必须与 res / lvl 一样当场补齐，别等回归红。 */
+      jobs: { gather: 0, coralwright: 0, quarrier: 0, miner: 0, craft: 0, scholar: 0, scribe: 0, merchant: 0 },
       /* seen = 建筑「曾经露过头」的黑名单（habitat.reveal 写入，UI 判可见用）。
        * 没有它，玩家把库存花到 unlockRatio 阈值以下时，刚冒出来的建筑会当场消失。
        * 与 lvl/jobs 同理：新增字段要同时在 freshRun 与 migrateRun 两边补上。 */
@@ -93,6 +125,10 @@
        *   老档靠 migrateRun 补（见下）。 */
       frozen: false, _seasonIdx: -1,
       pop: CFG.POP_START,
+      /* 幸福度（陆地贸易，2026-09-28 落地）。顶层派生状态，不进 res 池——
+       * 它不是资源、不进资源台账、不被 capOf 限制。夹 [HAPPY_FLOOR, ∞)。
+       * ⚠️ 不是 res 键：renderRes 的资源循环按 SB.RESS 走，happy 单独成行显示。 */
+      happy: 0,
       peak: CFG.POP_START,
       deaths: 0,
       coldTicks: 0,
@@ -118,7 +154,12 @@
       era: 1,
       eureka: {},
       eurekaMet: {},
-      got: { kelp: 0, coral: 0, silt: 0, iron: 0, science: 0, fuel: 0, culture: 0, stoneBeam: 0 },
+      /* ⚠️ luxury 不在 got 里——**是故意的**：奢侈品此刻没有开销渠道（贸易系统待设计），
+       *    记进「累计产出」台账只会让它在一个玩家永远读不到的格子里增长。
+       *    等贸易落地要加「累计产出奢侈品 N」那种尤里卡时，在这里补一行即可。 */
+      got: { kelp: 0, coral: 0, silt: 0, iron: 0, science: 0, fuel: 0, culture: 0, stoneBeam: 0, hardCoral: 0,
+        /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件累计产出台账，与 res 同口径 seed。 */
+        steel: 0, hydro: 0, steelPart: 0 },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
        *   civBoost —— 鼓舞条件**达成过**的台账（与技术树的 eurekaMet 同构：
@@ -133,7 +174,9 @@
       civBoost: {},
       civShown: {},
       gov: null,
-      card: null,
+      cards: [],            // 政策卡槽（数组，逐槽；2026-09-29 由 s.card 单值升维）
+      card: null,          // 第 0 号槽镜像（旧代码/回归读方便，非事实来源）
+      religionName: '',     // 玩家给信仰起的名字（空 = 未命名；神学解锁后可改，无消耗）
       /* 政策卡槽**人生第一次**装填过没有。
        * ⚠️ 它不能省：换卡收费若按「槽当前空不空」判，「拔下→再装填」就能无限免费换效果。
        *    一次性标记才堵得住。见 civics.cardBlocked 那条注。 */
@@ -172,8 +215,24 @@
   function loadMeta() {
     var m = emptyMeta();
     try {
-      var raw = root.localStorage && root.localStorage.getItem(CFG.SAVE_KEY);
-      if (raw) m = Object.assign(m, JSON.parse(raw));
+      var rawStr = root.localStorage && root.localStorage.getItem(CFG.SAVE_KEY);
+      if (rawStr) {
+        var parsed = JSON.parse(rawStr);
+        m = Object.assign(m, parsed);
+        /* 旧档（本更新前）没有 religionSeen / shopUnlocked 字段：
+         * 若已积过跨周目进度（轮回点 / 破层 / 走过 ≥2 周目 / 已购增益），
+         * 视为「早就建立过宗教、也轮回过」，把两轮解锁都补上，
+         * 免得老玩家升级后突然发现轮回商店被锁、攒的点花不出去。
+         * 全新档（无任何进度）保持 false，按新流程从建立宗教开始。
+         * ⚠️ 判据用 `=== undefined` 而非真值：新档 saveMeta 会写出 religionSeen:false，
+         *   那种不算旧档，不该被这里的宽限误伤（新玩家即便 轮回 过一次、只要没建立宗教，
+         *   商店仍按主流程在「首次轮回后」解锁，不走这条宽限）。 */
+        if (parsed.religionSeen === undefined) {
+          var hasProgress = (m.tide > 0) || (m.layers > 0) ||
+            (m.cycle > 1) || (m.perks && Object.keys(m.perks).length > 0);
+          if (hasProgress) { m.religionSeen = true; m.shopUnlocked = true; }
+        }
+      }
     } catch (e) { /* 存档损坏就当新档，不打断启动 */ }
     return m;
   }
@@ -263,6 +322,16 @@
       }
       out.techs[nid] = true;
     }
+    /* 政策卡槽升维（2026-09-29）：s.card 单值 → s.cards 数组。
+     * ⚠️ 老档只有 `card`（单值）⇒ 迁成 `cards: [card]`（装在第 0 号槽）。
+     *    新档直接有 `cards` ⇒ 原样保留。两者都没有 ⇒ 空数组。
+     *    s.card 保留为第 0 号槽镜像（与 freshRun 默认一致），方便旧代码读。 */
+    if (Array.isArray(raw.cards)) out.cards = raw.cards.map(function (x) { return x || null; });
+    else if (raw.card) out.cards = [raw.card];
+    else out.cards = [];
+    out.card = out.cards[0] || null;
+    /* 宗教名（2026-09-29）：老档没有这个字段 ⇒ 迁成 ''（未命名）。新档原样保留。 */
+    out.religionName = (typeof raw.religionName === 'string') ? raw.religionName : '';
     /* 老档没有「科技面板开门」这个机制，玩家的科技页一直是开着的。
      * 于是这里直接记账为「弹窗已播」，不回去播一次结绳叙事——
      * 那句话的语境是「第一次知道有今天和明天」，对玩了几小时的老档是废话。
@@ -296,7 +365,7 @@
       if (raw.seen && raw.seen[bid]) out.seen[bid] = 1;
     }
     var nums = ['t', 'shell', 'iceShell', 'baseShell', 'pop', 'peak', 'coldTicks',
-      'deaths', 'frostDeaths', 'famineDeaths', 'famine'];
+      'deaths', 'frostDeaths', 'famineDeaths', 'famine', 'happy'];
     for (var i = 0; i < nums.length; i++) {
       var v2 = out[nums[i]];
       if (typeof v2 !== 'number' || !isFinite(v2)) out[nums[i]] = base[nums[i]];

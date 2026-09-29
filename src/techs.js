@@ -301,9 +301,14 @@
      * ⚠️ 用户规格原话「不需要尤里卡直接显示」⇒ **故意不写 cond**，不是漏写。
      *    不写 cond 的科技走 default 分支直接露面，与写 `cond:{t:'always'}` 等价但更短。
      * ⚠️ 解锁权双写：这里的 eff.unlockBuild 与 config 里 `ballast.requiredTech` 指向同一项
-     *    （同 kelpstore/plant、reef 的老规矩），e2e「建筑解锁来源」守着两边一致。
+     *    （同 kelpstore/plant 的老规矩；⚠️ 2026-09-28 礁石平台删除后，本项只解锁压舱仓一座），e2e「建筑解锁来源」守着两边一致。
      * ⚠️ eff.kelpCap 是**加法**量 ⇒ 藻食上限 +200，与其它仓储加成同口径。 */
-    { id: 'lighting',  name: '照明',   era: 2, cost: 90,  branch: 'live', key: false, reqs: [], layer: 1,
+    /* ⚠️ 2026-09-28 用户拍板：**照明升为纪元二关键节点**（原话：「工程学和照明吧」——
+     *    指补回 era2 的 key 节点）。背景：删掉「通识」后 era2 一个 `key:true` 都不剩，
+     *    `eraProgress` 的 `done >= keysTotal`（0>=0）恒真 ⇒ 一进 era2、下一次 pump 就
+     *    自动跳到 era3，本纪元的内容玩家来不及玩。现在 key = 照明 + 工程学两项，
+     *    era2 的推进重新有账可查。 */
+    { id: 'lighting',  name: '照明',   era: 2, cost: 800,  branch: 'live', key: true, reqs: [], layer: 1,
       eff: { kelpCap: 200, unlockBuild: ['ballast'] },
       note: 'Civ6: Pottery 位 · 藻食第一次有了「可以存下来」的意思（藻食上限 +200）。' },
 
@@ -331,7 +336,7 @@
      *    ⇒ 不会自锁（压舱仓不是本项的前置，只是本项的条件）。
      * ⚠️ 不能写成「建成灯塔 x N」：灯塔正是本项解锁的，条件指向的东西在自己身上
      *    —— 与「匠作 / 匠人 ≥ 2」是同一类自指错误（见匠作那段的注）。 */
-    { id: 'navigation', name: '导航',  era: 2, cost: 180, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
+    { id: 'navigation', name: '导航',  era: 2, cost: 1000, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
       cond: { t: 'built', b: 'ballast', n: 3 },
       eff: { unlockBuild: ['lighthouse'] },
       note: 'Civ6: Sailing 位 · 光落在远处的礁石上，才知道那边有什么。' },
@@ -342,12 +347,12 @@
      *    全仓无人读取的死键（它目前只在注释里出现过一次，没有任何实现）。
      * ⚠️ 尤里卡条件「牧场 8 级」：深海鱼牧场由纪元一「畜牧」解锁，首级 kelp 100 + coral 10，
      *    ratio 1.15 ⇒ 8 级累计约 1373 藻食 + 137 珊瑚。可达，且牧场不是本项的前置。 */
-    { id: 'horsemanship', name: '马术', era: 2, cost: 180, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
+    { id: 'horsemanship', name: '马术', era: 2, cost: 1200, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
       cond: { t: 'built', b: 'warmnest', n: 8 },
       eff: {},
       note: 'Civ6: Horseback Riding 位 · 有了光才知道什么时候该出门。' },
 
-    { id: 'ironwork',  name: '铁器',   era: 2, cost: 110, branch: 'survive', key: false, reqs: [], layer: 1,
+    { id: 'ironwork',  name: '铁器',   era: 2, cost: 800, branch: 'survive', key: false, reqs: [], layer: 1,
       cond: { t: 'res', r: 'silt', n: 60 },
       eff: { smelt: 0.40, unlockBuild: ['furnace'] },
       note: 'Civ6: Iron Working 位 · 金属第一次不只是存货，是能敲出东西的材料。' },
@@ -363,28 +368,27 @@
      *    保温巢的解锁已挪到纪元一的畜牧，暖壳石由保暖术解锁。 */
 
     /* ⚠️ 原「治学」已于纪元一重排时改名「书写」并提到纪元一（它现在是层三，解锁潮纹馆）。
-     *    这一项 recap 的是它留下的位置：**通识**（关键节点，破壳系数第一次被知识推动）。 */
-    { id: 'loreway',    name: '通识',   era: 2, cost: 150, branch: 'know', key: true, reqs: ['scholarT'], layer: 4,
-      cond: { t: 'built', b: 'library', n: 1 },
-      eff: { coef: 0.5 },
-      note: 'Civ6: Mathematics · 关键节点。第一座潮纹馆立起来，破壳系数第一次被知识推动。' },
+     * ⚠️ 2026-09-28 用户指令：**「通识」这一项已整体删除**（「我没设计过的科技，删掉」，
+     *    等都等着重新设计）。它挂着三样东西，一起说明，免得重设时漏：
+     *    ① `key: true` —— 它是纪元二的**关键节点之一**，`tech.keysOf` 的分子分母都拿它
+     *       当分母；删掉后纪元二少一个关键节点（不会卡住推进，但推进条件里的权重变了）。
+     *    ② `eff: { coef: 0.5 }` —— 破壳系数 **+0.5**；这一项没了，破壳系数从此少这 0.5。
+     *    ③ 大图书馆的 `need`（见 config.js 奇观表那处注）——已一并清空。
+     *    ⇒ 重设时如果还要「知识推动破壳」这条轴，它得换个位置落回来。 */
 
-    /* ⚠️ 原「骨工法」（era2 关键节点，珊瑚→骨材的产出乘区 0.30，也是「匠作」的唯一前置）
-     *    已于 2026-09-27 随骨材线整体删除 ⇒ era2 少一个关键节点
-     *    （`tech.keysOf` 的分母同步减 1，不会卡住推进；「匠作」改由「凿珊瑚」作前置）。
-     *    ⚠️ 加工线从此少了一个乘区，而工坊本身还是空壳 —— 那是下一步要填的内容。 */
-    /* 匠作前置改挂「凿珊瑚」（纪元一的宽基），不必再等加工线的任何节点。 */
-    /* ⚠️ 尤里卡条件**不能**写成「匠人 ≥ 2」：匠人职业正是本项解锁的，
-     * 条件要求人、人又只能在本项掌握后才存在 ⇒ 条件永远不成立，整条加工/地热/祭坛线
-     * 从根上断掉（现在能跑通只因为 revealEra 进纪元时会把旧纪元节点整批强制揭示，
-     * 把这条自指旁路掉了——**那不是修复，那只是没触发**）。
-     * 这与 smelt / 热泉炉 那条是同一类错误的不同形态：条件指向的东西在本项自己身上。
-     * ⇒ 保留「建成工坊」这个条件：人还没有，但活已经摆在那儿了。 */
-    { id: 'craftT',     name: '匠作',   era: 2, cost: 110, branch: 'live', key: false, reqs: ['coralcut'], layer: 3,
-      cond: { t: 'built', b: 'workshop', n: 1 },
-      eff: { unlockJob: ['craft'] },
-      note: '匠人是加工/地热/祭坛三条线的共用人力。原本刻意排在骨工法之后（先有活，才有匠人），'
-          + '骨工法删后改由「凿珊瑚」作前置。' },
+    /* ⚠️ 2026-09-28 用户指令：**「匠作」这一项已整体删除**（「我没设计过的科技，删掉」，
+     *    等都等着重新设计）。⚠️ 它是**整棵树里最贵的一次删除**，因为它同时是三样东西：
+     *    ① **匠人职业（`jobs.craft`）的唯一解锁口**：职业解锁只有一条通路——反查各科技的
+     *       `eff.unlockJob`（folk.js 的 JOB_TECH 建表）。`eff:{unlockJob:['craft']}` 是
+     *       全树里唯一给 craft 的那些 ⇒ 删掉后 `jobs.craft` **恒为 0**（folk 自动派工那步
+     *       会把人分到别的职业上）。匠人是地热算式的一项，所以地热也跟着归零。
+     *    ② 四项纪元三科技的**唯一前置**：冶炼术 / 烟囱炉 / 机械 / 精铁术原先都写
+     *       `reqs:['craftT']` ⇒ 这四项的前置已一并清空成 `reqs: []`（即纪元内立即可研究），
+     *       否则它们会变成四个**永远点不动**的科技。重设时把前置填回来即可，字段语义不变。
+     *    ③ 纪元二第三层里「生活」那一支的中间节点 ⇒ 现在 `coralcut` 之后那一层是空的。
+     *    ⚠️ 这里曾经记着一条**自指尤里卡**的教训（条件写成「匠人 ≥ 2」会让条件要求在它自己
+     *       解锁的东西上，于是永假）——那条教训本身没错，但它保护的那一项已经没了，
+     *       连同注释一并删除，别照抄。 */
 
     /* ═══ 纪元二 · 第三层（2026-09-28 用户规格）═══════════════════════
      * 【本层的形状】用户原话：「铁器引出工程学」「导航引出数学」「导航引出构架术」。
@@ -404,7 +408,11 @@
      *   与铁质三件工具、马具完全同构。在 eff 里再写一个 `unlockUpgrade` 键会造出
      *   一个全仓无人读取的死键（同 unlockTool 那个教训），而且面板会显示一个
      *   玩家点进去发现没有兑现物的东西。 */
-    { id: 'engineeringT', name: '工程学', era: 2, cost: 240, branch: 'live', key: false,
+    /* ⚠️ 2026-09-28 用户拍板：**工程学也升为纪元二关键节点**（与照明一起，见上面 lighting
+     *    那条注）。两项 key 的位置一头一尾：照明在 layer 1（进门就见），工程学在 layer 3
+     *    且吃「热泉炉 3 级」这道尤里卡 ⇒ era2 的推进被钉在「本纪元真的玩过一遍」上，
+     *    而不是进门即过。 */
+    { id: 'engineeringT', name: '工程学', era: 2, cost: 1500, branch: 'live', key: true,
       reqs: ['ironwork'], layer: 3,
       cond: { t: 'built', b: 'furnace', n: 3 },
       eff: {},
@@ -420,7 +428,7 @@
      *     3 位学者 + 3 级潮纹馆（×1.3）约 28 分钟；8 位学者约 10 分钟。
      *     ⇒ 可达，但**不是顺手就到**的：它要求玩家在攒满之前先把科技点攒着别花。
      *     这个「卡流程」的代价是**标定权**，数字照规格写死在这里，等用户对账。 */
-    { id: 'mathematics', name: '数学',   era: 2, cost: 200, branch: 'know', key: false,
+    { id: 'mathematics', name: '数学',   era: 2, cost: 1800, branch: 'know', key: false,
       reqs: ['navigation'], layer: 3,
       cond: { t: 'res', r: 'science', n: 1000 },
       eff: { unlockBuild: ['institute'] },
@@ -432,63 +440,51 @@
      *   `T.craft`（烟囱炉 +15%、壳铸 +30%）是**精铁加工产出**乘区，作用于热泉炉那条线；
      *   `craftRatio` 是**工艺制作产出**乘区，作用于工坊制造石梁那条线。两个名字都带
      *   「craft」，是本项目最容易误接的一对 —— 接错了不报错，只是研究完工坊没反应。 */
-    { id: 'scaffoldT',   name: '构架术', era: 2, cost: 200, branch: 'live', key: false,
+    { id: 'scaffoldT',   name: '构架术', era: 2, cost: 1600, branch: 'live', key: false,
       reqs: ['navigation'], layer: 3,
       eff: { craftRatio: 0.05 },
       note: 'Civ6: Masonry 位 · 解锁成捆东西的绳。同时工坊效率 +5%。' },
 
 
-    /* ═════════ 纪元三 · 硫泉（6 项 · 300/390） ═════════
-     * 材料革命：精铁上线。破壳从「能不能活」变成「要凿多久」。 */
-    /* ⚠️ 热泉炉的 requiredTech 是 craftT（匠作）而不是本项：本项的尤里卡条件就是
-     * 「建成第一座热泉炉」，若把热泉炉也锁在本项后面就是一对死锁——热泉炉建不起来
-     * → 尤里卡不达成 → 永远建不起来。**尤里卡条件与 requiredTech 不能指向同一件东西**，
-     * 这是新增科技时必须自查的一条。 */
-    /* ⚠️ 2026-09-28：本项**不再解锁热泉炉**。热泉炉的解锁权已随纪元二重排移给「铁器」
-     *    （用户规格原文「铁器解锁炽泉熔炉」），这里原本挂着的 `unlockBuild:['furnace']`
-     *    必须一起摘掉 —— 解锁权是**双写**的（建筑侧 requiredTech + 科技侧 unlockBuild），
-     *    只改建筑侧会留下「两边各说一套」的冲突，e2e「建筑解锁来源」那条守的就是这个。
-     *    ⇒ 本项现在只剩 `smelt: 0.40` 这一份精铁产出乘区（与铁器给的那份相加）。 */
-    { id: 'smelt',      name: '冶炼术', era: 3, cost: 300, branch: 'survive', key: true, reqs: ['craftT'], layer: 4,
-      cond: { t: 'gathered', r: 'silt', n: 120 },
-      eff: { smelt: 0.40 },
-      note: '机制同源：Civ6 Iron Working · 名字不照抄。精铁产出 +40%（纪元三的关键节点）。' },
+    /* ═════════ 纪元三 · 硫泉（5 项 · 300/300/390/390/390） ═════════
+     * 材料革命：钢与热液能上线。破壳从「能不能活」变成「要凿多久」。 */
+    /* ⚠️ 2026-09-29 整表替换：旧 6 项（冶炼术/烟囱炉/机械/精铁术/深潜/壳骨）删除，
+     *   改「钢 + 热液能」新线。key = 学徒制 + 金属精炼（见各自行 key:true）。
+     *   旧「热泉炉解锁权」那 3 段注已废（热泉炉的解锁权早归铁器，与纪元三无关）。 */
+    { id: 'apprentice', name: '学徒制', era: 3, cost: 300, branch: 'survive', key: true, reqs: [], layer: 1,
+      cond: { t: 'tools', ids: ['tool_ironSickle', 'tool_ironAxe', 'tool_ironPick'] },
+      eff: {},
+      note: 'Civ6: Apprenticeship · 买齐三件铁制工具（镰/斧/镐）即掌握。解锁鱼骨矿井。' },
 
-    /* 烟囱炉的前置从「冶炼术」换成「匠作」（压深度，见文件顶部「依赖深度」那节）。
-     * 它自己的尤里卡条件是「热泉炉盖到 2 级」，而热泉炉根本不是本项解锁的——
-     * 冶炼术只是在树上排在它前面，写进 reqs 并不会让它早一点出现。
-     * 换成匠作之后，纪元三的「冶炼 / 烟囱炉 / 机械」就不再是三段排队。 */
-    { id: 'blastfurn',  name: '烟囱炉', era: 3, cost: 300, branch: 'live', key: false, reqs: ['craftT'], layer: 4,
-      cond: { t: 'built', b: 'furnace', n: 2 },
-      eff: { craft: 0.15 },
-      note: '机制同源：Civ6 Machinery · 名字不照抄（陆地是风箱鼓风，本作是热泉烟囱自带抽力）。\n      *   两条加工线同时变快。' },
+    /* 马镫的尤里卡 = 5 名商人（cond 'job'）。与马具(tool_harnes) 是独立乘区：
+     *   马具走 toolMul(merchant)、马镫走工坊升级 upg_horseshoe(luxuryMul 0.5)，
+     *   economy 商人行两处相乘 ⇒ 合计 +100%。 */
+    { id: 'horseshoe',  name: '马镫',   era: 3, cost: 300, branch: 'live', key: false, reqs: [], layer: 1,
+      cond: { t: 'job', j: 'merchant', n: 5 },
+      eff: {},
+      note: 'Civ6: Horseshoeing · 5 名商人即掌握。解锁马镫（工坊升级，奢侈品 +50%）。' },
 
-    /* 机械的前置从「烟囱炉」换成「匠作」：真正需要「杠杆」这件事的时候，
-     * 玩家手里早就不止一座热泉炉了（它的尤里卡条件是建筑总级数 14）。
-     * 挂匠作之后，纪元三剩下的那几项全部同时可点。 */
-    { id: 'gearwork',   name: '机械',   era: 3, cost: 300, branch: 'live', key: false, reqs: ['craftT'], layer: 4,
-      cond: { t: 'total', n: 14 },
-      eff: { gather: 0.10 },
-      note: 'Civ6: Wheel · 建筑铺到一定程度才看得见「杠杆」这件事。' },
+    /* 教育前置 = 学徒制 + 数学。尤里卡 = 三级研究所（built institute n=3）。
+     * 大学(工坊升级 upg_university) 与 阿尔巴达(奇观 wonder_albada) 的解锁权各自写在其表。 */
+    { id: 'education',  name: '教育',   era: 3, cost: 390, branch: 'know', key: false, reqs: ['apprentice', 'mathematics'], layer: 3,
+      cond: { t: 'built', b: 'institute', n: 3 },
+      eff: {},
+      note: 'Civ6: Education · 三级研究所即掌握。解锁大学（工坊升级）与阿尔巴达热液大学（奇观）。' },
 
-    /* 精铁术的前置从「冶炼术」换成「匠作」，理由与烟囱炉同（压深度）。
-     * 它要的是「手里有精铁」，而精铁只能由热泉炉炼出来——所以冶炼术无论如何都会被
-     * 这条尤里卡条件先逼着去研究，前置里再写它一次只是把树画成一条链。 */
-    { id: 'ironpeak',   name: '精铁术', era: 3, cost: 390, branch: 'survive', key: false, reqs: ['craftT'], layer: 4,
-      cond: { t: 'res', r: 'iron', n: 40 },
-      eff: { coef: 0.6 },
-      note: 'Civ6: Metal Casting · 手里第一次有硬邦邦的东西，破壳系数开始顶得动。' },
+    /* 金属精炼前置 = 学徒制。尤里卡 = 完成鱼骨矿井（装 upg_fishbonemine，cond 'upgrade'）。
+     * 尤里卡查鱼骨矿井、unlockBuild 查汽轮机/工坊——两件不同节点，不互锁。 */
+    { id: 'metalrefine', name: '金属精炼', era: 3, cost: 390, branch: 'survive', key: true, reqs: ['apprentice'], layer: 2,
+      cond: { t: 'upgrade', id: 'fishbonemine' },
+      eff: { unlockBuild: ['hydroturbine', 'hydroshop'] },
+      note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。' },
 
-    { id: 'deepsea',    name: '深潜',   era: 3, cost: 390, branch: 'live', key: false, reqs: ['gearwork'], layer: 5,
-      cond: { t: 'pop', n: 14 },
-      eff: { gather: 0.20 },
-      note: 'Civ6: Shipbuilding · 人口到 14 才谈得上「下潜」——人不够时硬推这条线是空转。' },
-
-    /* 显示名：原写「龙骨」是船体部件（陆地语境）。本作用「壳骨」——呼应破壳链里\n     * 「骨架撑得住才装得下更多族民」，id 保持 keel 不动（reqs 链与存档都按 id 走）。 */
-    { id: 'keel',       name: '壳骨',   era: 3, cost: 390, branch: 'survive', key: true, reqs: ['ironpeak'], layer: 5,
-      cond: { t: 'gathered', r: 'iron', n: 120 },
-      eff: { house: 2, coef: 0.5 },
-      note: '机制同源：Civ6 Castles 的「承重 → 可住更多」结构 · 名字不照抄。精铁吃够了就该撑更大的壳体。' },
+    /* 城堡前置 = 工程学（engineeringT，纪元二第三层）。尤里卡 = 启用三槽政体
+     * （autocracy/oligarchy/classical_republic，新 cond 'gov'，排除酋邦制 tribe 1 槽）。
+     * 城堡(工坊升级 upg_castle) 解锁权写在工坊表。 */
+    { id: 'castle',     name: '城堡',   era: 3, cost: 390, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
+      cond: { t: 'gov', wild: 3 },
+      eff: {},
+      note: 'Civ6: Castles · 启用任一三槽政体即掌握。解锁城堡（议事厅升级：减耗 +50%、每级 +50 容量）。' },
 
     /* ═════════ 纪元四 · 洋流（5 项 · 540/660） ═════════
      * 借力：地热上线。这是祭坛的前置，也是「破壳」从口号变工程的第一步。 */
@@ -498,9 +494,9 @@
      * ⚠️ 在此之前不要「顺手补一个前置让它看起来完整」：写死任何一项都会变成纪元四的
      *    硬门槛，而纪元四整个还在设计里。空 reqs 与 era2 的照明/铁器同口径。 */
     /* 点火术的前置从「壳骨」改成「保温术」（压深度，见文件顶部「依赖深度」那节）。
-     * 热泉井是本项解锁的建筑，而「科技产出到 1/s」这条尤里卡条件已经把学者这条线
-     * 钉死在前面了；再要求壳骨（精铁那一路的第 4 层）只会让纪元四多出一段空等，
-     * 而那段时间玩家本来也拿它没办法。 */
+     * 热泉井原本是本项解锁的建筑（已随 2026-09-28 用户指令删除，见下），而
+     * 「科技产出到 1/s」这条尤里卡条件已经把学者这条线钉死在前面了；再要求壳骨
+     * （精铁那一路的第 4 层）只会让纪元四多出一段空等，而那段时间玩家本来也拿它没办法。 */
     { id: 'ignition',   name: '点火术', era: 4, cost: 540, branch: 'know', key: true, reqs: [], layer: 2,
       /* ⚠️ 2026-09-26 修：尤里卡条件读的是 `rates(s)` 的键，而 rates() 把科技产出的键叫
        * `science`（与 RESS.science、UNIT.sci 同源），不是 `sci`。原先写成 `r:'sci'` 会让
@@ -508,20 +504,30 @@
        * 尤里卡永远达不成。这道门禁加进来之前它无害（那时揭示走 revealEra，不读 condMet）；
        * 加了「必须先达成尤里卡才能研究」之后它直接把纪元四整锅端死，整局 22h 凿不穿。 */
       cond: { t: 'rate', r: 'science', n: 1.0 },
-      eff: { fuel: 0.40, unlockBuild: ['geyser'] },
+      /* ⚠️ 2026-09-28：`unlockBuild:['geyser']` 随**热泉井删除**一并撤掉（热泉井整条
+       *   地热线待重设，见 config.js 里 geyser 那条注）。留着不是「死键而已」——
+       *   e2e「解锁目标都真实存在」会拿 `eff.unlockBuild` 逐项反查建筑表，查不到就红，
+       *   而这一项查不到 ⇒ 纪元四那批解锁断言跟着一起塌。 */
+      eff: { fuel: 0.40 },
       note: 'Civ6: Steam Power · 关键节点。科技产出到 1/s 说明这一纪元的积累够了。' },
 
+    /* ⚠️ 2026-09-28：本项的尤里卡条件原本是 `{t:'built', b:'geyser', n:1}`（「热泉井一开，
+     *    机械就接得上」）。**热泉井已删除** ⇒ 那个条件变成**永假**：不报错、不 NaN，
+     *    只是 turbine 永远研究不了，而它还是 survey / ballistics / shellBreaker 三条的
+     *    前置 ⇒ 纪元五整条线静默停摆。
+     *    ⇒ 这里选择**直接撤掉条件**（而不是改挂别的建筑）：改挂等于我替用户新定一条设计，
+     *      而用户明说「这些都等着重新设计」。撤掉后 turbine 在点火术之后立即可研究，
+     *      era4 少一道 eureka。等地热线重设时，再决定这道门挂谁。 */
     { id: 'turbine',    name: '涡轮',   era: 4, cost: 540, branch: 'know', key: false, reqs: ['ignition'], layer: 3,
-      cond: { t: 'built', b: 'geyser', n: 1 },
       eff: { fuel: 0.20 },
-      note: 'Civ6: Engineering · 热泉井一开，机械就接得上。' },
+      note: 'Civ6: Engineering · 机械与动力第一次接上。' },
 
     { id: 'survey',     name: '测壳',   era: 4, cost: 660, branch: 'know', key: false, reqs: ['turbine'], layer: 4,
       cond: { t: 'total', n: 22 },
       eff: { coef: 1.0 },
       note: 'Civ6: Astronomy · 冰壳第一次被量成一个数字：能算出还要凿多久。' },
 
-    { id: 'tideflow',   name: '洋流',   era: 4, cost: 660, branch: 'live', key: false, reqs: ['gearwork'], layer: 5,
+    { id: 'tideflow',   name: '洋流',   era: 4, cost: 660, branch: 'live', key: false, reqs: [], layer: 5,
       cond: { t: 'rate', r: 'coral', n: 2.0 },
       eff: { gather: 0.30 },
       note: 'Civ6: Shipbuilding 二段 · 采集产出到 2/s， harvesting 才值得再上一层。' },
@@ -566,7 +572,7 @@
    * 做法：能一一对应的直接改名，不能对应的折算成等价效果对应的那一项
    * ——否则老玩家研究过的科技会凭空消失、破壳系数凭空掉一截。 */
   var LEGACY_MAP = {
-    calendar: 'calendar', smelt: 'smelt', ignition: 'ignition',
+    calendar: 'calendar', ignition: 'ignition',
     /* ⚠️ 原表里的 `bonework: 'bonework'` 已随骨工法科技一并删除（2026-09-27）：
      *    老档里若有人研究过它，那项知识在新树里无处落 —— 按丢弃处理，不断链。
      * ⚠️ `heat: 'hearthfire'` 亦已删除（2026-09-28，同纪元二重排）：老档里的 heat 一律

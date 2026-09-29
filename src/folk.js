@@ -32,8 +32,10 @@
     return n;
   }
 
-  /* 职业解锁走科技树（techs.js 里各科技 eff.unlockJob），与建筑同理用反查表，
-   * 保证「解锁来源只有一处」。采集者 gather 无解锁条件——它是开局唯一能干活的人，
+  /* 职业解锁有**两条通路**（2026-09-28）：① 科技树（techs.js 里各科技 eff.unlockJob，
+   * 与建筑同理用反查表）；② 市政（civics 表各项的 `job` 字段，商人走这条）。
+   * 反查表各自只服务自己那条通路，不合并——合并会让「谁解锁了它」变得看不出来。
+   * 采集者 gather 无解锁条件——它是开局唯一能干活的人，
    * 若它也要求研究某项科技，玩家在第一次研究完成前没有任何产出。 */
   var JOB_TECH = {};
   function jobTechOf(jid) {
@@ -46,10 +48,39 @@
     }
     return JOB_TECH[jid] || null;
   }
+  /* 职业解锁的**第二条通路**：市政《对外贸易》的 `job` 字段（2026-09-28 用户规格
+   * 「对外贸易解锁职业商人」）。其余七项职业走上面那条科技通路，两条并存、任一命中即解锁。
+   * ⚠️【为什么不把商人也塞进 JOB_TECH】那等于宣布「解锁商人的其实是某项科技」，
+   *    与规格相悖；而且将来想改解锁权时会出现两个地方都能改、改了也不报错的歧义。
+   *    分开放 ⇒ 「谁解锁了商人」这件事在 config.js 的 JOBS 表与 civics 的 trade 项
+   *    上各写一遍，两处都改才一致。
+   * ⚠️【判定是「任一命中」而不是「两边都满足」】技术上两条通路可以同时命中同一个职业。
+   *    用 OR 是因为解锁权本来就是「来自任何一处」，用 AND 会让「写了科技却没写市政」
+   *    的职业被卡死——那是 UI 上一行都看不出来的哑锁。 */
+  var JOB_CIVIC = {};
+  function jobCivicOf(jid) {
+    if (!JOB_CIVIC[jid] && SB.CIVICS) {
+      for (var i = 0; i < SB.CIVICS.length; i++) {
+        var c = SB.CIVICS[i];
+        if (c.job && c.job === jid) JOB_CIVIC[jid] = c.id;
+      }
+    }
+    return JOB_CIVIC[jid] || null;
+  }
   function jobUnlocked(s, jid) {
     if (jid === 'gather') return true;
     var tid = jobTechOf(jid);
-    return !tid || !!s.techs[tid];
+    if (tid && s.techs && s.techs[tid]) return true;
+    var cid = jobCivicOf(jid);
+    /* ⚠️⚠️【`!cid` 不能简单地返回 true】「两边都没声明 ⇒ 永远解锁」是**原有的语义**：
+     *     珊瑚匠/采石工这类职业压根没挂任何解锁声明，它们本来就无条件可雇。
+     *     若这里写成 `return !cid || ...`，等于宣布「凡是不挂市政的职业全都无条件解锁」，
+     *     于是**每一个**没挂科技的职业（7 个里的 6 个）瞬间全部解锁——
+     *     2026-09-28 实测一次就踩了：回归里「未解锁职业雇不动」直接红，
+     *     因为连珊瑚匠都变成 unlocked=true（那是这行的默认夹具态）。
+     * ⇒ 只有**真的挂了市政声明**的职业，才由市政来卡；没挂的沿用原语义。 */
+    if (cid) return !!(s.civics && s.civics[cid]);
+    return !tid;
   }
 
   function sum(s) {
@@ -186,7 +217,8 @@
 
   SB.folk = {
     assign: assign, autoAssign: autoAssign, reconcile: reconcile,
-    sum: sum, idle: idle, IDS: IDS, jobUnlocked: jobUnlocked, jobTechOf: jobTechOf,
+    sum: sum, idle: idle, IDS: IDS, jobUnlocked: jobUnlocked,
+    jobTechOf: jobTechOf, jobCivicOf: jobCivicOf,
     jobName: jobName
   };
 })(typeof window !== 'undefined' ? window : globalThis);

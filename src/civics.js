@@ -23,8 +23,8 @@
  *   （reqs: ['laws']）——这样「树」才成立，且两条之间玩家可以自己决定顺序。
  *   ⚠️ 《技艺》《神秘主义》之间**没有**互相前置：两条都解锁自己的政策卡，
  *      而卡槽只有 1 个 ⇒ 选哪张是玩家真要做出的取舍。
- * · 政体现在只有酋邦制一条 ⇒ 严格说「换政体」这个动作当前付不起也用不上。
- *   机制照建（含 2× 收费与越权拦截），等第二条政体落地即可直接生效，不需返工。
+ * · 政体：酋邦制（法典自带）+ 独裁/寡头/古典共和（由《政治哲学》解锁，三选一采用）。
+ *   换政体机制（2× 收费、越权拦截、槽位配方）已落地，三种新政体立即生效，无需返工。
  */
 (function (root) {
   'use strict';
@@ -65,7 +65,85 @@
       boost: { t: 'tech', id: 'tiddivine' },
       card: 'card_mystic',
       desc: '解锁政策卡「神秘主义」：科技产出 +0.3/秒。',
-      note: '鼓舞：完成科技「海潮占卜」。' }
+      note: '鼓舞：完成科技「海潮占卜」。' },
+
+    /* ══ 纪元二 · 第一层（2026-09-28 用户规格）════════════════════════
+     * 【为什么两项都 reqs ['laws']，而不是分别接着《技艺》《神秘主义》】
+     *   若各自挂到 era1 的末项上，玩家就必须先在「对外贸易 / 戏剧与诗歌」之间
+     *   选一条走 —— 而幕后的《技艺》《神秘主义》两张卡抢的是**同一个万能槽**
+     *   （文件头 §3）。把新层再吊进那次取舍，就等于逼玩家在两条支线上做第二次
+     *   二选一，而这条二选一他根本没有余裕：槽位只有 1 个。
+     *   ⇒ 两项都挂根《法典》，玩家两条支线都能走到这一层，真正在等他的是
+     *     「商人 vs 广场」这两个产能，而不是又一次互斥。
+     * 【两者之间也互不前置】与 era1 那两条同规矩：玩家可以自己决定先做哪一项。
+     * 【cost 定案：era2 四项 = 250/300/600/500，2026-09-29 用户拍板「开始实装」。
+     *   era1 那两条是 100；本层 250。再调 = 新一轮标定，须用户重拍。 */
+    { id: 'trade', name: '对外贸易', cost: 250, era: 2, layer: 3, reqs: ['laws'],
+      boost: { t: 'tech', id: 'lighting' },
+      /* ⚠️【`job` 是新字段：职业解锁的市政通路】其余职业都靠科技 eff.unlockJob 反查，
+       *    商人是个例外——它的解锁权在市政身上（用户规格明写「对外贸易解锁职业商人」）。
+       *    folk.jobUnlocked 现在同时反查两侧，见那里的注释。
+       * ⚠️ 这个字段不产生任何资源效果，它只是「放出一个人」——与上面 `gov`/`card`
+       *    同型：效果由别处读走，这里只登记「本项送的是什么」。 */
+      job: 'merchant',
+      desc: '解锁职业「商人」——奢侈品的唯一进项。',
+      note: '鼓舞：完成科技「照明」。' },
+
+    { id: 'drama', name: '戏剧与诗歌', cost: 300, era: 2, layer: 3, reqs: ['laws'],
+      /* ⚠️ `wonder` 这个条件类型是 2026-09-28 新加的（tech.js 的 condMet），
+       *    原先 12 种类型里没有「建成一座奇观」，写进去会静默永远达不成。 */
+      boost: { t: 'wonder', n: 1 },
+      card: 'card_drama',
+      desc: '解锁建筑「广场」，以及政策卡「戏剧与诗歌」。',
+      note: '鼓舞：建成一座奇观。' },
+
+    /* ══ 纪元二 · 第二层（2026-09-28 用户规格）════════════════════════
+     * 【为什么两项都 reqs ['drama'] 且互不前置】与上面第一层那两条同一个道理：
+     *   用户明写「戏剧与诗歌引出神学市政」「戏剧与诗歌引出历史记录市政」⇒ 两项的共同
+     *   前置就是《戏剧与诗歌》。挂到别的节点上会与他的描述对不上。
+     *   第二层是「两条支线」而不是「一次取舍」：《戏剧与诗歌》完成后槽位不再挡人，
+     *   《神学》与《历史记录》谁先谁后由玩家定——这与第一层「两项都挂根《法典》」
+     *   是同一条几何规则，差别只在它们的共同前置是「一条支线的末项」而不是根。
+     * 【cost 定案：era2 四项 = 250/300/600/500，2026-09-29 用户拍板「开始实装」（见上）。 */
+    { id: 'theology', name: '神学', cost: 600, era: 2, layer: 4, reqs: ['drama'],
+      /* ⚠️ 鼓舞判据 = 人口 `s.pop` 达 25（condMet 的 `pop` 类型，2026-09-28 由用户拍）。
+       *    本作人口由住房决定（popCap = 巢 + 珊瑚屋）且只有增长没有上限，
+       *    ⇒ 25 是一个**一定能到、但要专门为它建房**的门槛，不会变成死锁。 */
+      boost: { t: 'pop', n: 25 },
+      card: 'card_theology',
+      desc: '解锁信仰资源、建筑「神庙」，以及政策卡「神学」。',
+      note: '鼓舞：人口达 25。' },
+
+    { id: 'records', name: '历史记录', cost: 500, era: 2, layer: 4, reqs: ['drama'],
+      /* ⚠️ 鼓舞判据 = 潮纹馆（library）达 6 级。`built` 这个条件类型在 tech.js 里
+       *    读的是 `s.lvl[c.b]` ⇒ 传**建筑 id**（library）而不是科技 id，写错不报错、
+       *    只会永远达不成（与 `wonder` 那条注是同一类静默断链）。 */
+      boost: { t: 'built', b: 'library', n: 6 },
+      card: 'card_records',
+      /* ⚠️ `wonder` 这个字段与上面的 `job` 同型：它只登记「本项送的是什么」，
+       *    不产生资源效果。建筑「大图书馆」的解锁权由 habitat.unlocked 读 `s.civics`
+       *    自动成立，这里登记出来是为了让面板/回归查得到「《历史记录》送了哪座奇观」。 */
+      wonder: 'wonder_great_library',
+      desc: '解锁奇观「大图书馆」，以及政策卡「历史记录」。',
+      note: '鼓舞：潮纹馆达 6 级。' },
+
+    /* ══ 纪元二 · 第三层 · 政治哲学（2026-09-29 用户规格）════════════════
+     * 【为什么 reqs ['records','theology']（第二层两条都要完成）】
+     *   用户口径「第三层政治哲学」——它是纪元二的深层汇合点，不是又一个分叉。
+     *   第二层《神学》《历史记录》都 reqs《戏剧与诗歌》，政治哲学再 reqs 这两条，
+     *   于是玩家必须把第二层两条都走完才进得了这一层（与 Civ6 政治哲学是汇合点同构）。
+     *   layer 5（era2 现有到 4）：几何自动拉长一列，e2e「市政树几何」一节不红。
+     * 【cost 定案：750】era2 四项是 250/300/600/500，第三层最深层给最高 750。
+     *   这是本次新增、用户未单独拍的 cost —— 沿用「越深越贵」规律，若想调告诉我。
+     * 【govs 是新字段（复数）】一个市政解锁**三种**政体（Civ6 政治哲学解锁独裁/
+     *   寡头/古典共和三选一）。原 `gov` 单值只能挂一条 ⇒ 扩成 `govs` 数组，
+     *   govOwned 同步认 `c.govs`。政体采用仍是玩家手动 setGov（research 不自动采用
+     *   多政体，避免「研究完政治哲学自动锁死一条政体」）。 */
+    { id: 'political', name: '政治哲学', cost: 750, era: 2, layer: 5, reqs: ['records', 'theology'],
+      boost: { t: 'tech', id: 'engineeringT' },
+      govs: ['autocracy', 'oligarchy', 'classical_republic'],
+      desc: '解锁三种政体：独裁统治、寡头统治、古典共和（择一采用）。',
+      note: '鼓舞：掌握科技「工程学」。' }
   ];
 
   /* 槽位类型。Civ6 是 军事 / 经济 / 外交 / 万能；本作按约束 §2 砍掉军事（没有军事单位）、
@@ -95,7 +173,28 @@
    *     这条在 e2e 里有一条断言钉着（「配方槽数 vs 状态能承载的槽数」），改配方时它会先红。 */
   var GOVS = [
     { id: 'tribe', name: '酋邦制', slots: { wild: 1 }, effect: { kelp: 5 },
-      desc: '藻食产出 +5/秒。' }
+      desc: '藻食产出 +5/秒。' },
+
+    /* ══ 三种政体（2026-09-29 用户规格，由市政《政治哲学》解锁）══════════════
+     * 玩家研究《政治哲学》后三选一采用（setGov），换政体 = 2× 最高已完成市政。
+     * ⚠️【effect 是空的，但这是刻意的，不是漏装】三种效果都不是「平坦加值/秒」
+     *    （那是 flow() 通道，政体采用即生效、不依赖装在槽里），而是：
+     *      · 独裁的 +10% 工坊效率 → 走 `craftRatio` 加法乘区（workshop.craftRatio 读）；
+     *      · 寡头的 +20% 奢侈品产出 → 走 `luxuryMul`（economy 商人行乘，与马具 toolMul 独立）；
+     *      · 古典共和的 +1 幸福度 → 走 `happyBonus` 偏移量（economy happy 段，喂高 happyMul 档）。
+     *    这些效果**只有采用该政体时才生效**（govById(s.gov) 读当前政体），没采用 = 0。
+     * ⚠️【slots 全用 {wild:1} 是故意的】三种政体都给 1 个万能槽 ⇒ 配方槽数(1) ≤ 状态层
+     *    承载(1)，不触发 e2e 那条「换槽要升维状态」的断言（s.card 仍是单值）。
+     *    要差异化槽位（独裁给工造槽之类）是下一步，用户没拍 ⇒ 先聚焦三个效果本身。 */
+    { id: 'autocracy', name: '独裁统治', slots: { wild: 3 }, effect: {},
+      craftRatio: 0.10,
+      desc: '工艺制作效率 +10%（石梁等工坊产物）。' },
+    { id: 'oligarchy', name: '寡头统治', slots: { wild: 3 }, effect: {},
+      luxuryMul: 1.2,
+      desc: '奢侈品产出 +20%（商人贸易供给）。' },
+    { id: 'classical_republic', name: '古典共和', slots: { wild: 3 }, effect: {},
+      happyBonus: 1,
+      desc: '幸福度 +1（常驻，提高全产乘区档位）。' }
   ];
 
   /* 政策卡。effect 同样是平坦加值/秒，且**只有在卡槽里装着它时才生效**。
@@ -106,12 +205,82 @@
     { id: 'card_craft',  name: '技艺',     civic: 'craft',  type: 'prod', effect: {},
       desc: '（待工坊内容落地后生效）' },
     { id: 'card_mystic', name: '神秘主义', civic: 'mystic', type: 'sci',  effect: { science: 0.3 },
-      desc: '科技产出 +0.3/秒。' }
+      desc: '科技产出 +0.3/秒。' },
+    /* ⚠️⚠️【这张卡的 effect 是空的，但它不是漏装】用户规格是「效果：广场效果 +100%」，
+     *    而**政策卡的 effect 走的是 `flow()` 那条平坦加值/秒的通道**（上面神秘主义
+     *    那种）。「广场 +100%」是一个**乘区**，塞进平坦加值通道会变成「每秒多给
+     *    ×2 市政点」——那是把「这座建筑变强」曲解成「凭空产两份」，完全不是一回事。
+     *    ⇒ 所以效果挂在 `squareMul` 这个字段上，由下面 `squareMul(s)` 单独取。
+     *    ⚠️ 判断口径照抄文件头：空壳要能分清「漏装还是刻意」，这里刻意，
+     *       理由就写在这三行里，别留给下一个人去猜。 */
+    { id: 'card_drama',  name: '戏剧与诗歌', civic: 'drama', type: 'sci',
+      effect: {}, squareMul: 2,
+      desc: '广场的市政点乘区 ×2（即「广场效果 +100%」）。' },
+    /* ⚠️⚠️【effect 空壳与 squareMul / templeMul 是**刻意**的，不是漏装】
+     *    与《戏剧与诗歌》那一条同一个道理：政策卡的 `effect` 走的是 `flow()` 那条
+     *    平坦加值/秒的通道，而「效果 +100%」是**乘区**。塞进平坦通道会变成
+     *    「每秒多给 ×2 这个东西」——把「建筑变强」曲解成「凭空产两份」。
+     *    ⇒ 乘区挂在函数字段上，由下面 `templeMul(s)` 单独取。
+     *    ⚠️ 装配判据（e2e 那条「装卡」用的）走的是 `effect` 非空 —— 这让这两张卡的
+     *       effect 为空 ⇒ 整局模拟永远不会把卡装上 ⇒ 乘区整局不生效。改判据的时候
+     *       记得这四张卡（craft / drama / theology / records）都是「空壳 + 乘区字段」，
+     *       判据要比「乘区字段是否存在」，不是比 effect 非空。 */
+    { id: 'card_theology', name: '神学', civic: 'theology', type: 'sci',
+      effect: {}, templeMul: 2,
+      desc: '神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。' },
+    { id: 'card_records',  name: '历史记录', civic: 'records', type: 'sci',
+      effect: {}, libraryMul: 2,
+      desc: '潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。' }
   ];
 
   function byId(id) { for (var i = 0; i < CIVICS.length; i++) if (CIVICS[i].id === id) return CIVICS[i]; return null; }
   function govById(id) { for (var i = 0; i < GOVS.length; i++) if (GOVS[i].id === id) return GOVS[i]; return null; }
   function policyById(id) { for (var i = 0; i < POLICIES.length; i++) if (POLICIES[i].id === id) return POLICIES[i]; return null; }
+
+  /* 政策卡的**乘区出口**：《戏剧与诗歌》《神学》《历史记录》的「效果 +100%」都走这里。
+   * ⚠️【为什么乘区不进 `effect`】effect 走的是 flow() 那条「平坦加值/秒」通道，
+   *    「效果 +100%」是**乘区**，塞进去会变成「每秒多给 ×2」——把「建筑变强」
+   *    曲解成「凭空产两份」，完全不是一回事。⇒ 乘区挂在卡自己的字段上，由这里单独取。
+   * ⚠️ 只认「装在槽位里」这一条路——研究出市政只是**拿到**这张卡，没装上等于没选它。
+   *    这与 flow() 那条「卡只在装着时才生效」是同一条纪律，别在这儿放宽。
+   *    副作用：拔下卡 ⇒ 返回 1（乘区消失），这是对的，不是漏判。
+   * ⚠️ 返回 1 表示没装 ⇒ 调用方直接相乘，不用判分支。 */
+  /* ⚠️⚠️【踩过的坑：乘区字段是按**建筑**分的，但「装没装卡」要看的是 `s.card`】
+   *    早期版本写成 `policyMul(s, 'card_drama', 'squareMul')`，把卡 id 写死在参数里
+   *    ⇒ 不看 `s.card` 是誰 ⇒ 恒返回那张卡的乘区值。症状是四条断言同时红：
+   *    「没装卡时 squareMul = 1」拿到 2、「装卡 ×2」的比值变成 1（3.3 → 3.3）、
+   *    「拔下」不回到 1、以及 cultureRate 被凭空顶到 1.1（0.45×2 + 0.2）。
+   *    ⚠️ 关键在于两件事必须分开：*哪张卡*来自 `s.card`，*取哪个字段*由卡决定。
+   *        所以先查 `s.card`，再用卡 id 去查它该看哪个字段（下面那张表）。
+   *        写成「按建筑查字段、拿 s.card 当参数」是这条的镜像错误，同样会错。 */
+  var MUL_FIELD = {
+    card_drama: 'squareMul', card_theology: 'templeMul', card_records: 'libraryMul'
+  };
+  function policyMul(s, cardId) {
+    if (!cardId) return 1;                       // 槽是空的（或还没这一项）⇒ 没有乘区
+    var cd = policyById(cardId);
+    if (!cd) return 1;                           // 装了一张不存在的卡：当没有，别让 NaN 往下走
+    var f = MUL_FIELD[cardId];
+    return (f && typeof cd[f] === 'number') ? cd[f] : 1;
+  }
+  /* 三个乘区出口各自**只认自己字段的那张卡**：squareMul 只乘带 squareMul 字段的卡，
+   * 不碰别人槽里带 libraryMul / templeMul 的卡。否则装《戏剧与诗歌》+《历史记录》两张，
+   * squareMul 会把《历史记录》的 ×2 也乘进来（症状：squareMul=4 而不是 2）。
+   * ⚠️ 多个槽 ⇒ 同字段的卡**逐槽相乘**（理论上可装多张广场卡，乘区叠加），空槽/没装 = 1。 */
+  function mulOfField(s, field) {
+    var arr = (s && s.cards) || [], m = 1, id, cd;
+    for (var i = 0; i < arr.length; i++) {
+      id = arr[i]; if (!id) continue;
+      if (MUL_FIELD[id] === field) {
+        cd = policyById(id);
+        if (cd && typeof cd[field] === 'number') m *= cd[field];
+      }
+    }
+    return m;
+  }
+  function squareMul(s)  { return mulOfField(s, 'squareMul'); }
+  function templeMul(s)  { return mulOfField(s, 'templeMul'); }
+  function libraryMul(s) { return mulOfField(s, 'libraryMul'); }
 
   // ── 几何（横卷）──────────────────────────────────────────────────
   /* 与 tech.js 的 layout() **同构**：列 = `layer`、行 = 排版产物、连线 = `reqs`。
@@ -325,10 +494,23 @@
   function govOwned(s, id) {
     for (var i = 0; i < CIVICS.length; i++) {
       var c = CIVICS[i];
+      /* ⚠️ 单值 `gov` 与复数 `govs` 都认：一个市政解锁一条政体（法典→酋邦制）
+       *    或多条政体（政治哲学→独裁/寡头/古典共和）。没解锁 = false，setGov 会拦。 */
       if (c.gov === id) return !!(s.civics && s.civics[c.id]);
+      if (c.govs && c.govs.indexOf(id) >= 0) return !!(s.civics && s.civics[c.id]);
     }
     return false;
   }
+
+  /* 政体的三类**非平坦**效果出口（采用政体即生效，不依赖装在槽里）。
+   * ⚠️ 这些不走 flow()（flow 只认平坦加值/秒的 effect），因为：
+   *      · craftRatio 是**加法乘区**（工坊效率聚合，与建筑级/科技/奇观同口径）；
+   *      · luxuryMul 是商人行的**乘区**（与马具 toolMul 独立相乘）；
+   *      · happyBonus 是幸福度的**常驻偏移量**（剥掉上一帧偏移再算机制值，防漂移）。
+   *    都只读当前政体（govById(s.gov)），没采用 = 返回 0/1，绝不参与运算。 */
+  function govCraftRatio(s) { var g = govById(s.gov); return g && typeof g.craftRatio === 'number' ? g.craftRatio : 0; }
+  function govLuxuryMul(s)  { var g = govById(s.gov); return g && typeof g.luxuryMul === 'number' ? g.luxuryMul : 1; }
+  function govHappyBonus(s) { var g = govById(s.gov); return g && typeof g.happyBonus === 'number' ? g.happyBonus : 0; }
 
   /* 换卡 blocked 文案。与科技 studyBlocked 同口径：要指得出**该做什么**。
    * ⚠️ `id === null` 是「拔下」这个动作，不是「装一张名为 null 的卡」——
@@ -343,13 +525,41 @@
    * ⚠️ `id === null` 是「拔下」这个动作，不是「装一张名为 null 的卡」（早期版本
    *    让 null 掉进 policyById 返回 '没有这张卡'，于是卡永远拔不下来，
    *    而症状只是「按钮点了没反应」，不报任何错）。拔下必须一路走到收费判据。 */
-  function cardBlocked(s, id) {
+  /* ── 多槽状态层（2026-09-29 升维：s.card 单值 → s.cards 数组）──
+   * 一个政体给 N 个槽（酋邦制 1、三种纪元二政体各 3），s.cards[i] = 第 i 槽装的政策卡 id。
+   * s.card 仍是第 0 号槽的**镜像**（只用于旧代码/回归读方便，不是事实来源）。
+   * ⚠️ 改政体 ⇒ 槽数变 ⇒ s.cards 按 index 截断/补 null（多出来的槽直接丢，
+   *    保留的槽里那张卡还在）。这是「换政体 = 换槽位配方」的应有之义。 */
+  function ensureCards(s) {
+    if (!s.cards || !Array.isArray(s.cards)) s.cards = [];
+    var L = slotList(s).length, out = [], i;
+    for (i = 0; i < L; i++) out.push(s.cards[i] || null);
+    s.cards = out;
+    s.card = out[0] || null;
+  }
+  function inSlot(s, id) { return !!(s.cards && s.cards.indexOf(id) >= 0); }
+  function firstEmpty(s) {
+    var L = slotList(s).length;
+    for (var i = 0; i < L; i++) if (!s.cards || !s.cards[i]) return i;
+    return -1;                       // 全满
+  }
+  function firstFilled(s) {
+    if (!s.cards) return -1;
+    for (var i = 0; i < s.cards.length; i++) if (s.cards[i]) return i;
+    return -1;
+  }
+  function hasFitSlot(s, p) {
+    var L = slotList(s);
+    for (var i = 0; i < L.length; i++) if (cardFits(p, L[i].type)) return true;
+    return false;
+  }
+
+  function cardBlocked(s, id, slot) {
     var clear = (id === null || id === undefined);
-    var p = null;
     if (!clear) {
-      p = policyById(id);
+      var p = policyById(id);
       if (!p) return '没有这张卡';
-      if (s.card === id) return null;
+      if (inSlot(s, id)) return null;                 // 已经在某槽里 ⇒ 幂等
       if (!cardOwned(s, id)) {
         var c = byId(p.civic);
         return '需先完成市政「' + c.name + '」';
@@ -357,46 +567,64 @@
       /* ⚠️ 类型不匹配与「还没解锁」是两回事，文案要说清是哪一种：
        *    前者是「这张卡在别的槽里」，后者是「这张卡你还没有」。
        *    Civ6 也是这样：卡在手、但塞不进这个槽时，按钮灰着并告诉你缺哪类槽。 */
-      if (!cardFits(p, currentSlotType(s))) {
-        return slotTypeName(currentSlotType(s)) + '装不下「' + p.name + '」——它是' +
-          slotTypeName(p.type) + '类';
-      }
-    } else if (!s.card) {
-      return null;            // 槽本来就是空的，拔下是无动作（去重，别白扣钱）
+      /* ⚠️ 多槽：满槽时由 setCard 走「替换首槽」（firstFilled），不再在此拦死。
+       *    这里只拦「类型真的塞不进任何槽」——与 Civ6 同口径（卡在手但槽不对口 ⇒ 灰按钮说话）。 */
+      if (!hasFitSlot(s, p)) return '「' + p.name + '」装不下：需 ' + slotTypeName(p.type) + '（当前没有可用的槽位）';
+      if (!s.cardEver) return null;                    // 人生第一次免费
+      var cost = cardCost(s);
+      if (cost > 0 && (s.res.culture || 0) < cost)
+        return '换卡需 ' + cost + ' 市政点（现有 ' + Math.floor(s.res.culture || 0) + '）';
+      return null;
     }
-    /* 免费只给**人生第一次**装填（s.cardEver 由 setCard 置位）。拔下同样受这条管。 */
+    /* 拔下：slot 指定拔哪格（UI 逐槽按钮），不指定则拔第一格有卡的。 */
+    var sl = (slot !== undefined && slot !== null) ? slot : firstFilled(s);
+    if (sl < 0) return null;                          // 没卡可拔 ⇒ 无动作不收钱
     if (!s.cardEver) return null;
-    var cost = cardCost(s);
-    if (cost > 0 && (s.res.culture || 0) < cost)
-      return (clear ? '拔下需 ' : '换卡需 ') + cost + ' 市政点（现有 ' +
-        Math.floor(s.res.culture || 0) + '）';
+    var c2 = cardCost(s);
+    if (c2 > 0 && (s.res.culture || 0) < c2)
+      return '拔下需 ' + c2 + ' 市政点（现有 ' + Math.floor(s.res.culture || 0) + '）';
     return null;
   }
   function canSetCard(s, id) { return cardBlocked(s, id) === null; }
-  /* 当前第 0 号槽的类型。单值状态 ⇒ 没有第 0 号槽时返回 null，
-   * 于是「不提供卡槽」的政体下任何卡都装不进去（与 slotList 为空一致）。 */
+  /* 当前第 0 号槽的类型。无槽时返回 null ⇒ 「不提供卡槽」的政体下任何卡装不进。 */
   function currentSlotType(s) {
     var L = slotList(s);
     return L.length ? L[0].type : null;
   }
 
   function setCard(s, id, emit) {
-    if (s.card === id) return false;
-    if (!canSetCard(s, id)) return false;
+    ensureCards(s);
     var clear = (id === null || id === undefined);
-    /* 收费 = 「这张槽换过卡之后每一次装填 / 更换 / 拔下」。
-     * ⚠️ 2026-09-27 用户拍板：**拔下也收**（原 `!clear && ...` 把拔下排除在外，
-     *    等于给了一条免费换卡的后门：拔下 → 装另一张，只要槽中间空过一次就白嫖）。 */
+    if (!clear && inSlot(s, id)) return false;        // 已装备 ⇒ 幂等无动作
+    if (!canSetCard(s, id)) return false;
+    var slot = clear ? firstFilled(s) : (firstEmpty(s) >= 0 ? firstEmpty(s) : firstFilled(s));
+    if (slot < 0) return false;                        // 没卡可拔（拔下时）
+    return setCardAt(s, slot, id, emit);
+  }
+  /* 核心写入：把第 slot 号槽设为 id（id 为 null = 拔下）。判据由 cardBlocked 先过。 */
+  function setCardAt(s, slot, id, emit) {
+    ensureCards(s);
+    if (slot < 0 || slot >= s.cards.length) return false;
+    var tid = (id === undefined || id === null) ? null : id;
+    if (s.cards[slot] === tid) return false;
     var fee = s.cardEver ? cardCost(s) : 0;
     if (fee > 0) s.res.culture -= fee;
-    s.cardEver = true;                       // 拔下同样置位：它也是一次「调整政策卡」
-    s.card = (id === undefined) ? null : id;
+    s.cardEver = true;                                // 拔下同样置位：也是一次「调整政策卡」
+    s.cards[slot] = tid;
+    s.card = s.cards[0] || null;
     if (emit) {
-      if (s.card === null) emit('政策卡已拔下' + (fee > 0 ? '（花 ' + fee + ' 市政点）' : '（免费）') + '。');
-      else emit('政策卡换为「' + policyById(s.card).name + '」' +
+      if (tid === null) emit('政策卡已拔下' + (fee > 0 ? '（花 ' + fee + ' 市政点）' : '（免费）') + '。');
+      else emit('政策卡换为「' + policyById(tid).name + '」' +
         (fee > 0 ? '（花 ' + fee + ' 市政点）' : '（人生第一次装填，免费）'));
     }
     return true;
+  }
+  /* 拔下指定槽（UI 逐槽按钮走这里）。 */
+  function removeCard(s, slot, emit) {
+    ensureCards(s);
+    if (!s.cards || !s.cards[slot]) return false;
+    if (cardBlocked(s, null, slot) !== null) return false;
+    return setCardAt(s, slot, null, emit);
   }
 
   function govBlocked(s, id) {
@@ -417,6 +645,7 @@
     var fee = govCost(s);
     if (s.gov !== null && fee > 0) s.res.culture -= fee;
     s.gov = id;
+    ensureCards(s);                              // 换政体 ⇒ 槽数变 ⇒ s.cards 按 index 截断/补 null
     if (emit) emit(s.gov === null
       ? '政体已撤回。'
       : '政体换为「' + govById(id).name + '」' +
@@ -459,10 +688,14 @@
   function flow(s) {
     var out = {}, k;
     if (s) {
-      var gv = govById(s.gov), cd = policyById(s.card);
+      var gv = govById(s.gov);
       if (gv) for (k in gv.effect) if (typeof gv.effect[k] === 'number') out[k] = (out[k] || 0) + gv.effect[k];
-      /* 卡只在**装着**时生效：研究出市政只是拿到这张卡，没装上就是没选它。 */
-      if (cd && cd.effect) for (k in cd.effect) if (typeof cd.effect[k] === 'number') out[k] = (out[k] || 0) + cd.effect[k];
+      /* 卡只在**装着**时生效：逐槽扫 s.cards（多槽升维后 s.card 只是第 0 号槽镜像，
+       * 不是事实来源）。研究出市政只是拿到这张卡，没装上就是没选它。 */
+      if (s.cards) for (var ci = 0; ci < s.cards.length; ci++) {
+        var cd = policyById(s.cards[ci]);
+        if (cd && cd.effect) for (k in cd.effect) if (typeof cd.effect[k] === 'number') out[k] = (out[k] || 0) + cd.effect[k];
+      }
     }
     return out;
   }
@@ -529,10 +762,15 @@
     reqsMet: reqsMet, blocked: blocked, canResearch: canResearch, research: research,
     topCost: topCost, cardCost: cardCost, govCost: govCost,
     cardOwned: cardOwned, govOwned: govOwned,
-    cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard,
+    cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
+    removeCard: removeCard,
     govBlocked: govBlocked, canSetGov: canSetGov, setGov: setGov,
     slots: slots, slotList: slotList, cardFits: cardFits, slotTypeName: slotTypeName,
     currentSlotType: currentSlotType,
-    flow: flow, effectText: effectText, boostText: boostText
+    flow: flow, effectText: effectText, boostText: boostText,
+    govCraftRatio: govCraftRatio, govLuxuryMul: govLuxuryMul, govHappyBonus: govHappyBonus,
+    /* 三个乘区出口：政策卡的「效果 +100%」各自挂在卡的一个字段上，
+     * 由这三个函数统一读出（实现见 policyMul）。 */
+    squareMul: squareMul, templeMul: templeMul, libraryMul: libraryMul
   };
 })(typeof window !== 'undefined' ? window : globalThis);

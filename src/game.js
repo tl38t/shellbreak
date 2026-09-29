@@ -28,6 +28,9 @@
     /* 奇观页的门是「研究过石工」那项科技（用户要的「第一个就让石工解锁」）。
      * ⚠️ 与上面两道闸同理：就算页签已经因为灰态切换被点亮，直达路径也进不去。 */
     if (k === 'wonder' && S && !(S.techs && S.techs.masonry)) return;
+    /* 轮回商店（meta 页）的门：首次轮回后才开。与科技/奇观同两道闸写法，
+     * 直达路径（弹窗/测试）走 setTab 也进不去。 */
+    if (k === 'meta' && !meta.shopUnlocked) return;
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
@@ -70,6 +73,11 @@
 
   function startRun() {
     meta.cycle++;
+    /* 轮回商店只在「第一次真正的轮回」后解锁——即【建立宗教】（religionSeen）之后的那次
+     * 破冰结算 doBreak。未建立宗教时玩家只能「重开本周目」（普通重置，cycle 同样 +1），
+     * 但那不是轮回：doBreak 发 0 点，且 shopUnlocked 保持 false，轮回商店整页锁死。
+     * 故 startRun 此处不碰 shopUnlocked；它的解锁由 prestige.doBreak 在真实轮回发生时置位，
+     * 旧档（已有跨周目进度）由 loadMeta 迁移补双解锁。 */
     var prev = S;
     S = SB.state.freshRun(true);
     if (prev && prev.perk) S.perk = Object.assign(SB.state.emptyPerks(), prev.perk);
@@ -99,7 +107,7 @@
     startRun();
   }
   /* 软重置「重开本周目」：丢弃当前这局的建筑/资源/族民，但保留 meta——
-   * 洋流点、破层级、已购增益、科技记录都还在。周目计数 +1，因为结构上这已经是新的一周目。 */
+   * 轮回点、破层层级、已购增益、科技记录都还在。周目计数 +1，因为结构上这已经是新的一周目。 */
   function resetRun() {
     SB.ui.render.hideModal();
     startRun();
@@ -116,7 +124,7 @@
     SB.state.saveMeta(meta);
     S = SB.state.freshRun(false);
     clearLog();
-    log('存档已清空，回到第 1 周目。洋流点与破层级一并抹去。');
+    log('存档已清空，回到第 1 周目。轮回点与破层层级一并抹去。');
     dirty = true;
     renderAll();
     SB.state.saveRun(snapshot(S));
@@ -219,6 +227,32 @@
     });
   }
 
+  /* 宗教弹窗（用户 2026-09-29）：建立宗教（神学完成）那一刻播一次叙事弹窗，
+   * 并永久解锁「轮回」系统。写法刻意镜像 maybeSciencePopup——挂在泵上、记账先于弹窗、
+   * 一次性置脏、离线/读档都靠同样的兜底补播。
+   * 【触发点 = 玩家写入宗教名】「建立宗教」= 玩家在命名框敲下第一个名字的那一刻，
+   *   而不是神学完成——神学只是点亮命名框的前置。把弹窗挂在对 `s.religionName`
+   *   非空的判据上，并在 input.js 的命名框 change 里即时调用，覆盖在线；
+   *   泵与读档兜底则保证程序化写入 / 老档也能补播。
+   * 【记账先于弹窗】同科技弹窗同理：置位放回调之前，避免同一帧第二次泵又弹一遍。
+   * 【永久解锁】religionSeen 写进 meta（跨周目），之后每周目重新命名也不会再弹。 */
+  function maybeReligionPopup(s) {
+    if (!s || !(s.religionName && s.religionName.trim())) return;
+    if (meta.religionSeen) return;
+    meta.religionSeen = true;
+    SB.state.saveMeta(meta);
+    markDirty();
+    SB.ui.render.storyPanel({
+      title: '轮回系统解锁',
+      lines: [
+        '鲛人的诵经声伴随深海的浪潮传遍王国的角落，',
+        '祭司们说周期性的暖流与浪潮象征着文明的轮回……',
+        '从此，每一次终结这一局都将开启一段新的轮回——轮回点可在轮回商店换取永恒的增益。'
+      ],
+      ok: '了解'
+    });
+  }
+
   // ---- 主循环（墙钟驱动）----
   var last = 0;
   var STEP = 0.1;                   // 逻辑步长（秒）。与渲染解耦，保证数值与帧率无关
@@ -254,7 +288,7 @@
       SB.economy.tick(S, STEP, emit);   // 天壳推进在 tick 内完成（基础削壳 + 祭坛削壳）
       loop.acc -= STEP;
       loop._tp = (loop._tp || 0) + STEP;
-      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); }
+      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S); }
     }
 
     if (S && !S.broken) {
@@ -302,10 +336,19 @@
     var before = {}, k;
     for (k in s.res) before[k] = s.res[k];
     loop.job = {
-      s: s, left: n, secs: secs, cap: cap,
+      s: s, left: n, total: n, secs: secs, cap: cap,
       before: before, bPop: s.pop, bShell: s.shell,
       bFam: s.famineDeaths, bFrost: s.frostDeaths
     };
+    /* 离线闸门：补算期间锁住整个界面（#modal 全屏遮罩挡点击），不给确认按钮，
+     * 强制等算完（用户 2026-09-29：「离线回来先算完才能操作」）。 */
+    SB.ui.render.showOfflineModal({
+      title: '离线进度补算中…',
+      body: '<div class="note">正在回放你离开期间的产出（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，与在线同一条结算路径）。</div>' +
+            '<div class="note" style="margin-top:8px;color:var(--dim)">离线时长 ' + fmtDur(secs) +
+            (secs < gap ? '（封顶 ' + fmtDur(cap) + '，超出部分不计）' : '') + '</div>',
+      showProgress: true
+    });
     log('离线 ' + fmtDur(secs) + '，正在补算…');
     if (secs < gap) log('补算有上限（' + fmtDur(cap) + '），剩余 ' + fmtDur(gap - secs) + ' 不计。');
   }
@@ -319,6 +362,7 @@
       j.tp = (j.tp || 0) + STEP;
       if (j.tp >= TECH_PUMP) { j.tp = 0; pumpTech(j.s, null); pumpCivic(j.s, null); }
     }
+    if (j.total) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);
     if (j.left <= 0) finishCatchUp(j);
   }
   function finishCatchUp(j) {
@@ -332,11 +376,18 @@
     if (j.s.shell !== j.bShell) { lines.push('壳厚 ' + Math.round(j.bShell) + '→' + Math.round(j.s.shell)); any = true; }
     if (j.s.famineDeaths > j.bFam) { lines.push('饿死 ' + (j.s.famineDeaths - j.bFam)); any = true; }
     if (j.s.frostDeaths > j.bFrost) { lines.push('冻死 ' + (j.s.frostDeaths - j.bFrost)); any = true; }
+    var summary = '<div class="note">离开期间结算完成：</div><div style="margin:8px 0;line-height:1.9">' +
+      (any ? lines.join('　') : '资源几乎没变（没人干活，或产出被口粮吃光）') + '</div>';
     log('离线结算：' + (any ? lines.join('，') : '资源几乎没变（没人干活，或产出被口粮吃光）') + '。');
-    /* 离线期间也可能刚好建成第 5 座藻场：这里补一次开门检查，
-     * 否则玩家回来看到的是「面板亮了但没人告诉过他为什么」（§2.5 第 1 条那条风险）。 */
-    maybeSciencePopup(j.s);
-    markDirty();
+    /* 离线闸门第二阶段：把「补算中」换成结算面板，只有点「继续」才解锁界面
+     * （否则玩家边补算边点建造，就会看到材料飞快被灌满）。科研 / 宗教开门弹窗
+     * 顺延到关掉本面板之后，否则会被本面板覆盖、玩家看不到。 */
+    SB.ui.render.showOfflineModal({
+      title: '离线结算',
+      body: summary,
+      ok: '继续',
+      onOk: function () { maybeSciencePopup(j.s); maybeReligionPopup(j.s); markDirty(); }
+    });
   }
   /* 存档字段取舍：`_` 前缀曾被当成「不落盘」的依据，那是错的——
    * `_grow` 是生育计时（进度条读它，刷新后归零就是漏存），
@@ -369,26 +420,28 @@
     SB.ui.render.initTabs();
     SB.ui.render.initSpeeds();
     maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
+    maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
     document.getElementById('btnBreak').onclick = function () {
       if (S.shell <= 0 && !S.broken) SB.prestige.doBreak(S, emit);
     };
     document.getElementById('btnReset').onclick = function () {
       var t = S ? (S.t / 3600).toFixed(2) + ' 小时 · 峰值族民 ' + S.peak + ' · 建筑 ' + SB.economy.lvlSum(S) + ' 级' : '';
+      var seen = SB.game.meta().religionSeen;
       SB.ui.render.confirmPanel({
-        title: '重开本周目？',
+        title: seen ? '轮回（重开本周目）？' : '重开本周目？',
         body: '<div class="warnbox">当前这局的进度会全部作废：' + t + '。</div>' +
-              '<div class="note">保留：洋流点、破层级、已购增益、科技记录。周目计数会 +1。</div>',
-        ok: '重开',
+              '<div class="note">保留：轮回点、破层层级、已购增益、科技记录。周目计数会 +1。</div>',
+        ok: seen ? '轮回' : '重开',
         onOk: function () { SB.game.resetRun(); }
       });
     };
     document.getElementById('btnWipe').onclick = function () {
       SB.ui.render.confirmPanel({
         title: '清空存档？',
-        body: '<div class="warnbox">这会删掉<b>全部跨周目进度</b>：洋流点、破层级、已购增益、科技记录，以及当前这局的一切。</div>' +
+        body: '<div class="warnbox">这会删掉<b>全部跨周目进度</b>：轮回点、破层层级、已购增益、科技记录，以及当前这局的一切。</div>' +
               '<div class="note">页面会回到第 1 周目的全新状态。此操作不可撤销。</div>',
         danger: true,
-        requireCheck: '我明白这会抹掉全部洋流点与破层级，且无法撤销',
+        requireCheck: '我明白这会抹掉全部轮回点与破层层级，且无法撤销',
         ok: '清空存档',
         onOk: function () { SB.game.wipeSave(); }
       });
@@ -409,6 +462,7 @@
     startRun: startRun, nextCycle: nextCycle, stay: stay,
     resetRun: resetRun, wipeSave: wipeSave,
     log: log, emit: emit, markDirty: markDirty, pumpTech: pumpTech, pumpCivic: pumpCivic,
+    maybeReligionPopup: maybeReligionPopup,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
     showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); }
   };

@@ -22,6 +22,10 @@
     var rate = SB.economy.rates(s);   // 与 tick 同一套公式的净速率，见 economy.rates
     var html = '';
     for (var k in SB.RESS) {
+      /* ⚠️ 2026-09-28 信仰面板 gate：信仰资源行只在《神学》完成后出现（用户规格
+       *    「研究神学之后就开启信仰面板」）。神学前信仰恒为 0 也没地方显示，
+       *    硬塞一行只会误导玩家以为已经有信仰系统。gate 读 `s.civics.theology`。 */
+      if (k === 'faith' && !(s.civics && s.civics.theology)) continue;
       var v = s.res[k];
       var cls = 'res' + (k === 'kelp' && v < need ? ' neg' : '');
       /* 上限写进格子：只有有限上限的资源才显示 /N（科技、地热是 Infinity，不显示）。
@@ -45,8 +49,34 @@
         rateTxt = '<i class="rate' + (r > 0 ? ' up' : ' down') + '">' + sign +
           (Math.abs(r) >= 100 ? Math.round(r) : r.toFixed(2)) + '/s</i>';
       }
+      var faithBonusTxt = '';
+      if (k === 'faith') {
+        /* 信仰行的「全产 +X%」：让玩家一眼看到信仰存量换来的全局产出加成
+         *   （economy.faithAllMul，10→+1% / 100→+2% / 1000→+3%）。faith<10 时不显示（加成为 0）。 */
+        var fam = SB.economy.faithAllMul(s);
+        if (fam > 1) faithBonusTxt = ' <i class="rate up">全产+' + Math.round((fam - 1) * 100) + '%</i>';
+      }
+      /* 信仰行的标签：玩家给信仰起了名 ⇒ 用宗教名代替「信仰」二字（神学解锁后可在 #religionBox 改名）。 */
+      var rowName = SB.RESS[k].name;
+      if (k === 'faith') {
+        var rn = (s.religionName || '').trim();
+        if (rn) rowName = rn;
+      }
       html += '<div class="' + cls + '"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
-        SB.economy.fmtAmt(v) + capTxt + '</b><span>' + SB.RESS[k].name + rateTxt + '</span></div>';
+        SB.economy.fmtAmt(v) + capTxt + '</b><span>' + rowName + rateTxt + faithBonusTxt + '</span></div>';
+    }
+    /* 幸福度（陆地贸易，2026-09-28）：民生轴，独立于资源循环（不是 SB.RESS 键）。
+     * 一直显示（开局 H=0=安定，无需 gate），让玩家随时看到民生状态与全产乘区。 */
+    {
+      var Hh = s.happy || 0;
+      var hm = SB.economy.happyMul(s);
+      var tier = (Hh < -1) ? '动荡' : (Hh < 0) ? '不满' : (Hh < 1) ? '安定'
+                 : (Hh < 2) ? '愉悦' : (Hh < 3) ? '欢欣' : '欣喜若狂';
+      var hb = (Math.abs(hm - 1) < 1e-9) ? '' :
+        ' <i class="rate ' + (hm > 1 ? 'up' : 'down') + '">全产' + (hm > 1 ? '+' : '') +
+        Math.round((hm - 1) * 100) + '%</i>';
+      html += '<div class="res happy-row"><b data-happy="1" data-raw="' + Hh.toFixed(2) + '">' +
+        Hh.toFixed(2) + '</b><span>幸福度 · ' + tier + hb + '</span></div>';
     }
     g.innerHTML = html;
     /* ⚠️ 这行「洋流季：… ×N｜族民…｜峰值…｜饿死…」已经删掉（2026-09-26 用户要求），
@@ -165,6 +195,33 @@
     if (ws) ws.textContent = Math.floor(s.res.warmstone || 0);
   }
 
+  /* ── 宗教命名框（2026-09-29）────────────────────────────────────
+   * 【为什么是持久容器、不走 #res / pane 每帧重建】信仰资源行在 #res（每帧 innerHTML 重写），
+   *   civic pane 每 2 秒重写 —— 里面塞 <input> 每敲一字就被换掉、丢焦点。
+   *   所以宗教名框是 index.html 里的一个**持久**节点 #religionBox，这里用签名节流只管 gate：
+   *   签名 = 神学前/后。theology 一解锁才渲染一次输入框，之后只在 gate 翻转时重建；
+   *   玩家打字只写 state、不触发本函数重建 ⇒ 焦点不丢。
+   * 【写回时机】走 input.js 的 onChange（blur/回车）→ 写 s.religionName。不用 input 事件，
+   *   避免每键都 markDirty；faith 行（#res）每帧读 s.religionName，改名后下一帧即刷新。 */
+  var relSig = '';
+  function renderReligion(s) {
+    var box = el('religionBox'); if (!box) return;
+    var open = !!(s.civics && s.civics.theology);
+    if (!open) {
+      if (relSig !== '') { relSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+      return;
+    }
+    box.style.display = '';
+    if (relSig !== 'open') {
+      relSig = 'open';
+      var nm = (s.religionName || '').trim();
+      box.innerHTML = '<div class="nm">你的信仰</div>' +
+        '<input class="relname" data-religion="1" type="text" maxlength="16" placeholder="给信仰起个名字…"' +
+        (nm ? ' value="' + nm.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"' : '') + '>' +
+        '<div class="ds">这个名字会显示在你的信仰资源上。改名随时可改，无消耗。</div>';
+    }
+  }
+
   function paneVillage() {
     var s = res(); let h = '';
     /* 猫国开局唯一产能是手动点 "Gather catnip"（点一下 +1 猫薄荷）。
@@ -257,8 +314,8 @@
      * 不把它摆到玩家眼前，「养人口」这条第二条线就不存在——玩家只会继续堆建筑。 */
     h += '<div class="row"><div><div class="nm">峰值族民 <b>' + s.peak + '</b> ' +
       '<span class="tag' + (gap > 0 ? '' : ' ok') + '">' +
-      (gap > 0 ? '还差 ' + gap + ' 人有洋流点' : '已过门槛 ' + T.POP_GATE) + '</span></div>' +
-      '<div class="ds">破冰时超过 ' + T.POP_GATE + ' 的部分才折算洋流点，每 1 人 ' + T.POP_SLOPE +
+      (gap > 0 ? '还差 ' + gap + ' 人有轮回点' : '已过门槛 ' + T.POP_GATE) + '</span></div>' +
+      '<div class="ds">破冰时超过 ' + T.POP_GATE + ' 的部分才折算轮回点，每 1 人 ' + T.POP_SLOPE +
       ' 分（' + T.POP_ESC.at + ' 人以上 ' + T.POP_ESC.k + ' 分）。人口顶在住房给的上限上，' +
       '堆住房就是养人口（住满就不再生育）。</div></div></div>';
     /* 照猫国：族民默认闲置，＋ 雇 / − 退。没有闲置时 ＋ 禁用，
@@ -279,7 +336,13 @@
      *   行必须留下来，否则那个人从界面上凭空消失、玩家只能在闲置池里看到总数对不上。 */
     for (var i = 0; i < SB.JOBS.length; i++) {
       var j = SB.JOBS[i];
-      if (s.jobs[j.id] <= 0 && !SB.folk.jobUnlocked(s, j.id)) continue;
+      /* ⚠️ `|| 0` 不是可省的小节：它是**根因侧的第二道闸**。2026-09-28 加商人时，
+       *    state.js 的 jobs 字面量漏了 merchant ⇒ 这里是 `undefined <= 0` ⇒ **false** ⇒
+       *    守卫以为「这行有人」⇒ 未解锁的商人被整行渲染出来，玩家看得见、点 ＋ 却雇不到。
+       *    economy 那侧当时都写了 `(s.jobs.x || 0)` 才没出 NaN，说明数据层的覆盖纪律
+       *    已经反复漏过；UI 不该把「存档一定给全了键」当前提。补这个 `|| 0` 是
+       *    让下一份漏键至少不会长成「看得见但按不动」的哑控件。 */
+      if ((s.jobs[j.id] || 0) <= 0 && !SB.folk.jobUnlocked(s, j.id)) continue;
       /* ⚠️ 名字必须走 `SB.folk.jobName(s, id)` 而不是 `j.name`：采集者在掌握「种植」之后
        * 要改称「农民」（用户 2026-09-26 拍板：是同一个人换了身份，不是多一个职业）。
        * 改称机制写在 folk.js（FARM_JOB / FARM_TECH / FARM_NAME），但这里原先直接印
@@ -643,11 +706,11 @@
     }
     h += '<div style="display:flex;gap:10px;flex-wrap:wrap">';
     for (i = 0; i < list.length; i++) {
-      var st = list[i].type, filled = s.card ? C.policyById(s.card) : null;
-      /* 万能槽里的卡当然人人能吃；非万能槽里若塞着一张卡，它在别的槽里就是废的
-       * ⇒ 拔下按钮照给，别让玩家忘了自己塞了一张对不口的卡。 */
+      var st = list[i].type, filled = (s.cards && s.cards[i]) ? C.policyById(s.cards[i]) : null;
+      /* 逐槽：第 i 槽装的是 s.cards[i]。万能槽里的卡人人能吃；非万能槽里若塞着
+       * 一张卡，它在别的槽里就是废的 ⇒ 拔下按钮照给，别让玩家忘了自己塞了一张对不口的卡。 */
       h += '<div class="slotbox" id="slotrow-' + i + '">' +
-        '<div class="slottt">' + C.slotTypeName(st) + '</div>' +
+        '<div class="slottt">' + C.slotTypeName(st) + ' <span class="tg">#' + (i + 1) + '</span></div>' +
         (filled && C.cardFits(filled, st)
           ? '<div class="slotcard">' + filled.name + '</div>' +
             '<div class="slotsub">' + (filled.effectText ? C.effectText(filled.effect) : filled.desc) +
@@ -657,7 +720,7 @@
               '<div class="slotsub bad">与这个槽不对口</div>'
             : '<div class="slotcard empty">空置</div>' +
               '<div class="slotsub">点击装填</div>') +
-        (filled ? '<button class="btn" data-cardclear="1">拔下</button>' : '') +
+        (filled ? '<button class="btn" data-cardclear="' + i + '">拔下</button>' : '') +
         '</div>';
     }
     h += '</div>';
@@ -679,7 +742,7 @@
       SB.POLICIES.length + '</span></div>';
     var put = function (arr, dim) {
       for (var j = 0; j < arr.length; j++) {
-        var q = arr[j], why = C.cardBlocked(s, q.id), on = s.card === q.id;
+        var q = arr[j], why = C.cardBlocked(s, q.id), on = (s.cards && s.cards.indexOf(q.id) >= 0);
         var fits = C.cardFits(q, C.currentSlotType(s));
         h += '<div class="row' + (dim ? ' dim' : '') + '"><div><div class="nm">' +
           '<span class="tag t' + q.type + '">' + C.slotTypeName(q.type) + '</span> ' + q.name +
@@ -803,7 +866,7 @@
       ['科技 ' + SB.shell.techCount(s), C.TECH * SB.shell.techCount(s)],
       ['祭坛 ' + lv, C.MIR * lv]
     ];
-    if (s.perk.coef) parts.push(['洋流 ' + s.perk.coef, C.PERK * s.perk.coef]);
+    if (s.perk.coef) parts.push(['轮回 ' + s.perk.coef, C.PERK * s.perk.coef]);
 
     var h = '<div class="row"><div><div class="nm">破壳系数 <b>' + SB.shell.breakCoef(s).toFixed(2) + '</b></div>' +
       '<div class="ds">' + parts.map(function (p) { return p[0] + ' ' + p[1].toFixed(2); }).join(' ＋ ') +
@@ -822,17 +885,21 @@
       (lv > 0 ? '' : ' disabled') + '><span style="font-size:12px;color:var(--dim)">' +
       (s.miracleOn ? '启动中' : '已停机') + '</span></label></div>';
 
+    /* ⚠️ 2026-09-28：原来这两条说明都在指「热泉井」（地热的产出口），而**热泉井已被删除**
+     *    （用户指令：整条地热线等着重新设计）⇒ 页面上留着「热泉井 × 匠人产出」是**指着一个
+     *    不存在的建筑说话**，玩家会照着去找。文案改成不点名任何建筑；
+     *    「把匠人调去 XX」这类操作指引也一并去掉（地热当前没有任何产出口，指哪都是空的）。 */
     h += '<div class="row"><div><div class="nm">地热 <b>' + SB.economy.fmtAmt(s.res.fuel) + '</b></div>' +
-      '<div class="ds">热泉井 × 匠人产出。供给跟不上祭坛，祭坛就停摆。</div></div></div>';
+      '<div class="ds">当前没有任何产出口 ⇒ 恒为 0（地热线待重设）。供给跟不上祭坛，祭坛就停摆。</div></div></div>';
 
-    if (s.starved) h += '<div class="note" style="color:var(--red)">地热耗尽，祭坛停摆——把匠人调去热泉井，或再建一级。</div>';
+    if (s.starved) h += '<div class="note" style="color:var(--red)">地热耗尽，祭坛停摆——等新的产出口落地后再看这里。</div>';
     else h += '<div class="note">祭坛按速率自动凿壳，地热断了自动停、恢复自动继续。你要管的是燃料，不是点击。</div>';
     return h;
   }
 
   function paneMeta() {
     var m = meta();
-    var h = '<div class="row"><div><div class="nm">洋流点 ' + m.tide.toFixed(2) + '</div>' +
+    var h = '<div class="row"><div><div class="nm">轮回点 ' + m.tide.toFixed(2) + '</div>' +
       '<div class="ds">已消费 ' + m.spent.toFixed(2) + '｜周目 ' + m.cycle + '｜破层 ' + m.layers + '</div></div></div>';
     for (var i = 0; i < SB.PERKS.length; i++) {
       var p = SB.PERKS[i], st = SB.prestige.perkState(p.id);
@@ -843,7 +910,7 @@
         '<button class="btn buy" data-perk="' + p.id + '"' +
         (st.done || st.locked || !st.afford ? ' disabled' : '') + '>' + p.cost + ' 点</button></div>';
     }
-    h += '<div class="note">洋流点跨周目保留。门槛减免类最贵——它砍掉一局的重复劳动。</div>';
+    h += '<div class="note">轮回点跨周目保留。门槛减免类最贵——它砍掉一局的重复劳动。</div>';
     return h;
   }
 
@@ -976,6 +1043,16 @@
    *    只会让「滑到一半被拽回左边」静默复发，所以 e2e 有一条断言盯着这个 id。
    * ⚠️ 新内容比旧的短时浏览器会自己把 scrollLeft 夹到上限，不需要在这里 clamp。 */
   var techScrollLeft = 0, techShown = false;
+  /* 市政树（civicScroll）与科技长卷同一个病、同一副药（2026-09-28 用户报：
+   * 「市政树界面和之前科技树界面一样，固定时间会被拉到最左边」）。
+   * 机制一模一样：PANE_REFRESH 每 2 秒壁钟重画一次 renderPanes，innerHTML 一重写，
+   * civicScroll 上的 scrollLeft 就归零一次 —— 玩家拖到半路被定期拽回最左。
+   * 修复与 tech 完全同构：重画前先读、重画后写回、模块里记一份（跨页签切换也活）。
+   * ⚠️ 隐藏态的读数恒 0，不能当成玩家的位置（civicShown 与 techShown 同一个道理）：
+   *    可见时读到的 0 是玩家自己拖回去的，必须尊重。
+   * ⚠️ 两张卷各记各的，**不合并成一个通用函数**：shown 判定各查各的容器，
+   *    合并会把「一张藏一张露」的中间态搅在一起（那正是这两个 flag 存在的理由）。 */
+  var civicScrollLeft = 0, civicShown = false;
   /* 纪元导航（render 侧的状态）：
    *   techViewEra —— 详情卡正在讲哪个纪元。0 = 跟随当前纪元（默认）。
    *                 ⚠️ 存 0 而不是存「当前纪元 id」，是为了让「纪元推进了」自动跟着走：
@@ -1006,6 +1083,12 @@
     if (techJumpTo != null) { techScrollLeft = techJumpTo; techJumpTo = null; jumped = true; }
     else if (box && shown && techShown) techScrollLeft = box.scrollLeft || 0;
 
+    /* 市政树同一套「先读」：只在本 pane **可见且上一趟也可见**时信任 DOM 读数。 */
+    var cNode = el('pane-civic');
+    var cShown = !cNode || !cNode.classList || !cNode.classList.contains('hidden');
+    var cbox = el('civicScroll');
+    if (cbox && cShown && civicShown) civicScrollLeft = cbox.scrollLeft || 0;
+
     for (var k in PANES) {
       var node = el('pane-' + k);
       if (node) node.innerHTML = PANES[k]();
@@ -1021,6 +1104,14 @@
       /* 回读一次：浏览器会把目标夹到 [0, scrollWidth−clientWidth]（末纪元常常滚不到那么远），
        * 不回读的话模块里记住的就是一个到不了的值。 */
       techScrollLeft = box.scrollLeft || 0;
+    }
+    /* 市政树「后写」：与 tech 完全同构。 civicScrollLeft 为 0 时不写是安全的——
+     * 0 本来就是容器重画后的自然位置，没有「跳回纪元一」那种必须显式写 0 的场景。 */
+    civicShown = cShown;
+    cbox = el('civicScroll');
+    if (cbox && cShown && civicScrollLeft) {
+      cbox.scrollLeft = civicScrollLeft;
+      civicScrollLeft = cbox.scrollLeft || 0;
     }
   }
 
@@ -1046,6 +1137,10 @@
     el('breakHint').textContent = ready ? '壳已归零——凿下去。'
       : s.shell > 0 ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。'
       : '冰壳停住了：需要建成「破冰祭坛」并供上地热才能凿穿。';
+    /* 重置按钮文案随「是否建立过宗教」翻转：宗教前是「重开本周目」，
+     * 宗教后（轮回系统解锁）改叫「轮回」——用户 2026-09-29 规格。 */
+    var rb = el('btnReset');
+    if (rb) rb.textContent = meta().religionSeen ? '轮回' : '重开本周目';
   }
 
   function clock() {
@@ -1120,7 +1215,7 @@
 
   function renderAll() {
     var s = res();
-    renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s);
+    renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderReligion(s);
   }
   function renderTick() {
     var s = res();
@@ -1136,16 +1231,20 @@
       '<div class="kv"><span>峰值族民 P</span><b>' + r.P + (r.gateMiss ? '（未达门槛 ' + CFG.TIDE.POP_GATE + '）' : '（门槛 ' + CFG.TIDE.POP_GATE + '）') + '</b></div>' +
       '<div class="kv"><span>建筑存量 B</span><b>' + r.B + ' 级 → ' + r.bPart.toFixed(0) + ' 分</b></div>' +
       '<div class="kv"><span>积累分 shellScore</span><b>' + r.shellScore + '</b></div>' +
-      '<div class="kv" style="border:0;margin-top:8px"><span>获得洋流点</span><b style="color:var(--amber);font-size:17px">' + r.tidePoints.toFixed(2) + '</b></div>' +
+      '<div class="kv" style="border:0;margin-top:8px"><span>获得轮回点</span><b style="color:var(--amber);font-size:17px">' + r.tidePoints.toFixed(2) + '</b></div>' +
       (r.gateMiss
-        ? '<div class="note" style="color:var(--red)">峰值族民没过 ' + CFG.TIDE.POP_GATE + '，这一局剥出的洋流点是 0——养人口比铺建筑更划算。</div>'
-        : '<div class="note">洋流点由峰值族民决定：这一局超门槛 ' + Math.max(0, r.P - CFG.TIDE.POP_GATE) + ' 人，建筑存量只折算成零头。</div>') +
-      '<div class="note">下一局继承：洋流点、破层层级、已购增益、<b>科技记录</b>。清空：建筑、资源、族民。</div>' +
+        ? '<div class="note" style="color:var(--red)">峰值族民没过 ' + CFG.TIDE.POP_GATE + '，这一局剥出的轮回点是 0——养人口比铺建筑更划算。</div>'
+        : '<div class="note">轮回点由峰值族民决定：这一局超门槛 ' + Math.max(0, r.P - CFG.TIDE.POP_GATE) + ' 人，建筑存量只折算成零头。</div>') +
+      (r.samsaraLocked
+        ? '<div class="note" style="color:var(--red)">轮回系统尚未开启（需先建立宗教）。这一局不发放轮回点。</div>'
+        : '') +
+      '<div class="note">下一局继承：轮回点、破层层级、已购增益、<b>科技记录</b>。清空：建筑、资源、族民。</div>' +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
       '<button class="btn" id="mStay">留在这一局</button>' +
-      '<button class="big" id="mNext">开始下一周目</button></div>';
+      '<button class="big" id="mNext">开始轮回</button></div>';
     el('modal').classList.remove('hidden');
     el('mStay').onclick = function () { SB.game.stay(); };
+    el('mNext').textContent = m.religionSeen ? '开始轮回' : '重开本周目';
     el('mNext').onclick = function () { SB.game.nextCycle(); };
   }
 
@@ -1237,6 +1336,14 @@
       wd.classList.toggle('locked', !dop);
       wd.title = dop ? '' : '研究「石工」后开启';
     }
+    /* 轮回商店（meta 页）的灰态：**第四个独立门槛** —— 首次轮回。
+     * 与上面三个（5 座藻场 / 议事厅 / 石工）都不相同，必须单独判一次。 */
+    var mt = document.querySelector('.tab[data-tab="meta"]');
+    if (mt) {
+      var mopen = !!(meta() && meta().shopUnlocked);
+      mt.classList.toggle('locked', !mopen);
+      mt.title = mopen ? '' : '首次轮回后开启轮回商店';
+    }
   }
 
   function paneWonder() {
@@ -1266,6 +1373,7 @@
         return function () {
           if (node.dataset.tab === 'tech' && !techTabOpen()) return;
           if (node.dataset.tab === 'workshop' && !workshopTabOpen()) return;
+          if (node.dataset.tab === 'meta' && !meta().shopUnlocked) return;
           /* 高亮不在这里翻 —— 它是 setTab 的一部分（见 game.js 那段注释：
            * 弹窗里那条直达科技的路径也走 setTab，高亮写在事件里就会漏掉那条路）。 */
           SB.game.setTab(node.dataset.tab);
@@ -1288,12 +1396,42 @@
     }
   }
 
+  /* 离线闸门：复用 #modal 全屏遮罩，在离线补算期间锁住整个界面，
+   * 玩家必须等补算完成、并点掉离线结算面板，才能操作（用户 2026-09-29 需求：
+   * 「离线回来先算完离线进度，才能操作」）。
+   * 两阶段：① 补算中 showProgress:true 且不给确认按钮（强制等）；② 结算时换 summary + 继续按钮。 */
+  function showOfflineModal(o) {
+    o = o || {};
+    var box = el('modalBox');
+    if (!box || !el('modal')) return;   // 无 DOM 环境（如离线验收桩）直接跳过
+    var html = '<h3>' + (o.title || '离线') + '</h3>' + (o.body || '');
+    if (o.showProgress) {
+      html += '<div class="prog"><i id="offPr" style="display:block;height:100%;width:0%;' +
+        'background:linear-gradient(90deg,#2f9e6e,#5be3a4);border-radius:4px"></i></div>' +
+        '<div id="offPct" class="note" style="margin-top:8px;color:var(--dim)"></div>';
+    }
+    if (o.ok) {
+      html += '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
+        '<button class="big" id="mOk">' + o.ok + '</button></div>';
+    }
+    box.innerHTML = html;
+    el('modal').classList.remove('hidden');
+    var okBtn = el('mOk');
+    if (okBtn) okBtn.onclick = function () { el('modal').classList.add('hidden'); if (o.onOk) o.onOk(); };
+  }
+  function setOfflineProgress(p) {
+    var pr = el('offPr'), pct = el('offPct');
+    if (pr) pr.style.width = Math.max(0, Math.min(100, p * 100)).toFixed(1) + '%';
+    if (pct) pct.textContent = '已完成 ' + (p * 100).toFixed(0) + '%';
+  }
+
   SB.ui = SB.ui || {};
   SB.ui.render = {
     renderAll: renderAll, renderTick: renderTick, renderPanes: renderPanes,
     showBreakPanel: showBreakPanel, hideModal: hideModal, confirmPanel: confirmPanel,
     storyPanel: storyPanel, techTabOpen: techTabOpen, syncTabLocks: syncTabLocks,
     initTabs: initTabs, initSpeeds: initSpeeds, techGoEra: techGoEra,
+    showOfflineModal: showOfflineModal, setOfflineProgress: setOfflineProgress,
     PANE_KEYS: PANE_KEYS
   };
 })(typeof window !== 'undefined' ? window : globalThis);

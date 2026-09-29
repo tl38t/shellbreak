@@ -44,6 +44,13 @@
     for (var i = 0; i < SB.TECHS.length; i++) if (SB.TECHS[i].id === tid) return SB.TECHS[i].name;
     return null;
   }
+  /* 市政名（2026-09-28 · requiredCivic 的解锁理由要用）。与 techNameOf 同型：
+   * 找不到返回 null —— 调用方会退化成显示 id，至少不会把 undefined 印给玩家看。 */
+  function civicNameOf(cid) {
+    if (!SB.CIVICS) return null;
+    for (var i = 0; i < SB.CIVICS.length; i++) if (SB.CIVICS[i].id === cid) return SB.CIVICS[i].name;
+    return null;
+  }
 
   /* 解锁判定：四种机制并存，照抄猫国建设者 js/buildings.js 的 Spec（315-319 行）与
    * game.js:6119 的判定 `item.val >= item.unlockScheme.threshold`。
@@ -57,7 +64,7 @@
     /* 默认锁着。猫国的 `unlockable` 在 Spec 里是 MANDATORY（必填），
      * 漏写等于「忘了决定」。这里同样：没声明任何解锁条件的建筑一律不出现，
      * 否则一个只写了 need 的建筑（比如祭坛）会直接躺在开局列表里。 */
-    if (!b.requiredTech && !b.unlockScheme && !b.unlockRatio) return false;
+    if (!b.requiredTech && !b.unlockScheme && !b.unlockRatio && !b.requiredCivic) return false;
     /* 纪元闸门 outermost，排在 requiredTech 之前。它比科技更硬：破冰祭坛的
      * requiredTech 是「破冰工程学」，而后者本身就是纪元五的科技——纪元四时玩家
      * 就算把精铁堆到 300 也建不了祭坛。放在科技之后判定，lockReason 就会报出
@@ -66,6 +73,14 @@
     if (b.requiredTech) {
       for (var i = 0; i < b.requiredTech.length; i++) if (!s.techs[b.requiredTech[i]]) return false;
     }
+    /* ⚠️【`requiredCivic` 是 2026-09-28 新加的解锁轴：由市政《戏剧与诗歌》解锁广场】
+     *    其余建筑的解锁权都写在科技侧（requiredTech 或 eff.unlockBuild，两边双写）。
+     *    广场的解锁权在市政身上，所以这里认 `requiredCivic` 这个字段名——
+     *    ⚠️ 字段命中的是 `s.civics`（**已完成**），不是 `civShown`（已揭示）：
+     *      揭示只打开「可以投点」那扇门，玩家还得自己花掉市政点才算数。
+     *          ⇒ 这里判的是「市政点已经花出去了」，与《法典》那条 `if (c.gov && !s.gov)`
+     *            同一个口径（完成才发东西，揭示只发机会）。 */
+    if (b.requiredCivic && !(s.civics && s.civics[b.requiredCivic])) return false;
     /* 科技解锁：后墙。反查表不认识的新建筑默认锁着——与 requiredTech 同规则，
      * 漏声明等于「忘了决定」，玩家看到的是一座永远建不起来的建筑。 */
     if (!techOpensBuild(s, b.id)) return false;
@@ -101,6 +116,12 @@
           return '需先掌握科技：' + (nm || t);
         }
       }
+    }
+    /* 市政墙（2026-09-28 · `requiredCivic`）：排在科技墙之后、资源墙之前——
+     * 「先花 200 市政点把《戏剧与诗歌》做完」是玩家当下就能执行的，
+     * 而「再攒 150 珊瑚」只是时间问题，两种都列的顺序不该让时间问题抢在前。 */
+    if (b.requiredCivic && !(s.civics && s.civics[b.requiredCivic])) {
+      return '需先完成市政：' + civicNameOf(b.requiredCivic);
     }
     if (b.unlockScheme && !SB.economy.enough(s.res[b.unlockScheme.name], b.unlockScheme.threshold)) {
       return SB.RESS[b.unlockScheme.name].name + ' ' + Math.floor(s.res[b.unlockScheme.name]) +

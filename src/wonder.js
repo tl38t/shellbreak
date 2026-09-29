@@ -79,9 +79,56 @@
     return m;
   }
 
+  /* 已建成的奇观**数量**（2026-09-28 为尤里卡条件「建成一座奇观」新加）。
+   * ⚠️ 统计的是数量而不是条目数 —— s.wonders 的值恒为 1（买断制，见纪律①），
+   *    将来若允许同一个奇观重复建成（升星？），这里改成取和也还是对的。
+   * ⚠️ 这是 `s.wonders` 除 owned() 之外的第二个读取点，且**只此一处**：
+   *    别在 tech.js 或 UI 里散读 s.wonders（纪律③的延伸——散读会让「奇观的效果
+   *    只从 wonder.js 出」这条纪律出现第二个例外，下一个人就照着抄了）。 */
+  function count(s) {
+    var o = owned(s), k, n = 0;
+    for (k in o) if (o[k]) n++;
+    return n;
+  }
+
+  /* 大图书馆送的**图书馆虚级**（2026-09-28 用户规格「效果是图书馆 +3 级，只加效果，
+   * 不提高建筑所需材料」）。
+   * ⚠️【为什么它不写进 `s.lvl.library`】虚级的语义是「**按效果算、按建筑不算**」：
+   *    一旦落进 s.lvl，会被 lvlSum、need 判定、建筑总级数那几条一并读走 —— 玩家会看到
+   *    「图书馆还差 1 级就能建下一级，而那一级其实早就白送了」。所以只在这里出，
+   *    落到 economy 算科技产出时，与 s.lvl.library **相加**成一个查看用的合计级数。
+   * ⚠️ 这是 `s.wonders` 除 owned() / count() 之外的第三个读取点，纪律③的延伸同上。 */
+  function libBonus(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.libLvl) || 0;
+    }
+    return m;
+  }
+
+  /* 奇观的一次性奖励（2026-09-28 用户规格 · 大图书馆的「建成时一次性 +1000 科技点」）。
+   * ⚠️ 与上面那些**持续效果的区别**：那几个是「每秒都有一份」，这个只在建成那一下结算。
+   *    所以它没有对应的资源行，由 workshop.buildWonder 拿到 `s.wonders[id]=true`
+   *    之后调一次（买断制 ⇒ 第二次会被 wonderBlocked 拦住 ⇒ 天然只发一次）。
+   * ⚠️ 返回的是**待发放的清单**而不是直接扣/加——扣在调用方（与 flow() 那条
+   *    「纯读数、副作用在别处」同一条纪律）。没有奖励时返回 null，调用方免判分支。 */
+  function oneShot(s) {
+    var out = null, i, o = owned(s), L = list(), k;
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      var g = L[i].effect && L[i].effect.grant;
+      if (!g) continue;
+      out = out || {};
+      for (k in g) if (typeof g[k] === 'number') out[k] = (out[k] || 0) + g[k];
+    }
+    return out;
+  }
+
   SB.wonder = {
-    list: list, byId: byId,
+    list: list, byId: byId, count: count,
     wonderCraftRatio: wonderCraftRatio, matMaxBonus: matMaxBonus,
-    civicBonus: civicBonus, globalBonus: globalBonus
+    civicBonus: civicBonus, globalBonus: globalBonus,
+    libBonus: libBonus, oneShot: oneShot
   };
 })(typeof window !== 'undefined' ? window : globalThis);
