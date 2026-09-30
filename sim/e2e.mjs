@@ -771,6 +771,32 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     'Δ=' + (hall10 - baseStone));
   check('城堡升级：hall=20 加成封顶 1000（getLimitedDR 渐近）', Math.abs((hall20 - baseStone) - 1000) < 1e-6,
     'Δ=' + (hall20 - baseStone));
+
+  /* ④ 资源可见性（2026-09-30）：解锁前不显示，工艺资源独立分区。 */
+  const core = ['kelp', 'coral', 'stone', 'silt', 'warmstone', 'iron'];
+  const hiddenCore = core.filter(r => !SB.economy.resUnlocked(fr, r));
+  check('核心资源开局即显示（无 unlock）', hiddenCore.length === 0, '被隐藏=' + hiddenCore.join(','));
+  const craftHidden = ['stoneBeam', 'ironBracket', 'rope', 'hardCoral', 'steel', 'hydro', 'steelPart']
+    .filter(r => SB.economy.resUnlocked(fr, r));
+  check('工艺资源解锁前全部隐藏', craftHidden.length === 0, '误显示=' + craftHidden.join(','));
+  check('科技未研究 ⇒ 科技点不显示', !SB.economy.resUnlocked(fr, 'science'));
+  check('神庙未建 ⇒ 市政点不显示', !SB.economy.resUnlocked(fr, 'culture'));
+  check('商人未派 ⇒ 奢侈品不显示', !SB.economy.resUnlocked(fr, 'luxury'));
+  check('神学未解锁 ⇒ 信仰不显示', !SB.economy.resUnlocked(fr, 'faith'));
+  check('热泉井已删 ⇒ 地热永不显示', !SB.economy.resUnlocked(fr, 'fuel'));
+  fr.lvl = fr.lvl || {}; fr.lvl.workshop = 1;
+  check('建成工坊 ⇒ 石梁/硬化珊瑚显示',
+    SB.economy.resUnlocked(fr, 'stoneBeam') && SB.economy.resUnlocked(fr, 'hardCoral'));
+  fr.techs = fr.techs || {}; fr.techs.metalrefine = true;
+  check('研究金属精炼 ⇒ 钢/热液能/钢制零件显示',
+    SB.economy.resUnlocked(fr, 'steel') && SB.economy.resUnlocked(fr, 'hydro') && SB.economy.resUnlocked(fr, 'steelPart'));
+  fr.techs.scholarT = true; fr.lvl.temple = 1; fr.jobs = { merchant: 1 }; fr.civics = { theology: true };
+  check('科技/神庙/商人/神学解锁后对应资源显示',
+    SB.economy.resUnlocked(fr, 'science') && SB.economy.resUnlocked(fr, 'culture') &&
+    SB.economy.resUnlocked(fr, 'luxury') && SB.economy.resUnlocked(fr, 'faith'));
+  const craftKind = ['stoneBeam', 'ironBracket', 'rope', 'hardCoral', 'steel', 'hydro', 'steelPart']
+    .filter(r => SB.RESS[r].kind !== 'craft');
+  check('7 个工艺资源均标 kind:craft', craftKind.length === 0, '未标=' + craftKind.join(','));
 }
 
 /* ---------------- 建筑解锁来源（静态自查）----------------
@@ -825,6 +851,28 @@ console.log('\n=== 建筑解锁来源 ===');
   /* 反向也不许有：表里的键在 BUILDINGS 里找不到 ⇒ 玩家永远点不到它、而它占着存档位。 */
   const ghostLvl = Object.keys(baseLvl).filter(k => !B.some(b => b.id === k));
   check('lvl 表没有建筑表里已删掉的幽灵键', ghostLvl.length === 0, ghostLvl.join(','));
+}
+
+/* ---------------- 建筑分区（静态自查 · 2026-09-30 纯 UI 分区 A）----------------
+ * 每座建筑必须落进恰好一个区，且八区覆盖全表、归属符合用户拍板。 */
+{
+  const B = SB.BUILDINGS || [], Z = SB.BUILD_ZONES || [];
+  const zIds = Z.map(z => z.id);
+  const noZone = B.filter(b => !b.zone || zIds.indexOf(b.zone) < 0).map(b => b.id);
+  check('每座建筑都归属一个已定义的区', noZone.length === 0, noZone.join(','));
+  const counted = B.filter(b => b.zone).length;
+  check('分区覆盖全部建筑（无遗漏无重叠）', counted === B.length, '有 zone ' + counted + '/' + B.length);
+  const expect = { lighthouse: 'trade', kelpstore: 'trade', ballast: 'trade',
+    temple: 'faith', square: 'civic', nest: 'core', kelp: 'food', workshop: 'workshop',
+    library: 'academy', miracle: 'break' };
+  const wrong = Object.keys(expect).filter(k => {
+    const b = B.find(x => x.id === k); return !b || b.zone !== expect[k];
+  });
+  check('关键建筑分区归属符合用户拍板（灯塔/海藻仓/压舱仓→贸易区域等）',
+    wrong.length === 0, wrong.map(k => k + '≠' + (B.find(x => x.id === k) || {}).zone).join(','));
+  check('贸易区域含灯塔/海藻仓/压舱仓三座',
+    ['lighthouse', 'kelpstore', 'ballast'].every(id => (B.find(x => x.id === id) || {}).zone === 'trade'),
+    'trade=' + B.filter(b => b.zone === 'trade').map(b => b.id).join(','));
 }
 
 /* ---------------- 住房两档（石工 → 石屋）----------------
@@ -1767,10 +1815,18 @@ console.log('\n=== 市政 ===');
 
   /* 《神学》解锁的**信仰资源**（宗教系统已落地，2026-09-28）：基础产出 = 人口 × FAITH_PER_POP，
    *   神庙乘区叠加上去；存量攒到 10/100/1000 时按对数刻度给全产加成，且加成进入 globalMul。
-   *   ⚠️ 神学前 faith 行在面板不显示（renderRes 的 gate），但资源本身已有产出——这条测的是产出与加成，不是可见性。 */
+   *   ⚠️ 2026-09-30 修：信仰产出**必须等《神学》完成**——faithRate 内部读 resUnlocked(s,'faith')，
+   *    神学前即使有人口也恒为 0（不开局偷偷攒、也不偷偷给全产加成）。这是把当初漏门控的漏洞堵上，
+   *    也对齐了 RES S.faith 的 unlock:{civic:'theology'} 与面板 faith 行 gate 同一条判定。 */
+  const fa0 = SB.state.freshRun(false);              // 神学前
+  SB.economy.tick(fa0, 1, noop);
+  check('神学前信仰产出恒为 0（与资源行 gate 同判，不开局偷偷攒）',
+    SB.economy.faithRate(fa0) === 0 && fa0.res.faith === 0,
+    'faithRate=' + SB.economy.faithRate(fa0) + ' 存量=' + fa0.res.faith);
   const fa = SB.state.freshRun(false);
+  fa.civics = { theology: true };                    // 完成《神学》
   SB.economy.tick(fa, 1, noop);
-  check('信仰基础产出 = 人口 × 0.02/s（宗教落地后；神学前为 0 只是面板 gate 不显示）',
+  check('完成《神学》后信仰基础产出 = 人口 × 0.02/s（叠神庙乘区）',
     SB.RESS.faith && typeof fa.res.faith === 'number' && fa.res.faith > 0 &&
     Math.abs(SB.economy.faithRate(fa) - fa.pop * SB.CFG.FAITH_PER_POP) < 1e-9,
     'pop=' + fa.pop + ' faithRate=' + SB.economy.faithRate(fa).toFixed(4) + '/s 存量=' + fa.res.faith.toFixed(4));
@@ -2192,12 +2248,172 @@ console.log('\n=== 市政 ===');
     Math.abs(SB.workshop.craftMul(au) - 1.10) < 1e-9,
     'craftRatio=' + SB.workshop.craftRatio(au) + ' craftMul=' + SB.workshop.craftMul(au));
 
+  /* 技艺 +20% 工坊效率（政策卡，2026-09-30 用户拍）：走与政体同一条加法乘区，
+   * 装在卡槽里才生效（cardCraftRatio 读 s.cards，与 mulOfField 同口径）。 */
+  const cc = SB.state.freshRun(false); cc.cards = ['card_craft']; cc.card = 'card_craft';
+  check('技艺卡：工坊效率 +20%（craftRatio 含卡片项，装槽才生效）',
+    SB.civic.policyById('card_craft').craftRatio === 0.20 &&
+    Math.abs(SB.workshop.craftRatio(cc) - 0.20) < 1e-9 &&
+    Math.abs(SB.workshop.craftMul(cc) - 1.20) < 1e-9,
+    'card craftRatio=' + SB.civic.policyById('card_craft').craftRatio +
+    ' craftRatio(cc)=' + SB.workshop.craftRatio(cc));
+
   /* 寡头 +20% 奢侈品产出：与马具 toolMul 独立乘，tick/rates 同式 */
   const ol = SB.state.freshRun(false); ol.gov = 'oligarchy'; ol.jobs.merchant = 2; ol.pop = 0;
   const _luxCap = 2 * SB.UNIT.luxury * SB.economy.baseMul(ol);
   check('寡头统治：奢侈品产出 ×1.2（tick/rates 同式，与马具独立乘）',
     Math.abs(SB.economy.rates(ol).luxury - _luxCap * 1.2) < 1e-9,
     'rates.luxury=' + SB.economy.rates(ol).luxury + ' 期望=' + (_luxCap * 1.2).toFixed(4));
+
+  /* ══ ERA3 市政扩展（2026-09-30 用户规格表，5 节点 + 君主制 + 4 卡 + 2 奇观 + 潮道）══ */
+
+  /* ① 君主制：礁栖核心建筑造价 ×0.9，其他分区不动（规格原文「所有礁栖核心建筑」）。 */
+  {
+    const mo = SB.state.freshRun(false); mo.gov = 'monarchy';
+    const tr = SB.state.freshRun(false); tr.gov = 'tribe';
+    const coreM = SB.economy.costOf(mo, 'hall'), coreT = SB.economy.costOf(tr, 'hall');
+    const tradeM = SB.economy.costOf(mo, 'ballast'), tradeT = SB.economy.costOf(tr, 'ballast');
+    check('君主制：礁栖核心建筑造价 ×0.9（hall），贸易区域不动（ballast）',
+      Math.ceil(coreT.stone * 0.9) === coreM.stone &&
+      Math.ceil(coreT.coral * 0.9) === coreM.coral &&
+      tradeM.stoneBeam === tradeT.stoneBeam && tradeM.hardCoral === tradeT.hardCoral,
+      'hall ' + coreT.stone + '→' + coreM.stone + ' ballast ' + tradeT.stoneBeam + '=' + tradeM.stoneBeam);
+  }
+
+  /* ② 王国潮道：等级 ≤ 灯塔等级（灯塔 0 级建不起来；1 级灯塔只准 1 级潮道）。 */
+  {
+    const ca = SB.state.freshRun(false);
+    ca.civics.department = 1; ca.res.stone = 1e6; ca.res.steel = 1e6;
+    const locked = SB.habitat.build(ca, 'canal', null) === false;
+    ca.lvl.lighthouse = 1;
+    const first = SB.habitat.build(ca, 'canal', null) === true && ca.lvl.canal === 1;
+    const second = SB.habitat.build(ca, 'canal', null) === false && ca.lvl.canal === 1;
+    check('王国潮道：等级钳制在灯塔等级（0 级灯塔锁死 → 1 级放行一级 → 拒绝第二级）',
+      locked && first && second,
+      'lock=' + locked + ' first=' + first + ' second=' + second +
+      ' reason=' + (SB.habitat.lockReason(ca, SB.habitat.buildingById('canal')) || 'null'));
+  }
+
+  /* ②' 王国潮道的效果面：每级 −0.3% 居民奢侈品消耗（需求 D 侧缩减，净速率上升）。 */
+  {
+    const cs = SB.state.freshRun(false);
+    cs.jobs.merchant = 10; cs.pop = 1; cs.happy = 0;
+    const n0 = SB.economy.rates(cs).luxury;
+    cs.lvl.canal = 1;
+    const n1 = SB.economy.rates(cs).luxury;
+    const D0 = 1 * SB.economy.happyCost(0);
+    check('王国潮道：1 级 −0.3% 居民奢侈品消耗（D 侧缩，Δnet = D×0.003）',
+      Math.abs((n1 - n0) - D0 * 0.003) < 1e-9,
+      'Δnet=' + (n1 - n0).toFixed(6) + ' 期望=' + (D0 * 0.003).toFixed(6));
+  }
+
+  /* ③ 商人副产（中世纪集市解锁2）：每名商人 +0.05/s 科学与市政点，面板与结算同式。 */
+  {
+    const mk = SB.state.freshRun(false);
+    mk.jobs.merchant = 4; mk.pop = 0;
+    mk.civics.market = 0;
+    const rA = SB.economy.rates(mk);
+    mk.civics.market = 1;
+    const rB = SB.economy.rates(mk);
+    const g = SB.economy.globalMul(mk);
+    check('中世纪集市：商人副产 +0.05/s 科学 +0.05/s 市政（rates 路，×globalMul）',
+      Math.abs((rB.science - rA.science) - 4 * 0.05 * g) < 1e-9 &&
+      Math.abs((rB.culture - rA.culture) - 4 * 0.05 * g) < 1e-9,
+      'Δsci=' + (rB.science - rA.science).toFixed(4) + ' Δcult=' + (rB.culture - rA.culture).toFixed(4) +
+      ' 期望=' + (4 * 0.05 * g).toFixed(4));
+  }
+
+  /* ④ 中世纪集市卡：仓储区建筑容量贡献 ×2（基础容量与科技容量不翻）。
+   * fresh 档 techCap=0 ⇒ cap0 = B + 3K、cap1 = B + 6K，等价于 cap1 − 3K === cap0。 */
+  {
+    const st = SB.state.freshRun(false);
+    st.lvl.kelpstore = 3;
+    const cap0 = SB.economy.capOf(st, 'kelp');
+    st.cards = ['card_market']; st.card = 'card_market';
+    const cap1 = SB.economy.capOf(st, 'kelp');
+    check('中世纪集市卡：海藻仓容量贡献 ×2（base 与科技段不动）',
+      Math.abs(cap1 - 3 * SB.BLD.kelpCap - cap0) < 1e-6,
+      'cap0=' + cap0 + ' cap1=' + cap1 + ' kelpCap=' + SB.BLD.kelpCap);
+  }
+
+  /* ⑤ 农奴制卡：藻场↔牧场互乘（每级 ×1.01，互不吃自己的等级）。 */
+  {
+    const sf = SB.state.freshRun(false);
+    sf.lvl.kelp = 5; sf.lvl.warmnest = 3;
+    sf.cards = ['card_serfdom']; sf.card = 'card_serfdom';
+    const noKelp = SB.state.freshRun(false);
+    noKelp.lvl.kelp = 5; noKelp.lvl.warmnest = 3;
+    check('农奴制卡：牧场 3 级给藻场 ×1.03、藻场 5 级给牧场减免 ×1.05',
+      Math.abs(SB.civic.serfKelpMul(sf) - 1.03) < 1e-9 &&
+      Math.abs(SB.civic.serfWarmMul(sf) - 1.05) < 1e-9 &&
+      SB.civic.serfKelpMul(noKelp) === 1,
+      'serfKelp=' + SB.civic.serfKelpMul(sf) + ' serfWarm=' + SB.civic.serfWarmMul(sf));
+  }
+
+  /* ⑥ 王权神授卡：城堡每级 +10% 信仰产出（装卡才生效）。 */
+  {
+    const so = SB.state.freshRun(false);
+    so.lvl.castle = 2;
+    so.cards = ['card_sovereign']; so.card = 'card_sovereign';
+    const soOff = SB.state.freshRun(false); soOff.lvl.castle = 2;
+    check('王权神授卡：城堡 2 级 → 信仰 ×1.2（不装卡 ×1）',
+      Math.abs(SB.civic.castleFaithMul(so) - 1.2) < 1e-9 && SB.civic.castleFaithMul(soOff) === 1,
+      'on=' + SB.civic.castleFaithMul(so) + ' off=' + SB.civic.castleFaithMul(soOff));
+  }
+
+  /* ⑦ 两座奇观：needCivic 门 + 效果（修道院每市政 +1% 信仰 / 大巴扎每人 +1% 奢侈）。 */
+  {
+    const wb = SB.state.freshRun(false);
+    const abbeyLocked = SB.workshop.wonderBlocked(wb, 'wonder_stt_abbey');
+    wb.civics.sovereign = 1;
+    wb.civics.laws = 1; wb.civics.craft = 1; wb.civics.theology = 1; // 凑 4 个完成市政
+    const abbeyOpen = SB.workshop.wonderBlocked(wb, 'wonder_stt_abbey') === null ||
+      (SB.workshop.wonderBlocked(wb, 'wonder_stt_abbey') || '').indexOf('市政') < 0;
+    wb.wonders = { wonder_stt_abbey: true };
+    const fm = SB.wonder.abbeyFaithMul(wb);
+    const bz = SB.state.freshRun(false);
+    bz.civics.guild = 1; bz.wonders = { wonder_grand_bazaar: true }; bz.pop = 30;
+    check('奇观：修道院 needCivic 门 + 4 市政 ×1.04；大巴扎 30 人 ×1.30',
+      (abbeyLocked || '').indexOf('市政') >= 0 && abbeyOpen &&
+      Math.abs(fm - 1.04) < 1e-9 && Math.abs(SB.wonder.bazaarLuxMul(bz) - 1.30) < 1e-9,
+      'locked=' + abbeyLocked + ' faith=' + fm + ' lux=' + SB.wonder.bazaarLuxMul(bz));
+  }
+
+  /* ⑧ 卡退役：职业行会完成后技艺卡不可再装（cardOwned=false）。 */
+  {
+    const gd = SB.state.freshRun(false);
+    gd.civics.craft = 1;
+    const before = SB.civic.cardOwned(gd, 'card_craft');
+    gd.civics.guild = 1;
+    check('职业行会：完成后技艺卡退役（之前可装、之后不可装）',
+      before === true && SB.civic.cardOwned(gd, 'card_craft') === false,
+      'before=' + before + ' after=' + SB.civic.cardOwned(gd, 'card_craft'));
+  }
+
+  /* ⑨ 生息区自动升级：封建主义 + 开关 → 买得起就自动建一级；没开关/没市政不动作。 */
+  {
+    const aU = SB.state.freshRun(false);
+    aU.res.kelp = 1e6;
+    SB.habitat.autoTick(aU, null);                       // 没封建主义：不动
+    const before = aU.lvl.kelp;
+    aU.civics.feudalism = 1;
+    SB.habitat.autoTick(aU, null);                       // 有封建主义但没开开关：不动
+    const mid = aU.lvl.kelp;
+    aU.autoUpg = { kelp: true };
+    SB.habitat.autoTick(aU, null);                       // 开关打开：自动买一级
+    check('生息区自动升级：封建主义+开关才动作（kelp 0→1），前两拍不动',
+      before === 0 && mid === 0 && aU.lvl.kelp === 1,
+      'before=' + before + ' mid=' + mid + ' after=' + aU.lvl.kelp);
+  }
+
+  /* ⑩ 职业行会卡：工坊效率 +40%（取代技艺的 +20% 通道，同一加法聚合）。 */
+  {
+    const gl = SB.state.freshRun(false);
+    gl.cards = ['card_guild']; gl.card = 'card_guild';
+    check('职业行会卡：工坊效率 +40%（craftMul=1.40）',
+      Math.abs(SB.workshop.craftRatio(gl) - 0.40) < 1e-9,
+      'craftRatio=' + SB.workshop.craftRatio(gl));
+  }
 
   /* 古典共和 +1 幸福度：断供也保底（制度红利），有贸易时稳定高于无政体 +1（偏移非漂移） */
   const crRep = SB.state.freshRun(false); crRep.gov = 'classical_republic'; crRep.jobs.merchant = 0;

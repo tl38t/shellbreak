@@ -288,7 +288,10 @@
       SB.economy.tick(S, STEP, emit);   // 天壳推进在 tick 内完成（基础削壳 + 祭坛削壳）
       loop.acc -= STEP;
       loop._tp = (loop._tp || 0) + STEP;
-      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S); }
+      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S);
+        /* 生息区自动升级（2026-09-30 · 封建主义解锁2）：只挂在线泵——离线补算（line ~363）
+         * 不调它，离线只结算产出、不替玩家花资源（与离线闸门同一精神）。 */
+        if (SB.habitat && SB.habitat.autoTick) SB.habitat.autoTick(S, emit); }
     }
 
     if (S && !S.broken) {

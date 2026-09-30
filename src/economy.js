@@ -128,9 +128,13 @@
      *    warehouseRatio），本作科技是一次性的、没有「可反复研究的工坊升级」做载体，
      *    加法更直白；将来要加乘区时，通道就是这里。 */
     var T = SB.tech ? SB.tech.mul(s) : null;
+    /* 仓储区容量乘区（2026-09-30 中世纪集市卡）：只乘**贸易区域三座建筑**的容量贡献段
+     * （海藻仓/压舱仓/灯塔），基础容量、科技容量、奇观常数、扩容升级都不吃——
+     * 规格原文是「仓储区所有建筑上限+100%」，翻倍的是建筑的贡献，不是整条容量。 */
+    var _sm = (SB.civic && SB.civic.storeMul) ? SB.civic.storeMul(s) : 1;
     if (k === 'kelp') {
       /* ⚠️ 扩容升级是**乘法**，整套仓储线里只有它这一条是乘法 —— 见下面的 matCap。 */
-      return (base + (s.lvl.kelpstore || 0) * BLD.kelpCap + (T ? T.kelpCap : 0) + castleCapBonus(s))
+      return (base + _sm * (s.lvl.kelpstore || 0) * BLD.kelpCap + (T ? T.kelpCap : 0) + castleCapBonus(s))
         * capUpgradeMul(s, 'upg_kelpstore_1');
     }
     /* 其余资源：基础 + 压舱仓（材料容量的**唯一**增长通道）。 */
@@ -150,19 +154,19 @@
      * ⚠️ 乘数从 UPGRADES 表读（capMul 字段），不在 economy 里写死 ——
      *    将来加「扩容 II」只改 config，不用回头改这里。
      * ⚠️ 老档没有 s.upgrades ⇒ `s.upgrades &&` 短路成 1，按「没装」处理，不报 NaN。 */
-    var matCap = base + (s.lvl.ballast || 0) * BLD.ballastCap
+    var matCap = base + _sm * ((s.lvl.ballast || 0) * BLD.ballastCap
       /* ⚠️ 2026-09-28 灯塔也仓库（+120/级，与压舱仓同档）。
        *    【为什么是**并列相加**而不是乘】两座仓是两条独立的容量来源，各自的量纲
        *       都是「每级 +120」。写成 `(1 + lvl.ballast*120) * (1 + lvl.lighthouse*120)`
        *       会在两座都盖起来时把效果放大成平方，那是「同一个东西被计价两次」。
        *    【大灯塔的 +60 走下面的 matMax，不在这里】它是**常数**，由 wonder.matMaxBonus
        *       供给，与建筑等级这条轴互不干涉 —— 用户拍「写死常数」，规则才清楚。 */
-      + (s.lvl.lighthouse || 0) * BLD.lighthouseCap +
+      + (s.lvl.lighthouse || 0) * BLD.lighthouseCap)
       /* ⚠️ 奇观「海潮方碑」的「各材料仓储 +200」。
        *   ⚠️ **只加给材料，不加石梁** —— 石梁是无上限资源（用户拍），给它加 200 没有意义。
        *    ⚠️ 用**白名单**而不是「除 stoneBeam 之外全加」：将来加新资源时，
        *        白名单会逼着人决定「新资源吃不吃这个加成」，黑名单则让人默认漏掉。 */
-      (SB.wonder ? SB.wonder.matMaxBonus(s, k) : 0);
+      + (SB.wonder ? SB.wonder.matMaxBonus(s, k) : 0);
     return (matCap + castleCapBonus(s)) * capUpgradeMul(s, 'upg_ballast_1');
   }
 
@@ -241,7 +245,12 @@
     var b = null;
     for (var i = 0; i < SB.BUILDINGS.length; i++) if (SB.BUILDINGS[i].id === id) b = SB.BUILDINGS[i];
     var n = s.lvl[id] || 0, o = {}, hm = hallMul(s);
-    for (var k in b.cost) o[k] = Math.ceil(b.cost[k] * Math.pow(b.ratio, n) * hm);
+    /* 君主制建造减耗（2026-09-30 · 市政《行政部门》解锁政体）：只在 zone==='core' 生效，
+     *   乘在这里而不是 habitat.build ⇒ 面板显示的造价与真实扣的是同一笔。
+     *   ⚠️ 与 hallMul **并列相乘**：议事厅是「建筑给的减耗」、君主制是「制度给的」，
+     *      两条独立来源，谁也不知道谁的存在。 */
+    var gm = (SB.civic && SB.civic.govBuildCostMul) ? SB.civic.govBuildCostMul(s, id) : 1;
+    for (var k in b.cost) o[k] = Math.ceil(b.cost[k] * Math.pow(b.ratio, n) * hm * gm);
     return o;
   }
   function costTxt(c) {
@@ -485,7 +494,10 @@
    *   少了它，暖壳石叠到 200 级以上时 (1-save) 变负数 ⇒ 消耗翻成产出 ⇒ 白送口粮，
    *   而且不报任何错。防御边界归防御边界，别把它读成「还剩一道 −60% 上限」。 */
   function foodUse(s) {
-    var save = Math.min(1, (s.lvl.warmnest || 0) * BLD.foodSave);
+    /* 农奴制（2026-09-30 封建主义卡）：每级藻场给牧场效果 +1%——
+     * 乘在 foodSave 那一截上（封顶 100% 的 Math.min 照旧在外面兜底）。 */
+    var serf = (SB.civic && SB.civic.serfWarmMul) ? SB.civic.serfWarmMul(s) : 1;
+    var save = Math.min(1, (s.lvl.warmnest || 0) * BLD.foodSave * serf);
     return s.pop * CFG.FOOD_PER * (1 - save);
   }
   /* 藻食产出。逐句照抄猫国 game.js:3666 calcResourcePerTick("catnip") 的语句顺序——
@@ -501,7 +513,9 @@
      * ⚠️ 只顶建筑侧那只季节乘区（seasonMul），与「职业侧不吃季节」是同一条纪律——
      *    把暖石的效果做成全局乘区，寒流季的采集者会跟着一起被抬高，
      *    那看起来像「开关很划算」，实际是绕过了季节设计。 */
-    var byBuild = s.lvl.kelp * BLD.food * seasonMul(s, relief); // 建筑侧：吃季节（历法收窄减产 + 暖石顶回）
+    var byBuild = s.lvl.kelp * BLD.food
+      * ((SB.civic && SB.civic.serfKelpMul) ? SB.civic.serfKelpMul(s) : 1)  // 农奴制：每级牧场给藻场 +1%
+      * seasonMul(s, relief); // 建筑侧：吃季节（历法收窄减产 + 暖石顶回）
     var byJob = s.jobs.gather * UNIT.kelp * farmMul(s);        // 职业侧：不吃季节・「种植」的 farm 乘区
     /* 只放大食物，别把 gatherMul（礁石平台/深潜/洋流增益）乘进来——
      * 那些倍率是「采集产出」的，礁石平台不该让藻场增产。
@@ -687,10 +701,20 @@
    *    「基础产出为 0 就整条 return 0」会让乘区在宗教落地前被当成死代码优化掉，
    *    到那时再补要动断言、面板、回归一串。留着这行，宗教落地时只改这里。 */
   function faithRate(s) {
-    /* 2026-09-28 宗教落地：基础产出 = 人口 × FAITH_PER_POP（用户「每个人口 0.02/s」），
-     *   再乘神庙乘区 faithMul。⚠️ 不调 globalMul ⇒ 不吃自己的全产加成（反自指，见 faithAllMul 注）。 */
+    /* ⚠️ 2026-09-30 修漏门控：信仰产出**只在信仰资源解锁后**发生，与面板资源行的
+     *    gate 用同一条判定（resUnlocked(s,'faith') ⇔ s.civics.theology）。神学前即使有人口也
+     *    恒为 0 —— 不开局偷偷攒信仰、也不偷偷给全产加成（存量保持 0 ⇒ faithAllMul 退 1）。
+     *    完成《神学》后：基础产出 = 人口 × FAITH_PER_POP（用户「每个人口 0.02/s」），再乘神庙乘区 faithMul。
+     *    ⚠️ 不调 globalMul ⇒ 不吃自己的全产加成（反自指，见 faithAllMul 注）。 */
+    if (!resUnlocked(s, 'faith')) return 0;
     var base = s.pop * CFG.FAITH_PER_POP;
-    return base * faithMul(s);
+    /* 2026-09-30 ERA3 两段新乘区：
+     *   · castleFaithMul——政策卡「王权神授」装着时，城堡每级 +10%（没装卡 = 1）；
+     *   · abbeyFaithMul——奇观「圣泰坦尼克修道院」建成时，每完成一个市政 +1%。
+     * 都乘在**整段产出**上（含人口基础值），不进 faithMul（那是神庙段自己的乘区）。 */
+    return base * faithMul(s)
+      * (SB.civic && SB.civic.castleFaithMul ? SB.civic.castleFaithMul(s) : 1)
+      * (SB.wonder && SB.wonder.abbeyFaithMul ? SB.wonder.abbeyFaithMul(s) : 1);
   }
 
   /* ── 幸福度（陆地贸易，2026-09-28 落地）──
@@ -859,7 +883,8 @@
       var _gb = SB.civic ? SB.civic.govHappyBonus(s) : 0;   // 政体给的常驻幸福度偏移（古典共和 +1）
       var _S = (s.jobs.merchant || 0) * UNIT.luxury * toolMul(s, 'merchant') * baseMul(s)
         * (SB.civic ? SB.civic.govLuxuryMul(s) : 1)        // /秒 贸易供给能力（马具 +50%、寡头 +20%）
-        * (1 + upgSum(s, 'luxuryMul'));                    // 马镫工坊升级 +50%（与马具独立相乘 ⇒ +100%）
+        * (1 + upgSum(s, 'luxuryMul'))                     // 马镫工坊升级 +50%（与马具独立相乘 ⇒ +100%）
+        * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1);     // 大巴扎：每名鲛人 +1% 奢侈品获取（奇观出口，纪律③）
       if (_S <= 0) {
         s.happy = _gb;                                      // 断供：政体红利仍保底（无民生不惩罚，但制度给的底在）
       } else {
@@ -867,18 +892,31 @@
          *    用机制值算需求/收敛，最后加回偏移。否则每帧把 bonus 累进 _H，
          *    幸福度会无限上漂（与「happy 是状态量」冲突）。换政体瞬间即跳新偏移，符合直觉。 */
         var _Hmech = (s.happy || 0) - _gb;                  // 上一帧机制值（剥离政体加成）
-        var _D = (s.pop || 0) * happyCost(_Hmech);          // /秒 需求（用机制值算 ⇒ +1 不额外烧 luxury，纯增益）
+        /* 王国潮道（2026-09-30 · 市政《行政部门》解锁2）：每级 −0.3% 居民奢侈品**消耗**。
+         *   减的是需求 D 这一侧（产出不动）——规格原文「减少消耗」，恒温器会自动把
+         *   均衡 H* 推高，等效于「同样的商人养出更高的幸福度档位」。
+         *   Math.min(1, …) 只是防负数 D 的护栏，正常等级数（灯塔钳制）远到不了。 */
+        var _canalSave = Math.min(1, (s.lvl.canal || 0) * (BLD.canalLuxSave || 0));
+        var _D = (s.pop || 0) * happyCost(_Hmech) * (1 - _canalSave); // /秒 需求（用机制值算 ⇒ +1 不额外烧 luxury，纯增益）
         s.res.luxury += _S * dt;                            // 产出（baseMul，不含 happy）
         s.res.luxury -= Math.min(_S, _D) * dt;              // 消耗：够烧烧需求，不够断供烧产能
         s.happy = Math.max(CFG.HAPPY_FLOOR, _Hmech + CFG.HAPPY_K * (_S - _D) * dt) + _gb;
       }
+      /* 4c') 商人副产（2026-09-30 · 市政《中世纪集市》解锁2）：每名商人同时产出
+       *   科学 +0.05/秒、市政点（culture）+0.05/秒。市政**完成即生效**（这是解锁2，
+       *   不是政策卡——没有「装卡」这道闸）。走 globalMul，与学者/书手同待遇。
+       *   ⚠️ 放在 4c 块里（商人=0 时这段也是 0，不多算）；直接 +=，与本块 cv 段同款。 */
+      if (s.civics && s.civics.market && s.jobs.merchant) {
+        s.res.science += s.jobs.merchant * (BLD.marketJobSci || 0) * globalMul(s) * dt;
+        s.res.culture += s.jobs.merchant * (BLD.marketJobCulture || 0) * globalMul(s) * dt;
+      }
     }
 
     /* 4d) 信仰（2026-09-28 用户规格 · 市政《神学》解锁的资源线与建筑「神庙」）。
-     * ⚠️【此刻产不出任何东西，这是口径不是漏接】宗教界面用户明说「之后设计」，
-     *    信仰此刻**没有任何基础产出**（没有产信仰的职业，也没有产信仰的居住建筑）⇒
-     *    faithRate 恒为 0，神庙那套乘区乘 0 还是 0。这不是 bug，e2e 有断言钉着，
-     *    免得下一个人把它当「漏接线」去修。宗教落地时改 faithRate 一处即可。
+     * ⚠️【神学前恒为 0，这是门控不是漏接】2026-09-30 修：faithRate 内部读 resUnlocked(s,'faith')
+     *    （⇔ s.civics.theology），神学前直接 return 0 ⇒ 信仰不增长、全产加成也不触发。
+     *    完成《神学》后才有基础产出（人口 × FAITH_PER_POP），神庙乘区叠加上去。
+     *    与面板 faith 行 gate 同一条 unlock 判定，不再出现「后台偷偷攒信仰」的口径漏洞。
      * ⚠️ 别漏 dt —— 与上面 luxury 那行同一条铁律。 */
     addRes(s, 'faith', faithRate(s) * dt);
 
@@ -1010,23 +1048,46 @@
       science: ((j.scholar || 0) * UNIT.sci
                  * (1 + libraryLevel(s) * BLD.sciRatio * (SB.civic ? SB.civic.libraryMul(s) : 1)
                     + (s.lvl.institute || 0) * (BLD.instituteSci + upgSum(s, 'instituteSci')))
-                 * (Tr ? Tr.sci : 1) + (cv ? (cv.science || 0) : 0)) * globalMul(s),
+                 * (Tr ? Tr.sci : 1) + (cv ? (cv.science || 0) : 0)
+                 /* 商人副产（2026-09-30 · 中世纪集市解锁2）：与 tick 4c' 同式，在 globalMul 乘区内。 */
+                 + ((s.civics && s.civics.market) ? (j.merchant || 0) * (BLD.marketJobSci || 0) : 0)
+                 ) * globalMul(s),
       fuel:    (j.craft > 0 ? fuelRate(s, cold) : 0) - burn,
       /* ⚠️ 与 tick 同源：同一个 cultureRate 函数（书手 + 议事厅）。
-       *    别在这里另写 `j.scribe * UNIT.culture`——那两份算式会各自演化。 */
-      culture: cultureRate(s),
+       *    别在这里另写 `j.scribe * UNIT.culture`——那两份算式会各自演化。
+       *    商人副产（中世纪集市解锁2）同样补进面板路，与 tick 4c' 同式。 */
+      culture: cultureRate(s) +
+               ((s.civics && s.civics.market) ? (j.merchant || 0) * (BLD.marketJobCulture || 0) * globalMul(s) : 0),
       /* ⚠️ luxury 净速率（陆地贸易，2026-09-28）：产能(baseMul) − 实际消耗 min(产能, 需求)。
        *   与 tick 同式——tick 里 S 用 baseMul、消耗用 min(S,D)*dt。
-       *   断供时实际烧=产能（烧光），净=0（不再累积）；充裕时净=产能−需求（盈余累积）。 */
+       *   断供时实际烧=产能（烧光），净=0（不再累积）；充裕时净=产能−需求（盈余累积）。
+       *   大巴扎（S 侧）与王国潮道（D 侧）2026-09-30 接进两条路——漏一路就是「面板撒谎」。 */
       luxury: (function () {
         var S = (j.merchant || 0) * UNIT.luxury * toolMul(s, 'merchant') * baseMul(s)
           * (SB.civic ? SB.civic.govLuxuryMul(s) : 1)    // 2026-09-29 马具 +50%、寡头 +20%，与 tick 同式
-          * (1 + upgSum(s, 'luxuryMul'));                // 马镫工坊升级 +50%（与马具独立相乘 ⇒ +100%）
+          * (1 + upgSum(s, 'luxuryMul'))                 // 马镫工坊升级 +50%（与马具独立相乘 ⇒ +100%）
+          * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1); // 大巴扎：每名鲛人 +1% 奢侈品获取
         if (S <= 0) return 0;
-        var D = (s.pop || 0) * happyCost(s.happy || 0);
+        var _cs = Math.min(1, (s.lvl.canal || 0) * (BLD.canalLuxSave || 0));
+        var D = (s.pop || 0) * happyCost(s.happy || 0) * (1 - _cs);
         return S - Math.min(S, D);
       })()
     };
+  }
+
+  /* ⚠️ 资源可见性（2026-09-30 UI）：带 unlock 描述的资源在解锁前不显示。
+   *   描述符：{tech:'X'} 研究 X / {build:'X'} 建成 X / {job:'X'} 指派 X / {civic:'X'} 解锁 X。
+   *   省略 unlock = 核心资源，开局即显示。craft 资源另由 renderRes 分到「工艺资源」区。 */
+  function resUnlocked(s, k) {
+    if (!s) return true;
+    var def = (SB.RESS && SB.RESS[k]) || {};
+    var u = def.unlock;
+    if (!u) return true;                       // 未声明 = 开局显示
+    if (u.tech)  return !!(s.techs && s.techs[u.tech]);
+    if (u.build) return !!(s.lvl && (s.lvl[u.build] || 0) > 0);
+    if (u.job)   return !!(s.jobs && (s.jobs[u.job] || 0) > 0);
+    if (u.civic) return !!(s.civics && s.civics[u.civic]);
+    return true;                               // 未知描述符默认显示（不静默隐藏）
   }
 
   SB.economy = {
@@ -1038,7 +1099,7 @@
     upgSum: upgSum,
     seasonIdx: seasonIdx, season: season, seasonMeta: seasonMeta, warmBurning: warmBurning,
     seasonTurn: seasonTurn, freezeChance: freezeChance, rollFreeze: rollFreeze,
-    capOf: capOf, addRes: addRes,
+    capOf: capOf, addRes: addRes, resUnlocked: resUnlocked,
     costOf: costOf, costTxt: costTxt, canAfford: canAfford, pay: pay,
     /* farmMul / gatherMul 成对导出（2026-09-27 工坊工具）：工具就是插在这两条乘区上的，
      * 回归必须能直接读乘区本身 —— 读 foodRate 会被 byBuild 那一份稀释，测不出精确的 ×1.8。 */

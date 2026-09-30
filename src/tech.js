@@ -230,6 +230,18 @@
        * ⚠️ 查 `s.upgrades[id]`（workshop.upgradeBuy 置真）；与 unlockBuild 不同，
        *   这条指向工坊制品而非建筑，避免「尤里卡查自己解锁的建筑」那种死锁。 */
       case 'upgrade': return !!(s.upgrades && s.upgrades[c.id]);
+      /* `zoneLvl` —— **某个建筑分区的合计等级**（2026-09-30 ERA3 市政鼓舞）。
+       * ⚠️ 分区归属唯一来源是 config 的 BUILD_ZONE_OF（已经挂在每座建筑的 .zone 上），
+       *    这里逐座建筑对 zone 求和，不许另写一份「分区名 → 建筑 id 清单」——
+       *    那是第二份事实来源，改分区（只动 BUILD_ZONE_OF）时它必然脱钩。
+       *    《封建主义》鼓舞 = 生息区合计 100 级、《职业行会》鼓舞 = 工坊区合计 100 级。 */
+      case 'zoneLvl': {
+        var _zn = 0, _bi;
+        for (_bi = 0; SB.BUILDINGS && _bi < SB.BUILDINGS.length; _bi++) {
+          if (SB.BUILDINGS[_bi].zone === c.zone) _zn += (s.lvl[SB.BUILDINGS[_bi].id] || 0);
+        }
+        return _zn >= c.n;
+      }
       default: return false;
     }
   }
@@ -280,6 +292,17 @@
       case 'upgrade': {
         var _up = !!(s.upgrades && s.upgrades[c.id]);
         return { txt: '完成工坊升级「' + c.id + '」', now: _up ? 1 : 0, need: 1 };
+      }
+      /* zoneLvl 的「还差多少」：分区合计等级现算（与 condMet 同一套遍历，别各写一份）。 */
+      case 'zoneLvl': {
+        var _zn2 = 0, _bj;
+        for (_bj = 0; SB.BUILDINGS && _bj < SB.BUILDINGS.length; _bj++) {
+          if (SB.BUILDINGS[_bj].zone === c.zone) _zn2 += (s.lvl[SB.BUILDINGS[_bj].id] || 0);
+        }
+        var _znName = c.zone;
+        if (SB.BUILD_ZONES) for (var _zk = 0; _zk < SB.BUILD_ZONES.length; _zk++)
+          if (SB.BUILD_ZONES[_zk].id === c.zone) _znName = SB.BUILD_ZONES[_zk].name;
+        return { txt: _znName + '建筑合计等级 ' + _zn2 + ' / ' + c.n, now: _zn2, need: c.n };
       }
     }
     return null;

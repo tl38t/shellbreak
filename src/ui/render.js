@@ -20,12 +20,13 @@
     if (!s || !g) return;
     var need = SB.economy.foodUse(s);
     var rate = SB.economy.rates(s);   // 与 tick 同一套公式的净速率，见 economy.rates
-    var html = '';
+    var htmlBase = '', htmlCraft = '';
     for (var k in SB.RESS) {
       /* ⚠️ 2026-09-28 信仰面板 gate：信仰资源行只在《神学》完成后出现（用户规格
        *    「研究神学之后就开启信仰面板」）。神学前信仰恒为 0 也没地方显示，
        *    硬塞一行只会误导玩家以为已经有信仰系统。gate 读 `s.civics.theology`。 */
-      if (k === 'faith' && !(s.civics && s.civics.theology)) continue;
+      if (!SB.economy.resUnlocked(s, k)) continue;
+      var isCraft = SB.RESS[k].kind === 'craft';
       var v = s.res[k];
       var cls = 'res' + (k === 'kelp' && v < need ? ' neg' : '');
       /* 上限写进格子：只有有限上限的资源才显示 /N（科技、地热是 Infinity，不显示）。
@@ -62,8 +63,9 @@
         var rn = (s.religionName || '').trim();
         if (rn) rowName = rn;
       }
-      html += '<div class="' + cls + '"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
+      var row = '<div class="' + cls + '"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
         SB.economy.fmtAmt(v) + capTxt + '</b><span>' + rowName + rateTxt + faithBonusTxt + '</span></div>';
+      if (isCraft) htmlCraft += row; else htmlBase += row;
     }
     /* 幸福度（陆地贸易，2026-09-28）：民生轴，独立于资源循环（不是 SB.RESS 键）。
      * 一直显示（开局 H=0=安定，无需 gate），让玩家随时看到民生状态与全产乘区。 */
@@ -75,10 +77,17 @@
       var hb = (Math.abs(hm - 1) < 1e-9) ? '' :
         ' <i class="rate ' + (hm > 1 ? 'up' : 'down') + '">全产' + (hm > 1 ? '+' : '') +
         Math.round((hm - 1) * 100) + '%</i>';
-      html += '<div class="res happy-row"><b data-happy="1" data-raw="' + Hh.toFixed(2) + '">' +
+      htmlBase += '<div class="res happy-row"><b data-happy="1" data-raw="' + Hh.toFixed(2) + '">' +
         Hh.toFixed(2) + '</b><span>幸福度 · ' + tier + hb + '</span></div>';
     }
-    g.innerHTML = html;
+    g.innerHTML = htmlBase;
+    /* 工艺资源独立分区：解锁前不显示（resUnlocked），且无任何可见项时整段隐藏。 */
+    var gc = el('res-craft');
+    if (gc) {
+      gc.innerHTML = htmlCraft;
+      var wrap = el('res-craft-wrap');
+      if (wrap) wrap.hidden = (htmlCraft === '');
+    }
     /* ⚠️ 这行「洋流季：… ×N｜族民…｜峰值…｜饿死…」已经删掉（2026-09-26 用户要求），
      *   因为**每一格在别处都有归属**，堆在这里只是同一份信息出现两次：
      *     ① 季节 → 顶上「自然环境」卡里的海底火山那块（renderEnv），它连周期与
@@ -258,34 +267,58 @@
      * 玩家是在「外面什么天候」的语境下才会想到它——那正是自然环境卡的语境。
      * 它**不是**一条环境读数而是一项玩家动作，所以不能塞进同样每帧重画的 #envVolcano，
      * 而是另开一个容器 + 状态签名节流（细节见 renderWarm）。 */
-    for (var i = 0; i < SB.BUILDINGS.length; i++) {
-      var b = SB.BUILDINGS[i];
-      /* 照猫国建设者：没露头的建筑整行不渲染——开局列表里只有深海菌圃一张脸，
-       * 其余随 unlockRatio(0.3) / unlockScheme / requiredTech 逐个出现。
-       * 露头是单向的：露过一次就永久可见（lv>0 或已记进 s.seen）。
-       * 否则玩家一花藻食把库存压回阈值以下，刚冒出来的采石场/导流堤会当场消失，
-       * 看着像「建筑自己跳出来又自己没了」——猫国 unlockable 同样只进不退。 */
-      var lv = s.lvl[b.id] || 0;
-      var isUnlocked = SB.habitat.unlocked(s, b);
-      if (lv <= 0 && !(s.seen && s.seen[b.id]) && !isUnlocked) continue;
-      if (isUnlocked) SB.habitat.reveal(s, b);
-      var c = SB.economy.costOf(s, b.id);
-      var ok = SB.economy.canAfford(s, c);
-      var blocked = !SB.habitat.needMet(s, b);
-      /* 按钮文案**一律带成本**。旧写法是「够钱写『建造』、不够才写成本」，于是
-       * 恰好在最该看成本的那一刻（攒够了）成本从按钮上消失，而按钮宽度还会随库存
-       * 反复跳变（够 → 变窄 → 花掉 → 又变宽），点起来像在躲手指。
-       * 等级 >0 用「升级」、首级用「建造」：买的是同一件事，但玩家心里问的是
-       * 「这一级要多少」，用词跟着等级走比一律写「建造」更答得上话。
-       * 前置没满足时只说「需 XX」——那时按钮点不动，成本不是当下该看的信息。 */
-      var label = blocked ? '需 ' + (SB.habitat.buildingById(b.need) || {}).name
-        : (lv > 0 ? '升级 ' : '建造 ') + SB.economy.costTxt(c);
-      // 没有等级上限，所以只显示当前级数，不显示 x/上限
-      h += '<div class="row"><div><div class="nm">' + b.name +
-        ' <span class="tag" data-lv="' + b.id + '">' + lv + '</span></div>' +
-        '<div class="ds">' + b.desc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
-        '</div></div>' +
-        '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked ? '' : ' disabled') + '>' + label + '</button></div>';
+    /* ── 建筑按区分组渲染（2026-09-30 纯 UI 分区 A 方案）──
+     * 外层按 BUILD_ZONES 顺序分区，区内沿用上面「露头/解锁」判定；
+     * 某区零可见建筑时整段区标题隐藏（开局只露出礁栖核心 + 生息区，其余随进度展开）。
+     * 露头逻辑与原平铺版完全一致，只是多了一层分区外壳。 */
+    for (var zi = 0; zi < (SB.BUILD_ZONES || []).length; zi++) {
+      var z = SB.BUILD_ZONES[zi];
+      var zRows = '';
+      var zShown = 0;
+      for (var i = 0; i < SB.BUILDINGS.length; i++) {
+        var b = SB.BUILDINGS[i];
+        if (b.zone !== z.id) continue;
+        /* 照猫国建设者：没露头的建筑整行不渲染——开局列表里只有深海菌圃一张脸，
+         * 其余随 unlockRatio(0.3) / unlockScheme / requiredTech 逐个出现。
+         * 露头是单向的：露过一次就永久可见（lv>0 或已记进 s.seen）。
+         * 否则玩家一花藻食把库存压回阈值以下，刚冒出来的采石场/导流堤会当场消失，
+         * 看着像「建筑自己跳出来又自己没了」——猫国 unlockable 同样只进不退。 */
+        var lv = s.lvl[b.id] || 0;
+        var isUnlocked = SB.habitat.unlocked(s, b);
+        if (lv <= 0 && !(s.seen && s.seen[b.id]) && !isUnlocked) continue;
+        if (isUnlocked) SB.habitat.reveal(s, b);
+        var c = SB.economy.costOf(s, b.id);
+        var ok = SB.economy.canAfford(s, c);
+        var blocked = !SB.habitat.needMet(s, b);
+        /* 按钮文案**一律带成本**。旧写法是「够钱写『建造』、不够才写成本」，于是
+         * 恰好在最该看成本的那一刻（攒够了）成本从按钮上消失，而按钮宽度还会随库存
+         * 反复跳变（够 → 变窄 → 花掉 → 又变宽），点起来像在躲手指。
+         * 等级 >0 用「升级」、首级用「建造」：买的是同一件事，但玩家心里问的是
+         * 「这一级要多少」，用词跟着等级走比一律写「建造」更答得上话。
+         * 前置没满足时只说「需 XX」——那时按钮点不动，成本不是当下该看的信息。 */
+        var label = blocked ? '需 ' + (SB.habitat.buildingById(b.need) || {}).name
+          : (lv > 0 ? '升级 ' : '建造 ') + SB.economy.costTxt(c);
+        /* 王国潮道的跨建筑钳制与 build()/lockReason() 同一条判定——不判它按钮会
+         * 「亮着但点了没反应」（build 内部静默 return false）。 */
+        var canalCap = b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);
+        if (canalCap) label = '需先升灯塔（现 ' + (s.lvl.lighthouse || 0) + ' 级）';
+        /* 生息区自动升级开关（2026-09-30 · 封建主义解锁2）：逐建筑开关放 s.autoUpg[id]，
+         * 点击走 input.js 的 data-auto 分支。执行在 game.js 在线泵的 habitat.autoTick。 */
+        var autoBtn = '';
+        if (z.id === 'food' && s.civics && s.civics.feudalism) {
+          var _au = !!(s.autoUpg && s.autoUpg[b.id]);
+          autoBtn = '<button class="btn auto-upg' + (_au ? ' on' : '') + '" data-auto="' + b.id + '">' +
+            (_au ? '自动·开' : '自动·关') + '</button>';
+        }
+        // 没有等级上限，所以只显示当前级数，不显示 x/上限
+        zRows += '<div class="row"><div><div class="nm">' + b.name +
+          ' <span class="tag" data-lv="' + b.id + '">' + lv + '</span>' + autoBtn + '</div>' +
+          '<div class="ds">' + b.desc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
+          '</div></div>' +
+          '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap ? '' : ' disabled') + '>' + label + '</button></div>';
+        zShown++;
+      }
+      if (zShown > 0) h += '<div class="bztitle">' + z.name + '</div>' + zRows;
     }
     return h;
   }
@@ -1213,13 +1246,29 @@
     paintGrow(s);
   }
 
+  /* 「族民」tab 的闲置角标（2026-09-30 用户拍）：有闲置时页签写「族民（N）」，没有就还原「族民」。
+   * 【为什么挂在 span#folkTabName 上而不是改 tab 的 textContent】tab 里还有生育进度条
+   * <i#growbar>，一把 textContent 写下去会把进度条节点整个吃掉——renderGrowBar 随后
+   * 找不到 growbar 就静默不画，症状是「页签数字会动、条纹消失了」这种看不见的连锁。
+   * 【为什么缓存上一次值】renderTick 每帧都跑；textContent 不变也重设会白付一次
+   * 样式失效，先比对再写。闲置只在雇佣/出生/死亡时变，绝大多数帧走早退。 */
+  var _lastIdleTag = -1;
+  function renderIdleTag() {
+    var s = res(); if (!s) return;
+    var idle = SB.folk.idle(s);
+    if (idle === _lastIdleTag) return;
+    _lastIdleTag = idle;
+    var t = el('folkTabName');
+    if (t) t.textContent = idle > 0 ? '族民（' + idle + '）' : '族民';
+  }
+
   function renderAll() {
     var s = res();
-    renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderReligion(s);
+    renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderReligion(s); renderIdleTag();
   }
   function renderTick() {
     var s = res();
-    renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s);
+    renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderIdleTag();
   }
 
   function showBreakPanel(r) {

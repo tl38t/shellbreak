@@ -81,6 +81,10 @@
      *    读 SB.economy.upgSum（聚合函数统一藏在 economy，避免各模块重算漏键）。
      *    ⚠️ `SB.economy` 可能晚加载，用存在判保护（craftRatio 结算时才调用，模块顶层不碰它）。 */
     if (SB.economy && SB.economy.upgSum) m += SB.economy.upgSum(s, 'craftRatio') || 0;
+    /* ⑥ 政策卡（2026-09-30）：技艺卡 +20% 工坊效率。与上面五源同一条加法乘区，
+     *    装在卡槽里才生效（cardCraftRatio 读 s.cards，没装 = 0）。
+     *    ⚠️ `SB.civic` 可能晚加载，用存在判保护（craftRatio 结算时才调用，模块顶层不碰它）。 */
+    if (SB.civic) m += SB.civic.cardCraftRatio(s) || 0;
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
@@ -243,6 +247,14 @@
     if (w.need && s.techs && !s.techs[w.need]) {
       var t = SB.tech && SB.tech.byId ? SB.tech.byId(w.need) : null;
       return '需要先研究「' + (t ? t.name : w.need) + '」';
+    }
+    /* 市政门（2026-09-30 ERA3）：圣泰坦尼克修道院 / 大巴扎的解锁权在市政身上
+     *   （needCivic 字段，与建筑的 requiredCivic 同名同口径——判 s.civics **已完成**，
+     *    不是 civShown 已揭示；揭示只发机会，市政点花出去才算完成）。 */
+    if (w.needCivic && s.civics && !s.civics[w.needCivic]) {
+      var cn = null;
+      if (SB.CIVICS) for (var ci = 0; ci < SB.CIVICS.length; ci++) if (SB.CIVICS[ci].id === w.needCivic) cn = SB.CIVICS[ci].name;
+      return '需要先完成市政「' + (cn || w.needCivic) + '」';
     }
     var lack = lackText(s, w.cost);
     if (lack) return '还缺 ' + lack;

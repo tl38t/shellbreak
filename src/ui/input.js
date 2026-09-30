@@ -28,6 +28,15 @@
       SB.game.pumpTech(s, emit);
       return;
     }
+    /* 生息区自动升级开关（2026-09-30 · 封建主义解锁2）：翻 s.autoUpg[id]。
+     * 真正的「自动买级」在 game.js 在线泵的 habitat.autoTick（2 秒一拍），
+     * 这里只翻开关——动作语义与状态变更分离，是本文件头那条规矩。 */
+    if (d.auto) {
+      s.autoUpg = s.autoUpg || {};
+      s.autoUpg[d.auto] = !s.autoUpg[d.auto];
+      SB.game.markDirty(); SB.game.renderAll();
+      return;
+    }
     if (d.tech) {
       if (SB.habitat.study(s, d.tech, emit)) { SB.game.markDirty(); SB.game.renderAll(); }
       SB.game.pumpTech(s, emit);   // 关键节点全清 ⇒ 这里就进下一纪元

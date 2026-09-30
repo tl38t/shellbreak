@@ -125,10 +125,37 @@
     return out;
   }
 
+  /* ⑤ 圣泰坦尼克修道院（2026-09-30 · 市政《王权神授》解锁2）：
+   *    每研发完成**一个**市政，信仰产出 +1%。「完成数」= s.civics 里真值条数
+   *    （config 注释口径：不是「已揭示」——揭示只发机会，花掉市政点才算完成）。
+   *    乘区形态 1 + 0.01×n，economy.faithRate 乘它；同类效果（faithPerCivic）多座加法叠加。 */
+  function abbeyFaithMul(s) {
+    var m = 0, i, o = owned(s), L = list(), n = 0, k;
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.faithPerCivic) || 0;
+    }
+    if (m > 0 && s.civics) for (k in s.civics) if (s.civics[k]) n++;
+    return 1 + m * n;
+  }
+
+  /* ⑥ 大巴扎（2026-09-30 · 市政《职业行会》解锁2）：每名鲛人 +1% 奢侈品**获取**。
+   *    乘在贸易供给 S 上（economy 4c 与显示同式），与马具/政体/马镫各来源**独立相乘**。
+   *    ⚠️ 只影响奢侈品那一行——它是「获取」不是「全产」，别顺手塞进 globalMul。 */
+  function bazaarLuxMul(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.luxPerPop) || 0;
+    }
+    return 1 + m * (s.pop || 0);
+  }
+
   SB.wonder = {
     list: list, byId: byId, count: count,
     wonderCraftRatio: wonderCraftRatio, matMaxBonus: matMaxBonus,
     civicBonus: civicBonus, globalBonus: globalBonus,
-    libBonus: libBonus, oneShot: oneShot
+    libBonus: libBonus, oneShot: oneShot,
+    abbeyFaithMul: abbeyFaithMul, bazaarLuxMul: bazaarLuxMul
   };
 })(typeof window !== 'undefined' ? window : globalThis);

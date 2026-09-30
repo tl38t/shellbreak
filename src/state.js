@@ -88,7 +88,11 @@
       lvl: { kelp: 0, kelpstore: 0, weir: 0, warmnest: 0, ballast: 0, nest: 0, coralhouse: 0, hall: 0, siltpit: 0, workshop: 0, furnace: 0, library: 0, institute: 0, square: 0, temple: 0, lighthouse: 0, miracle: 0,
         /* ERA3 热液能系统（2026-09-29）：金属精炼解锁的两座建筑。lvl 漏键 = undefined × 数 = NaN，
          *   经 lvlSum / costOf 污染破壳系数；与「加建筑漏 lvl」同类，必须一一对应。 */
-        hydroturbine: 0, hydroshop: 0 },
+        hydroturbine: 0, hydroshop: 0,
+        /* ERA3 市政扩展（2026-09-30）：城堡（礁栖核心）与王国潮道（贸易区域）。
+         *   castle 漏键会让王权神授卡的 castleFaithMul 读到 undefined；canal 漏键会让
+         *   奢侈节省乘法读到 undefined —— 与上面每一条「加建筑漏 lvl」同源。 */
+        castle: 0, canal: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * UNIT.kelp` 变成
@@ -154,12 +158,15 @@
       era: 1,
       eureka: {},
       eurekaMet: {},
-      /* ⚠️ luxury 不在 got 里——**是故意的**：奢侈品此刻没有开销渠道（贸易系统待设计），
-       *    记进「累计产出」台账只会让它在一个玩家永远读不到的格子里增长。
-       *    等贸易落地要加「累计产出奢侈品 N」那种尤里卡时，在这里补一行即可。 */
+      /* ⚠️ luxury 原本不在 got 里——那时奢侈品没有开销渠道、也没有任何条件读它。
+       *    2026-09-30 市政《中世纪集市》的鼓舞 = 「累计奢侈品产出 10000」⇒ 补进来：
+       *    记的是**产出**（tick 里贸易供给 _S），不是净额（烧掉的 happy 那份不扣）。
+       *    faith 同批补：王权神授的鼓舞 = 「累计信仰产出 10000」（addRes 会动态建键，
+       *    但 seed 在这里与 res/steel 那批同口径，读档迁移也有据可依）。 */
       got: { kelp: 0, coral: 0, silt: 0, iron: 0, science: 0, fuel: 0, culture: 0, stoneBeam: 0, hardCoral: 0,
         /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件累计产出台账，与 res 同口径 seed。 */
-        steel: 0, hydro: 0, steelPart: 0 },
+        steel: 0, hydro: 0, steelPart: 0,
+        faith: 0, luxury: 0 },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
        *   civBoost —— 鼓舞条件**达成过**的台账（与技术树的 eurekaMet 同构：
@@ -181,6 +188,12 @@
        * ⚠️ 它不能省：换卡收费若按「槽当前空不空」判，「拔下→再装填」就能无限免费换效果。
        *    一次性标记才堵得住。见 civics.cardBlocked 那条注。 */
       cardEver: false,
+      /* 生息区自动升级开关（2026-09-30 用户规格 · 市政《封建主义》解锁2）：
+       *   `{ kelp: true, weir: false, ... }`，键 = 生息区建筑 id，真 = 开着自动买级。
+       *   泵在 game.pumpAuto（每 TECH_PUMP 秒扫一遍，买得起就 habitat.build 一级）。
+       *   ⚠️ 刻意**不进离线补算**：离线批量花钱买级会把离线结算从「纯产出回放」变成
+       *      「产出 + 消费决策」，与离线闸门（先算完才能操作）的口径冲突。 */
+      autoUpg: {},
       /* 工坊青铜工具（2026-09-27）：`{ tool_sickle: true, ... }`，键是 config.TOOLS 的 id。
        * ⚠️ 工具是**买断一次**的（不是等级、不重复购买），所以存的是布尔表而不是计数。
        *    影响面是 economy.toolMul → farmMul / gatherMul 两条采集乘区。 */

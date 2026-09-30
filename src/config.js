@@ -137,7 +137,7 @@
     HAPPY_COST_SLOPE: 0.010,  // H>0 后每人每秒增量：c(H)=0.005+0.010·H（3× 跨度，H=1→0.015）
     HAPPY_FLOOR: -2,          // 硬底（动荡档=[-2,-1)，否则该档永远落空）
     HAPPY_K: 0.02,            // 恒温器系数：dH/dt=K·(supply−demand)，收敛快慢标定用
-    GROW_NEED: 100,                // 连续盈余多少秒生一个（S3：从 10 放慢到 45）
+    GROW_NEED: 40,                 // 连续盈余多少秒生一个（2026-09-30 用户拍：100 → 40，繁殖太慢）
     GROW_KEEP: 20,                // 藻食余量高于此才开始生育
     /* ---- 住房（2026-09-26：软饱和 → 真硬上限）----
      * ⟨2026-09-25～09-26 曾改成软饱和（每超住 1 人，下一胎耗时 ×(1 + CROWD×超住数)）：
@@ -249,6 +249,9 @@
    * 【为什么三个都能安全加入】economy.capOf 对 CAP_BASE 里没有的资源返回 Infinity，
    *   且 UNIT 里没有它们的默认值 ⇒ 它们从 0 开始、只能由特定职业产出，
    *   不会像「改错一个 id」那样污染别的资源池（见 state.js 那条 NaN 事故注）。 */
+  /* ⚠️ 资源显示纪律（2026-09-30）：`kind:'craft'` 进「工艺资源」分区；带 `unlock` 的资源
+   *   解锁前不显示。unlock 描述符：{tech:'X'} 研究 X / {build:'X'} 建成 X / {job:'X'} 指派 X
+   *   / {civic:'X'} 解锁 X；省略 = 开局即显示（核心资源）。判定见 economy.resUnlocked。 */
   var RESS = {
     kelp:    { name: '藻食', short: '藻' },
     coral:   { name: '珊瑚', short: '珊' },
@@ -262,14 +265,14 @@
      *   ⚠️ 工坊（workshop）原本的效果正是「解锁珊瑚→骨材」⇒ **它现在是空壳**，效果待设计。
      *   保暖术（hearthfire）的尤里卡 cond 原为「骨材 50」，已改挂「建成工坊」。 */
     iron:    { name: '精铁', short: '铁' },
-    science: { name: '科技', short: '科' },
-    fuel:    { name: '地热', short: '热' },
+    science: { name: '科技', short: '科', unlock: { tech: 'scholarT' } },
+    fuel:    { name: '地热', short: '热', unlock: { build: 'geyser' } },  // 热泉井已删 ⇒ 永不显示
     /* 市政点（2026-09-27 用户拍板「对标科技点」新开的资源线，见 docs/CIVICS_v0.1.md §3）。
      * 与科技分属两个池子 ⇒ 两条树可以错开冲刺，这是 Civ6 那条「文化是独立资源」的落地。
      * ⚠️ **CAP_BASE 里故意不给 culture 键**：沿用 science 的做法（走 Infinity）——
      *    市政点唯一的去处是解锁市政，撞上仓储上限只会让玩家在「快够 100 点」时被卡住、
      *    而那 100 点又不存在「花不掉」的问题。加键前先想清楚这条。 */
-    culture: { name: '市政点', short: '政' },
+    culture: { name: '市政点', short: '政', unlock: { build: 'temple' } },
     /* 奢侈品（2026-09-28 用户规格 · 市政《对外贸易》解锁商人后取得的货物）。
      * 【它现在的地位】陆地贸易系统（用户明说「之后设计」）此刻**还不存在**，
      *   所以奢侈品是一条**只有进项、没有开销**的资源线：商人会把它产出来，
@@ -280,7 +283,7 @@
      *   可以靠无限囤货把贸易买空），但在有开销之前设上限只会让「攒着等贸易」的
      *   玩家被莫名其妙卡住。等贸易规则拍板，这里要跟着加键——那条注释就是留给它
      *   的，别在这儿偷偷加。 */
-    luxury: { name: '奢侈品', short: '奢' },
+    luxury: { name: '奢侈品', short: '奢', unlock: { job: 'merchant' } },
     /* 信仰（2026-09-28 用户规格 · 市政《神学》完成后解锁的资源线）。
      * 【它现在的地位，与奢侈品完全同形】宗教界面是用户明说「之后设计」的东西，
      *   所以信仰此刻也是一条**只有进项通道、没有开销**的资源：神庙已经把
@@ -290,7 +293,7 @@
      *   返回 Infinity。理由与奢侈品一致：宗教一旦落地必然要设「信仰盈余」这类上限，
      *   但在有开销之前设上限，只会让攒着等宗教的玩家被莫名其妙卡住。
      *   等宗教规则拍板，这里要跟着加键——注释是留给它俩的，别在这儿偷偷加。 */
-    faith: { name: '信仰', short: '信' },
+    faith: { name: '信仰', short: '信', unlock: { civic: 'theology' } },
     /* 石梁（2026-09-27 用户拍）：**工艺制作的产物**，不是采集出来的。
      * ⚠️ **故意不给 CAP_BASE.stoneBeam 键** ⇒ economy.capOf 恒返回 Infinity ⇒ 石梁无仓储上限。
      *    ⚠️ 这不是「忘了写」，是**用户拍过的设计**（跟猫国 beam 一致：
@@ -301,7 +304,7 @@
      * ⚠️ **UNIT 里也不给 stoneBeam**：UNIT[k] 的语义是「每职业每人每秒产出」，
      *    石梁不是按时产出的（只能手动制造），所以没有 UNIT 条目是对的，
      *    不是「漏了」。别顺手补，补了也没人读。 */
-    stoneBeam: { name: '石梁', short: '梁' },
+    stoneBeam: { name: '石梁', short: '梁', kind: 'craft', unlock: { build: 'workshop' } },
 
     /* ── 工艺制品 · 铁制支架 / 绳（2026-09-28 · era2 第三层）──
      * 【它们是什么】下面两张「工艺升级项」的**唯一成本**，用户规格原文
@@ -314,26 +317,26 @@
      *    workshop.lackText 报的是「还缺 ironBracket 50（现有 0）」。若制品只是配方
      *    产物而没有 RESS 条目，扣费时 `s.res[k]` 全是 undefined，blocked 会报
      *    「还缺 undefined 50」，玩家看不懂自己到底缺什么。 */
-    ironBracket: { name: '铁制支架', short: '架' },
-    rope:        { name: '绳',      short: '绳' },
+    ironBracket: { name: '铁制支架', short: '架', kind: 'craft', unlock: { tech: 'engineeringT' } },
+    rope:        { name: '绳',      short: '绳', kind: 'craft', unlock: { tech: 'scaffoldT' } },
     /* 硬化珊瑚（2026-09-29 用户拍）：**工艺制作的产物**，对标猫国 beam（木 175→1 的木结构件）。
      * 珊瑚 ≈ 猫国 wood，海洋题材里「硬化珊瑚」就是珊瑚二次加工成的初级木结构件等价物。
      * 完全照石梁/铁制支架/绳那套口径：不给 CAP_BASE 键（capOf 恒 Infinity，无仓储上限）、
      * 不给 UNIT 键（不按时产出，只能由工坊造）。压舱仓（对标猫国 warehouse）的建造成本
      * 吃 2 份，对应猫国 warehouse 每级吃 beam 1.5 + slab 2 的「两种初级结构件」分工。 */
-    hardCoral:  { name: '硬化珊瑚', short: '硬' },
+    hardCoral:  { name: '硬化珊瑚', short: '硬', kind: 'craft', unlock: { build: 'workshop' } },
     /* 钢（2026-09-29 ERA3 · 金属精炼产出）· 对标猫国 steel：无仓储上限（CAP_BASE 不加键，
      *   capOf 恒 Infinity）。猫国 resources.js 的 steel 是 craftable 且无 cap 字段，本作同构。
      *   ⚠️ 这是用户拍的「钢上限抄猫国」——不是漏写 CAP_BASE。 */
-    steel:      { name: '钢', short: '钢' },
+    steel:      { name: '钢', short: '钢', kind: 'craft', unlock: { tech: 'metalrefine' } },
     /* 热液能（2026-09-29 ERA3 · 热液汽轮机产出 / 热液工坊消耗）。瞬态资源：由汽轮机产、
      *   工坊吃，靠「供给 vs 需求」决定工坊降产比例，本身不长期囤积（不给 CAP_BASE ⇒ Infinity，
      *   但 economy.steelFlow 每 tick 先产后耗，自然在供需平衡附近平移）。 */
-    hydro:      { name: '热液能', short: '液' },
+    hydro:      { name: '热液能', short: '液', kind: 'craft', unlock: { tech: 'metalrefine' } },
     /* 钢制零件（2026-09-29 ERA3 · 工艺制品）：25 钢 → 1，对标铁制支架口径
      * （不给 CAP_BASE 键 ⇒ 无仓储上限；不给 UNIT 键 ⇒ 不按时产出，只能工坊造）。
      *   阿尔巴达热液大学(50) 与 大学升级(50) 吃它。 */
-    steelPart:  { name: '钢制零件', short: '件' }
+    steelPart:  { name: '钢制零件', short: '件', kind: 'craft', unlock: { tech: 'metalrefine' } }
   };
 
   /* ── 工艺制作配方（2026-09-27 用户拍）───────────────────────────────
@@ -546,7 +549,24 @@
     { id: 'wonder_albada', name: '阿尔巴达热液大学', need: 'education',
       cost: { stoneBeam: 500, ironBracket: 200, steelPart: 50 },
       effect: { minePop: true },
-      desc: '热液大学的尖塔：矿场产出额外 +人口数%（金属与伴生暖石）。' }
+      desc: '热液大学的尖塔：矿场产出额外 +人口数%（金属与伴生暖石）。' },
+
+    /* ── ERA3 市政扩展的两座奇观（2026-09-30 用户规格表）──
+     * 【解锁轴是市政不是科技】现有奇观的 need 全是科技 id（workshop.wonderBlocked 读
+     *   s.techs），这两座由市政解锁 ⇒ 用新字段 needCivic（wonderBlocked 补一道市政门）。
+     * 【效果都是「按动态数量乘」型，挂在 effect 新键上、由 wonder.js 两个新出口读】
+     *   · faithPerCivic：圣泰坦尼克修道院——每完成一个市政，信仰产出 +1%
+     *     （「完成」= s.civics 里真值为 1 的条数，不是「已揭示」）。
+     *   · luxPerPop：大巴扎——每名鲛人 +1% 奢侈品获取（乘在贸易供给 S 上，
+     *     tick 与 rates 两处同式）。 */
+    { id: 'wonder_stt_abbey', name: '圣泰坦尼克修道院', needCivic: 'sovereign',
+      cost: { stoneBeam: 300, hardCoral: 300 },
+      effect: { faithPerCivic: 0.01 },
+      desc: '信仰的里程碑：每研发完成一个市政，信仰产出 +1%。' },
+    { id: 'wonder_grand_bazaar', name: '大巴扎', needCivic: 'guild',
+      cost: { rope: 500, ironBracket: 50, steel: 50 },
+      effect: { luxPerPop: 0.01 },
+      desc: '万商云集：每名鲛人 +1% 奢侈品获取。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。
@@ -629,6 +649,17 @@
      * 【仍然留的那一道 clamp】见 economy.foodUse：减免在数值上必须 ≤ 100%，否则消耗会翻成
      *  负数、等于白送口粮——那是防错边界，不是设计护栏，与本项无关。 */
     foodSave: 0.005,   // 深海鱼牧场：族口粮 −0.5%/级（照抄猫国 pasture catnipDemandRatio）
+    /* ── ERA3 市政扩展（2026-09-30 用户规格表）三个新常数 ──
+     * serfCrossRatio：政策卡「农奴制」的互乘系数——每级牧场给藻场效果 ×(1+0.01)、
+     *   每级藻场给牧场效果 ×(1+0.01)，两条互乘读同一个系数（用户口径「1 级 1.01、两级 1.02」）。
+     * castleFaithRatio：政策卡「王权神授」——城堡每级 +10% 信仰产出（装卡才生效，civics 读）。
+     * canalLuxSave：建筑「王国潮道」——每级减少居民奢侈品消耗 0.3%（economy 的奢侈需求 D 读）。 */
+    serfCrossRatio: 0.01,
+    castleFaithRatio: 0.10,
+    canalLuxSave: 0.003,
+    /* 商人副产（2026-09-30 用户规格 · 市政《中世纪集市》解锁2）：商人同时产出科学与市政点。
+     * 「+0.05/s 科学 +0.05/s 市政」是**每名商人**的量，走 globalMul（与学者/书手同待遇）。 */
+    marketJobSci: 0.05, marketJobCulture: 0.05,
     /* ⚠️ 这里原来还挂着一段讲「−2%/级 + 60% 上限 / 30 级封顶」的注释，2026-09-26 删。
      *   那段描述的是**已被删除的 foodSaveCap**：留着它有两个害处——① 与上面的 0.005
      *   互相矛盾，同一件事两套说法；② 它挂在 kelpCap 上面，暗示省口粮这件事归压舱仓管，
@@ -1091,8 +1122,63 @@
     { id: 'hydroturbine', name: '热液汽轮机', ratio: 1.15, cost: {coral: 300, hardCoral: 10},
       desc: '热液能 +1/级/秒，耗暖石 5/级/秒', requiredTech: ['metalrefine'] },
     { id: 'hydroshop', name: '热液工坊', ratio: 1.15, cost: {coral: 300, iron: 100},
-      desc: '耗热液能产钢：每级耗 1 热液能/秒，吃金属产钢', requiredTech: ['metalrefine'] }
+      desc: '耗热液能产钢：每级耗 1 热液能/秒，吃金属产钢', requiredTech: ['metalrefine'] },
+
+    /* ── 城堡 / 王国潮道（2026-09-30 ERA3 市政扩展 · 用户规格表）──
+     * 【城堡】用户口径「从议事厅升级而来」⇒ need:'hall'（前置建筑）+ 科技「城堡」解锁
+     *   （科技 castle 已存在，其 note 本来就写着「解锁城堡」）。每级本体效果挂在
+     *   政策卡「王权神授」上（+10% 信仰/级），**不装卡则城堡只有 lvlSum 的贡献**——
+     *   这是规格原意（卡是载体），不是漏接效果。
+     *   ⚠️【成本是提议值，未拍板】规格表没给城堡造价，先按议事厅量级提
+     *   stone 300 + hardCoral 30 / ratio 1.15，要调请拍。
+     *   ⚠️ 与工坊升级 upg_castle（城堡工艺升级）同名不同物：那是买断 upgrades，
+     *      这是可升级建筑（s.lvl.castle），两套键互不干扰。
+     * 【王国潮道】贸易区域新建筑（用户拍板归属），效果 = 每级减少居民奢侈品消耗 0.3%
+     *   （economy 奢侈需求 D 读 luxSaveMul）；等级 ≤ 灯塔等级（habitat.build 钳制，
+     *   灯塔 0 级时一座都建不起来——规格原文「等级最高不超过灯塔等级」）。
+     *   成本按规格原文 100 石头 + 5 钢/级；ratio 提议 1.15（未拍板）。 */
+    { id: 'castle', name: '城堡', ratio: 1.15, cost: {stone: 300, hardCoral: 30},
+      desc: '由议事厅升级而来的统治核心：装上政策卡「王权神授」后每级 +10% 信仰产出',
+      need: 'hall', requiredTech: ['castle'] },
+    { id: 'canal', name: '王国潮道', ratio: 1.15, cost: {stone: 100, steel: 5},
+      desc: '每级减少居民奢侈品消耗 0.3%；等级最高不超过灯塔等级',
+      requiredCivic: 'department' }
   ];
+
+  /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
+   * 命名与归属（用户最终拍板）：
+   *   礁栖核心 / 生息区（原「生计区」，用户嫌不好听改名）/ 工坊区 /
+   *   贸易区域（灯塔·海藻仓·压舱仓归此，原「仓储区」「灯塔区」撤销并入）/
+   *   学术区 / 市政区（与信仰拆开）/ 信仰区 / 破界区（破冰祭坛，终局闸门）。
+   * 顺序即 UI 呈现顺序。改分区只动 BUILD_ZONE_OF，不动 BUILDINGS 各对象的字段，
+   * 避免 19 处并行编辑互相覆盖（本项目已踩过此坑）。 */
+  var BUILD_ZONES = [
+    { id: 'core',     name: '礁栖核心' },
+    { id: 'food',     name: '生息区' },
+    { id: 'workshop', name: '工坊区' },
+    { id: 'trade',    name: '贸易区域' },
+    { id: 'academy',  name: '学术区' },
+    { id: 'civic',    name: '市政区' },
+    { id: 'faith',    name: '信仰区' },
+    { id: 'break',    name: '破界区' }
+  ];
+  /* id → zone 归属表。改分区只动这张表（与 BUILDINGS 解耦，规避并行 Edit 覆盖坑）。 */
+  var BUILD_ZONE_OF = {
+    nest: 'core', coralhouse: 'core', hall: 'core',
+    /* 城堡（2026-09-30）：由议事厅（core）升级而来，归礁栖核心。 */
+    castle: 'core',
+    kelp: 'food', weir: 'food', warmnest: 'food',
+    siltpit: 'workshop', furnace: 'workshop', workshop: 'workshop',
+    hydroturbine: 'workshop', hydroshop: 'workshop',
+    lighthouse: 'trade', kelpstore: 'trade', ballast: 'trade',
+    /* 王国潮道（2026-09-30 用户拍板）：归贸易区域。 */
+    canal: 'trade',
+    library: 'academy', institute: 'academy',
+    square: 'civic', temple: 'faith', miracle: 'break'
+  };
+  for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
+    BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';
+  }
 
   /* ⚠️ 旧的 8 项平铺科技已删除（2026-09-25 五纪元改造）。原表在 src/techs.js 里
    * 被替换成挂到现有经济上的 28 项五纪元树，SB.TECHS 由 techs.js 提供。
@@ -1175,7 +1261,7 @@
   // 必须复用同一 SB 命名空间：其余模块在加载期就读取 SB.CFG 等，另起一个对象会拿到 undefined
   var NS = (root.SB = root.SB || {});
   NS.CFG = CFG; NS.SEASONS = SEASONS; NS.RESS = RESS; NS.UNIT = UNIT; NS.GATHER = GATHER;
-  NS.BLD = BLD; NS.BUILDINGS = BUILDINGS;
+  NS.BLD = BLD; NS.BUILDINGS = BUILDINGS; NS.BUILD_ZONES = BUILD_ZONES;
   /* NS.TECHS / NS.ERAS 不再在这里赋值——它们由 src/techs.js 提供（加载顺序在 config 之后）。 */
   NS.PERKS = PERKS; NS.JOBS = JOBS;
 

@@ -123,6 +123,10 @@
     if (b.requiredCivic && !(s.civics && s.civics[b.requiredCivic])) {
       return '需先完成市政：' + civicNameOf(b.requiredCivic);
     }
+    /* 王国潮道的跨建筑钳制：与 build() 同一条判定（两边不同源就会出现「按钮亮着点了没反应」）。 */
+    if (b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0)) {
+      return '等级不能超过灯塔（当前灯塔 ' + (s.lvl.lighthouse || 0) + ' 级）';
+    }
     if (b.unlockScheme && !SB.economy.enough(s.res[b.unlockScheme.name], b.unlockScheme.threshold)) {
       return SB.RESS[b.unlockScheme.name].name + ' ' + Math.floor(s.res[b.unlockScheme.name]) +
         ' / ' + b.unlockScheme.threshold;
@@ -166,6 +170,10 @@
       var cap = SB.shell.miracleCap(s);
       if ((s.lvl.miracle || 0) + 1 > cap) return false;
     }
+    /* 王国潮道（2026-09-30 · 市政《行政部门》解锁2）：等级 ≤ 灯塔等级（规格原文）。
+     * 这是全仓第一条**跨建筑**等级钳制——灯塔 0 级时潮道一座都建不起来。
+     * ⚠️ 判定读 s.lvl 而不是建筑定义，灯塔没有等级上限，两边永远同源。 */
+    if (id === 'canal' && (s.lvl.canal || 0) + 1 > (s.lvl.lighthouse || 0)) return false;
     SB.economy.pay(s, c);
     s.lvl[id]++;
     reveal(s, b);
@@ -189,8 +197,26 @@
     return SB.tech.study(s, id, emit);
   }
 
+  /* 生息区自动升级（2026-09-30 用户规格 · 市政《封建主义》解锁2）：
+   *   「解锁生息区建筑自动升级，可一一选择开关」。开关逐建筑放 s.autoUpg[id]
+   *   （state 初始化空表），执行语义 = **「买得起就买一级」**——与手动点建造走同一条
+   *   build() 通道（解锁/前置/钳制/扣费全复用，自动与手动不可能出现两套规则）。
+   * ⚠️ 调用点只在**在线**泵（game.js 的 2 秒周期）：离线补算只结算产出、不替玩家花
+   *   资源——这是「离线闸门」同一精神；玩家回来看到的存档不该被后台偷偷改。
+   * ⚠️ 2 秒一拍而不是每 tick：每 tick 买会把玩家攒着的缓冲资源瞬间烧穿，2 秒的颗粒度
+   *   让玩家还能抢在自动升级前面把资源留给大件。 */
+  function autoTick(s, emit) {
+    if (!s || !s.civics || !s.civics.feudalism || !s.autoUpg) return;
+    for (var i = 0; i < SB.BUILDINGS.length; i++) {
+      var b = SB.BUILDINGS[i];
+      if (b.zone !== 'food' || !s.autoUpg[b.id]) continue;
+      build(s, b.id, emit);
+    }
+  }
+
   SB.habitat = {
     buildingById: buildingById, build: build, study: study,
-    needMet: needMet, unlocked: unlocked, lockReason: lockReason, reveal: reveal
+    needMet: needMet, unlocked: unlocked, lockReason: lockReason, reveal: reveal,
+    autoTick: autoTick
   };
 })(typeof window !== 'undefined' ? window : globalThis);

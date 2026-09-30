@@ -143,7 +143,49 @@
       boost: { t: 'tech', id: 'engineeringT' },
       govs: ['autocracy', 'oligarchy', 'classical_republic'],
       desc: '解锁三种政体：独裁统治、寡头统治、古典共和（择一采用）。',
-      note: '鼓舞：掌握科技「工程学」。' }
+      note: '鼓舞：掌握科技「工程学」。' },
+
+    /* ══ 纪元三 · ERA3 市政扩展（2026-09-30 用户规格表，逐格照录）════════
+     * 【鼓舞 = 硬门禁】用户拍板「鼓舞不满足就不能研究」——这正是本文件头 §2 的既有口径：
+     *   未揭示的市政不能投点，揭示只由 boostMet 打开 ⇒ 不满足 = 连面板都看不见。
+     * 【cost 是提议值，未拍板】规格表没给造价，按 era2 的 250→750 递增规律提
+     *   900/900/1000/1100/1200；要调请拍（调它 = 标定，会动整局时长）。
+     * 【layer 用规格表原值】王权神授/封建主义 1，其余 2。era3 块的列基准由 layout()
+     *   的 eraBase 自动偏移，不需要手写间隔。 */
+    { id: 'sovereign', name: '王权神授', cost: 900, era: 3, layer: 1,
+      reqs: ['theology', 'political'],
+      boost: { t: 'gathered', r: 'faith', n: 10000 },
+      card: 'card_sovereign',
+      wonder: 'wonder_stt_abbey',
+      desc: '解锁政策卡「王权神授」，以及奇观「圣泰坦尼克修道院」。',
+      note: '鼓舞：累计信仰产出达 10000。' },
+    { id: 'feudalism', name: '封建主义', cost: 900, era: 3, layer: 1,
+      reqs: ['records'],
+      boost: { t: 'zoneLvl', zone: 'food', n: 100 },
+      /* autoUpg 是新字段（本市政送的机制）：生息区建筑自动升级的解锁权归它。
+       * game.pumpAuto 与渲染层的开关可见性都读 s.civics.feudalism。 */
+      autoUpg: true,
+      desc: '解锁政策卡「农奴制」，以及生息区建筑的自动升级（逐建筑开关）。',
+      note: '鼓舞：生息区建筑合计等级达 100。' },
+    { id: 'market', name: '中世纪集市', cost: 1000, era: 3, layer: 2,
+      reqs: ['political'],
+      boost: { t: 'gathered', r: 'luxury', n: 10000 },
+      card: 'card_market',
+      desc: '解锁政策卡「中世纪集市」；商人同时产出科学 +0.05/秒、市政点 +0.05/秒。',
+      note: '鼓舞：累计奢侈品产出达 10000。' },
+    { id: 'guild', name: '职业行会', cost: 1100, era: 3, layer: 2,
+      reqs: ['market'],
+      boost: { t: 'zoneLvl', zone: 'workshop', n: 100 },
+      card: 'card_guild',
+      wonder: 'wonder_grand_bazaar',
+      desc: '解锁政策卡「职业行会」（取代技艺），以及奇观「大巴扎」。',
+      note: '鼓舞：工坊区建筑合计等级达 100。' },
+    { id: 'department', name: '行政部门', cost: 1200, era: 3, layer: 2,
+      reqs: ['feudalism'],
+      boost: { t: 'pop', n: 70 },
+      govs: ['monarchy'],
+      desc: '解锁政体「君主制」（5 槽：礁栖核心建筑建造消耗 −10%），以及建筑「王国潮道」。',
+      note: '鼓舞：人口达 70。' }
   ];
 
   /* 槽位类型。Civ6 是 军事 / 经济 / 外交 / 万能；本作按约束 §2 砍掉军事（没有军事单位）、
@@ -194,7 +236,16 @@
       desc: '奢侈品产出 +20%（商人贸易供给）。' },
     { id: 'classical_republic', name: '古典共和', slots: { wild: 3 }, effect: {},
       happyBonus: 1,
-      desc: '幸福度 +1（常驻，提高全产乘区档位）。' }
+      desc: '幸福度 +1（常驻，提高全产乘区档位）。' },
+
+    /* ══ 君主制（2026-09-30 用户规格 · 市政《行政部门》解锁）══════════════
+     * 5 个万能槽（比三种纪元二政体多 2 个）。效果不是平坦加值也不是产出乘区，
+     * 而是「礁栖核心建筑建造消耗 −10%」——挂 buildSave 字段，由 govBuildCostMul(s)
+     * 读出成 ×0.9 的成本乘数，economy.costOf 对 zone==='core' 的建筑乘上它
+     * （costOf 是显示与扣费的唯一来源 ⇒ 面板与结算天然同源）。 */
+    { id: 'monarchy', name: '君主制', slots: { wild: 5 }, effect: {},
+      buildSave: 0.10,
+      desc: '5 个政策卡槽；礁栖核心建筑建造消耗 −10%。' }
   ];
 
   /* 政策卡。effect 同样是平坦加值/秒，且**只有在卡槽里装着它时才生效**。
@@ -202,8 +253,12 @@
    *    两条卡都能塞、类型此刻**不产生取舍**——这是「只搬外壳」那一轮的预期结果，
    *    等第二个槽出现、且它不是万能槽时，类型约束才开始咬人。 */
   var POLICIES = [
-    { id: 'card_craft',  name: '技艺',     civic: 'craft',  type: 'prod', effect: {},
-      desc: '（待工坊内容落地后生效）' },
+    { id: 'card_craft',  name: '技艺',     civic: 'craft',  type: 'prod', effect: {}, craftRatio: 0.20,
+      /* retiredBy（2026-09-30）：市政《职业行会》完成后这张卡退役——
+       *   cardOwned 对它返回 false（装不了新槽），research('guild') 会把已装的自动拔下
+       *   （免费，退役是制度行为不是玩家动作）。字段存的是**市政 id**（guild）不是卡 id。 */
+      retiredBy: 'guild',
+      desc: '工坊效率 +20%（工艺制作产出，装在卡槽里才生效）。' },
     { id: 'card_mystic', name: '神秘主义', civic: 'mystic', type: 'sci',  effect: { science: 0.3 },
       desc: '科技产出 +0.3/秒。' },
     /* ⚠️⚠️【这张卡的 effect 是空的，但它不是漏装】用户规格是「效果：广场效果 +100%」，
@@ -230,7 +285,29 @@
       desc: '神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。' },
     { id: 'card_records',  name: '历史记录', civic: 'records', type: 'sci',
       effect: {}, libraryMul: 2,
-      desc: '潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。' }
+      desc: '潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。' },
+
+    /* ── ERA3 市政扩展的 4 张卡（2026-09-30 用户规格表）──
+     * ⚠️【type 留空 = 视同万能】（cardFits 对缺 type 的卡不硬堵）。四张卡的效果
+     *    都不属于现有三类（工造/科研/民生）的任何一类——硬归类只会误导玩家；
+     *    槽位目前全是万能槽，类型约束还没开始咬人，等差异化槽位落地再标。
+     * ⚠️【三张是「动态乘区」，一张是静态乘区】
+     *   · card_market：storeMul:2 是**静态**字段 → 走 MUL_FIELD 表（与广场/神庙/图书馆同通道）；
+     *   · card_sovereign / card_serfdom 的效果随**建筑等级**变（城堡每级+10%、藻场↔牧场互乘），
+     *     静态字段表达不了 ⇒ 各自一个读数函数（castleFaithMul / serfKelpMul / serfWarmMul），
+     *     读 s.cards 判断「装没装」——同一纪律：研究出市政只是拿到卡，没装 = 0。 */
+    { id: 'card_sovereign', name: '王权神授', civic: 'sovereign',
+      effect: {},
+      desc: '城堡每级增加 10% 信仰产出（装在卡槽里才生效）。' },
+    { id: 'card_serfdom', name: '农奴制', civic: 'feudalism',
+      effect: {},
+      desc: '每级牧场给藻场效果 +1%，每级藻场给牧场效果 +1%（互乘，装在卡槽里才生效）。' },
+    { id: 'card_market', name: '中世纪集市', civic: 'market', type: 'sci',
+      effect: {}, storeMul: 2,
+      desc: '仓储区所有建筑的仓储 +100%（即海藻仓/压舱仓/灯塔的容量贡献翻倍）。' },
+    { id: 'card_guild', name: '职业行会', civic: 'guild', type: 'prod',
+      effect: {}, craftRatio: 0.40,
+      desc: '工坊效率 +40%（取代「技艺」；研究完成后技艺卡退役）。' }
   ];
 
   function byId(id) { for (var i = 0; i < CIVICS.length; i++) if (CIVICS[i].id === id) return CIVICS[i]; return null; }
@@ -254,7 +331,9 @@
    *        所以先查 `s.card`，再用卡 id 去查它该看哪个字段（下面那张表）。
    *        写成「按建筑查字段、拿 s.card 当参数」是这条的镜像错误，同样会错。 */
   var MUL_FIELD = {
-    card_drama: 'squareMul', card_theology: 'templeMul', card_records: 'libraryMul'
+    card_drama: 'squareMul', card_theology: 'templeMul', card_records: 'libraryMul',
+    /* 中世纪集市（2026-09-30）：仓储区建筑的容量贡献 ×2。静态字段，走同一张表。 */
+    card_market: 'storeMul'
   };
   function policyMul(s, cardId) {
     if (!cardId) return 1;                       // 槽是空的（或还没这一项）⇒ 没有乘区
@@ -281,6 +360,34 @@
   function squareMul(s)  { return mulOfField(s, 'squareMul'); }
   function templeMul(s)  { return mulOfField(s, 'templeMul'); }
   function libraryMul(s) { return mulOfField(s, 'libraryMul'); }
+  /* 仓储区容量乘区（2026-09-30 · 中世纪集市卡）：capOf 的海藻仓/压舱仓/灯塔三段读它。
+   * 没装卡 = 1；装了 = 各槽的 storeMul 逐槽相乘（与上面三个同构，可多张叠加）。 */
+  function storeMul(s)   { return mulOfField(s, 'storeMul'); }
+
+  /* ── 三条「动态」政策卡乘区（2026-09-30 ERA3）──────────────────
+   * 与 mulOfField 那批的区别：效果值随**建筑等级/状态**变，静态字段表达不了，
+   * 所以各自一个函数，判「装没装」用 inSlot（s.cards 数组逐槽查，与 flow 同口径）。
+   * ⚠️ 只在卡装着时才生效——研究出市政只是拿到卡，没装 = 恒 1，别在这儿放宽。 */
+  function cardSlotted(s, id) { return !!(s && s.cards && s.cards.indexOf(id) >= 0); }
+  /* 王权神授：城堡每级 +10% 信仰产出。乘在 faithRate 的整段产出上（economy 读）。 */
+  function castleFaithMul(s) {
+    if (!cardSlotted(s, 'card_sovereign')) return 1;
+    var r = (SB.BLD && SB.BLD.castleFaithRatio) || 0.10;
+    return 1 + (s.lvl.castle || 0) * r;
+  }
+  /* 农奴制：每级牧场（深海鱼牧场）给藻场效果 ×(1+1%)；每级藻场给牧场效果 ×(1+1%)。
+   * 藻场效果 = foodRate 建筑侧（economy.foodRate 读 serfKelpMul）；
+   * 牧场效果 = 口粮减免 foodSave（economy.foodUse 读 serfWarmMul，减免封顶 100% 不变）。 */
+  function serfKelpMul(s) {
+    if (!cardSlotted(s, 'card_serfdom')) return 1;
+    var r = (SB.BLD && SB.BLD.serfCrossRatio) || 0.01;
+    return 1 + (s.lvl.warmnest || 0) * r;
+  }
+  function serfWarmMul(s) {
+    if (!cardSlotted(s, 'card_serfdom')) return 1;
+    var r = (SB.BLD && SB.BLD.serfCrossRatio) || 0.01;
+    return 1 + (s.lvl.kelp || 0) * r;
+  }
 
   // ── 几何（横卷）──────────────────────────────────────────────────
   /* 与 tech.js 的 layout() **同构**：列 = `layer`、行 = 排版产物、连线 = `reqs`。
@@ -468,6 +575,22 @@
     /* 政体随《法典》自带。用 s.gov 是否为 null 判「还没采用过」而不是靠 cost 判——
      * 老档读进来时 gov 可能是 null，这条免费路径必须仍然走得到。 */
     if (c.gov && !s.gov) s.gov = c.gov;
+    /* 卡退役（2026-09-30）：完成后扫一遍 POLICIES，把 retiredBy 指向本市政的卡从
+     * 所有槽里拔下。**免费**——退役是制度行为，不是玩家「换卡」，不该收换卡费。
+     * （不拔的话卡还留在 s.cards 里，craftRatio/mulOfField 只看槽不查所有权，
+     *  等于退役卡永久生效——那是「数据退役了、结算没跟着走」的静默断链。） */
+    ensureCards(s);
+    for (var pi = 0; pi < POLICIES.length; pi++) {
+      var pp = POLICIES[pi];
+      if (pp.retiredBy !== id) continue;
+      for (var si = 0; si < s.cards.length; si++) {
+        if (s.cards[si] === pp.id) {
+          s.cards[si] = null;
+          if (emit) emit('政策卡「' + pp.name + '」已退役。');
+        }
+      }
+      s.card = s.cards[0] || null;
+    }
     return true;
   }
 
@@ -487,6 +610,9 @@
   function cardOwned(s, id) {
     var p = policyById(id);
     if (!p) return false;
+    /* 退役（2026-09-30）：技艺卡被职业行会取代。retiredBy 指向**市政 id**，
+     * 那项市政完成后卡即不可再装（已装的由 research 顺手拔下）。 */
+    if (p.retiredBy && s.civics && s.civics[p.retiredBy]) return false;
     /* 卡要由**已完成的市政**解锁。与其自己的 civic 键对不上时一律视为未拥有——
      * 那意味着存档被手改，宁可不给，也不能让一张没解锁的卡生效。 */
     return !!(s.civics && s.civics[p.civic]);
@@ -509,8 +635,36 @@
    *      · happyBonus 是幸福度的**常驻偏移量**（剥掉上一帧偏移再算机制值，防漂移）。
    *    都只读当前政体（govById(s.gov)），没采用 = 返回 0/1，绝不参与运算。 */
   function govCraftRatio(s) { var g = govById(s.gov); return g && typeof g.craftRatio === 'number' ? g.craftRatio : 0; }
+  /* ⚠️ 政策卡的 craftRatio（2026-09-30 用户拍：技艺卡 = 工坊效率 +20%）。
+   * 与 govCraftRatio 同一条加法乘区、同一纪律：数据在政策卡表、读在这里，
+   * **装在卡槽里才生效**（没装 = 0），多个槽逐槽相加（可装多张带 craftRatio 的卡，叠加）。
+   * 读 s.cards 数组（与 mulOfField 同口径），单值 s.card 只是第 0 号槽镜像。 */
+  function cardCraftRatio(s) {
+    var arr = (s && s.cards) || [], m = 0, id, cd;
+    for (var i = 0; i < arr.length; i++) {
+      id = arr[i]; if (!id) continue;
+      cd = policyById(id);
+      if (cd && typeof cd.craftRatio === 'number') m += cd.craftRatio;
+    }
+    return m;
+  }
   function govLuxuryMul(s)  { var g = govById(s.gov); return g && typeof g.luxuryMul === 'number' ? g.luxuryMul : 1; }
   function govHappyBonus(s) { var g = govById(s.gov); return g && typeof g.happyBonus === 'number' ? g.happyBonus : 0; }
+  /* 君主制（2026-09-30）：礁栖核心建筑建造消耗 −10%。返回的是**乘数**（没采用 = 1），
+   * economy.costOf 对 zone==='core' 的建筑乘上它——显示与扣费同走 costOf，天然同源。 */
+  function govBuildCostMul(s, bid) {
+    var g = govById(s.gov);
+    if (!g || typeof g.buildSave !== 'number') return 1;
+    /* 规格原文是「**所有礁栖核心建筑**建造消耗 −10%」——减耗只认 zone==='core' 的建筑。
+     * ⚠️ bid 缺省 = 调用方没传建筑 id，按 1 处理（宁可不少减，不能错减）；
+     *    建造面板与 costOf 都传 id，只有「泛问政体强度」这种调用才会缺省。 */
+    if (bid && SB.BUILDINGS) {
+      var _zb = null;
+      for (var _i = 0; _i < SB.BUILDINGS.length; _i++) if (SB.BUILDINGS[_i].id === bid) _zb = SB.BUILDINGS[_i];
+      if (!_zb || _zb.zone !== 'core') return 1;
+    }
+    return 1 - g.buildSave;
+  }
 
   /* 换卡 blocked 文案。与科技 studyBlocked 同口径：要指得出**该做什么**。
    * ⚠️ `id === null` 是「拔下」这个动作，不是「装一张名为 null 的卡」——
@@ -730,6 +884,13 @@
       case 'res': return '存量 ' + resName(b.r) + ' 达 ' + b.n;
       case 'gathered': return '累计产出 ' + resName(b.r) + ' 达 ' + b.n;
       case 'pop': return '人口达 ' + b.n;
+      /* zoneLvl（2026-09-30）：分区合计等级。分区名从 BUILD_ZONES 取，不另写清单。 */
+      case 'zoneLvl': {
+        var _zname = b.zone;
+        for (var _zi = 0; SB.BUILD_ZONES && _zi < SB.BUILD_ZONES.length; _zi++)
+          if (SB.BUILD_ZONES[_zi].id === b.zone) _zname = SB.BUILD_ZONES[_zi].name;
+        return _zname + '建筑合计等级达 ' + b.n;
+      }
       case 'job': return '匠人达 ' + b.n + ' 人';
       case 'techs': return '掌握 ' + b.n + ' 项科技';
       case 'coef': return '破壳系数达 ' + b.n;
@@ -768,7 +929,10 @@
     slots: slots, slotList: slotList, cardFits: cardFits, slotTypeName: slotTypeName,
     currentSlotType: currentSlotType,
     flow: flow, effectText: effectText, boostText: boostText,
-    govCraftRatio: govCraftRatio, govLuxuryMul: govLuxuryMul, govHappyBonus: govHappyBonus,
+    govCraftRatio: govCraftRatio, cardCraftRatio: cardCraftRatio, govLuxuryMul: govLuxuryMul, govHappyBonus: govHappyBonus,
+    /* ERA3（2026-09-30）：君主制的建造消耗乘数、仓储乘区、王权神授/农奴制的动态乘区。 */
+    govBuildCostMul: govBuildCostMul, storeMul: storeMul,
+    castleFaithMul: castleFaithMul, serfKelpMul: serfKelpMul, serfWarmMul: serfWarmMul,
     /* 三个乘区出口：政策卡的「效果 +100%」各自挂在卡的一个字段上，
      * 由这三个函数统一读出（实现见 policyMul）。 */
     squareMul: squareMul, templeMul: templeMul, libraryMul: libraryMul
