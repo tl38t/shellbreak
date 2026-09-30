@@ -4,27 +4,28 @@
 <meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
 <title>天壳 · SHELLBREAK</title>
-<link rel="stylesheet" href="css/main.css?v=95" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=98" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="wrap" data-page-node-id="R3GyesNvCCnIGdybfi94vw">
   <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">天壳 <small data-page-node-id="hp4Kyh6NeGNVYnRp4XyHzx">SHELLBREAK · 原始时代 → 破冰重置</small></h1>
   <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">文明越大，壳越薄。在冰壳把你冻死之前凿穿它。</div>
 
-  <div class="card" data-page-node-id="sT3O7PuNiGltaiSUpAeb44">
+  <!-- 资源卡（2026-09-30）：加可折叠彩色标题条（data-fold=res，见 render.js CARD_META）。
+       #res 网格与 #res-craft-wrap 由渲染层填，标题是静态 HTML，不被 2 秒刷新冲掉。 -->
+  <div class="card" id="card-res" data-page-node-id="sT3O7PuNiGltaiSUpAeb44">
+    <div class="cardhd" data-fold="res" style="--hc:#4dd8e6" title="点击折叠 / 展开"><span class="cv">▾</span>资源</div>
     <div class="grid" id="res" data-page-node-id="7G9KZbNOPP20HFvS1BGVPa"></div>
     <div id="res-craft-wrap" hidden>
       <div class="restitle">工艺资源</div>
       <div class="grid" id="res-craft"></div>
     </div>
   </div>
-  <!-- 宗教命名框（2026-09-29）：持久容器，由 ui/render.js 的 renderReligion 用「仅 gate 变化才重建」的
-       签名节流管理；⚠️ 不放进 #res（每帧重建）也不放进 civic pane（每 2 秒重建），否则 <input> 每敲
-       一字就被换掉、丢焦点。初始 display:none，renderReligion 在《神学》解锁后翻成显示。 -->
-  <div class="card" id="religionBox" style="display:none" data-page-node-id="ReligionBox01"></div>
 
-  <div class="card" data-page-node-id="Qt6uTfn92BgbfljGBJcAXF">
-    <div class="secttl" data-page-node-id="EnvSectTtl01">自然环境</div>
+  <!-- 自然环境卡（2026-09-30）：标题由 .secttl 改为可折叠 cardhd（data-fold=env，紫），
+       与资源卡同折叠体系；正文（天壳 / 海底火山 / 暖石）是每帧刷新的容器，折叠只收 CSS。 -->
+  <div class="card" id="card-env" data-page-node-id="Qt6uTfn92BgbfljGBJcAXF">
+    <div class="cardhd" data-fold="env" style="--hc:#a78bfa" title="点击折叠 / 展开"><span class="cv">▾</span>自然环境</div>
     <div class="shellbar" data-page-node-id="eynVQQUb0BxQL8DGBH7d94">
       <span data-page-node-id="bc4bEQ2I69f1zi5HW9nok7">天壳 · 冰封层厚度</span>
       <span id="shellTxt" data-page-node-id="IVUYeiy2RdxuRqCHPwPrny"></span>
@@ -47,6 +48,9 @@
     <div class="tab" data-tab="folk" data-page-node-id="S1PgmZRsoxXJOq6GZkGuGV"><span id="folkTabName">族民</span><i class="growbar" id="growbar" title=""></i></div>
     <div class="tab locked" id="tab-tech" data-tab="tech" title="建成 5 座深海藻场后开启" data-page-node-id="rILZuBt5zAaFz2Kz16ijXA">科技</div>
     <div class="tab locked" id="tab-civic" data-tab="civic" title="建成议事厅后开启" data-page-node-id="CivTab01CivicLocks">市政</div>
+    <!-- 信仰页签（2026-09-30 用户：「单独起一个信仰面板」）：与巢穴/科技/市政并列。
+         门 = 完成《神学》，与资源行 / 产出线同源（resUnlocked(s,'faith') ⇔ s.civics.theology）。 -->
+    <div class="tab locked" id="tab-faith" data-tab="faith" title="研究「神学」后开启" data-page-node-id="FaithTab01Faith">信仰</div>
     <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-page-node-id="WrkTab01Workshop">工坊</div>
     <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-page-node-id="WdrTab01Wonder">奇观</div>
     <div class="tab" data-tab="dig" data-page-node-id="nceC5is2qjcujupm14G1J0">剥壳工程</div>
@@ -57,6 +61,14 @@
   <div class="card hidden" id="pane-folk" data-page-node-id="yEByXFxaxi1sTAKvW94q1J"></div>
   <div class="card hidden" id="pane-tech" data-page-node-id="DpzQCGONsy3uHYX4tBbics"></div>
   <div class="card hidden" id="pane-civic" data-page-node-id="PaneCivic001抽屉"></div>
+  <!-- 信仰页（2026-09-30）：静态标题 + 持久命名框 #religionBox + 可重写正文 #pane-faith-body。
+       ⚠️ 命名框必须留在持久节点（不进 2 秒刷新的正文），否则每敲一字丢焦点；
+          正文另放 body 容器，renderPanes 只写 body，不碰标题与命名框。 -->
+  <div class="card hidden" id="pane-faith" data-page-node-id="PaneFaith001Faith">
+    <div class="cardhd" data-fold="faith" style="--hc:#e691b0" title="点击折叠 / 展开"><span class="cv">▾</span>信仰</div>
+    <div class="card" id="religionBox" style="display:none" data-page-node-id="ReligionBox01"></div>
+    <div id="pane-faith-body"></div>
+  </div>
   <div class="card hidden" id="pane-workshop" data-page-node-id="PaneWrk01Workshop"></div>
   <div class="card hidden" id="pane-wonder" data-page-node-id="PaneWdr01Wonder"></div>
   <div class="card hidden" id="pane-dig" data-page-node-id="En1N5HOL57AR32HOBpWmW4"></div>
@@ -84,26 +96,26 @@
 <div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=96"></script>
+<script src="src/config.js?v=98"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=96"></script>
+<script src="src/techs.js?v=98"></script>
 <script src="src/tech.js?v=94"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
 <script src="src/civics.js?v=94"></script>
-<script src="src/state.js?v=96"></script>
+<script src="src/state.js?v=98"></script>
 <script src="src/workshop.js?v=94"></script>
-<script src="src/wonder.js?v=94"></script>
-<script src="src/economy.js?v=96"></script>
+<script src="src/wonder.js?v=95"></script>
+<script src="src/economy.js?v=99"></script>
 <script src="src/shell.js?v=94"></script>
 <script src="src/habitat.js?v=94"></script>
 <script src="src/folk.js?v=96"></script>
 <script src="src/prestige.js?v=94"></script>
-<script src="src/ui/render.js?v=96"></script>
-<script src="src/game.js?v=94"></script>
-<script src="src/ui/input.js?v=96"></script>
+<script src="src/ui/render.js?v=99"></script>
+<script src="src/game.js?v=96"></script>
+<script src="src/ui/input.js?v=98"></script>
 <script src="src/main.js?v=94"></script>
 </body>
 </html>

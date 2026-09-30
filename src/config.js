@@ -345,7 +345,14 @@
     /* 钢制零件（2026-09-29 ERA3 · 工艺制品）：25 钢 → 1，对标铁制支架口径
      * （不给 CAP_BASE 键 ⇒ 无仓储上限；不给 UNIT 键 ⇒ 不按时产出，只能工坊造）。
      *   阿尔巴达热液大学(50) 与 大学升级(50) 吃它。 */
-    steelPart:  { name: '钢制零件', short: '件', kind: 'craft', unlock: { tech: 'metalrefine' } }
+    steelPart:  { name: '钢制零件', short: '件', kind: 'craft', unlock: { tech: 'metalrefine' } },
+    /* ── ERA4（2026-09-30 用户规格）──
+     * 【钛】由工坊升级「深层矿井」在矿工线上产出（对标猫国 titanium 的位置：后期霉等材料）。
+     *   ⚠️ 猫国原版钛主要来自斑马贸易、矿井直产是本作变体 ⇒ 产出率（UNIT.titanium）待标定。
+     * 【脚手架】工艺制品：硬化珊瑚 100 + 绳 100 → 1（天壳切削器的原料）。
+     * 【两者都不给 CAP_BASE 键】与钢/钢制零件同口径 ⇒ capOf 恒 Infinity（无仓储上限）。 */
+    titanium:   { name: '钛', short: '钛', kind: 'craft', unlock: { tech: 'physics' } },
+    scaffold:   { name: '脚手架', short: '架', kind: 'craft', unlock: { tech: 'physics' } }
   };
 
   /* ── 工艺制作配方（2026-09-27 用户拍）───────────────────────────────
@@ -404,7 +411,14 @@
      *   把它标成可研究，不在科技 eff 里写 unlockCraft 死键。 */
     { id: 'craft_steelpart', name: '钢制零件', need: 'metalrefine',
       in: { steel: 25 }, out: 1, res: 'steelPart',
-      desc: '把钢锻成结构件。阿尔巴达热液大学与大学升级的原料。' }
+      desc: '把钢锻成结构件。阿尔巴达热液大学与大学升级的原料。' },
+
+    /* ── 脚手架（2026-09-30 ERA4 · 由工艺制作用）：硬化珊瑚 100 + 绳 100 ⇒ 1 ──
+     * 【need: 'physics'】同一性写在配方这儿，科技那边只负责把它标成可研究（与 TOOLS[].need 同构）。
+     * 【去处】天壳切削器（奇观）吃掉 200 个；将来其它高价施工也可复用。 */
+    { id: 'craft_scaffold', name: '脚手架', need: 'physics',
+      in: { hardCoral: 100, rope: 100 }, out: 1, res: 'scaffold',
+      desc: '把硬化珊瑚与绳捆成作业面。天壳切削器的原料。' }
   ];
 
   /* ── 工艺升级项（2026-09-28 用户规格 · era2 第三层）───────────────
@@ -478,7 +492,24 @@
     { id: 'upg_horseshoe', name: '马镫', need: 'horseshoe',
       luxuryMul: 0.5,
       cost: { rope: 400 },
-      desc: '马术的工坊升级：商人奢侈品产出 +50%（与马具叠加 → +100%）。' }
+      desc: '马术的工坊升级：商人奢侈品产出 +50%（与马具叠加 → +100%）。' },
+
+    /* ── ERA4 工艺升级三项（2026-09-30 用户规格表）──
+     * 形制同上：need 是解锁门，效果键由 economy 各处读取，不写在 effect 死字段里。
+     * ⚠️【深层矿井的成本是我提的、未拍板】规格表只给了「矿井中可以生产钛」，没给造价，
+     *    先按 era3 量级取 steelPart 50 + hardCoral 200；要改请拍。 */
+    { id: 'upg_printpress', name: '雕版印刷机', need: 'printing',
+      pressSci: 0.30, pressCul: 0.30,
+      cost: { steelPart: 100, science: 10000 },
+      desc: '学者产出 +30%（走 pressSci），书手产出 +30%（走 pressCul）。' },
+    { id: 'upg_deepmine', name: '深层矿井', need: 'physics',
+      mineTitanium: true,
+      cost: { steelPart: 50, hardCoral: 200 },
+      desc: '砂矿坑升级：矿工开始伴生钛（UNIT.titanium，产量待标定）。' },
+    { id: 'upg_hppump', name: '高压气泵', need: 'thermo',
+      hydroMul: 0.5,
+      cost: { steelPart: 100, titanium: 100 },
+      desc: '热液汽轮机的热液能产出 +50%（hydroMul，与钢铁 100 + 钛 100 同成本）。' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
@@ -575,7 +606,24 @@
     { id: 'wonder_grand_bazaar', name: '大巴扎', needCivic: 'guild',
       cost: { rope: 500, ironBracket: 50, steel: 50 },
       effect: { luxPerPop: 0.01 },
-      desc: '万商云集：每名鲛人 +1% 奢侈品获取。' }
+      desc: '万商云集：每名鲛人 +1% 奢侈品获取。' },
+
+    /* ── ERA4 两座奇观（2026-09-30 用户规格表）──
+     * 【王国大交易所】need=banking（银行业）。两个效果是**两件不同的事**，别合成一个：
+     *   · happyBonus 1   —— 幸福度 +1（wonder.js 新出口 happyBonus，由 economy 的 happy 目标值读）；
+     *   · tradeSave 0.10 —— 贸易区域建筑的**建造消耗** -10%（costOf 新分支，按 BUILD_ZONE_OF 判分区）。
+     *     ⚠️ 现有只有君主制的全局 buildSave（所有建筑），分区降耗是新机制。
+     * 【天壳切削器】need=invert（倒置搭建）。效果 cutterMul：`x = 天壳观测站等级`（每级 +1%），
+     *   同时作用**科技与市政**两条产出 ⇒ wonder.js 两个出口都要读它，少读一路就是「面板撒谎」。
+     *   ⚠️ 待用户确认：x 的单位按**百分点**算（等级 10 ⇒ +10%）；要改比率只动 wonder.js 一处。 */
+    { id: 'wonder_grand_exchange', name: '王国大交易所', need: 'banking',
+      cost: { steelPart: 50, ironBracket: 600, stoneBeam: 1000 },
+      effect: { happyBonus: 1, tradeSave: 0.10 },
+      desc: '幸福的里程碑：幸福度 +1；贸易区域建筑消耗 -10%。' },
+    { id: 'wonder_shellcutter', name: '天壳切削器', need: 'invert',
+      cost: { steelPart: 200, scaffold: 200, titanium: 1000 },
+      effect: { cutterMul: true },
+      desc: '把天壳当工地：科技与市政产出各 +x%，x = 天壳观测站等级。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。
@@ -630,7 +678,13 @@
      *   · hydroShopLvl 热液工坊每级每秒耗热液能（用户规格「每级 1 热液能」⇒ 1/级/秒）
      *   · steelPerHydro 每消耗 1 热液能产的钢（取 UNIT.iron 同量级 0.05）
      *   · steelMetal   每消耗 1 热液能吃的金属（silt，1:1） */
-    hydroOut: 1, hydroWarm: 5, hydroShopLvl: 1, steelPerHydro: 0.05, steelMetal: 1 };
+    hydroOut: 1, hydroWarm: 5, hydroShopLvl: 1, steelPerHydro: 0.05, steelMetal: 1,
+    /* ⚠️ 钛的产出率（2026-09-30 ERA4 · **待标定**，是我提的默认值，等用户拍）：
+     *   每名矿工每秒产钛。取 UNIT.steelPerHydro 同量级的 0.02 —— 钛在猫国后期是
+     *   「一座稀有 nest 才能换少量」的稀缺位（这里由矿井直产已是本作变体），
+     *   而天壳切削器一口气要 1000 钛 ⇒ 深层矿井上线后要攒很久，这是有意的终局门槛。
+     *   偏高就在这里改一个数，别动 economy 那条产出行。 */
+    titanium: 0.02 };
 
   /* 每建筑每级的效果。food 系列是食物三旋钮，照抄猫国建设者的四条食物路径
    * （js/game2.js:3666 calcResourcePerTick("catnip")）里的「产 / 增 / 省 / 储」：
@@ -671,6 +725,17 @@
     /* 商人副产（2026-09-30 用户规格 · 市政《中世纪集市》解锁2）：商人同时产出科学与市政点。
      * 「+0.05/s 科学 +0.05/s 市政」是**每名商人**的量，走 globalMul（与学者/书手同待遇）。 */
     marketJobSci: 0.05, marketJobCulture: 0.05,
+    /* ── ERA4（2026-09-30 用户规格表）三个新常数 ──
+     * coralFarmCW：建筑「速生珊瑚林」——每级珊瑚匠产出 +10%（用户 2026-09-30 把
+     *   原「珊瑚产出 +10%/级」改成了「珊瑚匠产出」，与研究所→学者同构，
+     *   走的是**职业专精**那条轴，不是 gatherMul 全局采集轴）。
+     * bankLux：建筑「银行」——每级商人产出 +10%（乘在 luxury 供给 S 上）。
+     * obsShellAnchor / obsMaxBonus：建筑「天壳观测站」——科技产出 +x%，
+     *   x = min(obsMaxBonus, obsShellAnchor / 当前冰壳厚度) ⇒ 冰壳 25000 时顶到 +20%。
+     *   ⚠️ 这里的「20」是百分比数值（百分点），不是 ×20 —— 见 economy.obsSciMul 的实现。 */
+    coralFarmCW: 0.10,
+    bankLux: 0.10,
+    obsShellAnchor: 25000, obsMaxBonus: 20,
     /* ⚠️ 这里原来还挂着一段讲「−2%/级 + 60% 上限 / 30 级封顶」的注释，2026-09-26 删。
      *   那段描述的是**已被删除的 foodSaveCap**：留着它有两个害处——① 与上面的 0.005
      *   互相矛盾，同一件事两套说法；② 它挂在 kelpCap 上面，暗示省口粮这件事归压舱仓管，
@@ -1153,7 +1218,30 @@
       need: 'hall', requiredTech: ['castle'] },
     { id: 'canal', name: '王国潮道', ratio: 1.15, cost: {stone: 100, steel: 5},
       desc: '每级减少居民奢侈品消耗 0.3%；等级最高不超过灯塔等级',
-      requiredCivic: 'department' }
+      requiredCivic: 'department' },
+
+    /* ── ERA4 三座建筑（2026-09-30 用户规格表）──
+     * ⚠️【解锁双写】每座都在 techs.js 那一项写了 `eff.unlockBuild`，这里再写一次
+     *   `requiredTech`（两边指向同一个科技 id），这是本表既有的双写口径
+     *   （hydroturbine/hydroshop 那条已注明，e2e「建筑解锁来源」守着两边一致）。
+     * 【天壳观测站】科技产出 +x%，x = min(20, 25000 / 当前冰壳厚度) —— **+是加成百分比**。
+     *   ⚠️ 冰壳越薄奖励越高、上限 +20%。用冰壳下限 25000 当锚：壳厚 25000 时正好顶到 20。
+     *      ⚠️ 该公式**与天壳观测站等级无关**（等级不放进去）——要改成「每级额外 +」需用户再拍。
+     * 【速生珊瑚林】用户 2026-09-30 改口径为「+珊瑚匠产出」⇒ 与研究所→学者同构的
+     *   **职业专精建筑**：每级 +10%，乘在珊瑚匠那一行的产出上、与工具乘区独立相乘。
+     *   ⚠️ 它不是 gatherMul 那类**全局采集轴**（删礁石平台时禁的是那一类），所以不冲突。
+     * 【银行】每级商人产出 +10%（走奢侈品供给 S 那一侧）。
+     * ⚠️【造价】三项的成本都是用户表里定的终值；速生珊瑚林的成本成长 ratio 2.5
+     *    （比常规 1.15 陡得多）也是用户指明要的，别顺手改回 1.15。 */
+    { id: 'observatory', name: '天壳观测站', ratio: 1.15, cost: { steel: 20, stoneBeam: 200 },
+      desc: '每级负责把天壳量清楚：科技产出 +x%，x 与冰壳厚度成反比，最高 +20%',
+      requiredTech: ['shellwatch'] },
+    { id: 'coralfarm', name: '速生珊瑚林', ratio: 2.5, cost: { kelp: 1000 },
+      desc: '每级珊瑚匠产出 +10%（职业专精建筑，与工具乘区独立相乘）',
+      requiredTech: ['printing'] },
+    { id: 'bank', name: '银行', ratio: 1.15, cost: { steel: 30, stoneBeam: 400 },
+      desc: '每级商人产出 +10%（走奢侈品供给那一侧）',
+      requiredTech: ['banking'] }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -1185,7 +1273,13 @@
     /* 王国潮道（2026-09-30 用户拍板）：归贸易区域。 */
     canal: 'trade',
     library: 'academy', institute: 'academy',
-    square: 'civic', temple: 'faith', miracle: 'break'
+    /* 天壳观测站（2026-09-30 ERA4）：归学术区 —— 它的尤里卡就要求学术区合计 70 级。 */
+    observatory: 'academy',
+    square: 'civic', temple: 'faith', miracle: 'break',
+    /* 速生珊瑚林（2026-09-30 ERA4）：生息区 —— 它是「种珊瑚」，与藻食那批同区。 */
+    coralfarm: 'food',
+    /* 银行（2026-09-30 ERA4）：贸易区域 —— 它的尤里卡就要求贸易区合计 100 级。 */
+    bank: 'trade'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';
@@ -1349,6 +1443,23 @@
     { id: 'tool_ironPick', name: '铁镐', need: 'ironwork', target: ['quarrier', 'miner'],
       bonus: 0.80, cost: { iron: 75 },
       desc: '采石工采石头、矿工采金属并伴生暖石，三项各 +80%（与青铜镐同档）' },
+
+    /* ── 钢质三件（2026-09-30 用户拍板：金属精炼线延伸）──
+     * 与铁质同构：门挂 TOOLS[].need（metalrefine——钢资源本身就是它解锁的），
+     * 不写 eff.unlockTool（techs.js:319 判据：两个解锁口 = 断链）。
+     * ⚠️ 与铁质「纯换材料」不同：bonus 取用户拍过的上限档 1.00 —— 钢层卖「真强度」，
+     *    镰线全买 = 1 + 0.8(青铜) + 0.8(铁) + 1.0(钢) = **×3.6**（加法合并，见 economy.toolMul）。
+     *    代价在材料：钢走 steelFlow（热液工坊 × steelPerHydro 0.05，无上限但产能慢），
+     *    且与潮道(5/座)、钢制零件(25/件)、大巴扎(50)抢钢。三件共 105 钢 ≈ 中期 12~17 分钟专职产能。 */
+    { id: 'tool_steelSickle', name: '钢镰', need: 'metalrefine', target: ['gather'],
+      bonus: 1.00, cost: { steel: 20 },
+      desc: '农民采藻食 +100%（与青铜/铁镰相加合并，三件全买 = ×3.6）' },
+    { id: 'tool_steelAxe', name: '钢斧', need: 'metalrefine', target: ['coralwright'],
+      bonus: 1.00, cost: { steel: 35 },
+      desc: '珊瑚匠凿珊瑚 +100%（不影响石头与金属）' },
+    { id: 'tool_steelPick', name: '钢镐', need: 'metalrefine', target: ['quarrier', 'miner'],
+      bonus: 1.00, cost: { steel: 50 },
+      desc: '采石工采石头、矿工采金属并伴生暖石，三项各 +100%（不影响珊瑚）' },
 
     /* ── 马具（2026-09-29 用户拍板实装：商人奢侈品产出 +50%）──
      * ⚠️ 2026-09-28 它曾是 wip 占位（「不能点的占位」），2026-09-29 用户拍

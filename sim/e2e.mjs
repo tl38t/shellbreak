@@ -90,7 +90,7 @@ function makeDoc() {
          *    与那两份一样：市政页的灰态没人翻，测试永远停在「页签还是 locked」。
          *    ⚠️ 真要根治，应该从 index.html 里的 .tab 解析出来——但那要引入 HTML 解析，
          *        收益不抵成本。留在这里的代价是：**改 index.html 的页签要记得改这行**。 */
-        out = ['village', 'folk', 'tech', 'civic', 'workshop', 'dig', 'meta'].map((t, i) => {
+        out = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'dig', 'meta'].map((t, i) => {
           const e = mkEl('tab-' + t); e.dataset.tab = t; e._tab = i; return e;
         });
       } else if (sel === '.spd') {
@@ -827,23 +827,200 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     .filter(r => SB.RESS[r].kind !== 'craft');
   check('7 个工艺资源均标 kind:craft', craftKind.length === 0, '未标=' + craftKind.join(','));
 
-  /* ⑤ 热泉炉开关（2026-09-30）：默认开（freshRun 的 state 自带 furnaceOn:true），
-   *   拨停后 rates.iron（面板路）与 tick（结算路）都归 0 —— 两条路汇在 ironFlow 一处，
-   *   门加那里天然同源，这里两条各测一次。老档无此键（undefined ≠ false）= 开，同默认档。 */
+  /* ⑤ 热泉炉「开几座」（2026-09-30）：存的是**停了几座** furnaceStop（默认 0 = 全开）。
+   *   运行座数 = lv − furnaceStop，铁产随运行座数线性，结算在 economy.ironFlow 一处，
+   *   面板 rates 与 tick 都读它 ⇒ 两条路同源。默认全开（freshRun 自带 furnaceStop:0）
+   *   ⇒ rates.iron > 0；furnaceStop = lv 时 run=0 ⇒ 铁产 0；inc/dec 改停用数，夹 [0,lv]。
+   *   老档无此键（迁移见 state.migrateRun）= 0（全开），同默认档。 */
   const fu = SB.state.freshRun(false);
   fu.lvl.furnace = 1; fu.res.silt = 50; fu.res.warmstone = 50;
-  check('热泉炉默认开 ⇒ rates.iron > 0', SB.economy.rates(fu).iron > 0,
+  check('热泉炉默认全开（furnaceStop=0）⇒ rates.iron > 0', SB.economy.rates(fu).iron > 0,
     'iron rate=' + SB.economy.rates(fu).iron);
-  fu.furnaceOn = false;
-  check('热泉炉拨停 ⇒ rates.iron = 0 且 tick 不再产精铁',
+  fu.furnaceStop = fu.lvl.furnace;   // 全停
+  check('热泉炉全停（furnaceStop=lv）⇒ rates.iron = 0 且 tick 不再产精铁',
     SB.economy.rates(fu).iron === 0,
     'iron rate=' + SB.economy.rates(fu).iron);
   {
     const before = fu.res.iron || 0;
     SB.economy.tick(fu, 1, function () {});
-    check('拨停后 tick 一秒精铁零进项', (fu.res.iron || 0) === before,
+    check('全停后 tick 一秒精铁零进项', (fu.res.iron || 0) === before,
       'iron ' + before + ' → ' + fu.res.iron);
   }
+  fu.furnaceStop = 0;                 // 恢复全开
+  check('热泉炉恢复全开（furnaceStop=0）⇒ rates.iron 回到 > 0',
+    SB.economy.rates(fu).iron > 0, 'iron rate=' + SB.economy.rates(fu).iron);
+}
+
+/* ---------------- 纪元四 · 天壳工程（2026-09-30 用户重设计）----------------
+ * ⚠️ 这一族断言的共同背景：纪元四被**整体换血**（旧五项 ignition/turbine/survey/tideflow/
+ *    shellforge 全删），六项新科技的成本合计 25 万，是 era1-3 总和的 5.7 倍。
+ *    ⇒ 除了「数据落地」，这里更该钉住的是**接线**：新加的每一个效果都必须在两个方向
+ *      都接上（tick 与 rates、以及它该作用的那一个对象），否则玩家看到一堆 +x% 却
+ *      一个数不动 —— 「面板撒谎」这个家族在本项目已经出现过好几次。
+ * ⚠️ 数值今后要改动时，改的是 config.js / techs.js；这几条断言一个字都不用动。 */
+console.log('\n=== 纪元四 · 天壳工程 ===');
+{
+  const T4 = SB.TECHS.filter(t => t.era === 4);
+  const m4 = {};
+  T4.forEach(t => { m4[t.id] = t; });
+
+  /* ① 六项齐全 + 关键节点 = 天壳观测 + 倒置搭建（纪元推进要清 key）。 */
+  const want4 = ['shellwatch', 'printing', 'physics', 'banking', 'thermo', 'invert'];
+  check('纪元四恰好 6 项，且 id 齐全',
+    T4.length === 6 && want4.every(id => !!m4[id]), T4.map(t => t.id).join(','));
+  const keys4 = T4.filter(t => t.key).map(t => t.id).sort();
+  check('纪元四关键节点 = 天壳观测 + 倒置搭建（用户拍板「天壳那两项」）',
+    keys4.join() === 'invert,shellwatch', keys4.join());
+
+  /* ② 前置 / 层级 / 分支 / 成本 —— 数据表 landed 的凭证。
+   *    ⚠️ 绝对层级是 3/4/5 而不是用户表里的 1/2/3：layer 是全局列号，
+   *       e2e「没有科技的前置比它自己更深一层」那条不允许前置比自己深。 */
+  const shape = want4.map(id => id + ':L' + m4[id].layer + '/' + m4[id].reqs.join('+') +
+    '/' + m4[id].cost + '/' + (m4[id].cond ? m4[id].cond.t : '-')).join(' ');
+  check('前置与层级：天壳观测←教育、印刷术←金属精炼、物理←天壳观测、银行业←印刷术、热力学←金属精炼、倒置搭建←物理',
+    m4.shellwatch.reqs.join() === 'education' && m4.printing.reqs.join() === 'metalrefine' &&
+    m4.physics.reqs.join() === 'shellwatch' && m4.banking.reqs.join() === 'printing' &&
+    m4.thermo.reqs.join() === 'metalrefine' && m4.invert.reqs.join() === 'physics', shape);
+  check('成本合计 25 万（20000+25000+40000+40000+50000+75000）',
+    T4.reduce((a, t) => a + t.cost, 0) === 250000, '合计=' + T4.reduce((a, t) => a + t.cost, 0));
+  check('三项尤里卡走现有 cond 类型（zoneLvl / tools / built / pop，无新机制）',
+    m4.shellwatch.cond.t === 'zoneLvl' && m4.shellwatch.cond.zone === 'academy' && m4.shellwatch.cond.n === 70 &&
+    m4.banking.cond.t === 'zoneLvl' && m4.banking.cond.zone === 'trade' && m4.banking.cond.n === 100 &&
+    m4.physics.cond.t === 'tools' && m4.physics.cond.ids.join() === 'tool_steelSickle,tool_steelAxe,tool_steelPick' &&
+    m4.printing.cond.t === 'built' && m4.printing.cond.b === 'hydroshop' && m4.printing.cond.n === 3 &&
+    m4.thermo.cond.t === 'built' && m4.thermo.cond.b === 'hydroturbine' && m4.thermo.cond.n === 5 &&
+    m4.invert.cond.t === 'pop' && m4.invert.cond.n === 100,
+    shape);
+
+  /* ③ 解锁目标必须是真实存在的东西（eff.unlockBuild 反向查表，防止指向被删的建筑）。 */
+  const missing = [];
+  T4.forEach(t => ((t.eff && t.eff.unlockBuild) || []).forEach(b => {
+    if (!SB.habitat.buildingById(b)) missing.push(t.id + '→' + b);
+  }));
+  check('三项 unlockBuild 都指向真实建筑', missing.length === 0, '查不到=' + missing.join(','));
+
+  /* ④ 钛 / 脚手架两个新资源：无上限（已进批准名单）+ state 已 seed（防 addRes 染 NaN）。 */
+  const fr4 = SB.state.freshRun(false);
+  const notInf = ['titanium', 'scaffold'].filter(r => SB.economy.capOf(fr4, r) !== Infinity);
+  check('钛 / 脚手架 capOf = Infinity（与钢同口径，无上限）', notInf.length === 0, '有上限的=' + notInf.join(','));
+  check('钛 / 脚手架已进 res 与 got 台账（缺键会把资源池染成 NaN）',
+    fr4.res.titanium === 0 && fr4.res.scaffold === 0 &&
+    fr4.got.titanium === 0 && fr4.got.scaffold === 0,
+    'res=' + JSON.stringify({ t: fr4.res.titanium, s: fr4.res.scaffold }));
+  check('三座新建筑已在 lvl 表内（漏键 = 读档静默丢弃）',
+    fr4.lvl.observatory === 0 && fr4.lvl.coralfarm === 0 && fr4.lvl.bank === 0,
+    'observatory=' + fr4.lvl.observatory);
+
+  /* ⑤ 天壳观测站：x = min(20, 25000/壳厚)，单位是**百分点**（+20% ⇒ ×1.20）。
+   *    期望值由 UNIT.sci 直接算、不依赖任何中间读数 ⇒ 谁改了常数，这条跟着露馅。
+   *    ⚠️ 顺带钉住它读的是**快照**：同一秒内 tick 与 rates 必须逐位相等（差 1e-9 都不行）。 */
+  const obsFx = (sh) => {
+    const z = SB.state.freshRun(false);
+    z.jobs.scholar = 3; z.shell = sh; z._shellSnap = sh;
+    return z;
+  };
+  const base1 = SB.economy.rates(obsFx(1e15)).science;         // 壳厚极大 ⇒ x→0，乘数 ≈1
+  const r50k = SB.economy.rates(obsFx(50000)).science;         // x = 0.5  ⇒ ×1.005
+  const r500 = SB.economy.rates(obsFx(500)).science;           // x 该是 50，但封顶 20 ⇒ ×1.20
+  check('观测站：壳厚 50000 ⇒ +0.5%（反比取的是百分点，不是倍率）',
+    Math.abs(r50k / base1 - 1.005) < 1e-9, '×' + (r50k / base1).toFixed(6) + '（若当成倍率会是 1.25）');
+  check('观测站上限 +20%：壳厚 500 ⇒ 仍是 ×1.20（封顶真的封住了）',
+    Math.abs(r500 / base1 - 1.2) < 1e-9, '×' + (r500 / base1).toFixed(6));
+  {
+    const so = obsFx(80000);
+    so.res.science = 0;
+    SB.economy.tick(so, 1, noop);
+    check('观测站：tick 与 rates 用同一份壳厚快照（面板不撒谎）',
+      Math.abs(so.res.science - SB.economy.rates(so).science) < 1e-9,
+      'tick=' + so.res.science + ' rates=' + SB.economy.rates(so).science);
+  }
+
+  /* ⑥ 速生珊瑚林 / 银行：职业专精乘区，只放大**那一个职业**那一行，与工具乘区独立相乘。
+   *    ⚠️ 这条同时是防回归：谁把它塞回 gatherMul（全局采集轴），这两个比值会当场红。 */
+  const cwFx = () => {
+    const z = SB.state.freshRun(false);
+    z.jobs = { coralwright: 4, quarrier: 4, gather: 2 };
+    return z;
+  };
+  const cwOff = SB.economy.rates(cwFx());
+  {
+    const z = cwFx(); z.lvl.coralfarm = 3;
+    const cwOn = SB.economy.rates(z);
+    check('速生珊瑚林：每级珊瑚匠 +10%（3 级 ⇒ 珊瑚 ×1.30）',
+      Math.abs(cwOn.coral / cwOff.coral - 1.30) < 1e-9,
+      '珊瑚 ×' + (cwOn.coral / cwOff.coral).toFixed(3));
+    check('速生珊瑚林不波及石头 / 藻食（它是职业专精，不是全局采集轴）',
+      cwOn.stone === cwOff.stone && cwOn.kelp === cwOff.kelp,
+      '石头 ' + cwOff.stone.toFixed(4) + '→' + cwOn.stone.toFixed(4) +
+      ' / 藻食 ' + cwOff.kelp.toFixed(4) + '→' + cwOn.kelp.toFixed(4));
+  }
+  {
+    /* 银行：让 pop = 0 ⇒ 奢侈需求 D = 0 ⇒ rates.luxury = 供给 S，比值才干净。 */
+    const bkFx = () => { const z = SB.state.freshRun(false); z.jobs.merchant = 4; z.pop = 0; return z; };
+    const off = SB.economy.rates(bkFx()).luxury;
+    const z = bkFx(); z.lvl.bank = 2;
+    check('银行：每级商人产出 +10%（2 级 ⇒ 奢侈品供给 ×1.20）',
+      off > 0 && Math.abs(SB.economy.rates(z).luxury / off - 1.20) < 1e-9,
+      'luxury ' + off.toFixed(6) + ' → ' + SB.economy.rates(z).luxury.toFixed(6));
+  }
+
+  /* ⑦ 三项工坊升级的效果都到账：pressSci/pressCul（双面落在两条线）、
+   *    hydroMul（只放大汽轮机供给）、mineTitanium（钛有了产出）。 */
+  const pu = SB.state.freshRun(false);
+  pu.jobs.scholar = 3; pu.jobs.scribe = 3; pu.jobs.miner = 2;
+  pu.upgrades = pu.upgrades || {};
+  const sci0 = SB.economy.rates(pu).science, cul0 = SB.economy.rates(pu).culture;
+  pu.upgrades.upg_printpress = true;
+  check('雕版印刷机：学者 +30%（科技 ×1.30）',
+    Math.abs(SB.economy.rates(pu).science / sci0 - 1.30) < 1e-9,
+    'science ×' + (SB.economy.rates(pu).science / sci0).toFixed(3));
+  check('雕版印刷机：书手 +30%（市政点 ×1.30）',
+    Math.abs(SB.economy.rates(pu).culture / cul0 - 1.30) < 1e-9,
+    'culture ×' + (SB.economy.rates(pu).culture / cul0).toFixed(3));
+  check('深层矿井未装 ⇒ 钛零产出（门就是北京时间 upgrades 那一位）',
+    SB.economy.rates(pu).titanium === 0, 'titanium=' + SB.economy.rates(pu).titanium);
+  pu.upgrades.upg_deepmine = true;
+  check('深层矿井装上 ⇒ 矿工产出钛', SB.economy.rates(pu).titanium > 0,
+    'titanium=' + SB.economy.rates(pu).titanium);
+
+  const hy = SB.state.freshRun(false);
+  hy.lvl.hydroturbine = 2; hy.res.warmstone = 1e6;
+  const hyd0 = SB.economy.rates(hy).hydro;
+  hy.upgrades = hy.upgrades || {}; hy.upgrades.upg_hppump = true;
+  check('高压气泵：汽轮机热液能 +50%（只放大供给侧）',
+    SB.economy.rates(hy).hydro > hyd0 && hyd0 > 0,
+    'hydro ' + hyd0.toFixed(3) + ' → ' + SB.economy.rates(hy).hydro.toFixed(3));
+
+  /* ⑧ 两座奇观：天壳切削器同时给科技与市政 +%（两条路都要读，
+   *    漏一路 = 「那条线写着 +5%、另一行一个字不动」的那种半接线）；
+   *    王国大交易所给幸福度 +1 与**贸易区** -10% 造价（分区降耗是本次新机制）。 */
+  const wc = SB.state.freshRun(false);
+  wc.jobs.scholar = 3; wc.jobs.scribe = 3;
+  const s0 = SB.economy.rates(wc).science, c0 = SB.economy.rates(wc).culture;
+  wc.wonders = { wonder_shellcutter: true };
+  wc.lvl.observatory = 5;
+  check('天壳切削器：观测站 5 级 ⇒ 科技 +5%（两条路同式，不着凉 one-sided）',
+    Math.abs(SB.economy.rates(wc).science / s0 - 1.05) < 1e-9,
+    'science ×' + (SB.economy.rates(wc).science / s0).toFixed(3));
+  check('天壳切削器：市政点同样 +5%（漏接这一路就是典型的「面板撒谎」）',
+    Math.abs(SB.economy.rates(wc).culture / c0 - 1.05) < 1e-9,
+    'culture ×' + (SB.economy.rates(wc).culture / c0).toFixed(3));
+
+  const ge = SB.state.freshRun(false);
+  /* ballast（压舱仓）在**贸易区**，造价键是 stoneBeam/hardCoral —— 别拿 coral 去比，
+   *   那样拿到的是 undefined，断言会一路连通却什么也没测（比直接红更糟）。 */
+  const bc0 = SB.economy.costOf(ge, 'ballast').stoneBeam;
+  ge.wonders = { wonder_grand_exchange: true };
+  check('王国大交易所：贸易区域建筑造价 -10%（ballast 在贸易区）',
+    bc0 > 0 && SB.economy.costOf(ge, 'ballast').stoneBeam === Math.ceil(bc0 * 0.9),
+    'ballast ' + bc0 + ' → ' + SB.economy.costOf(ge, 'ballast').stoneBeam);
+  check('王国大交易所：非贸易区建筑造价**不变**（分区降耗不该外溢）',
+    SB.economy.costOf(ge, 'nest').coral === SB.economy.costOf(ge, 'nest').coral &&
+    SB.economy.costOf(ge, 'observatory').steel === SB.economy.costOf(ge, 'observatory').steel,
+    'nest=' + SB.economy.costOf(ge, 'nest').coral + ' observatory=' + SB.economy.costOf(ge, 'observatory').steel);
+  SB.economy.tick(ge, 1, noop);
+  check('王国大交易所：幸福度常驻偏移 +1（与政体偏移同源，不随时间累进）',
+    SB.wonder.happyBonus(ge) === 1, 'happyBonus=' + SB.wonder.happyBonus(ge));
 }
 
 /* ---------------- 建筑解锁来源（静态自查）----------------
@@ -1138,7 +1315,13 @@ console.log('\n=== 食物三旋钮 ===');
       /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件均无 CAP_BASE 上限键 ⇒ capOf 自动
        *    Infinity（钢无上限抄猫国）。三者与石梁同口径——由工坊/建筑产、成批消耗（钢制零件吃 50 份建
        *    阿尔巴达），给上限会卡死建造。加进白名单，反向对照才不会把正当无上限误报成漏写 CAP_BASE。 */
-      steel: 1, hydro: 1, steelPart: 1 };
+      steel: 1, hydro: 1, steelPart: 1,
+      /* ERA4（2026-09-30）：钛 / 脚手架。**批准理由**与钢那批同源 —
+       *   · 钛 = 由深层矿井伴生产出、成批消耗（天壳切削器一口气吃 1000）；
+       *     若给上限，「攒 1000 钛」那段会被仓储卡在最难受的位置（成本本身按千份计）。
+       *   · 脚手架 = 工艺制作的产物（硬化珊瑚 100 + 绳 100 → 1），与石梁/铁制支架同口径。
+       *   两者都不是漏写 CAP_BASE；将来若真要回收钛的稀缺性，改在 CAP_BASE 加键即可。 */
+      titanium: 1, scaffold: 1 };
     check('反向对照：科技 / 市政点 / 石梁 / 工艺制品仍表外无上限（批准名单，加别的必红）',
       noCap.length > 0 && noCap.every(k => !!CAPLESS_OK[k]),
       '[' + noCap.join(', ') + ']');
@@ -2115,6 +2298,21 @@ console.log('\n=== 市政 ===');
   check('市政页容器已就位', !!doc.getElementById('pane-civic'));
   check('市政页已注册进面板表', SB.ui.render.PANE_KEYS.indexOf('civic') >= 0,
     SB.ui.render.PANE_KEYS.join(','));
+  /* 信仰页（2026-09-30 用户：「单独起一个信仰面板」）：与巢穴/科技/市政并列的独立页签，
+   * 命名框 #religionBox 移入 #pane-faith 内（持久节点，护住输入框焦点）。
+   * ⚠️ 这条断言**直接读 index.html 而不是查假 DOM**（理由同上方市政页那条注释）。 */
+  check('真实 index.html 里写着信仰页签、面板容器与命名框',
+    realHtml.indexOf('data-tab="faith"') >= 0 &&
+    realHtml.indexOf('id="pane-faith"') >= 0 &&
+    realHtml.indexOf('id="religionBox"') >= 0 &&
+    realHtml.indexOf('id="pane-faith-body"') >= 0);
+  check('信仰页容器已就位', !!doc.getElementById('pane-faith'));
+  check('信仰页已注册进面板表（且排在 civic 之后）',
+    SB.ui.render.PANE_KEYS.indexOf('faith') >= 0 &&
+    SB.ui.render.PANE_KEYS.indexOf('faith') > SB.ui.render.PANE_KEYS.indexOf('civic'),
+    SB.ui.render.PANE_KEYS.join(','));
+  check('假 DOM 页签表已含 faith（syncTabLocks 能取到信仰页门槛）',
+    doc.querySelectorAll('.tab').some(t => t.dataset.tab === 'faith'));
   check('书手三处表齐全：JOBS / folk.IDS / 状态默认表',
     SB.JOBS.some(j => j.id === 'scribe') &&
     SB.folk.IDS.indexOf('scribe') >= 0 &&
@@ -2775,6 +2973,40 @@ check('后续轮回后 shopUnlocked 仍为 true', SB.game.meta().shopUnlocked ==
 check('首次轮回后 meta 页解锁（不再 locked）',
   !doc.querySelector('.tab[data-tab="meta"]').classList.contains('locked'));
 
+/* 巢穴页内区标题配色 + 分区折叠（2026-09-30 晚 · 用户：「这里的文字颜色也改了，就是生息区这些」
+ *   「各个分区的折叠呢，没做啊」）：
+ * 前两轮分别漏了「页**内**区标题着色」与「页**内**区折叠」——只管到了最外层卡片。
+ * 这里强制露出 core + food 各一座，renderPanes 后 pane-village 里必须出现
+ * 「带行内 --hc 的**可折叠区**」（.bzone[data-zone] > .bztitle[data-zfold] + .bzbody），
+ * 且翻 ZONE_FOLDED 后重画能把 folded **重拼回 HTML**（pane 每 2 秒整块重画，落类会被冲掉）。
+ * ⚠️ 断言必须在**活着的这一局**上 render（pane 画的是 SB.game.run()），跑完还原 lvl/seen。 */
+{
+  const sVc = SB.game.run();
+  const lvBak = Object.assign({}, sVc.lvl), seenBak = Object.assign({}, sVc.seen);
+  sVc.lvl.nest = 1; sVc.lvl.kelp = 1;    // core / food 各露一座
+  SB.game.markDirty(); SB.ui.render.renderPanes();
+  const vHtml = doc.getElementById('pane-village').innerHTML;
+  check('巢穴页内区标题带行内 --hc 配色（礁栖核心=青 #4dd8e6，不再是灰 .bztitle）',
+    /class="bztitle" data-zfold="core"[^>]*style="--hc:#4dd8e6"/.test(vHtml), '');
+  check('巢穴页内区标题按区取色（生息区=绿 #4ade80）',
+    /class="bztitle" data-zfold="food"[^>]*style="--hc:#4ade80"/.test(vHtml), '');
+  check('巢穴页内分区可折叠（.bzone[data-zone] 包 .bztitle + .bzbody）',
+    /<div class="bzone" data-zone="core">/.test(vHtml) &&
+    /<div class="bzone" data-zone="food">/.test(vHtml) &&
+    /class="bzbody"/.test(vHtml), '');
+  /* 折叠真源是 ZONE_FOLDED：翻一次 → 重画 → 该区带 folded，且**只动那一个区**。 */
+  const coreBefore = /<div class="bzone folded" data-zone="core">/.test(vHtml);
+  const foodBefore = /<div class="bzone folded" data-zone="food">/.test(vHtml);
+  SB.ui.render.toggleZoneFold('core');
+  SB.game.markDirty(); SB.ui.render.renderPanes();
+  const vFold = doc.getElementById('pane-village').innerHTML;
+  check('折叠某区：重画后该区带 folded，且只动该区（状态重拼，不怕 2 秒重画）',
+    /<div class="bzone folded" data-zone="core">/.test(vFold) === !coreBefore &&
+    /<div class="bzone folded" data-zone="food">/.test(vFold) === foodBefore, '');
+  SB.ui.render.toggleZoneFold('core');   // 翻回原状，别把状态漏给后面的断言
+  sVc.lvl = lvBak; sVc.seen = seenBak;
+  SB.game.markDirty(); SB.ui.render.renderPanes();
+}
 
 /* ---------------- 科研面板开门（纪元一的开场，UI 三道闸）----------------
  * 状态层的关系在上一节验过了；这里验渲染层：tab 灰不灰、setTab 拦不拦、
@@ -2886,9 +3118,12 @@ console.log('\n=== 顶栏读数与自然环境卡 ===');
   check('自然环境卡：天壳与海底火山在同一张卡里',
     !!card && card.indexOf('自然环境') >= 0 && card.indexOf('shellTxt') >= 0 &&
     card.indexOf('shellFill') >= 0 && card.indexOf('envVolcano') >= 0, '');
-  check('区块标题只挂一次（不是每张卡都加了一个标题）',
-    (html.match(/class="secttl"/g) || []).length === 1,
-    '共 ' + (html.match(/class="secttl"/g) || []).length + ' 处');
+  check('自然环境卡标题可折叠（带 data-fold="env" 的 cardhd）',
+    html.indexOf('data-fold="env"') >= 0, '');
+  check('主页面分区均带可折叠 cardhd 标题（res / env / faith）',
+    html.indexOf('data-fold="res"') >= 0 &&
+    html.indexOf('data-fold="env"') >= 0 &&
+    html.indexOf('data-fold="faith"') >= 0, '');
 }
 
 /* ---------------- 历法的信息型奖励 & 暖石开关 ----------------
@@ -3708,9 +3943,12 @@ console.log('\n=== 工坊：青铜工具 ===');
   /* ⚠️ 2026-09-28 第三件（马具）曾是 wip 占位（数量从 6 变 7）；
    *    2026-09-29 用户拍板实装（商人奢侈品产出 +50%）⇒ 原「占位三条」断言随实化作废，
    *    升级为钉**真件**的行为（见下块）。数量断言只守「表里还在」，行为归下块。 */
-  check('工具表七件齐全（青铜镰斧镐 + 铁镰斧镐 + 马具）',
-    T.length === 7 && !!w.byId('tool_sickle') && !!w.byId('tool_axe') && !!w.byId('tool_pick')
+  /* ⚠️ 2026-09-30 钢质三件（metalrefine 线）加入 ⇒ 10 件。数量断言只守「表里还在」，
+   *    行为归下块（need 门）与加法合并断言（镰线三件相加）。 */
+  check('工具表十件齐全（青铜镰斧镐 + 铁镰斧镐 + 钢镰斧镐 + 马具）',
+    T.length === 10 && !!w.byId('tool_sickle') && !!w.byId('tool_axe') && !!w.byId('tool_pick')
       && !!w.byId('tool_ironSickle') && !!w.byId('tool_ironAxe') && !!w.byId('tool_ironPick')
+      && !!w.byId('tool_steelSickle') && !!w.byId('tool_steelAxe') && !!w.byId('tool_steelPick')
       && !!w.byId('tool_harnes'),
     T.map(t => t.id).join(','));
 
@@ -3790,6 +4028,30 @@ console.log('\n=== 工坊：青铜工具 ===');
       /还缺|null/.test(String(after)) || w.blocked(wt0, 'tool_ironSickle') === null,
       'blocked 返回「' + after + '」');
     if (!keep.ironwork) delete wt0.techs.ironwork;
+    wt0.tools = keep.tools;
+  }
+
+  /* ⚠️ 2026-09-30 钢质三件：同一条「need 不是死字段」的行为取证，门换 metalrefine。
+   *    （钢资源本身就是 metalrefine 解锁的 ⇒ 工具与资源同门，语义自然。） */
+  {
+    const st = w.byId('tool_steelSickle');
+    check('钢质工具都声明了 need（解锁它的科技）',
+      !!st.need, JSON.stringify(st.need));
+
+    const wt0 = SB.game.run();
+    const keep = { metalrefine: !!wt0.techs.metalrefine, tools: wt0.tools };
+    wt0.tools = {}; wt0.lvl.workshop = 1;
+    delete wt0.techs.metalrefine;
+    const gate = w.blocked(wt0, 'tool_steelSickle');
+    wt0.techs.metalrefine = true;
+    const after = w.blocked(wt0, 'tool_steelSickle');
+    check('没研究金属精炼时钢质工具买不到（need 真的被 blocked 读了）',
+      /金属精炼/.test(String(gate)) && w.canBuy(wt0, 'tool_steelSickle') === false,
+      'blocked 返回「' + gate + '」');
+    check('研究了金属精炼之后钢质工具就买得到',
+      /还缺|null/.test(String(after)) || w.blocked(wt0, 'tool_steelSickle') === null,
+      'blocked 返回「' + after + '」');
+    if (!keep.metalrefine) delete wt0.techs.metalrefine;
     wt0.tools = keep.tools;
   }
 
@@ -3925,6 +4187,13 @@ console.log('\n=== 工坊：青铜工具 ===');
     Math.abs(SB.economy.farmMul(wt) / bF - 2.6) < 1e-9,
     'farm ×' + (SB.economy.farmMul(wt) / bF).toFixed(3));
 
+  /* ⚠️ 2026-09-30 钢镰（bonus 1.00）入线 ⇒ 三件相加 = 1 + 0.8 + 0.8 + 1.0 = **×3.6**。
+   *    同时钉住钢镰的 bonus 确实是 1.00：谁把它改成与铁质同档 0.80，这里立刻红。 */
+  wt.tools = { tool_sickle: true, tool_ironSickle: true, tool_steelSickle: true };
+  check('镰线三件全买 = 相加 ×3.6（青铜0.8 + 铁0.8 + 钢1.0）',
+    Math.abs(SB.economy.farmMul(wt) / bF - 3.6) < 1e-9,
+    'farm ×' + (SB.economy.farmMul(wt) / bF).toFixed(3));
+
   /* ⑥ 真的落到产出上 —— 乘区数字对了不等于珊瑚真的多。
    *    rates() 是纯读数（与 tick 同源），两个读数之间除 state.tools 外什么都没动。 */
   wt.tools = {};
@@ -4026,16 +4295,20 @@ console.log('\n=== 工坊：青铜工具 ===');
   {
     const g = SB.game.run();
     /* ⚠️ 2026-09-29 马具实装：它从「wip 排除名单」进了正式工具名单 ⇒ 夹具必须
-     *    同时给它开科技门（horsemanship），与铁器同一口径 —— 只留「钱不够」这一种拦法。 */
+     *    同时给它开科技门（horsemanship），与铁器同一口径 —— 只留「钱不够」这一种拦法。
+     * ⚠️ 2026-09-30 钢质三件同理：开 metalrefine 门 + 清 steel，不然它们叫「未解锁」。 */
     const bakIron = g.res.iron, bakTech = !!g.techs.ironwork, bakHorse = !!g.techs.horsemanship;
+    const bakSteel = g.res.steel, bakMetal = !!g.techs.metalrefine;
     g.techs.ironwork = true;
     g.techs.horsemanship = true;
-    g.res.iron = 0; g.res.coral = 0; g.res.silt = 0;
+    g.techs.metalrefine = true;
+    g.res.iron = 0; g.res.coral = 0; g.res.silt = 0; g.res.steel = 0;
     SB.game.setTab('workshop');
     const msg = doc.getElementById('pane-workshop').innerHTML;
-    g.res.iron = bakIron;
+    g.res.iron = bakIron; g.res.steel = bakSteel;
     if (!bakTech) delete g.techs.ironwork;
     if (!bakHorse) delete g.techs.horsemanship;
+    if (!bakMetal) delete g.techs.metalrefine;
 
     /* 标签的取法跟着 render.js 的口径走（`/^需要先/.test(why) ? '未解锁' : '买不起'`），
      * 这里不重写那份规则 —— 一重写两边就各自演化，又变成两套逻辑。 */
@@ -4316,11 +4589,28 @@ console.log('\n=== 工坊：青铜工具 ===');
       chk('CRAFT', SB.CRAFTS, 'need');
       chk('UPGRADE', SB.UPGRADES, 'need');
       chk('TOOL', SB.TOOLS, 'need');
+      /* 悬空 reqs 的**已知豁免**（唯一的豁免，见下面的理由）。
+       *  ⚠️ 不是「不报错所以没事」：悬空 reqs 的实际后果是**该科技当前不可达**
+       *    （与破冰死锁那条 pending 同性质：不崩、不 NaN，就是永远差一步）。
+       *  ⚠️ 也没被悄悄摘掉判定 —— 它们会原样出现在下面的 detail 里，
+       *    任何人一读输出就知道这笔债还没还。纪元五重做后必须把这个 KNOWN 清，
+       *    那时再出现任何悬空 reqs，断言立刻恢复红色。 */
+      const KNOWN_DANGLING = {
+        'ballistics->turbine': '纪元五待整体重做',
+        'engineering->turbine': '纪元五待整体重做'
+      };
+      const dangling = [];
       SB.TECHS.forEach(t => (t.reqs || []).forEach(r => {
-        if (!byId(r)) broken.push('TECH.' + t.id + ' → ' + r + '（无此科技）');
+        if (byId(r)) return;
+        const key = t.id + '->' + r;
+        if (KNOWN_DANGLING[key]) dangling.push('TECH.' + key + '（已知悬空：' + KNOWN_DANGLING[key] + '）');
+        else broken.push('TECH.' + t.id + ' → ' + r + '（无此科技）');
       }));
       check('配方 / 升级项 / 工具 / 前驱指向的科技 id 全部真实存在（防指向不存在科技的死链）',
-        broken.length === 0, broken.length ? broken.join('；') : '全部命中真实科技');
+        broken.length === 0,
+        broken.length ? broken.join('；')
+          : (dangling.length ? '无新增死链｜已知悬空：' + dangling.join('；')
+            : SB.CRAFTS.length + SB.UPGRADES.length + SB.TOOLS.length + ' 项引用 + 全树 reqs 全部指向真实科技'));
 
       /* ⚠️ 上一条**不够**，也说不清自己为什么不够：写入时若把 `engineeringT` 写成
        *    `engineering`，上面那条会**放过** —— 因为 `engineering` 是一个**真实存在的

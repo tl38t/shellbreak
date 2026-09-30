@@ -58,7 +58,10 @@
         /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件。三者均无 CAP_BASE 上限键
          *   ⇒ capOf 自动 Infinity（钢无上限抄猫国）。这里只 seed 初始台账，防止 addRes 漏键染 NaN。
          *   hydro 是每 tick 净流入（汽轮机产 - 工坊耗），单局会有正负波动，但落点恒定记 0。 */
-        steel: 0, hydro: 0, steelPart: 0 },
+        steel: 0, hydro: 0, steelPart: 0,
+        /* ERA4（2026-09-30）：钛 / 脚手架。           与钢那批同口径 —— 无 CAP_BASE 键（无上限）、
+         *   这里只 seed 初始台账，漏键的后果是 addRes 把资源池染成 NaN（与上面那条同族的事故）。 */
+        titanium: 0, scaffold: 0 },
       /* lvl 的键必须与 SB.BUILDINGS 的 id 一一对应（quarry 已随「采石场改职业」移除）。
        * ⚠️ 漏一个键 = 一次 NaN 事故：`undefined * 0.12` 经 addRes 的 Math.min
        * 污染资源池，再顺着 lvlSum 污染破壳系数。与「加职业漏加表」「存档缺键」同类。 */
@@ -92,7 +95,9 @@
         /* ERA3 市政扩展（2026-09-30）：城堡（礁栖核心）与王国潮道（贸易区域）。
          *   castle 漏键会让王权神授卡的 castleFaithMul 读到 undefined；canal 漏键会让
          *   奢侈节省乘法读到 undefined —— 与上面每一条「加建筑漏 lvl」同源。 */
-        castle: 0, canal: 0 },
+        /* ERA4（2026-09-30）：三座新建筑。漏键的后果由上面那条注写清楚了
+         *    （costOf 读到 undefined ⇒ 全表造价 NaN），这里必须每座都落地。 */
+        castle: 0, canal: 0, observatory: 0, coralfarm: 0, bank: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * UNIT.kelp` 变成
@@ -121,10 +126,13 @@
        * warmBurning 是**每帧重算的瞬时标记**，不进存档（见 economy.tick 第 5 步的清位），
        * 存进去的话读档那一刻 UI 会把它当真。 */
       warmOn: false, warmBurning: false,
-      /* 热泉炉开关（2026-09-30 用户问「没做开关吗」补上）：炉子建成即默认开（它产精铁，
-       *   玩家建它就是为了产），拨「停」省下金属/暖石。判据写 `=== false`：
-       *   老档没有这个键 = undefined ≠ false ⇒ 视为开，不会静默停产。 */
-      furnaceOn: true,
+      /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）。
+       *   存的是**停了几座** `furnaceStop`，不是「开了几座」——因为「开几座」的默认值
+       *   是 `lvl.furnace`（建成即开），而等级会随建造上涨：存「停用数」让新建的炉子
+       *   自动投入运转，玩家只需在要省料（矿砂/暖石）时按下几座。
+       *   运行座数 = max(0, lvl.furnace − furnaceStop)，见 economy.ironFlow。
+       *   旧档的布尔 furnaceOn 在 migrateRun 里换算（false ⇒ 全停）。 */
+      furnaceStop: 0,
       /* 冰封期状态（2026-09-27 新增：从「壳≤25% 恒真」改成「寒流季掷骰」）。
        * `frozen` 是**本季是否冰封**，换季那一刻由 economy.seasonTurn 写入；
        * `_seasonIdx` 是换季检测的游标（记住上次是哪一季）。
@@ -170,6 +178,8 @@
       got: { kelp: 0, coral: 0, silt: 0, iron: 0, science: 0, fuel: 0, culture: 0, stoneBeam: 0, hardCoral: 0,
         /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件累计产出台账，与 res 同口径 seed。 */
         steel: 0, hydro: 0, steelPart: 0,
+        /* ERA4（2026-09-30）：钛 / 脚手架累计产出台账，与 res 那批同口径 seed。 */
+        titanium: 0, scaffold: 0,
         faith: 0, luxury: 0 },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
@@ -283,6 +293,13 @@
     }
     out.res = fixTable(raw.res, base.res);
     out.lvl = fixTable(raw.lvl, base.lvl);
+    /* 热泉炉「开几座」迁移（2026-09-30）：旧档只有布尔 `furnaceOn`（见 freshRun 那条注）。
+     *   false ⇒ 全部停（停用数 = 当前等级）；true / 缺键 ⇒ 全开（0）。
+     *   再夹到 [0, lv]：存了一个比等级还大的停用数时，运行座数会算成负数。
+     *   ⚠️ 必须在 fixTable(raw.lvl) 之后——判据要用到迁移后的等级。 */
+    if (raw.furnaceOn === false) out.furnaceStop = out.lvl.furnace || 0;
+    if (!(typeof out.furnaceStop === 'number' && isFinite(out.furnaceStop))) out.furnaceStop = 0;
+    out.furnaceStop = Math.max(0, Math.min(Math.floor(out.furnaceStop), out.lvl.furnace || 0));
     out.jobs = fixTable(raw.jobs, base.jobs);
     /* ⚠️ 职业总和必须 ≤ pop（folk 的恒等式）。2026-09-30 之前 `merchant` 漏在 folk.IDS 之外，
      *    商人不计入 sum ⇒ 可以被**无限雇**，被污染的档里 jobs 总和会远超 pop

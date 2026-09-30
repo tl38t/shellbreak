@@ -31,6 +31,9 @@
     /* 轮回商店（meta 页）的门：首次轮回后才开。与科技/奇观同两道闸写法，
      * 直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'meta' && !meta.shopUnlocked) return;
+    /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
+     * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
+    if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
@@ -262,7 +265,7 @@
    * 以前只跑「回调次数 × 固定步长」，后台标签页里浏览器把定时器节流到 1 次/秒
    * （Chrome 满 5 分钟进一步降到约 1 次/分），时间就跟着被稀释甚至冻住。 */
   var MAX_STEP = 5;                 // 单次回调最多推进 5 秒逻辑时间，防止切回前台一次算爆
-  var CATCHUP_BUDGET = 8;           // 离线补算每帧的毫秒预算（留 8ms 给渲染，不占满一帧）
+  var CATCHUP_BUDGET = 50;          // 离线补算每帧的毫秒预算（占空比 = 50 ÷ 主循环间隔100ms ≈ 50%）
   var PANE_REFRESH = 2000;          // 面板（整块重画那种）的刷新周期，毫秒 **墙钟**
 
   function loop() {
@@ -326,11 +329,13 @@
 
   /* 离线补算：把 gap 秒按 STEP 切碎喂给同一个 economy.tick，
    * 走的是线上完全相同的结算路径（食物/饿死/生育/削壳/祭坛都包含），不另写一套公式。
-   * 【为什么必须分帧】8 小时 = 288000 tick。实测（Node 22，同 V8 后端）：
-   *   开局存档 0.28s｜中期 0.37s｜后期满建筑满职业 0.84s —— 一次性算完就是一次肉眼可见的卡顿，
+   * 【为什么必须分帧】8 小时 = 288000 tick。一次性算完就是一次肉眼可见的卡顿，
    *   而且这是**玩家刚刷新页面时**发生，正好卡在加载上。
    * 于是拆成「计划 → 每帧只花 CATCHUP_BUDGET 毫秒 → 做完发一条播报」。
-   * 代价：补算要 1–2 秒才完成，期间玩家不操作也看不出在补；好处是主线程始终有空。 */
+   * 墙钟耗时 = 纯算量 ÷ 占空比，占空比 = CATCHUP_BUDGET ÷ 主循环间隔(100ms)。
+   *   CATCHUP_BUDGET=8  ⇒ 占空比 8%  ⇒ 同样纯算量摊到 12.5 倍墙钟（满档 8h 离线曾达十几秒）；
+   *   CATCHUP_BUDGET=50 ⇒ 占空比 50% ⇒ 仅摊到 2 倍。配合 economy.tick 内聚合缓存
+   *   （globalMul/gatherMul 等每 tick 只算一次），满档离线从「十几秒」降到「亚秒级」。 */
   function planCatchUp(s, gap) {
     var cap = offlineCap(s);
     var secs = Math.max(0, Math.min(gap, cap));

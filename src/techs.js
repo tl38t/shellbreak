@@ -447,7 +447,7 @@
     /* ⚠️ 2026-09-29 整表替换：旧 6 项（冶炼术/烟囱炉/机械/精铁术/深潜/壳骨）删除，
      *   改「钢 + 热液能」新线。key = 学徒制 + 金属精炼（见各自行 key:true）。
      *   旧「热泉炉解锁权」那 3 段注已废（热泉炉的解锁权早归铁器，与纪元三无关）。 */
-    { id: 'apprentice', name: '学徒制', era: 3, cost: 300, branch: 'survive', key: true, reqs: [], layer: 1,
+    { id: 'apprentice', name: '学徒制', era: 3, cost: 3000, branch: 'survive', key: true, reqs: [], layer: 1,
       cond: { t: 'tools', ids: ['tool_ironSickle', 'tool_ironAxe', 'tool_ironPick'] },
       eff: {},
       note: 'Civ6: Apprenticeship · 买齐三件铁制工具（镰/斧/镐）即掌握。解锁鱼骨矿井。' },
@@ -455,21 +455,21 @@
     /* 马镫的尤里卡 = 5 名商人（cond 'job'）。与马具(tool_harnes) 是独立乘区：
      *   马具走 toolMul(merchant)、马镫走工坊升级 upg_horseshoe(luxuryMul 0.5)，
      *   economy 商人行两处相乘 ⇒ 合计 +100%。 */
-    { id: 'horseshoe',  name: '马镫',   era: 3, cost: 300, branch: 'live', key: false, reqs: [], layer: 1,
+    { id: 'horseshoe',  name: '马镫',   era: 3, cost: 4500, branch: 'live', key: false, reqs: [], layer: 1,
       cond: { t: 'job', j: 'merchant', n: 5 },
       eff: {},
       note: 'Civ6: Horseshoeing · 5 名商人即掌握。解锁马镫（工坊升级，奢侈品 +50%）。' },
 
     /* 教育前置 = 学徒制 + 数学。尤里卡 = 三级研究所（built institute n=3）。
      * 大学(工坊升级 upg_university) 与 阿尔巴达(奇观 wonder_albada) 的解锁权各自写在其表。 */
-    { id: 'education',  name: '教育',   era: 3, cost: 390, branch: 'know', key: false, reqs: ['apprentice', 'mathematics'], layer: 3,
+    { id: 'education',  name: '教育',   era: 3, cost: 8000, branch: 'know', key: false, reqs: ['apprentice', 'mathematics'], layer: 3,
       cond: { t: 'built', b: 'institute', n: 3 },
       eff: {},
       note: 'Civ6: Education · 三级研究所即掌握。解锁大学（工坊升级）与阿尔巴达热液大学（奇观）。' },
 
     /* 金属精炼前置 = 学徒制。尤里卡 = 完成鱼骨矿井（装 upg_fishbonemine，cond 'upgrade'）。
      * 尤里卡查鱼骨矿井、unlockBuild 查汽轮机/工坊——两件不同节点，不互锁。 */
-    { id: 'metalrefine', name: '金属精炼', era: 3, cost: 390, branch: 'survive', key: true, reqs: ['apprentice'], layer: 2,
+    { id: 'metalrefine', name: '金属精炼', era: 3, cost: 6500, branch: 'survive', key: true, reqs: ['apprentice'], layer: 2,
       cond: { t: 'upgrade', id: 'fishbonemine' },
       eff: { unlockBuild: ['hydroturbine', 'hydroshop'] },
       note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。' },
@@ -477,61 +477,60 @@
     /* 城堡前置 = 工程学（engineeringT，纪元二第三层）。尤里卡 = 启用三槽政体
      * （autocracy/oligarchy/classical_republic，新 cond 'gov'，排除酋邦制 tribe 1 槽）。
      * 城堡(工坊升级 upg_castle) 解锁权写在工坊表。 */
-    { id: 'castle',     name: '城堡',   era: 3, cost: 390, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
+    { id: 'castle',     name: '城堡',   era: 3, cost: 10000, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
       cond: { t: 'gov', wild: 3 },
       eff: {},
       note: 'Civ6: Castles · 启用任一三槽政体即掌握。解锁城堡（议事厅升级：减耗 +50%、每级 +50 容量）。' },
 
-    /* ═════════ 纪元四 · 洋流（5 项 · 540/660） ═════════
-     * 借力：地热上线。这是祭坛的前置，也是「破壳」从口号变工程的第一步。 */
-    /* ⚠️ 2026-09-28：本项原来的前置「保暖术」(hearthfire) 已随纪元二第一层重排一并删除
-     *    —— 那一项本来就是个空壳（它解锁的 hearth 建筑 2026-09-26 已删，除了 `['hearth']`
-     *    这个数组以外没有任何效果）。⇒ 前置先清空，**纪元四重做时再决定挂哪一项**。
-     * ⚠️ 在此之前不要「顺手补一个前置让它看起来完整」：写死任何一项都会变成纪元四的
-     *    硬门槛，而纪元四整个还在设计里。空 reqs 与 era2 的照明/铁器同口径。 */
-    /* 点火术的前置从「壳骨」改成「保温术」（压深度，见文件顶部「依赖深度」那节）。
-     * 热泉井原本是本项解锁的建筑（已随 2026-09-28 用户指令删除，见下），而
-     * 「科技产出到 1/s」这条尤里卡条件已经把学者这条线钉死在前面了；再要求壳骨
-     * （精铁那一路的第 4 层）只会让纪元四多出一段空等，而那段时间玩家本来也拿它没办法。 */
-    { id: 'ignition',   name: '点火术', era: 4, cost: 540, branch: 'know', key: true, reqs: [], layer: 2,
-      /* ⚠️ 2026-09-26 修：尤里卡条件读的是 `rates(s)` 的键，而 rates() 把科技产出的键叫
-       * `science`（与 RESS.science、UNIT.sci 同源），不是 `sci`。原先写成 `r:'sci'` 会让
-       * `rates(s)['sci']` 永远 undefined ⇒ `(undefined||0) >= 1.0` 恒为 false ⇒ 点火术的
-       * 尤里卡永远达不成。这道门禁加进来之前它无害（那时揭示走 revealEra，不读 condMet）；
-       * 加了「必须先达成尤里卡才能研究」之后它直接把纪元四整锅端死，整局 22h 凿不穿。 */
-      cond: { t: 'rate', r: 'science', n: 1.0 },
-      /* ⚠️ 2026-09-28：`unlockBuild:['geyser']` 随**热泉井删除**一并撤掉（热泉井整条
-       *   地热线待重设，见 config.js 里 geyser 那条注）。留着不是「死键而已」——
-       *   e2e「解锁目标都真实存在」会拿 `eff.unlockBuild` 逐项反查建筑表，查不到就红，
-       *   而这一项查不到 ⇒ 纪元四那批解锁断言跟着一起塌。 */
-      eff: { fuel: 0.40 },
-      note: 'Civ6: Steam Power · 关键节点。科技产出到 1/s 说明这一纪元的积累够了。' },
+    /* ═════════ 纪元四 · 天壳工程（6 项 · 2万~7.5万） ═════════
+     * ⚠️ 2026-09-30 用户重设计：旧五项（点火术/涡轮/测壳/洋流/壳铸）**整体删除**，换成下面六项。
+     *    key = 天壳观测 + 倒置搭建（首尾各一）—— 纪元推进 = 清 key → 推进，缺一不可。
+     * ⚠️ 旧项被别处引用的残留：era5 的 ballistics / engineering 两条 reqs 是 `['turbine']`，
+     *    用户拍板「纪元五科技全部重置」 ⇒ 这两条 reqs 悬空（不可达，**不报错**），
+     *    与「破冰死锁待重设」同状态处理 —— 不在这里顺手改写，等纪元五整体重做时一起处理。
+     * ⚠️【绝对层级是 3/4/5，不是用户表里写的 1/2/3 —— 这不是我改的设计】layer 在 techs.js 里是
+     *    **全局列号**（era1 = L1~4、era2 = L1~3、era3 = L1~3、旧 era4 = L2~5），不是「纪元内第几层」。
+     *    e2e 那条「没有科技的前置比它自己更深一层」拦的是 **`reqs 那一项的 layer ≤ 自己的 layer`**：
+     *    天壳观测的前置是「教育」(era3 L3)、印刷术的前置是「金属精炼」(era3 L2)
+     *    ⇒ 本纪元最浅的一项只能是 L3，否则那条断言当场红。用户表里的三行形状原样保留：
+     *    天壳观测 + 印刷术同行(L3)、物理/银行业/热力学同行(L4)、倒置搭建独自一行(L5)。 */
+    { id: 'shellwatch', name: '天壳观测', era: 4, cost: 20000, branch: 'know', key: true,
+      reqs: ['education'], layer: 3,
+      cond: { t: 'zoneLvl', zone: 'academy', n: 70 },
+      eff: { unlockBuild: ['observatory'] },
+      note: 'Civ6: Astronomy · 关键节点。学术区铺到 70 级，天壳才第一次能被天天盯着看。' },
 
-    /* ⚠️ 2026-09-28：本项的尤里卡条件原本是 `{t:'built', b:'geyser', n:1}`（「热泉井一开，
-     *    机械就接得上」）。**热泉井已删除** ⇒ 那个条件变成**永假**：不报错、不 NaN，
-     *    只是 turbine 永远研究不了，而它还是 survey / ballistics / shellBreaker 三条的
-     *    前置 ⇒ 纪元五整条线静默停摆。
-     *    ⇒ 这里选择**直接撤掉条件**（而不是改挂别的建筑）：改挂等于我替用户新定一条设计，
-     *      而用户明说「这些都等着重新设计」。撤掉后 turbine 在点火术之后立即可研究，
-     *      era4 少一道 eureka。等地热线重设时，再决定这道门挂谁。 */
-    { id: 'turbine',    name: '涡轮',   era: 4, cost: 540, branch: 'know', key: false, reqs: ['ignition'], layer: 3,
-      eff: { fuel: 0.20 },
-      note: 'Civ6: Engineering · 机械与动力第一次接上。' },
+    { id: 'printing', name: '印刷术', era: 4, cost: 25000, branch: 'know', key: false,
+      reqs: ['metalrefine'], layer: 3,
+      cond: { t: 'built', b: 'hydroshop', n: 3 },
+      eff: { unlockBuild: ['coralfarm'] },
+      note: 'Civ6: Printing · 热液工坊三级开版。字能印了，珊瑚也能催了。' },
 
-    { id: 'survey',     name: '测壳',   era: 4, cost: 660, branch: 'know', key: false, reqs: ['turbine'], layer: 4,
-      cond: { t: 'total', n: 22 },
-      eff: { coef: 1.0 },
-      note: 'Civ6: Astronomy · 冰壳第一次被量成一个数字：能算出还要凿多久。' },
+    { id: 'physics', name: '物理', era: 4, cost: 40000, branch: 'know', key: false,
+      reqs: ['shellwatch'], layer: 4,
+      /* 「完成所有钢铁工具的升级」= 钢镰/钢斧/钢镐三件都买断。与学徒制同一 cond 类型。 */
+      cond: { t: 'tools', ids: ['tool_steelSickle', 'tool_steelAxe', 'tool_steelPick'] },
+      eff: {},
+      note: 'Civ6: Scientific Theory · 钢器趁手了，才谈得上把力气算成数。' },
 
-    { id: 'tideflow',   name: '洋流',   era: 4, cost: 660, branch: 'live', key: false, reqs: [], layer: 5,
-      cond: { t: 'rate', r: 'coral', n: 2.0 },
-      eff: { gather: 0.30 },
-      note: 'Civ6: Shipbuilding 二段 · 采集产出到 2/s， harvesting 才值得再上一层。' },
+    { id: 'banking', name: '银行业', era: 4, cost: 40000, branch: 'live', key: false,
+      reqs: ['printing'], layer: 4,
+      cond: { t: 'zoneLvl', zone: 'trade', n: 100 },
+      eff: { unlockBuild: ['bank'] },
+      note: 'Civ6: Banking · 贸易区百级，账本才比货值钱。' },
 
-    { id: 'shellforge', name: '壳铸',   era: 4, cost: 660, branch: 'survive', key: true, reqs: ['survey'], layer: 5,
-      cond: { t: 'gathered', r: 'iron', n: 300 },
-      eff: { craft: 0.30, coef: 0.5 },
-      note: 'Civ6: Siege Tactics · 关键节点。精铁攒到 300，破壳这件事第一次有了机器。' },
+    { id: 'thermo', name: '热力学', era: 4, cost: 50000, branch: 'survive', key: false,
+      reqs: ['metalrefine'], layer: 4,
+      /* 用户 2026-09-30 澄清：「热液泵」= **热液汽轮机**(hydroturbine)。 */
+      cond: { t: 'built', b: 'hydroturbine', n: 5 },
+      eff: {},
+      note: 'Civ6: Industrialization · 汽轮机五级，压力才谈得上被拿去利用。' },
+
+    { id: 'invert', name: '倒置搭建', era: 4, cost: 75000, branch: 'survive', key: true,
+      reqs: ['physics'], layer: 5,
+      cond: { t: 'pop', n: 100 },
+      eff: {},
+      note: 'Civ6: Urban Design · 关键节点。百人同族，才有把天壳当工地的一批人。' },
 
     /* ═════════ 纪元五 · 破壳（4 项 · 805/925/1200） ═════════
      * 工业化。奇迹装置（破冰祭坛）的最终解锁在这里——用户明确要求「到工业时代才能建造」。 */
@@ -568,7 +567,10 @@
    * 做法：能一一对应的直接改名，不能对应的折算成等价效果对应的那一项
    * ——否则老玩家研究过的科技会凭空消失、破壳系数凭空掉一截。 */
   var LEGACY_MAP = {
-    calendar: 'calendar', ignition: 'ignition',
+    calendar: 'calendar',
+    /* ⚠️ 原 `ignition: 'ignition'` 已随 2026-09-30 纪元四整体重设计删除：新纪元四没有等价项
+     *    （旧点火术给的是燃料/地热线上的功能，整条地热线还在待重设），⇒ 老档里的 ignition
+     *    一律丢弃（与 bonework / hearthfire 同口径），不折算成新树的任何一项。 */
     /* ⚠️ 原表里的 `bonework: 'bonework'` 已随骨工法科技一并删除（2026-09-27）：
      *    老档里若有人研究过它，那项知识在新树里无处落 —— 按丢弃处理，不断链。
      * ⚠️ `heat: 'hearthfire'` 亦已删除（2026-09-28，同纪元二重排）：老档里的 heat 一律

@@ -8,12 +8,115 @@
   var CFG = SB.CFG;
   var E = null, P = null;   // 延迟取，避免加载顺序耦合
 
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'workshop', 'wonder', 'dig', 'meta'];
+  /* 页签 / 面板键顺序（也是 renderPanes 的遍历顺序）。faith 紧挨 civic：
+   *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
+  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'dig', 'meta'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
 
   function el(id) { return document.getElementById(id); }
+
+  /* ── 主页面分区卡片：标题配色 + 可折叠（2026-09-30 用户：各个区域可折叠，参考文明6）──
+   * 【为什么折叠态不放在 DOM 上】面板（pane）每 2 秒被 PANE_REFRESH 整块重写 innerHTML；
+   *   折叠态若写在「会被重写的节点」上，一重画就没了。所以状态记在模块里的 CARD_FOLDED，
+   *   只把结果落成**持久卡片元素**（#card-* / #pane-*）上的一个 folded 类 ——
+   *   那些元素本身不随重画重建，类是活的，重画不会把它冲掉。
+   * 【为什么标题按钮走 document 级委托】同一条理由：标题节点会随 pane 重画被换掉，
+   *   挂在它身上的 onclick 会静默失效（见 input.js 的 d.fold 分支）。
+   * 【配色】一区一色，只用在标题条上、不铺正文 —— 正文保持单一深海底色，
+   *   否则一屏六种底色会把读数淹没。 */
+  var CARD_META = {
+    res:      { name: '资源',     color: '#4dd8e6' },
+    env:      { name: '自然环境', color: '#a78bfa' },
+    village:  { name: '巢穴',     color: '#ffb84d' },
+    folk:     { name: '族民',     color: '#4ade80' },
+    tech:     { name: '科技',     color: '#7fb8e6' },
+    civic:    { name: '市政',     color: '#c4a2ff' },
+    faith:    { name: '信仰',     color: '#e691b0' },
+    workshop: { name: '工坊',     color: '#f0a45c' },
+    wonder:   { name: '奇观',     color: '#ffd166' },
+    dig:      { name: '剥壳工程', color: '#ff5f6d' },
+    meta:     { name: '轮回商店', color: '#9fb4ff' }
+  };
+  /* ── 巢穴页内的建筑分区标题配色（2026-09-30 晚，用户：「这里的文字颜色也改了，就是生息区这些」）──
+   * 上一步只把最外层卡片标题上了色，页**内部**的区标题（礁栖核心 / 生息区 / 工坊区 …）还是
+   * 深灰（.bztitle 的 var(--dim)），同一屏里两套标题语言，玩家分不清哪层是哪层。
+   * 这里给八区各配一色，沿用 .cardhd 的 `--hc` 变量语言（左侧色条 + 同色文字），
+   * 名字与卡片同义的就取同一色（工坊 / 市政 / 信仰 / 破界），让「区」与「页」对上号。
+   * 与 CARD_META 同理：色只落在标题上、不铺正文，否则一屏八种底色会把读数淹掉。 */
+  var ZONE_COLOR = {
+    core:     '#4dd8e6',   // 礁栖核心 —— 基座，取青
+    food:     '#4ade80',   // 生息区 —— 生计/食物，取绿
+    workshop: '#f0a45c',   // 工坊区 —— 与「工坊」卡同色
+    trade:    '#ffd166',   // 贸易区域 —— 货币，取金
+    academy:  '#7fb8e6',   // 学术区 —— 与「科技」卡同色
+    civic:    '#c4a2ff',   // 市政区 —— 与「市政」卡同色
+    faith:    '#e691b0',   // 信仰区 —— 与「信仰」卡同色
+    break:    '#ff5f6d'    // 破界区 —— 终局，取红
+  };
+  var CARD_FOLDED = {};
+  var FOLD_SAVE = 'sb.fold.v1';
+  function loadFold() {
+    try {
+      var raw = root.localStorage && root.localStorage.getItem(FOLD_SAVE);
+      if (raw) { var o = JSON.parse(raw); if (o && typeof o === 'object') CARD_FOLDED = o; }
+    } catch (e) { CARD_FOLDED = {}; }
+  }
+  function saveFold() {
+    try { if (root.localStorage) root.localStorage.setItem(FOLD_SAVE, JSON.stringify(CARD_FOLDED)); } catch (e) {}
+  }
+  function cardEl(key) { return el('card-' + key) || el('pane-' + key); }
+  function applyCardFold(key) {
+    var c = cardEl(key);
+    if (c && c.classList && c.classList.toggle) c.classList.toggle('folded', !!CARD_FOLDED[key]);
+  }
+  function applyAllFolds() { for (var k in CARD_FOLDED) applyCardFold(k); }
+  function toggleCardFold(key) {
+    CARD_FOLDED[key] = !CARD_FOLDED[key];
+    applyCardFold(key);
+    saveFold();
+    return CARD_FOLDED[key];
+  }
+  /* 标题条 HTML。sub 是标题右侧的小字（可省）。⚠️ 只给「有 id 的持久卡」用；
+   *   信仰页的标题写死在 index.html（它那页要护住命名的输入框，不能整块重画）。 */
+  function cardHeadHTML(key, sub) {
+    var m = CARD_META[key] || { name: key, color: 'var(--cyan)' };
+    return '<div class="cardhd" data-fold="' + key + '" style="--hc:' + m.color +
+      '" title="点击折叠 / 展开"><span class="cv">▾</span>' + m.name +
+      (sub ? '<span class="hcsub">' + sub + '</span>' : '') + '</div>';
+  }
+  loadFold();
+  applyAllFolds();
+
+  /* ── 巢穴页内「建筑分区」折叠（2026-09-30 晚 · 用户：「各个分区的折叠呢，没做啊」）──
+   * 上一轮只做了**最外层卡片**折叠，页**内部**的区（礁栖核心 / 生息区 / 工坊区 …）
+   * 仍整段铺开，玩家点不到。这里补上，与外层卡片折叠的关键差别是：
+   *   外层卡片节点（#card-* / #pane-*）是**持久的**，折叠态落个类就够了；
+   *   但 paneVillage 的 HTML 每 2 秒被 PANE_REFRESH **整块重画**，落类会被冲掉 ——
+   *   所以 ZONE_FOLDED 是**唯一真源**，折叠态必须每次从它**重拼进 HTML**。
+   * 点击仍走 document 级委托（标题随重画被换掉，挂监听见 input.js 的 d.zfold）。 */
+  var ZONE_FOLDED = {};
+  var ZONE_FOLD_SAVE = 'sb.zfold.v1';
+  function loadZoneFold() {
+    try {
+      var raw = root.localStorage && root.localStorage.getItem(ZONE_FOLD_SAVE);
+      if (raw) { var o = JSON.parse(raw); if (o && typeof o === 'object') ZONE_FOLDED = o; }
+    } catch (e) { ZONE_FOLDED = {}; }
+  }
+  function saveZoneFold() {
+    try { if (root.localStorage) root.localStorage.setItem(ZONE_FOLD_SAVE, JSON.stringify(ZONE_FOLDED)); } catch (e) {}
+  }
+  function toggleZoneFold(id) {
+    ZONE_FOLDED[id] = !ZONE_FOLDED[id];
+    /* 立刻反馈：先把类翻到**当前活着**的那个区节点上（省一次整块重画）；
+     * 下一次重画按状态重建，结果一致。查询不到（假 DOM / 区还没露头）就只靠状态。 */
+    var n = document.querySelector('.bzone[data-zone="' + id + '"]');
+    if (n && n.classList && n.classList.toggle) n.classList.toggle('folded', !!ZONE_FOLDED[id]);
+    saveZoneFold();
+    return ZONE_FOLDED[id];
+  }
+  loadZoneFold();
 
   function renderRes() {
     var s = res(), g = el('res');
@@ -200,9 +303,11 @@
         '<div class="ds">保温法：烧暖石（' + SB.CFG.WARM_RATE +
         '/秒）<b>只在寒流季生效</b>——顶回藻场减产（不是全额，留一点残余），' +
         '寒流季若触发冰封期则冻伤归零。一份暖石两件事都靠它，其余季不耗石。</div></div>' +
-        '<button class="btn' + (burning ? ' big' : '') + '"' +
-        (burning ? ' style="border-color:var(--amber)"' : '') +
-        ' data-warm="1">' + (s.warmOn ? '关' : '开') + '</button>';
+        /* 按钮文案 = **当前状态**（底色表态：绿=启用 / 灰=停用），不是「点了会怎样」——
+         * 原先写「开/关」两可，玩家读不出此刻到底是开是关（用户 2026-09-30 报）。
+         * 正在烧时再加一圈琥珀描边，把「已启用」与「真在烧」两个状态分开。 */
+        '<button class="btn tog' + (s.warmOn ? ' on' : '') + (burning ? ' burning' : '') +
+        '" data-warm="1" title="点击切换启用 / 停用">' + (s.warmOn ? '启用' : '停用') + '</button>';
     }
     /* 库存数字单独刷：不进签名，所以烧起来时它是唯一在动的节点，按钮不动。 */
     var ws = el('envWarmWs');
@@ -312,17 +417,26 @@
         var autoBtn = '';
         if (z.id === 'food' && s.civics && s.civics.feudalism) {
           var _au = !!(s.autoUpg && s.autoUpg[b.id]);
-          autoBtn = '<button class="btn auto-upg' + (_au ? ' on' : '') + '" data-auto="' + b.id + '">' +
-            (_au ? '自动·开' : '自动·关') + '</button>';
+          /* 与暖石开关同一套「启用 / 停用 + 绿 / 灰」（2026-09-30 用户：开/关分不清）——
+           * 同一页里两种开关语言会让人以为它们不是一回事。 */
+          autoBtn = '<button class="btn tog' + (_au ? ' on' : '') + '" data-auto="' + b.id + '"' +
+            ' title="自动升级：点击切换启用 / 停用">' +
+            (_au ? '自动·启用' : '自动·停用') + '</button>';
         }
-        /* 热泉炉开关（2026-09-30）：建成（lv>0）后才出现——没建出来拨开关没有意义。
-         * 炉子是「金属+暖石 → 精铁」的持续消耗口，玩家想囤原料时得能停它；
-         * 默认开（建成即工作），停用时建/升按钮照常可用，互不干扰。 */
+        /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）：建成（lv>0）后才出现。
+         * 炉子是「金属+暖石 → 精铁」的持续消耗口，玩家按原料供给决定开几座。
+         * 运行座数 = lv − 停用数（s.furnaceStop），结算在 economy.ironFlow。
+         * ± 按钮走 document 级委托，所以 pane 每 2 秒重画也不会丢点击。 */
         var furnBtn = '';
         if (b.id === 'furnace' && lv > 0) {
-          var _fon = s.furnaceOn !== false;
-          furnBtn = '<button class="btn auto-upg' + (_fon ? ' on' : '') + '" data-furnace="1">' +
-            (_fon ? '炉·开' : '炉·停') + '</button>';
+          var _frun = Math.max(0, lv - Math.max(0, s.furnaceStop || 0));
+          furnBtn = '<span class="furnctl' + (_frun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-furnace-dec="1" title="少开一座"' +
+            (_frun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _frun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-furnace-inc="1" title="多开一座"' +
+            (_frun >= lv ? ' disabled' : '') + '>＋</button>' +
+            '</span>';
         }
         // 没有等级上限，所以只显示当前级数，不显示 x/上限
         zRows += '<div class="row"><div><div class="nm">' + b.name +
@@ -332,7 +446,18 @@
           '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap ? '' : ' disabled') + '>' + label + '</button></div>';
         zShown++;
       }
-      if (zShown > 0) h += '<div class="bztitle">' + z.name + '</div>' + zRows;
+      /* 区标题按区着色（2026-09-30 晚）：--hc 交给 CSS 画左色条 + 同色文字，
+       * 与最外层 cardhd 同一套语言（见 ZONE_COLOR）。
+       * 2026-09-30 晚再补折叠：外包一层 .bzone，标题带 data-zfold（点击委托），
+       * 正文进 .bzbody；折叠态从 ZONE_FOLDED 重拼（pane 每 2 秒重画，落类会被冲掉）。 */
+      if (zShown > 0) {
+        h += '<div class="bzone' + (ZONE_FOLDED[z.id] ? ' folded' : '') +
+          '" data-zone="' + z.id + '">' +
+          '<div class="bztitle" data-zfold="' + z.id + '" style="--hc:' +
+          (ZONE_COLOR[z.id] || 'var(--dim)') + '" title="点击折叠 / 展开">' +
+          '<span class="bzcv">▾</span>' + z.name + '</div>' +
+          '<div class="bzbody">' + zRows + '</div></div>';
+      }
     }
     return h;
   }
@@ -1076,7 +1201,7 @@
   }
 
   var PANES = { village: paneVillage, folk: paneFolk, tech: paneTech, civic: paneCivic,
-    workshop: paneWorkshop, wonder: paneWonder, dig: paneMiracle, meta: paneMeta };
+    faith: paneFaith, workshop: paneWorkshop, wonder: paneWonder, dig: paneMiracle, meta: paneMeta };
 
   /* ── pane 重写会换掉里面的元素，于是「活在 DOM 上的滚动位置」归零 ──
    * 唯一有内部滚动条的是科技长卷（横卷）：内部位置 = 玩家正在看哪个纪元。
@@ -1140,7 +1265,20 @@
 
     for (var k in PANES) {
       var node = el('pane-' + k);
-      if (node) node.innerHTML = PANES[k]();
+      if (!node) continue;
+      /* 只有信仰页背着**静态标题 + 持久命名框（#religionBox）**，所以它的可重写正文另放在
+       * #pane-faith-body —— 直接写 pane-faith 会把命名框冲掉，玩家每敲一个字就丢焦点。
+       * 其余页没有 body 容器，正文与标题条一起写进卡片本身。
+       * ⚠️ 这里**只能特判 faith**，不能写成「探测 pane-KEY-body 是否存在」：
+       * 假 DOM（e2e / 探针）的 getElementById 对任意 id 都懒造一个桩，于是
+       * pane-village-body 也会返回真值，导致所有页的正文被写进幽灵桩、真面板恒空、
+       * e2e 整片红（真实浏览器里这些 -body 不存在，反而正常）。 */
+      if (k === 'faith') {
+        var body = el('pane-faith-body');
+        if (body) body.innerHTML = PANES[k]();
+      } else {
+        node.innerHTML = cardHeadHTML(k) + PANES[k]();
+      }
     }
     techShown = shown;
     box = el('techScroll');
@@ -1418,11 +1556,67 @@
       mt.classList.toggle('locked', !mopen);
       mt.title = mopen ? '' : '首次轮回后开启轮回商店';
     }
+    /* 信仰页的灰态：**第五个独立门槛** —— 神学（与资源行 / 产出线的 gate 同源：
+     *   resUnlocked(s,'faith') ⇔ s.civics.theology），不在这里另立一份判据。 */
+    var ft = document.querySelector('.tab[data-tab="faith"]');
+    if (ft) {
+      var fs2 = res(), fop = !!(SB.economy && fs2 && SB.economy.resUnlocked(fs2, 'faith'));
+      ft.classList.toggle('locked', !fop);
+      ft.title = fop ? '' : '研究「神学」后开启信仰页';
+    }
+  }
+
+  /* ── 信仰页（2026-09-30 用户：「单独起一个信仰面板」）────────────────────
+   * 原先信仰在主页面上只是一张小卡（#religionBox），里面孤零零一个命名输入框 ——
+   * 玩家看得见框、看不见「信仰这条轴在做什么」。现在收成一个正式页签，
+   * 与巢穴 / 科技 / 市政 并列。
+   * ⚠️ 命名输入框**不在本函数的返回值里**：它必须留在持久节点 #religionBox
+   *    （写进正文就会被每 2 秒的 PANE_REFRESH 换掉、丢焦点）。本页的静态标题与那个框
+   *    都写在 index.html 的 #pane-faith 里，这里的正文写进 #pane-faith-body
+   *    （renderPanes 认这个 body 容器）。
+   * 门 = 完成《神学》，与资源行的 gate 同源（resUnlocked(s,'faith') ⇔ s.civics.theology），
+   *    未开门时给一张说明卡而不是空白页。 */
+  function paneFaith() {
+    var s = res();
+    if (!s || !SB.economy.resUnlocked(s, 'faith')) return paneFaithLocked();
+    var h = '';
+    var f = s.res.faith || 0;
+    var fr = SB.economy.faithRate(s) || 0;
+    var fam = SB.economy.faithAllMul(s);
+    var fm = SB.economy.faithMul(s);
+    var rn = (s.religionName || '').trim();
+    /* 读数三件同框才叫「一条轴」：存量 / 每秒 / 它换来的全局加成。 */
+    h += '<div class="row"><div><div class="nm">信仰 <b>' + SB.economy.fmtAmt(f) + '</b>' +
+      (fr > 0 ? '<i class="rate up">+' + fr.toFixed(3) + '/s</i>' : '') + '</div>' +
+      '<div class="ds">每个族民每秒产 ' + CFG.FAITH_PER_POP + ' 信仰，再乘神庙与政策的乘区' +
+      '（现值 ×' + fm.toFixed(2) + '）。信仰不占仓储，也不会被花掉。</div></div></div>';
+    h += '<div class="row"><div><div class="nm">全产加成 <b>+' +
+      ((fam - 1) * 100).toFixed(0) + '%</b> <span class="tag">按存量</span></div>' +
+      '<div class="ds">按信仰<b>存量</b>的对数刻度给：10 → +1%、100 → +2%、1000 → +3%……' +
+      '每高一个数量级多 1%。这条加成推的是珊瑚 / 石头 / 藻食等全部资源，' +
+      '但<b>不推信仰自己</b>（否则会自激）。</div></div></div>';
+    h += '<div class="row"><div><div class="nm">你的信仰</div>' +
+      '<div class="ds">' + (rn ? '当前名为「<b>' + rn + '</b>」，' : '尚未命名，') +
+      '名字就写在上面那个框里，改名随时可改、无消耗。它会显示在顶栏的信仰资源格上。</div></div></div>';
+    /* 来源与出口：说清信仰从哪来、通往哪里（轮回系统的门就是「建立宗教」）。 */
+    h += '<div class="row"><div><div class="nm">信仰从哪来</div>' +
+      '<div class="ds">人口是它唯一的来源（每人 ' + CFG.FAITH_PER_POP + '/s）——' +
+      '养的人越多、攒得越快；神庙每级 +' +
+      (((SB.BLD && SB.BLD.templeFaithRatio) || 0) * 100).toFixed(0) +
+      '% 是它唯一的建筑乘区。</div></div></div>';
+    return h;
+  }
+  function paneFaithLocked() {
+    return '<div class="row"><div><div class="nm">信仰页未开启</div>' +
+      '<div class="ds">信仰是第三条文明轴：族民越多、信仰攒得越快，' +
+      '存量按数量级给你全局产出加成。</div></div></div>' +
+      '<div class="note">完成「神学」之后这一页才打开——神学是纪元二的关键节点之一。' +
+      '在那之前，顶栏也不会显示信仰这一格。</div>';
   }
 
   function paneWonder() {
     var s = res();
-    if (!s) return '<div class="secttl">奇观</div>';
+    if (!s) return '';
     var L = SB.wonder ? SB.wonder.list() : [], h = '', i;
     h += '<div class="note">奇观是**一次性里程碑建筑**：建成就永久留着，不会再建第二座、' +
       '也不烧什么。**石梁**目前是它们的材料（海潮方碑要 20 根）。</div>';
@@ -1437,7 +1631,7 @@
         (done || why ? ' disabled' : '') + ' title="' + (why || '') + '">' +
         (done ? '已建成' : why ? (/^需要先/.test(why) ? '未解锁' : '建不起') : '建成') + '</button></div>';
     }
-    return '<div class="secttl">奇观</div>' + h;
+    return h;
   }
 
   function initTabs() {
@@ -1448,6 +1642,10 @@
           if (node.dataset.tab === 'tech' && !techTabOpen()) return;
           if (node.dataset.tab === 'workshop' && !workshopTabOpen()) return;
           if (node.dataset.tab === 'meta' && !meta().shopUnlocked) return;
+          /* 信仰页的门 = 神学（与 setTab 里那道是同一件事写两遍，理由同科技/市政）。
+           * 走 resUnlocked 而不是直接读 s.civics.theology：门只有一处定义。 */
+          if (node.dataset.tab === 'faith' &&
+              !(SB.economy && SB.economy.resUnlocked(res(), 'faith'))) return;
           /* 高亮不在这里翻 —— 它是 setTab 的一部分（见 game.js 那段注释：
            * 弹窗里那条直达科技的路径也走 setTab，高亮写在事件里就会漏掉那条路）。 */
           SB.game.setTab(node.dataset.tab);
@@ -1506,6 +1704,12 @@
     storyPanel: storyPanel, techTabOpen: techTabOpen, syncTabLocks: syncTabLocks,
     initTabs: initTabs, initSpeeds: initSpeeds, techGoEra: techGoEra,
     showOfflineModal: showOfflineModal, setOfflineProgress: setOfflineProgress,
+    /* 主页面分区卡片的折叠（2026-09-30）：toggle 供 input.js 的 d.fold 委托调用，
+     * applyAllFolds 供启动时按持久化状态落地。
+     * 巢穴页**内**的区折叠（2026-09-30 晚）同理由 d.zfold 委托调用 —— 用的也是这一对：
+     * 区别只在状态是「落成类」（外层卡片，节点持久）还是「重拼进 HTML」（页内区，会被重画）。 */
+    toggleCardFold: toggleCardFold, applyAllFolds: applyAllFolds,
+    toggleZoneFold: toggleZoneFold,
     PANE_KEYS: PANE_KEYS
   };
 })(typeof window !== 'undefined' ? window : globalThis);

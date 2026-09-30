@@ -20,6 +20,25 @@
     var s = run();
     if (!s) return;
 
+    /* 主页面分区卡片的折叠开关（2026-09-30 用户：各个区域可折叠，参考文明6）。
+     * 纯视图动作：只翻卡片元素上的 folded 类（状态记在 render 模块里、可持久化），
+     * **不碰任何游戏状态**，所以不 markDirty、也不补跑科技泵。
+     * ⚠️ 走 document 级委托是必须的：卡片标题会随 pane 每 2 秒的重画被换掉，
+     *    挂在标题节点上的监听随第一次重画一起失效（不报错、只是点不动了）。 */
+    if (d.fold !== undefined && d.fold !== null && d.fold !== '') {
+      SB.ui.render.toggleCardFold(d.fold);
+      return;
+    }
+    /* 巢穴页内「建筑分区」折叠（2026-09-30 晚，用户：「各个分区的折叠呢，没做啊」）：
+     * 与上一分支同源——纯视图动作，只翻 render 模块里的 ZONE_FOLDED（并持久化），
+     * **不碰游戏状态**，所以不 markDirty、也不补跑科技泵。
+     * ⚠️ 与卡片折叠的差别：页内区标题所在的 HTML 每 2 秒被整块重画，状态由
+     *    render.js 在重画时从 ZONE_FOLDED 重新拼出（落类会被冲掉）。 */
+    if (d.zfold !== undefined && d.zfold !== null && d.zfold !== '') {
+      SB.ui.render.toggleZoneFold(d.zfold);
+      return;
+    }
+
     /* 每个动作后都补一次科技泵：尤里卡里有 built / total / job 三类，
      * 它们只被玩家动作改变。只靠循环里的 2 秒节流，点完要等一下才揭示，
      * 玩家会以为「点了没反应」。 */
@@ -37,13 +56,23 @@
       SB.game.markDirty(); SB.game.renderAll();
       return;
     }
-    /* 热泉炉开关（2026-09-30）：只翻状态位，结算在 economy.ironFlow 读它。
-     * 老档无此键 ⇒ undefined ≠ false = 开；这里置的是显式 true/false，拨过即定。 */
-    if (d.furnace) {
-      s.furnaceOn = !(s.furnaceOn !== false);
-      SB.game.log(s.furnaceOn ? '热泉炉恢复运转：继续把金属+暖石转成精铁。'
-                              : '热泉炉已停：不再消耗金属与暖石。');
-      SB.game.markDirty(); SB.game.renderAll();
+    /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）：只改**停用数**
+     * `s.furnaceStop`，结算在 economy.ironFlow 读它（运行座数 = 等级 − 停用数）。
+     *   data-furnace-inc = 多开一座（停用数 −1）、data-furnace-dec = 少开一座（停用数 +1），
+     *   两头都夹在 [0, lv]。老档无 furnaceStop 键 ⇒ 0（全开），迁移见 state.migrateRun。
+     * ⚠️ 不写 `!s.furnaceStop` 那种真值判断：0 是合法值（全开），`!0` 会把它当成「没设过」。 */
+    if (d.furnaceInc || d.furnaceDec) {
+      var _flv = s.lvl.furnace || 0;
+      var _fstop = Math.max(0, Math.min(s.furnaceStop || 0, _flv));
+      _fstop += d.furnaceDec ? 1 : -1;
+      _fstop = Math.max(0, Math.min(_fstop, _flv));
+      if (_fstop !== (s.furnaceStop || 0)) {
+        s.furnaceStop = _fstop;
+        var _frun = _flv - _fstop;
+        SB.game.log('热泉炉：开 ' + _frun + '/' + _flv + ' 座' +
+          (_frun === 0 ? '（停产，不再消耗金属与暖石）。' : '。'));
+        SB.game.markDirty(); SB.game.renderAll();
+      }
       return;
     }
     if (d.tech) {

@@ -16,9 +16,14 @@
   ⇒ 旋钮在破冰那一段，不在 era1。**改常数凑绿 = 标定，停；改代码让 bot 跑得穿 = bug，可做。**
   判据：`docs/JUDGMENTS.md` §「少括号」+「**测试夹具漏还原**」+「**整局模拟仍然没走真开局**」
   +「**随机源只有注释没有实现**」；数值见 `docs/CURRENT_FACTS.md` 时长结构节。
-- **git 环境事实（2026-09-28 实测，会反复踩）**：本仓**从未配置过 remote**（`origin` 都不存在）
-  ⇒ `git push` 必 `fatal: No configured push destination`；本机**也没配 git 身份**
-  ⇒ `git commit` 会 `fatal: unable to auto-detect email address`。
+- **git 环境事实（2026-10-01 实测，推翻 09-28 那条）**：远程仓**确实存在**
+  `https://github.com/tl38t/shellbreak`（分支 **master**，非 main；HEAD 403c3f9 @ 2026-09-30 19:18）。
+  ⚠️ 但**本地 `D:\shellbreak` 连 `.git` 目录都没有**（只有 `.gitignore`）
+  ⇒ `git status/log/commit/push` 一律 `fatal: not a git repository`。
+  ⇒ 09-28 记的「从未配置 remote / 没配身份」**是错的**，别再引用。当前真相：远端有仓、本地无仓。
+  ⇒ 恢复办法（**发布类动作，等用户明说**）：全量 clone 远端 → 取它的 `.git` 放进 `D:\shellbreak`
+    （工作树文件一个不动）→ `git status` 即为「本地比 403c3f9 多的那部分」→ 白名单 add → 提交 → push。
+  ⚠️ 本机仍未配 git 身份 ⇒ 提交时用一次性参数（见下）。
   本项目历史身份全是占位 `baseline <baseline@local>`，沿用即可：
   `git -c user.name=baseline -c user.email=baseline@local commit`（**用一次性参数，不写进全局配置**）。
   ⚠️ 提交前**必须白名单 `git add`**：`docs/` 下混着两个工具产物（`*.xlsx` 与 `docs/.*.ref/build.py`），

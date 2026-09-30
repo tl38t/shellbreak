@@ -151,11 +151,50 @@
     return 1 + m * (s.pop || 0);
   }
 
+  /* ⑦ ERA4（2026-09-30 用户规格表）· 天壳切削器：科技 / 市政 产出各 +x%，
+   *    **x = 天壳观测站等级**（单位是百分点：等级 10 ⇒ +10% ⇒ 乘数 1.10）。
+   *    ⚠️ 两个出口同源不同名：科技走 cutterSciMul、市政走 cutterCivicMul，
+   *    economy 里 science 行与文化两处**各读一路**；少接一路就是标准的「面板撒谎」。 */
+  function cutterMul(s) {
+    var o = owned(s), L = list(), i;
+    for (i = 0; i < L.length; i++) {
+      if (o[L[i].id] && L[i].effect && L[i].effect.cutterMul) {
+        return 1 + (s.lvl.observatory || 0) / 100;
+      }
+    }
+    return 1;
+  }
+  function cutterSciMul(s) { return cutterMul(s); }
+  function cutterCivicMul(s) { return cutterMul(s); }
+
+  /* ⑧ 王国大交易所：幸福度 +1（effect.happyBonus）+ **贸易区域**建筑消耗 -10%（effect.tradeSave）。
+   *    ⚠️ 两件不同性质的事别合成一个乘数：happyBonus 是平坦加值、tradeSave 是分区减耗，
+   *    后者由 economy.costOf 在 zone==='trade' 时读，一般不在这里一次性摊平。 */
+  function happyBonus(s) {
+    var b = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      b += (L[i].effect && L[i].effect.happyBonus) || 0;
+    }
+    return b;
+  }
+  function tradeSaveMul(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.tradeSave) || 0;
+    }
+    /* ⚠️ Math.max(0, …)：多份减耗叠加时不能把造价乘成负数（负造价 = 白送还倒贴）。 */
+    return Math.max(0, 1 - m);
+  }
+
   SB.wonder = {
     list: list, byId: byId, count: count,
     wonderCraftRatio: wonderCraftRatio, matMaxBonus: matMaxBonus,
     civicBonus: civicBonus, globalBonus: globalBonus,
     libBonus: libBonus, oneShot: oneShot,
-    abbeyFaithMul: abbeyFaithMul, bazaarLuxMul: bazaarLuxMul
+    abbeyFaithMul: abbeyFaithMul, bazaarLuxMul: bazaarLuxMul,
+    cutterSciMul: cutterSciMul, cutterCivicMul: cutterCivicMul,
+    happyBonus: happyBonus, tradeSaveMul: tradeSaveMul
   };
 })(typeof window !== 'undefined' ? window : globalThis);
