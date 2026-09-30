@@ -21,8 +21,13 @@
   ⚠️ 但**本地 `D:\shellbreak` 连 `.git` 目录都没有**（只有 `.gitignore`）
   ⇒ `git status/log/commit/push` 一律 `fatal: not a git repository`。
   ⇒ 09-28 记的「从未配置 remote / 没配身份」**是错的**，别再引用。当前真相：远端有仓、本地无仓。
-  ⇒ 恢复办法（**发布类动作，等用户明说**）：全量 clone 远端 → 取它的 `.git` 放进 `D:\shellbreak`
-    （工作树文件一个不动）→ `git status` 即为「本地比 403c3f9 多的那部分」→ 白名单 add → 提交 → push。
+  ✅ **2026-10-01 已恢复并 push**（用户明说「那就 commit&push」）：本地重建 `.git` +
+    `origin=https://github.com/tl38t/shellbreak`，分支 **master**，HEAD `37cd667`（父 `403c3f9`）。
+  ⚠️ **恢复手法（沙箱坑，下次照抄）**：`git clone` 到工作区外（`/tmp`、`/d/_xx`）会被沙箱吞掉——
+    clone 打印 success 但目录不存在。改用 **`git init` + `git remote add` + `git fetch`** 就在仓内，
+    然后 `git update-ref refs/heads/master <远端 SHA>` + `git symbolic-ref HEAD refs/heads/master`
+    + `git reset`（工作树不动）⇒ `git status` 即为「本地比远端多的那部分」。
+    ⚠️ fetch 后 `refs/remotes/*` 可能不落盘 ⇒ 取证用 `git show FETCH_HEAD:<file>`，别信 `origin/master`。
   ⚠️ 本机仍未配 git 身份 ⇒ 提交时用一次性参数（见下）。
   本项目历史身份全是占位 `baseline <baseline@local>`，沿用即可：
   `git -c user.name=baseline -c user.email=baseline@local commit`（**用一次性参数，不写进全局配置**）。
