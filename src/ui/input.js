@@ -37,6 +37,15 @@
       SB.game.markDirty(); SB.game.renderAll();
       return;
     }
+    /* 热泉炉开关（2026-09-30）：只翻状态位，结算在 economy.ironFlow 读它。
+     * 老档无此键 ⇒ undefined ≠ false = 开；这里置的是显式 true/false，拨过即定。 */
+    if (d.furnace) {
+      s.furnaceOn = !(s.furnaceOn !== false);
+      SB.game.log(s.furnaceOn ? '热泉炉恢复运转：继续把金属+暖石转成精铁。'
+                              : '热泉炉已停：不再消耗金属与暖石。');
+      SB.game.markDirty(); SB.game.renderAll();
+      return;
+    }
     if (d.tech) {
       if (SB.habitat.study(s, d.tech, emit)) { SB.game.markDirty(); SB.game.renderAll(); }
       SB.game.pumpTech(s, emit);   // 关键节点全清 ⇒ 这里就进下一纪元

@@ -68,8 +68,10 @@
       if (isCraft) htmlCraft += row; else htmlBase += row;
     }
     /* 幸福度（陆地贸易，2026-09-28）：民生轴，独立于资源循环（不是 SB.RESS 键）。
-     * 一直显示（开局 H=0=安定，无需 gate），让玩家随时看到民生状态与全产乘区。 */
-    {
+     * 2026-09-30 起跟奢侈品同门（resUnlocked(s,'luxury')=商人已上岗）：
+     *   幸福度只在「有奢侈品供给/需求」时才有含义（H 由供给−需求驱动），商人没上岗前
+     *   H 恒 0=安定，硬塞一行只会让开局顶栏多一个读不懂的数。判据与奢侈品行同源，不另立。 */
+    if (SB.economy.resUnlocked(s, 'luxury')) {
       var Hh = s.happy || 0;
       var hm = SB.economy.happyMul(s);
       var tier = (Hh < -1) ? '动荡' : (Hh < 0) ? '不满' : (Hh < 1) ? '安定'
@@ -132,8 +134,11 @@
    *   静态 HTML 只能写「没掌握」的那一半，掌握之后那一半无处可放。
    * 没掌握历法时不显示读数，只给一句「看不出规律」——**这条信息缺口本身就是奖励**，
    * 玩家因此知道有件事还没解锁，而不是盯着一个没有解释的百分比。
-   * 读数走 economy.seasonMeta，它读的是 seasonMul(s)（玩家已享受到的那个数），
+   * 读数走 economy.seasonMeta，它读的是 seasonMul(s, relief)（玩家已享受到的那个数），
    * 不是 SEASONS[i].mult 的裸值——否则学了历法反而看到倍率“变差了”。
+   * ⚠️ 2026-09-30：relief 也要并进去——烧暖石时这一格会从 0.573 抬到 0.947。
+   *   卡片写的是「这一季深海藻场产出」，漏掉 relief 就是「面板撒谎」：
+   *   拨开关数字不动，玩家只能得出「开关没用」。
    * ⚠️ 这个容器是每帧重画的（季节会变），所以**它里面不许放按钮**：每帧重建 DOM 会让
    *    「按下与抬起之间元素被换掉」的那次点击整个丢失。要塞东西进来先确认它是纯读数。
    *    （暖石开关曾经因此留在巢穴页；2026-09-27 用户要求搬到这张卡，于是另开一个
@@ -251,7 +256,7 @@
      * e2e 那条「读数与常数同源」断言才真的在守什么东西。 */
     var GA = SB.GATHER || { kelp: 1, coral: 1 };
     h += '<div class="row"><div><div class="nm">手动采集</div>' +
-      '<div class="ds">开局 1 人、0 自动收入，靠这个起步：先攒 10 珊瑚盖起礁口巢' +
+      '<div class="ds">开局 1 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢' +
       '（人口上限 1 → 3），再攒 15 藻食建深海菌圃让口粮跟上。</div></div>' +
       '<button class="btn buy" data-gather="kelp">采藻食 +' + GA.kelp + '</button>' +
       '<button class="btn buy" data-gather="coral">采珊瑚 +' + GA.coral + '</button></div>';
@@ -310,9 +315,18 @@
           autoBtn = '<button class="btn auto-upg' + (_au ? ' on' : '') + '" data-auto="' + b.id + '">' +
             (_au ? '自动·开' : '自动·关') + '</button>';
         }
+        /* 热泉炉开关（2026-09-30）：建成（lv>0）后才出现——没建出来拨开关没有意义。
+         * 炉子是「金属+暖石 → 精铁」的持续消耗口，玩家想囤原料时得能停它；
+         * 默认开（建成即工作），停用时建/升按钮照常可用，互不干扰。 */
+        var furnBtn = '';
+        if (b.id === 'furnace' && lv > 0) {
+          var _fon = s.furnaceOn !== false;
+          furnBtn = '<button class="btn auto-upg' + (_fon ? ' on' : '') + '" data-furnace="1">' +
+            (_fon ? '炉·开' : '炉·停') + '</button>';
+        }
         // 没有等级上限，所以只显示当前级数，不显示 x/上限
         zRows += '<div class="row"><div><div class="nm">' + b.name +
-          ' <span class="tag" data-lv="' + b.id + '">' + lv + '</span>' + autoBtn + '</div>' +
+          ' <span class="tag" data-lv="' + b.id + '">' + lv + '</span>' + autoBtn + furnBtn + '</div>' +
           '<div class="ds">' + b.desc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div>' +
           '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap ? '' : ' disabled') + '>' + label + '</button></div>';
@@ -392,7 +406,7 @@
     /* ⚠️ 硬上限之后开局的**第一步是珊瑚不是藻食**（2026-09-26）：那 1 名族民顶着
      * 人口上限 1，先把藻食堆到 20 以上也生不出人——必须先有礁口巢才有空位。
      * 旧文案只教「攒藻食建菌圃」，玩家照做会发现人口纹丝不动。 */
-    h += '<div class="note">开局 1 名族民顶着人口上限：先在「巢穴」页点「采珊瑚」攒 10 建礁口巢' +
+    h += '<div class="note">开局 1 名族民顶着人口上限：先在「巢穴」页点「采珊瑚」攒 5 建礁口巢' +
       '（上限 1 → 3），再让藻食超过 ' + CFG.GROW_KEEP + '，才生得下第二人。</div>';
     return h;
   }
@@ -762,33 +776,35 @@
     return h + pool(s);
   }
 
-  /* 政策卡库：已解锁的排前面、未解锁的压暗排后面。带类型标签 ——
-   * 这是玩家判断「我该往哪条市政上努力」的唯一依据。 */
+  /* 政策卡库：**只显示已解锁的卡**（完成对应市政才出现），未解锁的不再列出。
+   * 用户 2026-09-30：没解锁就不要显示。
+   * ⚠️ 代价：玩家失去「我还差哪条市政能拿到下一张卡」的预览——这正是要的克制。
+   *   卡是否解锁仍由 cardOwned（= 对应市政已完成）判定，与装填、政体、槽类型都无关。 */
   function pool(s) {
     var C = SB.civic, h = '';
-    var own = [], lock = [], i, p;
+    var own = [], i, p;
     for (i = 0; i < SB.POLICIES.length; i++) {
       p = SB.POLICIES[i];
-      if (C.cardOwned(s, p.id)) own.push(p); else lock.push(p);
+      if (C.cardOwned(s, p.id)) own.push(p);
     }
-    h += '<div class="secttl">政策卡库 <span class="tag">' + own.length + ' / ' +
-      SB.POLICIES.length + '</span></div>';
-    var put = function (arr, dim) {
-      for (var j = 0; j < arr.length; j++) {
-        var q = arr[j], why = C.cardBlocked(s, q.id), on = (s.cards && s.cards.indexOf(q.id) >= 0);
-        var fits = C.cardFits(q, C.currentSlotType(s));
-        h += '<div class="row' + (dim ? ' dim' : '') + '"><div><div class="nm">' +
-          '<span class="tag t' + q.type + '">' + C.slotTypeName(q.type) + '</span> ' + q.name +
-          (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
-          '<div class="ds">' + q.desc +
-          (on ? '' : fits ? '' : '<br>⚠ 与第 0 号槽不对口：需要 ' + C.slotTypeName(q.type) + '类槽') +
-          '</div></div>' +
-          '<button class="btn' + (on || why ? '' : ' buy') + '" data-card="' + q.id + '"' +
-          (on || why ? ' disabled' : '') + ' title="' + (why || (on ? '已装填' : '')) + '">' +
-          (on ? '在槽' : why ? '装不了' : '装填') + '</button></div>';
-      }
-    };
-    put(own, false); put(lock, true);
+    h += '<div class="secttl">政策卡库 <span class="tag">' + own.length + '</span></div>';
+    if (own.length === 0) {
+      h += '<div class="row"><div class="ds">尚未解锁任何政策卡——完成市政树上的条目即可解锁对应卡片。</div></div>';
+      return h;
+    }
+    for (var j = 0; j < own.length; j++) {
+      var q = own[j], why = C.cardBlocked(s, q.id), on = (s.cards && s.cards.indexOf(q.id) >= 0);
+      var fits = C.cardFits(q, C.currentSlotType(s));
+      h += '<div class="row"><div><div class="nm">' +
+        '<span class="tag t' + q.type + '">' + C.slotTypeName(q.type) + '</span> ' + q.name +
+        (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
+        '<div class="ds">' + q.desc +
+        (on ? '' : fits ? '' : '<br>⚠ 与第 0 号槽不对口：需要 ' + C.slotTypeName(q.type) + '类槽') +
+        '</div></div>' +
+        '<button class="btn' + (on || why ? '' : ' buy') + '" data-card="' + q.id + '"' +
+        (on || why ? ' disabled' : '') + ' title="' + (why || (on ? '已装填' : '')) + '">' +
+        (on ? '在槽' : why ? '装不了' : '装填') + '</button></div>';
+    }
     return h;
   }
 
@@ -1291,13 +1307,22 @@
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
       '<button class="btn" id="mStay">留在这一局</button>' +
       '<button class="big" id="mNext">开始轮回</button></div>';
-    el('modal').classList.remove('hidden');
+    el('modal').classList.remove('hidden'); bodyModalClass(true);
     el('mStay').onclick = function () { SB.game.stay(); };
     el('mNext').textContent = m.religionSeen ? '开始轮回' : '重开本周目';
     el('mNext').onclick = function () { SB.game.nextCycle(); };
   }
 
-  function hideModal() { el('modal').classList.add('hidden'); }
+  /* body.modal-open 的开关（2026-09-30）：配合 main.css 的
+   * `body.modal-open .tabs{pointer-events:none}` —— tab 栏抬到弹窗覆盖层之上让
+   * 人口进度条可见，但弹窗期间禁止点 tab。⚠️ 必须走守卫：e2e 的假 document 没有
+   * body，裸调 document.body.classList 会 TypeError 打断回归。 */
+  function bodyModalClass(on) {
+    var b = (typeof document !== 'undefined') && document && document.body;
+    if (b && b.classList) { if (on) b.classList.add('modal-open'); else b.classList.remove('modal-open'); }
+  }
+
+  function hideModal() { el('modal').classList.add('hidden'); bodyModalClass(false); }
 
   /* 通用确认框。danger: true 时确认键走红色配色。
    * requireCheck 存在时确认键初始禁用，必须勾上才能执行——不可逆操作靠这一步兜底，
@@ -1313,7 +1338,7 @@
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
       '<button class="btn" id="mCancel">取消</button>' +
       '<button class="btn' + (o.danger ? ' danger' : '') + '" id="mOk">' + (o.ok || '确定') + '</button></div>';
-    el('modal').classList.remove('hidden');
+    el('modal').classList.remove('hidden'); bodyModalClass(true);
     var okBtn = el('mOk'), chk = el('mChk');
     el('mCancel').onclick = hideModal;
     if (chk) {
@@ -1336,7 +1361,7 @@
       }).join('') + '</div>' + (o.body || '') +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
       '<button class="big" id="mStoryOk">' + (o.ok || '知道了') + '</button></div>';
-    el('modal').classList.remove('hidden');
+    el('modal').classList.remove('hidden'); bodyModalClass(true);
     el('mStoryOk').onclick = function () { hideModal(); if (o.onOk) o.onOk(); };
   }
 
@@ -1464,9 +1489,9 @@
         '<button class="big" id="mOk">' + o.ok + '</button></div>';
     }
     box.innerHTML = html;
-    el('modal').classList.remove('hidden');
+    el('modal').classList.remove('hidden'); bodyModalClass(true);
     var okBtn = el('mOk');
-    if (okBtn) okBtn.onclick = function () { el('modal').classList.add('hidden'); if (o.onOk) o.onOk(); };
+    if (okBtn) okBtn.onclick = function () { el('modal').classList.add('hidden'); bodyModalClass(false); if (o.onOk) o.onOk(); };
   }
   function setOfflineProgress(p) {
     var pr = el('offPr'), pct = el('offPct');

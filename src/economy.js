@@ -302,8 +302,13 @@
   function seasonMeta(s) {
     var i = seasonIdx(s.t), n = SEASONS.length;
     var left = CFG.SEASON_TICKS - (s.t % CFG.SEASON_TICKS);
+    /* ⚠️ 这里也要并进暖石顶回（2026-09-30）：卡片上写的是「这一季深海藻场产出 ×N」，
+     *    烧暖石时玩家实际享受到的已经是 seasonMul(s, WARM_RELIEF)，报不带 relief 的那个数
+     *    就是同一个「面板撒谎」——拨开关卡片数字不变，玩家以为开关没用。
+     *    取 warmBurningNow（纯查询）而不是 warmRelief（有副作用，见上方那段注）。 */
+    var relief = warmBurningNow(s) ? CFG.WARM_RELIEF : 0;
     return {
-      idx: i, name: SEASONS[i].name, mult: seasonMul(s),
+      idx: i, name: SEASONS[i].name, mult: seasonMul(s, relief),
       left: Math.round(left / 60),                 // 换算成「潮日」让读数有单位
       next: SEASONS[(i + 1) % n].name,
       known: !!(SB.tech && s.techs && s.techs.calendar)
@@ -587,6 +592,10 @@
    *       而转一份要 0.06/秒 ⇒ 单个矿工**供不上一座炉子**，炉子会在暖石上长期卡着。 */
   function ironFlow(s, cold, dt) {
     if (!(s.lvl.furnace > 0)) return 0;
+    /* 炉子开关（2026-09-30）：`=== false` 而不是 `!s.furnaceOn`——老档没有这个键，
+     *   用 `!` 会把 undefined 当「关」⇒ 读档后炉子静默停产，玩家只会看到精铁不涨。
+     *   tick（结算）与 rates（面板）都汇在这一处，门加这里两条路天然同源。 */
+    if (s.furnaceOn === false) return 0;
     var T = SB.tech ? SB.tech.mul(s) : null;
     var rate = UNIT.iron * (T ? T.smelt : 1) * cold * (T ? T.craft : 1);
     /* 两种原料取**较小**的库存：哪样先见底就按哪样停，不会把一样抽成负数再白吃另一样。 */
@@ -995,8 +1004,15 @@
      *    写成 `+ (cv ? cv.kelp : 0)` 看起来对，但空对象是 truthy ⇒ cv.kelp 是 undefined
      *    ⇒ 1.375 + undefined = NaN ⇒ 面板上藻食速率直接显示 NaN，整条食物线没人看得懂。
      *    这类断链不抛错、不报警，只能靠 e2e 里「rates() 全项都有穷」那一条兜住。 */
+    /* ⚠️ 暖石顶回（relief）必须并进面板路（2026-09-30 补）。
+     *    tick 走 foodRate(s, cold, warmRelief(s, dt))，面板原先走 foodRate(s, cold) ⇒
+     *    拨开关时顶栏速率纹丝不动，而实账真的在顶 —— 又一个「面板撒谎」。
+     *    用户报的原话就是症状：「开关暖石产出完全没区别」。
+     *    这里取 warmBurningNow（纯查询、无副作用）算 relief，**不能调 warmRelief**
+     *    （它有副作用：会烧石、会置 warmBurning ⇒ 渲染路径里调 = 玩家盯着面板就偷烧一 tick）。 */
+    var relief = warmBurningNow(s) ? CFG.WARM_RELIEF : 0;
     return {
-      kelp:    foodRate(s, cold) - foodUse(s) + (cv ? (cv.kelp || 0) : 0),
+      kelp:    foodRate(s, cold, relief) - foodUse(s) + (cv ? (cv.kelp || 0) : 0),
       /* ⚠️ 2026-09-27 删骨材：这一项原先还减 `bc`（工坊把珊瑚转骨材那一笔）。
        *    那条加工线整体作废 ⇒ 珊瑚再没有加工消耗，净额就是采集者的产出。
        *    ⚠️ 别顺手把变量 `bc` 加回来——它已经被一起删了，加回引用会直接 ReferenceError。 */

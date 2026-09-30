@@ -4,7 +4,7 @@
 <meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
 <title>天壳 · SHELLBREAK</title>
-<link rel="stylesheet" href="css/main.css?v=92" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=95" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="wrap" data-page-node-id="R3GyesNvCCnIGdybfi94vw">
@@ -84,26 +84,26 @@
 <div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=92"></script>
+<script src="src/config.js?v=96"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=92"></script>
-<script src="src/tech.js?v=92"></script>
+<script src="src/techs.js?v=96"></script>
+<script src="src/tech.js?v=94"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics.js?v=92"></script>
-<script src="src/state.js?v=92"></script>
-<script src="src/workshop.js?v=92"></script>
-<script src="src/wonder.js?v=92"></script>
-<script src="src/economy.js?v=92"></script>
-<script src="src/shell.js?v=92"></script>
-<script src="src/habitat.js?v=92"></script>
-<script src="src/folk.js?v=92"></script>
-<script src="src/prestige.js?v=92"></script>
-<script src="src/ui/render.js?v=92"></script>
-<script src="src/game.js?v=92"></script>
-<script src="src/ui/input.js?v=92"></script>
-<script src="src/main.js?v=92"></script>
+<script src="src/civics.js?v=94"></script>
+<script src="src/state.js?v=96"></script>
+<script src="src/workshop.js?v=94"></script>
+<script src="src/wonder.js?v=94"></script>
+<script src="src/economy.js?v=96"></script>
+<script src="src/shell.js?v=94"></script>
+<script src="src/habitat.js?v=94"></script>
+<script src="src/folk.js?v=96"></script>
+<script src="src/prestige.js?v=94"></script>
+<script src="src/ui/render.js?v=96"></script>
+<script src="src/game.js?v=94"></script>
+<script src="src/ui/input.js?v=96"></script>
+<script src="src/main.js?v=94"></script>
 </body>
 </html>

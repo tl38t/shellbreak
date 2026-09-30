@@ -73,6 +73,8 @@ function makeDoc() {
     _els: els,
     _q: q,
     readyState: 'complete',
+    body: mkEl('body'),   /* 2026-09-30：render.bodyModalClass 读写 document.body 的 modal-open 类，
+                           * 桩上必须真有 body 才能断言「弹窗开着禁点 tab / 关窗后恢复」。 */
     getElementById(id) { if (!els.has(id)) els.set(id, mkEl(id)); return els.get(id); },
     createElement(tag) { const e = mkEl('new-' + tag); e.tag = tag; return e; },
     /* ⚠️ 按选择器记忆化：真实 DOM 里 `querySelectorAll('.tab')` 每次都返回**同一批对象**，
@@ -305,6 +307,22 @@ console.log('\n=== 开局解锁链 ===');
     !clickJob('coralwright', 1) && s.jobs.coralwright === 0 && SB.folk.idle(s) === 1,
     'idle=' + SB.folk.idle(s) + ' coralwright=' + s.jobs.coralwright +
     ' unlocked=' + SB.folk.jobUnlocked(s, 'coralwright'));
+  /* ⚠️ 商人必须也吃人口（2026-09-30 修）：曾经 `merchant` 漏在 folk.IDS 之外 ⇒ sum/idle
+   *   看不见它 ⇒ 商人可以无限雇、死亡也收不回。这条把「雇一个商人 = 占掉一份闲置」钉死，
+   *   并验证「闲置池空了之后商人也被拒」——这正是原来那个 bug 的反面。 */
+  {
+    const mj = SB.state.freshRun(false);
+    mj.pop = 2; mj.civics = { trade: true };   // 对外贸易：解锁商人
+    check('商人也吃人口（+1 商人 ⇒ 闲置 −1）',
+      SB.folk.assign(mj, 'merchant', 1) === true && mj.jobs.merchant === 1 &&
+      SB.folk.idle(mj) === 1,
+      'merchant=' + mj.jobs.merchant + ' idle=' + SB.folk.idle(mj));
+    check('闲置池空后商人雇不动（不再是无限雇）',
+      SB.folk.assign(mj, 'merchant', 1) === true &&      // 第 2 个：idle 1 → 0
+      SB.folk.assign(mj, 'merchant', 1) === false &&     // 第 3 个：被拒
+      mj.jobs.merchant === 2 && SB.folk.idle(mj) === 0,
+      'merchant=' + mj.jobs.merchant + ' idle=' + SB.folk.idle(mj));
+  }
   /* 手动采集是撤回「凿珊瑚」免费之后开局的唯一材料路径，所以这条断言钉的是
    * **玩家真能靠手点走通**，不是「理论上有一条路」。走 input.js 那条真实点击路径
    * （点 `data-gather=coral`），量从 SB.GATHER 读、造价从 costOf 读，都不写死。
@@ -772,10 +790,17 @@ console.log('\n=== 纪元三 · economy 接线 ===');
   check('城堡升级：hall=20 加成封顶 1000（getLimitedDR 渐近）', Math.abs((hall20 - baseStone) - 1000) < 1e-6,
     'Δ=' + (hall20 - baseStone));
 
-  /* ④ 资源可见性（2026-09-30）：解锁前不显示，工艺资源独立分区。 */
-  const core = ['kelp', 'coral', 'stone', 'silt', 'warmstone', 'iron'];
-  const hiddenCore = core.filter(r => !SB.economy.resUnlocked(fr, r));
-  check('核心资源开局即显示（无 unlock）', hiddenCore.length === 0, '被隐藏=' + hiddenCore.join(','));
+  /* ④ 资源可见性（2026-09-30）：解锁前不显示，工艺资源独立分区。
+   *    材料线四条也有门（2026-09-30 用户报「开局不该看到石头/暖石/精铁/金属」）：
+   *    石头=「采石」科技 / 金属+暖石=「采矿」科技 / 精铁=热泉炉建成（唯一转换口）。
+   *    开局常显的只剩藻食/珊瑚两条（采集者/珊瑚匠开局即岗）。 */
+  const always = ['kelp', 'coral'];
+  const hiddenAlways = always.filter(r => !SB.economy.resUnlocked(fr, r));
+  check('开局双资源（藻食/珊瑚）始终显示', hiddenAlways.length === 0, '被隐藏=' + hiddenAlways.join(','));
+  const matGated = ['stone', 'silt', 'warmstone', 'iron'];
+  const matLeak = matGated.filter(r => SB.economy.resUnlocked(fr, r));
+  check('材料线四资源解锁前隐藏（石=采石/金属暖石=采矿/精铁=热泉炉）', matLeak.length === 0,
+    '误显示=' + matLeak.join(','));
   const craftHidden = ['stoneBeam', 'ironBracket', 'rope', 'hardCoral', 'steel', 'hydro', 'steelPart']
     .filter(r => SB.economy.resUnlocked(fr, r));
   check('工艺资源解锁前全部隐藏', craftHidden.length === 0, '误显示=' + craftHidden.join(','));
@@ -790,13 +815,35 @@ console.log('\n=== 纪元三 · economy 接线 ===');
   fr.techs = fr.techs || {}; fr.techs.metalrefine = true;
   check('研究金属精炼 ⇒ 钢/热液能/钢制零件显示',
     SB.economy.resUnlocked(fr, 'steel') && SB.economy.resUnlocked(fr, 'hydro') && SB.economy.resUnlocked(fr, 'steelPart'));
-  fr.techs.scholarT = true; fr.lvl.temple = 1; fr.jobs = { merchant: 1 }; fr.civics = { theology: true };
+  fr.techs.quarry = true; fr.techs.mining = true; fr.lvl = fr.lvl || {}; fr.lvl.furnace = 1;
+  check('采石/采矿研究 + 热泉炉建成 ⇒ 石头/金属/暖石/精铁显示',
+    SB.economy.resUnlocked(fr, 'stone') && SB.economy.resUnlocked(fr, 'silt') &&
+    SB.economy.resUnlocked(fr, 'warmstone') && SB.economy.resUnlocked(fr, 'iron'));
+  fr.techs.writing = true; fr.techs.scholarT = true; fr.lvl.temple = 1; fr.jobs = { merchant: 1 }; fr.civics = { theology: true };
   check('科技/神庙/商人/神学解锁后对应资源显示',
     SB.economy.resUnlocked(fr, 'science') && SB.economy.resUnlocked(fr, 'culture') &&
     SB.economy.resUnlocked(fr, 'luxury') && SB.economy.resUnlocked(fr, 'faith'));
   const craftKind = ['stoneBeam', 'ironBracket', 'rope', 'hardCoral', 'steel', 'hydro', 'steelPart']
     .filter(r => SB.RESS[r].kind !== 'craft');
   check('7 个工艺资源均标 kind:craft', craftKind.length === 0, '未标=' + craftKind.join(','));
+
+  /* ⑤ 热泉炉开关（2026-09-30）：默认开（freshRun 的 state 自带 furnaceOn:true），
+   *   拨停后 rates.iron（面板路）与 tick（结算路）都归 0 —— 两条路汇在 ironFlow 一处，
+   *   门加那里天然同源，这里两条各测一次。老档无此键（undefined ≠ false）= 开，同默认档。 */
+  const fu = SB.state.freshRun(false);
+  fu.lvl.furnace = 1; fu.res.silt = 50; fu.res.warmstone = 50;
+  check('热泉炉默认开 ⇒ rates.iron > 0', SB.economy.rates(fu).iron > 0,
+    'iron rate=' + SB.economy.rates(fu).iron);
+  fu.furnaceOn = false;
+  check('热泉炉拨停 ⇒ rates.iron = 0 且 tick 不再产精铁',
+    SB.economy.rates(fu).iron === 0,
+    'iron rate=' + SB.economy.rates(fu).iron);
+  {
+    const before = fu.res.iron || 0;
+    SB.economy.tick(fu, 1, function () {});
+    check('拨停后 tick 一秒精铁零进项', (fu.res.iron || 0) === before,
+      'iron ' + before + ' → ' + fu.res.iron);
+  }
 }
 
 /* ---------------- 建筑解锁来源（静态自查）----------------
@@ -932,8 +979,8 @@ console.log('\n=== 住房两档（石工 → 石屋）===');
     if (perHouse < perNest || Math.abs(perHouse / perNest - 2) > 0.1)
       houseRatioBad = `第${n}级 巢${perNest} vs 屋${perHouse}（比值 ${(perHouse / perNest).toFixed(3)}）`;
   }
-  check('住房两档同等级比：石屋每人口成本恒为礁口巢的 2 倍（ratio 2.5 后无交叉点）',
-    !houseRatioBad, houseRatioBad || '巢 5.00 / 屋 10.00 珊瑚每人口，逐级恒 2 倍');
+  check('住房两档同等级比：石屋每人口成本恒为礁口巢的 4 倍（ratio 2.5 后无交叉点）',
+    !houseRatioBad, houseRatioBad || '巢 2.50 / 屋 10.00 珊瑚每人口，逐级恒 4 倍');
 }
 
 /* ---------------- 食物三旋钮（产 / 增 / 省 / 储）---------------- */
@@ -2043,7 +2090,7 @@ console.log('\n=== 市政 ===');
   gi.lvl.hall = 2; gi.jobs.scribe = 2;
   SB.economy.tick(gi, 1, noop);
   /* ⚠️ 藻食那条是**净**的： tick 先 addRes(+5)，同一趟再减口粮消耗。
-   *    pop=1 时正好吃掉 0.30（FOOD_PER），所以落点是 4.70 而不是 5。
+   *    pop=1 时正好吃掉 1.50（FOOD_PER，2026-09-30 自 0.30 放大到 1.50），所以落点是 3.50 而不是 5。
    *    写成 5 就说明你没读 economy.tick 的顺序，会把「扣口粮」这条误判成 bug。 */
   check('tick 结出市政点、藻食 +5 净、科技 +0.3 三份',
     Math.abs(gi.res.culture - (2 * SB.UNIT.culture + 2 * SB.CFG.CIVIC.HALL_RATE)) < 1e-9 &&
@@ -2072,6 +2119,13 @@ console.log('\n=== 市政 ===');
     SB.JOBS.some(j => j.id === 'scribe') &&
     SB.folk.IDS.indexOf('scribe') >= 0 &&
     SB.state.freshRun(false).jobs.scribe === 0);
+  /* ⚠️ 2026-09-30：folk.IDS 已改为**从 SB.JOBS 派生**（商人漏抄那次的根因修复）。
+   *   这条把「两份表逐项一致（含顺序）」焊死 —— 以后加职业只需改 config.JOBS；
+   *   派生一旦被破坏（比如有人又手抄回去）立刻变红。 */
+  check('folk.IDS 与 config.JOBS 逐项一致（含顺序）',
+    SB.folk.IDS.length === SB.JOBS.length &&
+    SB.JOBS.every((j, i) => SB.folk.IDS[i] === j.id),
+    'IDS=' + SB.folk.IDS.join(',') + ' / JOBS=' + SB.JOBS.map(j => j.id).join(','));
   check('书手由「石工」解锁（与议事厅同一个科技）',
     SB.folk.jobTechOf('scribe') === 'masonry', '→ ' + SB.folk.jobTechOf('scribe'));
 
@@ -2596,6 +2650,21 @@ console.log('\n=== 存档迁移 ===');
   check('旧档 null 值被消毒为 0', m.lvl.weir === 0 && m.lvl.nest === 2);
   /* 与 lvl 同类：新职业在旧档里不存在，缺键会顺着 `undefined * UNIT.coral` 变 NaN。 */
   check('旧档缺失的新职业键补零', m.jobs.coralwright === 0, 'coralwright=' + m.jobs.coralwright);
+  /* ⚠️ 2026-09-30：被「商人不吃人口」污染过的档，迁移时必须把超编的职业收回来，
+   *   否则 UI 会打出「闲置 −99」这种自相矛盾的读数。回收从尾部（最新职业）往前，
+   *   把商人这类新增职业先退掉，保住采集者/农民。 */
+  {
+    const polluted = SB.state.migrateRun({
+      pop: 34,
+      jobs: { gather: 16, coralwright: 6, quarrier: 4, miner: 4,
+              craft: 1, scholar: 1, scribe: 1, merchant: 100 }
+    });
+    const jsum = SB.folk.IDS.reduce((n, id) => n + (polluted.jobs[id] || 0), 0);
+    check('迁移收回超编职业：jobs 总和 ≤ pop（且保住农民）',
+      jsum <= polluted.pop && polluted.jobs.gather === 16 && polluted.jobs.merchant === 1,
+      'sum=' + jsum + ' pop=' + polluted.pop + ' gather=' + polluted.jobs.gather +
+      ' merchant=' + polluted.jobs.merchant);
+  }
   check('旧档已有进度原样保留',
     m.lvl.kelp === 35 && m.res.coral === 300 && m.pop === 9 && m.t === 7200 && m.peak === 9);
   check('迁移后 lvlSum 无 NaN 污染', SB.economy.lvlSum(m) === 38, 'lvlSum=' + SB.economy.lvlSum(m));
@@ -2743,6 +2812,11 @@ console.log('\n=== 科研面板开门 ===');
   check('叙事窗只播一次（记账后才弹，重跑 pump 不重播）',
     SB.tech.popupSeen(s) === true && (SB.game.pumpTech(s, noop), true));
   check('弹窗给出「进入科技页」的动作', typeof doc.getElementById('mStoryOk').onclick === 'function');
+  /* 2026-09-30 玩家反馈「弹窗一出人口进度条就停了」：根因是全屏覆盖层把 tab 栏连
+   * #growbar 一起盖住（循环没停，纯视觉）。修法 = tab 栏抬到覆盖层之上（css z-index:60）
+   * + body.modal-open 时禁点 tab。这两条断言钉 JS 侧的类开关；CSS 侧靠 headless 截图取证。 */
+  check('弹窗开着时 body.modal-open 已置位（tab 栏可见但禁点，人口条不再被误读为停摆）',
+    doc.body.classList.contains('modal-open') === true);
 
   /* 开门那一刻，攒下的尤里卡一起摊开。 */
   const lg0 = g('log');
@@ -2765,6 +2839,10 @@ console.log('\n=== 科研面板开门 ===');
 
   doc.getElementById('mStoryOk').onclick();
   check('关掉弹窗即翻到科技页', SB.game.getTab() === 'tech', 'tab=' + SB.game.getTab());
+  /* 反向对照：关窗必须把 modal-open 摘干净 —— 残留会让 tab 永久 pointer-events:none。
+   * （离线闸门的 OK 回调不走 hideModal，是这条断言要抓的另一处出口。） */
+  check('关窗后 body.modal-open 已摘除（tab 恢复可点，不残留）',
+    doc.body.classList.contains('modal-open') === false);
   const paneT = g('pane-tech'), at = paneT.indexOf('id="techrow-writing"');
   check('科技页展开在结绳那一项上，且它是已掌握态',
     at !== -1 && /已掌握/.test(paneT.slice(at, at + 400)),
@@ -2862,8 +2940,12 @@ console.log('\n=== 历法读数与暖石开关 ===');
    *    ⇒ `0 != null` 为真 ⇒ 历法那 0.25 被整个吞掉。
    *    症状：面板走 rates()（不传参）读得到历法、tick 走 foodRate(s, cold, 0) 读不到，
    *    实测 面板 0.196875 / 实账 0.112500，**面板撒谎 1.75 倍**，且不报错、只偏数值。
-   *    ⇒ 这条不变式是这类 bug 的唯一防线：rates() 的每一项必须与 tick 同项在
-   *      「不烧暖石」时逐位相等。改 seasonMul / foodRate / tick 任何一处都要看它。 */
+   *    ⇒ 这条不变式是这类 bug 的唯一防线：rates() 的每一项必须与 tick 同项逐位相等。
+   *      ⚠️ 2026-09-30 补：它原先只写了「**不烧暖石**时」，正好漏掉 relief≠0 那一档 ——
+   *        `rates().kelp` 漏传 relief 就是这么静默穿过整轮回归的（用户报的原话：
+   *        「开关暖石产出完全没区别」）。relief≠0 那一档的钉子见下面那段
+   *        「烧暖石时顶栏藻食速率必须变（rates().kelp 并进 relief）」。
+   *      改 seasonMul / foodRate / tick / rates 任何一处都要把两档（relief=0 / ≠0）都看一遍。 */
   {
     /* 探的是季节乘区本身，不是 rates().kelp —— 后者是**净额**（已经减掉口粮消耗），
      * 拿它跟毛额比会得到「面板 -0.1875 / 实账 0.1125」这种假红。 */
@@ -2881,19 +2963,20 @@ console.log('\n=== 历法读数与暖石开关 ===');
     check('未掌握历法：季节乘区就是裸倍率（两条路都对）',
       Math.abs(SB.economy.seasonMul(ss, 0) - bare) < 1e-12,
       'seasonMul=' + SB.economy.seasonMul(ss, 0) + ' SEASONS=' + bare);
-    /* ② 掌握历法后，tick 那条路**也必须**读到收窄——旧代码正是在这一步返 0.25。 */
+    /* ② 2026-09-30 起历法**只**给信息型奖励，不再收窄产量：掌握历法后 tick 那条路的
+     *   季节乘区必须仍等于裸倍率，不能因为掌握了历法而变化（防有人把 eff.season 加回来）。 */
     ss.techs.calendar = true;
     const withTech = SB.economy.seasonMul(ss, 0);
-    check('掌握历法：tick 那条路的季节乘区确实收窄了（不是只改面板读数）',
-      withTech > bare + 1e-9 &&
+    check('历法只给信息型奖励、不收窄产量（掌握历法后季节乘区仍 == 裸倍率）',
+      Math.abs(withTech - bare) < 1e-12 &&
       Math.abs(withTech - SB.economy.seasonMul(ss)) < 1e-12,
-      '寒流季 ' + bare + ' → ' + withTech.toFixed(6) + '（面板同值 '
-      + SB.economy.seasonMul(ss).toFixed(6) + '）');
-    /* ③ 两条路是**相加**不是互斥：烧暖石要在历法的基础上再顶一层。 */
+      '寒流季裸倍率 ' + bare + ' / 掌握历法后 ' + withTech.toFixed(6));
+    /* ③ 暖石顶回减产：seasonMul 里 warmRelief 与 tech 收窄是**相加**不是互斥
+     *   （历法已不再参与，这里验证暖石独立在裸倍率之上再顶一层）。 */
     const bothCh = SB.economy.seasonMul(ss, SB.CFG.WARM_RELIEF);
-    check('暖石与历法相加而非互斥（烧暖石要在历法之上再顶一层）',
+    check('暖石顶回减产（warmRelief 与 tech 收窄相加而非互斥，历法已不参与）',
       bothCh > withTech + 1e-9 && bothCh <= 1,
-      '历法 ' + withTech.toFixed(6) + ' → 历法+暖石 ' + bothCh.toFixed(6));
+      '裸倍率 ' + withTech.toFixed(6) + ' → 暖石顶回 ' + bothCh.toFixed(6));
   }
 
   /* 掌握之后同一格要换成有内容的读数（换的是文案，不是换一格）。
@@ -3007,6 +3090,41 @@ console.log('\n=== 历法读数与暖石开关 ===');
   check('暖石够烧：rates 扣掉那一口，与 warmRelief 同步',
     Math.abs(netFull - (prod - SB.CFG.WARM_RATE)) < 1e-9 && SB.economy.warmRelief(dryT, 1) > 0,
     'rates ' + netFull.toFixed(4) + ' / 期望 ' + (prod - SB.CFG.WARM_RATE).toFixed(4));
+
+  /* ⚠️ 面板 == 实账：「**烧暖石**」那一档（2026-09-30 补，用户报「开关暖石产出完全没区别」）。
+   *    上面那条不变式（见「③ 面板 == 实账」）只覆盖「**不烧暖石**」（relief=0），
+   *    于是 `rates().kelp` 漏传 relief 这件事静默穿过了整轮回归 ——
+   *    症状正是顶栏速率拨开关纹丝不动、而 tick 走 foodRate(s, cold, warm) 真的在顶。
+   *    ⚠️ 两条读数路径都要查：「顶栏速率」rates().kelp、「火山卡读数」seasonMeta().mult。
+   *    判据取 warmBurningNow（纯查询、无副作用）而不是 warmRelief（它会烧石+置 warmBurning，
+   *    渲染路径里调 = 玩家盯着面板就偷烧一 tick，见 economy.js warmRelief 上方那段注）。 */
+  {
+    const bal = SB.state.freshRun(false);
+    bal.lvl.kelp = 10; bal.jobs.gather = 3; bal.res.kelp = 1e6;
+    const bi = SB.economy.seasonIdx(bal.t);
+    bal.t = (coldIdx - bi + SB.SEASONS.length) * SB.CFG.SEASON_TICKS;   // 推到惩罚季（寒流季）
+    bal.res.warmstone = 100;
+    bal.warmOn = false;
+    const offRate = SB.economy.rates(bal).kelp;
+    const offMult = SB.economy.seasonMeta(bal).mult;
+    bal.warmOn = true;
+    const onRate = SB.economy.rates(bal).kelp;
+    const onMult = SB.economy.seasonMeta(bal).mult;
+    check('烧暖石时顶栏藻食速率必须变（rates().kelp 并进 relief，不再是死数）',
+      onRate > offRate + 1e-9,
+      '关 ' + offRate.toFixed(4) + ' → 开 ' + onRate.toFixed(4) + ' /秒');
+    check('烧暖石时面板速率与 tick 同项逐位相等',
+      Math.abs(onRate - (SB.economy.foodRate(bal, 1, SB.CFG.WARM_RELIEF) - SB.economy.foodUse(bal))) < 1e-12,
+      '面板 ' + onRate.toFixed(6) + ' / 结算 ' +
+      (SB.economy.foodRate(bal, 1, SB.CFG.WARM_RELIEF) - SB.economy.foodUse(bal)).toFixed(6));
+    check('烧暖石时火山卡读数也含 relief（seasonMeta 与实账同源）',
+      Math.abs(onMult - SB.economy.seasonMul(bal, SB.CFG.WARM_RELIEF)) < 1e-12 && onMult > offMult + 1e-9,
+      '关 ' + offMult.toFixed(4) + ' → 开 ' + onMult.toFixed(4));
+    bal.warmOn = false;
+    check('拨回关：两条读数都回落到不带 relief 的那一档（开关是可逆的读数）',
+      Math.abs(SB.economy.rates(bal).kelp - offRate) < 1e-12 &&
+      Math.abs(SB.economy.seasonMeta(bal).mult - offMult) < 1e-12, '');
+  }
 
   /* 非惩罚季不烧：开关开着也不该白白扔暖石。 */
   const warmT = SB.state.freshRun(false);

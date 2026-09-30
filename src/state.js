@@ -121,6 +121,10 @@
        * warmBurning 是**每帧重算的瞬时标记**，不进存档（见 economy.tick 第 5 步的清位），
        * 存进去的话读档那一刻 UI 会把它当真。 */
       warmOn: false, warmBurning: false,
+      /* 热泉炉开关（2026-09-30 用户问「没做开关吗」补上）：炉子建成即默认开（它产精铁，
+       *   玩家建它就是为了产），拨「停」省下金属/暖石。判据写 `=== false`：
+       *   老档没有这个键 = undefined ≠ false ⇒ 视为开，不会静默停产。 */
+      furnaceOn: true,
       /* 冰封期状态（2026-09-27 新增：从「壳≤25% 恒真」改成「寒流季掷骰」）。
        * `frozen` 是**本季是否冰封**，换季那一刻由 economy.seasonTurn 写入；
        * `_seasonIdx` 是换季检测的游标（记住上次是哪一季）。
@@ -280,6 +284,21 @@
     out.res = fixTable(raw.res, base.res);
     out.lvl = fixTable(raw.lvl, base.lvl);
     out.jobs = fixTable(raw.jobs, base.jobs);
+    /* ⚠️ 职业总和必须 ≤ pop（folk 的恒等式）。2026-09-30 之前 `merchant` 漏在 folk.IDS 之外，
+     *    商人不计入 sum ⇒ 可以被**无限雇**，被污染的档里 jobs 总和会远超 pop
+     *    （玩家实测：族民 34、上限 35，却挂着 100 名商人）。folk.IDS 已改为从 JOBS 派生，
+     *    这里负责把**已经污染的老档**收回来，否则 UI 会打出「闲置 −99」这种自相矛盾的读数。
+     * 回收顺序 = **从尾部职业往前**（越新的职业越是超额来源，且商人在贸易落地前近乎无用）——
+     *    这样保住采集者/农民这些人命关天的老职业，而不是照 reconcile「从最大的退」把农民一起切掉。 */
+    var _jids = (SB.JOBS || []).map(function (j) { return j.id; });
+    var _jsum = 0, _ji;
+    for (_ji = 0; _ji < _jids.length; _ji++) _jsum += (out.jobs[_jids[_ji]] || 0);
+    var _jover = _jsum - out.pop;
+    for (_ji = _jids.length - 1; _ji >= 0 && _jover > 0; _ji--) {
+      var _jid = _jids[_ji], _jv = out.jobs[_jid] || 0;
+      var _jcut = Math.min(_jv, _jover);
+      out.jobs[_jid] = _jv - _jcut; _jover -= _jcut;
+    }
     /* 市政台账加固。⚠️ 这里**不能**用上面的 fixTable：那是按 `ref` 的键遍历的，
      *    而 base.civics 是空表 `{}` ⇒ 遍历出空对象 ⇒ **所有已完成的市政被清空**，
      *    症状是「刷新之后市政树重置了，政体却还在」（政体/政策卡是标量、走的是

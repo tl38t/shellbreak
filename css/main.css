@@ -39,7 +39,13 @@ h1 small{font-size:12px;color:var(--dim);letter-spacing:0}
 .shellfill.cold{background:linear-gradient(90deg,#7e5cff,#a78bfa)}
 .shellbar{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}
 .coldbadge{color:var(--violet);font-weight:700}
-.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+/* ⚠️ 2026-09-30 修复：弹窗（.modal z-index:50 全屏覆盖层）会把顶部 tab 栏整块盖住，
+ * 而人口生育进度条 #growbar 就贴在「族民」tab 底边 —— 弹窗一开玩家就看不见它在爬，
+ * 误以为「获得人口的进度条停了」（实际主循环照常跑，只是被黑幕挡住）。
+ * 修法：把 .tabs 抬到覆盖层之上，弹窗期间进度条仍可见；同时禁用 tab 点击
+ * （body.modal-open 时 pointer-events:none），保持弹窗的交互独占，不让玩家在弹窗背后切页。 */
+.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;position:relative;z-index:60}
+body.modal-open .tabs{pointer-events:none}
 .tab{background:var(--panel2);border:1px solid var(--line);color:var(--dim);padding:6px 13px;border-radius:7px;cursor:pointer;font-size:13px}
 .tab.on{background:#123a52;color:var(--cyan);border-color:var(--cyan)}
 /* 未开启的 tab（现在的用法只有「科技」，门 = 建成 5 座深海藻场）。
