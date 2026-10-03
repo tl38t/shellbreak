@@ -1324,10 +1324,15 @@
     el('breakHint').textContent = ready ? '壳已归零——凿下去。'
       : s.shell > 0 ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。'
       : '冰壳停住了：需要建成「破冰祭坛」并供上地热才能凿穿。';
-    /* 重置按钮文案随「是否建立过宗教」翻转：宗教前是「重开本周目」，
-     * 宗教后（轮回系统解锁）改叫「轮回」——用户 2026-09-29 规格。 */
+    /* 重置按钮文案随「**当局**是否建立宗教」翻转：本局还没建立宗教 ⇒「重开本周目」，
+     * 建立了（玩家给它起了名）⇒「轮回」——2026-09-29 规格。
+     * ⚠️ 2026-10-03 由 `meta().religionSeen` 改成 `SB.prestige.religionEstablished(s)`。
+     *   旧写法读的是**永久**开关，于是「早前某周目建过宗教 / 旧档迁移补发」之后，
+     *   新周目里神学被重置、宗教名也清了，底栏**却已经写「轮回」**（用户报：「这里还没研究
+     *   神学怎么就是轮回了？」）。文案跟当局，机制（发点 / 商店解锁）仍跟永久开关 —— 分工见
+     *   prestige.religionEstablished 的注释，不要在这里再写第二份判据。 */
     var rb = el('btnReset');
-    if (rb) rb.textContent = meta().religionSeen ? '轮回' : '重开本周目';
+    if (rb) rb.textContent = SB.prestige.religionEstablished(s) ? '轮回' : '重开本周目';
   }
 
   function clock() {
@@ -1425,29 +1430,38 @@
     renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderIdleTag();
   }
 
+  /* 轮回结算面板（2026-10-02 重设）：契约与 prestige.breakReport 对齐 ——
+   *   r: { P, popScore, buildingScore, developmentScore, q, shellFactor, tidePoints,
+   *        relicTourism, oldArtwork, oldTideStele, locked }。
+   * ⚠️ 不再有「人口门槛 / POP_GATE / 破层级数」那套旧口径：资格门 = 本局《神学》（由 doBreak 判定，
+   *   未达则 r.locked=true、tidePoints=0）。面板只负责把报告渲染出来，判据不在这。 */
   function showBreakPanel(r) {
     var m = meta();
     var box = el('modalBox');
+    var rows =
+      '<div class="kv"><span>峰值族民 P</span><b>' + (r.P || 0) + '</b></div>' +
+      '<div class="kv"><span>人口分</span><b>' + (r.popScore || 0).toFixed(1) + '</b></div>' +
+      '<div class="kv"><span>建筑分（按纪元加权）</span><b>' + (r.buildingScore || 0).toFixed(1) + '</b></div>' +
+      '<div class="kv"><span>总发展分</span><b>' + (r.developmentScore || 0).toFixed(1) + '</b></div>' +
+      '<div class="kv"><span>破壳进度</span><b>' + (r.q != null ? (r.q * 100).toFixed(0) : '0') + '%</b></div>' +
+      '<div class="kv" style="border:0;margin-top:8px"><span>获得轮回点</span><b style="color:var(--amber);font-size:17px">' + (r.tidePoints || 0).toFixed(2) + '</b></div>';
+    var extra = '';
+    if (r.relicTourism) extra += '<div class="note">新入藏奇观 ' + r.relicTourism + ' 座（每座 +1% 科技/市政获取）</div>';
+    if (r.oldArtwork) extra += '<div class="note">转入旧日艺术品 ' + r.oldArtwork + ' 件（固定市政点/秒）</div>';
+    if (r.oldTideStele) extra += '<div class="note">转入旧日潮纹碑石 ' + r.oldTideStele + ' 件（固定科技点/秒）</div>';
+    var note = r.locked
+      ? '<div class="note" style="color:var(--red)">本局未达《神学》资格门，不发放轮回点、不解锁商店。</div>'
+      : (extra || '<div class="note">轮回点由「峰值族民 + 建筑纪元」决定；下一局继承轮回点、已购增益与旧日遗产账本。</div>');
     box.innerHTML =
       '<h3>冰壳裂开了</h3>' +
-      '<div class="kv"><span>最深破层</span><b>' + r.d + ' 层（冰封壳）</b></div>' +
-      '<div class="kv"><span>峰值族民 P</span><b>' + r.P + (r.gateMiss ? '（未达门槛 ' + CFG.TIDE.POP_GATE + '）' : '（门槛 ' + CFG.TIDE.POP_GATE + '）') + '</b></div>' +
-      '<div class="kv"><span>建筑存量 B</span><b>' + r.B + ' 级 → ' + r.bPart.toFixed(0) + ' 分</b></div>' +
-      '<div class="kv"><span>积累分 shellScore</span><b>' + r.shellScore + '</b></div>' +
-      '<div class="kv" style="border:0;margin-top:8px"><span>获得轮回点</span><b style="color:var(--amber);font-size:17px">' + r.tidePoints.toFixed(2) + '</b></div>' +
-      (r.gateMiss
-        ? '<div class="note" style="color:var(--red)">峰值族民没过 ' + CFG.TIDE.POP_GATE + '，这一局剥出的轮回点是 0——养人口比铺建筑更划算。</div>'
-        : '<div class="note">轮回点由峰值族民决定：这一局超门槛 ' + Math.max(0, r.P - CFG.TIDE.POP_GATE) + ' 人，建筑存量只折算成零头。</div>') +
-      (r.samsaraLocked
-        ? '<div class="note" style="color:var(--red)">轮回系统尚未开启（需先建立宗教）。这一局不发放轮回点。</div>'
-        : '') +
-      '<div class="note">下一局继承：轮回点、破层层级、已购增益、<b>科技记录</b>。清空：建筑、资源、族民。</div>' +
+      rows +
+      note +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
       '<button class="btn" id="mStay">留在这一局</button>' +
       '<button class="big" id="mNext">开始轮回</button></div>';
     el('modal').classList.remove('hidden'); bodyModalClass(true);
     el('mStay').onclick = function () { SB.game.stay(); };
-    el('mNext').textContent = m.religionSeen ? '开始轮回' : '重开本周目';
+    el('mNext').textContent = (m && m.religionSeen) ? '开始轮回' : '重开本周目';
     el('mNext').onclick = function () { SB.game.nextCycle(); };
   }
 
@@ -1626,7 +1640,7 @@
       var why = done ? null : SB.workshop.wonderBlocked(s, w.id);
       h += '<div class="row"' + (done ? ' data-owned="1"' : '') + '>' +
         '<div class="nm">' + w.name + (done ? ' <span class="tag ok">已建成</span>' : '') + '</div>' +
-        '<div class="ds">' + w.desc + '（成本 ' + SB.economy.costTxt(w.cost) + '）</div>' +
+        '<div class="ds">' + w.desc + '（成本 ' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) + '）</div>' +
         '<button class="btn' + (done || why ? '' : ' buy') + '" data-wonder="' + w.id + '"' +
         (done || why ? ' disabled' : '') + ' title="' + (why || '') + '">' +
         (done ? '已建成' : why ? (/^需要先/.test(why) ? '未解锁' : '建不起') : '建成') + '</button></div>';

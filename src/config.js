@@ -31,6 +31,9 @@
      *   旧代码里「轴 A 看壳厚、轴 B 看 t、两时段不重合」的那套论证整体作废
      *   （见 economy.warmRelief 上方那段注，已同步改写）。 */
     FREEZE_MAX: 0.33,     // 冰封期触发概率上限（壳见底时）
+    COLD_SEASON_MUL: 0.6,  // 冰封期资源产出倍率（base）。⚠️ 轮回商店「寒潮储备」在其上 +0.02/级。
+                           //   方案文档 L248 写「基础 0.25 → 0.33」，与现有 0.6 不一致；此处保留
+                           //   现有 0.6 以免静默改动全盘平衡，待用户拍板是否改回 0.25。
     FLOOR_AT: 0.25,       // 基础自动削壳停手线：卡在 25% 必须建祭坛才凿得穿。
                           // 判定必须用 <=，否则会卡在 25% 的死锁
 
@@ -79,6 +82,16 @@
     MIRACLE_BURN: 0.55,
     MIRACLE_ESCALATE: 0.35,  // 每升一级，燃料消耗再 +35%：堆祭坛不是免费的           // 每级每秒燃料消耗
     MIRACLE_START: 0.60,          // 每级烧掉前需要的启动燃料储备 × 等级
+
+    // ---- 天穹钻机（ERA5 破壳终章，2026-10-02 实装）----
+    // 基础自动削壳卡在 FLOOR_AT（25%）；祭坛因热泉井删除而恒 0，
+    // 凿穿最后 25% 的终章交给天穹钻机：建成后自动运转，吃共振钻头 + 热液能，破壳 100/s。
+    SKYDRILL_RATE: 100,         // 每秒削壳点数（不受系数缩放，终章一刀）
+    SKYDRILL_DRILL: 0.1,        // 每秒消耗的共振钻头（= 每 tick 0.1×dt；机器总设计待拍板前的占位速率）
+    SKYDRILL_HYDRO: 20,         // 每秒消耗的热液能
+    SKYDRILL_CIVIC: 100,        // 破壳完成后（奇观态）：每秒市政点 +100
+    SKYDRILL_HAPPY_RUN: 1,      // 运行态：幸福度 −1（机器轰鸣）
+    SKYDRILL_HAPPY_WONDER: 1,   // 破壳完成后（奇观态）：幸福度 +1
 
     // ---- 仓储（S2）----
     // 超上限的部分直接浪费。囤积不再是无收益的，玩家必须把产出导向消费。
@@ -166,7 +179,7 @@
      * 与 BURN / 地热产能 / 时长窗那批一起最后统一算。改动前勿当成既定设计。 */
     OFFLINE_MIN: 60,              // 间隙小于 1 分钟不补算，免得刷新一下就补一大截
     OFFLINE_CAP: 8 * 3600,        // 单次补算上限 8 小时（超出部分按 0 计）
-    OFFLINE_PERK_STEP: 0.5,       // 轮回点增益每级给上限 +50%（ perk.offline 暂未上架，值为 0）
+    OFFLINE_PERK_STEP: 0.25,      // 轮回商店「离潮计时」每级给单次离线上限 +25%（ perk.offline 由商店购买）
 
     // ---- 季节 ----
     /* 每季 = 100 潮日 × 60 tick = 600 秒。**1 潮日 = 6 秒**。
@@ -352,7 +365,18 @@
      * 【脚手架】工艺制品：硬化珊瑚 100 + 绳 100 → 1（天壳切削器的原料）。
      * 【两者都不给 CAP_BASE 键】与钢/钢制零件同口径 ⇒ capOf 恒 Infinity（无仓储上限）。 */
     titanium:   { name: '钛', short: '钛', kind: 'craft', unlock: { tech: 'physics' } },
-    scaffold:   { name: '脚手架', short: '架', kind: 'craft', unlock: { tech: 'physics' } }
+    scaffold:   { name: '脚手架', short: '架', kind: 'craft', unlock: { tech: 'physics' } },
+    /* ── ERA4 工艺制品（2026-10-01 用户设计稿）──
+     * 艺术品 / 潮纹记录：由《历史哲学》解锁的工艺制品（craft 表）。cost 用户拍定
+     * （艺术品 5000 市政+100 绳 / 潮纹记录 5000 科技+10 钢零件）。产出物当前无消费者
+     * （pending 重设计），按「工艺制品」占位，kind:'craft'、不给 CAP_BASE 键（无仓储上限）。 */
+    artwork:     { name: '艺术品', short: '艺', kind: 'craft', unlock: { civic: 'historiography' } },
+    tidalRecord: { name: '潮纹记录', short: '录', kind: 'craft', unlock: { civic: 'historiography' } },
+    /* ── ERA5（2026-10-02 实装）──
+     * 【共振钻头】由「天穹钻机」机器运行时消耗（每 tick 扣 0.1，见 wonder_skydrill 的机器逻辑占位）；
+     *   工艺制品，对标石梁/钢制零件口径：不给 CAP_BASE 键（capOf 恒 Infinity，无仓储上限）、
+     *   不给 UNIT 键（不按时产出，只能由工坊造）。unlock 挂在 shellgeo（天壳地质学，钻机的前置科技）。 */
+    resonantDrill: { name: '共振钻头', short: '钻', kind: 'craft', unlock: { tech: 'shellgeo' } }
   };
 
   /* ── 工艺制作配方（2026-09-27 用户拍）───────────────────────────────
@@ -418,7 +442,29 @@
      * 【去处】天壳切削器（奇观）吃掉 200 个；将来其它高价施工也可复用。 */
     { id: 'craft_scaffold', name: '脚手架', need: 'physics',
       in: { hardCoral: 100, rope: 100 }, out: 1, res: 'scaffold',
-      desc: '把硬化珊瑚与绳捆成作业面。天壳切削器的原料。' }
+      desc: '把硬化珊瑚与绳捆成作业面。天壳切削器的原料。' },
+
+    /* ── 工艺制品两件（2026-10-01 ERA4 · 历史哲学解锁）──
+     * 【解锁】走 needCivic（与奇观 needCivic 同构，见 workshop.craftBlocked）：
+     *   完成《历史哲学》前这两张配方整条锁住，避免「研究完了什么都没发生」那类静默断链。
+     *   ⚠️ 不写 need（tech id）—— craftBlocked 的 need 门只读 s.techs，写成科技 id 会永远造不出来。
+     * 【in 的量是设计稿提议值，时长核算未启动前先按此落地，待统一重做时再校准】：
+     *   · artwork：culture 5000 + rope 100；
+     *   · tidalRecord：science 5000 + steelPart 10。 */
+    { id: 'craft_artwork', name: '艺术品', needCivic: 'historiography',
+      in: { culture: 5000, rope: 100 }, out: 1, res: 'artwork',
+      desc: '把文明凝成可陈列的造物。历史哲学的造物之一。' },
+    { id: 'craft_tidal_record', name: '潮纹记录', needCivic: 'historiography',
+      in: { science: 5000, steelPart: 10 }, out: 1, res: 'tidalRecord',
+      desc: '把潮纹读成可传承的知识。历史哲学的造物之一。' },
+
+    /* ── ERA5 工艺制品（2026-10-02 实装）──
+     * 【共振钻头】天穹钻机机器运行时每 tick 消耗的耗材（wonder_skydrill 机器逻辑占位）。
+     *   对标石梁/钢制零件口径：不给 CAP_BASE 键（无仓储上限）、不给 UNIT 键（只能工坊造）。
+     *   need 指向 shellgeo（天壳地质学）—— 与 RESS.resonantDrill 的解锁轴一致（双写）。 */
+    { id: 'craft_drill', name: '共振钻头', need: 'shellgeo',
+      in: { steelPart: 10, titanium: 10, rope: 100 }, out: 1, res: 'resonantDrill',
+      desc: '把钢制零件、钛与绳锻成可以啃穿天壳的钻头。天穹钻机的耗材。' }
   ];
 
   /* ── 工艺升级项（2026-09-28 用户规格 · era2 第三层）───────────────
@@ -452,6 +498,21 @@
       capMul: 1.5,
       cost: { ironBracket: 50, rope: 50 },
       desc: '藻食上限 ×1.5' },
+    /* ── 压舱库 / 藻食库 扩容 II（2026-10-01 用户拍：放城堡科技解锁，成本对标猫国）──
+     * 形制与 I 同构：need=城堡(科技) 解锁门；capMul=1.5 与 I 的 1.5 **连乘** ⇒ 两档都装 ⇒ 整条容量 ×2.25。
+     * 成本对标猫国仓储乘区升级的「二阶」档：reinforcedBarns（铁 100 / 科技 800 / 梁 25 / 板 10）
+     *   较首档 stoneBarns（木 1000 / 矿 750 / 铁 50 / 科技 500）≈ 材料 2 倍 + 引入更高阶料。
+     * 本作升级只吃材料（不耗科技点），故把猫国「二阶多出的那笔科技闸门」折算成更高阶材料 hardCoral，
+     * 终值 ironBracket 100 + hardCoral 150（≈ I 的 3.5 倍、且改用 era3 高阶料，符合「城堡才解锁」档位）。
+     * ⚠️ 未设「需先装 I」的前置：与猫国各乘区升级相互独立同构；若要强制 II 依赖 I，需在 workshop.upgradeBlocked 加 reqUpg 判据。 */
+    { id: 'upg_ballast_2', name: '压舱库扩容 II', need: 'castle',
+      capMul: 1.5,
+      cost: { ironBracket: 100, hardCoral: 150 },
+      desc: '各材料仓储上限 再 ×1.5（与 I 叠加 ⇒ 合计 ×2.25，藻食除外）' },
+    { id: 'upg_kelpstore_2', name: '藻食库扩容 II', need: 'castle',
+      capMul: 1.5,
+      cost: { ironBracket: 100, hardCoral: 150 },
+      desc: '藻食上限 再 ×1.5（与 I 叠加 ⇒ 合计 ×2.25）' },
 
     /* ── ERA3 工艺升级项（2026-09-29 · 学徒制/金属精炼/教育/城堡/马镫 解锁）──
      * 【形制与 era2 两道扩容同构】need 字段是解锁门（科技只负责把它标成可研究），
@@ -509,7 +570,24 @@
     { id: 'upg_hppump', name: '高压气泵', need: 'thermo',
       hydroMul: 0.5,
       cost: { steelPart: 100, titanium: 100 },
-      desc: '热液汽轮机的热液能产出 +50%（hydroMul，与钢铁 100 + 钛 100 同成本）。' }
+      desc: '热液汽轮机的热液能产出 +50%（hydroMul，与钢铁 100 + 钛 100 同成本）。' },
+
+    /* ── ERA5 工艺升级三项（2026-10-02 实装）──
+     * 形制同 era3/era4：need 是解锁门（科技只标成可研究），效果键由 economy 各处读取。
+     * ⚠️【造价是提议值，未拍板】规格表没给这三项的造价，量级对齐 era4 顺延
+     *   （science 10万 + 高阶料 scaffold/steelPart/titanium），要调请拍。 */
+    { id: 'upg_invertbuild', name: '倒置工程学', need: 'shellgeo',
+      invertBuildSave: 0.20,
+      cost: { science: 100000, scaffold: 2000 },
+      desc: '倒置搭建的延伸：所有建筑造价 −20%（invertBuildSave，与议事厅/君主制/大交易所同乘区）。' },
+    { id: 'upg_thermrecover', name: '热回收改造', need: 'highthermo',
+      hydroBuildSave: 0.30,
+      cost: { science: 100000, steelPart: 300, titanium: 100 },
+      desc: '高压热机的余热回收：热液汽轮机造价 −30%（hydroBuildSave，仅限该建筑）。' },
+    { id: 'upg_wasteforge', name: '废钢锻造', need: 'highthermo',
+      steelBonus: 0.20, ironBonus: 0.20,
+      cost: { science: 120000, titanium: 100 },
+      desc: '把废钢重新锻入产线：精铁产出 +20%、钢产出 +20%（ironBonus / steelBonus）。' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
@@ -519,7 +597,7 @@
    * ⚠️ 第一座「海潮方碑」由**石工 masonry** 解锁（用户要的「第一个就让石工解锁」），
    *    成本以石梁为主 —— 这正是石梁的去处（用户口径「石梁暂时给海潮方碑做材料」）。 */
   var WONDERS = [
-    { id: 'wonder_tide_stele', name: '海潮方碑', need: 'masonry',
+    { id: 'wonder_tide_stele', name: '海潮方碑', era: 1, need: 'masonry',
       cost: { stoneBeam: 20, coral: 300 },
       /* craftRatio：加法叠进工艺制作效率（用户拍「加法」）。
        *  matMax：各**材料**仓储 +200。⚠️ 不含石梁——石梁无上限，加它没意义。 */
@@ -546,7 +624,7 @@
      *    奇观都不吃裸精铁，结构件全线回流进奇观；精铁只剩熔炉/铁制支架这条加工线在用。
      *    容量门槛从「精铁 500」转成「硬化珊瑚 50 ⇒ 5000 珊瑚」，靠珊瑚匠/点采即可，
      *    量级比之前低很多（不再是 CAP_BASE.iron 撞车那条）。 */
-    { id: 'wonder_great_lighthouse', name: '大灯塔', need: 'navigation',
+    { id: 'wonder_great_lighthouse', name: '大灯塔', era: 2, need: 'navigation',
       cost: { stoneBeam: 30, hardCoral: 50 },
       effect: { civic: 2, matMax: 60 },
       desc: '灯塔的高塔版本：每秒 +2 市政点，各材料仓储 +60（仓储量为灯塔之半，固定）。' },
@@ -575,7 +653,7 @@
      *     这条**不是 bug 而是量纲门槛**，已写进 `docs/JUDGMENTS.md` 待对账。
      *   ⚠️ 注意：大灯塔已于 2026-09-29 同步撤掉裸精铁（改吃 硬化珊瑚 50），
      *      era2 两座奇观现在都不吃裸精铁了。 */
-    { id: 'wonder_great_library', name: '大图书馆',
+    { id: 'wonder_great_library', name: '大图书馆', era: 2,
       cost: { stoneBeam: 50, ironBracket: 50, rope: 50 },
       effect: { libLvl: 3, grant: { science: 1000 } },
       desc: '图书馆的高塔版本：按效果视为图书馆 +3 级（不提高图书馆的建造成本），建成时一次性 +1000 科技点。' },
@@ -586,7 +664,7 @@
      *   的 +50%/+1000% 是三条独立乘区，落在 economy 矿工那两行。
      * 【cost 用户规格终值】500 石梁 + 200 铁制支架 + 50 钢制零件（钢制零件由金属精炼的工坊配方造）。
      *   need='education'（教育科技，与建筑侧 requiredTech 同一项，解锁权双写一致）。 */
-    { id: 'wonder_albada', name: '阿尔巴达热液大学', need: 'education',
+    { id: 'wonder_albada', name: '阿尔巴达热液大学', era: 3, need: 'education',
       cost: { stoneBeam: 500, ironBracket: 200, steelPart: 50 },
       effect: { minePop: true },
       desc: '热液大学的尖塔：矿场产出额外 +人口数%（金属与伴生暖石）。' },
@@ -599,11 +677,11 @@
      *     （「完成」= s.civics 里真值为 1 的条数，不是「已揭示」）。
      *   · luxPerPop：大巴扎——每名鲛人 +1% 奢侈品获取（乘在贸易供给 S 上，
      *     tick 与 rates 两处同式）。 */
-    { id: 'wonder_stt_abbey', name: '圣泰坦尼克修道院', needCivic: 'sovereign',
+    { id: 'wonder_stt_abbey', name: '圣泰坦尼克修道院', era: 3, needCivic: 'sovereign',
       cost: { stoneBeam: 300, hardCoral: 300 },
       effect: { faithPerCivic: 0.01 },
       desc: '信仰的里程碑：每研发完成一个市政，信仰产出 +1%。' },
-    { id: 'wonder_grand_bazaar', name: '大巴扎', needCivic: 'guild',
+    { id: 'wonder_grand_bazaar', name: '大巴扎', era: 3, needCivic: 'guild',
       cost: { rope: 500, ironBracket: 50, steel: 50 },
       effect: { luxPerPop: 0.01 },
       desc: '万商云集：每名鲛人 +1% 奢侈品获取。' },
@@ -616,14 +694,62 @@
      * 【天壳切削器】need=invert（倒置搭建）。效果 cutterMul：`x = 天壳观测站等级`（每级 +1%），
      *   同时作用**科技与市政**两条产出 ⇒ wonder.js 两个出口都要读它，少读一路就是「面板撒谎」。
      *   ⚠️ 待用户确认：x 的单位按**百分点**算（等级 10 ⇒ +10%）；要改比率只动 wonder.js 一处。 */
-    { id: 'wonder_grand_exchange', name: '王国大交易所', need: 'banking',
+    { id: 'wonder_grand_exchange', name: '王国大交易所', era: 4, need: 'banking',
       cost: { steelPart: 50, ironBracket: 600, stoneBeam: 1000 },
       effect: { happyBonus: 1, tradeSave: 0.10 },
       desc: '幸福的里程碑：幸福度 +1；贸易区域建筑消耗 -10%。' },
-    { id: 'wonder_shellcutter', name: '天壳切削器', need: 'invert',
+    { id: 'wonder_shellcutter', name: '天壳切削器', era: 4, need: 'invert',
       cost: { steelPart: 200, scaffold: 200, titanium: 1000 },
       effect: { cutterMul: true },
-      desc: '把天壳当工地：科技与市政产出各 +x%，x = 天壳观测站等级。' }
+      desc: '把天壳当工地：科技与市政产出各 +x%，x = 天壳观测站等级。' },
+
+    /* ── ERA4 奇观（2026-10-01 用户设计稿）──
+     * 【欧'洛瓦宗座教堂】由《归正会》解锁（needCivic）。
+     *   效果 religSlot 1 = 额外送 1 个宗教槽（civics.js slotList 经 wonderReligSlots 读）。
+     *   ⚠️ cost 是提议值（用户拍「先这样，后续重做」）。 */
+    { id: 'wonder_olo_wa_cathedral', name: '欧\'洛瓦宗座教堂', era: 4, needCivic: 'reformed',
+      cost: { stoneBeam: 300, hardCoral: 300 },
+      effect: { religSlot: 1 },
+      desc: '信仰的丰碑：额外提供 1 个宗教政策卡槽。' },
+
+    /* ── ERA5 三座奇观（2026-10-02 实装）──
+     * 【卢\'卢卡工坊】need=industrialize（工业化）。效果 craftRatio:0.5 —— 复用既有加法乘区
+     *   （与工坊建筑每级 +5% + 自动工坊 +10% + 奇观方碑 +5% + 科技 + 政体 + 政策卡同一条加法轴），
+     *   用户 2026-09 拍板「+50% 变 75%」即此（无需新键，见 techs.js 注释）。
+     * 【高压热机管道】need=highthermo（高压热机）。效果 hydroBonus:10 —— 热液能供给侧 +10（绝对量，
+     *   走 wonder.hydroWonderMul 出口，与高压气泵升级的 hydroMul 乘区是两回事）。
+     * 【天穹钻机】need=skydrill（天穹钻机科技，关键节点）。effect 留空占位：机器运行时 on/off +
+     *   每 tick 扣 0.1 共振钻头 +20 热液能 + 破壳 100/s + 幸福度 −1，破壳后转奇观态 +100 市政点/s +
+     *   幸福度 +1 这套机器逻辑本轮**不实装**（待用户拍板机器总设计），故 effect 暂空，只先占位门控。
+     * ⚠️【cost 为提议值，未拍板】量级对齐 era4 奇观顺延（scaffold/steelPart/resonantDrill 高阶料）。 */
+    { id: 'wonder_luluka', name: '卢\'卢卡工坊', era: 5, need: 'industrialize',
+      cost: { scaffold: 100, steelPart: 500 },
+      effect: { craftRatio: 0.5 },
+      desc: '工坊的里程碑：工厂 / 工坊效果 +50%（加法叠进工艺制作效率）。' },
+    { id: 'wonder_presspipe', name: '高压热机管道', era: 5, need: 'highthermo',
+      cost: { scaffold: 500, steelPart: 500 },
+      effect: { hydroBonus: 10 },
+      desc: '热机的高压血脉：热液能供给侧 +10/s（并联进汽口，不随汽轮机台数缩放）。' },
+    { id: 'wonder_skydrill', name: '天穹钻机', era: 5, need: 'skydrill',
+      cost: { scaffold: 2000, resonantDrill: 20 },
+      effect: {},
+      desc: '破壳的终章：凿穿最后一段天壳（机器运行逻辑待实装）。' },
+
+    /* ── ERA5 市政奇观（2026-10-02 实装 · 渊潜鲛歌/社会科学 解锁）──
+     * 【夏'多桑大剧院】needCivic='sharksong'。effect.civic:5 = 每秒 +5 市政点（走 wonder.civicBonus，
+     *   绝对量，与现有奇观同通道）；effect.civicSlots:1 = 额外送 1 个政策卡槽（走 civics.wonderCivicSlots，
+     *   slotList 叠加，type 用 'wild' 即通用政策槽）。
+     * 【国会大厦】needCivic='socialscience'。effect.happyConsume:0.10 = 幸福度消耗 −10%（走
+     *   wonder.happyConsumeMul，economy.happyBurn 读，与 govHappyConsumeMul 同乘区）。
+     * ⚠️【cost 为提议值，未拍板】量级对齐 era5 奇观顺延（scaffold/stoneBeam/steelPart 高阶料）。 */
+    { id: 'wonder_shadow_theater', name: '夏\'多桑大剧院', era: 5, needCivic: 'sharksong',
+      cost: { scaffold: 400, stoneBeam: 1000 },
+      effect: { civic: 5, civicSlots: 1 },
+      desc: '市政的丰碑：每秒 +5 市政点；额外提供 1 个政策卡槽。' },
+    { id: 'wonder_congress', name: '国会大厦', era: 5, needCivic: 'socialscience',
+      cost: { scaffold: 600, steelPart: 400 },
+      effect: { happyConsume: 0.10 },
+      desc: '立法的丰碑：鲛人幸福度消耗 −10%。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。
@@ -725,6 +851,14 @@
     /* 商人副产（2026-09-30 用户规格 · 市政《中世纪集市》解锁2）：商人同时产出科学与市政点。
      * 「+0.05/s 科学 +0.05/s 市政」是**每名商人**的量，走 globalMul（与学者/书手同待遇）。 */
     marketJobSci: 0.05, marketJobCulture: 0.05,
+    /* ── ERA5 新常数（2026-10-02 实装）──
+     * schoolMerchantSci：学校每级给商人 +0.5 科技/s（标在 BLD 顶层，由 tick/rates 两处同式读）。
+     * hotforgeCraft：热锻工厂每级 +7% 工艺制作效率（加法乘区，与工坊级/奇观/科技同一条轴）。 */
+    schoolMerchantSci: 0.5, hotforgeCraft: 0.07,
+    /* ── ERA5 市政建筑（2026-10-02 实装）──
+     * theaterCivRatio：歌剧院每级给官员（书手）市政点产出 +15%（economy.cultureRate 的 theaterCivicMul 读）。
+     * tenementPop：廉租社区每级给人口上限 +10（economy.popCap 读 s.lvl.tenement * 此值）。 */
+    theaterCivRatio: 0.15, tenementPop: 10,
     /* ── ERA4（2026-09-30 用户规格表）三个新常数 ──
      * coralFarmCW：建筑「速生珊瑚林」——每级珊瑚匠产出 +10%（用户 2026-09-30 把
      *   原「珊瑚产出 +10%/级」改成了「珊瑚匠产出」，与研究所→学者同构，
@@ -901,7 +1035,7 @@
      *    「族民 7（人口上限 2）」自相矛盾 —— 已改回硬上限，见本文件 CFG 里的「住房」节。
      * 成本：猫国 hut = wood 5（材料线）⇒ 本作 **coral 5**。人口建筑吃材料、不吃食物，
      * 这样「养人」不与「吃饭」抢同一笔预算，两条线各自独立（猫国即如此）。 */
-    { id: 'nest',     name: '礁口巢',   ratio: 2.50, cost: {coral: 10},   desc: '人口上限 +2，住满后不再生育',
+    { id: 'nest',     name: '礁口巢',   ratio: 2.50, cost: {coral: 5},    desc: '人口上限 +2，住满后不再生育',
       defaultUnlockable: true },
     /* ---- 住房第二档（猫国 Log House 的对应物，2026-09-26 新增）----
      * 【为什么要有第二档】礁口巢 ratio 2.5 是指数：第 5 座就要 390 珊瑚、第 7 座 2441，
@@ -1184,7 +1318,7 @@
      *    ⚠️ 但**它照样建不起来**：`fuelRate` 恒 0 ⇒ 地热供不上 ⇒ `miracleCap` 为 0。
      *       这是删热泉井的必然结果，等地热线重设时一并解决。 */
     { id: 'miracle',  name: '破冰祭坛', ratio: 1.15, cost: {iron: 300, coral: 400}, desc: '凿穿最后 25% 壳厚，耗地热',
-      requiredTech: ['siegeT'], unlockScheme: { name: 'iron', threshold: 300 } },
+      requiredTech: ['skydrill'], unlockScheme: { name: 'iron', threshold: 300 } },
 
     /* ── 热液汽轮机 / 热液工坊（2026-09-29 ERA3 · 金属精炼解锁的两座建筑）──
      * 【解锁权双写】requiredTech='metalrefine' 与 metalrefine 的 eff.unlockBuild
@@ -1241,7 +1375,52 @@
       requiredTech: ['printing'] },
     { id: 'bank', name: '银行', ratio: 1.15, cost: { steel: 30, stoneBeam: 400 },
       desc: '每级商人产出 +10%（走奢侈品供给那一侧）',
-      requiredTech: ['banking'] }
+      requiredTech: ['banking'] },
+
+    /* ── ERA4 两座建筑（2026-10-01 用户设计稿）──
+     * 【商队驿站】由《探索》解锁（requiredCivic）。它本身是「每季节判定」机制的承载体：
+     *   建到 ≥1 级后，economy.seasonTurn 每换季随机给一份「任意资源 1 分钟产量」。
+     *   不给额外乘区（与「运河/银行」那种每级加成不同），它就是个触发器建筑。
+     * 【博物馆】由《启蒙运动》解锁（requiredCivic）。效果 = 官员（书手）市政点产出 +20%，
+     *   由 economy.cultureRate 的 museumCivicMul(s) 读（lvl≥1 即 +20%，flat）。
+     *   ⚠️ 两座的 cost/ratio 是提议值（用户拍「先这样，后续重做」），未标定。 */
+    { id: 'caravanserai', name: '商队驿站', ratio: 1.15,
+      cost: { coral: 200, rope: 100 },
+      desc: '每季节判定一次：获得任意资源 1 分钟产量（由《探索》解锁的每季发资源机制）。',
+      requiredCivic: 'explore' },
+    { id: 'museum', name: '博物馆', ratio: 1.15,
+      cost: { stone: 200, coral: 200 },
+      desc: '官员（书手）市政点产出 +20%。',
+      requiredCivic: 'enlightenment' },
+
+    /* ── ERA5 两座建筑（2026-10-02 实装）──
+     * 【热锻工厂】由「工业化」解锁（requiredTech，与 techs.js industrialize 的 eff.unlockBuild 双写一致）。
+     *   效果：每级 +7% 工艺制作效率，走 workshop.craftRatio 的加法乘区（读 BLD.hotforgeCraft），
+     *   不在建筑表写 craftRatio 死字段（那只会造出无人读取的键）。
+     *   ⚠️【cost 为提议值，未拍板】量级对齐 era4 建筑（钢 + 钛高阶料）。
+     * 【学校】由「普及教育」解锁（requiredTech，与 techs.js pubedu 的 eff.unlockBuild 双写一致）。
+     *   效果：每级给商人 +0.5 科技/s（BLD.schoolMerchantSci），tick/rates 两处同式读。
+     *   ⚠️【cost 为提议值，未拍板】。 */
+    { id: 'hotforge', name: '热锻工厂', ratio: 1.15, cost: { steel: 400, titanium: 10 },
+      desc: '工艺制作效率 +7%/级（加法乘区，与工坊级/奇观/科技同一条轴）',
+      requiredTech: ['industrialize'] },
+    { id: 'school', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 20 },
+      desc: '每级给商人 +0.5 科技/s（由 BLD.schoolMerchantSci 读，tick/rates 两处同式）',
+      requiredTech: ['pubedu'] },
+
+    /* ── ERA5 两座建筑（2026-10-02 实装 · 渊潜鲛歌/城市化 解锁）──
+     * 【歌剧院】requiredCivic='sharksong'。效果 = 官员（书手）市政点产出 +15%/级
+     *   （economy.cultureRate 的 theaterCivicMul 读，与博物馆 scribeCivicMul 同型，只裹书手那一截）。
+     *   BLD.theaterCivRatio:0.15。
+     * 【廉租社区】requiredCivic='urbanization'。效果 = 人口上限 +10/级（economy.popCap 读
+     *   s.lvl.tenement * BLD.tenementPop）。⚠️ ratio 3 为用户原话「升级倍率设定为3」，待标定。
+     * ⚠️【cost 为提议值，未拍板】量级对齐 era5 建筑（钢 + 钛/脚手架高阶料）。 */
+    { id: 'theater', name: '歌剧院', ratio: 1.15, cost: { steel: 100, stone: 400 },
+      desc: '官员（书手）市政点产出 +15%/级（由 theaterCivicMul 读）。',
+      requiredCivic: 'sharksong' },
+    { id: 'tenement', name: '廉租社区', ratio: 3, cost: { scaffold: 50, steel: 100 },
+      desc: '人口上限 +10/级（由 popCap 读）。',
+      requiredCivic: 'urbanization' }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -1279,7 +1458,10 @@
     /* 速生珊瑚林（2026-09-30 ERA4）：生息区 —— 它是「种珊瑚」，与藻食那批同区。 */
     coralfarm: 'food',
     /* 银行（2026-09-30 ERA4）：贸易区域 —— 它的尤里卡就要求贸易区合计 100 级。 */
-    bank: 'trade'
+    bank: 'trade',
+    /* 商队驿站 / 博物馆（2026-10-01 ERA4）：商队驿站归贸易区域（贸易触发建筑）、
+     *   博物馆归市政区（官员/行政相关）。 */
+    caravanserai: 'trade', museum: 'civic'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';
@@ -1294,17 +1476,51 @@
    * 三类：起始资源 / 产出效率 / 系数减免（门槛减免最贵——它砍掉一局的重复劳动）。
    * 价格按 2026-09-24 重标定后的量级排：首局（54 人）约 6.5 点，只够买 1–2 项便宜的；
    * 一条 nest 链要跑 3–5 周目才吃满。相对关系照旧：起始 < 效率 < 门槛。 */
+  /* 轮回商店商品（方案文档 §轮回点 全量目录）。
+   * 字段：id / name / desc / kind（分组显示用）/ n（最大等级，默认 1）/ apply（写入 s.perk 的累加键）
+   *      / cost（单级价）/ costs（分级独立价数组，价目表 3/6/12 即各单级价、不累计）/ nest（前置 perk id）。
+   * ⚠️ 数值为接入真实结算前的首轮报价，待实跑校准；标定只改 cost/costs/apply，结构不动。
+   * ⚠️ apply 键必须与 state.emptyPerks 的键一致（economy 按这些键读数）。 */
   var PERKS = [
-    { id: 'food',  name: '前朝藻席',  cost: 1,  desc: '开局藻食 +200',                kind: 'start' },
-    { id: 'coral', name: '沉船残骸',  cost: 2,  desc: '开局珊瑚 +150',                kind: 'start' },
-    { id: 'g1',    name: '异族鳍肢',  cost: 3,  desc: '采集产出 +10%',                kind: 'rate', n: 3, apply: { gather: 1 } },
-    { id: 'g2',    name: '深鳃',      cost: 6,  desc: '采集产出再 +10%',              kind: 'rate', n: 3, apply: { gather: 1 }, nest: 'g1' },
-    { id: 'g3',    name: '流线体形',  cost: 12, desc: '采集产出再 +10%',              kind: 'rate', n: 3, apply: { gather: 1 }, nest: 'g2' },
-    { id: 'c1',    name: '祖先之热',  cost: 3,  desc: '破壳系数 +0.20',               kind: 'coef', n: 2, apply: { coef: 1 } },
-    { id: 'c2',    name: '脉息',      cost: 7,  desc: '破壳系数再 +0.20',             kind: 'coef', n: 2, apply: { coef: 1 }, nest: 'c1' },
-    { id: 'd1',    name: '薄壳一代',  cost: 4,  desc: '冰壳厚度 −10%（每级）',        kind: 'thin', n: 3, apply: { thin: 1 } },
-    { id: 'd2',    name: '裂脉',      cost: 9,  desc: '冰壳再薄 10%（每级）',         kind: 'thin', n: 3, apply: { thin: 1 }, nest: 'd1' },
-    { id: 'd3',    name: '内生热泉',  cost: 18, desc: '冰壳再薄 10%（每级）',         kind: 'thin', n: 3, apply: { thin: 1 }, nest: 'd2' }
+    /* ── 开局便利 ── */
+    { id: 'food',  name: '前朝藻席',   cost: 1,  desc: '每局开局 +200 藻食',          kind: 'start' },
+    { id: 'coral', name: '沉船残骸',   cost: 2,  desc: '每局开局 +150 珊瑚',          kind: 'start' },
+    /* ── 重复操作自动化：采集 ── */
+    { id: 'g1', name: '异族鳍肢', costs: [3, 6, 12], desc: '采集产出 +10%/级', kind: 'rate', n: 3, apply: { gather: 1 } },
+    { id: 'g2', name: '深鳃',     costs: [6],      desc: '采集产出再 +10%',   kind: 'rate', n: 3, apply: { gather: 1 }, nest: 'g1' },
+    { id: 'g3', name: '流线体形', costs: [12],     desc: '采集产出再 +10%',   kind: 'rate', n: 3, apply: { gather: 1 }, nest: 'g2' },
+    /* ── 重复操作自动化：破壳 ── */
+    { id: 'c1', name: '祖先之热', costs: [3, 7],    desc: '破壳系数 +0.20/级',     kind: 'coef', n: 2, apply: { coef: 1 } },
+    { id: 'c2', name: '脉息',     costs: [7],       desc: '破壳系数再 +0.20',   kind: 'coef', n: 2, apply: { coef: 1 }, nest: 'c1' },
+    { id: 'd1', name: '薄壳一代', costs: [4, 9, 18], desc: '冰壳厚度 −10%/级',    kind: 'thin', n: 3, apply: { thin: 1 } },
+    { id: 'd2', name: '裂脉',     costs: [9],        desc: '冰壳再薄 10%',       kind: 'thin', n: 3, apply: { thin: 1 }, nest: 'd1' },
+    { id: 'd3', name: '内生热泉', costs: [18],       desc: '冰壳再薄 10%',       kind: 'thin', n: 3, apply: { thin: 1 }, nest: 'd2' },
+    /* ── 重复操作自动化：人口与住房 ── */
+    { id: 'popcap', name: '广厦之基', costs: [2, 4, 6], desc: '永久人口上限 +1/级（最多 3 级）', kind: 'popcap', n: 3, apply: { popcap: 1 } },
+    { id: 'housePlan', name: '生息建筑规划', cost: 6, desc: '所有人口建筑每级各 +1 人口上限（买断）', kind: 'house', n: 1, apply: { housePlan: 1 } },
+    { id: 'coldStore', name: '寒潮储备', costs: [2, 4, 8, 12], desc: '寒季资源产出倍率 +0.02/级（最多 4 级）', kind: 'climate', n: 4, apply: { coldStore: 1 } },
+    { id: 'offline', name: '离潮计时', costs: [2, 4, 8, 12], desc: '单次离线上限 +25%/级（最多 4 级）', kind: 'offline', n: 4, apply: { offline: 1 } },
+    { id: 'matStore', name: '材料总仓', costs: [4, 8, 12], desc: '所有普通资源容量 +5%/级（最多 3 级）', kind: 'store', n: 3, apply: { matStore: 1 } },
+    { id: 'coldWard', name: '寒壳护佑', costs: [4, 8, 12], desc: '冰封冻伤概率相对 −5%/级（最多 3 级）', kind: 'climate', n: 3, apply: { coldWard: 1 } },
+    /* ── 重复操作自动化：模板与自动制作 ── */
+    { id: 'jobPlan', name: '生计名册', costs: [2, 4, 6], desc: '保存最多 3 份职业分配比例，可一键恢复', kind: 'template', n: 3, apply: { jobPlan: 1 } },
+    { id: 'craftPlan', name: '工坊采购单', cost: 4, desc: '保存 1 份已购工具/工坊升级采购清单（买断）', kind: 'template', n: 1, apply: { craftPlan: 1 } },
+    { id: 'autoCraft1', name: '自动制作槽 I', cost: 6, desc: '解锁 1 个自动制作槽', kind: 'auto', n: 3, apply: { autoCraft: 1 } },
+    { id: 'autoCraft2', name: '自动制作槽 II', cost: 12, desc: '再解锁 1 个槽（累计 2）', kind: 'auto', n: 3, apply: { autoCraft: 1 }, nest: 'autoCraft1' },
+    { id: 'autoCraft3', name: '自动制作槽 III', cost: 24, desc: '再解锁 1 个槽（累计 3）', kind: 'auto', n: 3, apply: { autoCraft: 1 }, nest: 'autoCraft2' },
+    { id: 'legacyCraft', name: '轮回前遗产制作', cost: 8, desc: '解锁轮回结算前自动制作艺术品与潮纹记录（买断）', kind: 'auto', n: 1, apply: { legacyCraft: 1 } },
+    /* ── 奇观、破壳与分区自动建造 ── */
+    { id: 'wonderBlueprint', name: '遗址施工图 I', costs: [2, 4, 6, 8], desc: '所有奇观建造成本 −5%/级（最多 −20%）', kind: 'wonder', n: 4, apply: { wonderBlueprint: 1 } },
+    { id: 'shellSurvey', name: '破界测绘 I', costs: [3, 6, 9], desc: '天穹钻机每单位功率削壳量 +5%/级（最多 +15%）', kind: 'break', n: 3, apply: { shellSurvey: 1 } },
+    /* ── 市政与政策 ── */
+    { id: 'civicArchive', name: '旧典编纂 I', costs: [1, 2, 3, 4, 5], desc: '市政点获取 +2%/级（最多 +10%）', kind: 'civic', n: 5, apply: { civicArchive: 1 } },
+    { id: 'civicPlan', name: '政令档案 I', costs: [2, 4, 6], desc: '保存 1/2/3 份政体与政策卡方案', kind: 'template', n: 3, apply: { civicPlan: 1 } },
+    { id: 'govRoutine', name: '议事惯例 I', costs: [1, 2, 3, 4, 5], desc: '换政策卡/政体费用 −10%/级（最多 −50%）', kind: 'civic', n: 5, apply: { govRoutine: 1 } },
+    /* ── 科研 ── */
+    { id: 'tideProof', name: '潮纹校勘 I', costs: [1, 2, 3, 4, 5], desc: '科技点获取 +2%/级（最多 +10%）', kind: 'science', n: 5, apply: { tideProof: 1 } },
+    { id: 'scienceStart', name: '旧学开篇 I', costs: [2, 4, 6], desc: '每局初始科技点 +100/级（取最高档，最多 +300）', kind: 'science', n: 3, apply: { scienceStart: 100 } },
+    { id: 'autoStudy', name: '旧学自动研究', cost: 6, desc: '解锁科技自动研究器（买断，默认关闭）', kind: 'auto', n: 1, apply: { autoStudy: 1 } },
+    { id: 'autoCivic', name: '市政自动研究', cost: 6, desc: '解锁市政自动研究器（买断，默认关闭）', kind: 'auto', n: 1, apply: { autoCivic: 1 } }
   ];
 
   /* 职业表。对齐 docs/DESIGN_v0.3.md §4「开局 **1 名族民，职业 = 采集者，资源 = 藻食**」：

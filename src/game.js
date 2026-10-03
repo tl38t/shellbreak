@@ -289,6 +289,9 @@
      * 再叠加实时 tick 就是重复计时。 */
     while (!loop.job && loop.acc >= STEP && S && !S.broken) {
       SB.economy.tick(S, STEP, emit);   // 天壳推进在 tick 内完成（基础削壳 + 祭坛削壳）
+      /* ERA4（2026-10-01）：换季发放资源。标记在 tick 内由 economy.seasonTurn 置位，
+       * 这里在 tick 返回后、状态已自洽处发放——避免在 tick 内 call rates() 触发原生段错误。 */
+      if (S._seasonGrantPending) { SB.economy.seasonGrant(S); S._seasonGrantPending = false; }
       loop.acc -= STEP;
       loop._tp = (loop._tp || 0) + STEP;
       if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S);
@@ -366,6 +369,7 @@
     var t0 = Date.now();
     while (j.left > 0 && Date.now() - t0 < budgetMs) {
       SB.economy.tick(j.s, STEP, null);   // emit=null：不刷屏，做完统一播报
+      if (j.s._seasonGrantPending) { SB.economy.seasonGrant(j.s); j.s._seasonGrantPending = false; }
       j.left--;
       j.tp = (j.tp || 0) + STEP;
       if (j.tp >= TECH_PUMP) { j.tp = 0; pumpTech(j.s, null); pumpCivic(j.s, null); }
@@ -434,7 +438,10 @@
     };
     document.getElementById('btnReset').onclick = function () {
       var t = S ? (S.t / 3600).toFixed(2) + ' 小时 · 峰值族民 ' + S.peak + ' · 建筑 ' + SB.economy.lvlSum(S) + ' 级' : '';
-      var seen = SB.game.meta().religionSeen;
+      /* 文案口径与底栏按钮**同源**：**当局**建立宗教才算「轮回」。
+       * ⚠️ 2026-10-03 由 `meta.religionSeen` 改成 prestige.religionEstablished(S)，
+       *   免得出现「按钮写重开、弹窗却写轮回」的两套口径（起因见 render.js 该处注释）。 */
+      var seen = SB.prestige.religionEstablished(S);
       SB.ui.render.confirmPanel({
         title: seen ? '轮回（重开本周目）？' : '重开本周目？',
         body: '<div class="warnbox">当前这局的进度会全部作废：' + t + '。</div>' +

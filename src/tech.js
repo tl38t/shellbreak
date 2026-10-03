@@ -210,6 +210,24 @@
         return wc >= c.n;
       }
       case 'coef': return SB.shell.breakCoef(s) >= c.n;
+      /* `shell` —— **破壳达到 n**：壳**剩余**比例（1 − rOf）≥ n。
+       * ⚠️ 与 `coef`（破壳系数，会涨的）不是同一概念：用户要的「破壳 50%」是壳还剩一半没凿，
+       *    对应 brokenRatio = 1 − rOf（shell.js 导出）。autoRate 会把壳削到 FLOOR_AT=0.25
+       *    （brokenRatio 0.75）才停，中途必经过 0.5 ⇒ 条件可达。 */
+      case 'shell': {
+        if (!SB.shell || !SB.shell.brokenRatio) return false;
+        return SB.shell.brokenRatio(s) >= (c.n || 0);
+      }
+      /* `wonders` —— **指定一组奇观全部建成**（s.wonders[id] 为真）。与 `wonder`（建成几座）
+       *    不同：用户要的是「天壳切削器 + 高压热机管道两座都建成」，必须逐座查 owned()。
+       *    ⚠️ 走 SB.wonder.owned 而不是散读 s.wonders（纪律③延伸，防第二个读取点）。 */
+      case 'wonders': {
+        var _ws = c.ids || [], _k;
+        for (_k = 0; _k < _ws.length; _k++) {
+          if (!(SB.wonder && SB.wonder.owned(s)[_ws[_k]])) return false;
+        }
+        return true;
+      }
       case 'eraTechs': return eraTechCount(s, c.era) >= c.n;
       /* `tools` —— **买齐一组指定工具**（2026-09-29 ERA3 学徒制尤里卡）。
        * ⚠️ 查的是 `s.tools[id]`（工坊买断后置真），与 toolMul 同源：工具买了才生效。
@@ -230,6 +248,9 @@
        * ⚠️ 查 `s.upgrades[id]`（workshop.upgradeBuy 置真）；与 unlockBuild 不同，
        *   这条指向工坊制品而非建筑，避免「尤里卡查自己解锁的建筑」那种死锁。 */
       case 'upgrade': return !!(s.upgrades && s.upgrades[c.id]);
+      /* `religion` —— **已建立宗教**（ERA4 市政《归正会》的鼓舞条件）。
+       * ⚠️ 宗教状态存 s.religionName（玩家命名即建立，见 state.js）；空串 = 未建立。 */
+      case 'religion': return !!(s.religionName);
       /* `zoneLvl` —— **某个建筑分区的合计等级**（2026-09-30 ERA3 市政鼓舞）。
        * ⚠️ 分区归属唯一来源是 config 的 BUILD_ZONE_OF（已经挂在每座建筑的 .zone 上），
        *    这里逐座建筑对 zone 求和，不许另写一份「分区名 → 建筑 id 清单」——
@@ -293,6 +314,11 @@
         var _up = !!(s.upgrades && s.upgrades[c.id]);
         return { txt: '完成工坊升级「' + c.id + '」', now: _up ? 1 : 0, need: 1 };
       }
+      /* religion（ERA4 市政《归正会》）：已建立宗教。空串 = 未建立。 */
+      case 'religion': {
+        var _rel = !!(s.religionName);
+        return { txt: _rel ? '已建立宗教' : '需建立宗教（给信仰命名）', now: _rel ? 1 : 0, need: 1 };
+      }
       /* zoneLvl 的「还差多少」：分区合计等级现算（与 condMet 同一套遍历，别各写一份）。 */
       case 'zoneLvl': {
         var _zn2 = 0, _bj;
@@ -303,6 +329,17 @@
         if (SB.BUILD_ZONES) for (var _zk = 0; _zk < SB.BUILD_ZONES.length; _zk++)
           if (SB.BUILD_ZONES[_zk].id === c.zone) _znName = SB.BUILD_ZONES[_zk].name;
         return { txt: _znName + '建筑合计等级 ' + _zn2 + ' / ' + c.n, now: _zn2, need: c.n };
+      }
+      case 'shell': {
+        var _br = (SB.shell && SB.shell.brokenRatio) ? SB.shell.brokenRatio(s) : 0;
+        return { txt: '破壳达到 ' + (_br * 100).toFixed(0) + '%', now: _br, need: c.n };
+      }
+      case 'wonders': {
+        var _wa = c.ids || [], _wn = 0, _wk;
+        for (_wk = 0; _wk < _wa.length; _wk++) {
+          if (SB.wonder && SB.wonder.owned(s)[_wa[_wk]]) _wn++;
+        }
+        return { txt: '建成奇观（' + _wa.join('、') + '）', now: _wn, need: _wa.length };
       }
     }
     return null;
@@ -508,12 +545,13 @@
    *    它与 `craft`（加工产出 / 烟囱炉 +15%、壳铸 +30%）**不是同一个东西**：
    *    前者进 workshop.craftRatio（工坊造石梁那条线），后者进 economy 的精铁线。
    *    名字都带 craft，是本项目最容易误接的一对。 */
-  var ADD = { coef: 1, house: 1, kelpCap: 1, season: 1, craftRatio: 1 };
+  var ADD = { coef: 1, house: 1, kelpCap: 1, season: 1, craftRatio: 1, warmMul: 1, titaniumMul: 1 };
   var LABEL = {
     gather: '采集产出', food: '藻食产出', sci: '科技产出', craft: '加工产出',
     fuel: '地热产出', smelt: '金属→精铁', miracle: '祭坛削壳',
     farm: '采集者藻食产出', coef: '破壳系数',
-    house: '人口上限', kelpCap: '藻食上限', craftRatio: '工艺制作效率'
+    house: '人口上限', kelpCap: '藻食上限', craftRatio: '工艺制作效率',
+    warmMul: '暖石产出', titaniumMul: '钛产出'
   };
   function effectText(t) {
     var e = t.eff || {}, out = [], k;
@@ -625,6 +663,8 @@
       case 'techs': return '已掌握科技 ' + c.n + ' 项';
       case 'coef': return '破壳系数 ' + c.n;
       case 'eraTechs': return eraName(c.era) + '科技 ' + c.n + ' 项';
+      case 'shell': return '破壳 ' + ((c.n || 0) * 100) + '%';
+      case 'wonders': return '建成奇观（' + (c.ids || []).join('、') + '）';
     }
     return '';
   }
@@ -645,7 +685,8 @@
        * 「采集者变成农民」说的是那个人变能干了，不是那片藻田变能干了。
        * 与 food 的区别：food 是全局食物乘区（会连藻场一起放大），farm 只管采集者。 */
       farm: 1,
-      coef: 0, house: 0, kelpCap: 0, season: 0, craftRatio: 0
+      coef: 0, house: 0, kelpCap: 0, season: 0, craftRatio: 0,
+      warmMul: 0, titaniumMul: 0
     };
     for (var i = 0; i < T.length; i++) {
       var t = T[i], e = t.eff;

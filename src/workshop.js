@@ -85,6 +85,10 @@
      *    装在卡槽里才生效（cardCraftRatio 读 s.cards，没装 = 0）。
      *    ⚠️ `SB.civic` 可能晚加载，用存在判保护（craftRatio 结算时才调用，模块顶层不碰它）。 */
     if (SB.civic) m += SB.civic.cardCraftRatio(s) || 0;
+    /* ⑦ 热锻工厂（ERA5 · 2026-10-02）：每级 +7% 工艺制作效率（BLD.hotforgeCraft）。
+     *   与上面六源同一条加法乘区（工坊级 + 奇观 + 科技 + 政体 + 升级 + 政策卡），
+     *   同档相加，不是乘区相乘。 */
+    if (s.lvl && s.lvl.hotforge > 0) m += (s.lvl.hotforge || 0) * (BLD.hotforgeCraft || 0);
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
@@ -183,6 +187,15 @@
       var ct = SB.tech && SB.tech.byId ? SB.tech.byId(c.need) : null;
       return '需要先研究「' + (ct ? ct.name : c.need) + '」';
     }
+    /* ── `c.needCivic` 这道门（2026-10-01 ERA4 补）──
+     * 与 WONDERS[].needCivic 同构（workshop.wonderBlocked 已读它）：判 **已完成**的市政。
+     * 历史哲学解锁的两张工艺配方走这道门，避免写成 tech id 被 craftBlocked 的 need 门永久锁死。
+     * 报市政**名**而不是 id，与上面 need 那道同口径。 */
+    if (c.needCivic && !(s.civics && s.civics[c.needCivic])) {
+      var cn = '市政';
+      if (SB.CIVICS) for (var _ci = 0; _ci < SB.CIVICS.length; _ci++) if (SB.CIVICS[_ci].id === c.needCivic) { cn = SB.CIVICS[_ci].name; break; }
+      return '需要先完成市政「' + cn + '」';
+    }
     var lack = lackText(s, c.in);
     if (lack) return '还缺 ' + lack;
     return null;
@@ -256,7 +269,7 @@
       if (SB.CIVICS) for (var ci = 0; ci < SB.CIVICS.length; ci++) if (SB.CIVICS[ci].id === w.needCivic) cn = SB.CIVICS[ci].name;
       return '需要先完成市政「' + (cn || w.needCivic) + '」';
     }
-    var lack = lackText(s, w.cost);
+    var lack = lackText(s, SB.wonder ? SB.wonder.discountedCost(s, id) : w.cost);
     if (lack) return '还缺 ' + lack;
     return null;
   }
@@ -264,7 +277,8 @@
     var w = wonderById(id);
     if (!w || wonderBlocked(s, id) !== null) return false;
     var k;
-    for (k in w.cost) s.res[k] -= w.cost[k];
+    var wc = SB.wonder ? SB.wonder.discountedCost(s, id) : w.cost;
+    for (k in wc) s.res[k] -= wc[k];
     s.wonders = s.wonders || {};
     s.wonders[id] = true;
     /* 一次性奖励（大图书馆的 +1000 科技点，2026-09-28 用户规格）。

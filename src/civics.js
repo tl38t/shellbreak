@@ -184,8 +184,99 @@
       reqs: ['feudalism'],
       boost: { t: 'pop', n: 70 },
       govs: ['monarchy'],
-      desc: '解锁政体「君主制」（5 槽：礁栖核心建筑建造消耗 −10%），以及建筑「王国潮道」。',
-      note: '鼓舞：人口达 70。' }
+      /* 额外效果（2026-10-01 ERA4 设计稿）：书手更名为官员，且行政点（市政点）产出 +50%。
+       * 改名是 UI 标签、+50% 走 economy.cultureRate 的 scribeCivicMul（department 完成后 ×1.5）。 */
+      scribeRename: true, scribeCivicMul: 0.50,
+      desc: '解锁政体「君主制」（5 槽：礁栖核心建筑建造消耗 −10%），以及建筑「王国潮道」。书手更名为官员，市政点产出 +50%。',
+      note: '鼓舞：人口达 70。' },
+
+    /* ══ 纪元四 · ERA4 市政扩展（2026-10-01 用户设计稿，逐格照录）════════
+     * 【cost 是提议值，用户拍「先这样，后续重做」】era3 是 900~1200，era4 提议 1300/1300/1400/1400/1500；
+     *   调它 = 标定，会动整局时长，且当前未做总时长核算 ⇒ 暂不调。
+     * 【layer 用设计稿原值】探索/归正会 1，其余 2。era4 块的列基准由 layout() 的 eraBase 自动偏移。
+     * 【鼓舞 = 硬门禁】与以往同口径：未揭示不能投点。
+     * 【7 项参数用户 2026-10-01 全部拍板】① cost 先这样；② 每季发资源 = 所有按时间产出的资源
+     *   （取当前速率 ×60s）；③ 商人共和国 5 槽全万能、幸福度消耗 −30%；④ 神权政体每级学术区建筑
+     *   +1 信仰、每级市政区建筑 +0.5 信仰；⑤ 博物馆官员市政点 +20%、三角贸易王国潮道 +100%、
+     *   启蒙运动潮纹馆/大学 +100%、神庙 −50%；⑥ 艺术品 5000 市政+100 绳 / 潮纹记录 5000 科技+10 钢零件；
+     *   ⑦ 探索鼓舞「完成钢铁仓库升级」= 压舱库扩容 II（upg_ballast_2）。 */
+    { id: 'explore', name: '探索', cost: 1300, era: 4, layer: 1,
+      reqs: ['market'],
+      /* 完成钢铁仓库升级 = 压舱库扩容 II（用户拍板映射）。upg_ballast_2 由城堡科技解锁，成本
+       * 铁制支架 100 + 硬化珊瑚 150，capMul ×1.5（与 I 叠加 ⇒ ×2.25）。 */
+      boost: { t: 'upgrade', id: 'upg_ballast_2' },
+      building: 'caravanserai',
+      card: 'card_triangular',
+      gov: 'merchant_republic',
+      /* 每季节判定一次：获得任意资源 1min 的产量（economy.seasonTurn 里实现，取 rates() 当前速率）。 */
+      seasonGrant: true,
+      desc: '解锁建筑「商队驿站」、政策卡「三角贸易」、政体「商人共和国」；每季节判定一次，获得任意资源 1 分钟产量。',
+      note: '鼓舞：完成钢铁仓库升级（压舱库扩容 II）。' },
+    { id: 'reformed', name: '归正会', cost: 1300, era: 4, layer: 1,
+      reqs: ['department'],
+      /* 已建立宗教（religion 鼓舞类型，2026-10-01 新增于 tech.condMet）。
+       * ⚠️「且有 70 鲛人」被前置《行政部门》的 pop 70 鼓舞吸收（能研究行政部门即 pop≥70 且只增不减），
+       *   故这里只判宗教；若以后想保留独立门槛，把 boost 改成复合条件即可。 */
+      boost: { t: 'religion' },
+      wonder: 'wonder_olo_wa_cathedral',
+      religSlot: 1,
+      gov: 'theocracy',
+      card: 'card_divine_right',
+      desc: '解锁奇观「欧\'洛瓦宗座教堂」(+1 宗教政策卡槽)、政体「神权政体」、政策卡「天赋神权」。',
+      note: '鼓舞：已建立宗教（70 鲛人已由前置《行政部门》保证）。' },
+    { id: 'mercantilism', name: '重商主义', cost: 1400, era: 4, layer: 2,
+      reqs: ['explore'],
+      boost: { t: 'job', j: 'merchant', n: 20 },
+      card: 'card_mercantilism',
+      desc: '解锁政策卡「重商主义」（银行的商人产出加成 +100%）。',
+      note: '鼓舞：同时拥有 20 名商人。' },
+    { id: 'enlightenment', name: '启蒙运动', cost: 1400, era: 4, layer: 2,
+      reqs: ['department'],
+      boost: { t: 'built', b: 'observatory', n: 1 },
+      card: 'card_enlightenment',
+      building: 'museum',
+      desc: '解锁政策卡「启蒙运动」（替代历史记录：潮纹馆/大学科技 +100%、神庙信仰 −50%）、建筑「博物馆」。',
+      note: '鼓舞：天壳观测站等级 ≥ 1。' },
+    { id: 'historiography', name: '历史哲学', cost: 1500, era: 4, layer: 2,
+      reqs: ['reformed'],
+      boost: { t: 'wonder', n: 6 },
+      /* 工艺制品「艺术品 / 潮纹记录」的解锁走配方自身的 needCivic（见 config CRAFTS 的
+       *   craft_artwork / craft_tidal_record），与奇观 needCivic 同构；此处不再放死字段。 */
+      /* ERA1/2/3 的奇观 +5 市政点获取（economy.cultureRate 的 wonderEraCivicBonus 读它）。 */
+      wonderEraCivic: 5,
+      desc: '解锁工艺制品「艺术品」「潮纹记录」；ERA1/2/3 的奇观 +5 市政点获取。',
+      note: '鼓舞：奇观建立超过 5 座（≥6 座）。' },
+
+    /* ══ 纪元五 · ERA5 市政扩展（2026-10-02 实装，用户规格表逐格照录）════════
+     * 【cost 为提议值，未拍板】era4 是 1300~1500，era5 提议 1600/1600/1800/1800/2200；
+     *   调它 = 标定，会动整局时长，当前未做总时长核算 ⇒ 暂不调。
+     * 【layer】渊潜鲛歌/工业化配给 1，社会科学/城市化 2，国民动员 3（与 era2/era3 同形）。
+     * 【鼓舞类型】zoneLvl / gathered / total / pop / wonders —— 全部是 tech.condMet 已支持的现成类型，无新 cond。 */
+    { id: 'sharksong', name: '渊潜鲛歌', cost: 1600, era: 5, layer: 1, reqs: ['enlightenment'],
+      boost: { t: 'zoneLvl', zone: 'civic', n: 50 },
+      wonder: 'wonder_shadow_theater', building: 'theater',
+      desc: '解锁奇观「夏\'多桑大剧院」（+5 市政点/秒、+1 政策卡槽），以及建筑「歌剧院」。',
+      note: '鼓舞：市政区建筑合计等级达 50。' },
+    { id: 'rationing', name: '工业化配给', cost: 1600, era: 5, layer: 1, reqs: ['enlightenment'],
+      boost: { t: 'gathered', r: 'steel', n: 10000 },
+      card: 'card_rationing',
+      desc: '解锁政策卡「工业化配给」「政治经济学」。',
+      note: '鼓舞：累计钢产量达 10000。' },
+    { id: 'socialscience', name: '社会科学', cost: 1800, era: 5, layer: 2, reqs: ['sharksong'],
+      boost: { t: 'total', n: 300 },
+      wonder: 'wonder_congress',
+      desc: '解锁奇观「国会大厦」（鲛人幸福度消耗 −10%）。',
+      note: '鼓舞：建筑总等级达 300。' },
+    { id: 'urbanization', name: '城市化', cost: 1800, era: 5, layer: 2, reqs: ['rationing'],
+      boost: { t: 'pop', n: 100 },
+      card: 'card_logistics', building: 'tenement',
+      desc: '解锁建筑「廉租社区」、政策卡「基础物流建设」。',
+      note: '鼓舞：总人口达 100（轮回商店「广厦之基」永久提升人口上限）。' },
+    { id: 'mobilization', name: '国民动员', cost: 2200, era: 5, layer: 3, reqs: ['socialscience', 'urbanization'],
+      boost: { t: 'wonders', ids: ['shellcutter', 'presspipe'] },
+      card: 'card_heat_priority',
+      desc: '解锁政策卡「热能优先」「总动员令」。',
+      note: '鼓舞：建成奇观「天壳切削器」与「高压热机管道」。' }
   ];
 
   /* 槽位类型。Civ6 是 军事 / 经济 / 外交 / 万能；本作按约束 §2 砍掉军事（没有军事单位）、
@@ -196,7 +287,10 @@
     wild: { name: '万能槽', desc: '可装填任意类型的政策卡。' },
     prod: { name: '工造槽', desc: '只吃工造类政策卡——加工与建造。' },
     sci:  { name: '科研槽', desc: '只吃科研类政策卡——科技产出。' },
-    grow: { name: '民生槽', desc: '只吃民生类政策卡——人口与饮食。' }
+    grow: { name: '民生槽', desc: '只吃民生类政策卡——人口与饮食。' },
+    /* relig：宗教槽（ERA4 市政《归正会》解锁）。只吃 relig 类政策卡（天赋神权）。
+     * 来源有二：神权政体自带 1 个 + 奇观「欧'洛瓦宗座教堂」再送 1 个（wonder.religSlotBonus）。 */
+    relig: { name: '宗教槽', desc: '只吃宗教类政策卡——信仰相关。' }
   };
 
   /* 政体。effect 是**平坦加值/秒**（不乘季节、不吃采集倍率——它是制度给的，不是人给的）。
@@ -245,7 +339,20 @@
      * （costOf 是显示与扣费的唯一来源 ⇒ 面板与结算天然同源）。 */
     { id: 'monarchy', name: '君主制', slots: { wild: 5 }, effect: {},
       buildSave: 0.10,
-      desc: '5 个政策卡槽；礁栖核心建筑建造消耗 −10%。' }
+      desc: '5 个政策卡槽；礁栖核心建筑建造消耗 −10%。' },
+
+    /* ══ ERA4 政体（2026-10-01 用户设计稿）════════
+     * 商人共和国：5 个万能槽（与君主制同数）；幸福度消耗 −30%（happyConsumeMul 0.7，
+     *   economy.happyBurn 读）。效果不走平坦加值/秒，是消耗侧的偏移。
+     * 神权政体：3 万能 + 1 宗教槽（relig 槽型，只吃天赋神权卡）；每级学术区建筑 +1 信仰、
+     *   每级市政区建筑 +0.5 信仰（faithPerAcademy/faithPerCivic，economy.faithRate 读，
+     *   加在基础人口产出之上）。 */
+    { id: 'merchant_republic', name: '商人共和国', slots: { wild: 5 }, effect: {},
+      happyConsumeMul: 0.7,
+      desc: '5 个万能政策卡槽；幸福度消耗 −30%。' },
+    { id: 'theocracy', name: '神权政体', slots: { wild: 3, relig: 1 }, effect: {},
+      faithPerAcademy: 1, faithPerCivic: 0.5,
+      desc: '3 万能槽 + 1 宗教槽；每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰。' }
   ];
 
   /* 政策卡。effect 同样是平坦加值/秒，且**只有在卡槽里装着它时才生效**。
@@ -285,6 +392,9 @@
       desc: '神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。' },
     { id: 'card_records',  name: '历史记录', civic: 'records', type: 'sci',
       effect: {}, libraryMul: 2,
+      /* retiredBy（2026-10-01 ERA4）：市政《启蒙运动》完成后这张卡退役——
+       * 「启蒙运动」卡（libraryMul ×2 + universityMul ×2）是它的完全上位替代。 */
+      retiredBy: 'enlightenment',
       desc: '潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。' },
 
     /* ── ERA3 市政扩展的 4 张卡（2026-09-30 用户规格表）──
@@ -307,7 +417,55 @@
       desc: '仓储区所有建筑的仓储 +100%（即海藻仓/压舱仓/灯塔的容量贡献翻倍）。' },
     { id: 'card_guild', name: '职业行会', civic: 'guild', type: 'prod',
       effect: {}, craftRatio: 0.40,
-      desc: '工坊效率 +40%（取代「技艺」；研究完成后技艺卡退役）。' }
+      desc: '工坊效率 +40%（取代「技艺」；研究完成后技艺卡退役）。' },
+
+    /* ── ERA4 政策卡（2026-10-01 用户设计稿）──
+     * 字段沿用既有通道：静态乘区走 MUL_FIELD（libraryMul 等）、动态/其余走专用读数函数
+     * （canalSaveMul / bankMerchantMul / coreFaithMul / universityMul / templeFaithMul，见下方）。
+     * ⚠️ type 留空 = 视同万能（cardFits 对缺 type 不硬堵），这里按卡的性质填 prod/sci/relig。 */
+    { id: 'card_triangular', name: '三角贸易', civic: 'explore', type: 'prod', effect: {},
+      /* 王国潮道效果额外 +100%：canalSaveMul(s) 读它，乘在 canalLuxSave 那一段上（economy 奢侈需求 D）。 */
+      canalMul: 2,
+      desc: '王国潮道（运河）效果额外 +100%（居民奢侈品消耗减免翻倍）。' },
+    { id: 'card_divine_right', name: '天赋神权', civic: 'reformed', type: 'relig', effect: {},
+      /* 礁栖核心所有建筑每级 +10% 信仰产出：coreFaithMul(s) 读它，乘在 faithRate 整段上。 */
+      coreFaithMul: 0.10,
+      desc: '礁栖核心所有建筑每级 +10% 信仰产出（替代「王权神授」）。' },
+    { id: 'card_mercantilism', name: '重商主义', civic: 'mercantilism', type: 'prod', effect: {},
+      /* 银行的商人产出加成 +100%：bankMerchantMul(s) 读它，乘在 bankLux 那一段上。 */
+      bankMerchantMul: 2,
+      desc: '银行的商人产出加成 +100%。' },
+    { id: 'card_enlightenment', name: '启蒙运动', civic: 'enlightenment', type: 'sci', effect: {},
+      /* 替代《历史记录》：潮纹馆科技 +100%（libraryMul，走 MUL_FIELD）、大学科技 +100%
+       * （universityMul）、神庙信仰 −50%（templeFaithMul）。三处各自一个读数函数。 */
+      libraryMul: 2, universityMul: 2, templeFaithMul: 0.5,
+      desc: '潮纹馆、大学的科技加成 +100%，神庙信仰加成 −50%（替代「历史记录」）。' },
+
+    /* ── ERA5 政策卡（2026-10-02 实装）──
+     * 字段沿用既有通道：craftRatio / happyOffset / retiredBy / squareMul / storeMul / 新动态乘区字段。
+     * ⚠️ type 留空 = 视同万能（cardFits 对缺 type 不硬堵），与 era3/era4 同口径。
+     * ⚠️【cost 为提议值，未拍板】同轮市政节点顺延。 */
+    { id: 'card_rationing', name: '工业化配给', civic: 'rationing', type: 'prod', effect: {},
+      /* 幸福度 −1（cardHappyOffset，economy 幸福恒温器 _gb 段读）；工坊效率 +40%（craftRatio，加法乘区）。 */
+      happyOffset: -1, craftRatio: 0.40,
+      desc: '幸福度 −1；工坊（工艺制作）效率 +40%。' },
+    { id: 'card_political_econ', name: '政治经济学', civic: 'rationing', type: 'sci', effect: {},
+      /* 替代《戏剧与诗歌》（retiredBy）：广场效果 ×2.5（squareMul）+ 歌剧院效果 ×2.5（theaterMul，新通道）。 */
+      retiredBy: 'drama', squareMul: 2.5, theaterMul: 2.5,
+      desc: '广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5（取代「戏剧与诗歌」）。' },
+    { id: 'card_logistics', name: '基础物流建设', civic: 'urbanization', type: 'prod', effect: {},
+      /* 替代《中世纪集市》（retiredBy）：仓储区建筑容量 ×3（storeMul，走 MUL_FIELD）。 */
+      retiredBy: 'market', storeMul: 3,
+      desc: '仓储区建筑容量 ×3（取代「中世纪集市」）。' },
+    { id: 'card_heat_priority', name: '热能优先', civic: 'mobilization', effect: {},
+      /* 市政/科技产出 −50%（cardCivicOutMul / cardSciOutMul）；热液能供给 +100%（cardHydroMul）。 */
+      civicOutMul: 0.5, sciOutMul: 0.5, hydroSupplyMul: 2,
+      desc: '市政与科技产出 −50%，热液能（蒸汽）供给 +100%。' },
+    { id: 'card_mobilization', name: '总动员令', civic: 'mobilization', effect: {},
+      /* 闲置鲛人每提供 1% 破壳速度（shellSpeedPerIdle）。⚠️ 天穹钻机机器态（wonder_skydrill 的运转速度）
+       *   尚未实装，此效果通道暂挂起——字段预留、不接读数函数，等机器态落地再接线。 */
+      shellSpeedPerIdle: 0.01,
+      desc: '每点闲置鲛人提供 1% 破壳速度（待天穹钻机机器态实装后生效）。' }
   ];
 
   function byId(id) { for (var i = 0; i < CIVICS.length; i++) if (CIVICS[i].id === id) return CIVICS[i]; return null; }
@@ -333,7 +491,11 @@
   var MUL_FIELD = {
     card_drama: 'squareMul', card_theology: 'templeMul', card_records: 'libraryMul',
     /* 中世纪集市（2026-09-30）：仓储区建筑的容量贡献 ×2。静态字段，走同一张表。 */
-    card_market: 'storeMul'
+    card_market: 'storeMul',
+    /* 启蒙运动（2026-10-01 ERA4）：潮纹馆科技 +100%，与《历史记录》同字段（卡退役后不冲突）。 */
+    card_enlightenment: 'libraryMul',
+    /* ERA5（2026-10-02）：政治经济学卡——歌剧院的官员市政点乘区 ×2.5（theaterMul）。 */
+    card_political_econ: 'theaterMul'
   };
   function policyMul(s, cardId) {
     if (!cardId) return 1;                       // 槽是空的（或还没这一项）⇒ 没有乘区
@@ -360,6 +522,7 @@
   function squareMul(s)  { return mulOfField(s, 'squareMul'); }
   function templeMul(s)  { return mulOfField(s, 'templeMul'); }
   function libraryMul(s) { return mulOfField(s, 'libraryMul'); }
+  function theaterMul(s) { return mulOfField(s, 'theaterMul'); }
   /* 仓储区容量乘区（2026-09-30 · 中世纪集市卡）：capOf 的海藻仓/压舱仓/灯塔三段读它。
    * 没装卡 = 1；装了 = 各槽的 storeMul 逐槽相乘（与上面三个同构，可多张叠加）。 */
   function storeMul(s)   { return mulOfField(s, 'storeMul'); }
@@ -387,6 +550,138 @@
     if (!cardSlotted(s, 'card_serfdom')) return 1;
     var r = (SB.BLD && SB.BLD.serfCrossRatio) || 0.01;
     return 1 + (s.lvl.kelp || 0) * r;
+  }
+
+  /* ── ERA4（2026-10-01 用户设计稿）· 各动态效果读数 ──
+   * 统一纪律：只读 s.cards / s.gov / s.civics，没装/没采用 = 返回基准值（1 或 0），绝不污染产线。
+   * 与 castleFaithMul / serfKelpMul 同构。 */
+  /* 商人共和国：幸福度消耗 −30%（happyConsumeMul 0.7）。economy.happyBurn 读。 */
+  function govHappyConsumeMul(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.happyConsumeMul === 'number') ? g.happyConsumeMul : 1;
+  }
+  /* 三角贸易卡：王国潮道（运河）奢侈消耗减免额外 +100%。economy 的 _canalSave 段读。 */
+  function canalSaveMul(s) {
+    if (!cardSlotted(s, 'card_triangular')) return 1;
+    var cd = policyById('card_triangular');
+    return (cd && typeof cd.canalMul === 'number') ? cd.canalMul : 1;
+  }
+  /* 重商主义卡：银行商人产出加成 +100%。economy.bankMul 读（乘在 bankLux 那一段上）。 */
+  function bankMerchantMul(s) {
+    if (!cardSlotted(s, 'card_mercantilism')) return 1;
+    var cd = policyById('card_mercantilism');
+    return (cd && typeof cd.bankMerchantMul === 'number') ? cd.bankMerchantMul : 1;
+  }
+  /* 天赋神权卡：礁栖核心所有建筑每级 +10% 信仰产出（coreFaithMul 存的是每级比率）。
+   * 乘在 faithRate 整段上，coreLevels = 礁栖核心分区建筑合计等级。 */
+  function coreFaithMul(s) {
+    if (!cardSlotted(s, 'card_divine_right')) return 1;
+    var cd = policyById('card_divine_right');
+    var ratio = (cd && typeof cd.coreFaithMul === 'number') ? cd.coreFaithMul : 0;
+    var lv = 0, _i;
+    if (SB.BUILDINGS) for (_i = 0; _i < SB.BUILDINGS.length; _i++)
+      if (SB.BUILDINGS[_i].zone === 'core') lv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
+    return 1 + lv * ratio;
+  }
+  /* 启蒙运动卡：大学科技 +100%（universityMul）。economy 的学者/研究所科技段读。 */
+  function universityMul(s) {
+    if (!cardSlotted(s, 'card_enlightenment')) return 1;
+    var cd = policyById('card_enlightenment');
+    return (cd && typeof cd.universityMul === 'number') ? cd.universityMul : 1;
+  }
+  /* 启蒙运动卡：神庙信仰 −50%（templeFaithMul 0.5）。economy.faithMul 读（乘神庙那一段）。 */
+  function templeFaithMul(s) {
+    if (!cardSlotted(s, 'card_enlightenment')) return 1;
+    var cd = policyById('card_enlightenment');
+    return (cd && typeof cd.templeFaithMul === 'number') ? cd.templeFaithMul : 1;
+  }
+  /* 博物馆建筑：官员（书手）市政点产出 +20%（museumCivicMul，flat）。economy.cultureRate 的 scribe 段读。 */
+  function museumCivicMul(s) { return (s.lvl.museum || 0) >= 1 ? 1.20 : 1; }
+  /* 行政部门：书手（官员）市政点产出 +50%（scribeCivicMul，flat，叠加在 museum 之上）。 */
+  function scribeCivicMul(s) {
+    var c = byId('department');
+    return (c && s.civics && s.civics.department && typeof c.scribeCivicMul === 'number')
+      ? 1 + c.scribeCivicMul : 1;
+  }
+  /* 歌剧院建筑：官员（书手）市政点产出 +15%/级（theaterCivRatio）。只裹书手那一截，
+   * 与 museumCivicMul/scribeCivicMul 同型的括号纪律。再乘政策卡《政治经济学》的歌剧院乘区
+   * （theaterMul，MUL_FIELD 表），与广场 squareMul 同构。没建歌剧院 = 1（不污染产线）。 */
+  function theaterCivicMul(s) {
+    return (1 + (s.lvl.theater || 0) * ((SB.BLD && SB.BLD.theaterCivRatio) || 0))
+      * ((SB.civic && SB.civic.theaterMul) ? SB.civic.theaterMul(s) : 1);
+  }
+  /* ── ERA5（2026-10-02 实装）· 政策卡对产线的动态乘区/偏移 ──
+   * 统一纪律：只读 s.cards，没装 = 返回基准值（1），绝不污染产线（与 castleFaithMul 同构）。
+   * cardCivicOutMul / cardSciOutMul：热能优先卡把市政/科技产出 ×0.5（civicOutMul/sciOutMul 字段）。
+   * cardHydroMul：热能优先卡把热液能供给 ×2（hydroSupplyMul 字段）。
+   * cardHappyOffset：工业化配给卡幸福度 −1（happyOffset 字段，求和进恒温器 _gb 基线）。 */
+  function cardFieldMul(s, field) {
+    var m = 1, arr = (s && s.cards) || [], i, cd;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && typeof cd[field] === 'number') m *= cd[field];
+    }
+    return m;
+  }
+  function cardCivicOutMul(s) { return cardFieldMul(s, 'civicOutMul'); }
+  function cardSciOutMul(s)   { return cardFieldMul(s, 'sciOutMul'); }
+  function cardHydroMul(s)    { return cardFieldMul(s, 'hydroSupplyMul'); }
+  function cardHappyOffset(s) {
+    var o = 0, arr = (s && s.cards) || [], i, cd;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && typeof cd.happyOffset === 'number') o += cd.happyOffset;
+    }
+    return o;
+  }
+  /* 神权政体：每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰（加在人口基础产出之上）。
+   * 仅当采用神权政体时生效。返回**绝对量**（与 FAITH_PER_POP 同单位，信仰/秒）。 */
+  function theoFaithBonus(s) {
+    var g = govById(s.gov);
+    if (!g || typeof g.faithPerAcademy !== 'number') return 0;
+    var a = 0, cv = 0, _i;
+    if (SB.BUILDINGS) for (_i = 0; _i < SB.BUILDINGS.length; _i++) {
+      var _z = SB.BUILDINGS[_i].zone;
+      if (_z === 'academy') a += (s.lvl[SB.BUILDINGS[_i].id] || 0);
+      else if (_z === 'civic') cv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
+    }
+    return a * g.faithPerAcademy + cv * (g.faithPerCivic || 0);
+  }
+  /* 历史哲学：ERA1/2/3 的奇观每座 +5 市政点获取（wonderEraCivic 字段，绝对值/秒）。
+   * 仅当《历史哲学》完成后生效。economy.cultureRate 读。 */
+  function wonderEraCivicBonus(s) {
+    var c = byId('historiography');
+    if (!c || !(s.civics && s.civics.historiography) || !(c.wonderEraCivic)) return 0;
+    if (!SB.wonder || !SB.wonder.list) return 0;
+    var n = 0, L = SB.wonder.list(), i, o = (s.wonders && typeof s.wonders === 'object') ? s.wonders : {};
+    for (i = 0; i < L.length; i++) {
+      var w = L[i];
+      if (o[w.id] && w.era && w.era <= 3) n++;
+    }
+    return n * c.wonderEraCivic;
+  }
+  /* 奇观送的宗教槽（2026-10-01 ERA4）：欧'洛瓦宗座教堂 effect.religSlot = +1 宗教槽。
+   * slotList 读它，与政体自带的槽叠加。 */
+  function wonderReligSlots(s) {
+    var m = 0, i, o = (s.wonders && typeof s.wonders === 'object') ? s.wonders : {}, L = SB.wonder ? SB.wonder.list() : [];
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.religSlot) || 0;
+    }
+    return m;
+  }
+  /* 奇观送的市政政策槽（2026-10-02 ERA5）：夏'多桑大剧院 effect.civicSlots = +1 政策卡槽。
+   * slotList 读它，叠加在政体自带槽之上（与 wonderReligSlots 同构）。type 用 'wild' —— 本作政策卡
+   * 均为通用型，没有专门的「市政槽」类型，给一个可用的万能槽等价于「+1 政策槽」。 */
+  function wonderCivicSlots(s) {
+    var m = 0, i, o = (s.wonders && typeof s.wonders === 'object') ? s.wonders : {}, L = SB.wonder ? SB.wonder.list() : [];
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.civicSlots) || 0;
+    }
+    return m;
   }
 
   // ── 几何（横卷）──────────────────────────────────────────────────
@@ -822,6 +1117,12 @@
     for (k in g.slots) {
       for (var i = 0; i < (g.slots[k] || 0); i++) out.push({ type: k });
     }
+    /* 奇观送的宗教槽（2026-10-01 ERA4）：欧'洛瓦宗座教堂 effect.religSlot。叠加在政体自带槽之上。 */
+    var _rs = wonderReligSlots(s);
+    for (var _ri = 0; _ri < _rs; _ri++) out.push({ type: 'relig' });
+    /* ERA5（2026-10-02）：夏'多桑大剧院送的市政政策槽（wonderCivicSlots），叠加在政体自带槽之上。 */
+    var _cs = wonderCivicSlots(s);
+    for (var _ci = 0; _ci < _cs; _ci++) out.push({ type: 'wild' });
     return out;
   }
   /* 政策卡能进哪种槽。万能槽吃一切；卡的 type 缺省视为万能（老卡没标类型 ⇒ 不硬堵）。 */
@@ -935,6 +1236,15 @@
     castleFaithMul: castleFaithMul, serfKelpMul: serfKelpMul, serfWarmMul: serfWarmMul,
     /* 三个乘区出口：政策卡的「效果 +100%」各自挂在卡的一个字段上，
      * 由这三个函数统一读出（实现见 policyMul）。 */
-    squareMul: squareMul, templeMul: templeMul, libraryMul: libraryMul
+    squareMul: squareMul, templeMul: templeMul, libraryMul: libraryMul,
+    /* ERA4（2026-10-01 用户设计稿）效果读数出口：happiness / faith / culture / bank / canal / 宗教槽。 */
+    govHappyConsumeMul: govHappyConsumeMul, canalSaveMul: canalSaveMul, bankMerchantMul: bankMerchantMul,
+    coreFaithMul: coreFaithMul, universityMul: universityMul, templeFaithMul: templeFaithMul,
+    museumCivicMul: museumCivicMul, scribeCivicMul: scribeCivicMul,
+    theaterMul: theaterMul, theaterCivicMul: theaterCivicMul,
+    cardCivicOutMul: cardCivicOutMul, cardSciOutMul: cardSciOutMul,
+    cardHydroMul: cardHydroMul, cardHappyOffset: cardHappyOffset,
+    theoFaithBonus: theoFaithBonus, wonderEraCivicBonus: wonderEraCivicBonus,
+    wonderReligSlots: wonderReligSlots, wonderCivicSlots: wonderCivicSlots
   };
 })(typeof window !== 'undefined' ? window : globalThis);

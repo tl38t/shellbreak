@@ -38,6 +38,12 @@
     return c;
   }
 
+  /* 破壳比例 = 1 − rOf（壳剩余比例）。autoRate 把壳削到 FLOOR_AT=0.25 就停，
+   * 于是 brokenRatio 在区间 [0.75, 1] 收口；中途必经过 0.5 ⇒ 尤里卡「破壳 50%」可达。 */
+  function brokenRatio(s) {
+    return 1 - SB.economy.rOf(s);
+  }
+
   function autoRate(s) { return CFG.BREAK_BASE * breakCoef(s); }
 
   /* 祭坛等级上限 = 地热产所养得起的等级（解 miracleBurn(M) ≤ 地热产能）。
@@ -117,6 +123,31 @@
       }
     }
 
+    // ③ 天穹钻机（ERA5 破壳终章）：建成后自动运转，凿穿最后一段天壳。
+    //    ⚠️ 与祭坛②是**两条独立路线**：祭坛吃地热（已删，恒 0），钻机吃共振钻头 + 热液能。
+    //    ⚠️ 不判 FLOOR_AT：钻机只在 ERA5 建成，届时壳已被 ① 削到 25%；让它从任意厚度都能削，
+    //       等价于「从 25% 继续削到 0」，语义一致且更鲁棒（即便将来有人早建也能用）。
+    //    ⚠️ 资源见底自动停摆（与祭坛同款饥饿机制），补足后下一 tick 自动继续。
+    if (SB.wonder && SB.wonder.owned(s).skydrill) {
+      var dCost = CFG.SKYDRILL_DRILL * dt;
+      var hCost = CFG.SKYDRILL_HYDRO * dt;
+      if ((s.res.resonantDrill || 0) >= dCost && (s.res.hydro || 0) >= hCost) {
+        s.res.resonantDrill -= dCost;
+        s.res.hydro -= hCost;
+        var _lg = SB.prestige ? SB.prestige.legacy() : null;
+        var _ss = _lg ? (1 + 0.05 * _lg.shellSurveyLevel) : 1;
+        var sWant = CFG.SKYDRILL_RATE * _ss * dt;
+        s.shell -= sWant;
+        cut += sWant;
+        s._cutSky = (s._cutSky || 0) + sWant;
+        s.skydrillRun = (s.skydrillRun || 0) + dt;
+        s.skydrillStarved = false;
+      } else if (!s.skydrillStarved) {
+        s.skydrillStarved = true;
+        if (emit) emit('天穹钻机缺少共振钻头或热液能，停转——补足后自动继续。');
+      }
+    }
+
     if (s.shell <= 0 && !s.broken) { s.shell = 0; onShellZero(s, emit); }
     return cut;
   }
@@ -133,6 +164,7 @@
   SB.shell = {
     techCount: techCount,
     breakCoef: breakCoef,
+    brokenRatio: brokenRatio,
     autoRate: autoRate,
     miracleCap: miracleCap,
     miracleRate: miracleRate,

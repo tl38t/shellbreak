@@ -465,7 +465,7 @@ console.log('\n=== 开局解锁链 ===');
    *    否则测出来的失败其实是纪元那道墙，断言名不副实。用一次性状态，
    *    免得把 era=5 / iron 这类夹具漏进后面的端到端整局跑。 */
   const ts = SB.state.freshRun(false);
-  ts.era = SB.CFG.MIRACLE_ERA; ts.techs.siegeT = true;
+  ts.era = SB.CFG.MIRACLE_ERA; ts.techs.skydrill = true;
   check('精铁不足时祭坛仍锁着', !SB.habitat.unlocked(ts, SB.habitat.buildingById('miracle')), 'iron 0 < 300');
   ts.res.iron = 300;
   check('精铁达 300 时祭坛解锁（纪元墙与科技墙都已拆）',
@@ -493,7 +493,7 @@ console.log('\n=== 开局解锁链 ===');
   const miracle = SB.habitat.buildingById('miracle');
   const t2 = SB.state.freshRun(false);
   t2.era = 4;
-  t2.techs.siegeT = true; t2.techs.shellBreaker = true;
+  t2.techs.skydrill = true;
   t2.res.iron = 9e5;
   check('纪元四：科技前置全满足，祭坛仍锁着',
     !SB.habitat.unlocked(t2, miracle), 'MIRACLE_ERA=' + SB.CFG.MIRACLE_ERA);
@@ -592,13 +592,14 @@ console.log('\n=== 科技树形状 ===');
     }));
   const maxD = Math.max.apply(null, T.map(t => d[t.id]));
   const at = n => T.filter(t => d[t.id] === n);
-  /* ⚠️ 阈值取 7 有出处，不是跟着树长随手加的：
-   *    ① 破壳链的物理下限仍是 6（techs.js 顶部推过：shellBreaker ≥ siegeT+1 ≥
-   *       ballistics+2 ≥ turbine+3 ≥ ignition+4 ≥ hearthfire+5）；
+  /* ⚠️ 阈值取 8 有出处，不是跟着树长随手加的：
+   *    ① 破壳链的物理下限仍是 6（techs.js 顶部推过：skydrill ≥ shellgeo+1 ≥
+   *       invert+2 ≥ physics+3 ≥ … ≥ 天壳观测 → 教育 → 数学 → 导航 → 照明）；
    *    ② 纪元一 2026-09-26 按用户规格重排成**四层**（结绳 → 四个方向 → 加深 → 成事），
-   *       两者叠加 ⇒ 最深 7。
-   *    要压到 6 只能动纪元一那四层本身（改 reqs 压不动，它是形状不是深度）。 */
-  check('最深科技 ≤ 7 层（破壳链下限 6 + 纪元一重排后的 4 层）', maxD <= 7,
+   *       两者叠加 ⇒ 最深 8（旧口径 7 = 破壳链下限 6 + 旧 era5 只比破壳链深 1 层；
+   *       本轮 era5 在 invert(d=6) 之上叠天壳地质学(d=7) + 天穹钻机(d=8)，故 8）。
+   *    要压到 7 只能动纪元一那四层本身（改 reqs 压不动，它是形状不是深度）。 */
+  check('最深科技 ≤ 8 层（破壳链下限 6 + era5 天穹钻机再叠 2 层 + 纪元一 4 层）', maxD <= 8,
     '最深 ' + maxD + ' 层：' + at(maxD).map(t => t.id).join(','));
   check('第二层 ≥ 3 项可并行（不是一根直链）', at(1).length >= 3, 'L1=' + at(1).length + ' 项');
   check('第三层 ≥ 4 项可并行', at(2).length + at(3).length >= 6,
@@ -661,7 +662,7 @@ console.log('\n=== 纪元三 · 钢与热液能 ===');
     c('education').t === 'built' && c('education').b === 'institute' && c('education').n === 3,
     'cond=' + JSON.stringify(c('education')));
   check('金属精炼尤里卡 = 完成鱼骨矿井（装填升级）',
-    c('metalrefine').t === 'upgrade' && c('metalrefine').id === 'fishbonemine',
+    c('metalrefine').t === 'upgrade' && c('metalrefine').id === 'upg_fishbonemine',
     'cond=' + JSON.stringify(c('metalrefine')));
   check('城堡尤里卡 = 启用三槽政体（排除酋邦制）',
     c('castle').t === 'gov' && c('castle').wild === 3,
@@ -688,7 +689,7 @@ console.log('\n=== 纪元三 · 钢与热液能 ===');
   check('教育: 研究所 = 3 ⇒ 达成', SB.tech.condMet(st, c('education')));
 
   check('金属精炼: 鱼骨矿井未装 ⇒ 未达成', !SB.tech.condMet(st, c('metalrefine')));
-  st.upgrades = st.upgrades || {}; st.upgrades.fishbonemine = true;
+  st.upgrades = st.upgrades || {}; st.upgrades.upg_fishbonemine = true;
   check('金属精炼: 鱼骨矿井已装 ⇒ 达成', SB.tech.condMet(st, c('metalrefine')));
 
   check('城堡: 酋邦制(1 槽) ⇒ 未达成', !SB.tech.condMet(st, c('castle')));
@@ -1140,24 +1141,27 @@ console.log('\n=== 住房两档（石工 → 石屋）===');
   check('石工不再直接给容量（改为解锁石屋）',
     !sh.eff.house && (sh.eff.unlockBuild || []).indexOf('coralhouse') >= 0, JSON.stringify(sh.eff));
 
-  /* 设计意图断言（2026-09-27 按用户拍的新配比重写）。
-   * 旧版问的是「第 5 座礁口巢起石屋更划算」，拿**不同等级**的两个房子比：ratio 1.15 年代
-   * 那是真交叉点，ratio 2.5 之后**交叉点不存在了** —— 两档同为 2.5、石屋 +4 / 巢 +2，
-   * 每人口成本之比恒为 (C首/4)÷(10/2) = C首/20 = 40/20 = **2**，与等级无关。
-   * 所以这条断言现在锁的是**现状**（石屋恒贵一倍），不再锁「石屋更划算」。
-   * ⚠️ 要它重新出现交叉点，只有把石屋首级压到 20 珊瑚（比值 1，与巢同价）。 */
+  /* 设计意图断言（2026-09-27 按用户拍的新配比重写，2026-10-03 随 nest 首级 10→5 复核）。
+   * 两档同为 ratio 2.5、石屋 +4 / 巢 +2，每人口成本之比**解析上恒为**
+   *   (石屋首级/4) ÷ (巢首级/2) = (40/4) ÷ (5/2) = 10 ÷ 2.5 = **4**，与等级无关（ratio 2.5 后无交叉点）。
+   * ⚠️ 但 costOf 对每级成本做 Math.ceil，巢基数小（5）时相对误差被放大：L2 实测比值 3.846（偏离 0.154），
+   *    故容差放宽到 0.2（旧版巢=10 时抖动仅 ~0.02，原容差 0.1 够用）。真正的硬不变量是「石屋每人口永不低于巢」
+   *    （perHouse < perNest 必红），倍数只是把这一档关系钉成「约 4 倍」。
+   * 期望值从建筑定义实时推导：改动 nest / coralhouse 首级成本时期望值自动跟着变，不会假红。 */
+  const nestBase = (SB.BUILDINGS.find(b => b.id === 'nest').cost || {}).coral || 0;
+  const houseBase = (SB.BUILDINGS.find(b => b.id === 'coralhouse').cost || {}).coral || 0;
+  const expRatio = (houseBase / 4) / (nestBase / 2);
   let houseRatioBad = null;
   for (let n = 1; n <= 8 && !houseRatioBad; n++) {
     const sn = SB.state.freshRun(false); sn.lvl.nest = n - 1;
     const sh = SB.state.freshRun(false); sh.lvl.coralhouse = n - 1;
     const perNest = SB.economy.costOf(sn, 'nest').coral / 2;
     const perHouse = SB.economy.costOf(sh, 'coralhouse').coral / 4;
-    // 容差 0.1：costOf 对每级成本做 Math.ceil，2.5^n 的小数部分会被抹平，比值在 1.98 附近抖
-    if (perHouse < perNest || Math.abs(perHouse / perNest - 2) > 0.1)
-      houseRatioBad = `第${n}级 巢${perNest} vs 屋${perHouse}（比值 ${(perHouse / perNest).toFixed(3)}）`;
+    if (perHouse < perNest || Math.abs(perHouse / perNest - expRatio) > 0.2)
+      houseRatioBad = `第${n}级 巢${perNest} vs 屋${perHouse}（比值 ${(perHouse / perNest).toFixed(3)}，期望 ${expRatio.toFixed(2)}）`;
   }
   check('住房两档同等级比：石屋每人口成本恒为礁口巢的 4 倍（ratio 2.5 后无交叉点）',
-    !houseRatioBad, houseRatioBad || '巢 2.50 / 屋 10.00 珊瑚每人口，逐级恒 4 倍');
+    !houseRatioBad, houseRatioBad || ('巢 ' + (nestBase / 2) + ' / 屋 ' + (houseBase / 4) + ' 珊瑚每人口，逐级恒 ' + expRatio.toFixed(1) + ' 倍'));
 }
 
 /* ---------------- 食物三旋钮（产 / 增 / 省 / 储）---------------- */
@@ -1321,7 +1325,17 @@ console.log('\n=== 食物三旋钮 ===');
        *     若给上限，「攒 1000 钛」那段会被仓储卡在最难受的位置（成本本身按千份计）。
        *   · 脚手架 = 工艺制作的产物（硬化珊瑚 100 + 绳 100 → 1），与石梁/铁制支架同口径。
        *   两者都不是漏写 CAP_BASE；将来若真要回收钛的稀缺性，改在 CAP_BASE 加键即可。 */
-      titanium: 1, scaffold: 1 };
+      titanium: 1, scaffold: 1,
+      /* ERA4（2026-09-30）：artwork（艺术品）/ tidalRecord（潮汐志录）。
+       *   与 stoneBeam/ironBracket/rope 同属「工艺制作的产物」一类 —— 由工坊配方造出来、
+       *   成批消耗（历史哲学的 crafting 入口），照猫国 beam 也无 warehouse 上限键 ⇒ 恒无上限。
+       *   给上限会卡死「攒材料造艺术品」的进度。两者都不是漏写 CAP_BASE。 */
+      artwork: 1, tidalRecord: 1,
+      /* ERA5（2026-10-02）：共振钻头（resonantDrill）。与 stoneBeam/ironBracket/rope/hardCoral 同属
+       *   「工艺制作的产物」一类 —— 由工坊配方 craft_drill 造出来、成批消耗（天穹钻机机器运行每 tick
+       *   扣 0.1，建一座就吃 20 份）。照石梁那套口径（猫国 warehouse 没有 beamMax ⇒ 恒无上限）。
+       *   不给 CAP_BASE 上限键，否则「攒 20 钻头建天穹钻机」会被仓储卡死。不是漏写 CAP_BASE。 */
+      resonantDrill: 1 };
     check('反向对照：科技 / 市政点 / 石梁 / 工艺制品仍表外无上限（批准名单，加别的必红）',
       noCap.length > 0 && noCap.every(k => !!CAPLESS_OK[k]),
       '[' + noCap.join(', ') + ']');
@@ -2939,13 +2953,13 @@ var sR0 = SB.game.run();
 sR0.civics.theology = true; sR0.religionName = '';
 SB.game.maybeReligionPopup(sR0);
 check('仅完成神学、未命名 ⇒ 不建立宗教（religionSeen 仍为 false）', SB.game.meta().religionSeen === false);
-// 1) 解锁轮回前：doBreak 不发放轮回点
+// 1) 神学未完成：doBreak 不发放轮回点（资格门 = 本局《神学》）
 var sR = SB.game.run();
-sR.peak = 120; sR.shell = 0; sR.broken = false;
+sR.civics.theology = false; sR.peak = 120; sR.shell = 0; sR.broken = false;
 var tideBefore = SB.game.meta().tide;
 SB.prestige.doBreak(sR, null);
-check('解锁轮回前 doBreak 不发放轮回点', SB.game.meta().tide === tideBefore, 'tide=' + SB.game.meta().tide.toFixed(2));
-sR.broken = false;   // 还原，避免影响后续断言
+check('神学未完成 doBreak 不发放轮回点', SB.game.meta().tide === tideBefore, 'tide=' + SB.game.meta().tide.toFixed(2));
+sR.broken = false; sR.civics.theology = false;   // 还原，避免影响后续断言
 // 1.5) 未建立宗教也「进到第二周目」（破冰 + startRun，cycle≥2）⇒ 仍不能进轮回商店：
 //      普通重置不是轮回，shopUnlocked 保持 false、meta 页整页锁死。
 SB.game.meta().religionSeen = false;
@@ -2960,7 +2974,7 @@ SB.game.maybeReligionPopup(sR2);
 check('写入宗教名后 meta.religionSeen = true', SB.game.meta().religionSeen === true);
 check('宗教弹窗台词就位（文明的轮回）', /文明的轮回/.test(doc.getElementById('modalBox').innerHTML));
 // 3) 解锁轮回后：doBreak 正常发放轮回点，且「第一次真实轮回」即解锁商店
-sR2.peak = 120; sR2.shell = 0; sR2.broken = false;
+sR2.civics.theology = true; sR2.peak = 120; sR2.shell = 0; sR2.broken = false;
 var tideB2 = SB.game.meta().tide;
 SB.prestige.doBreak(sR2, null);
 check('解锁轮回后 doBreak 发放轮回点', SB.game.meta().tide > tideB2,
@@ -2972,6 +2986,33 @@ SB.game.startRun();
 check('后续轮回后 shopUnlocked 仍为 true', SB.game.meta().shopUnlocked === true);
 check('首次轮回后 meta 页解锁（不再 locked）',
   !doc.querySelector('.tab[data-tab="meta"]').classList.contains('locked'));
+
+/* 5) 【2026-10-03 口径】底栏「重开本周目 / 轮回」按钮文案跟的是**当局**宗教，
+ *     不是永久的 meta.religionSeen。用户原话：「这里还没研究神学怎么就是轮回了？」
+ *    旧实现读 meta.religionSeen，于是「早前某周目建过宗教 / 旧档被迁移补发」之后，
+ *    新周目里神学被重置、宗教名也清空，底栏照样写「轮回」——像凭空跳过了神学。
+ *    ⚠️ 两条都要钉。负向那条是**唯一**能区分新旧实现的：旧写法下它必须红。
+ *       正向那条保证不是「两处都写死成同一个字符串」蒙过去的。 */
+{
+  const sBtn = SB.game.run();
+  const nameBak = sBtn.religionName, seenBak = SB.game.meta().religionSeen;
+  SB.game.meta().religionSeen = true;        // 永久开关为真（= 早前建过宗教 / 旧档迁移补发）
+  SB.state.saveMeta(SB.game.meta());
+  sBtn.religionName = '';
+  SB.game.renderAll();
+  const btn0 = doc.getElementById('btnReset').textContent;
+  check('永久已解锁（seen=true）但**当局**未建立宗教 ⇒ 底栏仍写「重开本周目」',
+    SB.game.meta().religionSeen === true && btn0 === '重开本周目',
+    'seen=' + SB.game.meta().religionSeen + ' text=' + btn0);
+  sBtn.religionName = '深渊教';
+  SB.game.renderAll();
+  const btn1 = doc.getElementById('btnReset').textContent;
+  check('**当局**建立宗教（写入宗教名）⇒ 底栏写「轮回」', btn1 === '轮回', 'text=' + btn1);
+  sBtn.religionName = nameBak;               // 还原，别影响后续断言
+  SB.game.meta().religionSeen = seenBak;
+  SB.state.saveMeta(SB.game.meta());
+  SB.game.renderAll();
+}
 
 /* 巢穴页内区标题配色 + 分区折叠（2026-09-30 晚 · 用户：「这里的文字颜色也改了，就是生息区这些」
  *   「各个分区的折叠呢，没做啊」）：
@@ -4595,10 +4636,9 @@ console.log('\n=== 工坊：青铜工具 ===');
        *  ⚠️ 也没被悄悄摘掉判定 —— 它们会原样出现在下面的 detail 里，
        *    任何人一读输出就知道这笔债还没还。纪元五重做后必须把这个 KNOWN 清，
        *    那时再出现任何悬空 reqs，断言立刻恢复红色。 */
-      const KNOWN_DANGLING = {
-        'ballistics->turbine': '纪元五待整体重做',
-        'engineering->turbine': '纪元五待整体重做'
-      };
+      /* ERA5（2026-10-02）已整体重做，旧 era5 的 ballistics/engineering 悬空 reqs
+       * 已随科技表重建消失，此处不再有已知悬空豁免。任何新悬空 reqs 都应立刻变红。 */
+      const KNOWN_DANGLING = {};
       const dangling = [];
       SB.TECHS.forEach(t => (t.reqs || []).forEach(r => {
         if (byId(r)) return;
@@ -4944,6 +4984,114 @@ console.log('\n=== 工坊：青铜工具 ===');
   }
 }
 
+/* ---------------- ERA4 市政（2026-10-01 用户设计稿实装）----------------
+ * 覆盖三层：
+ * ① 数据完整性：5 市政 / 2 政体 / 4 政策卡 / 教堂奇观都在表里，鼓舞类型与设计稿一一对应；
+ * ② 效果读数：11 条新乘区/加区在「未装 / 未采用」时返回基准值（绝不污染产线），
+ *    在「装上 / 采用」的夹具态下返回设计值——与 castleFaithMul 那批同构；
+ * ③ 季节发放：探索+商队驿站的每季资源 = 速率 × 60s（截仓储上限）。
+ * ⚠️ 不在这里做 bot 可达性覆盖：bot 不建立宗教、不装 II 级扩容、未必凑满 6 奇观——
+ *    覆盖洞照「覆盖洞挂账」口径记录，绝不扭曲断言迁就现状。 */
+console.log('\n=== ERA4 市政 ===');
+{
+  const s4 = SB.state.freshRun(false);
+  /* ① 数据完整性 */
+  const wantC = ['explore', 'reformed', 'mercantilism', 'enlightenment', 'historiography'];
+  check('ERA4 五项市政都在表里且 era=4',
+    wantC.every(id => SB.CIVICS.some(c => c.id === id && c.era === 4)));
+  const cBy = id => SB.CIVICS.find(c => c.id === id);
+  check('鼓舞类型与设计稿一一对应（探索=II 级扩容 / 归正会=宗教 / 重商=20 商人 / 启蒙=观测站 / 史哲=6 奇观）',
+    cBy('explore').boost.t === 'upgrade' && cBy('explore').boost.id === 'upg_ballast_2' &&
+    cBy('reformed').boost.t === 'religion' &&
+    cBy('mercantilism').boost.t === 'job' && cBy('mercantilism').boost.n === 20 &&
+    cBy('enlightenment').boost.t === 'built' && cBy('enlightenment').boost.b === 'observatory' &&
+    cBy('historiography').boost.t === 'wonder' && cBy('historiography').boost.n === 6);
+  const gBy = id => SB.GOVS.find(g => g.id === id);
+  check('两个新政体：商人共和国 5 全能槽 + 省耗 0.7；神权政体 3+1 槽',
+    gBy('merchant_republic') && gBy('merchant_republic').slots.wild === 5 &&
+    gBy('merchant_republic').happyConsumeMul === 0.7 &&
+    gBy('theocracy') && gBy('theocracy').slots.wild === 3 && gBy('theocracy').slots.relig === 1);
+  const pBy = id => SB.POLICIES.find(p => p.id === id);
+  check('四张新政策卡都在表里且「历史记录」被启蒙运动退役',
+    ['card_triangular', 'card_divine_right', 'card_mercantilism', 'card_enlightenment']
+      .every(id => !!pBy(id)) &&
+    SB.POLICIES.find(p => p.id === 'card_records').retiredBy === 'enlightenment');
+  const cath = SB.WONDERS.find(w => w.id === 'wonder_olo_wa_cathedral');
+  check('欧\'洛瓦宗座教堂：needCivic=归正会、effect.religSlot=1',
+    !!cath && cath.needCivic === 'reformed' && cath.effect.religSlot === 1);
+
+  /* ② 效果读数：未装/未采用 = 基准值 */
+  check('未采用商人共和国 ⇒ 幸福度消耗乘区 = 1（基准值）',
+    SB.civic.govHappyConsumeMul(s4) === 1);
+  check('没装三角贸易 ⇒ 运河省耗乘区 = 1；没装重商主义 ⇒ 银行乘区 = 1',
+    SB.civic.canalSaveMul(s4) === 1 && SB.civic.bankMerchantMul(s4) === 1);
+  check('没装天赋神权 ⇒ 核心信仰乘区 = 1；没装启蒙运动 ⇒ 大学/神庙乘区 = 基准',
+    SB.civic.coreFaithMul(s4) === 1 && SB.civic.universityMul(s4) === 1 &&
+    SB.civic.templeFaithMul(s4) === 1);
+  check('没建博物馆/没完成行政部门 ⇒ 书手乘区 = 1；没完成历史哲学 ⇒ 奇观市政点加成 = 0',
+    SB.civic.museumCivicMul(s4) === 1 && SB.civic.scribeCivicMul(s4) === 1 &&
+    SB.civic.wonderEraCivicBonus(s4) === 0);
+
+  /* ②b 装上/采用后的设计值（夹具态直写，走与真实同一批读数函数） */
+  s4.gov = 'merchant_republic';
+  check('采用商人共和国 ⇒ 幸福度消耗 ×0.7', SB.civic.govHappyConsumeMul(s4) === 0.7);
+  s4.gov = 'theocracy';
+  /* 神权政体信仰加成 = 学术区合计等级 ×1 + 市政区合计等级 ×0.5。等级由建筑分区推
+   * （分区唯一真源 = config 给每座 BUILDINGS 挂上的 .zone，与读数函数读的是同一份），
+   * 断言钉「与分区自洽」而非写死座数——将来加学术区建筑不用回来改这里。 */
+  const zon = {};
+  SB.BUILDINGS.forEach(b => { zon[b.id] = b.zone; });
+  check('未建学术/市政区建筑 ⇒ 神权信仰加成 = 0', SB.civic.theoFaithBonus(s4) === 0);
+  for (const k in zon) { if (zon[k] === 'academy') s4.lvl[k] = 2; if (zon[k] === 'civic') s4.lvl[k] = 3; }
+  let _a2 = 0, _v2 = 0;
+  for (const k in zon) { if (zon[k] === 'academy') _a2 += (s4.lvl[k] || 0); if (zon[k] === 'civic') _v2 += (s4.lvl[k] || 0); }
+  check('神权信仰加成 = 学术合计×1 + 市政合计×0.5（与分区自洽）',
+    Math.abs(SB.civic.theoFaithBonus(s4) - (_a2 + _v2 * 0.5)) < 1e-9,
+    'got=' + SB.civic.theoFaithBonus(s4) + ' a=' + _a2 + ' v=' + _v2);
+  s4.lvl.museum = 1;
+  check('博物馆 ≥1 ⇒ 书手 ×1.20；行政部门完成 ⇒ 再 ×1.5（两者叠加）',
+    SB.civic.museumCivicMul(s4) === 1.20 &&
+    (s4.civics.department = true, Math.abs(SB.civic.scribeCivicMul(s4) - 1.5) < 1e-9));
+  s4.civics.historiography = true;
+  s4.wonders = { wonder_tide_stele: true, wonder_albada: true, wonder_grand_exchange: true };
+  check('历史哲学完成 ⇒ ERA1/2/3 每座奇观 +5 市政点（era4 不算，2×5=10）',
+    SB.civic.wonderEraCivicBonus(s4) === 10);
+  s4.cards = ['card_triangular', 'card_mercantilism', 'card_divine_right', 'card_enlightenment'];
+  check('四张卡全装 ⇒ 运河 ×2 / 银行 ×2 / 大学 ×2 / 神庙 ×0.5',
+    SB.civic.canalSaveMul(s4) === 2 && SB.civic.bankMerchantMul(s4) === 2 &&
+    SB.civic.universityMul(s4) === 2 && SB.civic.templeFaithMul(s4) === 0.5);
+  for (const k in zon) if (zon[k] === 'core') s4.lvl[k] = 4;
+  let _c = 0;
+  for (const k in zon) if (zon[k] === 'core') _c += (s4.lvl[k] || 0);
+  check('天赋神权 ⇒ 核心信仰乘区 = 1 + 核心合计等级×0.10（与分区自洽）',
+    Math.abs(SB.civic.coreFaithMul(s4) - (1 + _c * 0.10)) < 1e-9,
+    'got=' + SB.civic.coreFaithMul(s4) + ' c=' + _c);
+  check('教堂建成 ⇒ wonderReligSlots = 1（宗教槽叠加源）',
+    (s4.wonders.wonder_olo_wa_cathedral = true, SB.civic.wonderReligSlots(s4) === 1));
+
+  /* ③ 季节发放：全员采集者 ⇒ 藻食是唯一正速率（freshRun 不寒冻 ⇒ isCold=false，
+   *    产 2.5×10 = 25 > 吃 1.5×10 = 15，净 +10/s）⇒ 抽取必中藻食 */
+  const s5 = SB.state.freshRun(false);
+  s5.civics.explore = true; s5.lvl.caravanserai = 1;
+  s5.pop = 10; s5.jobs = { gather: 10 };
+  const r5 = SB.economy.rates(s5);
+  const cap5 = SB.economy.capOf(s5, 'kelp');
+  const posKeys = Object.keys(r5).filter(k => typeof r5[k] === 'number' && r5[k] > 0);
+  check('夹具态只有藻食一条正速率（抽取必中的前提）',
+    posKeys.length === 1 && posKeys[0] === 'kelp',
+    'pos=' + posKeys.join(','));
+  const kBefore = s5.res.kelp;
+  SB.economy.seasonGrant(s5);
+  check('探索+驿站：季节发放 = 藻食速率×60（截仓储上限）',
+    Math.abs(s5.res.kelp - Math.min(kBefore + r5.kelp * 60, cap5)) < 1e-9,
+    'got=' + s5.res.kelp.toFixed(4) + ' want=' + Math.min(kBefore + r5.kelp * 60, cap5).toFixed(4));
+  const s6 = SB.state.freshRun(false);
+  s6.pop = 10; s6.jobs = { gather: 10 };
+  const k6 = s6.res.kelp;
+  SB.economy.seasonGrant(s6);
+  check('没完成探索/没建驿站 ⇒ seasonGrant 不发资源', s6.res.kelp === k6);
+}
+
 /* 纪元边界（核算用）：调时代时长时先看这条，别只看总时长。
  * ⚠️ 每一段的**占比**比绝对值更能指认旋钮：年份摊得均匀是好事，
  *    某一段独占一半以上，说明那段卡了别的东西，改别的段是白费劲。 */
@@ -5033,14 +5181,16 @@ console.log('\n=== era1 专项核算：真实开局，科技全部研究完 ==='
   check('真实开局下 era1 十二项能全部研究完（不靠前序用例垫资源）', e1Done !== null,
     e1Done === null ? '30000 帧也没点满，末项：' +
       ids.filter(id => at[id] === null).join(' ') : (e1Done / 3600).toFixed(2) + 'h');
-  /* ⚠️ 2026-09-28 **挂起（不是改绿）**：终局那条链是
-   *      shellBreaker ← siegeT +1 ← ballistics +2 ← turbine ← ignition
-   *    而 **ballistics 的尤里卡条件是 `cond:{t:'rate', r:'fuel', n:0.5}`**（燃料产出 ≥ 0.5/s）。
-   *    `fuelRate` 恒 0 ⇒ 该条件**永假** ⇒ ballistics 永远研究不了 ⇒ 后两条跟着断
-   *    ⇒「整棵树能研究完 / 无永久死锁」结构性不成立。这就是删热泉井的直接代价。
+  /* ⚠️ 2026-09-28 **挂起（不是改绿）**：删热泉井的代价还在 —— `fuelRate` 恒 0 ⇒
+   *    破冰祭坛永远供不上能 ⇒ 终局「凿穿最后 25% 壳厚」不可达，era5 的破壳工程整段悬空。
+   *    本轮（2026-10-02）把旧 era5 的 ballistics/siegeT/shellBreaker 死链换成新链
+   *    skydrill ← shellgeo + abyssgeo ← invert + physics，但**结构性不成立**仍未解：
+   *    ① 天穹钻机(skydrill) 的尤里卡要求建成「天壳切削器 + 高压热机管道」两座奇观，
+   *       而这两座奇观的机器态/终局逻辑尚未实装（见 WONDERS.wonder_skydrill 占位）；
+   *    ② 破冰祭坛不可达 ⇒ 即便研究完 skydrill，整局仍卡在 75% 壳厚。
    *    【重设后还原】把下面两条 pending 换回原 check()，它们原本钉的就是这个性质。 */
   pending('真实开局下整棵科技树能全部研究完（无永久死锁）',
-    'ballistics 要求 fuelRate ≥ 0.5，而 fuelRate 恒 0（热泉井已删）⇒ 永久死锁；'
+    '热泉井已删 ⇒ fuelRate 恒 0 ⇒ 破冰祭坛不可达；且天穹钻机需建成天壳切削器+高压热机管道奇观（机器态未实装）；'
     + '未点满：' + allIds.filter(id => { const cur = SB.game.run(); return !(cur.techs && cur.techs[id]); }).join(' '));
   pending('era1 全清早于整棵树全清（era1 是它的真子集）',
     '同上（整树全清永不可达）；era1 ' + ((e1Done || 0) / 3600).toFixed(2) + 'h');

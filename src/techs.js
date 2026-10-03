@@ -470,7 +470,7 @@
     /* 金属精炼前置 = 学徒制。尤里卡 = 完成鱼骨矿井（装 upg_fishbonemine，cond 'upgrade'）。
      * 尤里卡查鱼骨矿井、unlockBuild 查汽轮机/工坊——两件不同节点，不互锁。 */
     { id: 'metalrefine', name: '金属精炼', era: 3, cost: 6500, branch: 'survive', key: true, reqs: ['apprentice'], layer: 2,
-      cond: { t: 'upgrade', id: 'fishbonemine' },
+      cond: { t: 'upgrade', id: 'upg_fishbonemine' },
       eff: { unlockBuild: ['hydroturbine', 'hydroshop'] },
       note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。' },
 
@@ -532,29 +532,53 @@
       eff: {},
       note: 'Civ6: Urban Design · 关键节点。百人同族，才有把天壳当工地的一批人。' },
 
-    /* ═════════ 纪元五 · 破壳（4 项 · 805/925/1200） ═════════
-     * 工业化。奇迹装置（破冰祭坛）的最终解锁在这里——用户明确要求「到工业时代才能建造」。 */
-    /* 条件用「地热产出」而不是「祭坛已建」：祭坛本身要 siegeT 才能建，
-     * 若这里反过来要求祭坛已建，就又是一对死锁（同 smelt/furnace 那条）。 */
-    { id: 'ballistics', name: '冲击弹道', era: 5, cost: 805, branch: 'survive', key: false,
-      reqs: ['turbine'], layer: 4, cond: { t: 'rate', r: 'fuel', n: 0.5 },
-      eff: { miracle: 0.25, coef: 0.5 },
-      note: 'Civ6: Ballistics · 地热真的烧起来了，才谈得上打磨怎么把它砸开。' },
+    /* ═════════ 纪元五 · 破壳（6 项 · layer 5/5/5/6/6/7） ═════════
+     * 工业化。破冰祭坛（奇迹装置）的解锁仍走 config 的 miracle.requiredTech（见下方别处），
+     * 本纪元只负责把「破壳纪」的科技线铺到收尾的 key 节点（天穹钻机）。
+     * ⚠️ 6 项分两层半：layer 5 = 三项（工业化 / 普及教育 / 渊海地质学），
+     *    layer 6 = 两项（高压热机 / 天壳地质学），layer 7 = 关键节点天穹钻机。
+     *    推导（e2e 的「前置 layer ≤ 自身 layer」拦着，不能更低）：
+     *      era4 最深 invert=L5 ⇒ 本纪元任何项 ≥ L5；
+     *      工业化/普及教育/渊海地质学前最深 L4(physics/thermo) ⇒ 自身 L5；
+     *      高压热机/天壳地质学前 L5(invert) ⇒ 自身 L6；
+     *      天穹钻机前 L5+L6 ⇒ 自身 L7。 */
+    /* ⚠️ cost 为**暂定值**（用户表未给成本），量级对齐 era4（shellwatch 2万 → invert 7.5万），
+     *    顺延到 8万~15万。最终数值等用户标定轮拍板，不在本轮定死。 */
+    { id: 'industrialize', name: '工业化', era: 5, cost: 80000, branch: 'survive', key: false,
+      reqs: ['thermo'], layer: 5,
+      cond: { t: 'rate', r: 'hydro', n: 10 },
+      eff: { unlockBuild: ['hotforge'] },
+      note: 'Civ6: Industrialization · 热液能产出达到 10/s。解锁热锻工厂。' },
 
-    { id: 'engineering',name: '工程兵团', era: 5, cost: 805, branch: 'live', key: false,
-      reqs: ['turbine'], layer: 4, cond: { t: 'total', n: 32 },
-      eff: { coef: 1.2 },
-      note: 'Civ6: Industrialization · 建筑铺到 32 级，破壳系数才压得住工业化这个词。' },
+    { id: 'pubedu', name: '普及教育', era: 5, cost: 90000, branch: 'know', key: false,
+      reqs: ['printing', 'physics'], layer: 5,
+      cond: { t: 'rate', r: 'science', n: 100 },
+      eff: { unlockBuild: ['school'] },
+      note: 'Civ6: Public Schooling · 科学产出达到 100/s。解锁学校（每级 +0.5 科技/秒）。' },
 
-    { id: 'siegeT',     name: '破冰工程学', era: 5, cost: 925, branch: 'know', key: true,
-      reqs: ['ballistics'], layer: 5, cond: { t: 'coef', n: 9 },
-      eff: { miracle: 0.25, coef: 0.5 },
-      note: 'Civ6: Rifling · 关键节点 + 破冰祭坛的 requiredTech。破壳系数到 9 才谈得上「工程」。' },
+    { id: 'abyssgeo', name: '渊海地质学', era: 5, cost: 100000, branch: 'know', key: false,
+      reqs: ['physics'], layer: 5,
+      cond: { t: 'upgrade', id: 'upg_deepmine' },
+      eff: { warmMul: 5.0, titaniumMul: 1.0 },
+      note: 'Civ6: Seafaring · 完成深层矿井升级。暖石 +500% / 钛 +100%。' },
 
-    { id: 'shellBreaker', name: '破壳引擎', era: 5, cost: 1200, branch: 'know', key: true,
-      reqs: ['siegeT'], layer: 6, cond: { t: 'res', r: 'iron', n: 400 },
-      eff: { coef: 2.0, miracle: 0.25 },
-      note: '（Future Tech 位）· 终局。精铁存量破 400 即可研究，研究完这一局就到头了。' }
+    { id: 'highthermo', name: '高压热机', era: 5, cost: 110000, branch: 'survive', key: false,
+      reqs: ['industrialize'], layer: 6,
+      cond: { t: 'upgrade', id: 'upg_hppump' },
+      eff: {},
+      note: 'Civ6: High Pressure Engines · 完成高压气泵升级。' },
+
+    { id: 'shellgeo', name: '天壳地质学', era: 5, cost: 120000, branch: 'know', key: false,
+      reqs: ['invert'], layer: 6,
+      cond: { t: 'shell', n: 0.5 },
+      eff: {},
+      note: 'Civ6: Geology · 破壳达到 50%（壳剩余 ≤ 50%）。' },
+
+    { id: 'skydrill', name: '天穹钻机', era: 5, cost: 150000, branch: 'know', key: true,
+      reqs: ['abyssgeo', 'shellgeo'], layer: 7,
+      cond: { t: 'wonders', ids: ['wonder_shellcutter', 'wonder_presspipe'] },
+      eff: {},
+      note: 'Civ6: Skyscraper · 关键节点。建成天壳切削器 + 高压热机管道两座奇观。破壳纪收尾。' }
   ];
 
   var BRANCHES = [
@@ -575,7 +599,7 @@
      *    老档里若有人研究过它，那项知识在新树里无处落 —— 按丢弃处理，不断链。
      * ⚠️ `heat: 'hearthfire'` 亦已删除（2026-09-28，同纪元二重排）：老档里的 heat 一律
      *    视为没研究过（等价物不存在 ⇒ 折算会凭空造出一个新科技）。 */
-    dive: 'deepsea', siegeT: 'siegeT', pick: 'engineering'
+    dive: 'deepsea', siegeT: 'skydrill', pick: 'skydrill'  // 旧纪元五 siegeT/工程兵团 已随本轮重做删除，迁到新 key 天穹钻机
   };
 
   NS.ERAS = ERAS;

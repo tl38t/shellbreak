@@ -15,6 +15,7 @@
 (function (root) {
   'use strict';
   var SB = root.SB || (root.SB = {});
+  var CFG = SB.CFG;
 
   function list() { return SB.WONDERS || []; }
   function byId(id) {
@@ -188,13 +189,70 @@
     return Math.max(0, 1 - m);
   }
 
+  /* ⑨ 高压热机管道（ERA5 · 2026-10-02）：热液能**供给侧** +x（effect.hydroBonus 求和）。
+   *    ⚠️ 与 高压气泵升级的 hydroMul（乘区，只放大汽轮机）是**两件事**：
+   *       hydroMul 是「供给 ×(1+0.5)」；这里是「供给 +10 绝对量」—— 加法加到总供给上，
+   *       不随汽轮机台数缩放（管道是并联的独立进汽口，不是汽轮机的倍率）。
+   *    ⚠️ 读取点只在 economy 的 steelFlow / steelRate 供给侧，别处不散读 effect.hydroBonus。 */
+  function hydroWonderMul(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.hydroBonus) || 0;
+    }
+    return m;
+  }
+
+  /* ⑩ 国会大厦（ERA5 · 2026-10-02）：鲛人幸福度消耗 −10%（effect.happyConsume 求和后取 1−）。
+   *   与政体 govHappyConsumeMul（乘整段）同乘区，economy.happyBurn 读。多座叠加时 Math.max 防负。 */
+  function happyConsumeMul(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.happyConsume) || 0;
+    }
+    return Math.max(0, 1 - m);
+  }
+
+  /* ⑪ 天穹钻机（ERA5 破壳终章，2026-10-02 实装）：
+   *   运行态（破壳进行中，!s.broken）：幸福度 −1（机器轰鸣，effect 占位里写的是「−1」）。
+   *   破壳完成后（s.broken）：转奇观态，+100 市政点/s + 幸福度 +1。
+   *   ⚠️ 这两个量**不能**写进 wonder_skydrill.effect（那样会在破壳前就生效、且不分运行/奇观态），
+   *       所以走专属出口；破壳速率/资源消耗在 shell.tickShell ③，这里只出「持续效果」给 economy 读数。
+   *   ⚠️ 读 s.broken 判阶段：prestige.doBreak 开头有「已结算则返回」守卫，broken 置位权只在
+   *       doBreak 内，故这里读到的 broken 是「已轮回」的权威标志（纪律③延伸：别处不散读 s.wonders）。 */
+  function skydrillCivic(s) {
+    if (owned(s).skydrill && s.broken) return CFG.SKYDRILL_CIVIC;
+    return 0;
+  }
+  function skydrillHappyOffset(s) {
+    if (!owned(s).skydrill) return 0;
+    return s.broken ? CFG.SKYDRILL_HAPPY_WONDER : -CFG.SKYDRILL_HAPPY_RUN;
+  }
+
+  /* ⑫ 轮回商店「遗址施工图」折扣：奇观建造成本 ×(1 − 0.05 × wonderBlueprint等级)，最多 −20%。
+   *   ⚠️ 显示（render）、扣费（buildWonder）、可建造判定（wonderBlocked 的 lackText）三处必须同源，
+   *       否则「面板写省了、扣费没省 / 按钮还能按但实际建不起」这类面板撒谎。 */
+  function discountedCost(s, id) {
+    var w = byId(id);
+    if (!w || !w.cost) return {};
+    var lv = (SB.prestige && SB.prestige.legacy) ? SB.prestige.legacy().wonderBlueprintLevel : 0;
+    var mul = Math.max(0, 1 - 0.05 * lv);
+    var out = {}, k;
+    for (k in w.cost) out[k] = Math.ceil(w.cost[k] * mul);
+    return out;
+  }
+
   SB.wonder = {
-    list: list, byId: byId, count: count,
+    list: list, byId: byId, owned: owned, count: count,
     wonderCraftRatio: wonderCraftRatio, matMaxBonus: matMaxBonus,
     civicBonus: civicBonus, globalBonus: globalBonus,
     libBonus: libBonus, oneShot: oneShot,
     abbeyFaithMul: abbeyFaithMul, bazaarLuxMul: bazaarLuxMul,
     cutterSciMul: cutterSciMul, cutterCivicMul: cutterCivicMul,
-    happyBonus: happyBonus, tradeSaveMul: tradeSaveMul
+    happyBonus: happyBonus, tradeSaveMul: tradeSaveMul,
+    hydroWonderMul: hydroWonderMul, happyConsumeMul: happyConsumeMul,
+    skydrillCivic: skydrillCivic, skydrillHappyOffset: skydrillHappyOffset,
+    discountedCost: discountedCost
   };
 })(typeof window !== 'undefined' ? window : globalThis);

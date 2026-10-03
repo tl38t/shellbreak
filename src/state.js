@@ -10,20 +10,63 @@
   function emptyMeta() {
     /* religionSeen：是否建立过宗教（解锁「轮回」系统）。一旦置真，永久保留（跨周目），
      *   因为「以后每周目都是这样」——重置按钮改名轮回、轮回点可获取，都是它的副作用。
-     * shopUnlocked：轮回商店（meta 页）的解锁开关，仅在「首次轮回」后翻真。
-     *   它与 religionSeen 是两件事：建立宗教后已能攒轮回点，但花点要等真正轮回过一次。 */
+     * shopUnlocked：轮回商店（meta 页）的解锁开关，仅在「首次合格轮回」后翻真。
+     *   它与 religionSeen 是两件事：建立宗教后已能攒轮回点，但花点要等真正轮回过一次。
+     * 旧日遗产账本（方案文档 §跨周目账本）：
+     *   oldFaith                 本局剩余信仰并入的跨周目总量（对数档位给全产加成）
+     *   memorialWonders          已入藏独特奇观 id 表（每座 +1% 科技/市政获取；观光点=其计数）
+     *   oldArtworkEarnedTotal    旧日艺术品累计获得总数（固定市政点/秒，递减曲线）
+     *   oldTideStelesEarnedTotal 旧日潮纹碑石累计获得总数（固定科技点/秒，递减曲线） */
     return { tide: 0, spent: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null,
-      religionSeen: false, shopUnlocked: false };
+      religionSeen: false, shopUnlocked: false,
+      oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0 };
   }
-  function emptyPerks() { return { gather: 0, coef: 0, thin: 0 }; }
+  function emptyPerks() {
+    /* 轮回商店增益的运行时累加表。键必须与 config.PERKS 各商品的 apply 键一致；
+     * 漏一个键会让 economy 读数 undefined ⇒ 被当成 0（通常无害），但显式列全避免歧义。 */
+    return { gather: 0, coef: 0, thin: 0, popcap: 0, housePlan: 0, coldStore: 0, offline: 0,
+      matStore: 0, coldWard: 0, civicArchive: 0, tideProof: 0, wonderBlueprint: 0, shellSurvey: 0,
+      autoStudy: 0, autoCivic: 0, autoCraft: 0, jobPlan: 0, civicPlan: 0, craftPlan: 0, wonderPlan: 0 };
+  }
+
+  /* 从跨周目商店账本（meta.perks）重建本局运行时增益表：每个已购等级的 apply 值 × 等级，
+   * 累加到运行时 perk 表；起始资源类（food/coral/scienceStart）折算成开局资源量一并返回。
+   * ⚠️ 这是「轮回商店增益每局生效」的唯一落点：freshRun 永远从这里重建 s.perk，
+   *   不依赖上一局残留（上一局的 s.perk 本就由这里派生，重算即幂等）。
+   *   中途在商店买增益只写 meta.perks（prestige.buyPerk 不碰当前局 s.perk），
+   *   故「购买在下一局开局生效」，与方案文档「freshRun 后继续生效」口径一致。 */
+  function derivePerksFromMeta() {
+    var out = { perk: emptyPerks(), kelp: 0, coral: 0, science: 0, applied: false };
+    var m = null;
+    try { if (SB.game && SB.game.meta) m = SB.game.meta(); } catch (e) { m = null; }
+    if (!m || !m.perks) return out;
+    out.applied = true;
+    var PL = SB.PERKS || [], i;
+    for (i = 0; i < PL.length; i++) {
+      var p = PL[i];
+      var lv = m.perks[p.id] || 0;
+      if (!lv) continue;
+      var a = p.apply || {};
+      for (var k in a) out.perk[k] = (out.perk[k] || 0) + a[k] * lv;
+      if (p.id === 'food') out.kelp += 200 * lv;
+      if (p.id === 'coral') out.coral += 150 * lv;
+      if (p.id === 'scienceStart') out.science += 100 * lv;
+    }
+    return out;
+  }
 
   /* 生成一周目。inherit: true 时继承上一周目的增益（轮回点/破层级/已购增益）。
    * 注意：破层级 layers 一期恒为 1（破冰 = 第 1 层），结构上留给二期大气壳。 */
   function freshRun(keepPerks) {
     var prev = SB.S;
-    var perk = emptyPerks();
-    if (keepPerks && prev && prev.perk) {
+    var d = derivePerksFromMeta();
+    var perk;
+    if (d.applied) {
+      perk = d.perk;
+    } else if (keepPerks && prev && prev.perk) {
       perk = Object.assign(emptyPerks(), prev.perk);
+    } else {
+      perk = emptyPerks();
     }
     var thin = perk.thin || 0;
     var iceShell = Math.round(CFG.ICE_SHELL * Math.pow(0.9, thin));
@@ -53,7 +96,7 @@
        *    注同源漏洞键 ⇒ NaN（商人产它、addRes 收它）。它的特别之处是**有产出
        *    没有开销**：tick 里那条 `addRes(s,'luxury',...)` 现在每帧都跑，漏了这一键
        *    会在开局几秒内就把 s.res 整个染成 NaN——比石梁那次更慢、更难发现。 */
-      res: { kelp: 0, coral: 0, stone: 0, silt: 0, warmstone: 0, iron: 0, science: 0, fuel: 0, culture: 0,
+      res: { kelp: d.kelp, coral: d.coral, stone: 0, silt: 0, warmstone: 0, iron: 0, science: d.science, fuel: 0, culture: 0,
         stoneBeam: 0, ironBracket: 0, rope: 0, hardCoral: 0, luxury: 0, faith: 0,
         /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件。三者均无 CAP_BASE 上限键
          *   ⇒ capOf 自动 Infinity（钢无上限抄猫国）。这里只 seed 初始台账，防止 addRes 漏键染 NaN。
@@ -61,7 +104,12 @@
         steel: 0, hydro: 0, steelPart: 0,
         /* ERA4（2026-09-30）：钛 / 脚手架。           与钢那批同口径 —— 无 CAP_BASE 键（无上限）、
          *   这里只 seed 初始台账，漏键的后果是 addRes 把资源池染成 NaN（与上面那条同族的事故）。 */
-        titanium: 0, scaffold: 0 },
+        titanium: 0, scaffold: 0,
+        /* ERA4（2026-09-30）：历史哲学解锁的两件工艺制品 artwork / tidalRecord。
+         *   与石梁/铁制支架同口径 —— 由工坊配方造出来、成批消耗、无 CAP_BASE 上限键
+         *   （capOf 自动 Infinity）。这里只 seed 初始台账，漏键的后果是 addRes 把资源池染成 NaN
+         *   （与上面那条同源事故）。got 台账不记工艺制品，故不进 got（见 stoneBeam 那条口径）。 */
+        artwork: 0, tidalRecord: 0, resonantDrill: 0 },
       /* lvl 的键必须与 SB.BUILDINGS 的 id 一一对应（quarry 已随「采石场改职业」移除）。
        * ⚠️ 漏一个键 = 一次 NaN 事故：`undefined * 0.12` 经 addRes 的 Math.min
        * 污染资源池，再顺着 lvlSum 污染破壳系数。与「加职业漏加表」「存档缺键」同类。 */
@@ -97,7 +145,17 @@
          *   奢侈节省乘法读到 undefined —— 与上面每一条「加建筑漏 lvl」同源。 */
         /* ERA4（2026-09-30）：三座新建筑。漏键的后果由上面那条注写清楚了
          *    （costOf 读到 undefined ⇒ 全表造价 NaN），这里必须每座都落地。 */
-        castle: 0, canal: 0, observatory: 0, coralfarm: 0, bank: 0 },
+        castle: 0, canal: 0, observatory: 0, coralfarm: 0, bank: 0,
+        /* ERA4（2026-09-30）：商队驿站（探索解锁）/ 博物馆（启蒙运动解锁）。漏键的后果
+         *   由上面那条 lvl 注写清楚了（costOf 读到 undefined ⇒ 全表造价 NaN / 读档静默丢），
+         *   这里必须每座都落地，断言按 SB.BUILDINGS 逐个对、漏了会红。 */
+        caravanserai: 0, museum: 0,
+        /* ERA5（2026-10-02）：热锻工厂（industrialize 解锁）/ 学校（pubedu 解锁）。
+         *   漏键 = costOf 读到 undefined ⇒ 全表造价 NaN / 读档静默丢（与上面每一条同源）。 */
+        hotforge: 0, school: 0,
+        /* ERA5（2026-10-02）：歌剧院（sharksong 解锁）/ 廉租社区（urbanization 解锁）。
+         *   漏键 = costOf 读到 undefined ⇒ 全表造价 NaN / 读档静默丢（与上面每一条同源）。 */
+        theater: 0, tenement: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * UNIT.kelp` 变成
