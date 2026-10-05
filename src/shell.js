@@ -125,15 +125,22 @@
 
     // ③ 天穹钻机（ERA5 破壳终章）：建成后自动运转，凿穿最后一段天壳。
     //    ⚠️ 与祭坛②是**两条独立路线**：祭坛吃地热（已删，恒 0），钻机吃共振钻头 + 热液能。
+    //    ⚠️ 2026-10-05 flow 模型：热液能是「每 tick 的瞬态流」，钻机从**本 tick 剩流**里取
+    //       SKYDRILL_HYDRO，不再读 s.res.hydro 库存池（那里现在是供给快照，不累积）。
+    //       剩流由 economy.steelFlow 同一 tick 算好的 s._hydroFlow.left 给出（工坊低阶先吃满）。
     //    ⚠️ 不判 FLOOR_AT：钻机只在 ERA5 建成，届时壳已被 ① 削到 25%；让它从任意厚度都能削，
     //       等价于「从 25% 继续削到 0」，语义一致且更鲁棒（即便将来有人早建也能用）。
     //    ⚠️ 资源见底自动停摆（与祭坛同款饥饿机制），补足后下一 tick 自动继续。
-    if (SB.wonder && SB.wonder.owned(s).skydrill) {
+    if (SB.wonder && SB.wonder.owned(s).wonder_skydrill) {
       var dCost = CFG.SKYDRILL_DRILL * dt;
       var hCost = CFG.SKYDRILL_HYDRO * dt;
-      if ((s.res.resonantDrill || 0) >= dCost && (s.res.hydro || 0) >= hCost) {
+      // 热液能侧：hydroAlloc 已是「本 tick 流分配」唯一权威（含钻机吃剩流的那一份），
+      //   skyDraw>0 即表示「工坊吃完后剩流够钻机取 SKYDRILL_HYDRO 且共振钻头够」⇒ 钻机这一份已被占走。
+      var _HF = s._hydroFlow || (SB.economy ? SB.economy.hydroAlloc(s, dt) : { skyDraw: 0 });
+      var hydroOK = _HF.skyDraw > 0;
+      if ((s.res.resonantDrill || 0) >= dCost && hydroOK) {
         s.res.resonantDrill -= dCost;
-        s.res.hydro -= hCost;
+        // 流不进库存：扣共振钻头即可，热液能已从本 tick 流中被钻机这一份占走（HF.left 已计入）。
         var _lg = SB.prestige ? SB.prestige.legacy() : null;
         var _ss = _lg ? (1 + 0.05 * _lg.shellSurveyLevel) : 1;
         var sWant = CFG.SKYDRILL_RATE * _ss * dt;

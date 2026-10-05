@@ -3,12 +3,13 @@
  * 结算资格门 = 本局完成 Era 2 市政《神学》（s.civics.theology 为真值）。
  * 不要求壳已破、不要求宗教是否命名、不要求《归正会》。
  *
- * 轮回点由「人口 + 建筑纪元」决定：
+ * 轮回点由「人口 + 建筑纪元 + 工坊解锁项」决定（线性，无递减回报）：
  *   populationScore = 2 × 峰值人口 P
  *   buildingScore   = Σ W[metaEra_i] × log2(1 + 建筑等级 L_i)   （高纪元建筑权重更高）
- *   developmentScore = populationScore + buildingScore
+ *   craftScore      = CRAFT_W × 已解锁工坊项目数（配方 / 工具 / 升级）
+ *   developmentScore = populationScore + buildingScore + craftScore
  *   shellFactor = 0.5 + 0.5 × q      （q = 破壳进度 0..1）
- *   earnedTide = 1 + floor( sqrt(developmentScore / 10) × shellFactor )
+ *   earnedTide = 1 + floor( developmentScore × TIDE.LINEAR_K × shellFactor )
  *
  * 4 类旧日遗产分别进入不同账本，绝不重复折成轮回点：
  *   · oldFaith              本局剩余信仰并入跨周目总量（对数档位给全产加成）
@@ -60,8 +61,8 @@
       oldArtworkCultureRate: 0.15 * harmonic(m.oldArtworkEarnedTotal || 0),
       oldTideSteleScienceRate: 0.15 * harmonic(m.oldTideStelesEarnedTotal || 0),
       oldFaithAllProductionBonus: 0.005 * faithTier,
-      shopCivicBonus: 0.02 * (p.civicArchive || 0),
-      shopScienceBonus: 0.02 * (p.tideProof || 0),
+      shopCivicBonus: 0.10 * (p.civicArchive || 0),   // 2026-10-05 拍板 +10%/级、无上限
+      shopScienceBonus: 0.10 * (p.tideProof || 0),    // 同上
       coldStoreLevel: p.coldStore || 0,
       coldWardLevel: p.coldWard || 0,
       matStoreLevel: p.matStore || 0,
@@ -73,6 +74,28 @@
   /* 资格判定：本局《神学》为真值。代码里存的是整数 1（见 civics.js），
    * 故必须用真值判断，误用 === true 会因严格相等失败而让门永远关闭。 */
   function qualified(s) { return !!(s && s.civics && s.civics.theology); }
+
+  /* 工坊解锁项目计入发展分：已解锁的配方 + 已购买的工具 + 已装填的升级。
+   * 配方的「解锁」= 建成工坊且 need/needCivic 门已满足（与 workshop.craftBlocked
+   * 同口径，但不看材料是否够——材料是运行时状态，不决定「这项你开没开」）。
+   * 工具/升级看的是 s.tools / s.upgrades 是否已置位（即玩家实际拿到手）。 */
+  function craftUnlocked(s, c) {
+    if (!(s.lvl && s.lvl.workshop > 0)) return false;
+    if (c.need && !(s.techs && s.techs[c.need])) return false;
+    if (c.needCivic && !(s.civics && s.civics[c.needCivic])) return false;
+    return true;
+  }
+  function workshopScore(s) {
+    var Wt = (CFG.TIDE && CFG.TIDE.CRAFT_W) || 4;
+    var count = 0, k;
+    if (SB.CRAFTS) for (var i = 0; i < SB.CRAFTS.length; i++)
+      if (craftUnlocked(s, SB.CRAFTS[i])) count++;
+    if (SB.TOOLS && s.tools) for (var j = 0; j < SB.TOOLS.length; j++)
+      if (s.tools[SB.TOOLS[j].id]) count++;
+    if (SB.UPGRADES && s.upgrades) for (var m = 0; m < SB.UPGRADES.length; m++)
+      if (s.upgrades[SB.UPGRADES[m].id]) count++;
+    return { count: count, score: count * Wt };
+  }
 
   /* 结算报告（无论是否合格都返回结构，供面板渲染）。 */
   function breakReport(s) {
@@ -89,13 +112,16 @@
         bScore += W[e] * Math.log2(1 + L);
       }
     }
-    var dev = popScore + bScore;
+    var w = workshopScore(s);
+    var dev = popScore + bScore + w.score;
     var ice = s.iceShell || 1;
     var q = ice > 0 ? Math.max(0, Math.min(1, 1 - (s.shell || 0) / ice)) : 0;
     var shellFactor = 0.5 + 0.5 * q;
-    var earned = 1 + Math.floor(Math.sqrt(dev / 10) * shellFactor);
+    var K = (CFG.TIDE && CFG.TIDE.LINEAR_K) || 0.04;
+    var earned = 1 + Math.floor(dev * K * shellFactor);
     return {
-      P: P, popScore: popScore, buildingScore: bScore, developmentScore: dev,
+      P: P, popScore: popScore, buildingScore: bScore,
+      craftScore: w.score, workshopCount: w.count, developmentScore: dev,
       q: q, shellFactor: shellFactor,
       tidePoints: earned,
       relicTourism: 0, oldArtwork: 0, oldTideStele: 0,
@@ -153,7 +179,18 @@
     return null;
   }
   function perkNextCost(p, lv) {
-    if (p.costs && p.costs.length > lv) return p.costs[lv];
+    if (p.costs) {
+      if (p.costs.length > lv) return p.costs[lv];
+      /* 2026-10-05 用户拍板「不设上限」：等差曲线数组耗尽后按末两级步长外推。
+       * ⚠️ 这同时治好了 g2/g3 只写 1 个价（costs:[6]/[12] 但 n:3）时
+       *    第 2/3 级取价回退 p.cost=undefined ⇒ 购买把 tide 减成 NaN 的隐患：
+       *    单元素数组按平价续费，不再掉进 undefined。 */
+      if (p.costs.length >= 2) {
+        var step = p.costs[p.costs.length - 1] - p.costs[p.costs.length - 2];
+        return p.costs[p.costs.length - 1] + step * (lv - p.costs.length + 1);
+      }
+      if (p.costs.length === 1) return p.costs[0];
+    }
     return p.cost;
   }
   function perkLocked(p) { return !!p.nest && perkLevel(p.nest) <= 0; }

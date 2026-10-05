@@ -9,6 +9,20 @@
     return null;
   }
 
+  /* 聚落名字：随纪元演进（家在长大：兽居 → 厝 → 镇 → 城 → 国）。
+   * 纯显示层，s.era 在存档里现成（见 state.js），零迁移。
+   * 命名与纪元 motto 咬合：
+   *   一·暗流「摸到石头」→ 巢穴（开局兽居，教学文案不动）
+   *   二·冷焰「第一次有光」→ 灯火山厝（有火有光，搬进厝）
+   *   三·硫泉「材料革命」→ 锻火镇（精铁够用，出锻造业）
+   *   四·洋流「借力」→ 潮机城（整座礁当一台机器）
+   *   五·破壳「工业化」→ 渊海之国（2026-10-05 用户拍板：壳将破、往外走的国） */
+  var HABITAT_NAMES = { 1: '巢穴', 2: '灯火山厝', 3: '锻火镇', 4: '潮机城', 5: '渊海之国' };
+  function habitatName(s) {
+    var e = (s && s.era) || 1;
+    return HABITAT_NAMES[e] || HABITAT_NAMES[1];
+  }
+
   // 前置建筑：未满足则灰掉（提示而非静默失败）
   function needMet(s, b) { return !b.need || s.lvl[b.need] > 0; }
 
@@ -55,16 +69,17 @@
   /* 解锁判定：四种机制并存，照抄猫国建设者 js/buildings.js 的 Spec（315-319 行）与
    * game.js:6119 的判定 `item.val >= item.unlockScheme.threshold`。
    *   ① defaultUnlockable —— 挂了它就永远可建（本作只有 kelp，即猫国的猫薄荷田）
-   *   ② requiredTech      —— 科技前置
+   *   ② requiredTech      —— 科技前置（科技树 eff.unlockBuild 经 techOpensBuild 反查，也走这条）
    *   ③ unlockScheme      —— 某资源持有量达到阈值
-   *   ④ unlockRatio       —— 库存达到首级价格的这个比例才「露头」（0.3 = 猫国默认值）
-   * need（建筑前置）不在这里：它是加工链的物理依赖，跟解锁是两回事。 */
+   * need（建筑前置）不在这里：它是加工链的物理依赖，跟解锁是两回事。
+   * ⚠️ 2026-10-05 用户拍板：**移除 unlockRatio（库存达首级价 30% 才「露头」）**。
+   *    解锁只认科技/资源门槛，不再为「还没攒够 30% 造价」藏整行——研究完科技就立刻能看到、只是买不起。 */
   function unlocked(s, b) {
     if (b.defaultUnlockable) return true;
     /* 默认锁着。猫国的 `unlockable` 在 Spec 里是 MANDATORY（必填），
      * 漏写等于「忘了决定」。这里同样：没声明任何解锁条件的建筑一律不出现，
      * 否则一个只写了 need 的建筑（比如祭坛）会直接躺在开局列表里。 */
-    if (!b.requiredTech && !b.unlockScheme && !b.unlockRatio && !b.requiredCivic) return false;
+    if (!b.requiredTech && !b.unlockScheme && !b.requiredCivic) return false;
     /* 纪元闸门 outermost，排在 requiredTech 之前。它比科技更硬：破冰祭坛的
      * requiredTech 是「破冰工程学」，而后者本身就是纪元五的科技——纪元四时玩家
      * 就算把精铁堆到 300 也建不了祭坛。放在科技之后判定，lockReason 就会报出
@@ -85,9 +100,6 @@
      * 漏声明等于「忘了决定」，玩家看到的是一座永远建不起来的建筑。 */
     if (!techOpensBuild(s, b.id)) return false;
     if (b.unlockScheme && !SB.economy.enough(s.res[b.unlockScheme.name], b.unlockScheme.threshold)) return false;
-    if (b.unlockRatio) {
-      for (var k in b.cost) if (!SB.economy.enough(s.res[k], b.cost[k] * b.unlockRatio)) return false;
-    }
     return true;
   }
 
@@ -131,13 +143,6 @@
       return SB.RESS[b.unlockScheme.name].name + ' ' + Math.floor(s.res[b.unlockScheme.name]) +
         ' / ' + b.unlockScheme.threshold;
     }
-    if (b.unlockRatio) {
-      for (var k in b.cost) {
-        if (!SB.economy.enough(s.res[k], b.cost[k] * b.unlockRatio)) {
-          return SB.RESS[k].name + ' ' + Math.floor(s.res[k]) + ' / ' + Math.ceil(b.cost[k] * b.unlockRatio);
-        }
-      }
-    }
     /* 解锁理由按「从硬到软」报：科技与纪元是明确的墙，资源量只是时间问题。 */
     var tid = buildTechOf(b.id);
     if (tid && !s.techs[tid]) return '需先掌握科技：' + techNameOf(tid);
@@ -152,7 +157,9 @@
     if (b.id === 'miracle') {
       var cap = SB.shell.miracleCap(s);
       if ((s.lvl.miracle || 0) + 1 > cap && (s.lvl.miracle || 0) >= cap) {
-        return '供能不足：地热仅够 ' + cap + ' 级（先建热泉井或加派匠人）';
+        /* ⚠️ 2026-10-04：原「先建热泉井或加派匠人」两个指引**都已失效**——热泉井 2026-09-28
+         *    删除、匠人职业 2026-10-04 删除 ⇒ 留着就是把玩家指向不存在的东西。改为中性描述。 */
+        return '供能不足：地热仅够 ' + cap + ' 级（地热产出口待重设）';
       }
     }
     return null;
@@ -217,6 +224,6 @@
   SB.habitat = {
     buildingById: buildingById, build: build, study: study,
     needMet: needMet, unlocked: unlocked, lockReason: lockReason, reveal: reveal,
-    autoTick: autoTick
+    autoTick: autoTick, habitatName: habitatName
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -103,13 +103,13 @@
     var need=foodJob>0?Math.ceil((SB.economy.foodUse(s)*1.1-builtFood)/foodJob):0;
     need=Math.max(0,Math.min(need,s.pop>1?s.pop-1:s.pop));
     var grow=SB.economy.popCap(s)<(s.era>=4?100:30);
-    var weights={coralwright:grow?.24:.15,quarrier:.10,craft:.14,scholar:.22,miner:.18,scribe:.06,merchant:.04};
+    var weights={coralwright:grow?.24:.15,quarrier:.10,scholar:.22,miner:.18,scribe:.06,merchant:.04};
     var cond=key&&key.cond&&key.cond.t==='zoneLvl'?key.cond:goal&&goal.cond;
     if(cond&&cond.t==='res'){if(['silt','iron','steel'].includes(cond.r))weights.miner=.55;if(cond.r==='stone')weights.quarrier=.55;if(cond.r==='coral')weights.coralwright=.55;if(cond.r==='science')weights.scholar=.55;}
     if(cond&&cond.t==='job')weights[cond.j]=.55;
     if(cond&&cond.t==='built'){var b=SB.habitat.buildingById(cond.b),c=b?SB.economy.costOf(s,cond.b):{};if((c.coral||0)>(s.res.coral||0))weights.coralwright=.58;if((c.silt||0)>(s.res.silt||0))weights.miner=.58;if((c.stone||0)>(s.res.stone||0))weights.quarrier=.58;}
     if(cond&&cond.t==='tools'){var tid=cond.ids.find(function(id){return !(s.tools||{})[id];}),tool=tid&&SB.workshop.tools().find(function(x){return x.id===tid;});Object.keys((tool&&tool.cost)||{}).forEach(function(r){if(['iron','steel','silt','warmstone'].includes(r))weights.miner=.65;if(r==='coral')weights.coralwright=.65;if(r==='stone')weights.quarrier=.65;});}
-    SB.folk.autoAssign(s,Object.assign({gather:need},cold?Object.assign({},weights,{craft:Math.max(weights.craft,.25),miner:Math.max(weights.miner,.20)}):weights));
+    SB.folk.autoAssign(s,Object.assign({gather:need},cold?Object.assign({},weights,{miner:Math.max(weights.miner,.20)}):weights));
     if(key&&key.cond&&key.cond.t==='gathered'){var miss=Math.max(0,key.cond.n-((s.got||{})[key.cond.r]||0));for(var gg=0;gg<Math.min(5,Math.ceil(miss/10));gg++)SB.economy.addRes(s,key.cond.r,SB.GATHER[key.cond.r]||1);}
     if(key&&key.cond&&key.cond.t==='tools')key.cond.ids.forEach(function(id){if(SB.workshop.canBuy(s,id))SB.workshop.buy(s,id);});
     if(key&&key.cond&&key.cond.t==='upgrade'&&SB.workshop.upgradeCanBuy(s,key.cond.id))SB.workshop.upgradeBuy(s,key.cond.id);

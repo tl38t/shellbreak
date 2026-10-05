@@ -34,6 +34,9 @@
     /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
+    /* 剥壳工程（dig 页）的门 = 研究「天壳观测」（2026-10-05 用户：开局不开）。
+     * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
+    if (k === 'dig' && S && !(S.techs && S.techs.shellwatch)) return;
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
@@ -87,7 +90,7 @@
     SB.state.saveMeta(meta);
     clearLog();
     log('第 ' + meta.cycle + ' 周目开始。冰封壳厚度 ' + S.iceShell + '。');
-    log('提示：开局只有 1 名族民、0 资源。在「巢穴」页点采集攒 15 藻食建第一座藻场，再回「族民」页雇佣。');
+    log('提示：开局只有 1 名族民、0 资源。在「' + SB.habitat.habitatName(S) + '」页点采集攒 15 藻食建第一座藻场，再回「族民」页雇佣。');
     log('壳薄到 25% 会停手；凿穿最后一段要靠破冰祭坛，而祭坛吃地热。');
     dirty = true;
     renderAll();
@@ -115,6 +118,9 @@
     SB.ui.render.hideModal();
     startRun();
   }
+  /* 重开按钮的结算分流（2026-10-05 拍板）：本局研究完《神学》⇒ 走真正轮回结算（doBreak），
+   * 否则仅软重置。判据与 prestige.qualified 同源，不另写第二份。暴露出来供 e2e 钉住。 */
+  function routeReset(s) { return SB.prestige.qualified(s) ? 'break' : 'reset'; }
 
   /* 硬重置「清空存档」：连 meta 一起抹掉，回第 1 周目的全新档。
    * 这是唯一会毁掉跨周目进度的操作，必须走弹窗 + 显式勾选确认，绝不做静默清空。 */
@@ -438,16 +444,39 @@
     };
     document.getElementById('btnReset').onclick = function () {
       var t = S ? (S.t / 3600).toFixed(2) + ' 小时 · 峰值族民 ' + S.peak + ' · 建筑 ' + SB.economy.lvlSum(S) + ' 级' : '';
-      /* 文案口径与底栏按钮**同源**：**当局**建立宗教才算「轮回」。
-       * ⚠️ 2026-10-03 由 `meta.religionSeen` 改成 prestige.religionEstablished(S)，
-       *   免得出现「按钮写重开、弹窗却写轮回」的两套口径（起因见 render.js 该处注释）。 */
-      var seen = SB.prestige.religionEstablished(S);
+      /* 结算分流（2026-10-05 拍板）：本局研究完《神学》⇒ 走真正轮回结算 doBreak
+       * （发点 + 并入旧日遗产账本）；未研究 ⇒ 仅软重置 resetRun，不结算、不发点。
+       * 分流判据与 prestige.qualified 同源（本局 civics.theology 真值），不另写第二份。 */
+      var qual = SB.game.routeReset(S) === 'break';
+      var rep = qual ? SB.prestige.breakReport(S) : null;
+      var gained = rep ? rep.tidePoints : 0;
+      /* 旧日遗产入账预览：与 doBreak ②③④⑤ 完全同口径（剩余信仰 / 未入藏奇观 / 完整件数），
+       * 只做展示不落账——真正的写入只发生在 onOk 的 doBreak 里，这里不产生第二份真相。 */
+      var faithAmt = 0, artN = 0, steleN = 0, newW = 0;
+      if (qual && S) {
+        faithAmt = Math.max(0, (S.res && S.res.faith) || 0);
+        artN = Math.floor(Math.max(0, (S.res && S.res.artwork) || 0));
+        steleN = Math.floor(Math.max(0, (S.res && S.res.tidalRecord) || 0));
+        var meta0 = state();
+        if (S.wonders && meta0.memorialWonders)
+          for (var wid in S.wonders)
+            if (S.wonders[wid] && !meta0.memorialWonders[wid]) newW++;
+      }
       SB.ui.render.confirmPanel({
-        title: seen ? '轮回（重开本周目）？' : '重开本周目？',
+        title: qual ? '轮回（结算并发放轮回点）？' : '重开本周目？',
         body: '<div class="warnbox">当前这局的进度会全部作废：' + t + '。</div>' +
-              '<div class="note">保留：轮回点、破层层级、已购增益、科技记录。周目计数会 +1。</div>',
-        ok: seen ? '轮回' : '重开',
-        onOk: function () { SB.game.resetRun(); }
+          (qual
+            ? '<div class="note">本次轮回将结算并发放：<b>' + gained.toFixed(2) + ' 轮回点</b>' +
+              '（按峰值族民 + 建筑纪元 + 工坊解锁项 + 破壳进度计算）。</div>' +
+              '<div class="note">旧日遗产入账：剩余信仰 <b>' + SB.economy.fmtAmt(faithAmt) + '</b>' +
+              '（并入跨周目总量，按数量级给全产加成）；纪念奇观新入藏 <b>' + newW + '</b> 座' +
+              '（每座 +1% 科技/市政获取）；旧日艺术品 <b>' + artN + '</b> 件（固定市政点/秒）；' +
+              '旧日潮纹碑石 <b>' + steleN + '</b> 件（固定科技点/秒）。</div>' +
+              '<div class="note">已持有的跨周目资产（轮回点、破层层级、已购增益、科技记录）继续保留。周目计数会 +1。</div>'
+            : '<div class="note">（未研究《神学》）此次仅重开本周目：不结算、不发放轮回点、不入账旧日遗产。</div>' +
+              '<div class="note">已持有的跨周目资产继续保留。周目计数会 +1。</div>'),
+        ok: qual ? '轮回' : '重开',
+        onOk: function () { if (qual) SB.prestige.doBreak(S, emit); else SB.game.resetRun(); }
       });
     };
     document.getElementById('btnWipe').onclick = function () {
@@ -475,7 +504,7 @@
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
     toggleMiracle: toggleMiracle,
     startRun: startRun, nextCycle: nextCycle, stay: stay,
-    resetRun: resetRun, wipeSave: wipeSave,
+    resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave,
     log: log, emit: emit, markDirty: markDirty, pumpTech: pumpTech, pumpCivic: pumpCivic,
     maybeReligionPopup: maybeReligionPopup,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,

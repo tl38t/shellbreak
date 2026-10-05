@@ -26,7 +26,14 @@
      * 漏一个键会让 economy 读数 undefined ⇒ 被当成 0（通常无害），但显式列全避免歧义。 */
     return { gather: 0, coef: 0, thin: 0, popcap: 0, housePlan: 0, coldStore: 0, offline: 0,
       matStore: 0, coldWard: 0, civicArchive: 0, tideProof: 0, wonderBlueprint: 0, shellSurvey: 0,
-      autoStudy: 0, autoCivic: 0, autoCraft: 0, jobPlan: 0, civicPlan: 0, craftPlan: 0, wonderPlan: 0 };
+      autoStudy: 0, autoCivic: 0, autoCraft: 0, jobPlan: 0, civicPlan: 0, craftPlan: 0, wonderPlan: 0,
+      /* ⚠️ 2026-10-05 新增 8 键（资源线专项 + 建造减耗）。**同文件多处改动必须串行**，
+       * 写完必须回盘 grep 终值确认没被后一次覆盖（同判据见 JUDGMENTS §五点十一）。 */
+      coralPact: 0, mineTax: 0, algaeCrop: 0, furnaceBoost: 0,
+      sacrament: 0, craftQuota: 0, luxuryPact: 0, buildSave: 0,
+      /* ⚠️ govRoutine 此前**漏在这个表外**（apply 键存在但 economy 无任何读取点）——
+       *  列在这里只是让「它确实是死 perk」有据可查，不改变任何行为。 */
+      govRoutine: 0 };
   }
 
   /* 从跨周目商店账本（meta.perks）重建本局运行时增益表：每个已购等级的 apply 值 × 等级，
@@ -173,7 +180,10 @@
        *      `undefined <= 0` 是 **false** ⇒ 守卫以为「这行有人」⇒ 还没解锁的商人
        *      **照样被渲染出来**。玩家看到职业行、点 ＋ 却雇不到人，而没有任何报错。
        *    ⇒ 加职业时这份字面量必须与 res / lvl 一样当场补齐，别等回归红。 */
-      jobs: { gather: 0, coralwright: 0, quarrier: 0, miner: 0, craft: 0, scholar: 0, scribe: 0, merchant: 0 },
+      /* ⚠️ 2026-10-04：`craft`（匠人）键已随职业删除（用户「根本没有这个职业」）——
+       *    职业表必须与 SB.JOBS 一一对应，同步删这一键即可；老档多出的 `jobs.craft`
+       *    由 migrateRun 的 fixTable 按 ref 键遍历自动丢弃。 */
+      jobs: { gather: 0, coralwright: 0, quarrier: 0, miner: 0, scholar: 0, scribe: 0, merchant: 0 },
       /* seen = 建筑「曾经露过头」的黑名单（habitat.reveal 写入，UI 判可见用）。
        * 没有它，玩家把库存花到 unlockRatio 阈值以下时，刚冒出来的建筑会当场消失。
        * 与 lvl/jobs 同理：新增字段要同时在 freshRun 与 migrateRun 两边补上。 */

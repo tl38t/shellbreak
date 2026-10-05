@@ -82,8 +82,11 @@
    *   信仰页的标题写死在 index.html（它那页要护住命名的输入框，不能整块重画）。 */
   function cardHeadHTML(key, sub) {
     var m = CARD_META[key] || { name: key, color: 'var(--cyan)' };
+    /* 巢穴页的名字随纪元演进（家在长大），其余页用固定名。
+     * ⚠️ 取活动局 run() 的 era，2 秒面板重画时会自动跟着纪元走。 */
+    var nm = (key === 'village') ? (SB.habitat && SB.habitat.habitatName ? SB.habitat.habitatName(SB.game.run()) : m.name) : m.name;
     return '<div class="cardhd" data-fold="' + key + '" style="--hc:' + m.color +
-      '" title="点击折叠 / 展开"><span class="cv">▾</span>' + m.name +
+      '" title="点击折叠 / 展开"><span class="cv">▾</span>' + nm +
       (sub ? '<span class="hcsub">' + sub + '</span>' : '') + '</div>';
   }
   loadFold();
@@ -117,6 +120,49 @@
     return ZONE_FOLDED[id];
   }
   loadZoneFold();
+
+  /* ── 工坊「隐藏已完成」（2026-10-05 用户「工坊要能隐藏显示已经完成项目」）──
+   * 【为什么是「全局一个开关」而不是「每条已完成项各自可折」】
+   *   已完成的数量是**活的**（买下第二把斧头就从 1 变 2），而 zone 折叠那套的键是
+   *   **固定 id**（ZONE_FOLDED[id]）⇒ 拿来记「第 N 项已完成」会在计数变化时对不上号。
+   *   一个全局开关 + 实时计数，键固定、计数现算，两边都不会漂。
+   * ⚠️ 状态存 localStorage 而不是 s（存局内状态会被轮回清掉，玩家每局都要重按）。
+   * ⚠️ 默认**不隐藏**：已买下的工具是玩家的资产清单，默认藏起来会让人以为丢了。
+   *   想「清爽」的玩家主动点一下，这是设置项该有的默认取向。 */
+  var HIDE_DONE_KEY = 'sb.hideDone.v1';
+  var hideDone = false;
+  try {
+    var rawHd = root.localStorage && root.localStorage.getItem(HIDE_DONE_KEY);
+    if (rawHd === '1') hideDone = true;
+  } catch (e) { hideDone = false; }
+  function toggleHideDone() {
+    hideDone = !hideDone;
+    try { if (root.localStorage) root.localStorage.setItem(HIDE_DONE_KEY, hideDone ? '1' : '0'); } catch (e) {}
+    return hideDone;
+  }
+  /* 「工坊里已完成了几项」——**只数买断类**（工具 + 工艺升级项）。
+   * ⚠️ 配方（工艺制作）**不算**：它是反复制造，不存在「完成」状态，
+   *   而 `s.res[c]` 是**存量**不是累计（「我做过 3 根石梁」不代表有 3 根在库里）——
+   *   真要数得另记累计产量，是另一套需求，本轮不做（用户只说隐藏已完成项目）。 */
+  function doneCount(s) {
+    var n = 0, i;
+    for (i = 0; i < SB.TOOLS.length; i++) if (s.tools && s.tools[SB.TOOLS[i].id]) n++;
+    var U = SB.workshop ? SB.workshop.upgrades() : [];
+    for (i = 0; i < U.length; i++) if (s.upgrades && s.upgrades[U[i].id]) n++;
+    return n;
+  }
+  /* 开关 HTML。`data-hidedone` 由 input.js 的 document 级委托接手
+   * （标题行每 2 秒被 PANE_REFRESH 重画，节点会被换掉 ⇒ 不能挂节点监听）。
+   * ⚠️ tooltip 措辞**避开「已买下」三个字**：e2e 有一条断言数 `/已买下/g` 出现次数
+   *   （验「买断制」：买过的那一行只应有一处标记），文案里多一个字就会让那条断言变红。
+   *   判据：断言用关键词计数时，**UI 文案不得包含那个关键词**，否则文案一改断言就假红。 */
+  function hideDoneBtn(s) {
+    var n = doneCount(s);
+    if (!n) return '';
+    return '<button class="tgl" data-hidedone="1" aria-pressed="' + (hideDone ? 'true' : 'false') +
+      '" title="点击切换是否显示已完成的项目（工具与升级项）">' +
+      (hideDone ? '显示已完成（' + n + '）' : '隐藏已完成（' + n + '）') + '</button>';
+  }
 
   function renderRes() {
     var s = res(), g = el('res');
@@ -160,6 +206,15 @@
         var fam = SB.economy.faithAllMul(s);
         if (fam > 1) faithBonusTxt = ' <i class="rate up">全产+' + Math.round((fam - 1) * 100) + '%</i>';
       }
+      /* 奢侈品行的「产 X · 耗 Y」小字（2026-10-05 用户拍板）：净速率会被**需求封顶** ——
+       *   供给涨了之后净值停在 min(S,D) 那一档不动，玩家会以为购买项（奢侈品契/马具/马镫…）没生效。
+       *   用小一号斜体把供给与消耗直接摆在净值旁边，一眼看出「净不变=需求封顶」而非加成失效。
+       * ⚠️ 数字走 happyLedger 同一口（与 tick / 幸福度行同源），render 不自己拼第二份账。 */
+      var luxTxt = '';
+      if (k === 'luxury' && SB.economy.happyLedger) {
+        var LL = SB.economy.happyLedger(s);
+        luxTxt = ' <i class="sd">产 ' + LL.out.toFixed(2) + ' · 耗 ' + LL.burn.toFixed(2) + '</i>';
+      }
       /* 信仰行的标签：玩家给信仰起了名 ⇒ 用宗教名代替「信仰」二字（神学解锁后可在 #religionBox 改名）。 */
       var rowName = SB.RESS[k].name;
       if (k === 'faith') {
@@ -167,7 +222,7 @@
         if (rn) rowName = rn;
       }
       var row = '<div class="' + cls + '"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
-        SB.economy.fmtAmt(v) + capTxt + '</b><span>' + rowName + rateTxt + faithBonusTxt + '</span></div>';
+        SB.economy.fmtAmt(v) + capTxt + '</b><span>' + rowName + rateTxt + luxTxt + faithBonusTxt + '</span></div>';
       if (isCraft) htmlCraft += row; else htmlBase += row;
     }
     /* 幸福度（陆地贸易，2026-09-28）：民生轴，独立于资源循环（不是 SB.RESS 键）。
@@ -175,15 +230,81 @@
      *   幸福度只在「有奢侈品供给/需求」时才有含义（H 由供给−需求驱动），商人没上岗前
      *   H 恒 0=安定，硬塞一行只会让开局顶栏多一个读不懂的数。判据与奢侈品行同源，不另立。 */
     if (SB.economy.resUnlocked(s, 'luxury')) {
-      var Hh = s.happy || 0;
+      var L = SB.economy.happyLedger ? SB.economy.happyLedger(s)
+              : { H: s.happy || 0, out: 0, burn: 0, net: 0, per: 0, pop: 0, cap: -2,
+                   tier: { name: '?', mul: 1, nextAt: null, nextName: null, nextMul: null },
+                   toNext: null, K: 0.02, bonus: 0, bonusParts: [], netNeed: 0 };
+      var Hh = L.H;
       var hm = SB.economy.happyMul(s);
-      var tier = (Hh < -1) ? '动荡' : (Hh < 0) ? '不满' : (Hh < 1) ? '安定'
-                 : (Hh < 2) ? '愉悦' : (Hh < 3) ? '欢欣' : '欣喜若狂';
+      var tier = L.tier.name;
       var hb = (Math.abs(hm - 1) < 1e-9) ? '' :
         ' <i class="rate ' + (hm > 1 ? 'up' : 'down') + '">全产' + (hm > 1 ? '+' : '') +
         Math.round((hm - 1) * 100) + '%</i>';
+      /* ⚠️ 2026-10-05 用户拍板：「要在幸福度那里写明产出多少、扣减多少」。
+       *   此前只有一个含混的净值与一个悬空的「全产−20%」，玩家看不出这俩怎么来的 ——
+       *   尤其**看不出自己是在产能不够还是在人太多**。现在摆明账四项，全部走
+       *   economy.happyLedger 一个口（与 tick / rates 同源），render 不自己拼数字：
+       *   拼 = 第二份口径 = 面板撒谎的标准成因。
+       * ⚠️ 档名/门槛已不再手抄（原先这行与 economy 各存一份，改一处漏一处不报错，
+       *   只会「面板写 ×0.92、实账按 ×0.80 算」）。现在读 ledger.tier。 */
+      var hNet = L.net;
+      var netTxt = ' <i class="rate ' + (hNet > 0 ? 'up' : hNet < 0 ? 'down' : '') + '">' +
+        (Math.abs(hNet) < 0.0005 ? '持平' :
+          (hNet > 0 ? '+' : '') + (Math.abs(hNet) >= 100 ? Math.round(hNet) : hNet.toFixed(3)) + '/s')
+        + '</i>';
+      /* 产出/扣减**分成两个独立项**（不是只给差）：净值为 0 有两种截然不同的原因 ——
+       *   产能刚好等于消耗（皆大欢喜），或**产能为 0**（商人没上岗，min(0,D)=0）。
+       *   后者与「刚好持平」在前一种写法下长得一模一样，玩家会以为没问题。
+       * ⚠️ 2026-10-05 用户拍板「没说清幸福度和奢侈品之间的关系」：写明这两项**就是奢侈品**
+       *   的供需（商人产 vs 全民耗），并把因果摆出来 —— 盈余推高幸福度、缺口压低。
+       *   此前「产出/扣减」悬空摆着，玩家看不出它跟上面奢侈品资源行是同一条账。 */
+      var detail = '<i class="cap">靠奢侈品维持：商人产 ' + L.out.toFixed(3)
+        + ' <span class="rate up">↑</span> · 居民耗 ' + L.burn.toFixed(3)
+        + ' <span class="rate down">↓</span>（' + L.pop + ' 人 × 每人 ' + L.per.toFixed(4)
+        + '）——盈余推高幸福度，缺口压低</i>';
+      /* ⚠️ 2026-10-05 用户报「政体 +1 幸福度没展示」。
+       *   【根因】政体/奇观/政策卡的加成是**常驻偏移量**（进 tick 的 _gb 基线），
+       *   早就加进 s.happy 了 —— 但 UI 从来只摆一个总数，玩家看不见「其中有多少是白送的」，
+       *   于是「采用古典共和 ⇒ 幸福度 +1」这条收益在面板上等于不存在。
+       * 【为什么必须逐条列而不是只给和】四项来源互相独立、可单独开关
+       *   （换政体只掉政体那一项、奇观还在），只给一个和 ⇒ 玩家不知道该换什么、也看不出是哪一项在起作用。
+       * ⚠️ bonusParts 来自 economy.happyLedger（逐项调那四个已导出函数），
+       *   **不在这里重算** —— 重算就是第二份口径，会与 tick 的 _gb 漂。
+       * ⚠️ 0 项时整段不摆：一行「加成 +0」是噪声，而顶栏本来就要短。 */
+      var bonusTxt = '';
+      if (L.bonusParts && L.bonusParts.length) {
+        var bl = [];
+        for (var bpi = 0; bpi < L.bonusParts.length; bpi++) {
+          var bp = L.bonusParts[bpi];
+          bl.push(bp.label + (bp.v > 0 ? ' +' : ' ') + (+bp.v.toFixed(2)));
+        }
+        bonusTxt = '<i class="cap">加成 ' + bl.join(' ｜ ') +
+          ' = 合计 ' + (L.bonus > 0 ? '+' : '') + (+L.bonus.toFixed(2)) + '</i>';
+      }
+      /* 距下一档差多少：这一条是「该往哪努力」的唯一提示，缺了整行就只是报数。
+       * ⚠️ toNext 在最高档为 null ⇒ 不摆，别显示「差 NaN」。
+       * ⚠️ 正负号保留：H 在往下掉时 toNext 为负，措辞用「差」不成立，故分开措辞。 */
+      var nextTxt = '';
+      if (L.toNext != null) {
+        /* ⚠️ 措辞带**净效果**（写「全产 0.92」而不是只写「−8%」）：玩家在 H=−1.97 看到
+         *   「到不满档 −8%」，若只给百分比会被读成「升上去就少亏 12%」而其实仍是负收益。
+         *   乘区与净效果一起给，方向和量级都不会被误读。
+         * ⚠️ 边界特判：|toNext| < 0.005 时 H 正好压在档位分界上（浮动恒温器很容易停在 −1.000
+         *   或 0.000 附近），此时说「差 0.00」读起来像 bug —— 改说「已在边界，跨过即换档」。 */
+        var nm = Math.round((L.tier.nextMul - 1) * 100);
+        var atEdge = Math.abs(L.toNext) < 0.005;
+        nextTxt = (L.toNext > 0)
+          ? '<i class="cap">↑ ' + (atEdge
+              ? '已在档位边界，跨过即入「' + L.tier.nextName + '」全产 ' + L.tier.nextMul.toFixed(2)
+              : '差 ' + L.toNext.toFixed(2) + ' 到「' + L.tier.nextName + '」全产 '
+                + L.tier.nextMul.toFixed(2) + (nm === 0 ? '' : '（' + (nm > 0 ? '+' : '') + nm + '%）'))
+            + '</i>'
+          : '<i class="cap">↓ 再掉 ' + Math.abs(L.toNext).toFixed(2) + ' 就跌回「'
+            + L.tier.nextName + '」全产 ' + L.tier.nextMul.toFixed(2) + '</i>';
+      }
       htmlBase += '<div class="res happy-row"><b data-happy="1" data-raw="' + Hh.toFixed(2) + '">' +
-        Hh.toFixed(2) + '</b><span>幸福度 · ' + tier + hb + '</span></div>';
+        Hh.toFixed(2) + '</b><span>幸福度 · ' + tier + netTxt + hb + bonusTxt + detail + nextTxt +
+        '</span></div>';
     }
     g.innerHTML = htmlBase;
     /* 工艺资源独立分区：解锁前不显示（resUnlocked），且无任何可见项时整段隐藏。 */
@@ -388,8 +509,8 @@
       for (var i = 0; i < SB.BUILDINGS.length; i++) {
         var b = SB.BUILDINGS[i];
         if (b.zone !== z.id) continue;
-        /* 照猫国建设者：没露头的建筑整行不渲染——开局列表里只有深海菌圃一张脸，
-         * 其余随 unlockRatio(0.3) / unlockScheme / requiredTech 逐个出现。
+        /* 没解锁的建筑整行不渲染——开局列表里只有深海菌圃一张脸，
+         * 其余随 unlockScheme / requiredTech / 科技 eff.unlockBuild 逐个出现。
          * 露头是单向的：露过一次就永久可见（lv>0 或已记进 s.seen）。
          * 否则玩家一花藻食把库存压回阈值以下，刚冒出来的采石场/导流堤会当场消失，
          * 看着像「建筑自己跳出来又自己没了」——猫国 unlockable 同样只进不退。 */
@@ -407,7 +528,7 @@
          * 「这一级要多少」，用词跟着等级走比一律写「建造」更答得上话。
          * 前置没满足时只说「需 XX」——那时按钮点不动，成本不是当下该看的信息。 */
         var label = blocked ? '需 ' + (SB.habitat.buildingById(b.need) || {}).name
-          : (lv > 0 ? '升级 ' : '建造 ') + SB.economy.costTxt(c);
+          : (lv > 0 ? '升级 ' : '建造 ') + SB.economy.costOwnedTxt(s, c);
         /* 王国潮道的跨建筑钳制与 build()/lockReason() 同一条判定——不判它按钮会
          * 「亮着但点了没反应」（build 内部静默 return false）。 */
         var canalCap = b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);
@@ -439,8 +560,15 @@
             '</span>';
         }
         // 没有等级上限，所以只显示当前级数，不显示 x/上限
+        // 潮纹馆带「虚级」（大潮纹馆 +3，按效果算、按建筑不算，见 wonder.libBonus）：
+        // 徽章直接写成「1+3」——真实等级在前、虚级在后，一眼看出哪部分是白送的。
+        // 其它建筑没有虚级通道，照旧只写一个数。
+        var lvTxt = (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0)
+          ? lv + '+' + SB.wonder.libBonus(s) : lv;
         zRows += '<div class="row"><div><div class="nm">' + b.name +
-          ' <span class="tag" data-lv="' + b.id + '">' + lv + '</span>' + autoBtn + furnBtn + '</div>' +
+          ' <span class="tag" data-lv="' + b.id + '"' +
+          (lvTxt !== String(lv) ? ' title="含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）"' : '') +
+          '>' + lvTxt + '</span>' + autoBtn + furnBtn + '</div>' +
           '<div class="ds">' + b.desc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div>' +
           '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap ? '' : ' disabled') + '>' + label + '</button></div>';
@@ -465,7 +593,6 @@
   function paneFolk() {
     var s = res();
     var T = CFG.TIDE;
-    var gap = Math.max(0, T.POP_GATE - s.peak);
     /* ⚠️ 硬上限下 `pop` 永远 ≤ `popCap`，所以括号里的上限不会再和人数打架
      * （2026-09-25 那版软容量会打出「族民 7（人口上限 2）」，玩家报过一次 bug）。
      * 但光看数字，玩家仍会问「那为什么不再生人」⇒ 顶到时直接标红「住满」，
@@ -482,14 +609,14 @@
       '<div class="gbar"><i id="growFill" style="width:0%"></i></div>' +
       '<div class="ds" id="growWhy"></div></div></div>';
     paintGrow(s);   // renderPanes 还没把 innerHTML 挂上时这里是空操作，下一帧（≤100ms）会补上
-    /* 峰值族民是破冰结算的唯一主指标（洋流点 = 门槛以上每 1 人 36 分）。
-     * 不把它摆到玩家眼前，「养人口」这条第二条线就不存在——玩家只会继续堆建筑。 */
+    /* 峰值族民是破冰结算的主指标之一：人口越深、工坊解锁越多、破壳越彻底，轮回点越多。
+     * 直接把 breakReport 的实时预计摆出来，避免再显示已废弃的 POP_GATE / POP_SLOPE 旧口径。 */
+    var br = SB.prestige.breakReport(s);
     h += '<div class="row"><div><div class="nm">峰值族民 <b>' + s.peak + '</b> ' +
-      '<span class="tag' + (gap > 0 ? '' : ' ok') + '">' +
-      (gap > 0 ? '还差 ' + gap + ' 人有轮回点' : '已过门槛 ' + T.POP_GATE) + '</span></div>' +
-      '<div class="ds">破冰时超过 ' + T.POP_GATE + ' 的部分才折算轮回点，每 1 人 ' + T.POP_SLOPE +
-      ' 分（' + T.POP_ESC.at + ' 人以上 ' + T.POP_ESC.k + ' 分）。人口顶在住房给的上限上，' +
-      '堆住房就是养人口（住满就不再生育）。</div></div></div>';
+      '<span class="tag ok">预计轮回点 ' + br.tidePoints.toFixed(2) + '</span></div>' +
+      '<div class="ds">轮回点 = 1 + floor(发展分 × ' + (T.LINEAR_K) + ' × 破壳系数)，' +
+      '发展分 = 2×峰值 + 建筑纪元分 + 工坊解锁项（' + br.workshopCount + ' 项）。' +
+      '养人口、破壳、开工坊三条线都给点。</div></div></div>';
     /* 照猫国：族民默认闲置，＋ 雇 / − 退。没有闲置时 ＋ 禁用，
      * 职业总和永远 ≤ pop——不搞「减 A 立刻补给 B」的转移制。 */
     var idle = SB.folk.idle(s);
@@ -500,9 +627,8 @@
      *   eff.unlockJob。开局族民页上有「采集者」与「珊瑚匠」两张脸
      *   （gather 无解锁条件；珊瑚匠随免费的「凿珊瑚」开局掌握，理由见 techs.js 那条注），
      *   采石/采矿/匠作/学者各点亮一项、就多出一行。
-     * 【为什么职业不需要建筑那套 `s.seen` 单向表】建筑的露头挂在库存阈值上
-     *   （unlockRatio / unlockScheme），玩家一花钱把库存压回阈值以下就会「自己缩回去」，
-     *   所以要靠 seen 记住「露过脸」。职业挂在 s.techs 上，而科技一旦掌握**永不回退**
+     * 【为什么职业不需要建筑那套 `s.seen` 单向表】建筑解锁挂在科技/资源门槛上，
+     *   职业挂在 s.techs 上，而科技一旦掌握**永不回退**
      *   ⇒ 露头天然只进不退，不需要额外的记忆位。
      * 【为什么带 `s.jobs[j.id] > 0`】防御老档：若某人卡在未解锁职业上（早期版本的档），
      *   行必须留下来，否则那个人从界面上凭空消失、玩家只能在闲置池里看到总数对不上。 */
@@ -531,7 +657,7 @@
     /* ⚠️ 硬上限之后开局的**第一步是珊瑚不是藻食**（2026-09-26）：那 1 名族民顶着
      * 人口上限 1，先把藻食堆到 20 以上也生不出人——必须先有礁口巢才有空位。
      * 旧文案只教「攒藻食建菌圃」，玩家照做会发现人口纹丝不动。 */
-    h += '<div class="note">开局 1 名族民顶着人口上限：先在「巢穴」页点「采珊瑚」攒 5 建礁口巢' +
+    h += '<div class="note">开局 1 名族民顶着人口上限：先在「' + SB.habitat.habitatName(SB.game.run()) + '」页点「采珊瑚」攒 5 建礁口巢' +
       '（上限 1 → 3），再让藻食超过 ' + CFG.GROW_KEEP + '，才生得下第二人。</div>';
     return h;
   }
@@ -664,7 +790,7 @@
     if (!done) {
       h += '<button class="btn buy" data-tech="' + t.id + '"' + (why ? ' disabled' : '') +
         ' title="' + (why ? '为什么灰着：' + why : '投入 ' + t.cost + ' 科技') + '">' +
-        '研究 ' + t.cost + '</button>';
+        '研究 ' + SB.economy.costOwnedTxt(s, { science: t.cost }) + '</button>';
     }
     h += '</div>';
     return h;
@@ -681,7 +807,7 @@
     return '<div class="row"><div><div class="nm">科技 · 未翻开</div>' +
       '<div class="ds">族里还分不出「今天」和「明天」——没有值得记下来的事，' +
       '也就没有「明天」。建成 ' + need + ' 座深海藻场之后，这页才会打开。</div></div></div>' +
-      '<div class="note">在「巢穴」页铺藻场就行，它的产出就是「今天」；第 ' + need + ' 座落成时' +
+      '<div class="note">在「' + SB.habitat.habitatName(SB.game.run()) + '」页铺藻场就行，它的产出就是「今天」；第 ' + need + ' 座落成时' +
       '你会知道的。</div>';
   }
 
@@ -830,26 +956,42 @@
    *    及第 0 号槽空不空。Civ6 的政体选择之所以有分量，全在这三样拼在一起。 */
   function paneCivicGov(s) {
     var C = SB.civic;
-    var h = '<div class="secttl">政体</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
-    for (var i = 0; i < SB.GOVS.length; i++) {
-      var v = SB.GOVS[i], own = C.govOwned(s, v.id), on = s.gov === v.id;
+    /* ⚠️ 2026-10-05 用户「政体不解锁就不要露出来」：与资源 unlock 描述符、
+     *   建筑移除 unlockRatio 同一条纪律——未解锁的政体**整张卡都不渲染**，
+     *   只渲染 govOwned 成立的。避免开局就摆一排灰着的独裁/寡头/神权提前剧透。
+     *   govOwned 读对应市政 s.civics[c.id]，与 setGov 同一判据（civics.js）。 */
+    var owned = [];
+    for (var i = 0; i < SB.GOVS.length; i++) if (C.govOwned(s, SB.GOVS[i].id)) owned.push(SB.GOVS[i]);
+    var h = '<div class="secttl">政体</div>';
+    if (!owned.length) {
+      /* 一个都没解锁：政体系统整体还没开，给一句指引而不是一堆灰卡。
+       * ⚠️ 硬编码《法典》是因为它是当前唯一解锁 tribe 的市政
+       *   （e2e:2320「研究《法典》⇒ 自带酋邦制」），与 govOwned 的反查同源。 */
+      h += '<div class="row"><div class="ds">政体系统尚未开启——研究《法典》开启酋邦制。</div></div>';
+      return h;
+    }
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    for (var j = 0; j < owned.length; j++) {
+      var v = owned[j], on = s.gov === v.id;
       var why = on ? null : C.govBlocked(s, v.id);
       h += '<div class="govcard' + (on ? ' on' : '') + '" id="govrow-' + v.id + '"' +
         ' data-node="' + v.id + '" style="flex:1;min-width:150px">' +
         '<div class="nm">' + v.name + (on ? ' <span class="tag ok">采用中</span>' : '') +
-        (own ? '' : ' <span class="tag">未解锁</span>') + '</div>' +
+        /* ⚠️ 2026-10-05 用户「都补上」：幸福度偏移在**采用中**时才成立
+         *   （happyBonus 走 govById(s.gov) 读当前政体），所以只给 on 的那一张挂。
+         *   写清这一点很重要：否则玩家会以为「解锁了就已经 +1」。 */
+        (on ? happyBonusNote(s, 'gov') : '') + '</div>' +
         '<div class="ds">' + v.desc + '</div>' +
         '<div class="govslots">' + recipeText(v) + '</div>' +
         '<button class="btn' + (on ? '' : ' buy') + '" data-gov="' + v.id + '"' +
         (on || why ? ' disabled' : '') + ' title="' + (why || (on ? '当前政体' : '')) + '">' +
-        (on ? '已采用' : own ? '采用' : '未解锁') + '</button></div>';
+        (on ? '已采用' : '采用') + '</button></div>';
     }
     h += '</div>';
-    /* 换政体收费要写在明面上，否则玩家以为按钮只是灰着。
-     * ⚠️ 只有一条政体时这条永远是空的——机制照建，等第二条落地就有用了。 */
+    /* 换政体收费要写在明面上，否则玩家以为按钮只是灰着。只在已采用过政体后提示。 */
     if (s.gov && C.topCost(s) > 0) {
       h += '<div class="note">换政体需 ' + C.govCost(s) + ' 市政点（两倍最高已完成市政）；' +
-        '首次采用免费。政体目前只有酋邦制一条，之后每加一条这里就会多一个按钮。</div>';
+        '首次采用免费。</div>';
     }
     return h;
   }
@@ -922,7 +1064,10 @@
       var fits = C.cardFits(q, C.currentSlotType(s));
       h += '<div class="row"><div><div class="nm">' +
         '<span class="tag t' + q.type + '">' + C.slotTypeName(q.type) + '</span> ' + q.name +
-        (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
+        (on ? ' <span class="tag ok">已装填</span>' : '') +
+        /* ⚠️ 2026-10-05 用户「都补上」：cardHappyOffset 读 s.cards（只算**装在槽里**的），
+         *   所以只在 on 时挂。库里的卡片摆着这个提示会骗人 —— 装填了才生效。 */
+        (on ? happyBonusNote(s, 'card') : '') + '</div>' +
         '<div class="ds">' + q.desc +
         (on ? '' : fits ? '' : '<br>⚠ 与第 0 号槽不对口：需要 ' + C.slotTypeName(q.type) + '类槽') +
         '</div></div>' +
@@ -1024,7 +1169,7 @@
     if (!done) {
       h += '<button class="btn buy" data-civic="' + c.id + '"' + (why ? ' disabled' : '') +
         ' title="' + (why || ('投入 ' + c.cost + ' 市政点')) + '">' +
-        '研究 ' + c.cost + '</button>';
+        '研究 ' + SB.economy.costOwnedTxt(s, { culture: c.cost }) + '</button>';
     }
     h += '</div>';
     return h;
@@ -1068,21 +1213,56 @@
 
     if (s.starved) h += '<div class="note" style="color:var(--red)">地热耗尽，祭坛停摆——等新的产出口落地后再看这里。</div>';
     else h += '<div class="note">祭坛按速率自动凿壳，地热断了自动停、恢复自动继续。你要管的是燃料，不是点击。</div>';
+
+    /* ⚠️ 2026-10-05 用户「都补上」：天穹钻机的幸福度偏移是**双态**的
+     *   （skydrillHappyOffset：运行态 −1 / 破壳后 +1），与另外三项「装上就固定」不同。
+     *   ⇒ 这里连「为什么会变」一起说清，否则玩家看到数字翻转会以为 bug。
+     * ⚠️ 数字仍走 happyBonusNote（ledger → 那四个已导出函数），不在这里手写 ±1。 */
+    var hbn = happyBonusNote(s, 'skydrill');
+    if (hbn) {
+      /* ⚠️ 别写 `w.SB.…` —— render.js 全文统一用裸 `SB`（w. 是探针 iframe 里的包装，
+         *   本文件里没有那个别名）。写错不会静默，只会在 renderPanes 走到这一页时抛
+       *   ReferenceError —— 而 e2e 的假 DOM 走不到 dig 页 ⇒ 回归绿着也照样错。 */
+      var skOff = SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0;
+      h += '<div class="row"><div><div class="nm">钻机的幸福度影响 ' + hbn + '</div>' +
+        '<div class="ds">这一项随钻机状态**翻面**：当前运行态是' + (skOff < 0 ? '压低' : '抬高') +
+        '，壳破之后转为' + (skOff < 0 ? '抬高' : '压低') +
+        '。顶栏那一行的「加成」里能看到它当前值。</div></div></div>';
+    }
     return h;
   }
 
   function paneMeta() {
     var m = meta();
+    var lg = SB.prestige.legacy();
     var h = '<div class="row"><div><div class="nm">轮回点 ' + m.tide.toFixed(2) + '</div>' +
       '<div class="ds">已消费 ' + m.spent.toFixed(2) + '｜周目 ' + m.cycle + '｜破层 ' + m.layers + '</div></div></div>';
+    /* ⚠️ 2026-10-05 用户报「弹窗说会保留的东西，商店里很多都没显示」：
+     *    结算弹窗承诺保留的旧日遗产四项，商店页此前一行都没渲染。数字全部走
+     *    prestige.legacy() 同一个口（与实际加成同源），不在这里另写公式。 */
+    h += '<div class="row"><div><div class="nm">旧日信仰 ' + SB.economy.fmtAmt(m.oldFaith || 0) + '</div>' +
+      '<div class="ds">每周目剩余信仰并入，跨周目累积。当前全产出 +' +
+      (lg.oldFaithAllProductionBonus * 100).toFixed(1) + '%（对数档位：10/100/1e3/1e4 各进一档）。</div></div></div>';
+    h += '<div class="row"><div><div class="nm">纪念奇观 ' + lg.relicCount + ' 座</div>' +
+      '<div class="ds">首次建成的独特奇观入藏。科技点与市政点获取各 +' +
+      ((lg.relicCultureMul - 1) * 100).toFixed(0) + '%。</div></div></div>';
+    h += '<div class="row"><div><div class="nm">旧日艺术品 ' + (m.oldArtworkEarnedTotal || 0) + ' 件</div>' +
+      '<div class="ds">市政点 +' + lg.oldArtworkCultureRate.toFixed(2) + '/秒（调和级数：件数越多单件越薄）。</div></div></div>';
+    h += '<div class="row"><div><div class="nm">旧日潮纹碑石 ' + (m.oldTideStelesEarnedTotal || 0) + ' 件</div>' +
+      '<div class="ds">科技点 +' + lg.oldTideSteleScienceRate.toFixed(2) + '/秒（调和级数：件数越多单件越薄）。</div></div></div>';
     for (var i = 0; i < SB.PERKS.length; i++) {
       var p = SB.PERKS[i], st = SB.prestige.perkState(p.id);
       h += '<div class="row"><div><div class="nm">' + p.name +
-        ' <span class="tag">' + st.lv + '/' + st.max + '</span>' +
+        ' <span class="tag">' + st.lv + '/' + (isFinite(st.max) ? st.max : '∞') + '</span>' +
         ' <span class="tag">' + (p.kind === 'start' ? '起始' : p.kind === 'thin' ? '门槛' : '效率') + '</span></div>' +
         '<div class="ds">' + p.desc + (st.locked ? '（需先解锁上一层）' : '') + '</div></div>' +
         '<button class="btn buy" data-perk="' + p.id + '"' +
-        (st.done || st.locked || !st.afford ? ' disabled' : '') + '>' + p.cost + ' 点</button></div>';
+        (st.done || st.locked || !st.afford ? ' disabled' : '') + '>' +
+        /* ⚠️ 2026-10-05 用户报「undefined 点」：这里原先裸读 p.cost，而逐级定价商品
+         *    （costs 数组）没有 cost 字段 ⇒ 上屏 undefined。改成 perkState 算好的
+         *    st.next（prestige.perkNextCost：costs[lv] 优先、回落 p.cost），
+         *    满级商品不再显示任何数字。 */
+        (st.done ? '已满级' : st.next + ' 点') + '</button></div>';
     }
     h += '<div class="note">轮回点跨周目保留。门槛减免类最贵——它砍掉一局的重复劳动。</div>';
     return h;
@@ -1105,10 +1285,16 @@
   function paneWorkshop() {
     var s = res();
     if (!s || !s.lvl || !(s.lvl.workshop > 0)) return paneWorkshopLocked();
-    return '<div class="secttl">工艺制作效率：+' + (SB.workshop.craftRatio(s) * 100).toFixed(0) + '%</div>' +
+    /* ⚠️ 开关放在**标题行右侧**而不是单独一行：它是设置而非内容，
+     *   塞进标题行才不会把「青铜工具/工艺制作」那三段标题往下顶。
+     *   已完成数走 doneCount(s) 现算（hideDoneBtn 内），不存第二份。 */
+    return '<div class="secttl">工艺制作效率：+' + (SB.workshop.craftRatio(s) * 100).toFixed(0) + '%' +
+      '<span style="float:right">' + hideDoneBtn(s) + '</span></div>' +
       '<div class="secttl">青铜工具</div>' + paneToolRows(s) +
       '<div class="secttl">工艺制作</div>' + paneCraftRows(s) +
       '<div class="secttl">工艺升级项</div>' + paneUpgradeRows(s) +
+      (hideDone ? '<div class="note">已完成的项目当前被隐藏' +
+        '（' + doneCount(s) + ' 项）——点上方「显示已完成」把它们放回来。</div>' : '') +
       '<div class="note">上面是买断的：买下就永久生效，不会坏、不用修、不能再买第二把。' +
       '每件工具只管自己那条线 —— 斧头不会顺带涨石头，镐也不会顺带涨珊瑚。' +
       '下面是反复制造：石梁是材料，暂时供海潮方碑使用。' +
@@ -1121,11 +1307,17 @@
    * 形参照猫国 `js/jsx/left.jsx.js:502-505` 的四颗按钮
    * （craftFixed 1/25/100 + craftPercent 0.01/0.05/0.1/1，取大）。 */
   function paneCraftRows(s) {
-    var L = SB.workshop.crafts(), h = '', i, j;
+    var L = SB.workshop.crafts(), h = '', i, j, shown = 0;
     if (!L.length) return '<div class="row"><div class="nm">（还没有配方）</div></div>';
     for (i = 0; i < L.length; i++) {
       var c = L[i];
       var why = SB.workshop.craftBlocked(s, c.id);
+      /* ⚠️ 2026-10-05 用户拍板：与工具/升级项同口径 —— **未解锁的配方不显示**。
+       *   配方没有「已拥有」概念（是反复制造，不是买断）⇒ 不需要那条例外。
+       *   ⚠️ 判据仍是 `craftBlocked` 返回值的 `/^需要先/` 前缀（门未开）vs
+       *      「还缺…」（材料不足）—— 两者都在 `craftBlocked` 里，见 workshop.js。 */
+      if (why && /^需要先/.test(why)) continue;
+      shown++;
       var mul = SB.workshop.craftMul(s);
       var cost = [], k;
       for (k in c.in) cost.push(SB.RESS[k].name + ' ' + c.in[k]);
@@ -1142,6 +1334,7 @@
       }
       h += '</div></div>';
     }
+    if (!shown) return '<div class="row"><div class="nm">（还没有配方）</div></div>';
     return h + '<div class="note">四颗按钮是**同一份材料换不同份数**：+1 就是造 1 份，' +
       '+100 就是造 100 份（不是「库存的 100%」）。效率和材料够了就更划算。</div>';
   }
@@ -1149,26 +1342,41 @@
   function paneWorkshopLocked() {
     return '<div class="secttl">工坊</div>' +
       '<div class="row"><div class="nm">工坊尚未建成</div>' +
-      '<div class="ds">先把工坊立起来（巢穴页那一座），这里才会给出加工线。</div></div>';
+      '<div class="ds">先把工坊立起来（' + SB.habitat.habitatName(SB.game.run()) + '页那一座），这里才会给出加工线。</div></div>';
   }
 
   function paneToolRows(s) {
-    var W = SB.workshop, h = '', i;
+    var W = SB.workshop, h = '', i, shown = 0;
     for (i = 0; i < SB.TOOLS.length; i++) {
       var t = SB.TOOLS[i];
       var owned = !!(s.tools && s.tools[t.id]);
       var why = owned ? null : W.blocked(s, t.id);
+      /* ⚠️ 2026-10-05 用户拍板：「工坊要能隐藏显示已经完成项目」。
+       *   开关开着时跳过已买下的行。⚠️ 顺序要点：**先判开关、再判解锁**——
+       *   反过来的话开关一开，「未解锁」与「已完成」两种行会一起消失，
+       *   玩家会以为「连没解锁的东西都藏了」，而设置项该只管完成态。
+       *   ⚠️ 计数在 doneCount(s) 里现算（不受这里的循环影响），不另记一份。 */
+      if (hideDone && owned) continue;
+      /* ⚠️ 2026-10-05 用户拍板：**未解锁的条目不显示**（改前七件工具全列）。
+       *   判据复用按钮文案已在用的 `/^需要先/` 前缀（未解锁 vs 买不起），不新立一套。
+       *   例外：已买下的永远显示（否则玩家看不到自己买过什么）——
+       *   ⚠️ 但 hideDone 开着时上面已经把「已买下」过滤掉了，这条例外在隐藏态不生效。 */
+      if (!owned && why && /^需要先/.test(why)) continue;
+      shown++;
       /* 按钮的文案要说清「现在是什么状态」，而不只是「买」——
        * 灰着还写「买」会让玩家以为点了会发生什么，实际什么都没发生。 */
+      var ctxt = SB.economy.costOwnedTxt(s, t.cost);
       var label = owned ? '已拥有'
-        : why ? (/^需要先/.test(why) ? '未解锁' : '买不起')
-          : '买下';
+        : why ? (/^需要先/.test(why) ? '未解锁' : '买不起 ' + ctxt)
+          : '买下 ' + ctxt;
       h += '<div class="row"' + (owned ? ' data-owned="1"' : '') + '>' +
         '<div class="nm">' + t.name + (owned ? ' <span class="tag ok">已买下</span>' : '') + '</div>' +
         '<div class="ds">' + t.desc + '（成本 ' + SB.economy.costTxt(t.cost) + '）</div>' +
         '<button class="btn' + (owned || why ? '' : ' buy') + '" data-tool="' + t.id + '"' +
         (owned || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button></div>';
     }
+    if (!shown) return '<div class="row"><div class="nm">' +
+      (hideDone && doneCount(s) > 0 ? '（可买的都买完了）' : '（还没有可买的工具）') + '</div></div>';
     return h + '<div class="note">门槛是建成工坊本身，不是青铜术——青铜术是纪元一最贵的科技，' +
       '等它解锁工具就晚到了。</div>';
   }
@@ -1182,21 +1390,29 @@
    *    工具存 s.tools、升级项存 s.upgrades —— 按「买断」这一语义分别归类，
    *    不共用一个键，将来查「这东西到底买没买」才不会串。 */
   function paneUpgradeRows(s) {
-    var W = SB.workshop, L = W.upgrades(), h = '', i;
+    var W = SB.workshop, L = W.upgrades(), h = '', i, shown = 0;
     for (i = 0; i < L.length; i++) {
       var u = L[i];
       var on = !!(s.upgrades && s.upgrades[u.id]);
       var why = on ? null : W.upgradeBlocked(s, u.id);
+      /* ⚠️ 2026-10-05：与工具同口径 —— ① hideDone 开着时跳过已装上的（先判开关）；
+       *   ② 未解锁不显示，已装上的在显示态永远显示。 */
+      if (hideDone && on) continue;
+      if (!on && why && /^需要先/.test(why)) continue;
+      shown++;
       /* 与工具同口径：灰着还写「装上」会让玩家以为点了会怎样，实际什么都没有。 */
+      var ctxt = SB.economy.costOwnedTxt(s, u.cost);
       var label = on ? '已装上'
-        : why ? (/^需要先/.test(why) ? '未解锁' : '材料不够')
-          : '装上';
+        : why ? (/^需要先/.test(why) ? '未解锁' : '材料不够 ' + ctxt)
+          : '装上 ' + ctxt;
       h += '<div class="row"' + (on ? ' data-owned="1"' : '') + '>' +
         '<div class="nm">' + u.name + (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
         '<div class="ds">' + u.desc + '（成本 ' + SB.economy.costTxt(u.cost) + '）</div>' +
         '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
         (on || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button></div>';
     }
+    if (!shown) return '<div class="row"><div class="nm">' +
+      (hideDone && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';
     return h;
   }
 
@@ -1423,6 +1639,9 @@
 
   function renderAll() {
     var s = res();
+    /* 巢穴 tab 名随纪元演进（与卡片标题同一来源，避免 tab 写「巢穴」、面板写「渊海之国」打架）。 */
+    var vt = el('villageTabName');
+    if (vt && SB.habitat && SB.habitat.habitatName) vt.textContent = SB.habitat.habitatName(s);
     renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderReligion(s); renderIdleTag();
   }
   function renderTick() {
@@ -1442,6 +1661,7 @@
       '<div class="kv"><span>峰值族民 P</span><b>' + (r.P || 0) + '</b></div>' +
       '<div class="kv"><span>人口分</span><b>' + (r.popScore || 0).toFixed(1) + '</b></div>' +
       '<div class="kv"><span>建筑分（按纪元加权）</span><b>' + (r.buildingScore || 0).toFixed(1) + '</b></div>' +
+      '<div class="kv"><span>工坊解锁项（' + (r.workshopCount || 0) + ' 项 ×' + ((CFG.TIDE && CFG.TIDE.CRAFT_W) || 4) + '）</span><b>' + (r.craftScore || 0).toFixed(1) + '</b></div>' +
       '<div class="kv"><span>总发展分</span><b>' + (r.developmentScore || 0).toFixed(1) + '</b></div>' +
       '<div class="kv"><span>破壳进度</span><b>' + (r.q != null ? (r.q * 100).toFixed(0) : '0') + '%</b></div>' +
       '<div class="kv" style="border:0;margin-top:8px"><span>获得轮回点</span><b style="color:var(--amber);font-size:17px">' + (r.tidePoints || 0).toFixed(2) + '</b></div>';
@@ -1451,7 +1671,7 @@
     if (r.oldTideStele) extra += '<div class="note">转入旧日潮纹碑石 ' + r.oldTideStele + ' 件（固定科技点/秒）</div>';
     var note = r.locked
       ? '<div class="note" style="color:var(--red)">本局未达《神学》资格门，不发放轮回点、不解锁商店。</div>'
-      : (extra || '<div class="note">轮回点由「峰值族民 + 建筑纪元」决定；下一局继承轮回点、已购增益与旧日遗产账本。</div>');
+      : (extra || '<div class="note">轮回点 = 1 + floor(发展分 × 系数 × 破壳系数)，发展分 = 2×峰值族民 + 建筑纪元分 + 工坊解锁项；下一局继承轮回点、已购增益与旧日遗产账本。</div>');
     box.innerHTML =
       '<h3>冰壳裂开了</h3>' +
       rows +
@@ -1570,6 +1790,22 @@
       mt.classList.toggle('locked', !mopen);
       mt.title = mopen ? '' : '首次轮回后开启轮回商店';
     }
+    /* 剥壳工程（dig 页）的灰态：**第六个独立门槛** —— 研究「天壳观测」。
+     * ⚠️ 2026-10-05 用户：「这个剥壳工程最开始也别解锁」。它此前是**唯一一个没有门的页签**，
+     *    开局就亮着 —— 可它是「天壳这条轴的仪表盘」（破壳系数拆分 / 基础削壳速率 / 破冰祭坛
+     *    开关），开局点进去只有「祭坛 0 / 地热 0」，是一页读不出因果的空壳。
+     * 挂到「天壳观测」上：它的原文注释就是「**天壳才第一次能被天天盯着看**」——
+     *   观测天壳的科技配一块显示天壳工程参数的面板，语义直配；且它同门解锁的「天壳观测站」
+     *   （科技产出按壳厚反比 +%）从这一刻起就要求玩家读懂壳厚，面板正当其时。
+     * ⚠️ 与上面五道闸一样必须**单独判一次**：它的门是「研究天壳观测」，与藻场/议事厅/工坊/
+     *    石工/首次轮回/神学都不同，不能顺手挂到任何一条下面。
+     * ⚠️ 变量名避开同函数里已声明的 s / dop（那是奇观块的），防止 var 复用时读错值。 */
+    var dg = document.querySelector('.tab[data-tab="dig"]');
+    if (dg) {
+      var dgs = res(), dopen = !!(dgs && dgs.techs && dgs.techs.shellwatch);
+      dg.classList.toggle('locked', !dopen);
+      dg.title = dopen ? '' : '研究「天壳观测」后开启';
+    }
     /* 信仰页的灰态：**第五个独立门槛** —— 神学（与资源行 / 产出线的 gate 同源：
      *   resUnlocked(s,'faith') ⇔ s.civics.theology），不在这里另立一份判据。 */
     var ft = document.querySelector('.tab[data-tab="faith"]');
@@ -1628,23 +1864,75 @@
       '在那之前，顶栏也不会显示信仰这一格。</div>';
   }
 
+  /* ── 幸福度常驻偏移量的「就地说明」（2026-10-05 用户「都补上」）──
+   * 【为什么顶栏已经列了还要在各自面板再列一遍】顶栏那行给的是**汇总**（谁给了多少一目了然），
+   *   但玩家是在**奇观页/政策卡页/钻机页**做决策的 —— 那一页不写「它 +1 幸福度」，
+   *   他就看不出这件东西买来干什么。⇒ 汇总归顶栏、说明归各面板，两处都要有。
+   * ⚠️ **唯一数据源是 economy.happyLedger 的 bonusParts**，这里只做「按 label 过滤 + 摆文字」，
+   *   绝不自己算一遍偏移量 —— 重算就是第二份口径，与 tick 的 _gb 会漂。
+   * ⚠️ 逐字匹配 label（'王国大交易所' 等）**要防改名漂移**：label 改了这里会静默失效
+   *   （显示"该来源无效果"而不是报错）。所以找不到时**不显示这一行**、让顶栏去暴露那个变化，
+   *   而不是在这里打一个自造的提示。 */
+  var HAPPY_BONUS_LABELS = {
+    gov: '政体', wonder: '王国大交易所', card: '政策卡', skydrill: '天穹钻机'
+  };
+  function happyBonusNote(s, which) {
+    if (!SB.economy.happyLedger) return '';
+    var L = SB.economy.happyLedger(s);
+    if (!L.bonusParts || !L.bonusParts.length) return '';
+    var want = HAPPY_BONUS_LABELS[which], out = [];
+    for (var i = 0; i < L.bonusParts.length; i++) {
+      if (L.bonusParts[i].label === want) out.push(L.bonusParts[i].v);
+    }
+    if (!out.length) return '';   // 这件东西此刻没给幸福度 ⇒ 不摆（别在奇观页给每座都挂一句"无效果"）
+    var v = out[0];
+    /* ⚠️ 措辞分方向：policy card「工业化配给」是 **−1**（压低），
+     *   若统一写「抬高全产乘区档位」，玩家读到「−1 · 抬高」会以为抵消不了。 */
+    return '<i class="cap">幸福度 ' + (v > 0 ? '+' : '') + (+v.toFixed(2)) +
+      '（常驻，' + (v > 0 ? '抬高' : '压低') + '全产乘区档位）</i>';
+  }
+
   function paneWonder() {
     var s = res();
     if (!s) return '';
     var L = SB.wonder ? SB.wonder.list() : [], h = '', i;
     h += '<div class="note">奇观是**一次性里程碑建筑**：建成就永久留着，不会再建第二座、' +
       '也不烧什么。**石梁**目前是它们的材料（海潮方碑要 20 根）。</div>';
+    /* ⚠️ 2026-10-05 用户拍板：**未解锁的奇观不显示**（改前 14 座全列出来）。
+     *   判据复用 `wonderBlocked` 的门控返回**前缀**（`/^需要先/`）——那是同文件里
+     *   按钮文案区分「未解锁 / 建不起」时**已经在用**的判据（见下），不新立一套。
+     *   为什么不新写 `wonderUnlocked()`：门只有一处定义（workshop.wonderBlocked），
+     *   在 render 再写一份就是「同一道门写两遍」，改一处忘另一处就会门户不一致
+     *   ——本仓记过多次（页签双闸就是这个形态）。
+     * ⚠️【已建成的永远显示】`done` 排在过滤**之前**判：否则玩家拆了/读档后
+     *   奇观从列表里消失，看不到自己建过什么。
+     * ⚠️【无门奇观必须仍显示】`wonder_great_library`（大图书馆）在「通识」删除后
+     *   **既无 need 也无 needCivic** ⇒ `wonderBlocked` 对它只可能返回成本不足或 null，
+     *   永远不以「需要先…」开头 ⇒ 自动落在「显示」这一侧，正合需要。
+     *   若这里写成「有门才显示」，大图书馆会永久消失（它那 1000 精铁本来就
+     *   超基础容量，门早被 2026-09-28 删干净了）。 */
+    var shown = 0;
     for (i = 0; i < L.length; i++) {
       var w = L[i];
       var done = !!(s.wonders && s.wonders[w.id]);
       var why = done ? null : SB.workshop.wonderBlocked(s, w.id);
+      if (!done && why && /^需要先/.test(why)) continue;   // 未解锁 ⇒ 整行不显示
+      shown++;
       h += '<div class="row"' + (done ? ' data-owned="1"' : '') + '>' +
-        '<div class="nm">' + w.name + (done ? ' <span class="tag ok">已建成</span>' : '') + '</div>' +
+        '<div class="nm">' + w.name + (done ? ' <span class="tag ok">已建成</span>' : '') +
+        (done ? happyBonusNote(s, 'wonder') : '') + '</div>' +
         '<div class="ds">' + w.desc + '（成本 ' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) + '）</div>' +
         '<button class="btn' + (done || why ? '' : ' buy') + '" data-wonder="' + w.id + '"' +
         (done || why ? ' disabled' : '') + ' title="' + (why || '') + '">' +
-        (done ? '已建成' : why ? (/^需要先/.test(why) ? '未解锁' : '建不起') : '建成') + '</button></div>';
+        (function () {
+          var wcost = SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost;
+          var wtxt = SB.economy.costOwnedTxt(s, wcost);
+          return done ? '已建成' : why ? (/^需要先/.test(why) ? '未解锁' : '建不起 ' + wtxt) : '建成 ' + wtxt;
+        })() + '</button></div>';
     }
+    /* 一座都还没解锁时给一句说明，别留一个只有表头的空面板。
+     *（末座奇观解锁后必然有一座可建，所以这里只在开局那段时间出现。） */
+    if (!shown) h += '<div class="note">还没有任何奇观向你揭开。</div>';
     return h;
   }
 
@@ -1711,7 +1999,63 @@
     if (pct) pct.textContent = '已完成 ' + (p * 100).toFixed(0) + '%';
   }
 
+  /* 2026-10-05 系统指引：页签「?」按钮点击后弹出的简介（def=定义，step=第一步）。
+   * 内容覆盖全部页签（village/folk/tech/civic/faith/workshop/wonder/dig/meta）。
+   * ⚠️ 纯 UI 文案，不碰任何数值/平衡；钥匙 key 与 index.html 里 onclick="SB.ui.openIntro('KEY')" 一一对应。 */
+  var INTRO = {
+    village: { icon:'🏝️', ttl:'这是什么 · 巢穴',
+      def:'你的居所与基础产能中心：手点采集<b>藻食</b>/<b>珊瑚</b>，建<b>住房</b>扩人口，建解锁后续系统的关键建筑（议事厅/工坊/藻场）。',
+      step:'第一步：先手点「采珊瑚」攒够资源，建起礁口巢——人口上限从 1 升到 3，才有空位生人。' },
+    folk: { icon:'👥', ttl:'这是什么 · 族民',
+      def:'人口与职业层：族民吃<b>藻食</b>、住<b>住房</b>，被分配去采集/建造/科研等职业线，驱动各类产出。',
+      step:'第一步：人口顶到上限就建更多住房；藻食见底先扩藻场，否则会饿死。' },
+    tech: { icon:'🔬', ttl:'这是什么 · 科技',
+      def:'文明的科技树：按纪元推进，研究项解锁<b>建筑</b>、<b>资源线</b>与后续系统；每清完一个纪元的关键节点就推进到下一纪元。',
+      step:'第一步：攒够科技点，研究最左边已揭示的项；右侧暗着的是本纪元尚未到时点的科技。' },
+    civic: { icon:'📜', ttl:'这是什么 · 市政',
+      def:'文明的「规则层」：<b>政体</b>决定被动与卡槽配方，<b>政策卡</b>填进卡槽给即时增益，<b>市政树</b>解锁更多卡与建筑。',
+      step:'第一步：先研究《法典》开启「酋邦制」政体；完成市政树条目解锁对应政策卡。' },
+    faith: { icon:'🕯️', ttl:'这是什么 · 信仰',
+      def:'信仰系统：研究《神学》后开放，<b>信仰点</b>（存量/速率）驱动宗教加成与鼓舞效果。',
+      step:'第一步：研究《神学》开启本页；之后靠赞美/仪式累积信仰点来驱动加成。' },
+    workshop: { icon:'🔨', ttl:'这是什么 · 工坊',
+      def:'把原料加工成进阶物资：<b>青铜工具</b>是买断的永久增益，<b>工艺制作</b>是反复制造的产出线。',
+      step:'第一步：先在「巢穴」页把工坊建起来；建成后在「青铜工具」里挑第一条线买下。' },
+    wonder: { icon:'🏛️', ttl:'这是什么 · 奇观',
+      def:'大型工程项目：耗巨量资源建成，给<b>全局强增益</b>或解锁终局机制（如天穹钻机）。',
+      step:'第一步：攒齐奇观所需石梁/精铁等，在巢穴页动工；建成后效果全局生效。' },
+    dig: { icon:'⛏️', ttl:'这是什么 · 剥壳工程',
+      def:'天壳仪表盘：显示<b>破壳系数拆分</b>、<b>基础削壳速率</b>与破冰祭坛开关；研究「天壳观测」后开启。',
+      step:'第一步：研究「天壳观测」解锁本页；之后靠祭坛/钻机推进破壳。' },
+    meta: { icon:'♻️', ttl:'这是什么 · 轮回商店',
+      def:'跨周目成长层：<b>破壳结算</b>给轮回点，在商店换永久增益（起始／门槛／效率三类）。',
+      step:'第一步：先推进到第一次破壳结算；拿到轮回点后回到本页挑最贵的「门槛减免」类。' }
+  };
+  function openIntro(key) {
+    var d = INTRO[key]; if (!d) return;
+    var pop = el('introPop'); if (!pop) return;
+    pop.innerHTML =
+      '<div class="ttl">' + (d.icon || '') + ' ' + (d.ttl || '') + '</div>' +
+      '<div class="def">' + (d.def || '') + '</div>' +
+      '<div class="step">' + (d.step || '') + '</div>' +
+      '<div class="closebar"><button class="btn" onclick="SB.ui.closeIntro()">知道了</button></div>';
+    var m = el('introMask'); if (m) m.classList.remove('hidden');
+    bodyModalClass(true);   /* 弹窗期间禁用 tab 交互（复用 body.modal-open 规则） */
+  }
+  function closeIntro() {
+    var m = el('introMask'); if (m) m.classList.add('hidden');
+    bodyModalClass(false);
+  }
+  /* Esc 关弹窗（防重复绑定：render.js 只加载一次，这里挂一次即可）。 */
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { var m = el('introMask'); if (m && !m.classList.contains('hidden')) closeIntro(); }
+    });
+  }
+
   SB.ui = SB.ui || {};
+  SB.ui.openIntro = openIntro;     /* 供 index.html 页签「?」按钮 onclick 调用 */
+  SB.ui.closeIntro = closeIntro;
   SB.ui.render = {
     renderAll: renderAll, renderTick: renderTick, renderPanes: renderPanes,
     showBreakPanel: showBreakPanel, hideModal: hideModal, confirmPanel: confirmPanel,
@@ -1724,6 +2068,30 @@
      * 区别只在状态是「落成类」（外层卡片，节点持久）还是「重拼进 HTML」（页内区，会被重画）。 */
     toggleCardFold: toggleCardFold, applyAllFolds: applyAllFolds,
     toggleZoneFold: toggleZoneFold,
-    PANE_KEYS: PANE_KEYS
+    /* ⚠️ 2026-10-05：工坊「隐藏已完成」开关的切入口。
+     *   ⚠️ 切完**必须触发一次整块重画**才生效（不像 zone 折叠能直接翻节点上的类）——
+     *   因为「已完成项隐不显示」是渲染时**跳过行**决定的，DOM 上没有可翻的类。
+     *   调用方（input.js 委托）负责重画。 */
+    toggleHideDone: toggleHideDone,
+    PANE_KEYS: PANE_KEYS,
+    /* ⚠️ 2026-10-05：导出 `paneWonder` 供回归直接断言「未解锁的奇观不显示」。
+     *   为什么单独导它而不让 e2e 走 renderPanes：那一路是把 HTML 写进假 DOM 的
+     *   innerHTML，桩元素不回填 children ⇒ 取不到 `data-wonder` 属性。
+     *   门只有一处定义（workshop.wonderBlocked），这里导出的也只是**同一个渲染函数**，
+     *   不是另写一份过滤逻辑。 */
+    paneWonder: paneWonder,
+    /* ⚠️ 2026-10-05：导出 `paneCivicGov` 供回归直接断言「未解锁的政体不显示」。
+     *   与 paneWonder 同一手法：它只过滤渲染、不写第二份逻辑，门只有一处（govOwned）。 */
+    paneCivicGov: paneCivicGov,
+    /* ⚠️ 2026-10-05：导出 `paneMeta`（轮回商店页）供回归直接断言。
+     *   【为什么要单独导它】走 renderPanes 那条路取不到属性：假 DOM 的 innerHTML
+     *   不回填 children ⇒ 抓不到 `data-perk` / 等级 / 下一档价格。
+     *   与 paneWonder 同一理由：导出的也只是**同一个渲染函数**，不是另写一份过滤逻辑。
+     *   【它能钉住什么】新加的资源线 perk 是否真的上屏、desc 与 costs 档数是否匹配、
+     *   st.next 是否是数字而不是 undefined（那类「undefined 点」的上屏事故就钉在它上面）。 */
+    paneMeta: paneMeta,
+    /* ⚠️ 2026-10-05：同理导出工坊三段的渲染函数，回归要直接验「未解锁不显示」。
+     *   （走 renderPanes 那条路取不到属性：假 DOM 的 innerHTML 不回填 children。） */
+    paneToolRows: paneToolRows, paneCraftRows: paneCraftRows, paneUpgradeRows: paneUpgradeRows
   };
 })(typeof window !== 'undefined' ? window : globalThis);

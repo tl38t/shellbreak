@@ -222,11 +222,11 @@
    *   ⚠️ 读 s.broken 判阶段：prestige.doBreak 开头有「已结算则返回」守卫，broken 置位权只在
    *       doBreak 内，故这里读到的 broken 是「已轮回」的权威标志（纪律③延伸：别处不散读 s.wonders）。 */
   function skydrillCivic(s) {
-    if (owned(s).skydrill && s.broken) return CFG.SKYDRILL_CIVIC;
+    if (owned(s).wonder_skydrill && s.broken) return CFG.SKYDRILL_CIVIC;
     return 0;
   }
   function skydrillHappyOffset(s) {
-    if (!owned(s).skydrill) return 0;
+    if (!owned(s).wonder_skydrill) return 0;
     return s.broken ? CFG.SKYDRILL_HAPPY_WONDER : -CFG.SKYDRILL_HAPPY_RUN;
   }
 

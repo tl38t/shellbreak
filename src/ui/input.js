@@ -38,6 +38,20 @@
       SB.ui.render.toggleZoneFold(d.zfold);
       return;
     }
+    /* 工坊「隐藏已完成」（2026-10-05 用户「工坊要能隐藏显示已经完成项目」）：
+     * 同样是纯视图动作（只翻 render 模块里的 hideDone + 持久化），不碰游戏状态。
+     * ⚠️ 与上面两个折叠分支的**关键差别**：卡片/区折叠是翻 DOM 上已有的类，
+     *    而这个开关是「渲染时**跳不跳过这一行**」决定的 ⇒ **必须重画才生效**。
+     *    忘了这次重画的话，按钮的文字会变（因为开关自身在标题行里）
+     *    但列表不变 —— 看起来像只改字不生效。
+     * ⚠️ 这里调 `renderPanes()` 而**不是** `renderAll()`：工坊面板写在 `#pane-workshop`，
+     *    由 renderPanes 填（renderAll 只管顶栏资源与总页）。
+     *    顶栏本来会跟着 2 秒节流重画，但开关要**立即**反馈，不能等。 */
+    if (d.hidedone !== undefined && d.hidedone !== null && d.hidedone !== '') {
+      SB.ui.render.toggleHideDone();
+      SB.ui.render.renderPanes();
+      return;
+    }
 
     /* 每个动作后都补一次科技泵：尤里卡里有 built / total / job 三类，
      * 它们只被玩家动作改变。只靠循环里的 2 秒节流，点完要等一下才揭示，

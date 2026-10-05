@@ -172,7 +172,10 @@
     var target = { gather: g }, acc = 0;
     for (i2 = 0; i2 < others.length; i2++) {
       var k = others[i2];
-      target[k] = sumW > 0 ? Math.round(rest * w[k] / sumW) : (k === 'craft' ? rest : 0);
+      /* ⚠️ 2026-10-04：原兜底 `(k === 'craft' ? rest : 0)` 随匠人职业删除而作废——
+       *    craft 已不在 IDS ⇒ 该分支永不命中。sumW=0（所有职业权重为 0）时的残差
+       *    由下方「取整残差补给学者」那行兜住，不会丢人。 */
+      target[k] = sumW > 0 ? Math.round(rest * w[k] / sumW) : 0;
       acc += target[k];
     }
     // 取整残差补给学者，避免总量差 1 导致下一轮空转

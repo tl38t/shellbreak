@@ -89,6 +89,13 @@
      *   与上面六源同一条加法乘区（工坊级 + 奇观 + 科技 + 政体 + 升级 + 政策卡），
      *   同档相加，不是乘区相乘。 */
     if (s.lvl && s.lvl.hotforge > 0) m += (s.lvl.hotforge || 0) * (BLD.hotforgeCraft || 0);
+    /* ⑧ 工坊定额（2026-10-05 · perk.craftQuota）：工坊制作产出 +10%/级，不设上限（2026-10-05 晚拍板）。
+     *   与上面七源同一条**加法乘区**（用户 2026-09-27 拍「加法」的口径），
+     *   所以工坊满级 + 科技 + 政体 + 卡 + 热锻 + 配额是**相加**，不是相乘。
+     *   ⚠️ 别误读成 `T.craft`（那是加工产出/精铁那条线，与本条互不干涉）。
+     *   ⚠️ 这条只管**工艺制作产出**（craftMul → 产出那截），投入/成本端从不打折
+     *   （见 craft 里的 prices 循环与 craftMul 上方注）。 */
+    m += 0.10 * (s.perk && s.perk.craftQuota ? s.perk.craftQuota : 0);
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。

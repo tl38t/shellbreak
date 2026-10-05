@@ -176,7 +176,7 @@
      * （海藻仓/压舱仓/灯塔），基础容量、科技容量、奇观常数、扩容升级都不吃——
      * 规格原文是「仓储区所有建筑上限+100%」，翻倍的是建筑的贡献，不是整条容量。 */
     var _sm = (SB.civic && SB.civic.storeMul) ? SB.civic.storeMul(s) : 1;
-    /* 轮回商店「材料总仓」：所有有上限的普通资源容量 ×(1 + 0.05 × 等级)（最多 +15%）。
+    /* 轮回商店「材料总仓」：所有有上限的普通资源容量 ×(1 + 0.05 × 等级)（20 级 ⇒ +100%）。
      * ⚠️ 只作用于 CAP_BASE 有明确定义上限的资源（kelp / 各材料），不碰科技/市政/信仰/奢侈/
      *    无上限工艺品；与建筑仓储升级相乘（规格 L349）。 */
     var lgS = SB.prestige ? SB.prestige.legacy() : null;
@@ -312,13 +312,59 @@
      *    它们是「制度给的减耗」，互不踩对方的定义域。 */
     var isb = 1 - upgSum(s, 'invertBuildSave');
     var hsb = (id === 'hydroturbine') ? (1 - upgSum(s, 'hydroBuildSave')) : 1;
-    for (var k in b.cost) o[k] = Math.ceil(b.cost[k] * Math.pow(b.ratio, n) * hm * gm * wm * isb * hsb);
+    /* ⚠️ 2026-10-05 · 匠作省料（perk.buildSave）：全建筑消耗 −1%/级，最多 −20%。
+     *   【为什么不并进 isb / hallMul】那三个是「建筑/制度/奇观给的」减耗，这一个是
+     *   **轮回商店给的**——来源不同就该独立相乘，与本函数「议事厅 × 君主制 × 大交易所
+     *   × 倒置搭建」同一条乘区纪律：每条来源各守自己的定义域，谁也不踩谁。
+     *   【为什么落在这里而不是 habitat.build】costOf 是面板显示与真实扣费**共用的那一份**，
+     *   落在这里 ⇒ 显示的造价与扣的钱天然同源（改 habitat.build 会出现「显示不涨、实扣涨」）。
+     *   ⚠️ 加了 clamp 下限 0.05：perk 只有 20 级 ⇒ 最小 0.8，数学上够不到底，
+     *      但留一道闸防止将来把系数标定到 >0.95 时把造价乘成负数（那会让 pay 倒给玩家资源）。 */
+    var bsb = Math.max(0.05, 1 - 0.01 * (s.perk.buildSave || 0));
+    /* ⚠️ 2026-10-05 用户拍板：**去掉 `Math.ceil`，造价显示真实小数**。
+     *   【为什么】原来是 `Math.ceil(2 × 1.15^n)`，而 1.15 的增长慢于取整粒度
+     *   ⇒ 前几级连着两级显示同一个数（第 1→2 级都显示 3、第 3→4 级都显示 4…），
+     *   看着像「升级不加消耗」。实测 raw 与显示的差：
+     *     n=1 raw=2.300→3 ｜ n=2 raw=2.645→3（**与 n=1 相同**）
+     *     n=3 raw=3.042→4 ｜ n=4 raw=3.498→4（**与 n=3 相同**）
+     *   ⇒ 机制本来是通的（猫国 warehouse 同样是 `1.15^n` 每级付），只是被取整掩盖了。
+     *   【为什么不引入浮点扣费的精度问题】`pay` 是 `s.res[k] -= c[k]` 的浮点减法，
+     *   而 `enough` 已带 1e-9 容差（见那条注：手动采珊瑚 100 下会得 9.99999999999998），
+     *   所以 2.3 这种小数造价不会造成「差一点点建不起来」。
+     * ⚠️【但**扣费仍要整数**吗】不：现在扣的就是浮点本身（5 − 2.3 = 2.7），
+     *   库存会带小数尾数。顶栏存量用 `fmtAmt`（一位小数）显示，正好接住。
+     * ⚠️ 面板侧 `fmt()` 是 `Math.floor` + 千分位（给「成本/上限」用的），**会把 2.3 显示成 2** ——
+     *   那是**显示层**的问题，不是这一行的问题。若面板要显示小数得单独改 fmt 的分档。
+     *   本次只改 costOf（数据层），显示层要不要跟由用户另拍。 */
+    for (var k in b.cost) o[k] = b.cost[k] * Math.pow(b.ratio, n) * hm * gm * wm * isb * hsb * bsb;
     return o;
   }
+  /* ⚠️ 2026-10-05：成本标签改用 `fmtAmt`（**一位小数**）而不是 `fmt`（Math.floor 取整）。
+   *   起因是同轮去掉了 `costOf` 里的 `Math.ceil` —— 造价变回浮点（2.3 / 2.645 / 3.042…），
+   *   而 `fmt` 会把 2.3 显示成 **2** ⇒ 面板显示的数与实际要扣的数对不上，
+   *   且用户报的正是「看不出升级加价」—— 显示层再取整就把这次修复抵消了。
+   * ⚠️ 整数造价下两者输出相同（fmtAmt 对整数也补 `.0`）⇒ 不会影响其它读数的地方。
+   * ⚠️ 别改 `fmt` 本身：它服务于**存量上限**那类天生整数的读数（仓储上限、ratio 折扣），
+   *    改它会让「上限 1,200」印成「1,200.0」。这里是**成本标签单独换**。 */
   function costTxt(c) {
     var out = [];
-    for (var k in c) out.push(SB.RESS[k].name + ' ' + fmt(c[k]));
+    for (var k in c) out.push(SB.RESS[k].name + ' ' + fmtAmt(c[k]));
     return out.join(' + ');
+  }
+  /* ⚠️ 2026-10-05 用户需求：建造按钮「不只显示要多少，也显示已有多少」，形如「珊瑚 30/50」。
+   *   用于建筑 / 科技 / 市政 / 工坊 / 奇观 的购买按钮，玩家一眼看出还差多少、攒到哪了。
+   *   · 每个成本资源出一段「资源名 已拥有/需要」；多资源成本空格拼接（如「珊瑚 30/50 石梁 0/25」）。
+   *   · owned 取 Math.floor：科技点 / 市政点 这类浮点池按整数展示，与顶栏同口径；
+   *     资源缺失（新资源漏进 RESS 却没进 freshRun 的 res）兜底 0，绝不 NaN。
+   *   · need 走 fmtAmt（一位小数），与 costTxt 同口径 —— 浮点造价（如 2.3）原样显示，不回退到 `fmt` 截断。 */
+  function costOwnedTxt(s, c) {
+    var out = [], k;
+    for (k in c) {
+      if (!c[k]) continue;
+      var have = Math.floor(((s.res && s.res[k] != null) ? s.res[k] : 0));
+      out.push(SB.RESS[k].name + ' ' + have + '/' + fmtAmt(c[k]));
+    }
+    return out.join(' ');
   }
   /* 资源够不够的**唯一**判据。所有「能不能建 / 学 / 解锁」的比较都必须走它，
    * 不许再裸写 `s.res[k] >= cost`。
@@ -465,6 +511,37 @@
    *   gatherMul 那条全局轴在删礁石平台时已经拆掉（2026-09-28），这两条是另开的、
    *   与研究所在学者身上那条（`BLD.instituteSci`）同构的职业级通道。 */
   function coralFarmMul(s) { return 1 + (s.lvl.coralfarm || 0) * BLD.coralFarmCW; }
+
+  /* ── 资源线专项 perk 乘区（2026-10-05 用户拍板）────────────────────────
+   * 五个函数都是同一形状：`1 + 系数 × s.perk.<key>`，纯加法、无钳制、20 级封顶。
+   * 【为什么全部独立成函数、不并进 gatherMul / farmMul】三条理由：
+   *   ① **来源不同**：gatherMul 是「科技 T.gather + 通用采集 perk」，这里是「资源线专项 perk」，
+   *      同一乘区混装会让「珊瑚专项」顺带涨石头，而资源线专项 perk 的卖点就是**只管一条线**。
+   *   ② **可叠加性**：独立成轴后，珊瑚专项与通用采集 perk 是**相乘**而非互相覆盖，
+   *      玩家两条都买时收益是叠乘的（×1.6 × ×1.3），符合「每条线独立投资」的直觉。
+   *   ③ **单位铁律**：tick 与 rates 必须**逐字同式**调同一批函数，
+   *      抽成函数才能保证「改一处两边一起变」；散写 `1+0.03*(s.perk.X||0)` 一定会漂。
+   * ⚠️ 全部 `|| 0` 兜底：perk 表漏键 ⇒ undefined ⇒ NaN ⇒ 整条产线静默打死（不抛错）。
+   * 【系数全是提议值】标定只动这里的 0.xx 与 config 的 costs，不动结构。 */
+  /* 珊瑚礁契：珊瑚产出 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.coral + tick 珊瑚匠行。 */
+  function coralPactMul(s) { return 1 + 0.10 * (s.perk.coralPact || 0); }
+  /* 矿脉税契：石头 + 金属 + 暖石各 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.silt/stone/warmstone + tick 对应三行。
+   * ⚠️ 一项管三线（与砂矿坑 siltBonus 同样形状），但**不碰钛**：钛是 2026-09-30 才开的新线，
+   *    塞进「矿脉税契」会让老玩家以为买了就该涨钛，实际口径要等标定再说。 */
+  function mineTaxMul(s) { return 1 + 0.10 * (s.perk.mineTax || 0); }
+  /* 潮田轮作：采集者藻食 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.kelp 的**职业侧**（farmMul 之后）。
+   * ⚠️ 藻场（建筑侧）**不吃**这一条：farmMul 本来就只放大职业侧，注释已写明
+   *    「只放大采集者（职业侧），不碰建筑侧的藻场」—— 本 perk 与它同定义域。 */
+  function algaeCropMul(s) { return 1 + 0.10 * (s.perk.algaeCrop || 0); }
+  /* 炉心增压：精铁 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.iron + tick steelFlow 的产出那一段。
+   * ⚠️ 只乘**产出**不乘**原料扣减**（fc）——与 ironFlow 那条量纲注同源：
+   *    乘在扣减上会让「炉心增压」变成「每转一份白扣两份原料」。 */
+  function furnaceBoostMul(s) { return 1 + 0.10 * (s.perk.furnaceBoost || 0); }
+  /* 奢侈品契：奢侈品产出 +10%/级（2026-10-05 拍板，不设上限）。落点 = tick 4c 的 S + rates.luxury 的 S（**两处都要**）。
+   * ⚠️ 乘在 **S（供给）侧**，不是净速率上——净速率已被 min(S,D) 压过一遍，
+   *    乘净速率会让「供给涨了但需求也涨」时面板与结算再次打架。
+   * ⚠️ 仍走 baseMul（不吃 happyMul），保持反自指纪律不变。 */
+  function luxuryPactMul(s) { return 1 + 0.10 * (s.perk.luxuryPact || 0); }
   function bankMul(s)      { return (1 + (s.lvl.bank || 0) * BLD.bankLux) * SB.civic.bankMerchantMul(s); }
 
   /* 【天壳观测站】科技产出 +x%，x = min(20, 25000 / 当前冰壳厚度)。
@@ -612,7 +689,7 @@
     var byBuild = s.lvl.kelp * BLD.food
       * ((SB.civic && SB.civic.serfKelpMul) ? SB.civic.serfKelpMul(s) : 1)  // 农奴制：每级牧场给藻场 +1%
       * seasonMul(s, relief); // 建筑侧：吃季节（历法收窄减产 + 暖石顶回）
-    var byJob = s.jobs.gather * UNIT.kelp * farmMul(s);        // 职业侧：不吃季节・「种植」的 farm 乘区
+    var byJob = s.jobs.gather * UNIT.kelp * farmMul(s) * algaeCropMul(s);  // 职业侧：不吃季节；farm 乘区 + 潮田轮作 perk
     /* 只放大食物，别把 gatherMul（礁石平台/深潜/洋流增益）乘进来——
      * 那些倍率是「采集产出」的，礁石平台不该让藻场增产。
      * 之前错乘进来，食物产出虚高到 38/秒而消耗只有 2.6/秒，
@@ -698,58 +775,81 @@
     return Math.min(rate * dt, s.res.silt, s.res.warmstone);
   }
 
-  /* ERA3 热液能系统（2026-09-29）：热液汽轮机产热液能（耗暖石）、热液工坊吃热液能产钢（耗金属）。
-   * 供给（汽轮机）/ 需求（工坊）实时比对，热液能或金属不够时工坊按比例降产。
-   * ⚠️ 数值为待标定默认（config UNIT.hydroOut / hydroWarm / hydroShopLvl / steelPerHydro / steelMetal）。
-   * ⚠️ 这是**有副作用**的版本（tick 调用，直接改 s.res）；rates() 用下面的 steelRate 非变异版。 */
-  function steelFlow(s, dt) {
+  /* ERA3 热液能系统（2026-09-29 起；2026-10-05 重做为 **flow 模型**）：
+   * 热液能 = 电力式瞬态流，**不被储存**：汽轮机每台每 tick 产 `hydroOut` 流（受暖石门控），
+   * 热液工坊 / 天穹钻机当场从这一 tick 的流里取用，取多少用多少，不留库存、不跨 tick 累积。
+   * 优先级（用户拍板）：工坊（metalrefine 解锁，低阶科技）先吃满，天穹钻机（ERA5）吃剩的。
+   * 纯函数 hydroAlloc 同时驱动 tick（steelFlow 副作用版）与 rates（steelRate 非变异版）⇒ 面板===结算。
+   * ⚠️ 数值为待标定默认（config UNIT.hydroOut / hydroWarm / hydroShopLvl / steelPerHydro / steelMetal）。 */
+  function hydroAlloc(s, dt) {
     var turL = s.lvl.hydroturbine || 0, shopL = s.lvl.hydroshop || 0;
-    if (turL <= 0 && shopL <= 0) return 0;
+    if (turL <= 0 && shopL <= 0) return { supply: 0, shopDraw: 0, shopRatio: 0, skyDraw: 0, left: 0 };
     /* ERA5（2026-10-02）：高压热机管道(wonder_presspipe) 给热液能**供给侧 +10 绝对量**，
      *   走 wonder.hydroWonderMul 出口。与高压气泵升级的 hydroMul（乘区）是两回事，这里加法叠加。 */
     var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
-    /* 汽轮机：暖石够才产（比例降产），产入热液能池。 */
+    var supply = 0, rW = 1;
     if (turL > 0) {
+      /* ⚠️ 暖石门控：暖石不够则汽轮机按比例降产（读 s.res.warmstone，但**不在此扣**——扣费只在 steelFlow）。 */
       var warmNeed = turL * UNIT.hydroWarm * dt;
       var canWarm = Math.min(warmNeed, s.res.warmstone);
-      s.res.warmstone -= canWarm;
-      var rW = warmNeed > 0 ? canWarm / warmNeed : 0;
+      rW = warmNeed > 0 ? canWarm / warmNeed : 0;
       /* ⚠️ 2026-09-30 ERA4：高压气泵(hydroMul) 只放大**汽轮机供给那一侧**，
        *    不放大工坊的需求 —— 反过来写会让「+50% 热液能」变成「多烧 50% 暖石」的方向错误。
        *   ⚠️ ERA5：_press 作为并联进汽口的绝对增量，同样乘 rW（按比例降产时管道也按比例供）。 */
-      s.res.hydro += (turL * UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) + _press) * dt * rW
+      supply = (turL * UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) + _press) * dt * rW
         * (SB.civic ? SB.civic.cardHydroMul(s) : 1);
     }
-    /* 工坊：吃热液能产钢（金属不足也按比例降）。min 双限防抽成负数。 */
-    if (shopL > 0) {
-      var hydroWant = shopL * UNIT.hydroShopLvl * dt;
-      var usedHydro = Math.min(hydroWant, s.res.hydro);
-      var metalWant = usedHydro * UNIT.steelMetal;
-      var canMetal = Math.min(metalWant, s.res.silt);
-      var realHydro = metalWant > 0 ? usedHydro * (canMetal / metalWant) : usedHydro;
-      s.res.hydro -= realHydro;
-      s.res.silt -= canMetal;
-      /* ERA5（2026-10-02）：废钢锻造(upg_wasteforge) 钢产出 +20%（steelBonus，加法乘区）。 */
-      var out = realHydro * UNIT.steelPerHydro * globalMul(s) * (1 + upgSum(s, 'steelBonus'));
-      addRes(s, 'steel', out);
-      return out;
+    /* 工坊（低阶科技先吃满）：从本 tick 流里取 min(需求, 供给)。 */
+    var shopDemand = shopL * UNIT.hydroShopLvl * dt;
+    var shopDraw = Math.min(shopDemand, supply);
+    var left = supply - shopDraw;
+    /* 天穹钻机（ERA5）：从剩流里取 SKYDRILL_HYDRO/tick，且需共振钻头够（机器态判据见 shell.js）。 */
+    var skyDraw = 0;
+    if (SB.wonder && SB.wonder.owned(s).wonder_skydrill) {
+      var hCost = CFG.SKYDRILL_HYDRO * dt;
+      if ((s.res.resonantDrill || 0) >= hCost && left >= hCost) skyDraw = hCost;
     }
-    return 0;
+    return { supply: supply, supplyRate: dt > 0 ? supply / dt : supply,
+      shopDraw: shopDraw, shopRate: dt > 0 ? shopDraw / dt : shopDraw,
+      skyDraw: skyDraw, skyRate: dt > 0 ? skyDraw / dt : skyDraw,
+      shopRatio: shopDemand > 0 ? shopDraw / shopDemand : (shopL > 0 ? 1 : 0),
+      left: left - skyDraw };
   }
-  /* rates() 用的非变异版：返回「每秒钢产出」与「热液能净流入」，不改 s.res。与 steelFlow 同式（dt=1）。 */
+  /* 副作用版（tick 调用）：算好流分配后**只扣暖石**，且把 s.res.hydro 写成「每秒供给」
+   * （覆盖写，绝不再 += —— 这就是 flow 模型「不储存」的核心）。工坊据此产钢。
+   * ⚠️ 单位铁律：这里存的是 **每秒**（÷dt 归一），不是「这一 tick 产多少」——
+   *    顶栏主数要与速率行同口径（/s），否则 STEP 一变主数就跟着缩，量纲当场漂掉。 */
+  function steelFlow(s, dt) {
+    var HF = hydroAlloc(s, dt);
+    s._hydroFlow = HF;                 // 留给 tickShell 的天穹钻机读剩流（同 tick 内 steelFlow 先于 tickShell）
+    s.res.hydro = HF.supplyRate;       // ★ flow 模型：每 tick 覆盖写「每秒供给」，不累积库存
+    var turL = s.lvl.hydroturbine || 0;
+    if (turL > 0) {                    // 暖石扣费（唯一副作用落点）
+      var warmNeed = turL * UNIT.hydroWarm * dt;
+      s.res.warmstone -= Math.min(warmNeed, s.res.warmstone);
+    }
+    var shopL = s.lvl.hydroshop || 0;
+    if (shopL <= 0) return 0;
+    /* 工坊吃 from 流（HF.shopDraw），金属不足再按 metal 门控降钢（沿用旧口径，钢侧 metal 门控不进 rates）。
+     * min 双限防抽成负数。 */
+    var metalWant = HF.shopDraw * UNIT.steelMetal;
+    var canMetal = Math.min(metalWant, s.res.silt);
+    var realHydro = metalWant > 0 ? HF.shopDraw * (canMetal / metalWant) : HF.shopDraw;
+    s.res.silt -= canMetal;
+    /* ERA5（2026-10-02）：废钢锻造(upg_wasteforge) 钢产出 +20%（steelBonus，加法乘区）。 */
+    var out = realHydro * UNIT.steelPerHydro * globalMul(s) * (1 + upgSum(s, 'steelBonus'));
+    addRes(s, 'steel', out);
+    return out;
+  }
+  /* rates() 用的非变异版：与 steelFlow 同式（dt=1），不改 s.res。
+   *   steel = 工坊实际产钢；hydro = **负的**消耗（工坊吃 + 钻机吃），作顶栏速率行。
+   *   ⚠️ 取负不是装饰：顶栏 rate 的语义是「这行数字每秒怎么变」，消耗必须显示成红色负向
+   *      （渲染层 r>0 才加 '+' 并染绿 ⇒ 传正数会被读成「热液能在涨」，与 flow 模型正好相反）。 */
   function steelRate(s) {
-    var turL = s.lvl.hydroturbine || 0, shopL = s.lvl.hydroshop || 0;
-    if (turL <= 0 && shopL <= 0) return { steel: 0, hydro: 0 };
-    /* ERA5（2026-10-02）：高压热机管道供给侧 +10 绝对量（与 steelFlow 同式，dt=1）。 */
-    var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
-    var hydroSupply = (turL * UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) + _press)
-      * (SB.civic ? SB.civic.cardHydroMul(s) : 1);
-    var hydroDemand = shopL * UNIT.hydroShopLvl;
-    var ratio = hydroDemand > 0 ? Math.min(1, hydroSupply / hydroDemand) : 1;
-    /* ERA5（2026-10-02）：废钢锻造钢产出 +20%（steelBonus，与 steelFlow 同式）。 */
-    var steel = shopL * UNIT.hydroShopLvl * ratio * UNIT.steelPerHydro * globalMul(s) * (1 + upgSum(s, 'steelBonus'));
-    var hydroNet = hydroSupply - hydroDemand * ratio;
-    return { steel: steel, hydro: hydroNet };
+    var HF = hydroAlloc(s, 1);
+    var steel = HF.shopDraw * UNIT.steelPerHydro * globalMul(s) * (1 + upgSum(s, 'steelBonus'));
+    var hydro = -(HF.shopDraw + HF.skyDraw);
+    return { steel: steel, hydro: hydro };
   }
 
   /* 市政点的产出：**书手 + 议事厅**两条（双来源，2026-09-27 用户拍板，见 CIVICS §3）。
@@ -857,6 +957,7 @@
      * ERA4（2026-10-01）：天赋神权卡给礁栖核心建筑每级 +10% 信仰（coreFaithMul，乘整段）；
      *   神权政体按学术区/市政区建筑等级给绝对量加成（theoFaithBonus，加在末尾、独立于乘区）。 */
     return base * faithMul(s)
+      * (1 + 0.10 * (s.perk.sacrament || 0))            // 2026-10-05 拍板 祭祀唱诗 +10%/级（不设上限）
       * (SB.civic && SB.civic.castleFaithMul ? SB.civic.castleFaithMul(s) : 1)
       * (SB.civic && SB.civic.coreFaithMul ? SB.civic.coreFaithMul(s) : 1)
       * (SB.wonder && SB.wonder.abbeyFaithMul ? SB.wonder.abbeyFaithMul(s) : 1)
@@ -881,16 +982,66 @@
       * (SB.civic ? SB.civic.govHappyConsumeMul(s) : 1)
       * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1);
   }
+  /* 每人每秒消耗（2026-10-05 · 幸福度那行要摆出来给玩家看）。
+   * ⚠️ 只给**政策调整前**的裸值：govHappyConsumeMul / happyConsumeMul 是政体与奇观给的
+   *    减免，把它们算进去的话玩家会看到「每人 0.005」而实际被减免成 0.0035 ⇒ 对不上账。 */
+  function happyCostPer(s) { return happyCost(s.happy || 0); }
+  /* 贸易供给（产能）——**与 tick 里那个 _S 同式**，供 UI 报「供给/需求」。
+   * ⚠️ 2026-10-05 用户报「没告诉玩家幸福度在被消耗」：面板原先只有幸福度一个静态数字，
+   *    而奢侈品行的净速率在需求压倒产能时**恒为 0**（tick 是 `+= _S` 后 `-= min(_S,_D)`，
+   *    min 取满 ⇒ 差额永远是 0）⇒ 从任何现有读数都看不出消耗。
+   *    所以这里必须**独立复算产能**，把平衡式的两项原样摆给玩家。
+   * ⚠️ 复算必须与 tick 的 _S 逐项一致（马具 toolMul · 政体 · 马镫升级 · bankMul · 大巴扎），
+   *    漏一项就会让「面板说的供给」与「实际产出」不一致 —— 那是面板撒谎家族的标准成因。
+   *    ✅ 银行那条直接复用现成的 `bankMul(s)`（不是自己写 `1 + lvl.bank×0.10`）：
+   *    它里面还含 `civic.bankMerchantMul`，手写会漏掉市政那一半。
+   * ⚠️ 若将来给商人加新的乘子，**这里要同步加** —— 又变成两套口径就会面板撒谎。
+   *    e2e 有一条断言钉住「happySupply 与 tick 里 luxury 的毛产出相等」。 */
+  function happySupply(s) {
+    if (!s || !s.jobs || !s.jobs.merchant) return 0;
+    return s.jobs.merchant * UNIT.luxury
+      * toolMul(s, 'merchant')
+      * baseMul(s)
+      * (SB.civic ? SB.civic.govLuxuryMul(s) : 1)
+      * (1 + upgSum(s, 'luxuryMul'))
+      * bankMul(s)
+      * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1);
+  }
   /* 幸福度 → 全产乘区（台阶式，与文明6 同构：需求连续、效果分段）。
    * ⚠️ 排除 luxury 自身（luxury 产出行走 baseMul）：happy 增益不放大自己的燃料。 */
   function happyMul(s) {
-    var H = s.happy || 0;
-    if (H < -1) return 0.80;   // 动荡
-    if (H < 0)  return 0.92;   // 不满
-    if (H < 1)  return 1.00;   // 安定
-    if (H < 2)  return 1.05;   // 愉悦
-    if (H < 3)  return 1.10;   // 欢欣
-    return 1.20;               // 欣喜若狂
+    /* ⚠️ 读快照优先：tick 开头冻的 _happySnap 是「本 tick 开场 happy」，生产各行用的就是它
+     *    （见 tick 里那段注释）。rates() 在 tick 之后调用时若读 s.happy（已被恒温器改小），
+     *    面板会拿到下滑后的乘区而实账用下滑前的 ⇒ 面板撒谎。冻快照后两侧共用同一基准。
+     *    无快照（未 tick 过 / 读旧档）回落 s.happy，行为不变。 */
+    return happyTier(happyOf(s)).mul;
+  }
+  /* ⚠️ 幸福度读数统一走这一个口（2026-10-05 用户报「这里写得不清不楚」时收的）。
+   *   【为什么抽出来】`happyMul` 与 UI 都需要 H，而它们必须读**同一份 H** ——
+   *   读 s.happy 还是读 _happySnap 若各写一遍，tick 之后两侧就会拿到不同的 H
+   *   （快照是开场值、s.happy 已被恒温器改小）⇒ 面板显示的档位与实账乘区对不上。 */
+  function happyOf(s) {
+    return (s._happySnap != null ? s._happySnap : (s.happy || 0));
+  }
+  /* 档位表**唯一真源**（2026-10-05）：档名 + 全产乘区 + 下一档门槛 + 下一档乘区。
+   * ⚠️【为什么要收成一份】此前 render.js:183-184 把档名手抄了一遍、economy.js:995-1000
+   *   把门槛手抄了一遍 —— 两份表**没有任何交叉校验**，改一侧漏另一侧不会报错，
+   *   只会让「面板写着 ×0.92、结算实际按 ×0.80 算」这种错静悄悄生效。
+   *   现在 UI 要显示「差多少到下一档」，必须知道 nextAt ⇒ 顺手把整张表收在这里。
+   *   ⚠️ 下界 `lo` 只用于 UI 排序/取档，判定用 H 直接比大小即可，不要改成 lo 比较。 */
+  var HAPPY_TIERS = [
+    { name: '动荡',     lo: -2, mul: 0.80, nextAt: -1, nextName: '不满',     nextMul: 0.92 },
+    { name: '不满',     lo: -1, mul: 0.92, nextAt: 0,  nextName: '安定',     nextMul: 1.00 },
+    { name: '安定',     lo: 0,  mul: 1.00, nextAt: 1,  nextName: '愉悦',     nextMul: 1.05 },
+    { name: '愉悦',     lo: 1,  mul: 1.05, nextAt: 2,  nextName: '欢欣',     nextMul: 1.10 },
+    { name: '欢欣',     lo: 2,  mul: 1.10, nextAt: 3,  nextName: '欣喜若狂', nextMul: 1.20 },
+    { name: '欣喜若狂', lo: 3,  mul: 1.20, nextAt: null, nextName: null,    nextMul: null }
+  ];
+  function happyTier(H) {
+    for (var i = 0; i < HAPPY_TIERS.length; i++) {
+      if (i === HAPPY_TIERS.length - 1 || H < HAPPY_TIERS[i + 1].lo) return HAPPY_TIERS[i];
+    }
+    return HAPPY_TIERS[0];
   }
 
   /* ⚠️ 全文件单位铁律：凡是「每秒速率」，写进资源池时必须 × dt。
@@ -913,6 +1064,15 @@
      *    两边差一点点却天天存在，正是 `面板 === 结算` 这条铁律要拦的那一种。
      *    ⚠️ 这不是业务数据，不参与存档语义（读不回来就回落 s.shell，见 obsSciMul）。 */
     s._shellSnap = s.shell;
+    /* ⚠️【happy 快照 · 与壳厚同一纪律】把本 tick 开场时的幸福度冻住，供 globalMul/happyMul
+     *    两侧共用。为什么必须冻：本函数下面的恒温器会改 s.happy（断供时按 K·(S−D) 下滑），
+     *    而**生产各行用的是 tick 开头缓存的 `_gm`**（即开场 happy 的乘区）。若 rates() 在 tick
+     *    之后才读 s.happy（已被恒温器改小），面板会拿到「下滑后的 happyMul」而实账用的是
+     *    「下滑前的」—— 这正是此前 5 条「面板石头/科技/市政点速率与 tick 不同源」红的根因
+     *    （实账 0.96、面板 0.8832 = 0.96 × 0.92，0.92 正是 happy 掉到 −0.0001 那档乘区）。
+     *    冻快照后 rates() 与 tick() 的生产共用同一份 happy 基准，面板 === 结算。
+     *    ⚠️ 同样不参与存档语义（obsSciMul 那条同理）：读回旧档没有 _happySnap 时回落 s.happy。 */
+    s._happySnap = s.happy;
 
     /* ⚠️ 2026-09-30 性能：tick 内聚合乘区缓存。
      *   globalMul / gatherMul 在一个 tick 内被重复调用多次（实测满档 globalMul 10 次、
@@ -931,6 +1091,16 @@
     var _tMer = toolMul(s, 'merchant');
     var _uSilt = upgSum(s, 'mineSilt');
     var _uWarm = upgSum(s, 'mineWarm');
+    /* ⚠️ 2026-10-05 新增 6 条 perk 乘区的每 tick 缓存（与 _gm/_gather 同口径：
+     *   tick 内 s.perk 不会被改 —— 买 perk 走 prestige.buyPerk，只写 meta.perks 与本局
+     *   s.perk，而那发生在 tick 之外的游戏主循环里，故一个 tick 内恒定，可安全缓存）。
+     * ⚠️ 别把这些改成惰性求值：`mineTaxMul(s)` 会被矿工那两行各调一次，
+     *    不缓存等于每 tick 多跑 3 遍 —— 虽然纯函数不产生副作用，但与本段既有纪律不一致。 */
+    var _cp = coralPactMul(s);
+    var _mt = mineTaxMul(s);
+    var _ac = algaeCropMul(s);
+    var _fb = furnaceBoostMul(s);
+    var _lp = luxuryPactMul(s);
     var _uInst = upgSum(s, 'instituteSci');
     var _uLux = upgSum(s, 'luxuryMul');
     /* ERA4（2026-09-30）：三条新乘区在 tick 这一侧也先算一次 —— 与 rates 侧读同一批函数，
@@ -958,7 +1128,7 @@
      * ⚠️ tick 与 rates 两处必须同式，否则「面板显示的值和实际进账不同」。 */
     if (j.coralwright > 0) {
       addRes(s, 'coral', j.coralwright * UNIT.coral
-        * _gather * _tCW * _coralFarm * cold * _gm * dt);
+        * _gather * _tCW * _coralFarm * _cp * cold * _gm * dt);
     }
     /* ⚠️ 2026-09-30 ERA4 · 钛：装了深层矿井(upg_deepmine) 后矿工伴生钛。
      *    门读的是 `s.upgrades`（买断升级），不是建筑等级 —— 与 rates.titanium 同一门同一式。 */
@@ -975,8 +1145,19 @@
      * ⚠️ 青铜镐绑的是 **quarrier + miner 两个职业**，而矿工产两行（金属 + 暖石），
      *    所以金属与暖石这两处都得算上 miner 那套工具 —— 只乘金属会让暖石漏掉。 */
     if (j.quarrier > 0) {
-      addRes(s, 'stone', j.quarrier * UNIT.stone
-        * _gather * _tQ * cold * _gm * dt);
+      /* ⚠️ 2026-10-05 用户拍板：采石工也吃**砂矿坑**的 +20%/级（复用 siltBonus）。
+       *    改前采石工是四家采集职业里**唯一没有建筑级乘区**的（矿工有砂矿坑、
+       *    珊瑚匠/采集者都没有），而它的绝对产出 UNIT.stone 0.30 却是除珊瑚匠外最高 ——
+       *    「基数大但没有放大器」这条不对称让采石工在同一人口预算下永远弱于矿工
+       *    （矿工 0.09 金属 + 0.05 暖石，却有 ×(1+0.2×级数) 可以一路涨）。
+       *    【为什么复用 siltBonus 而不是新开 stoneBonus】两个乘区会变成两个旋钮，
+       *    而「采石场」这个建筑已经被用户 2026-09-25 删掉（见 config.js:1551），
+       *    采石线目前**根本没有专属建筑** ⇒ 新字段没有任何建筑能读它，必然变成死键。
+       *    复用之后语义是「砂矿坑 = 矿脉设施，金属与石头同源」，与暖石不同：
+       *    暖石仍是伴生副产品，**不乘**（见 BLD.siltBonus 注）。 */
+      var stonePit = 1 + (s.lvl.siltpit || 0) * BLD.siltBonus;
+      addRes(s, 'stone', j.quarrier * UNIT.stone * stonePit
+        * _gather * _tQ * cold * _gm * _mt * dt);
     }
     if (j.miner > 0) {
       var siltMul = 1 + (s.lvl.siltpit || 0) * BLD.siltBonus;
@@ -987,9 +1168,9 @@
       var fishWarm = 1 + _uWarm;
       var popMul = (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1;
       addRes(s, 'silt', j.miner * UNIT.silt * siltMul * fishSilt * popMul
-        * _gather * mine * cold * _gm * dt);
+        * _gather * mine * cold * _gm * _mt * dt);
       addRes(s, 'warmstone', j.miner * UNIT.warmstone * fishWarm * popMul
-        * _gather * mine * cold * _gm * (1 + (_T ? _T.warmMul : 0)) * dt);
+        * _gather * mine * cold * _gm * (1 + (_T ? _T.warmMul : 0)) * _mt * dt);
     }
 
     // 2) 加工（2026-09-28 起改为**建筑自动**：熔炉建成就转，不再要匠人）
@@ -1003,7 +1184,7 @@
        *    吐出来的精铁则乘 gm —— 与 rates.iron 那一行保持同一个 expr，别各写一套。 */
       s.res.silt -= fc;
       s.res.warmstone -= fc;
-      addRes(s, 'iron', fc * _gm * (1 + upgSum(s, 'ironBonus')));
+      addRes(s, 'iron', fc * _gm * (1 + upgSum(s, 'ironBonus')) * _fb);
     }
 
     // 2b) ERA3 热液能 → 钢（热液汽轮机产热液能、热液工坊吃能产钢；比例降产）
@@ -1082,11 +1263,27 @@
       var _S = (s.jobs.merchant || 0) * UNIT.luxury * _tMer * baseMul(s)
         * (SB.civic ? SB.civic.govLuxuryMul(s) : 1)        // /秒 贸易供给能力（马具 +50%、寡头 +20%）
         * (1 + _uLux)                                      // 马镫工坊升级 +50%（与马具独立相乘 ⇒ +100%）
+        * _lp                                              // 2026-10-05 奢侈品契：+3%/级（≤+60%），乘 S 不乘净速率
         * _bank                                            // 银行：每级商人产出 +10%（职业专精乘区）
         * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1);     // 大巴扎：每名鲛人 +1% 奢侈品获取（奇观出口，纪律③）
-      if (_S <= 0) {
-        s.happy = _gb;                                      // 断供：政体红利仍保底（无民生不惩罚，但制度给的底在）
-      } else {
+      /* ⚠️ 2026-10-05 用户拍板（方案 A）：**删掉 `if (_S <= 0) { s.happy = _gb; }` 那条断供分支。**
+       *   【它是什么 bug】同一个状态量有**两条更新规则**：else 分支是积分器
+       *   （`H += K·(S−D)·dt`，连续演进），而断供分支是**一次性赋值** `s.happy = _gb`。
+       *   `_gb` 是政体/奇观的**偏移量**、通常为 0 ⇒ **玩家把商人拉到 0 的瞬间，
+       *   攒了几小时的幸福度一秒蒸发**。用户报「商人拉到 0 之后幸福度也直接清空了」。
+       *   两条罪状：① 同一状态量两条语义不同的更新路径；② 注释自称「无民生不惩罚」，
+       *   而它的实际效果恰恰是**惩罚玩家已攒的进度**（与意图相反）。
+       * 【删掉之后为什么自洽】`_S = 0` 时自然落进积分器：
+       *   · `Math.min(_S, _D) = 0` ⇒ **不烧任何奢侈品**（断供时库存不会被扣成负数）；
+       *   · `H += K·(0 − D)·dt` ⇒ 幸福度**按恒定速率下滑**到 `HAPPY_FLOOR` 停住；
+       *   · 再雇回商人 ⇒ 供给恢复 ⇒ H**重新爬升**（不是从 0 重新开始）。
+       *   ⇒ 「断供 = 慢慢崩」而不是「断供 = 归零」，恒温器语义全程统一。
+       * ⚠️【这让 2026-09-28 那条「贸易系统不存在时不惩罚」的设计前提失效 —— 而那个前提
+       *    已经被同日的另一个改动作废：显示门从 `{job:'merchant'}` 改成 `{civic:'trade'}`
+       *    （完成对外贸易就常显，商人一个都没有也显示）。那条设计的前提是
+       *    「商人=0 时这条线根本不存在」，现在玩家看得见它、也看得见自己缺商人，
+       *    断供就该有代价。**别把 `if (_S <= 0)` 加回来。** */
+      {
         /* ⚠️ 政体幸福度是**偏移量**不是收敛增量：先剥掉上一帧偏移得纯机制值，
          *    用机制值算需求/收敛，最后加回偏移。否则每帧把 bonus 累进 _H，
          *    幸福度会无限上漂（与「happy 是状态量」冲突）。换政体瞬间即跳新偏移，符合直觉。 */
@@ -1098,9 +1295,25 @@
         var _canalSave = Math.min(1, (s.lvl.canal || 0) * (BLD.canalLuxSave || 0)
           * (SB.civic ? SB.civic.canalSaveMul(s) : 1));  // ERA4 三角贸易卡：运河奢侈消耗减免额外 +100%（夹在 min 内，不让人均需求变负）
         var _D = (s.pop || 0) * happyCost(_Hmech) * (1 - _canalSave); // /秒 需求（用机制值算 ⇒ +1 不额外烧 luxury，纯增益）
-        s.res.luxury += _S * dt;                            // 产出（baseMul，不含 happy）
+        /* ⚠️ 产出走 addRes（不是直写 s.res.luxury）：addRes 内部会累加 s.got.luxury
+         *   （累计产出台账）。「中世纪集市」鼓舞 = 累计奢侈品产出 10000 读的就是它
+         *   （civics.js:174 的 {t:'gathered',r:'luxury',n:10000} → tech.condMet gathered 分支）。
+         *   之前这里直写存量、绕过了 addRes ⇒ s.got.luxury 恒 0 ⇒ 该鼓舞永远点不亮
+         *   （state.js:242 当年专门给 got.luxury seed 的意图就是让它涨，结果没接上）。
+         *   capOf('luxury')=Infinity（CAP_BASE 不含它），故存量行为与直写完全一致，
+         *   只多出了台账累加这一增量。消耗那行保持直减：消费不计入累计产出，
+         *   且 addRes 对 v<=0 直接 return，减耗无法借它表达。 */
+        addRes(s, 'luxury', _S * dt);                      // 产出（走 addRes ⇒ s.got.luxury 增长，gathered 鼓舞才点亮）
         s.res.luxury -= Math.min(_S, _D) * dt;              // 消耗：够烧烧需求，不够断供烧产能
-        s.happy = Math.max(CFG.HAPPY_FLOOR, _Hmech + CFG.HAPPY_K * (_S - _D) * dt) + _gb;
+        /* ⚠️ 2026-10-05 用户拍板：民生轴跟贸易解锁走（resUnlocked(s,'luxury') ⇔ s.civics.trade）。
+         *   【为什么】恒温器原先无条件跑：贸易未解锁时商人=0 ⇒ S=0，而 D=人口×每人消耗>0
+         *   ⇒ H 从开局就一路滑到保底 −2；显示门也是 trade ⇒ 玩家完成《对外贸易》那一秒
+         *   看到第一眼就是负值（「一上来就是负的」）。改成：未解锁 ⇒ 民生轴不存在，
+         *   H 恒 0（安定）、不积累负值，解锁瞬间从 0 起步；else 分支顺带把旧档里
+         *   已经滑下去的 H 归位。已解锁后断供照旧「慢慢崩」（恒温器语义不变）。 */
+        s.happy = resUnlocked(s, 'luxury')
+          ? Math.max(CFG.HAPPY_FLOOR, _Hmech + CFG.HAPPY_K * (_S - _D) * dt) + _gb
+          : 0;   // 贸易未解锁：民生轴不存在，恒 0
       }
       /* 4c') 商人副产（2026-09-30 · 市政《中世纪集市》解锁2）：每名商人同时产出
        *   科学 +0.05/秒、市政点（culture）+0.05/秒。市政**完成即生效**（这是解锁2，
@@ -1220,7 +1433,8 @@
        * ⚠️ 2026-09-30 ERA4：珊瑚林是**职业专精**乘区（研究所→学者同构），
        *    乘在珊瑚匠这一行、与工具乘区**独立相乘** —— 它不是被删掉的 gatherMul 全局轴。 */
       coral:   (j.coralwright || 0) * UNIT.coral
-                 * gatherMul(s) * toolMul(s, 'coralwright') * coralFarmMul(s) * cold * globalMul(s),
+                 * gatherMul(s) * toolMul(s, 'coralwright') * coralFarmMul(s) * coralPactMul(s)
+                 * cold * globalMul(s),
       /* 与 tick 同源：金属只来自矿工，且同样吃 siltMul（砂矿坑加成）。tick 那边
        * 把 siltpit 自动产出删了之后，这里若还留着「+ lvl.siltpit × UNIT.silt」，
        * 面板就会凭空多报一份金属——「面板撒谎」家族的标准成因（tick 路 === 面板路）。 */
@@ -1230,7 +1444,7 @@
                  * (1 + (s.lvl.siltpit || 0) * BLD.siltBonus)
                  * (1 + upgSum(s, 'mineSilt'))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
-                 * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s) - fc,
+                 * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s) * mineTaxMul(s) - fc,
       /* ⚠️ 2026-09-30 ERA4 · 钛（深层矿井 upg_deepmine 上线后才有产出）：
        *    与上面 silt/warmstone 同源同式（同一批 gatherMul・toolMul(miner)・cold・globalMul），
        *    只是多一道「装了深层矿井才产」的门。装的是**买断升级**（s.upgrades），不是建筑等级。 */
@@ -1241,9 +1455,12 @@
                  : 0,
       /* stone / warmstone：与 tick 同源（同一个 gatherMul・cold 乘子）。
        * ⚠️ 暖石**只有伴生这一条来源**，没有建筑产它——保温法那道开关要烧的暖石全靠矿工，
-       *    所以「矿工几个人」直接决定保温法能不能用，这是「采矿」这条线真正的分量。 */
+       *    所以「矿工几个人」直接决定保温法能不能用，这是「采矿」这条线真正的分量。
+       * ⚠️ 2026-10-05：stone 与 tick 的采石工行**逐字同式**（含砂矿坑 ×(1+级数×siltBonus)）——
+       *    面板路漏掉这个乘区就是「面板撒谎」，见上面 silt 那条的同源警告。 */
       stone:   (j.quarrier || 0) * UNIT.stone
-                 * gatherMul(s) * toolMul(s, 'quarrier') * cold * globalMul(s),
+                 * (1 + (s.lvl.siltpit || 0) * BLD.siltBonus)
+                 * gatherMul(s) * toolMul(s, 'quarrier') * cold * globalMul(s) * mineTaxMul(s),
       /* 暖石的净速率要减掉**开关正在烧的**那一份：不减的话面板上写着暖石在涨，
        * 玩家开着他以为只是在攒，实际有一路正在往火里扔。
        * 判据直接取 warmBurningNow（与 tick 里的 warmRelief 同源），不在这里重写条件，
@@ -1256,14 +1473,15 @@
                  * (1 + upgSum(s, 'mineWarm'))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
                  * gatherMul(s) * toolMul(s, 'miner') * cold
-                 * globalMul(s) * (1 + (Tr ? Tr.warmMul : 0))
+                 * globalMul(s) * (1 + (Tr ? Tr.warmMul : 0)) * mineTaxMul(s)
                  - (warmBurningNow(s) ? CFG.WARM_RATE : 0) - fc,
       /* ⚠️ `iron` 记的是**消耗掉的原料份数**，不是产出的精铁量 —— 沿用原有口径。
        *    铁是「一进一出」的中间资源，净额可能比看起来还负（这里没有把金属那一侧的
        *    消耗减掉，与改造之前一致）。改这一行前先读铁器产出那段的量纲注。 */
-      iron:    fc * globalMul(s) * (1 + upgSum(s, 'ironBonus')),
-      /* ERA3 热液能系统（2026-09-29）：steelRate 非变异版，与 tick 的 steelFlow 同式（dt=1）。
-       *   steel = 工坊实际产钢速率；hydro = 热液能净流入（供给 − 需求，负=工坊在吃库存）。 */
+      iron:    fc * globalMul(s) * (1 + upgSum(s, 'ironBonus')) * furnaceBoostMul(s),
+      /* ERA3 热液能系统（2026-10-05 flow 模型）：steelRate 非变异版，与 tick 的 steelFlow 同式（dt=1）。
+       *   steel = 工坊实际产钢速率；hydro = 本 tick **实际消耗**（工坊吃 + 钻机吃），作顶栏速率行（−M/s）。
+       *   ⚠️ 顶栏热液能**主数**是 s.res.hydro（tick 写的供给快照），速率行才是这里的消耗 —— 二者分工见 render.js。 */
       steel:   steelRate(s).steel,
       hydro:   steelRate(s).hydro,
       /* ⚠️ 市政卡的 `cv.science` 那一份也乘（与 tick 的 4b 步同式）；
@@ -1291,6 +1509,13 @@
        *    商人副产（中世纪集市解锁2）同样补进面板路，与 tick 4c' 同式。 */
       culture: cultureRate(s) +
                ((s.civics && s.civics.market) ? (j.merchant || 0) * (BLD.marketJobCulture || 0) * globalMul(s) : 0),
+      /* ⚠️ 2026-10-05 补漏（用户报「信仰怎么不体现每秒出率」· bug 不是标定）：
+       *   faithRate 一直存在于 tick（`addRes(s,'faith',faithRate(s)*dt)`），
+       *   但 rates() 的返回对象**漏了 faith 这个键** ⇒ renderRes 里 `rate['faith']||0` = 0
+       *   ⇒ 顶栏信仰行永远不显示 `/s`，而实账在涨 —— 又一个「面板撒谎」。
+       *   判据：凡 tick 里 addRes/add 的资源，rates() 必须有同名键（单源铁律）。
+       *   faithRate 内部自带 resUnlocked(s,'faith') 门控（神学前恒 0），不会提前漏出行。 */
+      faith:   faithRate(s),
       /* ⚠️ luxury 净速率（陆地贸易，2026-09-28）：产能(baseMul) − 实际消耗 min(产能, 需求)。
        *   与 tick 同式——tick 里 S 用 baseMul、消耗用 min(S,D)*dt。
        *   断供时实际烧=产能（烧光），净=0（不再累积）；充裕时净=产能−需求（盈余累积）。
@@ -1299,6 +1524,7 @@
         var S = (j.merchant || 0) * UNIT.luxury * toolMul(s, 'merchant') * baseMul(s)
           * (SB.civic ? SB.civic.govLuxuryMul(s) : 1)    // 2026-09-29 马具 +50%、寡头 +20%，与 tick 同式
           * (1 + upgSum(s, 'luxuryMul'))                 // 马镫工坊升级 +50%（与马具独立相乘 ⇒ +100%）
+          * luxuryPactMul(s)                             // 2026-10-05 奢侈品契 +3%/级（与 tick 的 _lp 同一个函数）
           * bankMul(s)                                   // 2026-09-30 ERA4：银行每级商人产出 +10%
           * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1); // 大巴扎：每名鲛人 +1% 奢侈品获取
         if (S <= 0) return 0;
@@ -1335,7 +1561,7 @@
     seasonIdx: seasonIdx, season: season, seasonMeta: seasonMeta, warmBurning: warmBurning,
     seasonTurn: seasonTurn, seasonGrant: seasonGrant, freezeChance: freezeChance, rollFreeze: rollFreeze,
     capOf: capOf, addRes: addRes, resUnlocked: resUnlocked,
-    costOf: costOf, costTxt: costTxt, canAfford: canAfford, pay: pay,
+    costOf: costOf, costTxt: costTxt, costOwnedTxt: costOwnedTxt, canAfford: canAfford, pay: pay,
     /* farmMul / gatherMul 成对导出（2026-09-27 工坊工具）：工具就是插在这两条乘区上的，
      * 回归必须能直接读乘区本身 —— 读 foodRate 会被 byBuild 那一份稀释，测不出精确的 ×1.8。 */
     farmMul: farmMul, gatherMul: gatherMul,
@@ -1347,15 +1573,79 @@
      *   happyMul 是台阶式全产乘区（排除 luxury，防自激）；
      *   happyCost / happyBurn 是消耗面（rates 与 tick 同式，防面板撒谎）。 */
     happyMul: happyMul, happyCost: happyCost, happyBurn: happyBurn,
+    /* ⚠️ 2026-10-05：幸福度那行要向玩家摆「供给 / 需求」，所以把这两项导出去。
+     *   `happySupply` 是**产能**（与 tick 的 _S 同式），`happyCostPer` 是裸的每人消耗。 */
+    happySupply: happySupply, happyCostPer: happyCostPer,
+    /* ⚠️ 2026-10-05：档位表与 H 读数**收敛成一个口**，供 UI 显示「距下一档还差多少」。
+     *   ⚠️ 别再在 render.js 里手抄档名/门槛 —— 此前 render:183 与本文件各存一份，
+     *   改一处漏一处不报错，只会「面板写 ×0.92、结算按 ×0.80 算」。 */
+    happyTier: happyTier, happyOf: happyOf, HAPPY_TIERS: HAPPY_TIERS,
+    /* ⚠️ 2026-10-05 用户拍板「要在幸福度那里写明产出多少、扣减多少」：
+     *   把收支**四项**一次算清交给 UI，避免 render 自己拼数字（拼 = 第二份口径 = 会漂）。
+     *   字段：out 产出/秒、burn 扣减/秒、net 净值/秒（out−burn，>0 回升、<0 下滑）、
+     *        per 每人扣减、pop 人口、cap 硬底、tier 档位对象。
+     *   ⚠️ burn 用 happyBurn（含政体/奇观减免），per 用 happyCostPer（裸值）；
+     *      两者**故意不同** —— per 摆出来是让玩家自己验「人口 × 每人」这个乘法，
+     *      若 per 写成减免后的值，就会出现「per × 人口 ≠ burn」而玩家算不明白账。 */
+    happyLedger: function (s) {
+      var out = happySupply(s);
+      var burn = happyBurn(s);
+      var H = happyOf(s);
+      var t = happyTier(H);
+      /* ⚠️ 2026-10-05 用户报「政体 +1 幸福度没展示」。
+       *   【根因】政体/奇观/政策卡的幸福度加成是**常驻偏移量**（进 tick 的 _gb 基线），
+       *   早就加进 s.happy 了 —— 但它在 UI 上**完全不可见**：玩家只看到一个总数，
+       *   不知道其中有多少来自政体，于是「采用古典共和 ⇒ 幸福度 +1」这条收益在面板上等于不存在。
+       *   【为什么要单列而不是只给总数】偏移量是**可开关的**（换政体就消失），
+       *   与供需驱动的那部分性质不同。混在一个数里，玩家会以为幸福度只能靠供需爬。
+       * ⚠️ 四项之和必须与 tick 里那个 `_gb` **逐项一致**（那是恒定器的基线来源）：
+       *   政体 happyBonus + 奇观 happyBonus + 政策卡 happyOffset + 天穹钻机 skydrill。
+       *   漏一项 ⇒ 面板摆的偏移之和与实际机制值对不上（面板撒谎家族的标准成因）。
+       *   ⚠️ 别在这里另写一份汇总：直接调那四个已导出的函数，与 tick 同源。 */
+      var bonusParts = [
+        { label: '政体', v: SB.civic ? SB.civic.govHappyBonus(s) : 0 },
+        { label: '王国大交易所', v: SB.wonder ? SB.wonder.happyBonus(s) : 0 },
+        { label: '政策卡', v: SB.civic ? SB.civic.cardHappyOffset(s) : 0 },
+        { label: '天穹钻机', v: SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0 }
+      ];
+      var bonus = 0, nonzero = [];
+      for (var bi = 0; bi < bonusParts.length; bi++) {
+        var bv = bonusParts[bi].v || 0;
+        bonus += bv;
+        if (Math.abs(bv) > 1e-9) nonzero.push({ label: bonusParts[bi].label, v: bv });
+      }
+      return {
+        out: out, burn: burn, net: out - burn,
+        per: happyCostPer(s), pop: (s.pop || 0),
+        H: H, cap: CFG.HAPPY_FLOOR, tier: t,
+        toNext: t.nextAt == null ? null : t.nextAt - H,
+        K: CFG.HAPPY_K,
+        /* 偏移量：bonus 是四项之和，parts 是非零项明细（UI 逐条摆，别只给和）。 */
+        bonus: bonus, bonusParts: nonzero,
+        /* bonus 计入 H ⇒ 玩家真正要靠供需去补的净需求其实是
+         *   `burn − out − bonus`（政体替你付了一部分）。这行让「我该雇几个商人」算得准。 */
+        netNeed: burn - out - bonus
+      };
+    },
     /* JOB_SINK 导出是为了回归取证：e2e 拿这张表逐个职业查「economy.js 里有没有真的
      * 消费这个职业」，写错职业 id（'gather' 打成 'gatherer'）不报错、只会静默不生效。 */
     JOB_SINK: JOB_SINK, toolMul: toolMul,
     warmCap: warmCap, fuelRate: fuelRate, cultureRate: cultureRate,
+    /* ⚠️ 2026-10-05 flow 模型：hydroAlloc 是「热液能流分配」唯一权威只读函数（tick 与 rates 共用），
+     *   导出是为回归取证与 shell.js 的天穹钻机读剩流。纯函数只读 s，可安全调用。 */
+    hydroAlloc: hydroAlloc,
     /* ⚠️ faithRate / faithMul 导出是为了回归取证：乘区本身可读才测得准
      *    （只测 rates.faith 会被「基础产出为 0」恒乘以 0，看不出乘区有没有挂上）。
      *    同理 libraryLevel 导出——虚级是「效果级」，只能直接读才知道有没有接进科技产出。 */
     faithRate: faithRate, faithMul: faithMul, faithAllMul: faithAllMul, libraryLevel: libraryLevel,
     foodUse: foodUse, foodRate: foodRate, seasonMul: seasonMul,
+    /* ⚠️ 2026-10-05 新增 5 条资源线乘区的导出。
+     *   【为什么必须导出】这些函数本来只在 economy 内部用（tick / rates / foodRate），
+     *   但「乘区真的生效了吗」只能从模块表面直接读数来验 —— 不导出时回归 650/650 全绿，
+     *   却**没有一条断言碰过它们**，等于新 perk 上线时裸奔（判据：新增乘区必须可从表面取证）。
+     *   都是纯函数（只读 s.perk），渲染路径可安全调用。 */
+    coralPactMul: coralPactMul, mineTaxMul: mineTaxMul, algaeCropMul: algaeCropMul,
+    furnaceBoostMul: furnaceBoostMul, luxuryPactMul: luxuryPactMul,
     /* warmRelief 必须导出：它是「这一 tick 顶回几成」的唯一权威读数，
      * 结算面板的 burning 提示、回归里那几条断言都读它。
      * ⚠️ 它有副作用（会烧石、会置 warmBurning），所以别在渲染路径里调用它——

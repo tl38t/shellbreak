@@ -28,6 +28,9 @@ h1 small{font-size:12px;color:var(--dim);letter-spacing:0}
 .res i.rate{font-style:normal;font-size:11px;margin-left:5px;font-variant-numeric:tabular-nums}
 .res i.rate.up{color:var(--green)}
 .res i.rate.down{color:var(--red)}
+/* 奢侈品行「产 X · 耗 Y」：小一号斜体（2026-10-05 用户拍板）——
+ * 与 .cap 同字号但真斜体，颜色比 rate 更淡：它是解释性注脚，不是主读数。 */
+.res i.sd{font-style:italic;font-size:10px;color:var(--dim);margin-left:5px;font-variant-numeric:tabular-nums}
 /* 工艺资源分区标题（2026-09-30）：与常规资源区分开显示 */
 .restitle{font-size:11px;color:var(--dim);margin:12px 2px 2px;letter-spacing:3px;font-weight:600}
 #res-craft-wrap[hidden]{display:none}
@@ -98,6 +101,14 @@ body.modal-open .tabs{pointer-events:none}
 .warnbox{background:#2a1220;border:1px solid #5c2340;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:12px;color:#ffc2d1;line-height:1.6}
 .tag{font-size:10px;padding:1px 6px;border-radius:4px;background:#153048;color:var(--dim)}
 .tag.ok{background:#1a4632;color:var(--green)}
+/* 「隐藏已完成」开关（2026-10-05 用户「工坊要能隐藏显示已经完成项目」）。
+ * 复用 .tag 的视觉语言但做成**可点**的：它是一个 toggle，不是状态标签。
+ * ⚠️ 必须有 button.reset 的基线清除，否则按钮自带边框/背景会和 .tag 打架。 */
+button.tgl{font:inherit;font-size:10px;padding:1px 8px;border-radius:4px;cursor:pointer;
+  background:#153048;color:var(--dim);border:1px solid transparent;font-variant-numeric:tabular-nums}
+button.tgl:hover{filter:brightness(1.35)}
+button.tgl[aria-pressed="true"]{background:#1a4632;color:var(--green);border-color:#2c6b4d}
+button.tgl:focus-visible{outline:1px solid var(--cyan);outline-offset:1px}
 .prog{height:8px;background:#06121f;border-radius:4px;overflow:hidden;margin-top:6px}
 .prog i{display:block;height:100%;background:var(--amber);width:0}
 .foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
@@ -114,6 +125,22 @@ input[type=checkbox]{accent-color:var(--cyan)}
 .modal{position:fixed;inset:0;background:rgba(3,8,16,.86);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
 .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;max-width:520px;width:100%}
 .modal h3{margin:0 0 10px;color:var(--amber)}
+
+/* —— 2026-10-05 系统指引：页签「?」按钮 + 介绍弹窗 —— */
+.qbtn{width:16px;height:16px;margin-left:6px;border-radius:50%;border:1px solid #2a5a7d;
+  background:#0e2233;color:var(--cyan);font-size:10px;font-weight:700;line-height:1;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none;vertical-align:middle}
+.qbtn:hover{background:#123a52;border-color:var(--cyan);box-shadow:0 0 6px rgba(77,216,230,.35)}
+/* 弹窗层复用 .box 的尺寸/边框，只改内容排版；遮罩与 .modal 同款（z-index:50）。 */
+.intro-mask{position:fixed;inset:0;background:rgba(3,8,16,.86);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.intro-pop{max-width:440px;width:100%;background:var(--panel2);border:1px solid var(--cyan);border-radius:12px;padding:18px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+.intro-pop .ttl{font-weight:700;color:var(--cyan);letter-spacing:.5px;font-size:14px;margin-bottom:9px}
+.intro-pop .def{font-size:12.5px;line-height:1.7;color:var(--txt)}
+.intro-pop .def b{color:var(--cyan)}
+.intro-pop .step{font-size:11.5px;color:var(--dim);margin-top:9px;line-height:1.65;border-top:1px solid var(--line);padding-top:9px}
+.intro-pop .step b{color:var(--amber)}
+.intro-pop .closebar{margin-top:13px;text-align:right}
+
 .kv{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #132238;font-size:13px}
 .kv b{font-variant-numeric:tabular-nums}
 .hidden{display:none!important}

@@ -124,7 +124,7 @@
        *    不产生资源效果。建筑「大图书馆」的解锁权由 habitat.unlocked 读 `s.civics`
        *    自动成立，这里登记出来是为了让面板/回归查得到「《历史记录》送了哪座奇观」。 */
       wonder: 'wonder_great_library',
-      desc: '解锁奇观「大图书馆」，以及政策卡「历史记录」。',
+      desc: '解锁奇观「大潮纹馆」，以及政策卡「历史记录」。',
       note: '鼓舞：潮纹馆达 6 级。' },
 
     /* ══ 纪元二 · 第三层 · 政治哲学（2026-09-29 用户规格）════════════════
@@ -148,11 +148,13 @@
     /* ══ 纪元三 · ERA3 市政扩展（2026-09-30 用户规格表，逐格照录）════════
      * 【鼓舞 = 硬门禁】用户拍板「鼓舞不满足就不能研究」——这正是本文件头 §2 的既有口径：
      *   未揭示的市政不能投点，揭示只由 boostMet 打开 ⇒ 不满足 = 连面板都看不见。
-     * 【cost 是提议值，未拍板】规格表没给造价，按 era2 的 250→750 递增规律提
+     * 【cost 是提议值】规格表没给造价，按 era2 的 250→750 递增规律提
      *   900/900/1000/1100/1200；要调请拍（调它 = 标定，会动整局时长）。
+     *   ⚠️ 2026-10-05 用户拍板：**王权神授 900 → 2000**（「这个高了」）⇒
+     *   块内现为 2000/900/1000/1100/1200，不再是等差。其余仍是未拍板的提议值。
      * 【layer 用规格表原值】王权神授/封建主义 1，其余 2。era3 块的列基准由 layout()
      *   的 eraBase 自动偏移，不需要手写间隔。 */
-    { id: 'sovereign', name: '王权神授', cost: 900, era: 3, layer: 1,
+    { id: 'sovereign', name: '王权神授', cost: 2000, era: 3, layer: 1,
       reqs: ['theology', 'political'],
       boost: { t: 'gathered', r: 'faith', n: 10000 },
       card: 'card_sovereign',
@@ -899,8 +901,25 @@
     }
     return m;
   }
-  function cardCost(s) { return topCost(s); }        // 换政策卡 = 1× 最高已完成市政
-  function govCost(s) { return topCost(s) * 2; }     // 换政体 = 2×，原话「两倍」
+  /* ⚠️ 2026-10-05 用户拍板接线 govRoutine（此前它是**死 perk**）：
+   *   applyPerk 把等级写进 `s.perk.govRoutine`（prestige.js:214），但全工程**无任何读取点**
+   *   ⇒ 玩家花钱买了个从不生效的折扣。本函数是费用计算的唯一收口，接在这里即可三路同源：
+   *   `cardBlocked` / `govBlocked`（判定）、`setCardAt` / `setGov`（实扣）、
+   *   以及 ui/render 那两句展示（`C.cardCost(s)` / `C.govCost(s)`）全走这两个函数。
+   * 【为什么折扣乘在这里、而不是乘在 topCost 上】topCost 是「最高已完成市政的 cost」这个
+   *   **事实量**，被导出给外部（:1231）也可能被别处当基准读；折扣是商店 perk 的效果，
+   *   两者语义不同，混在一个函数里会让「基准」随玩家买了什么而变。
+   * 【为什么不用 Math.ceil / Math.round】费用是**市政点**（浮点池），工坊造价的先例
+   *   （economy.costOf 去 Math.ceil、2026-10-05 用户拍板）就是让扣费保持真实小数：
+   *   blocked 判定与实扣都读同一个值 ⇒ 不存在「显示够了但扣不动」的缝。
+   * ⚠️ 5 级满档 = 0.50 ⇒ 最低 0.5×，数学上永远 > 0，不会出现免费换卡。
+   *   若将来把 n 抬到 10（−100%），这里会归 0 ⇒ 免费换卡 ⇒ 那个「拔下→换槽→重装」的
+   *   绕过路径就彻底失效了。届时必须加下限（参照 costOf 的 bsb 闸门写法）。 */
+  function govRoutineMul(s) {
+    return 1 - 0.10 * (s.perk && s.perk.govRoutine ? s.perk.govRoutine : 0);
+  }
+  function cardCost(s) { return topCost(s) * govRoutineMul(s); }  // 换政策卡 = 1× 最高已完成市政 × 折扣
+  function govCost(s) { return topCost(s) * 2 * govRoutineMul(s); }  // 换政体 = 2×，原话「两倍」
 
   function cardOwned(s, id) {
     var p = policyById(id);
@@ -1192,7 +1211,13 @@
           if (SB.BUILD_ZONES[_zi].id === b.zone) _zname = SB.BUILD_ZONES[_zi].name;
         return _zname + '建筑合计等级达 ' + b.n;
       }
-      case 'job': return '匠人达 ' + b.n + ' 人';
+      /* ⚠️ 2026-10-04：原写死「匠人」是**显示 bug** —— 现存 job 型鼓舞是 merchant（本表 229 行
+       *    `boost:{t:'job', j:'merchant', n:20}`），却被印成「匠人达 20 人」。改读实际职业名。
+       *    匠人职业本身已按用户指令删除（config.JOBS）。 */
+      case 'job': {
+        var _jn = (SB.JOBS || []).filter(function (x) { return x.id === b.j; })[0];
+        return (_jn ? _jn.name : b.j) + '达 ' + b.n + ' 人';
+      }
       case 'techs': return '掌握 ' + b.n + ' 项科技';
       case 'coef': return '破壳系数达 ' + b.n;
       default: return '条件已满足';
@@ -1222,7 +1247,7 @@
     /* pitch 按当前 geo 现算（卡片尺寸是借来的，写死在导出对象里会与 geo 脱钩）。 */
     pitch: function () { var G = geo(); return { col: G.W + GEO.COL, row: G.H + GEO.ROW }; },
     reqsMet: reqsMet, blocked: blocked, canResearch: canResearch, research: research,
-    topCost: topCost, cardCost: cardCost, govCost: govCost,
+    topCost: topCost, cardCost: cardCost, govCost: govCost, govRoutineMul: govRoutineMul,
     cardOwned: cardOwned, govOwned: govOwned,
     cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
     removeCard: removeCard,

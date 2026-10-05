@@ -286,7 +286,10 @@
         return { txt: resName(c.r) + ' 产出 ' + r.toFixed(2) + ' / 秒 · 需 ' + c.n, now: r, need: c.n };
       }
       case 'pop': return { txt: '人口 ' + s.pop + ' / ' + c.n, now: s.pop, need: c.n };
-      case 'job': return { txt: '匠人 ' + (s.jobs[c.j] || 0) + ' 人 / ' + c.n, now: s.jobs[c.j] || 0, need: c.n };
+      /* ⚠️ 2026-10-04：原写死「匠人」是**显示 bug** —— job 型条件现存两处都不指匠人
+       *    （techs.js 的 scholar ≥ 1 / merchant ≥ 5），却一直把「学者/商人条件」印成「匠人」。
+       *    改用 jobName(c.j) 与下面 condText 的 case 统一；匠人职业本身已删除。 */
+      case 'job': return { txt: jobName(c.j) + ' ' + (s.jobs[c.j] || 0) + ' 人 / ' + c.n, now: s.jobs[c.j] || 0, need: c.n };
       case 'techs': return { txt: '已掌握科技 ' + techCount(s) + ' / ' + c.n, now: techCount(s), need: c.n };
       case 'tech': return { txt: '掌握科技「' + byId(c.id).name + '」', now: (s.techs && s.techs[c.id]) ? 1 : 0, need: 1 };
       case 'wonder': {
