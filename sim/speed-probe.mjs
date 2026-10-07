@@ -32,7 +32,7 @@ function makeDoc() {
     querySelectorAll(sel) {
       if (qsa.has(sel)) return qsa.get(sel);
       let out = [];
-      if (sel === '.tab') out = ['village', 'folk', 'tech', 'dig', 'meta'].map(t => { const e = mkEl('tab-' + t); e.dataset.tab = t; return e; });
+      if (sel === '.tab') out = ['village', 'folk', 'tech', 'meta'].map(t => { const e = mkEl('tab-' + t); e.dataset.tab = t; return e; });
       if (sel === '.spd') out = [1, 5, 10, 20].map(s => { const e = mkEl('spd-' + s); e.dataset.spd = String(s); return e; });
       qsa.set(sel, out);
       return out;

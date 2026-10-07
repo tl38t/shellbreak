@@ -78,7 +78,7 @@
      * 【两者之间也互不前置】与 era1 那两条同规矩：玩家可以自己决定先做哪一项。
      * 【cost 定案：era2 四项 = 250/300/600/500，2026-09-29 用户拍板「开始实装」。
      *   era1 那两条是 100；本层 250。再调 = 新一轮标定，须用户重拍。 */
-    { id: 'trade', name: '对外贸易', cost: 250, era: 2, layer: 3, reqs: ['laws'],
+    { id: 'trade', name: '对外贸易', cost: 800, era: 2, layer: 3, reqs: ['laws'],
       boost: { t: 'tech', id: 'lighting' },
       /* ⚠️【`job` 是新字段：职业解锁的市政通路】其余职业都靠科技 eff.unlockJob 反查，
        *    商人是个例外——它的解锁权在市政身上（用户规格明写「对外贸易解锁职业商人」）。
@@ -89,7 +89,7 @@
       desc: '解锁职业「商人」——奢侈品的唯一进项。',
       note: '鼓舞：完成科技「照明」。' },
 
-    { id: 'drama', name: '戏剧与诗歌', cost: 300, era: 2, layer: 3, reqs: ['laws'],
+    { id: 'drama', name: '戏剧与诗歌', cost: 900, era: 2, layer: 3, reqs: ['laws'],
       /* ⚠️ `wonder` 这个条件类型是 2026-09-28 新加的（tech.js 的 condMet），
        *    原先 12 种类型里没有「建成一座奇观」，写进去会静默永远达不成。 */
       boost: { t: 'wonder', n: 1 },
@@ -105,7 +105,7 @@
      *   《神学》与《历史记录》谁先谁后由玩家定——这与第一层「两项都挂根《法典》」
      *   是同一条几何规则，差别只在它们的共同前置是「一条支线的末项」而不是根。
      * 【cost 定案：era2 四项 = 250/300/600/500，2026-09-29 用户拍板「开始实装」（见上）。 */
-    { id: 'theology', name: '神学', cost: 600, era: 2, layer: 4, reqs: ['drama'],
+    { id: 'theology', name: '神学', cost: 1400, era: 2, layer: 4, reqs: ['drama'],
       /* ⚠️ 鼓舞判据 = 人口 `s.pop` 达 25（condMet 的 `pop` 类型，2026-09-28 由用户拍）。
        *    本作人口由住房决定（popCap = 巢 + 珊瑚屋）且只有增长没有上限，
        *    ⇒ 25 是一个**一定能到、但要专门为它建房**的门槛，不会变成死锁。 */
@@ -114,7 +114,7 @@
       desc: '解锁信仰资源、建筑「神庙」，以及政策卡「神学」。',
       note: '鼓舞：人口达 25。' },
 
-    { id: 'records', name: '历史记录', cost: 500, era: 2, layer: 4, reqs: ['drama'],
+    { id: 'records', name: '历史记录', cost: 1200, era: 2, layer: 4, reqs: ['drama'],
       /* ⚠️ 鼓舞判据 = 潮纹馆（library）达 6 级。`built` 这个条件类型在 tech.js 里
        *    读的是 `s.lvl[c.b]` ⇒ 传**建筑 id**（library）而不是科技 id，写错不报错、
        *    只会永远达不成（与 `wonder` 那条注是同一类静默断链）。 */
@@ -139,7 +139,7 @@
      *   寡头/古典共和三选一）。原 `gov` 单值只能挂一条 ⇒ 扩成 `govs` 数组，
      *   govOwned 同步认 `c.govs`。政体采用仍是玩家手动 setGov（research 不自动采用
      *   多政体，避免「研究完政治哲学自动锁死一条政体」）。 */
-    { id: 'political', name: '政治哲学', cost: 750, era: 2, layer: 5, reqs: ['records', 'theology'],
+    { id: 'political', name: '政治哲学', cost: 1500, era: 2, layer: 5, reqs: ['records', 'theology'],
       boost: { t: 'tech', id: 'engineeringT' },
       govs: ['autocracy', 'oligarchy', 'classical_republic'],
       desc: '解锁三种政体：独裁统治、寡头统治、古典共和（择一采用）。',
@@ -154,14 +154,14 @@
      *   块内现为 2000/900/1000/1100/1200，不再是等差。其余仍是未拍板的提议值。
      * 【layer 用规格表原值】王权神授/封建主义 1，其余 2。era3 块的列基准由 layout()
      *   的 eraBase 自动偏移，不需要手写间隔。 */
-    { id: 'sovereign', name: '王权神授', cost: 2000, era: 3, layer: 1,
+    { id: 'sovereign', name: '王权神授', cost: 8000, era: 3, layer: 1,
       reqs: ['theology', 'political'],
       boost: { t: 'gathered', r: 'faith', n: 10000 },
       card: 'card_sovereign',
       wonder: 'wonder_stt_abbey',
       desc: '解锁政策卡「王权神授」，以及奇观「圣泰坦尼克修道院」。',
       note: '鼓舞：累计信仰产出达 10000。' },
-    { id: 'feudalism', name: '封建主义', cost: 900, era: 3, layer: 1,
+    { id: 'feudalism', name: '封建主义', cost: 3000, era: 3, layer: 1,
       reqs: ['records'],
       boost: { t: 'zoneLvl', zone: 'food', n: 100 },
       /* autoUpg 是新字段（本市政送的机制）：生息区建筑自动升级的解锁权归它。
@@ -169,28 +169,36 @@
       autoUpg: true,
       desc: '解锁政策卡「农奴制」，以及生息区建筑的自动升级（逐建筑开关）。',
       note: '鼓舞：生息区建筑合计等级达 100。' },
-    { id: 'market', name: '中世纪集市', cost: 1000, era: 3, layer: 2,
+    { id: 'market', name: '中世纪集市', cost: 4000, era: 3, layer: 2,
       reqs: ['political'],
       boost: { t: 'gathered', r: 'luxury', n: 10000 },
       card: 'card_market',
       desc: '解锁政策卡「中世纪集市」；商人同时产出科学 +0.05/秒、市政点 +0.05/秒。',
       note: '鼓舞：累计奢侈品产出达 10000。' },
-    { id: 'guild', name: '职业行会', cost: 1100, era: 3, layer: 2,
+    { id: 'guild', name: '职业行会', cost: 5000, era: 3, layer: 2,
       reqs: ['market'],
-      boost: { t: 'zoneLvl', zone: 'workshop', n: 100 },
+      /* ⚠️ 2026-10-06 用户拍板：鼓舞「工坊区建筑合计等级 100」⇒ 改成
+       *   **「建筑总等级 55」** —— 不只是把数字从 100 调成 55，**口径也换了**：
+       *   `t:'zoneLvl'`（限工坊区）→ `t:'total'`（全部建筑的等级总和）。
+       *   `total` 分支在 tech.condMet / condShort 早就有了（tech.js:185/277/660），
+       *   社交科学那条「建筑总等级 300」用的就是它 ⇒ 无新机制。
+       *   影响：达成难度结构变了——限区要求玩家把工坊区堆到 100，全区则可由任意建筑凑够
+       *   55。门槛降 + 口径放宽，所以这是明确的**变容易**方向。 */
+      boost: { t: 'total', n: 55 },
       card: 'card_guild',
       wonder: 'wonder_grand_bazaar',
       desc: '解锁政策卡「职业行会」（取代技艺），以及奇观「大巴扎」。',
-      note: '鼓舞：工坊区建筑合计等级达 100。' },
-    { id: 'department', name: '行政部门', cost: 1200, era: 3, layer: 2,
+      note: '鼓舞：建筑总等级达 55。' },
+    { id: 'department', name: '行政部门', cost: 6000, era: 3, layer: 2,
       reqs: ['feudalism'],
-      boost: { t: 'pop', n: 70 },
+      /* ⚠️ 2026-10-06 用户拍板：人口 70 → 55（与同批「建筑总等级 100→55」一起降门槛）。 */
+      boost: { t: 'pop', n: 55 },
       govs: ['monarchy'],
       /* 额外效果（2026-10-01 ERA4 设计稿）：书手更名为官员，且行政点（市政点）产出 +50%。
        * 改名是 UI 标签、+50% 走 economy.cultureRate 的 scribeCivicMul（department 完成后 ×1.5）。 */
       scribeRename: true, scribeCivicMul: 0.50,
       desc: '解锁政体「君主制」（5 槽：礁栖核心建筑建造消耗 −10%），以及建筑「王国潮道」。书手更名为官员，市政点产出 +50%。',
-      note: '鼓舞：人口达 70。' },
+      note: '鼓舞：人口达 55。' },
 
     /* ══ 纪元四 · ERA4 市政扩展（2026-10-01 用户设计稿，逐格照录）════════
      * 【cost 是提议值，用户拍「先这样，后续重做」】era3 是 900~1200，era4 提议 1300/1300/1400/1400/1500；
@@ -202,7 +210,7 @@
      *   +1 信仰、每级市政区建筑 +0.5 信仰；⑤ 博物馆官员市政点 +20%、三角贸易王国潮道 +100%、
      *   启蒙运动潮纹馆/大学 +100%、神庙 −50%；⑥ 艺术品 5000 市政+100 绳 / 潮纹记录 5000 科技+10 钢零件；
      *   ⑦ 探索鼓舞「完成钢铁仓库升级」= 压舱库扩容 II（upg_ballast_2）。 */
-    { id: 'explore', name: '探索', cost: 1300, era: 4, layer: 1,
+    { id: 'explore', name: '探索', cost: 20000, era: 4, layer: 1,
       reqs: ['market'],
       /* 完成钢铁仓库升级 = 压舱库扩容 II（用户拍板映射）。upg_ballast_2 由城堡科技解锁，成本
        * 铁制支架 100 + 硬化珊瑚 150，capMul ×1.5（与 I 叠加 ⇒ ×2.25）。 */
@@ -214,7 +222,7 @@
       seasonGrant: true,
       desc: '解锁建筑「商队驿站」、政策卡「三角贸易」、政体「商人共和国」；每季节判定一次，获得任意资源 1 分钟产量。',
       note: '鼓舞：完成钢铁仓库升级（压舱库扩容 II）。' },
-    { id: 'reformed', name: '归正会', cost: 1300, era: 4, layer: 1,
+    { id: 'reformed', name: '归正会', cost: 25000, era: 4, layer: 1,
       reqs: ['department'],
       /* 已建立宗教（religion 鼓舞类型，2026-10-01 新增于 tech.condMet）。
        * ⚠️「且有 70 鲛人」被前置《行政部门》的 pop 70 鼓舞吸收（能研究行政部门即 pop≥70 且只增不减），
@@ -226,20 +234,20 @@
       card: 'card_divine_right',
       desc: '解锁奇观「欧\'洛瓦宗座教堂」(+1 宗教政策卡槽)、政体「神权政体」、政策卡「天赋神权」。',
       note: '鼓舞：已建立宗教（70 鲛人已由前置《行政部门》保证）。' },
-    { id: 'mercantilism', name: '重商主义', cost: 1400, era: 4, layer: 2,
+    { id: 'mercantilism', name: '重商主义', cost: 40000, era: 4, layer: 2,
       reqs: ['explore'],
       boost: { t: 'job', j: 'merchant', n: 20 },
       card: 'card_mercantilism',
       desc: '解锁政策卡「重商主义」（银行的商人产出加成 +100%）。',
       note: '鼓舞：同时拥有 20 名商人。' },
-    { id: 'enlightenment', name: '启蒙运动', cost: 1400, era: 4, layer: 2,
+    { id: 'enlightenment', name: '启蒙运动', cost: 50000, era: 4, layer: 2,
       reqs: ['department'],
       boost: { t: 'built', b: 'observatory', n: 1 },
       card: 'card_enlightenment',
       building: 'museum',
       desc: '解锁政策卡「启蒙运动」（替代历史记录：潮纹馆/大学科技 +100%、神庙信仰 −50%）、建筑「博物馆」。',
       note: '鼓舞：天壳观测站等级 ≥ 1。' },
-    { id: 'historiography', name: '历史哲学', cost: 1500, era: 4, layer: 2,
+    { id: 'historiography', name: '历史哲学', cost: 60000, era: 4, layer: 2,
       reqs: ['reformed'],
       boost: { t: 'wonder', n: 6 },
       /* 工艺制品「艺术品 / 潮纹记录」的解锁走配方自身的 needCivic（见 config CRAFTS 的
@@ -254,28 +262,28 @@
      *   调它 = 标定，会动整局时长，当前未做总时长核算 ⇒ 暂不调。
      * 【layer】渊潜鲛歌/工业化配给 1，社会科学/城市化 2，国民动员 3（与 era2/era3 同形）。
      * 【鼓舞类型】zoneLvl / gathered / total / pop / wonders —— 全部是 tech.condMet 已支持的现成类型，无新 cond。 */
-    { id: 'sharksong', name: '渊潜鲛歌', cost: 1600, era: 5, layer: 1, reqs: ['enlightenment'],
+    { id: 'sharksong', name: '渊潜鲛歌', cost: 80000, era: 5, layer: 1, reqs: ['enlightenment'],
       boost: { t: 'zoneLvl', zone: 'civic', n: 50 },
       wonder: 'wonder_shadow_theater', building: 'theater',
       desc: '解锁奇观「夏\'多桑大剧院」（+5 市政点/秒、+1 政策卡槽），以及建筑「歌剧院」。',
       note: '鼓舞：市政区建筑合计等级达 50。' },
-    { id: 'rationing', name: '工业化配给', cost: 1600, era: 5, layer: 1, reqs: ['enlightenment'],
+    { id: 'rationing', name: '工业化配给', cost: 90000, era: 5, layer: 1, reqs: ['enlightenment'],
       boost: { t: 'gathered', r: 'steel', n: 10000 },
       card: 'card_rationing',
       desc: '解锁政策卡「工业化配给」「政治经济学」。',
       note: '鼓舞：累计钢产量达 10000。' },
-    { id: 'socialscience', name: '社会科学', cost: 1800, era: 5, layer: 2, reqs: ['sharksong'],
+    { id: 'socialscience', name: '社会科学', cost: 110000, era: 5, layer: 2, reqs: ['sharksong'],
       boost: { t: 'total', n: 300 },
       wonder: 'wonder_congress',
       desc: '解锁奇观「国会大厦」（鲛人幸福度消耗 −10%）。',
       note: '鼓舞：建筑总等级达 300。' },
-    { id: 'urbanization', name: '城市化', cost: 1800, era: 5, layer: 2, reqs: ['rationing'],
-      boost: { t: 'pop', n: 100 },
+    { id: 'urbanization', name: '城市化', cost: 120000, era: 5, layer: 2, reqs: ['rationing'],
+      boost: { t: 'total', n: 510 },
       card: 'card_logistics', building: 'tenement',
       desc: '解锁建筑「廉租社区」、政策卡「基础物流建设」。',
-      note: '鼓舞：总人口达 100（轮回商店「广厦之基」永久提升人口上限）。' },
-    { id: 'mobilization', name: '国民动员', cost: 2200, era: 5, layer: 3, reqs: ['socialscience', 'urbanization'],
-      boost: { t: 'wonders', ids: ['shellcutter', 'presspipe'] },
+      note: '鼓舞：建筑总等级达 510。' },
+    { id: 'mobilization', name: '国民动员', cost: 150000, era: 5, layer: 3, reqs: ['socialscience', 'urbanization'],
+      boost: { t: 'wonders', ids: ['wonder_shellcutter', 'wonder_presspipe'] },
       card: 'card_heat_priority',
       desc: '解锁政策卡「热能优先」「总动员令」。',
       note: '鼓舞：建成奇观「天壳切削器」与「高压热机管道」。' }
@@ -410,7 +418,8 @@
      *     读 s.cards 判断「装没装」——同一纪律：研究出市政只是拿到卡，没装 = 0。 */
     { id: 'card_sovereign', name: '王权神授', civic: 'sovereign',
       effect: {},
-      desc: '城堡每级增加 10% 信仰产出（装在卡槽里才生效）。' },
+      retiredBy: 'reformed',
+      desc: '城堡每级增加 10% 信仰产出（装在卡槽里才生效）。完成《归正会》后被「天赋神权」取代而退役。' },
     { id: 'card_serfdom', name: '农奴制', civic: 'feudalism',
       effect: {},
       desc: '每级牧场给藻场效果 +1%，每级藻场给牧场效果 +1%（互乘，装在卡槽里才生效）。' },
@@ -534,11 +543,14 @@
    * 所以各自一个函数，判「装没装」用 inSlot（s.cards 数组逐槽查，与 flow 同口径）。
    * ⚠️ 只在卡装着时才生效——研究出市政只是拿到卡，没装 = 恒 1，别在这儿放宽。 */
   function cardSlotted(s, id) { return !!(s && s.cards && s.cards.indexOf(id) >= 0); }
-  /* 王权神授：城堡每级 +10% 信仰产出。乘在 faithRate 的整段产出上（economy 读）。 */
+  /* 王权神授：城堡每级 +10% 信仰产出。乘在 faithRate 的整段产出上（economy 读）。
+   * ⚠️ 2026-10-06 城堡「真升级」：城堡**不是独立建筑**，而是议事厅买下工坊升级
+   *   `upg_castle` 之后的新名字 ⇒ 这里的「城堡等级」就是 `s.lvl.hall`（经济层的
+   *   `coreLvl` 同源）。此前误读成独立的 `s.lvl.castle`，那座建筑已从 BUILDINGS 删除。 */
   function castleFaithMul(s) {
     if (!cardSlotted(s, 'card_sovereign')) return 1;
     var r = (SB.BLD && SB.BLD.castleFaithRatio) || 0.10;
-    return 1 + (s.lvl.castle || 0) * r;
+    return 1 + (SB.economy && SB.economy.coreLvl ? SB.economy.coreLvl(s) : (s.lvl.hall || 0)) * r;
   }
   /* 农奴制：每级牧场（深海鱼牧场）给藻场效果 ×(1+1%)；每级藻场给牧场效果 ×(1+1%)。
    * 藻场效果 = foodRate 建筑侧（economy.foodRate 读 serfKelpMul）；
@@ -706,19 +718,22 @@
   function layout() {
     var C = SB.CIVICS || [], G = geo();
     var COL_PITCH = G.W + GEO.COL, ROW_PITCH = G.H + GEO.ROW;
-    var i, t, e, maxL = {}, eraBase = {}, base = 0, blocks = [];
+    var i, t, e, maxL = {}, minL = {}, eraBase = {}, eraOffset = {}, base = 0, xOffset = 0, blocks = [];
 
     for (i = 0; i < C.length; i++) {
       t = C[i];
       maxL[t.era] = Math.max(maxL[t.era] || 1, t.layer || 1);
+      minL[t.era] = Math.min(minL[t.era] == null ? Infinity : minL[t.era], t.layer || 1);
     }
-    /* 纪元基准：前一个纪元用满之后空一列当分隔。目前三条都在纪元一，这里只出一条块；
-     * 以后加纪元二的市政，不用改这个函数。 */
+    /* 逻辑列连续编号；时代之间只增加与科技树一致的像素间距，不空出整列。 */
     for (e = 1; e <= 12; e++) {
       if (!maxL[e]) break;
+      var span = maxL[e] - minL[e] + 1;
       eraBase[e] = base;
-      blocks.push({ era: e, x0: base, cols: maxL[e], start: base });
-      base += maxL[e] + 1;
+      eraOffset[e] = xOffset;
+      blocks.push({ era: e, x0: base, cols: span, start: base, offset: xOffset });
+      base += span;
+      xOffset += span * COL_PITCH + (maxL[e + 1] ? (G.ERAPAD || 30) : 0);
     }
 
     /* 行分配：按 (全局列, 声明序) 扫一遍，每列从 0 找第一个空行。
@@ -726,27 +741,27 @@
     var used = {}, order = [], cells = {};
     for (i = 0; i < C.length; i++) order.push(C[i]);
     order.sort(function (a, b) {
-      var ca = colOf(a, eraBase), cb = colOf(b, eraBase);
+      var ca = colOf(a, eraBase, minL), cb = colOf(b, eraBase, minL);
       return ca - cb || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     });
     for (i = 0; i < order.length; i++) {
       t = order[i];
-      var col = colOf(t, eraBase), row = 0;
+      var col = colOf(t, eraBase, minL), row = 0;
       while (used[col] && used[col][row]) row++;
       (used[col] = used[col] || {})[row] = true;
       cells[t.id] = {
         id: t.id, era: t.era, layer: t.layer || 1, col: col, row: row,
-        x: G.PADX + col * COL_PITCH,
+        x: G.PADX + eraOffset[t.era] + ((t.layer || 1) - minL[t.era]) * COL_PITCH,
         y: G.PADY + row * ROW_PITCH
       };
     }
 
-    var maxCol = 0, maxRow = 0;
+    var maxRight = 0, maxRow = 0;
     for (var k in cells) {
-      if (cells[k].col > maxCol) maxCol = cells[k].col;
+      maxRight = Math.max(maxRight, cells[k].x + G.W);
       if (cells[k].row > maxRow) maxRow = cells[k].row;
     }
-    var w = G.PADX * 2 + maxCol * COL_PITCH + G.W;
+    var w = G.PADX + maxRight;
     var h = G.PADY * 2 + maxRow * ROW_PITCH + G.H;
 
     /* 连线：前置节点右腰 → 本节点左腰，三次贝塞尔。两端都得在 cells 里
@@ -776,20 +791,22 @@
       rowOf: function (id) { return cells[id] ? cells[id].row : -1; }
     };
   }
-  /* 列号 = 纪元基准 + layer − 1。那个 −1 与 tech.js 的 colOf 是同一个换算
-   * （layer 1 起点、列坐标 0 起点），少了它长卷最左边会凭空多出一块死区。 */
-  function colOf(t, eraBase) {
-    return (eraBase[t.era] || 0) + (t.layer || 1) - 1;
+  /* 与科技树一致：layer 在时代内部决定列序，并减去该时代最早实际 layer，
+   * 避免因数据从较高层起步而在时代开头留白。 */
+  function colOf(t, eraBase, minL) {
+    return (eraBase[t.era] || 0) + (t.layer || 1) - (minL[t.era] || 1);
   }
 
   // ── 面板开门 ──────────────────────────────────────────────────────
-  /* 判据 = 议事厅建成 ≥ 1 级（派生，不存档）。
-   * 为什么不额外要求「已掌握 N 项科技」：石工本身要求石头 100，已经是一道不轻的门槛；
-   * 再加一道科技数就是三重 gate，而 era1 时长已被证明对 gate 敏感
-   * （住房 ratio 一档的改动 = 整局 +56%，见 CIVICS §2 约束 4）。 */
-  function panelOpen(s) { return !!s && (s.lvl.hall || 0) >= 1; }
+  /* 判据 = 统治核心建成 ≥ 1 级（派生，不存档）。2026-10-06 城堡「真升级」后改读
+   *   `SB.economy.coreLvl(s)`（= lvl.hall）——城堡是这座建筑的新名字而不是第二座，
+   *   读数口径与另两条效果、面板注脚完全一致，不另立一份。 */
+  function panelOpen(s) {
+    return !!s && (SB.economy && SB.economy.coreLvl ? SB.economy.coreLvl(s) : (s.lvl.hall || 0)) >= 1;
+  }
   function panelBlock(s) {
-    if (!s || !(s.lvl.hall || 0)) return '先建成议事厅（由「石工」解锁）——它同时是书手的岗位来源。';
+    var _c = (SB.economy && SB.economy.coreLvl) ? SB.economy.coreLvl(s) : ((s && s.lvl.hall) || 0);
+    if (!_c) return '先建成议事厅（由「石工」解锁）——它同时是书手的岗位来源。';
     return null;
   }
 
@@ -1006,11 +1023,6 @@
     s.card = out[0] || null;
   }
   function inSlot(s, id) { return !!(s.cards && s.cards.indexOf(id) >= 0); }
-  function firstEmpty(s) {
-    var L = slotList(s).length;
-    for (var i = 0; i < L; i++) if (!s.cards || !s.cards[i]) return i;
-    return -1;                       // 全满
-  }
   function firstFilled(s) {
     if (!s.cards) return -1;
     for (var i = 0; i < s.cards.length; i++) if (s.cards[i]) return i;
@@ -1060,12 +1072,30 @@
     return L.length ? L[0].type : null;
   }
 
+  /* 2026-10-07 用户拍板：槽上不再给「拔下」按钮——装填一张新卡就直接覆盖，卸除是多余入口。
+   * 配套收紧：选槽只挑**对口**的槽（先空槽后已装槽），卡不会再被塞进不对口的槽里
+   * （否则那张错位卡没有任何玩家入口能清出来，只能永远占着槽）。 */
+  function firstFitSlot(s, p, wantFilled) {
+    var L = slotList(s), i;
+    for (i = 0; i < L.length; i++) {
+      if (!cardFits(p, L[i].type)) continue;
+      if (!!(s.cards && s.cards[i]) === wantFilled) return i;
+    }
+    return -1;
+  }
+
   function setCard(s, id, emit) {
     ensureCards(s);
     var clear = (id === null || id === undefined);
     if (!clear && inSlot(s, id)) return false;        // 已装备 ⇒ 幂等无动作
     if (!canSetCard(s, id)) return false;
-    var slot = clear ? firstFilled(s) : (firstEmpty(s) >= 0 ? firstEmpty(s) : firstFilled(s));
+    var slot;
+    if (clear) slot = firstFilled(s);
+    else {
+      var p = policyById(id);
+      slot = firstFitSlot(s, p, false);
+      if (slot < 0) slot = firstFitSlot(s, p, true);   // 全满 ⇒ 覆盖第一张对口的已装卡
+    }
     if (slot < 0) return false;                        // 没卡可拔（拔下时）
     return setCardAt(s, slot, id, emit);
   }

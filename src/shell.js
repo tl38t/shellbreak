@@ -6,12 +6,10 @@
  *      速率 = BREAK_BASE × breakCoef，冰封期另乘 COLD 加成。
  *      只把壳削到 FLOOR_AT（25%）就停手——冻到最薄，然后卡住。
  *
- *   ② 祭坛削壳（破冰祭坛，吃地热）
- *      只有祭坛能凿穿最后那 25%。它按速率自动削，地热耗尽就自动停摆，
- *      恢复供能自动继续——玩家的操作对象是「燃料供应」，不是点击次数。
- *
- * 这样「系数」的每一次撞墙（人口住房卡、级数成本卡、科技卡）都会逼玩家
- * 去动祭坛，而祭坛又把玩家拉回「采集还是烧热」的取舍上。
+ *   ② 天穹钻机（ERA5 破壳终章，wonder）
+ *      基础削壳卡在 25% 后，由天穹钻机（建成后在自然环境卡手动启动）凿穿最后一段天壳，
+ *      吃共振钻头 + 热液能。2026-10-07 起，原「破冰祭坛」这条持续机器路线已撤除，
+ *      终局凿壳完全交给钻机；同日由「自动运转」改为「手动启动」。
  */
 (function (root) {
   'use strict';
@@ -25,14 +23,13 @@
   }
 
   /* 破壳系数：玩家可见的单一驱动量。
-   * 每项来源都有独立的墙（人口受住房、级数受成本、科技受科技、祭坛受铁骨），
+   * 每项来源都有独立的墙（人口受住房、级数受成本、科技受科技），
    * 所以系数是一条会走平的曲线，而不是一开局就到顶的直线。 */
   function breakCoef(s) {
-    var C = CFG.COEF;
+    var C = SB.CFG.COEF;
     var c = C.POP * Math.pow(s.pop, C.POP_POW)
       + C.LVL * Math.pow(SB.economy.lvlSum(s), C.LVL_POW)
       + C.TECH * techCount(s)
-      + C.MIR * (s.lvl.miracle || 0)
       + C.PERK * (s.perk.coef || 0);
     if (SB.economy.isCold(s)) c *= C.COLD;   // 越冷越拼命
     return c;
@@ -44,51 +41,7 @@
     return 1 - SB.economy.rOf(s);
   }
 
-  function autoRate(s) { return CFG.BREAK_BASE * breakCoef(s); }
-
-  /* 祭坛等级上限 = 地热产所养得起的等级（解 miracleBurn(M) ≤ 地热产能）。
-   *
-   * 这条是「燃料流」能不能作为一种独立路线存在的唯一支点。此前祭坛不受任何
-   * 供能约束，于是：建筑级数对系数是零成本堆叠（lvlSum 直接加 coef），而祭坛
-   * 等级被 MIRACLE_BURN 压在个位数。两条路线的取舍因此根本不成立——实测把
-   * MIRACLE_RATE 从 1.10 拉到 6.0（整体快 2.6 倍），rational 与 rush 的先后顺序
-   * 一动不动（still 0.78-0.83×），因为推力大头始终是 coef，而 coef 只看堆了多少级。
-   *
-   * 加了上限以后，「升一级祭坛」必须先有地热产能：地热 = 热泉井级数 × BLD.fuel × 匠人数，
-   * 热泉井要精铁 62、精铁靠热泉炉烧矿砂、矿砂靠矿砂坑——所以升祭坛等于跟堆建筑抢同一份铁与人力。
-   * 理性流把匠人分给加工与建筑，自然压低地热产能、也就升不动祭坛。 */
-  function miracleCap(s) {
-    /* 用暖季产能（cold=1）做建造闸门：冷季地热减产 0.6 是「运行时」的事，
-     * 供给不足时祭坛会自己 starved 停摆，不需要在建造端再压一道。
-     * ⚠️ 不能把 isCold(s) 的布尔直接当乘数传进去——暖季 false×gross = 0，
-     * cap 会被永远算成 0（ fuelRate 的 cold 参数语义是数字，不是布尔）。 */
-    var sup = SB.economy.fuelRate(s, 1);
-    /* 地热产能是「流量」，燃料池是「存量」——只看流量的话，开局第 1 级祭坛就会被判成
-     * 供能不足而永远建不起来（第 1 级烧 0.55/s，而产能是 geyser×0.010×匠人，早期只有
-     * 0.01~0.05/s）。所以把库存算进可用功率：允许先囤后烧，烧空了靠 starved 机制停摆。 */
-    var power = sup + (s.res.fuel || 0);
-    if (!(power > 0)) return 0;
-    var cap = 0;
-    for (var m = 1; m <= 99; m++) {
-      if (CFG.MIRACLE_BURN * m * (1 + CFG.MIRACLE_ESCALATE * (m - 1)) <= power) cap = m;
-      else break;
-    }
-    return cap;
-  }
-  function miracleMul(s) {
-    /* 走闭合效果词表，不再散读 s.techs.siegeT：
-     * 散读的问题是「加了科技忘了接线」——研究完什么都没发生，还查不出来。 */
-    return SB.tech ? SB.tech.mul(s).miracle : 1;
-  }
-  function miracleRate(s) { return CFG.MIRACLE_RATE * (s.lvl.miracle || 0) * miracleMul(s); }
-  /* 燃料消耗随等级加剧（每级再 +ESCALATE），而不是线性。
-   * 线性的话第 5 级祭坛只是第 1 级的 5 倍，地热永远喂得饱，
-   * 「要不要再升一级」就变成一个没有代价的选择。 */
-  function miracleBurn(s) {
-    var lv = s.lvl.miracle || 0;
-    if (lv <= 0) return 0;
-    return CFG.MIRACLE_BURN * lv * (1 + CFG.MIRACLE_ESCALATE * (lv - 1));
-  }
+  function autoRate(s) { return SB.CFG.BREAK_BASE * breakCoef(s); }
 
   /* 一个 tick 的天壳推进。dt 为秒。
    * 返回本次实际削掉的壳量，供渲染层显示「正在以 X 点/秒 推进」。 */
@@ -98,42 +51,26 @@
 
     // ① 基础削壳：卡在 FLOOR_AT，不越过
     //    判定用的是 <= 语义——壳精确停在 25% 时也必须停手，否则会来回抖动
-    if (SB.economy.rOf(s) > CFG.FLOOR_AT) {
-      var floor = s.iceShell * CFG.FLOOR_AT;
+    if (SB.economy.rOf(s) > SB.CFG.FLOOR_AT) {
+      var floor = s.iceShell * SB.CFG.FLOOR_AT;
       var r = autoRate(s) * dt;
       s.shell = Math.max(floor, s.shell - r);
       cut += r;
       s._cutBase = (s._cutBase || 0) + r;   // 累计，供回归脚本拆解削壳构成
     }
 
-    // ② 祭坛：有燃料就自动凿，没燃料自动停摆
-    if (s.miracleOn && (s.lvl.miracle || 0) > 0) {
-      var burn = miracleBurn(s) * dt;
-      var want = miracleRate(s) * dt;
-      if (s.res.fuel >= burn) {
-        s.res.fuel -= burn;
-        s.miracleRun += dt;
-        s.starved = false;
-        s.shell -= want;
-        cut += want;
-        s._cutMir = (s._cutMir || 0) + want;
-      } else if (!s.starved) {
-        s.starved = true;
-        if (emit) emit('地热耗尽，破冰祭坛停摆——恢复供能才能继续凿。');
-      }
-    }
-
-    // ③ 天穹钻机（ERA5 破壳终章）：建成后自动运转，凿穿最后一段天壳。
-    //    ⚠️ 与祭坛②是**两条独立路线**：祭坛吃地热（已删，恒 0），钻机吃共振钻头 + 热液能。
+    // ② 天穹钻机（ERA5 破壳终章）：建成后在「自然环境」卡手动启动（2026-10-07 用户改，
+    //    原「建成即自动运转」废弃），凿穿最后一段天壳。
     //    ⚠️ 2026-10-05 flow 模型：热液能是「每 tick 的瞬态流」，钻机从**本 tick 剩流**里取
     //       SKYDRILL_HYDRO，不再读 s.res.hydro 库存池（那里现在是供给快照，不累积）。
     //       剩流由 economy.steelFlow 同一 tick 算好的 s._hydroFlow.left 给出（工坊低阶先吃满）。
     //    ⚠️ 不判 FLOOR_AT：钻机只在 ERA5 建成，届时壳已被 ① 削到 25%；让它从任意厚度都能削，
     //       等价于「从 25% 继续削到 0」，语义一致且更鲁棒（即便将来有人早建也能用）。
-    //    ⚠️ 资源见底自动停摆（与祭坛同款饥饿机制），补足后下一 tick 自动继续。
-    if (SB.wonder && SB.wonder.owned(s).wonder_skydrill) {
-      var dCost = CFG.SKYDRILL_DRILL * dt;
-      var hCost = CFG.SKYDRILL_HYDRO * dt;
+    //    ⚠️ 资源见底自动停摆（补足后下一 tick 自动继续）；停摆是**运行态的暂停**，
+    //       不回拨 skydrillOn——补料后不用玩家再点一次。
+    if (s.skydrillOn && SB.wonder && SB.wonder.owned(s).wonder_skydrill) {
+      var dCost = SB.CFG.SKYDRILL_DRILL * dt;
+      var hCost = SB.CFG.SKYDRILL_HYDRO * dt;
       // 热液能侧：hydroAlloc 已是「本 tick 流分配」唯一权威（含钻机吃剩流的那一份），
       //   skyDraw>0 即表示「工坊吃完后剩流够钻机取 SKYDRILL_HYDRO 且共振钻头够」⇒ 钻机这一份已被占走。
       var _HF = s._hydroFlow || (SB.economy ? SB.economy.hydroAlloc(s, dt) : { skyDraw: 0 });
@@ -143,7 +80,7 @@
         // 流不进库存：扣共振钻头即可，热液能已从本 tick 流中被钻机这一份占走（HF.left 已计入）。
         var _lg = SB.prestige ? SB.prestige.legacy() : null;
         var _ss = _lg ? (1 + 0.05 * _lg.shellSurveyLevel) : 1;
-        var sWant = CFG.SKYDRILL_RATE * _ss * dt;
+        var sWant = SB.CFG.SKYDRILL_RATE * _ss * dt;
         s.shell -= sWant;
         cut += sWant;
         s._cutSky = (s._cutSky || 0) + sWant;
@@ -173,9 +110,6 @@
     breakCoef: breakCoef,
     brokenRatio: brokenRatio,
     autoRate: autoRate,
-    miracleCap: miracleCap,
-    miracleRate: miracleRate,
-    miracleBurn: miracleBurn,
     tickShell: tickShell,
     onShellZero: onShellZero
   };

@@ -25,15 +25,18 @@
     /* 轮回商店增益的运行时累加表。键必须与 config.PERKS 各商品的 apply 键一致；
      * 漏一个键会让 economy 读数 undefined ⇒ 被当成 0（通常无害），但显式列全避免歧义。 */
     return { gather: 0, coef: 0, thin: 0, popcap: 0, housePlan: 0, coldStore: 0, offline: 0,
-      matStore: 0, coldWard: 0, civicArchive: 0, tideProof: 0, wonderBlueprint: 0, shellSurvey: 0,
-      autoStudy: 0, autoCivic: 0, autoCraft: 0, jobPlan: 0, civicPlan: 0, craftPlan: 0, wonderPlan: 0,
+      matStore: 0, civicArchive: 0, tideProof: 0, wonderBlueprint: 0, shellSurvey: 0,
+      autoStudy: 0, autoCivic: 0, autoCraft: 0, civicPlan: 0, wonderPlan: 0,
       /* ⚠️ 2026-10-05 新增 8 键（资源线专项 + 建造减耗）。**同文件多处改动必须串行**，
        * 写完必须回盘 grep 终值确认没被后一次覆盖（同判据见 JUDGMENTS §五点十一）。 */
       coralPact: 0, mineTax: 0, algaeCrop: 0, furnaceBoost: 0,
       sacrament: 0, craftQuota: 0, luxuryPact: 0, buildSave: 0,
       /* ⚠️ govRoutine 此前**漏在这个表外**（apply 键存在但 economy 无任何读取点）——
        *  列在这里只是让「它确实是死 perk」有据可查，不改变任何行为。 */
-      govRoutine: 0 };
+      govRoutine: 0,
+      /* 轮回商店「自动点击」系列：autoClick = 每秒自动点击次数（0/1/2/3，三档叠加），
+       * autoEvent = 点击事件自动拾取（0/1）。键与 config.PERKS 的 apply 键一致。 */
+      autoClick: 0, autoEvent: 0 };
   }
 
   /* 从跨周目商店账本（meta.perks）重建本局运行时增益表：每个已购等级的 apply 值 × 等级，
@@ -76,7 +79,7 @@
       perk = emptyPerks();
     }
     var thin = perk.thin || 0;
-    var iceShell = Math.round(CFG.ICE_SHELL * Math.pow(0.9, thin));
+    var iceShell = Math.round(SB.CFG.ICE_SHELL * Math.pow(0.9, thin));
     return {
       t: 0,
       // 对齐猫国开局：资源全空（猫国 resources.js 全部 value:0），收入靠手动采集起步
@@ -109,8 +112,9 @@
          *   ⇒ capOf 自动 Infinity（钢无上限抄猫国）。这里只 seed 初始台账，防止 addRes 漏键染 NaN。
          *   hydro 是每 tick 净流入（汽轮机产 - 工坊耗），单局会有正负波动，但落点恒定记 0。 */
         steel: 0, hydro: 0, steelPart: 0,
-        /* ERA4（2026-09-30）：钛 / 脚手架。           与钢那批同口径 —— 无 CAP_BASE 键（无上限）、
-         *   这里只 seed 初始台账，漏键的后果是 addRes 把资源池染成 NaN（与上面那条同族的事故）。 */
+        /* ERA4（2026-09-30）：钛 / 脚手架。seed 只防 addRes 漏键染 NaN（与上面那条同族事故）。
+         *   ⚠️ 钛 2026-10-07 用户拍板**加了 CAP_BASE.titanium=200**（从工艺区重分类回资源主区），
+         *      不再是 Infinity；脚手架仍是工艺制品 ⇒ 无 CAP_BASE 键（capOf 恒 Infinity）。 */
         titanium: 0, scaffold: 0,
         /* ERA4（2026-09-30）：历史哲学解锁的两件工艺制品 artwork / tidalRecord。
          *   与石梁/铁制支架同口径 —— 由工坊配方造出来、成批消耗、无 CAP_BASE 上限键
@@ -124,15 +128,16 @@
        * 「巢筑改判为解锁住房第二档」加入）。缺键 = undefined * number = NaN，
        * 经 addRes 的 Math.min 污染资源池，再顺着 lvlSum 污染破壳系数。 */
       /* ⚠️ hall（议事厅）是 2026-09-26 暗流纪重排新增的建筑。加在这里是因为
-       *    economy.costOf 会读 `s.lvl.hall`——漏了这个键，议事厅的效果 halMul 变成
-       *    `undefined * 0.02 = NaN`，再顺着 Math.ceil 把**所有建筑的成本**变成 NaN，
-       *    玩家一研究石工就买不起任何东西。与 lvl 表缺键同类的那次 NaN 事故。 */
+       *    economy.costOf 会读统治核心等级（`economy.coreLvl` = lvl.hall）——
+       *    缺了这个键，减耗就变成 `undefined * 0.02 = NaN`，再顺着 Math.ceil 把**所有建筑
+       *    的成本**变成 NaN，玩家一研究石工就买不起任何东西。与 lvl 表缺键同类的那次 NaN 事故。
+       *    ⚠️ 2026-10-06 城堡「真升级」后，城堡是这座建筑的新名字而不是第二个键。 */
       /* ⚠️ hearth（暖壳石）已于 2026-09-26 随骨材线删除，冻伤减免改由暖石供给
      *    （economy.warmCap）。**不要**为了「兼容老档」把它加回来：老档这份 lvl 键读不到
      *    任何东西（warmCap 已不读它），加回来只会让人误以为机制还在建筑上。 */
       /* ⚠️ kelpstore（海藻仓）是 2026-09-26 第三轮新增——藻食容量从压舱仓拆出来
        *   独立成一座（对标猫国 barn）。漏这个键的后果与上面 lvl 缺键那条同源：
-       *   `s.lvl.kelpstore * BLD.kelpCap` 成 NaN，经 addRes 的 Math.min 污染藻食池。
+       *   `s.lvl.kelpstore * SB.BLD.kelpCap` 成 NaN，经 addRes 的 Math.min 污染藻食池。
        * ⚠️⚠️【这张表还是 migrateRun 里 fixTable 的 ref，不只是"开局全 0"】
        *    fixTable 按 **ref 的键**遍历 ⇒ 表里没有的建筑 id，**读档时会被整条丢掉**。
        *    2026-09-28 实证：建起广场 → 存档 → 刷新，广场等级静默归零（不报错，
@@ -143,16 +148,19 @@
        *    fixTable 按 ref 的键遍历 ⇒ 老档里建着的神庙整条被丢掉，等级从 0 开始。
        *    同一批已经漏过三次（square / institute / lighthouse），现在这里补齐，
        *    断言每条钉正反两面（有幽灵键 / 有缺键），下次加建筑前先跑一遍它。 */
-      lvl: { kelp: 0, kelpstore: 0, weir: 0, warmnest: 0, ballast: 0, nest: 0, coralhouse: 0, hall: 0, siltpit: 0, workshop: 0, furnace: 0, library: 0, institute: 0, square: 0, temple: 0, lighthouse: 0, miracle: 0,
+      lvl: { kelp: 0, kelpstore: 0, weir: 0, warmnest: 0, ballast: 0, nest: 0, coralhouse: 0, hall: 0, siltpit: 0, workshop: 0, furnace: 0, library: 0, institute: 0, square: 0, temple: 0, lighthouse: 0,
         /* ERA3 热液能系统（2026-09-29）：金属精炼解锁的两座建筑。lvl 漏键 = undefined × 数 = NaN，
          *   经 lvlSum / costOf 污染破壳系数；与「加建筑漏 lvl」同类，必须一一对应。 */
         hydroturbine: 0, hydroshop: 0,
-        /* ERA3 市政扩展（2026-09-30）：城堡（礁栖核心）与王国潮道（贸易区域）。
-         *   castle 漏键会让王权神授卡的 castleFaithMul 读到 undefined；canal 漏键会让
-         *   奢侈节省乘法读到 undefined —— 与上面每一条「加建筑漏 lvl」同源。 */
+        /* ERA3 市政扩展（2026-09-30）：王国潮道（贸易区域）。
+         * ⚠️ 2026-10-06：**castle 键已删**。城堡不是独立建筑，而是议事厅买下工坊升级
+         *   `upg_castle` 之后的新名字（同一座建筑、同一个 `lvl.hall`）——那座误造的建筑
+         *   已从 config.BUILDINGS 删除。留着一个没人读也没人写的 `castle: 0`，会让
+         *   「lvl 的键与 BUILDINGS 一一对应」这条纪律看起来被破例。
+         *   老档里真有的 `lvl.castle` 由 migrateRun 并回 hall（见那里）。 */
         /* ERA4（2026-09-30）：三座新建筑。漏键的后果由上面那条注写清楚了
          *    （costOf 读到 undefined ⇒ 全表造价 NaN），这里必须每座都落地。 */
-        castle: 0, canal: 0, observatory: 0, coralfarm: 0, bank: 0,
+        canal: 0, observatory: 0, coralfarm: 0, bank: 0,
         /* ERA4（2026-09-30）：商队驿站（探索解锁）/ 博物馆（启蒙运动解锁）。漏键的后果
          *   由上面那条 lvl 注写清楚了（costOf 读到 undefined ⇒ 全表造价 NaN / 读档静默丢），
          *   这里必须每座都落地，断言按 SB.BUILDINGS 逐个对、漏了会红。 */
@@ -165,15 +173,15 @@
         theater: 0, tenement: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
-       * 缺 gather 时 economy 里 `s.jobs.gather * UNIT.kelp` 变成
+       * 缺 gather 时 economy 里 `s.jobs.gather * SB.UNIT.kelp` 变成
        * `undefined * 0.5 = NaN`，经 addRes 的 Math.min 污染整个藻食池、
        * 再顺着 lvlSum 污染破壳系数（与存档迁移那次同源）。
        * 今后加职业，这里、migrateRun 的默认表都得同步。 */
       /* 职业表：quarrier（采石工）与 miner（矿工）是 2026-09-26 暗流纪重排新增。
-       * 缺键的后果见上面 lvl 那条注——economy 里 `s.jobs.quarrier * UNIT.stone`
+       * 缺键的后果见上面 lvl 那条注——economy 里 `s.jobs.quarrier * SB.UNIT.stone`
        * 会变成 NaN 并顺着 addRes 污染石头池，再经 lvlSum 碰破壳系数。 */
       /* ⚠️ 2026-09-27 加 scribe（书手）：规则与上面 lvl/jobs 那几条注同源——
-       *    `s.jobs.scribe * UNIT.culture` 在缺键时成 NaN，顺着 addRes 污染市政点池。
+       *    `s.jobs.scribe * SB.UNIT.culture` 在缺键时成 NaN，顺着 addRes 污染市政点池。
        * ⚠️ 2026-09-28 加 merchant（商人）：**这次漏了，而且漏法比 NaN 更阴**——
        *    economy 那侧全都写了 `(s.jobs.merchant || 0)`，所以没有 NaN 事故；
        *    真正出事的是 UI：`render.js` 的那道守卫是 `s.jobs[j.id] <= 0`，而
@@ -188,12 +196,21 @@
        * 没有它，玩家把库存花到 unlockRatio 阈值以下时，刚冒出来的建筑会当场消失。
        * 与 lvl/jobs 同理：新增字段要同时在 freshRun 与 migrateRun 两边补上。 */
       seen: {},
-      /* 暖石开关（保温法那道开关）。与 miracleOn 同一套设计：
+      /* 暖石开关（保温法那道开关）。与玩家显式拨的其他开关同套设计：
        *   ① 它不是存档里推演出来的量，玩家显式拨的；
        *   ② 拨了也未必生效（暖石不够 / 不在惩罚季），所以旁边必须显示「正在烧 / 石不够」。
        * warmBurning 是**每帧重算的瞬时标记**，不进存档（见 economy.tick 第 5 步的清位），
        * 存进去的话读档那一刻 UI 会把它当真。 */
       warmOn: false, warmBurning: false,
+      /* 天穹钻机手动启动开关（2026-10-07 用户：「钻机造好之后……增加个启动钻机的按钮」）。
+       *   原设计「建成即自动运转」改成了「建成后在自然环境卡里手动启动」——玩家看得见
+       *   它吃什么、缺什么再决定开不开。默认 false（旧档无此键 ⇒ falsy = 未启动，语义正好）。
+       *   结算在 shell.tickShell block②（闸门读它）；UI 在 render.renderDrill / input.toggleSkydrill。 */
+      skydrillOn: false,
+      /* 看广告加速（TapTap 激励视频）：`ms` = 剩余加速时间（墙钟真实毫秒），`on` = 2× 开关。
+       * 默认 on=true：看完广告立即生效；玩家可在顶栏拨开关暂停（暂停时 ms 不流逝 = 囤着不用）。
+       * 不进离线补算：离线只回放产出，不替玩家消耗广告时间银行。 */
+      ad: { ms: 0, on: true },
       /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）。
        *   存的是**停了几座** `furnaceStop`，不是「开了几座」——因为「开几座」的默认值
        *   是 `lvl.furnace`（建成即开），而等级会随建造上涨：存「停用数」让新建的炉子
@@ -201,6 +218,15 @@
        *   运行座数 = max(0, lvl.furnace − furnaceStop)，见 economy.ironFlow。
        *   旧档的布尔 furnaceOn 在 migrateRun 里换算（false ⇒ 全停）。 */
       furnaceStop: 0,
+      /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：存**停了几座** turbineStop，
+       *   默认 0 = 全开。运行座数 = max(0, lvl.hydroturbine − turbineStop)，结算在 economy.hydroAlloc
+       *   （热液能供给）与 steelFlow（暖石扣费）两处，面板 rates 与 tick 同源。
+       *   玩家要省暖石（汽轮机每台恒烧 5/s）时按下几座；新建的汽轮机自动投入运转。 */
+      turbineStop: 0,
+      /* 热液工坊「开几座」（2026-10-07，与 furnaceStop / turbineStop 同口径）：存**停了几座** hydroshopStop，
+       *   默认 0 = 全开。运行座数 = max(0, lvl.hydroshop − hydroshopStop)，结算在 economy.hydroAlloc（钢的产出随运行座数缩放）。
+       *   热液工坊吃的是**流**（热液能，不进库存），停产不省任何可囤资源，唯一意义是把流让给天穹钻机。 */
+      hydroshopStop: 0,
       /* 冰封期状态（2026-09-27 新增：从「壳≤25% 恒真」改成「寒流季掷骰」）。
        * `frozen` 是**本季是否冰封**，换季那一刻由 economy.seasonTurn 写入；
        * `_seasonIdx` 是换季检测的游标（记住上次是哪一季）。
@@ -208,19 +234,19 @@
        *   但 `_seasonIdx` 为 undefined ⇒ 第一次 tick 就会误判成「刚换季」并额外掷一次骰。
        *   老档靠 migrateRun 补（见下）。 */
       frozen: false, _seasonIdx: -1,
-      pop: CFG.POP_START,
+      pop: SB.CFG.POP_START,
       /* 幸福度（陆地贸易，2026-09-28 落地）。顶层派生状态，不进 res 池——
        * 它不是资源、不进资源台账、不被 capOf 限制。夹 [HAPPY_FLOOR, ∞)。
        * ⚠️ 不是 res 键：renderRes 的资源循环按 SB.RESS 走，happy 单独成行显示。 */
       happy: 0,
-      peak: CFG.POP_START,
+      peak: SB.CFG.POP_START,
       deaths: 0,
       coldTicks: 0,
       frostDeaths: 0,
       famineDeaths: 0,
       shell: iceShell,
       iceShell: iceShell,
-      baseShell: CFG.ICE_SHELL,
+      baseShell: SB.CFG.ICE_SHELL,
       perk: perk,
       /* 科技树四件套（2026-09-25 五纪元改造，数据见 src/techs.js，玩法见 src/tech.js）：
        *   techs  —— 已掌握。**结绳不再在这里预置**：它的尤里卡条件是「建成第 5 座深海藻场」，
@@ -231,10 +257,13 @@
        *   got    —— 各资源「累计产出」台账，供 gathered 类尤里卡条件判定。
        * 四个字段都要在 freshRun 与 migrateRun 两边同步，规则与 lvl/jobs/seen 一致。 */
       techs: {},
-      /* 科技面板（科技页）开门时刻的叙事弹窗，一次性记账。门本身是派生的
-       * （tech.panelOpen 读结绳的 cond），这里只记「弹过了」。老档玩家早就见过
-       * 这个面板，见 migrateRun 里的兼容处理。 */
+      /* 各系统页签首次开门时的叙事弹窗，一次性记账。门本身都是派生的，
+       * 这里只记「弹过了」；老档的兼容处理见 migrateRun。 */
       techPopup: false,
+      civicPopup: false,
+      faithPopup: false,
+      workshopPopup: false,
+      wonderPopup: false,
       era: 1,
       eureka: {},
       eurekaMet: {},
@@ -276,6 +305,14 @@
        *   ⚠️ 刻意**不进离线补算**：离线批量花钱买级会把离线结算从「纯产出回放」变成
        *      「产出 + 消费决策」，与离线闸门（先算完才能操作）的口径冲突。 */
       autoUpg: {},
+      /* 工坊自动制作槽（2026-10-07 用户拍板）：**数组，逐槽**，元素为 null（空槽）或
+       *   `{ id: 'craft_stonebeam', pct: 0.25 }`（配方 id + 满仓后转制的比例）。
+       *   ⚠️ 用数组而不是 `{craftId: pct}` 映射：槽是**有位置**的资源（槽数由升级项与
+       *     轮回商店决定，"第几槽"本身就是玩家看得到的东西），映射表表达不了「槽位已满」。
+       *   ⚠️ 长度**不预填**到上限：槽数是派生的（slotCap 现算），预填会让「买了 perk 之后
+       *     数组长度对不上」这类问题变成存档迁移问题。
+       *   ⚠️ 与 autoUpg 同口径**不进离线补算**：离线只结算产出、不替玩家把资源转成制品。 */
+      autoSlots: [],
       /* 工坊青铜工具（2026-09-27）：`{ tool_sickle: true, ... }`，键是 config.TOOLS 的 id。
        * ⚠️ 工具是**买断一次**的（不是等级、不重复购买），所以存的是布尔表而不是计数。
        *    影响面是 economy.toolMul → farmMul / gatherMul 两条采集乘区。 */
@@ -292,13 +329,13 @@
       upgrades: {},
       famine: 0,
       broken: false,
-      // 破壳状态：miracleOn 是玩家开关，miracleRun 是本次连续供能秒数（用于结算与提示）
-      miracleOn: false,
-      miracleRun: 0,
-      starved: false,
+      /* 点击时间事件的临时全产 buff（信仰显圣）：墙钟毫秒戳，globalMul 读它判定是否仍在生效。
+       * 默认 0（已过期）。不进离线补算的真值、不污染存档迁移（migrateRun 以 freshRun 为底座，自动带出）。
+       * 独立 RNG 之外、事件系统唯一需要落进状态表的字段——因为它要改 economy.globalMul 这条产出主轴。 */
+      eventAllUntil: 0,
+      autoClickAcc: 0,            // 自动点击的帧钟累计预算（真实秒 × 次/秒），见 src/autoplay.js
       _grow: 0,
       _cutBase: 0,   // 累计：基础削壳削掉的点数
-      _cutMir: 0,    // 累计：破冰祭坛削掉的点数
       /* 存档墙钟：game.snapshot() 写入，离线补算据此算「玩家离开了多久」。
        * 必须放在基础表里，否则 migrateRun 会把它当成未知字段丢掉，离线补算永远为 0。
        * 读取当次会手删（game.boot），不进运行状态。 */
@@ -310,7 +347,7 @@
   function loadMeta() {
     var m = emptyMeta();
     try {
-      var rawStr = root.localStorage && root.localStorage.getItem(CFG.SAVE_KEY);
+      var rawStr = root.localStorage && root.localStorage.getItem(SB.CFG.SAVE_KEY);
       if (rawStr) {
         var parsed = JSON.parse(rawStr);
         m = Object.assign(m, parsed);
@@ -332,11 +369,11 @@
     return m;
   }
   function saveMeta(meta) {
-    try { root.localStorage && root.localStorage.setItem(CFG.SAVE_KEY, JSON.stringify(meta)); } catch (e) {}
+    try { root.localStorage && root.localStorage.setItem(SB.CFG.SAVE_KEY, JSON.stringify(meta)); } catch (e) {}
   }
   function loadRun() {
     try {
-      var raw = root.localStorage && root.localStorage.getItem(CFG.RUN_KEY);
+      var raw = root.localStorage && root.localStorage.getItem(SB.CFG.RUN_KEY);
       return raw ? migrateRun(JSON.parse(raw)) : null;
     } catch (e) { return null; }
   }
@@ -351,15 +388,26 @@
     var out = {}, k;
     for (k in base) out[k] = base[k];
     for (k in raw) if (k in base) out[k] = raw[k];
-    function fixTable(obj, ref) {
+    var repairedResources = [];
+    function fixTable(obj, ref, repairKeys) {
       var o = {}, key;
       for (key in ref) {
         var v = obj ? obj[key] : undefined;
+        if (repairKeys && obj && Object.prototype.hasOwnProperty.call(obj, key)
+            && !(typeof v === 'number' && isFinite(v))) repairKeys.push(key);
         o[key] = (typeof v === 'number' && isFinite(v)) ? v : ref[key];
       }
       return o;
     }
-    out.res = fixTable(raw.res, base.res);
+    out.res = fixTable(raw.res, base.res, repairedResources);
+    /* 这是一次性诊断信息，不参与游戏数据，也不落盘。
+     * JSON.stringify(NaN) 会把 NaN 写成 null；读档保护只能把它回落到默认值 0，
+     * 但玩家需要知道这是旧档损坏的结果，而不是资源产出逻辑主动清零。 */
+    Object.defineProperty(out, '_repairedResources', {
+      value: repairedResources,
+      enumerable: false,
+      configurable: true
+    });
     out.lvl = fixTable(raw.lvl, base.lvl);
     /* 热泉炉「开几座」迁移（2026-09-30）：旧档只有布尔 `furnaceOn`（见 freshRun 那条注）。
      *   false ⇒ 全部停（停用数 = 当前等级）；true / 缺键 ⇒ 全开（0）。
@@ -368,6 +416,26 @@
     if (raw.furnaceOn === false) out.furnaceStop = out.lvl.furnace || 0;
     if (!(typeof out.furnaceStop === 'number' && isFinite(out.furnaceStop))) out.furnaceStop = 0;
     out.furnaceStop = Math.max(0, Math.min(Math.floor(out.furnaceStop), out.lvl.furnace || 0));
+    /* 热液汽轮机「开几座」迁移（2026-10-07）：与 furnaceStop 同口径——无旧档布尔，仅夹到 [0, lv]
+     *   防存档里写入非法的超大停用数（运行座数会算成负数）。必须在 fixTable(raw.lvl) 之后。 */
+    if (!(typeof out.turbineStop === 'number' && isFinite(out.turbineStop))) out.turbineStop = 0;
+    out.turbineStop = Math.max(0, Math.min(Math.floor(out.turbineStop), out.lvl.hydroturbine || 0));
+    /* 热液工坊「开几座」迁移（2026-10-07）：与 turbineStop 同口径——无旧档布尔，仅夹到 [0, lv]。 */
+    if (!(typeof out.hydroshopStop === 'number' && isFinite(out.hydroshopStop))) out.hydroshopStop = 0;
+    out.hydroshopStop = Math.max(0, Math.min(Math.floor(out.hydroshopStop), out.lvl.hydroshop || 0));
+    /* ⚠️ 城堡「真升级」老档迁移（2026-10-06）。
+     *   背景：`castle` 建筑是 2026-09-30 起的误读实装（把「由议事厅升级而来」做成
+     *   need:'hall' 前置 + 一座**独立**建筑），已于本轮从 BUILDINGS 删除。删掉之后
+     *   `fixTable(raw.lvl, base.lvl)` 会**静默丢掉**存档里的 `lvl.castle`
+     *   ——玩家在那座误造建筑上花掉的石头/珊瑚买来的等级会凭空消失。
+     *   所以这里先把它并回 `lvl.hall`（城堡本就是议事厅的升级形态，等级理应归它）。
+     *   ⚠️ 幂等：读一次之后存档里 castle=0，重复读档不会二次相加。 */
+    var _legacyCastle = (raw.lvl && typeof raw.lvl.castle === 'number' && isFinite(raw.lvl.castle))
+      ? Math.max(0, Math.floor(raw.lvl.castle)) : 0;
+    if (_legacyCastle > 0) {
+      out.lvl.hall = (out.lvl.hall || 0) + _legacyCastle;
+      out.lvl.castle = 0;
+    }
     out.jobs = fixTable(raw.jobs, base.jobs);
     /* ⚠️ 职业总和必须 ≤ pop（folk 的恒等式）。2026-09-30 之前 `merchant` 漏在 folk.IDS 之外，
      *    商人不计入 sum ⇒ 可以被**无限雇**，被污染的档里 jobs 总和会远超 pop
@@ -421,6 +489,28 @@
      *      ⇒ 整条资源线容量 NaN ⇒ 玩家什么都攒不了。所以非对象一律退回空表。 */
     out.upgrades = (raw.upgrades && typeof raw.upgrades === 'object')
       ? Object.assign({}, raw.upgrades) : (out.upgrades || {});
+    /* 工坊自动制作槽（2026-10-07）：数组逐槽，元素是 null 或 `{id, pct}`。
+     *   老档没有这个键 ⇒ freshRun 的 `[]` 已由上面 `for (k in base)` 带过来，不必补默认值；
+     *   要防的是另一头：存档里塞了**非数组**或被手改成怪值 ⇒ workshop.autoTick 遍历它时
+     *   读 `.pct` 得 undefined ⇒ 不报错、只是那个槽永远不造（又一条静默断链）。
+     *   ⇒ 非数组一律退回空表；元素逐个校验：id 必须是 CRAFTS 里真有的配方、
+     *     pct 必须是 SB.CFG.AUTO.PCTS 里的档位，否则该槽作废（宁可空着也别造出怪东西）。 */
+    out.autoSlots = [];
+    var _rawSlots = Array.isArray(raw.autoSlots) ? raw.autoSlots : null;
+    if (_rawSlots) {
+      var _CL = SB.CRAFTS || [], _PL = (SB.CFG && SB.CFG.AUTO && SB.CFG.AUTO.PCTS) || [0.25, 0.5, 0.75, 1];
+      for (var _ai = 0; _ai < _rawSlots.length; _ai++) {
+        var _sl = _rawSlots[_ai];
+        if (!_sl || typeof _sl !== 'object') continue;
+        var _hit = false, _pi;
+        for (_pi = 0; _pi < _CL.length; _pi++) if (_CL[_pi].id === _sl.id) _hit = true;
+        if (!_hit) continue;
+        var _pOk = false;
+        for (_pi = 0; _pi < _PL.length; _pi++) if (_PL[_pi] === _sl.pct) _pOk = true;
+        if (!_pOk) continue;
+        out.autoSlots.push({ id: _sl.id, pct: _sl.pct });
+      }
+    }
     out.perk = Object.assign(emptyPerks(), (raw.perk && typeof raw.perk === 'object') ? raw.perk : {});
     /* 老档科技名 → 新树 id。2026-09-25 之前只有 8 项平铺科技（calendar/heat/bonework/
      * smelt/pick/ignition/dive/siegeT），不做映射的话玩家研究过的科技会凭空消失、
@@ -454,6 +544,17 @@
      * 那句话的语境是「第一次知道有今天和明天」，对玩了几小时的老档是废话。
      * ⚠️ 面板开不开仍然由 tech.panelOpen 派生（读结绳的 cond），这里不存那个状态。 */
     out.techPopup = true;
+    /* 其余页签的叙事弹窗也是新加的：老档若已经跨过对应门槛，就视为已经见过，
+     * 不把一段「首次发现」的文案倒灌给已经玩过的存档。新档 / 新代码产生的字段
+     * 已经在 base 里存在，只有字段缺失时才走这里的兼容判定。 */
+    if (!Object.prototype.hasOwnProperty.call(raw, 'civicPopup'))
+      out.civicPopup = !!(raw.lvl && raw.lvl.hall > 0);
+    if (!Object.prototype.hasOwnProperty.call(raw, 'faithPopup'))
+      out.faithPopup = !!(raw.civics && raw.civics.theology);
+    if (!Object.prototype.hasOwnProperty.call(raw, 'workshopPopup'))
+      out.workshopPopup = !!(raw.lvl && raw.lvl.workshop > 0);
+    if (!Object.prototype.hasOwnProperty.call(raw, 'wonderPopup'))
+      out.wonderPopup = !!(raw.techs && raw.techs.masonry);
 
     out.era = (typeof raw.era === 'number' && isFinite(raw.era))
       ? Math.max(1, Math.min(5, Math.floor(raw.era))) : 1;
@@ -490,10 +591,21 @@
     return out;
   }
   function saveRun(run) {
-    try { root.localStorage && root.localStorage.setItem(CFG.RUN_KEY, JSON.stringify(run)); } catch (e) {}
+    try {
+      if (!root.localStorage || !run || !run.res) return;
+      /* 存档是最后一道防线：JSON.stringify(NaN) 会静默写成 null，
+       * 下一次刷新时迁移层只能把它当成坏值回落为 0。不要让一帧坏状态覆盖
+       * 上一份可用存档；运行态的 addRes 守卫负责修复，之后下一次合法快照再落盘。 */
+      var key, value;
+      for (key in (SB.RESS || {})) {
+        value = run.res[key];
+        if (!(typeof value === 'number' && isFinite(value))) return;
+      }
+      root.localStorage.setItem(SB.CFG.RUN_KEY, JSON.stringify(run));
+    } catch (e) {}
   }
   function clearRun() {
-    try { root.localStorage && root.localStorage.removeItem(CFG.RUN_KEY); } catch (e) {}
+    try { root.localStorage && root.localStorage.removeItem(SB.CFG.RUN_KEY); } catch (e) {}
   }
 
   SB.state = {

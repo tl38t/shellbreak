@@ -26,15 +26,14 @@
 
   /* 建筑 → 起始解锁纪元（metaEra）。按各建筑解锁所依赖的科技/市政纪元反查（见方案文档）：
    *   纪元权重 W: 1/2/3/5/8（暗流/冷焰/硫泉/洋流/破壳纪）。
-   * 仅 defaultUnlockable / 仅 unlockRatio 的建筑归纪元 1。
-   * miracle（破冰祭坛）是已废弃死桩，仍按 era5 计入（等级恒 0，贡献为 0，无害）。 */
+   * 仅 defaultUnlockable / 仅 unlockRatio 的建筑归纪元 1。 */
   var W = { 1: 1, 2: 2, 3: 3, 4: 5, 5: 8 };
   var META_ERA = {
     kelp: 1, nest: 1, coralhouse: 1, siltpit: 1, hall: 1, weir: 1, warmnest: 1, kelpstore: 1, workshop: 1, library: 1,
     ballast: 2, lighthouse: 2, furnace: 2, institute: 2, square: 2, temple: 2,
-    hydroturbine: 3, hydroshop: 3, castle: 3, canal: 3,
+    hydroturbine: 3, hydroshop: 3, canal: 3,
     observatory: 4, coralfarm: 4, bank: 4, caravanserai: 4, museum: 4,
-    hotforge: 5, school: 5, theater: 5, tenement: 5, miracle: 5
+    hotforge: 5, school: 5, theater: 5, tenement: 5
   };
 
   /* 调和级数 H(n) = Σ_{k=1..n} 1/k，用于旧日艺术品/碑石的固定速率递减。 */
@@ -54,18 +53,18 @@
      * 浮点边界 +1e-9，value<=0 时档位为 0。 */
     var faithTier = oldFaith > 0 ? Math.floor(Math.log10(oldFaith) + 1e-9) : 0;
     var p = m.perks || {};
+    function finiteOr(v, d) { return (typeof v === 'number' && isFinite(v)) ? v : d; }
     return {
       relicCount: relicCount,
       relicCultureMul: 1 + 0.01 * relicCount,
       relicScienceMul: 1 + 0.01 * relicCount,
-      oldArtworkCultureRate: 0.15 * harmonic(m.oldArtworkEarnedTotal || 0),
-      oldTideSteleScienceRate: 0.15 * harmonic(m.oldTideStelesEarnedTotal || 0),
+      oldArtworkCultureRate: 0.15 * harmonic(finiteOr(m.oldArtworkEarnedTotal, 0)),
+      oldTideSteleScienceRate: 0.15 * harmonic(finiteOr(m.oldTideStelesEarnedTotal, 0)),
       oldFaithAllProductionBonus: 0.005 * faithTier,
       shopCivicBonus: 0.10 * (p.civicArchive || 0),   // 2026-10-05 拍板 +10%/级、无上限
       shopScienceBonus: 0.10 * (p.tideProof || 0),    // 同上
       coldStoreLevel: p.coldStore || 0,
-      coldWardLevel: p.coldWard || 0,
-      matStoreLevel: p.matStore || 0,
+      matStoreLevel: finiteOr(p.matStore, 0),
       shellSurveyLevel: p.shellSurvey || 0,
       wonderBlueprintLevel: p.wonderBlueprint || 0
     };
@@ -86,7 +85,7 @@
     return true;
   }
   function workshopScore(s) {
-    var Wt = (CFG.TIDE && CFG.TIDE.CRAFT_W) || 4;
+    var Wt = (SB.CFG.TIDE && SB.CFG.TIDE.CRAFT_W) || 4;
     var count = 0, k;
     if (SB.CRAFTS) for (var i = 0; i < SB.CRAFTS.length; i++)
       if (craftUnlocked(s, SB.CRAFTS[i])) count++;
@@ -117,7 +116,7 @@
     var ice = s.iceShell || 1;
     var q = ice > 0 ? Math.max(0, Math.min(1, 1 - (s.shell || 0) / ice)) : 0;
     var shellFactor = 0.5 + 0.5 * q;
-    var K = (CFG.TIDE && CFG.TIDE.LINEAR_K) || 0.04;
+    var K = (SB.CFG.TIDE && SB.CFG.TIDE.LINEAR_K) || 0.04;
     var earned = 1 + Math.floor(dev * K * shellFactor);
     return {
       P: P, popScore: popScore, buildingScore: bScore,
@@ -132,12 +131,15 @@
   /* 执行结算并写入跨周目账本。emit 用于日志。
    * 未达资格门：tidePoints 归 0、不发任何遗产、不解锁商店（与「普通重开」同口径）。 */
   function doBreak(s, emit) {
+    if (s.broken) return null;
     var meta = SB.game.meta();
     var r = breakReport(s);
+    /* 破壳结算只允许进入一次；否则主循环在 shell<=0 时会每 100ms 重播结算/动画。 */
+    s.broken = true;
     if (!qualified(s)) {
       r.tidePoints = 0;
       r.locked = true;
-      SB.game.showBreakPanel(r);
+      (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
       if (emit) emit('本局未达《神学》资格门，不发放轮回点。');
       return r;
     }
@@ -164,7 +166,7 @@
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
     SB.state.saveMeta(meta);
-    SB.game.showBreakPanel(r);
+    (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
     if (emit) emit('轮回结算完成。获得轮回点 ' + r.tidePoints.toFixed(2) + '。');
     return r;
   }

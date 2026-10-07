@@ -17,7 +17,7 @@
   'use strict';
   var SB = root.SB || (root.SB = {});
   var CFG = SB.CFG;
-  /* ⚠️【断链事故 · 2026-09-27】下面 craftRatio 里曾写 `BLD.workshopCraft`，两处都踩空：
+  /* ⚠️【断链事故 · 2026-09-27】下面 craftRatio 里曾写 `SB.BLD.workshopCraft`，两处都踩空：
    *    ① `BLD` 在本文件**从未声明** ⇒ 严格模式下 craftRatio() 一调用就抛 ReferenceError；
    *    ② `BLD`（config.js:347）是**缩放系数表**（`food: 0.09` 那一类），没有 workshopCraft 键。
    *    ⇒ 工坊每级系数只能从**建筑条目**上取：BUILDINGS 里 `id:'workshop'` 那条挂 `craftRatio`。
@@ -48,7 +48,7 @@
   /* 工坊每级提供多少工艺制作效率 —— 从**建筑条目**上读 craftRatio（见文件头断链教训）。 */
   function craftPerLevel() {
     var i;
-    for (i = 0; i < BUILDINGS.length; i++) {
+    for (i = 0; i < SB.BUILDINGS.length; i++) {
       if (BUILDINGS[i] && BUILDINGS[i].id === 'workshop') return BUILDINGS[i].craftRatio || 0;
     }
     return 0;
@@ -64,7 +64,7 @@
     /* ③ 科技给的工艺制作效率（2026-09-28「构架术」+5%）。
      * ⚠️ 这条曾经**整段不存在** —— mul() 老老实实把 0.05 算进了 T.craftRatio，
      *    面板也照着显示「工艺制作效率 +5%」，但工坊效率纹丝不动，研究完什么都没发生。
-     *    与文件头那次 `BLD.workshopCraft` 是同一类病：数据在科技表里、读的人在别处，
+     *    与文件头那次 `SB.BLD.workshopCraft` 是同一类病：数据在科技表里、读的人在别处，
      *    两边都没错，中间那段线没人接。⇒ 每加一个 effect 键，都要问一次「谁在读它」。
      * ⚠️ 与上面两源一样是**加法档**（与 ADD 名单同口径），三个来源各 +5% 是 15%，
      *    不是 1.05³。⚠️ 别把它读成 `T.craft`（加工产出那条精铁线，烟囱炉 +15%/
@@ -85,10 +85,10 @@
      *    装在卡槽里才生效（cardCraftRatio 读 s.cards，没装 = 0）。
      *    ⚠️ `SB.civic` 可能晚加载，用存在判保护（craftRatio 结算时才调用，模块顶层不碰它）。 */
     if (SB.civic) m += SB.civic.cardCraftRatio(s) || 0;
-    /* ⑦ 热锻工厂（ERA5 · 2026-10-02）：每级 +7% 工艺制作效率（BLD.hotforgeCraft）。
+    /* ⑦ 热锻工厂（ERA5 · 2026-10-02）：每级 +7% 工艺制作效率（SB.BLD.hotforgeCraft）。
      *   与上面六源同一条加法乘区（工坊级 + 奇观 + 科技 + 政体 + 升级 + 政策卡），
      *   同档相加，不是乘区相乘。 */
-    if (s.lvl && s.lvl.hotforge > 0) m += (s.lvl.hotforge || 0) * (BLD.hotforgeCraft || 0);
+    if (s.lvl && s.lvl.hotforge > 0) m += (s.lvl.hotforge || 0) * (SB.BLD.hotforgeCraft || 0);
     /* ⑧ 工坊定额（2026-10-05 · perk.craftQuota）：工坊制作产出 +10%/级，不设上限（2026-10-05 晚拍板）。
      *   与上面七源同一条**加法乘区**（用户 2026-09-27 拍「加法」的口径），
      *   所以工坊满级 + 科技 + 政体 + 卡 + 热锻 + 配额是**相加**，不是相乘。
@@ -173,6 +173,121 @@
     SB.economy.addRes(s, c.res, gain);
     if (emit) emit('造出 ' + SB.economy.fmtAmt(gain) + ' ' + c.name + '（用了 ' + amt + ' 份材料）。');
     return gain;
+  }
+
+  /* ══ 自动制作槽（2026-10-07 用户拍板）══════════════════════════════════
+   * 两个来源：**工坊升级项「自动工坊」自带 1 个**（装了就有，见 SB.UPGRADES.upg_autoshop），
+   * 轮回商店 `autoCraft1/2/3` 每级 +1（写进 s.perk.autoCraft）。上限 SB.CFG.AUTO.SLOT_MAX。
+   *
+   * 【槽 = 配方 + 一档百分比，语义是「满了才造」】
+   *   触发：该配方**任一原料达到仓储上限**（capOf）—— 满了再产也是溢出浪费，转制才留住它。
+   *   造多少：当时可造份数 × 该档百分比（25 / 50 / 75 / 100%）。
+   * ⚠️ 为什么不是「够一份就造」：那是把玩家的建材直接吃掉（石头刚够 100 就被转成石梁，
+   *    想建的房子永远差那点料）。「满了才造」只在**本来就要浪费**的那一刻动手，
+   *    玩家不需要再设一道预留线——这就是用户选阈值而不是固定份数的原因。
+   * ⚠️ 无上限原料（capOf = Infinity：钢、各工艺制品）**不参与「满」判定**：
+   *    它永远不会溢出，拿它当触发条件 ⇒ 那种配方的槽永远不动。
+   *    全部原料都无上限时退化成「够一份就造」（见 autoReady 的返回值注）。
+   * ⚠️ 调用点只在**在线**泵（game.js 的 TECH_PUMP 周期，与 habitat.autoTick 并列）：
+   *    离线补算只结算产出、不替玩家花资源（离线闸门同一精神）。
+   * ⚠️ 一档百分比 = 造**当时可造量**的这一比例，不是「造到 25% 仓位」——
+   *    后者在原料满仓时等于造 0 份（已经在 100% 了），槽会永远不动。 */
+
+  /* 槽位上限与档位表从 SB.CFG.AUTO 读（写在数据侧，实现里不硬编码，见 config 那条注）。 */
+  function slotMax() { return (SB.CFG.AUTO && SB.CFG.AUTO.SLOT_MAX) || 4; }
+  function pcts() { return (SB.CFG.AUTO && SB.CFG.AUTO.PCTS) || [0.25, 0.5, 0.75, 1]; }
+
+  /* 当前可用槽数 = 自动工坊升级自带 + 轮回商店买的，夹在 [0, 上限]。
+   * ⚠️ 判据读 `s.upgrades.upg_autoshop`（装了才给槽）—— 它就是那个「自带槽」的来源，
+   *    不另设一个开关：升级项本身已经是买断的，装没装是唯一事实。 */
+  function slotCap(s) {
+    if (!s) return 0;
+    var n = 0;
+    if (s.upgrades && s.upgrades.upg_autoshop) n += (SB.CFG.AUTO && SB.CFG.AUTO.SLOT_BASE) || 1;
+    n += (s.perk && s.perk.autoCraft) || 0;
+    return Math.max(0, Math.min(n, slotMax()));
+  }
+
+  /* 某配方当前占着哪个槽（返回下标，-1 = 没占）。
+   * ⚠️ 一个配方**只占一个槽**：同一配方挂两槽等于把阈值判定跑两遍，
+   *    第二遍读到的已经是第一遍造完后的库存（会出现「只造了一半」的假象）。 */
+  function slotIndexOf(s, id) {
+    var L = (s && s.autoSlots) || [];
+    for (var i = 0; i < L.length; i++) if (L[i] && L[i].id === id) return i;
+    return -1;
+  }
+  function slotPct(s, id) {
+    var i = slotIndexOf(s, id);
+    return i < 0 ? 0 : (s.autoSlots[i].pct || 0);
+  }
+
+  /* 分配 / 改档。返回真 = 真的坐进了槽；返回假 = 槽位不够（UI 该显示「槽位已满」）。
+   * ⚠️ 幂等：同一配方再点一次只改档位，不会占第二个槽（见 slotIndexOf 那条注）。
+   * ⚠️ pct 只认 SB.CFG.AUTO.PCTS 里的档位，其它值一律拒绝 ——
+   *    存档里被人手改出一个 0.9 的档位时，宁可不动也别按着怪值造。 */
+  function setSlot(s, id, pct) {
+    if (!s || !craftById(id)) return false;
+    var ok = false, P = pcts(), i;
+    for (i = 0; i < P.length; i++) if (P[i] === pct) ok = true;
+    if (!ok) return false;
+    var idx = slotIndexOf(s, id);
+    if (idx >= 0) { s.autoSlots[idx].pct = pct; return true; }
+    s.autoSlots = s.autoSlots || [];
+    if (s.autoSlots.length >= slotCap(s)) return false;
+    s.autoSlots.push({ id: id, pct: pct });
+    return true;
+  }
+  /* 释放槽。**真的从数组里删掉**而不是置 null：槽位是玩家看得到的资源，
+   * 留一个 null 洞会让「第 2 槽」在 UI 上变成三个槽里的空位。 */
+  function clearSlot(s, id) {
+    var idx = slotIndexOf(s, id);
+    if (idx < 0) return false;
+    s.autoSlots.splice(idx, 1);
+    return true;
+  }
+
+  /* 「满了吗」——自动制造的触发判据。
+   *   返回 true  ⇒ 该动手了；
+   *   返回 false ⇒ 还没满，别动（玩家的料还在涨，现在转制是抢他的建材）。
+   * ⚠️ 全部原料都无上限时返回 true（退化成「够一份就造」）：那种配方没有「溢出」这回事，
+   *    只有「够不够」，否则槽会永远不动（见上面那段设计注）。 */
+  function autoReady(s, c) {
+    var anyFinite = false, k;
+    for (k in c.in) {
+      var cap = SB.economy ? SB.economy.capOf(s, k) : Infinity;
+      if (!isFinite(cap)) continue;          // 无上限原料不参与「满」判定
+      anyFinite = true;
+      if (((s.res && s.res[k]) || 0) >= cap) return true;
+    }
+    return !anyFinite;
+  }
+
+  /* 在线泵每 TECH_PUMP 秒跑一次：逐槽判定、满了就按档位造。
+   * ⚠️ 走的是**同一个 craft()**（含 craftBlocked 门、成本端夹取、craftMul、addRes 台账），
+   *    不是另写一条结算 —— 自动与手动不可能出现两套规则（与 habitat.autoTick 走 build() 同口径）。
+   * ⚠️ emit 传 null：2 秒一条「造出 N 石梁」会把日志冲掉，玩家看面板上石梁在涨就够了。
+   * ⚠️ 槽数可能被中途改小（比如读档后 perk 没生效）⇒ 每次都按 slotCap 截断遍历范围。 */
+  function autoTick(s, emit) {
+    if (!s || !s.autoSlots || !s.autoSlots.length) return 0;
+    if (!(s.lvl && s.lvl.workshop > 0)) return 0;      // 工坊没建，槽整个不成立
+    var n = Math.min(s.autoSlots.length, slotCap(s)), made = 0, i;
+    for (i = 0; i < n; i++) {
+      var sl = s.autoSlots[i];
+      if (!sl || !sl.id) continue;
+      var c = craftById(sl.id);
+      if (!c) continue;
+      if (!autoReady(s, c)) continue;
+      var all = maxCraftable(s, c);
+      if (!(all > 0)) continue;
+      /* ⚠️ `Math.max(1, …)`：满仓时可造量通常远大于 1，但边缘情况（刚够 1 份就满仓）
+       *    25% 档会算出 floor(0.25)=0 ⇒ 这个槽**永远不动**，而 UI 上它明明是开着的。
+       *    至少造 1 份只在这种边缘生效，不会把 25% 变成「每次都造满」。 */
+      var amt = Math.max(1, Math.floor(all * (sl.pct || 0)));
+      var got = craft(s, sl.id, amt, null);
+      if (got > 0) made += got;
+    }
+    if (made > 0 && SB.game) SB.game.markDirty();
+    return made;
   }
 
   /* 为什么造不了 —— 与 blocked 同口径，要说得出该做什么。 */
@@ -371,6 +486,9 @@
     craftRatio: craftRatio, craftMul: craftMul,
     maxCraftable: maxCraftable, stepAmt: stepAmt, craftBlocked: craftBlocked,
     craft: craft, steps: CRAFT_STEPS,
+    /* 自动制作槽（2026-10-07）：槽数 / 占槽 / 改档 / 释放 / 满仓判定 / 泵 */
+    slotMax: slotMax, pcts: pcts, slotCap: slotCap, slotPct: slotPct,
+    setSlot: setSlot, clearSlot: clearSlot, autoReady: autoReady, autoTick: autoTick,
     /* 工艺升级项（第三种形态：一次性装填，存 s.upgrades） */
     upgrades: upgradeRows, upgradeById: upgradeById,
     upgradeBlocked: upgradeBlocked, upgradeCanBuy: upgradeCanBuy,

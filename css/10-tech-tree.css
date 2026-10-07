@@ -1,0 +1,164 @@
+/* 天壳 / SHELLBREAK — CSS split module
+ * Extracted from css/main.css; preserve load order. Range: lines 155-303.
+ */
+
+/* ── 科技长卷（五纪元 / 尤里卡 / 研究进度）── */
+/* 纪元导航（2026-09-26）：一排按钮取代原先五张竖排纪元卡片 ——
+ * 卡片吃掉了一整屏，手机上要滑很久才够到树。按钮只留「名字 + 进度」，
+ * 文本（箴言/描述）挪进长卷标题区那张**唯一**的详情卡（.eracard 只剩一张）。
+ * ⚠️ 按钮上是 `title`，里头的信息（名字/箴言/进度）在详情卡里全都看得见，
+ *    所以不需要补那个「桌面 hover 才有的信息 → 手机给 ⓘ」的等价物。 */
+.eranav{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.erabtn{display:inline-flex;align-items:center;gap:5px;font:inherit;cursor:pointer;
+  padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);
+  color:var(--dim);transition:border-color .12s,background .12s}
+.erabtn .g{font-size:15px;font-weight:800;line-height:1}
+.erabtn .n{font-size:12px;font-weight:700}
+.erabtn .c{font-size:9px;padding:1px 5px;border-radius:3px;background:#153048;color:var(--dim)}
+.erabtn.cur .c{background:#123a52;color:var(--cyan)}
+.erabtn.on{border-color:#3d6c92;background:#12283c;color:var(--txt)}
+.erabtn:active{background:#16283c}
+.eracard{border:1px solid var(--line);border-left-width:3px;border-radius:8px;padding:11px 13px;margin-bottom:13px;background:var(--panel2)}
+.eracard.active{background:#101f30}
+.eracard .erahd{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.eracard .glyph{font-size:21px;font-weight:800;line-height:1}
+.eracard .enm{font-size:16px;font-weight:700}
+.eracard .emotto{font-size:11px;color:var(--dim)}
+.eracard .estate{margin-left:auto;font-size:10px;padding:1px 7px;border-radius:4px}
+.eracard .edesc{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.6}
+/* 关键节点的整条状态：走 ✅ / 未达 ❌，肉眼看一眼就知道还差哪个 */
+.keysline{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.keysline span{font-size:10px;padding:1px 7px;border-radius:4px;background:#153048;color:var(--dim)}
+.keysline span.done{background:#1a4632;color:var(--green)}
+.minibar{height:3px;background:#06121f;border-radius:2px;overflow:hidden;margin:4px 0}
+.minibar i{display:block;height:100%;background:var(--cyan)}
+.minibar i.full{background:var(--green)}
+/* ── 科技树横卷（文明 6 式）────────────────────────────────────────
+ * ⚠️ 节点的宽/高/左上坐标由渲染写成内联 style（数字取自 tech.GEO 与 layout），
+ *    **CSS 里不写死尺寸** —— 尺寸是几何的一部分，两边各存一份迟早对不上。
+ *    ⚠️ 手机端靠 .techscroll 横向滚动看后面的纪元，所以这里是 overflow-x:auto
+ *       而不是给 canvas 定宽；宽度由内联的 width 决定。 */
+/* cursor:grab 是给桌面鼠标看的提示（按住可拖）；:active 给按下瞬间的 grabbing，
+ * 省掉一套 JS 去加临时 class。⚠️ 别写成 cursor:all-scroll / move —— 它暗示「整页可拖」，
+ * 而这只有长卷这一条能拖。user-select 压住拖动过程中顺手选中的文字。 */
+.techscroll{overflow-x:auto;overflow-y:hidden;margin-top:9px;padding:0 0 8px;border-top:1px dashed #1c3350;
+  cursor:grab;-webkit-user-select:none;user-select:none}
+.techscroll:active{cursor:grabbing}
+.techscroll::-webkit-scrollbar{height:7px}
+.techscroll::-webkit-scrollbar-thumb{background:#1f3a52;border-radius:4px}
+.techcanvas{position:relative}
+.techlines{position:absolute;left:0;top:0;pointer-events:none}
+.tel{fill:none;stroke:#22405a;stroke-width:2}
+.tel.open{stroke:#3d6c92}
+.tel.done{stroke:#3f9d86}
+.tnband{position:absolute;top:10px;height:17px;line-height:17px;font-size:11px;font-weight:700;
+  display:flex;align-items:center;gap:5px;border-bottom:1px solid #1c3350}
+.tnband .tng{font-size:14px}
+.tnband .tnc{margin-left:auto;font-size:9px;font-weight:400;color:var(--dim)}
+.technode{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;
+  border:1px solid #24506e;border-radius:6px;background:#0d1c2b;padding:4px 6px 5px}
+/* ⚠️ 子项一律不许被压缩（flex-shrink:0）。卡片高是数据里的定值（tech.js GEO.H），
+ *   内容一超高，默认的 shrink:1 不会「溢出可见」，而是把效果行/条件行**压扁**
+ *   —— 字被拦腰截断（用户 2026-09-26 报的「显示不全」就是这个）。
+ *   关掉压缩之后，真超高会变成「底部按钮被裁掉」这种一眼能看出的症状，而不是字被压扁。 */
+.technode>*{flex:none}
+.technode.open{border-color:#3f7fa8;background:#11283c}
+.technode.done{border-color:#2f6b56;background:#0f2019}
+.technode.lock{opacity:.62}
+.technode.fut{opacity:.45}
+@media (hover:hover){.technode:hover{border-color:var(--cyan)}}
+.technode.done:hover{border-color:var(--green)}
+.technode .tnhd{display:flex;align-items:baseline;gap:4px;min-width:0}
+.technode .tnm{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.technode .tntag{flex:none;font-size:8px;padding:0 3px;border-radius:3px;margin-left:auto;
+  background:#3a2a12;color:var(--amber)}
+.technode .tntag.ok{background:#1a4632;color:var(--green)}
+/* 效果说明：最多两行，第三行起**省略号**收尾。
+ *   原来只有 max-height:26px，超出就是硬切（半截字）；line-clamp 让它退化成「…」，
+ *   一眼能看出是「还有话没说完」而不是渲染坏了。 */
+.technode .tne{font-size:9.5px;color:#6f7f96;line-height:1.35;margin-top:2px;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  max-height:26px;overflow:hidden}
+.technode .tnc2{font-size:9px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.technode .tnc2 b{color:var(--cyan);font-weight:600}
+.technode .minibar{margin-top:3px;height:3px}
+.technode .btn{margin-top:auto;width:100%;font-size:10px;padding:2px 0}
+.technode.done .btn{color:var(--dim)}
+/* 树图节点是可点开的入口卡片；效果与研究按钮集中放进详情卡，树面本身因此更像地图。 */
+.technode.tree-node{appearance:none;-webkit-appearance:none;text-align:left;color:var(--txt);font:inherit;cursor:pointer;
+  justify-content:space-between;transition:background .15s,border-color .15s,transform .15s,box-shadow .15s}
+.technode.tree-node .tnhd{align-items:center;gap:7px}
+.technode.tree-node .tnm{font-size:14px;white-space:normal;line-height:1.35}
+.technode.tree-node .tntag{margin-left:auto}
+.tree-node-foot{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:10px;line-height:1.3}
+.tree-state-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#8395a3;box-shadow:0 0 0 3px rgba(131,149,163,.12)}
+.technode.tree-node.done .tree-state-dot{background:var(--green);box-shadow:0 0 0 3px rgba(91,210,151,.13)}
+.technode.tree-node.open .tree-state-dot{background:var(--cyan);box-shadow:0 0 0 3px rgba(105,226,223,.13)}
+.tree-eureka{display:-webkit-box;overflow:hidden;color:#9fb5c4;font-size:10px;line-height:1.35;
+  -webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.tree-eureka-meter{display:flex;align-items:center;gap:7px;height:12px}
+.tree-eureka-track{height:3px;flex:1;overflow:hidden;border-radius:4px;background:rgba(134,160,177,.2)}
+.tree-eureka-track i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#55c9b4,#87e1ae)}
+.tree-eureka-meter b{width:25px;flex:none;color:#9ed9bd;font-size:9px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.tree-open-hint{margin-left:auto;color:#8da9bc;opacity:.82}
+@media (hover:hover){.technode.tree-node:hover{transform:translateY(-2px);box-shadow:0 7px 20px rgba(0,0,0,.24)}
+  .technode.tree-node.lock:hover{border-color:#6e8291}}
+.technode.tree-node:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;z-index:3}
+/* 科技 / 市政 Civ6 式详情卡：桌面从右侧展开，手游贴底成为可滚动底部卡片。 */
+.modal.tree-modal{justify-content:flex-end;padding:16px;background:rgba(2,8,14,.63);backdrop-filter:blur(4px)}
+.modal.tree-modal .box{box-sizing:border-box;width:min(440px,100%);max-width:440px;max-height:calc(100vh - 32px);max-height:min(780px,calc(100dvh - 32px));
+  overflow-y:auto;padding:20px 20px 18px;border:1px solid rgba(105,226,223,.28);border-radius:16px;
+  background:linear-gradient(155deg,#152d43,#0b1c2c 72%);box-shadow:0 20px 70px rgba(0,0,0,.48);animation:treeDetailIn .2s ease-out}
+@keyframes treeDetailIn{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
+.tree-detail-head{display:flex;align-items:center;gap:12px;margin:0 0 17px}
+.tree-detail-mark{width:44px;height:44px;display:grid;place-items:center;flex:none;border:1px solid rgba(105,226,223,.35);border-radius:12px;
+  color:var(--cyan);background:rgba(105,226,223,.09);font-size:22px}
+.tree-detail-title{min-width:0;flex:1}.tree-detail-title h3{margin:0 0 5px;color:var(--txt);font-size:19px;line-height:1.3}
+.tree-key{font-size:10px;vertical-align:middle;color:var(--gold);white-space:nowrap}
+.tree-detail-state{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:rgba(105,226,223,.12);color:var(--cyan);font-size:10px}
+.tree-detail-state.done{background:rgba(91,210,151,.13);color:var(--green)}.tree-detail-state.locked{background:rgba(160,174,184,.12);color:#aab8c2}
+.tree-detail-close{width:34px;height:34px;flex:none;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.035);color:var(--dim);font-size:21px;cursor:pointer}
+.tree-cost{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;padding:12px 13px;border:1px solid rgba(105,226,223,.17);border-radius:11px;background:rgba(105,226,223,.055);font-size:12px;color:var(--dim)}
+.tree-cost b{color:var(--txt);font-size:14px;text-align:right}
+.tree-detail-blocked{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px;padding:9px 13px;border:1px solid rgba(245,205,107,.28);border-radius:10px;background:rgba(245,205,107,.08);color:var(--dim);font-size:11px;line-height:1.45}
+.tree-detail-blocked b{color:var(--gold);font-size:11px;white-space:nowrap}
+.tree-detail-blocked span{text-align:right;overflow-wrap:anywhere}
+.tree-detail-blocked.science{border-color:rgba(255,184,102,.38);background:rgba(255,184,102,.1)}
+.tree-detail-blocked.science b{color:var(--amber)}
+.tree-detail-blocked.unrevealed{border-color:rgba(160,174,184,.28);background:rgba(160,174,184,.08)}
+.tree-detail-blocked.unrevealed b{color:#b8c5cd}
+.tree-detail-blocked.eureka{border-color:rgba(105,226,223,.28);background:rgba(105,226,223,.08)}
+.tree-detail-blocked.eureka b{color:var(--cyan)}
+.tree-detail-blocked.prereq b,.tree-detail-blocked.era b{color:var(--gold)}
+.tree-detail-section{margin-top:9px;padding:12px 13px;border:1px solid rgba(111,145,168,.18);border-radius:11px;background:rgba(7,19,31,.32)}
+.tree-detail-section h4{margin:0 0 6px;color:#9eb4c4;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.tree-detail-section p{margin:0;color:#d5e2eb;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.tree-detail-section small{display:block;margin-top:5px;color:var(--dim);font-size:10px}
+.tree-progress{height:4px;margin-top:9px;overflow:hidden;border-radius:9px;background:#081522}.tree-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#44bdac,#83e0b1)}
+.tree-reqs{display:flex;flex-wrap:wrap;gap:6px}.tree-req{padding:4px 8px;border:1px solid rgba(129,154,172,.19);border-radius:7px;background:rgba(255,255,255,.025);color:#aabac6;font-size:11px}
+.tree-req.met{border-color:rgba(91,210,151,.2);color:#8ad8ad;background:rgba(91,210,151,.06)}
+.tree-detail-actions{display:flex;gap:8px;margin-top:14px}.tree-detail-actions .btn{flex:1;min-height:40px}
+.tree-detail-actions .tree-back{background:rgba(255,255,255,.045);border-color:var(--line);color:#c1cfda}
+.wonder-art{position:relative;aspect-ratio:16 / 9;min-height:0;margin:-4px 0 13px;overflow:hidden;border:1px solid rgba(105,226,223,.25);border-radius:14px;background:linear-gradient(145deg,#163b52,#0a1d2e);box-shadow:inset 0 1px rgba(255,255,255,.08)}
+.wonder-art img{display:block;width:100%;height:100%;object-fit:contain}
+.wonder-art.has-image::after{content:"";position:absolute;inset:45% 0 0;background:linear-gradient(180deg,transparent,rgba(4,14,24,.42));pointer-events:none}
+.wonder-art.placeholder{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;color:var(--cyan);background:radial-gradient(circle at 50% 36%,rgba(105,226,223,.2),transparent 32%),linear-gradient(145deg,#163b52,#0a1d2e)}
+.wonder-art.placeholder span{font-size:42px;line-height:1;text-shadow:0 0 22px rgba(105,226,223,.45)}
+.wonder-art.placeholder small{color:var(--dim);font-size:10px;letter-spacing:1px}
+.wonder-copy{border-color:rgba(245,205,107,.24);background:linear-gradient(145deg,rgba(245,205,107,.08),rgba(7,19,31,.24))}
+.wonder-copy h4{color:var(--gold)}
+.wonder-copy p{line-height:1.8}
+.inline-info-link{display:inline;padding:0;border:0;border-radius:0;background:none;color:#83ded8;font:inherit;font-weight:750;
+  line-height:inherit;text-decoration:underline;text-decoration-color:rgba(131,222,216,.72);text-decoration-thickness:1px;
+  text-underline-offset:3px;cursor:pointer}
+.inline-info-link:hover{color:#b2fff0;text-decoration-thickness:2px}
+.inline-info-link:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:2px}
+@media(max-width:600px){
+  .modal.tree-modal{align-items:flex-end;justify-content:center;padding:0}
+  .modal.tree-modal .box{width:100%;max-width:none;max-height:82vh;max-height:82dvh;margin:0;padding:17px 15px calc(16px + env(safe-area-inset-bottom));
+    border-radius:18px 18px 0 0;animation:treeDetailUp .2s ease-out}
+  @keyframes treeDetailUp{from{opacity:.7;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+  .tree-detail-section{padding:10px 11px}.tree-detail-title h3{font-size:17px}
+  .tree-detail-blocked{display:block;padding:8px 11px}.tree-detail-blocked span{display:block;margin-top:2px;text-align:left}
+  .tree-open-hint{font-size:9px}
+}

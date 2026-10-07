@@ -34,13 +34,20 @@
     COLD_SEASON_MUL: 0.6,  // 冰封期资源产出倍率（base）。⚠️ 轮回商店「寒潮储备」在其上 +0.02/级。
                            //   方案文档 L248 写「基础 0.25 → 0.33」，与现有 0.6 不一致；此处保留
                            //   现有 0.6 以免静默改动全盘平衡，待用户拍板是否改回 0.25。
-    FLOOR_AT: 0.25,       // 基础自动削壳停手线：卡在 25% 必须建祭坛才凿得穿。
+    FLOOR_AT: 0.25,       // 基础自动削壳停手线：卡在 25% 由天穹钻机（wonder）凿穿最后一段。
                           // 判定必须用 <=，否则会卡在 25% 的死锁
 
+  // ---- 广告加速（TapTap 激励视频）----
+  // 看一次广告 = 当前所选档位再 ×MUL，持续 BOOST_MIN 分钟（墙钟真实时间，关游戏也在走）。
+  // SPACE_ID 由 MCP get_ad_integration_guide 注入（每个应用不同）；空串时走 dev 兜底（直接发放，方便本地调试）。
+  AD: {
+    SPACE_ID: '',            // 天壳应用的竖屏广告位 ID，待 MCP 取回后填入
+    BOOST_MIN: 30,           // 每次看完加多少分钟
+    BOOST_CAP_MIN: 360,      // 累计上限（6 小时），防一次刷满无限囤
+    MUL: 2                   // 加速倍率（在玩家所选档位上再乘）
+  },
+
   // ---- 纪元 ----
-  // 奇迹装置（破冰祭坛）的解锁纪元。用户明确要求「到工业时代才能建造破除天壳的奇迹装置」，
-  // 所以它是硬纪元闸门，不是单靠某项科技——否则玩家可以靠跳级研究提前拿到它。
-    MIRACLE_ERA: 5,        // 对应 techs.js 里 ERAS 的 破壳纪
 
   /* ---- 市政（2026-09-27 兑现「议事厅开启市政树」那条欠账）----
    * 【两个来源的比例】用户口径「书手为主、议事厅给少量」——所以书手是 UNIT.culture 那条
@@ -59,33 +66,20 @@
 
     // ---- 破壳系数（玩家的破壳主指标）----
     // 系数 = Σ 各项贡献，破壳速率 = BREAK_BASE × 系数（点/秒）。
-    // 每项都有自己的墙：人口受住房卡、级数受成本卡、研究要科技、
-    // 祭坛等级受 iron 卡。系数因此不会无限涨，也不会一开局就满顶。
+    // 每项都有自己的墙：人口受住房卡、级数受成本卡、研究要科技。
+    // 系数因此不会无限涨，也不会一开局就满顶。
     COEF: {
       POP: 0.26, POP_POW: 0.62,   // 鱼群规模
       LVL: 0.14, LVL_POW: 0.72,   // 建筑总级数
       TECH: 0.80,                 // 每个已研究科技
-      MIR: 1.30,                  // 每个祭坛等级——刻意不划算：
-                                  // 它是最后手段，一旦比研究还便宜，玩家就不用做取舍了
       PERK: 0.10,                 // 每层轮回增益
       COLD: 1.35                  // 冰封期系数加成：壳越薄，文明越拼命
     },
     BREAK_BASE: 0.40,             // 点/秒 = BREAK_BASE × 系数
 
-    // ---- 奇迹工程（破冰祭坛）----
-    // 基础自动削壳只能到 FLOOR_AT；凿穿最后那 25% 只能靠祭坛，
-    // 而祭坛要吃燃料——这就是 S1 的取舍点。
-    MIRACLE_RATE: 1.10,           // 每级每秒额外削壳点数（不受系数缩放）
-    // 燃料要真的不够用，这扇门才存在。实测 0.022 时地热产出恒定高于消耗 3/s，
-    // 祭坛从不停摆，「供燃料 vs 保采集」的取舍等于不存在；降到 0.010 后燃料
-    // 全程见底、祭坛周期性停摆——末段才真正变成一场资源战而不是干等。
-    MIRACLE_BURN: 0.55,
-    MIRACLE_ESCALATE: 0.35,  // 每升一级，燃料消耗再 +35%：堆祭坛不是免费的           // 每级每秒燃料消耗
-    MIRACLE_START: 0.60,          // 每级烧掉前需要的启动燃料储备 × 等级
-
     // ---- 天穹钻机（ERA5 破壳终章，2026-10-02 实装）----
-    // 基础自动削壳卡在 FLOOR_AT（25%）；祭坛因热泉井删除而恒 0，
-    // 凿穿最后 25% 的终章交给天穹钻机：建成后自动运转，吃共振钻头 + 热液能，破壳 100/s。
+    // 基础自动削壳卡在 FLOOR_AT（25%）；凿穿最后 25% 的终章交给天穹钻机：
+    // 2026-10-07 改手动启动（自然环境卡「启动钻机」按钮），吃共振钻头 + 热液能，破壳 100/s。
     SKYDRILL_RATE: 100,         // 每秒削壳点数（不受系数缩放，终章一刀）
     SKYDRILL_DRILL: 0.1,        // 每秒消耗的共振钻头（= 每 tick 0.1×dt；机器总设计待拍板前的占位速率）
     SKYDRILL_HYDRO: 20,         // 每秒消耗的热液能
@@ -116,12 +110,14 @@
      * ⚠️ 藻食只认海藻仓、材料只认压舱仓，**两条线不共用一个 store**。
      *   若藻食也吃材料仓，那「多盖任何一座建筑」就等于盖仓，「储」会被稀释成不存在。
      *   这也是 CAP_BASE.kelp 能从 1200 压到 200 的前提。
-     * ⚠️ warmstone 的 base 600 是**功能底线**不是仓储：保温法开关烧 1.0/秒，一季
-     *   （SEASON_TICKS 6000 × 0.1 = 600 秒）正好烧 600。低于它，玩家连一个寒流季的
-     *   份量都攒不出来，开关就成了摆设。
+     * ⚠️ warmstone 的 base 600 是**功能底线**不是仓储：保温法开关烧 WARM_RATE 1.0/秒，
+     *   一季（【2026-10-06 用户拍板】SEASON_TICKS 600 逻辑秒 = 10 分钟 @1×）正好烧 600。
+     *   低于它，玩家连一个寒流季的份量都攒不出来，开关就成了摆设。
+     *   ⚠️ **这条底线与 SEASON_TICKS 强耦合**：若再调小一季的秒数，须同步下调
+     *   CAP_BASE.warmstone（= SEASON_TICKS × WARM_RATE），否则「一季烧 600」的前提失效。
      * ⚠️ 表外资源（science）不给键 ⇒ 走 Infinity。科技不吃仓储是设计决定，
      *   capOf 用 `=== undefined` 判表外，所以「明写 0」与「缺键」是两件事。 */
-    CAP_BASE: { kelp: 200, coral: 600, stone: 400, silt: 200, warmstone: 600, iron: 200, fuel: 300 },
+    CAP_BASE: { kelp: 200, coral: 600, stone: 400, silt: 200, warmstone: 600, iron: 200, titanium: 200, fuel: 300 },
 
     // ---- 族民 ----
     // 对齐猫国开局（js/village.js:3 kittens:0 / jobs 全 0，叙事上是 1 只猫）：
@@ -188,12 +184,20 @@
     OFFLINE_PERK_STEP: 0.25,      // 轮回商店「离潮计时」每级给单次离线上限 +25%（ perk.offline 由商店购买）
 
     // ---- 季节 ----
-    /* 每季 = 100 潮日 × 60 tick = 600 秒。**1 潮日 = 6 秒**。
+    /* 【2026-10-06 用户拍板：一季 = 10 分钟】SEASON_TICKS 由 6000 改为 **600 逻辑秒**。
+     * ⚠️ **单位订正（此处注释原为全仓最误导的一段，已改）**：
+     *   常量名叫 TICKS，但 `s.t += dt`（economy.js:1063）、dt = `STEP = 0.1` **逻辑秒**
+     *   ⇒ `s.t` 的单位是**逻辑秒、不是 tick 数**。所有 `t / SEASON_TICKS` 的算式
+     *   读的都是「逻辑秒」，故本值 = 每季的**逻辑秒数**（真叫 SEASON_SECS 更准，
+     *   但改名要动 economy/game/e2e 多处，且本轮有并发写入风险，暂留旧名 + 本注释）。
+     *   → 1 潮日 = SEASON_SECS / 100 = **6 逻辑秒**（面板换算 `left/60` 仍是
+     *     「距下季剩多少潮日」那个口径，不受本值影响）。
+     *   → 现实秒 = 逻辑秒 ÷ 倍速（`loop.acc += elapsed * speed`）：
+     *     **1 季 @1× = 600 秒 = 10 分钟**；@20× = 30 秒。1 潮日 @1× = 6 秒。
      * ⚠️ 2026-09-27 删掉浊流季（用户拍板：它与平流季数值完全相同、且全仓无读者，
-     *   是个空季）⇒ 四季变三季 ⇒ 一年 1800 秒（30 分钟，原 40），
-     *   而寒流季占比从 **1/4 升到 1/3**（减产更频繁、暖石更吃紧）。
-     *   这是删它的真正代价，不是「少了一个名字」。 */
-    SEASON_TICKS: 6000,           // 每季 = 100 潮日 × 60 秒
+     *   是个空季）⇒ 四季变三季 ⇒ 寒流季占比从 1/4 升到 **1/3**（减产更频繁、
+     *   暖石更吃紧）。这是删它的真正代价，不是「少了一个名字」。 */
+    SEASON_TICKS: 600,            // 每季 = 10 分钟（逻辑秒；@20× = 30 秒）
 
     /* ---- 暖石开关（「保温法」那半未接线的部分，2026-09-26 补上）----
      * 玩家规格：「采矿同时伴生暖石，弄个开关，休眠期消耗暖石抵消产出降低效果」。
@@ -291,6 +295,26 @@
      *   ⚠️ 工坊（workshop）原本的效果正是「解锁珊瑚→骨材」⇒ **它现在是空壳**，效果待设计。
      *   保暖术（hearthfire）的尤里卡 cond 原为「骨材 50」，已改挂「建成工坊」。 */
     iron:    { name: '精铁', short: '铁', unlock: { build: 'furnace' } },
+    /* 钢（2026-10-06 用户拍板移位）：**放在精铁下面一格**，顶栏与精铁同区（不再是工艺资源）。
+     *   ⚠️【为什么从工艺区挪出来】用户原话「钢应该放到精铁下面一格，而不是放到工艺资源里」。
+     *      语义依据：钢与精铁是**同一条金属链的相邻两级**（精铁 = 金属+暖石经热泉炉，
+     *      钢 = 精铁经金属精炼/热液工坊），玩家在顶栏找钢时，眼睛是从精铁往下扫的；
+     *      之前把钢丢进「工艺资源」那个折叠区，等于把主线材料藏进配件抽屉。
+     *   ⚠️【位置由定义顺序决定】renderRes 按 `for (var k in SB.RESS)` 遍历，
+     *      而 `kind:'craft'` 会被分到独立的 res-craft 区（见 ui/render.js）。两件事都要改：
+     *      ① 这条必须紧跟在 iron 之后（键顺序 = 显示顺序）；② kind 摘掉 ⇒ 进主区。
+     *   ⚠️【其余口径不动】不给 CAP_BASE 键 ⇒ capOf 恒 Infinity（无仓储上限，2026-09-29 用户
+     *      拍的「钢上限抄猫国」，猫国 steel 的 effects 里也没有 cap 字段）；unlock 仍挂
+     *      金属精炼科技；UNIT 键照旧没有（钢不按时产出，走 hydroshop 吃热液能）。 */
+    steel:    { name: '钢', short: '钢', unlock: { tech: 'metalrefine' } },
+    /* 钛（ERA4 · 2026-09-30 产出 / 2026-10-07 用户拍板重分类）：由工坊升级「深层矿井」在矿工线上伴生产出，
+     *   是**采集类材料**（与石头/矿砂/暖石/精铁同族，由职业按时产出），不是工艺制品 ⇒ 摘掉 kind:'craft'、
+     *   从「工艺资源」折叠区挪回资源主区（对标猫国 titanium：后期稀疏副材，有自身仓储档位）。
+     * ⚠️ 给 CAP_BASE.titanium 键（=200，对齐 iron/silt 档）⇒ capOf 有有限上限（不再是 Infinity）。
+     *   猫国原版钛主要来自斑马贸易、矿井直产是本作变体 ⇒ 产出率（UNIT.titanium）待标定。
+     *   满仓浪费判定现已对它生效；自动槽对 resonantDrill（吃 10 钛）的「满仓判定」也随之激活。
+     *   ⚠️ 位置 = 定义顺序：放在 steel 之后，顶栏跟其他矿石扎堆；别挪回 ERA4 块（会掉到 faith 后面）。 */
+    titanium:  { name: '钛', short: '钛', unlock: { tech: 'physics' } },
     /* 科技（科技点）：门控挂在「结绳」(writing) 上，而不是「书写」(scholarT)。
      * 学者职业由免费项结绳解锁、且科技面板在结绳完成时才开门——这正是玩家
      * 开始产出/消耗科技点的时点。若挂在 scholarT，整段前期（凿珊瑚/采石/种植/
@@ -310,7 +334,9 @@
      *   （techs.js:249-251）⇒ 石工一研究完，市政点立刻可见，而那正是你开始产点的时刻；
      *   ② 议事厅本来就是市政树的门（`civics.panelOpen` = 议事厅建成 ≥ 1），
      *   市政点在自家门厅显形，语义闭环；③ 神庙是**era2 信仰建筑**（requiredCivic:'theology'
-     *   + 石头150/金属50），拿它当「市政点可见性」的门是把资源线绑到另一条树上。 */
+     *   + 石头150/金属50），拿它当「市政点可见性」的门是把资源线绑到另一条树上。
+     *   （2026-10-06 曾为城堡「真升级」短暂改成 `unlockBuildAny:['hall','castle']`，
+     *     那是按「两座建筑并存」的误读加的；城堡既然只是议事厅的新名字，这里照旧单挂 hall。） */
     culture: { name: '市政点', short: '政', unlock: { build: 'hall' } },
     /* 奢侈品（2026-09-28 用户规格 · 市政《对外贸易》解锁商人后取得的货物）。
      * 【它现在的地位】陆地贸易系统（用户明说「之后设计」）此刻**还不存在**，
@@ -378,10 +404,9 @@
      * 不给 UNIT 键（不按时产出，只能由工坊造）。压舱仓（对标猫国 warehouse）的建造成本
      * 吃 2 份，对应猫国 warehouse 每级吃 beam 1.5 + slab 2 的「两种初级结构件」分工。 */
     hardCoral:  { name: '硬化珊瑚', short: '硬', kind: 'craft', unlock: { build: 'workshop' } },
-    /* 钢（2026-09-29 ERA3 · 金属精炼产出）· 对标猫国 steel：无仓储上限（CAP_BASE 不加键，
-     *   capOf 恒 Infinity）。猫国 resources.js 的 steel 是 craftable 且无 cap 字段，本作同构。
-     *   ⚠️ 这是用户拍的「钢上限抄猫国」——不是漏写 CAP_BASE。 */
-    steel:      { name: '钢', short: '钢', kind: 'craft', unlock: { tech: 'metalrefine' } },
+    /* 钢（steel）已于 2026-10-06 按用户拍板**上移到 iron（精铁）下面一格**、并摘掉
+     *   `kind:'craft'`（不再进顶栏的「工艺资源」折叠区）。定义现在在 iron 那条之后，
+     *   理由与口径见那里的注释。别在这里加回来 —— 位置 = 键顺序，一份定义只能有一处。 */
     /* 热液能（2026-09-29 ERA3 · 2026-10-05 重做为 flow 模型）：汽轮机产流、工坊/钻机当场吃流，
      *   **不进库存、不跨 tick 累积**——是电力式瞬态流（见 economy.hydroAlloc）。
      *   不给 CAP_BASE 键 ⇒ capOf 恒 Infinity（无仓储上限，也本就不该囤）。
@@ -393,11 +418,11 @@
      *   阿尔巴达热液大学(50) 与 大学升级(50) 吃它。 */
     steelPart:  { name: '钢制零件', short: '件', kind: 'craft', unlock: { tech: 'metalrefine' } },
     /* ── ERA4（2026-09-30 用户规格）──
-     * 【钛】由工坊升级「深层矿井」在矿工线上产出（对标猫国 titanium 的位置：后期霉等材料）。
-     *   ⚠️ 猫国原版钛主要来自斑马贸易、矿井直产是本作变体 ⇒ 产出率（UNIT.titanium）待标定。
      * 【脚手架】工艺制品：硬化珊瑚 100 + 绳 100 → 1（天壳切削器的原料）。
-     * 【两者都不给 CAP_BASE 键】与钢/钢制零件同口径 ⇒ capOf 恒 Infinity（无仓储上限）。 */
-    titanium:   { name: '钛', short: '钛', kind: 'craft', unlock: { tech: 'physics' } },
+     *   与石梁/铁制支架同口径：不给 CAP_BASE 键 ⇒ capOf 恒 Infinity（无仓储上限）、
+     *   不给 UNIT 键 ⇒ 不按时产出、只能工坊造。
+     *   ⚠️【钛已移走】钛 2026-10-07 用户拍板**重分类为资源主区材料**（摘 kind:'craft' +
+     *   CAP_BASE.titanium=200），定义挪到 steel 之后；它的 ERA4 产出/标定注见那里。 */
     scaffold:   { name: '脚手架', short: '架', kind: 'craft', unlock: { tech: 'physics' } },
     /* ── ERA4 工艺制品（2026-10-01 用户设计稿）──
      * 艺术品 / 潮纹记录：由《历史哲学》解锁的工艺制品（craft 表）。cost 用户拍定
@@ -555,32 +580,57 @@
      * ⚠️ 城堡/大学「不设上限、衰减抄猫国 getLimitedDR」（用户 2026-09-29 拍）：
      *   升级本身可反复装（need 满足即可再装），但 castleCap 那一条走 getLimitedDR 衰减，
      *   所以「每级 +50」的实际增量随总量渐近收口，不会无限膨胀。数值等用户拍。 */
+    /* ⚠️⚠️【建筑升级型 = 同一座建筑改名字，不是新建筑】2026-10-06 用户两次纠偏定死这条。
+     *   本表有四项的 desc 是「X升级：…」，它们的真实语义是**那座建筑买下之后就地改名**：
+     *     upg_fishbonemine 砂矿坑 → 鱼骨矿井 →（upg_deepmine）→ 深层矿井
+     *     upg_university  研究所 → 大学
+     *     upg_castle      议事厅 → 城堡
+     *   ⇒ 面板上永远是**同一行**：id / 等级键 / 造价曲线全都不变，只换显示名与效果文案。
+     *   【`upgradesBuilding` 字段】声明「我顶替哪座建筑」。render 读它决定这一行叫什么，
+     *      读数层（costOf / 各效果函数）压根不关心名字 —— 名字是纯 UI 表现。
+     *   【为什么不写在 render 里硬编码三段 if】三处各写一遍判据 = 三份会漂的事实来源。
+     *      声明在数据侧、判定在 UI 侧，两者分离，加第四个这种升级时只改这张表。
+     *   ⚠️ 别再把「X由Y升级而来」读成「另造一座 X 建筑」——本轮已因此返工两次，
+     *      第一次还 e2e 全绿（见 .workbuddy/memory/2026-10-06.md 判据一）。
+     *   【`upgradesBuilding` vs `buildingDesc` 两个字段的分工】前者说「我顶替哪座建筑」
+     *      （判定用），后者是**升级之后那一行该显示的完整效果文案**（显示用）。
+     *      为什么要后者而不是直接复用 `desc`：`desc` 的主语是「砂矿坑升级：…」，写在升级
+     *      面板里是正确的主语（它确实是在说升级什么），但同一句显示在建筑行上时，
+     *      那一行已经叫「鱼骨矿井」了，主语自相矛盾。⇒ 两处各用各的文案。 */
     /* 鱼骨矿井（砂矿坑升级）：need=学徒制（学徒制的尤里卡=买齐三件铁制工具 ⇒ 研究完即解锁）。
      *   效果：矿工金属 +50%（mineSilt 0.5）、暖石 +1000%（mineWarm 10.0，即 ×11）。
      *   cost 50 铁制支架 + 50 硬化珊瑚（用户规格终值）。 */
-    { id: 'upg_fishbonemine', name: '鱼骨矿井', need: 'apprentice',
+    { id: 'upg_fishbonemine', name: '鱼骨矿井', need: 'apprentice', upgradesBuilding: 'siltpit',
+      buildingDesc: '矿工金属产出 +50%、伴生暖石 +1000%。每级矿工都吃这份加成。',
       mineSilt: 0.5, mineWarm: 10.0,
       cost: { ironBracket: 50, hardCoral: 50 },
       desc: '砂矿坑升级：矿工金属产出 +50%、伴生暖石 +1000%。' },
     /* 自动工坊：need=金属精炼。效果：工艺制作效率 +10%（craftRatio，与工坊每级 +5% 同通道相加）。
-     *   cost 600 绳（用户规格终值）。 */
+     *   cost 600 绳（用户规格终值）。
+     * ⚠️ 2026-10-07 用户拍板：**它自带 1 个自动制作槽**（此前名字叫「自动」却不会自动制造，
+     *   玩家买了只拿到 +10% 效率 —— 名字与效果对不上）。槽数来源见 CFG.AUTO。 */
     { id: 'upg_autoshop', name: '自动工坊', need: 'metalrefine',
       craftRatio: 0.10,
       cost: { rope: 600 },
-      desc: '工坊自动化：工艺制作效率 +10%。' },
+      desc: '工坊自动化：工艺制作效率 +10%，并自带 1 个自动制作槽。' },
     /* 大学：need=教育。效果：研究所学者产出 +100%（instituteSci 0.5 加到 BLD.instituteSci 0.50
      *   ⇒ 合计每级 ×100%，用户规格「学者科技 +50% 变 +100%」）。cost 100 石头 + 50 铁制支架。 */
-    { id: 'upg_university', name: '大学', need: 'education',
+    { id: 'upg_university', name: '大学', need: 'education', upgradesBuilding: 'institute',
+      buildingDesc: '学者科技产出 +100%（每级合计 ×100%）。',
       instituteSci: 0.5,
       cost: { stone: 100, ironBracket: 50 },
       desc: '研究所升级：学者科技产出 +100%（每级合计 ×100%）。' },
-    /* 城堡：need=城堡(科技)。效果：① 议价减耗 +50%（hallSaveMul 0.5，HALL_SAVE 每级 ×1.5）；
+    /* 城堡：need=城堡(科技)。效果：① 议价减耗（hallSaveMul 0.5，HALL_SAVE 每级 ×1.5、
+     *   软上限 ×1.5，走 getLimitedDR 边际递减，无硬封顶）；
      *   ② 每级议事厅给所有有上限资源 +50 容量（castleCap 50），走 getLimitedDR 衰减。
      *   cost 50 石梁 + 50 硬化珊瑚。 */
-    { id: 'upg_castle', name: '城堡', need: 'castle',
+    { id: 'upg_castle', name: '城堡', need: 'castle', upgradesBuilding: 'hall',
+      buildingDesc: '随统治核心等级降低所有建筑下一级成本；' +
+        '每级给所有有上限资源 +50 容量；市政点 +0.05/级/秒。' +
+        '装政策卡「王权神授」每级再 +10% 信仰产出',
       hallSaveMul: 0.5, castleCap: 50,
       cost: { stoneBeam: 50, hardCoral: 50 },
-      desc: '议事厅升级：议价减耗 +50%，每级议事厅给所有有上限资源 +50 容量（衰减封顶）。' },
+      desc: '议事厅升级：降低所有建筑建造成本，每级议事厅给所有有上限资源 +50 容量。' },
     /* 马镫：need=马镫(科技，尤里卡=5 名商人)。效果：奢侈品 +50%（luxuryMul 0.5，
      *   与马具 tool_harnes 的 +50% 独立相乘 ⇒ 合计 +100%）。cost 400 绳（用户规格终值）。 */
     { id: 'upg_horseshoe', name: '马镫', need: 'horseshoe',
@@ -596,7 +646,8 @@
       pressSci: 0.30, pressCul: 0.30,
       cost: { steelPart: 100, science: 10000 },
       desc: '学者产出 +30%（走 pressSci），书手产出 +30%（走 pressCul）。' },
-    { id: 'upg_deepmine', name: '深层矿井', need: 'physics',
+    { id: 'upg_deepmine', name: '深层矿井', need: 'physics', upgradesBuilding: 'siltpit',
+      buildingDesc: '矿工金属 +50%、伴生暖石 +1000%，并开始伴生钛（产量待标定）。',
       mineTitanium: true,
       cost: { steelPart: 50, hardCoral: 200 },
       desc: '砂矿坑升级：矿工开始伴生钛（UNIT.titanium，产量待标定）。' },
@@ -611,22 +662,22 @@
      *   （science 10万 + 高阶料 scaffold/steelPart/titanium），要调请拍。 */
     { id: 'upg_invertbuild', name: '倒置工程学', need: 'shellgeo',
       invertBuildSave: 0.20,
-      cost: { science: 100000, scaffold: 2000 },
-      desc: '倒置搭建的延伸：所有建筑造价 −20%（invertBuildSave，与议事厅/君主制/大交易所同乘区）。' },
+      cost: { science: 100000, scaffold: 300 },
+      desc: '倒置搭建的延伸：所有建筑造价 −20%。' },
     { id: 'upg_thermrecover', name: '热回收改造', need: 'highthermo',
       hydroBuildSave: 0.30,
       cost: { science: 100000, steelPart: 300, titanium: 100 },
-      desc: '高压热机的余热回收：热液汽轮机造价 −30%（hydroBuildSave，仅限该建筑）。' },
+      desc: '高压热机的余热回收：热液汽轮机造价 −30%。' },
     { id: 'upg_wasteforge', name: '废钢锻造', need: 'highthermo',
       steelBonus: 0.20, ironBonus: 0.20,
       cost: { science: 120000, titanium: 100 },
-      desc: '把废钢重新锻入产线：精铁产出 +20%、钢产出 +20%（ironBonus / steelBonus）。' }
+      desc: '把废钢重新锻入产线：精铁产出 +20%、钢产出 +20%。' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
-   * 与「破冰祭坛」是两回事，别混：
-   *   祭坛 miracle  = 纪元五的**持续机器**（烧地热、可升多级、受 miracleCap 约束）；
    *   奇观 wonder   = 一次性**里程碑建筑**（买断、永久、不重复）。
+   *   （终局破壳的「持续机器」角色原由破冰祭坛承担，2026-10-07 已撤除，改由
+   *    天穹钻机 wonder 承担，见 shell.js 的钻机 block。）
    * ⚠️ 第一座「海潮方碑」由**石工 masonry** 解锁（用户要的「第一个就让石工解锁」），
    *    成本以石梁为主 —— 这正是石梁的去处（用户口径「石梁暂时给海潮方碑做材料」）。 */
   var WONDERS = [
@@ -644,9 +695,11 @@
      *                    议事厅 0.05/级/秒），+5 相当于一次性白送 33 个书手 ⇒ 书手这条
      *                    职业线从建成那一刻起失去意义。用户拍 **2**（≈13 个书手，仍是
      *                    一笔看得见的跃升，但书的产出还占有一席）。
-     *   · `matMax: 60` —— 各材料仓储 +60，**写死常数**（用户拍），是灯塔那个 +120/级的半数。
-     *                    ⚠️ 常数而不是「读灯塔级数的一半」，是为了规则清楚：不随灯塔怎么
-     *                    升级而变。将来要加存储上限，走工坊那条通道，不要回来改这里。
+     *   · `effect: { civic: 2 }` —— 只留市政点 +2/秒。⚠️ 旧版 `matMax: 60`（所有材料一次性 +60）
+     *                    已被 2026-10-06 用户拍板**删除**：那是对「大灯塔获得灯塔一半仓储」的误读。
+     *                    正确机制是「大灯塔建成后，**每座灯塔**额外 +60/级」（= 压舱仓一半），
+     *                    由 economy.capOf 的灯塔项读 `BLD.lighthouseCapGreat` 并挂
+     *                    `wonder.owned('wonder_great_lighthouse')` 条件，随灯塔数量/等级缩放。
      * 【为什么没有全资源产出加成】「灯塔 +1%」是**灯塔建筑的**效果；用户规格里大灯塔
      *   只给了市政点与仓储两件，所以这里没有 globalProd 键。
      * ⚠️ 别为了「对称」随手加一个：奇观是买断的，+1% × 一座灯塔 = 重复计价。 */
@@ -659,8 +712,8 @@
      *    量级比之前低很多（不再是 CAP_BASE.iron 撞车那条）。 */
     { id: 'wonder_great_lighthouse', name: '大灯塔', era: 2, need: 'navigation',
       cost: { stoneBeam: 30, hardCoral: 50 },
-      effect: { civic: 2, matMax: 60 },
-      desc: '灯塔的高塔版本：每秒 +2 市政点，各材料仓储 +60（仓储量为灯塔之半，固定）。' },
+      effect: { civic: 2 },
+      desc: '灯塔的高塔版本：每秒 +2 市政点；建成后每座灯塔的仓储额外 +60/级（= 压舱仓一半），随灯塔数量与等级缩放。' },
 
     /* ── 大潮纹馆（原「大图书馆」，2026-10-05 改名 · 2026-09-28 用户规格 · 市政《历史记录》解锁） ──
      * 【两个效果，各走各的通道，且一个是「持续」一个是「一次性」】：
@@ -770,11 +823,11 @@
       effect: { craftRatio: 0.5 },
       desc: '工坊的里程碑：工厂 / 工坊效果 +50%（加法叠进工艺制作效率）。' },
     { id: 'wonder_presspipe', name: '高压热机管道', era: 5, need: 'highthermo',
-      cost: { scaffold: 500, steelPart: 500 },
+      cost: { scaffold: 225, steelPart: 500 },
       effect: { hydroBonus: 10 },
       desc: '热机的高压血脉：热液能供给侧 +10/s（并联进汽口，不随汽轮机台数缩放）。' },
     { id: 'wonder_skydrill', name: '天穹钻机', era: 5, need: 'skydrill',
-      cost: { scaffold: 2000, resonantDrill: 20 },
+      cost: { scaffold: 400, resonantDrill: 20 },
       effect: {},
       desc: '破壳的终章：凿穿最后一段天壳（机器运行逻辑待实装）。' },
 
@@ -887,10 +940,16 @@
      * serfCrossRatio：政策卡「农奴制」的互乘系数——每级牧场给藻场效果 ×(1+0.01)、
      *   每级藻场给牧场效果 ×(1+0.01)，两条互乘读同一个系数（用户口径「1 级 1.01、两级 1.02」）。
      * castleFaithRatio：政策卡「王权神授」——城堡每级 +10% 信仰产出（装卡才生效，civics 读）。
-     * canalLuxSave：建筑「王国潮道」——每级减少居民奢侈品消耗 0.3%（economy 的奢侈需求 D 读）。 */
+     * canalLuxSave：建筑「王国潮道」——每级减少居民奢侈品消耗 0.3%（economy 的奢侈需求 D 读）。
+     * caravanseraiLuxSave：建筑「商队驿站」——**每级 −1%** 居民奢侈品消耗
+     *   （2026-10-06 用户拍板，与「每级 +1 分钟产量」同属商队驿站的两条效果）。
+     *   ⚠️ 与 canalLuxSave **并列相加**、不是覆盖：两者都是「居民侧减耗」，
+     *   语义（王国潮道＝运河省水 / 商队驿站＝商队自带补给）与来源（建筑 id）都不同，
+     *   踩彼此的定义域没有意义。合并到同一个 `1 − 渠道` 里（economy 的 `_cs`）。 */
     serfCrossRatio: 0.01,
     castleFaithRatio: 0.10,
     canalLuxSave: 0.003,
+    caravanseraiLuxSave: 0.01,
     /* 商人副产（2026-09-30 用户规格 · 市政《中世纪集市》解锁2）：商人同时产出科学与市政点。
      * 「+0.05/s 科学 +0.05/s 市政」是**每名商人**的量，走 globalMul（与学者/书手同待遇）。 */
     marketJobSci: 0.05, marketJobCulture: 0.05,
@@ -945,7 +1004,13 @@
      *  其一半」——「其」指的就是灯塔。灯塔若不产仓储，大灯塔那「一半」就没有基准可依。
      *    ⇒ 灯塔 +120/级，大灯塔写死 +60。⚠️ 大灯塔那个数是**常数**（用户拍「写死常数」），
      *      不随灯塔等级走——后期工坊要加存储上限，走的是 matMax 那条通道，不是这里。 */
-    lighthouseCap: 120,    // 灯塔：其余资源上限 +120/级（大灯塔的 60 是它的半数）
+    lighthouseCap: 120,    // 灯塔：其余资源上限 +120/级
+    /* ⚠️ 大灯塔建成后，每座灯塔额外 +60/级 仓储 = 压舱仓(ballastCap 120)的一半。
+     *   【机制，不是 flat】这是**按灯塔等级缩放**的条件增益：建了 N 座、每座 L 级 ⇒
+     *    这层 = N×L×60。挂在大灯塔建成上（SB.wonder.owned(s).wonder_great_lighthouse），
+     *    不建成则 0。替代了旧「所有材料一次性 +60」(matMax:60) 写法（用户 2026-10-06 拍板：
+     *    旧写法是对「灯塔之半」的误读，与压舱仓一半的量纲（每级）对不上）。 */
+    lighthouseCapGreat: 60, // 大灯塔：每座灯塔 +60/级 仓储（= 压舱仓一半）
     /* house / house2：两档住房各自的**每级人口上限**（礁口巢 +2、石屋 +4）。
      * 容量 100% 在建筑上，科技只负责解锁下一档住房（照猫国：hut/logHouse/mansion）。
      * ⚠️ 2026-09-26 术语统一「床位 → 人口」（用户原话：床位就是人口，都改成人口）；
@@ -1122,7 +1187,7 @@
     /* ⚠️ 2026-09-26 用户拍板：**去掉库存门槛**，解锁权只在「石工」一项，且**双写一致**
      *   （建筑侧 requiredTech 与科技侧 masonry 的 eff.unlockBuild 指向同一项，见 e2e
      *   「建筑解锁来源」三条断言）。玩家研究完石工立刻就能建，卡点只剩「买不买得起」。 */
-    { id: 'coralhouse', name: '石屋', ratio: 2.5, cost: {stone: 60, coral: 40}, desc: '人口上限 +4/级，可一路铺',
+    { id: 'coralhouse', name: '石屋', ratio: 2.5, cost: {stone: 100}, desc: '人口上限 +4/级，可一路铺',
       requiredTech: ['masonry'] },
     /* ---- 矿砂线（猫国 minerals，与珊瑚是两条独立的线）----
      * 采集者只产藻食之后，矿砂曾一度没有任何来源：furnace 转不出精铁，
@@ -1138,7 +1203,8 @@
      *   解锁权并入「采矿」科技（与矿工同门，见 techs.js mining）。
      * 【不写 unlockRatio】同 warmnest/ballast 的规矩：解锁权只在科技一处，
      *   玩家看到「需先掌握科技：采矿」一句话就知道卡在哪，不用猜「是科技没开还是珊瑚不够」。 */
-    { id: 'siltpit',  name: '砂矿坑',     ratio: 1.15, cost: {coral: 200}, desc: '矿工金属产出 +20%/级',
+    { id: 'siltpit',  name: '砂矿坑',     ratio: 1.15, cost: {coral: 200},
+      desc: '矿工金属产出 +20%/级（升级为鱼骨矿井/深层矿井后更高）',
       requiredTech: ['mining'] },
     /* ---- 议事厅（2026-09-26「石工」解锁项）----
      * 【为什么要有它】用户规格里石工同时解锁石屋与「议事厅（开启市政树）」，
@@ -1149,8 +1215,13 @@
      *   每一座都比上一座便宜一点；而且它作用于 ratio（指数递增那一侧），
      *   越到后期越省，天然是个「后期建筑」而不是又一个前期产能。
      * ⚠️ 实现在 economy.costOf（读 s.lvl.hall），改这里不改那边会静默失效。 */
-    /* 同石屋：解锁权双写在「石工」（建筑侧 requiredTech === 科技侧 eff.unlockBuild），无库存门槛。 */
-    { id: 'hall',     name: '议事厅',   ratio: 1.20, cost: {stone: 80, coral: 60}, desc: '所有建筑下一级成本 −2%/级',
+    /* 同石屋：解锁权双写在「石工」（建筑侧 requiredTech === 科技侧 eff.unlockBuild），无库存门槛。
+     * ⚠️ 2026-10-06 城堡「真升级」：**城堡不是另一座建筑，而是这座建筑升级后的名字。**
+     *   买下工坊升级 `upg_castle`（议价减耗 +50% / 每级 +50 容量）后，面板这一行
+     *   从「议事厅」改写成「城堡」——**等级、造价曲线、建造动作全是同一条**，只是名字与
+     *   每级效果升级了（render 读 `s.upgrades.upg_castle` 切名，见 ui/render.js）。
+     *   ⇒ 不存在「议事厅退役」这回事，也就**不需要** `retiredBy` 字段。 */
+    { id: 'hall',     name: '议事厅',   ratio: 1.20, cost: {stone: 80, coral: 60}, desc: '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级',
       requiredTech: ['masonry'] },
 
     /* ---- 食物三旋钮（猫国 pasture / aqueduct / barn 的对应物）----
@@ -1195,7 +1266,7 @@
      *   存多少」钉死在 3 座。1.15 与本作其余建筑一致，能一路铺。
      * 【解锁权双写】plant 的 eff.unlockBuild 与这里的 requiredTech 指向同一项，
      *   同 ballast/lighting 的规矩（e2e「建筑解锁来源」守着两边）。 */
-    { id: 'kelpstore', name: '海藻仓', ratio: 1.15, cost: {coral: 120},  desc: '藻食上限 +5000/级',
+    { id: 'kelpstore', name: '海藻仓', ratio: 1.15, cost: {stone: 60, coral: 60},  desc: '藻食上限 +5000/级',
       requiredTech: ['plant'] },
     /* 压舱仓（对标猫国 warehouse）。材料容量的唯一增长通道（全局增量已删）。
      * ⚠️ 2026-09-26 第三轮：藻食那条线（+800/级）已拆出去给海藻仓，这里只剩材料。
@@ -1230,14 +1301,14 @@
      * ⚠️ 两类效果（`lighthouseProd` 与 `lighthouseCap`）分属**两条不同的乘区**：
      *   前者在 economy.globalMul（全资源产出，与 tick/rates 两条路都有关），
      *   后者在 economy.capOf（容量）。改任一条前先看 BLD 表里那两处注释。 */
-    { id: 'lighthouse', name: '灯塔',  ratio: 1.15, cost: {coral: 200, silt: 120},
+    { id: 'lighthouse', name: '灯塔',  ratio: 1.15, cost: {stone: 200, silt: 120},
       desc: '全资源产出 +1%/级，其余资源上限 +120/级',
       requiredTech: ['navigation'] },
     /* ⚠️ 订正（2026-09-29，用户纠正「工坊里有各自升级」）：旧注「工坊现在是空壳」已删——
      *    工坊的内容 = 每级 +5% 工艺制作效率（下方 craftRatio）+ 工坊页全部商品
      *    （TOOLS 七件 / CRAFTS 两件 / UPGRADES 两道，见 config 顶部那几张表）。
      *    作废的只是「珊瑚→骨材」那条加工线（2026-09-27 骨材线废），工坊不是空壳。 */
-    { id: 'workshop', name: '工坊',      ratio: 1.15, cost: {coral: 400},   desc: '加工线入口',
+    { id: 'workshop', name: '工坊',      ratio: 1.15, cost: {stone: 200, coral: 200},   desc: '加工线入口',
       /* ⚠️【解锁权双写】科技侧 bronze（青铜术）的 eff.unlockBuild 反查给工坊，
        *    这里必须再显式写 requiredTech：habitat.unlocked 首行的 guard 只认
        *    requiredTech / unlockScheme / requiredCivic 四种显式源，否则「只有科技侧声明」
@@ -1269,7 +1340,7 @@
      *      （峰值人口卡 18 以下、拿不到洋流点、进不了下一周目）」—— 别改回 iron。
      *   ③ 珊瑚那半**没动**（仍 112）：金属是**新增**的约束，不是替换 ⇒ 首建成本从
      *      112 珊瑚变成 112 珊瑚 + 50 金属，压力加在材料线而不是把珊瑚线压掉。 */
-    { id: 'furnace',  name: '热泉炉',   ratio: 1.15, cost: {coral: 112, silt: 50},  desc: '解锁 金属→精铁',
+    { id: 'furnace',  name: '热泉炉',   ratio: 1.15, cost: {stone: 60, silt: 100},  desc: '解锁 金属→精铁',
       need: 'workshop', requiredTech: ['ironwork'] },
     /* ⚠️ 2026-09-27 删骨材：这三处的 `bone:` 成本**落到珊瑚上**（不是精铁），原总量不变：
      *   热泉炉 bone 112 → coral 112；热泉井 bone 175+iron 62 → coral 175+iron 62；
@@ -1322,8 +1393,8 @@
      *   e2e「建筑解锁来源」守着两边一致。
      * ⚠️ 死锁自查：数学的尤里卡条件是「库存科技 1000」，**不指向研究所本身**
      *   （若写成「建成研究所」就是尤里卡要求自己解锁的那座建筑 ⇒ 永远达不成）。 */
-    { id: 'institute', name: '研究所',   ratio: 1.15, cost: {coral: 100, silt: 100},
-      desc: '科技产出 ×50%（仅作用于学者）', requiredTech: ['mathematics'] },
+    { id: 'institute', name: '研究所',   ratio: 1.15, cost: {stone: 100, silt: 100},
+      desc: '科技产出 ×50%（仅作用于学者）；升级为大学后变 ×100%', requiredTech: ['mathematics'] },
     /* ── 广场（2026-09-28 用户规格 · 市政《戏剧与诗歌》解锁）──
      * 【对标物是潮纹馆，不是热泉井】潮纹馆（library）给科技、广场给市政点，
      *   **两座是姊妹不是同类**：同构的乘区系数（BLD.squareCivRatio 0.10）、
@@ -1358,28 +1429,15 @@
       desc: '信仰产出 ×10%/级（宗教系统落地后生效；装政策卡「神学」后翻倍）',
       requiredCivic: 'theology' },
     /* ⚠️ 热泉井（geyser）**已按用户 2026-09-28 指令整体删除**——「这些都等着重新设计」。
-     *    【它一拆，三条线同时断；重设时这三处必须一起重做，只补一处等于没补】
+     *    【它一拆，两条线同时断；重设时这两处必须一起重做，只补一处等于没补】
      *    ① 地热的**唯一产出口**：`economy.fuelRate` 读 `lvl.geyser × BLD.fuel × jobs.craft`。
      *       建筑没了 ⇒ 地热恒 0（函数已改成空实现，见 economy.js 那处注）。
-     *    ② 破冰祭坛的 `need`（habitat.needMet 读 `s.lvl[b.need]`，是建筑 id 不是科技 id）
-     *       —— 那条 gate 也一并撤了，见下面 miracle 那条注。
-     *    ③ 点火术的 `eff.unlockBuild:['geyser']` 与涡轮的尤里卡条件 `cond:{t:'built',
+     *    ② 点火术的 `eff.unlockBuild:['geyser']` 与涡轮的尤里卡条件 `cond:{t:'built',
      *        b:'geyser'}` —— **后者不修就是永假条件**（条件指向一座不存在的建筑，不报错、
      *        `condMet` 恒 false ⇒ 涡轮之后的纪元四整条链静默不动）。已在 techs.js 一并清掉。
-     *    ⚠️ 这是**设计移除**不是 bug 修复：本作现在没有地热源 ⇒ 破冰祭坛永远供不上能 ⇒
-     *       终局「凿穿」不可达。这是用户要的重新设计的起点，不是要我去补替代。 */
-    /* 奇迹装置（破冰祭坛）是用户明确要的硬纪元闸门：MIRACLE_ERA=5 之外还要压着
-     * 「破冰工程学」这项科技。光有纪元闸门不够——纪元五里玩家完全可以只研究几项
-     * 关键节点然后闷头建祭坛，那样「工业时代」就只剩一个数字。
-     * 「破壳引擎」也是本纪元的关键节点，两者一起构成终局的门票。 */
-    /* ⚠️ 2026-09-28：`need:'geyser'` **一并删除**（热泉井已删，留着就是一道指向
-     *    不存在的建筑的永假门——`needMet` 读 `s.lvl['geyser']`，那个键也不存在了，
-     *    会退化成 `undefined > 0` ⇒ 恒 false ⇒ 祭坛永远建不起来，且不报任何错）。
-     *    祭坛现在只剩 requiredTech（破冰工程学）+ unlockScheme（精铁 300）两道门。
-     *    ⚠️ 但**它照样建不起来**：`fuelRate` 恒 0 ⇒ 地热供不上 ⇒ `miracleCap` 为 0。
-     *       这是删热泉井的必然结果，等地热线重设时一并解决。 */
-    { id: 'miracle',  name: '破冰祭坛', ratio: 1.15, cost: {iron: 300, coral: 400}, desc: '凿穿最后 25% 壳厚，耗地热',
-      requiredTech: ['skydrill'], unlockScheme: { name: 'iron', threshold: 300 } },
+     *    ⚠️ 这是**设计移除**不是 bug 修复：本作现在没有地热源 ⇒ 破冰祭坛（已随钻机化一并撤除）
+     *       永远供不上能 ⇒ 终局「凿穿」改由天穹钻机承担。这是用户要的重新设计的起点，
+     *       不是要我去补替代。 */
 
     /* ── 热液汽轮机 / 热液工坊（2026-09-29 ERA3 · 2026-10-05 flow 模型重做）──
      * 【解锁权双写】requiredTech='metalrefine' 与 metalrefine 的 eff.unlockBuild
@@ -1391,27 +1449,24 @@
      *     （UNIT.steelPerHydro / steelMetal）。流不够时按比例降产（工坊低阶科技先吃满）。
      *   ⚠️ 天穹钻机（ERA5）从工坊吃剩的流里再取 SKYDRILL_HYDRO/tick。
      * 【成本口径】（待标定默认，数值等用户拍）：汽轮机偏结构件、工坊偏材料。 */
-    { id: 'hydroturbine', name: '热液汽轮机', ratio: 1.15, cost: {coral: 300, hardCoral: 10},
+    { id: 'hydroturbine', name: '热液汽轮机', ratio: 1.15, cost: {stone: 300, hardCoral: 10},
       desc: '热液能 +1/级/秒，耗暖石 5/级/秒', requiredTech: ['metalrefine'] },
-    { id: 'hydroshop', name: '热液工坊', ratio: 1.15, cost: {coral: 300, iron: 100},
+    { id: 'hydroshop', name: '热液工坊', ratio: 1.15, cost: {stone: 300, iron: 100},
       desc: '耗热液能产钢：每级耗 1 热液能/秒，吃金属产钢', requiredTech: ['metalrefine'] },
 
-    /* ── 城堡 / 王国潮道（2026-09-30 ERA3 市政扩展 · 用户规格表）──
-     * 【城堡】用户口径「从议事厅升级而来」⇒ need:'hall'（前置建筑）+ 科技「城堡」解锁
-     *   （科技 castle 已存在，其 note 本来就写着「解锁城堡」）。每级本体效果挂在
-     *   政策卡「王权神授」上（+10% 信仰/级），**不装卡则城堡只有 lvlSum 的贡献**——
-     *   这是规格原意（卡是载体），不是漏接效果。
-     *   ⚠️【成本是提议值，未拍板】规格表没给城堡造价，先按议事厅量级提
-     *   stone 300 + hardCoral 30 / ratio 1.15，要调请拍。
-     *   ⚠️ 与工坊升级 upg_castle（城堡工艺升级）同名不同物：那是买断 upgrades，
-     *      这是可升级建筑（s.lvl.castle），两套键互不干扰。
-     * 【王国潮道】贸易区域新建筑（用户拍板归属），效果 = 每级减少居民奢侈品消耗 0.3%
+    /* ── 王国潮道（2026-09-30 ERA3 市政扩展 · 用户规格表）──
+     * ⚠️ 2026-10-06：**这里原本还有一座独立的「城堡」建筑（`{id:'castle'}`），已删除。**
+     *   用户设计里城堡**不是建筑**，而是工坊升级项 `upg_castle`：买下它的那一刻，
+     *   议事厅这座建筑**就地变成城堡**（名字换成城堡、效果升级，等级还是原来那一座）。
+     *   那座独立建筑是 2026-09-30 实装时的误读（「由议事厅升级而来」被落成 need:'hall' 前置），
+     *   于是面板上出现「议事厅 7 + 城堡 1」两级并存（用户截图）。本轮按原设计删掉。
+     *   ⇒ 城堡的等级恒等于议事厅等级，两处是**同一座**；`economy.coreLvl(s)` 读 lvl.hall，
+     *     升级前显示「议事厅 N 级」、升级后显示「城堡 N 级」（render 读 upgrades.upg_castle 切名）。
+     *   ⚠️ 因此 `s.lvl.castle` 这个键**不该再存在**（state.js / prestige.js 的残留已清），
+     *     回归里也改成断言「建筑表里没有 id==='castle' 的建筑」。     * 【王国潮道】贸易区域新建筑（用户拍板归属），效果 = 每级减少居民奢侈品消耗 0.3%
      *   （economy 奢侈需求 D 读 luxSaveMul）；等级 ≤ 灯塔等级（habitat.build 钳制，
      *   灯塔 0 级时一座都建不起来——规格原文「等级最高不超过灯塔等级」）。
      *   成本按规格原文 100 石头 + 5 钢/级；ratio 提议 1.15（未拍板）。 */
-    { id: 'castle', name: '城堡', ratio: 1.15, cost: {stone: 300, hardCoral: 30},
-      desc: '由议事厅升级而来的统治核心：装上政策卡「王权神授」后每级 +10% 信仰产出',
-      need: 'hall', requiredTech: ['castle'] },
     { id: 'canal', name: '王国潮道', ratio: 1.15, cost: {stone: 100, steel: 5},
       desc: '每级减少居民奢侈品消耗 0.3%；等级最高不超过灯塔等级',
       requiredCivic: 'department' },
@@ -1440,18 +1495,23 @@
       requiredTech: ['banking'] },
 
     /* ── ERA4 两座建筑（2026-10-01 用户设计稿）──
-     * 【商队驿站】由《探索》解锁（requiredCivic）。它本身是「每季节判定」机制的承载体：
-     *   建到 ≥1 级后，economy.seasonTurn 每换季随机给一份「任意资源 1 分钟产量」。
-     *   不给额外乘区（与「运河/银行」那种每级加成不同），它就是个触发器建筑。
+     * 【商队驿站】由《探索》解锁（requiredCivic）。**两条效果都按等级生效**
+     *   （2026-10-06 用户报「就这点效果？」后接线 —— 原实现只判 lvl>=1，于是 1 级与
+     *   5 级效果**完全相同**，而 ratio 1.15 意味着满级比 1 级多花 1.75 倍的钱。属
+     *   「承诺了没接线」那一类，这是被质疑的真正根因，不只是「量级偏小」）：
+     *     ① 每季（economy.seasonGrant）随机给一份「任意时产资源 × **等级** 分钟产量」
+     *        —— 1 级 = 60 秒，与原口径完全一致 ⇒ 零回归；5 级 = 300 秒。
+     *     ② **每级 −1% 居民奢侈品消耗**（BLD.caravanseraiLuxSave）—— 走
+     *        `economy.luxSaveAll` 与王国潮道**并列相加**，tick / rates / UI 三处同源。
      * 【博物馆】由《启蒙运动》解锁（requiredCivic）。效果 = 官员（书手）市政点产出 +20%，
      *   由 economy.cultureRate 的 museumCivicMul(s) 读（lvl≥1 即 +20%，flat）。
      *   ⚠️ 两座的 cost/ratio 是提议值（用户拍「先这样，后续重做」），未标定。 */
     { id: 'caravanserai', name: '商队驿站', ratio: 1.15,
-      cost: { coral: 200, rope: 100 },
-      desc: '每季节判定一次：获得任意资源 1 分钟产量（由《探索》解锁的每季发资源机制）。',
+      cost: { stone: 200, rope: 100 },
+      desc: '每季节判定一次：获得任意时产资源「等级 × 1 分钟」产量；每级另减 1% 居民奢侈品消耗。',
       requiredCivic: 'explore' },
     { id: 'museum', name: '博物馆', ratio: 1.15,
-      cost: { stone: 200, coral: 200 },
+      cost: { stone: 400 },
       desc: '官员（书手）市政点产出 +20%。',
       requiredCivic: 'enlightenment' },
 
@@ -1489,7 +1549,7 @@
    * 命名与归属（用户最终拍板）：
    *   礁栖核心 / 生息区（原「生计区」，用户嫌不好听改名）/ 工坊区 /
    *   贸易区域（灯塔·海藻仓·压舱仓归此，原「仓储区」「灯塔区」撤销并入）/
-   *   学术区 / 市政区（与信仰拆开）/ 信仰区 / 破界区（破冰祭坛，终局闸门）。
+   *   学术区 / 市政区（与信仰拆开）/ 信仰区 / 破界区（终局闸门区，目前无建筑常驻，空区自动隐藏）。
    * 顺序即 UI 呈现顺序。改分区只动 BUILD_ZONE_OF，不动 BUILDINGS 各对象的字段，
    * 避免 19 处并行编辑互相覆盖（本项目已踩过此坑）。 */
   var BUILD_ZONES = [
@@ -1510,20 +1570,30 @@
     kelp: 'food', weir: 'food', warmnest: 'food',
     siltpit: 'workshop', furnace: 'workshop', workshop: 'workshop',
     hydroturbine: 'workshop', hydroshop: 'workshop',
+    /* 热锻工厂（2026-10-07 用户拍板）：归工坊区 —— 它是工艺制作效率建筑（与工坊/炉/汽轮机同区）。 */
+    hotforge: 'workshop',
     lighthouse: 'trade', kelpstore: 'trade', ballast: 'trade',
     /* 王国潮道（2026-09-30 用户拍板）：归贸易区域。 */
     canal: 'trade',
     library: 'academy', institute: 'academy',
-    /* 天壳观测站（2026-09-30 ERA4）：归学术区 —— 它的尤里卡就要求学术区合计 70 级。 */
+    /* 天壳观测站（2026-09-30 ERA4）：归学术区 —— 它的尤里卡要求学术区合计 35 级
+     *   （2026-10-06 用户把门槛从 70 下调到 35）。 */
     observatory: 'academy',
-    square: 'civic', temple: 'faith', miracle: 'break',
+    square: 'civic', temple: 'faith',
     /* 速生珊瑚林（2026-09-30 ERA4）：生息区 —— 它是「种珊瑚」，与藻食那批同区。 */
     coralfarm: 'food',
     /* 银行（2026-09-30 ERA4）：贸易区域 —— 它的尤里卡就要求贸易区合计 100 级。 */
     bank: 'trade',
     /* 商队驿站 / 博物馆（2026-10-01 ERA4）：商队驿站归贸易区域（贸易触发建筑）、
      *   博物馆归市政区（官员/行政相关）。 */
-    caravanserai: 'trade', museum: 'civic'
+    caravanserai: 'trade', museum: 'civic',
+    /* 学校 / 歌剧院（2026-10-07 用户报「地方放错了」）：两座此前漏登本表，
+     *   zone 走了 `|| 'core'` 兜底掉进礁栖核心。学校归学术区（教育类）；
+     *   歌剧院归市政区（效果就是官员市政点产出 +15%/级，且《渊潜鲛歌》鼓舞
+     *   数的「市政区合计等级 50」理应把它算进去）。 */
+    school: 'academy', theater: 'civic',
+    /* 廉租社区（2026-10-07 用户拍板）：就放礁栖核心（住房类，与巢/珊瑚屋同区）。 */
+    tenement: 'core'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';
@@ -1559,17 +1629,17 @@
     { id: 'd3', name: '内生热泉', costs: [18],       desc: '冰壳再薄 10%',       kind: 'thin', n: 3, apply: { thin: 1 }, nest: 'd2' },
     /* ── 重复操作自动化：人口与住房 ── */
     { id: 'popcap', name: '广厦之基', costs: [2, 4, 6], desc: '永久人口上限 +1/级（最多 3 级）', kind: 'popcap', n: 3, apply: { popcap: 1 } },
-    { id: 'housePlan', name: '生息建筑规划', cost: 6, desc: '所有人口建筑每级各 +1 人口上限（买断）', kind: 'house', n: 1, apply: { housePlan: 1 } },
+    { id: 'housePlan', name: '生息建筑规划', cost: 20, desc: '所有人口建筑每级各 +1 人口上限（买断）', kind: 'house', n: 1, apply: { housePlan: 1 } },
     { id: 'coldStore', name: '寒潮储备', costs: [2, 4, 8, 12], desc: '寒季资源产出倍率 +0.02/级（最多 4 级）', kind: 'climate', n: 4, apply: { coldStore: 1 } },
     { id: 'offline', name: '离潮计时', costs: [2, 4, 8, 12], desc: '单次离线上限 +25%/级（最多 4 级）', kind: 'offline', n: 4, apply: { offline: 1 } },
     { id: 'matStore', name: '材料总仓', costs: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80], desc: '所有普通资源容量 +5%/级（最多 20 级）', kind: 'store', n: 20, apply: { matStore: 1 } },
-    { id: 'coldWard', name: '寒壳护佑', costs: [4, 8, 12], desc: '冰封冻伤概率相对 −5%/级（最多 3 级）', kind: 'climate', n: 3, apply: { coldWard: 1 } },
     /* ── 重复操作自动化：模板与自动制作 ── */
-    { id: 'jobPlan', name: '生计名册', costs: [2, 4, 6], desc: '保存最多 3 份职业分配比例，可一键恢复', kind: 'template', n: 3, apply: { jobPlan: 1 } },
-    { id: 'craftPlan', name: '工坊采购单', cost: 4, desc: '保存 1 份已购工具/工坊升级采购清单（买断）', kind: 'template', n: 1, apply: { craftPlan: 1 } },
-    { id: 'autoCraft1', name: '自动制作槽 I', cost: 6, desc: '解锁 1 个自动制作槽', kind: 'auto', n: 3, apply: { autoCraft: 1 } },
-    { id: 'autoCraft2', name: '自动制作槽 II', cost: 12, desc: '再解锁 1 个槽（累计 2）', kind: 'auto', n: 3, apply: { autoCraft: 1 }, nest: 'autoCraft1' },
-    { id: 'autoCraft3', name: '自动制作槽 III', cost: 24, desc: '再解锁 1 个槽（累计 3）', kind: 'auto', n: 3, apply: { autoCraft: 1 }, nest: 'autoCraft2' },
+    /* ⚠️ 2026-10-07：`s.perk.autoCraft` 此前是**零读端死字段**（买了扣轮回点、等级真涨、
+     *   但没有任何代码读它 ⇒ 不报错、也不生效）。现在由 workshop.slotCap 读它，
+     *   语义 = **额外**自动制作槽（自动工坊升级自带第 1 个）。槽数上限 CFG.AUTO.SLOT_MAX。 */
+    { id: 'autoCraft1', name: '自动制作槽 I', cost: 6, desc: '自动制作槽 +1（自动工坊已自带 1 个）', kind: 'auto', n: 3, apply: { autoCraft: 1 } },
+    { id: 'autoCraft2', name: '自动制作槽 II', cost: 12, desc: '自动制作槽再 +1（累计 +2）', kind: 'auto', n: 3, apply: { autoCraft: 1 }, nest: 'autoCraft1' },
+    { id: 'autoCraft3', name: '自动制作槽 III', cost: 24, desc: '自动制作槽再 +1（累计 +3）', kind: 'auto', n: 3, apply: { autoCraft: 1 }, nest: 'autoCraft2' },
     { id: 'legacyCraft', name: '轮回前遗产制作', cost: 8, desc: '解锁轮回结算前自动制作艺术品与潮纹记录（买断）', kind: 'auto', n: 1, apply: { legacyCraft: 1 } },
     /* ── 奇观、破壳与分区自动建造 ── */
     { id: 'wonderBlueprint', name: '遗址施工图 I', costs: [2, 4, 6, 8], desc: '所有奇观建造成本 −5%/级（最多 −20%）', kind: 'wonder', n: 4, apply: { wonderBlueprint: 1 } },
@@ -1613,7 +1683,15 @@
      *  「议事厅 × 君主制 × 大交易所 × 倒置搭建」同一条乘区纪律：来源之间互不踩定义域）。
      *  【落点】economy.costOf 收口那一行 `o[k] = ... * isb * hsb`，加一个 `bsb`——
      *  只改 costOf 一处 ⇒ 面板显示的造价与真实扣的天然同源（与另外三条减耗同源）。 */
-    { id: 'buildSave', name: '匠作省料', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '所有建筑消耗 −1%/级（最多 −20%）', kind: 'build', n: 20, apply: { buildSave: 1 } }
+    { id: 'buildSave', name: '匠作省料', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '所有建筑消耗 −1%/级（最多 −20%）', kind: 'build', n: 20, apply: { buildSave: 1 } },
+    /* ── 重复操作自动化：点击（2026-10-06 新增）──
+     *   自动采集（藻食+珊瑚）分三档，每档 apply {autoClick:1} ⇒ 三档叠加后 s.perk.autoClick = 档数 = 次/秒；
+     *   自动拾取点击事件 = 复刻手动点 #omen 横幅的 claim（src/events.js），出现即领。
+     *   ⚠️ 价目为接入真实结算前的首轮报价，待实跑校准；标定只改 cost，结构不动。 */
+    { id: 'autoClicker1', name: '自动采集 I', cost: 4, desc: '藻食+珊瑚 自动点击 1 次/秒', kind: 'auto', n: 1, apply: { autoClick: 1 } },
+    { id: 'autoClicker2', name: '自动采集 II', cost: 8, desc: '自动点击 2 次/秒（需先购 I）', kind: 'auto', n: 1, apply: { autoClick: 1 }, nest: 'autoClicker1' },
+    { id: 'autoClicker3', name: '自动采集 III', cost: 16, desc: '自动点击 3 次/秒（需先购 II）', kind: 'auto', n: 1, apply: { autoClick: 1 }, nest: 'autoClicker2' },
+    { id: 'autoEvent', name: '自动拾取', cost: 6, desc: '天壳震动等点击事件出现即自动拾取', kind: 'auto', n: 1, apply: { autoEvent: 1 } }
   ];
 
   /* 职业表。对齐 docs/DESIGN_v0.3.md §4「开局 **1 名族民，职业 = 采集者，资源 = 藻食**」：
@@ -1657,7 +1735,7 @@
      *   它是 2026-09-28 删掉「匠作」科技后遗留的幽灵行：
      *   ① `jobs.craft` 在全树**没有任何解锁口**（craftT 已删，唯一解锁通路 eff.unlockJob 空了）；
      *   ② 但 folk.jobUnlocked 对「既无科技声明也无市政声明」的职业返回 true（`return !tid`）
-     *      ⇒ 它被当成「开局无条件解锁」⇒ 族民页永远渲染「匠人 0 / 驱动加工、地热与祭坛」，
+     *      ⇒ 它被当成「开局无条件解锁」⇒ 族民页永远渲染「匠人 0 / 驱动加工、地热」，
      *      玩家点 ＋ 还真雇得到人 —— 而**雇了零产出**：加工早改「建筑自动」（见 economy 那条注）、
      *      地热唯一产出口（热泉井）已删 ⇒ economy.fuelRate 恒 0。
      *   ⇒ 一个看得见、雇得动、却什么都不产的职业，就是用户说的「根本没有」。
@@ -1681,6 +1759,23 @@
      *    同时反查两侧）。写在这里是为了让「谁解锁它」一眼能看见，与职业表并列。 */
     { id: 'merchant',   name: '商人',   desc: '奔走贸易——奢侈品（唯一来源）' }
   ];
+
+  /* ── 工坊自动制作槽（2026-10-07 用户拍板）────────────────────────────
+   * 【两个来源】① 工坊升级项「自动工坊」`upg_autoshop` **自带 1 个槽**（装了就有）；
+   *   ② 轮回商店 `autoCraft1/2/3` 每级 +1 槽。⇒ 槽数 = 1 + perk.autoCraft，封顶 4。
+   *   ⚠️ 槽数**上限写在这里**（AUTO.SLOT_MAX），workshop.slotCap 读它 —— 别在实现里
+   *     硬编码 4，将来要加档只改这一个数（与 capMul「系数写在数据表」同一条纪律）。
+   * 【阈值语义】每个槽 = 「配方 + 一档百分比」：**该配方的原料满了才造**，造的是
+   *   当时可造份数的这一百分比（25% / 50% / 75% / 100%，档位表 AUTO.PCTS）。
+   *   「满」= 原料达到仓储上限（capOf）——满了再产出也是溢出浪费，转制成工艺品才留住它。
+   *   ⚠️ 无上限资源（capOf = Infinity，如钢 / 工艺制品）**不参与「满」判定**：它永远不会
+   *      溢出，拿它当触发条件等于永不触发。全部原料都无上限时退化成「够一份就造」，
+   *      否则那种配方的槽会永远不动（判据见 workshop.autoReady）。 */
+  CFG.AUTO = {
+    SLOT_BASE: 1,                       // 自动工坊升级自带的槽数
+    SLOT_MAX: 4,                        // 槽数硬上限（1 自带 + 3 轮回商店）
+    PCTS: [0.25, 0.5, 0.75, 1]          // 玩家可选的「满仓后转制多少」档位
+  };
 
   // 必须复用同一 SB 命名空间：其余模块在加载期就读取 SB.CFG 等，另起一个对象会拿到 undefined
   var NS = (root.SB = root.SB || {});

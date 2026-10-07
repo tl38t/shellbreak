@@ -1,9 +1,8 @@
 /* 天壳 / SHELLBREAK —— 奇观（2026-09-27 用户拍）
  *
- * ⚠️ 与「破冰祭坛」是**两回事**，别混：
- *    · 破冰祭坛 miracle = 纪元五的持续机器（烧地热、可升多级、受 shell.miracleCap 约束）；
- *    · 奇观 wonder      = 一次性里程碑建筑（买断、永久、不重复），栏位也在别处。
- *  两者都在 habitat 的建筑列表里出现（miracle 是），但一个是产能单元、一个是纪念碑。
+ * ⚠️ 终局「持续机器」原本是破冰祭坛（纪元五、烧地热），2026-10-07 已整体撤除，
+ *    改由天穹钻机（wonder）承担「凿穿最后 25% 壳厚」的终章职责（见 shell.js 钻机 block）。
+ *  奇观 wonder = 一次性里程碑建筑（买断、永久、不重复），栏位也在别处。
  *
  * 三条纪律（改这个文件前先读）：
  *  ① **买断，不是等级**。建过一次就永久生效，没有重复购买（与工坊上半区的青铜工具同形态）。
@@ -69,7 +68,7 @@
    * ⚠️ 只加给材料，不加石梁 —— 石梁是无上限资源（用户拍），给它加 200 是没有意义的操作。
    * ⚠️ 用**白名单**而不是「石梁之外全加」：以后加新资源时白名单会逼着人决定
    *    「新资源吃不吃这个加成」，黑名单则让人默认漏掉。 */
-  var MAT_MAX_KEYS = { kelp: 1, coral: 1, stone: 1, silt: 1, warmstone: 1, iron: 1 };
+  var MAT_MAX_KEYS = { kelp: 1, coral: 1, stone: 1, silt: 1, warmstone: 1, iron: 1, titanium: 1 };
   function matMaxBonus(s, k) {
     if (!MAT_MAX_KEYS[k]) return 0;
     var m = 0, i, o = owned(s), L = list();
@@ -222,12 +221,15 @@
    *   ⚠️ 读 s.broken 判阶段：prestige.doBreak 开头有「已结算则返回」守卫，broken 置位权只在
    *       doBreak 内，故这里读到的 broken 是「已轮回」的权威标志（纪律③延伸：别处不散读 s.wonders）。 */
   function skydrillCivic(s) {
-    if (owned(s).wonder_skydrill && s.broken) return CFG.SKYDRILL_CIVIC;
+    if (owned(s).wonder_skydrill && s.broken) return SB.CFG.SKYDRILL_CIVIC;
     return 0;
   }
   function skydrillHappyOffset(s) {
     if (!owned(s).wonder_skydrill) return 0;
-    return s.broken ? CFG.SKYDRILL_HAPPY_WONDER : -CFG.SKYDRILL_HAPPY_RUN;
+    /* 2026-10-07 钻机改手动启动：「运行态 −1」的「运行」从此指 skydrillOn（真在转），
+     *   不再是「建成就算」——停着不动的机器不该轰鸣。破壳后仍转奇观态 +1（与开关无关）。 */
+    if (s.broken) return SB.CFG.SKYDRILL_HAPPY_WONDER;
+    return s.skydrillOn ? -SB.CFG.SKYDRILL_HAPPY_RUN : 0;
   }
 
   /* ⑫ 轮回商店「遗址施工图」折扣：奇观建造成本 ×(1 − 0.05 × wonderBlueprint等级)，最多 −20%。

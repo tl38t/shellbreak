@@ -79,9 +79,9 @@
     if (freeB(s,'kelpstore') && s.lvl.kelp>0 && s.lvl.kelpstore<4) return 'kelpstore';
     if (freeB(s,'ballast') && s.lvl.kelp>0 && s.lvl.ballast<3) return 'ballast';
     var house=pickHouse(s); if (house) return house;
-    var unlock=['siltpit','hall','workshop','miracle','furnace','library'];
+    var unlock=['siltpit','hall','workshop','furnace','library'];
     for(var u=0;u<unlock.length;u++) if(freeB(s,unlock[u])&&s.lvl[unlock[u]]===0)return unlock[u];
-    var list=['kelp','siltpit','nest','coralhouse','workshop','furnace','library','miracle','kelpstore','ballast'];
+    var list=['kelp','siltpit','nest','coralhouse','workshop','furnace','library','kelpstore','ballast'];
     for(var j=0;j<list.length;j++) if(freeB(s,list[j])) return list[j];
     return null;
   }
@@ -115,6 +115,8 @@
     if(key&&key.cond&&key.cond.t==='upgrade'&&SB.workshop.upgradeCanBuy(s,key.cond.id))SB.workshop.upgradeBuy(s,key.cond.id);
     if(s.techs.masonry&&s.lvl.workshop&&s.res.stoneBeam<20){var cb=SB.workshop.crafts().find(function(x){return x.id==='craft_stonebeam';});if(cb)SB.workshop.craft(s,'craft_stonebeam',1);}
     if(s.techs.shellgeo&&s.res.resonantDrill<30){var cd=SB.workshop.crafts().find(function(x){return x.id==='craft_drill';});if(cd)SB.workshop.craft(s,'craft_drill',1);}
+    // 天穹钻机改手动启动（2026-10-07）：bot 建成即拨开（2026-10-07 用户「启动按钮」语义下，bot 仍走全通路线）。
+    if(s.wonders&&s.wonders.wonder_skydrill&&!s.broken&&!s.skydrillOn)s.skydrillOn=true;
     // Build/upgrade, wonders, and research use the same APIs as the game's click handlers.
     var wid=desiredWonder(s);
     if(wid){if(SB.workshop.build(s,wid,SB.game.emit))SB.game.markDirty();}
@@ -131,7 +133,6 @@
       var civic=SB.CIVICS.find(function(c){return SB.civic.canResearch(s,c.id);}); if(civic)SB.civic.research(s,civic.id,SB.game.emit);
       if(s.gov&&!s.card){var pol=SB.POLICIES.find(function(p){return (Object.keys(p.effect||{}).length>0||typeof p.squareMul==='number')&&SB.civic.canSetCard(s,p.id);});if(pol)SB.civic.setCard(s,pol.id,SB.game.emit);}
     }
-    if(s.lvl.miracle>0&&!s.miracleOn)SB.game.toggleMiracle(true);
     SB.game.pumpTech(s,SB.game.emit); SB.game.pumpCivic(s,SB.game.emit);
     SB.game.markDirty();
   }

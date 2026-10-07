@@ -91,7 +91,7 @@
     { id: 4, name: '洋流纪', motto: '借力', color: '#4FC3F7', glyph: '四',
       desc: '潮汐的机械能被抓在手里：地热、转速、把整座礁当成一台机器。' },
     { id: 5, name: '破壳纪', motto: '工业化', color: '#F2C14E', glyph: '五',
-      desc: '造得出奇迹装置。祭坛凿穿最后 ' + 25 + '% 是这一纪元的全部内容。' }
+      desc: '造得出天穹钻机这样的奇迹装置，凿穿最后 ' + 25 + '% 壳厚是这一纪元的全部内容。' }
   ];
 
   var TECHS = [
@@ -273,7 +273,7 @@
     { id: 'thermal',    name: '保温法', era: 1, cost: 500, branch: 'survive', key: false, reqs: ['mining'], layer: 4,
       cond: { t: 'res', r: 'warmstone', n: 20 },
       /* ⚠️ 这里**故意没有 eff**。整个兑现物就是下面那个暖石开关，顶回多少由
-       *    CFG.WARM_RELIEF 决定，接线在 economy.warmRelief → foodRate。
+       *    SB.CFG.WARM_RELIEF 决定，接线在 economy.warmRelief → foodRate。
        * ⚠️ 别改成 `eff: { season: 0.25 }` —— 理由**不是**「seasonMul 不读 m.season」：
        *    那条路 2026-09-26 已修好（暖石顶回与历法收窄现在是**相加**，见 economy.seasonMul）。
        *    现在的理由是**效果重复**：纪元一已有一项「历法」专门负责收窄季节减产，保温法再给
@@ -283,7 +283,7 @@
        *   生产路径传 0（= 没烧暖石）把 m.season 整个顶掉 ⇒ 面板说收窄 25%、实账一点没变。
        *   当时在这里留了「千万别写 eff.season」的警告，但警告写给了保温法，
        *   真正挂着这个 eff 的历法反倒一直没被覆盖。⟩
-       * 【为什么 cond 要暖石 20】暖石只有矿工产、且是伴生（UNIT.warmstone 0.05），
+       * 【为什么 cond 要暖石 20】暖石只有矿工产、且是伴生（SB.UNIT.warmstone 0.05），
        *   要求存量 20 等于要求玩家真的雇了矿工——这条线的存在感全在这里。 */
       eff: { },
       note: '暖石开关：休眠期消耗暖石，抵消季节减产。' },
@@ -316,7 +316,7 @@
      *    · **上限**：cond 判的是**当前库存**，而 CAP_BASE.silt = 200（压舱仓每级 +120）。
      *      N 一旦 > 200，玩家会撞上「攒不到 N → 研究不了铁器 → 也就建不了压舱仓」
      *      这条自锁链；就算 ≤ 200，只要要求「得先建成压舱仓才攒得到」也一样锁死。
-     *    · **下限**：矿工 UNIT.silt = 0.09/人/秒 ⇒ 单人攒到 60 约需 11 分钟，
+     *    · **下限**：矿工 SB.UNIT.silt = 0.09/人/秒 ⇒ 单人攒到 60 约需 11 分钟，
      *      而 era2 整代原本只跑 8 分钟。嫌长**直接调这个 n**，别顺手改 UNIT/上限系数
      *      ——动那些会连累整局时长账（用户拍板的标定纪律：一次只动一个旋钮）。
      * ⚠️ 本项**不给 eff.unlockTool**：铁质工具的解锁权挂在 TOOLS[].need 上，
@@ -331,7 +331,7 @@
      * ⚠️ 尤里卡条件「压舱库 3 级」的可达性（逐项核过，不是拍的）：
      *    · 压舱仓由「照明」解锁（本层第一项），玩家研究完照明即可建；
      *    · 首级 120 珊瑚，ratio 1.15 ⇒ 三级累计约 461 珊瑚；
-     *    · 珊瑚唯一来源 = 珊瑚匠（UNIT.coral 0.5/人/秒），开局 1 人转珊瑚匠约 15 分钟。
+     *    · 珊瑚唯一来源 = 珊瑚匠（SB.UNIT.coral 0.5/人/秒），开局 1 人转珊瑚匠约 15 分钟。
      *    ⇒ 不会自锁（压舱仓不是本项的前置，只是本项的条件）。
      * ⚠️ 不能写成「建成灯塔 x N」：灯塔正是本项解锁的，条件指向的东西在自己身上
      *    —— 与「匠作 / 匠人 ≥ 2」是同一类自指错误（见匠作那段的注）。 */
@@ -423,7 +423,7 @@
      *     且这样它与纪元四点火术那条 `rate`（产出速率）门槛形成「攒够 / 跑起来」的区分。
      *   ⚠️ science 在 CAP_BASE 里**故意没有键** ⇒ capOf 恒 Infinity ⇒ 无上限可撞，
      *     不存在「攒 1000 却被仓储卡住」的自锁（与 culture 同口径）。
-     *   · 代价：按 UNIT.sci = 0.15/人/秒，1 位学者要 111 分钟才攒够 1000；
+     *   · 代价：按 SB.UNIT.sci = 0.15/人/秒，1 位学者要 111 分钟才攒够 1000；
      *     3 位学者 + 3 级潮纹馆（×1.3）约 28 分钟；8 位学者约 10 分钟。
      *     ⇒ 可达，但**不是顺手就到**的：它要求玩家在攒满之前先把科技点攒着别花。
      *     这个「卡流程」的代价是**标定权**，数字照规格写死在这里，等用户对账。 */
@@ -483,7 +483,7 @@
     { id: 'castle',     name: '城堡',   era: 3, cost: 10000, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
       cond: { t: 'gov', wild: 3 },
       eff: {},
-      note: 'Civ6: Castles · 启用任一三槽政体即掌握。解锁城堡（议事厅升级：减耗 +50%、每级 +50 容量）。' },
+      note: 'Civ6: Castles · 启用任一三槽政体即掌握。解锁工坊升级「城堡」——议事厅升级为城堡：议价减耗 +50%、每级 +50 容量。' },
 
     /* ═════════ 纪元四 · 天壳工程（6 项 · 2万~7.5万） ═════════
      * ⚠️ 2026-09-30 用户重设计：旧五项（点火术/涡轮/测壳/洋流/壳铸）**整体删除**，换成下面六项。
@@ -499,9 +499,9 @@
      *    天壳观测 + 印刷术同行(L3)、物理/银行业/热力学同行(L4)、倒置搭建独自一行(L5)。 */
     { id: 'shellwatch', name: '天壳观测', era: 4, cost: 20000, branch: 'know', key: true,
       reqs: ['education'], layer: 3,
-      cond: { t: 'zoneLvl', zone: 'academy', n: 70 },
+      cond: { t: 'zoneLvl', zone: 'academy', n: 35 },
       eff: { unlockBuild: ['observatory'] },
-      note: 'Civ6: Astronomy · 关键节点。学术区铺到 70 级，天壳才第一次能被天天盯着看。' },
+      note: 'Civ6: Astronomy · 关键节点。学术区铺到 35 级，天壳才第一次能被天天盯着看。' },
 
     { id: 'printing', name: '印刷术', era: 4, cost: 25000, branch: 'know', key: false,
       reqs: ['metalrefine'], layer: 3,
@@ -518,9 +518,13 @@
 
     { id: 'banking', name: '银行业', era: 4, cost: 40000, branch: 'live', key: false,
       reqs: ['printing'], layer: 4,
-      cond: { t: 'zoneLvl', zone: 'trade', n: 100 },
+      cond: { t: 'zoneLvl', zone: 'trade', n: 35 },
       eff: { unlockBuild: ['bank'] },
-      note: 'Civ6: Banking · 贸易区百级，账本才比货值钱。' },
+      /* ⚠️ 2026-10-06 用户口径「贸易区合计 70 改成 35」—— 但**代码里原本是 100**
+       *   （2026-09-30 ERA4 实装时按用户规格表落的「贸易区百级」，note 也写着「百级」）。
+       *   本轮按用户的**目标值 35** 执行，note 一并改掉，否则科技树上写着「35 级」以外的
+       *   旧数字会与实际门槛矛盾（文案 ≠ 门槛 = 又一个面板撒谎点）。 */
+      note: 'Civ6: Banking · 贸易区 35 级，账本才比货值钱。' },
 
     { id: 'thermo', name: '热力学', era: 4, cost: 50000, branch: 'survive', key: false,
       reqs: ['metalrefine'], layer: 4,
@@ -531,9 +535,9 @@
 
     { id: 'invert', name: '倒置搭建', era: 4, cost: 75000, branch: 'survive', key: true,
       reqs: ['physics'], layer: 5,
-      cond: { t: 'pop', n: 100 },
+      cond: { t: 'pop', n: 50 },
       eff: {},
-      note: 'Civ6: Urban Design · 关键节点。百人同族，才有把天壳当工地的一批人。' },
+      note: 'Civ6: Urban Design · 关键节点。五十人同族，才有把天壳当工地的一批人。' },
 
     /* ═════════ 纪元五 · 破壳（6 项 · layer 5/5/5/6/6/7） ═════════
      * 工业化。破冰祭坛（奇迹装置）的解锁仍走 config 的 miracle.requiredTech（见下方别处），
@@ -549,7 +553,11 @@
      *    顺延到 8万~15万。最终数值等用户标定轮拍板，不在本轮定死。 */
     { id: 'industrialize', name: '工业化', era: 5, cost: 80000, branch: 'survive', key: false,
       reqs: ['thermo'], layer: 5,
-      cond: { t: 'rate', r: 'hydro', n: 10 },
+      /* ⚠️ 2026-10-07 修：原来写 `r:'hydro'`，而 rates().hydro 是**净消耗（取负）** ⇒
+       *    这个条件恒不成立（负数永远 ≥ 不了 10），工业化**永不揭示**、热锻工厂永不可达，
+       *    且表面只表现为「尤里卡那行显示的是被吃掉的那一截」。
+       *    「产出达到 10/s」要的是**总生产** ⇒ 读 rates().hydroSupply（供给侧）。 */
+      cond: { t: 'rate', r: 'hydroSupply', n: 10 },
       eff: { unlockBuild: ['hotforge'] },
       note: 'Civ6: Industrialization · 热液能产出达到 10/s。解锁热锻工厂。' },
 

@@ -7,10 +7,13 @@
   var SB = root.SB || (root.SB = {});
   var CFG = SB.CFG;
   var E = null, P = null;   // 延迟取，避免加载顺序耦合
+  var _omenSig = '';        // #omen 横幅的渲染签名（活动事件 id，变化时才重写文案）
+  var _breakAnimationTimers = [];
+  var _breakAnimationReport = null;
 
   /* 页签 / 面板键顺序（也是 renderPanes 的遍历顺序）。faith 紧挨 civic：
    *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'dig', 'meta'];
+  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'meta'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
@@ -36,7 +39,6 @@
     faith:    { name: '信仰',     color: '#e691b0' },
     workshop: { name: '工坊',     color: '#f0a45c' },
     wonder:   { name: '奇观',     color: '#ffd166' },
-    dig:      { name: '剥壳工程', color: '#ff5f6d' },
     meta:     { name: '轮回商店', color: '#9fb4ff' }
   };
   /* ── 巢穴页内的建筑分区标题配色（2026-09-30 晚，用户：「这里的文字颜色也改了，就是生息区这些」）──
@@ -213,7 +215,21 @@
       var luxTxt = '';
       if (k === 'luxury' && SB.economy.happyLedger) {
         var LL = SB.economy.happyLedger(s);
-        luxTxt = ' <i class="sd">产 ' + LL.out.toFixed(2) + ' · 耗 ' + LL.burn.toFixed(2) + '</i>';
+        /* ⚠️ 2026-10-06 用户报 bug：「这里的消耗是不是把市政加的这些额外幸福度也算上去了」
+         *   —— 是的，那是读数 bug（真结算一直用机制值），已修（economy.happyMech）。
+         *   现在把「用于计价的幸福度」也摆出来：有政体/奇观/卡加成时，
+         *   玩家能验「人口 × 每人(mechH) = 耗」，不会以为加成被算成了消耗。 */
+        luxTxt = ' <i class="sd">产 ' + LL.out.toFixed(2) + ' · 耗 ' + LL.burn.toFixed(2) +
+          (Math.abs(LL.bonus) > 1e-9
+            ? (LL.mechH > 0
+              /* mechH ≤ 0 时 c(H) 走保底 BASE，那个负数对玩家没有意义，
+               * 印出来只会让人以为「按 −1 计价」是更省的事（其实单价已是最低）。 */
+              ? '（按幸福 ' + LL.mechH.toFixed(2) + ' 计，已剔市政/奇观/卡的 ' +
+                (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2) + '）'
+              : '（计价已到底线，已剔市政/奇观/卡的 ' +
+                (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2) + '）')
+            : '') +
+          '</i>';
       }
       /* 信仰行的标签：玩家给信仰起了名 ⇒ 用宗教名代替「信仰」二字（神学解锁后可在 #religionBox 改名）。 */
       var rowName = SB.RESS[k].name;
@@ -224,87 +240,6 @@
       var row = '<div class="' + cls + '"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
         SB.economy.fmtAmt(v) + capTxt + '</b><span>' + rowName + rateTxt + luxTxt + faithBonusTxt + '</span></div>';
       if (isCraft) htmlCraft += row; else htmlBase += row;
-    }
-    /* 幸福度（陆地贸易，2026-09-28）：民生轴，独立于资源循环（不是 SB.RESS 键）。
-     * 2026-09-30 起跟奢侈品同门（resUnlocked(s,'luxury')=商人已上岗）：
-     *   幸福度只在「有奢侈品供给/需求」时才有含义（H 由供给−需求驱动），商人没上岗前
-     *   H 恒 0=安定，硬塞一行只会让开局顶栏多一个读不懂的数。判据与奢侈品行同源，不另立。 */
-    if (SB.economy.resUnlocked(s, 'luxury')) {
-      var L = SB.economy.happyLedger ? SB.economy.happyLedger(s)
-              : { H: s.happy || 0, out: 0, burn: 0, net: 0, per: 0, pop: 0, cap: -2,
-                   tier: { name: '?', mul: 1, nextAt: null, nextName: null, nextMul: null },
-                   toNext: null, K: 0.02, bonus: 0, bonusParts: [], netNeed: 0 };
-      var Hh = L.H;
-      var hm = SB.economy.happyMul(s);
-      var tier = L.tier.name;
-      var hb = (Math.abs(hm - 1) < 1e-9) ? '' :
-        ' <i class="rate ' + (hm > 1 ? 'up' : 'down') + '">全产' + (hm > 1 ? '+' : '') +
-        Math.round((hm - 1) * 100) + '%</i>';
-      /* ⚠️ 2026-10-05 用户拍板：「要在幸福度那里写明产出多少、扣减多少」。
-       *   此前只有一个含混的净值与一个悬空的「全产−20%」，玩家看不出这俩怎么来的 ——
-       *   尤其**看不出自己是在产能不够还是在人太多**。现在摆明账四项，全部走
-       *   economy.happyLedger 一个口（与 tick / rates 同源），render 不自己拼数字：
-       *   拼 = 第二份口径 = 面板撒谎的标准成因。
-       * ⚠️ 档名/门槛已不再手抄（原先这行与 economy 各存一份，改一处漏一处不报错，
-       *   只会「面板写 ×0.92、实账按 ×0.80 算」）。现在读 ledger.tier。 */
-      var hNet = L.net;
-      var netTxt = ' <i class="rate ' + (hNet > 0 ? 'up' : hNet < 0 ? 'down' : '') + '">' +
-        (Math.abs(hNet) < 0.0005 ? '持平' :
-          (hNet > 0 ? '+' : '') + (Math.abs(hNet) >= 100 ? Math.round(hNet) : hNet.toFixed(3)) + '/s')
-        + '</i>';
-      /* 产出/扣减**分成两个独立项**（不是只给差）：净值为 0 有两种截然不同的原因 ——
-       *   产能刚好等于消耗（皆大欢喜），或**产能为 0**（商人没上岗，min(0,D)=0）。
-       *   后者与「刚好持平」在前一种写法下长得一模一样，玩家会以为没问题。
-       * ⚠️ 2026-10-05 用户拍板「没说清幸福度和奢侈品之间的关系」：写明这两项**就是奢侈品**
-       *   的供需（商人产 vs 全民耗），并把因果摆出来 —— 盈余推高幸福度、缺口压低。
-       *   此前「产出/扣减」悬空摆着，玩家看不出它跟上面奢侈品资源行是同一条账。 */
-      var detail = '<i class="cap">靠奢侈品维持：商人产 ' + L.out.toFixed(3)
-        + ' <span class="rate up">↑</span> · 居民耗 ' + L.burn.toFixed(3)
-        + ' <span class="rate down">↓</span>（' + L.pop + ' 人 × 每人 ' + L.per.toFixed(4)
-        + '）——盈余推高幸福度，缺口压低</i>';
-      /* ⚠️ 2026-10-05 用户报「政体 +1 幸福度没展示」。
-       *   【根因】政体/奇观/政策卡的加成是**常驻偏移量**（进 tick 的 _gb 基线），
-       *   早就加进 s.happy 了 —— 但 UI 从来只摆一个总数，玩家看不见「其中有多少是白送的」，
-       *   于是「采用古典共和 ⇒ 幸福度 +1」这条收益在面板上等于不存在。
-       * 【为什么必须逐条列而不是只给和】四项来源互相独立、可单独开关
-       *   （换政体只掉政体那一项、奇观还在），只给一个和 ⇒ 玩家不知道该换什么、也看不出是哪一项在起作用。
-       * ⚠️ bonusParts 来自 economy.happyLedger（逐项调那四个已导出函数），
-       *   **不在这里重算** —— 重算就是第二份口径，会与 tick 的 _gb 漂。
-       * ⚠️ 0 项时整段不摆：一行「加成 +0」是噪声，而顶栏本来就要短。 */
-      var bonusTxt = '';
-      if (L.bonusParts && L.bonusParts.length) {
-        var bl = [];
-        for (var bpi = 0; bpi < L.bonusParts.length; bpi++) {
-          var bp = L.bonusParts[bpi];
-          bl.push(bp.label + (bp.v > 0 ? ' +' : ' ') + (+bp.v.toFixed(2)));
-        }
-        bonusTxt = '<i class="cap">加成 ' + bl.join(' ｜ ') +
-          ' = 合计 ' + (L.bonus > 0 ? '+' : '') + (+L.bonus.toFixed(2)) + '</i>';
-      }
-      /* 距下一档差多少：这一条是「该往哪努力」的唯一提示，缺了整行就只是报数。
-       * ⚠️ toNext 在最高档为 null ⇒ 不摆，别显示「差 NaN」。
-       * ⚠️ 正负号保留：H 在往下掉时 toNext 为负，措辞用「差」不成立，故分开措辞。 */
-      var nextTxt = '';
-      if (L.toNext != null) {
-        /* ⚠️ 措辞带**净效果**（写「全产 0.92」而不是只写「−8%」）：玩家在 H=−1.97 看到
-         *   「到不满档 −8%」，若只给百分比会被读成「升上去就少亏 12%」而其实仍是负收益。
-         *   乘区与净效果一起给，方向和量级都不会被误读。
-         * ⚠️ 边界特判：|toNext| < 0.005 时 H 正好压在档位分界上（浮动恒温器很容易停在 −1.000
-         *   或 0.000 附近），此时说「差 0.00」读起来像 bug —— 改说「已在边界，跨过即换档」。 */
-        var nm = Math.round((L.tier.nextMul - 1) * 100);
-        var atEdge = Math.abs(L.toNext) < 0.005;
-        nextTxt = (L.toNext > 0)
-          ? '<i class="cap">↑ ' + (atEdge
-              ? '已在档位边界，跨过即入「' + L.tier.nextName + '」全产 ' + L.tier.nextMul.toFixed(2)
-              : '差 ' + L.toNext.toFixed(2) + ' 到「' + L.tier.nextName + '」全产 '
-                + L.tier.nextMul.toFixed(2) + (nm === 0 ? '' : '（' + (nm > 0 ? '+' : '') + nm + '%）'))
-            + '</i>'
-          : '<i class="cap">↓ 再掉 ' + Math.abs(L.toNext).toFixed(2) + ' 就跌回「'
-            + L.tier.nextName + '」全产 ' + L.tier.nextMul.toFixed(2) + '</i>';
-      }
-      htmlBase += '<div class="res happy-row"><b data-happy="1" data-raw="' + Hh.toFixed(2) + '">' +
-        Hh.toFixed(2) + '</b><span>幸福度 · ' + tier + netTxt + hb + bonusTxt + detail + nextTxt +
-        '</span></div>';
     }
     g.innerHTML = htmlBase;
     /* 工艺资源独立分区：解锁前不显示（resUnlocked），且无任何可见项时整段隐藏。 */
@@ -333,9 +268,9 @@
     el('shellTxt').innerHTML =
       Math.round(s.shell) + ' / ' + s.iceShell + '（' + p.toFixed(1) + '%）' +
       (SB.economy.isCold(s) ? ' <span class="coldbadge">· 本季冰封</span>' : '');
-    var hint = '基础削壳持续中：系数越高削得越快，族民、建筑、科技、祭坛都在推高它。';
+    var hint = '基础削壳持续中：系数越高削得越快，族民、建筑、科技都在推高它。';
     if (SB.economy.rOf(s) <= CFG.FLOOR_AT) {
-      hint = '壳已薄到下限，基础削壳停手——凿穿最后一段只剩破冰祭坛一条路。';
+      hint = '壳已薄到下限，基础削壳停手——建成「天穹钻机」后，在下方这行启动它凿穿最后一段。';
     }
     /* ⚠️ 冻伤出口在 2026-09-26 换过轴：原来是「建暖壳石」，现在是「开暖石开关」，
      *    提示语要跟着走，否则玩家在新存档里翻遍建筑页也找不到防冻的路。
@@ -435,6 +370,67 @@
     if (ws) ws.textContent = Math.floor(s.res.warmstone || 0);
   }
 
+  /* ── 天穹钻机启动行（2026-10-07）────────────────────────────────────
+   * 【为什么它住在这一卡】与暖石开关同一个归属逻辑：钻机是「读着天壳才用得上」的动作
+   *   （壳削到 25% 下限后才有意义），看壳的地方就是用它的地方。原「剥壳工程」页签
+   *   同日删除（用户：「这个标签不需要保留」），钻机的入口从页签收成这一行。
+   * 【状态签名节流】与 renderWarm 同一套纪律：#envDrill 是每帧刷的容器，但只在
+   *   签名（启动/停 × 运转/停摆）变化时才重写 innerHTML，按钮元素始终在位不丢点击；
+   *   共振钻头库存（每帧都可能变）走独立 span 的 textContent 单独刷，不进签名。
+   * 【面板三态】未启动（灰按钮）/ 运转中 / 停摆——停摆 = 开着但缺料，是 shell.tickShell
+   *   的 skydrillStarved 位；原因只有两种：共振钻头见底，或热液能剩流 < 20/s。
+   *   每种都把「为什么」写全，否则玩家读不出该去补哪条线。
+   * 【隐藏两态】未建成奇观 / 已破壳（钻机转奇观态，跟壳厚无关了）——整行不显示。 */
+  var drillSig = '';
+  function renderDrill(s) {
+    var box = el('envDrill'); if (!box) return;
+    var owned = !!(SB.wonder && SB.wonder.owned(s).wonder_skydrill);
+    if (!owned || s.broken) {
+      if (drillSig !== '') { drillSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+      return;
+    }
+    box.style.display = '';
+    var starved = !!s.skydrillStarved && !!s.skydrillOn;
+    /* ⚠️ 2026-10-07 用户报「已启动还是没反应」：停摆文案原是「钻头见底，或剩流不足」二选一
+     *   的泛化句，玩家读不出自己卡在哪条。改为**带实测数字**的诊断：
+     *   hydroAlloc(s,1) 是纯函数（dt=1 ⇒ 各字段已是每秒口径），直接给出供/吃/剩三数，
+     *   并按「哪条线缺」分流文案——缺钻头说钻头，缺剩流就报汽轮机供给与工坊吃量。
+     * ⚠️ 剩流整数部分纳入签名：玩家升汽轮机时这行数字跟着刷新（每 +1/s 重写一次），
+     *    否则「补足了但文案还报旧数」又是一条面板撒谎。 */
+    var _HF = (SB.economy && SB.economy.hydroAlloc) ? SB.economy.hydroAlloc(s, 1) : null;
+    var _left = _HF ? Math.max(0, _HF.left) : 0;
+    var sig = (s.skydrillOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
+      Math.min(999, Math.floor(_left));
+    if (sig !== drillSig) {
+      drillSig = sig;
+      var ds;
+      if (!s.skydrillOn) {
+        ds = '建成即就绪，尚未启动。点右侧按钮开始凿穿最后 ' + (CFG.FLOOR_AT * 100) +
+          '% 壳厚——运转期间持续吃共振钻头（' + SB.CFG.SKYDRILL_DRILL + '/秒）与热液能（' +
+          SB.CFG.SKYDRILL_HYDRO + '/秒，从热液工坊吃剩的流里取）。';
+      } else if (starved) {
+        if ((s.res.resonantDrill || 0) < SB.CFG.SKYDRILL_DRILL) {
+          ds = '停摆：共振钻头见底（现存 ' + Math.floor(s.res.resonantDrill || 0) +
+            '，运转每秒耗 ' + SB.CFG.SKYDRILL_DRILL + '）。去工坊打「共振钻头」补货，补足后自动恢复，无需重启。';
+        } else {
+          var _tur = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
+          ds = '停摆：热液能剩流 ' + _left.toFixed(1) + '/秒，不足 ' + SB.CFG.SKYDRILL_HYDRO +
+            '/秒——汽轮机运行 ' + _tur + ' 座供 ' + (_HF ? _HF.supplyRate.toFixed(1) : '?') +
+            '/秒，热液工坊吃 ' + (_HF ? _HF.shopRate.toFixed(1) : '?') + '/秒。' +
+            '升汽轮机（每级 +1/秒）或停用热液工坊；暖石断供汽轮机也会停产。补足后自动恢复，无需重启。';
+        }
+      } else {
+        ds = '运转中：钻头以 ' + SB.CFG.SKYDRILL_RATE + ' 点/秒削壳（轮回「壳层勘探」可再加成），吃完停摆、补足自动续。';
+      }
+      box.innerHTML = '<div><div class="nm">天穹钻机 <span class="tag" id="envDrillCt">0</span></div>' +
+        '<div class="ds">' + ds + '</div></div>' +
+        '<button class="btn tog' + (s.skydrillOn ? ' on' : '') +
+        '" data-skydrill="1" title="点击启动 / 停机">' + (s.skydrillOn ? '已启动' : '已停机') + '</button>';
+    }
+    var ct = el('envDrillCt');
+    if (ct) ct.textContent = Math.floor(s.res.resonantDrill || 0) + ' 钻头';
+  }
+
   /* ── 宗教命名框（2026-09-29）────────────────────────────────────
    * 【为什么是持久容器、不走 #res / pane 每帧重建】信仰资源行在 #res（每帧 innerHTML 重写），
    *   civic pane 每 2 秒重写 —— 里面塞 <input> 每敲一字就被换掉、丢焦点。
@@ -516,8 +512,38 @@
          * 看着像「建筑自己跳出来又自己没了」——猫国 unlockable 同样只进不退。 */
         var lv = s.lvl[b.id] || 0;
         var isUnlocked = SB.habitat.unlocked(s, b);
+        if (SB.habitat.retired && SB.habitat.retired(s, b)) continue;
         if (lv <= 0 && !(s.seen && s.seen[b.id]) && !isUnlocked) continue;
         if (isUnlocked) SB.habitat.reveal(s, b);
+        /* ⚠️⚠️ 建筑升级型 = 同一座建筑改名字（2026-10-06 用户两次纠偏定死）。
+         *   本作有四条升级项 desc 写的是「X升级：…」——鱼骨矿井 / 大学 / 城堡 / 深层矿井。
+         *   它们的语义都是**那座建筑买下之后就地改名**，不是另造一座：
+         *     砂矿坑 → 鱼骨矿井 → 深层矿井（两级链）
+         *     研究所 → 大学
+         *     议事厅 → 城堡
+         *   ⇒ 这一行的 id、等级键、造价曲线**全程不变**，只有显示名与效果文案变。
+         *   判据读 UPGRADES 的 `upgradesBuilding` 字段（声明在数据侧，见 config 那段注释），
+         *   UI 侧只做一次通用查找 ⇒ 加第五个这种升级时不必再动这个文件。
+         *   ⚠️【为什么不能靠改 `b.name` 实现】建筑定义是全局常量，被 costOf / 科技 / 分区
+         *      多处共读，在那里改名会让所有跨模块读数一起变。改显示名是**纯 UI 动作**。
+         *   ⚠️【链式取最深一级】矿坑有两级升级（鱼骨矿井 → 深层矿井），两件都装了时
+         *      面板要显示**最后一级**的名字（深层矿井），所以按 UPGRADES 的声明顺序遍历、
+         *      命中即记、继续往后覆盖 —— 而不是「命中就 break」。 */
+        /* ⚠️ 变量名不许叫 `ui`：`SB.ui` 是本模块在文件末尾挂上去的**全局命名空间**
+         *   （SB.ui.openIntro / SB.ui.render）。在这里 `var ui` 会把它遮蔽成循环下标，
+         *   于是模块末尾 `SB.ui = SB.ui || {}` 读到数字 0 → falsy → 整个命名空间重建为空对象，
+         *   页面启动即 `querySelector is not a function`。踩过一次，改名 `_upi`。 */
+        var dispName = b.name, dispDesc = b.desc;
+        for (var _upi = 0; SB.UPGRADES && _upi < SB.UPGRADES.length; _upi++) {
+          var _u = SB.UPGRADES[_upi];
+          if (_u.upgradesBuilding === b.id && s.upgrades && s.upgrades[_u.id]) {
+            dispName = _u.name;
+            /* `buildingDesc` 是给建筑行准备的完整文案；没写就退回 `desc`。
+             *   两者主语不同：desc 说「砂矿坑升级：…」（升级面板里正确），buildingDesc
+             *   直接陈述效果（那一行已经叫鱼骨矿井了）。见 config 那段分工注释。 */
+            dispDesc = _u.buildingDesc || _u.desc;
+          }
+        }
         var c = SB.economy.costOf(s, b.id);
         var ok = SB.economy.canAfford(s, c);
         var blocked = !SB.habitat.needMet(s, b);
@@ -559,17 +585,49 @@
             (_frun >= lv ? ' disabled' : '') + '>＋</button>' +
             '</span>';
         }
+        /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
+         * 汽轮机每台恒烧暖石 5/s、产热液能流 1/s；玩家要省暖石（或没工坊/钻机吃流）时按下几座。
+         * 运行座数 = lv − 停用数（s.turbineStop），结算在 economy.hydroAlloc（供给）/ steelFlow（暖石扣费）。
+         * 复用 .furnctl 样式（−/＋/数字，绿=运转中），± 走 document 级委托防丢点击。 */
+        var turbBtn = '';
+        if (b.id === 'hydroturbine' && lv > 0) {
+          var _trun = Math.max(0, lv - Math.max(0, s.turbineStop || 0));
+          turbBtn = '<span class="furnctl' + (_trun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-turbine-dec="1" title="停一座"' +
+            (_trun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _trun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-turbine-inc="1" title="开一座"' +
+            (_trun >= lv ? ' disabled' : '') + '>＋</button>' +
+            '</span>';
+        }
+        /* 热液工坊「开几座」（2026-10-07，与汽轮机 turbineStop / 热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
+         * 工坊吃热液能流产钢；玩家要「把流让给天穹钻机」或不想产钢时按下几座。
+         * 运行座数 = lv − 停用数（s.hydroshopStop），结算在 economy.hydroAlloc（shopL）。复用 .furnctl 样式。 */
+        var shopBtn = '';
+        if (b.id === 'hydroshop' && lv > 0) {
+          var _srun = Math.max(0, lv - Math.max(0, s.hydroshopStop || 0));
+          shopBtn = '<span class="furnctl' + (_srun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-shop-dec="1" title="停一座"' +
+            (_srun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _srun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-shop-inc="1" title="开一座"' +
+            (_srun >= lv ? ' disabled' : '') + '>＋</button>' +
+            '</span>';
+        }
         // 没有等级上限，所以只显示当前级数，不显示 x/上限
         // 潮纹馆带「虚级」（大潮纹馆 +3，按效果算、按建筑不算，见 wonder.libBonus）：
         // 徽章直接写成「1+3」——真实等级在前、虚级在后，一眼看出哪部分是白送的。
         // 其它建筑没有虚级通道，照旧只写一个数。
         var lvTxt = (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0)
           ? lv + '+' + SB.wonder.libBonus(s) : lv;
-        zRows += '<div class="row"><div><div class="nm">' + b.name +
+        var rowState = 'bld-row' + (lv > 0 ? ' is-owned' : '') + (blocked || canalCap ? ' is-blocked' : '') +
+          (!blocked && !canalCap && ok ? ' is-ready' : '');
+        zRows += '<div class="row ' + rowState + '"><div><div class="nm"><button type="button" class="building-name" data-build-info="' + b.id +
+          '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
           ' <span class="tag" data-lv="' + b.id + '"' +
           (lvTxt !== String(lv) ? ' title="含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）"' : '') +
-          '>' + lvTxt + '</span>' + autoBtn + furnBtn + '</div>' +
-          '<div class="ds">' + b.desc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
+          '>' + lvTxt + '</span>' + autoBtn + furnBtn + turbBtn + shopBtn + '</div>' +
+          '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div>' +
           '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap ? '' : ' disabled') + '>' + label + '</button></div>';
         zShown++;
@@ -590,6 +648,71 @@
     return h;
   }
 
+  function happyPanelHTML(s) {
+    if (!SB.economy.resUnlocked(s, 'luxury') || !SB.economy.happyLedger) return '';
+    var L = SB.economy.happyLedger(s);
+    var tiers = SB.economy.HAPPY_TIERS || [];
+    var low = CFG.HAPPY_FLOOR, high = tiers.length ? tiers[tiers.length - 1].lo : 3;
+    var pct = Math.max(0, Math.min(100, (L.H - low) / (high - low) * 100));
+    var flow = '奢侈品供给 ' + L.out.toFixed(2) + '/秒 · 居民消耗 ' + L.burn.toFixed(2) + '/秒 · ' +
+      (Math.abs(L.net) < 0.0005 ? '幸福度持平' : '幸福度' + (L.net > 0 ? ' +' : ' ') + L.net.toFixed(3) + '/秒');
+    var bonus = '';
+    if (L.bonusParts && L.bonusParts.length) {
+      var parts = [];
+      for (var i = 0; i < L.bonusParts.length; i++) {
+        var bp = L.bonusParts[i];
+        parts.push(bp.label + (bp.v > 0 ? ' +' : ' ') + (+bp.v.toFixed(2)));
+      }
+      /* ⚠️ 2026-10-06 用户报 bug：消耗的单价里曾把下面这些「固定加成」也算进去
+       *   （等于加成自己把居民养贵 ⇒ 政体 +1 幸福真实是负收益）。已修：消耗按 `mechH`
+       *   计价。把这句明写出来，玩家才知道加成只是补贴、不会被反向征税。 */
+      bonus = '<div class="happy-bonus">固定加成：' + parts.join(' · ') +
+        (L.mechH > 0
+          ? '　（不计入消耗单价 —— 居民消耗按幸福 ' + L.mechH.toFixed(2) + ' 计）'
+          /* mechH ≤ 0 ⇒ 每人的消耗单价已落到保底 0.005，再印那个负数只会误导。 */
+          : '　（不计入消耗单价 —— 计价已落到保底）') +
+        '</div>';
+    }
+    var next = L.toNext == null ? '幸福度已达最高档' : L.toNext > 0
+      ? '距「' + L.tier.nextName + '」还差 ' + L.toNext.toFixed(2)
+      : '再下降 ' + Math.abs(L.toNext).toFixed(2) + ' 将跌至「' + L.tier.nextName + '」';
+    return '<section class="happy-panel" id="happyPanel" aria-label="幸福度">' +
+      '<div class="happy-head"><div class="happy-reading"><span>幸福度</span> <b id="happyValue">' + L.H.toFixed(2) +
+      '</b><i id="happyTier">' + L.tier.name + '</i></div><span class="happy-effect" id="happyEffect">全产 ×' +
+      SB.economy.happyMul(s).toFixed(2) + '</span></div>' +
+      '<div class="happy-meter" role="meter" aria-label="幸福度等级" aria-valuemin="' + low + '" aria-valuemax="' + high +
+      '" aria-valuenow="' + L.H.toFixed(2) + '"><div class="happy-meter-fill"></div>' +
+      '<i class="happy-marker" id="happyMarker" style="left:' + pct.toFixed(2) + '%"></i></div>' +
+      '<div class="happy-labels"><span>动荡</span><span>不满</span><span>安定</span><span>愉悦</span><span>欢欣</span><span>欣喜若狂</span></div>' +
+      '<div class="happy-flow" id="happyFlow">' + flow + '</div>' + bonus +
+      '<div class="happy-next" id="happyNext">' + next + '</div></section>';
+  }
+
+  function paintHappy(s) {
+    var marker = el('happyMarker');
+    if (!marker || !s || !SB.economy.happyLedger) return;
+    var L = SB.economy.happyLedger(s);
+    var tiers = SB.economy.HAPPY_TIERS || [];
+    var low = CFG.HAPPY_FLOOR, high = tiers.length ? tiers[tiers.length - 1].lo : 3;
+    marker.style.left = Math.max(0, Math.min(100, (L.H - low) / (high - low) * 100)) + '%';
+    var value = el('happyValue'), tier = el('happyTier'), effect = el('happyEffect');
+    if (value) value.textContent = L.H.toFixed(2);
+    if (tier) tier.textContent = L.tier.name;
+    if (effect) effect.textContent = '全产 ×' + SB.economy.happyMul(s).toFixed(2);
+    var flow = el('happyFlow');
+    if (flow) flow.textContent = '奢侈品供给 ' + L.out.toFixed(2) + '/秒 · 居民消耗 ' + L.burn.toFixed(2) + '/秒 · ' +
+      (Math.abs(L.net) < 0.0005 ? '幸福度持平' : '幸福度' + (L.net > 0 ? ' +' : ' ') + L.net.toFixed(3) + '/秒');
+    var next = el('happyNext');
+    if (next) next.textContent = L.toNext == null ? '幸福度已达最高档' : L.toNext > 0
+      ? '距「' + L.tier.nextName + '」还差 ' + L.toNext.toFixed(2)
+      : '再下降 ' + Math.abs(L.toNext).toFixed(2) + ' 将跌至「' + L.tier.nextName + '」';
+    var meter = el('happyPanel');
+    if (meter) {
+      var bar = meter.querySelector('.happy-meter');
+      if (bar) bar.setAttribute('aria-valuenow', L.H.toFixed(2));
+    }
+  }
+
   function paneFolk() {
     var s = res();
     var T = CFG.TIDE;
@@ -597,22 +720,23 @@
      * （2026-09-25 那版软容量会打出「族民 7（人口上限 2）」，玩家报过一次 bug）。
      * 但光看数字，玩家仍会问「那为什么不再生人」⇒ 顶到时直接标红「住满」，
      * 下一行的生育进度条会写明原因（缺住房）。 */
-    var h = '<div class="row"><div><div class="nm">族民 ' + s.pop + '（人口上限 ' + SB.economy.popCap(s) + '）' +
+    var h = '<div class="row folk-summary"><div><div class="nm">族民 ' + s.pop + '（人口上限 ' + SB.economy.popCap(s) + '）' +
       (SB.economy.isFull(s) ? '<span class="bad">住满</span>' : '') + '</div>' +
       '<div class="ds">藻场见底会饿死；冰封期会冻死。保温巢能省口粮，藻场不够就先补场。</div></div></div>';
+    h += happyPanelHTML(s);
     /* 生育状态常驻一行：进度条只有 3px，且停摆时空着和漏存长得一样，
      * 这里用文字把「还需几秒」和「为什么走不动」摊开，手机上不靠 hover 也能看见。
      * 【为什么用 id 而不是整块重画】renderPanes 只在切页/置脏时跑，
      * 每帧的 renderTick 不碰 pane 的 innerHTML——这行要是拼死在字符串里就永远不会动
      * （实测：数字定格、条纹丝不动，刷新页面才更新）。于是挂 id，paintGrow 每帧只改这三处。 */
-    h += '<div class="row"><div><div class="nm" id="growNm"></div>' +
+    h += '<div class="row folk-growth"><div><div class="nm" id="growNm"></div>' +
       '<div class="gbar"><i id="growFill" style="width:0%"></i></div>' +
       '<div class="ds" id="growWhy"></div></div></div>';
     paintGrow(s);   // renderPanes 还没把 innerHTML 挂上时这里是空操作，下一帧（≤100ms）会补上
     /* 峰值族民是破冰结算的主指标之一：人口越深、工坊解锁越多、破壳越彻底，轮回点越多。
      * 直接把 breakReport 的实时预计摆出来，避免再显示已废弃的 POP_GATE / POP_SLOPE 旧口径。 */
     var br = SB.prestige.breakReport(s);
-    h += '<div class="row"><div><div class="nm">峰值族民 <b>' + s.peak + '</b> ' +
+    h += '<div class="row folk-peak"><div><div class="nm">峰值族民 <b>' + s.peak + '</b> ' +
       '<span class="tag ok">预计轮回点 ' + br.tidePoints.toFixed(2) + '</span></div>' +
       '<div class="ds">轮回点 = 1 + floor(发展分 × ' + (T.LINEAR_K) + ' × 破壳系数)，' +
       '发展分 = 2×峰值 + 建筑纪元分 + 工坊解锁项（' + br.workshopCount + ' 项）。' +
@@ -620,7 +744,7 @@
     /* 照猫国：族民默认闲置，＋ 雇 / − 退。没有闲置时 ＋ 禁用，
      * 职业总和永远 ≤ pop——不搞「减 A 立刻补给 B」的转移制。 */
     var idle = SB.folk.idle(s);
-    h += '<div class="row"><div><div class="nm">闲置 <b>' + idle + '</b></div>' +
+    h += '<div class="row folk-idle"><div><div class="nm">闲置 <b>' + idle + '</b></div>' +
       '<div class="ds">没活干的族民。点职业行的 ＋ 雇佣，− 退回闲置。</div></div></div>';
     /* ⚠️ 未解锁的职业**整行不渲染**（用户 2026-09-26：「一开始不要把这些职业显示出来，
      *   解锁一个显示一个」）。判据只有一处：`SB.folk.jobUnlocked`，它反查 techs.js 的
@@ -647,10 +771,10 @@
        * 数据表的 `j.name`，于是那套机制**只在科技页生效、族民页从不生效**——
        * 科技页说「…农民」，族民页同一行照旧写着「采集者」，两边打架且都不报错。
        * （与「科技面板从不渲染 note」同族：机制写好了、UI 不读它。） */
-      h += '<div class="row"><div><div class="nm">' + SB.folk.jobName(s, j.id) +
+      h += '<div class="row folk-job-row" data-job-row="' + j.id + '"><div><div class="nm">' + SB.folk.jobName(s, j.id) +
         ' <b id="j-' + j.id + '">' + s.jobs[j.id] + '</b></div>' +
         '<div class="ds">' + j.desc + '</div></div>' +
-        '<div style="display:flex;gap:4px">' +
+        '<div class="folk-job-controls">' +
         '<button class="btn" data-job="' + j.id + '" data-d="-1"' + (s.jobs[j.id] <= 0 ? ' disabled' : '') + '>−</button>' +
         '<button class="btn" data-job="' + j.id + '" data-d="1"' + (idle <= 0 ? ' disabled' : '') + '>＋</button></div></div>';
     }
@@ -686,13 +810,13 @@
     var L = SB.tech.layout(), G = L.geo, CP = SB.tech.pitch.col;
     var era = s.era || 1, T = SB.TECHS || [], i, b;
 
-    var h = '<div class="techscroll" id="techScroll"><div class="techcanvas"' +
+    var h = '<div class="techscroll tree-tech" id="techScroll"><div class="techcanvas"' +
       ' style="width:' + L.w + 'px;height:' + L.h + 'px">';
 
     /* ── 纪元轨道（横幅，钉在树顶当刻度）── */
     for (b = 0; b < L.blocks.length; b++) {
       var blk = L.blocks[b], er = eraOf(blk.era);
-      var bx = G.PADX + blk.start * CP, bw = blk.cols * CP - G.COL;
+      var bx = G.PADX + blk.offset, bw = blk.cols * CP - G.COL;
       h += '<div class="tnband' + (blk.era === era ? ' on' : '') +
         '" style="left:' + bx + 'px;width:' + bw + 'px;color:' +
         (blk.era < era ? '#5b6b80' : er.color) + '">' +
@@ -755,44 +879,26 @@
   function techNode(s, t, cell, w, hh, G) {
     var done = !!s.techs[t.id];
     var lit = SB.tech.metOf(s, t);          // 已掌握 / 达成过尤里卡 = 亮出内容
-    var short = SB.tech.condShort(s, t.cond);
+    var eureka = !lit ? SB.tech.condShort(s, t.cond) : null;
     var why = done ? null : SB.tech.studyBlocked(s, t.id);
     var fut = t.era > (s.era || 1);
-    var pct = (short && short.need > 0 && !done)
-      ? Math.max(0, Math.min(1, short.now / short.need)) : 0;
-
-    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + (fut ? ' fut' : '');
-    var h = '<div class="' + cls + '" id="techrow-' + t.id + '"' +
+    var status = done ? '已掌握' : !lit ? '未揭示' : why ? '暂不可研究' : '可研究';
+    var eurekaPct = eureka && eureka.need > 0
+      ? Math.max(0, Math.min(100, eureka.now / eureka.need * 100)) : 0;
+    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + (fut ? ' fut' : '') + ' tree-node';
+    var h = '<button type="button" class="' + cls + '" id="techrow-' + t.id + '"' +
       ' data-node="' + t.id + '" data-x="' + cell.x + '" data-y="' + cell.y + '"' +
       ' data-layer="' + cell.layer + '"' +
       ' data-lit="' + (lit ? 1 : 0) + '"' +
+      ' data-tree-node="1" data-tree-type="tech" data-tree-id="' + t.id + '"' +
+      ' aria-label="' + (lit ? t.name : '未揭露的科技') + '，' + status + '，打开详情"' +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w + 'px;height:' + hh + 'px">';
-    h += '<div class="tnhd"><span class="tnm">' + (lit ? t.name : '未揭露的科技') + '</span>' +
-      (t.key ? '<span class="tntag">关键</span>' : '') +
-      (done ? '<span class="tntag ok">已掌握</span>' : '') + '</div>';
-
-    if (lit) {
-      /* 亮出态：名称与效果都显示，不显示尤里卡进度行。
-       * 效果规则同列表版：无数值效果时改念 note 首行（保温法兑现物是暖石开关，effectText 退「无直接效果」）。 */
-      var fx = SB.tech.effectText(t);
-      if (fx.indexOf('（无直接效果）') === 0 && t.note) fx = t.note.split('\n')[0];
-      h += '<div class="tne">' + fx + '</div>';
-    } else {
-      /* 未揭露态：藏效果，只留条件 + 进度条，让玩家知道该往哪使力。 */
-      h += '<div class="tne" style="opacity:.5">达成尤里卡条件后揭示</div>';
-      h += '<div class="tnc2">' + (short ? '尤里卡 <b>' + short.txt + '</b>' : '尤里卡') + '</div>';
-      if (pct > 0 && pct < 1) {
-        h += '<div class="minibar tnbar"><i style="width:' + (pct * 100).toFixed(1) + '%"></i></div>';
-      }
-    }
-    /* ⚠️【2026-09-26】已掌握的节点不渲染假按钮（过去是 `<button disabled>—</button>`，
-     *    看着像没画完）。「已掌握」由标题那枚绿的 tntag 说，这里不放东西更诚实。 */
-    if (!done) {
-      h += '<button class="btn buy" data-tech="' + t.id + '"' + (why ? ' disabled' : '') +
-        ' title="' + (why ? '为什么灰着：' + why : '投入 ' + t.cost + ' 科技') + '">' +
-        '研究 ' + SB.economy.costOwnedTxt(s, { science: t.cost }) + '</button>';
-    }
-    h += '</div>';
+    h += '<span class="tnhd"><span class="tnm">' + (lit ? t.name : '未揭露的科技') + '</span>' +
+      (t.key ? '<span class="tntag">关键</span>' : '') + '</span>' +
+      (!lit ? '<span class="tree-eureka">尤里卡 · ' + (eureka ? eureka.txt : '达成条件后揭示') + '</span>' +
+        (eureka && eureka.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + eurekaPct.toFixed(1) + '%"></i></span><b>' + eurekaPct.toFixed(0) + '%</b></span>' : '') : '') +
+      '<span class="tree-node-foot"><i class="tree-state-dot"></i>' + status +
+      '<span class="tree-open-hint">查看详情　›</span></span></button>';
     return h;
   }
 
@@ -936,10 +1042,29 @@
    *    所以政体与卡占了上面两整块，树只占下面一块。
    * ⚠️ 面板未开门时整页不渲染（与 paneTechLocked 同一手法），页面签上才不会
    *    出现「一个空壳页」。 */
+  var civicView = 'government';
+  var govExpanded = {};
+  function setCivicView(view) {
+    if (view !== 'government' && view !== 'tree') return false;
+    civicView = view;
+    return true;
+  }
+  function toggleGovDetail(id) {
+    if (!id) return false;
+    govExpanded[id] = !govExpanded[id];
+    return true;
+  }
   function paneCivic() {
     var s = res();
     if (!SB.civic || !SB.civic.panelOpen(s)) return paneCivicLocked();
-    return paneCivicGov(s) + paneCivicSlot(s) + '<div class="secttl">市政树</div>' + civicTree(s);
+    var h = '<div class="panel-subtabs civic-subtabs" role="group" aria-label="市政分区">' +
+      '<button type="button" class="subtab' + (civicView === 'government' ? ' on' : '') +
+      '" data-civic-view="government" aria-pressed="' + (civicView === 'government') + '">政体</button>' +
+      '<button type="button" class="subtab' + (civicView === 'tree' ? ' on' : '') +
+      '" data-civic-view="tree" aria-pressed="' + (civicView === 'tree') + '">市政树</button></div>';
+    return h + (civicView === 'tree'
+      ? '<div class="subtab-panel civic-tree-panel">' + civicTree(s) + '</div>'
+      : '<div class="subtab-panel civic-government-panel">' + paneCivicGov(s) + paneCivicSlot(s) + '</div>');
   }
 
   function paneCivicLocked() {
@@ -970,24 +1095,35 @@
       h += '<div class="row"><div class="ds">政体系统尚未开启——研究《法典》开启酋邦制。</div></div>';
       return h;
     }
-    h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    var current = null, options = '';
     for (var j = 0; j < owned.length; j++) {
       var v = owned[j], on = s.gov === v.id;
       var why = on ? null : C.govBlocked(s, v.id);
-      h += '<div class="govcard' + (on ? ' on' : '') + '" id="govrow-' + v.id + '"' +
-        ' data-node="' + v.id + '" style="flex:1;min-width:150px">' +
-        '<div class="nm">' + v.name + (on ? ' <span class="tag ok">采用中</span>' : '') +
-        /* ⚠️ 2026-10-05 用户「都补上」：幸福度偏移在**采用中**时才成立
-         *   （happyBonus 走 govById(s.gov) 读当前政体），所以只给 on 的那一张挂。
-         *   写清这一点很重要：否则玩家会以为「解锁了就已经 +1」。 */
-        (on ? happyBonusNote(s, 'gov') : '') + '</div>' +
-        '<div class="ds">' + v.desc + '</div>' +
-        '<div class="govslots">' + recipeText(v) + '</div>' +
-        '<button class="btn' + (on ? '' : ' buy') + '" data-gov="' + v.id + '"' +
-        (on || why ? ' disabled' : '') + ' title="' + (why || (on ? '当前政体' : '')) + '">' +
-        (on ? '已采用' : '采用') + '</button></div>';
+      if (on) {
+        current = '<div class="gov-current" id="govrow-' + v.id + '">' +
+          '<div class="gov-current-label">当前政体 <span class="tag ok">生效中</span></div>' +
+          '<div class="gov-current-main"><strong>' + v.name + '</strong><span>' + v.desc + '</span></div>' +
+          '<div class="gov-current-meta"><span class="govslots">' + recipeText(v) + '</span>' +
+          /* 幸福度偏移只在采用中成立，不在未采用的预览卡上暗示为常驻效果。 */
+          happyBonusNote(s, 'gov') + '</div></div>';
+        continue;
+      }
+      var expanded = !!govExpanded[v.id];
+      options += '<div class="gov-choice' + (expanded ? ' expanded' : '') + '" id="govrow-' + v.id + '">' +
+        '<div class="gov-choice-main"><button type="button" class="inline-info-link gov-choice-name"' +
+        ' data-gov-detail="' + v.id + '" aria-expanded="' + expanded + '" aria-controls="govdetail-' + v.id + '">' +
+        v.name + '<span class="gov-choice-chevron" aria-hidden="true">⌄</span></button>' +
+        '<div class="gov-choice-preview">' + v.desc + '</div>' +
+        '<div class="gov-choice-slots">' + recipeText(v) + '</div></div>' +
+        '<button class="btn buy gov-adopt" data-gov="' + v.id + '"' + (why ? ' disabled' : '') +
+        ' title="' + (why || '采用此政体') + '">采用</button>' +
+        (expanded ? '<div class="gov-choice-detail" id="govdetail-' + v.id + '"><b>完整效果</b><p>' + v.desc +
+          '</p><span>政策卡槽：' + recipeText(v) + '</span>' + (why ? '<small>' + why + '</small>' : '') + '</div>' : '') +
+        '</div>';
     }
-    h += '</div>';
+    h += current || '';
+    if (options) h += '<div class="gov-options-heading"><b>可选政体</b><span>' + (owned.length - (current ? 1 : 0)) + ' 项</span></div>' +
+      '<div class="gov-choice-grid">' + options + '</div>';
     /* 换政体收费要写在明面上，否则玩家以为按钮只是灰着。只在已采用过政体后提示。 */
     if (s.gov && C.topCost(s) > 0) {
       h += '<div class="note">换政体需 ' + C.govCost(s) + ' 市政点（两倍最高已完成市政）；' +
@@ -1021,8 +1157,8 @@
     h += '<div style="display:flex;gap:10px;flex-wrap:wrap">';
     for (i = 0; i < list.length; i++) {
       var st = list[i].type, filled = (s.cards && s.cards[i]) ? C.policyById(s.cards[i]) : null;
-      /* 逐槽：第 i 槽装的是 s.cards[i]。万能槽里的卡人人能吃；非万能槽里若塞着
-       * 一张卡，它在别的槽里就是废的 ⇒ 拔下按钮照给，别让玩家忘了自己塞了一张对不口的卡。 */
+      /* 逐槽：第 i 槽装的是 s.cards[i]。2026-10-07 用户拍板：不给「拔下」按钮——
+       * 装填一张新卡就直接覆盖本槽（setCard 先挑对口的空槽、全满则覆盖对口已装槽）。 */
       h += '<div class="slotbox" id="slotrow-' + i + '">' +
         '<div class="slottt">' + C.slotTypeName(st) + ' <span class="tg">#' + (i + 1) + '</span></div>' +
         (filled && C.cardFits(filled, st)
@@ -1031,14 +1167,13 @@
             '</div>'
           : filled && !C.cardFits(filled, st)
             ? '<div class="slotcard bad">' + filled.name + '</div>' +
-              '<div class="slotsub bad">与这个槽不对口</div>'
+              '<div class="slotsub bad">与这个槽不对口，装填新卡可覆盖</div>'
             : '<div class="slotcard empty">空置</div>' +
               '<div class="slotsub">点击装填</div>') +
-        (filled ? '<button class="btn" data-cardclear="' + i + '">拔下</button>' : '') +
         '</div>';
     }
     h += '</div>';
-    h += '<div class="note">人生第一次装填免费；之后每一次装填／更换／拔下都收 ' +
+    h += '<div class="note">人生第一次装填免费；之后每一次装填／更换都收 ' +
       C.cardCost(s) + ' 市政点。</div>';
     return h + pool(s);
   }
@@ -1093,14 +1228,14 @@
   function civicTree(s) {
     if (!SB.civic || !SB.civic.layout) return '<div class="note">市政树几何尚未加载。</div>';
     var L = SB.civic.layout(), G = L.geo;
-    var h = '<div class="techscroll" id="civicScroll"><div class="techcanvas"' +
+    var h = '<div class="techscroll tree-civic" id="civicScroll"><div class="techcanvas"' +
       ' style="width:' + L.w + 'px;height:' + L.h + 'px">';
 
     /* 纪元轨道（只有一条时不画：单纪元的横幅是纯噪音）。 */
     if (L.blocks.length > 1) {
       for (var b = 0; b < L.blocks.length; b++) {
         var blk = L.blocks[b], er = eraOf(blk.era);
-        h += '<div class="tnband" style="left:' + (G.PADX + blk.start * L.pitch) + 'px;width:' +
+        h += '<div class="tnband" style="left:' + (G.PADX + blk.offset) + 'px;width:' +
           (blk.cols * L.pitch - G.W) + 'px">' +
           '<span class="tng">' + (er.glyph || '') + '</span>' + er.name +
           '<span class="tnc">' + blk.cols + ' 列</span></div>';
@@ -1125,9 +1260,13 @@
     h += '</div></div>';
 
     var rate = SB.economy.cultureRate(s);
+    /* ⚠️ 2026-10-06 城堡「真升级」：注脚里这座建筑在买下 `upg_castle` 之后**改叫城堡**，
+     *   等级是同一个 `coreLvl`（= lvl.hall）。切名判据与建筑行那处同源（同一个 upgrades 键），
+     *   否则这里会显示「＋ 议事厅 8 级」而上面那行写着「城堡 8」——同一局两种名字。 */
+    var _coreName = (s.upgrades && s.upgrades.upg_castle) ? '城堡' : '议事厅';
     h += '<div class="note">市政点 ' + SB.economy.fmtAmt(s.res.culture) +
       '（+' + rate.toFixed(2) + '/秒 ＝ 书手 ' + (s.jobs.scribe || 0) + ' × ' + SB.UNIT.culture +
-      ' ＋ 议事厅 ' + (s.lvl.hall || 0) + ' 级 × ' + SB.CFG.CIVIC.HALL_RATE + '）。' +
+      ' ＋ ' + _coreName + ' ' + SB.economy.coreLvl(s) + ' 级 × ' + SB.CFG.CIVIC.HALL_RATE + '）。' +
       '鼓舞只揭示这条路，不替你付市政点。</div>';
     return h;
   }
@@ -1141,130 +1280,74 @@
   function civicNode(s, c, cell, w, hh) {
     var C = SB.civic, done = !!s.civics[c.id], rev = C.isRevealed(s, c.id);
     var why = done ? null : C.blocked(s, c);
-    var st = SB.tech.condShort(s, c.boost);
-    var pct = (st && st.need > 0 && !done)
-      ? Math.max(0, Math.min(1, st.now / st.need)) : 0;
-
-    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open');
-    var h = '<div class="' + cls + '" id="civicrow-' + c.id + '"' +
+    var boost = !rev ? SB.tech.condShort(s, c.boost) : null;
+    var boostPct = boost && boost.need > 0
+      ? Math.max(0, Math.min(100, boost.now / boost.need * 100)) : 0;
+    var status = done ? '已完成' : !rev ? '未揭示' : why ? '暂不可研究' : '可研究';
+    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + ' tree-node';
+    var h = '<button type="button" class="' + cls + '" id="civicrow-' + c.id + '"' +
       ' data-node="' + c.id + '" data-x="' + cell.x + '" data-y="' + cell.y + '"' +
       ' data-layer="' + cell.layer + '"' +
       ' data-revealed="' + (rev ? 1 : 0) + '"' +
+      ' data-tree-node="1" data-tree-type="civic" data-tree-id="' + c.id + '"' +
+      ' aria-label="' + (rev ? c.name : '未揭露的市政') + '，' + status + '，打开详情"' +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w +
       'px;height:' + hh + 'px">';
-    h += '<div class="tnhd"><span class="tnm">' + (rev ? c.name : '未揭露的市政') + '</span>' +
-      (done ? '<span class="tntag ok">已完成</span>' : '') + '</div>';
-
-    if (rev) {
-      h += '<div class="tne">' + c.desc + '</div>';
-      h += '<div class="tnc2">' + C.boostText(s, c) + '</div>';
-    } else {
-      h += '<div class="tne" style="opacity:.5">达成鼓舞条件后揭示</div>';
-      h += '<div class="tnc2">' + (st ? '鼓舞 <b>' + st.txt + '</b>' : '鼓舞') + '</div>';
-    }
-    if (pct > 0 && pct < 1) {
-      h += '<div class="minibar tnbar"><i style="width:' + (pct * 100).toFixed(1) + '%"></i></div>';
-    }
-    /* ⚠️ 成本写在按钮上而不只是 title：卡片比视口窄，玩家要能一眼看出「还要攒多少」。 */
-    if (!done) {
-      h += '<button class="btn buy" data-civic="' + c.id + '"' + (why ? ' disabled' : '') +
-        ' title="' + (why || ('投入 ' + c.cost + ' 市政点')) + '">' +
-        '研究 ' + SB.economy.costOwnedTxt(s, { culture: c.cost }) + '</button>';
-    }
-    h += '</div>';
-    return h;
-  }
-
-  function paneMiracle() {
-    var s = res(), C = CFG.COEF, sum = SB.economy.lvlSum(s);
-    var lv = s.lvl.miracle || 0;
-
-    var parts = [
-      ['族民 ' + s.pop, C.POP * Math.pow(s.pop, C.POP_POW)],
-      ['建筑 ' + sum + ' 级', C.LVL * Math.pow(sum, C.LVL_POW)],
-      ['科技 ' + SB.shell.techCount(s), C.TECH * SB.shell.techCount(s)],
-      ['祭坛 ' + lv, C.MIR * lv]
-    ];
-    if (s.perk.coef) parts.push(['轮回 ' + s.perk.coef, C.PERK * s.perk.coef]);
-
-    var h = '<div class="row"><div><div class="nm">破壳系数 <b>' + SB.shell.breakCoef(s).toFixed(2) + '</b></div>' +
-      '<div class="ds">' + parts.map(function (p) { return p[0] + ' ' + p[1].toFixed(2); }).join(' ＋ ') +
-      (SB.economy.isCold(s) ? '，再 ×' + C.COLD + ' 冰封期' : '') +
-      '</div></div></div>';
-
-    h += '<div class="row"><div><div class="nm">基础削壳 <b>' + SB.shell.autoRate(s).toFixed(2) + '</b> 点/秒</div>' +
-      '<div class="ds">自动推进，但只把壳削到 ' + (CFG.FLOOR_AT * 100) + '% 就停手。</div></div></div>';
-
-    h += '<div class="row"><div><div class="nm">破冰祭坛 ' + lv + '</div>' +
-      '<div class="ds">' + (lv > 0
-        ? '速率 ' + SB.shell.miracleRate(s).toFixed(2) + ' 点/秒 ｜ 地热消耗 ' + SB.shell.miracleBurn(s).toFixed(2) + '/秒'
-        : '凿穿最后 ' + (CFG.FLOOR_AT * 100) + '% 壳厚的唯一手段。') + '</div></div>' +
-      '<label style="display:flex;align-items:center;gap:6px">' +
-      '<input type="checkbox" id="miracleToggle" data-miracle="1"' + (s.miracleOn ? ' checked' : '') +
-      (lv > 0 ? '' : ' disabled') + '><span style="font-size:12px;color:var(--dim)">' +
-      (s.miracleOn ? '启动中' : '已停机') + '</span></label></div>';
-
-    /* ⚠️ 2026-09-28：原来这两条说明都在指「热泉井」（地热的产出口），而**热泉井已被删除**
-     *    （用户指令：整条地热线等着重新设计）⇒ 页面上留着「热泉井 × 匠人产出」是**指着一个
-     *    不存在的建筑说话**，玩家会照着去找。文案改成不点名任何建筑；
-     *    「把匠人调去 XX」这类操作指引也一并去掉（地热当前没有任何产出口，指哪都是空的）。 */
-    h += '<div class="row"><div><div class="nm">地热 <b>' + SB.economy.fmtAmt(s.res.fuel) + '</b></div>' +
-      '<div class="ds">当前没有任何产出口 ⇒ 恒为 0（地热线待重设）。供给跟不上祭坛，祭坛就停摆。</div></div></div>';
-
-    if (s.starved) h += '<div class="note" style="color:var(--red)">地热耗尽，祭坛停摆——等新的产出口落地后再看这里。</div>';
-    else h += '<div class="note">祭坛按速率自动凿壳，地热断了自动停、恢复自动继续。你要管的是燃料，不是点击。</div>';
-
-    /* ⚠️ 2026-10-05 用户「都补上」：天穹钻机的幸福度偏移是**双态**的
-     *   （skydrillHappyOffset：运行态 −1 / 破壳后 +1），与另外三项「装上就固定」不同。
-     *   ⇒ 这里连「为什么会变」一起说清，否则玩家看到数字翻转会以为 bug。
-     * ⚠️ 数字仍走 happyBonusNote（ledger → 那四个已导出函数），不在这里手写 ±1。 */
-    var hbn = happyBonusNote(s, 'skydrill');
-    if (hbn) {
-      /* ⚠️ 别写 `w.SB.…` —— render.js 全文统一用裸 `SB`（w. 是探针 iframe 里的包装，
-         *   本文件里没有那个别名）。写错不会静默，只会在 renderPanes 走到这一页时抛
-       *   ReferenceError —— 而 e2e 的假 DOM 走不到 dig 页 ⇒ 回归绿着也照样错。 */
-      var skOff = SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0;
-      h += '<div class="row"><div><div class="nm">钻机的幸福度影响 ' + hbn + '</div>' +
-        '<div class="ds">这一项随钻机状态**翻面**：当前运行态是' + (skOff < 0 ? '压低' : '抬高') +
-        '，壳破之后转为' + (skOff < 0 ? '抬高' : '压低') +
-        '。顶栏那一行的「加成」里能看到它当前值。</div></div></div>';
-    }
+    h += '<span class="tnhd"><span class="tnm">' + (rev ? c.name : '未揭露的市政') + '</span>' +
+      '</span>' + (!rev ? '<span class="tree-eureka">鼓舞 · ' +
+        (boost ? boost.txt : c.boost ? '达成鼓舞条件后揭示' : '无需鼓舞') + '</span>' +
+        (boost && boost.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + boostPct.toFixed(1) + '%"></i></span><b>' + boostPct.toFixed(0) + '%</b></span>' : '') : '') +
+      '<span class="tree-node-foot"><i class="tree-state-dot"></i>' + status +
+      '<span class="tree-open-hint">查看详情　›</span></span></button>';
     return h;
   }
 
   function paneMeta() {
     var m = meta();
     var lg = SB.prestige.legacy();
-    var h = '<div class="row"><div><div class="nm">轮回点 ' + m.tide.toFixed(2) + '</div>' +
-      '<div class="ds">已消费 ' + m.spent.toFixed(2) + '｜周目 ' + m.cycle + '｜破层 ' + m.layers + '</div></div></div>';
+    var h = '<section class="meta-overview"><div class="meta-balance"><span>轮回点余额</span>' +
+      '<strong>' + m.tide.toFixed(2) + '</strong><small>跨周目保留 · 用于永久强化</small></div>' +
+      '<div class="meta-stats"><div><span>累计消费</span><b>' + m.spent.toFixed(2) + '</b></div>' +
+      '<div><span>周目</span><b>' + m.cycle + '</b></div><div><span>破层</span><b>' + m.layers + '</b></div></div></section>';
     /* ⚠️ 2026-10-05 用户报「弹窗说会保留的东西，商店里很多都没显示」：
      *    结算弹窗承诺保留的旧日遗产四项，商店页此前一行都没渲染。数字全部走
      *    prestige.legacy() 同一个口（与实际加成同源），不在这里另写公式。 */
-    h += '<div class="row"><div><div class="nm">旧日信仰 ' + SB.economy.fmtAmt(m.oldFaith || 0) + '</div>' +
-      '<div class="ds">每周目剩余信仰并入，跨周目累积。当前全产出 +' +
-      (lg.oldFaithAllProductionBonus * 100).toFixed(1) + '%（对数档位：10/100/1e3/1e4 各进一档）。</div></div></div>';
-    h += '<div class="row"><div><div class="nm">纪念奇观 ' + lg.relicCount + ' 座</div>' +
-      '<div class="ds">首次建成的独特奇观入藏。科技点与市政点获取各 +' +
-      ((lg.relicCultureMul - 1) * 100).toFixed(0) + '%。</div></div></div>';
-    h += '<div class="row"><div><div class="nm">旧日艺术品 ' + (m.oldArtworkEarnedTotal || 0) + ' 件</div>' +
-      '<div class="ds">市政点 +' + lg.oldArtworkCultureRate.toFixed(2) + '/秒（调和级数：件数越多单件越薄）。</div></div></div>';
-    h += '<div class="row"><div><div class="nm">旧日潮纹碑石 ' + (m.oldTideStelesEarnedTotal || 0) + ' 件</div>' +
-      '<div class="ds">科技点 +' + lg.oldTideSteleScienceRate.toFixed(2) + '/秒（调和级数：件数越多单件越薄）。</div></div></div>';
-    for (var i = 0; i < SB.PERKS.length; i++) {
-      var p = SB.PERKS[i], st = SB.prestige.perkState(p.id);
-      h += '<div class="row"><div><div class="nm">' + p.name +
-        ' <span class="tag">' + st.lv + '/' + (isFinite(st.max) ? st.max : '∞') + '</span>' +
-        ' <span class="tag">' + (p.kind === 'start' ? '起始' : p.kind === 'thin' ? '门槛' : '效率') + '</span></div>' +
-        '<div class="ds">' + p.desc + (st.locked ? '（需先解锁上一层）' : '') + '</div></div>' +
-        '<button class="btn buy" data-perk="' + p.id + '"' +
-        (st.done || st.locked || !st.afford ? ' disabled' : '') + '>' +
-        /* ⚠️ 2026-10-05 用户报「undefined 点」：这里原先裸读 p.cost，而逐级定价商品
-         *    （costs 数组）没有 cost 字段 ⇒ 上屏 undefined。改成 perkState 算好的
-         *    st.next（prestige.perkNextCost：costs[lv] 优先、回落 p.cost），
-         *    满级商品不再显示任何数字。 */
-        (st.done ? '已满级' : st.next + ' 点') + '</button></div>';
+    h += '<section class="meta-legacy"><div class="meta-section-title"><b>跨周目遗产</b><span>每次轮回累积，持续强化新文明</span></div><div class="meta-legacy-grid">' +
+      '<article class="meta-legacy-card"><span class="meta-legacy-icon">✧</span><div><b>旧日信仰</b><strong>' + SB.economy.fmtAmt(m.oldFaith || 0) + '</strong></div>' +
+      '<small>全产出 +' + (lg.oldFaithAllProductionBonus * 100).toFixed(1) + '%</small><p>剩余信仰并入；对数档位累积加成</p></article>' +
+      '<article class="meta-legacy-card"><span class="meta-legacy-icon">◇</span><div><b>纪念奇观</b><strong>' + lg.relicCount + ' 座</strong></div>' +
+      '<small>科技与市政 +' + ((lg.relicCultureMul - 1) * 100).toFixed(0) + '%</small><p>首次建成的独特奇观收入藏</p></article>' +
+      '<article class="meta-legacy-card"><span class="meta-legacy-icon">▧</span><div><b>旧日艺术品</b><strong>' + (m.oldArtworkEarnedTotal || 0) + ' 件</strong></div>' +
+      '<small>市政点 +' + lg.oldArtworkCultureRate.toFixed(2) + '/秒</small><p>累积收藏，提供持续市政点</p></article>' +
+      '<article class="meta-legacy-card"><span class="meta-legacy-icon">⌁</span><div><b>旧日潮纹碑石</b><strong>' + (m.oldTideStelesEarnedTotal || 0) + ' 件</strong></div>' +
+      '<small>科技点 +' + lg.oldTideSteleScienceRate.toFixed(2) + '/秒</small><p>累积收藏，提供持续科技点</p></article></div></section>';
+    var groups = [
+      { key: 'start', title: '开局馈赠', hint: '为下一轮文明准备基础资源', kind: 'start' },
+      { key: 'thin', title: '破壳门槛', hint: '永久削弱冰壳，缩短重复开荒', kind: 'thin' },
+      { key: 'eff', title: '恒久增益', hint: '强化生产、研究与自动化', kind: 'eff' }
+    ];
+    for (var gi = 0; gi < groups.length; gi++) {
+      var group = groups[gi], items = [];
+      for (var pi = 0; pi < SB.PERKS.length; pi++) {
+        var perk = SB.PERKS[pi];
+        var bucket = perk.kind === 'start' ? 'start' : perk.kind === 'thin' ? 'thin' : 'eff';
+        if (bucket === group.key) items.push(perk);
+      }
+      h += '<section class="meta-shop-group meta-shop-' + group.key + '"><div class="meta-section-title"><b>' + group.title +
+        '</b><span>' + group.hint + '</span><i>' + items.length + ' 项</i></div><div class="meta-shop-grid">';
+      for (var ii = 0; ii < items.length; ii++) {
+        var p = items[ii], st = SB.prestige.perkState(p.id);
+        h += '<article class="meta-perk-card' + (st.done ? ' is-done' : st.locked ? ' is-locked' : '') + '"><div class="meta-perk-copy"><div class="nm">' + p.name +
+          ' <span class="tag">' + st.lv + '/' + (isFinite(st.max) ? st.max : '∞') + '</span>' +
+          ' <span class="tag meta-kind-tag">' + (p.kind === 'start' ? '起始' : p.kind === 'thin' ? '门槛' : '效率') + '</span></div>' +
+          '<div class="ds">' + p.desc + (st.locked ? '（需先解锁上一层）' : '') + '</div></div>' +
+          '<button class="btn buy meta-buy" data-perk="' + p.id + '"' +
+          (st.done || st.locked || !st.afford ? ' disabled' : '') + '>' +
+          (st.done ? '已满级' : st.locked ? '尚未解锁' : st.next + ' 点') + '</button></article>';
+      }
+      h += '</div></section>';
     }
-    h += '<div class="note">轮回点跨周目保留。门槛减免类最贵——它砍掉一局的重复劳动。</div>';
+    h += '<div class="note meta-shop-note">轮回点跨周目保留。购买的强化永久生效；门槛减免能显著缩短后续周目的开荒时间。</div>';
     return h;
   }
 
@@ -1279,28 +1362,45 @@
    *    · 叠加是**乘算** —— 三件齐了是 1.8×1.8×1.8 ≈ 5.83 倍，不是 +240%。 */
   /* ⚠️ 工坊面板是**上下两块**（用户 2026-09-27 拍「照着猫国那种感觉来」），
    * 对应猫国 `js/jsx/left.jsx.js:494-505` 的那两块：
-   *   上半「升级」  = 买断一次就完事（青铜工具三件）
+   *   「升级项」页签 = 买断一次就完事（职业工具 + 工坊升级）
    *   下半「工艺制作」 = 可以反复制造（石梁）
    * 顶部那一栏「工艺制作效率」是**一个全局数字**，来源是工坊建筑等级 + 奇观，见 workshop.craftRatio。 */
   function paneWorkshop() {
     var s = res();
     if (!s || !s.lvl || !(s.lvl.workshop > 0)) return paneWorkshopLocked();
-    /* ⚠️ 开关放在**标题行右侧**而不是单独一行：它是设置而非内容，
-     *   塞进标题行才不会把「青铜工具/工艺制作」那三段标题往下顶。
-     *   已完成数走 doneCount(s) 现算（hideDoneBtn 内），不存第二份。 */
-    return '<div class="secttl">工艺制作效率：+' + (SB.workshop.craftRatio(s) * 100).toFixed(0) + '%' +
-      '<span style="float:right">' + hideDoneBtn(s) + '</span></div>' +
-      '<div class="secttl">青铜工具</div>' + paneToolRows(s) +
-      '<div class="secttl">工艺制作</div>' + paneCraftRows(s) +
-      '<div class="secttl">工艺升级项</div>' + paneUpgradeRows(s) +
+    var tabs = '<div class="panel-subtabs workshop-subtabs" role="group" aria-label="工坊分区">' +
+      '<button type="button" class="subtab' + (workshopView === 'making' ? ' on' : '') +
+      '" data-workshop-view="making" aria-pressed="' + (workshopView === 'making') + '">制造</button>' +
+      '<button type="button" class="subtab' + (workshopView === 'upgrades' ? ' on' : '') +
+      '" data-workshop-view="upgrades" aria-pressed="' + (workshopView === 'upgrades') + '">升级项</button></div>';
+    /* 已完成数走 doneCount(s) 现算；控件仍使用原 data-hidedone 委托，不改变刷新行为。 */
+    var overview = '<div class="workshop-overview"><div class="workshop-efficiency">' +
+      '<span class="workshop-mark" aria-hidden="true">⚒</span><div><small>CRAFT · 工坊</small>' +
+      '<strong>工艺制作效率 <b>+' + (SB.workshop.craftRatio(s) * 100).toFixed(0) + '%</b></strong></div>' +
+      '<div class="workshop-done-toggle">' + hideDoneBtn(s) + '</div></div></div>';
+    if (workshopView === 'upgrades') {
+      return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>职业工具</b>' +
+        '<small>买断后持续生效；每件工具只作用于对应职业。</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
+        '<section class="workshop-section"><header class="workshop-section-title"><b>工坊升级</b>' +
+        '<small>一次装填，永久生效。</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
+        (hideDone ? '<div class="note">已完成的项目当前被隐藏（' + doneCount(s) + ' 项）——点上方「显示已完成」把它们放回来。</div>' : '') +
+        '<div class="note">工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。</div>';
+    }
+    return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>工艺制作</b>' +
+      '<small>查看每次投入、当前产出与批量选项。</small></header>' +
+      autoSlotSummary(s) + '<div class="workshop-grid workshop-crafts">' + paneCraftRows(s) + '</div></section>' +
       (hideDone ? '<div class="note">已完成的项目当前被隐藏' +
         '（' + doneCount(s) + ' 项）——点上方「显示已完成」把它们放回来。</div>' : '') +
-      '<div class="note">上面是买断的：买下就永久生效，不会坏、不用修、不能再买第二把。' +
-      '每件工具只管自己那条线 —— 斧头不会顺带涨石头，镐也不会顺带涨珊瑚。' +
-      '下面是反复制造：石梁是材料，暂时供海潮方碑使用。' +
-      '（礁石平台、深潜那一类通用采集加成，仍然会一并作用在职业产出上。）</div>' +
-      '<div class="note">最下面那块是**一次性装填**的容量升级：装上之后仓储上限直接乘 1.5，' +
-      '材料与藻食各认一项。装填只此一次，退不掉也不重复计价。</div>';
+      '<div class="note">这里的配方可以反复制造，石梁是当前奇观的主要建材。' +
+      '（礁石平台、深潜那一类通用采集加成，仍然会一并作用在职业产出上。）' +
+      '工具与永久升级请切换到「升级项」。<\/div>';
+  }
+
+  var workshopView = 'making';
+  function setWorkshopView(view) {
+    if (view !== 'making' && view !== 'upgrades') return false;
+    workshopView = view;
+    return true;
   }
 
   /* ── 下半区：工艺制作 ───────────────────────────────────────────────
@@ -1321,7 +1421,7 @@
       var mul = SB.workshop.craftMul(s);
       var cost = [], k;
       for (k in c.in) cost.push(SB.RESS[k].name + ' ' + c.in[k]);
-      h += '<div class="row"><div class="nm">' + c.name + '</div>' +
+      h += '<div class="row"><div class="nm"><button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + c.name + '</button></div>' +
         '<div class="ds">每次：' + cost.join(' + ') +
         ' ⇒ <b>' + SB.economy.fmtAmt(c.out * mul) + '</b>' +
         '（效率 +' + ((mul - 1) * 100).toFixed(0) + '%）</div>';
@@ -1332,11 +1432,57 @@
         h += '<button class="btn' + (why ? ' buy' : '') + '" data-craft="' + c.id + '"' +
           ' data-craft-amt="' + amt + '"' + (why ? ' disabled' : '') + '>' + st.label + '</button>';
       }
-      h += '</div></div>';
+      h += '</div>' + autoSlotCtl(s, c) + '</div>';
     }
     if (!shown) return '<div class="row"><div class="nm">（还没有配方）</div></div>';
     return h + '<div class="note">四颗按钮是**同一份材料换不同份数**：+1 就是造 1 份，' +
       '+100 就是造 100 份（不是「库存的 100%」）。效率和材料够了就更划算。</div>';
+  }
+
+  /* ── 自动制作槽的控件（2026-10-07 用户拍板）─────────────────────────
+   * 语义：**原料满了才造，造当时可造量的这一档百分比**。四个档 25/50/75/100%。
+   * ⚠️ 做成**按钮组而不是下拉框**：本 pane 每 2 秒整块重画（PANE_REFRESH），
+   *    select 展开态会被 innerHTML 重写冲掉，玩家选到一半就弹回去（与本文件各处
+   *    「每帧重画的容器里不放需要与用户交互的原生控件」同一条纪律）。
+   * ⚠️ 没解锁自动工坊时**整行不画**（不是画成灰按钮）：那升级项还没装，
+   *    槽数就是 0，画一堆点不动的按钮等于预告一个玩家拿不到的功能。
+   *    拿得到之后（slotCap > 0）才出现「＋自动」。 */
+  function autoSlotCtl(s, c) {
+    var cap = SB.workshop.slotCap(s);
+    if (cap <= 0) return '';
+    var pct = SB.workshop.slotPct(s, c.id);
+    var on = pct > 0;
+    var h = '<div class="craftauto"><span class="asl">自动</span>';
+    if (!on) {
+      var full = ((s.autoSlots && s.autoSlots.length) || 0) >= cap;
+      h += '<button class="btn tog" data-aslot="' + c.id + '" data-apct="0.5"' +
+        (full ? ' disabled title="自动槽已用完（' + cap + '/' + cap + '）"' : '') + '>' +
+        (full ? '槽位已满' : '＋自动') + '</button>';
+    } else {
+      var P = SB.workshop.pcts(), i;
+      for (i = 0; i < P.length; i++) {
+        var p = P[i];
+        h += '<button class="btn tog' + (p === pct ? ' on' : '') + '" data-aslot="' + c.id + '"' +
+          ' data-apct="' + p + '" title="原料满仓后，转制当时可造量的 ' + (p * 100) + '%">' +
+          (p * 100) + '%</button>';
+      }
+      h += '<button class="btn tog" data-aoff="' + c.id + '" title="腾出这个自动槽">停用</button>';
+    }
+    return h + '</div>';
+  }
+
+  /* 自动槽的存量提示（挂在「工艺制作」段标题下）：玩家得先知道**有几个槽、从哪来的**。 */
+  function autoSlotSummary(s) {
+    var cap = SB.workshop.slotCap(s);
+    if (cap <= 0) {
+      return '<div class="note">自动制作槽：未解锁。' +
+        '装上工坊升级项「自动工坊」自带 1 个，轮回商店可再买 3 个。</div>';
+    }
+    var used = (s.autoSlots && s.autoSlots.length) || 0;
+    return '<div class="note">自动制作槽 <b>' + used + '/' + cap + '</b>：' +
+      '给配方挂上「自动」后，<b>该配方的原料攒满仓储上限</b>时才动手，' +
+      '按你选的档位转制当时能造的部分（25 / 50 / 75 / 100%）——' +
+      '料还没满的时候不会碰你的建材。</div>';
   }
 
   function paneWorkshopLocked() {
@@ -1370,7 +1516,7 @@
         : why ? (/^需要先/.test(why) ? '未解锁' : '买不起 ' + ctxt)
           : '买下 ' + ctxt;
       h += '<div class="row"' + (owned ? ' data-owned="1"' : '') + '>' +
-        '<div class="nm">' + t.name + (owned ? ' <span class="tag ok">已买下</span>' : '') + '</div>' +
+        '<div class="nm"><button type="button" class="building-name" data-info-item="tool" data-info-id="' + t.id + '" aria-haspopup="dialog">' + t.name + '</button>' + (owned ? ' <span class="tag ok">已买下</span>' : '') + '</div>' +
         '<div class="ds">' + t.desc + '（成本 ' + SB.economy.costTxt(t.cost) + '）</div>' +
         '<button class="btn' + (owned || why ? '' : ' buy') + '" data-tool="' + t.id + '"' +
         (owned || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button></div>';
@@ -1406,7 +1552,7 @@
         : why ? (/^需要先/.test(why) ? '未解锁' : '材料不够 ' + ctxt)
           : '装上 ' + ctxt;
       h += '<div class="row"' + (on ? ' data-owned="1"' : '') + '>' +
-        '<div class="nm">' + u.name + (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
+        '<div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="' + u.id + '" aria-haspopup="dialog">' + u.name + '</button>' + (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
         '<div class="ds">' + u.desc + '（成本 ' + SB.economy.costTxt(u.cost) + '）</div>' +
         '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
         (on || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button></div>';
@@ -1417,7 +1563,7 @@
   }
 
   var PANES = { village: paneVillage, folk: paneFolk, tech: paneTech, civic: paneCivic,
-    faith: paneFaith, workshop: paneWorkshop, wonder: paneWonder, dig: paneMiracle, meta: paneMeta };
+    faith: paneFaith, workshop: paneWorkshop, wonder: paneWonder, meta: paneMeta };
 
   /* ── pane 重写会换掉里面的元素，于是「活在 DOM 上的滚动位置」归零 ──
    * 唯一有内部滚动条的是科技长卷（横卷）：内部位置 = 玩家正在看哪个纪元。
@@ -1496,6 +1642,7 @@
         node.innerHTML = cardHeadHTML(k) + PANES[k]();
       }
     }
+    paintHappy(res());
     techShown = shown;
     box = el('techScroll');
     /* ⚠️ 写回要连 **0** 一起写（炸开的只有「跳回纪元一」这一种情况：目标就是 0，
@@ -1539,7 +1686,7 @@
     el('btnBreak').disabled = !ready;
     el('breakHint').textContent = ready ? '壳已归零——凿下去。'
       : s.shell > 0 ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。'
-      : '冰壳停住了：需要建成「破冰祭坛」并供上地热才能凿穿。';
+      : '冰壳停住了：需要建成「天穹钻机」奇观才能凿穿最后一段。';
     /* 重置按钮文案随「**当局**是否建立宗教」翻转：本局还没建立宗教 ⇒「重开本周目」，
      * 建立了（玩家给它起了名）⇒「轮回」——2026-09-29 规格。
      * ⚠️ 2026-10-03 由 `meta().religionSeen` 改成 `SB.prestige.religionEstablished(s)`。
@@ -1642,11 +1789,145 @@
     /* 巢穴 tab 名随纪元演进（与卡片标题同一来源，避免 tab 写「巢穴」、面板写「渊海之国」打架）。 */
     var vt = el('villageTabName');
     if (vt && SB.habitat && SB.habitat.habitatName) vt.textContent = SB.habitat.habitatName(s);
-    renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderReligion(s); renderIdleTag();
+    renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderDrill(s); renderReligion(s); renderIdleTag(); renderEvent(s); renderAd();
   }
   function renderTick() {
     var s = res();
-    renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderIdleTag();
+    renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderDrill(s); renderIdleTag(); renderEvent(s); paintHappy(s);
+  }
+  /* 看广告加速控件（顶栏速度行）：持久节点 + textContent 更新，避免每帧重建 innerHTML 吞掉点击。
+   * 余额 / 开关只在这里随 2 秒刷新（renderAll）与拨动时（toggleAdBoost / grantAdBoost 各自 renderAll）更新。 */
+  function renderAd() {
+    var s = res(); if (!s) return;
+    var ctrl = el('adCtrl'); if (!ctrl) return;
+    /* 广告不可用（没 SDK / 没配 space_id，且非 ?adtest）⇒ 整块隐藏。
+     * 否则会留下一个「点了没反应」的死按钮，也暗示玩家这里该有东西。 */
+    if (SB.ad && SB.ad.available && !SB.ad.available()) { ctrl.style.display = 'none'; return; }
+    ctrl.style.display = '';
+    var watch = el('btnAd'), tog = el('btnAdToggle'), rem = el('adRemain');
+    var ad = s.ad || { ms: 0, on: true };
+    if (watch) {
+      watch.disabled = false;
+      watch.textContent = '看广告 +' + (SB.CFG.AD ? SB.CFG.AD.BOOST_MIN : 30) + 'min ' +
+        (SB.CFG.AD ? SB.CFG.AD.MUL : 2) + '×';
+    }
+    if (rem) {
+      if (ad.ms > 0) {
+        var total = ad.ms / 1000, mm = Math.floor(total / 60), ss = Math.floor(total % 60);
+        rem.textContent = (ad.on ? '2× 生效 · ' : '') + '剩 ' + mm + ':' + (ss < 10 ? '0' + ss : ss);
+      } else rem.textContent = '无加速';
+    }
+    if (tog) {
+      tog.classList.toggle('on', !!ad.on && ad.ms > 0);
+      tog.classList.toggle('off', !ad.on && ad.ms > 0);
+      tog.textContent = ad.ms > 0 ? ('2× 加速 ' + (ad.on ? '开' : '关')) : '2× 加速';
+      tog.disabled = ad.ms <= 0;                  // 没余额时开关无意义（中性灰，不显示开/关）
+    }
+  }
+  /* 点击时间事件横幅（#omen）：顶部常驻卡，活动事件出现时显示、点上拾取。
+   * ⚠️ 沿用 envWarm 那套签名节流：只在活动事件 id 变化时才重写标题/文案/按钮文字，
+   *    倒计时走独立 span 的 textContent 每帧刷——否则每帧重建 innerHTML 会让那一次点击被吞。 */
+  function renderEvent(s) {
+    var def = (SB.events && SB.events.getActive && SB.events.getActive()) || null;
+    var node = el('omen');
+    // 事件出现/消失时给 body 切 omen-open：CSS 据此给页面底部留白，横幅 fixed 在视口底部不盖控制条。
+    var bd = (typeof document !== 'undefined' && document.body) ? document.body : null;
+    if (!node) return;
+    if (!def) {
+      if (_omenSig !== '') { node.hidden = true; _omenSig = ''; }
+      if (bd) bd.classList.remove('omen-open');
+      return;
+    }
+    if (_omenSig !== def.id) {
+      _omenSig = def.id;
+      node.hidden = false;
+      var nm = el('omenName'), cp = el('omenCopy'), btn = el('omenBtn');
+      if (nm) nm.textContent = def.name;
+      if (cp) cp.textContent = def.copy;
+      if (btn) btn.textContent = '拾取';
+    }
+    if (bd) bd.classList.add('omen-open');
+    var cd = el('omenCd');
+    if (cd && SB.events.timeLeft) cd.textContent = Math.ceil(SB.events.timeLeft()) + ' 秒后消失';
+  }
+
+  function clearBreakAnimation() {
+    for (var i = 0; i < _breakAnimationTimers.length; i++) clearTimeout(_breakAnimationTimers[i]);
+    _breakAnimationTimers = [];
+    _breakAnimationReport = null;
+  }
+
+  function prefersReducedMotion() {
+    return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  /* 破壳终章：结算前播放 4 段分镜。动画只读报告，不修改游戏状态；
+   * 结算数据仍由 prestige.breakReport / doBreak 负责，避免动画层产生第二份真相。 */
+  function showBreakAnimation(r) {
+    var modal = el('modal'), box = el('modalBox');
+    if (!modal || !box || prefersReducedMotion()) { showBreakPanel(r); return; }
+    clearBreakAnimation();
+    _breakAnimationReport = r;
+    box.innerHTML =
+      '<section class="break-showcase" aria-label="破壳终章动画">' +
+        '<div class="break-stage" id="breakStage" data-phase="intro">' +
+          '<div class="break-scene">' +
+            '<img class="break-frame-intro" src="assets/backgrounds/sequence/era-5/frame-01.webp" alt="天穹钻机蓄力，准备冲击天壳">' +
+            '<img class="break-frame-impact" src="assets/backgrounds/sequence/era-5/frame-02.webp" alt="钻机击中天壳，裂纹与碎冰亮起">' +
+            '<img class="break-frame-gaze" src="assets/backgrounds/sequence/era-5/frame-03.webp" alt="鲛人游近钻机，仰望裂开的天壳">' +
+            '<img class="break-frame-ending" src="assets/backgrounds/breakthrough/end-stars-draft-low.jpg" alt="天壳打开，钻机和鲛人共同仰望星空">' +
+          '</div>' +
+          '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="breakPhaseName">钻机蓄力</span></span><span id="breakCounter">01 / 04</span></div>' +
+          '<div class="break-caption">' +
+            '<div class="break-caption-text break-cap-intro"><small>终章 · 天穹钻机</small><h2>共振，启动。</h2><p>整座海底城市，为这一击积蓄力量。</p></div>' +
+            '<div class="break-caption-text break-cap-impact"><small>突破临界点</small><h2>钻头触壳。</h2><p>共振沿冰层蔓延，第一道裂纹亮起。</p></div>' +
+            '<div class="break-caption-text break-cap-gaze"><small>天壳崩解 · 鲛人仰望</small><h2>裂痕，扩散。</h2><p>鲛人游向钻机，望向逐渐打开的天穹。</p></div>' +
+            '<div class="break-caption-text break-cap-ending"><small>文明的新纪元</small><h2>天壳之外。</h2><p>曾经仰望的边界，如今已在身后。</p></div>' +
+          '</div>' +
+          '<div class="break-end-card"><small>阶段完成</small><strong>破壳纪 · 仰望群星</strong></div>' +
+        '</div>' +
+        '<div class="break-controls"><button class="btn" id="breakReplay" type="button">↻ 重播</button><button class="btn big" id="breakContinue" type="button">跳过动画</button></div>' +
+      '</section>';
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    box.classList.remove('tree-detail-box');
+    modal.classList.add('break-modal');
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+
+    var stage = el('breakStage'), phaseName = el('breakPhaseName'), counter = el('breakCounter');
+    var replay = el('breakReplay'), continueBtn = el('breakContinue');
+    var steps = [
+      ['intro', '钻机蓄力', '01 / 04', 0],
+      ['impact', '钻头触壳', '02 / 04', 1500],
+      ['gaze', '鲛人仰望', '03 / 04', 3200],
+      ['ending', '阶段完成', '04 / 04', 4900]
+    ];
+    function setStep(step) {
+      if (!stage) return;
+      stage.dataset.phase = step[0];
+      if (phaseName) phaseName.textContent = step[1];
+      if (counter) counter.textContent = step[2];
+      if (continueBtn && step[0] === 'ending') continueBtn.textContent = '查看结算';
+    }
+    function finish() {
+      var report = _breakAnimationReport;
+      clearBreakAnimation();
+      if (report) showBreakPanel(report);
+    }
+    function play() {
+      clearBreakAnimation();
+      _breakAnimationReport = r;
+      setStep(steps[0]);
+      if (continueBtn) continueBtn.textContent = '跳过动画';
+      for (var i = 1; i < steps.length; i++) {
+        (function (step) { _breakAnimationTimers.push(setTimeout(function () { setStep(step); }, step[3])); })(steps[i]);
+      }
+    }
+    if (replay) replay.onclick = play;
+    if (continueBtn) continueBtn.onclick = finish;
+    play();
   }
 
   /* 轮回结算面板（2026-10-02 重设）：契约与 prestige.breakReport 对齐 ——
@@ -1655,6 +1936,7 @@
    * ⚠️ 不再有「人口门槛 / POP_GATE / 破层级数」那套旧口径：资格门 = 本局《神学》（由 doBreak 判定，
    *   未达则 r.locked=true、tidePoints=0）。面板只负责把报告渲染出来，判据不在这。 */
   function showBreakPanel(r) {
+    clearBreakAnimation();
     var m = meta();
     var box = el('modalBox');
     var rows =
@@ -1694,7 +1976,395 @@
     if (b && b.classList) { if (on) b.classList.add('modal-open'); else b.classList.remove('modal-open'); }
   }
 
-  function hideModal() { el('modal').classList.add('hidden'); bodyModalClass(false); }
+  function hideModal() {
+    clearBreakAnimation();
+    var modal = el('modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    modal.classList.remove('break-modal');
+    modal.classList.remove('story-modal');
+    el('modalBox').classList.remove('tree-detail-box');
+    el('modalBox').classList.remove('story-box');
+    bodyModalClass(false);
+  }
+
+  /* 在效果文案中把已解锁内容转成内联入口。逐段匹配并优先长名称，
+   * 避免「大灯塔」被较短的「灯塔」再次切坏。 */
+  function linkInfoNames(text) {
+    text = String(text || '');
+    var names = [], i, list = SB.BUILDINGS || [], wonders = SB.wonder ? SB.wonder.list() : [], policies = SB.POLICIES || [];
+    for (i = 0; i < list.length; i++) names.push({ name: list[i].name, id: list[i].id, type: 'build' });
+    for (i = 0; i < wonders.length; i++) names.push({ name: wonders[i].name, id: wonders[i].id, type: 'wonder' });
+    for (i = 0; i < policies.length; i++) names.push({ name: policies[i].name, id: policies[i].id, type: 'policy' });
+    names.sort(function (a, b) { return b.name.length - a.name.length; });
+    var out = '', cursor = 0;
+    while (cursor < text.length) {
+      var bestAt = -1, best = null, at;
+      for (i = 0; i < names.length; i++) {
+        at = text.indexOf(names[i].name, cursor);
+        if (at >= 0 && (bestAt < 0 || at < bestAt)) { bestAt = at; best = names[i]; }
+        else if (at === bestAt && best && names[i].name.length > best.name.length) best = names[i];
+      }
+      if (!best) break;
+      out += text.slice(cursor, bestAt);
+      out += '<span role="button" tabindex="0" class="inline-info-link" ' +
+        (best.type === 'build' ? 'data-build-info' : best.type === 'wonder' ? 'data-wonder-info' : 'data-policy-info') +
+        '="' + best.id + '" aria-haspopup="dialog">' + best.name + '</span>';
+      cursor = bestAt + best.name.length;
+    }
+    return out + text.slice(cursor);
+  }
+
+  /* 科技 / 市政节点详情：树图节点只负责展示路径与状态，效果、条件和研究操作
+   * 收进这张卡片。判据继续复用各自玩法模块，避免 UI 另算一次门槛。 */
+  function showTreeDetail(type, id) {
+    var s = res(), tech = type === 'tech', item = null, i;
+    if (!s) return;
+    if (tech) {
+      item = SB.tech && SB.tech.byId ? SB.tech.byId(id) : null;
+    } else {
+      for (i = 0; SB.CIVICS && i < SB.CIVICS.length; i++) {
+        if (SB.CIVICS[i].id === id) { item = SB.CIVICS[i]; break; }
+      }
+    }
+    if (!item) return;
+
+    var done = tech ? !!s.techs[id] : !!s.civics[id];
+    var revealed = tech ? SB.tech.metOf(s, item) : SB.civic.isRevealed(s, id);
+    var blocked = done ? null : tech ? SB.tech.studyBlocked(s, id) : SB.civic.blocked(s, item);
+    var short = SB.tech.condShort(s, tech ? item.cond : item.boost);
+    var title = revealed ? item.name : '未揭露的' + (tech ? '科技' : '市政');
+    var detailReqsMet = true;
+    if (tech && item.reqs) {
+      for (i = 0; i < item.reqs.length; i++) {
+        if (!s.techs[item.reqs[i]]) { detailReqsMet = false; break; }
+      }
+    }
+    var blockKind = '';
+    if (tech && !done && blocked) {
+      if (!revealed) blockKind = 'unrevealed';
+      else if (item.era > (s.era || 1)) blockKind = 'era';
+      else if (!SB.tech.metOf(s, item)) blockKind = 'eureka';
+      else if (!detailReqsMet) blockKind = 'prereq';
+      else if (!SB.economy.enough(s.res.science, item.cost || 0)) blockKind = 'science';
+    }
+    var state = done ? (tech ? '已掌握' : '已完成') : !revealed ? '未揭露' :
+      !blocked ? '可研究' : blockKind === 'science' ? '科技点不足' :
+      blockKind === 'prereq' ? '缺少前置' : blockKind === 'era' ? '纪元未到' :
+      blockKind === 'eureka' ? '尤里卡未达成' : '暂不可研究';
+    var currency = tech ? 'science' : 'culture';
+    var currencyName = tech ? '科技点' : '市政点';
+    var reqs = item.reqs || [], reqHtml = '', reqDone, parent, parentDone, parentName;
+    for (i = 0; i < reqs.length; i++) {
+      parent = tech ? SB.tech.byId(reqs[i]) : null;
+      if (!tech) {
+        for (var ci = 0; SB.CIVICS && ci < SB.CIVICS.length; ci++) {
+          if (SB.CIVICS[ci].id === reqs[i]) { parent = SB.CIVICS[ci]; break; }
+        }
+      }
+      parentDone = tech ? !!s.techs[reqs[i]] : !!s.civics[reqs[i]];
+      parentName = parent ? parent.name : reqs[i];
+      reqHtml += '<span class="tree-req' + (parentDone ? ' met' : '') + '">' +
+        (parentDone ? '✓ ' : '· ') + parentName + '</span>';
+    }
+    if (!reqHtml) reqHtml = '<span class="tree-req met">无 · 起始节点</span>';
+
+    /* 科技详情必须展示数据里的真实尤里卡条件（item.cond）。
+     * item.note 只是 Civ6 对标/氛围备注，不能在揭示后拿来替换条件；否则同一项科技
+     * 会从「实际门槛」变成一段看似合理但游戏根本不判定的自编文案。 */
+    var condition = tech
+      ? (item.cond ? (SB.tech.condText(item.cond) || '尤里卡条件') : '无需尤里卡')
+      : SB.civic.boostText(s, item);
+    var conditionProgress = tech && !revealed && short ? short.txt : '';
+    var progress = short && short.need > 0 && !done
+      ? Math.max(0, Math.min(100, short.now / short.need * 100)) : 0;
+    var showProgress = !revealed && short && short.need > 0;
+    var effect = tech ? SB.tech.effectText(item) : item.desc;
+    if (tech && effect.indexOf('（无直接效果）') === 0 && item.note) effect = item.note.split('\n')[0];
+    var cost = item.cost || 0;
+    var blockDetail = '';
+    if (tech && !done && blocked) {
+      if (blockKind === 'unrevealed') {
+        blockDetail = '<div class="tree-detail-blocked unrevealed"><b>未揭露</b><span>先达成尤里卡条件，才能看到这项科技的完整信息。</span></div>';
+      } else if (blockKind === 'eureka') {
+        blockDetail = '<div class="tree-detail-blocked eureka"><b>尤里卡未达成</b><span>完成上方条件后，才能投入科技点研究。</span></div>';
+      } else if (blockKind === 'science') {
+        blockDetail = '<div class="tree-detail-blocked science"><b>科技点不足</b><span>现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(cost) + '</span></div>';
+      } else if (blockKind === 'prereq') {
+        blockDetail = '<div class="tree-detail-blocked prereq"><b>缺少前置科技</b><span>' + blocked.replace(/^缺少前置科技：/, '') + '</span></div>';
+      } else if (blockKind === 'era') {
+        blockDetail = '<div class="tree-detail-blocked era"><b>纪元未到</b><span>' + blocked.replace(/^纪元未到：/, '') + '</span></div>';
+      }
+    }
+    var buttonText = done ? state : blocked ? (blockKind === 'science' ? '科技点不足' : state) : cost
+      ? '研究　' + SB.economy.costOwnedTxt(s, (function () { var c = {}; c[currency] = cost; return c; })())
+      : '免费研究';
+    var box = el('modalBox'), modal = el('modal');
+    box.classList.add('tree-detail-box');
+    box.innerHTML =
+      '<div class="tree-detail-head"><div class="tree-detail-mark">' + (item.key ? '✦' : tech ? '⌘' : '§') +
+      '</div><div class="tree-detail-title"><h3 id="treeDetailTitle">' + title + (item.key && revealed ? ' <span class="tree-key">关键节点</span>' : '') +
+      '</h3><span class="tree-detail-state ' + (done ? 'done' : blocked ? 'locked' : 'ready') + '">' + state + '</span></div>' +
+      '<button class="tree-detail-close" type="button" data-modal-close="1" aria-label="关闭详情">×</button></div>' +
+      '<div class="tree-cost"><span>研究成本</span><b>' + (cost ? cost + ' ' + currencyName : '免费') + '</b></div>' + blockDetail +
+      '<section class="tree-detail-section"><h4>' + (tech ? '尤里卡' : '鼓舞') + '</h4><p>' +
+      linkInfoNames(condition) + '</p>' +
+      (conditionProgress ? '<small class="tree-eureka-progress">当前进度：' + conditionProgress + '</small>' : '') +
+      (showProgress ? '<div class="tree-progress"><i style="width:' + progress.toFixed(1) + '%"></i></div>' : '') +
+      (showProgress ? '<small>进度 ' + progress.toFixed(0) + '%</small>' : '') + '</section>' +
+      '<section class="tree-detail-section"><h4>效果</h4><p>' +
+      (revealed ? linkInfoNames(effect) : '达成揭示条件后显示。') + '</p></section>' +
+      '<section class="tree-detail-section"><h4>前置节点</h4><div class="tree-reqs">' + reqHtml + '</div></section>' +
+      '<div class="tree-detail-actions"><button class="btn buy" type="button" data-tree-study="' + (tech ? 'tech' : 'civic') + '" data-' + (tech ? 'tech' : 'civic') + '="' + id + '"' +
+      (done || blocked ? ' disabled' : '') + (blocked ? ' title="' + blocked + '"' : '') + '>' + buttonText + '</button>' +
+      '<button class="btn tree-back" type="button" data-modal-close="1">返回树图</button></div>';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-labelledby', 'treeDetailTitle');
+    modal.classList.add('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    modal.classList.add(tech ? 'tree-tech' : 'tree-civic');
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+  }
+
+  function openInfoCard(title, mark, state, body, actions) {
+    var box = el('modalBox'), modal = el('modal');
+    box.classList.add('tree-detail-box');
+    box.innerHTML = '<div class="tree-detail-head"><div class="tree-detail-mark">' + mark +
+      '</div><div class="tree-detail-title"><h3 id="treeDetailTitle">' + title + '</h3>' +
+      '<span class="tree-detail-state ' + state.cls + '">' + state.text + '</span></div>' +
+      '<button class="tree-detail-close" type="button" data-modal-close="1" aria-label="关闭详情">×</button></div>' +
+      body + '<div class="tree-detail-actions">' + (actions || '') +
+      '<button class="btn tree-back" type="button" data-modal-close="1">关闭</button></div>';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-labelledby', 'treeDetailTitle');
+    modal.classList.add('tree-modal');
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+  }
+
+  /* 建筑信息卡「效果」段：把每座建筑的「每级基础量 × 当前等级 = 当前总量」写清楚，
+   * 与住房那一支（人口上限 +X/级（当前 +Y））同构。所有带每级效果的产出 / 容量 / 减耗建筑都走这里；
+   * 一次性效果（炉 / 城堡 / 观测站 / 博物馆 / 工坊产钢）无「每级」概念，回退到 desc。
+   * ⚠️「当前」= 基础每级量 × 当前等级，不含科技 / 奇观 / 政策等外部乘区——
+   *   与住房那条保持一致（housePerLevel×lv 也不含 perk 外的乘区），避免面板与结算两套口径。 */
+  function buildingEffectText(s, b, lv) {
+    var B = SB.BLD, U = SB.UNIT || {}, id = b.id, L = lv;
+    function add(label, perVal, curVal, unit, dec) {
+      var d = dec == null ? 0 : dec;
+      return label + ' +' + perVal.toFixed(d) + '/级' + unit + '（当前 +' + curVal.toFixed(d) + '）';
+    }
+    function pct(label, perPct, curPct, dec, sign) {
+      var d = dec == null ? 1 : dec; sign = sign || '+';
+      return label + ' ' + sign + perPct.toFixed(d) + '%/级（当前 ' + sign + curPct.toFixed(d) + '%）';
+    }
+    switch (id) {
+      case 'kelp':         return add('自动产藻食', B.food, B.food * L, '/秒', 2) + '；吃季节减产';
+      case 'weir':         return pct('藻食产出', B.foodWeir * 100, B.foodWeir * 100 * L);
+      case 'warmnest':     return pct('族口粮', B.foodSave * 100, B.foodSave * 100 * L, 1, '−');
+      case 'kelpstore':    return add('藻食上限', B.kelpCap, B.kelpCap * L, '', 0);
+      case 'ballast':      return add('其余资源上限', B.ballastCap, B.ballastCap * L, '', 0);
+      case 'lighthouse':   return pct('全资源产出', B.lighthouseProd * 100, B.lighthouseProd * 100 * L, 0) +
+                                 '；' + add('其余资源上限', B.lighthouseCap, B.lighthouseCap * L, '', 0);
+      case 'workshop':     return pct('工艺制作效率', (b.craftRatio || 0) * 100, (b.craftRatio || 0) * 100 * L, 0);
+      case 'siltpit':      return pct('矿工与采石工产出', B.siltBonus * 100, B.siltBonus * 100 * L, 0);
+      case 'library':      return pct('科技产出（仅学者）', B.sciRatio * 100, B.sciRatio * 100 * L, 0);
+      case 'institute':    return pct('科技产出（仅学者）', B.instituteSci * 100, B.instituteSci * 100 * L, 0) +
+                                 '；升级为大学后变 ×100%/级';
+      case 'square':       return pct('市政点产出（仅书手）', B.squareCivRatio * 100, B.squareCivRatio * 100 * L, 0) +
+                                 '；装《戏剧与诗歌》后翻倍';
+      case 'temple':       return pct('信仰产出', B.templeFaithRatio * 100, B.templeFaithRatio * 100 * L, 0) +
+                                 '；宗教系统落地后生效';
+      case 'hydroturbine': return add('热液能', U.hydroOut || 0, (U.hydroOut || 0) * L, '/秒', 0) +
+                                 '；耗暖石 ' + ((U.hydroWarm || 0) * L) + '/秒';
+      case 'coralfarm':    return pct('珊瑚匠产出', B.coralFarmCW * 100, B.coralFarmCW * 100 * L, 0);
+      case 'bank':         return pct('商人产出', B.bankLux * 100, B.bankLux * 100 * L, 0);
+      case 'school':       return add('每名商人科技产出', B.schoolMerchantSci, B.schoolMerchantSci * L, '/秒', 1);
+      case 'theater':      return pct('官员（书手）市政点产出', B.theaterCivRatio * 100, B.theaterCivRatio * 100 * L, 0);
+      case 'hotforge':     return pct('工艺制作效率', B.hotforgeCraft * 100, B.hotforgeCraft * 100 * L, 0);
+      case 'canal':        return pct('居民奢侈品消耗', B.canalLuxSave * 100, B.canalLuxSave * 100 * L, 1, '−') +
+                                 '；等级最高不超过灯塔等级';
+      case 'caravanserai': return pct('居民奢侈品消耗', B.caravanseraiLuxSave * 100, B.caravanseraiLuxSave * 100 * L, 0, '−') +
+                                 '；每季节额外获得「等级 × 1 分钟」产量的任意时产资源';
+      case 'museum':       return '官员（书手）市政点产出 +20%（建成即生效，不随等级递增）';
+      case 'hydroshop':    return '每级耗 ' + (U.hydroShopLvl || 0) + ' 热液能/秒，吃金属产钢（产钢量随热液能供给浮动）';
+      case 'furnace':      return '解锁 金属 → 精铁（一次性效果，不随等级递增）';
+      case 'observatory':  return '科技产出 +x%（x 与冰壳厚度成反比，最高 +' + (B.obsMaxBonus || 0) + '%，与建筑等级无关）';
+      case 'hall':         return '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级';
+      default:             return b.desc || '';
+    }
+  }
+
+  function showBuildingInfo(id) {
+    var s = res(), b = SB.habitat && SB.habitat.buildingById ? SB.habitat.buildingById(id) : null;
+    if (!s || !b) return;
+    var name = b.name, desc = b.desc || '';
+    for (var i = 0; SB.UPGRADES && i < SB.UPGRADES.length; i++) {
+      var u = SB.UPGRADES[i];
+      if (u.upgradesBuilding === b.id && s.upgrades && s.upgrades[u.id]) {
+        name = u.name;
+        desc = u.buildingDesc || u.desc || desc;
+      }
+    }
+    var lv = (s.lvl && s.lvl[id]) || 0;
+    var blocked = !SB.habitat.needMet(s, b), canalCap = id === 'canal' &&
+      (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);
+    var cost = SB.economy.costOf(s, id), state = blocked || canalCap
+      ? { cls: 'locked', text: '前置条件未满足' }
+      : { cls: lv ? 'done' : 'ready', text: lv ? '已建造 · 等级 ' + lv : '可建造' };
+    var housePlan = (s.perk && s.perk.housePlan) || 0;
+    var housePerLevel = id === 'nest' ? SB.BLD.house
+      : id === 'coralhouse' ? SB.BLD.house2
+        : id === 'tenement' ? SB.BLD.tenementPop : 0;
+    var effectText;
+    if (housePerLevel) {
+      effectText = '人口上限 +' + housePerLevel + '/级（当前 +' + (housePerLevel * lv) + '）';
+      if (housePlan) effectText += ' · 生息建筑规划额外 +' + housePlan + '/级（当前 +' + (housePlan * lv) + '）';
+      if (id === 'nest') effectText += '。住满后不再生育。';
+    } else {
+      effectText = buildingEffectText(s, b, lv);
+    }
+    var requirement = b.need ? SB.habitat.buildingById(b.need) : null;
+    var reqText = requirement
+      ? '需先建成「' + requirement.name + '」' + ((s.lvl && s.lvl[b.need]) ? ' · 已满足' : ' · 未满足')
+      : '无额外建筑前置';
+    if (canalCap) reqText = '潮道等级不能超过灯塔等级；先升级灯塔。';
+    var body = '<div class="tree-cost"><span>当前等级</span><b>' + lv + '</b></div>' +
+      '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(effectText) + '</p></section>' +
+      '<section class="tree-detail-section"><h4>下一次建造 / 升级</h4><p>' +
+      SB.economy.costOwnedTxt(s, cost) + '</p></section>' +
+      '<section class="tree-detail-section"><h4>建造条件</h4><p>' + reqText + '</p></section>';
+    openInfoCard(name, '⌂', state, body, '');
+  }
+
+  var WONDER_ART = {
+    wonder_tide_stele: 'assets/wonders/icons-demo-v1/tide-stele.png',
+    wonder_great_lighthouse: 'assets/wonders/icons-demo-v1/great-lighthouse.png',
+    wonder_great_library: 'assets/wonders/icons-demo-v1/great-tide-archive.png',
+    /* generated-v2 这批详情图已转webp（1254² → 880²，q=0.85）：
+     * 原 PNG 10 张共 31.7MB ⇒ webp 10 张共 2.5MB，省 29MB。
+     * 降采样依据：详情浮层 max-width 440px（css/10-tech-tree.css:109），880 = 2× 高清屏已足。
+     * 画质已用 headless Chrome 在 420px 实际显示尺寸下左右对比验收，肉眼无差异。*/
+    wonder_albada: 'assets/wonders/generated-v2/wonder-albada.webp',
+    wonder_stt_abbey: 'assets/wonders/generated-v2/wonder-stt-abbey.webp',
+    wonder_grand_bazaar: 'assets/wonders/generated-v2/wonder-grand-bazaar.webp',
+    wonder_grand_exchange: 'assets/wonders/generated-v2/wonder-grand-exchange.webp',
+    wonder_shellcutter: 'assets/wonders/generated-v2/wonder-shellcutter.webp',
+    wonder_luluka: 'assets/wonders/generated-v2/wonder-luluka.webp',
+    wonder_presspipe: 'assets/wonders/generated-v2/wonder-presspipe.webp',
+    wonder_skydrill: 'assets/wonders/icons-demo-v1/sky-drill.png',
+    wonder_olo_wa_cathedral: 'assets/wonders/generated-v2/wonder-olo-wa-cathedral.webp',
+    wonder_shadow_theater: 'assets/wonders/generated-v2/wonder-shadow-theater.webp',
+    wonder_congress: 'assets/wonders/generated-v2/wonder-congress.webp'
+  };
+  var WONDER_FLAVOR = {
+    wonder_tide_stele: '第一道潮纹被刻进石碑，也把工匠们共同的尺度留给了后来者。',
+    wonder_great_lighthouse: '灯火穿过深海的黑潮，为远礁航线标出一条不会熄灭的路。',
+    wonder_great_library: '每一道潮纹都是一次记忆，散落在各巢穴的知识终于重新汇成文明。',
+    wonder_albada: '热液喷口旁的学者记录矿脉、人口与压力，第一次把经验写成定律。',
+    wonder_stt_abbey: '在最深的静水里，诵唱声让每一项新知识都有了回响。',
+    wonder_grand_bazaar: '来自不同巢穴的商队在这里交换盐、光与故事，价格也开始拥有方向。',
+    wonder_grand_exchange: '一座真正的城市，需要一张能让远方货物汇流的桌面。',
+    wonder_shellcutter: '天壳不再只是头顶的禁忌，它被测量、标记，最后被当成工程来处理。',
+    wonder_luluka: '卢卢卡的炉火昼夜不熄，旧工艺在这里被拆开，再装成更大的机器。',
+    wonder_presspipe: '高压热液沿着管道奔涌，把深海最猛烈的热量送到每一座工坊。',
+    wonder_skydrill: '当钻头第一次触到天壳，所有关于终点的传说都变成了倒计时。',
+    wonder_shadow_theater: '舞台让城市学会共同想象；散落的声音，终于有了同一片穹顶。',
+    wonder_congress: '争论被写进石墙，决定被交给所有愿意留下的人。'
+  };
+  function wonderArt(w) {
+    var src = WONDER_ART[w.id];
+    if (src) return '<div class="wonder-art has-image"><img src="' + src + '" alt="' + w.name + '"></div>';
+    return '<div class="wonder-art placeholder"><span>✦</span><small>奇观视觉稿 · 待补</small></div>';
+  }
+  function showWonderInfo(id) {
+    var s = res(), w = SB.wonder && SB.wonder.byId(id);
+    if (!s || !w) return;
+    var done = !!(s.wonders && s.wonders[id]);
+    var why = done ? null : SB.workshop.wonderBlocked(s, id);
+    var cost = SB.wonder.discountedCost(s, id);
+    var state = done ? { cls: 'done', text: '已建成 · 永久效果' }
+      : why ? { cls: 'locked', text: /^需要先/.test(why) ? '条件未满足' : '材料不足' }
+        : { cls: 'ready', text: '可建造' };
+    var reqs = [], i, t, c;
+    if (w.need) {
+      t = SB.tech.byId(w.need);
+      reqs.push((s.techs && s.techs[w.need] ? '✓ ' : '· ') + (t ? t.name : w.need) + '（科技）');
+    }
+    if (w.needCivic) {
+      c = null;
+      for (i = 0; SB.CIVICS && i < SB.CIVICS.length; i++) if (SB.CIVICS[i].id === w.needCivic) c = SB.CIVICS[i];
+      reqs.push((s.civics && s.civics[w.needCivic] ? '✓ ' : '· ') + (c ? c.name : w.needCivic) + '（市政）');
+    }
+    var reqHtml = reqs.length
+      ? '<div class="tree-reqs">' + reqs.map(function (x) { return '<span class="tree-req' + (x.indexOf('✓') === 0 ? ' met' : '') + '">' + x + '</span>'; }).join('') + '</div>'
+      : '<p>无额外解锁条件</p>';
+    var flavor = WONDER_FLAVOR[id] || '这座奇观正在等待一段属于它自己的历史。';
+    var body = wonderArt(w) +
+      '<div class="tree-cost"><span>建造成本</span><b>' + SB.economy.costTxt(cost) + '</b></div>' +
+      '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(w.desc) + '</p>' +
+      (done ? happyBonusNote(s, 'wonder', w.id) : '') + '</section>' +
+      '<section class="tree-detail-section"><h4>解锁条件</h4>' + reqHtml + '</section>' +
+      (why && !/^需要先/.test(why) ? '<section class="tree-detail-section"><h4>资源情况</h4><p>' + why + '</p></section>' : '') +
+      '<section class="tree-detail-section wonder-copy"><h4>奇观文案</h4><p>' + flavor + '</p></section>';
+    var action = done ? '' : '<button class="btn buy" type="button" data-wonder="' + id + '"' +
+      (why ? ' disabled title="' + why + '"' : '') + '>建成　' + SB.economy.costOwnedTxt(s, cost) + '</button>';
+    openInfoCard(w.name, '✦', state, body, action);
+  }
+
+  function showPolicyInfo(id) {
+    var s = res(), p = SB.civic && SB.civic.policyById(id);
+    if (!s || !p) return;
+    var owned = SB.civic.cardOwned(s, id), slotted = !!(s.cards && s.cards.indexOf(id) >= 0);
+    var state = slotted ? { cls: 'done', text: '已装填 · 正在生效' }
+      : owned ? { cls: 'ready', text: '已解锁 · 尚未装填' }
+        : { cls: 'locked', text: p.retiredBy ? '已退役' : '尚未解锁' };
+    var slot = p.type ? SB.civic.slotTypeName(p.type) : '万能槽';
+    var body = '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(p.desc) + '</p></section>' +
+      '<section class="tree-detail-section"><h4>适配槽位</h4><p>' + slot + '</p></section>' +
+      '<section class="tree-detail-section"><h4>生效方式</h4><p>' +
+      (p.retiredBy ? '此卡已退役，不能再装填。' : '研究解锁后，还需装填到适配槽位才会生效。') + '</p></section>';
+    openInfoCard(p.name, '▤', state, body, '');
+  }
+
+  function showWorkshopInfo(type, id) {
+    var s = res(), W = SB.workshop, item = null, list = [], i;
+    if (!s || !W) return;
+    if (type === 'tool') list = SB.TOOLS || [];
+    else if (type === 'upgrade') list = W.upgrades();
+    else if (type === 'craft') list = W.crafts();
+    for (i = 0; i < list.length; i++) if (list[i].id === id) { item = list[i]; break; }
+    if (!item) return;
+    var owned = type === 'tool' ? !!(s.tools && s.tools[id])
+      : type === 'upgrade' ? !!(s.upgrades && s.upgrades[id]) : false;
+    var why = type === 'tool' ? (owned ? null : W.blocked(s, id))
+      : type === 'upgrade' ? (owned ? null : W.upgradeBlocked(s, id)) : W.craftBlocked(s, id);
+    var state = owned ? { cls: 'done', text: type === 'tool' ? '已拥有' : '已装上' }
+      : why ? { cls: 'locked', text: /^需要先/.test(why) ? '条件未满足' : '材料不足' }
+        : { cls: 'ready', text: type === 'craft' ? '可制作' : '可购买' };
+    var cost = type === 'craft' ? item.in : item.cost;
+    var desc = item.desc || '';
+    if (type === 'craft') {
+      var mul = W.craftMul(s);
+      desc += ' 每次消耗 ' + SB.economy.costTxt(item.in) + '，产出 ' +
+        SB.economy.fmtAmt(item.out * mul) + ' ' + (SB.RESS[item.res] ? SB.RESS[item.res].name : item.res) +
+        '（含当前工艺效率 +' + ((mul - 1) * 100).toFixed(0) + '%）。';
+    }
+    var label = type === 'tool' ? '买下' : type === 'upgrade' ? '装上' : '制作 +1';
+    var action = '';
+    if (type === 'tool' && !owned) action = '<button class="btn buy" data-tool="' + id + '"' + (why ? ' disabled' : '') + '>' + label + '　' + SB.economy.costOwnedTxt(s, cost) + '</button>';
+    if (type === 'upgrade' && !owned) action = '<button class="btn buy" data-upgrade="' + id + '"' + (why ? ' disabled' : '') + '>' + label + '　' + SB.economy.costOwnedTxt(s, cost) + '</button>';
+    if (type === 'craft') action = '<button class="btn buy" data-craft="' + id + '" data-craft-amt="1"' + (why ? ' disabled' : '') + '>' + label + '</button>';
+    var body = '<div class="tree-cost"><span>' + (type === 'craft' ? '每次投入' : '所需材料') + '</span><b>' + SB.economy.costTxt(cost) + '</b></div>' +
+      '<section class="tree-detail-section"><h4>效果 / 产出</h4><p>' + linkInfoNames(desc) + '</p></section>' +
+      (why ? '<section class="tree-detail-section"><h4>当前条件</h4><p>' + why + '</p></section>' : '');
+    openInfoCard(item.name, type === 'craft' ? '⚒' : '⌘', state, body, action);
+  }
 
   /* 通用确认框。danger: true 时确认键走红色配色。
    * requireCheck 存在时确认键初始禁用，必须勾上才能执行——不可逆操作靠这一步兜底，
@@ -1725,15 +2395,30 @@
    * 【它不承担任何机制】不揭示别的科技、不折算研究进度、不等于「两个结 = 两项科技」。
    * 触发与「面板变亮」是同一时刻的两件事：调用方在 game.maybeSciencePopup，这里只管表现。 */
   function storyPanel(o) {
-    var box = el('modalBox'), i;
+    var box = el('modalBox'), modal = el('modal'), i;
+    var kind = o.kind || 'unlock';
+    var isTech = kind === 'tech';
+    var icon = o.icon || (isTech ? '⌘' : '✦');
+    var kicker = o.kicker || '新系统解锁';
+    var unlockTitle = o.unlockTitle || (isTech ? '科技树已开放' : '新的系统已开放');
+    var unlockCopy = o.unlockCopy || (isTech ? '现在可以研究科技，并查看每项科技的尤里卡条件。' : '新的内容已经加入你的文明。');
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    modal.classList.remove('break-modal');
+    modal.classList.add('story-modal');
+    box.classList.remove('tree-detail-box');
+    box.classList.add('story-box');
     box.innerHTML =
-      '<h3>' + (o.title || '') + '</h3>' +
+      '<div class="story-kicker"><span class="story-kicker-icon" aria-hidden="true">' + icon + '</span><span>' + kicker + '</span><i aria-hidden="true"></i></div>' +
+      '<div class="story-hero"><div class="story-hero-icon" aria-hidden="true">' + icon + '</div><div class="story-hero-copy"><h3>' + (o.title || '') + '</h3><span class="story-state">已开启</span></div></div>' +
+      '<div class="story-rule" aria-hidden="true"></div>' +
       '<div class="story">' + (o.lines || []).map(function (x) {
         return '<p>' + x + '</p>';
       }).join('') + '</div>' + (o.body || '') +
-      '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
-      '<button class="big" id="mStoryOk">' + (o.ok || '知道了') + '</button></div>';
-    el('modal').classList.remove('hidden'); bodyModalClass(true);
+      '<div class="story-unlock"><span class="story-unlock-mark" aria-hidden="true">✓</span><div><strong>' + unlockTitle + '</strong><small>' + unlockCopy + '</small></div></div>' +
+      '<div class="foot story-actions"><button class="big" id="mStoryOk">' + (o.ok || '知道了') + '<span aria-hidden="true">→</span></button></div>';
+    modal.classList.remove('hidden'); bodyModalClass(true);
     el('mStoryOk').onclick = function () { hideModal(); if (o.onOk) o.onOk(); };
   }
 
@@ -1789,22 +2474,6 @@
       var mopen = !!(meta() && meta().shopUnlocked);
       mt.classList.toggle('locked', !mopen);
       mt.title = mopen ? '' : '首次轮回后开启轮回商店';
-    }
-    /* 剥壳工程（dig 页）的灰态：**第六个独立门槛** —— 研究「天壳观测」。
-     * ⚠️ 2026-10-05 用户：「这个剥壳工程最开始也别解锁」。它此前是**唯一一个没有门的页签**，
-     *    开局就亮着 —— 可它是「天壳这条轴的仪表盘」（破壳系数拆分 / 基础削壳速率 / 破冰祭坛
-     *    开关），开局点进去只有「祭坛 0 / 地热 0」，是一页读不出因果的空壳。
-     * 挂到「天壳观测」上：它的原文注释就是「**天壳才第一次能被天天盯着看**」——
-     *   观测天壳的科技配一块显示天壳工程参数的面板，语义直配；且它同门解锁的「天壳观测站」
-     *   （科技产出按壳厚反比 +%）从这一刻起就要求玩家读懂壳厚，面板正当其时。
-     * ⚠️ 与上面五道闸一样必须**单独判一次**：它的门是「研究天壳观测」，与藻场/议事厅/工坊/
-     *    石工/首次轮回/神学都不同，不能顺手挂到任何一条下面。
-     * ⚠️ 变量名避开同函数里已声明的 s / dop（那是奇观块的），防止 var 复用时读错值。 */
-    var dg = document.querySelector('.tab[data-tab="dig"]');
-    if (dg) {
-      var dgs = res(), dopen = !!(dgs && dgs.techs && dgs.techs.shellwatch);
-      dg.classList.toggle('locked', !dopen);
-      dg.title = dopen ? '' : '研究「天壳观测」后开启';
     }
     /* 信仰页的灰态：**第五个独立门槛** —— 神学（与资源行 / 产出线的 gate 同源：
      *   resUnlocked(s,'faith') ⇔ s.civics.theology），不在这里另立一份判据。 */
@@ -1876,7 +2545,10 @@
   var HAPPY_BONUS_LABELS = {
     gov: '政体', wonder: '王国大交易所', card: '政策卡', skydrill: '天穹钻机'
   };
-  function happyBonusNote(s, which) {
+  function happyBonusNote(s, which, sourceId) {
+    /* 奇观页的提示必须绑定当前奇观；幸福度账本是汇总口径，不能把
+     * 「王国大交易所」这一项的标签复用到所有已建成奇观上。 */
+    if (which === 'wonder' && sourceId !== 'wonder_grand_exchange') return '';
     if (!SB.economy.happyLedger) return '';
     var L = SB.economy.happyLedger(s);
     if (!L.bonusParts || !L.bonusParts.length) return '';
@@ -1895,9 +2567,7 @@
   function paneWonder() {
     var s = res();
     if (!s) return '';
-    var L = SB.wonder ? SB.wonder.list() : [], h = '', i;
-    h += '<div class="note">奇观是**一次性里程碑建筑**：建成就永久留着，不会再建第二座、' +
-      '也不烧什么。**石梁**目前是它们的材料（海潮方碑要 20 根）。</div>';
+    var L = SB.wonder ? SB.wonder.list() : [], cards = '', i, completed = 0;
     /* ⚠️ 2026-10-05 用户拍板：**未解锁的奇观不显示**（改前 14 座全列出来）。
      *   判据复用 `wonderBlocked` 的门控返回**前缀**（`/^需要先/`）——那是同文件里
      *   按钮文案区分「未解锁 / 建不起」时**已经在用**的判据（见下），不新立一套。
@@ -1918,10 +2588,12 @@
       var why = done ? null : SB.workshop.wonderBlocked(s, w.id);
       if (!done && why && /^需要先/.test(why)) continue;   // 未解锁 ⇒ 整行不显示
       shown++;
-      h += '<div class="row"' + (done ? ' data-owned="1"' : '') + '>' +
-        '<div class="nm">' + w.name + (done ? ' <span class="tag ok">已建成</span>' : '') +
-        (done ? happyBonusNote(s, 'wonder') : '') + '</div>' +
-        '<div class="ds">' + w.desc + '（成本 ' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) + '）</div>' +
+      if (done) completed++;
+      cards += '<div class="row"' + (done ? ' data-owned="1"' : '') + '>' +
+        '<div class="nm"><button type="button" class="building-name" data-wonder-info="' + w.id + '" aria-haspopup="dialog" title="查看奇观效果与建造条件">' + w.name + '</button>' + (done ? ' <span class="tag ok">已建成</span>' : '') +
+        (done ? happyBonusNote(s, 'wonder', w.id) : '') + '</div>' +
+        '<div class="ds">' + w.desc + '<span class="wonder-cost">建造材料：' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) + '</span></div>' +
+        (!done ? '<span class="wonder-state ' + (why ? 'waiting' : 'ready') + '">' + (why ? '材料不足' : '可建造') + '</span>' : '') +
         '<button class="btn' + (done || why ? '' : ' buy') + '" data-wonder="' + w.id + '"' +
         (done || why ? ' disabled' : '') + ' title="' + (why || '') + '">' +
         (function () {
@@ -1932,7 +2604,11 @@
     }
     /* 一座都还没解锁时给一句说明，别留一个只有表头的空面板。
      *（末座奇观解锁后必然有一座可建，所以这里只在开局那段时间出现。） */
-    if (!shown) h += '<div class="note">还没有任何奇观向你揭开。</div>';
+    var h = '<div class="wonder-overview"><div><small>WONDERS · 里程碑</small><h2>奇观</h2>' +
+      '<p>建成后永久留存的独特建筑；名称可点开查看完整效果与条件。</p></div>' +
+      '<div class="wonder-count"><b>' + completed + '<i> / </i>' + shown + '</b><small>已建成 / 已揭晓</small></div></div>' +
+      '<div class="wonder-intro">奇观不会重复建造或消耗维护。石梁是当前主要建造材料，例如海潮方碑需要 20 根。</div>' +
+      '<div class="wonder-grid">' + (shown ? cards : '<div class="note">还没有任何奇观向你揭开。</div>') + '</div>';
     return h;
   }
 
@@ -2000,7 +2676,7 @@
   }
 
   /* 2026-10-05 系统指引：页签「?」按钮点击后弹出的简介（def=定义，step=第一步）。
-   * 内容覆盖全部页签（village/folk/tech/civic/faith/workshop/wonder/dig/meta）。
+   * 内容覆盖全部页签（village/folk/tech/civic/faith/workshop/wonder/meta）。
    * ⚠️ 纯 UI 文案，不碰任何数值/平衡；钥匙 key 与 index.html 里 onclick="SB.ui.openIntro('KEY')" 一一对应。 */
   var INTRO = {
     village: { icon:'🏝️', ttl:'这是什么 · 巢穴',
@@ -2024,9 +2700,6 @@
     wonder: { icon:'🏛️', ttl:'这是什么 · 奇观',
       def:'大型工程项目：耗巨量资源建成，给<b>全局强增益</b>或解锁终局机制（如天穹钻机）。',
       step:'第一步：攒齐奇观所需石梁/精铁等，在巢穴页动工；建成后效果全局生效。' },
-    dig: { icon:'⛏️', ttl:'这是什么 · 剥壳工程',
-      def:'天壳仪表盘：显示<b>破壳系数拆分</b>、<b>基础削壳速率</b>与破冰祭坛开关；研究「天壳观测」后开启。',
-      step:'第一步：研究「天壳观测」解锁本页；之后靠祭坛/钻机推进破壳。' },
     meta: { icon:'♻️', ttl:'这是什么 · 轮回商店',
       def:'跨周目成长层：<b>破壳结算</b>给轮回点，在商店换永久增益（起始／门槛／效率三类）。',
       step:'第一步：先推进到第一次破壳结算；拿到轮回点后回到本页挑最贵的「门槛减免」类。' }
@@ -2049,7 +2722,19 @@
   /* Esc 关弹窗（防重复绑定：render.js 只加载一次，这里挂一次即可）。 */
   if (typeof document !== 'undefined' && document.addEventListener) {
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { var m = el('introMask'); if (m && !m.classList.contains('hidden')) closeIntro(); }
+      if (e.key === 'Escape') {
+        var intro = el('introMask'), modal = el('modal');
+        if (intro && !intro.classList.contains('hidden')) closeIntro();
+        else if (modal && !modal.classList.contains('hidden') && modal.classList.contains('tree-modal')) hideModal();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        var infoLink = e.target && e.target.closest ? e.target.closest('.inline-info-link') : null;
+        if (infoLink) {
+          e.preventDefault();
+          if (infoLink.dataset.buildInfo) showBuildingInfo(infoLink.dataset.buildInfo);
+          else if (infoLink.dataset.wonderInfo) showWonderInfo(infoLink.dataset.wonderInfo);
+          else if (infoLink.dataset.policyInfo) showPolicyInfo(infoLink.dataset.policyInfo);
+        }
+      }
     });
   }
 
@@ -2058,16 +2743,23 @@
   SB.ui.closeIntro = closeIntro;
   SB.ui.render = {
     renderAll: renderAll, renderTick: renderTick, renderPanes: renderPanes,
-    showBreakPanel: showBreakPanel, hideModal: hideModal, confirmPanel: confirmPanel,
+    showBreakPanel: showBreakPanel, showBreakAnimation: showBreakAnimation, hideModal: hideModal, confirmPanel: confirmPanel,
     storyPanel: storyPanel, techTabOpen: techTabOpen, syncTabLocks: syncTabLocks,
     initTabs: initTabs, initSpeeds: initSpeeds, techGoEra: techGoEra,
     showOfflineModal: showOfflineModal, setOfflineProgress: setOfflineProgress,
+    showTreeDetail: showTreeDetail,
     /* 主页面分区卡片的折叠（2026-09-30）：toggle 供 input.js 的 d.fold 委托调用，
      * applyAllFolds 供启动时按持久化状态落地。
      * 巢穴页**内**的区折叠（2026-09-30 晚）同理由 d.zfold 委托调用 —— 用的也是这一对：
      * 区别只在状态是「落成类」（外层卡片，节点持久）还是「重拼进 HTML」（页内区，会被重画）。 */
     toggleCardFold: toggleCardFold, applyAllFolds: applyAllFolds,
     toggleZoneFold: toggleZoneFold,
+    setCivicView: setCivicView, toggleGovDetail: toggleGovDetail,
+    setWorkshopView: setWorkshopView,
+    showBuildingInfo: showBuildingInfo,
+    showWonderInfo: showWonderInfo,
+    showPolicyInfo: showPolicyInfo,
+    showWorkshopInfo: showWorkshopInfo,
     /* ⚠️ 2026-10-05：工坊「隐藏已完成」开关的切入口。
      *   ⚠️ 切完**必须触发一次整块重画**才生效（不像 zone 折叠能直接翻节点上的类）——
      *   因为「已完成项隐不显示」是渲染时**跳过行**决定的，DOM 上没有可翻的类。
@@ -2092,6 +2784,7 @@
     paneMeta: paneMeta,
     /* ⚠️ 2026-10-05：同理导出工坊三段的渲染函数，回归要直接验「未解锁不显示」。
      *   （走 renderPanes 那条路取不到属性：假 DOM 的 innerHTML 不回填 children。） */
-    paneToolRows: paneToolRows, paneCraftRows: paneCraftRows, paneUpgradeRows: paneUpgradeRows
+    paneToolRows: paneToolRows, paneCraftRows: paneCraftRows, paneUpgradeRows: paneUpgradeRows,
+    renderEvent: renderEvent
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -74,17 +74,21 @@
    * need（建筑前置）不在这里：它是加工链的物理依赖，跟解锁是两回事。
    * ⚠️ 2026-10-05 用户拍板：**移除 unlockRatio（库存达首级价 30% 才「露头」）**。
    *    解锁只认科技/资源门槛，不再为「还没攒够 30% 造价」藏整行——研究完科技就立刻能看到、只是买不起。 */
+  /* 退役判定：被 `retiredBy` 指向的建筑已建成 ⇒ 本建筑退休。
+   * ⚠️ 2026-10-06：城堡「真升级」实施过程中曾用这个机制让议事厅在城堡建成后整行隐藏，
+   *   **现已撤回**（城堡不是第二座建筑，只是议事厅的新名字 ⇒ 没有退役这回事）。
+   *   函数与导出**留着**：它是 BUILDINGS 表上合法的可选字段位，将来真有建筑被取代时直接可用；
+   *   表里目前没有任何建筑写 `retiredBy`（e2e 有断言守着这一点）。 */
+  function retired(s, b) {
+    return !!(b && b.retiredBy && s && s.lvl && (s.lvl[b.retiredBy] || 0) > 0);
+  }
   function unlocked(s, b) {
     if (b.defaultUnlockable) return true;
+    if (retired(s, b)) return false;
     /* 默认锁着。猫国的 `unlockable` 在 Spec 里是 MANDATORY（必填），
      * 漏写等于「忘了决定」。这里同样：没声明任何解锁条件的建筑一律不出现，
      * 否则一个只写了 need 的建筑（比如祭坛）会直接躺在开局列表里。 */
     if (!b.requiredTech && !b.unlockScheme && !b.requiredCivic) return false;
-    /* 纪元闸门 outermost，排在 requiredTech 之前。它比科技更硬：破冰祭坛的
-     * requiredTech 是「破冰工程学」，而后者本身就是纪元五的科技——纪元四时玩家
-     * 就算把精铁堆到 300 也建不了祭坛。放在科技之后判定，lockReason 就会报出
-     * 「需先掌握破冰工程学」这种玩家当下根本做不到的事（2026-09-25 实测复现）。 */
-    if (b.id === 'miracle' && (s.era || 1) < CFG.MIRACLE_ERA) return false;
     if (b.requiredTech) {
       for (var i = 0; i < b.requiredTech.length; i++) if (!s.techs[b.requiredTech[i]]) return false;
     }
@@ -115,11 +119,6 @@
 
   // 给 UI 用的解锁理由：为什么要灰掉
   function lockReason(s, b) {
-    /* 与 unlocked() 同序：纪元在最外。破壳纪之前报「需破冰工程学」，
-     * 而那是纪元五的科技，玩家会在一个当下无法执行的目标上白攒资源。 */
-    if (b.id === 'miracle' && (s.era || 1) < CFG.MIRACLE_ERA) {
-      return '破壳纪（工业时代）才能建造——推完洋流纪的关键节点';
-    }
     if (b.requiredTech) {
       for (var i = 0; i < b.requiredTech.length; i++) {
         if (!s.techs[b.requiredTech[i]]) {
@@ -154,14 +153,6 @@
         }
       }
     }
-    if (b.id === 'miracle') {
-      var cap = SB.shell.miracleCap(s);
-      if ((s.lvl.miracle || 0) + 1 > cap && (s.lvl.miracle || 0) >= cap) {
-        /* ⚠️ 2026-10-04：原「先建热泉井或加派匠人」两个指引**都已失效**——热泉井 2026-09-28
-         *    删除、匠人职业 2026-10-04 删除 ⇒ 留着就是把玩家指向不存在的东西。改为中性描述。 */
-        return '供能不足：地热仅够 ' + cap + ' 级（地热产出口待重设）';
-      }
-    }
     return null;
   }
 
@@ -171,18 +162,15 @@
     if (!needMet(s, b)) return false;
     var c = SB.economy.costOf(s, id);
     if (!SB.economy.canAfford(s, c)) return false;
-    /* 祭坛等级受地热产能约束（见 shell.miracleCap）。没有这条，堆建筑永远是最优解，
-     * 「燃料流」在结构上不可能赢——理性流照样把祭坛堆到燃料允许的天花板。 */
-    if (id === 'miracle') {
-      var cap = SB.shell.miracleCap(s);
-      if ((s.lvl.miracle || 0) + 1 > cap) return false;
-    }
     /* 王国潮道（2026-09-30 · 市政《行政部门》解锁2）：等级 ≤ 灯塔等级（规格原文）。
      * 这是全仓第一条**跨建筑**等级钳制——灯塔 0 级时潮道一座都建不起来。
      * ⚠️ 判定读 s.lvl 而不是建筑定义，灯塔没有等级上限，两边永远同源。 */
     if (id === 'canal' && (s.lvl.canal || 0) + 1 > (s.lvl.lighthouse || 0)) return false;
     SB.economy.pay(s, c);
     s.lvl[id]++;
+    /* ⚠️ 这里**没有**「建城堡时把议事厅等级并过去」的转移逻辑——那是被撤回的误读。
+   *   城堡 = 议事厅买下工坊升级 `upg_castle` 之后的新名字（render 改显示名），
+   *   两者是同一座建筑、同一个 lvl.hall，不存在两座之间的等级搬运。 */
     reveal(s, b);
     // 建造不再直接削壳：壳厚只由「系数驱动的持续削壳」表达，
     // 建造的贡献体现在 lvlSum 推高破壳系数上。这样玩家看得到因果，而不是看到一次跳变。
@@ -224,6 +212,9 @@
   SB.habitat = {
     buildingById: buildingById, build: build, study: study,
     needMet: needMet, unlocked: unlocked, lockReason: lockReason, reveal: reveal,
+    /* retired（2026-10-06）：render 的可见性判定要用它滤掉已退役建筑的常驻行，
+     *   与 unlocked() 里的那一判同源（同一个函数）。 */
+    retired: retired,
     autoTick: autoTick, habitatName: habitatName
   };
 })(typeof window !== 'undefined' ? window : globalThis);

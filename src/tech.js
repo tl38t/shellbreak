@@ -42,15 +42,16 @@
    * 玩家看不出先后；文明 6 是把节点摆成 (列, 行) 的横卷，列 = 推进方向，
    * 前置到本项之间画连线，图比视口宽，靠横向滚动看后面的纪元。
    *
-   *   x（列）= **数据里的 `layer`**（techs.js 里声明，纪元一是用户指定的四层形状，
-   *                其余纪元按 `max(前置的 layer) + 1` 推算）；层号 1 起点，列坐标 0 起点，
-   *                换算在 colOf() 里（那个 −1 有它自己的注释，改它之前先读）
+   *   x（列）= **数据里的 `layer`**（techs.js 里声明）；同一时代保留层级间距，
+   *                并把该时代最早实际层级归一到本地第 0 列；跨时代只留紧凑像素间距。
+   *                逻辑列仍是 0 起点，换算在 colOf() 里。
    *   y（行）= 由下面 layout() 自动分配：同一列不许撞行，**其余尽量紧凑**
    *            —— 行是排版的产物，不是形状。形状必须落在数据里，只写在注释里的
    *            「层」已经骗过一次人（2026-09-26 那次就是形状只在注释里，面板照旧平铺）。
    *
    * ⚠️ 两个坑：
-   *   ① 列基准（eraBase）是按「前一纪元用过的最大列 + 1」**累加**出来的，所以
+   *   ① 列基准（eraBase）按每个时代实际占用的列数累加；像素间隔另走 eraOffset，
+   *      所以
    *      给任一纪元改 layer，后面所有纪元的位置都会平移 —— 改之前先跑 e2e 的
    *      「几何」一节，它把各纪元的列区间和层号都钉住了。
    *   ② 节点只渲染**已揭示**的。未揭示的节点不上图，于是连线也只在两端都可见时才画，
@@ -69,36 +70,34 @@
   var COL_PITCH = GEO.W + GEO.COL;
   var ROW_PITCH = GEO.H + GEO.ROW;
 
-  /* 列号 = 纪元基准 + 层号 − 1。
-   *
-   * ⚠️ 那个 **−1 不是笔误**，是两个坐标系的换算：`layer` 是数据里 1 起点的**层号**，
-   *    而 `col` 是 0 起点的**画布列坐标**（x = PADX + col × 列距）。
-   *    少了它，纪元一的第一列落在 col 1 ⇒ x = 46 + 250 = 296：长卷最左边凭空多出
-   *    296px 死区。手机内容宽约 334px（390 视口 − 两级 padding），**整个首屏都落在
-   *    死区里**，玩家一进科技页只看得见纪元标题那条线、看不见任何节点，以为树没画出来
-   *    —— 这就是 2026-09-26 报的「科技树太靠右了，一开始根本看不到」。
-   *    修完最左列 x = PADX = 46，开面板第一眼就是「结绳」。
-   *    纪元基准（eraBase）是「前一纪元用满的列数 + 1 当分隔」，与 col 起点无关，不受它影响；
-   *    纪元横幅的 left 也用 base，所以横幅和它那一纪元的首列天然对齐（两边都不用改）。 */
-  function colOf(t, eraBase) {
-    return (eraBase[t.era] || 0) + (t.layer || 1) - 1;
+  /* 列号 = 时代逻辑基准 + (layer − 本时代最早实际 layer)。
+   * layer 仍决定时代内部的先后和列距，但数据里从 layer 3 起步的时代不会因此
+   * 在开头留下两列空白。x 用相同的本地层级偏移，再加 eraOffset；横幅和锚点也共用
+   * eraOffset，保证都与该时代的首个实际节点对齐。 */
+  function colOf(t, eraBase, minL) {
+    return (eraBase[t.era] || 0) + (t.layer || 1) - (minL[t.era] || 1);
   }
 
   function layout() {
     var T = SB.TECHS || [];
-    var byEra = {}, maxL = {}, e, i, t;
+    var byEra = {}, maxL = {}, minL = {}, e, i, t;
     for (i = 0; i < T.length; i++) {
       t = T[i];
       (byEra[t.era] = byEra[t.era] || []).push(t);
       maxL[t.era] = Math.max(maxL[t.era] || 1, t.layer || 1);
+      minL[t.era] = Math.min(minL[t.era] == null ? Infinity : minL[t.era], t.layer || 1);
     }
-    /* 纪元基准：前一个纪元用满之后空一列当分隔，既是视觉切分也给纪元标题一条轨道。 */
-    var eraBase = {}, base = 0, blocks = [];
+    /* 各时代把最早实际层级归一到本地第 0 列；时代分隔另用 GEO.ERAPAD 像素控制，
+     * 不为缺失的前置层级和时代边界浪费整列空间。 */
+    var eraBase = {}, eraOffset = {}, base = 0, xOffset = 0, blocks = [];
     for (e = 1; e <= 12; e++) {
       if (!byEra[e]) break;
+      var span = maxL[e] - minL[e] + 1;
       eraBase[e] = base;
-      blocks.push({ era: e, x0: base, cols: maxL[e], start: base });
-      base += maxL[e] + 1;
+      eraOffset[e] = xOffset;
+      blocks.push({ era: e, x0: base, cols: span, start: base, offset: xOffset });
+      base += span;
+      xOffset += span * COL_PITCH + (byEra[e + 1] ? GEO.ERAPAD : 0);
     }
     /* 行分配：按 (全局列, 声明序) 扫一遍，每列从 0 开始找第一个空行。
      * 于是「同列不撞行、跨列允许对齐」—— 树会排成一条整齐的齿梳状。 */
@@ -108,27 +107,27 @@
       for (i = 0; i < byEra[e].length; i++) order.push(byEra[e][i]);
     }
     order.sort(function (a, b) {
-      var ca = colOf(a, eraBase), cb = colOf(b, eraBase);
+      var ca = colOf(a, eraBase, minL), cb = colOf(b, eraBase, minL);
       return ca - cb || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     });
     for (i = 0; i < order.length; i++) {
       t = order[i];
-      var col = colOf(t, eraBase);
+      var col = colOf(t, eraBase, minL);
       var row = 0;
       while (used[col] && used[col][row]) row++;
       (used[col] = used[col] || {})[row] = true;
       cells[t.id] = {
         id: t.id, era: t.era, layer: t.layer || 1, col: col, row: row,
-        x: GEO.PADX + col * COL_PITCH,
+        x: GEO.PADX + eraOffset[t.era] + ((t.layer || 1) - minL[t.era]) * COL_PITCH,
         y: GEO.PADY + row * ROW_PITCH
       };
     }
-    var maxCol = 0, maxRow = 0;
+    var maxRight = 0, maxRow = 0;
     for (var k in cells) {
-      if (cells[k].col > maxCol) maxCol = cells[k].col;
+      maxRight = Math.max(maxRight, cells[k].x + GEO.W);
       if (cells[k].row > maxRow) maxRow = cells[k].row;
     }
-    var w = GEO.PADX * 2 + maxCol * COL_PITCH + GEO.W;
+    var w = GEO.PADX + maxRight;
     var h = GEO.PADY * 2 + maxRow * ROW_PITCH + GEO.H;
 
     /* 连线：从前置节点的右腰出发、到本节点的左腰，走一条三次贝塞尔。
@@ -161,16 +160,16 @@
 
   /* 某个纪元在长卷里的锚点 x —— 点纪元按钮时把横向滚动落在这里。
    *
-   * ⚠️ 值是 `start × 列距`，**不是**纪元横幅的 left（那还要 + PADX）。差别就是这一下：
+   * ⚠️ 值是时代像素偏移，**不是**纪元横幅的 left（那还要 + PADX）。差别就是这一下：
    *    横滚的目标是**画布坐标 − 视口左内边距**，于是滚过去之后纪元横幅恰好落在
    *    x = PADX 处 —— 与「长卷最左边没有死区」是同一条边距。纪元一的锚点因此是 0，
    *    也就是「点纪元一 = 回到开面板时的位置」，不需要为它写特例。
-   * ⚠️ 用 blocks 的基准列而不是「该纪元节点的最小列」：纪元基准是累加算出来的，
-   *    和树顶那条轨道同源；取节点最小列会在「某纪元第一个节点的 layer 不是 1」时错位。 */
+   * ⚠️ 用 blocks 的 offset 而不是「该纪元节点的最小列」：标题轨道与跳转锚点共用同一基准；
+   *    取节点最小列会在「某纪元第一个节点的 layer 不是 1」时错位。 */
   function eraAnchorX(era) {
     var L = layout();
     for (var i = 0; i < L.blocks.length; i++) {
-      if (L.blocks[i].era === era) return L.blocks[i].start * COL_PITCH;
+      if (L.blocks[i].era === era) return L.blocks[i].offset;
     }
     return 0;
   }
@@ -283,7 +282,7 @@
         now: Math.floor(s.got && s.got[c.r] || 0), need: c.n };
       case 'rate': {
         var r = (SB.economy && SB.economy.rates) ? (SB.economy.rates(s)[c.r] || 0) : 0;
-        return { txt: resName(c.r) + ' 产出 ' + r.toFixed(2) + ' / 秒 · 需 ' + c.n, now: r, need: c.n };
+        return { txt: rateName(c.r) + ' ' + r.toFixed(2) + ' / 秒 · 需 ' + c.n, now: r, need: c.n };
       }
       case 'pop': return { txt: '人口 ' + s.pop + ' / ' + c.n, now: s.pop, need: c.n };
       /* ⚠️ 2026-10-04：原写死「匠人」是**显示 bug** —— job 型条件现存两处都不指匠人
@@ -342,7 +341,7 @@
         for (_wk = 0; _wk < _wa.length; _wk++) {
           if (SB.wonder && SB.wonder.owned(s)[_wa[_wk]]) _wn++;
         }
-        return { txt: '建成奇观（' + _wa.join('、') + '）', now: _wn, need: _wa.length };
+        return { txt: '建成奇观（' + _wNames(_wa) + '）', now: _wn, need: _wa.length };
       }
     }
     return null;
@@ -353,7 +352,26 @@
       if (SB.BUILDINGS[i].id === id) return SB.BUILDINGS[i].name;
     return id;
   }
+  /* `wonders` 条件的 id 列表 → 中文名列表。键是完整配置 id（wonder_xxx），
+   * 面板不能把生 id 印给玩家（2026-10-07 截图里印成「shellcutter、presspipe」就是这病）。 */
+  function _wNames(ids) {
+    var out = [], i, w;
+    for (i = 0; i < ids.length; i++) {
+      w = (SB.wonder && SB.wonder.byId) ? SB.wonder.byId(ids[i]) : null;
+      out.push(w ? w.name : ids[i]);
+    }
+    return out.join('、');
+  }
   function resName(id) { return SB.RESS && SB.RESS[id] ? SB.RESS[id].name : id; }
+  /* `rate` 类尤里卡条件的读数显示名。
+   * ⚠️ rates() 里有些键**不是资源**，而是同一资源的另一种口径：
+   *    `hydroSupply` = 热液能**总生产**，而 `hydro` = 净消耗（取负）。它不能进 SB.RESS
+   *    （renderRes 按 `for (var k in RESS)` 遍历 ⇒ 加了就会在顶栏多出一行假资源），
+   *    于是 resName 查不到会直接把键名 `hydroSupply` 印到面板上。这里只登记例外。 */
+  function rateName(id) {
+    if (id === 'hydroSupply') return '热液能总产出';
+    return resName(id) + ' 产出';
+  }
   function eraName(n) {
     var E = SB.ERAS || [];
     for (var i = 0; i < E.length; i++) if (E[i].id === n) return E[i].name;
@@ -507,13 +525,13 @@
     var t = byId(id);
     if (!t) return null;
     if (s.techs[id]) return '已掌握';
-    if (!isRevealed(s, id)) return '尚未揭示——先达成尤里卡条件';
-    if (t.era > (s.era || 1)) return '属于 ' + eraName(t.era) + '，先推进当前纪元';
+    if (!isRevealed(s, id)) return '未揭露：先达成尤里卡条件';
+    if (t.era > (s.era || 1)) return '纪元未到：属于 ' + eraName(t.era) + '，先推进当前纪元';
     /* 文案要指得出**该做什么**，不能只说「不行」：这句话会挂成灰按钮的 title，
      * 而卡片上条件行还写着进度，两者合起来才是完整的一句「你还差什么」。 */
-    if (!metOf(s, t)) return '尤里卡未达成——达成条件后才能研究';
-    if (!reqsMet(s, t)) return '需先掌握：' + t.reqs.map(function (r) { return byId(r).name; }).join('、');
-    if (!SB.economy.enough(s.res.science, t.cost)) return '科技 ' + Math.floor(s.res.science) + ' / ' + t.cost;
+    if (!metOf(s, t)) return '尤里卡未达成：达成条件后才能研究';
+    if (!reqsMet(s, t)) return '缺少前置科技：' + t.reqs.map(function (r) { return byId(r).name; }).join('、');
+    if (!SB.economy.enough(s.res.science, t.cost)) return '科技点不足：现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(t.cost);
     return null;
   }
 
@@ -539,7 +557,7 @@
    * ⚠️ 2026-09-26 后续：冻伤出口又换了一次轴——从建筑侧（lvl.hearth，随骨材线一并删除）
    *    换成**消耗品侧**（economy 内部的 warmBurningNow：这一瞬间暖石在不在烧）。
    *    所以 warmCap 与这张乘区表**再无关系**，在本表加减任何键都不会再影响冻伤；
-   *    反过来，以后想调冻伤要改 CFG.WARM_FREEZE_CAP，别来这里找。 */
+   *    反过来，以后想调冻伤要改 SB.CFG.WARM_FREEZE_CAP，别来这里找。 */
   /* ⚠️ ADD 这张名单是**唯一真源**：`mul()` 判断某个键是加区还是乘区时读的也是它
    *    （2026-09-28 起），effectText 的加法档判定也是它。之前 mul() 里另写了一份
    *    硬编码的键名列表 —— 两份名单各说一套时会出现「面板按加法显示、结算按乘法算」
@@ -551,7 +569,7 @@
   var ADD = { coef: 1, house: 1, kelpCap: 1, season: 1, craftRatio: 1, warmMul: 1, titaniumMul: 1 };
   var LABEL = {
     gather: '采集产出', food: '藻食产出', sci: '科技产出', craft: '加工产出',
-    fuel: '地热产出', smelt: '金属→精铁', miracle: '祭坛削壳',
+    fuel: '地热产出', smelt: '金属→精铁',
     farm: '采集者藻食产出', coef: '破壳系数',
     house: '人口上限', kelpCap: '藻食上限', craftRatio: '工艺制作效率',
     warmMul: '暖石产出', titaniumMul: '钛产出'
@@ -660,14 +678,36 @@
       case 'total': return '建筑总级数 ' + c.n;
       case 'res': return resName(c.r) + ' 存量 ' + c.n;
       case 'gathered': return '累计产出 ' + resName(c.r) + ' ' + c.n;
-      case 'rate': return resName(c.r) + ' 产出 ' + c.n + '/秒';
+      case 'rate': return rateName(c.r) + ' ' + c.n + '/秒';
       case 'pop': return '人口 ' + c.n;
       case 'job': return jobName(c.j) + ' ' + c.n + ' 人';
       case 'techs': return '已掌握科技 ' + c.n + ' 项';
+      case 'tech': {
+        var _tech = byId(c.id);
+        return '掌握科技「' + (_tech ? _tech.name : c.id) + '」';
+      }
+      case 'wonder': return '建成奇观 ' + c.n + ' 座';
       case 'coef': return '破壳系数 ' + c.n;
       case 'eraTechs': return eraName(c.era) + '科技 ' + c.n + ' 项';
       case 'shell': return '破壳 ' + ((c.n || 0) * 100) + '%';
-      case 'wonders': return '建成奇观（' + (c.ids || []).join('、') + '）';
+      case 'tools': return '买齐铁制工具（' + (c.ids || []).length + ' 件）';
+      case 'gov': return '启用三槽政体';
+      case 'upgrade': {
+        var _upgrades = SB.UPGRADES || [], _up;
+        for (var _ui = 0; _ui < _upgrades.length; _ui++) {
+          if (_upgrades[_ui].id === c.id) { _up = _upgrades[_ui]; break; }
+        }
+        return '完成工坊升级「' + (_up ? _up.name : c.id) + '」';
+      }
+      case 'religion': return '建立宗教';
+      case 'zoneLvl': {
+        var _zoneName = c.zone, _zones = SB.BUILD_ZONES || [];
+        for (var _zi = 0; _zi < _zones.length; _zi++) {
+          if (_zones[_zi].id === c.zone) { _zoneName = _zones[_zi].name; break; }
+        }
+        return _zoneName + '建筑合计等级 ' + c.n;
+      }
+      case 'wonders': return '建成奇观（' + _wNames(c.ids || []) + '）';
     }
     return '';
   }
@@ -682,7 +722,7 @@
    * 乘区默认 1、加区默认 0，未掌握的键就默认等价于「无效果」。 */
   function mul(s) {
     var T = SB.TECHS || [], m = {
-      gather: 1, food: 1, sci: 1, craft: 1, fuel: 1, smelt: 1, miracle: 1,
+      gather: 1, food: 1, sci: 1, craft: 1, fuel: 1, smelt: 1,
       /* farm ——「种植」的藻食产出乘区（默认 1，种植给 +50%）。
        * 它**只作用于职业侧**（economy.foodRate 的 byJob），不碰建筑侧的藻场：
        * 「采集者变成农民」说的是那个人变能干了，不是那片藻田变能干了。

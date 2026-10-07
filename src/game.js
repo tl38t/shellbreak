@@ -34,9 +34,6 @@
     /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
-    /* 剥壳工程（dig 页）的门 = 研究「天壳观测」（2026-10-05 用户：开局不开）。
-     * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
-    if (k === 'dig' && S && !(S.techs && S.techs.shellwatch)) return;
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
@@ -54,17 +51,30 @@
     render();
   }
   function setSpeed(v) { speed = v; }
-  // 破冰祭坛开关：开了不意味着立刻凿——地热不够会自动停摆，恢复供能自动继续
-  function toggleMiracle(v) {
+  /* 看广告加速倍率：玩家所选档位（speed）× 这个系数。广告时间银行（S.ad.ms）>0 且开关打开时 = MUL，否则 1。
+   * 只在**在线**生效：离线补算走 drainCatchUp，不经过这里；S.ad.ms 也不会在离线时流逝（见 loop 里的扣减段）。 */
+  function adMul() {
+    return (S && S.ad && S.ad.on && S.ad.ms > 0) ? (SB.CFG.AD && SB.CFG.AD.MUL || 2) : 1;
+  }
+  /* 看完广告发奖：往时间银行累加 BOOST_MIN 分钟，封顶 BOOST_CAP_MIN；发完默认打开开关。
+   * 这是「看一次广告 +30min 2×」的落地处，由 src/ad.js 的奖励回调调用。 */
+  function grantAdBoost() {
     if (!S) return;
-    S.miracleOn = !!v;
-    if (S.miracleOn && S.lvl.miracle <= 0) {
-      S.miracleOn = false;
-      log('还没有破冰祭坛。先建成祭坛才能启动工程。');
-    } else {
-      log(S.miracleOn ? '破冰祭坛启动，正在消耗地热凿壳。' : '破冰祭坛已停机。');
-    }
-    markDirty(); renderAll();
+    if (!S.ad) S.ad = { ms: 0, on: true };
+    var C = SB.CFG.AD || {};
+    var cap = (C.BOOST_CAP_MIN || 360) * 60000;
+    var add = (C.BOOST_MIN || 30) * 60000;
+    S.ad.ms = Math.min(cap, S.ad.ms + add);
+    S.ad.on = true;
+    dirty = true; renderAll();
+    log('看广告获得 ' + (C.BOOST_MIN || 30) + ' 分钟 2× 加速（累计 ' + fmtDur(S.ad.ms / 1000) + '）。');
+  }
+  /* 顶栏「2× 加速」开关：只切 S.ad.on，不碰余额。关着时余额冻结（不流逝），等于囤着以后用。 */
+  function toggleAdBoost() {
+    if (!S || !S.ad) return;
+    S.ad.on = !S.ad.on;
+    dirty = true; renderAll();
+    log('2× 加速已' + (S.ad.on ? '开启' : '关闭') + (S.ad.ms > 0 ? '（剩余 ' + fmtDur(S.ad.ms / 1000) + '）' : '（无剩余时间）') + '。');
   }
 
   function log(msg) {
@@ -91,7 +101,7 @@
     clearLog();
     log('第 ' + meta.cycle + ' 周目开始。冰封壳厚度 ' + S.iceShell + '。');
     log('提示：开局只有 1 名族民、0 资源。在「' + SB.habitat.habitatName(S) + '」页点采集攒 15 藻食建第一座藻场，再回「族民」页雇佣。');
-    log('壳薄到 25% 会停手；凿穿最后一段要靠破冰祭坛，而祭坛吃地热。');
+    log('壳薄到 25% 会停手；凿穿最后一段要建成天穹钻机，并在自然环境卡里启动它。');
     dirty = true;
     renderAll();
     SB.state.saveRun(snapshot(S));   // 新周目必须立刻落盘，否则刷新会丢掉这一局
@@ -103,6 +113,14 @@
     if (!S.perk) S.perk = SB.state.emptyPerks();
     meta.cycle = Math.max(1, meta.cycle);
     dirty = true;
+    if (S._repairedResources && S._repairedResources.length) {
+      var repairedNames = S._repairedResources.map(function (id) {
+        var def = SB.RESS && SB.RESS[id];
+        return def && def.name ? def.name : id;
+      });
+      log('检测到旧存档中的资源数值损坏，已保护性回落为 0：' + repairedNames.join('、') + '。旧数值无法从存档反推。');
+      delete S._repairedResources;
+    }
     if (!S.broken) log('已恢复上次进度：' + (S.t / 3600).toFixed(2) + ' 小时，壳厚 ' + Math.round(S.shell) + '。');
     renderAll();
   }
@@ -127,7 +145,7 @@
   function wipeSave() {
     SB.ui.render.hideModal();
     SB.state.clearRun();
-    try { root.localStorage && root.localStorage.removeItem(CFG.SAVE_KEY); } catch (e) {}
+    try { root.localStorage && root.localStorage.removeItem(SB.CFG.SAVE_KEY); } catch (e) {}
     meta = SB.state.emptyMeta();
     meta.cycle = 1;
     SB.state.saveMeta(meta);
@@ -190,6 +208,29 @@
     if (SB.civic.pump(s, emit || null) > 0) markDirty();
   }
 
+  /* 多个系统可能在同一轮同时跨过门槛（例如离线补算一次完成了议事厅与石工）。
+   * 叙事弹窗不能互相覆盖，所以统一进一个小队列；当前卡片关闭后再开下一张。 */
+  var storyQueue = [], storyQueueBusy = false;
+  function queueStory(o) {
+    /* 详情卡、离线面板等旧路径可能直接调用 hideModal()，没有机会经过
+     * 叙事按钮的 onOk。看到覆盖层已经关掉，就把队列从这个中间态解开。 */
+    var modal = document.getElementById('modal');
+    if (storyQueueBusy && modal && modal.classList.contains('hidden')) storyQueueBusy = false;
+    storyQueue.push(o);
+    openNextStory();
+  }
+  function openNextStory() {
+    if (storyQueueBusy || !storyQueue.length) return;
+    storyQueueBusy = true;
+    var o = storyQueue.shift(), done = o.onOk;
+    o.onOk = function () {
+      if (done) done();
+      storyQueueBusy = false;
+      openNextStory();
+    };
+    SB.ui.render.storyPanel(o);
+  }
+
   /* 科研面板开门那一刻（docs/TECH_TREE_v0.3.md §2.1，台词由用户 2026-09-25 给定）：
    * 建成第 5 座深海藻场 ⇒ 一个叙事弹窗 + 科技页翻开 + 结绳已在树上（已掌握）。
    * 【为什么挂在 pump 上而不是挂在建造按钮里】门的开合本身是派生的（panelOpen 读结绳的
@@ -216,7 +257,8 @@
      * 用户的原话是「这个不要，就显示『科技页解锁』，按钮是『进入科技页』」。
      * 那两句鲛人打结的台词是用户 2026-09-25 亲自给的（见 TECH_TREE_v0.3.md §2.1），
      * 保留 —— 它们是叙事，不是说明。 */
-    SB.ui.render.storyPanel({
+    queueStory({
+      kind: 'tech',
       title: '科技页解锁',
       lines: [
         '鲛人将细小坚韧的深海藻类打了个结，「这代表今天，」他说。',
@@ -236,6 +278,81 @@
     });
   }
 
+  /* 其余系统页签的开门叙事。门槛全部复用现有系统判定，弹窗只负责记账与表现。 */
+  function maybeCivicPopup(s) {
+    if (!s || s.civicPopup || !SB.civic || !SB.civic.panelOpen || !SB.civic.panelOpen(s)) return;
+    s.civicPopup = true;
+    markDirty();
+    queueStory({
+      kind: 'civic', icon: '▤', title: '市政页解锁',
+      lines: [
+        '这是鲛人们第一次围坐在同一张石桌旁。',
+        '集中食物、分配任务、解决分歧……文明从这里开始。'
+      ],
+      unlockTitle: '市政系统已开放',
+      unlockCopy: '现在可以研究市政、选择政体，并装配政策卡。',
+      ok: '进入市政页',
+      onOk: function () { if (S === s) setTab('civic'); }
+    });
+  }
+
+  function maybeFaithPopup(s) {
+    if (!s || s.faithPopup || !SB.economy || !SB.economy.resUnlocked || !SB.economy.resUnlocked(s, 'faith')) return;
+    s.faithPopup = true;
+    markDirty();
+    queueStory({
+      kind: 'faith', icon: '✧', title: '信仰页解锁',
+      lines: [
+        '祭司把潮汐、族民与深海火光刻在同一张薄石板上。',
+        '但为何每一位祭司对此都有不同的理解呢？'
+      ],
+      unlockTitle: '信仰系统已开放',
+      unlockCopy: '现在可以查看信仰产出、全局加成，并为你的宗教命名。',
+      ok: '进入信仰页',
+      onOk: function () { if (S === s) setTab('faith'); }
+    });
+  }
+
+  function maybeWorkshopPopup(s) {
+    if (!s || s.workshopPopup || !(s.lvl && s.lvl.workshop > 0)) return;
+    s.workshopPopup = true;
+    markDirty();
+    queueStory({
+      kind: 'workshop', icon: '⚒', title: '工坊页解锁',
+      lines: [
+        '砧、锤、绳索与熟稔运用的匠人。',
+        '如果一件工具能替我们重复昨天的动作，是不是也能用来做新的创造？'
+      ],
+      unlockTitle: '工艺制作已开放',
+      unlockCopy: '现在可以制造工艺品、购买职业工具，并安装永久升级。',
+      ok: '进入工坊',
+      onOk: function () { if (S === s) setTab('workshop'); }
+    });
+  }
+
+  function maybeWonderPopup(s) {
+    if (!s || s.wonderPopup || !(s.techs && s.techs.masonry)) return;
+    s.wonderPopup = true;
+    markDirty();
+    queueStory({
+      kind: 'wonder', icon: '✦', title: '奇观页解锁',
+      lines: [
+        '十余名石工师把蓝图摊在石台上，最终成品的线条一路越过了整座巢穴。'
+      ],
+      unlockTitle: '奇观蓝图已揭晓',
+      unlockCopy: '现在可以查看并建造独特奇观；建成后将永久留存并提供增益。',
+      ok: '进入奇观页',
+      onOk: function () { if (S === s) setTab('wonder'); }
+    });
+  }
+
+  function maybeTabUnlockPopups(s) {
+    maybeCivicPopup(s);
+    maybeFaithPopup(s);
+    maybeWorkshopPopup(s);
+    maybeWonderPopup(s);
+  }
+
   /* 宗教弹窗（用户 2026-09-29）：建立宗教（神学完成）那一刻播一次叙事弹窗，
    * 并永久解锁「轮回」系统。写法刻意镜像 maybeSciencePopup——挂在泵上、记账先于弹窗、
    * 一次性置脏、离线/读档都靠同样的兜底补播。
@@ -251,7 +368,7 @@
     meta.religionSeen = true;
     SB.state.saveMeta(meta);
     markDirty();
-    SB.ui.render.storyPanel({
+    queueStory({
       title: '轮回系统解锁',
       lines: [
         '鲛人的诵经声伴随深海的浪潮传遍王国的角落，',
@@ -283,14 +400,21 @@
      * 于是「离线补算」和「切回前台补算」是同一条路径。 */
     if (S && !S.broken && loop._lastWall) {
       var gap = (wall - loop._lastWall) / 1000;
-      if (gap >= CFG.OFFLINE_MIN && !loop.job) planCatchUp(S, gap);
+      if (gap >= SB.CFG.OFFLINE_MIN && !loop.job) planCatchUp(S, gap);
     }
     if (loop.job) drainCatchUp(CATCHUP_BUDGET);
     loop._lastWall = wall;
 
     var elapsed = Math.min(MAX_STEP, (now - last) / 1000);
     last = now;
-    loop.acc = Math.min((loop.acc || 0) + elapsed * speed, Math.max(MAX_STEP, CFG.OFFLINE_MIN));
+    /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
+     * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。 */
+    if (S && !S.broken && S.ad && S.ad.on && S.ad.ms > 0) {
+      var adWas = S.ad.ms > 0;
+      S.ad.ms = Math.max(0, S.ad.ms - elapsed * 1000);
+      if (adWas && S.ad.ms === 0) dirty = true;
+    }
+    loop.acc = Math.min((loop.acc || 0) + elapsed * speed * adMul(), Math.max(MAX_STEP, SB.CFG.OFFLINE_MIN));
     /* 补算进行中时暂停实时推进：这段墙钟时间已经在补算里算过了，
      * 再叠加实时 tick 就是重复计时。 */
     while (!loop.job && loop.acc >= STEP && S && !S.broken) {
@@ -300,13 +424,21 @@
       if (S._seasonGrantPending) { SB.economy.seasonGrant(S); S._seasonGrantPending = false; }
       loop.acc -= STEP;
       loop._tp = (loop._tp || 0) + STEP;
-      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S);
+      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S); maybeTabUnlockPopups(S);
         /* 生息区自动升级（2026-09-30 · 封建主义解锁2）：只挂在线泵——离线补算（line ~363）
          * 不调它，离线只结算产出、不替玩家花资源（与离线闸门同一精神）。 */
-        if (SB.habitat && SB.habitat.autoTick) SB.habitat.autoTick(S, emit); }
+        if (SB.habitat && SB.habitat.autoTick) SB.habitat.autoTick(S, emit);
+        /* 工坊自动制作槽（2026-10-07）：与生息区自动升级同一拍、同一道「只在线」闸门 ——
+         * 离线补算不替玩家把原料转成制品（离线只结算产出）。语义见 workshop.autoTick。 */
+        if (SB.workshop && SB.workshop.autoTick) SB.workshop.autoTick(S, emit); }
     }
 
     if (S && !S.broken) {
+      /* 点击时间事件（天壳震动等）：只在线推进——离线补算 drainCatchUp 不跑本系统。
+       * 用墙钟节流（events.update 内部），不随倍速放大。事件模块自带独立 RNG，不碰 SB.rng。 */
+      if (SB.events) SB.events.update(S, emit);
+      /* 自动拾取点击事件（轮回商店 autoEvent）：只在线（!loop.job）。出现即领，玩家无需点 #omen 横幅。 */
+      if (!loop.job && SB.autoplay) SB.autoplay.autoEventClaim(S, emit);
       /* 面板读数的周期刷新：**墙钟** 2 秒一次，与倍速无关。
        * 【为什么不在泵里顺手置脏】泵按逻辑秒节流，10× 速下等于 0.2 秒一趟，
        * 那是拿「整块重建五个 pane（含 33 个节点的科技长卷）」当代价去刷几个数字，
@@ -317,6 +449,9 @@
         loop._lastPane = now; dirty = true;
       }
       if (dirty) renderAll(); else SB.ui.render.renderTick();
+      /* 自动采集点击（轮回商店 autoClick，N 次/真实秒）：只在线（!loop.job），用帧钟 elapsed 累计，
+       * 不随倍速放大——倍速只加快世界、不加快自动点击节奏。 */
+      if (!loop.job && SB.autoplay && SB.autoplay.autoClick) SB.autoplay.autoClick(S, elapsed, emit);
     }
     // 存档节流：localStorage 写入较贵，5 秒一次足够
     if (S && !S.broken && now - (loop._lastSave || 0) > 5000) {
@@ -326,9 +461,9 @@
   }
 
   function offlineCap(s) {
-    var step = CFG.OFFLINE_PERK_STEP || 0;
+    var step = SB.CFG.OFFLINE_PERK_STEP || 0;
     var lv = (s && s.perk && s.perk.offline) || 0;
-    return CFG.OFFLINE_CAP * (1 + step * lv);
+    return SB.CFG.OFFLINE_CAP * (1 + step * lv);
   }
   function fmtDur(sec) {
     var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
@@ -404,7 +539,7 @@
       title: '离线结算',
       body: summary,
       ok: '继续',
-      onOk: function () { maybeSciencePopup(j.s); maybeReligionPopup(j.s); markDirty(); }
+      onOk: function () { maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); }
     });
   }
   /* 存档字段取舍：`_` 前缀曾被当成「不落盘」的依据，那是错的——
@@ -412,7 +547,7 @@
    * `_cutBase` / `_cutMir` 是削壳累计量（漏存会让破壳面板少算刷新前的部分）。
    * 真正需要排除的临时字段请显式写进 TEMP_KEYS；未登记的字段一律落盘
    * （migrateRun 会按 freshRun 的键过滤未知顶层字段，写进去也不会污染下次读取）。 */
-  var TEMP_KEYS = ['_ts'];   // `_ts` 是墙钟时间戳：落盘、读取时手删，不进运行状态
+  var TEMP_KEYS = ['_ts', '_repairedResources'];   // 诊断字段只在本次读档提示，不进入存档
   function snapshot(s) {
     var o = {}, k;
     for (k in s) if (TEMP_KEYS.indexOf(k) < 0) o[k] = s[k];
@@ -439,6 +574,7 @@
     SB.ui.render.initSpeeds();
     maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
     maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
+    maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
     document.getElementById('btnBreak').onclick = function () {
       if (S.shell <= 0 && !S.broken) SB.prestige.doBreak(S, emit);
     };
@@ -490,6 +626,18 @@
         onOk: function () { SB.game.wipeSave(); }
       });
     };
+    var btnAd = document.getElementById('btnAd');
+    if (btnAd) btnAd.onclick = function () {
+      /* ⚠️ 不可白送：只有 SB.ad.show 判定「看完」才发奖。
+       * 原先这里有 `if (!SB.ad) grantAdBoost()` 的兜底，等于没广告也能拿加速，已删。 */
+      if (!SB.ad || !SB.ad.available || !SB.ad.available()) { log('广告暂不可用。'); return; }
+      SB.ad.show(
+        function () { grantAdBoost(); },
+        function (why) { log(why === 'unavailable' ? '广告暂不可用。' : '广告未看完，未发放加速。'); }
+      );
+    };
+    var btnAdTog = document.getElementById('btnAdToggle');
+    if (btnAdTog) btnAdTog.onclick = function () { toggleAdBoost(); };
     /* 关标签页 / 刷新前立刻落盘：有 5 秒节流在，玩家在这一窗口里刷新就会丢最后几秒，
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */
     function flush() { if (S && !S.broken) SB.state.saveRun(snapshot(S)); }
@@ -502,12 +650,13 @@
 
   SB.game = {
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
-    toggleMiracle: toggleMiracle,
+    adMul: adMul, grantAdBoost: grantAdBoost, toggleAdBoost: toggleAdBoost,
     startRun: startRun, nextCycle: nextCycle, stay: stay,
     resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave,
     log: log, emit: emit, markDirty: markDirty, pumpTech: pumpTech, pumpCivic: pumpCivic,
     maybeReligionPopup: maybeReligionPopup,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
-    showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); }
+    showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); },
+    showBreakAnimation: function (r) { SB.ui.render.showBreakAnimation(r); }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
