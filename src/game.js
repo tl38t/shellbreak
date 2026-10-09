@@ -377,6 +377,51 @@
       ],
       ok: '了解'
     });
+    /* 「最快建立文明」榜：religionSeen 首次置真即快照当前墙钟。
+     * ⚠️ 只提交一次 —— religionSeen 是跨周目永久字段，第二次进来直接 return，
+     *   所以天然只报「历史最早那一局」，与 calcType='best' 的意图一致。
+     * ⚠️ 榜 ID 未回填时submitRun 内部会跳过，线上不产生任何请求。 */
+    submitRankFirstFaith(s);
+  }
+
+  /* ---- 排行榜提交（2026-10-07）----
+   * 全部走 SB.rank 的空值兜底：榜 ID 未回填 ⇒ 内部跳过，不请求、不报错、不显示入口。
+   * ⚠️ 提分口径集中在 submitRankOnBreak 一处，改榜单口径只改那里。 */
+
+  /* 建立宗教那一刻：报 firstFaith（墙钟秒，整数）。 */
+  function submitRankFirstFaith(s) {
+    if (!SB.rank) return;
+    SB.rank.submitRun([{ key: 'firstFaith', value: s && s.wallT }]);
+  }
+
+  /* 破壳结算那一刻：一次性提交全部 5 个榜（正好卡在 submitScores 的 5 条上限）。
+   * ⛔ 通关口径（用户 2026-10-07 拍板）：**只认「凿穿 + 已建神学」**。
+   *   依据 prestige.qualified(s) = !!s.civics.theology —— 壳凿穿但没建神学的局
+   *   r.locked=true、轮回点归 0，那种局不该出现在「最快通关」榜首。
+   *⚠️ 用 wallT 而非 s.t：s.t 是逻辑秒、吃倍速，广告 2× 会让时间腰斩。 */
+  function submitRankOnBreak(s, report) {
+    if (!SB.rank || !report) return;
+    var m = SB.game.meta ? SB.game.meta() : {};
+    var valid = !report.locked;   // locked =未建神学，被排除了
+    var entries = [];
+    if (valid) {
+      entries.push({ key: 'fastest', value: s.wallT });
+      entries.push({ key: 'dev', value: report.developmentScore });
+    }
+    /* 这两个不依赖「有效通关」：建成即算，锁不锁都有意义。 */
+    entries.push({ key: 'wonder', value: countWonders(s) });
+    entries.push({ key: 'cycle', value: (m.cycle || 0) + 1 });
+    SB.rank.submitRun(entries, function (done, sent) {
+      if (root.console && sent > 0) {
+        root.console.log('[rank] 破壳提交：算得出' + done + ' 项，实发 ' + sent + ' 条');
+      }
+    });
+  }
+
+  function countWonders(s) {
+    var n = 0;
+    if (s && s.wonders) for (var k in s.wonders) if (s.wonders[k]) n++;
+    return n;
   }
 
   // ---- 主循环（墙钟驱动）----
@@ -404,6 +449,23 @@
     }
     if (loop.job) drainCatchUp(CATCHUP_BUDGET);
     loop._lastWall = wall;
+
+    /* 排行榜墙钟计时（wallT）：**真实流逝秒**，不吃游戏倍速。
+     * ⚠️ 为什么不能用上面的 elapsed：它被 MAX_STEP 截断（单帧最多 5 秒），
+     *   拿它累加会在卡顿/切后台时少算时间。
+     * ⚠️ 为什么不用 s.t：那是逻辑秒，吃倍速（广告 2× 等），拿它当「最快通关」
+     *   等于奖励氪金与挂机。
+     * ⚠️ 离线也照涨（游戏本就支持离线补算）；要「有效游玩时长」得再扣离线段，那是另一口径。
+     * ⚠️ 补算期间（loop.job）同样要涨 —— 墙钟确实在走，且 offlineCap 已封顶。 */
+    if (S && !S.broken && loop._wtPrev) {
+      var wtGap = (wall - loop._wtPrev) / 1000;
+      /* 上限守卫：单次差值超过 1 天基本是机器被挂起/系统休眠了，那段时间不该算成绩。
+       * ⚠️ 门槛用字面量 86400而不是 SB.CFG.OFFLINE_MIN —— 后者语义是
+       *   「间隙多久才算离线补算」（60秒），拿来当墙钟累加上限是两个不同的东西。
+       *   （e2e沙箱里 SB.CFG 可能未注入全，别在首帧热路径上依赖它做除零/比较。） */
+      if (wtGap > 0 && wtGap < 86400) S.wallT += wtGap;
+    }
+    loop._wtPrev = wall;
 
     var elapsed = Math.min(MAX_STEP, (now - last) / 1000);
     last = now;
@@ -657,6 +719,7 @@
     maybeReligionPopup: maybeReligionPopup,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
     showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); },
-    showBreakAnimation: function (r) { SB.ui.render.showBreakAnimation(r); }
+    showBreakAnimation: function (r) { SB.ui.render.showBreakAnimation(r); },
+    submitRankOnBreak: submitRankOnBreak
   };
 })(typeof window !== 'undefined' ? window : globalThis);

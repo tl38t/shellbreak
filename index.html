@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=135" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=137" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -114,14 +114,9 @@
 
   <div class="card" data-page-node-id="v486295fD7Ww5xIRjRWFIF">
     <div class="foot" data-page-node-id="Mup8CMe6kDpRa78GiFXAQ6">
-      <span style="color:var(--dim);font-size:12px" data-page-node-id="ZVzwoY0IIRU3gKJFOmvhJ9">速度</span>
-      <button class="spd on" data-spd="1" data-page-node-id="4O1Jq8opVCNyUAXQGbsBGk">1×</button>
-      <button class="spd" data-spd="5" data-page-node-id="S4In78ez5Sl1ufg83psJZW">5×</button>
-      <button class="spd" data-spd="10" data-page-node-id="k10new0a1B2c">10×</button>
-      <button class="spd" data-spd="20" data-page-node-id="OhTKrV2yqDNOiBqpzO44Cz">20×</button>
       <span class="ad-ctrl" id="adCtrl" data-page-node-id="AdCtrl01">
-        <button class="btn ad-watch" id="btnAd" data-page-node-id="AdWatch01" title="看一次广告：当前档位再 ×2，持续 30 分钟（墙钟真实时间）">看广告 +30min 2×</button>
-        <button class="btn ad-toggle on" id="btnAdToggle" data-page-node-id="AdToggle01" title="开关 2× 加速（关着时时间不流逝）">2× 加速 开</button>
+        <button class="btn ad-watch" id="btnAd" data-page-node-id="AdWatch01" title="看一次广告：获得 30 分钟 2 倍速（墙钟真实时间计时，不受游戏内倍速影响）">看广告 +30min 2×</button>
+        <button class="btn ad-toggle on" id="btnAdToggle" data-page-node-id="AdToggle01" title="开关 2× 加速（关着时剩余时间不流逝）">2× 加速 开</button>
         <span class="ad-remain" id="adRemain" data-page-node-id="AdRemain01">无加速</span>
       </span>
       <button class="btn" id="btnReset" data-page-node-id="RstBtn01Reset">重开本周目</button>
@@ -142,16 +137,16 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=133"></script>
+<script src="src/config.js?v=136"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=104"></script>
+<script src="src/techs.js?v=108"></script>
 <script src="src/tech.js?v=101"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
 <script src="src/civics.js?v=106"></script>
-<script src="src/state.js?v=112"></script>
+<script src="src/state.js?v=113"></script>
 <script src="src/workshop.js?v=97"></script>
 <script src="src/wonder.js?v=98"></script>
 <script src="src/economy.js?v=128"></script>
@@ -163,12 +158,13 @@
 <script src="src/habitat.js?v=100"></script>
 <script src="src/folk.js?v=97"></script>
 <script src="src/prestige.js?v=106"></script>
-<script src="src/ui/render.js?v=151"></script>
-<script src="src/game.js?v=112"></script>
+<script src="src/ui/render.js?v=152"></script>
+<script src="src/game.js?v=113"></script>
 <script src="src/ui/input.js?v=110"></script>
 <script src="src/ui/theme.js?v=1"></script>
 <script src="src/ui/background.js?v=2"></script>
-<script src="src/ad.js?v=2"></script>
+<script src="src/ad.js?v=3"></script>
+<script src="src/rank.js?v=1"></script>
 <script src="src/main.js?v=96"></script>
 </body>
 </html>

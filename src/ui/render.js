@@ -854,6 +854,11 @@
     for (var i = 0; i < T.length; i++) if (T[i].id === id) return T[i];
     return null;
   }
+
+  function techIconHTML(t, lit, cls) {
+    if (!t || !t.icon || !lit) return '';
+    return '<img class="' + cls + '" src="' + t.icon + '" alt="" aria-hidden="true" loading="lazy">';
+  }
   /* 可见性 = 「这个节点在图上有位置」。判据只有一条：**当前纪元与更早的纪元全部上图**，
    * 未来纪元不上图（那纪元的悬念留到抵达时）。
    *
@@ -893,7 +898,8 @@
       ' data-tree-node="1" data-tree-type="tech" data-tree-id="' + t.id + '"' +
       ' aria-label="' + (lit ? t.name : '未揭露的科技') + '，' + status + '，打开详情"' +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w + 'px;height:' + hh + 'px">';
-    h += '<span class="tnhd"><span class="tnm">' + (lit ? t.name : '未揭露的科技') + '</span>' +
+    h += '<span class="tnhd">' + techIconHTML(t, lit, 'tree-node-icon branch-' + (t.branch || 'know')) +
+      '<span class="tnm">' + (lit ? t.name : '未揭露的科技') + '</span>' +
       (t.key ? '<span class="tntag">关键</span>' : '') + '</span>' +
       (!lit ? '<span class="tree-eureka">尤里卡 · ' + (eureka ? eureka.txt : '达成条件后揭示') + '</span>' +
         (eureka && eureka.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + eurekaPct.toFixed(1) + '%"></i></span><b>' + eurekaPct.toFixed(0) + '%</b></span>' : '') : '') +
@@ -2103,8 +2109,9 @@
       : '免费研究';
     var box = el('modalBox'), modal = el('modal');
     box.classList.add('tree-detail-box');
+    var detailIcon = techIconHTML(item, revealed, 'tree-detail-icon');
     box.innerHTML =
-      '<div class="tree-detail-head"><div class="tree-detail-mark">' + (item.key ? '✦' : tech ? '⌘' : '§') +
+      '<div class="tree-detail-head"><div class="tree-detail-mark' + (detailIcon ? ' has-image' : '') + '">' + (detailIcon || (item.key ? '✦' : tech ? '⌘' : '§')) +
       '</div><div class="tree-detail-title"><h3 id="treeDetailTitle">' + title + (item.key && revealed ? ' <span class="tree-key">关键节点</span>' : '') +
       '</h3><span class="tree-detail-state ' + (done ? 'done' : blocked ? 'locked' : 'ready') + '">' + state + '</span></div>' +
       '<button class="tree-detail-close" type="button" data-modal-close="1" aria-label="关闭详情">×</button></div>' +

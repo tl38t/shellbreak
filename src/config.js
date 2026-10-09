@@ -16,11 +16,21 @@
     // 厚度不是随手填的：扫描得出 rational 10.65h / rush 9.80h，都落在 8-14h 带内中部。
     // 它不是「难度」，是「长度」——砍薄只会让玩家更快看到结局。
     // 去建筑等级上限后系数从 34 涨到 73、时长涨了约 40%，故从上轮的 300000 回调到 200000。
-    /* 冰封壳总厚度（一期唯一一层）。食物体系按猫国比例重做后，人口曲线变陡
-     * （峰值 60 人 vs 原先 54），破壳系数从 34 涨到 74，同样 200000 会拖到 14.5h，
-     * 顶出 8-14h 断言带。上下调这里只改变「一局多长」，不改变任何取舍结构——
-     * 它是长度旋钮，不是难度旋钮。 */
-    ICE_SHELL: 100000,
+    /* 冰封壳总厚度（一期唯一一层）。上下调这里只改变「一局多长」，不改变任何取舍结构——
+     * 它是长度旋钮，不是难度旋钮。
+     * ⚠️ **2026-10-07 用户拍板：100000 → 500000（5倍）**，为拉长单局体验。
+     * ⚠️ **旧注释里的时长推导已全部作废**（300000→200000→100000 那一串扫描结论都是旧经济下的）：
+     *   破壳速率 = BREAK_BASE(0.40) × 系数，**与壳厚完全无关**，所以壳厚 ×5 ⇒ 基础段时长 ×5。
+     *   实测「真开局」单局 7.79h@100000 ⇒ **5 倍后基础段约 32h**，已远出8-14h 目标窗。
+     *   这一点用户已知悉并接受（不是 bug，是长度旋钮的正常后果）。
+     * ⚠️ **两处吃绝对值的逻辑会被 5 倍放大，改壳厚时必须一并看**：
+     *   ① `SKYDRILL_RATE = 100 点/秒`（天穹钻机终章）：壳越厚，钻机要凿的绝对量越大
+     *      ⇒ 终章从「凿穿最后 25%」变成「凿穿最后 125000 点」，且它吃 `SKYDRILL_DRILL(0.1/s)`
+     *      共振钻头 + `SKYDRILL_HYDRO(20/s)` 热液能 ⇒ **资源消耗量随壳厚线性放大**，
+     *      这是 5 倍壳厚下最可能被卡住的地方（不是壳厚本身，是配套产能）。
+     *   ② `FLOOR_AT = 0.25` 是**比例**、不随壳厚变 ⇒ 自动段与钻机段的分界点仍是 25%，逻辑正确。
+     * 结论：本次只改这一个数，不动任何配套常数（数值标定权在用户）。 */
+    ICE_SHELL: 500000,
     /* ---- 冰封期（2026-09-27 改成随机触发，用户拍板）----
      * 旧形态：`shell/iceShell ≤ 0.25` 就**恒定**进冰封期，且一旦进去就再也出不来
      *   （壳只会更薄）⇒ 冰封期是「后期的一个永久状态」，不是一件会发生的事。
@@ -39,12 +49,62 @@
 
   // ---- 广告加速（TapTap 激励视频）----
   // 看一次广告 = 当前所选档位再 ×MUL，持续 BOOST_MIN 分钟（墙钟真实时间，关游戏也在走）。
-  // SPACE_ID 由 MCP get_ad_integration_guide 注入（每个应用不同）；空串时走 dev 兜底（直接发放，方便本地调试）。
+  // SPACE_ID 每个应用不同，由 MCP `check_ads_status` / `get_ad_integration_guide` 取回。
+  // 空串时**不发奖**（控件也隐藏），只有 URL 显式带 ?adtest 才走 dev 直接发放的兜底。
   AD: {
-    SPACE_ID: '',            // 天壳应用的竖屏广告位 ID，待 MCP 取回后填入
+    // 天壳（app_id 963517）竖屏激励视频位。
+    // 取证：MCP 缓存 %TEMP%/taptap-mcp/cache/3f0144e6c451/app.json 的
+    //   ad_config = { status:1, landscape_space_id:"1054323", portrait_space_id:"1054324" }
+    // 平台按应用的游戏方向自动匹配，天壳 screen_orientation=1（竖屏）⇒ 取竖屏位 1054324。
+    SPACE_ID: '1054324',
     BOOST_MIN: 30,           // 每次看完加多少分钟
     BOOST_CAP_MIN: 360,      // 累计上限（6 小时），防一次刷满无限囤
     MUL: 2                   // 加速倍率（在玩家所选档位上再乘）
+  },
+
+  /* ---- 排行榜（2026-10-07）----
+   * 榜 ID 由 MCP `create_leaderboard` 在**天壳应用**上创建后回填（现在全是空串）。
+   * ⚠️ 建榜必须先有天壳应用，账号「音速工业」下目前只有深空放置 898459 ⇒ 同广告位，
+   *    是同一个前置阻塞。
+   * ⚠️ `submitScores` 单次上限 5 条 ⇒ 最多 5 个榜。
+   *
+   * 【时间口径：为什么不直接用 s.t】`s.t` 是**逻辑秒**（economy.js 的 `s.t += dt`，
+   *   dt = STEP = 0.1），它**吃游戏倍速** ⇒ 广告 2× 一开榜上时间直接腰斩；
+   *   且离线补算走**同一条** economy.tick ⇒ s.t 还**含离线时间**（封顶 offlineCap）。
+   *   所以另记 `S.wallT`（墙钟秒，不吃倍速）。离线挂机照算进成绩 —— 游戏本就支持
+   *   离线补算，那段时间确实在推进你的文明。
+   *
+   * 【口径：scoreType / scoreOrder / calcType】来自 MCP `create_leaderboard` 的真实
+   *   enum，不是猜的：
+   *     scoreType  : 'numeric' | 'time'       （time = 时间榜）
+   *     scoreOrder : 'desc'(高→低) | 'asc'(低→高)（asc = 越快越靠前）
+   *     calcType   : 'sum' | 'best' | 'latest' （best = 取历史最好一局）
+   * ⚠️ `score` 必须是**整数**（平台文档明写 Integer）⇒ 时间榜只能提交整秒。
+   * ⚠️ RANK_LB 里的下标是 `submitScores({scores:[...]})` 数组的位置，与 MAP.key 一一对应。 */
+  RANK: {
+    /* 键名自取，值是榜 ID。任一项为空串 ⇒ 该榜跳过提交（不占5 条配额），
+     * 入口按 available() 决定是否显示。
+     * ⛔ 必须初始化为**空串**（不是 {} / null / undefined）：rank.js 用 `if (lb[k])` 判
+     *   「是否回填」，而 {} 也是 truthy ⇒ 会把未回填的榜当成已回填并发请求，
+     *   报出 500001。与广告 SPACE_ID 那次是同构的坑（truthy 占位）。 */
+    LB: {
+      fastest: '',       // 最快凿穿冰壳   time / asc  / best
+      firstFaith: '',    // 最快建立文明   time / asc  / best
+      dev: '',           // 综合发展分     numeric / desc / best
+      wonder: '',        // 入藏奇观数     numeric / desc / best
+      cycle: ''          // 轮回次数       numeric / desc / best
+    },
+    /* 榜 -> 参数表。与 LB 平行维护，键必须对得上。 */
+    MAP: {
+      fastest:  { title: '最快凿穿冰壳', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
+      firstFaith: { title: '最快建立文明', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
+      dev:      { title: '综合发展分',   scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
+      wonder:   { title: '入藏奇观',scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
+      cycle:    { title: '轮回次数',     scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' }
+    },
+    /* 时间榜的显示单位（分数仍是整秒，这里只管 UI 上怎么写）。
+     *⛔ 不做「毫秒榜」：score 必须是整数，秒以下精度平台存不了。 */
+    SECONDS_PER_DAY: 86400
   },
 
   // ---- 纪元 ----

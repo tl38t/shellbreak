@@ -139,6 +139,9 @@
     if (!qualified(s)) {
       r.tidePoints = 0;
       r.locked = true;
+      /* ⛔ 通关榜排除这一局（用户 2026-10-07 拍板：只认「凿穿 + 已建神学」）。
+       * 仍然上报 wonder/cycle ——「建成了什么」不因没建神学而失效。*/
+      if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
       (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
       if (emit) emit('本局未达《神学》资格门，不发放轮回点。');
       return r;
@@ -166,6 +169,8 @@
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
     SB.state.saveMeta(meta);
+    /* ✅ 有效通关（已建神学）⇒ 报最快时间 / 综合发展分 / 奇观 / 轮回数。 */
+    if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
     (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
     if (emit) emit('轮回结算完成。获得轮回点 ' + r.tidePoints.toFixed(2) + '。');
     return r;

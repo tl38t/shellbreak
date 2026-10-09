@@ -4,7 +4,7 @@
  * 修改任意模块后，请同步更新下方版本号和 HTML 的 main.css 版本号。
  */
 @import url("./00-core.css?v=133");
-@import url("./10-tech-tree.css?v=132");
+@import url("./10-tech-tree.css?v=133");
 @import url("./20-panels.css?v=132");
 @import url("./30-visual-polish.css?v=132");
 @import url("./40-atmosphere-theme.css?v=132");

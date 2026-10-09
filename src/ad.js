@@ -18,8 +18,14 @@
   var inited = false;
 
   function spaceId() { return (CFG.AD && CFG.AD.SPACE_ID) || ''; }
+  /* dev 兜底开关：只有 URL **显式**带裸 flag `adtest` 才为真。
+   * ⚠️ 这里必须是 `adtest` 整词，不能写成 `ad(test)?` —— 后者让 `?ad` / `?add`
+   *   这类正常 query 也命中，等于任何人加个参数就能白拿30min 2×（2026-10-07 修）。
+   *   `(?!=)` 再堵一层：只认裸 flag（`?adtest` / `?a=1&adtest`），
+   *   任何带值形式（`?adtest=0` / `?adtest=1` / `?adtest=false`）一律算**关闭**
+   *   —— 取最严的一侧，不留「=1 也能开」的绕路。 */
   function devMode() {
-    try { return !!(root.location && /[?&]ad(test)?\b/i.test(root.location.search)); }
+    try { return !!(root.location && /[?&]adtest\b(?!=)/.test(root.location.search)); }
     catch (e) { return false; }
   }
   function haveTap() {

@@ -82,6 +82,14 @@
     var iceShell = Math.round(SB.CFG.ICE_SHELL * Math.pow(0.9, thin));
     return {
       t: 0,
+      /* wallT = 墙钟秒（真实流逝的时间），排行榜专用。
+       * ⚠️ 为什么不直接用 `t`：`t` 是**逻辑秒**（economy.tick 里 `s.t += dt`，
+       *   dt = STEP = 0.1），它吃游戏倍速（广告 2×、各种加速）⇒ 拿它当「最快通关」
+       *   等于奖励氪金与挂机。wallT 走 performance.now() 差值，**不吃倍速**。
+       * ⚠️ 离线也照涨（游戏本就支持离线补算，那段时间确实在推进文明）——
+       *   若要做「有效游玩时长」得扣离线段，那是另一个口径，别混用。
+       * ⚠️ 提交时必须 Math.floor 成整数（TapTap 的 score 只收integer）。 */
+      wallT: 0,
       // 对齐猫国开局：资源全空（猫国 resources.js 全部 value:0），收入靠手动采集起步
       /* ⚠️ res 的键必须覆盖 SB.RESS。漏 stone / warmstone 的后果比 NaN 更难查：
        *   它们不是被 NaN 污染，而是**凭空消失** —— 「石工」的尤里卡条件是
@@ -582,11 +590,35 @@
       var bid = SB.BUILDINGS[si].id;
       if (raw.seen && raw.seen[bid]) out.seen[bid] = 1;
     }
-    var nums = ['t', 'shell', 'iceShell', 'baseShell', 'pop', 'peak', 'coldTicks',
+    var nums = ['t', 'wallT', 'shell', 'iceShell', 'baseShell', 'pop', 'peak', 'coldTicks',
       'deaths', 'frostDeaths', 'famineDeaths', 'famine', 'happy'];
     for (var i = 0; i < nums.length; i++) {
       var v2 = out[nums[i]];
       if (typeof v2 !== 'number' || !isFinite(v2)) out[nums[i]] = base[nums[i]];
+    }
+
+    /* ⚠️⚠️ 壳厚版本迁移（2026-10-07 用户把 ICE_SHELL 从 100000 拍到 500000 时补上）
+     * 【为什么必须在这里补，否则改壳厚等于只对新人生效】
+     *   上面那段 nums 循环只校验「是不是数字」，**不重算**。而 `game.resumeRun(saved)`
+     *   是**无条件拿存档当本局**的 —— 于是任何改配置前创建的存档，会永远跑在旧厚度上
+     *   （实测：CFG 已是 500000，但老档 run() 读出来仍是 iceShell=100000 / shell=25000，
+     *   上屏显示「25000 / 100000（25.0%）」，看起来像改动没生效）。
+     * 【判据：用存档里的 baseShell 当版本戳】
+     *   baseShell 是「这局开始时的总厚」，不随破壳进度变化 ⇒ 它与当前 CFG.ICE_SHELL
+     *   不等，就说明这份存档是**另一个厚度版本**留下的。相等则原样放过（幂等，
+     *   反复迁移不会把壳越翻越厚）。
+     * 【等比重算，不是直接赋值】
+     *   直接赋 iceShell = 新值会把「已经凿到 25%」的进度重置成满壳 = 白送进度；
+     *   按 shell/iceShell 的比例缩放，玩家看到的剩余百分比不变，只是分母变大。
+     *   另有 perk.thin（冰壳永久削弱，每级 ×0.9）：它已经体现在存档的 iceShell 里，
+     *   所以按比例缩放天然继承，不重复乘。 */
+    var curBase = SB.CFG.ICE_SHELL;
+    if (typeof out.baseShell === 'number' && out.baseShell > 0 && out.baseShell !== curBase) {
+      var keepRatio = out.iceShell > 0 ? out.shell / out.iceShell : 1;
+      if (!(keepRatio >= 0 && keepRatio <= 1)) keepRatio = 1;   // 存档被手改成越界值时按满壳处理
+      out.iceShell = Math.round(curBase * Math.pow(0.9, (out.perk && out.perk.thin) || 0));
+      out.baseShell = curBase;
+      out.shell = Math.round(out.iceShell * keepRatio);
     }
     return out;
   }

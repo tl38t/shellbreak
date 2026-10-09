@@ -119,7 +119,7 @@
      * free 分支「揭示即掌握」完成，不走研究按钮。
      * 【为什么不是开局 default】面板在开门前根本不显示，cond 写 default 会让
      * 「开门」这件事变成纯 UI 开关，与树上那条 built kelp n=5 说两套话。 */
-    { id: 'writing',    name: '结绳',   era: 1, cost: 0,   branch: 'know', free: true, key: false, reqs: [], layer: 1,
+    { id: 'writing',    name: '结绳',   icon: 'assets/tech-icons/era-1/era1-rope-knots.png', era: 1, cost: 0,   branch: 'know', free: true, key: false, reqs: [], layer: 1,
       cond: { t: 'built', b: 'kelp', n: 5 },
       eff: { unlockJob: ['scholar'] },
       note: '免费项，且是科技面板的开门节点：建成第 5 座深海藻场即掌握。层一。' },
@@ -146,17 +146,17 @@
      *   ① `sim/balance.mjs` 主循环在珊瑚匠解锁前模拟手动点击入账；
      *   ② `sim/e2e.mjs` 用真实点击路径断言「手动采集珊瑚能建起首座礁口巢」。
      * 「住房是真闸门」照样成立 —— 闸门是容量，不是材料。 */
-    { id: 'coralcut',   name: '凿珊瑚', era: 1, cost: 25,  branch: 'live', key: false, reqs: [], layer: 2,
+    { id: 'coralcut',   name: '凿珊瑚', icon: 'assets/tech-icons/era-1/era1-coral-cutting.png', era: 1, cost: 25,  branch: 'live', key: false, reqs: [], layer: 2,
       cond: { t: 'default' },
       eff: { unlockJob: ['coralwright'] },
       note: '珊瑚匠随之开放。首座礁口巢的珊瑚得先靠手动凿——攒够了再解放一个职业。' },
 
-    { id: 'quarry',     name: '采石',   era: 1, cost: 30,  branch: 'live', key: false, reqs: [], layer: 2,
+    { id: 'quarry',     name: '采石',   icon: 'assets/tech-icons/era-1/era1-stone-quarrying.png', era: 1, cost: 30,  branch: 'live', key: false, reqs: [], layer: 2,
       cond: { t: 'res', r: 'coral', n: 40 },
       eff: { unlockJob: ['quarrier'] },
       note: '采石工产「石头」。cond 用珊瑚存量而不是时间：玩家攒够了自然会去凿石头，\n      *   这也是石头这条线第一次在树上露面（它后面要养石屋）。' },
 
-    { id: 'plant',      name: '种植',   era: 1, cost: 30,  branch: 'live', key: false, reqs: [], layer: 2,
+    { id: 'plant',      name: '种植',   icon: 'assets/tech-icons/era-1/era1-cultivation.png', era: 1, cost: 30,  branch: 'live', key: false, reqs: [], layer: 2,
       cond: { t: 'res', r: 'kelp', n: 60 },
       eff: { farm: 0.50, unlockBuild: ['kelpstore'] },
       /* ⚠️ 这不是「多一个产藻食的职业」，而是**同一个人换了身份**——
@@ -169,7 +169,7 @@
        *   这条以前挂在储藻术（warmkeep，era2）上，era1 完全没有藻食扩容手段。 */
       note: '采集者 → 农民，藻食产出 +50%，并解锁海藻仓。同一个人换了身份，不是新职业。' },
 
-    { id: 'calendar',   name: '历法',   era: 1, cost: 40,  branch: 'know', key: true,  reqs: [], layer: 2,
+    { id: 'calendar',   name: '历法',   icon: 'assets/tech-icons/era-1/era1-calendar.png', era: 1, cost: 40,  branch: 'know', key: true,  reqs: [], layer: 2,
       cond: { t: 'gathered', r: 'kelp', n: 200 },
       /* 【2026-09-30 用户拍板：去掉历法的「季节减产收窄」效果】
        * 历法现在**只**是信息型奖励：掌握后 seasonMeta 才返回海底火山周期名与读数
@@ -202,12 +202,12 @@
      *    ⚠️ 排他的另一条结论仍然有效：era1 的时长不是点价决定的，是
      *      「人口 / 藻场 / 住房」节律在托底 —— 把成本抹成 0 整局反而更慢（48h 凿不穿）。
      *      所以这批涨价**不会**线性拉长 era1，真正的瓶颈仍在那三个 cond。 */
-    { id: 'scholarT',   name: '书写',   era: 1, cost: 150,  branch: 'know', key: false, reqs: ['writing'], layer: 3,
+    { id: 'scholarT',   name: '书写',   icon: 'assets/tech-icons/era-1/era1-writing.png', era: 1, cost: 150,  branch: 'know', key: false, reqs: ['writing'], layer: 3,
       cond: { t: 'job', j: 'scholar', n: 1 },
       eff: { sci: 0.25, unlockBuild: ['library'] },
       note: '潮纹馆（原「聆听巢」）的解锁项 + 学者产出 +25%。层三。' },
 
-    { id: 'herd',       name: '畜牧',   era: 1, cost: 200,  branch: 'live', key: false, reqs: ['plant'], layer: 3,
+    { id: 'herd',       name: '畜牧',   icon: 'assets/tech-icons/era-1/era1-herding.png', era: 1, cost: 200,  branch: 'live', key: false, reqs: ['plant'], layer: 3,
       cond: { t: 'built', b: 'kelp', n: 6 },
       eff: { unlockBuild: ['warmnest'] },
       /* 「深海鱼牧场」= 现有 warmnest（保温巢）的深海化改名。
@@ -219,7 +219,7 @@
        *   （不再解锁建筑），所以省口粮这个建筑必须由畜牧来开，否则会没人解锁。 */
       note: '解锁深海鱼牧场（省口粮）。猫国 pasture 位，本作改名为鱼牧场。' },
 
-    { id: 'tiddivine',  name: '海潮占卜', era: 1, cost: 350, branch: 'know', key: false, reqs: ['calendar'], layer: 3,
+    { id: 'tiddivine',  name: '海潮占卜', icon: 'assets/tech-icons/era-1/era1-tide-divination.png', era: 1, cost: 350, branch: 'know', key: false, reqs: ['calendar'], layer: 3,
       cond: { t: 'res', r: 'science', n: 30 },
       eff: { season: 0.18 },
       /* 用户规格：活跃产出 +43%、休眠 −37%。
@@ -232,7 +232,7 @@
        * 真正要锁的是「比裸季更窄一档」，标定那轮调一个数即可。 */
       note: '比裸季更窄：海底火山的周期波动被读得更死（活跃更旺、休眠更枯），是唯一的季节收窄来源。' },
 
-    { id: 'mining',     name: '采矿',   era: 1, cost: 200,  branch: 'live', key: false, reqs: ['quarry'], layer: 3,
+    { id: 'mining',     name: '采矿',   icon: 'assets/tech-icons/era-1/era1-mining.png', era: 1, cost: 200,  branch: 'live', key: false, reqs: ['quarry'], layer: 3,
       cond: { t: 'res', r: 'stone', n: 30 },
       eff: { unlockJob: ['miner'], unlockBuild: ['siltpit'] },
       /* 矿工产「金属」（silt 这个 **id** 对应的显示名）+ **伴生暖石**；砂矿坑同门解锁，
@@ -244,7 +244,7 @@
 
     /* ── 层四 · 成事 ──
      * 三项都要先有前三层的东西才露面，所以这一层是「兑现」而不是「选择」。 */
-    { id: 'masonry',    name: '石工',   era: 1, cost: 500, branch: 'survive', key: true, reqs: ['quarry'], layer: 4,
+    { id: 'masonry',    name: '石工',   icon: 'assets/tech-icons/era-1/era1-masonry.png', era: 1, cost: 500, branch: 'survive', key: true, reqs: ['quarry'], layer: 4,
       cond: { t: 'res', r: 'stone', n: 100 },
       /* ⚠️ 2026-09-27 加了 `unlockJob: ['scribe']`：市政页的开门条件（市政点产出口）
        *    与这一项是**同一个科技**——石工 = 「文明成型」那一刻，同时给出住房第二档、
@@ -258,7 +258,7 @@
       eff: { unlockBuild: ['coralhouse', 'hall'], unlockJob: ['scribe'] },
       note: '解锁石屋（人口上限 +4）、议事厅与书手。关键节点，本纪元收尾。' },
 
-    { id: 'bronze',     name: '青铜术', era: 1, cost: 600, branch: 'live', key: false, reqs: ['mining'], layer: 4,
+    { id: 'bronze',     name: '青铜术', icon: 'assets/tech-icons/era-1/era1-bronze-working.png', era: 1, cost: 600, branch: 'live', key: false, reqs: ['mining'], layer: 4,
       cond: { t: 'res', r: 'silt', n: 60 },
       eff: { unlockBuild: ['workshop'] },
       note: '解锁工坊：珊瑚→骨材、矿砂→精铁两条加工线的物理前提。' },
@@ -270,7 +270,7 @@
      *    保温法这层的全部兑现物就是下面这个暖石开关。
      * ⚠️ id 用的是 `thermal` 而不是沿用 `insulation`：`s.techs` 是存档默认表的键，
      *    migrate 按 id 过滤老档，换 id 等于给「保温法」换了一个存档身份。 */
-    { id: 'thermal',    name: '保温法', era: 1, cost: 500, branch: 'survive', key: false, reqs: ['mining'], layer: 4,
+    { id: 'thermal',    name: '保温法', icon: 'assets/tech-icons/era-1/era1-thermal-insulation.png', era: 1, cost: 500, branch: 'survive', key: false, reqs: ['mining'], layer: 4,
       cond: { t: 'res', r: 'warmstone', n: 20 },
       /* ⚠️ 这里**故意没有 eff**。整个兑现物就是下面那个暖石开关，顶回多少由
        *    SB.CFG.WARM_RELIEF 决定，接线在 economy.warmRelief → foodRate。
@@ -307,7 +307,7 @@
      *    `eraProgress` 的 `done >= keysTotal`（0>=0）恒真 ⇒ 一进 era2、下一次 pump 就
      *    自动跳到 era3，本纪元的内容玩家来不及玩。现在 key = 照明 + 工程学两项，
      *    era2 的推进重新有账可查。 */
-    { id: 'lighting',  name: '照明',   era: 2, cost: 800,  branch: 'live', key: true, reqs: [], layer: 1,
+    { id: 'lighting',  name: '照明',   icon: 'assets/tech-icons/era-2/era2-lighting.png', era: 2, cost: 800,  branch: 'live', key: true, reqs: [], layer: 1,
       eff: { kelpCap: 200, unlockBuild: ['ballast'] },
       note: 'Civ6: Pottery 位 · 藻食第一次有了「可以存下来」的意思（藻食上限 +200）。' },
 
@@ -335,7 +335,7 @@
      *    ⇒ 不会自锁（压舱仓不是本项的前置，只是本项的条件）。
      * ⚠️ 不能写成「建成灯塔 x N」：灯塔正是本项解锁的，条件指向的东西在自己身上
      *    —— 与「匠作 / 匠人 ≥ 2」是同一类自指错误（见匠作那段的注）。 */
-    { id: 'navigation', name: '导航',  era: 2, cost: 1000, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
+    { id: 'navigation', name: '导航',  icon: 'assets/tech-icons/era-2/era2-navigation.png', era: 2, cost: 1000, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
       cond: { t: 'built', b: 'ballast', n: 3 },
       eff: { unlockBuild: ['lighthouse'] },
       note: 'Civ6: Sailing 位 · 光落在远处的礁石上，才知道那边有什么。' },
@@ -346,12 +346,12 @@
      *    全仓无人读取的死键（它目前只在注释里出现过一次，没有任何实现）。
      * ⚠️ 尤里卡条件「牧场 8 级」：深海鱼牧场由纪元一「畜牧」解锁，首级 kelp 100 + coral 10，
      *    ratio 1.15 ⇒ 8 级累计约 1373 藻食 + 137 珊瑚。可达，且牧场不是本项的前置。 */
-    { id: 'horsemanship', name: '马术', era: 2, cost: 1200, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
+    { id: 'horsemanship', name: '马术', icon: 'assets/tech-icons/era-2/era2-horsemanship.png', era: 2, cost: 1200, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
       cond: { t: 'built', b: 'warmnest', n: 8 },
       eff: {},
       note: 'Civ6: Horseback Riding 位 · 有了光才知道什么时候该出门。' },
 
-    { id: 'ironwork',  name: '铁器',   era: 2, cost: 800, branch: 'survive', key: false, reqs: [], layer: 1,
+    { id: 'ironwork',  name: '铁器',   icon: 'assets/tech-icons/era-2/era2-ironwork.png', era: 2, cost: 800, branch: 'survive', key: false, reqs: [], layer: 1,
       cond: { t: 'res', r: 'silt', n: 60 },
       eff: { smelt: 0.40, unlockBuild: ['furnace'] },
       note: 'Civ6: Iron Working 位 · 金属第一次不只是存货，是能敲出东西的材料。' },
@@ -411,7 +411,7 @@
      *    那条注）。两项 key 的位置一头一尾：照明在 layer 1（进门就见），工程学在 layer 3
      *    且吃「热泉炉 3 级」这道尤里卡 ⇒ era2 的推进被钉在「本纪元真的玩过一遍」上，
      *    而不是进门即过。 */
-    { id: 'engineeringT', name: '工程学', era: 2, cost: 1500, branch: 'live', key: true,
+    { id: 'engineeringT', name: '工程学', icon: 'assets/tech-icons/era-2/era2-engineering.png', era: 2, cost: 1500, branch: 'live', key: true,
       reqs: ['ironwork'], layer: 3,
       cond: { t: 'built', b: 'furnace', n: 3 },
       eff: {},
@@ -427,7 +427,7 @@
      *     3 位学者 + 3 级潮纹馆（×1.3）约 28 分钟；8 位学者约 10 分钟。
      *     ⇒ 可达，但**不是顺手就到**的：它要求玩家在攒满之前先把科技点攒着别花。
      *     这个「卡流程」的代价是**标定权**，数字照规格写死在这里，等用户对账。 */
-    { id: 'mathematics', name: '数学',   era: 2, cost: 1800, branch: 'know', key: false,
+    { id: 'mathematics', name: '数学',   icon: 'assets/tech-icons/era-2/era2-mathematics.png', era: 2, cost: 1800, branch: 'know', key: false,
       reqs: ['navigation'], layer: 3,
       cond: { t: 'res', r: 'science', n: 1000 },
       eff: { unlockBuild: ['institute'] },
@@ -439,7 +439,7 @@
      *   `T.craft`（烟囱炉 +15%、壳铸 +30%）是**精铁加工产出**乘区，作用于热泉炉那条线；
      *   `craftRatio` 是**工艺制作产出**乘区，作用于工坊制造石梁那条线。两个名字都带
      *   「craft」，是本项目最容易误接的一对 —— 接错了不报错，只是研究完工坊没反应。 */
-    { id: 'scaffoldT',   name: '构架术', era: 2, cost: 1600, branch: 'live', key: false,
+    { id: 'scaffoldT',   name: '构架术', icon: 'assets/tech-icons/era-2/era2-scaffolding.png', era: 2, cost: 1600, branch: 'live', key: false,
       reqs: ['navigation'], layer: 3,
       eff: { craftRatio: 0.15 },
       note: 'Civ6: Masonry 位 · 解锁成捆东西的绳。同时工坊效率 +15%。' },
@@ -450,7 +450,7 @@
     /* ⚠️ 2026-09-29 整表替换：旧 6 项（冶炼术/烟囱炉/机械/精铁术/深潜/壳骨）删除，
      *   改「钢 + 热液能」新线。key = 学徒制 + 金属精炼（见各自行 key:true）。
      *   旧「热泉炉解锁权」那 3 段注已废（热泉炉的解锁权早归铁器，与纪元三无关）。 */
-    { id: 'apprentice', name: '学徒制', era: 3, cost: 3000, branch: 'survive', key: true, reqs: [], layer: 1,
+    { id: 'apprentice', name: '学徒制', icon: 'assets/tech-icons/era-3/era3-apprenticeship.png', era: 3, cost: 3000, branch: 'survive', key: true, reqs: [], layer: 1,
       cond: { t: 'tools', ids: ['tool_ironSickle', 'tool_ironAxe', 'tool_ironPick'] },
       eff: {},
       note: 'Civ6: Apprenticeship · 买齐三件铁制工具（镰/斧/镐）即掌握。解锁鱼骨矿井。' },
@@ -458,21 +458,21 @@
     /* 马镫的尤里卡 = 5 名商人（cond 'job'）。与马具(tool_harnes) 是独立乘区：
      *   马具走 toolMul(merchant)、马镫走工坊升级 upg_horseshoe(luxuryMul 0.5)，
      *   economy 商人行两处相乘 ⇒ 合计 +100%。 */
-    { id: 'horseshoe',  name: '马镫',   era: 3, cost: 4500, branch: 'live', key: false, reqs: [], layer: 1,
+    { id: 'horseshoe',  name: '马镫',   icon: 'assets/tech-icons/era-3/era3-horseshoe.png', era: 3, cost: 4500, branch: 'live', key: false, reqs: [], layer: 1,
       cond: { t: 'job', j: 'merchant', n: 5 },
       eff: {},
       note: 'Civ6: Horseshoeing · 5 名商人即掌握。解锁马镫（工坊升级，奢侈品 +50%）。' },
 
     /* 教育前置 = 学徒制 + 数学。尤里卡 = 三级研究所（built institute n=3）。
      * 大学(工坊升级 upg_university) 与 阿尔巴达(奇观 wonder_albada) 的解锁权各自写在其表。 */
-    { id: 'education',  name: '教育',   era: 3, cost: 8000, branch: 'know', key: false, reqs: ['apprentice', 'mathematics'], layer: 3,
+    { id: 'education',  name: '教育',   icon: 'assets/tech-icons/era-3/era3-education.png', era: 3, cost: 8000, branch: 'know', key: false, reqs: ['apprentice', 'mathematics'], layer: 3,
       cond: { t: 'built', b: 'institute', n: 3 },
       eff: {},
       note: 'Civ6: Education · 三级研究所即掌握。解锁大学（工坊升级）与阿尔巴达热液大学（奇观）。' },
 
     /* 金属精炼前置 = 学徒制。尤里卡 = 完成鱼骨矿井（装 upg_fishbonemine，cond 'upgrade'）。
      * 尤里卡查鱼骨矿井、unlockBuild 查汽轮机/工坊——两件不同节点，不互锁。 */
-    { id: 'metalrefine', name: '金属精炼', era: 3, cost: 6500, branch: 'survive', key: true, reqs: ['apprentice'], layer: 2,
+    { id: 'metalrefine', name: '金属精炼', icon: 'assets/tech-icons/era-3/era3-metal-refining.png', era: 3, cost: 6500, branch: 'survive', key: true, reqs: ['apprentice'], layer: 2,
       cond: { t: 'upgrade', id: 'upg_fishbonemine' },
       eff: { unlockBuild: ['hydroturbine', 'hydroshop'] },
       note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。' },
@@ -480,7 +480,7 @@
     /* 城堡前置 = 工程学（engineeringT，纪元二第三层）。尤里卡 = 启用三槽政体
      * （autocracy/oligarchy/classical_republic，新 cond 'gov'，排除酋邦制 tribe 1 槽）。
      * 城堡(工坊升级 upg_castle) 解锁权写在工坊表。 */
-    { id: 'castle',     name: '城堡',   era: 3, cost: 10000, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
+    { id: 'castle',     name: '城堡',   icon: 'assets/tech-icons/era-3/era3-castle.png', era: 3, cost: 10000, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
       cond: { t: 'gov', wild: 3 },
       eff: {},
       note: 'Civ6: Castles · 启用任一三槽政体即掌握。解锁工坊升级「城堡」——议事厅升级为城堡：议价减耗 +50%、每级 +50 容量。' },
@@ -497,26 +497,26 @@
      *    天壳观测的前置是「教育」(era3 L3)、印刷术的前置是「金属精炼」(era3 L2)
      *    ⇒ 本纪元最浅的一项只能是 L3，否则那条断言当场红。用户表里的三行形状原样保留：
      *    天壳观测 + 印刷术同行(L3)、物理/银行业/热力学同行(L4)、倒置搭建独自一行(L5)。 */
-    { id: 'shellwatch', name: '天壳观测', era: 4, cost: 20000, branch: 'know', key: true,
+    { id: 'shellwatch', name: '天壳观测', icon: 'assets/tech-icons/era-4/era4-shellwatch.png', era: 4, cost: 20000, branch: 'know', key: true,
       reqs: ['education'], layer: 3,
       cond: { t: 'zoneLvl', zone: 'academy', n: 35 },
       eff: { unlockBuild: ['observatory'] },
       note: 'Civ6: Astronomy · 关键节点。学术区铺到 35 级，天壳才第一次能被天天盯着看。' },
 
-    { id: 'printing', name: '印刷术', era: 4, cost: 25000, branch: 'know', key: false,
+    { id: 'printing', name: '印刷术', icon: 'assets/tech-icons/era-4/era4-printing.png', era: 4, cost: 25000, branch: 'know', key: false,
       reqs: ['metalrefine'], layer: 3,
       cond: { t: 'built', b: 'hydroshop', n: 3 },
       eff: { unlockBuild: ['coralfarm'] },
       note: 'Civ6: Printing · 热液工坊三级开版。字能印了，珊瑚也能催了。' },
 
-    { id: 'physics', name: '物理', era: 4, cost: 40000, branch: 'know', key: false,
+    { id: 'physics', name: '物理', icon: 'assets/tech-icons/era-4/era4-physics.png', era: 4, cost: 40000, branch: 'know', key: false,
       reqs: ['shellwatch'], layer: 4,
       /* 「完成所有钢铁工具的升级」= 钢镰/钢斧/钢镐三件都买断。与学徒制同一 cond 类型。 */
       cond: { t: 'tools', ids: ['tool_steelSickle', 'tool_steelAxe', 'tool_steelPick'] },
       eff: {},
       note: 'Civ6: Scientific Theory · 钢器趁手了，才谈得上把力气算成数。' },
 
-    { id: 'banking', name: '银行业', era: 4, cost: 40000, branch: 'live', key: false,
+    { id: 'banking', name: '银行业', icon: 'assets/tech-icons/era-4/era4-banking.png', era: 4, cost: 40000, branch: 'live', key: false,
       reqs: ['printing'], layer: 4,
       cond: { t: 'zoneLvl', zone: 'trade', n: 35 },
       eff: { unlockBuild: ['bank'] },
@@ -526,14 +526,14 @@
        *   旧数字会与实际门槛矛盾（文案 ≠ 门槛 = 又一个面板撒谎点）。 */
       note: 'Civ6: Banking · 贸易区 35 级，账本才比货值钱。' },
 
-    { id: 'thermo', name: '热力学', era: 4, cost: 50000, branch: 'survive', key: false,
+    { id: 'thermo', name: '热力学', icon: 'assets/tech-icons/era-4/era4-thermodynamics.png', era: 4, cost: 50000, branch: 'survive', key: false,
       reqs: ['metalrefine'], layer: 4,
       /* 用户 2026-09-30 澄清：「热液泵」= **热液汽轮机**(hydroturbine)。 */
       cond: { t: 'built', b: 'hydroturbine', n: 5 },
       eff: {},
       note: 'Civ6: Industrialization · 汽轮机五级，压力才谈得上被拿去利用。' },
 
-    { id: 'invert', name: '倒置搭建', era: 4, cost: 75000, branch: 'survive', key: true,
+    { id: 'invert', name: '倒置搭建', icon: 'assets/tech-icons/era-4/era4-inverted-construction.png', era: 4, cost: 75000, branch: 'survive', key: true,
       reqs: ['physics'], layer: 5,
       cond: { t: 'pop', n: 50 },
       eff: {},
@@ -551,7 +551,7 @@
      *      天穹钻机前 L5+L6 ⇒ 自身 L7。 */
     /* ⚠️ cost 为**暂定值**（用户表未给成本），量级对齐 era4（shellwatch 2万 → invert 7.5万），
      *    顺延到 8万~15万。最终数值等用户标定轮拍板，不在本轮定死。 */
-    { id: 'industrialize', name: '工业化', era: 5, cost: 80000, branch: 'survive', key: false,
+    { id: 'industrialize', name: '工业化', icon: 'assets/tech-icons/era-5/era5-industrialization.png', era: 5, cost: 80000, branch: 'survive', key: false,
       reqs: ['thermo'], layer: 5,
       /* ⚠️ 2026-10-07 修：原来写 `r:'hydro'`，而 rates().hydro 是**净消耗（取负）** ⇒
        *    这个条件恒不成立（负数永远 ≥ 不了 10），工业化**永不揭示**、热锻工厂永不可达，
@@ -561,31 +561,31 @@
       eff: { unlockBuild: ['hotforge'] },
       note: 'Civ6: Industrialization · 热液能产出达到 10/s。解锁热锻工厂。' },
 
-    { id: 'pubedu', name: '普及教育', era: 5, cost: 90000, branch: 'know', key: false,
+    { id: 'pubedu', name: '普及教育', icon: 'assets/tech-icons/era-5/era5-public-schooling.png', era: 5, cost: 90000, branch: 'know', key: false,
       reqs: ['printing', 'physics'], layer: 5,
       cond: { t: 'rate', r: 'science', n: 100 },
       eff: { unlockBuild: ['school'] },
       note: 'Civ6: Public Schooling · 科学产出达到 100/s。解锁学校（每级 +0.5 科技/秒）。' },
 
-    { id: 'abyssgeo', name: '渊海地质学', era: 5, cost: 100000, branch: 'know', key: false,
+    { id: 'abyssgeo', name: '渊海地质学', icon: 'assets/tech-icons/era-5/era5-abyssal-geology.png', era: 5, cost: 100000, branch: 'know', key: false,
       reqs: ['physics'], layer: 5,
       cond: { t: 'upgrade', id: 'upg_deepmine' },
       eff: { warmMul: 5.0, titaniumMul: 1.0 },
       note: 'Civ6: Seafaring · 完成深层矿井升级。暖石 +500% / 钛 +100%。' },
 
-    { id: 'highthermo', name: '高压热机', era: 5, cost: 110000, branch: 'survive', key: false,
+    { id: 'highthermo', name: '高压热机', icon: 'assets/tech-icons/era-5/era5-high-pressure-engine.png', era: 5, cost: 110000, branch: 'survive', key: false,
       reqs: ['industrialize'], layer: 6,
       cond: { t: 'upgrade', id: 'upg_hppump' },
       eff: {},
       note: 'Civ6: High Pressure Engines · 完成高压气泵升级。' },
 
-    { id: 'shellgeo', name: '天壳地质学', era: 5, cost: 120000, branch: 'know', key: false,
+    { id: 'shellgeo', name: '天壳地质学', icon: 'assets/tech-icons/era-5/era5-shell-geology.png', era: 5, cost: 120000, branch: 'know', key: false,
       reqs: ['invert'], layer: 6,
       cond: { t: 'shell', n: 0.5 },
       eff: {},
       note: 'Civ6: Geology · 破壳达到 50%（壳剩余 ≤ 50%）。' },
 
-    { id: 'skydrill', name: '天穹钻机', era: 5, cost: 150000, branch: 'know', key: true,
+    { id: 'skydrill', name: '天穹钻机', icon: 'assets/tech-icons/era-5/era5-sky-drill.png', era: 5, cost: 150000, branch: 'know', key: true,
       reqs: ['abyssgeo', 'shellgeo'], layer: 7,
       cond: { t: 'wonders', ids: ['wonder_shellcutter', 'wonder_presspipe'] },
       eff: {},
