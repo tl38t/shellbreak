@@ -345,8 +345,10 @@
    *     ⇒ 造价变负、`pay` 倒给资源 的真 bug（costOf 对 hallMul 没有下限钳制）。
    *   ★ 边际递减：`getLimitedDR` 在 effect < 0.75×lim 之前线性，之后拐点收缩、逼近 lim——
    *     正是用户要的「降低消耗、但边际效益越来越低」，且再没有 45% 那种一刀切的硬墙。
-   *   ★ 城堡（upg_castle）把「减耗效果 +50%」：每级省耗率与软上限**同时** ×(1 + hallSaveMul)，
-   *     保证「每级省得更多」与「天花板更高」是同一档 +50%，不互相打架（旧版硬墙也是同乘一处）。
+   *   ★ 城堡（upg_castle）把「减耗效果 +50%」：只提高每级省耗率 `rate`（×1.5，让每级省更多、
+   *     更早逼近天花板）；软上限 `lim` **不**跟随抬高（见 hallMul 内 Math.min 锁回 0.90）。
+   *   ⚠️ 2026-10-10 旧 bug：lim 曾 ×(1+hallSaveMul)=1.35 > 1，导致 hallMul=1-eff 越过 0 变负、
+   *     造价成负数、按钮可无限刷级（10²⁴ 量级）。现 lim 锁死 0.90，hallMul 恒 ≥ 0.10。
    *   ⚠️ 把原始省耗率 `_n*rate` 先 `Math.min(., lim)` 再进 `getLimitedDR`：该函数对
    *     effect > lim 会算出 NaN（负数底 fractional 幂），而我们这里 lim 仅 0.90、rate 0.02，
    *     约 45 级就到 lim——比容量轴（lim=1000、约 20 级到 lim）更易踩中，故加这道下限闸。 */
@@ -356,7 +358,11 @@
     var _n = coreLvl(s);
     if (!_n) return 1;
     var rate = HALL_SAVE * (1 + upgSum(s, 'hallSaveMul'));
-    var lim  = HALL_DR_LIMIT * (1 + upgSum(s, 'hallSaveMul'));
+    /* 软上限 lim **锁回 HALL_DR_LIMIT(0.90)**，不随 castle 加成抬高：
+     * 若 lim > 1（旧版 ×(1+hallSaveMul) = 1.35），则 hallMul = 1-eff 会越过 0 变负，
+     * 造价乘成负数 → pay() 反向给资源、按钮可无限刷级（2026-10-10 实测 bug，10²⁴ 量级）。
+     * 城堡只保留「每级省更多」（rate ×1.5，更早逼近天花板），天花板不再提高。 */
+    var lim  = Math.min(HALL_DR_LIMIT * (1 + upgSum(s, 'hallSaveMul')), HALL_DR_LIMIT);
     var eff  = getLimitedDR(Math.min(_n * rate, lim), lim);   // 走和容量轴同一道衰减曲线
     return 1 - eff;
   }

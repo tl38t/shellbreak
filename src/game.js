@@ -52,7 +52,10 @@
   }
   function setSpeed(v) { speed = v; }
   /* 看广告加速倍率：玩家所选档位（speed）× 这个系数。广告时间银行（S.ad.ms）>0 且开关打开时 = MUL，否则 1。
-   * 只在**在线**生效：离线补算走 drainCatchUp，不经过这里；S.ad.ms 也不会在离线时流逝（见 loop 里的扣减段）。 */
+   * 在线：loop() 里 loop.acc += elapsed*speed*adMul() 实现 2×。
+   * 离线：drainCatchUp 对覆盖到的真实秒吃 adMul()（2×）并扣减银行，余额耗尽自动回落 1×；
+   *    主循环里的银行扣减段用 !loop.job 守卫，离线不重复 nibble（见 loop 内注释）。
+   * 与 config.js:51「墙钟真实时间，关游戏也在走」一致——银行离线也流逝，且离线对应时段按 2× 结算。 */
   function adMul() {
     return (S && S.ad && S.ad.on && S.ad.ms > 0) ? (SB.CFG.AD && SB.CFG.AD.MUL || 2) : 1;
   }
@@ -471,7 +474,11 @@
     last = now;
     /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
      * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。 */
-    if (S && !S.broken && S.ad && S.ad.on && S.ad.ms > 0) {
+    /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
+     * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。
+     * ⚠️ 只在**在线**扣：离线补算期间（loop.job=true）由 drainCatchUp 按真实离线秒统一扣减（且吃 2×），
+     *    这里加 !loop.job 守卫，避免离线时既被 nibble 又不给 2× 进度的双重错账。 */
+    if (!loop.job && S && !S.broken && S.ad && S.ad.on && S.ad.ms > 0) {
       var adWas = S.ad.ms > 0;
       S.ad.ms = Math.max(0, S.ad.ms - elapsed * 1000);
       if (adWas && S.ad.ms === 0) dirty = true;
@@ -544,13 +551,13 @@
    *   （globalMul/gatherMul 等每 tick 只算一次），满档离线从「十几秒」降到「亚秒级」。 */
   function planCatchUp(s, gap) {
     var cap = offlineCap(s);
-    var secs = Math.max(0, Math.min(gap, cap));
-    var n = Math.floor(secs / STEP);
-    if (n <= 0) return;
+    var secs = Math.max(0, Math.min(gap, cap));   // 真实离线秒（已封顶）
+    if (secs <= 0) return;
     var before = {}, k;
     for (k in s.res) before[k] = s.res[k];
+    var adActive = !!(s.ad && s.ad.on && s.ad.ms > 0);  // 起点若双倍银行在线，整段按覆盖情况吃 2×
     loop.job = {
-      s: s, left: n, total: n, secs: secs, cap: cap,
+      s: s, left: secs, total: secs, secs: secs, cap: cap, adActive: adActive,
       before: before, bPop: s.pop, bShell: s.shell,
       bFam: s.famineDeaths, bFrost: s.frostDeaths
     };
@@ -560,22 +567,31 @@
       title: '离线进度补算中…',
       body: '<div class="note">正在回放你离开期间的产出（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，与在线同一条结算路径）。</div>' +
             '<div class="note" style="margin-top:8px;color:var(--dim)">离线时长 ' + fmtDur(secs) +
-            (secs < gap ? '（封顶 ' + fmtDur(cap) + '，超出部分不计）' : '') + '</div>',
+            (secs < gap ? '（封顶 ' + fmtDur(cap) + '，超出部分不计）' : '') +
+            (adActive ? '（双倍加速生效中，覆盖时段按 2× 结算）' : '') + '</div>',
       showProgress: true
     });
-    log('离线 ' + fmtDur(secs) + '，正在补算…');
+    log('离线 ' + fmtDur(secs) + '，正在补算…' + (adActive ? '（双倍加速覆盖时段按 2×）' : ''));
     if (secs < gap) log('补算有上限（' + fmtDur(cap) + '），剩余 ' + fmtDur(gap - secs) + ' 不计。');
   }
   function drainCatchUp(budgetMs) {
     var j = loop.job; if (!j) return;
     if (j.s !== S) { loop.job = null; return; }   // 补算途中重开了周目，作废这一批
     var t0 = Date.now();
+    /* 离线补算按「真实秒」推进：每个真实秒先取 adMul()（银行在线且有余额 = 2，否则 1），
+     * 这一真实秒扣 1 秒银行、并推进 mul 个游戏秒（mul/STEP 个 tick）。
+     * ⇒ 双倍银行覆盖到的离线时段按 2× 结算；余额耗尽后自动回落 1×。toggle 关着时 adMul()=1，银行冻结。 */
     while (j.left > 0 && Date.now() - t0 < budgetMs) {
-      SB.economy.tick(j.s, STEP, null);   // emit=null：不刷屏，做完统一播报
-      if (j.s._seasonGrantPending) { SB.economy.seasonGrant(j.s); j.s._seasonGrantPending = false; }
-      j.left--;
-      j.tp = (j.tp || 0) + STEP;
-      if (j.tp >= TECH_PUMP) { j.tp = 0; pumpTech(j.s, null); pumpCivic(j.s, null); }
+      var mul = adMul();
+      if (mul > 1) j.s.ad.ms = Math.max(0, j.s.ad.ms - 1000);   // 这一真实秒扣 1 秒银行
+      var ticks = Math.round(mul / STEP), i;
+      for (i = 0; i < ticks; i++) {
+        SB.economy.tick(j.s, STEP, null);   // emit=null：不刷屏，做完统一播报
+        if (j.s._seasonGrantPending) { SB.economy.seasonGrant(j.s); j.s._seasonGrantPending = false; }
+        j.tp = (j.tp || 0) + STEP;
+        if (j.tp >= TECH_PUMP) { j.tp = 0; pumpTech(j.s, null); pumpCivic(j.s, null); }
+      }
+      j.left -= 1;   // 消耗 1 真实秒
     }
     if (j.total) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);
     if (j.left <= 0) finishCatchUp(j);
@@ -715,6 +731,10 @@
     adMul: adMul, grantAdBoost: grantAdBoost, toggleAdBoost: toggleAdBoost,
     startRun: startRun, nextCycle: nextCycle, stay: stay,
     resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave,
+    /* 离线补算核心函数暴露为调试/测试入口（纯接口，逻辑仅在上面定义处）。
+     * 供 sim/_probe_offline_ad.mjs 等探针直接驱动离线补算、复用生产路径，
+     * 不在任何 UI 调用链上，不影响在线行为。 */
+    planCatchUp: planCatchUp, drainCatchUp: drainCatchUp,
     log: log, emit: emit, markDirty: markDirty, pumpTech: pumpTech, pumpCivic: pumpCivic,
     maybeReligionPopup: maybeReligionPopup,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,

@@ -855,7 +855,7 @@
     return null;
   }
 
-  function techIconHTML(t, lit, cls) {
+  function treeIconHTML(t, lit, cls) {
     if (!t || !t.icon || !lit) return '';
     return '<img class="' + cls + '" src="' + t.icon + '" alt="" aria-hidden="true" loading="lazy">';
   }
@@ -898,7 +898,7 @@
       ' data-tree-node="1" data-tree-type="tech" data-tree-id="' + t.id + '"' +
       ' aria-label="' + (lit ? t.name : '未揭露的科技') + '，' + status + '，打开详情"' +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w + 'px;height:' + hh + 'px">';
-    h += '<span class="tnhd">' + techIconHTML(t, lit, 'tree-node-icon branch-' + (t.branch || 'know')) +
+    h += '<span class="tnhd">' + treeIconHTML(t, lit, 'tree-node-icon branch-' + (t.branch || 'know')) +
       '<span class="tnm">' + (lit ? t.name : '未揭露的科技') + '</span>' +
       (t.key ? '<span class="tntag">关键</span>' : '') + '</span>' +
       (!lit ? '<span class="tree-eureka">尤里卡 · ' + (eureka ? eureka.txt : '达成条件后揭示') + '</span>' +
@@ -1299,7 +1299,8 @@
       ' aria-label="' + (rev ? c.name : '未揭露的市政') + '，' + status + '，打开详情"' +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w +
       'px;height:' + hh + 'px">';
-    h += '<span class="tnhd"><span class="tnm">' + (rev ? c.name : '未揭露的市政') + '</span>' +
+    h += '<span class="tnhd">' + treeIconHTML(c, rev, 'tree-node-icon civic-icon') +
+      '<span class="tnm">' + (rev ? c.name : '未揭露的市政') + '</span>' +
       '</span>' + (!rev ? '<span class="tree-eureka">鼓舞 · ' +
         (boost ? boost.txt : c.boost ? '达成鼓舞条件后揭示' : '无需鼓舞') + '</span>' +
         (boost && boost.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + boostPct.toFixed(1) + '%"></i></span><b>' + boostPct.toFixed(0) + '%</b></span>' : '') : '') +
@@ -2109,7 +2110,7 @@
       : '免费研究';
     var box = el('modalBox'), modal = el('modal');
     box.classList.add('tree-detail-box');
-    var detailIcon = techIconHTML(item, revealed, 'tree-detail-icon');
+    var detailIcon = treeIconHTML(item, revealed, 'tree-detail-icon');
     box.innerHTML =
       '<div class="tree-detail-head"><div class="tree-detail-mark' + (detailIcon ? ' has-image' : '') + '">' + (detailIcon || (item.key ? '✦' : tech ? '⌘' : '§')) +
       '</div><div class="tree-detail-title"><h3 id="treeDetailTitle">' + title + (item.key && revealed ? ' <span class="tree-key">关键节点</span>' : '') +

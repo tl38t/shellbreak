@@ -41,7 +41,7 @@
     /* ⚠️ layer = **列号**，市政树横卷几何的唯一依据（与 techs.js 的 layer 同义）。
      *    法典在根、两个子节点并列在同一列 ⇒ 摊开是一张 (列 × 行) 的齿梳状，
      *    不是一条竖着排的清单。改它等于改树形状，e2e 的「市政树几何」一节会跟着红。 */
-    { id: 'laws',   name: '法典',   cost: 0,   era: 1, layer: 1, reqs: [], boost: null,
+    { id: 'laws',   name: '法典',   icon: 'assets/civic-icons/era-1/era1-laws.png', cost: 0,   era: 1, layer: 1, reqs: [], boost: null,
       gov: 'tribe',
       desc: '定下规矩：解锁政体「酋邦制」。',
       note: '基础市政，无需鼓舞。' },
@@ -51,7 +51,7 @@
      *    工坊因为那条加工线作废而成了空壳，它的新内容正是下一步要设计的。
      *    所以这张卡**已可装填、但不产生任何效果**，UI 上明确标「待工坊内容」。
      *    等工坊有了消耗侧，把 eff 填上并接进 flow() 即可；别偷偷把它改成别的效果。 */
-    { id: 'craft',  name: '技艺',   cost: 100, era: 1, layer: 2, reqs: ['laws'],
+    { id: 'craft',  name: '技艺',   icon: 'assets/civic-icons/era-1/era1-craft.png', cost: 100, era: 1, layer: 2, reqs: ['laws'],
       boost: { t: 'built', b: 'workshop', n: 1 },
       card: 'card_craft',
       desc: '解锁政策卡「技艺」。',
@@ -61,7 +61,7 @@
      * ⚠️ 效果由用户于 2026-09-27 拍为「科技 +0.3/秒」（原案 +1.0，他批了 +0.3）。
      *    这是**平坦加值**不是乘区：写进 economy.tick 的 science 行（乘区 mul() 那套管不到它），
      *    且**只有装上《神秘主义》卡才生效**——研究出市政不等于白拿。 */
-    { id: 'mystic', name: '神秘主义', cost: 100, era: 1, layer: 2, reqs: ['laws'],
+    { id: 'mystic', name: '神秘主义', icon: 'assets/civic-icons/era-1/era1-mystic.png', cost: 100, era: 1, layer: 2, reqs: ['laws'],
       boost: { t: 'tech', id: 'tiddivine' },
       card: 'card_mystic',
       desc: '解锁政策卡「神秘主义」：科技产出 +0.3/秒。',
@@ -78,7 +78,7 @@
      * 【两者之间也互不前置】与 era1 那两条同规矩：玩家可以自己决定先做哪一项。
      * 【cost 定案：era2 四项 = 250/300/600/500，2026-09-29 用户拍板「开始实装」。
      *   era1 那两条是 100；本层 250。再调 = 新一轮标定，须用户重拍。 */
-    { id: 'trade', name: '对外贸易', cost: 800, era: 2, layer: 3, reqs: ['laws'],
+    { id: 'trade', name: '对外贸易', icon: 'assets/civic-icons/era-2/era2-trade.png', cost: 800, era: 2, layer: 3, reqs: ['laws'],
       boost: { t: 'tech', id: 'lighting' },
       /* ⚠️【`job` 是新字段：职业解锁的市政通路】其余职业都靠科技 eff.unlockJob 反查，
        *    商人是个例外——它的解锁权在市政身上（用户规格明写「对外贸易解锁职业商人」）。
@@ -89,7 +89,7 @@
       desc: '解锁职业「商人」——奢侈品的唯一进项。',
       note: '鼓舞：完成科技「照明」。' },
 
-    { id: 'drama', name: '戏剧与诗歌', cost: 900, era: 2, layer: 3, reqs: ['laws'],
+    { id: 'drama', name: '戏剧与诗歌', icon: 'assets/civic-icons/era-2/era2-drama.png', cost: 900, era: 2, layer: 3, reqs: ['laws'],
       /* ⚠️ `wonder` 这个条件类型是 2026-09-28 新加的（tech.js 的 condMet），
        *    原先 12 种类型里没有「建成一座奇观」，写进去会静默永远达不成。 */
       boost: { t: 'wonder', n: 1 },
@@ -105,7 +105,7 @@
      *   《神学》与《历史记录》谁先谁后由玩家定——这与第一层「两项都挂根《法典》」
      *   是同一条几何规则，差别只在它们的共同前置是「一条支线的末项」而不是根。
      * 【cost 定案：era2 四项 = 250/300/600/500，2026-09-29 用户拍板「开始实装」（见上）。 */
-    { id: 'theology', name: '神学', cost: 1400, era: 2, layer: 4, reqs: ['drama'],
+    { id: 'theology', name: '神学', icon: 'assets/civic-icons/era-2/era2-theology.png', cost: 1400, era: 2, layer: 4, reqs: ['drama'],
       /* ⚠️ 鼓舞判据 = 人口 `s.pop` 达 25（condMet 的 `pop` 类型，2026-09-28 由用户拍）。
        *    本作人口由住房决定（popCap = 巢 + 珊瑚屋）且只有增长没有上限，
        *    ⇒ 25 是一个**一定能到、但要专门为它建房**的门槛，不会变成死锁。 */
@@ -114,7 +114,7 @@
       desc: '解锁信仰资源、建筑「神庙」，以及政策卡「神学」。',
       note: '鼓舞：人口达 25。' },
 
-    { id: 'records', name: '历史记录', cost: 1200, era: 2, layer: 4, reqs: ['drama'],
+    { id: 'records', name: '历史记录', icon: 'assets/civic-icons/era-2/era2-records.png', cost: 1200, era: 2, layer: 4, reqs: ['drama'],
       /* ⚠️ 鼓舞判据 = 潮纹馆（library）达 6 级。`built` 这个条件类型在 tech.js 里
        *    读的是 `s.lvl[c.b]` ⇒ 传**建筑 id**（library）而不是科技 id，写错不报错、
        *    只会永远达不成（与 `wonder` 那条注是同一类静默断链）。 */
@@ -139,7 +139,7 @@
      *   寡头/古典共和三选一）。原 `gov` 单值只能挂一条 ⇒ 扩成 `govs` 数组，
      *   govOwned 同步认 `c.govs`。政体采用仍是玩家手动 setGov（research 不自动采用
      *   多政体，避免「研究完政治哲学自动锁死一条政体」）。 */
-    { id: 'political', name: '政治哲学', cost: 1500, era: 2, layer: 5, reqs: ['records', 'theology'],
+    { id: 'political', name: '政治哲学', icon: 'assets/civic-icons/era-2/era2-political.png', cost: 1500, era: 2, layer: 5, reqs: ['records', 'theology'],
       boost: { t: 'tech', id: 'engineeringT' },
       govs: ['autocracy', 'oligarchy', 'classical_republic'],
       desc: '解锁三种政体：独裁统治、寡头统治、古典共和（择一采用）。',
@@ -154,14 +154,14 @@
      *   块内现为 2000/900/1000/1100/1200，不再是等差。其余仍是未拍板的提议值。
      * 【layer 用规格表原值】王权神授/封建主义 1，其余 2。era3 块的列基准由 layout()
      *   的 eraBase 自动偏移，不需要手写间隔。 */
-    { id: 'sovereign', name: '王权神授', cost: 8000, era: 3, layer: 1,
+    { id: 'sovereign', name: '王权神授', icon: 'assets/civic-icons/era-3/era3-sovereign.png', cost: 8000, era: 3, layer: 1,
       reqs: ['theology', 'political'],
       boost: { t: 'gathered', r: 'faith', n: 10000 },
       card: 'card_sovereign',
       wonder: 'wonder_stt_abbey',
       desc: '解锁政策卡「王权神授」，以及奇观「圣泰坦尼克修道院」。',
       note: '鼓舞：累计信仰产出达 10000。' },
-    { id: 'feudalism', name: '封建主义', cost: 3000, era: 3, layer: 1,
+    { id: 'feudalism', name: '封建主义', icon: 'assets/civic-icons/era-3/era3-feudalism.png', cost: 3000, era: 3, layer: 1,
       reqs: ['records'],
       boost: { t: 'zoneLvl', zone: 'food', n: 100 },
       /* autoUpg 是新字段（本市政送的机制）：生息区建筑自动升级的解锁权归它。
@@ -169,13 +169,13 @@
       autoUpg: true,
       desc: '解锁政策卡「农奴制」，以及生息区建筑的自动升级（逐建筑开关）。',
       note: '鼓舞：生息区建筑合计等级达 100。' },
-    { id: 'market', name: '中世纪集市', cost: 4000, era: 3, layer: 2,
+    { id: 'market', name: '中世纪集市', icon: 'assets/civic-icons/era-3/era3-market.png', cost: 4000, era: 3, layer: 2,
       reqs: ['political'],
       boost: { t: 'gathered', r: 'luxury', n: 10000 },
       card: 'card_market',
       desc: '解锁政策卡「中世纪集市」；商人同时产出科学 +0.05/秒、市政点 +0.05/秒。',
       note: '鼓舞：累计奢侈品产出达 10000。' },
-    { id: 'guild', name: '职业行会', cost: 5000, era: 3, layer: 2,
+    { id: 'guild', name: '职业行会', icon: 'assets/civic-icons/era-3/era3-guild.png', cost: 5000, era: 3, layer: 2,
       reqs: ['market'],
       /* ⚠️ 2026-10-06 用户拍板：鼓舞「工坊区建筑合计等级 100」⇒ 改成
        *   **「建筑总等级 55」** —— 不只是把数字从 100 调成 55，**口径也换了**：
@@ -189,7 +189,7 @@
       wonder: 'wonder_grand_bazaar',
       desc: '解锁政策卡「职业行会」（取代技艺），以及奇观「大巴扎」。',
       note: '鼓舞：建筑总等级达 55。' },
-    { id: 'department', name: '行政部门', cost: 6000, era: 3, layer: 2,
+    { id: 'department', name: '行政部门', icon: 'assets/civic-icons/era-3/era3-department.png', cost: 6000, era: 3, layer: 2,
       reqs: ['feudalism'],
       /* ⚠️ 2026-10-06 用户拍板：人口 70 → 55（与同批「建筑总等级 100→55」一起降门槛）。 */
       boost: { t: 'pop', n: 55 },
@@ -210,7 +210,7 @@
      *   +1 信仰、每级市政区建筑 +0.5 信仰；⑤ 博物馆官员市政点 +20%、三角贸易王国潮道 +100%、
      *   启蒙运动潮纹馆/大学 +100%、神庙 −50%；⑥ 艺术品 5000 市政+100 绳 / 潮纹记录 5000 科技+10 钢零件；
      *   ⑦ 探索鼓舞「完成钢铁仓库升级」= 压舱库扩容 II（upg_ballast_2）。 */
-    { id: 'explore', name: '探索', cost: 20000, era: 4, layer: 1,
+    { id: 'explore', name: '探索', icon: 'assets/civic-icons/era-4/era4-explore.png', cost: 20000, era: 4, layer: 1,
       reqs: ['market'],
       /* 完成钢铁仓库升级 = 压舱库扩容 II（用户拍板映射）。upg_ballast_2 由城堡科技解锁，成本
        * 铁制支架 100 + 硬化珊瑚 150，capMul ×1.5（与 I 叠加 ⇒ ×2.25）。 */
@@ -222,7 +222,7 @@
       seasonGrant: true,
       desc: '解锁建筑「商队驿站」、政策卡「三角贸易」、政体「商人共和国」；每季节判定一次，获得任意资源 1 分钟产量。',
       note: '鼓舞：完成钢铁仓库升级（压舱库扩容 II）。' },
-    { id: 'reformed', name: '归正会', cost: 25000, era: 4, layer: 1,
+    { id: 'reformed', name: '归正会', icon: 'assets/civic-icons/era-4/era4-reformed.png', cost: 25000, era: 4, layer: 1,
       reqs: ['department'],
       /* 已建立宗教（religion 鼓舞类型，2026-10-01 新增于 tech.condMet）。
        * ⚠️「且有 70 鲛人」被前置《行政部门》的 pop 70 鼓舞吸收（能研究行政部门即 pop≥70 且只增不减），
@@ -234,20 +234,20 @@
       card: 'card_divine_right',
       desc: '解锁奇观「欧\'洛瓦宗座教堂」(+1 宗教政策卡槽)、政体「神权政体」、政策卡「天赋神权」。',
       note: '鼓舞：已建立宗教（70 鲛人已由前置《行政部门》保证）。' },
-    { id: 'mercantilism', name: '重商主义', cost: 40000, era: 4, layer: 2,
+    { id: 'mercantilism', name: '重商主义', icon: 'assets/civic-icons/era-4/era4-mercantilism.png', cost: 40000, era: 4, layer: 2,
       reqs: ['explore'],
       boost: { t: 'job', j: 'merchant', n: 20 },
       card: 'card_mercantilism',
       desc: '解锁政策卡「重商主义」（银行的商人产出加成 +100%）。',
       note: '鼓舞：同时拥有 20 名商人。' },
-    { id: 'enlightenment', name: '启蒙运动', cost: 50000, era: 4, layer: 2,
+    { id: 'enlightenment', name: '启蒙运动', icon: 'assets/civic-icons/era-4/era4-enlightenment.png', cost: 50000, era: 4, layer: 2,
       reqs: ['department'],
       boost: { t: 'built', b: 'observatory', n: 1 },
       card: 'card_enlightenment',
       building: 'museum',
       desc: '解锁政策卡「启蒙运动」（替代历史记录：潮纹馆/大学科技 +100%、神庙信仰 −50%）、建筑「博物馆」。',
       note: '鼓舞：天壳观测站等级 ≥ 1。' },
-    { id: 'historiography', name: '历史哲学', cost: 60000, era: 4, layer: 2,
+    { id: 'historiography', name: '历史哲学', icon: 'assets/civic-icons/era-4/era4-historiography.png', cost: 60000, era: 4, layer: 2,
       reqs: ['reformed'],
       boost: { t: 'wonder', n: 6 },
       /* 工艺制品「艺术品 / 潮纹记录」的解锁走配方自身的 needCivic（见 config CRAFTS 的
