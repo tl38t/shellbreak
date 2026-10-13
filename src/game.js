@@ -316,6 +316,17 @@
     });
   }
 
+  /* 更新日志自动弹窗（2026-10-11）：meta.seenVersion 与 CFG.VERSION 不一致 ⇒ 这是该版本首次进入，
+   * 弹一次更新内容，并把 seenVersion 记成当前版本（存 meta，跨周目保留，软重置不重复弹）。
+   * 全新安装（seenVersion 空）也会弹一次——顺带充当「欢迎 / 本次更新」说明。 */
+  function maybeChangelogPopup() {
+    if (!meta || !SB.CFG || !SB.CFG.VERSION) return;
+    if (meta.seenVersion === SB.CFG.VERSION) return;
+    if (SB.ui && SB.ui.render && SB.ui.render.openChangelog) SB.ui.render.openChangelog();
+    meta.seenVersion = SB.CFG.VERSION;
+    SB.state.saveMeta(meta);
+  }
+
   function maybeWorkshopPopup(s) {
     if (!s || s.workshopPopup || !(s.lvl && s.lvl.workshop > 0)) return;
     s.workshopPopup = true;
@@ -380,7 +391,7 @@
       ],
       ok: '了解'
     });
-    /* 「最快建立文明」榜：religionSeen 首次置真即快照当前墙钟。
+    /* 「最快立教」榜（平台榜名「最快建立文明」）：religionSeen 首次置真即快照当前墙钟。
      * ⚠️ 只提交一次 —— religionSeen 是跨周目永久字段，第二次进来直接 return，
      *   所以天然只报「历史最早那一局」，与 calcType='best' 的意图一致。
      * ⚠️ 榜 ID 未回填时submitRun 内部会跳过，线上不产生任何请求。 */
@@ -395,6 +406,105 @@
   function submitRankFirstFaith(s) {
     if (!SB.rank) return;
     SB.rank.submitRun([{ key: 'firstFaith', value: s && s.wallT }]);
+  }
+
+  /* 命名政体（ERA6 · 神恩与威权 / 层级理论 / 权责对等）：采用这三个新政体之一且尚未起名时，
+   *   弹窗让玩家给政体起名（显示名 = 玩家名 + 后缀：教权国 / 联盟 / 联邦；城堡随之更名）。
+   * ⚠️ 无 DOM 环境（e2e 沙箱）直接 return —— 不写 govName、不报错，命名是纯 UI 行为。
+   * ⚠️ 复用 #modal / #modalBox 遮罩 + data-modal-close 关闭通道（与排行榜 / 更新日志面板同款）。 */
+  var pendingGovName = null;
+  function maybeGovNamingPopup(s, govId) {
+    if (!s || (s.govName && s.govName.trim())) return;
+    if (typeof document === 'undefined') return;          // e2e / 无 DOM 跳过
+    var modal = document.getElementById('modal');
+    var box = document.getElementById('modalBox');
+    if (!modal || !box) return;
+    pendingGovName = { s: s, gov: govId };
+    var suf = (SB.civic && SB.civic.govTitleSuffix) ? SB.civic.govTitleSuffix(govId) : '';
+    box.innerHTML =
+      '<div class="modal-hd"><b>命名你的' + suf + '</b>' +
+        '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<div class="modal-bd"><p>为你的' + suf + '起一个名字（最多 16 字）：</p>' +
+        '<input id="govNameInput" type="text" maxlength="16" placeholder="如：深渊" autocomplete="off" />' +
+        '<div class="chg-foot"><button type="button" class="btn" id="govNameOk">确定</button></div></div>';
+    var ok = document.getElementById('govNameOk');
+    if (ok) ok.onclick = confirmGovName;
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('hidden');
+    if (document.body) document.body.classList.add('modal-open');   // body.modal-open 复用 tab 禁用规则
+    var inp = document.getElementById('govNameInput');
+    if (inp) inp.focus();
+  }
+  function confirmGovName() {
+    var t = pendingGovName; pendingGovName = null;
+    if (!t) return;
+    var inp = document.getElementById('govNameInput');
+    var nm = inp ? (inp.value || '').trim() : '';
+    if (!nm) {
+      var suf = (SB.civic && SB.civic.govTitleSuffix) ? SB.civic.govTitleSuffix(t.gov) : '';
+      nm = '无名' + (suf || '之国');
+    }
+    t.s.govName = nm.slice(0, 16);
+    markDirty();
+    var modal = document.getElementById('modal');
+    if (modal) { modal.classList.add('hidden'); if (document.body) document.body.classList.remove('modal-open'); }
+  }
+
+  /* 公司系统（ERA6 市政《宏观经济学》解锁）：宏观经济学完成那一刻自动成立藻食/珊瑚两家公司。
+   * 行业池与名字池在 src/companies.js（独立数据层，日后加行业只改那一处）。
+   * ⚠️ 2026-10-13 改「单独关闭」：逐家公司独立判定 —— 每家只在「未成立且未被玩家解散」时自动成立，
+   *   玩家已解散的那家（companyState[res].closed=true）绝不自动复建，必须手动「重建」。
+   * 触发点 = 检测到 s.civics.macroeconomics 为真；泵每 TECH_PUMP 秒扫一次，逐家补成立。
+   * 离线补算不跑本系统（与自动升级/自动制作同一道「只在线」闸门），但读档后下一趟泵会补成立。 */
+  function maybeCompanyFound(s) {
+    if (!s) return;
+    if (!(s.civics && s.civics.macroeconomics)) return;
+    if (!SB.COMPANIES) return;
+    if (!s.companyNames) s.companyNames = {};
+    var any = false;
+    for (var i = 0; i < SB.COMPANIES.length; i++) {
+      var c = SB.COMPANIES[i];
+      var st = SB.companyState ? SB.companyState(s, c.res) : null;
+      if (!st) continue;
+      if (st.closed) continue;                // 玩家已解散 ⇒ 不自动复建，等手动「重建」
+      if (st.epoch && st.epoch > 0) continue; // 已成立，跳过
+      st.epoch = s.t || 0;
+      if (!s.companyNames[c.res]) s.companyNames[c.res] = SB.pickCompanyName(c.res);
+      any = true;
+    }
+    if (any) markDirty();
+  }
+
+  /* ---- 定期上报（2026-10-11 用户拍板「过一段时间就自动报一次」）----
+   * 只报 3 个数值榜：dev / wonder / cycle。它们是「当前快照」，平台 calcType='best'
+   * 保留历史最高分 ⇒ 周期重报只会往上走，不会污染。
+   * ⛔ 时间榜（fastest / firstFaith）绝不走这条路：重复提交会用更慢的时间覆盖
+   *   历史最佳，而平台对 asc+best 的合并语义不可证——冒这个险不值。
+   *   它们保持里程碑触发（立教 / 破壳），口径不变。
+   * 节流双闸：① RANK_PERIOD 墙钟 5 分钟（主循环只在活跃时跑 ⇒ 后台标签页天然不报）；
+   *           ② 值比上次实发的高才发（三个口径都单调不减），零变化不发请求。
+   * rankLast 与破壳上报共用：submitRankOnBreak 发出的值也记进来，避免结算后重复发。
+   * 口径：dev/wonder 与破壳完全一致（breakReport 复算 / countWonders）；
+   *   cycle 用 m.cycle（当前周目编号，= 破壳时上报值 −1 的同一把尺子，玩家破壳后自然对齐）。 */
+  var RANK_PERIOD = 5 * 60 * 1000;   // 5 分钟墙钟
+  var rankLast = {};                 // key -> 上次实发的整数值（floor 后，与 toScore 同规）
+
+  function submitRankPeriodic() {
+    if (!S || !SB.rank || !(SB.rank.available && SB.rank.available())) return;
+    var r = (SB.prestige && SB.prestige.breakReport) ? SB.prestige.breakReport(S) : null;
+    var m = SB.game.meta ? SB.game.meta() : {};
+    var entries = [];
+    var dev = r ? Math.floor(r.developmentScore || 0) : 0;
+    if (dev > (rankLast.dev || 0)) entries.push({ key: 'dev', value: dev });
+    var w = countWonders(S);
+    if (w > (rankLast.wonder || 0)) entries.push({ key: 'wonder', value: w });
+    var c = m.cycle || 0;
+    if (c > (rankLast.cycle || 0)) entries.push({ key: 'cycle', value: c });
+    if (!entries.length) return;
+    for (var i = 0; i < entries.length; i++) rankLast[entries[i].key] = entries[i].value;
+    SB.rank.submitRun(entries, function (done, sent) {
+      if (root.console && sent > 0) root.console.log('[rank] 定期上报：算得出 ' + done + ' 项，实发 ' + sent + ' 条');
+    });
   }
 
   /* 破壳结算那一刻：一次性提交全部 5 个榜（正好卡在 submitScores 的 5 条上限）。
@@ -414,6 +524,8 @@
     /* 这两个不依赖「有效通关」：建成即算，锁不锁都有意义。 */
     entries.push({ key: 'wonder', value: countWonders(s) });
     entries.push({ key: 'cycle', value: (m.cycle || 0) + 1 });
+    /* 记入定期上报的去重表：破壳刚发过的高值，5 分钟后的定期拍就不会重发同值。 */
+    for (var i = 0; i < entries.length; i++) rankLast[entries[i].key] = Math.floor(entries[i].value);
     SB.rank.submitRun(entries, function (done, sent) {
       if (root.console && sent > 0) {
         root.console.log('[rank] 破壳提交：算得出' + done + ' 项，实发 ' + sent + ' 条');
@@ -436,7 +548,10 @@
    * 以前只跑「回调次数 × 固定步长」，后台标签页里浏览器把定时器节流到 1 次/秒
    * （Chrome 满 5 分钟进一步降到约 1 次/分），时间就跟着被稀释甚至冻住。 */
   var MAX_STEP = 5;                 // 单次回调最多推进 5 秒逻辑时间，防止切回前台一次算爆
-  var CATCHUP_BUDGET = 50;          // 离线补算每帧的毫秒预算（占空比 = 50 ÷ 主循环间隔100ms ≈ 50%）
+  var CATCHUP_BUDGET = 90;          // 离线补算每帧的毫秒预算（占空比 = 90 ÷ 主循环间隔100ms = 90%）
+  /* ⚠️ 2026-10-13 50→90（用户拍板「ab一起做」的 A 项）：补算期间整个界面被离线闸门
+   *   modal 锁死、无需交互响应，50 当年是保守占位（见 planCatchUp 注的历史：8 时曾 12.5×）。
+   *   90 ⇒ 墙钟 ≈ 纯算量 ÷ 0.9，8h 满档桌面从 ~45s 压到 ~25s（叠加 tech.mul 记忆化后更低）。 */
   var PANE_REFRESH = 2000;          // 面板（整块重画那种）的刷新周期，毫秒 **墙钟**
 
   function loop() {
@@ -470,6 +585,14 @@
     }
     loop._wtPrev = wall;
 
+    /* 定期排行榜上报（见 submitRankPeriodic 注释）：启动后 ~60s 先发一次
+     * （_rankWall 预回拨 PERIOD−60s），老玩家的历史轮回数/发展分尽快上榜；
+     * 之后每 5 分钟墙钟一拍。离线补算期间（loop.job）跳过——补算完的下一拍马上会报。 */
+    if (S && !loop.job) {
+      if (!loop._rankWall) loop._rankWall = wall - RANK_PERIOD + 60000;
+      if (wall - loop._rankWall >= RANK_PERIOD) { loop._rankWall = wall; submitRankPeriodic(); }
+    }
+
     var elapsed = Math.min(MAX_STEP, (now - last) / 1000);
     last = now;
     /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
@@ -493,7 +616,7 @@
       if (S._seasonGrantPending) { SB.economy.seasonGrant(S); S._seasonGrantPending = false; }
       loop.acc -= STEP;
       loop._tp = (loop._tp || 0) + STEP;
-      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S); maybeTabUnlockPopups(S);
+      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S); maybeCompanyFound(S); maybeTabUnlockPopups(S);
         /* 生息区自动升级（2026-09-30 · 封建主义解锁2）：只挂在线泵——离线补算（line ~363）
          * 不调它，离线只结算产出、不替玩家花资源（与离线闸门同一精神）。 */
         if (SB.habitat && SB.habitat.autoTick) SB.habitat.autoTick(S, emit);
@@ -501,6 +624,12 @@
          * 离线补算不替玩家把原料转成制品（离线只结算产出）。语义见 workshop.autoTick。 */
         if (SB.workshop && SB.workshop.autoTick) SB.workshop.autoTick(S, emit); }
     }
+
+    /* 星空槽推进（2026-10-13 镜像破壳：破壳后由文明推力被动累积到 STAR_CAP）。
+     * ⚠️ 不能放 economy.tick 里——tick 在 s.broken 时顶部直接早退（1335 行），破壳后那条路径不跑。
+     *   故挂在这里：只要 S 存在就按真实帧时推进；tickStar 内部判 !broken → 早退（破壳前不累积）。
+     *   离线补算走 drainCatchUp（同语义、按真实离线秒推进）。 */
+    if (S) SB.shell.tickStar(S, elapsed * speed * adMul(), emit);
 
     if (S && !S.broken) {
       /* 点击时间事件（天壳震动等）：只在线推进——离线补算 drainCatchUp 不跑本系统。
@@ -547,8 +676,11 @@
    * 于是拆成「计划 → 每帧只花 CATCHUP_BUDGET 毫秒 → 做完发一条播报」。
    * 墙钟耗时 = 纯算量 ÷ 占空比，占空比 = CATCHUP_BUDGET ÷ 主循环间隔(100ms)。
    *   CATCHUP_BUDGET=8  ⇒ 占空比 8%  ⇒ 同样纯算量摊到 12.5 倍墙钟（满档 8h 离线曾达十几秒）；
-   *   CATCHUP_BUDGET=50 ⇒ 占空比 50% ⇒ 仅摊到 2 倍。配合 economy.tick 内聚合缓存
-   *   （globalMul/gatherMul 等每 tick 只算一次），满档离线从「十几秒」降到「亚秒级」。 */
+   *   CATCHUP_BUDGET=50 ⇒ 占空比 50% ⇒ 摊到 2 倍（2026-10-13 前的值）；
+   *   CATCHUP_BUDGET=90 ⇒ 占空比 90% ⇒ 仅摊到 1.11 倍（当前值，界面在补算期间本就锁死）。
+   * 配合 economy.tick 内聚合缓存（globalMul/gatherMul 等每 tick 只算一次）+
+   * tech.mul 按 techVer 记忆化（2026-10-13，省掉每 tick 12 次全表重扫），
+   * 满档离线墙钟已从最初的十几秒级进一步压低（桌面实测见 sim/perf-offline.mjs）。 */
   function planCatchUp(s, gap) {
     var cap = offlineCap(s);
     var secs = Math.max(0, Math.min(gap, cap));   // 真实离线秒（已封顶）
@@ -592,6 +724,9 @@
         if (j.tp >= TECH_PUMP) { j.tp = 0; pumpTech(j.s, null); pumpCivic(j.s, null); }
       }
       j.left -= 1;   // 消耗 1 真实秒
+      /* 星空槽离线补算（2026-10-13）：economy.tick 在 s.broken 时早退，不覆盖破壳后状态，
+       * 故这里按本真实秒推进的 mul 个游戏秒补算星空槽（与在线 loop 同口径）。tickStar 内部判 !broken → 早退。 */
+      SB.shell.tickStar(j.s, mul, null);
     }
     if (j.total) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);
     if (j.left <= 0) finishCatchUp(j);
@@ -653,6 +788,7 @@
     maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
     maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
     maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
+    maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志
     document.getElementById('btnBreak').onclick = function () {
       if (S.shell <= 0 && !S.broken) SB.prestige.doBreak(S, emit);
     };
@@ -716,6 +852,14 @@
     };
     var btnAdTog = document.getElementById('btnAdToggle');
     if (btnAdTog) btnAdTog.onclick = function () { toggleAdBoost(); };
+    var btnRank = document.getElementById('btnRank');
+    if (btnRank) btnRank.onclick = function () {
+      if (SB.ui && SB.ui.render && SB.ui.render.openRankChooser) SB.ui.render.openRankChooser();
+    };
+    var btnChangelog = document.getElementById('btnChangelog');
+    if (btnChangelog) btnChangelog.onclick = function () {
+      if (SB.ui && SB.ui.render && SB.ui.render.openChangelog) SB.ui.render.openChangelog();
+    };
     /* 关标签页 / 刷新前立刻落盘：有 5 秒节流在，玩家在这一窗口里刷新就会丢最后几秒，
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */
     function flush() { if (S && !S.broken) SB.state.saveRun(snapshot(S)); }
@@ -736,10 +880,13 @@
      * 不在任何 UI 调用链上，不影响在线行为。 */
     planCatchUp: planCatchUp, drainCatchUp: drainCatchUp,
     log: log, emit: emit, markDirty: markDirty, pumpTech: pumpTech, pumpCivic: pumpCivic,
+    fmtDur: fmtDur,
     maybeReligionPopup: maybeReligionPopup,
+    maybeGovNamingPopup: maybeGovNamingPopup, confirmGovName: confirmGovName,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
     showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); },
     showBreakAnimation: function (r) { SB.ui.render.showBreakAnimation(r); },
-    submitRankOnBreak: submitRankOnBreak
+    submitRankOnBreak: submitRankOnBreak,
+    submitRankPeriodic: submitRankPeriodic
   };
 })(typeof window !== 'undefined' ? window : globalThis);

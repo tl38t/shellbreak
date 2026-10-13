@@ -91,7 +91,9 @@
     { id: 4, name: '洋流纪', motto: '借力', color: '#4FC3F7', glyph: '四',
       desc: '潮汐的机械能被抓在手里：地热、转速、把整座礁当成一台机器。' },
     { id: 5, name: '破壳纪', motto: '工业化', color: '#F2C14E', glyph: '五',
-      desc: '造得出天穹钻机这样的奇迹装置，凿穿最后 ' + 25 + '% 壳厚是这一纪元的全部内容。' }
+      desc: '造得出天穹钻机这样的奇迹装置，凿穿最后 ' + 25 + '% 壳厚是这一纪元的全部内容。' },
+    { id: 6, name: '天外纪', motto: '出壳', color: '#9B7BFF', glyph: '六',
+      desc: '壳已破。钛金板件让工坊第一次造出「壳外」才用得上的东西：研究实验室、星空观测站、总物流站。' }
   ];
 
   var TECHS = [
@@ -477,6 +479,14 @@
       eff: { unlockBuild: ['hydroturbine', 'hydroshop'] },
       note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。' },
 
+    /* ═══ ERA3 精铁·钢提速（用户 2026-10 设计）：黑烟囱炼铁 ─══
+     * 复用「铁器」的 smelt 乘区（乘法叠加，零接线风险）。非 key，不动纪元推进分母。
+     * layer 2 ≤ 前置 metalrefine(L2)。 */
+    { id: 'blacksmoker', name: '黑烟囱炼铁', icon: 'assets/tech-icons/era-3/era3-metal-refining.png', era: 3, cost: 7000, branch: 'survive', key: false, reqs: ['metalrefine'], layer: 3,
+      cond: { t: 'built', b: 'furnace', n: 3 },
+      eff: { smelt: 0.25 },
+      note: '黑烟囱（海底热液喷口）的炽热矿浆富含铁硫，经富集提纯后炼铁更出铁。精铁产出 ×1.25（与「铁器」乘法叠加）。' },
+
     /* 城堡前置 = 工程学（engineeringT，纪元二第三层）。尤里卡 = 启用三槽政体
      * （autocracy/oligarchy/classical_republic，新 cond 'gov'，排除酋邦制 tribe 1 槽）。
      * 城堡(工坊升级 upg_castle) 解锁权写在工坊表。 */
@@ -532,6 +542,22 @@
       cond: { t: 'built', b: 'hydroturbine', n: 5 },
       eff: {},
       note: 'Civ6: Industrialization · 汽轮机五级，压力才谈得上被拿去利用。' },
+
+    /* ═══ ERA4 精铁·钢提速（用户 2026-10 设计）═══
+     * 海流锻钢：钢的产出乘区 steelMul（新键，economy 接线 2 行）。非 key。layer 4 ≤ thermo(L4)。
+     * 热泉回流：建筑原料效率 bldEff（新键，economy 接线 furnace+shop 原料×0.6）。
+     *   与「海流锻钢」分工 = 效率≠产出：海流锻钢放大钢产能，热泉回流让两栋建筑少耗原料（同产出）。
+     *   对热泉炉 = 砂矿+暖石各×0.6；对热液工坊 = 砂矿×0.6（热液能是 flow，其「效率」=steelMul，已另立）。
+     *   两者均非 key，不动纪元推进分母。layer 4 ≤ physics(L4)/thermo(L4)。 */
+    { id: 'hydrocarbur', name: '海流锻钢', icon: 'assets/tech-icons/era-4/era4-thermodynamics.png', era: 4, cost: 55000, branch: 'survive', key: false, reqs: ['thermo'], layer: 5,
+      cond: { t: 'built', b: 'hydroshop', n: 3 },
+      eff: { steelMul: 0.30 },
+      note: '用洋流的机械力锻打钢坯（海上版锻钢）。钢产出 ×1.30（新乘区 steelMul，与废钢锻造加法叠加）。' },
+
+    { id: 'ventrecir', name: '热泉回流', icon: 'assets/tech-icons/era-4/era4-physics.png', era: 4, cost: 45000, branch: 'survive', key: false, reqs: ['physics'], layer: 5,
+      cond: { t: 'built', b: 'furnace', n: 5 },
+      eff: { bldEff: -0.4 },
+      note: '更深热泉的循环工艺：热泉炉与热液工坊原料消耗 ×0.6（−40%），产能不变。热泉炉省砂矿+暖石、热液工坊省砂矿。' },
 
     { id: 'invert', name: '倒置搭建', icon: 'assets/tech-icons/era-4/era4-inverted-construction.png', era: 4, cost: 75000, branch: 'survive', key: true,
       reqs: ['physics'], layer: 5,
@@ -589,7 +615,81 @@
       reqs: ['abyssgeo', 'shellgeo'], layer: 7,
       cond: { t: 'wonders', ids: ['wonder_shellcutter', 'wonder_presspipe'] },
       eff: {},
-      note: 'Civ6: Skyscraper · 关键节点。建成天壳切削器 + 高压热机管道两座奇观。破壳纪收尾。' }
+      note: 'Civ6: Skyscraper · 关键节点。建成天壳切削器 + 高压热机管道两座奇观。破壳纪收尾。' },
+
+    /* ═════════ 纪元六 · 太空（10 项 · layer 8/9/10） ═════════
+     * 出壳之后的工业线。layer 全局 8/9/10（skydrill 是 L7，本纪元整体 +7）。
+     * 纪律：eff 只用受支持的 unlockBuild；其余解锁（配方/升级/奇观/工艺效果）走各自
+     *   `need` 字段 + 直接读 s.techs，不在 eff 里放没有消费者的死键。
+     * 成本量级对齐 era5 的 8万~15万，整段抬到 15万~80万（太空线更靠后）。 */
+    { id: 'minipump', name: '热液泵小型化', icon: 'assets/tech-icons/era-6/era6-minipump.png', era: 6, cost: 150000, branch: 'live', key: false, reqs: ['skydrill'], layer: 8,
+      cond: { t: 'rate', r: 'hydroSupply', n: 50 },
+      eff: {},
+      /* 解锁「工坊合成钛金板件」配方 craft_tiplate（need:'minipump' 双写一致）。
+       * 猫国口径：纯钛=冶炼产出，钛合金=工坊制造（钛作原料）；本作钛已存在（矿工伴生），
+       * 钛金板件是工坊用钛合成的制造料，不是首次引入钛。 */
+      note: '工坊解锁钛金板件配方（钛 50→1）。解锁钛金板件工具口。' },
+
+    { id: 'modpart', name: '可替换部件', icon: 'assets/tech-icons/era-6/era6-modpart.png', era: 6, cost: 150000, branch: 'live', key: false, reqs: ['skydrill'], layer: 8,
+      cond: { t: 'built', b: 'hotforge', n: 3 },
+      eff: { unlockBuild: ['tiplateStore'] },
+      /* 工坊区自动建造（读 s.techs.modpart）+ 钛金板件仓库（建筑，requiredTech 双写）。 */
+      note: '解锁工坊区自动建造 + 钛金板件仓库（材料仓储 +N/级）。' },
+
+    { id: 'chemistry', name: '化学', icon: 'assets/tech-icons/era-6/era6-chemistry.png', era: 6, cost: 400000, branch: 'know', key: true, reqs: ['modpart'], layer: 9,
+      cond: { t: 'wonders', ids: ['wonder_great_library', 'wonder_albada'] },
+      eff: { unlockBuild: ['researchlab'] },
+      /* 关键节点（科技线高潮）。研究实验室：+10%/级（软30/硬50 递减）科技产出 + 降科研消耗-2%/级。
+       * 学者→科学家（读 s.techs.chemistry，folk.jobName 同构于农民改名）。 */
+      note: '解锁研究实验室（每级+10%科技产出 软30/硬50 递减 + 科研消耗-2%/级，造价全钛金板件）；完成后学者改称科学家。关键节点。' },
+
+    { id: 'engraving', name: '刻纹腐蚀术', icon: 'assets/tech-icons/era-6/era6-engraving.png', era: 6, cost: 350000, branch: 'know', key: false, reqs: ['chemistry'], layer: 10,
+      cond: { t: 'res', r: 'tidalRecord', n: 1000 },
+      eff: {},
+      /* 潮纹记录制造消耗-20%（读 s.techs.engraving，workshop 成本端乘 0.8）。 */
+      note: '潮纹记录制造消耗 -20%。' },
+
+    { id: 'sealbin', name: '密闭水仓', icon: 'assets/tech-icons/era-6/era6-sealbin.png', era: 6, cost: 300000, branch: 'live', key: false, reqs: ['modpart', 'minipump'], layer: 9,
+      cond: { t: 'gathered', r: 'titanium', n: 200 },
+      eff: {},
+      /* 工艺物品封闭藻仓（craft_sealbin，need:'sealbin'）+ 温水藻场升级（upg_warmalgalfarm，need:'sealbin'）。 */
+      note: '工坊解锁工艺物品「封闭藻仓」（钛金板件+藻食）；解锁温水藻场升级（每级耗0.05热液能、不受季节、额外+0.5科技点，cost 300钛金板件+20w科技点）。' },
+
+    { id: 'refine', name: '精炼', icon: 'assets/tech-icons/era-6/era6-refine.png', era: 6, cost: 300000, branch: 'live', key: false, reqs: ['minipump'], layer: 9,
+      cond: { t: 'rate', r: 'warmstone', n: 100 },
+      eff: {},
+      /* 精铁(ironFlow)/钢(steelFlow/汽轮机) 暖石消耗-30%（读 s.techs.refine，economy 暖石扣减端乘 0.7）。
+       * ⚠️ 钛是矿工伴生、不吃暖石，旧「钛合金暖石-30%」是死效果，已删。 */
+      note: '生产精铁、钢的暖石消耗 -30%。' },
+
+    { id: 'specfuel', name: '特种燃料', icon: 'assets/tech-icons/era-6/era6-specfuel.png', era: 6, cost: 600000, branch: 'live', key: false, reqs: ['refine'], layer: 10,
+      cond: { t: 'tech', id: 'refine' },
+      eff: {},
+      /* 热液汽轮机暖石消耗-30%（读 s.techs.specfuel，hydroAlloc 暖石需求乘 0.7）。
+       * ⚠️ 尤里卡「完成精炼研究」= 前置同义（用户拍板不动），属冗余已知。 */
+      note: '热液汽轮机暖石消耗 -30%。' },
+
+    { id: 'exostruct', name: '壳外建筑', icon: 'assets/tech-icons/era-6/era6-exostruct.png', era: 6, cost: 800000, branch: 'live', key: true, reqs: ['sealbin'], layer: 10,
+      cond: { t: 'shell', n: 1 },
+      eff: {},
+      /* 关键节点（破壳后太空线终点）。星空观测站升级（upg_starscope，need:'exostruct'）：
+       * 天壳观测站→星空观测站，科技产出+40%、每 tick +1 星空探索（耗1热液能，可开关）；
+       * 深空探测手动按钮（耗热液能换星空探索）。星空探索 = 轻量版星图进度（星图系统晚点立项）。
+       * ⚠️ exostruct 只解锁星空探索资源显示（0/s）；实际产出由 upg_starscope 提供（economy.hydroAlloc 读 upgSum('starExplore') 判定）。 */
+      note: '解锁星空观测站升级（科技产出+40%、星空探索+1/tick、耗1热液能、可开关）+ 深空探测按钮。关键节点。' },
+
+    { id: 'hotforge_hammer', name: '热力锻锤', icon: 'assets/tech-icons/era-6/era6-hotforge-hammer.png', era: 6, cost: 350000, branch: 'live', key: false, reqs: ['minipump'], layer: 9,
+      cond: { t: 'built', b: 'hotforge', n: 5 },
+      eff: {},
+      /* 新自动工艺槽位（读 s.techs.hotforge_hammer，workshop.slotCap 加 1）。 */
+      note: '新自动工艺槽位 +1。' },
+
+    { id: 'modtrans', name: '现代化交通', icon: 'assets/tech-icons/era-6/era6-modtrans.png', era: 6, cost: 700000, branch: 'live', key: false, reqs: ['minipump'], layer: 10,
+      cond: { t: 'built', b: 'canal', n: 20 },
+      eff: {},
+      /* 奇观总物流站（wonder_logistics，need:'modtrans'）：王国潮道升级为鲛货两用物流管网，
+       * 与市政《城市设计》的全国快速物流通道互锁翻倍（互锁机制属批次3）。 */
+      note: '解锁奇观「总物流站」（王国潮道每级+1%工艺效率；若同时拥有全国快速物流通道则升级为鲛货两用物流管网、效果翻倍）。' }
   ];
 
   var BRANCHES = [

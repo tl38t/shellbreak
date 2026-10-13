@@ -12,6 +12,29 @@
   'use strict';
 
   var CFG = {
+    /* ---- 版本与更新日志（2026-10-11）----
+     * VERSION = 当前构建版本号；CHANGELOG = 最新在前的新增内容列表。
+     * 启动逻辑比对 meta.seenVersion：不一致就自动弹一次「更新内容」，随后记成当前版本。
+     * ⚠️ 版本号约定（用户 2026-10-11 拍板）：
+     *   - 格式 v0.MAJOR.MINOR，每次发版 +0.0.1（v0.1.2 → 下次 v0.1.3）。
+     *   - 每个自然日最多升一档（一天内多次改动只升一次版本号）。
+     *   - 升版时同步在 CHANGELOG 头部插一条，并 bump index.html 里 config.js 的 ?v=。 */
+    VERSION: 'v0.1.3',
+    CHANGELOG: [
+      { v: 'v0.1.3', date: '2026-10-13', items: [
+        '纪元六更名为「天外纪」并全面开放：新增 10 项科技——热液泵小型化、可替换部件、化学、刻纹腐蚀术、密闭水仓、精炼、特种燃料、壳外建筑、热力锻锤、现代化交通。',
+        '新增 10 项市政——大众传媒、博物学、宏观经济学、城市设计、考古学、意识形态、文明构造、神恩与威权、层级理论、权责对等；并解锁三种新政体（教权国 / 平等主义 / 联邦制）与三张新政策卡（大众传媒 / 博物馆管理 / 国家凝聚力）。',
+        '新增「公司」页签：完成《宏观经济学》后自动成立藻食、珊瑚两家公司，随时间从乡镇企业成长到全国性企业，提供对应资源产出加成；可单独关闭某家公司，重建后从乡镇企业重新开始。',
+        '新增终局资源「星空探索」：破壳后顶部的天壳条变为星空槽，从 0 被动累积至满槽 1,000 万——速率由文明推力（人口 / 建筑 / 科技 / 轮回增益）与星空观测站升级共同推高，可随时暂停；满槽即达成太空时代结局。'
+      ] },
+      { v: 'v0.1.2', date: '2026-10-11', items: [
+        '新增「更新日志」界面：页脚「排行榜」按钮旁可随时查看历史更新。',
+        '每次版本更新后，首次进入游戏自动弹出本次更新内容。',
+        '纪元三 / 四新增精铁与钢制造提速：黑烟囱炼铁（精铁产出 +25%）、海流锻钢（钢产出 +30%）、热泉回流（热泉炉与热液工坊原料消耗 −40%，产能不变）。',
+        '接入 TapTap 排行榜：最快凿穿冰壳 / 最快立教 / 综合发展分 / 入藏奇观数 / 轮回次数。',
+        '接入 TapTap 激励视频：观看广告可在当前所选档位上获得额外加速（竖屏）。'
+      ] }
+    ],
     // ---- 天壳 ----
     // 厚度不是随手填的：扫描得出 rational 10.65h / rush 9.80h，都落在 8-14h 带内中部。
     // 它不是「难度」，是「长度」——砍薄只会让玩家更快看到结局。
@@ -46,6 +69,7 @@
                            //   现有 0.6 以免静默改动全盘平衡，待用户拍板是否改回 0.25。
     FLOOR_AT: 0.25,       // 基础自动削壳停手线：卡在 25% 由天穹钻机（wonder）凿穿最后一段。
                           // 判定必须用 <=，否则会卡在 25% 的死锁
+    STAR_CAP: 10000000,   // 星空槽满槽目标（太空时代终局资源）：破壳后被动累积至此 ⇒ 太空时代达成。⚠️ 待标定。
 
   // ---- 广告加速（TapTap 激励视频）----
   // 看一次广告 = 当前所选档位再 ×MUL，持续 BOOST_MIN 分钟（墙钟真实时间，关游戏也在走）。
@@ -88,16 +112,18 @@
      *   「是否回填」，而 {} 也是 truthy ⇒ 会把未回填的榜当成已回填并发请求，
      *   报出 500001。与广告 SPACE_ID 那次是同构的坑（truthy 占位）。 */
     LB: {
-      fastest: '',       // 最快凿穿冰壳   time / asc  / best
-      firstFaith: '',    // 最快建立文明   time / asc  / best
-      dev: '',           // 综合发展分     numeric / desc / best
-      wonder: '',        // 入藏奇观数     numeric / desc / best
-      cycle: ''          // 轮回次数       numeric / desc / best
+      /* 2026-10-10 后台建榜后经 MCP list_leaderboards 实读回填（服务端真值，非截图 OCR）。
+         榜参数核对：周期均「不重置」⇔ 代码 calcType:best 语义一致。 */
+      fastest: 'vl1ankteasrn2ba0g3',    // 最快凿穿冰壳   time / asc  / best
+      firstFaith: '2obin1zkh91ss7lyac', // 最快立教（平台榜名仍「最快建立文明」） time / asc  / best
+      dev: 'v6y5wvn3daf1a9i7es',        // 综合发展分     numeric / desc / best
+      wonder: 'ljn2b6ppris2alrlji',     // 入藏奇观数     numeric / desc / best
+      cycle: 'dhkg9zq7in4m37vpos'       // 轮回次数       numeric / desc / best
     },
     /* 榜 -> 参数表。与 LB 平行维护，键必须对得上。 */
     MAP: {
       fastest:  { title: '最快凿穿冰壳', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
-      firstFaith: { title: '最快建立文明', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
+      firstFaith: { title: '最快立教', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
       dev:      { title: '综合发展分',   scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
       wonder:   { title: '入藏奇观',scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
       cycle:    { title: '轮回次数',     scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' }
@@ -136,6 +162,8 @@
       COLD: 1.35                  // 冰封期系数加成：壳越薄，文明越拼命
     },
     BREAK_BASE: 0.40,             // 点/秒 = BREAK_BASE × 系数
+    STAR_BASE: 1.5,               // 星空槽被动累积速率 = STAR_BASE × breakCoef（点/秒）；长终局≈数十小时填满 STAR_CAP，⚠️ 待标定
+    STAR_UPG_BONUS: 1,            // 每装一级星空观测站升级（upg_starscope）额外 +1/s（保留旧升级语义）
 
     // ---- 天穹钻机（ERA5 破壳终章，2026-10-02 实装）----
     // 基础自动削壳卡在 FLOOR_AT（25%）；凿穿最后 25% 的终章交给天穹钻机：
@@ -177,7 +205,10 @@
      *   CAP_BASE.warmstone（= SEASON_TICKS × WARM_RATE），否则「一季烧 600」的前提失效。
      * ⚠️ 表外资源（science）不给键 ⇒ 走 Infinity。科技不吃仓储是设计决定，
      *   capOf 用 `=== undefined` 判表外，所以「明写 0」与「缺键」是两件事。 */
-    CAP_BASE: { kelp: 200, coral: 600, stone: 400, silt: 200, warmstone: 600, iron: 200, titanium: 200, fuel: 300 },
+    CAP_BASE: { kelp: 200, coral: 600, stone: 400, silt: 200, warmstone: 600, iron: 200, titanium: 200, fuel: 300,
+      /* ERA6（2026-10 实装）：钛金板件有专属仓库（tiplateStore）⇒ 给上限键走 tiplate 专属分支；
+       *   星空探索是轻量累加资源，给上限键（提议 10000）走通用 matCap 路径。两者皆为提议值，待标定。 */
+      tiplate: 2000, starExplore: 10000000 },
 
     // ---- 族民 ----
     // 对齐猫国开局（js/village.js:3 kittens:0 / jobs 全 0，叙事上是 1 只猫）：
@@ -375,6 +406,14 @@
      *   满仓浪费判定现已对它生效；自动槽对 resonantDrill（吃 10 钛）的「满仓判定」也随之激活。
      *   ⚠️ 位置 = 定义顺序：放在 steel 之后，顶栏跟其他矿石扎堆；别挪回 ERA4 块（会掉到 faith 后面）。 */
     titanium:  { name: '钛', short: '钛', unlock: { tech: 'physics' } },
+    /* ERA6（2026-10 实装）：钛金板件 —— 工坊用钛合成的「壳外」制造料（对标猫国钛合金走工坊）。
+     *   有 CAP_BASE.tiplate 上限键（与 iron/silt 同档），走 capOf 的 tiplate 专属分支（类比 kelp 分支）。
+     *   解锁权双写：craft_tiplate 配方的 need:'minipump' 真读（与铁制支架/绳同构），科技侧 eff 留空不写死键。 */
+    tiplate:    { name: '钛金板件', short: '板', unlock: { tech: 'minipump' } },
+    /* ERA6（2026-10 实装）：星空探索 —— 轻量版「星图进度」替代资源（星图系统晚点立项）。
+     *   exostruct 解锁资源显示（0/s）；实际产出由星空观测站升级（upg_starscope）每 tick +1 提供，耗 1 热液能。
+     *   有 CAP_BASE.starExplore 上限键（提议 10000），走 capOf 通用 matCap 路径。 */
+    starExplore:{ name: '星空探索', short: '星', unlock: { tech: 'exostruct' } },
     /* 科技（科技点）：门控挂在「结绳」(writing) 上，而不是「书写」(scholarT)。
      * 学者职业由免费项结绳解锁、且科技面板在结绳完成时才开门——这正是玩家
      * 开始产出/消耗科技点的时点。若挂在 scholarT，整段前期（凿珊瑚/采石/种植/
@@ -494,7 +533,10 @@
      * 【共振钻头】由「天穹钻机」机器运行时消耗（每 tick 扣 0.1，见 wonder_skydrill 的机器逻辑占位）；
      *   工艺制品，对标石梁/钢制零件口径：不给 CAP_BASE 键（capOf 恒 Infinity，无仓储上限）、
      *   不给 UNIT 键（不按时产出，只能由工坊造）。unlock 挂在 shellgeo（天壳地质学，钻机的前置科技）。 */
-    resonantDrill: { name: '共振钻头', short: '钻', kind: 'craft', unlock: { tech: 'shellgeo' } }
+    resonantDrill: { name: '共振钻头', short: '钻', kind: 'craft', unlock: { tech: 'shellgeo' } },
+    /* ERA6（2026-10 实装）：封闭藻仓 —— 工艺物品（craft_sealbin 制造，need:'sealbin' 科技门）。
+     *   与石梁/铁制支架同口径：由工坊配方造出来、无 CAP_BASE 上限键（capOf 恒 Infinity）。 */
+    sealbin:    { name: '封闭藻仓', short: '舱', kind: 'craft', unlock: { tech: 'sealbin' } }
   };
 
   /* ── 工艺制作配方（2026-09-27 用户拍）───────────────────────────────
@@ -575,6 +617,19 @@
     { id: 'craft_tidal_record', name: '潮纹记录', needCivic: 'historiography',
       in: { science: 5000, steelPart: 10 }, out: 1, res: 'tidalRecord',
       desc: '把潮纹读成可传承的知识。历史哲学的造物之一。' },
+
+    /* ── ERA6 工艺制品（2026-10 实装 · 热液泵小型化 / 密闭水仓 解锁）──
+     * 【钛金板件】由「热液泵小型化」解锁（craft_tiplate 的 need:'minipump'）。纯钛 50 → 1 板件：
+     *   矿工伴生钛（upg_deepmine）是唯一来源，工坊把它压成「壳外」才用得上的结构件。
+     *   ⚠️ 钛已存在（ERA4 矿工伴生），本项**不是首次引入钛**——解锁的是工坊的「钛→板件」配方。
+     * 【封闭藻仓】由「密闭水仓」解锁（craft_sealbin 的 need:'sealbin'）。工艺物品（kind:'craft'），
+     *   是温水藻场升级（upg_warmalgalfarm）的制造前置。in 的量是提议值，待标定。 */
+    { id: 'craft_tiplate', name: '钛金板件', need: 'minipump',
+      in: { titanium: 50 }, out: 1, res: 'tiplate',
+      desc: '把钛压成壳外才用得上的结构件。每 50 钛出 1 板件。' },
+    { id: 'craft_sealbin', name: '封闭藻仓', need: 'sealbin',
+      in: { tiplate: 5, kelp: 200 }, out: 1, res: 'sealbin',
+      desc: '用钛金板件封住藻仓，存住温水藻场。温水藻场升级的材料。' },
 
     /* ── ERA5 工艺制品（2026-10-02 实装）──
      * 【共振钻头】天穹钻机机器运行时每 tick 消耗的耗材（wonder_skydrill 机器逻辑占位）。
@@ -681,7 +736,7 @@
       cost: { stone: 100, ironBracket: 50 },
       desc: '研究所升级：学者科技产出 +100%（每级合计 ×100%）。' },
     /* 城堡：need=城堡(科技)。效果：① 议价减耗（hallSaveMul 0.5，HALL_SAVE 每级 ×1.5、
-     *   软上限 ×1.5，走 getLimitedDR 边际递减，无硬封顶）；
+     *   软上限固定基础 50%、其它仓库叠加到最高 75%，走 getLimitedDR 边际递减）；
      *   ② 每级议事厅给所有有上限资源 +50 容量（castleCap 50），走 getLimitedDR 衰减。
      *   cost 50 石梁 + 50 硬化珊瑚。 */
     { id: 'upg_castle', name: '城堡', need: 'castle', upgradesBuilding: 'hall',
@@ -731,7 +786,25 @@
     { id: 'upg_wasteforge', name: '废钢锻造', need: 'highthermo',
       steelBonus: 0.20, ironBonus: 0.20,
       cost: { science: 120000, titanium: 100 },
-      desc: '把废钢重新锻入产线：精铁产出 +20%、钢产出 +20%。' }
+      desc: '把废钢重新锻入产线：精铁产出 +20%、钢产出 +20%。' },
+
+    /* ── ERA6 工艺升级两项（2026-10 实装）──
+     * 【星空观测站升级】need=壳外建筑（exostruct）。upgradesBuilding='observatory'：
+     *   天壳观测站就地升级为星空观测站，科技产出 +40%（obsSciBoost，走 obsSciMul），
+     *   并每 tick +1 星空探索（耗 1 热液能，可开关，见 economy.hydroAlloc 的 starDraw 累加）。
+     *   cost 为提议值（tiplate 300 + 科技 20 万），待标定。
+     * 【温水藻场升级】need=密闭水仓（sealbin）。效果：每级（× 藻场等级）额外 +0.5 科技/秒
+     *   （algalfarmSci 走 tick/rates 科学输出同式），不受季节、耗 0.05 热液能（季节/耗能在首版
+     *   简化为科学加成，其余维度待补）。cost 为提议值，待标定。 */
+    { id: 'upg_starscope', name: '星空观测站升级', need: 'exostruct', upgradesBuilding: 'observatory',
+      buildingDesc: '天壳观测站→星空观测站：科技产出 +40%、每 tick +1 星空探索（耗 1 热液能，可开关）。',
+      obsSciBoost: 0.40, starExplore: true,
+      cost: { tiplate: 300, science: 200000 },
+      desc: '观测站升级为星空观测站：科技产出 +40%，并开始积累星空探索。' },
+    { id: 'upg_warmalgalfarm', name: '温水藻场升级', need: 'sealbin',
+      algalfarmSci: 0.5,
+      cost: { tiplate: 300, science: 200000 },
+      desc: '温水藻场：每级（× 藻场等级）额外 +0.5 科技/秒，不受季节、耗 0.05 热液能（首版简化为科学加成）。' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
@@ -905,7 +978,26 @@
     { id: 'wonder_congress', name: '国会大厦', era: 5, needCivic: 'socialscience',
       cost: { scaffold: 600, steelPart: 400 },
       effect: { happyConsume: 0.10 },
-      desc: '立法的丰碑：鲛人幸福度消耗 −10%。' }
+      desc: '立法的丰碑：鲛人幸福度消耗 −10%。' },
+
+    /* ── ERA6 奇观（2026-10 实装 · 现代化交通 解锁）──
+     * 【总物流站】need=现代化交通（modtrans，尤里卡=王国潮道 20 级）。
+     *   效果：王国潮道每级 +1% 工艺效率（craftRatio 加法乘区，economy 读 wonder.owned +
+     *   lvl.canal 乘 BLD.canalCraft，见 workshop.craftRatio）。
+     *   ⚠️ 与市政《城市设计》「全国快速物流通道」互锁翻倍 —— 那条跨模块互锁属批次 3，
+     *   本版只落基础 +1%/级，互锁待补。cost 为提议值，待标定。 */
+    { id: 'wonder_logistics', name: '总物流站', era: 6, need: 'modtrans',
+      cost: { tiplate: 500, scaffold: 200 },
+      effect: { canalCraft: 0.01 },
+      desc: '王国潮道每级 +1% 工艺效率（与市政《城市设计》互锁翻倍待批次 3）。' },
+    /* 【全国快速物流通道】needCivic=城市设计（urbandesign）。
+     *   效果：王国潮道每级 +1% 精铁 / 钢产能（canalCraftIronSteel 加法乘区，economy 读 wonder.nationalLogisticsMul）。
+     *   ⚠️ 与总物流站（wonder_logistics）互锁翻倍：同时拥有总物流站时，本效果 ×2（鲛货两用物流管网）。
+     *   cost 为提议值，待标定。 */
+    { id: 'wonder_national_logistics', name: '全国快速物流通道', era: 6, needCivic: 'urbandesign',
+      cost: { tiplate: 500, scaffold: 200 },
+      effect: { canalCraftIronSteel: 0.01 },
+      desc: '王国潮道每级 +1% 精铁/钢产能（同时拥有总物流站则翻倍）。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。
@@ -1150,6 +1242,16 @@
      *    下一个人会以为「采集倍率通道还在、只是建筑没建」。
      *    ⇒ 采集侧现在只有 T.gather（科技）与 perk.gather 两条来源，没有建筑级乘区。 */
     house: 2, house2: 4, houseBase: 1, fuel: 0.010,
+    /* ── ERA6（2026-10 实装）新常数 ──
+     * researchLabSci：科研所每级给科技产出 +10%（乘区，与 sciRatio / instituteSci 同型，
+     *   只是对象换成 researchlab 建筑等级；读 tick 与 rates 两处，两处逐字同构）。
+     *   ⚠️ 0.10 为**提议值，待标定**。
+     * researchLabSave / researchLabSaveMax：科研所每级让研究科技消耗 −2%，合计不超过
+     *   researchLabSaveMax（防成本翻负）。读 tech.study / tech.studyBlocked（扣费与「够不够」
+     *   判定共用同一折扣入口，避免按钮灰错的断链）。
+     * tiplateCap：钛金板件仓每级给钛金板件上限 +500（走 capOf 的 tiplate 专属分支，类比 kelpCap）。
+     *   ⚠️ 500 为**提议值，待标定**。 */
+    researchLabSci: 0.10, researchLabSave: 0.02, researchLabSaveMax: 0.90, tiplateCap: 500,
     /* siltBonus：砂矿坑对**矿工金属产出**的加成（+20%/级）。
      * 2026-09-26 金属归位（对齐猫国）：砂矿坑不再自动产金属，改吃这条——
      * 1 + lvl.siltpit × siltBonus 乘进矿工的 silt 产出（economy.js 矿工那两行），
@@ -1281,7 +1383,7 @@
      *   从「议事厅」改写成「城堡」——**等级、造价曲线、建造动作全是同一条**，只是名字与
      *   每级效果升级了（render 读 `s.upgrades.upg_castle` 切名，见 ui/render.js）。
      *   ⇒ 不存在「议事厅退役」这回事，也就**不需要** `retiredBy` 字段。 */
-    { id: 'hall',     name: '议事厅',   ratio: 1.20, cost: {stone: 80, coral: 60}, desc: '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级',
+    { id: 'hall',     name: '议事厅',   ratio: 1.75, cost: {stone: 80, coral: 60}, desc: '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级',
       requiredTech: ['masonry'] },
 
     /* ---- 食物三旋钮（猫国 pasture / aqueduct / barn 的对应物）----
@@ -1570,7 +1672,7 @@
       cost: { stone: 200, rope: 100 },
       desc: '每季节判定一次：获得任意时产资源「等级 × 1 分钟」产量；每级另减 1% 居民奢侈品消耗。',
       requiredCivic: 'explore' },
-    { id: 'museum', name: '博物馆', ratio: 1.15,
+    { id: 'museum', name: '博物馆', ratio: 2.5,
       cost: { stone: 400 },
       desc: '官员（书手）市政点产出 +20%。',
       requiredCivic: 'enlightenment' },
@@ -1602,7 +1704,20 @@
       requiredCivic: 'sharksong' },
     { id: 'tenement', name: '廉租社区', ratio: 3, cost: { scaffold: 50, steel: 100 },
       desc: '人口上限 +10/级（由 popCap 读）。',
-      requiredCivic: 'urbanization' }
+      requiredCivic: 'urbanization' },
+    /* ── ERA6（2026-10 实装）两座新建筑 ──
+     * 钛金板件仓（modpart 解锁，requiredTech 与科技 eff.unlockBuild 双写一致，见 e2e「建筑解锁来源」三断言）：
+     *   钛金板件的**专属仓储**（capOf 走 tiplate 专属分支，tiplateCap 每级 +500）。
+     *   ⚠️ 造价 { steel + tiplate } 为**提议值，待标定**（tiplate 是 ERA6 才出现的结构件，量级照 era5 高阶料）。
+     * 科研所（chemistry 解锁，双写一致）：
+     *   每级科技产出 +10%（researchLabSci，tick/rates 同式），且使研究科技消耗 −2%/级（researchLabSave，
+     *   由 tech.study 读）。造价全 tiplate（提议值，待标定）。 */
+    { id: 'tiplateStore', name: '钛金板件仓', ratio: 1.15, cost: { steel: 100, tiplate: 50 },
+      desc: '钛金板件上限 +500/级（走 capOf 专属分支）。',
+      requiredTech: ['modpart'] },
+    { id: 'researchlab', name: '科研所', ratio: 1.15, cost: { tiplate: 200 },
+      desc: '科技产出 +10%/级（researchLabSci）；研究科技消耗 −2%/级（researchLabSave）。',
+      requiredTech: ['chemistry'] }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -1653,7 +1768,10 @@
      *   数的「市政区合计等级 50」理应把它算进去）。 */
     school: 'academy', theater: 'civic',
     /* 廉租社区（2026-10-07 用户拍板）：就放礁栖核心（住房类，与巢/珊瑚屋同区）。 */
-    tenement: 'core'
+    tenement: 'core',
+    /* ERA6（2026-10 实装）：钛金板件仓归贸易区域（仓储类，与海藻仓/压舱仓同区）；
+     *   科研所归学术区（科研类，与潮纹馆/研究所同区）。改分区只动这张表。 */
+    tiplateStore: 'trade', researchlab: 'academy'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';

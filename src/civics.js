@@ -262,31 +262,83 @@
      *   调它 = 标定，会动整局时长，当前未做总时长核算 ⇒ 暂不调。
      * 【layer】渊潜鲛歌/工业化配给 1，社会科学/城市化 2，国民动员 3（与 era2/era3 同形）。
      * 【鼓舞类型】zoneLvl / gathered / total / pop / wonders —— 全部是 tech.condMet 已支持的现成类型，无新 cond。 */
-    { id: 'sharksong', name: '渊潜鲛歌', cost: 80000, era: 5, layer: 1, reqs: ['enlightenment'],
+    { id: 'sharksong', name: '渊潜鲛歌', icon: 'assets/civic-icons/era-5/era5-sharksong.png', cost: 80000, era: 5, layer: 1, reqs: ['enlightenment'],
       boost: { t: 'zoneLvl', zone: 'civic', n: 50 },
       wonder: 'wonder_shadow_theater', building: 'theater',
       desc: '解锁奇观「夏\'多桑大剧院」（+5 市政点/秒、+1 政策卡槽），以及建筑「歌剧院」。',
       note: '鼓舞：市政区建筑合计等级达 50。' },
-    { id: 'rationing', name: '工业化配给', cost: 90000, era: 5, layer: 1, reqs: ['enlightenment'],
+    { id: 'rationing', name: '工业化配给', icon: 'assets/civic-icons/era-5/era5-rationing.png', cost: 90000, era: 5, layer: 1, reqs: ['enlightenment'],
       boost: { t: 'gathered', r: 'steel', n: 10000 },
       card: 'card_rationing',
       desc: '解锁政策卡「工业化配给」「政治经济学」。',
       note: '鼓舞：累计钢产量达 10000。' },
-    { id: 'socialscience', name: '社会科学', cost: 110000, era: 5, layer: 2, reqs: ['sharksong'],
+    { id: 'socialscience', name: '社会科学', icon: 'assets/civic-icons/era-5/era5-socialscience.png', cost: 110000, era: 5, layer: 2, reqs: ['sharksong'],
       boost: { t: 'total', n: 300 },
       wonder: 'wonder_congress',
       desc: '解锁奇观「国会大厦」（鲛人幸福度消耗 −10%）。',
       note: '鼓舞：建筑总等级达 300。' },
-    { id: 'urbanization', name: '城市化', cost: 120000, era: 5, layer: 2, reqs: ['rationing'],
+    { id: 'urbanization', name: '城市化', icon: 'assets/civic-icons/era-5/era5-urbanization.png', cost: 120000, era: 5, layer: 2, reqs: ['rationing'],
       boost: { t: 'total', n: 510 },
       card: 'card_logistics', building: 'tenement',
       desc: '解锁建筑「廉租社区」、政策卡「基础物流建设」。',
       note: '鼓舞：建筑总等级达 510。' },
-    { id: 'mobilization', name: '国民动员', cost: 150000, era: 5, layer: 3, reqs: ['socialscience', 'urbanization'],
+    { id: 'mobilization', name: '国民动员', icon: 'assets/civic-icons/era-5/era5-mobilization.png', cost: 150000, era: 5, layer: 3, reqs: ['socialscience', 'urbanization'],
       boost: { t: 'wonders', ids: ['wonder_shellcutter', 'wonder_presspipe'] },
       card: 'card_heat_priority',
       desc: '解锁政策卡「热能优先」「总动员令」。',
-      note: '鼓舞：建成奇观「天壳切削器」与「高压热机管道」。' }
+      note: '鼓舞：建成奇观「天壳切削器」与「高压热机管道」。' },
+
+    /* ══ ERA6 市政（2026-10-12 用户规格表 · 实装）══
+     * 已拍板设计：意识形态门槛 = 累计市政产出 ≥ 900000（lifetimeCulture，tech.condMet 新类型）；
+     *   幸福度新 3 档由 massmedia 门控（economy.happyTier）；博物馆建筑 ratio 2.5 已在 config 改；
+     *   文明构造本轮回 +20% 轮回点已在 prestige.doBreak 接；公司系统由 macroeconomics 触发（game.maybeCompanyFound）。
+     * ⚠️【cost 为提议值，未标定】量级对齐 era6 顺延，待用户拍板。 */
+    { id: 'massmedia', name: '大众传媒', icon: 'assets/civic-icons/era-6/era6-massmedia.png', cost: 200000, era: 6, layer: 1,
+      reqs: ['mobilization'], boost: { t: 'built', b: 'tenement', n: 3 },
+      card: 'card_massmedia',
+      desc: '解锁政策卡「大众传媒」；拓展幸福度等级（兴盛/繁荣/黄金时代）。',
+      note: '鼓舞：廉租社区达 3 级。' },
+    { id: 'naturalhistory', name: '博物学', icon: 'assets/civic-icons/era-6/era6-naturalhistory.png', cost: 220000, era: 6, layer: 1,
+      reqs: ['mobilization'], boost: { t: 'built', b: 'museum', n: 3 },
+      card: 'card_museum',
+      desc: '解锁政策卡「博物馆管理」；每轮回给艺术品效果 +10%（×1+0.1×cycle）。',
+      note: '鼓舞：博物馆达 3 级。' },
+    { id: 'macroeconomics', name: '宏观经济学', icon: 'assets/civic-icons/era-6/era6-macro.png', cost: 320000, era: 6, layer: 2,
+      reqs: ['massmedia'], boost: { t: 'built', b: 'bank', n: 3 },
+      desc: '解锁「公司」标签（藻食/珊瑚两家自动成立，见 game.maybeCompanyFound）。',
+      note: '鼓舞：银行达 3 级。' },
+    { id: 'urbandesign', name: '城市设计', icon: 'assets/civic-icons/era-6/era6-urbandesign.png', cost: 340000, era: 6, layer: 2,
+      reqs: ['massmedia'], boost: { t: 'built', b: 'canal', n: 20 },
+      desc: '解锁奇观「全国快速物流通道」（王国潮道每级 +1% 精铁/钢产能，与总物流站互锁翻倍）。',
+      note: '鼓舞：王国潮道达 20 级。' },
+    { id: 'archaeology', name: '考古学', icon: 'assets/civic-icons/era-6/era6-archaeology.png', cost: 300000, era: 6, layer: 2,
+      reqs: ['naturalhistory'], boost: { t: 'cycle', n: 3 },
+      desc: '艺术品制造消耗 −20%（craft_artwork 造价 ×0.8，见 workshop.craftCostMul）。',
+      note: '鼓舞：轮回数达 3 周目。' },
+    { id: 'ideology', name: '意识形态', icon: 'assets/civic-icons/era-6/era6-ideology.png', cost: 380000, era: 6, layer: 2,
+      reqs: ['massmedia', 'naturalhistory'], boost: { t: 'lifetimeCulture', n: 900000 },
+      card: 'card_national_solidarity',
+      desc: '解锁政策卡「国家凝聚力」。',
+      note: '鼓舞：累计市政产出达 900000。' },
+    { id: 'civilization', name: '文明构造', icon: 'assets/civic-icons/era-6/era6-civilization.png', cost: 500000, era: 6, layer: 3,
+      reqs: ['archaeology'], boost: { t: 'cycle', n: 7 },
+      desc: '本次轮回，破壳结算轮回点 +20%（prestige.doBreak）。',
+      note: '鼓舞：轮回数达 7 周目。' },
+    { id: 'theo_merit', name: '神恩与威权', icon: 'assets/civic-icons/era-6/era6-theomerit.png', cost: 420000, era: 6, layer: 3,
+      reqs: ['ideology'], boost: { t: 'civic', id: 'ideology' },
+      gov: 'theo_state',
+      desc: '解锁政体「教权国」（7 政策卡槽，所有建筑每级 +1 信仰/秒）；采用时弹窗命名、城堡更名「圣座居所」。',
+      note: '鼓舞：完成市政「意识形态」。' },
+    { id: 'egalitarianism', name: '层级理论', icon: 'assets/civic-icons/era-6/era6-egalitarianism.png', cost: 440000, era: 6, layer: 3,
+      reqs: ['ideology'], boost: { t: 'civic', id: 'ideology' },
+      gov: 'egalitarianism',
+      desc: '解锁政体「平等主义」（7 政策卡槽，每名鲛人 +0.1% 工坊/热液/矿井产出）；采用时弹窗命名、城堡更名「人民大厅」。',
+      note: '鼓舞：完成市政「意识形态」。' },
+    { id: 'federalism', name: '权责对等', icon: 'assets/civic-icons/era-6/era6-federalism.png', cost: 460000, era: 6, layer: 3,
+      reqs: ['ideology'], boost: { t: 'civic', id: 'ideology' },
+      gov: 'federalism',
+      desc: '解锁政体「联邦制」（7 政策卡槽，+10% 科技/市政产出、鲛人食物消耗 −10%）；采用时弹窗命名、城堡更名「国会」。',
+      note: '鼓舞：完成市政「意识形态」。' }
   ];
 
   /* 槽位类型。Civ6 是 军事 / 经济 / 外交 / 万能；本作按约束 §2 砍掉军事（没有军事单位）、
@@ -362,7 +414,22 @@
       desc: '5 个万能政策卡槽；幸福度消耗 −30%。' },
     { id: 'theocracy', name: '神权政体', slots: { wild: 3, relig: 1 }, effect: {},
       faithPerAcademy: 1, faithPerCivic: 0.5,
-      desc: '3 万能槽 + 1 宗教槽；每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰。' }
+      desc: '3 万能槽 + 1 宗教槽；每级学术区建筑 +1 faith、每级市政区建筑 +0.5 信仰。' },
+
+    /* ══ ERA6 政体（2026-10-12 用户规格 · 由《神恩与威权》《层级理论》《权责对等》各解锁一条）══
+     * 三个都是 7 万能槽（e2e 槽数断言已随多卡槽升维放开）。效果非平坦：
+     *   theo_state 每建筑 +1 信仰/秒（faithPerBuilding）；egalitarianism 每鲛人 +0.1% 工坊/热液/矿井
+     *   （craftPerPop/hydroPerPop/minePerPop）；federalism +10% 科技&市政、鲛人食物 −10%
+     *   （civicOutMul/sciOutMul/mermanFoodMul）。采用即生效，没采用 = 0。 */
+    { id: 'theo_state', name: '教权国', slots: { wild: 7 }, effect: {},
+      faithPerBuilding: 1,
+      desc: '7 个政策卡槽；所有建筑每级 +1 信仰/秒。' },
+    { id: 'egalitarianism', name: '平等主义', slots: { wild: 7 }, effect: {},
+      craftPerPop: 0.001, hydroPerPop: 0.001, minePerPop: 0.001,
+      desc: '7 个政策卡槽；每名鲛人 +0.1% 工坊效率 / +0.1% 热液能产出 / +0.1% 矿井产出。' },
+    { id: 'federalism', name: '联邦制', slots: { wild: 7 }, effect: {},
+      civicOutMul: 1.1, sciOutMul: 1.1, mermanFoodMul: 0.10,
+      desc: '7 个政策卡槽；科技与市政产出 +10%，鲛人食物消耗 −10%。' }
   ];
 
   /* 政策卡。effect 同样是平坦加值/秒，且**只有在卡槽里装着它时才生效**。
@@ -476,7 +543,19 @@
       /* 闲置鲛人每提供 1% 破壳速度（shellSpeedPerIdle）。⚠️ 天穹钻机机器态（wonder_skydrill 的运转速度）
        *   尚未实装，此效果通道暂挂起——字段预留、不接读数函数，等机器态落地再接线。 */
       shellSpeedPerIdle: 0.01,
-      desc: '每点闲置鲛人提供 1% 破壳速度（待天穹钻机机器态实装后生效）。' }
+      desc: '每点闲置鲛人提供 1% 破壳速度（待天穹钻机机器态实装后生效）。' },
+
+    /* ── ERA6 政策卡（2026-10-12 用户规格）──
+     * 字段沿用既有通道：civicPerPop / luxConsumeMul（大众传媒卡）、museumMul（博物馆管理卡）、craftRatio（国家凝聚力卡）。 */
+    { id: 'card_massmedia', name: '大众传媒', civic: 'massmedia', type: 'prod', effect: {},
+      civicPerPop: 0.5, luxConsumeMul: 0.5,
+      desc: '每名鲛人 +0.5 市政点/秒；但奢侈品消耗 +50%。' },
+    { id: 'card_museum', name: '博物馆管理', civic: 'naturalhistory', type: 'prod', effect: {},
+      museumMul: 2,
+      desc: '博物馆效果翻倍（书手市政点 +40% 而非 +20%）；艺术品效果随轮回额外放大。' },
+    { id: 'card_national_solidarity', name: '国家凝聚力', civic: 'ideology', type: 'prod', effect: {},
+      craftRatio: 0.80,
+      desc: '工坊效率 +80%（取代「职业行会」的 +40%）。' }
   ];
 
   function byId(id) { for (var i = 0; i < CIVICS.length; i++) if (CIVICS[i].id === id) return CIVICS[i]; return null; }
@@ -609,8 +688,21 @@
     var cd = policyById('card_enlightenment');
     return (cd && typeof cd.templeFaithMul === 'number') ? cd.templeFaithMul : 1;
   }
-  /* 博物馆建筑：官员（书手）市政点产出 +20%（museumCivicMul，flat）。economy.cultureRate 的 scribe 段读。 */
-  function museumCivicMul(s) { return (s.lvl.museum || 0) >= 1 ? 1.20 : 1; }
+  /* 博物馆建筑：官员（书手）市政点产出 +20%（museumCivicMul，flat）。economy.cultureRate 的 scribe 段读。
+   * ERA6：① 博物学完成后，艺术品效果随轮回 +10%/cycle（落点同为博物馆的市政加成，语义=博物馆即艺术展示口）；
+   *   ② 博物馆管理卡装着时 effect.museumMul(2) 让博物馆效果翻倍。两者乘法叠加。 */
+  function museumCivicMul(s) {
+    var m = (s.lvl.museum || 0) >= 1 ? 1.20 : 1;
+    if (s.civics && s.civics.naturalhistory) {
+      var _cyc = (SB.game && SB.game.meta) ? (SB.game.meta().cycle || 0) : 0;
+      m *= (1 + 0.10 * _cyc);
+    }
+    if (cardSlotted(s, 'card_museum')) {
+      var cd = policyById('card_museum');
+      m *= (cd && typeof cd.museumMul === 'number') ? cd.museumMul : 1;
+    }
+    return m;
+  }
   /* 行政部门：书手（官员）市政点产出 +50%（scribeCivicMul，flat，叠加在 museum 之上）。 */
   function scribeCivicMul(s) {
     var c = byId('department');
@@ -662,6 +754,62 @@
       else if (_z === 'civic') cv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
     }
     return a * g.faithPerAcademy + cv * (g.faithPerCivic || 0);
+  }
+
+  /* ── ERA6（2026-10-12 实装）· 各动态效果读数 ──
+   * 统一纪律：只读 s.cards / s.gov / s.civics，没装/没采用 = 返回基准值，绝不污染产线。 */
+
+  /* 大众传媒卡：每名鲛人 +0.5 市政点/秒（绝对量，加在 cultureRate 末尾）。economy.cultureRate 读。 */
+  function civicPerPop(s) {
+    if (!cardSlotted(s, 'card_massmedia')) return 0;
+    var cd = policyById('card_massmedia');
+    var per = (cd && typeof cd.civicPerPop === 'number') ? cd.civicPerPop : 0;
+    return per * (s.pop || 0);
+  }
+  /* 大众传媒卡：奢侈品消耗 +50%（返回加在 (1+...) 因子上的量）。economy.happyBurn / tick 的 _D 读。 */
+  function cardLuxConsumeMul(s) {
+    if (!cardSlotted(s, 'card_massmedia')) return 0;
+    var cd = policyById('card_massmedia');
+    return (cd && typeof cd.luxConsumeMul === 'number') ? cd.luxConsumeMul : 0;
+  }
+  /* 教权国：所有建筑每级 +1 信仰/秒（绝对量，加在 faithRate 末尾）。仅采用该政体时生效。 */
+  function faithPerBuildingBonus(s) {
+    var g = govById(s.gov);
+    if (!g || typeof g.faithPerBuilding !== 'number') return 0;
+    var lv = 0, _i;
+    if (SB.BUILDINGS) for (_i = 0; _i < SB.BUILDINGS.length; _i++)
+      lv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
+    return lv * g.faithPerBuilding;
+  }
+  /* 平等主义：每名鲛人 +0.1% 工坊效率（加法乘区，叠进 govCraftRatio）。 */
+  function govCraftPerPop(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.craftPerPop === 'number') ? g.craftPerPop * (s.pop || 0) : 0;
+  }
+  /* 平等主义：每名鲛人 +0.1% 热液能产出（乘在 hydroAlloc 的 supply 上，返回乘区基准 1）。 */
+  function govHydroPerPop(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.hydroPerPop === 'number') ? 1 + g.hydroPerPop * (s.pop || 0) : 1;
+  }
+  /* 平等主义：每名鲛人 +0.1% 矿井产出（叠进 mineTaxMul，tick/rates 同源，返回乘区基准 1）。 */
+  function govMinePerPop(s) {
+    var g = govById(s.gov);
+    var m = (g && typeof g.minePerPop === 'number') ? g.minePerPop * (s.pop || 0) : 0;
+    return 1 + m;
+  }
+  /* 联邦制：科技/市政产出 +10%（乘区，与 cardOutMul 同乘区相乘返回基准 1）。 */
+  function govCivicOutMul(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.civicOutMul === 'number') ? g.civicOutMul : 1;
+  }
+  function govSciOutMul(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.sciOutMul === 'number') ? g.sciOutMul : 1;
+  }
+  /* 联邦制：鲛人食物消耗 −10%（返回减耗比例，foodUse 乘以 (1 − 此值)）。 */
+  function govMermanFoodMul(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.mermanFoodMul === 'number') ? g.mermanFoodMul : 0;
   }
   /* 历史哲学：ERA1/2/3 的奇观每座 +5 市政点获取（wonderEraCivic 字段，绝对值/秒）。
    * 仅当《历史哲学》完成后生效。economy.cultureRate 读。 */
@@ -965,7 +1113,7 @@
    *      · luxuryMul 是商人行的**乘区**（与马具 toolMul 独立相乘）；
    *      · happyBonus 是幸福度的**常驻偏移量**（剥掉上一帧偏移再算机制值，防漂移）。
    *    都只读当前政体（govById(s.gov)），没采用 = 返回 0/1，绝不参与运算。 */
-  function govCraftRatio(s) { var g = govById(s.gov); return g && typeof g.craftRatio === 'number' ? g.craftRatio : 0; }
+  function govCraftRatio(s) { var g = govById(s.gov); return (g && typeof g.craftRatio === 'number' ? g.craftRatio : 0) + govCraftPerPop(s); }
   /* ⚠️ 政策卡的 craftRatio（2026-09-30 用户拍：技艺卡 = 工坊效率 +20%）。
    * 与 govCraftRatio 同一条加法乘区、同一纪律：数据在政策卡表、读在这里，
    * **装在卡槽里才生效**（没装 = 0），多个槽逐槽相加（可装多张带 craftRatio 的卡，叠加）。
@@ -995,6 +1143,28 @@
       if (!_zb || _zb.zone !== 'core') return 1;
     }
     return 1 - g.buildSave;
+  }
+
+  /* ERA6（2026-10-12 实装）：三个新政体（教权国 / 平等主义 / 联邦制）采用时弹窗让玩家起名，
+   *   政体显示名 = 玩家起的名 + 后缀；城堡随政体更名（圣座居所 / 人民大厅 / 国会）。
+   *   ⚠️ 这套只认这三个 id，其它政体（酋邦制 / 独裁 / 寡头 / 古典共和 / 神权）不沾，
+   *       它们的名字就是数据里的 name，没有「玩家起名」这一步。 */
+  var GOV_TITLE_SUFFIX = { theo_state: '教权国', egalitarianism: '联盟', federalism: '联邦' };
+  var GOV_CASTLE_NAME  = { theo_state: '圣座居所', egalitarianism: '人民大厅', federalism: '国会' };
+  function govTitleSuffix(id) { return GOV_TITLE_SUFFIX[id] || ''; }
+  /* 政体面板 / 顶栏用的「显示名」：新政体且已起名 ⇒ 玩家名 + 后缀；否则数据 name。 */
+  function govTitleName(s) {
+    var g = govById(s.gov);
+    if (!g) return '酋邦制';
+    var suf = GOV_TITLE_SUFFIX[s.gov];
+    if (suf && s.govName && s.govName.trim()) return s.govName.trim() + suf;
+    return g.name;
+  }
+  /* 城堡显示名覆盖：当前政体是新政体之一 ⇒ 返回新名（render 在「城堡/议事厅」之外再判这一层）；
+   *   其它政体 ⇒ 返回 null，沿用默认的城堡/议事厅。 */
+  function castleDisplayName(s) {
+    if (s.gov && GOV_CASTLE_NAME[s.gov]) return GOV_CASTLE_NAME[s.gov];
+    return null;
   }
 
   /* 换卡 blocked 文案。与科技 studyBlocked 同口径：要指得出**该做什么**。
@@ -1143,6 +1313,14 @@
     var fee = govCost(s);
     if (s.gov !== null && fee > 0) s.res.culture -= fee;
     s.gov = id;
+    /* ERA6（2026-10-12）：采用三个新政体之一且尚未起名 ⇒ 弹窗命名（采用 = 命名时机，
+     *   与用户规格「采用时弹窗命名、更名为 XX 教权国/联盟/联邦」一致）。无 DOM 环境
+     *   （e2e 沙箱）直接跳过，govName 留空不报错。采用其它政体不触发。 */
+    if ((id === 'theo_state' || id === 'egalitarianism' || id === 'federalism')
+        && !(s.govName && s.govName.trim())
+        && SB.game && SB.game.maybeGovNamingPopup) {
+      SB.game.maybeGovNamingPopup(s, id);
+    }
     ensureCards(s);                              // 换政体 ⇒ 槽数变 ⇒ s.cards 按 index 截断/补 null
     if (emit) emit(s.gov === null
       ? '政体已撤回。'
@@ -1300,6 +1478,12 @@
     cardCivicOutMul: cardCivicOutMul, cardSciOutMul: cardSciOutMul,
     cardHydroMul: cardHydroMul, cardHappyOffset: cardHappyOffset,
     theoFaithBonus: theoFaithBonus, wonderEraCivicBonus: wonderEraCivicBonus,
-    wonderReligSlots: wonderReligSlots, wonderCivicSlots: wonderCivicSlots
+    wonderReligSlots: wonderReligSlots, wonderCivicSlots: wonderCivicSlots,
+    /* ERA6（2026-10-12 实装）效果读数出口。 */
+    civicPerPop: civicPerPop, cardLuxConsumeMul: cardLuxConsumeMul, faithPerBuildingBonus: faithPerBuildingBonus,
+    govHydroPerPop: govHydroPerPop, govMinePerPop: govMinePerPop, govCraftPerPop: govCraftPerPop,
+    govCivicOutMul: govCivicOutMul, govSciOutMul: govSciOutMul, govMermanFoodMul: govMermanFoodMul,
+    /* ERA6（2026-10-12 实装）：三个新政体的「玩家起名 + 城堡更名」读数出口。 */
+    govTitleSuffix: govTitleSuffix, govTitleName: govTitleName, castleDisplayName: castleDisplayName
   };
 })(typeof window !== 'undefined' ? window : globalThis);

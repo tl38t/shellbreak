@@ -19,7 +19,10 @@
      *   oldTideStelesEarnedTotal 旧日潮纹碑石累计获得总数（固定科技点/秒，递减曲线） */
     return { tide: 0, spent: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null,
       religionSeen: false, shopUnlocked: false,
-      oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0 };
+      oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
+      /* 更新日志：上次看过弹窗的版本号。空串 = 从未看过 ⇒ 首次进入会弹。
+       * 存 meta（跨周目保留），软重置不触发重复弹；清空存档会归零 ⇒ 重装后还会弹一次。 */
+      seenVersion: '' };
   }
   function emptyPerks() {
     /* 轮回商店增益的运行时累加表。键必须与 config.PERKS 各商品的 apply 键一致；
@@ -128,7 +131,12 @@
          *   与石梁/铁制支架同口径 —— 由工坊配方造出来、成批消耗、无 CAP_BASE 上限键
          *   （capOf 自动 Infinity）。这里只 seed 初始台账，漏键的后果是 addRes 把资源池染成 NaN
          *   （与上面那条同源事故）。got 台账不记工艺制品，故不进 got（见 stoneBeam 那条口径）。 */
-        artwork: 0, tidalRecord: 0, resonantDrill: 0 },
+        artwork: 0, tidalRecord: 0, resonantDrill: 0,
+        /* ERA6（2026-10 实装）：钛金板件 / 星空探索 / 封闭藻仓。seed 只防 addRes 漏键染 NaN
+         *   （与上面那条同源事故）。tiplate 有 CAP_BASE 上限键（capOf 走 tiplate 专属分支）；
+         *   starExplore / sealbin 无上限键 ⇒ capOf 恒 Infinity（starExplore 走了通用 matCap 路径，
+         *   sealbin 是工艺制品，与石梁同口径）。 */
+        tiplate: 0, starExplore: 0, sealbin: 0 },
       /* lvl 的键必须与 SB.BUILDINGS 的 id 一一对应（quarry 已随「采石场改职业」移除）。
        * ⚠️ 漏一个键 = 一次 NaN 事故：`undefined * 0.12` 经 addRes 的 Math.min
        * 污染资源池，再顺着 lvlSum 污染破壳系数。与「加职业漏加表」「存档缺键」同类。 */
@@ -178,7 +186,10 @@
         hotforge: 0, school: 0,
         /* ERA5（2026-10-02）：歌剧院（sharksong 解锁）/ 廉租社区（urbanization 解锁）。
          *   漏键 = costOf 读到 undefined ⇒ 全表造价 NaN / 读档静默丢（与上面每一条同源）。 */
-        theater: 0, tenement: 0 },
+        theater: 0, tenement: 0,
+        /* ERA6（2026-10 实装）：钛金板件仓库（modpart 解锁）/ 研究实验室（chemistry 解锁）。
+         * 漏键 = costOf 读到 undefined ⇒ 全表造价 NaN / 读档静默丢（与上面每一条同源）。 */
+        tiplateStore: 0, researchlab: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * SB.UNIT.kelp` 变成
@@ -285,7 +296,9 @@
         steel: 0, hydro: 0, steelPart: 0,
         /* ERA4（2026-09-30）：钛 / 脚手架累计产出台账，与 res 那批同口径 seed。 */
         titanium: 0, scaffold: 0,
-        faith: 0, luxury: 0 },
+        faith: 0, luxury: 0,
+        /* ERA6（2026-10 实装）：与 res 那批同口径 seed，防 addRes 漏键染 NaN。 */
+        tiplate: 0, starExplore: 0, sealbin: 0 },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
        *   civBoost —— 鼓舞条件**达成过**的台账（与技术树的 eurekaMet 同构：
@@ -303,6 +316,26 @@
       cards: [],            // 政策卡槽（数组，逐槽；2026-09-29 由 s.card 单值升维）
       card: null,          // 第 0 号槽镜像（旧代码/回归读方便，非事实来源）
       religionName: '',     // 玩家给信仰起的名字（空 = 未命名；神学解锁后可改，无消耗）
+      /* ERA6 市政（2026-10 实装）—— 意识形态门槛 / 政体命名 / 公司系统所需的顶层字段：
+       *   lifetimeCulture —— 累计市政点**产出**（不是存量，存量采纳时已被消费）。
+       *       意识形态「累计市政产出 ≥ 900000」读它，用 `||0` 兜底（旧档无此键 = 0）。
+       *   govName —— 玩家给当前政体起的名字（空 = 未命名；选 3 个新政府之一且空则弹窗起名）。
+       *   companyNames —— 已成立公司的固定名（行业 res → 名，写存档不刷新）。空 = 宏观经济学未解锁。
+       *       逐家成立时刻 / 关闭态见 companyState（2026-10-13 改「单独关闭」后拆出）。 */
+      lifetimeCulture: 0,
+      govName: '',
+      /* ERA6（2026-10-13 改「单独关闭」）：公司系统逐家状态，键 = 行业 res。
+       *   { kelp: {epoch, closed}, coral: {epoch, closed} }
+       *   epoch —— 该公司成立时刻（s.t 逻辑秒）。0 = 尚未成立。>0 才判等级 / 奢侈加成。
+       *   closed —— 是否已被玩家主动解散（单独关闭）。true = 已解散（不自动复建，需手动「重建」）。
+       *   关闭后重新「重建」该公司 ⇒ 重设成立时刻 ⇒ 从乡镇企业（tier 0）重新开始成长。
+       * ⚠️ 顶层字段，由 companies.js 的 SB.companyState(s, res) 读写（含旧档迁移）。 */
+      companyState: {},
+      companyNames: {},
+      /* ERA6（2026-10-12）：星空观测站升级（upg_starscope）的「可开关」状态。
+       *   装了升级默认开（true）；关掉则星空探索停止累加（把热液能让给炼钢）。
+       *   `!== false` 判据 ⇒ 旧档无此键（undefined）一律视为开，向后兼容、不会误关。 */
+      starScopeOn: true,
       /* 政策卡槽**人生第一次**装填过没有。
        * ⚠️ 它不能省：换卡收费若按「槽当前空不空」判，「拔下→再装填」就能无限免费换效果。
        *    一次性标记才堵得住。见 civics.cardBlocked 那条注。 */
@@ -337,6 +370,7 @@
       upgrades: {},
       famine: 0,
       broken: false,
+      starComplete: false,   // 星空槽满槽（太空时代达成）标记；仅占位结算，无机制奖励（2026-10-13）
       /* 点击时间事件的临时全产 buff（信仰显圣）：墙钟毫秒戳，globalMul 读它判定是否仍在生效。
        * 默认 0（已过期）。不进离线补算的真值、不污染存档迁移（migrateRun 以 freshRun 为底座，自动带出）。
        * 独立 RNG 之外、事件系统唯一需要落进状态表的字段——因为它要改 economy.globalMul 这条产出主轴。 */
@@ -537,6 +571,7 @@
       }
       out.techs[nid] = true;
     }
+    out.techVer = (out.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约（迁移写入 s.techs 后失效旧缓存）
     /* 政策卡槽升维（2026-09-29）：s.card 单值 → s.cards 数组。
      * ⚠️ 老档只有 `card`（单值）⇒ 迁成 `cards: [card]`（装在第 0 号槽）。
      *    新档直接有 `cards` ⇒ 原样保留。两者都没有 ⇒ 空数组。

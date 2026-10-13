@@ -250,6 +250,9 @@
       /* `religion` —— **已建立宗教**（ERA4 市政《归正会》的鼓舞条件）。
        * ⚠️ 宗教状态存 s.religionName（玩家命名即建立，见 state.js）；空串 = 未建立。 */
       case 'religion': return !!(s.religionName);
+      /* `civic` —— **已完成某项市政**（ERA6 层级理论/神恩与威权/权责对等 的鼓舞条件「完成意识形态」）。
+       * ⚠️ 查 s.civics[id]（research 置位），与 reqs 同源；reqs 已要求该市政，这里只作揭示门控。 */
+      case 'civic': return !!(s.civics && s.civics[c.id]);
       /* `zoneLvl` —— **某个建筑分区的合计等级**（2026-09-30 ERA3 市政鼓舞）。
        * ⚠️ 分区归属唯一来源是 config 的 BUILD_ZONE_OF（已经挂在每座建筑的 .zone 上），
        *    这里逐座建筑对 zone 求和，不许另写一份「分区名 → 建筑 id 清单」——
@@ -261,6 +264,16 @@
           if (SB.BUILDINGS[_bi].zone === c.zone) _zn += (s.lvl[SB.BUILDINGS[_bi].id] || 0);
         }
         return _zn >= c.n;
+      }
+      /* `lifetimeCulture` —— **累计市政产出 ≥ n**（ERA6 意识形态市政的 boost 条件）。
+       * ⚠️ 查累计量 s.lifetimeCulture（economy.js 在 culture 产出行同 dt 累加），
+       *    不是存量 s.res.culture（采纳市政时被消费，存量会归零 ⇒ 不能用）。 */
+      case 'lifetimeCulture': return (s.lifetimeCulture || 0) >= c.n;
+      /* `cycle` —— **轮回数 ≥ n**（ERA6 考古学 cycle≥3 / 文明构造 cycle≥7 的 boost 条件）。
+       * ⚠️ 读 SB.game.meta().cycle（跨周目累计的全局轮回计数）；未加载 game 时返回 false 静默降级。 */
+      case 'cycle': {
+        var _meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+        return !!_meta && (_meta.cycle || 0) >= c.n;
       }
       default: return false;
     }
@@ -332,6 +345,13 @@
           if (SB.BUILD_ZONES[_zk].id === c.zone) _znName = SB.BUILD_ZONES[_zk].name;
         return { txt: _znName + '建筑合计等级 ' + _zn2 + ' / ' + c.n, now: _zn2, need: c.n };
       }
+      /* lifetimeCulture / cycle 的「还差多少」，与 condMet 同口径。 */
+      case 'lifetimeCulture': return { txt: '累计市政产出 ' + Math.floor(s.lifetimeCulture || 0) + ' / ' + c.n, now: s.lifetimeCulture || 0, need: c.n };
+      case 'cycle': {
+        var _meta2 = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+        var _cyc = _meta2 ? (_meta2.cycle || 0) : 0;
+        return { txt: '轮回数 ' + _cyc + ' / ' + c.n, now: _cyc, need: c.n };
+      }
       case 'shell': {
         var _br = (SB.shell && SB.shell.brokenRatio) ? SB.shell.brokenRatio(s) : 0;
         return { txt: '破壳达到 ' + (_br * 100).toFixed(0) + '%', now: _br, need: c.n };
@@ -343,6 +363,7 @@
         }
         return { txt: '建成奇观（' + _wNames(_wa) + '）', now: _wn, need: _wa.length };
       }
+      case 'civic': return { txt: '完成市政「' + c.id + '」', now: (s.civics && s.civics[c.id]) ? 1 : 0, need: 1 };
     }
     return null;
   }
@@ -420,7 +441,7 @@
        * 结绳的 cost 是 0，而 canStudy 对 cost 为 0 的项直接返回 false
        * （`!t.cost` 那条守卫本意是挡「无成本项白送」，零成本科技同样被挡），
        * 于是它永远研究不了；可 scholarT 又拿它当 reqs，整条求知线断掉。 */
-      if (t.free) s.techs[t.id] = true;
+      if (t.free) { s.techs[t.id] = true; s.techVer = (s.techVer | 0) + 1; }   // ⚠️ tech.mul 缓存契约
       got.push(t);
     }
     return got;
@@ -457,6 +478,7 @@
       if (!t.free || s.techs[t.id] || !s.eureka[t.id]) continue;
       if (condMet(s, t.cond)) { s.techs[t.id] = true; n++; }
     }
+    if (n > 0) s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
     return n;
   }
 
@@ -531,16 +553,27 @@
      * 而卡片上条件行还写着进度，两者合起来才是完整的一句「你还差什么」。 */
     if (!metOf(s, t)) return '尤里卡未达成：达成条件后才能研究';
     if (!reqsMet(s, t)) return '缺少前置科技：' + t.reqs.map(function (r) { return byId(r).name; }).join('、');
-    if (!SB.economy.enough(s.res.science, t.cost)) return '科技点不足：现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(t.cost);
+    if (!SB.economy.enough(s.res.science, researchCost(s, t))) return '科技点不足：现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(researchCost(s, t));
     return null;
+  }
+
+  /* ERA6（2026-10 实装）：科研所（researchlab）每级让研究科技消耗 −2%（researchLabSave），
+   *   合计不超过 researchLabSaveMax（防成本翻负）。扣费与「够不够」判定共用此入口，避免按钮灰错。 */
+  function researchCost(s, t) {
+    var disc = ((s.lvl && s.lvl.researchlab) || 0) * ((SB.BLD && SB.BLD.researchLabSave) || 0);
+    if (!(typeof disc === 'number' && isFinite(disc))) disc = 0;
+    var cap = (SB.BLD && SB.BLD.researchLabSaveMax) || 0;
+    if (disc > cap) disc = cap;
+    return t.cost * (1 - disc);
   }
 
   /* 即时扣费研究（用户拍板）。返回 true 表示本次真的掌握。 */
   function study(s, id, emit) {
     if (!canStudy(s, id)) return false;
     var t = byId(id);
-    s.res.science -= t.cost;
+    s.res.science -= researchCost(s, t);
     s.techs[id] = true;
+    s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
     if (emit) emit('研究完成：' + t.name + '（' + effectText(t) + '）');
     return true;
   }
@@ -572,7 +605,8 @@
     fuel: '地热产出', smelt: '金属→精铁',
     farm: '采集者藻食产出', coef: '破壳系数',
     house: '人口上限', kelpCap: '藻食上限', craftRatio: '工艺制作效率',
-    warmMul: '暖石产出', titaniumMul: '钛产出'
+    warmMul: '暖石产出', titaniumMul: '钛产出',
+    steelMul: '钢产出', bldEff: '原料消耗'
   };
   function effectText(t) {
     var e = t.eff || {}, out = [], k;
@@ -708,6 +742,9 @@
         return _zoneName + '建筑合计等级 ' + c.n;
       }
       case 'wonders': return '建成奇观（' + _wNames(c.ids || []) + '）';
+      case 'lifetimeCulture': return '累计市政产出 ' + c.n;
+      case 'cycle': return '轮回数 ' + c.n + ' 周目';
+      case 'civic': return '完成市政「' + c.id + '」';
     }
     return '';
   }
@@ -721,8 +758,17 @@
    *   散读的坏处是「加了科技但忘了接线」——研究完什么都没发生，还查不出来。
    * 乘区默认 1、加区默认 0，未掌握的键就默认等价于「无效果」。 */
   function mul(s) {
+    /* ⚠️ 2026-10-13 性能：按 techVer 记忆化（离线补算诊断 sim/_hoist-probe.mjs 实测）。
+     *   本函数每次全表扫 TECHS 并新建对象，而 economy.tick 一拍会经由 coldSeasonMul /
+     *   foodRate / foodUse / ironFlow / steelFlow 间接调用 12 次（14.6µs/tick ≈ 全 tick 1/3）。
+     *   缓存键 = s.techVer：s.techs 的**全部**写入点（study / settleFree / discover 免费项 /
+     *   habitat 兜底 study / state.migrateRun）都必须自增它——新增写入点漏 bump = 乘区静默变旧，
+     *   这条契约写在这里。ver 不变 ⇒ 同一 tick 内 12 次调用共享同一份结果，数学逐位一致。
+     *   ⚠️ 返回对象已冻结：调用方一律只读，谁改写谁当场抛错（loud > silent）。 */
+    var ver = s ? (s.techVer | 0) : -1;
+    if (s && s._mulC && s._mulC.ver === ver) return s._mulC.m;
     var T = SB.TECHS || [], m = {
-      gather: 1, food: 1, sci: 1, craft: 1, fuel: 1, smelt: 1,
+      gather: 1, food: 1, sci: 1, craft: 1, fuel: 1, smelt: 1, steelMul: 1, bldEff: 1,
       /* farm ——「种植」的藻食产出乘区（默认 1，种植给 +50%）。
        * 它**只作用于职业侧**（economy.foodRate 的 byJob），不碰建筑侧的藻场：
        * 「采集者变成农民」说的是那个人变能干了，不是那片藻田变能干了。
@@ -743,6 +789,7 @@
         m[k] = ADD[k] ? m[k] + e[k] : m[k] * (1 + e[k]);
       }
     }
+    if (s) { Object.freeze(m); s._mulC = { ver: ver, m: m }; }
     return m;
   }
 

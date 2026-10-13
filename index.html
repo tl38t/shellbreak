@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=137" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=138" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -59,7 +59,7 @@
   <div class="card" id="card-env" data-page-node-id="Qt6uTfn92BgbfljGBJcAXF">
     <div class="cardhd" data-fold="env" style="--hc:#a78bfa" title="点击折叠 / 展开"><span class="cv">▾</span>自然环境</div>
     <div class="shellbar" data-page-node-id="eynVQQUb0BxQL8DGBH7d94">
-      <span data-page-node-id="bc4bEQ2I69f1zi5HW9nok7">天壳 · 冰封层厚度</span>
+      <span id="shellLbl" data-page-node-id="bc4bEQ2I69f1zi5HW9nok7">天壳 · 冰封层厚度</span>
       <span id="shellTxt" data-page-node-id="IVUYeiy2RdxuRqCHPwPrny"></span>
     </div>
     <div class="shellwrap" data-page-node-id="WyCg3jiyRbnXHXsZ0AMT8P"><div class="shellfill" id="shellFill" style="width:100%" data-page-node-id="M0LEEsFsp1Glfe5fCUzIMn"></div></div>
@@ -77,6 +77,11 @@
             状态签名（开/关 × 寒流季/非 × 烧/不烧）变化时才重写 innerHTML，
             库存数字走 textContent 单独刷。否则「按下与抬起之间元素被换掉」的那次点击会丢。 -->
     <div class="row envsplit" id="envWarm" data-page-node-id="EnvWarm01"></div>
+    <!-- 星空观测站开关（2026-10-12 用户拍板「可开关」）：装了 upg_starscope 才显示。
+         ⚠️ 与 #envWarm / #envDrill 同一套纪律：持久容器 + 状态签名节流（renderStar 只在
+            签名变化时重写 innerHTML，按钮在位不丢点击）；星空探索速率走 textContent 单独刷。
+         ⚠️ 关掉 ⇒ 星空探索暂停累加、把热液能让给炼钢；开着（默认）则 +1/s 耗 1 热液能。 -->
+    <div class="row envsplit" id="envStar" style="display:none" data-page-node-id="EnvStar01"></div>
   </div>
   </div>
 
@@ -93,6 +98,8 @@
     <div class="tab locked" id="tab-faith" data-tab="faith" title="研究「神学」后开启" data-page-node-id="FaithTab01Faith">信仰<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('faith')" title="这是什么？">?</button></div>
     <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-page-node-id="WrkTab01Workshop">工坊<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？">?</button></div>
     <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-page-node-id="WdrTab01Wonder">奇观<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？">?</button></div>
+    <!-- 公司页签（ERA6 市政《宏观经济学》解锁）：与科技/市政并列，门 = 拥有《宏观经济学》。 -->
+    <div class="tab locked" id="tab-company" data-tab="company" title="研究「宏观经济学」后开启" data-page-node-id="CmpTab01Company">公司<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('company')" title="这是什么？">?</button></div>
     <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl">轮回商店<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？">?</button></div>
   </div>
 
@@ -110,6 +117,11 @@
   </div>
   <div class="card hidden" id="pane-workshop" data-page-node-id="PaneWrk01Workshop"></div>
   <div class="card hidden" id="pane-wonder" data-page-node-id="PaneWdr01Wonder"></div>
+  <!-- 公司页（ERA6 市政《宏观经济学》解锁）：静态标题 + 可重写正文 #pane-company-body（仿信仰页，避免 2 秒刷新冲掉标题）。 -->
+  <div class="card hidden" id="pane-company" data-page-node-id="PaneCmp01Company">
+    <div class="cardhd" data-fold="company" style="--hc:#6fa8dc" title="点击折叠 / 展开"><span class="cv">▾</span>公司</div>
+    <div id="pane-company-body"></div>
+  </div>
   <div class="card hidden" id="pane-meta" data-page-node-id="OsoF8zzJJXG46B5FmuHcwv"></div>
 
   <div class="card" data-page-node-id="v486295fD7Ww5xIRjRWFIF">
@@ -119,6 +131,8 @@
         <button class="btn ad-toggle on" id="btnAdToggle" data-page-node-id="AdToggle01" title="开关 2× 加速（关着时剩余时间不流逝）">2× 加速 开</button>
         <span class="ad-remain" id="adRemain" data-page-node-id="AdRemain01">无加速</span>
       </span>
+      <button class="btn" id="btnRank" data-page-node-id="RankBtn01View" title="查看 TapTap 排行榜（最快凿穿冰壳 / 最快立教 / 综合发展分 / 入藏奇观数 / 轮回次数）">排行榜</button>
+      <button class="btn" id="btnChangelog" data-page-node-id="ChgLog01View" title="查看游戏更新日志（本次及历史更新内容）">更新日志</button>
       <button class="btn" id="btnReset" data-page-node-id="RstBtn01Reset">重开本周目</button>
       <button class="btn danger" id="btnWipe" data-page-node-id="WipeBtn01Danger">清空存档</button>
       <span id="clock" style="margin-left:auto;color:var(--dim);font-size:12px" data-page-node-id="1A5pLAjiAdlCtbmGV6OJtE"></span>
@@ -137,30 +151,33 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=136"></script>
+<script src="src/config.js?v=148"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=108"></script>
-<script src="src/tech.js?v=101"></script>
+<script src="src/techs.js?v=112"></script>
+<script src="src/tech.js?v=106"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics.js?v=107"></script>
-<script src="src/state.js?v=113"></script>
-<script src="src/workshop.js?v=97"></script>
-<script src="src/wonder.js?v=98"></script>
-<script src="src/economy.js?v=129"></script>
+<script src="src/civics.js?v=109"></script>
+<!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
+     必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
+<script src="src/companies.js?v=4"></script>
+<script src="src/state.js?v=121"></script>
+<script src="src/workshop.js?v=99"></script>
+<script src="src/wonder.js?v=100"></script>
+<script src="src/economy.js?v=140"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=1"></script>
-<script src="src/shell.js?v=97"></script>
-<script src="src/habitat.js?v=100"></script>
-<script src="src/folk.js?v=97"></script>
-<script src="src/prestige.js?v=106"></script>
-<script src="src/ui/render.js?v=153"></script>
-<script src="src/game.js?v=114"></script>
-<script src="src/ui/input.js?v=110"></script>
+<script src="src/shell.js?v=98"></script>
+<script src="src/habitat.js?v=101"></script>
+<script src="src/folk.js?v=98"></script>
+<script src="src/prestige.js?v=107"></script>
+<script src="src/ui/render.js?v=164"></script>
+<script src="src/game.js?v=124"></script>
+<script src="src/ui/input.js?v=114"></script>
 <script src="src/ui/theme.js?v=1"></script>
 <script src="src/ui/background.js?v=2"></script>
 <script src="src/ad.js?v=3"></script>

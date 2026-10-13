@@ -105,12 +105,33 @@
     if (emit) emit('冰壳裂开了。');
   }
 
+  /* 星空槽推进（2026-10-13 镜像破壳：破壳后把「破壳槽」翻转为「星空槽」）。
+   * 破壳前（!s.broken）或已达成（s.starComplete）或玩家暂停（starScopeOn===false）直接 return。
+   * 速率来自 economy.starRate（= STAR_BASE × breakCoef + 升级加成），按 dt 累加、cap 到 STAR_CAP。
+   * 满槽 ⇒ 置 s.starComplete（只触发一次）+ 调 render.showStarComplete 弹占位结算面板。 */
+  function tickStar(s, dt, emit) {
+    if (!s || !s.broken || s.starComplete) return;
+    if (s.starScopeOn === false) return;
+    var rate = (SB.economy && SB.economy.starRate) ? SB.economy.starRate(s) : 0;
+    if (!(rate > 0)) return;
+    var cap = SB.CFG.STAR_CAP || 0;
+    var cur = s.res.starExplore || 0;
+    var next = Math.min(cap, cur + rate * dt);
+    s.res.starExplore = next;
+    if (cap > 0 && next >= cap) {
+      s.starComplete = true;
+      if (emit) emit('星空槽已填满——太空时代达成。');
+      if (SB.ui && SB.ui.render && SB.ui.render.showStarComplete) SB.ui.render.showStarComplete(s);
+    }
+  }
+
   SB.shell = {
     techCount: techCount,
     breakCoef: breakCoef,
     brokenRatio: brokenRatio,
     autoRate: autoRate,
     tickShell: tickShell,
+    tickStar: tickStar,
     onShellZero: onShellZero
   };
 })(typeof window !== 'undefined' ? window : globalThis);

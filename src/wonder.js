@@ -63,6 +63,35 @@
     }
     return m;
   }
+  /* ⑪ 总物流站（wonder_logistics）：王国潮道每级 +1% 工艺制作效率（effect.canalCraft）。
+   *   与市政《城市设计》互锁翻倍待批次 3。读 effect.canalCraft × lvl.canal，与上面各源同加法乘区。 */
+  function logisticsCraftRatio(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      var c = (L[i].effect && L[i].effect.canalCraft) || 0;
+      if (c) m += c * ((s.lvl && s.lvl.canal) || 0);
+    }
+    return m;
+  }
+
+  /* ⑬ 全国快速物流通道（ERA6 · 市政《城市设计》解锁1）：王国潮道每级 +1% 精铁 / 钢产能
+   *    （effect.canalCraftIronSteel × lvl.canal，加法乘区；与总物流站的工艺效率同源但落点不同——
+   *     那条进 craftMul、这条进 iron/steel 的产出那一段）。
+   *    ⚠️ 与总物流站（wonder_logistics）互锁：若同时拥有总物流站，则本效果翻倍
+   *        （「鲛货两用物流管网」——总物流站本来只给工艺效率，这里借它的管网把铁钢产能也带起来）。
+   *    ⚠️ 落点：economy 的 iron / steel 产出（tick 与 rates 两路都进，保证面板===结算）。
+   *        读 effect.canalCraftIronSteel，别在 economy 散读 s.wonders（纪律③）。 */
+  function nationalLogisticsMul(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      var c = (L[i].effect && L[i].effect.canalCraftIronSteel) || 0;
+      if (c) m += c * ((s.lvl && s.lvl.canal) || 0);
+    }
+    if (m > 0 && o.wonder_logistics) m *= 2;  // 与总物流站互锁翻倍
+    return m;
+  }
 
   /* ② 各**材料**仓储 +200。
    * ⚠️ 只加给材料，不加石梁 —— 石梁是无上限资源（用户拍），给它加 200 是没有意义的操作。
@@ -248,6 +277,7 @@
   SB.wonder = {
     list: list, byId: byId, owned: owned, count: count,
     wonderCraftRatio: wonderCraftRatio, matMaxBonus: matMaxBonus,
+    logisticsCraftRatio: logisticsCraftRatio, nationalLogisticsMul: nationalLogisticsMul,
     civicBonus: civicBonus, globalBonus: globalBonus,
     libBonus: libBonus, oneShot: oneShot,
     abbeyFaithMul: abbeyFaithMul, bazaarLuxMul: bazaarLuxMul,

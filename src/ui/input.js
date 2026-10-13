@@ -264,6 +264,26 @@
       toggleSkydrill(SB.game.run());
       return;
     }
+    if (d.starscope) {
+      toggleStarScope(SB.game.run());
+      return;
+    }
+    if (d.companyClose) {
+      /* data-company-close="kelp" ⇒ d.companyClose === 'kelp'：只解散这一家。 */
+      if (SB.closeCompany && SB.closeCompany(SB.game.run(), d.companyClose)) {
+        SB.game.markDirty(); SB.game.renderAll();
+        SB.game.log('已关闭 ' + d.companyClose + ' 公司：其产出加成与奢侈品消耗加成停止，其他公司不受影响。');
+      }
+      return;
+    }
+    if (d.companyRebuild) {
+      /* data-company-rebuild="coral" ⇒ d.companyRebuild === 'coral'：只重建这一家。 */
+      if (SB.rebuildCompany && SB.rebuildCompany(SB.game.run(), d.companyRebuild)) {
+        SB.game.markDirty(); SB.game.renderAll();
+        SB.game.log('已重建 ' + d.companyRebuild + ' 公司：从乡镇企业重新开始成长。');
+      }
+      return;
+    }
     if (d.perk) {
       if (SB.prestige.buyPerk(d.perk)) {
         SB.game.markDirty(); SB.game.renderAll();
@@ -353,6 +373,18 @@
     if (s.skydrillOn) s.skydrillStarved = false;
     SB.game.markDirty(); SB.game.renderAll();
     SB.game.log(s.skydrillOn ? '天穹钻机启动：共振钻头与热液能就位后开始凿壳。' : '天穹钻机已停机。');
+    return true;
+  }
+
+  /* ── 星空槽 暂停 / 恢复（2026-10-13 镜像破壳后终局资源）────────
+   * 闸门 = 已破壳（s.broken）。破壳前星空槽不存在，按钮不出现（renderShell 也只在 broken 后显示槽）。
+   * 关掉 ⇒ 星空槽暂停被动累积（文明推力不再往星空槽灌）；开着（默认）则持续累积到 STAR_CAP。
+   * **只记账，不结算**——真正生效取决于下一 tick 的 shell.tickStar（与暖石开关同纪律）。 */
+  function toggleStarScope(s) {
+    if (!s || !s.broken) return false;
+    s.starScopeOn = (s.starScopeOn === false);   // undefined/true → false；false → true
+    SB.game.markDirty(); SB.game.renderAll();
+    SB.game.log(s.starScopeOn ? '星空观测站启用：星空槽恢复被动累积。' : '星空观测站已停用：星空槽暂停累积。');
     return true;
   }
 

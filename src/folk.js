@@ -29,10 +29,13 @@
    * 两处分开是为了让「显示为农民」和「产得更多」不会互相牵连：换了名字但没研究种植时，
    * 显示仍是采集者，产出也不该变。 */
   var FARM_JOB = 'gather', FARM_TECH = 'plant', FARM_NAME = '农民';
+  /* ERA6（2026-10 实装）：化学（chemistry）掌握后，学者改称「科学家」（与农民对称同构）。 */
+  var SCHOLAR_JOB = 'scholar', SCHOLAR_TECH = 'chemistry', SCHOLAR_NAME = '科学家';
   function jobName(s, jid) {
     var base = (SB.JOBS || []).filter(function (x) { return x.id === jid; })[0];
     var n = base ? base.name : jid;
     if (jid === FARM_JOB && s && s.techs && s.techs[FARM_TECH]) n = FARM_NAME;
+    if (jid === SCHOLAR_JOB && s && s.techs && s.techs[SCHOLAR_TECH]) n = SCHOLAR_NAME;
     return n;
   }
 

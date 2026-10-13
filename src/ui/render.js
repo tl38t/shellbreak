@@ -13,7 +13,7 @@
 
   /* 页签 / 面板键顺序（也是 renderPanes 的遍历顺序）。faith 紧挨 civic：
    *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'meta'];
+  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'company', 'meta'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
@@ -261,28 +261,64 @@
 
   function renderShell() {
     var s = res(); if (!s) return;
-    var p = SB.economy.rOf(s) * 100;
-    var f = el('shellFill');
-    f.style.width = Math.max(0, p) + '%';
-    f.className = 'shellfill' + (SB.economy.isCold(s) ? ' cold' : '');
-    el('shellTxt').innerHTML =
-      Math.round(s.shell) + ' / ' + s.iceShell + '（' + p.toFixed(1) + '%）' +
-      (SB.economy.isCold(s) ? ' <span class="coldbadge">· 本季冰封</span>' : '');
-    var hint = '基础削壳持续中：系数越高削得越快，族民、建筑、科技都在推高它。';
-    if (SB.economy.rOf(s) <= CFG.FLOOR_AT) {
-      hint = '壳已薄到下限，基础削壳停手——建成「天穹钻机」后，在下方这行启动它凿穿最后一段。';
+    var f = el('shellFill'), txt = el('shellTxt'), hint = el('shellHint');
+    /* 破壳后：破壳槽 → 星空槽（太空时代终局资源，2026-10-13 镜像破壳）。
+     * 复用同一条 shellbar（#shellFill/#shellTxt/#shellHint），内容换成星空累积进度。 */
+    if (s.broken) {
+      var cap = SB.CFG.STAR_CAP || 0;
+      var cur = s.res.starExplore || 0;
+      var p = cap > 0 ? (cur / cap) * 100 : 0;
+      f.style.width = Math.max(0, Math.min(100, p)) + '%';
+      f.className = 'shellfill';
+      /* 卡片标题跟着翻转（2026-10-13 截图验证发现：条改了、标题还挂「天壳 · 冰封层厚度」）。 */
+      var lbl = el('shellLbl');
+      if (lbl) lbl.textContent = '星空 · 深空探索进度';
+      if (s.starComplete) {
+        txt.innerHTML = '★ 太空时代达成 <span class="cap">（' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '）</span>';
+        hint.textContent = '星空槽已填满。太空时代完成——后续终局内容待接入。';
+      } else {
+        txt.innerHTML = '星空槽 ' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '（' + p.toFixed(2) + '%）';
+        hint.textContent = '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积，满槽即太空时代达成。'
+          + (s.starScopeOn === false ? '（已暂停：点下方开关恢复）' : '');
+      }
+      return;
     }
-    /* ⚠️ 冻伤出口在 2026-09-26 换过轴：原来是「建暖壳石」，现在是「开暖石开关」，
-     *    提示语要跟着走，否则玩家在新存档里翻遍建筑页也找不到防冻的路。
-     * ⚠️ 2026-09-27 冰封期本身也换过轴：原来是「壳薄到 25% 就永久挨冻」，现在是
-     *    「每个寒流季开局掷一次骰」。玩家必须能看见这个概率，否则「这季怎么突然冻了」
-     *    读不出来 —— 概率按**当前壳厚**算，壳越薄越容易中（线性、封顶 33%）。 */
-    if (SB.economy.isCold(s)) hint += ' 本季冰封：全局产出 ×0.6，族民会冻伤（拨开暖石开关即可免）。';
+    /* 破壳前：原有天壳条逻辑 */
+    var lbl0 = el('shellLbl');
+    if (lbl0) lbl0.textContent = '天壳 · 冰封层厚度';
+    var p2 = SB.economy.rOf(s) * 100;
+    f.style.width = Math.max(0, p2) + '%';
+    f.className = 'shellfill' + (SB.economy.isCold(s) ? ' cold' : '');
+    txt.innerHTML =
+      Math.round(s.shell) + ' / ' + s.iceShell + '（' + p2.toFixed(1) + '%）' +
+      (SB.economy.isCold(s) ? ' <span class="coldbadge">· 本季冰封</span>' : '');
+    var hint2 = '基础削壳持续中：系数越高削得越快，族民、建筑、科技都在推高它。';
+    if (SB.economy.rOf(s) <= CFG.FLOOR_AT) {
+      hint2 = '壳已薄到下限，基础削壳停手——建成「天穹钻机」后，在下方这行启动它凿穿最后一段。';
+    }
+    if (SB.economy.isCold(s)) hint2 += ' 本季冰封：全局产出 ×0.6，族民会冻伤（拨开暖石开关即可免）。';
     if (!SB.economy.isCold(s)) {
-      hint += ' 冰封期在每个寒流季开局掷一次，壳越薄越容易中——按现在的壳厚是 ' +
+      hint2 += ' 冰封期在每个寒流季开局掷一次，壳越薄越容易中——按现在的壳厚是 ' +
         Math.round(SB.economy.freezeChance(s) * 100) + '%。';
     }
-    el('shellHint').textContent = hint;
+    hint.textContent = hint2;
+  }
+
+  /* 星空槽满槽占位结算面板（2026-10-13）。
+   * 复用现有 #modal 浮层；无 modal 元素时直接 no-op（shellbar 已完成态仍会显示「★ 太空时代达成」）。 */
+  function showStarComplete(s) {
+    var modal = el('modal'); if (!modal) return;
+    var cap = SB.CFG.STAR_CAP || 0;
+    var cur = (s && s.res && s.res.starExplore) || 0;
+    modal.innerHTML = '<div class="panel star-complete-panel">'
+      + '<h2>★ 太空时代达成</h2>'
+      + '<p>星空槽已填满（' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '）。</p>'
+      + '<p class="muted">你的文明已越过天壳，望向群星。终局奖励与后续内容将在后续版本接入。</p>'
+      + '<div class="break-controls"><button class="btn big" type="button" id="starCompleteClose">继续</button></div>'
+      + '</div>';
+    modal.classList.add('show');
+    var btn = el('starCompleteClose');
+    if (btn) btn.onclick = function () { modal.classList.remove('show'); modal.innerHTML = ''; };
   }
 
   /* ── 自然环境：天壳（上面那条 shellbar）+ 海底火山（这里这行）─────────────
@@ -429,6 +465,41 @@
     }
     var ct = el('envDrillCt');
     if (ct) ct.textContent = Math.floor(s.res.resonantDrill || 0) + ' 钻头';
+  }
+
+  /* ── 星空观测站开关（2026-10-12 用户拍板「可开关」）────────────────
+   * 【为什么住在这一卡】与暖石/钻机同归属逻辑：观测站是「看星空进度才有用」的动作，
+   *   自然环境卡就是它的天然位置。星空探索资源行在 #res（每帧刷），但开关是**手动动作**，
+   *   按 warm/drill 同纪律放在持久容器 #envStar，签名节流避免点击丢。
+   * 【状态签名节流】签名 = 开/关 × 升级在否。只有这两件事翻转才重写 innerHTML；
+   *   星空探索速率（每帧可能变，热液剩流不够会降）走独立 span 的 textContent 单独刷，不进签名。
+   * 【隐藏两态】破壳前（s.broken 未置）整行不显示；破壳后星空槽才开始被动累积，本开关用于暂停/恢复。 */
+  var starSig = '';
+  function renderStar(s) {
+    var box = el('envStar'); if (!box) return;
+    /* 闸门：破壳后（s.broken）星空槽才开始累积，本开关用于暂停/恢复被动累积。
+     * 与 shell.tickStar 的 starScopeOn 门控同源（starScopeOn===false ⇒ tickStar 直接 return）。 */
+    if (!s.broken) {
+      if (starSig !== '') { starSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+      return;
+    }
+    box.style.display = '';
+    var on = s.starScopeOn !== false;
+    var sig = on ? 'on' : 'off';
+    if (sig !== starSig) {
+      starSig = sig;
+      box.innerHTML = '<div><div class="nm">星空槽 <span class="tag" id="envStarRt">0</span></div>' +
+        '<div class="ds">破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积星空探索，满槽即太空时代达成。' +
+        '暂停后累积停止、推力让给其他系统。</div></div>' +
+        '<button class="btn tog' + (on ? ' on' : '') +
+        '" data-starscope="1" title="点击暂停 / 恢复星空槽被动累积">' + (on ? '累积中' : '已暂停') + '</button>';
+    }
+    /* 速率单独刷：不进签名，所以文明推力变化时它是唯一在动的节点，按钮不动。 */
+    var rt = el('envStarRt');
+    if (rt) {
+      var _sr = (SB.economy && SB.economy.starRate) ? SB.economy.starRate(s) : 0;
+      rt.textContent = (_sr != null ? _sr : 0).toFixed(2) + '/秒';
+    }
   }
 
   /* ── 宗教命名框（2026-09-29）────────────────────────────────────
@@ -1108,7 +1179,7 @@
       if (on) {
         current = '<div class="gov-current" id="govrow-' + v.id + '">' +
           '<div class="gov-current-label">当前政体 <span class="tag ok">生效中</span></div>' +
-          '<div class="gov-current-main"><strong>' + v.name + '</strong><span>' + v.desc + '</span></div>' +
+          '<div class="gov-current-main"><strong>' + ((SB.civic && SB.civic.govTitleName) ? SB.civic.govTitleName(s) : v.name) + '</strong><span>' + v.desc + '</span></div>' +
           '<div class="gov-current-meta"><span class="govslots">' + recipeText(v) + '</span>' +
           /* 幸福度偏移只在采用中成立，不在未采用的预览卡上暗示为常驻效果。 */
           happyBonusNote(s, 'gov') + '</div></div>';
@@ -1270,6 +1341,12 @@
      *   等级是同一个 `coreLvl`（= lvl.hall）。切名判据与建筑行那处同源（同一个 upgrades 键），
      *   否则这里会显示「＋ 议事厅 8 级」而上面那行写着「城堡 8」——同一局两种名字。 */
     var _coreName = (s.upgrades && s.upgrades.upg_castle) ? '城堡' : '议事厅';
+    /* ERA6（2026-10-12）：采用三个新政体之一 ⇒ 城堡随政体更名（圣座居所/人民大厅/国会）。
+     * castleDisplayName 返回 null 时沿用默认的城堡/议事厅，不覆盖。判据与这里同源。 */
+    if (SB.civic && SB.civic.castleDisplayName) {
+      var _castleOverride = SB.civic.castleDisplayName(s);
+      if (_castleOverride) _coreName = _castleOverride;
+    }
     h += '<div class="note">市政点 ' + SB.economy.fmtAmt(s.res.culture) +
       '（+' + rate.toFixed(2) + '/秒 ＝ 书手 ' + (s.jobs.scribe || 0) + ' × ' + SB.UNIT.culture +
       ' ＋ ' + _coreName + ' ' + SB.economy.coreLvl(s) + ' 级 × ' + SB.CFG.CIVIC.HALL_RATE + '）。' +
@@ -1570,7 +1647,8 @@
   }
 
   var PANES = { village: paneVillage, folk: paneFolk, tech: paneTech, civic: paneCivic,
-    faith: paneFaith, workshop: paneWorkshop, wonder: paneWonder, meta: paneMeta };
+    faith: paneFaith, workshop: paneWorkshop, wonder: paneWonder, meta: paneMeta,
+    company: paneCompany };
 
   /* ── pane 重写会换掉里面的元素，于是「活在 DOM 上的滚动位置」归零 ──
    * 唯一有内部滚动条的是科技长卷（横卷）：内部位置 = 玩家正在看哪个纪元。
@@ -1642,8 +1720,8 @@
        * 假 DOM（e2e / 探针）的 getElementById 对任意 id 都懒造一个桩，于是
        * pane-village-body 也会返回真值，导致所有页的正文被写进幽灵桩、真面板恒空、
        * e2e 整片红（真实浏览器里这些 -body 不存在，反而正常）。 */
-      if (k === 'faith') {
-        var body = el('pane-faith-body');
+      if (k === 'faith' || k === 'company') {
+        var body = el('pane-' + k + '-body');
         if (body) body.innerHTML = PANES[k]();
       } else {
         node.innerHTML = cardHeadHTML(k) + PANES[k]();
@@ -1796,7 +1874,7 @@
     /* 巢穴 tab 名随纪元演进（与卡片标题同一来源，避免 tab 写「巢穴」、面板写「渊海之国」打架）。 */
     var vt = el('villageTabName');
     if (vt && SB.habitat && SB.habitat.habitatName) vt.textContent = SB.habitat.habitatName(s);
-    renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderDrill(s); renderReligion(s); renderIdleTag(); renderEvent(s); renderAd();
+    renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar(); renderEnv(s); renderWarm(s); renderDrill(s); renderStar(s); renderReligion(s); renderIdleTag(); renderEvent(s); renderAd(); renderRank();
   }
   function renderTick() {
     var s = res();
@@ -1830,6 +1908,62 @@
       tog.textContent = ad.ms > 0 ? ('2× 加速 ' + (ad.on ? '开' : '关')) : '2× 加速';
       tog.disabled = ad.ms <= 0;                  // 没余额时开关无意义（中性灰，不显示开/关）
     }
+  }
+  /* 排行榜入口按钮的可见性（2026-10-10）：榜不可用（无 SDK / 无榜 ID）⇒ 隐藏，不留死按钮。 */
+  function renderRank() {
+    var btn = el('btnRank'); if (!btn) return;
+    if (!(SB.rank && SB.rank.available && SB.rank.available())) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+  }
+  /* 排行榜查看面板（2026-10-10）：点页脚「排行榜」按钮打开，列出已回填的榜，点哪个开哪个。
+   * 复用 #modal 遮罩 + input.js 已有的 data-modal-close 关闭通道。 */
+  function openRankChooser() {
+    var box = el('modalBox'), modal = el('modal');
+    if (!box || !modal || !(SB.rank && SB.rank.available && SB.rank.available())) return;
+    var map = (SB.CFG && SB.CFG.RANK && SB.CFG.RANK.MAP) || {};
+    var keys = (SB.rank.readyKeys && SB.rank.readyKeys()) || [];
+    if (!keys.length) return;
+    var rows = keys.map(function (k) {
+      var t = (map[k] && map[k].title) || k;
+      return '<button type="button" class="btn rank-open" data-rank-key="' + k + '">' + t + '</button>';
+    }).join('');
+    box.innerHTML =
+      '<div class="modal-hd"><b>排行榜</b>' +
+      '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<div class="rank-list">' + rows + '</div>';
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+    var btns = box.querySelectorAll('.rank-open');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].onclick = function () {
+        var k = this.getAttribute('data-rank-key');
+        hideModal();
+        if (SB.rank && SB.rank.open) SB.rank.open(k);
+      };
+    }
+  }
+  /* 更新日志面板（2026-10-11）：点页脚「更新日志」按钮打开，列出 CFG.CHANGELOG（最新在前）。
+   * 复用 #modal 遮罩 + data-modal-close 关闭通道（与排行榜选择面板同款）。 */
+  function openChangelog() {
+    var box = el('modalBox'), modal = el('modal');
+    if (!box || !modal) return;
+    var log = (SB.CFG && SB.CFG.CHANGELOG) || [];
+    var body = log.map(function (e) {
+      var items = (e.items || []).map(function (it) { return '<li>' + it + '</li>'; }).join('');
+      return '<div class="chg-entry">' +
+        '<div class="chg-hd"><span class="chg-ver">v' + (e.v || '?') + '</span>' +
+        (e.date ? '<span class="chg-date">' + e.date + '</span>' : '') + '</div>' +
+        (e.title ? '<div class="chg-title">' + e.title + '</div>' : '') +
+        '<ul class="chg-items">' + items + '</ul></div>';
+    }).join('');
+    if (!body) body = '<div class="chg-empty">暂无更新记录。</div>';
+    box.innerHTML =
+      '<div class="modal-hd"><b>更新日志</b>' +
+      '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<div class="chg-list">' + body + '</div>' +
+      '<div class="chg-foot"><button type="button" class="btn" data-modal-close="1">知道了</button></div>';
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
   }
   /* 点击时间事件横幅（#omen）：顶部常驻卡，活动事件出现时显示、点上拾取。
    * ⚠️ 沿用 envWarm 那套签名节流：只在活动事件 id 变化时才重写标题/文案/按钮文字，
@@ -2491,6 +2625,14 @@
       ft.classList.toggle('locked', !fop);
       ft.title = fop ? '' : '研究「神学」后开启信仰页';
     }
+    /* 公司页的灰态：**第六个独立门槛** —— 宏观经济学（与 tab 灰态、公司成立触发同源：
+     *   s.civics.macroeconomics ⇔ 公司系统解锁），不在这里另立一份判据。 */
+    var cp = document.querySelector('.tab[data-tab="company"]');
+    if (cp) {
+      var cs2 = res(), copn = !!(cs2 && cs2.civics && cs2.civics.macroeconomics);
+      cp.classList.toggle('locked', !copn);
+      cp.title = copn ? '' : '研究「宏观经济学」后开启公司页';
+    }
   }
 
   /* ── 信仰页（2026-09-30 用户：「单独起一个信仰面板」）────────────────────
@@ -2539,6 +2681,58 @@
       '存量按数量级给你全局产出加成。</div></div></div>' +
       '<div class="note">完成「神学」之后这一页才打开——神学是纪元二的关键节点之一。' +
       '在那之前，顶栏也不会显示信仰这一格。</div>';
+  }
+
+  /* 公司页（ERA6 市政《宏观经济学》解锁）：与科技/市政并列。
+   * 门 = 拥有《宏观经济学》（与 tab 灰态、公司成立触发同源：s.civics.macroeconomics）。
+   * 公司由系统自动成立、名字写存档固定（src/companies.js 按行业分池随机），本页只展示。
+   * ⚠️ 2026-10-13 改「单独关闭」：逐家公司独立展示各自的等级 / 升级倒计时 / 关闭 / 重建，
+   *   关闭某一家的按钮只解散那一家，不影响其他家。 */
+  function paneCompany() {
+    var s = res();
+    if (!s || !(s.civics && s.civics.macroeconomics)) return paneCompanyLocked();
+    if (!SB.COMPANIES) return '<div class="row"><div class="nm">公司数据未加载</div></div>';
+    var h = '';
+    var tiers = SB.COMPANY_TIERS || [];
+
+    for (var i = 0; i < SB.COMPANIES.length; i++) {
+      var c = SB.COMPANIES[i];
+      /* ⚠️ 名字查 res 优先、id 兜底：新档（pickCompanyNames 按 res 键）走 res，旧档走 id。 */
+      var nm = (s.companyNames && (s.companyNames[c.res] || s.companyNames[c.id])) || '（未命名）';
+      var st = (SB.companyState ? SB.companyState(s, c.res) : null);
+      var active = !!(st && st.epoch > 0 && !st.closed);
+
+      if (active) {
+        var idx = SB.companyTierIndex ? SB.companyTierIndex((s.t || 0) - st.epoch) : 0;
+        var tier = (idx >= 0 && tiers[idx]) ? tiers[idx] : tiers[0];
+        var tierName = tier ? tier.name : '乡镇企业';
+        var bonus = (SB.companyMul ? SB.companyMul(s, c.res) : 1) - 1;
+        var elapsed = (s.t || 0) - st.epoch;
+        var nextTier = (idx >= 0 && idx + 1 < tiers.length) ? tiers[idx + 1] : null;
+        var remain = nextTier ? Math.max(0, nextTier.unlockSec - elapsed) : 0;
+        var cd = nextTier
+          ? ('距离升级为「' + nextTier.name + '」还需 ' + (SB.game && SB.game.fmtDur ? SB.game.fmtDur(remain) : remain + ' 秒'))
+          : ('已达最高等级（' + (tier ? tier.name : '全国性企业') + '）');
+        h += '<div class="row"><div><div class="nm">' + nm +
+          ' <span class="tag">' + (c.label || c.res) + '</span> <span class="tag ok">' + tierName + '</span></div>' +
+          '<div class="ds">' + (c.res === 'kelp' ? '藻食' : '珊瑚') + '产出 +' + (bonus * 100).toFixed(0) +
+          '%；奢侈品消耗恒 +10%。' + cd + '</div></div></div>';
+        h += '<div class="row"><button type="button" class="btn warn" data-company-close="' + c.res + '">关闭 ' + nm + '</button></div>';
+      } else {
+        h += '<div class="row"><div><div class="nm">' + nm +
+          ' <span class="tag">' + (c.label || c.res) + '</span> <span class="tag off">已解散</span></div>' +
+          '<div class="ds">该公司处于解散状态，不再提供任何产出加成、也不再增加奢侈品消耗。' +
+          '可单独重建，从乡镇企业重新开始成长。</div></div></div>';
+        h += '<div class="row"><button type="button" class="btn" data-company-rebuild="' + c.res + '">重建 ' + (c.label || c.res) + ' 公司</button></div>';
+      }
+    }
+    return h;
+  }
+  function paneCompanyLocked() {
+    return '<div class="row"><div><div class="nm">公司页未开启</div>' +
+      '<div class="ds">完成市政《宏观经济学》后，系统会自动成立藻食与珊瑚两家公司，' +
+      '随成立时间成长、提供产出加成。</div></div></div>' +
+      '<div class="note">研究「宏观经济学」之后这一页才打开。</div>';
   }
 
   /* ── 幸福度常驻偏移量的「就地说明」（2026-10-05 用户「都补上」）──
@@ -2710,7 +2904,12 @@
       step:'第一步：攒齐奇观所需石梁/精铁等，在巢穴页动工；建成后效果全局生效。' },
     meta: { icon:'♻️', ttl:'这是什么 · 轮回商店',
       def:'跨周目成长层：<b>破壳结算</b>给轮回点，在商店换永久增益（起始／门槛／效率三类）。',
-      step:'第一步：先推进到第一次破壳结算；拿到轮回点后回到本页挑最贵的「门槛减免」类。' }
+      step:'第一步：先推进到第一次破壳结算；拿到轮回点后回到本页挑最贵的「门槛减免」类。' },
+    company: { icon:'🏢', ttl:'这是什么 · 公司',
+      def:'文明的经济实体层（ERA6 市政《宏观经济学》解锁）：系统<b>自动成立</b>藻食与珊瑚两家公司，' +
+        '随成立时间从<b>乡镇</b>成长为<b>地方</b>、<b>全国</b>企业，提供对应资源产出加成，' +
+        '同时恒增 10% 奢侈品消耗。',
+      step:'第一步：研究《宏观经济学》开启本页；之后看两家公司随时间自动升级，无需手动操作。' }
   };
   function openIntro(key) {
     var d = INTRO[key]; if (!d) return;
@@ -2751,7 +2950,13 @@
   SB.ui.closeIntro = closeIntro;
   SB.ui.render = {
     renderAll: renderAll, renderTick: renderTick, renderPanes: renderPanes,
+    /* 破壳槽 → 星空槽翻转（2026-10-13）：导出供回归直接断言 shellbar 文案翻转，
+     * 与 paneWonder/paneCivicGov 同手法（只导出同一个渲染函数，不写第二份逻辑）。 */
+    renderShell: renderShell,
     showBreakPanel: showBreakPanel, showBreakAnimation: showBreakAnimation, hideModal: hideModal, confirmPanel: confirmPanel,
+    /* 星空槽满槽占位结算面板（2026-10-13 镜像破壳）：tickStar 满槽时调它弹面板。
+     * 导出是因为 shell.tickStar 通过 SB.ui.render.showStarComplete 调用（与 showBreakPanel 同源）。 */
+    showStarComplete: showStarComplete,
     storyPanel: storyPanel, techTabOpen: techTabOpen, syncTabLocks: syncTabLocks,
     initTabs: initTabs, initSpeeds: initSpeeds, techGoEra: techGoEra,
     showOfflineModal: showOfflineModal, setOfflineProgress: setOfflineProgress,
@@ -2767,6 +2972,8 @@
     showBuildingInfo: showBuildingInfo,
     showWonderInfo: showWonderInfo,
     showPolicyInfo: showPolicyInfo,
+    openRankChooser: openRankChooser,
+    openChangelog: openChangelog,
     showWorkshopInfo: showWorkshopInfo,
     /* ⚠️ 2026-10-05：工坊「隐藏已完成」开关的切入口。
      *   ⚠️ 切完**必须触发一次整块重画**才生效（不像 zone 折叠能直接翻节点上的类）——

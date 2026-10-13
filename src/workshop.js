@@ -96,12 +96,26 @@
      *   ⚠️ 这条只管**工艺制作产出**（craftMul → 产出那截），投入/成本端从不打折
      *   （见 craft 里的 prices 循环与 craftMul 上方注）。 */
     m += 0.10 * (s.perk && s.perk.craftQuota ? s.perk.craftQuota : 0);
+    /* ⑨ 总物流站（ERA6 · wonder_logistics）：王国潮道每级 +1% 工艺制作效率（effect.canalCraft × lvl.canal）。
+     *   与市政《城市设计》互锁翻倍待批次 3。效果只从 SB.wonder.logisticsCraftRatio 进，将来加奇观不用改这里。 */
+    if (SB.wonder && SB.wonder.logisticsCraftRatio) m += SB.wonder.logisticsCraftRatio(s) || 0;
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
    * ⚠️ 投入不变、产出乘 (1+ratio) —— 是「100 石头出 1.05 石梁」，
    *    **不是**「95 石头出 1 石梁」。成本端从不打折（见 craft 里的 prices 循环）。 */
   function craftMul(s) { return 1 + craftRatio(s); }
+
+  /* ERA6（2026-10 实装）：刻纹腐蚀术（engraving）使潮纹记录制造消耗 −20%（×0.8）。
+   * 统一折扣入口：maxCraftable / 档位估算 / 实际扣费三处共用，避免「面板能造 N、实际扣原价」断链。
+   * 扩展新折扣时只改这里（按 c.id 判），别散落到三处循环里。 */
+  function craftCostMul(s, c) {
+    if (c && c.id === 'craft_tidal_record' && s && s.techs && s.techs.engraving) return 0.8;
+    /* ERA6（2026-10-12 实装）：市政《考古学》完成后，艺术品制造消耗 −20%（×0.8）。
+     * 与雕版术（潮纹记录 −20%）同源、各自独立——都满足则艺术品 0.8、潮纹记录 0.8，互不叠加。 */
+    if (c && c.id === 'craft_artwork' && s && s.civics && s.civics.archaeology) return 0.8;
+    return 1;
+  }
 
   function craftById(id) {
     var L = craftRows(), i;
@@ -115,7 +129,7 @@
     var n = Infinity, k;
     for (k in c.in) {
       var have = (s.res && s.res[k]) || 0;
-      var per = c.in[k];
+      var per = c.in[k] * craftCostMul(s, c);
       n = Math.min(n, per > 0 ? have / per : Infinity);
     }
     return isFinite(n) ? n : 0;
@@ -153,14 +167,16 @@
     if (!(amt > 0)) return 0;
     /* 先算能付多少份：按**成本端**算，够几份造几份（猫国 craftAll 的 forceAll 口径）。 */
     var afford = maxCraftable(s, c), k;
-    for (k in c.in) if (c.in[k] * amt > ((s.res && s.res[k]) || 0)) {
+    /* 折扣单价（刻纹腐蚀术等效果）三处共用同一入口。 */
+    var cm = craftCostMul(s, c);
+    for (k in c.in) if (c.in[k] * cm * amt > ((s.res && s.res[k]) || 0)) {
       /* 原料不够就按买得起的份数往下压，别整单失败——
        * 否则玩家点 MAX 只塞进 0 个材料时会看到「什么都没发生」。 */
-      var can = Math.floor(((s.res && s.res[k]) || 0) / c.in[k]);
+      var can = Math.floor(((s.res && s.res[k]) || 0) / (c.in[k] * cm));
       if (can < amt) amt = can;
     }
     if (amt <= 0) return 0;
-    for (k in c.in) s.res[k] -= c.in[k] * amt;
+    for (k in c.in) s.res[k] -= c.in[k] * cm * amt;
     var gain = amt * c.out * craftMul(s);
     /* 产出**不设上限**：无 CAP_BASE 的资源（石梁与两道新制品）仓储恒 Infinity，
      * 与猫国 beam 一致。⚠️ 走 addRes 仍然是对的 —— 它内部有 Math.min 与 NaN 兜底，
@@ -205,6 +221,8 @@
     var n = 0;
     if (s.upgrades && s.upgrades.upg_autoshop) n += (SB.CFG.AUTO && SB.CFG.AUTO.SLOT_BASE) || 1;
     n += (s.perk && s.perk.autoCraft) || 0;
+    /* ERA6（2026-10 实装）：热力锻锤（hotforge_hammer）每级 +1 自动制作槽（与 upg_autoshop 同源叠加）。 */
+    if (s.techs && s.techs.hotforge_hammer) n += 1;
     return Math.max(0, Math.min(n, slotMax()));
   }
 
@@ -483,7 +501,7 @@
     lackText: lackText,
     /* 工艺制作下半区 */
     crafts: craftRows, craftById: craftById,
-    craftRatio: craftRatio, craftMul: craftMul,
+    craftRatio: craftRatio, craftMul: craftMul, craftCostMul: craftCostMul,
     maxCraftable: maxCraftable, stepAmt: stepAmt, craftBlocked: craftBlocked,
     craft: craft, steps: CRAFT_STEPS,
     /* 自动制作槽（2026-10-07）：槽数 / 占槽 / 改档 / 释放 / 满仓判定 / 泵 */

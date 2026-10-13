@@ -140,6 +140,25 @@ input[type=checkbox]{accent-color:var(--cyan)}
 .modal{position:fixed;inset:0;background:rgba(3,8,16,.86);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
 .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;max-width:520px;width:100%}
 .modal h3{margin:0 0 10px;color:var(--amber)}
+/* 排行榜选择面板（2026-10-10）：复用 .modal .box，只定义内部排版 */
+.modal-hd{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px}
+.modal-hd b{font-size:16px;color:var(--amber)}
+.modal-x{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);font-size:16px;line-height:1;cursor:pointer;flex:none}
+.modal-x:hover{color:var(--cyan);border-color:var(--cyan)}
+.rank-list{display:flex;flex-direction:column;gap:8px}
+/* 更新日志面板（2026-10-11）：复用 .modal .box，仅定义内部排版 */
+.chg-list{max-height:62vh;overflow-y:auto;display:flex;flex-direction:column;gap:15px;margin:2px 0 14px}
+.chg-entry{border-left:2px solid rgba(105,226,223,.4);padding:1px 0 1px 12px}
+.chg-hd{display:flex;align-items:baseline;gap:8px}
+.chg-ver{font-weight:750;color:var(--cyan);font-size:14px}
+.chg-date{color:var(--dim);font-size:12px}
+.chg-title{color:var(--gold);font-size:13px;margin:3px 0 4px}
+.chg-items{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.chg-items li{font-size:13px;line-height:1.5;color:inherit}
+.chg-empty{color:var(--dim);font-size:13px;padding:8px 0}
+.chg-foot{display:flex;justify-content:flex-end}
+.rank-open{width:100%;text-align:left;padding:12px 14px;font-size:14px}
+.rank-open:hover{border-color:var(--cyan);color:var(--cyan)}
 
 /* —— 2026-10-05 系统指引：页签「?」按钮 + 介绍弹窗 —— */
 .qbtn{width:16px;height:16px;margin-left:6px;border-radius:50%;border:1px solid #2a5a7d;

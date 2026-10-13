@@ -125,7 +125,7 @@ function makeDoc() {
          *    与那两份一样：市政页的灰态没人翻，测试永远停在「页签还是 locked」。
          *    ⚠️ 真要根治，应该从 index.html 里的 .tab 解析出来——但那要引入 HTML 解析，
          *        收益不抵成本。留在这里的代价是：**改 index.html 的页签要记得改这行**。 */
-        out = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'meta'].map((t, i) => {
+        out = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'company', 'meta'].map((t, i) => {
           const e = mkEl('tab-' + t); e.dataset.tab = t; e._tab = i; return e;
         });
       } else if (sel === '.spd') {
@@ -653,14 +653,17 @@ console.log('\n=== 科技树形状 ===');
     }));
   const maxD = Math.max.apply(null, T.map(t => d[t.id]));
   const at = n => T.filter(t => d[t.id] === n);
-  /* ⚠️ 阈值取 8 有出处，不是跟着树长随手加的：
+  /* ⚠️ 阈值取 11 有出处，不是跟着树长随手加的：
    *    ① 破壳链的物理下限仍是 6（techs.js 顶部推过：skydrill ≥ shellgeo+1 ≥
    *       invert+2 ≥ physics+3 ≥ … ≥ 天壳观测 → 教育 → 数学 → 导航 → 照明）；
-   *    ② 纪元一 2026-09-26 按用户规格重排成**四层**（结绳 → 四个方向 → 加深 → 成事），
-   *       两者叠加 ⇒ 最深 8（旧口径 7 = 破壳链下限 6 + 旧 era5 只比破壳链深 1 层；
-   *       本轮 era5 在 invert(d=6) 之上叠天壳地质学(d=7) + 天穹钻机(d=8)，故 8）。
-   *    要压到 7 只能动纪元一那四层本身（改 reqs 压不动，它是形状不是深度）。 */
-  check('最深科技 ≤ 8 层（破壳链下限 6 + era5 天穹钻机再叠 2 层 + 纪元一 4 层）', maxD <= 8,
+   *    ② 纪元一 2026-09-26 按用户规格重排成**四层**（结绳 → 四个方向 → 加深 → 成事）；
+   *    ③ era5 在 invert(d=6) 之上叠天壳地质学(d=7) + 天穹钻机(d=8)；
+   *    ④ ERA6（2026-10 实装）在 skydrill(d=8) 之上再叠三层：
+   *       minipump/modpart(d=9) → chemistry(d=10) → engraving/specfuel/exostruct(d=11)。
+   *    故最深 11。要压短只能动纪元一那四层本身（改 reqs 压不动，它是形状不是深度）。
+   *    ⚠️ 这是「实装 ERA6 科技树」的必然结果（用户拍板「先把科技实装」），
+   *       不是迁就现状改断言——深度 11 直接由 approved 的 reqs 链推出。 */
+  check('最深科技 ≤ 11 层（破壳链 6 + era5 天穹钻机叠 2 + 纪元一 4 层 + ERA6 叠 3）', maxD <= 11,
     '最深 ' + maxD + ' 层：' + at(maxD).map(t => t.id).join(','));
   check('第二层 ≥ 3 项可并行（不是一根直链）', at(1).length >= 3, 'L1=' + at(1).length + ' 项');
   check('第三层 ≥ 4 项可并行', at(2).length + at(3).length >= 6,
@@ -699,8 +702,8 @@ console.log('\n=== 纪元三 · 钢与热液能 ===');
   const T = SB.TECHS, m = {};
   T.forEach(t => { m[t.id] = t; });
   const e3 = T.filter(t => t.era === 3).map(t => t.id).sort();
-  const e3want = ['apprentice', 'castle', 'education', 'horseshoe', 'metalrefine'];
-  check('纪元三恰好 5 项（apprentice/castle/education/horseshoe/metalrefine）',
+  const e3want = ['apprentice', 'blacksmoker', 'castle', 'education', 'horseshoe', 'metalrefine'];
+  check('纪元三恰好 6 项（apprentice/blacksmoker/castle/education/horseshoe/metalrefine）',
     e3.length === e3want.length && e3want.every(x => e3.indexOf(x) >= 0) && e3.every(x => e3want.indexOf(x) >= 0),
     '实=' + e3.join(','));
 
@@ -955,10 +958,14 @@ console.log('\n=== 纪元三 · economy 接线 ===');
    *   权威口径：desc 写成「X升级：…」的升级项 = **那座建筑买下后就地改名**，
    *   不是另造一座建筑。声明在 UPGRADES 的 `upgradesBuilding` 字段，判定在 render。 */
   {
-    const CHAIN = { upg_fishbonemine: 'siltpit', upg_university: 'institute', upg_castle: 'hall', upg_deepmine: 'siltpit' };
+    /* ERA6（2026-10 实装）：upg_starscope 把 天壳观测站 升级为 星空观测站，
+     *   与城堡×3 同类「买了就地改名」契约；下面是第 5 条。 */
+    const CHAIN = { upg_fishbonemine: 'siltpit', upg_university: 'institute', upg_castle: 'hall', upg_deepmine: 'siltpit', upg_starscope: 'observatory' };
     const declared = SB.UPGRADES.filter(u => u.upgradesBuilding);
-    check('建筑升级型共 4 条，全部声明了 upgradesBuilding（+50%/级 扩容那几条不算）',
-      declared.length === 4, '实=' + declared.length);
+    /* ⚠️ 2026-10 ERA6：upg_starscope（观测站→星空观测站）是第 5 条，与城堡×3 同类契约。
+     *    不是「随手加一条」，是 approved 设计里观测站可被升级。 */
+    check('建筑升级型共 5 条，全部声明了 upgradesBuilding（+50%/级 扩容那几条不算）',
+      declared.length === 5, '实=' + declared.length);
     const badDecl = declared.filter(u => !SB.habitat.buildingById(u.upgradesBuilding));
     check('每条 upgradesBuilding 都指向真实存在的建筑（别写错 id）', badDecl.length === 0,
       '错=' + badDecl.map(u => u.id + '→' + u.upgradesBuilding).join(','));
@@ -1150,9 +1157,9 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
   T4.forEach(t => { m4[t.id] = t; });
 
   /* ① 六项齐全 + 关键节点 = 天壳观测 + 倒置搭建（纪元推进要清 key）。 */
-  const want4 = ['shellwatch', 'printing', 'physics', 'banking', 'thermo', 'invert'];
-  check('纪元四恰好 6 项，且 id 齐全',
-    T4.length === 6 && want4.every(id => !!m4[id]), T4.map(t => t.id).join(','));
+  const want4 = ['shellwatch', 'printing', 'physics', 'banking', 'thermo', 'hydrocarbur', 'ventrecir', 'invert'];
+  check('纪元四恰好 8 项（含新增 海流锻钢/热泉回流），且 id 齐全',
+    T4.length === 8 && want4.every(id => !!m4[id]), T4.map(t => t.id).join(','));
   const keys4 = T4.filter(t => t.key).map(t => t.id).sort();
   check('纪元四关键节点 = 天壳观测 + 倒置搭建（用户拍板「天壳那两项」）',
     keys4.join() === 'invert,shellwatch', keys4.join());
@@ -1166,8 +1173,8 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
     m4.shellwatch.reqs.join() === 'education' && m4.printing.reqs.join() === 'metalrefine' &&
     m4.physics.reqs.join() === 'shellwatch' && m4.banking.reqs.join() === 'printing' &&
     m4.thermo.reqs.join() === 'metalrefine' && m4.invert.reqs.join() === 'physics', shape);
-  check('成本合计 25 万（20000+25000+40000+40000+50000+75000）',
-    T4.reduce((a, t) => a + t.cost, 0) === 250000, '合计=' + T4.reduce((a, t) => a + t.cost, 0));
+  check('成本合计 35 万（250000 + 海流锻钢55000 + 热泉回流45000）',
+    T4.reduce((a, t) => a + t.cost, 0) === 350000, '合计=' + T4.reduce((a, t) => a + t.cost, 0));
   /* ⚠️ 2026-10-06 用户拍板：三条尤里卡门槛下调（学术区 70→35、贸易区 100→35、人口 100→50）。
    *   断言必须跟着改，否则改数值必假红 —— 这条正是「钉住门槛」的作用：门槛是标定项，
    *   改了它就该被显式承认，而不是让旧值悄悄留在断言里变成下一个陷阱。 */
@@ -1179,6 +1186,24 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
     m4.thermo.cond.t === 'built' && m4.thermo.cond.b === 'hydroturbine' && m4.thermo.cond.n === 5 &&
     m4.invert.cond.t === 'pop' && m4.invert.cond.n === 50,
     shape);
+  /* ⚠️ 2026-10 新增三科技（黑烟囱炼铁/海流锻钢/热泉回流）：效果必须真的接进 mul()。
+   *   mul 默认表若漏加 steelMul/bldEff，这两个键会被「未知键静默忽略」闸门吞掉 ⇒ 研究完什么都没发生。
+   *   这里用最小态（只点这三件）直接读 mul()，把「加上了但没生效」钉死。 */
+  {
+    const e4mul = SB.tech.mul({ techs: { blacksmoker: 1, hydrocarbur: 1, ventrecir: 1 } });
+    check('新增三科技接线：黑烟囱炼铁 smelt×1.25、海流锻钢 steelMul×1.30、热泉回流 bldEff×0.60',
+      Math.abs(e4mul.smelt - 1.25) < 1e-9 && Math.abs(e4mul.steelMul - 1.30) < 1e-9 && Math.abs(e4mul.bldEff - 0.60) < 1e-9,
+      'smelt=' + e4mul.smelt + ' steelMul=' + e4mul.steelMul + ' bldEff=' + e4mul.bldEff);
+  }
+  /* 更新日志接线（2026-10-11）：数据存在且非空 + 自动弹窗判据的默认态正确。 */
+  {
+    check('CFG.VERSION 已设且非空', !!(SB.CFG && SB.CFG.VERSION), 'VERSION=' + (SB.CFG && SB.CFG.VERSION));
+    check('CFG.CHANGELOG 已设且至少一条记录',
+      !!(SB.CFG && Array.isArray(SB.CFG.CHANGELOG) && SB.CFG.CHANGELOG.length > 0),
+      '条数=' + ((SB.CFG && SB.CFG.CHANGELOG) ? SB.CFG.CHANGELOG.length : 0));
+    check('新档 meta.seenVersion 默认空（首次进入会弹）',
+      SB.state.emptyMeta().seenVersion === '', 'seenVersion=' + JSON.stringify(SB.state.emptyMeta().seenVersion));
+  }
   /* 🚨 门槛下调的**可达性**正向证据：35 级学术区 = 图书馆(15) + 研究所(10) + 潮纹馆…
    *   用「刚好卡在门槛上下」验判定真的看这个数，而不是碰巧在别的状态也通过。 */
   {
@@ -1756,7 +1781,12 @@ console.log('\n=== 食物三旋钮 ===');
        *   「工艺制作的产物」一类 —— 由工坊配方 craft_drill 造出来、成批消耗（天穹钻机机器运行每 tick
        *   扣 0.1，建一座就吃 20 份）。照石梁那套口径（猫国 warehouse 没有 beamMax ⇒ 恒无上限）。
        *   不给 CAP_BASE 上限键，否则「攒 20 钻头建天穹钻机」会被仓储卡死。不是漏写 CAP_BASE。 */
-      resonantDrill: 1 };
+      resonantDrill: 1,
+      /* ERA6（2026-10 实装）：封闭藻仓（sealbin）。与 artwork/tidalRecord/stoneBeam 同属
+       * 「工艺制作的产物」一类 —— 由工坊配方 craft_sealbin（钛金板件 5 + 温水藻 200 → 1）造出来、
+       *   成批消耗（温水藻场升级材料）。照石梁那套口径（猫国 warehouse 没有 beamMax ⇒ 恒无上限）。
+       *   不给 CAP_BASE 上限键，否则「攒材料造封闭藻仓」会被仓储卡死。不是漏写 CAP_BASE。 */
+      sealbin: 1 };
     check('反向对照：科技 / 市政点 / 石梁 / 工艺制品仍表外无上限（批准名单，加别的必红）',
       noCap.length > 0 && noCap.every(k => !!CAPLESS_OK[k]),
       '[' + noCap.join(', ') + ']');
@@ -1796,7 +1826,10 @@ console.log('\n=== 食物三旋钮 ===');
      *    不是「全局增量」复活 —— 所以排除它的理由与那两座相同，不是放宽这条断言。
      *    ⚠️ 加仓库建筑时报「会涨」是预期行为；加**非仓库**建筑时报才是真漏。 */
     for (const b of SB.BUILDINGS) {
-      if (!['kelpstore', 'ballast', 'lighthouse'].includes(b.id)) many.lvl[b.id] = 10;
+      /* ERA6（2026-10 实装）：tiplateStore（钛金板件仓）是**有意效仿** kelpstore/ballast/lighthouse
+       *   的容量建筑——capOf 的 tiplate 专属分支读 s.lvl.tiplateStore × BLD.tiplateCap 给容量。
+       *   它涨容量是设计内行为，与那三座同口径，不是「全局增量」复活，故排除。 */
+      if (!['kelpstore', 'ballast', 'lighthouse', 'tiplateStore'].includes(b.id)) many.lvl[b.id] = 10;
     }
     const moved = RESS.filter(k => co(many, k) !== co(zero, k));
     check('每建筑级的全局增量已彻底删除（铺满建筑也不涨容量）',
@@ -3190,6 +3223,245 @@ console.log('\n=== 市政 ===');
     Math.abs(SB.workshop.craftMul(cc) - 1.20) < 1e-9,
     'card craftRatio=' + SB.civic.policyById('card_craft').craftRatio +
     ' craftRatio(cc)=' + SB.workshop.craftRatio(cc));
+
+  /* ══ ERA6 市政系统（2026-10-12 实装）═════════════════════════════
+   * 钉住：10 项市政 / 3 政体 / 3 政策卡的数据形状 + 关键接线。
+   * 不钉数值（cost 是提议值，待标定）；钉的是结构与「指针真的命中」。 */
+  {
+    const cBy = id => SB.CIVICS.find(c => c.id === id);
+    const want = ['massmedia','naturalhistory','macroeconomics','urbandesign','archaeology',
+                  'ideology','civilization','theo_merit','egalitarianism','federalism'];
+    check('ERA6：10 项市政全部存在', want.every(id => !!cBy(id)),
+      want.filter(id => !cBy(id)).join(',') || '全到齐');
+    check('ERA6：10 项市政 era 均为 6', want.every(id => cBy(id).era === 6));
+    check('ERA6：10 项市政均带 cost（非根节点）', want.every(id => typeof cBy(id).cost === 'number'));
+    check('ERA6：所有前置(reqs)命中现有市政',
+      want.every(id => (cBy(id).reqs || []).every(r => !!cBy(r))));
+    /* built 类鼓舞 → 真实建筑；cycle 阈值；lifetimeCulture 门槛；civic 指针 */
+    check('ERA6：built 类鼓舞指向真实建筑（tenement/museum/bank/canal）',
+      ['massmedia','naturalhistory','macroeconomics','urbandesign'].every(id => {
+        const b = cBy(id).boost; return b && b.t === 'built' && SB.BUILDINGS && SB.BUILDINGS.some(x => x.id === b.b); }));
+    check('ERA6：考古/文明 鼓舞走 cycle 阈值（3/7），博物学走 built（博物馆 3 级）',
+      cBy('naturalhistory').boost.t === 'built' && cBy('naturalhistory').boost.b === 'museum' && cBy('naturalhistory').boost.n === 3 &&
+      cBy('archaeology').boost.t === 'cycle' && cBy('archaeology').boost.n === 3 &&
+      cBy('civilization').boost.t === 'cycle' && cBy('civilization').boost.n === 7);
+    check('ERA6：意识形态 鼓舞走 lifetimeCulture（门槛 900000）',
+      cBy('ideology').boost.t === 'lifetimeCulture' && cBy('ideology').boost.n === 900000);
+    check('ERA6：三新政府市政 鼓舞走 civic（完成意识形态）',
+      ['theo_merit','egalitarianism','federalism'].every(id => cBy(id).boost.t === 'civic' && cBy(id).boost.id === 'ideology'));
+    check('ERA6：大众传媒/博物学/意识形态 各解锁一张政策卡',
+      cBy('massmedia').card === 'card_massmedia' && cBy('naturalhistory').card === 'card_museum' &&
+      cBy('ideology').card === 'card_national_solidarity');
+    check('ERA6：三新政府市政各带 gov（theo_state/egalitarianism/federalism）',
+      cBy('theo_merit').gov === 'theo_state' && cBy('egalitarianism').gov === 'egalitarianism' &&
+      cBy('federalism').gov === 'federalism');
+    check('ERA6：城市设计解锁奇观 全国快速物流通道（needCivic=urbandesign, canalCraftIronSteel=0.01）',
+      !!SB.WONDERS.find(w => w.id === 'wonder_national_logistics' && w.needCivic === 'urbandesign' &&
+        w.effect && w.effect.canalCraftIronSteel === 0.01));
+    /* 政体形状：7 万能槽 + 效果字段 */
+    const gBy = id => SB.GOVS.find(g => g.id === id);
+    check('ERA6：三新政府均给 7 万能槽',
+      ['theo_state','egalitarianism','federalism'].every(id => { const g = gBy(id); return g && g.slots && g.slots.wild === 7; }));
+    check('ERA6：教权国 faithPerBuilding=1；平等主义 三 perPop=0.001；联邦制 civic/sci ×1.1、食物 −0.10',
+      gBy('theo_state').faithPerBuilding === 1 &&
+      gBy('egalitarianism').craftPerPop === 0.001 && gBy('egalitarianism').hydroPerPop === 0.001 && gBy('egalitarianism').minePerPop === 0.001 &&
+      gBy('federalism').civicOutMul === 1.1 && gBy('federalism').sciOutMul === 1.1 && gBy('federalism').mermanFoodMul === 0.10);
+    /* 政策卡形状 */
+    check('ERA6：三张政策卡 civic 字段命中对应市政 + 效果字段',
+      SB.civic.policyById('card_massmedia').civic === 'massmedia' && SB.civic.policyById('card_massmedia').civicPerPop === 0.5 &&
+      SB.civic.policyById('card_museum').civic === 'naturalhistory' && SB.civic.policyById('card_museum').museumMul === 2 &&
+      SB.civic.policyById('card_national_solidarity').civic === 'ideology' && SB.civic.policyById('card_national_solidarity').craftRatio === 0.80);
+  }
+
+  /* ERA6 接线功能验证（造态喂读数函数，证「效果真的出来」，不靠肉眼看面板） */
+  {
+    const f0 = SB.state.freshRun(false), f1 = SB.state.freshRun(false); f1.civics.archaeology = true;
+    check('ERA6：考古学完成 ⇒ 艺术品制造消耗 ×0.8',
+      SB.workshop.craftCostMul(f0, { id: 'craft_artwork' }) === 1 &&
+      SB.workshop.craftCostMul(f1, { id: 'craft_artwork' }) === 0.8,
+      'before=' + SB.workshop.craftCostMul(f0, { id: 'craft_artwork' }) + ' after=' + SB.workshop.craftCostMul(f1, { id: 'craft_artwork' }));
+    const fed = SB.state.freshRun(false); fed.gov = 'federalism';
+    check('ERA6：联邦制 ⇒ 市政产出 ×1.1、食物 −10%',
+      Math.abs(SB.civic.govCivicOutMul(fed) - 1.1) < 1e-9 && Math.abs(SB.civic.govMermanFoodMul(fed) - 0.10) < 1e-9);
+    const fedS = SB.state.freshRun(false); fedS.gov = 'federalism';
+    check('ERA6：联邦制 ⇒ 科技产出 ×1.1', Math.abs(SB.civic.govSciOutMul(fedS) - 1.1) < 1e-9);
+    const eg = SB.state.freshRun(false); eg.gov = 'egalitarianism'; eg.pop = 10;
+    check('ERA6：平等主义 ⇒ 每鲛人 0.1% 三产（10 鲛人 ⇒ 各自 0.010 加法量）',
+      Math.abs(SB.civic.govCraftPerPop(eg) - 0.010) < 1e-9 &&
+      Math.abs(SB.civic.govHydroPerPop(eg) - 1.010) < 1e-9 && Math.abs(SB.civic.govMinePerPop(eg) - 1.010) < 1e-9);
+    const th = SB.state.freshRun(false); th.gov = 'theo_state'; th.lvl.hall = 3; th.lvl.workshop = 2;
+    check('ERA6：教权国 ⇒ 每建筑级 +1 信仰/秒（5 级建筑 ⇒ +5）',
+      Math.abs(SB.civic.faithPerBuildingBonus(th) - 5) < 1e-9, '=' + SB.civic.faithPerBuildingBonus(th));
+    const mm = SB.state.freshRun(false); mm.cards = ['card_massmedia']; mm.card = 'card_massmedia'; mm.pop = 6;
+    check('ERA6：大众传媒卡 ⇒ 每名鲛人 +0.5 市政点（6 鲛人 ⇒ +3/秒）',
+      Math.abs(SB.civic.civicPerPop(mm) - 3) < 1e-9, '=' + SB.civic.civicPerPop(mm));
+    const _cyc = (SB.game && SB.game.meta) ? (SB.game.meta().cycle || 0) : 0;
+    const mu = SB.state.freshRun(false); mu.civics.naturalhistory = true;
+    check('ERA6：博物学 ⇒ 博物馆效果 ×(1+0.1×cycle)', Math.abs(SB.civic.museumCivicMul(mu) - (1 + 0.10 * _cyc)) < 1e-9, 'cyc=' + _cyc);
+    const mu2 = SB.state.freshRun(false); mu2.civics.naturalhistory = true; mu2.cards = ['card_museum']; mu2.card = 'card_museum';
+    check('ERA6：博物馆管理卡 ⇒ 博物馆效果 再 ×2（与轮回加成独立相乘）',
+      Math.abs(SB.civic.museumCivicMul(mu2) - SB.civic.museumCivicMul(mu) * 2) < 1e-9, '=' + SB.civic.museumCivicMul(mu2));
+    const nl = SB.state.freshRun(false); nl.wonders.wonder_national_logistics = true; nl.lvl.canal = 10;
+    check('ERA6：全国快速物流通道 ⇒ 王国潮道每级 +1% 铁钢（10 级 ⇒ +10%）',
+      Math.abs(SB.wonder.nationalLogisticsMul(nl) - 0.10) < 1e-9, '=' + SB.wonder.nationalLogisticsMul(nl));
+    const nl2 = SB.state.freshRun(false); nl2.wonders.wonder_national_logistics = true; nl2.wonders.wonder_logistics = true; nl2.lvl.canal = 10;
+    check('ERA6：同时拥有总物流站 ⇒ 铁钢效果翻倍（10 级 ⇒ +20%）',
+      Math.abs(SB.wonder.nationalLogisticsMul(nl2) - 0.20) < 1e-9, '=' + SB.wonder.nationalLogisticsMul(nl2));
+    const nm = SB.state.freshRun(false); nm.gov = 'theo_state'; nm.govName = '深渊';
+    check('ERA6：教权国 + 已起名 ⇒ 显示名 = 名+教权国', SB.civic.govTitleName(nm) === '深渊教权国');
+    check('ERA6：教权国 ⇒ 城堡更名 圣座居所', SB.civic.castleDisplayName(nm) === '圣座居所');
+    const nm2 = SB.state.freshRun(false); nm2.gov = 'egalitarianism';
+    check('ERA6：平等主义 ⇒ 城堡更名 人民大厅', SB.civic.castleDisplayName(nm2) === '人民大厅');
+    const nm3 = SB.state.freshRun(false); nm3.gov = 'federalism';
+    check('ERA6：联邦制 ⇒ 城堡更名 国会', SB.civic.castleDisplayName(nm3) === '国会');
+    const nm4 = SB.state.freshRun(false); nm4.gov = 'tribe';
+    check('ERA6：非新政体 ⇒ 城堡名沿用默认（返回 null）', SB.civic.castleDisplayName(nm4) === null);
+  }
+
+  /* ══ 星空槽（2026-10-13 镜像破壳：破壳后终局资源，被动累积到 STAR_CAP）═══════════
+   * 设计：破壳前星空探索恒 0；破壳后由文明推力被动累积（速率 = STAR_BASE × breakCoef + 升级加成），
+   *   满槽 STAR_CAP(1e7) 即太空时代达成，弹占位结算面板。旧「吃热液能产出」路线已废弃。 */
+  {
+    /* 资源 cap 已从 10000 抬到 1e7（满槽目标 10m）。 */
+    check('星空槽：资源 cap = STAR_CAP（1e7，破壳后终局累积目标）',
+      SB.CFG.CAP_BASE.starExplore === SB.CFG.STAR_CAP && SB.CFG.STAR_CAP === 10000000,
+      'cap=' + SB.CFG.CAP_BASE.starExplore);
+
+    /* 破壳前：tickStar 不累积（starExplore 恒 0）。 */
+    const pre = SB.state.freshRun(false);
+    pre.techs.exostruct = true;                 // 掌握 exostruct 但**未破壳**
+    SB.shell.tickStar(pre, 100, null);
+    check('星空槽：未破壳（s.broken=false）⇒ tickStar 不累积（starExplore 恒 0）',
+      (pre.res.starExplore || 0) === 0, '=' + pre.res.starExplore);
+
+    /* 破壳后、无升级：freshRun 上 breakCoef=0 ⇒ starRate = STAR_BASE×0 + 0 = 0 ⇒ 不累积。 */
+    const brk = SB.state.freshRun(false);
+    brk.broken = true; brk.starScopeOn = true;
+    const r0 = SB.economy.starRate(brk);
+    check('星空槽：破壳后无升级 ⇒ starRate≥0（freshRun 下 coef=0 ⇒ 0/s）', r0 >= 0, 'r0=' + r0);
+
+    /* 装 upg_starscope ⇒ 每级 +STAR_UPG_BONUS(1)/s（保留旧升级语义），叠加在 coef 之上。 */
+    brk.upgrades.upg_starscope = true;
+    const r1 = SB.economy.starRate(brk);
+    check('星空槽：装 1 级观测站升级 ⇒ starRate 增加 STAR_UPG_BONUS(1)/s',
+      Math.abs((r1 - r0) - SB.CFG.STAR_UPG_BONUS) < 1e-9, 'Δ=' + (r1 - r0) + ' bonus=' + SB.CFG.STAR_UPG_BONUS);
+
+    /* tickStar 破壳后按 rate×dt 累积。 */
+    const before = brk.res.starExplore || 0;
+    SB.shell.tickStar(brk, 10, null);
+    const gained = (brk.res.starExplore || 0) - before;
+    check('星空槽：破壳后 tickStar 按 rate×dt 累积', Math.abs(gained - r1 * 10) < 1e-6, 'gained=' + gained + ' expect=' + (r1 * 10));
+
+    /* 暂停（starScopeOn=false）⇒ tickStar 不累积。 */
+    brk.starScopeOn = false;
+    const before2 = brk.res.starExplore || 0;
+    SB.shell.tickStar(brk, 10, null);
+    check('星空槽：暂停（starScopeOn=false）⇒ tickStar 不累积', (brk.res.starExplore || 0) === before2);
+
+    /* 满槽 ⇒ 置 starComplete + 触发结算回调（与 showStarComplete 挂钩），且 cap 不溢出。 */
+    const full = SB.state.freshRun(false);
+    full.broken = true; full.starScopeOn = true; full.upgrades.upg_starscope = true;
+    full.res.starExplore = SB.CFG.STAR_CAP - 0.5;   // 差一点满
+    let shown = false;
+    SB.shell.tickStar(full, 10, function () { shown = true; });
+    check('星空槽：达 STAR_CAP ⇒ 置 starComplete=true', full.starComplete === true);
+    check('星空槽：达满槽 ⇒ 触发结算回调（showStarComplete 挂钩）', shown === true);
+    check('星空槽：满槽后 starExplore 不溢出（= STAR_CAP）',
+      Math.abs((full.res.starExplore || 0) - SB.CFG.STAR_CAP) < 1e-6, '=' + full.res.starExplore);
+
+    /* 满槽后幂等：不再涨、不再触发。 */
+    const afterFull = (full.res.starExplore || 0);
+    SB.shell.tickStar(full, 100, function () { shown = true; });
+    check('星空槽：starComplete 后 tickStar 幂等（不重复触发、不溢出）',
+      (full.res.starExplore || 0) === afterFull && full.starComplete === true);
+
+    /* 架构约束：economy.tick 在 s.broken 时顶部早退（1335 行），故星空累积不能放 tick 内。
+     * 钉死「破壳后调 economy.tick 不动星空」这一事实，防止有人把 tickStar 误放回 tick（变死代码）。
+     * 真实累积由 game.loop()（在线）/ drainCatchUp()（离线）直接调 SB.shell.tickStar 推进（上文已逐测）。 */
+    const tInv = SB.state.freshRun(false);
+    tInv.broken = true; tInv.starScopeOn = true; tInv.upgrades.upg_starscope = true;
+    const invBefore = tInv.res.starExplore || 0;
+    SB.economy.tick(tInv, 100, null);
+    check('星空槽：economy.tick 在破壳后早退（不负责星空累积，由 game.loop 负责）',
+      (tInv.res.starExplore || 0) === invBefore, 'before=' + invBefore + ' after=' + tInv.res.starExplore);
+
+    /* 渲染层：破壳后 renderShell 把 shellbar 翻转为星空槽文案（含 STAR_CAP 目标）。 */
+    const loop = SB.game.run();            // 直接 mutate 当前 live run（与 cpRun 同手法）
+    loop.broken = true; loop.starScopeOn = true; loop.upgrades.upg_starscope = true;
+    SB.ui.render.renderShell();
+    var shellTxt = (doc.getElementById('shellTxt') || {})._html || '';
+    check('星空槽：破壳后 renderShell 显示星空槽进度（含 STAR_CAP 目标数值）',
+      shellTxt.indexOf('星空槽') >= 0 && shellTxt.indexOf('10,000,000') >= 0, 'snip=' + shellTxt.slice(0, 80));
+
+    /* 还原 live run，避免污染后续测试。 */
+    loop.broken = false; loop.starScopeOn = true; loop.upgrades.upg_starscope = false;
+    loop.res.starExplore = 0; loop.starComplete = false;
+  }
+
+  /* ══ 公司页可见性 + 公司系统接线（2026-10-12 修两个实装 bug）═════════════════
+   * Bug1：PANE_KEYS 漏 'company' ⇒ 点公司 tab 时所有 pane 被藏、company pane 永不显示（"没东西"）。
+   * Bug2：pickCompanyNames 用行业 id 做键、paneCompany 用 res 查 ⇒ 藻食公司永远"未命名"。
+   * 另：SB.companyMul 未导出 ⇒ 公司页加成恒显 +0%。 */
+  {
+    check('公司页：PANE_KEYS 含 company（点 tab 能显示 pane，修"没东西"）',
+      SB.ui.render.PANE_KEYS.indexOf('company') >= 0, 'PANE_KEYS=' + SB.ui.render.PANE_KEYS.join(','));
+    const names = SB.pickCompanyNames();
+    check('公司名：pickCompanyNames 按 res 键（kelp/coral，非行业 id）',
+      !!names.kelp && !!names.coral, 'keys=' + Object.keys(names).join(','));
+
+    const cm = SB.state.freshRun(false);
+    cm.civics.macroeconomics = true;        // 公司系统闸门（closeCompany/rebuildCompany 都守它）
+    SB.companyState(cm, 'kelp').epoch = 1;   // 模拟两家公司成立（逐家独立 epoch）
+    SB.companyState(cm, 'coral').epoch = 1;
+    cm.t = 1;                               // 成立后 0s ⇒ 乡镇企业（bonus 0.10）
+    check('公司系统：SB.companyMul 已导出且 kelp 产出 +10%（乡镇企业）',
+      Math.abs(SB.economy.companyMul(cm, 'kelp') - 1.10) < 1e-9, '=' + SB.economy.companyMul(cm, 'kelp'));
+    check('公司系统：companyMul 对非公司资源（iron）恒 1', SB.economy.companyMul(cm, 'iron') === 1);
+
+    /* ⚠️ 单独关闭：只关 kelp，coral 不受影响（2026-10-13 改「单独关闭」的核心回归）。 */
+    SB.closeCompany(cm, 'kelp');
+    check('公司系统：单独关闭 kelp ⇒ 仅 kelp 加成归零、coral 仍 +10%',
+      SB.economy.companyMul(cm, 'kelp') === 1 && Math.abs(SB.economy.companyMul(cm, 'coral') - 1.10) < 1e-9);
+    check('公司系统：companyLuxMul 仅统计存活公司（关掉 1 家 ⇒ 0.10）',
+      Math.abs(SB.economy.companyLuxMul(cm) - 0.10) < 1e-9, '=' + SB.economy.companyLuxMul(cm));
+    SB.rebuildCompany(cm, 'kelp');          // 复原，避免影响后续
+
+    /* 端到端：宏观经济学后真的把两家公司渲染进 #pane-company-body（钉死"公司页面下没东西"）。 */
+    const cpRun = SB.game.run();
+    cpRun.civics.macroeconomics = true;
+    SB.companyState(cpRun, 'kelp').epoch = 1;
+    SB.companyState(cpRun, 'coral').epoch = 1;
+    cpRun.t = 1;
+    cpRun.companyNames = SB.pickCompanyNames();
+    SB.ui.render.renderPanes();
+    const cpBody = (doc.getElementById('pane-company-body') || {})._html || '';
+    check('公司页：宏观经济学后渲染出两家公司（非空、且藻食公司非"未命名"）',
+      cpBody.indexOf('藻食') >= 0 && cpBody.indexOf('未命名') < 0, 'len=' + cpBody.length);
+    SB.game.setTab('company');
+    check('公司页：setTab("company") 后 #pane-company 不再 hidden',
+      !(doc.getElementById('pane-company')._classes || new Set()).has('hidden'));
+
+    /* 单独关闭一家公司 ⇒ 页面对应项显示「已解散」+「重建」按钮，另一家仍活跃（含"关闭"按钮）。 */
+    SB.closeCompany(cpRun, 'kelp');
+    SB.ui.render.renderPanes();
+    var cpBody2 = (doc.getElementById('pane-company-body') || {})._html || '';
+    check('公司页：单独关闭 kelp ⇒ 页面显示「已解散」+「重建」按钮，且 coral 仍活跃',
+      cpBody2.indexOf('已解散') >= 0 && cpBody2.indexOf('重建') >= 0 &&
+      cpBody2.indexOf('关闭') >= 0 && cpBody2.indexOf('藻食') >= 0);
+
+    /* 单独重建 kelp ⇒ 其加成回到 +10%（从乡镇企业 tier 0 重启），不影响 coral。 */
+    SB.rebuildCompany(cpRun, 'kelp');
+    check('公司系统：单独重建 kelp ⇒ 其加成回到 +10%（tier 0 重启）、coral 不变',
+      Math.abs(SB.economy.companyMul(cpRun, 'kelp') - 1.10) < 1e-9 &&
+      Math.abs(SB.economy.companyMul(cpRun, 'coral') - 1.10) < 1e-9);
+
+    /* 升级倒计时：成立后 0s ⇒ tier 0，距「地方企业」(3600s) 的倒计时应上屏。 */
+    SB.companyState(cpRun, 'kelp').epoch = 100; cpRun.t = 100;
+    SB.ui.render.renderPanes();
+    var cpBody3 = (doc.getElementById('pane-company-body') || {})._html || '';
+    check('公司页：活跃态显示升级倒计时（"距离升级为「地方企业」还需…"）',
+      cpBody3.indexOf('距离升级为「地方企业」还需') >= 0, 'snip=' + cpBody3.slice(0, 220));
+  }
 
   /* ══ 工坊自动制作槽（2026-10-07 用户拍板）═══════════════════════════
    * ⚠️ 这组断言的由来：`s.perk.autoCraft`（轮回商店「自动制作槽 I/II/III」）此前是

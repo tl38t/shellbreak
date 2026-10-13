@@ -185,7 +185,7 @@
       var t = null;
       for (var i = 0; SB.TECHS && i < SB.TECHS.length; i++) if (SB.TECHS[i].id === id) t = SB.TECHS[i];
       if (!t || s.techs[id] || !SB.economy.enough(s.res.science, t.cost)) return false;
-      s.res.science -= t.cost; s.techs[id] = true;
+      s.res.science -= t.cost; s.techs[id] = true; s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
       if (emit) emit('研究完成：' + t.name);
       return true;
     }

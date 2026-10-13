@@ -147,6 +147,9 @@
       return r;
     }
     // ① 轮回点（唯一可消费货币）
+    /* ERA6 市政《文明构造》：拥有则**本轮回**轮回点 +20%（拥有当轮 tidePoints ×1.2，
+     * 不跨周目累积）。在写入 meta.tide 之前乘，与「本局结算」口径一致；未拥有 = 不乘。 */
+    if (s.civics && s.civics.civilization) r.tidePoints *= 1.2;
     meta.tide += r.tidePoints;
     // ② 旧日信仰：本局剩余信仰并入总量
     meta.oldFaith = (meta.oldFaith || 0) + Math.max(0, (s.res && s.res.faith) || 0);
