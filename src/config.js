@@ -119,7 +119,7 @@
       dev: 'v6y5wvn3daf1a9i7es',        // 综合发展分     numeric / desc / best
       wonder: 'ljn2b6ppris2alrlji',     // 入藏奇观数     numeric / desc / best
       cycle: 'dhkg9zq7in4m37vpos',      // 轮回次数       numeric / desc / best
-      star: ''                         // 最大星空探索   numeric / desc / best（平台榜待建：LB 留空串 ⇒ 不发请求、不报错；回填 ID 后自动启用）
+      star: 'ewv1anvdnpxk28ruen'         // 最大星空探索   numeric / desc / best（TapTap 榜已建并发布：DB 8148 / 客户端 ID；回填于 2026-10-13）
     },
     /* 榜 -> 参数表。与 LB 平行维护，键必须对得上。 */
     MAP: {
