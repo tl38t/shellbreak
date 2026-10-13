@@ -141,6 +141,8 @@
 .tree-detail-section h4{margin:0 0 6px;color:#9eb4c4;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
 .tree-detail-section p{margin:0;color:#d5e2eb;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
 .tree-detail-section small{display:block;margin-top:5px;color:var(--dim);font-size:10px}
+.b-flavor{margin-top:9px;padding:10px 13px;border:1px solid rgba(111,145,168,.18);border-radius:11px;
+  background:rgba(7,19,31,.32);text-align:center;font-style:italic;color:#9fd9c8;font-size:12.5px;line-height:1.8;overflow-wrap:anywhere}
 .tree-progress{height:4px;margin-top:9px;overflow:hidden;border-radius:9px;background:#081522}.tree-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#44bdac,#83e0b1)}
 .tree-reqs{display:flex;flex-wrap:wrap;gap:6px}.tree-req{padding:4px 8px;border:1px solid rgba(129,154,172,.19);border-radius:7px;background:rgba(255,255,255,.025);color:#aabac6;font-size:11px}
 .tree-req.met{border-color:rgba(91,210,151,.2);color:#8ad8ad;background:rgba(91,210,151,.06)}

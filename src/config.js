@@ -118,7 +118,8 @@
       firstFaith: '2obin1zkh91ss7lyac', // 最快立教（平台榜名仍「最快建立文明」） time / asc  / best
       dev: 'v6y5wvn3daf1a9i7es',        // 综合发展分     numeric / desc / best
       wonder: 'ljn2b6ppris2alrlji',     // 入藏奇观数     numeric / desc / best
-      cycle: 'dhkg9zq7in4m37vpos'       // 轮回次数       numeric / desc / best
+      cycle: 'dhkg9zq7in4m37vpos',      // 轮回次数       numeric / desc / best
+      star: ''                         // 最大星空探索   numeric / desc / best（平台榜待建：LB 留空串 ⇒ 不发请求、不报错；回填 ID 后自动启用）
     },
     /* 榜 -> 参数表。与 LB 平行维护，键必须对得上。 */
     MAP: {
@@ -126,7 +127,8 @@
       firstFaith: { title: '最快立教', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
       dev:      { title: '综合发展分',   scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
       wonder:   { title: '入藏奇观',scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
-      cycle:    { title: '轮回次数',     scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' }
+      cycle:    { title: '轮回次数',     scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
+      star:     { title: '最大星空探索', scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' }
     },
     /* 时间榜的显示单位（分数仍是整秒，这里只管 UI 上怎么写）。
      *⛔ 不做「毫秒榜」：score 必须是整数，秒以下精度平台存不了。 */
@@ -1113,6 +1115,10 @@
      * theaterCivRatio：歌剧院每级给官员（书手）市政点产出 +15%（economy.cultureRate 的 theaterCivicMul 读）。
      * tenementPop：廉租社区每级给人口上限 +10（economy.popCap 读 s.lvl.tenement * 此值）。 */
     theaterCivRatio: 0.15, tenementPop: 10,
+    /* tenementLuxAdd：廉租社区每级 +5% 居民奢侈品**消耗**（增耗，与王国潮道/商队驿站的
+     * luxSaveAll 减耗反号）。economy.tenementLuxAdd 读，tick/happyBurn/rates 三处同源。
+     * ⚠️ 这是 2026-10-13 用户拍板补的属性（此前 tenement 只有人口上限，消耗侧是空轴）。 */
+    tenementLuxAdd: 0.05,
     /* ── ERA4（2026-09-30 用户规格表）三个新常数 ──
      * coralFarmCW：建筑「速生珊瑚林」——每级珊瑚匠产出 +10%（用户 2026-09-30 把
      *   原「珊瑚产出 +10%/级」改成了「珊瑚匠产出」，与研究所→学者同构，
@@ -1383,7 +1389,7 @@
      *   从「议事厅」改写成「城堡」——**等级、造价曲线、建造动作全是同一条**，只是名字与
      *   每级效果升级了（render 读 `s.upgrades.upg_castle` 切名，见 ui/render.js）。
      *   ⇒ 不存在「议事厅退役」这回事，也就**不需要** `retiredBy` 字段。 */
-    { id: 'hall',     name: '议事厅',   ratio: 1.75, cost: {stone: 80, coral: 60}, desc: '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级',
+    { id: 'hall',     name: '议事厅',   ratio: 1.2, cost: {stone: 80, coral: 60}, desc: '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级',
       requiredTech: ['masonry'] },
 
     /* ---- 食物三旋钮（猫国 pasture / aqueduct / barn 的对应物）----
@@ -1652,7 +1658,7 @@
     { id: 'coralfarm', name: '速生珊瑚林', ratio: 2.5, cost: { kelp: 1000 },
       desc: '每级珊瑚匠产出 +10%（职业专精建筑，与工具乘区独立相乘）',
       requiredTech: ['printing'] },
-    { id: 'bank', name: '银行', ratio: 1.15, cost: { steel: 30, stoneBeam: 400 },
+    { id: 'bank', name: '银行', ratio: 2, cost: { steel: 30, stoneBeam: 400 },
       desc: '每级商人产出 +10%（走奢侈品供给那一侧）',
       requiredTech: ['banking'] },
 
@@ -1672,7 +1678,7 @@
       cost: { stone: 200, rope: 100 },
       desc: '每季节判定一次：获得任意时产资源「等级 × 1 分钟」产量；每级另减 1% 居民奢侈品消耗。',
       requiredCivic: 'explore' },
-    { id: 'museum', name: '博物馆', ratio: 2.5,
+    { id: 'museum', name: '博物馆', ratio: 2,
       cost: { stone: 400 },
       desc: '官员（书手）市政点产出 +20%。',
       requiredCivic: 'enlightenment' },
@@ -1685,7 +1691,7 @@
      * 【学校】由「普及教育」解锁（requiredTech，与 techs.js pubedu 的 eff.unlockBuild 双写一致）。
      *   效果：每级给商人 +0.5 科技/s（BLD.schoolMerchantSci），tick/rates 两处同式读。
      *   ⚠️【cost 为提议值，未拍板】。 */
-    { id: 'hotforge', name: '热锻工厂', ratio: 1.15, cost: { steel: 400, titanium: 10 },
+    { id: 'hotforge', name: '热锻工厂', ratio: 1.5, cost: { steel: 400, titanium: 10 },
       desc: '工艺制作效率 +7%/级（加法乘区，与工坊级/奇观/科技同一条轴）',
       requiredTech: ['industrialize'] },
     { id: 'school', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 20 },
@@ -1699,11 +1705,11 @@
      * 【廉租社区】requiredCivic='urbanization'。效果 = 人口上限 +10/级（economy.popCap 读
      *   s.lvl.tenement * BLD.tenementPop）。⚠️ ratio 3 为用户原话「升级倍率设定为3」，待标定。
      * ⚠️【cost 为提议值，未拍板】量级对齐 era5 建筑（钢 + 钛/脚手架高阶料）。 */
-    { id: 'theater', name: '歌剧院', ratio: 1.15, cost: { steel: 100, stone: 400 },
+    { id: 'theater', name: '歌剧院', ratio: 1.5, cost: { steel: 100, stone: 400 },
       desc: '官员（书手）市政点产出 +15%/级（由 theaterCivicMul 读）。',
       requiredCivic: 'sharksong' },
     { id: 'tenement', name: '廉租社区', ratio: 3, cost: { scaffold: 50, steel: 100 },
-      desc: '人口上限 +10/级（由 popCap 读）。',
+      desc: '人口上限 +10/级（由 popCap 读）；每级额外 +5% 居民奢侈品消耗（增耗，economy.tenementLuxAdd 读）。',
       requiredCivic: 'urbanization' },
     /* ── ERA6（2026-10 实装）两座新建筑 ──
      * 钛金板件仓（modpart 解锁，requiredTech 与科技 eff.unlockBuild 双写一致，见 e2e「建筑解锁来源」三断言）：

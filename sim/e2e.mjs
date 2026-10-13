@@ -1998,6 +1998,35 @@ console.log('\n=== 食物双源 ===');
     check('rates 的 D 侧与 happyBurn 同源（净速率 = 供给 − burn）',
       Math.abs(rt.luxury - (SB.economy.happySupply(hb) - SB.economy.happyBurn(hb))) < 1e-9,
       'rates=' + rt.luxury.toFixed(8) + ' 手算=' + (SB.economy.happySupply(hb) - SB.economy.happyBurn(hb)).toFixed(8));
+    /* ③ 廉租社区每级 +5% 居民奢侈品消耗（增耗，与王国潮道/商队驿站的减耗反号）。
+     *   直接读 tenementLuxAdd，并验 tick/happyBurn/rates 三处同源。
+     *   ⚠️ 夹具必须让 供给 > 需求（merchant=2 ⇒ S=0.10 > D=0.0625），否则 deficit 时
+     *      rates.luxury 被夹成 0 而 happySupply−happyBurn 为负，两式不等（那是引擎正确行为，
+     *      不是判据 bug，见上方商队驿站段同款约束）。 */
+    const ts = SB.state.freshRun(false);
+    ts.lvl.tenement = 0;
+    const t0 = SB.economy.tenementLuxAdd(ts);
+    ts.lvl.tenement = 1;
+    const t1 = SB.economy.tenementLuxAdd(ts);
+    ts.lvl.tenement = 5;
+    const t5 = SB.economy.tenementLuxAdd(ts);
+    check('廉租社区：tenementLuxAdd 随等级线性 +5%/级（0/1/5 级 ⇒ 0 / 5% / 25%）',
+      Math.abs(t0) < 1e-9 && Math.abs(t1 - 0.05) < 1e-9 && Math.abs(t5 - 0.25) < 1e-9,
+      't0=' + t0 + ' t1=' + t1 + ' t5=' + t5);
+    /* happyBurn（UI 读数）必须含廉租社区增耗 —— 与驿站减耗同一类「不能漏」的接线 */
+    const tb = SB.state.freshRun(false);
+    tb.civics = { trade: true }; tb.pop = 10; tb.jobs.merchant = 0; tb.happy = 0;
+    const tb0 = SB.economy.happyBurn(tb);
+    tb.lvl.tenement = 5;
+    const tb5 = SB.economy.happyBurn(tb);
+    check('🚨 happyBurn 含廉租社区增耗（5 级 ⇒ ×1.25，增耗而非减耗）',
+      Math.abs(tb5 / tb0 - 1.25) < 1e-9, 'tb0=' + tb0.toFixed(6) + ' tb5=' + tb5.toFixed(6) + ' 比=' + (tb5 / tb0).toFixed(6));
+    /* rates 的 D 侧同源：净速率应等于 供给 − happyBurn（供给需 > 需求，见上方说明） */
+    tb.jobs.merchant = 2;
+    const trt = SB.economy.rates(tb);
+    check('rates 的 D 侧与 happyBurn 同源（廉租社区增耗在 rates 也生效）',
+      Math.abs(trt.luxury - (SB.economy.happySupply(tb) - SB.economy.happyBurn(tb))) < 1e-9,
+      'rates=' + trt.luxury.toFixed(8) + ' 手算=' + (SB.economy.happySupply(tb) - SB.economy.happyBurn(tb)).toFixed(8));
   }
 
   // 口粮必须真的构成约束：一个采集者养不到 2 个人，否则前期永远不会缺粮

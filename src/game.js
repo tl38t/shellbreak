@@ -500,6 +500,8 @@
     if (w > (rankLast.wonder || 0)) entries.push({ key: 'wonder', value: w });
     var c = m.cycle || 0;
     if (c > (rankLast.cycle || 0)) entries.push({ key: 'cycle', value: c });
+    var star = Math.floor((S.res.starExplore || 0));
+    if (star > (rankLast.star || 0)) entries.push({ key: 'star', value: star });
     if (!entries.length) return;
     for (var i = 0; i < entries.length; i++) rankLast[entries[i].key] = entries[i].value;
     SB.rank.submitRun(entries, function (done, sent) {
@@ -507,7 +509,7 @@
     });
   }
 
-  /* 破壳结算那一刻：一次性提交全部 5 个榜（正好卡在 submitScores 的 5 条上限）。
+  /* 破壳结算那一刻：一次性提交（fastest/dev/wonder/cycle/star 共 5 项，正好卡在 submitScores 的 5 条上限；star 不依赖 valid）。
    * ⛔ 通关口径（用户 2026-10-07 拍板）：**只认「凿穿 + 已建神学」**。
    *   依据 prestige.qualified(s) = !!s.civics.theology —— 壳凿穿但没建神学的局
    *   r.locked=true、轮回点归 0，那种局不该出现在「最快通关」榜首。
@@ -524,6 +526,7 @@
     /* 这两个不依赖「有效通关」：建成即算，锁不锁都有意义。 */
     entries.push({ key: 'wonder', value: countWonders(s) });
     entries.push({ key: 'cycle', value: (m.cycle || 0) + 1 });
+    entries.push({ key: 'star', value: s.res.starExplore });   // 星空探索峰值（破壳时该局已结束，取最终累计；calcType:best 自动取历史最大）
     /* 记入定期上报的去重表：破壳刚发过的高值，5 分钟后的定期拍就不会重发同值。 */
     for (var i = 0; i < entries.length; i++) rankLast[entries[i].key] = Math.floor(entries[i].value);
     SB.rank.submitRun(entries, function (done, sent) {

@@ -2259,6 +2259,7 @@
       '<section class="tree-detail-section"><h4>效果</h4><p>' +
       (revealed ? linkInfoNames(effect) : '达成揭示条件后显示。') + '</p></section>' +
       '<section class="tree-detail-section"><h4>前置节点</h4><div class="tree-reqs">' + reqHtml + '</div></section>' +
+      (tech && revealed && TECH_FLAVOR[id] ? '<p class="b-flavor">' + TECH_FLAVOR[id] + '</p>' : '') +
       '<div class="tree-detail-actions"><button class="btn buy" type="button" data-tree-study="' + (tech ? 'tech' : 'civic') + '" data-' + (tech ? 'tech' : 'civic') + '="' + id + '"' +
       (done || blocked ? ' disabled' : '') + (blocked ? ' title="' + blocked + '"' : '') + '>' + buttonText + '</button>' +
       '<button class="btn tree-back" type="button" data-modal-close="1">返回树图</button></div>';
@@ -2342,6 +2343,81 @@
     }
   }
 
+  // 建筑文案（flavor）：点开建筑详情卡底部一行斜体居中显示，无标题。
+  // 与 WONDER_FLAVOR 同思路（数据集中、纯展示、不进存档）。
+  var BUILDING_FLAVOR = {
+    kelp:        '海底热泉泛着微红的光，有暗青的海藻在其旁飘荡…',
+    nest:        '热泉水流过珊瑚缝隙，流过两名鲛人的家。',
+    coralhouse:  '更牢固的材料足以支撑起更大的空间。',
+    siltpit:     '幽深的海床上裸露着可用的金属矿物，将其收集起来或许能派上用场。',
+    hall:        '鲛人们需要一栋独立的建筑用来议事，协调事宜。',
+    weir:        '用金属构成的导流槽可以将热泉附近的温暖海水导向更远的地方。',
+    warmnest:    '鲛人引导着深海的鱼群，作为藻食之外的补充。',
+    kelpstore:   '将藻食固定在珊瑚架上整齐摆放，可以存储更多。',
+    ballast:     '正因是在水中，才更应让囤积的物资都各有归处。',
+    workshop:    '敲打与锻铸声自此不断，一条条加工线在此汇成工业的雏形。',
+    furnace:     '热即文明，若能将散发光热的暖石进一步加以利用……',
+    library:     '「热泉利藻」、「存藻耐寒」……零散的知识刻上壁面，供代代鲛人记诵。',
+    lighthouse:  '灯火刺穿深海的黑潮，鲛人的文明不必再局限于热泉周边。',
+    institute:   '旧日的知识，将之串联，再加以研究。',
+    square:      '广场中心的石碑上不只有书手们刻录的政令，也有二手房售卖信息。',
+    temple:      '虔诚的鲛人在此吟唱敬神的潮歌，希冀不受不受俗世的烦忧。',
+    hydroturbine:'热力让管道内低沸点的生物流质迅速沸腾起来，推动钢铁连杆，可用于各式机器。',
+    hydroshop:   '依赖于高炉的热量与热液能推动的锻锤，可以生产比精铁更坚硬的钢材。',
+    canal:       '人工潮道把家乡与远方连成一线，水流推动着旅人与货物前行。',
+    observatory: '鲛人将楔钉深深打入天壳之中，将轻便的钢架建筑固定在天壳上，以便随时观测记录天壳的状态。',
+    coralfarm:   '特殊选育的珊瑚虫能够在合适的区域快速构造可用于生产的珊瑚林。',
+    bank:        '信用，商人，与资本的美好时光。',
+    caravanserai:'依赖于越来越多的灯塔与维护良好的潮道，鲛人商队已不再局限于一日可达的距离。',
+    museum:      '旧日文明的造物被陈列在架上。',
+    hotforge:    '依靠热液能运行的自动设备为传统工艺带来了变革之风。',
+    school:      '教育大众化的标志，从此知识不再永远为血统与幸运所把控。',
+    theater:     '穹顶之下，歌声回荡。',
+    tenement:    '层层叠起的居所塞进更多鲛人，但，代价是什么呢？'
+  };
+
+  // 科技文案（flavor）：点开科技详情卡底部一行斜体居中显示，无标题。
+  // 与 BUILDING_FLAVOR / WONDER_FLAVOR 同思路（数据集中、纯展示、不进存档）。
+  // 仅 revealed 后展示（未揭露的科技连效果都藏，文案更不该泄露）。
+  var TECH_FLAVOR = {
+    writing:    '「Ⅰ代表今天，Ⅰ•代表明天，•Ⅰ则是昨天，这就是我们最早的文字。」——后世的教科书',
+    coralcut:   '「我们必须假设在漆黑的海底采凿珊瑚是幸福的，不然又哪来如今的文明？」',
+    quarry:     '「西\'西弗斯将石头在海床上滚啊滚……」——鲛人神话',
+    plant:      '「仓廪实而知礼节。」——《史记》',
+    calendar:   '「此处记述了如何，一切处于悬止，一切平静，处于静默，一切静止，寂静。而天穹的领域是空洞的。」——《波波尔•乌》',
+    scholarT:   '「历史自此始。」',
+    herd:       '「如果天壳之上没有鱼群，那我死后想到鱼群洄游的地方去。」',
+    tiddivine:  '「……占潮师们被认为是最早的学者……」——《鲛人科学史》',
+    mining:     '「矿镐敲击在岩石上，发出喀锵、喀锵的声音……」<br>「导演，那时还没有金属工具。」',
+    masonry:    '「幸好，暗流纪还不存在公摊面积这个概念。」——联邦笑话一则',
+    bronze:     '「武器交击，发出喀锵、喀锵的声音……」<br>「导演，都说了那时还没有金属工具。」',
+    thermal:    '「渊海水暖藻先知。」',
+    lighting:   '「啊啊，法的世界充满光芒。」',
+    ironwork:   '「……利用热泉的热量，我们用散落在海床上的金属矿石炼出了铁……」',
+    navigation: '「他离开了灯塔所能照亮的范围，从此再也没有任何人见过他。」',
+    horsemanship:'「白马非马，海马亦马。」',
+    engineeringT:'「东西没坏，就别去修它。」',
+    mathematics:'「我想到了一个美妙的证法，但我手酸了，实在刻不动潮纹了……」——费\'洛萨马',
+    scaffoldT:  '「修建圣泰坦尼克修道院，足足历时三百年，而毁坏，却不过只是按下发射电钮的一瞬间。」',
+    apprentice: '「一年打杂，三年帮师，十年功成。」',
+    horseshoe:  '「夹紧马腹，皇帝陛下！」——鲛人喜剧《最后之日》',
+    metalrefine:'「瓦\'特拉欧看到热泉周边的海水沸腾，腾起的气泡甚至冲开了岩石……」——《鲛人科学史》',
+    education:  '「论文可以发表，但切记勿要署老师我的名。」',
+    castle:     '「故上兵伐谋，其次伐兵，其下攻城。」',
+    shellwatch: '「上至天壳，下至海渊。」',
+    printing:   '「……而太阳报的读者，他们只关心第三版……」',
+    physics:    '「……物理学的先咸们首次发现，存在着一种没有水的真空状态，而他们为此感到恐惧……」——《鲛人科学史》',
+    banking:    '「……若银行控制了国家，便会撕下『服务生产』的面具，体现出高利贷的野蛮本性……」',
+    thermo:     '「生命以负熵为食。」',
+    invert:     '「逆向而行的两个世界。」',
+    industrialize:'「工业不是老师傅与几个小学徒的童话故事，它是一门复杂的学问。」',
+    pubedu:     '「学校里的学生？还是流水线上的产品？抱歉，工业更青睐后者。」',
+    abyssgeo:   '「矿镐敲击在钛矿上，发出喀锵、喀锵的声音……」<br>「导演，那时候已经不用矿镐了。」',
+    highthermo: '「嗡嗡——」',
+    shellgeo:   '「地质学是关于压力与时间的研究，简而言之就是如此。」',
+    skydrill:   '「永别了，牢笼。」'
+  };
+
   function showBuildingInfo(id) {
     var s = res(), b = SB.habitat && SB.habitat.buildingById ? SB.habitat.buildingById(id) : null;
     if (!s || !b) return;
@@ -2368,6 +2444,7 @@
       effectText = '人口上限 +' + housePerLevel + '/级（当前 +' + (housePerLevel * lv) + '）';
       if (housePlan) effectText += ' · 生息建筑规划额外 +' + housePlan + '/级（当前 +' + (housePlan * lv) + '）';
       if (id === 'nest') effectText += '。住满后不再生育。';
+      if (id === 'tenement') effectText += '；每级额外 +' + ((SB.BLD.tenementLuxAdd || 0) * 100).toFixed(0) + '% 居民奢侈品消耗（当前 +' + ((SB.BLD.tenementLuxAdd || 0) * lv * 100).toFixed(0) + '%）。';
     } else {
       effectText = buildingEffectText(s, b, lv);
     }
@@ -2380,7 +2457,8 @@
       '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(effectText) + '</p></section>' +
       '<section class="tree-detail-section"><h4>下一次建造 / 升级</h4><p>' +
       SB.economy.costOwnedTxt(s, cost) + '</p></section>' +
-      '<section class="tree-detail-section"><h4>建造条件</h4><p>' + reqText + '</p></section>';
+      '<section class="tree-detail-section"><h4>建造条件</h4><p>' + reqText + '</p></section>' +
+      (BUILDING_FLAVOR[b.id] ? '<p class="b-flavor">' + BUILDING_FLAVOR[b.id] + '</p>' : '');
     openInfoCard(name, '⌂', state, body, '');
   }
 

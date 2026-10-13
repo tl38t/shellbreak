@@ -1205,6 +1205,15 @@
     var car = Math.min(1 - canal, (_lv.caravanserai || 0) * (SB.BLD.caravanseraiLuxSave || 0));
     return canal + car;
   }
+  /* 廉租社区每级 +5% 居民奢侈品**消耗**（2026-10-13 新增；与 luxSaveAll 减耗反号）。
+   * 【为什么是加项不是减项】王国潮道/商队驿站是「省耗」（乘 (1 − Σ)），廉租社区是
+   *   「塞更多鲛人进来 ⇒ 奢侈品更不够烧」（乘 (1 + Σ)）。两者语义相反，不能进同一个括号。
+   * 【三处同源】它被 tick 的 `_D`、rates 的 `D`、happyBurn 三处读 —— 与 luxSaveAll 同一个
+   *   「一处算、三处读」铁律，漏一路就会面板撒谎。 */
+  function tenementLuxAdd(s) {
+    var _lv = (s && s.lvl) || {};
+    return (_lv.tenement || 0) * (SB.BLD.tenementLuxAdd || 0);
+  }
   function happyBurn(s) {
     /* /秒 总消耗 = 人口 × 每人消耗。rates 与 tick 共用（同式，防面板撒谎）。
      * ERA4（2026-10-01）：商人共和国政体幸福度消耗 −30%（govHappyConsumeMul，乘整段）。
@@ -1220,7 +1229,7 @@
     return (s.pop || 0) * happyCost(happyMech(s)) * (1 - luxSaveAll(s))
       * (SB.civic ? SB.civic.govHappyConsumeMul(s) : 1)
       * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1)
-      * (1 + (SB.civic ? SB.civic.cardLuxConsumeMul(s) : 0) + companyLuxMul(s));   // ERA6 大众传媒卡 +50% / 公司 +10% 奢侈品消耗
+      * (1 + (SB.civic ? SB.civic.cardLuxConsumeMul(s) : 0) + companyLuxMul(s) + tenementLuxAdd(s));   // ERA6 大众传媒卡 +50% / 公司 +10% / 廉租社区每级 +5% 奢侈品消耗（增耗）
   }
   /* 每人每秒消耗（2026-10-05 · 幸福度那行要摆出来给玩家看）。
    * ⚠️ 只给**政策调整前**的裸值：govHappyConsumeMul / happyConsumeMul 是政体与奇观给的
@@ -1596,7 +1605,7 @@
          *    幸福度会无限上漂（与「happy 是状态量」冲突）。换政体瞬间即跳新偏移，符合直觉。 */
         var _Hmech = (s.happy || 0) - _gb;                  // 上一帧机制值（剥离政体加成）
         /* ⚠️ 公司系统：成立后恒 +10% 奢侈品消耗（companyLuxMul 在未成立时返回 0 ⇒ 不涨）。 */
-        var _D = (s.pop || 0) * happyCost(_Hmech) * (1 - luxSaveAll(s)) * (1 + companyLuxMul(s) + (SB.civic ? SB.civic.cardLuxConsumeMul(s) : 0)); // /秒 需求
+        var _D = (s.pop || 0) * happyCost(_Hmech) * (1 - luxSaveAll(s)) * (1 + companyLuxMul(s) + (SB.civic ? SB.civic.cardLuxConsumeMul(s) : 0) + tenementLuxAdd(s)); // /秒 需求
         /* ⚠️ 产出走 addRes（不是直写 s.res.luxury）：addRes 内部会累加 s.got.luxury
          *   （累计产出台账）。「中世纪集市」鼓舞 = 累计奢侈品产出 10000 读的就是它
          *   （civics.js:174 的 {t:'gathered',r:'luxury',n:10000} → tech.condMet gathered 分支）。
@@ -1855,7 +1864,7 @@
           * bankMul(s)                                   // 2026-09-30 ERA4：银行每级商人产出 +10%
           * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1); // 大巴扎：每名鲛人 +1% 奢侈品获取
         if (S <= 0) return 0;
-        var D = (s.pop || 0) * happyCost(happyMech(s)) * (1 - luxSaveAll(s));
+        var D = (s.pop || 0) * happyCost(happyMech(s)) * (1 - luxSaveAll(s)) * (1 + tenementLuxAdd(s));
         return S - Math.min(S, D);
       })()
     };
@@ -1995,7 +2004,7 @@
     /* ⚠️ ERA6 公司系统（2026-10 实装）：公司产出加成 / 奢侈品消耗加成两读数。
      *   导出是因为公司页（render.paneCompany）要直接显示「藻食/珊瑚 产出 +X%」，
      *   不导出则 SB.companyMul 为 undefined、兜底走 1 ⇒ 加成恒显 +0%（面板撒谎）。 */
-    companyMul: companyMul, companyLuxMul: companyLuxMul,
+    companyMul: companyMul, companyLuxMul: companyLuxMul, tenementLuxAdd: tenementLuxAdd,
     /* warmRelief 必须导出：它是「这一 tick 顶回几成」的唯一权威读数，
      * 结算面板的 burning 提示、回归里那几条断言都读它。
      * ⚠️ 它有副作用（会烧石、会置 warmBurning），所以别在渲染路径里调用它——
