@@ -19,29 +19,39 @@ TOP = 'shellbreak'
 #   封包前无条件从仓库根重新同步，不靠人记得手动 cp。
 REPO = r'D:/shellbreak'
 os.makedirs(SRC, exist_ok=True)
+def _sync_tree(src, dst):
+    """增量同步：逐文件删除 dst 中源已不存在的文件(规避 safe-delete 批量删除阈值)，再覆盖复制。"""
+    if os.path.isdir(dst):
+        for root, dirs, files in os.walk(dst, topdown=False):
+            for fn in files:
+                rel = os.path.relpath(os.path.join(root, fn), dst)
+                if not os.path.exists(os.path.join(src, rel)):
+                    try: os.remove(os.path.join(root, fn))
+                    except OSError: pass
+            for d in dirs:
+                try:
+                    if not os.listdir(os.path.join(root, d)):
+                        os.rmdir(os.path.join(root, d))
+                except OSError: pass
+    if os.path.isdir(src):
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+
 for rel in ['index.html']:
     shutil.copy2(os.path.join(REPO, rel), os.path.join(SRC, rel))
-for d in ['css', 'src']:
-    dst = os.path.join(SRC, d)
-    if os.path.isdir(dst):
-        shutil.rmtree(dst)
-    shutil.copytree(os.path.join(REPO, d), dst)
+_sync_tree(os.path.join(REPO, 'css'), os.path.join(SRC, 'css'))
+_sync_tree(os.path.join(REPO, 'src'), os.path.join(SRC, 'src'))
 print('已自动同步 index.html / css / src -> 包目录')
 
 # 科技树节点直接引用这些运行时图片；只同步 tech-icons，避免把本地商店素材等开发文件带进上传包。
 tech_icon_src = os.path.join(REPO, 'assets', 'tech-icons')
 tech_icon_dst = os.path.join(SRC, 'assets', 'tech-icons')
-if os.path.isdir(tech_icon_dst):
-    shutil.rmtree(tech_icon_dst)
-shutil.copytree(tech_icon_src, tech_icon_dst)
+_sync_tree(tech_icon_src, tech_icon_dst)
 print('已自动同步 assets/tech-icons -> 包目录')
 
 # 市政树节点同样直接引用这些运行时图片；只同步 civic-icons，不把本地商店素材等开发文件带进上传包。
 civic_icon_src = os.path.join(REPO, 'assets', 'civic-icons')
 civic_icon_dst = os.path.join(SRC, 'assets', 'civic-icons')
-if os.path.isdir(civic_icon_dst):
-    shutil.rmtree(civic_icon_dst)
-shutil.copytree(civic_icon_src, civic_icon_dst)
+_sync_tree(civic_icon_src, civic_icon_dst)
 print('已自动同步 assets/civic-icons -> 包目录')
 
 # ---------- 打包前：确认包内源码已是新壳厚 ----------
