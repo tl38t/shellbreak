@@ -23,6 +23,9 @@
   white-space:normal;word-break:break-all}
 .slotbox .slotsub.bad{color:var(--red)}
 .slotbox .btn{margin-top:auto;width:100%;font-size:10px;padding:2px 0}
+/* 2026-10-13 政策卡两步选位：armed 卡命中且本槽对口时高亮，提示「点这里装」。 */
+.slotbox.slot-target{border-color:var(--amber);background:#13243a;box-shadow:inset 0 0 0 2px rgba(245,166,35,.45);cursor:pointer}
+.slotbox.slot-target .slottt{color:var(--amber)}
 /* 政策卡的类型标签复用 .tag 的位置，另给每种类型一个底色——
  * ⚠️ 四种底色都压在同一亮度区间，避免「哪个标签更显眼」变成阅读顺序。 */
 .tag.twild{background:#123a2a;color:var(--green)}

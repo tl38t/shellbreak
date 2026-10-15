@@ -178,6 +178,8 @@ console.log(' 礁口巢造价(珊瑚): ' + (NEST_COST.coral || 0));
 
 /* ---------------- botStep（与 e2e 完整同源：含石梁/奇观/研究/市政/祭坛） ---------------- */
 function botStep() {
+  SB.aiStrategy.step(SB.game.run(), { targetPopulation: TARGET_POPCAP });
+  return;
   const s = SB.game.run();
   /* 手动采珊瑚：真开局唯一进项（玩家点「采珊瑚」按钮的等价）。
    * ⚠️ 不能用 `!s.lvl.nest` 当门槛——那样首座巢建成后，低位（pop 小）时 autoAssign 把闲人全塞

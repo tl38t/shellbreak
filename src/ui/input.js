@@ -290,6 +290,10 @@
       }
       return;
     }
+    if (d.challengeStart) {
+      if (SB.challenges && SB.challenges.prepareStart(d.challengeStart)) return;
+      return;
+    }
     if (d.gather) {
       /* 手动采集两条线（2026-09-26 用户要求开局两种资源都点得到）：
        *   藻食 1/次 —— 猫国 Gather catnip 的对应物；
@@ -308,7 +312,40 @@
       SB.game.pumpTech(s, emit);   // 「累计产出」是几条尤里卡的条件
       return;
     }
+    /* 步长胶囊（2026-10-14 方案 B）：×1 → ×5 → ×10 循环，全局记忆。
+     * 步长存在 render 模块（视图状态），重渲染后按钮的 data-d 自动带上新步长。 */
+    if (d.step) {
+      SB.ui.render.cycleJobStep();
+      SB.game.markDirty(); SB.game.renderAll();
+      return;
+    }
+    if (d.jobmax) {
+      /* 一键最大：把所有闲置族民塞进该职业（受 jobUnlocked 门控）。 */
+      if (SB.folk.assignMax(s, d.jobmax)) {
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      SB.game.pumpTech(s, emit);   // job 类条件（几个学者 / 几个匠人）
+      return;
+    }
+    if (d.jobmin) {
+      /* 一键最小：把该职业清零（退回闲置）。 */
+      if (SB.folk.assignMin(s, d.jobmin)) {
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      SB.game.pumpTech(s, emit);
+      return;
+    }
     if (d.job) {
+      /* 双击 ＋/− = 最大/最小（e.detail 是浏览器原生连击计数，单击=1、双击=2；
+       * 假 DOM / 探针合成的 click 事件没有 detail ⇒ undefined >= 2 为 false，不受影响）。
+       * 先单击的那一下已经 ±步长，随后 max/min 覆盖到端点，净效果仍=端点。 */
+      if (e.detail >= 2) {
+        if (+d.d > 0 ? SB.folk.assignMax(s, d.job) : SB.folk.assignMin(s, d.job)) {
+          SB.game.markDirty(); SB.game.renderAll();
+        }
+        SB.game.pumpTech(s, emit);
+        return;
+      }
       if (SB.folk.assign(s, d.job, +d.d)) {
         SB.game.markDirty(); SB.game.renderAll();
       }
@@ -327,16 +364,57 @@
       SB.game.pumpCivic(s, emit);
       return;
     }
-    if (d.card) {
-      if (SB.civic.setCard(s, d.card, emit)) {
+    /* 政策卡「卸下」：点槽格里的「卸下」按钮（data-remove = 槽号，仅槽里有卡时出现）。
+     * ⚠️ 必须在 slotBox 分支之前拦截——卸下按钮是槽格 <div data-slot> 的子元素，
+     *   点它会被 t.closest('[data-slot]') 一并命中，不先拦就会走成「装卡」逻辑。
+     * 费用按当前模型由 removeCard → setCardAt 在卸下时扣（装填免费、卸下收费）。 */
+    if (d.remove !== undefined && d.remove !== null && d.remove !== '') {
+      var _rSlot = +d.remove;
+      if (SB.civic.removeCard(s, _rSlot, emit)) {
         SB.game.markDirty(); SB.game.renderAll();
+      } else {
+        var _rWhy = SB.civic.cardBlocked(s, null, _rSlot);
+        SB.game.log('政策卡卸下失败：' + (_rWhy || '该槽是空的，无需卸下'));
       }
       SB.game.pumpCivic(s, emit);
+      return;
+    }
+    /* 政策卡「点卡→点槽」两步选位（2026-10-13）：先点池里一张卡（d.card → 选中/取消），
+     * 再点高亮的卡槽（data-slot）把 armed 卡装入该格（setCard 的 slot 参数走手动选槽）。
+     * 类型不对或越界 ⇒ setCard 拒绝（返回 false），提示换个槽；已装在别的槽里也拒绝（不搬槽）。 */
+    var slotBox = t.closest && t.closest('[data-slot]');
+    if (slotBox && slotBox.dataset && slotBox.dataset.slot !== undefined) {
+      var _cid = SB.ui.render.armedCard();
+      if (_cid) {
+        if (SB.civic.setCard(s, _cid, emit, +slotBox.dataset.slot)) {
+          SB.ui.render.disarmCard();
+          SB.game.markDirty(); SB.game.renderAll();
+        } else {
+          SB.game.log('这张卡装不进这个槽（类型不对、越界，或已装在别的槽里）。');
+        }
+      } else {
+        SB.game.log('先点池里一张政策卡选中它，再点这里安装。');
+      }
+      SB.game.pumpCivic(s, emit);
+      return;
+    }
+    if (d.card) {
+      /* 2026-10-13 两步选位：点卡 = 选中/取消选中（render 模块级 armedCard），
+       * 真正落槽由点高亮槽触发；再点同一张卡 = 取消选中。 */
+      var _armedNow = SB.ui.render.armedCard();
+      if (_armedNow === d.card) SB.ui.render.disarmCard();
+      else SB.ui.render.armCard(d.card);
+      SB.game.renderAll();
       return;
     }
     if (d.gov) {
       if (SB.civic.setGov(s, d.gov, emit)) {
         SB.game.markDirty(); SB.game.renderAll();
+      } else {
+        /* 2026-10-14：换政体失败（没解锁 / 市政点不够）时给一句理由，
+         * 否则按钮静默无反应，玩家以为「政体没法改」却不知是差市政点。 */
+        var _gw = SB.civic.govBlocked(s, d.gov);
+        if (_gw) SB.game.log('政体没法换：' + _gw);
       }
       SB.game.pumpCivic(s, emit);
       return;
@@ -460,5 +538,5 @@
   }
 
   SB.ui = SB.ui || {};
-  SB.ui.input = { boot: boot };
+  SB.ui.input = { boot: boot, toggleSkydrill: toggleSkydrill };
 })(typeof window !== 'undefined' ? window : globalThis);

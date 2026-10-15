@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>渊海天壳 · UI 视觉 Demo</title>
+  <style>
+    :root{
+      --bg:#06111e;
+      --bg-deep:#081a2c;
+      --surface:rgba(12,31,51,.86);
+      --surface-2:rgba(16,42,66,.92);
+      --surface-3:#163957;
+      --line:#234a69;
+      --line-soft:rgba(104,164,196,.18);
+      --text:#e3f2fa;
+      --muted:#87a8bd;
+      --faint:#54758c;
+      --accent:#69e2df;
+      --accent-soft:#2ebdbb;
+      --green:#6fe0ae;
+      --orange:#ffb866;
+      --violet:#bca8ff;
+      --danger:#ff7282;
+      --gold:#f5cd6b;
+      --shadow:0 18px 50px rgba(0,0,0,.24);
+      --radius:16px;
+    }
+
+    *{box-sizing:border-box}
+    html{background:var(--bg)}
+    body{
+      margin:0;
+      color:var(--text);
+      font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+      background:
+        radial-gradient(900px 520px at 80% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
+        radial-gradient(760px 500px at 8% 100%, rgba(27,107,132,.18), transparent 72%),
+        linear-gradient(135deg,var(--bg),var(--bg-deep));
+      min-height:100vh;
+      overflow-x:hidden;
+    }
+
+    body::before,body::after{
+      content:"";position:fixed;inset:auto;pointer-events:none;z-index:-1;border-radius:50%;
+      background:radial-gradient(circle,color-mix(in srgb, var(--accent) 16%, transparent),transparent 68%);
+      filter:blur(2px);opacity:.22;animation:float 15s ease-in-out infinite;
+    }
+    body::before{width:45vw;height:45vw;left:-18vw;bottom:-24vw}
+    body::after{width:32vw;height:32vw;right:-12vw;top:20vh;animation-delay:-7s;opacity:.12}
+    @keyframes float{50%{transform:translate3d(0,-18px,0) scale(1.04)} }
+
+    button{font:inherit;color:inherit}
+    .app{width:min(1400px,calc(100% - 36px));margin:0 auto;padding:28px 0 32px}
+    .topline{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:22px}
+    .brand{display:flex;gap:13px;align-items:flex-start}
+    .brand-mark{width:42px;height:42px;border:1px solid color-mix(in srgb,var(--accent) 60%,var(--line));border-radius:13px;position:relative;background:linear-gradient(145deg,rgba(105,226,223,.22),rgba(16,42,66,.7));box-shadow:0 0 26px rgba(105,226,223,.12)}
+    .brand-mark::before,.brand-mark::after{content:"";position:absolute;background:var(--accent);border-radius:99px;opacity:.9}
+    .brand-mark::before{width:20px;height:2px;left:10px;top:13px;transform:rotate(-27deg)}
+    .brand-mark::after{width:15px;height:2px;left:14px;top:24px;transform:rotate(33deg)}
+    h1{font-size:22px;letter-spacing:3px;margin:0;font-weight:760}
+    .subtitle{color:var(--muted);font-size:12px;margin-top:3px}
+    .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .era-pill,.soft-pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:7px 11px;background:rgba(16,42,66,.58);color:var(--muted);font-size:12px}
+    .era-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+
+    .btn{border:1px solid var(--line);background:rgba(20,54,82,.7);padding:8px 12px;border-radius:9px;cursor:pointer;color:var(--text);transition:.18s ease}
+    .btn:hover{border-color:var(--accent);background:rgba(28,73,98,.9);transform:translateY(-1px)}
+    .btn.primary{border-color:color-mix(in srgb,var(--accent) 70%,var(--line));background:linear-gradient(135deg,#1f777d,#16516e);color:#eaffff;font-weight:700}
+    .btn.gold{border-color:#907335;background:rgba(106,78,22,.36);color:var(--gold)}
+    .btn.small{padding:5px 9px;font-size:12px}
+
+    .dashboard{display:grid;grid-template-columns:1.28fr 1.62fr 1fr;gap:12px;margin-bottom:12px}
+    .panel{background:linear-gradient(145deg,rgba(15,39,63,.92),rgba(8,25,43,.9));border:1px solid var(--line-soft);border-radius:var(--radius);box-shadow:var(--shadow);backdrop-filter:blur(12px)}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px 12px;border-bottom:1px solid var(--line-soft)}
+    .panel-title{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:750;letter-spacing:1.3px}
+    .panel-title::before{content:"";width:3px;height:15px;border-radius:99px;background:var(--panel-accent,var(--accent));box-shadow:0 0 10px color-mix(in srgb,var(--panel-accent,var(--accent)) 55%,transparent)}
+    .panel-sub{font-size:11px;color:var(--muted)}
+    .panel-body{padding:15px 17px}
+
+    .resource-panel{--panel-accent:var(--accent)}
+    .resources{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+    .resource{padding:11px 12px;border:1px solid rgba(103,162,190,.15);border-radius:11px;background:rgba(21,54,80,.5);min-width:0}
+    .resource .r-label{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .res-dot{width:7px;height:7px;border-radius:50%;background:var(--res-color,var(--accent));box-shadow:0 0 9px var(--res-color,var(--accent))}
+    .resource strong{display:block;font-size:22px;line-height:1.1;margin:7px 0 3px;font-variant-numeric:tabular-nums;letter-spacing:.3px}
+    .resource .rate{font-size:11px;color:var(--green);font-variant-numeric:tabular-nums}
+    .resource .rate.dim{color:var(--muted)}
+    .resource .rate.warn{color:var(--danger)}
+
+    .shell-panel{--panel-accent:var(--violet);position:relative;overflow:hidden}
+    .shell-panel::after{content:"";position:absolute;width:250px;height:250px;border-radius:50%;right:-100px;top:-120px;border:1px solid rgba(188,168,255,.2);box-shadow:0 0 0 24px rgba(188,168,255,.035),0 0 0 48px rgba(188,168,255,.025);pointer-events:none}
+    .shell-readout{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .shell-number{font-size:35px;font-weight:800;letter-spacing:-1px;line-height:1}
+    .shell-number small{font-size:13px;color:var(--muted);font-weight:500;letter-spacing:0}
+    .shell-status{text-align:right;color:var(--violet);font-size:12px}
+    .progress{height:12px;border-radius:99px;background:#06131f;border:1px solid rgba(141,168,195,.14);overflow:hidden;padding:2px}
+    .progress i{display:block;height:100%;width:34%;border-radius:99px;background:linear-gradient(90deg,#6054ce,var(--violet));box-shadow:0 0 16px rgba(188,168,255,.45);animation:progress-glow 4s ease-in-out infinite}
+    @keyframes progress-glow{50%{filter:brightness(1.25)}}
+    .shell-meta{display:flex;justify-content:space-between;gap:10px;margin-top:9px;color:var(--muted);font-size:11px}
+    .shell-note{margin-top:14px;padding:10px 11px;border-radius:10px;background:rgba(108,84,193,.12);border:1px solid rgba(188,168,255,.17);color:#c7c0ed;font-size:12px}
+
+    .env-panel{--panel-accent:var(--orange)}
+    .env-grid{display:grid;gap:12px}
+    .env-row{display:flex;justify-content:space-between;gap:12px;padding-bottom:11px;border-bottom:1px dashed rgba(104,164,196,.18)}
+    .env-row:last-child{border-bottom:0;padding-bottom:0}
+    .env-label{color:var(--muted);font-size:11px}
+    .env-value{text-align:right;font-weight:700;font-size:13px}
+    .env-value span{display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:2px}
+    .heat{color:var(--orange)}.cold{color:var(--violet)}.good{color:var(--green)}
+
+    .nav{display:flex;gap:7px;flex-wrap:wrap;padding:8px;margin-bottom:12px;background:rgba(7,24,40,.7);border:1px solid var(--line-soft);border-radius:13px}
+    .nav button{border:1px solid transparent;background:transparent;color:var(--muted);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+    .nav button:hover{color:var(--text);background:rgba(29,73,100,.55)}
+    .nav button.active{color:var(--accent);border-color:rgba(105,226,223,.36);background:rgba(47,132,137,.2);box-shadow:inset 0 0 18px rgba(105,226,223,.05)}
+    .nav button.locked{opacity:.42}
+    .nav button .count{font-size:10px;margin-left:5px;padding:2px 5px;border-radius:5px;background:rgba(105,226,223,.12);color:var(--accent)}
+
+    .content{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,.9fr);gap:12px}
+    .village{--panel-accent:var(--orange)}
+    .section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 10px;color:var(--orange);font-size:12px;font-weight:750;letter-spacing:1.2px}
+    .section-head span{font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0}
+    .build-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .build-card{border:1px solid rgba(104,164,196,.17);border-radius:12px;background:rgba(19,48,73,.55);padding:13px;transition:.18s ease}
+    .build-card:hover{transform:translateY(-2px);border-color:rgba(105,226,223,.48);background:rgba(24,61,89,.7)}
+    .build-top{display:flex;align-items:flex-start;gap:10px}
+    .build-icon{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--icon-color,var(--accent)) 18%,transparent);border:1px solid color-mix(in srgb,var(--icon-color,var(--accent)) 42%,transparent);color:var(--icon-color,var(--accent));font-size:16px;flex:none}
+    .build-name{font-weight:750;font-size:13px}.build-desc{font-size:11px;color:var(--muted);margin-top:2px}
+    .build-level{margin-left:auto;font-size:11px;color:var(--orange);padding:3px 6px;border-radius:5px;background:rgba(255,184,102,.1)}
+    .build-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(104,164,196,.14)}
+    .cost{font-size:11px;color:var(--muted)}.cost b{color:var(--text);font-weight:600}
+
+    .side-stack{display:grid;gap:12px;align-content:start}
+    .decision{--panel-accent:var(--green)}
+    .decision-list{display:grid;gap:8px}
+    .decision-item{display:flex;gap:9px;align-items:flex-start;padding:9px 10px;border-radius:10px;background:rgba(20,55,73,.42);border:1px solid rgba(104,164,196,.14)}
+    .decision-item .mark{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;background:rgba(111,224,174,.15);color:var(--green);font-size:11px;flex:none}
+    .decision-item strong{display:block;font-size:12px}.decision-item span{display:block;color:var(--muted);font-size:11px;margin-top:1px}
+    .tech{--panel-accent:var(--violet)}
+    .tech-list{display:grid;gap:8px}
+    .tech-row{display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:center;padding:9px 10px;border:1px solid rgba(104,164,196,.13);border-radius:10px;background:rgba(19,48,73,.42)}
+    .tech-glyph{width:27px;height:27px;border-radius:8px;display:grid;place-items:center;background:rgba(188,168,255,.14);color:var(--violet);font-size:13px}
+    .tech-row strong{font-size:12px}.tech-row span{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+    .state{font-size:10px;padding:3px 6px;border-radius:5px;white-space:nowrap}.state.done{color:var(--green);background:rgba(111,224,174,.1)}.state.next{color:var(--accent);background:rgba(105,226,223,.1)}.state.lock{color:var(--muted);background:rgba(135,168,189,.1)}
+
+    .footer{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:12px;padding:12px 15px;border:1px solid var(--line-soft);border-radius:13px;background:rgba(7,24,40,.58);color:var(--muted);font-size:11px}
+    .speed{display:flex;gap:5px;align-items:center}.speed button{border:1px solid var(--line);background:rgba(18,51,78,.5);border-radius:6px;color:var(--muted);padding:4px 7px;font-size:11px;cursor:pointer}.speed button.active{color:var(--accent);border-color:var(--accent)}
+
+    .preview-note{margin-top:12px;text-align:center;color:var(--faint);font-size:11px}
+    .hidden{display:none!important}
+
+    @media (max-width:1050px){
+      .dashboard{grid-template-columns:1fr 1fr}.env-panel{grid-column:1/-1}.content{grid-template-columns:1fr}.side-stack{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width:680px){
+      .app{width:min(100% - 22px,540px);padding-top:18px}.topline{display:block}.top-actions{justify-content:flex-start;margin-top:14px}.dashboard{grid-template-columns:1fr}.env-panel{grid-column:auto}.resources{grid-template-columns:repeat(2,1fr)}.nav{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{white-space:nowrap}.build-grid{grid-template-columns:1fr}.side-stack{grid-template-columns:1fr}.footer{align-items:flex-start;flex-direction:column}.brand h1{font-size:19px}.shell-number{font-size:31px}
+    }
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body data-era="2">
+  <main class="app">
+    <header class="topline">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1>渊海天壳</h1>
+          <div class="subtitle">TIDEBREAK · 文明越大，壳越薄。</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div class="era-pill"><i class="era-dot"></i><span id="eraName">珊瑚纪</span><span id="eraHint">· 城礁正在成形</span></div>
+        <button class="btn small" id="eraBtn">演示切换纪元</button>
+        <button class="btn gold small" id="endBtn">预览终局样式</button>
+      </div>
+    </header>
+
+    <section class="dashboard">
+      <article class="panel resource-panel">
+        <div class="panel-head"><div class="panel-title">资源</div><div class="panel-sub">实时净速率</div></div>
+        <div class="panel-body">
+          <div class="resources">
+            <div class="resource" style="--res-color:#6fe0ae"><div class="r-label"><i class="res-dot"></i>藻食</div><strong>286</strong><div class="rate">+2.46 /s</div></div>
+            <div class="resource" style="--res-color:#ffb866"><div class="r-label"><i class="res-dot"></i>珊瑚</div><strong>94</strong><div class="rate">+0.82 /s</div></div>
+            <div class="resource" style="--res-color:#bca8ff"><div class="r-label"><i class="res-dot"></i>研究</div><strong>61</strong><div class="rate">+0.18 /s</div></div>
+            <div class="resource" style="--res-color:#e2a56a"><div class="r-label"><i class="res-dot"></i>暖石</div><strong>38</strong><div class="rate dim">上限 80</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel shell-panel">
+        <div class="panel-head"><div class="panel-title">自然环境 · 天壳</div><div class="panel-sub">存续 03.72 小时</div></div>
+        <div class="panel-body">
+          <div class="shell-readout"><div><div class="shell-number">62,480 <small>/ 200,000</small></div><div class="panel-sub">冰封层厚度</div></div><div class="shell-status">正在削壳<br><b>−14.8 /s</b></div></div>
+          <div class="progress"><i></i></div>
+          <div class="shell-meta"><span>已削壳 137,520</span><span>自动削壳下限 25%</span></div>
+          <div class="shell-note">破壳系数 <b>48.20</b> · 祭坛尚未点火。凿穿最后一段需要地热。</div>
+        </div>
+      </article>
+
+      <article class="panel env-panel">
+        <div class="panel-head"><div class="panel-title">当前环境</div><div class="panel-sub">下一次变化 08:42</div></div>
+        <div class="panel-body env-grid">
+          <div class="env-row"><div class="env-label">潮汐季</div><div class="env-value heat">暖流季<span>产出 ×1.50</span></div></div>
+          <div class="env-row"><div class="env-label">海底火山</div><div class="env-value good">活跃<span>地热产出稳定</span></div></div>
+          <div class="env-row"><div class="env-label">人口状态</div><div class="env-value">12 / 16<span>生育进度 68%</span></div></div>
+        </div>
+      </article>
+    </section>
+
+    <nav class="nav" aria-label="系统导航">
+      <button class="active">巢穴</button>
+      <button>族民 <span class="count">2</span></button>
+      <button>科技 <span class="count">3</span></button>
+      <button>市政</button>
+      <button>信仰</button>
+      <button>工坊</button>
+      <button>奇观</button>
+      <button class="locked">破壳</button>
+      <button>轮回</button>
+    </nav>
+
+    <section class="content">
+      <article class="panel village">
+        <div class="panel-head"><div class="panel-title">巢穴</div><div class="panel-sub">珊瑚纪 · 发展中</div></div>
+        <div class="panel-body">
+          <div class="section-head"><span>生息区</span><span>人口容量 16</span></div>
+          <div class="build-grid">
+            <div class="build-card">
+              <div class="build-top"><div class="build-icon" style="--icon-color:#6fe0ae">✦</div><div><div class="build-name">深海藻场</div><div class="build-desc">自动产出藻食</div></div><div class="build-level">Lv. 6</div></div>
+              <div class="build-foot"><div class="cost">产出 <b>+2.10 /s</b></div><button class="btn small primary">升级 · 84 藻食</button></div>
+            </div>
+            <div class="build-card">
+              <div class="build-top"><div class="build-icon" style="--icon-color:#ffb866">◇</div><div><div class="build-name">礁口巢</div><div class="build-desc">提供人口容量</div></div><div class="build-level">Lv. 4</div></div>
+              <div class="build-foot"><div class="cost">容量 <b>+2 人</b></div><button class="btn small">升级 · 120 珊瑚</button></div>
+            </div>
+            <div class="build-card">
+              <div class="build-top"><div class="build-icon" style="--icon-color:#bca8ff">⌁</div><div><div class="build-name">潮纹馆</div><div class="build-desc">提高学者研究效率</div></div><div class="build-level">Lv. 2</div></div>
+              <div class="build-foot"><div class="cost">学者产出 <b>+20%</b></div><button class="btn small">升级 · 68 珊瑚</button></div>
+            </div>
+            <div class="build-card" style="opacity:.68">
+              <div class="build-top"><div class="build-icon" style="--icon-color:#ff7282">?</div><div><div class="build-name">热泉井</div><div class="build-desc">需研究「热泉炉」</div></div><div class="build-level">锁定</div></div>
+              <div class="build-foot"><div class="cost">解锁后提供地热</div><button class="btn small" disabled>条件不足</button></div>
+            </div>
+          </div>
+
+          <div class="section-head" style="margin-top:20px"><span>生产决策</span><span>当前闲置族民 2</span></div>
+          <div class="decision-list">
+            <div class="decision-item"><div class="mark">✓</div><div><strong>将 1 名族民调往珊瑚匠</strong><span>珊瑚产出 +0.50 /s，可在 18 秒后升级礁口巢。</span></div><button class="btn small">查看</button></div>
+            <div class="decision-item"><div class="mark">!</div><div><strong>研究线即将停滞</strong><span>学者当前只有 1 人，下一项科技还需要 24 研究点。</span></div><button class="btn small">调配</button></div>
+          </div>
+        </div>
+      </article>
+
+      <aside class="side-stack">
+        <article class="panel decision">
+          <div class="panel-head"><div class="panel-title">当前决策</div><div class="panel-sub">建议</div></div>
+          <div class="panel-body">
+            <div class="decision-list">
+              <div class="decision-item"><div class="mark">1</div><div><strong>先补人口容量</strong><span>下一名族民将在 42 秒后出生。</span></div></div>
+              <div class="decision-item"><div class="mark">2</div><div><strong>保持 2 名学者</strong><span>科技树下一节点即将揭示。</span></div></div>
+              <div class="decision-item"><div class="mark">3</div><div><strong>暖石暂不点火</strong><span>当前不是寒流季，燃料会被浪费。</span></div></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel tech">
+          <div class="panel-head"><div class="panel-title">科技序列</div><div class="panel-sub">珊瑚纪 · 3 / 8</div></div>
+          <div class="panel-body">
+            <div class="tech-list">
+              <div class="tech-row"><div class="tech-glyph">✓</div><div><strong>潮汐历</strong><span>揭示海底火山周期</span></div><div class="state done">已完成</div></div>
+              <div class="tech-row"><div class="tech-glyph">✧</div><div><strong>照明术</strong><span>解锁育光场</span></div><div class="state next">可研究</div></div>
+              <div class="tech-row"><div class="tech-glyph">?</div><div><strong>未知科技</strong><span>条件：拥有 3 座珊瑚建筑</span></div><div class="state lock">未揭示</div></div>
+            </div>
+            <div style="margin-top:14px"><div class="shell-meta"><span>本纪元进度</span><b style="color:var(--violet)">38%</b></div><div class="progress" style="height:8px;margin-top:6px"><i style="width:38%;background:linear-gradient(90deg,#7259b8,var(--violet))"></i></div></div>
+          </div>
+        </article>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <div>第 4 周目 · 当前纪元：珊瑚纪 · 氛围层 Demo</div>
+      <div class="speed"><span>速度</span><button class="active">1×</button><button>5×</button><button>10×</button><button>20×</button></div>
+    </footer>
+    <div class="preview-note">这是独立视觉 Demo，不连接真实存档，也不会修改游戏状态。</div>
+  </main>
+
+  <div class="hidden" id="endingPreview" style="position:fixed;inset:0;z-index:5;background:radial-gradient(circle at 50% 46%,#f5d98b 0,#172f4a 17%,#040913 62%);align-items:center;justify-content:center;text-align:center;padding:24px">
+    <div>
+      <div style="font-size:12px;letter-spacing:5px;color:#f5d98b;margin-bottom:16px">SHELLBREAK · FIRST ACT COMPLETE</div>
+      <div style="font-size:clamp(32px,7vw,76px);font-weight:800;letter-spacing:8px;color:#fff6d6;text-shadow:0 0 30px rgba(245,217,139,.55)">天壳之外，仍有星海。</div>
+      <div style="color:#b8c9d5;margin-top:17px">阶段结束画面预览 · 终局演出将在后续阶段正式制作</div>
+      <button class="btn gold" id="closeEnd" style="margin-top:25px">返回 UI Demo</button>
+    </div>
+  </div>
+
+  <script>
+    const eras = [
+      ['暗流纪','冰下裂缝初醒'],['珊瑚纪','城礁正在成形'],['硫泉纪','热液点亮工业'],['洋流纪','文明开始远行'],['破壳纪','冰光正在上升']
+    ];
+    let era = 1;
+    const root = document.documentElement;
+    const eraName = document.getElementById('eraName');
+    const eraHint = document.getElementById('eraHint');
+    document.getElementById('eraBtn').addEventListener('click', () => {
+      era = (era + 1) % eras.length;
+      document.body.dataset.era = String(era + 1);
+      eraName.textContent = eras[era][0];
+      eraHint.textContent = '· ' + eras[era][1];
+      const colors = ['#69e2df','#7fe9c8','#ff7a45','#4fc3f7','#f2c14e'];
+      root.style.setProperty('--accent', colors[era]);
+      root.style.setProperty('--accent-soft', colors[era]);
+    });
+    document.getElementById('endBtn').addEventListener('click', () => {
+      const p = document.getElementById('endingPreview');
+      p.classList.remove('hidden'); p.style.display = 'flex';
+    });
+    document.getElementById('closeEnd').addEventListener('click', () => {
+      document.getElementById('endingPreview').classList.add('hidden');
+    });
+    document.querySelectorAll('.nav button:not(.locked)').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav button').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+    }));
+    document.querySelectorAll('.speed button').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.speed button').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+    }));
+  </script>
+</body>
+</html>

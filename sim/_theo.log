@@ -1,0 +1,67 @@
+=== 开局指纹 ===
+ pop=1 coral=0 科技=0 市政=0
+ 神学的门槛：era2 市政，cost 600，reqs ["drama"]
+  -> 揭示需 tech era>=2（清 era1 key: calendar+masonry）；drama(300) -> theology(600) 共 900 市政点
+ 礁口巢造价(珊瑚): 10
+DBG f1 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=1(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f2 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=1(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f3 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=2(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f4 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=2(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f5 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=3(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f6 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=3(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f7 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=4(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f8 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=4(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f9 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=5(600) stone=0(400) hC=0 sB=0 kelp=0 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=kelp
+DBG f10 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=5(600) stone=0(400) hC=0 sB=0 kelp=1 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f11 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=5(600) stone=0(400) hC=0 sB=0 kelp=1 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f12 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=6(600) stone=0(400) hC=0 sB=0 kelp=1 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f13 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=6(600) stone=0(400) hC=0 sB=0 kelp=1 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f14 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=7(600) stone=0(400) hC=0 sB=0 kelp=1 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=kelp
+DBG f15 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=7(600) stone=0(400) hC=0 sB=0 kelp=2 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f16 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=8(600) stone=0(400) hC=0 sB=0 kelp=2 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f17 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=8(600) stone=0(400) hC=0 sB=0 kelp=2 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f18 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=9(600) stone=0(400) hC=0 sB=0 kelp=2 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=kelp
+DBG f19 pop=1 popCap=1 nest=0 coralhouse=0 ballast=0 coral=9(600) stone=0(400) hC=0 sB=0 kelp=3 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f20 pop=1 popCap=3 nest=1 coralhouse=0 ballast=0 coral=-0(600) stone=0(400) hC=0 sB=0 kelp=3 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f21 pop=1 popCap=3 nest=1 coralhouse=0 ballast=0 coral=0(600) stone=0(400) hC=0 sB=0 kelp=3 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f22 pop=1 popCap=3 nest=1 coralhouse=0 ballast=0 coral=1(600) stone=0(400) hC=0 sB=0 kelp=3 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f23 pop=1 popCap=3 nest=1 coralhouse=0 ballast=0 coral=1(600) stone=0(400) hC=0 sB=0 kelp=3 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f24 pop=1 popCap=3 nest=1 coralhouse=0 ballast=0 coral=2(600) stone=0(400) hC=0 sB=0 kelp=3 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f25 pop=1 popCap=3 nest=1 coralhouse=0 ballast=0 coral=2(600) stone=0(400) hC=0 sB=0 kelp=3 warmnest=0 sci=0 cw=0 q=0 sch=0 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+  [  2000] t=1.11h pop=11 era=1 shell=90656 cul=0 culRate=0.00/s civ=0 techs=8
+DBG f3000 pop=11 popCap=11 nest=5 coralhouse=0 ballast=0 coral=600(600) stone=400(400) hC=0 sB=0 kelp=6 warmnest=0 sci=406 cw=1 q=1 sch=2 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+DBG f3000 popCap=11 nest=5 coralhouse=0 coral=600 stone=400 freeNest=false freeCH=false pick=null lvlNestInc=2
+DBG f3200 pop=11 popCap=11 nest=5 coralhouse=0 ballast=0 coral=600(600) stone=400(400) hC=0 sB=0 kelp=6 warmnest=0 sci=489 cw=1 q=1 sch=1 W={} wW=null WN=14 wblk=需要先研究「石工」 pick=null freeCH=false want=null
+  [  3227] 石工完成 = 1.79h  (pop=11, era=2, cul=0, civ=0)
+  [  3227] tech era=2 = 1.79h  (pop=11, era=2, cul=0, civ=0)
+  [  3228] hall建成(panelOpen) = 1.79h  (pop=11, era=2, cul=0, civ=1)
+  [  3228] 法典完成 = 1.79h  (pop=11, era=2, cul=0, civ=1)
+DBG f3600 pop=19 popCap=19 nest=5 coralhouse=2 ballast=0 coral=600(600) stone=310(400) hC=0 sB=0 kelp=9 warmnest=0 sci=430 cw=1 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 0） pick=null freeCH=false want=null
+DBG f4000 pop=23 popCap=23 nest=5 coralhouse=3 ballast=0 coral=600(600) stone=182(400) hC=0 sB=0 kelp=10 warmnest=0 sci=427 cw=2 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 0） pick=null freeCH=false want=null
+  [  4000] t=2.22h pop=23 era=2 shell=74993 cul=44 culRate=0.20/s civ=2 techs=11
+DBG f4400 pop=23 popCap=23 nest=5 coralhouse=3 ballast=0 coral=600(600) stone=22(400) hC=0 sB=4 kelp=10 warmnest=0 sci=324 cw=2 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 4） pick=null freeCH=false want=null
+DBG f4800 pop=23 popCap=23 nest=5 coralhouse=3 ballast=0 coral=600(600) stone=62(400) hC=0 sB=6 kelp=10 warmnest=0 sci=21 cw=2 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 6） pick=null freeCH=false want=null
+DBG f5200 pop=23 popCap=23 nest=5 coralhouse=3 ballast=0 coral=600(600) stone=2(400) hC=0 sB=9 kelp=10 warmnest=0 sci=517 cw=2 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 9） pick=null freeCH=false want=null
+DBG f5600 pop=23 popCap=23 nest=5 coralhouse=3 ballast=0 coral=600(600) stone=42(400) hC=0 sB=12 kelp=10 warmnest=0 sci=214 cw=2 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 11） pick=null freeCH=false want=null
+DBG f6000 pop=23 popCap=23 nest=5 coralhouse=3 ballast=0 coral=600(600) stone=82(400) hC=0 sB=14 kelp=10 warmnest=0 sci=712 cw=2 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 13） pick=null freeCH=false want=null
+  [  6000] t=3.33h pop=23 era=2 shell=53124 cul=494 culRate=0.20/s civ=4 techs=14
+DBG f6400 pop=23 popCap=23 nest=5 coralhouse=3 ballast=0 coral=600(600) stone=22(400) hC=0 sB=17 kelp=10 warmnest=0 sci=1209 cw=1 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 16） pick=null freeCH=false want=null
+DBG f6800 pop=23 popCap=23 nest=5 coralhouse=3 ballast=0 coral=600(600) stone=62(400) hC=0 sB=19 kelp=10 warmnest=0 sci=1707 cw=1 q=1 sch=3 W={} wW=null WN=14 wblk=还缺 石梁 20（现有 18） pick=null freeCH=false want=null
+  [  7032] 首座奇观建成(drama鼓舞) = 3.91h  (pop=23, era=2, cul=598, civ=4)
+  [  7033] 戏剧与诗歌完成 = 3.91h  (pop=23, era=2, cul=298, civ=5)
+DBG f7200 pop=23 popCap=23 nest=5 coralhouse=3 ballast=1 coral=53(920) stone=2(720) hC=4 sB=0 kelp=10 warmnest=0 sci=2205 cw=1 q=1 sch=3 W={"wonder_tide_stele":true} wW=null WN=14 wblk=已经建成了 pick=null freeCH=false want=null
+DBG f7600 pop=23 popCap=23 nest=5 coralhouse=3 ballast=1 coral=53(920) stone=42(720) hC=10 sB=2 kelp=10 warmnest=0 sci=2703 cw=1 q=1 sch=3 W={"wonder_tide_stele":true} wW=null WN=14 wblk=已经建成了 pick=null freeCH=false want=null
+  [  8000] t=4.44h pop=23 era=2 shell=29518 cul=395 culRate=0.05/s civ=5 techs=14
+  [  9672] 人口达25(theology门槛) = 5.37h  (pop=25, era=2, cul=763, civ=5)
+  [  9674] 神学完成 = 5.37h  (pop=25, era=2, cul=164, civ=6)
+
+=== 结果 ===
+✅ 第一次轮回（解锁 神学/theology）耗时 = 5.37h  (322 分钟)
+  里程碑：
+    hall建成(panelOpen) = 1.79h
+    石工完成 = 1.79h
+    tech era=2 = 1.79h
+    首座奇观建成(drama鼓舞) = 3.91h
+    法典完成 = 1.79h
+    戏剧与诗歌完成 = 3.91h
+  终态：pop=25 era=2 市政={"laws":1,"mystic":1,"craft":1,"trade":1,"drama":1,"theology":1} 科技数=17 书手=1 市政点率=0.20/s

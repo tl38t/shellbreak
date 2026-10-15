@@ -118,11 +118,14 @@
     var shellFactor = 0.5 + 0.5 * q;
     var K = (SB.CFG.TIDE && SB.CFG.TIDE.LINEAR_K) || 0.04;
     var earned = 1 + Math.floor(dev * K * shellFactor);
+    var challengeCompletions = SB.challenges ? SB.challenges.completedCount(SB.game.meta()) : 0;
+    var pointMul = 1 + challengeCompletions * 0.1;
     return {
       P: P, popScore: popScore, buildingScore: bScore,
       craftScore: w.score, workshopCount: w.count, developmentScore: dev,
       q: q, shellFactor: shellFactor,
-      tidePoints: earned,
+      baseTidePoints: earned, challengePointMul: pointMul,
+      tidePoints: earned * pointMul,
       relicTourism: 0, oldArtwork: 0, oldTideStele: 0,
       locked: false
     };
@@ -130,7 +133,8 @@
 
   /* 执行结算并写入跨周目账本。emit 用于日志。
    * 未达资格门：tidePoints 归 0、不发任何遗产、不解锁商店（与「普通重开」同口径）。 */
-  function doBreak(s, emit) {
+  function doBreak(s, emit, options) {
+    options = options || {};
     if (s.broken) return null;
     var meta = SB.game.meta();
     var r = breakReport(s);
@@ -142,7 +146,7 @@
       /* ⛔ 通关榜排除这一局（用户 2026-10-07 拍板：只认「凿穿 + 已建神学」）。
        * 仍然上报 wonder/cycle ——「建成了什么」不因没建神学而失效。*/
       if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
-      (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
+      if (!options.silent) (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
       if (emit) emit('本局未达《神学》资格门，不发放轮回点。');
       return r;
     }
@@ -151,6 +155,8 @@
      * 不跨周目累积）。在写入 meta.tide 之前乘，与「本局结算」口径一致；未拥有 = 不乘。 */
     if (s.civics && s.civics.civilization) r.tidePoints *= 1.2;
     meta.tide += r.tidePoints;
+    /* 挑战必须完成《神学》资格并真正凿穿天壳；普通结算/重开不兑现挑战奖励。 */
+    if (s.shell <= 0 && SB.challenges) r.challengeClear = SB.challenges.resolveRun(s, meta);
     // ② 旧日信仰：本局剩余信仰并入总量
     meta.oldFaith = (meta.oldFaith || 0) + Math.max(0, (s.res && s.res.faith) || 0);
     // ③ 旧日遗迹观光点：首次建成的独特奇观入藏
@@ -171,10 +177,12 @@
     meta.oldTideStelesEarnedTotal = (meta.oldTideStelesEarnedTotal || 0) + r.oldTideStele;
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
+    /* TapTap 成就：合格破壳时解锁「首次轮回」与挑战通关（幂等，靠 meta.achievements 去重）。 */
+    if (SB.achv && SB.achv.onBreak) SB.achv.onBreak(r, meta);
     SB.state.saveMeta(meta);
     /* ✅ 有效通关（已建神学）⇒ 报最快时间 / 综合发展分 / 奇观 / 轮回数。 */
     if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
-    (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
+    if (!options.silent) (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
     if (emit) emit('轮回结算完成。获得轮回点 ' + r.tidePoints.toFixed(2) + '。');
     return r;
   }

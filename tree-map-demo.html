@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>天壳 · 科技与市政树交互 Demo</title>
+<style>
+  :root{--bg:#06111e;--panel:#0d2238;--panel2:#112b43;--line:#2a4b67;--text:#e4f1f8;--muted:#91aabd;--cyan:#69e2df;--green:#6fe0ae;--gold:#f5cd6b;--red:#ff7886;--shadow:0 22px 70px rgba(0,0,0,.46)}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,"Microsoft YaHei",sans-serif}
+  body{background:radial-gradient(ellipse at 78% -15%,rgba(54,150,171,.17),transparent 45%),radial-gradient(ellipse at 2% 100%,rgba(43,106,145,.14),transparent 42%),linear-gradient(145deg,#071522,#091827 58%,#06111e);overflow-x:hidden}
+  button{font:inherit;color:inherit}
+  .app{width:min(1440px,calc(100% - 36px));margin:auto;padding:24px 0 36px}
+  .top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:17px}
+  .brand{display:flex;gap:12px;align-items:flex-start}.mark{width:42px;height:42px;border:1px solid rgba(105,226,223,.55);border-radius:13px;background:linear-gradient(145deg,rgba(105,226,223,.2),rgba(16,42,66,.72));position:relative;flex:none;box-shadow:0 0 26px rgba(105,226,223,.1)}
+  .mark:before,.mark:after{content:"";position:absolute;height:2px;background:var(--cyan);border-radius:9px;left:10px}.mark:before{width:21px;top:14px;transform:rotate(-28deg)}.mark:after{width:15px;top:25px;left:15px;transform:rotate(32deg)}
+  h1{font-size:21px;letter-spacing:2px;margin:0;line-height:1.3}h1 small{font-size:11px;letter-spacing:0;color:var(--muted);font-weight:500}
+  .sub{margin-top:4px;color:var(--muted);font-size:12px}
+  .demo-tag{border:1px solid rgba(105,226,223,.25);border-radius:99px;padding:6px 10px;color:#a8dcdb;background:rgba(22,72,82,.26);font-size:11px;white-space:nowrap}
+  .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 11px;margin-bottom:12px;border:1px solid rgba(104,164,196,.18);border-radius:13px;background:rgba(7,24,40,.75);box-shadow:0 12px 32px rgba(0,0,0,.15)}
+  .switch{display:flex;gap:5px;padding:4px;border-radius:10px;background:rgba(3,14,24,.55)}
+  .switch button,.era button{border:1px solid transparent;background:transparent;border-radius:7px;color:var(--muted);padding:7px 11px;cursor:pointer;transition:.16s}
+  .switch button:hover,.era button:hover{color:var(--text);background:rgba(34,77,101,.55)}
+  .switch button.on{color:var(--cyan);background:rgba(47,132,137,.2);border-color:rgba(105,226,223,.4)}
+  .era{display:flex;gap:4px;overflow:auto;scrollbar-width:thin;scrollbar-color:#31536b transparent}
+  .era button{font-size:11px;white-space:nowrap;padding:6px 9px}.era button.on{color:var(--gold);border-color:rgba(245,205,107,.32);background:rgba(106,78,22,.18)}
+  .toolbar-note{margin-left:auto;color:var(--muted);font-size:11px}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;padding:0 3px 11px;color:var(--muted);font-size:10px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:8px;height:8px;border-radius:50%;background:var(--dot);box-shadow:0 0 9px color-mix(in srgb,var(--dot) 55%,transparent)}
+  .board{position:relative;overflow:hidden;border:1px solid rgba(104,164,196,.2);border-radius:17px;background:linear-gradient(155deg,rgba(12,31,50,.96),rgba(5,19,32,.97));box-shadow:var(--shadow)}
+  .board-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid rgba(104,164,196,.15);background:rgba(9,27,43,.74)}
+  .board-title{display:flex;align-items:center;gap:9px;font-weight:750;letter-spacing:.5px}.board-title:before{content:"";height:16px;width:3px;border-radius:5px;background:var(--tree-accent,var(--cyan));box-shadow:0 0 12px var(--tree-accent,var(--cyan))}
+  .progress{color:var(--muted);font-size:11px}.progress b{color:var(--text);font-variant-numeric:tabular-nums}
+  .scroll{overflow:auto;overscroll-behavior-x:contain;scrollbar-color:#31536b #0b1c2d;scrollbar-width:thin;cursor:grab;touch-action:pan-x pan-y}
+  .scroll:active{cursor:grabbing}
+  .canvas{position:relative;min-width:1200px;width:1200px;height:650px;isolation:isolate;background-image:linear-gradient(rgba(100,155,184,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(100,155,184,.055) 1px,transparent 1px),radial-gradient(ellipse at 27% 44%,rgba(55,143,156,.10),transparent 40%),radial-gradient(ellipse at 81% 65%,rgba(71,115,139,.08),transparent 35%);background-size:48px 48px,48px 48px,auto,auto}
+  .canvas:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.18;background:repeating-radial-gradient(ellipse at 30% 55%,transparent 0 76px,rgba(107,185,195,.18) 77px 78px,transparent 79px 116px);mask-image:linear-gradient(90deg,#000,transparent 95%)}
+  .era-band{position:absolute;top:24px;height:40px;border-bottom:1px solid rgba(120,165,185,.23);color:#b6c9d3;font-size:11px;letter-spacing:1.2px;z-index:0;display:flex;align-items:flex-start;gap:8px;padding:0 8px}
+  .era-band b{font-size:15px;color:var(--gold)}.era-band span{color:#7893a5;font-size:9px;letter-spacing:0;margin-left:auto}
+  .lane{position:absolute;top:75px;bottom:25px;width:1px;background:linear-gradient(transparent,rgba(104,164,196,.15),transparent);z-index:0}
+  .wires{position:absolute;inset:0;width:1200px;height:650px;pointer-events:none;z-index:1;overflow:visible}
+  .wire{fill:none;stroke:rgba(114,154,177,.38);stroke-width:2.2;transition:stroke .18s,stroke-width .18s,opacity .18s}
+  .wire.done{stroke:rgba(111,224,174,.82)}.wire.active{stroke:rgba(105,226,223,.8);stroke-dasharray:5 5;animation:flow 1.4s linear infinite}
+  @keyframes flow{to{stroke-dashoffset:-20}}
+  .node{position:absolute;z-index:2;width:190px;min-height:88px;padding:11px 12px 10px;text-align:left;border:1px solid rgba(104,164,196,.3);border-left:3px solid var(--branch,#59879a);border-radius:11px;background:linear-gradient(145deg,rgba(20,45,65,.98),rgba(11,29,46,.98));box-shadow:0 9px 24px rgba(0,0,0,.22);cursor:pointer;transition:transform .16s,border-color .16s,box-shadow .16s,filter .16s;}
+  .node:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--branch) 70%,white);box-shadow:0 14px 30px rgba(0,0,0,.35),0 0 18px color-mix(in srgb,var(--branch) 18%,transparent)}
+  .node.selected{outline:2px solid var(--tree-accent,var(--cyan));outline-offset:2px}
+  .node.done{border-color:rgba(111,224,174,.44);background:linear-gradient(145deg,rgba(17,57,47,.96),rgba(12,36,34,.98))}
+  .node.ready{border-color:rgba(105,226,223,.68);box-shadow:0 0 0 1px rgba(105,226,223,.1),0 8px 24px rgba(0,0,0,.24)}
+  .node.locked{filter:saturate(.65);opacity:.68}.node.hidden-node{border-style:dashed;opacity:.46}
+  .node-top{display:flex;align-items:center;gap:7px;min-width:0}.node-icon{width:25px;height:25px;display:grid;place-items:center;flex:none;border:1px solid color-mix(in srgb,var(--branch) 42%,transparent);border-radius:8px;background:color-mix(in srgb,var(--branch) 14%,transparent);color:var(--branch);font-size:13px}
+  .branch{min-width:0;color:var(--muted);font-size:9px;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.state{margin-left:auto;flex:none;font-size:9px;color:var(--status);padding:2px 6px;border-radius:99px;background:color-mix(in srgb,var(--status) 12%,transparent)}
+  .node-name{display:block;margin-top:8px;font-size:13px;font-weight:750;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.node-hint{margin-top:3px;color:#7995a9;font-size:9px;letter-spacing:.3px}
+  .key-star{color:var(--gold);font-size:10px;margin-left:4px}
+  .next-era{position:absolute;right:38px;top:280px;width:104px;height:66px;display:grid;place-items:center;text-align:center;border:1px dashed rgba(245,205,107,.42);border-radius:13px;color:#d1b86f;background:rgba(92,70,27,.14);font-size:10px;line-height:1.45;z-index:2}
+  .board-foot{display:flex;justify-content:space-between;gap:12px;padding:10px 15px;border-top:1px solid rgba(104,164,196,.14);color:#7893a5;font-size:10px}
+  .detail-scrim{position:fixed;inset:0;background:rgba(2,8,14,.55);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+  .detail{position:fixed;z-index:21;right:22px;top:50%;width:min(390px,calc(100vw - 32px));max-height:min(82vh,760px);overflow:auto;transform:translate(18px,-50%);opacity:0;pointer-events:none;border:1px solid rgba(104,164,196,.3);border-radius:17px;background:linear-gradient(145deg,#122d45,#0a1c2d);box-shadow:var(--shadow);transition:opacity .2s,transform .2s}
+  body.detail-open .detail-scrim{opacity:1;pointer-events:auto}body.detail-open .detail{opacity:1;pointer-events:auto;transform:translate(0,-50%)}
+  .detail-top{display:flex;align-items:flex-start;gap:11px;padding:18px 18px 14px;border-bottom:1px solid rgba(104,164,196,.16);background:radial-gradient(ellipse at 5% 0%,rgba(105,226,223,.1),transparent 70%)}
+  .detail-icon{width:40px;height:40px;display:grid;place-items:center;flex:none;border-radius:12px;background:color-mix(in srgb,var(--tree-accent) 18%,transparent);border:1px solid color-mix(in srgb,var(--tree-accent) 44%,transparent);color:var(--tree-accent);font-size:18px}
+  .detail-heading{min-width:0;flex:1}.detail-heading h2{margin:0;font-size:19px;line-height:1.3}.detail-meta{margin-top:5px;color:var(--muted);font-size:10px}
+  .close{width:32px;height:32px;border:1px solid rgba(145,170,189,.2);border-radius:9px;background:rgba(6,20,32,.6);color:var(--muted);cursor:pointer;font-size:18px;line-height:1}
+  .detail-body{padding:15px 18px 18px}.detail-cost{display:flex;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid rgba(104,164,196,.16);border-radius:10px;background:rgba(7,20,33,.5);font-size:11px;color:var(--muted)}.detail-cost b{color:var(--text);font-size:12px}
+  .detail-section{margin-top:14px}.detail-label{color:#88a5b8;font-size:9px;letter-spacing:1.4px;text-transform:uppercase}.detail-copy{margin-top:5px;font-size:12px;line-height:1.7;color:#d5e3eb}
+  .prereqs{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.prereqs span{padding:4px 7px;border:1px solid rgba(104,164,196,.22);border-radius:6px;background:rgba(18,47,68,.6);color:#b4cad6;font-size:10px}
+  .eureka{padding:10px 11px;border-left:3px solid var(--gold);border-radius:7px;background:rgba(91,69,23,.17);color:#d8ca9c;font-size:11px;line-height:1.55}
+  .eureka small{display:block;margin-top:5px;color:#9c906e;font-size:9px}
+  .detail-actions{display:flex;gap:8px;margin-top:17px}.detail-actions button{min-height:40px;border:1px solid rgba(105,226,223,.4);border-radius:9px;background:linear-gradient(135deg,#247a83,#19546f);color:#efffff;font-weight:750;cursor:pointer;padding:8px 12px}.detail-actions button:disabled{border-color:rgba(145,170,189,.16);background:rgba(21,43,61,.65);color:#7e96a7;cursor:not-allowed}.detail-actions .secondary{background:transparent;color:var(--muted);border-color:rgba(145,170,189,.2)}
+  .toast{position:fixed;z-index:30;left:50%;bottom:22px;transform:translate(-50%,12px);opacity:0;padding:9px 13px;border:1px solid rgba(105,226,223,.35);border-radius:9px;background:#102c40;color:var(--text);box-shadow:var(--shadow);font-size:11px;pointer-events:none;transition:.18s}.toast.show{transform:translate(-50%,0);opacity:1}
+  @media(max-width:760px){
+    .app{width:min(100% - 22px,620px);padding-top:18px}.top{margin-bottom:13px}.demo-tag{font-size:10px;padding:5px 8px}.toolbar{gap:8px;padding:8px}.toolbar-note{width:100%;margin:0 2px 1px}.switch button{padding:7px 10px}.legend{gap:9px}.board-head{padding:12px}.canvas{transform:none}.scroll{height:58vh;min-height:430px;max-height:640px}.board-foot{font-size:9px}.detail{left:0;right:0;top:auto;bottom:0;width:100%;max-height:min(78svh,700px);border-radius:18px 18px 0 0;transform:translateY(24px);padding-bottom:env(safe-area-inset-bottom)}body.detail-open .detail{transform:translateY(0)}.detail-top{padding:14px 16px 11px}.detail-body{padding:12px 16px 18px}.detail-actions button{min-height:44px;flex:1}
+  }
+  @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <div class="brand"><div class="mark" aria-hidden="true"></div><div><h1>文明长卷 <small>· 天壳 SHELLBREAK</small></h1><div class="sub">点击节点打开详情卡：效果、前置与尤里卡分层呈现。</div></div></div>
+    <span class="demo-tag">交互视觉 Demo · 不改游戏存档</span>
+  </header>
+  <nav class="toolbar" aria-label="树类型与纪元选择">
+    <div class="switch" role="tablist"><button class="on" data-tree="tech" role="tab" aria-selected="true">科技树</button><button data-tree="civic" role="tab" aria-selected="false">市政树</button></div>
+    <div class="era" id="eraNav"></div>
+    <span class="toolbar-note">拖动/横向滑动看后续分支 · 点击节点查看详情</span>
+  </nav>
+  <div class="legend" id="legend"></div>
+  <section class="board" id="board" aria-label="发展树地图">
+    <div class="board-head"><div class="board-title" id="boardTitle">科技树 · 暗流纪</div><div class="progress" id="progress"></div></div>
+    <div class="scroll" id="scroll"><div class="canvas" id="canvas"><div id="bands"></div><svg class="wires" id="wires" viewBox="0 0 1200 650" preserveAspectRatio="none"></svg><div id="nodes"></div></div></div>
+    <div class="board-foot"><span>连线表示前置关系 · 节点内容需点选后查看</span><span>已掌握路径高亮 · 未揭示节点不泄露名称与效果</span></div>
+  </section>
+</main>
+<div class="detail-scrim" id="scrim"></div>
+<aside class="detail" id="detail" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-hidden="true"></aside>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(() => {
+  const eras = ['暗流纪','冷焰纪','硫泉纪','洋流纪','破壳纪'];
+  const palette = {survive:'#e18a68',live:'#67d0ac',know:'#9e9af4',civic:'#e8bd65',faith:'#c5a0f0'};
+  const data = {
+    tech:{title:'科技树',accent:'#69e2df',currency:'学问',amount:1260,done:2,total:12,
+      lanes:['起源与记录','采集与生计','知识分支','材料深化'],width:1200,height:650,
+      nodes:[
+        {id:'writing',name:'结绳',branch:'know',icon:'⌁',x:48,y:245,state:'done',cost:0,req:[],effect:'解锁学者职业，开启知识传承。',eureka:'建成 5 座深海藻场。',progress:100,note:'免费节点 · 文明的第一份记录'},
+        {id:'coralcut',name:'凿珊瑚',branch:'live',icon:'✦',x:310,y:72,state:'ready',cost:25,req:[],effect:'解锁珊瑚匠，开启材料采集与加工路线。',eureka:'采集珊瑚，或指派珊瑚匠。',progress:72,note:'让礁群从自然资源变成可用材料。'},
+        {id:'quarry',name:'采石',branch:'live',icon:'◈',x:310,y:205,state:'ready',cost:30,req:[],effect:'解锁采石工与石材建筑。',eureka:'获得一定数量的石头。',progress:100,note:'打开石材与建筑路线。'},
+        {id:'plant',name:'种植',branch:'live',icon:'❋',x:310,y:338,state:'locked',cost:30,req:[],effect:'让族群开始稳定经营藻场。',eureka:'藻食产量达到指定速率。',progress:24,note:'食物生产分支。'},
+        {id:'calendar',name:'历法',branch:'know',icon:'◷',x:310,y:471,state:'ready',key:true,cost:40,req:[],effect:'解锁潮汐周期知识，并推进暗流纪关键节点。',eureka:'建筑总等级达到指定值。',progress:100,note:'关键节点 · 暗流纪的知识主干'},
+        {id:'scholarT',name:'书写',branch:'know',icon:'⌘',x:570,y:132,state:'hidden',cost:150,req:['writing'],effect:'解锁科技产出加成。',eureka:'指派学者并积累研究。',progress:38,note:'条件达成后揭示'},
+        {id:'mining',name:'采矿',branch:'live',icon:'◉',x:570,y:265,state:'locked',cost:200,req:['quarry'],effect:'解锁矿工与深层材料路线。',eureka:'石头库存达到门槛。',progress:18,note:'采集 → 加工的交汇节点'},
+        {id:'herd',name:'畜牧',branch:'live',icon:'≈',x:570,y:398,state:'locked',cost:200,req:['plant'],effect:'解锁新的食物与人口支撑方式。',eureka:'族群规模达到门槛。',progress:0,note:'生计分支'},
+        {id:'tiddivine',name:'海潮占卜',branch:'know',icon:'☼',x:570,y:531,state:'hidden',cost:350,req:['calendar'],effect:'揭示海潮与环境变化的规律。',eureka:'观察并经历潮汐变化。',progress:55,note:'条件达成后揭示'},
+        {id:'masonry',name:'石工',branch:'survive',icon:'⬡',x:830,y:265,state:'hidden',key:true,cost:500,req:['quarry'],effect:'解锁石屋，扩张族群的居住上限。',eureka:'累计建造并升级建筑。',progress:61,note:'关键节点 · 通往下一纪元'},
+        {id:'next-tech',name:'冷焰纪',branch:'know',icon:'❖',x:1045,y:285,state:'gate',cost:0,req:['masonry'],effect:'新的时代与科技分支将在这里展开。',eureka:'掌握暗流纪全部关键节点。',progress:0,note:'纪元入口'}
+      ]},
+    civic:{title:'市政树',accent:'#e8bd65',currency:'市政点',amount:840,done:1,total:8,
+      lanes:['制度根基','社会组织','贸易与文化','文明治理'],width:1460,height:650,
+      nodes:[
+        {id:'laws',name:'法典',branch:'civic',icon:'§',x:48,y:285,state:'done',cost:0,req:[],effect:'开启首个政体选择，确立部族制度。',eureka:'文明拥有可记录与传递的知识。',progress:100,note:'免费根节点 · 政体系统入口'},
+        {id:'craft',name:'技艺',branch:'live',icon:'⚒',x:335,y:145,state:'ready',cost:100,req:['laws'],effect:'解锁技艺政策卡，强化建造与加工。',eureka:'建成一座工坊。',progress:100,note:'制度与生产的结合'},
+        {id:'mystic',name:'神秘主义',branch:'faith',icon:'✧',x:335,y:425,state:'locked',cost:100,req:['laws'],effect:'解锁神秘主义政策卡与信仰路线。',eureka:'完成海潮占卜科技。',progress:46,note:'信仰与文化分支'},
+        {id:'trade',name:'对外贸易',branch:'live',icon:'⇄',x:635,y:120,state:'ready',cost:250,req:['laws'],effect:'解锁商人职业，建立奢侈品贸易。',eureka:'完成照明科技。',progress:100,note:'贸易路线 · 进入城市文明'},
+        {id:'drama',name:'戏剧与诗歌',branch:'civic',icon:'❖',x:635,y:405,state:'locked',cost:300,req:['laws'],effect:'解锁广场建筑与文化政策卡。',eureka:'建成一座奇观。',progress:34,note:'文化路线 · 通往更复杂的治理'},
+        {id:'theology',name:'神学',branch:'faith',icon:'✺',x:935,y:275,state:'hidden',cost:600,req:['drama'],effect:'解锁信仰资源、神庙与神学政策。',eureka:'族群达到 25 人。',progress:17,note:'条件达成后揭示'},
+        {id:'records',name:'历史记录',branch:'know',icon:'▤',x:935,y:425,state:'locked',cost:500,req:['drama'],effect:'解锁大潮纹馆与历史记录政策卡。',eureka:'提升潮纹馆等级。',progress:0,note:'知识与遗产分支'},
+        {id:'political',name:'政治哲学',branch:'civic',icon:'⚖',x:1235,y:345,state:'locked',cost:750,req:['theology','records'],effect:'开启更成熟的政体与治理方式。',eureka:'完成指定的社会发展目标。',progress:0,note:'关键汇合点 · 政治制度分支'}
+      ]}
+  };
+  let tree='tech', era=0, selected=null, toastTimer=0;
+  const $=id=>document.getElementById(id), canvas=$('canvas'), svg=$('wires'), nodesBox=$('nodes'), detail=$('detail');
+  function statusName(n){return ({done:'已掌握',ready:'可研究',locked:'前置未满足',hidden:'未揭示',gate:'时代入口'})[n.state]||'未研究'}
+  function closeDetail(){document.body.classList.remove('detail-open');detail.setAttribute('aria-hidden','true');selected=null;document.querySelectorAll('.node.selected').forEach(n=>n.classList.remove('selected'))}
+  function openDetail(id){const d=data[tree],n=d.nodes.find(x=>x.id===id);if(!n||n.state==='gate')return;selected=id;document.body.classList.add('detail-open');detail.setAttribute('aria-hidden','false');document.querySelectorAll('.node').forEach(x=>x.classList.toggle('selected',x.dataset.id===id));
+    const hidden=n.state==='hidden',req=n.req.map(k=>d.nodes.find(x=>x.id===k)).filter(Boolean);
+    detail.style.setProperty('--tree-accent',d.accent);
+    detail.innerHTML='<div class="detail-top"><div class="detail-icon">'+n.icon+'</div><div class="detail-heading"><h2 id="detailTitle">'+(hidden?'未揭示的'+(tree==='tech'?'科技':'市政'):n.name)+(n.key?' <span style="color:var(--gold)">★</span>':'')+'</h2><div class="detail-meta">'+(tree==='tech'?'科技分支':'市政分支')+' · '+n.note+'</div></div><button class="close" aria-label="关闭详情" data-close>×</button></div><div class="detail-body">'+
+      '<div class="detail-cost"><span>研究成本</span><b>'+(n.cost===0?'免费':n.cost+' '+d.currency)+'</b></div>'+
+      '<div class="detail-section"><div class="detail-label">'+(tree==='tech'?'尤里卡':'鼓舞')+'</div><div class="eureka">'+(hidden?'达成揭示条件后，名称与效果将在这里出现。':n.eureka)+(hidden?'':'<small>当前进度 '+n.progress+'% · 只揭示节点，不折算研究成本</small>')+'</div></div>'+
+      '<div class="detail-section"><div class="detail-label">效果</div><div class="detail-copy">'+(hidden?'内容尚未揭示。':n.effect)+'</div></div>'+
+      '<div class="detail-section"><div class="detail-label">前置节点</div><div class="prereqs">'+(req.length?req.map(x=>'<span>'+x.name+'</span>').join(''):'<span>无 · 起始节点</span>')+'</div></div>'+
+      '<div class="detail-actions"><button '+(n.state==='ready'?'':'disabled')+' data-research="'+n.id+'">'+(n.state==='done'?'已掌握':n.state==='ready'?'开始研究':'条件未满足')+'</button><button class="secondary" data-close>返回树图</button></div></div>';
+  }
+  function render(){const d=data[tree];document.body.style.setProperty('--tree-accent',d.accent);canvas.style.width=d.width+'px';canvas.style.height=d.height+'px';svg.setAttribute('viewBox','0 0 '+d.width+' '+d.height);svg.setAttribute('width',d.width);svg.setAttribute('height',d.height);$('boardTitle').textContent=d.title+' · '+eras[era];$('progress').innerHTML='<b>'+d.done+'</b> / '+d.total+' 已掌握　·　'+d.amount.toLocaleString()+' '+d.currency;
+    $('legend').innerHTML='<span style="--dot:#6fe0ae"><i></i>已掌握</span><span style="--dot:#69e2df"><i></i>可研究</span><span style="--dot:#8797a3"><i></i>前置未满足</span><span style="--dot:#f5cd6b"><i></i>关键节点</span>';
+    $('bands').innerHTML=d.lanes.map((x,i)=>'<div class="era-band" style="left:'+(35+i*285)+'px;width:235px"><b>0'+(i+1)+'</b>'+x+'<span>发展层</span></div><div class="lane" style="left:'+(300+i*285)+'px"></div>').join('');
+    svg.innerHTML=d.nodes.filter(n=>n.state!=='gate').flatMap(n=>n.req.map(rid=>{const p=d.nodes.find(x=>x.id===rid);if(!p)return '';const done=p.state==='done';const active=p.state==='ready'&&n.state!=='locked';return '<path class="wire'+(done?' done':active?' active':'')+'" d="M'+(p.x+190)+' '+(p.y+45)+' C'+(p.x+235)+' '+(p.y+45)+' '+(n.x-45)+' '+(n.y+45)+' '+n.x+' '+(n.y+45)+'"/>'})).join('');
+    nodesBox.innerHTML=d.nodes.filter(n=>n.state!=='gate').map(n=>{const hidden=n.state==='hidden';const color=palette[n.branch]||d.accent;return '<button class="node '+(n.state==='done'?'done':n.state==='ready'?'ready':n.state==='locked'?'locked':hidden?'hidden-node':'')+'" style="left:'+n.x+'px;top:'+n.y+'px;--branch:'+color+';--status:'+(n.state==='done'?'#6fe0ae':n.state==='ready'?'#69e2df':'#b4c2ca')+'" data-id="'+n.id+'"><div class="node-top"><span class="node-icon">'+n.icon+'</span><span class="branch">'+(tree==='tech'?'科技':'市政')+' · '+n.branch+'</span><span class="state">'+statusName(n)+'</span></div><span class="node-name">'+(hidden?'未揭示的节点':n.name)+(n.key?'<i class="key-star">★</i>':'')+'</span><div class="node-hint">'+(n.state==='done'?'路径已点亮':n.state==='ready'?'点击查看研究详情':'点击查看条件')+'</div></button>'}).join('');
+    const gate=d.nodes.find(n=>n.state==='gate');if(gate)nodesBox.insertAdjacentHTML('beforeend','<div class="next-era" style="left:'+gate.x+'px;top:'+gate.y+'px">✧ 下一纪元 ✧<br>掌握关键节点</div>');
+    $('scroll').scrollLeft=0;closeDetail();
+  }
+  function notify(text){const t=$('toast');t.textContent=text;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1800)}
+  document.querySelectorAll('[data-tree]').forEach(b=>b.addEventListener('click',()=>{tree=b.dataset.tree;document.querySelectorAll('[data-tree]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-selected',x===b?'true':'false')});render()}));
+  $('eraNav').innerHTML=eras.map((x,i)=>'<button class="'+(i===0?'on':'')+'" data-era="'+i+'">'+x+'</button>').join('');
+  $('eraNav').addEventListener('click',e=>{const b=e.target.closest('[data-era]');if(!b)return;era=+b.dataset.era;document.querySelectorAll('[data-era]').forEach(x=>x.classList.toggle('on',x===b));$('boardTitle').textContent=data[tree].title+' · '+eras[era]+'（样板视图）';if(era!==0)notify('当前 Demo 先展示暗流纪树形样板；其余纪元沿用同一布局规则。')});
+  $('nodes').addEventListener('click',e=>{const n=e.target.closest('[data-id]');if(n&&!n.disabled)openDetail(n.dataset.id)});
+  detail.addEventListener('click',e=>{if(e.target.closest('[data-close]')){closeDetail();return}const b=e.target.closest('[data-research]');if(b){const n=data[tree].nodes.find(x=>x.id===b.dataset.research);if(n&&n.state==='ready'){n.state='done';data[tree].done++;data[tree].amount=Math.max(0,data[tree].amount-n.cost);render();openDetail(n.id);notify('演示：已掌握「'+n.name+'」')}}});
+  $('scrim').addEventListener('click',closeDetail);document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
+  render();
+})();
+</script>
+</body>
+</html>

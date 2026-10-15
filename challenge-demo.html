@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>天壳之外 · 轮回挑战 Demo</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #07131c;
+    --panel: #0d2230;
+    --panel-2: #102b3c;
+    --line: #1d4458;
+    --teal: #42d7c7;
+    --teal-soft: #a0f1e8;
+    --gold: #f0c674;
+    --text: #d8e9ee;
+    --muted: #87a6b2;
+    --red: #ff9292;
+    --green: #9be6b1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 24px 16px 56px;
+    background: radial-gradient(1050px 540px at 50% -12%, #12394a 0%, var(--bg) 67%);
+    color: var(--text);
+    font: 14px/1.5 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  button { color: inherit; font: inherit; }
+  button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .shell { width: min(1040px, 100%); margin: 0 auto; }
+  .gamebar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 24px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--teal-soft); font-size: 11px; font-weight: 800; letter-spacing: .19em; }
+  .brand-mark { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid #42d7c755; border-radius: 9px; background: #102b3c; font-size: 16px; letter-spacing: 0; }
+  .profile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: end; }
+  .pill { padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: #0b1d28; color: var(--muted); font-size: 11px; }
+  .pill b { margin-left: 4px; color: var(--gold); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .pill.points b { color: var(--teal-soft); }
+  .nav { display: flex; gap: 5px; border-bottom: 1px solid var(--line); margin-bottom: 23px; }
+  .nav button { position: relative; padding: 10px 16px 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-weight: 700; }
+  .nav button:hover { color: var(--text); }
+  .nav button[aria-current="page"] { color: var(--teal-soft); }
+  .nav button[aria-current="page"]::after { content: ""; position: absolute; right: 13px; bottom: -1px; left: 13px; height: 2px; background: var(--teal); box-shadow: 0 0 12px #42d7c777; }
+  .eyebrow { color: var(--teal); font-size: 10px; font-weight: 800; letter-spacing: .2em; }
+  h1 { margin: 3px 0 4px; color: #f0faf9; font-size: clamp(25px, 4vw, 34px); letter-spacing: .04em; }
+  .intro { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+  .intro p { max-width: 650px; margin: 0; color: var(--muted); font-size: 13px; }
+  .demo-tag { flex: 0 0 auto; padding: 5px 9px; border: 1px solid #f0c67455; border-radius: 6px; color: var(--gold); font-size: 10px; letter-spacing: .08em; }
+  .overview { display: grid; grid-template-columns: 1.25fr .75fr; gap: 12px; margin-bottom: 20px; }
+  .overview-box { display: flex; align-items: center; gap: 14px; min-height: 90px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(135deg, #102c3b, #0b1d29); }
+  .overview-icon { display: grid; flex: 0 0 42px; place-items: center; width: 42px; height: 42px; border: 1px solid #42d7c744; border-radius: 12px; background: #133847; color: var(--teal-soft); font-size: 20px; }
+  .overview-copy { min-width: 0; }
+  .overview-copy small { display: block; color: var(--muted); font-size: 10px; letter-spacing: .1em; }
+  .overview-copy strong { display: block; margin-top: 2px; color: #f0faf9; font-size: 18px; }
+  .overview-copy p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
+  .overview-box.multiplier { justify-content: space-between; }
+  .multiplier-value { flex: 0 0 auto; color: var(--teal-soft); font-size: 25px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .multiplier-value span { color: var(--muted); font-size: 11px; font-weight: 600; }
+  .run-banner { display: none; align-items: center; justify-content: space-between; gap: 14px; margin: 0 0 16px; padding: 12px 15px; border: 1px solid #42d7c766; border-radius: 10px; background: linear-gradient(90deg, #113b3c, #102b3c); }
+  .run-banner.show { display: flex; }
+  .run-banner strong { color: var(--teal-soft); }
+  .run-banner p { margin: 2px 0 0; color: #bdd4d8; font-size: 11px; }
+  .run-banner button { flex: 0 0 auto; padding: 8px 12px; border: 1px solid #77d9c788; border-radius: 8px; background: #174b4b; color: #eafffb; cursor: pointer; font-size: 11px; font-weight: 700; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 20px 2px 11px; }
+  .section-head h2 { margin: 0; color: #dff1f4; font-size: 14px; letter-spacing: .04em; }
+  .section-head span { color: var(--muted); font-size: 10px; }
+  .challenge-list { display: grid; gap: 11px; }
+  .challenge { position: relative; overflow: hidden; padding: 16px 17px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(125deg, rgba(16,43,60,.97), rgba(10,27,39,.97)); transition: border-color .18s, transform .18s, opacity .18s; }
+  .challenge::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 3px; background: #267a80; opacity: .72; }
+  .challenge:hover { border-color: #397083; }
+  .challenge.active { border-color: var(--teal); box-shadow: 0 0 0 1px #42d7c722, 0 10px 30px #0002; }
+  .challenge.active::before { background: var(--teal); opacity: 1; }
+  .challenge.complete { border-color: #6a9877; }
+  .challenge.complete::before { background: var(--green); }
+  .challenge.locked { opacity: .74; }
+  .challenge-top { display: flex; align-items: center; gap: 11px; }
+  .challenge-icon { display: grid; flex: 0 0 39px; place-items: center; width: 39px; height: 39px; border: 1px solid #347083; border-radius: 11px; background: #0b2431; font-size: 18px; }
+  .challenge-title { min-width: 0; }
+  .challenge-title h3 { margin: 0; color: #eff9fa; font-size: 16px; }
+  .challenge-title small { color: var(--muted); font-size: 10px; }
+  .status { margin-left: auto; padding: 4px 8px; border: 1px solid #284b5b; border-radius: 999px; color: #b8d0d8; font-size: 10px; white-space: nowrap; }
+  .status.ready { border-color: #33877d; color: var(--teal-soft); }
+  .status.done { border-color: #4e815f; color: var(--green); }
+  .status.active { border-color: #33877d; background: #123b3a; color: var(--teal-soft); }
+  .challenge-body { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; margin: 12px 0 0 50px; }
+  .detail-label { display: block; margin-bottom: 3px; color: #6f94a2; font-size: 9px; font-weight: 800; letter-spacing: .13em; }
+  .detail-text { color: #c8dce2; font-size: 11px; }
+  .reward { color: var(--teal-soft); font-size: 11px; font-weight: 700; }
+  .tier-list { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 7px; margin: 12px 0 0 50px; }
+  .tier { min-width: 0; padding: 8px 9px; border: 1px solid #203f4d; border-radius: 8px; background: #0b1c27; }
+  .tier .tier-name { display: flex; justify-content: space-between; gap: 5px; color: #c5d9df; font-size: 10px; font-weight: 700; }
+  .tier .tier-rule { margin-top: 3px; color: var(--muted); font-size: 9px; }
+  .tier .tier-reward { margin-top: 4px; color: #7fded5; font-size: 9px; }
+  .tier.done { border-color: #3b7654; background: #0d2827; }
+  .tier.done .tier-name { color: var(--green); }
+  .tier.next { border-color: #368e83; background: #102d32; box-shadow: inset 0 0 0 1px #42d7c714; }
+  .tier.next .tier-name { color: var(--teal-soft); }
+  .tier.locked { opacity: .55; }
+  .check { color: var(--green); }
+  .challenge-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0 50px; }
+  .foot-note { color: var(--muted); font-size: 10px; }
+  .start-btn { padding: 8px 12px; border: 1px solid #4dbeb2; border-radius: 8px; background: linear-gradient(135deg, #17665f, #164b56); color: #f0fffc; cursor: pointer; font-size: 11px; font-weight: 800; white-space: nowrap; transition: filter .15s, transform .15s; }
+  .start-btn:hover:not(:disabled) { filter: brightness(1.18); transform: translateY(-1px); }
+  .start-btn:disabled { border-color: #294350; background: #142a35; color: #6d8a95; cursor: not-allowed; }
+  .secondary-btn { padding: 7px 10px; border: 1px solid #315362; border-radius: 8px; background: #102b3a; color: #aac5ce; cursor: pointer; font-size: 10px; }
+  .secondary-btn:hover { border-color: #4d8391; color: var(--text); }
+  .footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 17px; padding: 10px 2px; color: #6f8b96; font-size: 10px; }
+  .toast { position: fixed; z-index: 20; right: 20px; bottom: 20px; max-width: min(400px, calc(100vw - 40px)); padding: 11px 14px; border: 1px solid #42d7c766; border-radius: 9px; background: #102b38; box-shadow: 0 10px 35px #0008; color: #dffbf4; font-size: 12px; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s, transform .2s; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  dialog { width: min(480px, calc(100vw - 28px)); padding: 0; border: 1px solid #3b7280; border-radius: 14px; background: #0c202c; color: var(--text); box-shadow: 0 25px 90px #000b; }
+  dialog::backdrop { background: #02080dbb; backdrop-filter: blur(3px); }
+  .modal { padding: 21px; }
+  .modal .eyebrow { font-size: 9px; }
+  .modal h2 { margin: 4px 0 5px; color: #f2fbfb; font-size: 21px; }
+  .modal-intro { margin: 0; color: var(--muted); font-size: 12px; }
+  .settlement { display: grid; gap: 8px; margin: 16px 0; padding: 12px; border: 1px solid #244959; border-radius: 9px; background: #091a24; }
+  .settlement-row { display: flex; justify-content: space-between; gap: 12px; color: #a9c2ca; font-size: 11px; }
+  .settlement-row b { color: var(--text); text-align: right; }
+  .settlement-row .gain { color: var(--gold); }
+  .warning { margin: 0; padding: 9px 10px; border-left: 2px solid var(--gold); background: #2b2519; color: #e7d6ad; font-size: 10px; }
+  .modal-actions { display: flex; justify-content: end; gap: 8px; margin-top: 16px; }
+  .modal-actions button { min-height: 37px; padding: 8px 13px; border: 1px solid #315260; border-radius: 8px; background: #102b38; cursor: pointer; font-size: 11px; font-weight: 700; }
+  .modal-actions .confirm { border-color: #4dbeb2; background: #17645d; color: #effffc; }
+  .modal-actions button:hover { filter: brightness(1.14); }
+  .hidden { display: none !important; }
+  @media (max-width: 680px) {
+    body { padding: 15px 12px 35px; }
+    .gamebar { align-items: start; margin-bottom: 17px; }
+    .brand { font-size: 9px; letter-spacing: .12em; }
+    .profile { gap: 5px; }
+    .pill { padding: 5px 7px; font-size: 9px; }
+    .nav { margin-bottom: 18px; }
+    .nav button { padding: 9px 12px 11px; font-size: 12px; }
+    .intro { align-items: start; flex-direction: column; gap: 9px; }
+    .overview { grid-template-columns: 1fr; gap: 8px; }
+    .overview-box { min-height: 75px; padding: 11px 13px; }
+    .challenge { padding: 13px 12px; }
+    .challenge-body { grid-template-columns: 1fr; gap: 9px; margin-left: 0; }
+    .tier-list { margin-left: 0; gap: 5px; }
+    .tier { padding: 7px 6px; }
+    .tier .tier-name { font-size: 9px; }
+    .tier .tier-rule, .tier .tier-reward { font-size: 8px; }
+    .challenge-foot { margin-left: 0; align-items: end; }
+    .status { font-size: 9px; }
+    .run-banner { align-items: start; }
+    .run-banner button { font-size: 10px; padding: 7px 9px; }
+    .footer { flex-direction: column; gap: 6px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="gamebar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>天壳之外 · META</span></div>
+    <div class="profile" aria-label="当前轮回概况">
+      <span class="pill">当前轮回<b id="cycle">12</b></span>
+      <span class="pill points">轮回点<b id="points">4860</b></span>
+      <button class="secondary-btn" id="resetDemo" type="button">重置 Demo</button>
+    </div>
+  </header>
+
+  <nav class="nav" aria-label="轮回页面">
+    <button type="button">轮回商店</button>
+    <button type="button" aria-current="page">轮回挑战</button>
+  </nav>
+
+  <section class="intro">
+    <div>
+      <div class="eyebrow">META PROGRESSION · CHALLENGES</div>
+      <h1>轮回挑战</h1>
+      <p>带着一条限制重新开局，完成目标后把奖励留给之后的所有轮回。开始挑战会自动结算当前轮回。</p>
+    </div>
+    <span class="demo-tag">交互原型 · 不写入真实存档</span>
+  </section>
+
+  <section class="overview" aria-label="挑战总览">
+    <div class="overview-box">
+      <div class="overview-icon" aria-hidden="true">⟳</div>
+      <div class="overview-copy">
+        <small>永久挑战进度</small>
+        <strong><span id="completedCount">0</span> / 8 档已通关</strong>
+        <p>每首次通关一档，轮回点获取永久 +10%。</p>
+      </div>
+    </div>
+    <div class="overview-box multiplier">
+      <div class="overview-copy">
+        <small>轮回点获取加成</small>
+        <strong>已解锁总增益</strong>
+        <p>只计首次完成，不开放已完成档重打。</p>
+      </div>
+      <div class="multiplier-value" id="multiplier">+0<span>%</span></div>
+    </div>
+  </section>
+
+  <section class="run-banner" id="runBanner" aria-live="polite">
+    <div>
+      <strong id="activeTitle">挑战进行中</strong>
+      <p id="activeDescription">限制已生效。完成目标后，挑战奖励将永久记录。</p>
+    </div>
+    <button id="completeChallenge" type="button">模拟达成目标</button>
+  </section>
+
+  <div class="section-head">
+    <h2>可开始的挑战</h2>
+    <span>每次只开启一项挑战 · 点击开始会自动结算并重开</span>
+  </div>
+  <section class="challenge-list" id="challengeList" aria-label="挑战列表"></section>
+
+  <footer class="footer">
+    <span>开始挑战 → 结算当前轮回 → 新周目立即启用限制</span>
+    <span>单次挑战完成后不再显示开始入口；分档挑战只开放下一档。</span>
+  </footer>
+</main>
+
+<dialog id="startDialog" aria-labelledby="dialogTitle">
+  <form class="modal" method="dialog">
+    <div class="eyebrow">RESET &amp; RESTART</div>
+    <h2 id="dialogTitle">结算当前轮回并开始挑战？</h2>
+    <p class="modal-intro" id="dialogIntro">挑战开始前会先结算本轮轮回点，然后建立全新周目。</p>
+    <div class="settlement">
+      <div class="settlement-row"><span>结算轮回点</span><b class="gain" id="settlementPoints">+128</b></div>
+      <div class="settlement-row"><span>本次挑战</span><b id="settlementChallenge">寒流禁火</b></div>
+      <div class="settlement-row"><span>新周目限制</span><b id="settlementRule">禁用火系生产</b></div>
+    </div>
+    <p class="warning">确认后当前周目的资源、建筑与局内进度将重置；轮回点、已完成挑战和永久奖励保留。</p>
+    <div class="modal-actions">
+      <button value="cancel" type="submit">再想想</button>
+      <button class="confirm" id="confirmStart" value="start" type="button">结算并开始</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var CHALLENGES = [
+    {
+      id: 'cold', name: '寒流禁火', icon: '❄', kind: '单次挑战',
+      summary: '寒流压境，火系生产无法依赖。',
+      rule: '本轮禁用火系生产设施', goal: '在禁火限制下完成本轮通关',
+      tiers: [{ label: '完成挑战', rule: '全程保持禁火', reward: '暖石产出 +20%' }]
+    },
+    {
+      id: 'small', name: '小国寡民', icon: '◉', kind: '单次挑战',
+      summary: '人口受限，依靠精简的族群完成发展。',
+      rule: '人口不得超过挑战上限', goal: '低人口条件下完成本轮通关',
+      tiers: [{ label: '完成挑战', rule: '保持人口上限', reward: '初始人口 +3 · 生育时间 -50%' }]
+    },
+    {
+      id: 'science', name: '忽视科文', icon: '⌘', kind: '三档挑战',
+      summary: '限制科技与市政发展，考验基础经营。',
+      rule: '科技与市政解锁数量均不得超过对应档位', goal: '在当前档位上限内完成本轮通关',
+      tiers: [
+        { label: '第一档', rule: '各不超过 15 项', reward: '科文产出 +50%' },
+        { label: '第二档', rule: '各不超过 10 项', reward: '科文产出 +100%' },
+        { label: '第三档', rule: '各不超过 5 项', reward: '科文产出 +200%' }
+      ]
+    },
+    {
+      id: 'abyss', name: '深渊重压', icon: '⬇', kind: '三档挑战',
+      summary: '全局产出被压低，仍需推进文明。',
+      rule: '本轮全产出受到负向倍率', goal: '在减产条件下完成本轮通关',
+      tiers: [
+        { label: '第一档', rule: '全产出 -20%', reward: '全产出 +20%' },
+        { label: '第二档', rule: '全产出 -40%', reward: '全产出 +40%' },
+        { label: '第三档', rule: '全产出 -60%', reward: '全产出 +60%' }
+      ]
+    }
+  ];
+
+  var BASE = { cycle: 12, points: 4860, prestigePayout: 128 };
+  var state = { cycle: BASE.cycle, points: BASE.points, done: {}, active: null };
+  var pending = null;
+  var list = document.getElementById('challengeList');
+  var dialog = document.getElementById('startDialog');
+  var toastTimer = 0;
+
+  function completedTotal() {
+    return Object.keys(state.done).reduce(function (sum, key) { return sum + state.done[key]; }, 0);
+  }
+
+  function currentTier(challenge) {
+    return state.done[challenge.id] || 0;
+  }
+
+  function tierMarkup(challenge) {
+    if (challenge.tiers.length === 1) return '';
+    var next = currentTier(challenge);
+    return '<div class="tier-list" aria-label="挑战档位">' + challenge.tiers.map(function (tier, i) {
+      var cls = i < next ? 'done' : (i === next ? 'next' : 'locked');
+      var flag = i < next ? '<span class="check" aria-label="已完成">✓</span>' : (i === next ? '<span>进行中</span>' : '<span>锁定</span>');
+      return '<div class="tier ' + cls + '"><div class="tier-name"><span>' + tier.label + '</span>' + flag +
+        '</div><div class="tier-rule">' + tier.rule + '</div><div class="tier-reward">奖励：' + tier.reward + '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  function cardMarkup(challenge) {
+    var done = currentTier(challenge);
+    var isActive = state.active && state.active.id === challenge.id;
+    var exhausted = done >= challenge.tiers.length;
+    var blocked = !!state.active && !isActive;
+    var status = isActive ? '<span class="status active">挑战进行中</span>' :
+      (exhausted ? '<span class="status done">已完成 · 不可重开</span>' :
+        (blocked ? '<span class="status">当前周目有挑战</span>' : '<span class="status ready">' + (challenge.tiers.length > 1 ? '下一档可挑战' : '尚未完成') + '</span>'));
+    var tier = challenge.tiers[Math.min(done, challenge.tiers.length - 1)];
+    var action = isActive ? '<button class="start-btn" type="button" disabled>本轮挑战中</button>' :
+      (exhausted ? '' :
+        '<button class="start-btn" type="button" data-start="' + challenge.id + '" ' + (blocked ? 'disabled' : '') + '>结算并挑战 · ' + tier.label + '</button>');
+    var foot = exhausted ? '本挑战奖励已永久生效；此入口不会再次开放。' :
+      (isActive ? '限制已生效，完成目标后领取本档奖励。' : (blocked ? '完成当前挑战后即可继续。' : '首次通关本档：轮回点获取永久 +10%。'));
+    var reward = exhausted ? challenge.tiers[challenge.tiers.length - 1].reward : tier.reward;
+    return '<article class="challenge ' + (isActive ? 'active' : '') + (exhausted ? ' complete' : '') + (blocked ? ' locked' : '') + '">' +
+      '<div class="challenge-top"><div class="challenge-icon" aria-hidden="true">' + challenge.icon + '</div>' +
+      '<div class="challenge-title"><h3>' + challenge.name + '</h3><small>' + challenge.kind + ' · ' + challenge.summary + '</small></div>' + status + '</div>' +
+      '<div class="challenge-body"><div><span class="detail-label">本轮限制</span><div class="detail-text">' + challenge.rule + '</div></div>' +
+      '<div><span class="detail-label">通关目标 / 本档奖励</span><div class="detail-text">' + challenge.goal + '</div><div class="reward">' + reward + '</div></div></div>' +
+      tierMarkup(challenge) + '<div class="challenge-foot"><span class="foot-note">' + foot + '</span>' + action + '</div></article>';
+  }
+
+  function render() {
+    list.innerHTML = CHALLENGES.map(cardMarkup).join('');
+    var done = completedTotal();
+    document.getElementById('cycle').textContent = state.cycle;
+    document.getElementById('points').textContent = state.points.toLocaleString('zh-CN');
+    document.getElementById('completedCount').textContent = done;
+    document.getElementById('multiplier').innerHTML = '+' + (done * 10) + '<span>%</span>';
+
+    var banner = document.getElementById('runBanner');
+    if (state.active) {
+      var c = state.active.challenge, t = c.tiers[state.active.tier];
+      banner.classList.add('show');
+      document.getElementById('activeTitle').textContent = c.name + ' · ' + t.label + '进行中';
+      document.getElementById('activeDescription').textContent = '新周目已启动；限制：' + t.rule + '。目标：' + c.goal + '。';
+      document.getElementById('completeChallenge').disabled = false;
+    } else {
+      banner.classList.remove('show');
+    }
+    list.querySelectorAll('[data-start]').forEach(function (button) {
+      button.addEventListener('click', function () { prepareStart(button.getAttribute('data-start')); });
+    });
+  }
+
+  function prepareStart(id) {
+    if (state.active) return;
+    var challenge = CHALLENGES.filter(function (item) { return item.id === id; })[0];
+    if (!challenge) return;
+    var tierIndex = currentTier(challenge);
+    if (tierIndex >= challenge.tiers.length) return;
+    pending = { challenge: challenge, tier: tierIndex };
+    var tier = challenge.tiers[tierIndex];
+    var payout = Math.round(BASE.prestigePayout * (1 + completedTotal() * 0.1));
+    document.getElementById('settlementPoints').textContent = '+' + payout.toLocaleString('zh-CN') + ' 轮回点';
+    document.getElementById('settlementChallenge').textContent = challenge.name + ' · ' + tier.label;
+    document.getElementById('settlementRule').textContent = tier.rule;
+    dialog.showModal();
+  }
+
+  function startPending() {
+    if (!pending || state.active) return;
+    var payout = Math.round(BASE.prestigePayout * (1 + completedTotal() * 0.1));
+    state.points += payout;
+    state.cycle += 1;
+    state.active = { id: pending.challenge.id, challenge: pending.challenge, tier: pending.tier };
+    var name = pending.challenge.name;
+    pending = null;
+    dialog.close();
+    render();
+    showToast('轮回已结算（+' + payout + ' 点）；新周目开始：' + name + '。');
+  }
+
+  function completeActive() {
+    if (!state.active) return;
+    var challenge = state.active.challenge;
+    var tier = challenge.tiers[state.active.tier];
+    state.done[challenge.id] = currentTier(challenge) + 1;
+    state.active = null;
+    render();
+    showToast('挑战通关：' + challenge.name + ' · ' + tier.label + '。永久奖励已记录，轮回点获取 +10%。');
+  }
+
+  function showToast(message) {
+    var node = document.getElementById('toast');
+    node.textContent = message;
+    node.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { node.classList.remove('show'); }, 3000);
+  }
+
+  document.getElementById('confirmStart').addEventListener('click', startPending);
+  document.getElementById('completeChallenge').addEventListener('click', completeActive);
+  document.getElementById('resetDemo').addEventListener('click', function () {
+    state = { cycle: BASE.cycle, points: BASE.points, done: {}, active: null };
+    pending = null;
+    render();
+    showToast('演示状态已重置；真实游戏存档未受影响。');
+  });
+  dialog.addEventListener('close', function () { pending = null; });
+  render();
+})();
+</script>
+</body>
+</html>

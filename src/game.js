@@ -31,6 +31,7 @@
     /* 轮回商店（meta 页）的门：首次轮回后才开。与科技/奇观同两道闸写法，
      * 直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'meta' && !meta.shopUnlocked) return;
+    if (k === 'challenges' && !meta.shopUnlocked) return;
     /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
@@ -90,7 +91,7 @@
   }
   function clearLog() { logLines = []; var n = document.getElementById('log'); if (n) n.innerHTML = ''; }
 
-  function startRun() {
+  function startRun(options) {
     meta.cycle++;
     /* 轮回商店只在「第一次真正的轮回」后解锁——即【建立宗教】（religionSeen）之后的那次
      * 破冰结算 doBreak。未建立宗教时玩家只能「重开本周目」（普通重置，cycle 同样 +1），
@@ -99,11 +100,12 @@
      * 旧档（已有跨周目进度）由 loadMeta 迁移补双解锁。 */
     var prev = S;
     S = SB.state.freshRun(true);
+    if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0 };
     if (prev && prev.perk) S.perk = Object.assign(SB.state.emptyPerks(), prev.perk);
     SB.state.saveMeta(meta);
     clearLog();
     log('第 ' + meta.cycle + ' 周目开始。冰封壳厚度 ' + S.iceShell + '。');
-    log('提示：开局只有 1 名族民、0 资源。在「' + SB.habitat.habitatName(S) + '」页点采集攒 15 藻食建第一座藻场，再回「族民」页雇佣。');
+    log('提示：开局 ' + S.pop + ' 名族民、0 资源。在「' + SB.habitat.habitatName(S) + '」页点采集攒 15 藻食建第一座藻场，再回「族民」页雇佣。');
     log('壳薄到 25% 会停手；凿穿最后一段要建成天穹钻机，并在自然环境卡里启动它。');
     dirty = true;
     renderAll();
@@ -545,6 +547,7 @@
   // ---- 主循环（墙钟驱动）----
   var last = 0;
   var STEP = 0.1;                   // 逻辑步长（秒）。与渲染解耦，保证数值与帧率无关
+  var OFFLINE_STEP = (SB.CFG && SB.CFG.OFFLINE_STEP != null) ? SB.CFG.OFFLINE_STEP : 2;  // 单一来源：只读 src/config.js 的 CFG.OFFLINE_STEP，避免两套常量漂移
   /* 时间真值有两个：
    *   ① 墙钟（Date.now）→ 用来判断「玩家离开过多久」，补算离线收益；
    *   ② 帧钟（performance.now）→ 用来决定这一帧推进多少逻辑时间。
@@ -672,18 +675,16 @@
   }
   function RESS_KEYS() { return SB.RESS ? Object.keys(SB.RESS) : []; }
 
-  /* 离线补算：把 gap 秒按 STEP 切碎喂给同一个 economy.tick，
-   * 走的是线上完全相同的结算路径（食物/饿死/生育/削壳/祭坛都包含），不另写一套公式。
-   * 【为什么必须分帧】8 小时 = 288000 tick。一次性算完就是一次肉眼可见的卡顿，
-   *   而且这是**玩家刚刷新页面时**发生，正好卡在加载上。
-   * 于是拆成「计划 → 每帧只花 CATCHUP_BUDGET 毫秒 → 做完发一条播报」。
+  /* 离线补算：稳定区间按事件边界批量调用经济 tick，
+   * 季节、科技/市政泵、生育、饥饿死亡和食物耗尽处切开；最大步长与泵周期同为 2 秒。
+   * 8 小时无暖石低库存段时，tick 调用从 288000 次降至约 14400 次（约 20×）；
+   * 结果允许小幅近似误差，随机冻伤也按子步累计概率处理。
+   * 仍拆成「计划 → 每帧只花 CATCHUP_BUDGET 毫秒 → 做完发一条播报」。
    * 墙钟耗时 = 纯算量 ÷ 占空比，占空比 = CATCHUP_BUDGET ÷ 主循环间隔(100ms)。
-   *   CATCHUP_BUDGET=8  ⇒ 占空比 8%  ⇒ 同样纯算量摊到 12.5 倍墙钟（满档 8h 离线曾达十几秒）；
-   *   CATCHUP_BUDGET=50 ⇒ 占空比 50% ⇒ 摊到 2 倍（2026-10-13 前的值）；
-   *   CATCHUP_BUDGET=90 ⇒ 占空比 90% ⇒ 仅摊到 1.11 倍（当前值，界面在补算期间本就锁死）。
+   *   CATCHUP_BUDGET=90 ⇒ 占空比约 90% ⇒ 纯算量摊到约 1.11 倍墙钟。
    * 配合 economy.tick 内聚合缓存（globalMul/gatherMul 等每 tick 只算一次）+
    * tech.mul 按 techVer 记忆化（2026-10-13，省掉每 tick 12 次全表重扫），
-   * 满档离线墙钟已从最初的十几秒级进一步压低（桌面实测见 sim/perf-offline.mjs）。 */
+   * 当前调用量及与 0.1 秒基准的差异由 sim/offline-fastforward.mjs 对照。 */
   function planCatchUp(s, gap) {
     var cap = offlineCap(s);
     var secs = Math.max(0, Math.min(gap, cap));   // 真实离线秒（已封顶）
@@ -700,7 +701,7 @@
      * 强制等算完（用户 2026-09-29：「离线回来先算完才能操作」）。 */
     SB.ui.render.showOfflineModal({
       title: '离线进度补算中…',
-      body: '<div class="note">正在回放你离开期间的产出（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，与在线同一条结算路径）。</div>' +
+      body: '<div class="note">正在补算你离开期间的进度（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，长时段按分段方式近似推进）。</div>' +
             '<div class="note" style="margin-top:8px;color:var(--dim)">离线时长 ' + fmtDur(secs) +
             (secs < gap ? '（封顶 ' + fmtDur(cap) + '，超出部分不计）' : '') +
             (adActive ? '（双倍加速生效中，覆盖时段按 2× 结算）' : '') + '</div>',
@@ -709,27 +710,66 @@
     log('离线 ' + fmtDur(secs) + '，正在补算…' + (adActive ? '（双倍加速覆盖时段按 2×）' : ''));
     if (secs < gap) log('补算有上限（' + fmtDur(cap) + '），剩余 ' + fmtDur(gap - secs) + ' 不计。');
   }
+  /* 分段快进：稳定区间最多跨过一个 2 秒泵周期；事件跨越点提前切开。
+   * 暖石还会被熔炉等系统消耗。若本块其他暖石净消耗可能让保温库存跨过阈值，
+   * 回到在线步长，使工业消耗与保温按同一时间顺序交错结算。 */
+  function offlineStep(s, j, gameLeft) {
+    var dt = Math.min(OFFLINE_STEP, gameLeft);
+    var seasonLeft = SB.CFG.SEASON_TICKS - (s.t % SB.CFG.SEASON_TICKS);
+    // tick 在推进 s.t 后换季，所以跨季的最后一个 0.1s tick 用新季倍率。
+    // 留出这一步单独结算，避免整块 dt 在边界处提前套用新季节。
+    if (seasonLeft > STEP + 1e-9) dt = Math.min(dt, seasonLeft - STEP);
+    else if (seasonLeft > 1e-9) dt = Math.min(dt, STEP);
+    var pumpLeft = TECH_PUMP - (j.tp || 0);
+    if (pumpLeft > 1e-9) dt = Math.min(dt, pumpLeft);
+    if (!SB.economy.isFull(s) && s.res.kelp > SB.CFG.GROW_KEEP) {
+      var growLeft = SB.CFG.GROW_NEED - (s._grow || 0);
+      if (growLeft > 1e-9) dt = Math.min(dt, growLeft);
+    }
+    if (s.res.kelp <= 0 && s.pop > 1) {
+      var famineLeft = (60 - (s.famine || 0)) * STEP;
+      if (famineLeft > 1e-9) dt = Math.min(dt, famineLeft);
+    }
+    var warmCold = s.warmOn && SB.economy.season(s.t).mult < 1;
+    if (warmCold && s.warmOn && s.res.warmstone > 0) {
+      var warmstoneRate = SB.economy.rates(s).warmstone || 0;
+      var reliefRate = SB.economy.warmBurningNow(s) ? SB.CFG.WARM_RATE : 0;
+      var otherDrain = Math.max(0, -(warmstoneRate + reliefRate));
+      var warmBuffer = SB.CFG.WARM_RATE * (1 + dt) + otherDrain * dt;
+      if (s.res.warmstone <= warmBuffer) dt = Math.min(dt, STEP);
+    }
+    return dt > 1e-9 ? dt : Math.min(gameLeft, STEP);
+  }
   function drainCatchUp(budgetMs) {
     var j = loop.job; if (!j) return;
     if (j.s !== S) { loop.job = null; return; }   // 补算途中重开了周目，作废这一批
     var t0 = Date.now();
-    /* 离线补算按「真实秒」推进：每个真实秒先取 adMul()（银行在线且有余额 = 2，否则 1），
-     * 这一真实秒扣 1 秒银行、并推进 mul 个游戏秒（mul/STEP 个 tick）。
-     * ⇒ 双倍银行覆盖到的离线时段按 2× 结算；余额耗尽后自动回落 1×。toggle 关着时 adMul()=1，银行冻结。 */
+    /* 离线补算按「真实秒」记账、按事件块推进：每块最多 OFFLINE_STEP 个游戏秒，
+     * 广告银行覆盖时按 2× 换算真实时长，并在余额归零处切段后回落 1×。
+     * 旧循环每次只推进 1 个真实秒，导致 1× 时 dt 永远 <=1 秒；现在可跨真实秒批量结算。 */
     while (j.left > 0 && Date.now() - t0 < budgetMs) {
       var mul = adMul();
-      if (mul > 1) j.s.ad.ms = Math.max(0, j.s.ad.ms - 1000);   // 这一真实秒扣 1 秒银行
-      var ticks = Math.round(mul / STEP), i;
-      for (i = 0; i < ticks; i++) {
-        SB.economy.tick(j.s, STEP, null);   // emit=null：不刷屏，做完统一播报
+      var realChunk = j.left;
+      if (mul > 1) realChunk = Math.min(realChunk, j.s.ad.ms / 1000); // 银行归零处切开
+      var gameLeft = realChunk * mul;
+      var realDone = 0;
+      while (gameLeft > 1e-9) {
+        var dt = offlineStep(j.s, j, gameLeft);
+        var t0 = j.s.t;
+        // 食物/人口积分器在 0.1s 微步内自行推进 happyStep（与食物同栅格重采样），故 tick 侧
+        // 同时跳过 food 与 happy（skipFoodPop + skipHappy），避免 happy/奢侈品被双重推进。
+        SB.economy.tick(j.s, dt, null, { skipFoodPop: true, skipHappy: true });   // 其他资源/season/pump/shell 仍走原 tick；food/happy 交给积分器
+        SB.offline.integrateFoodPop(j.s, dt, { t0: t0 }, null);  // 食物/人口 + 幸福度：事件边界闭式积分（替代 tick 内联 food/happy 段）
         if (j.s._seasonGrantPending) { SB.economy.seasonGrant(j.s); j.s._seasonGrantPending = false; }
-        j.tp = (j.tp || 0) + STEP;
-        if (j.tp >= TECH_PUMP) { j.tp = 0; pumpTech(j.s, null); pumpCivic(j.s, null); }
+        j.tp = (j.tp || 0) + dt;
+        gameLeft -= dt;
+        realDone += dt / mul;
+        if (mul > 1) j.s.ad.ms = Math.max(0, j.s.ad.ms - dt / mul * 1000);
+        if (j.tp >= TECH_PUMP - 1e-9) { j.tp = Math.max(0, j.tp - TECH_PUMP); pumpTech(j.s, null); pumpCivic(j.s, null); }
+        /* 星空槽在破壳后独立于 economy.tick 推进；按同一事件块累计，线性速率结果不变。 */
+        SB.shell.tickStar(j.s, dt, null);
       }
-      j.left -= 1;   // 消耗 1 真实秒
-      /* 星空槽离线补算（2026-10-13）：economy.tick 在 s.broken 时早退，不覆盖破壳后状态，
-       * 故这里按本真实秒推进的 mul 个游戏秒补算星空槽（与在线 loop 同口径）。tickStar 内部判 !broken → 早退。 */
-      SB.shell.tickStar(j.s, mul, null);
+      j.left = Math.max(0, j.left - realDone);
     }
     if (j.total) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);
     if (j.left <= 0) finishCatchUp(j);

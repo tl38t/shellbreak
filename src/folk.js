@@ -96,10 +96,30 @@
     return n;
   }
   function idle(s) { return s.pop - sum(s); }
+  function jobLimit(s, job) {
+    return SB.challenges && SB.challenges.jobLimit ? SB.challenges.jobLimit(s, job) : Infinity;
+  }
+  function jobLimitReason(s, job) {
+    return SB.challenges && SB.challenges.jobLimitReason ? SB.challenges.jobLimitReason(s, job) : null;
+  }
+  function enforceJobLimits(s) {
+    var limited = ['scholar', 'scribe'];
+    for (var i = 0; i < limited.length; i++) {
+      var job = limited[i], excess = (s.jobs[job] || 0) - jobLimit(s, job);
+      if (excess > 0) {
+        s.jobs[job] -= excess;
+      }
+    }
+  }
 
   /* 单步分配：＋ 需要闲置池有人；− 把该职业退回闲置池。
    * 返回 false 表示动作无效（没闲置可雇 / 该职业没人），UI 层据此不重渲染。 */
   function assign(s, job, delta) {
+    /* ⚠️ 2026-10-14：改为按 |delta| **批量**调整（猫国式 ±5/±10 快捷档），双向钳制：
+     *    加方向钳到 idle（剩几个加几个），减方向钳到在岗数（有几个退几个）；
+     *    n===0（没得动）返回 false。delta=±1 时行为与旧版逐次点击完全一致。 */
+    var n = Math.abs(delta || 0);
+    if (n === 0) return false;
     if (delta > 0) {
       /* ⚠️ 未解锁的职业不能雇。这是**根因侧**的守卫，不是 UI 的礼貌：
        * UI 已经把未解锁的行整行不渲染（render.js paneFolk），但按钮只是表现层，
@@ -109,12 +129,30 @@
        * ⚠️ 只拦 delta>0：老档若有人卡在「职业有人但科技丢失」的不一致态上，
        *    − 必须仍然退得掉，否则闲置池永远收不回这个人（行也还在，见 render）。 */
       if (!jobUnlocked(s, job)) return false;
-      if (idle(s) <= 0) return false;
-      s.jobs[job]++;
+      n = Math.min(n, idle(s), Math.max(0, jobLimit(s, job) - (s.jobs[job] || 0)));
+      if (n <= 0) return false;
+      s.jobs[job] = (s.jobs[job] || 0) + n;
       return true;
     }
-    if (s.jobs[job] <= 0) return false;
-    s.jobs[job]--;
+    n = Math.min(n, s.jobs[job] || 0);
+    if (n <= 0) return false;
+    s.jobs[job] -= n;
+    return true;
+  }
+
+  /* 一键最大：把全部闲置族民塞进该职业（idle 上限内）。不互相抢人——其它职业保持不动。
+   * ⚠️ 仅守卫 jobUnlocked / idle>0（与 assign 同源）；idle 为 0 时返回 false（UI 据此禁用按钮）。 */
+  function assignMax(s, job) {
+    if (!jobUnlocked(s, job)) return false;
+    var n = Math.min(idle(s), Math.max(0, jobLimit(s, job) - (s.jobs[job] || 0)));
+    if (n <= 0) return false;
+    s.jobs[job] = (s.jobs[job] || 0) + n;
+    return true;
+  }
+  /* 一键最小：把该职业全部退回闲置池（清零）。− 方向不守卫解锁（老档卡人也要退得掉），与 assign 同源。 */
+  function assignMin(s, job) {
+    if ((s.jobs[job] || 0) <= 0) return false;
+    s.jobs[job] = 0;
     return true;
   }
 
@@ -130,6 +168,7 @@
       if (!top) break;
       s.jobs[top]--; over--;
     }
+    enforceJobLimits(s);
   }
 
   /* 自动配工（sim 机器人用）：按目标比例一次性把闲置分掉。
@@ -139,6 +178,7 @@
   function autoAssign(s, ratio) {
     var pop = s.pop;
     if (pop <= 0) return;
+    enforceJobLimits(s);
 
     /* 采集者（食物）的目标是「绝对人数」而不是比例：该雇几个由当下口粮缺口决定
      * （见 sim/balance.mjs 的配工段），这里只负责把它落实。
@@ -183,6 +223,10 @@
     }
     // 取整残差补给学者，避免总量差 1 导致下一轮空转
     if (target.scholar !== undefined) target.scholar = Math.max(0, rest - (acc - target.scholar));
+    for (i2 = 0; i2 < others.length; i2++) {
+      var limitedJob = others[i2];
+      target[limitedJob] = Math.min(target[limitedJob], jobLimit(s, limitedJob));
+    }
 
     var diff = pop - sum(s);
     while (diff > 0) {
@@ -226,9 +270,9 @@
   }
 
   SB.folk = {
-    assign: assign, autoAssign: autoAssign, reconcile: reconcile,
+    assign: assign, assignMax: assignMax, assignMin: assignMin, autoAssign: autoAssign, reconcile: reconcile,
     sum: sum, idle: idle, IDS: IDS, jobUnlocked: jobUnlocked,
     jobTechOf: jobTechOf, jobCivicOf: jobCivicOf,
-    jobName: jobName
+    jobName: jobName, jobLimit: jobLimit, jobLimitReason: jobLimitReason
   };
 })(typeof window !== 'undefined' ? window : globalThis);

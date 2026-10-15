@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>建筑文案落位 · 对照 Demo</title>
+<style>
+  :root{
+    --bg0:#04111f; --bg1:#0a2233; --panel:#0e2a3f; --panel2:#123251;
+    --line:#1d4a66; --txt:#cfe6f2; --muted:#7fa6bd; --accent:#5fd0e0;
+    --accent2:#f0b86e; --flavor:#9fd9c8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:radial-gradient(1200px 700px at 70% -10%,#0c2b40,#04111f 60%);color:var(--txt);
+    min-height:100vh;padding:28px 16px 60px}
+  .wrap{max-width:940px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px;letter-spacing:.5px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px;line-height:1.6}
+  .modes{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
+  .modes button{cursor:pointer;border:1px solid var(--line);background:var(--panel);
+    color:var(--txt);padding:9px 14px;border-radius:10px;font-size:13px;transition:.15s}
+  .modes button:hover{border-color:var(--accent)}
+  .modes button.on{background:var(--accent);color:#04222b;border-color:var(--accent);font-weight:700}
+  .modes .tag{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+  .modes button.on .tag{color:#06404a}
+  .hint{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent2);
+    border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--muted);margin:0 0 16px;line-height:1.7}
+  .zone-h{font-size:12px;color:var(--accent);letter-spacing:2px;margin:20px 0 8px;text-transform:uppercase}
+  .row{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;margin:8px 0;display:flex;gap:12px;align-items:flex-start}
+  .nm{flex:0 0 auto;min-width:96px}
+  .nm button{background:none;border:none;color:var(--accent);font-size:15px;font-weight:700;
+    cursor:pointer;padding:0;text-align:left}
+  .nm button:hover{text-decoration:underline}
+  .info{position:relative;display:inline-flex}
+  .info .ii{display:none;margin-left:6px;color:var(--accent2);font-size:12px;border:1px solid var(--accent2);
+    border-radius:50%;width:16px;height:16px;line-height:14px;text-align:center;cursor:help;vertical-align:middle}
+  /* ⓘ 只在方案 C 显示（其余方案隐藏） */
+  #list.mode-C .ii{display:inline-flex}
+  .ratio{font-size:11px;color:var(--muted);margin-top:3px}
+  .body{flex:1}
+  .ds{font-size:13.5px;line-height:1.6;color:var(--txt)}
+  .cost{font-size:12px;color:var(--muted);margin-top:4px}
+  .flavor{margin-top:7px;padding:7px 10px;border-left:3px solid var(--flavor);background:rgba(159,217,200,.07);
+    border-radius:0 6px 6px 0;font-size:12.5px;line-height:1.7;color:var(--flavor);font-style:italic}
+  /* 详情卡 */
+  .mask{position:fixed;inset:0;background:rgba(2,10,18,.72);display:none;align-items:center;justify-content:center;z-index:50}
+  .mask.show{display:flex}
+  .card{width:min(440px,92vw);background:linear-gradient(180deg,#0f2d43,#0a2233);
+    border:1px solid var(--accent);border-radius:16px;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .card h3{margin:0 0 4px;color:var(--accent);font-size:18px}
+  .card .lv{font-size:12px;color:var(--muted);margin-bottom:14px}
+  .card section{margin:0 0 14px}
+  .card section h4{margin:0 0 6px;font-size:13px;color:var(--accent2);letter-spacing:1px}
+  .card section p{margin:0;font-size:13.5px;line-height:1.7}
+  .card .bg{text-align:center;color:var(--flavor);font-style:italic;line-height:1.8;margin:6px 0 0}
+  .card .close{margin-top:6px;background:var(--accent);color:#04222b;border:none;border-radius:9px;
+    padding:8px 16px;font-weight:700;cursor:pointer;width:100%}
+  .tooltip{position:fixed;z-index:80;max-width:300px;background:#06202f;border:1px solid var(--accent2);
+    border-radius:8px;padding:9px 12px;font-size:12.5px;color:var(--flavor);font-style:italic;line-height:1.6;
+    display:none;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none}
+  .foot{margin-top:26px;font-size:11.5px;color:var(--muted);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>建筑文案（flavor）落位 · 对照 Demo</h1>
+  <p class="sub">同一份建筑数据，三种文案展示方案实时切换。点建筑名字打开详情卡。下方数据取自真实 config（desc / cost / ratio），flavor 取自你这次给的文案。</p>
+
+  <div class="modes" id="modes">
+    <button data-mode="A" class="on">方案 A · 仅详情卡斜体行<span class="tag">推荐 · 列表最干净</span></button>
+    <button data-mode="B">方案 B · 行内副行常显<span class="tag">列表变高 · 一眼可见</span></button>
+    <button data-mode="C">方案 C · 仅 ⓘ / hover<span class="tag">最省空间 · 需主动看</span></button>
+  </div>
+
+  <div class="hint" id="hint"></div>
+
+  <div id="list"></div>
+
+  <div class="foot">
+    方案 A：建筑行只显示机械效果（desc），点开名字的浮层里底部一行斜体居中显示 flavor —— 与现有奇观 WONDER_FLAVOR 同思路，列表不被文案撑高。<br>
+    方案 B：每行机械 desc 下多一行斜体 flavor，始终可见，但 28 座建筑会让面板明显变长。<br>
+    方案 C：行内不显示，名字旁挂 ⓘ（手机端可点），桌面端 hover 标题也出；点名字仍开详情卡。需要看背景时才出现。
+  </div>
+</div>
+
+<div class="mask" id="mask">
+  <div class="card" id="card"></div>
+</div>
+<div class="tooltip" id="tip"></div>
+
+<script>
+// —— 真实建筑数据（desc/cost/ratio 取自 config.js；flavor 取你这次给的文案）——
+const RES = {kelp:'藻食',coral:'珊瑚',stone:'石头',silt:'金属',steel:'钢',scaffold:'脚手架',stoneBeam:'石梁'};
+const B = [
+  {id:'kelp',name:'深海藻场',ratio:1.12,cost:{kelp:15},desc:'自动产藻食 +0.45/级/秒，吃季节减产',flavor:'海底热泉泛着微红的光，有暗青的海藻在其旁飘荡……'},
+  {id:'nest',name:'礁口巢',ratio:2.5,cost:{coral:5},desc:'人口上限 +2，住满后不再生育',flavor:'热泉水流过珊瑚缝隙，流过两名鲛人的家。'},
+  {id:'coralhouse',name:'石屋',ratio:2.5,cost:{stone:100},desc:'人口上限 +4/级，可一路铺',flavor:'更牢固的材料足以支撑起更大的空间。'},
+  {id:'siltpit',name:'砂矿坑',ratio:1.15,cost:{coral:200},desc:'矿工金属产出 +20%/级（升级为鱼骨矿井/深层矿井后更高）',flavor:'幽深的海床上裸露着可用的金属矿物，将其收集起来或许能派上用场。'},
+  {id:'hall',name:'议事厅',ratio:1.75,cost:{stone:80,coral:60},desc:'随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级',flavor:'鲛人们需要一栋独立的建筑用来议事，协调事宜。'},
+  {id:'weir',name:'喷口导流堤',ratio:1.15,cost:{silt:60},desc:'藻食产出 +3%/级',flavor:'用金属构成的导流槽可以将热泉附近的温暖海水导向更远的地方。'},
+  {id:'workshop',name:'工坊',ratio:1.15,cost:{stone:200,coral:200},desc:'加工线入口（每级工艺制作效率 +5%）',flavor:'敲打与锻铸声自此不断，一条条加工线在此汇成工业的雏形。'},
+  {id:'furnace',name:'热泉炉',ratio:1.15,cost:{stone:60,silt:100},desc:'解锁 金属→精铁',flavor:'热即文明，若能将散发光热的暖石进一步加以利用……'},
+  {id:'lighthouse',name:'灯塔',ratio:1.15,cost:{stone:200,silt:120},desc:'全资源产出 +1%/级，其余资源上限 +120/级',flavor:'灯火刺穿深海的黑潮，鲛人的文明不必再局限于热泉周边。'},
+  {id:'library',name:'潮纹馆',ratio:1.15,cost:{coral:150},desc:'科技产出 +10%/级（仅作用于学者）',flavor:'「热泉利藻」、「存藻耐寒」……零散的知识刻上壁面，供代代鲛人记诵。'},
+  {id:'observatory',name:'天壳观测站',ratio:1.15,cost:{steel:20,stoneBeam:200},desc:'科技产出 +x%，x 与冰壳厚度成反比，最高 +20%',flavor:'鲛人将楔钉深深打入天壳之中，将轻便的钢架建筑固定在天壳上，以便随时观测记录天壳的状态。'},
+  {id:'tenement',name:'廉租社区',ratio:3,cost:{scaffold:50,steel:100},desc:'人口上限 +10/级（由 popCap 读）；每级额外 +5% 居民奢侈品消耗',flavor:'层层叠起的居所塞进更多鲛人，但，代价是什么呢？'},
+  {id:'theater',name:'歌剧院',ratio:1.15,cost:{steel:100,stone:400},desc:'官员（书手）市政点产出 +15%/级（由 theaterCivicMul 读）',flavor:'穹顶之下，歌声回荡。'},
+];
+const ZONES=[['礁栖核心',['nest','coralhouse','tenement']],['生息区',['kelp','weir']],['工坊区',['siltpit','workshop','furnace']],['贸易区域',['lighthouse']],['学术区',['library','observatory']],['市政区',['hall','theater']]];
+let mode=(new URLSearchParams(location.search).get('mode')||'A').toUpperCase();
+if(!['A','B','C'].includes(mode))mode='A';
+const hintTxt={
+  A:'当前：文案只在「点开建筑名字的浮层」里出现（详情卡底部一行斜体居中）。建筑列表保持只显示机械效果，最干净。',
+  B:'当前：每座建筑行在机械效果下多一行斜体背景文案，始终可见；代价是 28 座会让面板明显变长。',
+  C:'当前：行内不显示背景文案，名字旁挂 ⓘ（手机端可点），桌面端 hover 名字也出提示。点名字仍开详情卡。'
+};
+const costTxt=c=>Object.entries(c).map(([k,v])=>(RES[k]||k)+' '+v).join(' · ');
+
+function render(){
+  document.getElementById('hint').textContent=hintTxt[mode];
+  const list=document.getElementById('list');list.className='mode-'+mode;list.innerHTML='';
+  for(const [zn,ids] of ZONES){
+    const h=document.createElement('div');h.className='zone-h';h.textContent=zn;list.appendChild(h);
+    for(const id of ids){
+      const b=B.find(x=>x.id===id);if(!b)continue;
+      const row=document.createElement('div');row.className='row';
+      const showFlavorRow = (mode==='B');
+      row.innerHTML=`
+        <div class="nm">
+          <div class="info">
+            <button class="bname" data-id="${b.id}" ${mode==='C'?'title="'+b.flavor+'"':''}>${b.name}</button>
+            ${mode==='C'?'<span class="ii" data-id="'+b.id+'">i</span>':''}
+          </div>
+          <div class="ratio">ratio ×${b.ratio}</div>
+        </div>
+        <div class="body">
+          <div class="ds">${b.desc}</div>
+          <div class="cost">建造成本：${costTxt(b.cost)}</div>
+          ${showFlavorRow?`<div class="flavor">${b.flavor}</div>`:''}
+        </div>`;
+      list.appendChild(row);
+    }
+  }
+  // 绑定
+  list.querySelectorAll('.bname').forEach(el=>{
+    el.addEventListener('click',()=>openCard(el.dataset.id));
+    if(mode==='C'){
+      el.addEventListener('mouseenter',e=>showTip(e,el.dataset.id));
+      el.addEventListener('mouseleave',hideTip);
+    }
+  });
+  if(mode==='C'){
+    list.querySelectorAll('.ii').forEach(el=>{
+      el.addEventListener('click',e=>{e.stopPropagation();openCard(el.dataset.id);});
+      el.addEventListener('mouseenter',e=>showTip(e,el.dataset.id));
+      el.addEventListener('mouseleave',hideTip);
+    });
+  }
+}
+function openCard(id){
+  const b=B.find(x=>x.id===id);if(!b)return;
+  const card=document.getElementById('card');
+  card.innerHTML=`<h3>${b.name}</h3><div class="lv">当前等级 0 · ratio ×${b.ratio}</div>
+    <section><h4>效果</h4><p>${b.desc}</p></section>
+    <section><h4>建造条件</h4><p>建造成本：${costTxt(b.cost)}</p></section>
+    <section><p class="bg">${b.flavor}</p></section>
+    <button class="close" onclick="document.getElementById('mask').classList.remove('show')">关闭</button>`;
+  document.getElementById('mask').classList.add('show');
+}
+function showTip(e,id){
+  const b=B.find(x=>x.id===id);if(!b)return;
+  const tip=document.getElementById('tip');
+  tip.textContent=b.flavor;tip.style.display='block';
+  tip.style.left=Math.min(e.clientX+12,window.innerWidth-320)+'px';
+  tip.style.top=(e.clientY+16)+'px';
+}
+function hideTip(){document.getElementById('tip').style.display='none';}
+document.getElementById('modes').querySelectorAll('button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#modes button').forEach(x=>x.classList.remove('on'));
+    btn.classList.add('on');mode=btn.dataset.mode;render();
+  });
+});
+document.getElementById('mask').addEventListener('click',e=>{if(e.target.id==='mask')e.currentTarget.classList.remove('show');});
+// 初始按钮高亮跟随 ?mode=
+document.querySelectorAll('#modes button').forEach(x=>x.classList.toggle('on',x.dataset.mode===mode));
+render();
+// ?open=<id> 直接弹出详情卡（核验用）
+const _open=new URLSearchParams(location.search).get('open');
+if(_open)openCard(_open);
+</script>
+</body>
+</html>

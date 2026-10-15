@@ -1,6 +1,6 @@
 /* 在 Node 里加载天壳的真实 src（无 DOM 子集）。
  * 目的：让回归脚本跑的是生产代码本身，而不是另一份复制的数值。
- * config → techs → tech → state → economy → shell → habitat → folk → prestige
+ * config → config-catalog → config-content → config-buildings → techs → tech → civics-data → state-migrate → state → economy-social → economy → economy-rates → economy-tick → shell → habitat → folk → prestige
  * 可在无 DOM 下运行（顺序必须与 index.html 一致：tech 层被 state/economy/shell 在
  * 首次调用时读取，反了会读到 undefined）；game / ui 需要 document，
  * 由 e2e.mjs 单独提供假 DOM 后再加载。
@@ -15,8 +15,13 @@ export const ROOT = path.resolve(__dirname, '..');
 
 const NO_DOM = [
   'src/config.js',
+  'src/config-catalog.js',
+  'src/config-content.js',
+  'src/config-buildings.js',
   'src/techs.js',
   'src/tech.js',
+  'src/civics-data.js',
+  'src/state-migrate.js',
   'src/state.js',
   /* workshop 排在 state 之后、economy 之前 —— **必须与 index.html 的 <script> 顺序逐字一致**。
    * 两份清单的顺序一旦分叉，e2e 绿而页面上白（或反之），是最难查的一类假回归。 */
@@ -24,11 +29,16 @@ const NO_DOM = [
   /* ⚠️ 与上面 workshop 那行同一条纪律：这里的顺序就是 index.html 里 <script> 的顺序，
    *   新模块必须两边同时加、同时排序。 */
   'src/wonder.js',
+  'src/economy-social.js',
   'src/economy.js',
+  'src/economy-rates.js',
+  'src/economy-tick.js',
+  'src/offline-scheduler.js',
   'src/shell.js',
   'src/habitat.js',
   'src/folk.js',
   'src/prestige.js',
+  'src/challenges.js',
 ];
 
 /* 固定种子的 PRNG。⚠️ 2026-09-28： economy.js 里「冰封期冻死族民」那条判定**裸调

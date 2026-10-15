@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>渊海天壳 · 公司页面（设计预览）</title>
+<style>
+  :root {
+    --bg: #07131c;
+    --panel: #0d2230;
+    --panel-2: #102b3c;
+    --line: #1d4458;
+    --teal: #2fd6c6;
+    --teal-dim: #1c8d83;
+    --gold: #f0c674;
+    --text: #cfe6ee;
+    --muted: #7fa3b0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 16px 60px;
+    background: radial-gradient(1200px 600px at 50% -10%, #0e2c3e 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header h1 {
+    margin: 0; font-size: 28px; letter-spacing: 6px; color: var(--teal);
+    text-shadow: 0 0 18px rgba(47,214,198,.35);
+  }
+  header .sub { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+  .timebar {
+    margin: 22px 0 18px; padding: 14px 16px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  }
+  .timebar .lbl { color: var(--muted); font-size: 13px; }
+  .timebar button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  .timebar button:hover { border-color: var(--teal-dim); }
+  .timebar button.active { background: var(--teal-dim); color: #fff; border-color: var(--teal); }
+  .timebar input[type=range] { flex: 1; min-width: 160px; accent-color: var(--teal); }
+  #timeLabel { font-variant-numeric: tabular-nums; color: var(--gold); font-size: 14px; min-width: 76px; text-align: right; }
+  .reroll { margin-left: auto; }
+  .cards { display: grid; gap: 16px; }
+  .card {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px;
+    position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, var(--teal), transparent);
+  }
+  .card .top { display: flex; align-items: baseline; gap: 12px; }
+  .card .cname { font-size: 22px; font-weight: 700; color: #fff; }
+  .card .tag {
+    font-size: 12px; padding: 2px 9px; border-radius: 999px;
+    background: rgba(47,214,198,.14); color: var(--teal); border: 1px solid var(--teal-dim);
+  }
+  .card .status {
+    margin-left: auto; font-size: 12px; color: var(--gold);
+    border: 1px solid rgba(240,198,116,.4); border-radius: 999px; padding: 2px 10px;
+  }
+  .card .tier { margin-top: 12px; font-size: 15px; }
+  .card .tier b { color: var(--teal); }
+  .stats { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 18px; font-weight: 700; }
+  .stat .v.pos { color: var(--teal); }
+  .stat .v.neg { color: #ff8a8a; }
+  .prog { margin-top: 16px; }
+  .prog .track { height: 8px; background: #07202c; border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+  .prog .fill { height: 100%; background: linear-gradient(90deg, var(--teal-dim), var(--teal)); width: 0; transition: width .25s; }
+  .prog .ptxt { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .note { margin-top: 26px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .note code { background: #07202c; padding: 1px 6px; border-radius: 5px; color: var(--teal); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>公 司</h1>
+    <p class="sub">与科技 / 市政并列的标签 · 拥有市政「宏观经济学」后自动成立</p>
+  </header>
+
+  <div class="timebar">
+    <span class="lbl">模拟成立时长</span>
+    <button data-sec="0" class="active">成立时</button>
+    <button data-sec="3600">1 小时</button>
+    <button data-sec="10800">3 小时</button>
+    <input type="range" id="t" min="0" max="10800" step="60" value="0">
+    <span id="timeLabel">0h 0m</span>
+    <button class="reroll" id="reroll">重新命名</button>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <p class="note">
+    这是设计预览页，数据直接读真实的 <code>src/companies.js</code>（单一数据源，和日后实装一致）。
+    藻食公司加成 <code>kelp</code>，珊瑚公司加成 <code>coral</code>；奢侈品消耗恒 +10% 不随等级变。
+    三级成长（乡镇 +10% → 地方 +20% @1h → 全国 +30% @3h）为全行业通用，改 <code>SB.COMPANY_TIERS</code> 即可统一调整。
+  </p>
+</div>
+
+<script src="src/companies.js"></script>
+<script>
+  function fmtTime(sec) {
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return h + 'h ' + m + 'm';
+  }
+  function companyLabel(res) {
+    var c = (SB.COMPANIES || []).filter(function (x) { return x.res === res; })[0];
+    return c ? c.label : res;
+  }
+
+  var elapsed = 0;
+  var names = SB.pickCompanyNames();
+
+  function render() {
+    var tiers = SB.COMPANY_TIERS;
+    var idx = SB.companyTierIndex(elapsed);
+    var cur = tiers[idx], nxt = tiers[idx + 1];
+    var cards = document.getElementById('cards');
+    cards.innerHTML = '';
+
+    (SB.COMPANIES || []).forEach(function (c) {
+      var bonus = (cur ? cur.bonus : 0) * 100;
+      var lux = (c.luxBonus || 0) * 100;
+      var progPct = 0, ptxt = '已达最高等级（全国性企业）';
+      if (nxt) {
+        var span = nxt.unlockSec - cur.unlockSec;
+        progPct = span > 0 ? Math.min(100, (elapsed - cur.unlockSec) / span * 100) : 100;
+        var need = nxt.unlockSec - elapsed;
+        ptxt = '距「' + nxt.name + '」还需 ' + fmtTime(Math.max(0, need)) + '（+' + (nxt.bonus * 100) + '% 产出）';
+      }
+
+      var el = document.createElement('div');
+      el.className = 'card';
+      el.innerHTML =
+        '<div class="top">' +
+          '<span class="cname">' + (names[c.id] || c.label + '公司') + '</span>' +
+          '<span class="tag">' + c.label + '行业</span>' +
+          '<span class="status">已成立</span>' +
+        '</div>' +
+        '<div class="tier">当前等级：<b>' + (cur ? cur.name : '—') + '</b></div>' +
+        '<div class="stats">' +
+          '<div class="stat"><div class="k">' + c.label + '产出加成</div><div class="v pos">+' + bonus.toFixed(0) + '%</div></div>' +
+          '<div class="stat"><div class="k">奢侈品消耗</div><div class="v neg">+' + lux.toFixed(0) + '%</div></div>' +
+        '</div>' +
+        '<div class="prog">' +
+          '<div class="track"><div class="fill" style="width:' + progPct + '%"></div></div>' +
+          '<div class="ptxt">' + ptxt + '</div>' +
+        '</div>';
+      cards.appendChild(el);
+    });
+
+    document.getElementById('timeLabel').textContent = fmtTime(elapsed);
+  }
+
+  // 时间快进器
+  var slider = document.getElementById('t');
+  var btns = document.querySelectorAll('.timebar button[data-sec]');
+  function setElapsed(sec, fromBtn) {
+    elapsed = sec;
+    slider.value = sec;
+    btns.forEach(function (b) { b.classList.toggle('active', fromBtn && +b.dataset.sec === sec); });
+    if (!fromBtn) btns.forEach(function (b) { b.classList.remove('active'); });
+    render();
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () { setElapsed(+b.dataset.sec, true); });
+  });
+  slider.addEventListener('input', function () { setElapsed(+slider.value, false); });
+  document.getElementById('reroll').addEventListener('click', function () {
+    names = SB.pickCompanyNames(); render();
+  });
+
+  render();
+</script>
+</body>
+</html>

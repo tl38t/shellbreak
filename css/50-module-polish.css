@@ -164,11 +164,11 @@ html[data-ui-theme="day"] .gov-choice-detail{border-color:#d6e2df}
 .folk-job-controls{display:flex;flex:none;gap:4px}
 @media(max-width:760px){
   #pane-folk .row>div:first-child{min-width:0;flex:1}
-  .folk-job-controls .btn{min-width:40px;min-height:40px;padding:6px}
+  .folk-job-controls .btn{min-width:30px;min-height:32px;padding:4px}
   .gov-choice .gov-adopt,.workshop-grid>.row>.btn,.wonder-grid>.row>.btn{min-height:40px}
   .wonder-grid .building-name{min-height:36px;padding:5px 0}
 }
-@media(max-width:390px){.folk-job-controls .btn{min-width:44px;min-height:44px}}
+@media(max-width:390px){.folk-job-controls .btn{min-width:32px;min-height:36px}}
 
 /* P5：巢穴 / 族民主页面收尾——把「状态、说明、动作」从同一种横排里分出来。 */
 #pane-village .bzone{position:relative;padding-top:2px}
@@ -206,10 +206,12 @@ html[data-ui-theme="day"] .gov-choice-detail{border-color:#d6e2df}
 #pane-folk .folk-job-row:hover{transform:translateY(-1px);border-color:rgba(105,226,223,.3);box-shadow:0 6px 16px rgba(0,0,0,.1)}
 #pane-folk .folk-job-row .nm{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #pane-folk .folk-job-row .ds{margin-top:2px}
-#pane-folk .folk-job-controls{align-items:center;gap:5px;padding:3px;border:1px solid rgba(104,164,196,.18);border-radius:9px;background:rgba(6,19,31,.28)}
-#pane-folk .folk-job-controls .btn{display:grid;place-items:center;min-width:32px;min-height:32px;padding:3px 8px;border-radius:6px;font-size:15px;line-height:1}
-#pane-folk .folk-job-controls .btn:first-child{color:#f19a91;border-color:rgba(241,154,145,.2);background:rgba(95,42,49,.28)}
-#pane-folk .folk-job-controls .btn:last-child{color:var(--green);border-color:rgba(111,224,174,.24);background:rgba(26,70,50,.28)}
+/* 2026-10-14 方案 B（猫国式极简）：可见 UI 只有一对 −/＋ 小按钮 + 一个 ×N 步长胶囊；
+ * ±5/±10 收进胶囊（×1→×5→×10 全局循环）、最小/最大收进双击 ——
+ * 行的视觉重心回到「职业名 + 人数」，修「8 个大按钮喧宾夺主」。 */
+#pane-folk .folk-job-controls{align-items:center;gap:4px}
+#pane-folk .folk-job-controls .btn{display:grid;place-items:center;min-width:26px;min-height:26px;padding:2px 8px;border-radius:6px;font-size:14px;line-height:1}
+#pane-folk .folk-job-controls .fc-step{min-width:32px;color:var(--cyan);border-color:rgba(105,226,223,.3);background:rgba(17,58,66,.3);font-weight:700}
 #pane-folk .folk-job-controls .btn:disabled{filter:saturate(.35);opacity:.42}
 #pane-folk .happy-panel{margin-top:8px;margin-bottom:9px;border-color:rgba(105,226,223,.27);box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
 html[data-ui-theme="day"] #pane-village .bzone .row{background:linear-gradient(120deg,#fbfdfb,#f0f6f3);border-color:rgba(69,111,119,.22)}
@@ -223,20 +225,14 @@ html[data-ui-theme="day"] #pane-folk .folk-summary{background:linear-gradient(12
 html[data-ui-theme="day"] #pane-folk .folk-growth{background:#f3f8f5;border-color:#c9ddd8}
 html[data-ui-theme="day"] #pane-folk .folk-idle{background:#fbf6e8;border-color:#e8d7aa}
 html[data-ui-theme="day"] #pane-folk .folk-job-row{background:linear-gradient(120deg,#fbfdfb,#f0f5f2);border-color:#cbdad7}
-html[data-ui-theme="day"] #pane-folk .folk-job-controls{background:#e8f0ed;border-color:#c3d5d1}
-html[data-ui-theme="day"] #pane-folk .folk-job-controls .btn:first-child{background:#fff0ed;border-color:#e2b8b1;color:#a6534c}
-html[data-ui-theme="day"] #pane-folk .folk-job-controls .btn:last-child{background:#e5f3e9;border-color:#abd3b7;color:#28744d}
+html[data-ui-theme="day"] #pane-folk .folk-job-controls .fc-step{color:#0f6d7b;background:#e0f2f0;border-color:#9ccfd0}
 @media(max-width:760px){
   #pane-village .bzone .row{grid-template-columns:minmax(0,1fr);gap:9px}
   #pane-village .bzone .row .btn.buy{justify-self:stretch;width:100%;max-width:none}
   #pane-folk .row{gap:9px;padding:10px}
   #pane-folk .folk-job-row{grid-template-columns:minmax(0,1fr) auto}
 }
-@media(max-width:390px){
-  #pane-folk .folk-job-row{grid-template-columns:minmax(0,1fr);gap:8px}
-  #pane-folk .folk-job-controls{justify-content:flex-end}
-  #pane-folk .folk-job-controls .btn{min-width:44px;min-height:40px}
-}
+/* 方案 B 后按钮组只有 ~90px 宽，双列布局在任何宽度都放得下，手机端重排断点整体撤销。 */
 
 /* 内置浏览器 / 平板窄视口：介于手机与桌面断点之间也保持单列概览与单行横滑导航，
    避免页签折成多行后在环境卡与内容页之间制造一大段纵向空隙。 */
@@ -345,3 +341,33 @@ html[data-ui-theme="day"] .meta-buy:disabled{
 .break-controls{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 16px;background:linear-gradient(180deg,#0a1b2c,#081522);border-top:1px solid rgba(154,213,227,.16)}.break-controls .btn{min-height:38px}.break-controls .btn.big{padding:8px 14px}
 @media(max-width:650px){.modal.break-modal{align-items:flex-end;padding:0}.modal.break-modal .box{width:100%;max-width:none;border-radius:16px 16px 0 0}.break-stage{aspect-ratio:4/3;min-height:0}.break-caption-text{max-width:84%}.break-end-card{right:12px;top:48px;padding:8px 10px}.break-end-card strong{font-size:12px}.break-controls{padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))}}
 @media(prefers-reduced-motion:reduce){.break-scene img,.break-end-card{transition:none}}
+
+/* 轮回挑战：独立页签中的限制、逐档进度与永久奖励。 */
+#pane-challenges{--challenge-accent:#77d6d0;--challenge-accent-soft:rgba(91,196,185,.11)}
+.challenge-overview{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px;margin:0 0 12px;padding:18px;border:1px solid rgba(119,214,208,.22);border-radius:14px;background:radial-gradient(ellipse at 8% 0,rgba(51,132,143,.18),transparent 58%),linear-gradient(130deg,rgba(11,37,54,.94),rgba(13,27,45,.78))}
+.challenge-kicker{color:var(--challenge-accent);font-size:8px;font-weight:800;letter-spacing:2px}.challenge-overview h2{margin:3px 0;color:var(--txt);font-size:20px;letter-spacing:.5px}.challenge-overview p{max-width:560px;margin:0;color:var(--dim);font-size:10px;line-height:1.6}
+.challenge-overview-stats{display:flex;gap:7px}.challenge-overview-stats>div{min-width:92px;padding:9px 12px;border:1px solid rgba(119,214,208,.15);border-radius:10px;background:rgba(4,20,31,.34);text-align:center}.challenge-overview-stats small,.challenge-overview-stats b{display:block}.challenge-overview-stats small{color:var(--dim);font-size:8px}.challenge-overview-stats b{margin-top:3px;color:var(--challenge-accent);font-size:16px;font-variant-numeric:tabular-nums}
+.challenge-howto,.challenge-footnote{margin:0 0 11px;padding:9px 11px;border-left:2px solid var(--challenge-accent);border-radius:0 8px 8px 0;background:var(--challenge-accent-soft);color:var(--dim);font-size:9px;line-height:1.55}.challenge-active{display:flex;align-items:center;gap:10px;margin:0 0 11px;padding:10px 12px;border:1px solid rgba(119,214,208,.3);border-radius:10px;background:rgba(30,88,84,.18)}.challenge-active-mark{padding:4px 7px;border-radius:99px;background:rgba(119,214,208,.15);color:var(--challenge-accent);font-size:8px;font-weight:800;white-space:nowrap}.challenge-active>div{min-width:0}.challenge-active b,.challenge-active small{display:block}.challenge-active b{color:var(--txt);font-size:10px}.challenge-active small,.challenge-active-hint{margin-top:2px;color:var(--dim);font-size:8px}.challenge-active-hint{margin-left:auto;text-align:right}
+.challenge-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.challenge-card{min-width:0;padding:12px;border:1px solid var(--line-soft);border-radius:12px;background:linear-gradient(145deg,rgba(17,40,59,.72),rgba(10,27,44,.56))}.challenge-card.is-active{border-color:rgba(119,214,208,.36);box-shadow:inset 0 0 0 1px rgba(119,214,208,.05)}.challenge-card.is-complete{border-color:rgba(112,193,153,.22)}
+.challenge-card-head{display:flex;align-items:center;gap:9px;min-height:36px}.challenge-icon{display:grid;flex:0 0 34px;width:34px;height:34px;place-items:center;border:1px solid rgba(119,214,208,.17);border-radius:10px;background:rgba(119,214,208,.07);color:var(--challenge-accent);font-size:17px}.challenge-card-name{min-width:0}.challenge-card-name h3{margin:0;color:var(--txt);font-size:12px}.challenge-card-name small{display:block;margin-top:2px;color:var(--dim);font-size:8px;line-height:1.45}.challenge-status{margin-left:auto;padding:4px 7px;border:1px solid var(--line-soft);border-radius:99px;color:var(--dim);font-size:8px;white-space:nowrap}.challenge-status.active{border-color:rgba(119,214,208,.24);color:var(--challenge-accent)}.challenge-status.done{border-color:rgba(112,193,153,.2);color:#87c9a5}
+.challenge-card-rule{display:grid;grid-template-columns:82px minmax(0,1fr);gap:4px 7px;margin:10px 0 8px;padding:8px;border-radius:8px;background:rgba(3,15,26,.24)}.challenge-card-rule small{color:var(--dim);font-size:8px}.challenge-card-rule p{margin:0;color:var(--txt);font-size:9px;line-height:1.45}.challenge-reward{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0;padding:9px;border:1px solid rgba(119,214,208,.13);border-radius:8px;background:rgba(119,214,208,.05)}.challenge-reward small{color:var(--dim);font-size:8px}.challenge-reward b{color:var(--challenge-accent);font-size:10px;text-align:right}
+.challenge-tiers{display:grid;gap:5px;margin:8px 0}.challenge-tier{padding:7px 8px;border:1px solid var(--line-soft);border-radius:8px;background:rgba(3,15,26,.18)}.challenge-tier>div{display:flex;justify-content:space-between;gap:8px}.challenge-tier b{color:var(--txt);font-size:9px}.challenge-tier span,.challenge-tier small{color:var(--dim);font-size:8px}.challenge-tier small{display:block;margin-top:3px}.challenge-tier em{display:block;margin-top:2px;color:#9ecbc5;font-size:8px;font-style:normal}.challenge-tier.done{border-color:rgba(112,193,153,.18);background:rgba(28,67,60,.13)}.challenge-tier.done em{color:#87c9a5}.challenge-tier.active,.challenge-tier.next{border-color:rgba(119,214,208,.24)}.challenge-tier.active span,.challenge-tier.next span{color:var(--challenge-accent)}
+.challenge-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;padding-top:8px;border-top:1px solid var(--line-soft)}.challenge-card-foot>span{color:var(--dim);font-size:8px;line-height:1.4}.challenge-card-foot .btn{flex:0 0 auto;min-height:31px;padding:5px 9px;border-color:rgba(119,214,208,.28);color:var(--challenge-accent);font-size:8px;white-space:nowrap}.challenge-card-foot .btn:not(:disabled):hover{background:rgba(119,214,208,.1)}.challenge-card-foot .btn:disabled{opacity:.58;cursor:not-allowed}.challenge-footnote{margin:10px 0 0;border-left-color:rgba(169,160,255,.7);background:rgba(119,112,196,.07)}
+html[data-ui-theme="day"] #pane-challenges{--challenge-accent:#287d7b;--challenge-accent-soft:rgba(40,125,123,.08)}html[data-ui-theme="day"] .challenge-overview{border-color:rgba(40,125,123,.2);background:linear-gradient(120deg,#edf7f5,#f6f8f6 78%)}html[data-ui-theme="day"] .challenge-overview h2{color:#193d44}html[data-ui-theme="day"] .challenge-overview-stats>div{border-color:rgba(40,125,123,.16);background:rgba(255,255,255,.48)}html[data-ui-theme="day"] .challenge-card{border-color:rgba(75,108,115,.2);background:linear-gradient(145deg,#fbfdfb,#edf3f1)}html[data-ui-theme="day"] .challenge-card-rule{background:rgba(221,235,231,.45)}html[data-ui-theme="day"] .challenge-reward{background:rgba(40,125,123,.04)}html[data-ui-theme="day"] .challenge-tier{background:rgba(235,243,241,.45)}html[data-ui-theme="day"] .challenge-tier em{color:#347e75}html[data-ui-theme="day"] .challenge-active{background:rgba(40,125,123,.07)}
+@media(max-width:760px){.challenge-overview{grid-template-columns:minmax(0,1fr);gap:10px;padding:13px}.challenge-overview-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.challenge-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:430px){.challenge-card{padding:10px}.challenge-card-rule{grid-template-columns:72px minmax(0,1fr)}.challenge-status{font-size:7px}.challenge-active{flex-wrap:wrap}.challenge-active-hint{flex-basis:100%;margin-left:0;text-align:left}}
+
+/* 轮回挑战成就徽章：同一主题图像由通关状态和档位章区分。 */
+.challenge-card-head{min-height:46px}.challenge-icon{overflow:hidden;flex-basis:46px;width:46px;height:46px;padding:0;border-color:rgba(206,165,99,.45);border-radius:11px;background:#071827;box-shadow:0 0 0 2px rgba(5,16,28,.5),0 3px 12px rgba(0,0,0,.2)}
+.challenge-icon img,.challenge-tier-medal img{display:block;width:100%;height:100%;object-fit:cover}
+.challenge-card.is-active .challenge-icon{box-shadow:0 0 0 2px rgba(119,214,208,.22),0 0 14px rgba(75,200,204,.28)}
+.challenge-card.is-complete .challenge-icon{border-color:#d6bc82;box-shadow:0 0 0 2px rgba(219,181,105,.2),0 0 15px rgba(219,181,105,.2)}
+.challenge-tier{position:relative;min-height:51px;padding-left:51px}
+.challenge-tier-medal{position:absolute;top:50%;left:8px;display:block;width:34px;height:34px;transform:translateY(-50%);border:1px solid rgba(195,162,107,.28);border-radius:8px;background:#091a29;box-shadow:0 2px 7px rgba(0,0,0,.2)}
+.challenge-tier-medal img{border-radius:7px;filter:grayscale(.8) brightness(.58);opacity:.75}
+.challenge-tier.next .challenge-tier-medal img,.challenge-tier.active .challenge-tier-medal img{filter:none;opacity:1}
+.challenge-tier.done .challenge-tier-medal{border-color:#d7bd80;box-shadow:0 0 8px rgba(231,193,115,.25)}
+.challenge-tier.done .challenge-tier-medal img{filter:none;opacity:1}
+.challenge-tier-medal i{position:absolute;right:-5px;bottom:-5px;display:grid;min-width:15px;height:15px;padding:0 2px;place-items:center;border:1px solid #c59c61;border-radius:4px;background:#182e3d;color:#f4d89d;font:800 8px/1 Georgia,serif;box-shadow:0 1px 5px rgba(0,0,0,.45)}
+.challenge-tier.done .challenge-tier-medal i{background:#b88b4b;color:#09202a}
+html[data-ui-theme="day"] .challenge-icon,html[data-ui-theme="day"] .challenge-tier-medal{box-shadow:0 2px 9px rgba(39,77,83,.16)}

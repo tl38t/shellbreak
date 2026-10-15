@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>奇观图标 · 风格 Demo</title>
+<style>
+  :root{color-scheme:dark;--page:#0a1421;--panel:#142337;--panel2:#192d43;--line:#34506a;--text:#e6f0f5;--dim:#9eb2c2;--accent:#83dfe2;--gold:#e9c778;--shadow:#0005}
+  html[data-theme="day"]{color-scheme:light;--page:#e8f0ed;--panel:#f8faf8;--panel2:#eef4f1;--line:#c4d5d0;--text:#243a40;--dim:#657b80;--accent:#167b83;--gold:#9b7025;--shadow:#40605c16}
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:clamp(14px,4vw,40px);background:radial-gradient(ellipse at 50% -18%,color-mix(in srgb,var(--accent) 13%,var(--page)),var(--page) 65%);color:var(--text);font-family:system-ui,"Microsoft YaHei",sans-serif;transition:background .2s,color .2s}
+  .wrap{width:min(1040px,100%);margin:auto}.head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:16px}.eyebrow{color:var(--accent);font-size:10px;font-weight:800;letter-spacing:2px}.head h1{margin:3px 0 0;font-size:clamp(22px,4vw,32px);letter-spacing:.04em}.head p{margin:5px 0 0;color:var(--dim);font-size:11px}.theme-switch{display:flex;flex:none;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}.theme-switch button{min-height:32px;padding:5px 9px;border:0;border-radius:7px;background:transparent;color:var(--dim);font:inherit;font-size:10px;cursor:pointer}.theme-switch button[aria-pressed="true"]{background:var(--panel2);color:var(--accent);font-weight:750}
+  .intro{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--dim);font-size:10px;line-height:1.5}.intro b{flex:none;color:var(--gold);font-size:11px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.card{overflow:hidden;min-width:0;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,var(--panel),var(--panel2));box-shadow:0 12px 32px var(--shadow);transition:transform .18s,border-color .18s}.card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--gold) 65%,var(--line))}.art{display:grid;place-items:center;padding:10px 10px 0}.art img{display:block;width:min(100%,220px);aspect-ratio:1;object-fit:contain;border-radius:12px}.copy{padding:10px 12px 13px}.era{color:var(--accent);font-size:8px;font-weight:800;letter-spacing:1.3px}.copy h2{margin:3px 0 6px;font-size:14px;line-height:1.35}.copy p{min-height:34px;margin:0;color:var(--dim);font-size:9px;line-height:1.55}.read{display:flex;align-items:center;gap:5px;margin-top:9px;color:var(--gold);font-size:8px}.read:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px color-mix(in srgb,var(--gold) 60%,transparent)}
+  .foot{margin-top:13px;color:var(--dim);font-size:9px;line-height:1.6}
+  @media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.art img{width:min(100%,240px)}}
+  @media(max-width:480px){body{padding:14px}.head{align-items:start}.head p{max-width:260px}.theme-switch button{padding:5px 7px}.intro{align-items:start}.copy{padding:8px 10px 11px}.copy p{min-height:42px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="head">
+    <div><div class="eyebrow">WONDERS · ICON STUDY 01</div><h1>奇观图标风格试样</h1><p>四座代表奇观 · 同一构图语言 · 独立主体插画</p></div>
+    <div class="theme-switch" role="group" aria-label="预览背景配色"><button type="button" data-theme-choice="night" aria-pressed="true">☾ 夜间</button><button type="button" data-theme-choice="day" aria-pressed="false">☀ 日间</button></div>
+  </header>
+  <div class="intro"><b>风格方向</b><span>深海蓝光、石刻质感与克制铜饰保持统一；每座奇观靠建筑轮廓与核心符号辨认，而不是单纯换色。卡片背景可切日间/夜间检查适配。</span></div>
+  <section class="grid" aria-label="奇观图标试样">
+    <article class="card"><div class="art"><img src="assets/wonders/icons-demo-v1/tide-stele.png" alt="海潮方碑图标"></div><div class="copy"><span class="era">原始纪 · 石刻遗迹</span><h2>海潮方碑</h2><p>高耸石碑与潮汐旋纹，代表最早的海底文明纪念物。</p><span class="read">轮廓：方碑 / 潮纹</span></div></article>
+    <article class="card"><div class="art"><img src="assets/wonders/icons-demo-v1/great-lighthouse.png" alt="大灯塔图标"></div><div class="copy"><span class="era">冷焰纪 · 导航地标</span><h2>大灯塔</h2><p>尖塔与发光灯室形成清晰高耸剪影，强调远航指引。</p><span class="read">轮廓：高塔 / 灯束</span></div></article>
+    <article class="card"><div class="art"><img src="assets/wonders/icons-demo-v1/great-tide-archive.png" alt="大潮纹馆图标"></div><div class="copy"><span class="era">冷焰纪 · 知识殿堂</span><h2>大潮纹馆</h2><p>贝壳穹顶与环形潮纹，表现收藏知识的宏伟馆藏。</p><span class="read">轮廓：穹顶 / 馆藏</span></div></article>
+    <article class="card"><div class="art"><img src="assets/wonders/icons-demo-v1/sky-drill.png" alt="天穹钻机图标"></div><div class="copy"><span class="era">破壳纪 · 终章工程</span><h2>天穹钻机</h2><p>螺旋钻头、承力支架与冰壳背景，突出工业突破感。</p><span class="read">轮廓：钻头 / 机械塔</span></div></article>
+  </section>
+  <footer class="foot">概念草案，暂未接入正式奇观列表。若方向合适，再按 14 座奇观逐一出图并统一裁切、压缩与图标尺寸；昼夜主题只影响界面卡片，不改变插画本身。</footer>
+</main>
+<script>
+  document.querySelectorAll('[data-theme-choice]').forEach(function(button){button.addEventListener('click',function(){var theme=button.dataset.themeChoice;document.documentElement.dataset.theme=theme;document.querySelectorAll('[data-theme-choice]').forEach(function(item){item.setAttribute('aria-pressed',String(item===button))})})});
+</script>
+</body>
+</html>

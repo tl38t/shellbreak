@@ -1,0 +1,3435 @@
+{
+  "RESS": {
+    "kelp": {
+      "name": "藻食",
+      "short": "藻"
+    },
+    "coral": {
+      "name": "珊瑚",
+      "short": "珊"
+    },
+    "stone": {
+      "name": "石头",
+      "short": "石",
+      "unlock": {
+        "tech": "quarry"
+      }
+    },
+    "silt": {
+      "name": "金属",
+      "short": "金",
+      "unlock": {
+        "tech": "mining"
+      }
+    },
+    "warmstone": {
+      "name": "暖石",
+      "short": "暖",
+      "unlock": {
+        "tech": "mining"
+      }
+    },
+    "iron": {
+      "name": "精铁",
+      "short": "铁",
+      "unlock": {
+        "build": "furnace"
+      }
+    },
+    "steel": {
+      "name": "钢",
+      "short": "钢",
+      "unlock": {
+        "tech": "metalrefine"
+      }
+    },
+    "titanium": {
+      "name": "钛",
+      "short": "钛",
+      "unlock": {
+        "tech": "physics"
+      }
+    },
+    "science": {
+      "name": "科技",
+      "short": "科",
+      "unlock": {
+        "tech": "writing"
+      }
+    },
+    "fuel": {
+      "name": "地热",
+      "short": "热",
+      "unlock": {
+        "build": "geyser"
+      }
+    },
+    "culture": {
+      "name": "市政点",
+      "short": "政",
+      "unlock": {
+        "build": "hall"
+      }
+    },
+    "luxury": {
+      "name": "奢侈品",
+      "short": "奢",
+      "unlock": {
+        "civic": "trade"
+      }
+    },
+    "faith": {
+      "name": "信仰",
+      "short": "信",
+      "unlock": {
+        "civic": "theology"
+      }
+    },
+    "stoneBeam": {
+      "name": "石梁",
+      "short": "梁",
+      "kind": "craft",
+      "unlock": {
+        "build": "workshop"
+      }
+    },
+    "ironBracket": {
+      "name": "铁制支架",
+      "short": "架",
+      "kind": "craft",
+      "unlock": {
+        "tech": "engineeringT"
+      }
+    },
+    "rope": {
+      "name": "绳",
+      "short": "绳",
+      "kind": "craft",
+      "unlock": {
+        "tech": "scaffoldT"
+      }
+    },
+    "hardCoral": {
+      "name": "硬化珊瑚",
+      "short": "硬",
+      "kind": "craft",
+      "unlock": {
+        "build": "workshop"
+      }
+    },
+    "hydro": {
+      "name": "热液能",
+      "short": "液",
+      "kind": "craft",
+      "flow": true,
+      "unlock": {
+        "tech": "metalrefine"
+      }
+    },
+    "steelPart": {
+      "name": "钢制零件",
+      "short": "件",
+      "kind": "craft",
+      "unlock": {
+        "tech": "metalrefine"
+      }
+    },
+    "scaffold": {
+      "name": "脚手架",
+      "short": "架",
+      "kind": "craft",
+      "unlock": {
+        "tech": "physics"
+      }
+    },
+    "artwork": {
+      "name": "艺术品",
+      "short": "艺",
+      "kind": "craft",
+      "unlock": {
+        "civic": "historiography"
+      }
+    },
+    "tidalRecord": {
+      "name": "潮纹记录",
+      "short": "录",
+      "kind": "craft",
+      "unlock": {
+        "civic": "historiography"
+      }
+    },
+    "resonantDrill": {
+      "name": "共振钻头",
+      "short": "钻",
+      "kind": "craft",
+      "unlock": {
+        "tech": "shellgeo"
+      }
+    }
+  },
+  "TECHS": [
+    {
+      "id": "writing",
+      "name": "结绳",
+      "icon": "assets/tech-icons/era-1/era1-rope-knots.png",
+      "era": 1,
+      "cost": 0,
+      "branch": "know",
+      "free": true,
+      "key": false,
+      "reqs": [],
+      "layer": 1,
+      "cond": {
+        "t": "built",
+        "b": "kelp",
+        "n": 5
+      },
+      "eff": {
+        "unlockJob": [
+          "scholar"
+        ]
+      },
+      "note": "免费项，且是科技面板的开门节点：建成第 5 座深海藻场即掌握。层一。"
+    },
+    {
+      "id": "coralcut",
+      "name": "凿珊瑚",
+      "icon": "assets/tech-icons/era-1/era1-coral-cutting.png",
+      "era": 1,
+      "cost": 25,
+      "branch": "live",
+      "key": false,
+      "reqs": [],
+      "layer": 2,
+      "cond": {
+        "t": "default"
+      },
+      "eff": {
+        "unlockJob": [
+          "coralwright"
+        ]
+      },
+      "note": "珊瑚匠随之开放。首座礁口巢的珊瑚得先靠手动凿——攒够了再解放一个职业。"
+    },
+    {
+      "id": "quarry",
+      "name": "采石",
+      "icon": "assets/tech-icons/era-1/era1-stone-quarrying.png",
+      "era": 1,
+      "cost": 30,
+      "branch": "live",
+      "key": false,
+      "reqs": [],
+      "layer": 2,
+      "cond": {
+        "t": "res",
+        "r": "coral",
+        "n": 40
+      },
+      "eff": {
+        "unlockJob": [
+          "quarrier"
+        ]
+      },
+      "note": "采石工产「石头」。cond 用珊瑚存量而不是时间：玩家攒够了自然会去凿石头，\n      *   这也是石头这条线第一次在树上露面（它后面要养石屋）。"
+    },
+    {
+      "id": "plant",
+      "name": "种植",
+      "icon": "assets/tech-icons/era-1/era1-cultivation.png",
+      "era": 1,
+      "cost": 30,
+      "branch": "live",
+      "key": false,
+      "reqs": [],
+      "layer": 2,
+      "cond": {
+        "t": "res",
+        "r": "kelp",
+        "n": 60
+      },
+      "eff": {
+        "farm": 0.5,
+        "unlockBuild": [
+          "kelpstore"
+        ]
+      },
+      "note": "采集者 → 农民，藻食产出 +50%，并解锁海藻仓。同一个人换了身份，不是新职业。"
+    },
+    {
+      "id": "calendar",
+      "name": "历法",
+      "icon": "assets/tech-icons/era-1/era1-calendar.png",
+      "era": 1,
+      "cost": 40,
+      "branch": "know",
+      "key": true,
+      "reqs": [],
+      "layer": 2,
+      "cond": {
+        "t": "gathered",
+        "r": "kelp",
+        "n": 200
+      },
+      "note": "信息型奖励：第一次把海底火山的活跃 / 平稳 / 休眠周期变成一句能背下来的算数。\n      *   关键节点。"
+    },
+    {
+      "id": "scholarT",
+      "name": "书写",
+      "icon": "assets/tech-icons/era-1/era1-writing.png",
+      "era": 1,
+      "cost": 150,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "writing"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "job",
+        "j": "scholar",
+        "n": 1
+      },
+      "eff": {
+        "sci": 0.25,
+        "unlockBuild": [
+          "library"
+        ]
+      },
+      "note": "潮纹馆（原「聆听巢」）的解锁项 + 学者产出 +25%。层三。"
+    },
+    {
+      "id": "herd",
+      "name": "畜牧",
+      "icon": "assets/tech-icons/era-1/era1-herding.png",
+      "era": 1,
+      "cost": 200,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "plant"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "built",
+        "b": "kelp",
+        "n": 6
+      },
+      "eff": {
+        "unlockBuild": [
+          "warmnest"
+        ]
+      },
+      "note": "解锁深海鱼牧场（省口粮）。猫国 pasture 位，本作改名为鱼牧场。"
+    },
+    {
+      "id": "tiddivine",
+      "name": "海潮占卜",
+      "icon": "assets/tech-icons/era-1/era1-tide-divination.png",
+      "era": 1,
+      "cost": 350,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "calendar"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "res",
+        "r": "science",
+        "n": 30
+      },
+      "eff": {
+        "season": 0.18
+      },
+      "note": "比裸季更窄：海底火山的周期波动被读得更死（活跃更旺、休眠更枯），是唯一的季节收窄来源。"
+    },
+    {
+      "id": "mining",
+      "name": "采矿",
+      "icon": "assets/tech-icons/era-1/era1-mining.png",
+      "era": 1,
+      "cost": 200,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "quarry"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "res",
+        "r": "stone",
+        "n": 30
+      },
+      "eff": {
+        "unlockJob": [
+          "miner"
+        ],
+        "unlockBuild": [
+          "siltpit"
+        ]
+      },
+      "note": "解锁矿工与砂矿坑：矿工产金属、伴生暖石（保温法开关的燃料）；砂矿坑把金属产出再提两成。"
+    },
+    {
+      "id": "masonry",
+      "name": "石工",
+      "icon": "assets/tech-icons/era-1/era1-masonry.png",
+      "era": 1,
+      "cost": 500,
+      "branch": "survive",
+      "key": true,
+      "reqs": [
+        "quarry"
+      ],
+      "layer": 4,
+      "cond": {
+        "t": "res",
+        "r": "stone",
+        "n": 100
+      },
+      "eff": {
+        "unlockBuild": [
+          "coralhouse",
+          "hall"
+        ],
+        "unlockJob": [
+          "scribe"
+        ]
+      },
+      "note": "解锁石屋（人口上限 +4）、议事厅与书手。关键节点，本纪元收尾。"
+    },
+    {
+      "id": "bronze",
+      "name": "青铜术",
+      "icon": "assets/tech-icons/era-1/era1-bronze-working.png",
+      "era": 1,
+      "cost": 600,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "mining"
+      ],
+      "layer": 4,
+      "cond": {
+        "t": "res",
+        "r": "silt",
+        "n": 60
+      },
+      "eff": {
+        "unlockBuild": [
+          "workshop"
+        ]
+      },
+      "note": "解锁工坊：珊瑚→骨材、矿砂→精铁两条加工线的物理前提。"
+    },
+    {
+      "id": "thermal",
+      "name": "保温法",
+      "icon": "assets/tech-icons/era-1/era1-thermal-insulation.png",
+      "era": 1,
+      "cost": 500,
+      "branch": "survive",
+      "key": false,
+      "reqs": [
+        "mining"
+      ],
+      "layer": 4,
+      "cond": {
+        "t": "res",
+        "r": "warmstone",
+        "n": 20
+      },
+      "eff": {},
+      "note": "暖石开关：休眠期消耗暖石，抵消季节减产。"
+    },
+    {
+      "id": "lighting",
+      "name": "照明",
+      "icon": "assets/tech-icons/era-2/era2-lighting.png",
+      "era": 2,
+      "cost": 800,
+      "branch": "live",
+      "key": true,
+      "reqs": [],
+      "layer": 1,
+      "eff": {
+        "kelpCap": 200,
+        "unlockBuild": [
+          "ballast"
+        ]
+      },
+      "note": "Civ6: Pottery 位 · 藻食第一次有了「可以存下来」的意思（藻食上限 +200）。"
+    },
+    {
+      "id": "navigation",
+      "name": "导航",
+      "icon": "assets/tech-icons/era-2/era2-navigation.png",
+      "era": 2,
+      "cost": 1000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "lighting"
+      ],
+      "layer": 2,
+      "cond": {
+        "t": "built",
+        "b": "ballast",
+        "n": 3
+      },
+      "eff": {
+        "unlockBuild": [
+          "lighthouse"
+        ]
+      },
+      "note": "Civ6: Sailing 位 · 光落在远处的礁石上，才知道那边有什么。"
+    },
+    {
+      "id": "horsemanship",
+      "name": "马术",
+      "icon": "assets/tech-icons/era-2/era2-horsemanship.png",
+      "era": 2,
+      "cost": 1200,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "lighting"
+      ],
+      "layer": 2,
+      "cond": {
+        "t": "built",
+        "b": "warmnest",
+        "n": 8
+      },
+      "eff": {},
+      "note": "Civ6: Horseback Riding 位 · 有了光才知道什么时候该出门。"
+    },
+    {
+      "id": "ironwork",
+      "name": "铁器",
+      "icon": "assets/tech-icons/era-2/era2-ironwork.png",
+      "era": 2,
+      "cost": 800,
+      "branch": "survive",
+      "key": false,
+      "reqs": [],
+      "layer": 1,
+      "cond": {
+        "t": "res",
+        "r": "silt",
+        "n": 60
+      },
+      "eff": {
+        "smelt": 0.4,
+        "unlockBuild": [
+          "furnace"
+        ]
+      },
+      "note": "Civ6: Iron Working 位 · 金属第一次不只是存货，是能敲出东西的材料。"
+    },
+    {
+      "id": "engineeringT",
+      "name": "工程学",
+      "icon": "assets/tech-icons/era-2/era2-engineering.png",
+      "era": 2,
+      "cost": 1500,
+      "branch": "live",
+      "key": true,
+      "reqs": [
+        "ironwork"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "built",
+        "b": "furnace",
+        "n": 3
+      },
+      "eff": {},
+      "note": "热泉炉冒到第三级，才有人开始算「这炉子能撑多少料」。解锁铁制支架的配方，以及压舱库 / 藻食库两道扩容升级。"
+    },
+    {
+      "id": "mathematics",
+      "name": "数学",
+      "icon": "assets/tech-icons/era-2/era2-mathematics.png",
+      "era": 2,
+      "cost": 1800,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "navigation"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "res",
+        "r": "science",
+        "n": 1000
+      },
+      "eff": {
+        "unlockBuild": [
+          "institute"
+        ]
+      },
+      "note": "Civ6: Writing 位 · 有了方向才量得出距离。解锁研究所。"
+    },
+    {
+      "id": "scaffoldT",
+      "name": "构架术",
+      "icon": "assets/tech-icons/era-2/era2-scaffolding.png",
+      "era": 2,
+      "cost": 1600,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "navigation"
+      ],
+      "layer": 3,
+      "eff": {
+        "craftRatio": 0.15
+      },
+      "note": "Civ6: Masonry 位 · 解锁成捆东西的绳。同时工坊效率 +15%。"
+    },
+    {
+      "id": "apprentice",
+      "name": "学徒制",
+      "era": 3,
+      "cost": 3000,
+      "branch": "survive",
+      "key": true,
+      "reqs": [],
+      "layer": 1,
+      "cond": {
+        "t": "tools",
+        "ids": [
+          "tool_ironSickle",
+          "tool_ironAxe",
+          "tool_ironPick"
+        ]
+      },
+      "eff": {},
+      "note": "Civ6: Apprenticeship · 买齐三件铁制工具（镰/斧/镐）即掌握。解锁鱼骨矿井。"
+    },
+    {
+      "id": "horseshoe",
+      "name": "马镫",
+      "era": 3,
+      "cost": 4500,
+      "branch": "live",
+      "key": false,
+      "reqs": [],
+      "layer": 1,
+      "cond": {
+        "t": "job",
+        "j": "merchant",
+        "n": 5
+      },
+      "eff": {},
+      "note": "Civ6: Horseshoeing · 5 名商人即掌握。解锁马镫（工坊升级，奢侈品 +50%）。"
+    },
+    {
+      "id": "education",
+      "name": "教育",
+      "era": 3,
+      "cost": 8000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "apprentice",
+        "mathematics"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "built",
+        "b": "institute",
+        "n": 3
+      },
+      "eff": {},
+      "note": "Civ6: Education · 三级研究所即掌握。解锁大学（工坊升级）与阿尔巴达热液大学（奇观）。"
+    },
+    {
+      "id": "metalrefine",
+      "name": "金属精炼",
+      "era": 3,
+      "cost": 6500,
+      "branch": "survive",
+      "key": true,
+      "reqs": [
+        "apprentice"
+      ],
+      "layer": 2,
+      "cond": {
+        "t": "upgrade",
+        "id": "upg_fishbonemine"
+      },
+      "eff": {
+        "unlockBuild": [
+          "hydroturbine",
+          "hydroshop"
+        ]
+      },
+      "note": "Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。"
+    },
+    {
+      "id": "castle",
+      "name": "城堡",
+      "era": 3,
+      "cost": 10000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "engineeringT"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "gov",
+        "wild": 3
+      },
+      "eff": {},
+      "note": "Civ6: Castles · 启用任一三槽政体即掌握。解锁工坊升级「城堡」——议事厅升级为城堡：议价减耗 +50%、每级 +50 容量。"
+    },
+    {
+      "id": "shellwatch",
+      "name": "天壳观测",
+      "era": 4,
+      "cost": 20000,
+      "branch": "know",
+      "key": true,
+      "reqs": [
+        "education"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "zoneLvl",
+        "zone": "academy",
+        "n": 35
+      },
+      "eff": {
+        "unlockBuild": [
+          "observatory"
+        ]
+      },
+      "note": "Civ6: Astronomy · 关键节点。学术区铺到 35 级，天壳才第一次能被天天盯着看。"
+    },
+    {
+      "id": "printing",
+      "name": "印刷术",
+      "era": 4,
+      "cost": 25000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "metalrefine"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "built",
+        "b": "hydroshop",
+        "n": 3
+      },
+      "eff": {
+        "unlockBuild": [
+          "coralfarm"
+        ]
+      },
+      "note": "Civ6: Printing · 热液工坊三级开版。字能印了，珊瑚也能催了。"
+    },
+    {
+      "id": "physics",
+      "name": "物理",
+      "era": 4,
+      "cost": 40000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "shellwatch"
+      ],
+      "layer": 4,
+      "cond": {
+        "t": "tools",
+        "ids": [
+          "tool_steelSickle",
+          "tool_steelAxe",
+          "tool_steelPick"
+        ]
+      },
+      "eff": {},
+      "note": "Civ6: Scientific Theory · 钢器趁手了，才谈得上把力气算成数。"
+    },
+    {
+      "id": "banking",
+      "name": "银行业",
+      "era": 4,
+      "cost": 40000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "printing"
+      ],
+      "layer": 4,
+      "cond": {
+        "t": "zoneLvl",
+        "zone": "trade",
+        "n": 35
+      },
+      "eff": {
+        "unlockBuild": [
+          "bank"
+        ]
+      },
+      "note": "Civ6: Banking · 贸易区 35 级，账本才比货值钱。"
+    },
+    {
+      "id": "thermo",
+      "name": "热力学",
+      "era": 4,
+      "cost": 50000,
+      "branch": "survive",
+      "key": false,
+      "reqs": [
+        "metalrefine"
+      ],
+      "layer": 4,
+      "cond": {
+        "t": "built",
+        "b": "hydroturbine",
+        "n": 5
+      },
+      "eff": {},
+      "note": "Civ6: Industrialization · 汽轮机五级，压力才谈得上被拿去利用。"
+    },
+    {
+      "id": "invert",
+      "name": "倒置搭建",
+      "era": 4,
+      "cost": 75000,
+      "branch": "survive",
+      "key": true,
+      "reqs": [
+        "physics"
+      ],
+      "layer": 5,
+      "cond": {
+        "t": "pop",
+        "n": 50
+      },
+      "eff": {},
+      "note": "Civ6: Urban Design · 关键节点。五十人同族，才有把天壳当工地的一批人。"
+    },
+    {
+      "id": "industrialize",
+      "name": "工业化",
+      "era": 5,
+      "cost": 80000,
+      "branch": "survive",
+      "key": false,
+      "reqs": [
+        "thermo"
+      ],
+      "layer": 5,
+      "cond": {
+        "t": "rate",
+        "r": "hydroSupply",
+        "n": 10
+      },
+      "eff": {
+        "unlockBuild": [
+          "hotforge"
+        ]
+      },
+      "note": "Civ6: Industrialization · 热液能产出达到 10/s。解锁热锻工厂。"
+    },
+    {
+      "id": "pubedu",
+      "name": "普及教育",
+      "era": 5,
+      "cost": 90000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "printing",
+        "physics"
+      ],
+      "layer": 5,
+      "cond": {
+        "t": "rate",
+        "r": "science",
+        "n": 100
+      },
+      "eff": {
+        "unlockBuild": [
+          "school"
+        ]
+      },
+      "note": "Civ6: Public Schooling · 科学产出达到 100/s。解锁学校（每级 +0.5 科技/秒）。"
+    },
+    {
+      "id": "abyssgeo",
+      "name": "渊海地质学",
+      "era": 5,
+      "cost": 100000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "physics"
+      ],
+      "layer": 5,
+      "cond": {
+        "t": "upgrade",
+        "id": "upg_deepmine"
+      },
+      "eff": {
+        "warmMul": 5,
+        "titaniumMul": 1
+      },
+      "note": "Civ6: Seafaring · 完成深层矿井升级。暖石 +500% / 钛 +100%。"
+    },
+    {
+      "id": "highthermo",
+      "name": "高压热机",
+      "era": 5,
+      "cost": 110000,
+      "branch": "survive",
+      "key": false,
+      "reqs": [
+        "industrialize"
+      ],
+      "layer": 6,
+      "cond": {
+        "t": "upgrade",
+        "id": "upg_hppump"
+      },
+      "eff": {},
+      "note": "Civ6: High Pressure Engines · 完成高压气泵升级。"
+    },
+    {
+      "id": "shellgeo",
+      "name": "天壳地质学",
+      "era": 5,
+      "cost": 120000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "invert"
+      ],
+      "layer": 6,
+      "cond": {
+        "t": "shell",
+        "n": 0.5
+      },
+      "eff": {},
+      "note": "Civ6: Geology · 破壳达到 50%（壳剩余 ≤ 50%）。"
+    },
+    {
+      "id": "skydrill",
+      "name": "天穹钻机",
+      "era": 5,
+      "cost": 150000,
+      "branch": "know",
+      "key": true,
+      "reqs": [
+        "abyssgeo",
+        "shellgeo"
+      ],
+      "layer": 7,
+      "cond": {
+        "t": "wonders",
+        "ids": [
+          "wonder_shellcutter",
+          "wonder_presspipe"
+        ]
+      },
+      "eff": {},
+      "note": "Civ6: Skyscraper · 关键节点。建成天壳切削器 + 高压热机管道两座奇观。破壳纪收尾。"
+    }
+  ],
+  "BUILDINGS": [
+    {
+      "id": "kelp",
+      "name": "深海藻场",
+      "ratio": 1.12,
+      "cost": {
+        "kelp": 15
+      },
+      "desc": "自动产藻食 +0.45/级/秒，吃季节减产",
+      "defaultUnlockable": true,
+      "zone": "food"
+    },
+    {
+      "id": "nest",
+      "name": "礁口巢",
+      "ratio": 2.5,
+      "cost": {
+        "coral": 5
+      },
+      "desc": "人口上限 +2，住满后不再生育",
+      "defaultUnlockable": true,
+      "zone": "core"
+    },
+    {
+      "id": "coralhouse",
+      "name": "石屋",
+      "ratio": 2.5,
+      "cost": {
+        "stone": 100
+      },
+      "desc": "人口上限 +4/级，可一路铺",
+      "requiredTech": [
+        "masonry"
+      ],
+      "zone": "core"
+    },
+    {
+      "id": "siltpit",
+      "name": "砂矿坑",
+      "ratio": 1.15,
+      "cost": {
+        "coral": 200
+      },
+      "desc": "矿工金属产出 +20%/级（升级为鱼骨矿井/深层矿井后更高）",
+      "requiredTech": [
+        "mining"
+      ],
+      "zone": "workshop"
+    },
+    {
+      "id": "hall",
+      "name": "议事厅",
+      "ratio": 1.2,
+      "cost": {
+        "stone": 80,
+        "coral": 60
+      },
+      "desc": "随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级",
+      "requiredTech": [
+        "masonry"
+      ],
+      "zone": "core"
+    },
+    {
+      "id": "weir",
+      "name": "喷口导流堤",
+      "ratio": 1.15,
+      "cost": {
+        "silt": 60
+      },
+      "desc": "藻食产出 +3%/级",
+      "requiredTech": [
+        "thermal"
+      ],
+      "zone": "food"
+    },
+    {
+      "id": "warmnest",
+      "name": "深海鱼牧场",
+      "ratio": 1.15,
+      "cost": {
+        "kelp": 100,
+        "coral": 10
+      },
+      "desc": "族口粮 −0.5%/级（可叠级，无减免上限）",
+      "requiredTech": [
+        "herd"
+      ],
+      "zone": "food"
+    },
+    {
+      "id": "kelpstore",
+      "name": "海藻仓",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 60,
+        "coral": 60
+      },
+      "desc": "藻食上限 +5000/级",
+      "requiredTech": [
+        "plant"
+      ],
+      "zone": "trade"
+    },
+    {
+      "id": "ballast",
+      "name": "压舱仓",
+      "ratio": 1.15,
+      "cost": {
+        "stoneBeam": 2,
+        "hardCoral": 2
+      },
+      "desc": "其余资源上限 +120/级",
+      "requiredTech": [
+        "lighting"
+      ],
+      "zone": "trade"
+    },
+    {
+      "id": "lighthouse",
+      "name": "灯塔",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 200,
+        "silt": 120
+      },
+      "desc": "全资源产出 +1%/级，其余资源上限 +120/级",
+      "requiredTech": [
+        "navigation"
+      ],
+      "zone": "trade"
+    },
+    {
+      "id": "workshop",
+      "name": "工坊",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 200,
+        "coral": 200
+      },
+      "desc": "加工线入口",
+      "requiredTech": [
+        "bronze"
+      ],
+      "craftRatio": 0.05,
+      "zone": "workshop"
+    },
+    {
+      "id": "furnace",
+      "name": "热泉炉",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 60,
+        "silt": 100
+      },
+      "desc": "解锁 金属→精铁",
+      "need": "workshop",
+      "requiredTech": [
+        "ironwork"
+      ],
+      "zone": "workshop"
+    },
+    {
+      "id": "library",
+      "name": "潮纹馆",
+      "ratio": 1.15,
+      "cost": {
+        "coral": 150
+      },
+      "desc": "科技产出 +10%/级（仅作用于学者）",
+      "requiredTech": [
+        "scholarT"
+      ],
+      "zone": "academy"
+    },
+    {
+      "id": "institute",
+      "name": "研究所",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 100,
+        "silt": 100
+      },
+      "desc": "科技产出 ×50%（仅作用于学者）；升级为大学后变 ×100%",
+      "requiredTech": [
+        "mathematics"
+      ],
+      "zone": "academy"
+    },
+    {
+      "id": "square",
+      "name": "广场",
+      "ratio": 1.15,
+      "cost": {
+        "coral": 50,
+        "stone": 200
+      },
+      "desc": "市政点产出 ×10%/级（仅作用于书手；装政策卡「戏剧与诗歌」后翻倍）",
+      "requiredCivic": "drama",
+      "zone": "civic"
+    },
+    {
+      "id": "temple",
+      "name": "神庙",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 150,
+        "silt": 50
+      },
+      "desc": "信仰产出 ×10%/级（宗教系统落地后生效；装政策卡「神学」后翻倍）",
+      "requiredCivic": "theology",
+      "zone": "faith"
+    },
+    {
+      "id": "hydroturbine",
+      "name": "热液汽轮机",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 300,
+        "hardCoral": 10
+      },
+      "desc": "热液能 +1/级/秒，耗暖石 5/级/秒",
+      "requiredTech": [
+        "metalrefine"
+      ],
+      "zone": "workshop"
+    },
+    {
+      "id": "hydroshop",
+      "name": "热液工坊",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 300,
+        "iron": 100
+      },
+      "desc": "耗热液能产钢：每级耗 1 热液能/秒，吃金属产钢",
+      "requiredTech": [
+        "metalrefine"
+      ],
+      "zone": "workshop"
+    },
+    {
+      "id": "canal",
+      "name": "王国潮道",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 100,
+        "steel": 5
+      },
+      "desc": "每级减少居民奢侈品消耗 0.3%；等级最高不超过灯塔等级",
+      "requiredCivic": "department",
+      "zone": "trade"
+    },
+    {
+      "id": "observatory",
+      "name": "天壳观测站",
+      "ratio": 1.15,
+      "cost": {
+        "steel": 20,
+        "stoneBeam": 200
+      },
+      "desc": "每级负责把天壳量清楚：科技产出 +x%，x 与冰壳厚度成反比，最高 +20%",
+      "requiredTech": [
+        "shellwatch"
+      ],
+      "zone": "academy"
+    },
+    {
+      "id": "coralfarm",
+      "name": "速生珊瑚林",
+      "ratio": 2.5,
+      "cost": {
+        "kelp": 1000
+      },
+      "desc": "每级珊瑚匠产出 +10%（职业专精建筑，与工具乘区独立相乘）",
+      "requiredTech": [
+        "printing"
+      ],
+      "zone": "food"
+    },
+    {
+      "id": "bank",
+      "name": "银行",
+      "ratio": 1.15,
+      "cost": {
+        "steel": 30,
+        "stoneBeam": 400
+      },
+      "desc": "每级商人产出 +10%（走奢侈品供给那一侧）",
+      "requiredTech": [
+        "banking"
+      ],
+      "zone": "trade"
+    },
+    {
+      "id": "caravanserai",
+      "name": "商队驿站",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 200,
+        "rope": 100
+      },
+      "desc": "每季节判定一次：获得任意时产资源「等级 × 1 分钟」产量；每级另减 1% 居民奢侈品消耗。",
+      "requiredCivic": "explore",
+      "zone": "trade"
+    },
+    {
+      "id": "museum",
+      "name": "博物馆",
+      "ratio": 1.15,
+      "cost": {
+        "stone": 400
+      },
+      "desc": "官员（书手）市政点产出 +20%。",
+      "requiredCivic": "enlightenment",
+      "zone": "civic"
+    },
+    {
+      "id": "hotforge",
+      "name": "热锻工厂",
+      "ratio": 1.15,
+      "cost": {
+        "steel": 400,
+        "titanium": 10
+      },
+      "desc": "工艺制作效率 +7%/级（加法乘区，与工坊级/奇观/科技同一条轴）",
+      "requiredTech": [
+        "industrialize"
+      ],
+      "zone": "workshop"
+    },
+    {
+      "id": "school",
+      "name": "学校",
+      "ratio": 1.15,
+      "cost": {
+        "steel": 300,
+        "titanium": 20
+      },
+      "desc": "每级给商人 +0.5 科技/s（由 BLD.schoolMerchantSci 读，tick/rates 两处同式）",
+      "requiredTech": [
+        "pubedu"
+      ],
+      "zone": "academy"
+    },
+    {
+      "id": "theater",
+      "name": "歌剧院",
+      "ratio": 1.15,
+      "cost": {
+        "steel": 100,
+        "stone": 400
+      },
+      "desc": "官员（书手）市政点产出 +15%/级（由 theaterCivicMul 读）。",
+      "requiredCivic": "sharksong",
+      "zone": "civic"
+    },
+    {
+      "id": "tenement",
+      "name": "廉租社区",
+      "ratio": 3,
+      "cost": {
+        "scaffold": 50,
+        "steel": 100
+      },
+      "desc": "人口上限 +10/级（由 popCap 读）。",
+      "requiredCivic": "urbanization",
+      "zone": "core"
+    }
+  ],
+  "JOBS": [
+    {
+      "id": "gather",
+      "name": "采集者",
+      "desc": "采集藻食，手动点击也能点"
+    },
+    {
+      "id": "coralwright",
+      "name": "珊瑚匠",
+      "desc": "凿珊瑚——材料线（珊瑚）的入口"
+    },
+    {
+      "id": "quarrier",
+      "name": "采石工",
+      "desc": "采石头"
+    },
+    {
+      "id": "miner",
+      "name": "矿工",
+      "desc": "采金属，伴生暖石"
+    },
+    {
+      "id": "scholar",
+      "name": "学者",
+      "desc": "产出科技"
+    },
+    {
+      "id": "scribe",
+      "name": "书手",
+      "desc": "抄录编纂——市政点（主来源）"
+    },
+    {
+      "id": "merchant",
+      "name": "商人",
+      "desc": "奔走贸易——奢侈品（唯一来源）"
+    }
+  ],
+  "TOOLS": [
+    {
+      "id": "tool_sickle",
+      "name": "青铜镰",
+      "target": [
+        "gather"
+      ],
+      "bonus": 0.8,
+      "cost": {
+        "coral": 150
+      },
+      "desc": "采集者（种植后称农民）采藻食 +80%"
+    },
+    {
+      "id": "tool_axe",
+      "name": "青铜斧",
+      "target": [
+        "coralwright"
+      ],
+      "bonus": 0.8,
+      "cost": {
+        "coral": 200
+      },
+      "desc": "珊瑚匠凿珊瑚 +80%（不影响石头与金属）"
+    },
+    {
+      "id": "tool_pick",
+      "name": "青铜镐",
+      "target": [
+        "quarrier",
+        "miner"
+      ],
+      "bonus": 0.8,
+      "cost": {
+        "coral": 200,
+        "silt": 50
+      },
+      "desc": "采石工采石头、矿工采金属并伴生暖石，三项各 +80%（不影响珊瑚）"
+    },
+    {
+      "id": "tool_ironSickle",
+      "name": "铁镰",
+      "need": "ironwork",
+      "target": [
+        "gather"
+      ],
+      "bonus": 0.8,
+      "cost": {
+        "iron": 25
+      },
+      "desc": "农民采藻食 +80%（与青铜镰同档，材料换成精铁）"
+    },
+    {
+      "id": "tool_ironAxe",
+      "name": "铁斧",
+      "need": "ironwork",
+      "target": [
+        "coralwright"
+      ],
+      "bonus": 0.8,
+      "cost": {
+        "iron": 50
+      },
+      "desc": "珊瑚匠凿珊瑚 +80%（与青铜斧同档，材料换成精铁）"
+    },
+    {
+      "id": "tool_ironPick",
+      "name": "铁镐",
+      "need": "ironwork",
+      "target": [
+        "quarrier",
+        "miner"
+      ],
+      "bonus": 0.8,
+      "cost": {
+        "iron": 75
+      },
+      "desc": "采石工采石头、矿工采金属并伴生暖石，三项各 +80%（与青铜镐同档）"
+    },
+    {
+      "id": "tool_steelSickle",
+      "name": "钢镰",
+      "need": "metalrefine",
+      "target": [
+        "gather"
+      ],
+      "bonus": 1,
+      "cost": {
+        "steel": 20
+      },
+      "desc": "农民采藻食 +100%（与青铜/铁镰相加合并，三件全买 = ×3.6）"
+    },
+    {
+      "id": "tool_steelAxe",
+      "name": "钢斧",
+      "need": "metalrefine",
+      "target": [
+        "coralwright"
+      ],
+      "bonus": 1,
+      "cost": {
+        "steel": 35
+      },
+      "desc": "珊瑚匠凿珊瑚 +100%（不影响石头与金属）"
+    },
+    {
+      "id": "tool_steelPick",
+      "name": "钢镐",
+      "need": "metalrefine",
+      "target": [
+        "quarrier",
+        "miner"
+      ],
+      "bonus": 1,
+      "cost": {
+        "steel": 50
+      },
+      "desc": "采石工采石头、矿工采金属并伴生暖石，三项各 +100%（不影响珊瑚）"
+    },
+    {
+      "id": "tool_harnes",
+      "name": "马具",
+      "need": "horsemanship",
+      "target": [
+        "merchant"
+      ],
+      "bonus": 0.5,
+      "cost": {
+        "coral": 300
+      },
+      "desc": "商人产奢侈品 +50%"
+    }
+  ],
+  "UPGRADES": [
+    {
+      "id": "upg_ballast_1",
+      "name": "压舱库扩容 I",
+      "need": "engineeringT",
+      "capMul": 1.5,
+      "cost": {
+        "ironBracket": 50,
+        "rope": 50
+      },
+      "desc": "各材料仓储上限 ×1.5（藻食除外）"
+    },
+    {
+      "id": "upg_kelpstore_1",
+      "name": "藻食库扩容 I",
+      "need": "engineeringT",
+      "capMul": 1.5,
+      "cost": {
+        "ironBracket": 50,
+        "rope": 50
+      },
+      "desc": "藻食上限 ×1.5"
+    },
+    {
+      "id": "upg_ballast_2",
+      "name": "压舱库扩容 II",
+      "need": "castle",
+      "capMul": 1.5,
+      "cost": {
+        "ironBracket": 100,
+        "hardCoral": 150
+      },
+      "desc": "各材料仓储上限 再 ×1.5（与 I 叠加 ⇒ 合计 ×2.25，藻食除外）"
+    },
+    {
+      "id": "upg_kelpstore_2",
+      "name": "藻食库扩容 II",
+      "need": "castle",
+      "capMul": 1.5,
+      "cost": {
+        "ironBracket": 100,
+        "hardCoral": 150
+      },
+      "desc": "藻食上限 再 ×1.5（与 I 叠加 ⇒ 合计 ×2.25）"
+    },
+    {
+      "id": "upg_fishbonemine",
+      "name": "鱼骨矿井",
+      "need": "apprentice",
+      "upgradesBuilding": "siltpit",
+      "buildingDesc": "矿工金属产出 +50%、伴生暖石 +1000%。每级矿工都吃这份加成。",
+      "mineSilt": 0.5,
+      "mineWarm": 10,
+      "cost": {
+        "ironBracket": 50,
+        "hardCoral": 50
+      },
+      "desc": "砂矿坑升级：矿工金属产出 +50%、伴生暖石 +1000%。"
+    },
+    {
+      "id": "upg_autoshop",
+      "name": "自动工坊",
+      "need": "metalrefine",
+      "craftRatio": 0.1,
+      "cost": {
+        "rope": 600
+      },
+      "desc": "工坊自动化：工艺制作效率 +10%，并自带 1 个自动制作槽。"
+    },
+    {
+      "id": "upg_university",
+      "name": "大学",
+      "need": "education",
+      "upgradesBuilding": "institute",
+      "buildingDesc": "学者科技产出 +100%（每级合计 ×100%）。",
+      "instituteSci": 0.5,
+      "cost": {
+        "stone": 100,
+        "ironBracket": 50
+      },
+      "desc": "研究所升级：学者科技产出 +100%（每级合计 ×100%）。"
+    },
+    {
+      "id": "upg_castle",
+      "name": "城堡",
+      "need": "castle",
+      "upgradesBuilding": "hall",
+      "buildingDesc": "随统治核心等级降低所有建筑下一级成本；每级给所有有上限资源 +50 容量；市政点 +0.05/级/秒。装政策卡「王权神授」每级再 +10% 信仰产出",
+      "hallSaveMul": 0.5,
+      "castleCap": 50,
+      "cost": {
+        "stoneBeam": 50,
+        "hardCoral": 50
+      },
+      "desc": "议事厅升级：降低所有建筑建造成本，每级议事厅给所有有上限资源 +50 容量。"
+    },
+    {
+      "id": "upg_horseshoe",
+      "name": "马镫",
+      "need": "horseshoe",
+      "luxuryMul": 0.5,
+      "cost": {
+        "rope": 400
+      },
+      "desc": "马术的工坊升级：商人奢侈品产出 +50%（与马具叠加 → +100%）。"
+    },
+    {
+      "id": "upg_printpress",
+      "name": "雕版印刷机",
+      "need": "printing",
+      "pressSci": 0.3,
+      "pressCul": 0.3,
+      "cost": {
+        "steelPart": 100,
+        "science": 10000
+      },
+      "desc": "学者产出 +30%（走 pressSci），书手产出 +30%（走 pressCul）。"
+    },
+    {
+      "id": "upg_deepmine",
+      "name": "深层矿井",
+      "need": "physics",
+      "upgradesBuilding": "siltpit",
+      "buildingDesc": "矿工金属 +50%、伴生暖石 +1000%，并开始伴生钛（产量待标定）。",
+      "mineTitanium": true,
+      "cost": {
+        "steelPart": 50,
+        "hardCoral": 200
+      },
+      "desc": "砂矿坑升级：矿工开始伴生钛（UNIT.titanium，产量待标定）。"
+    },
+    {
+      "id": "upg_hppump",
+      "name": "高压气泵",
+      "need": "thermo",
+      "hydroMul": 0.5,
+      "cost": {
+        "steelPart": 100,
+        "titanium": 100
+      },
+      "desc": "热液汽轮机的热液能产出 +50%（hydroMul，与钢铁 100 + 钛 100 同成本）。"
+    },
+    {
+      "id": "upg_invertbuild",
+      "name": "倒置工程学",
+      "need": "shellgeo",
+      "invertBuildSave": 0.2,
+      "cost": {
+        "science": 100000,
+        "scaffold": 300
+      },
+      "desc": "倒置搭建的延伸：所有建筑造价 −20%。"
+    },
+    {
+      "id": "upg_thermrecover",
+      "name": "热回收改造",
+      "need": "highthermo",
+      "hydroBuildSave": 0.3,
+      "cost": {
+        "science": 100000,
+        "steelPart": 300,
+        "titanium": 100
+      },
+      "desc": "高压热机的余热回收：热液汽轮机造价 −30%。"
+    },
+    {
+      "id": "upg_wasteforge",
+      "name": "废钢锻造",
+      "need": "highthermo",
+      "steelBonus": 0.2,
+      "ironBonus": 0.2,
+      "cost": {
+        "science": 120000,
+        "titanium": 100
+      },
+      "desc": "把废钢重新锻入产线：精铁产出 +20%、钢产出 +20%。"
+    }
+  ],
+  "CRAFTS": [
+    {
+      "id": "craft_stonebeam",
+      "name": "石梁",
+      "in": {
+        "stone": 100
+      },
+      "out": 1,
+      "res": "stoneBeam",
+      "desc": "把石头凿成可搬运的梁。暂时供海潮方碑使用，以后给更多建筑。"
+    },
+    {
+      "id": "craft_hardcoral",
+      "name": "硬化珊瑚",
+      "in": {
+        "coral": 100
+      },
+      "out": 1,
+      "res": "hardCoral",
+      "desc": "把珊瑚硬化成可承力的结构件。压舱仓的建造成本之一。"
+    },
+    {
+      "id": "craft_ironbracket",
+      "name": "铁制支架",
+      "need": "engineeringT",
+      "in": {
+        "iron": 20
+      },
+      "out": 1,
+      "res": "ironBracket",
+      "desc": "热泉炉里取出的支撑件。压舱库 / 藻食库扩容的原料。"
+    },
+    {
+      "id": "craft_rope",
+      "name": "绳",
+      "need": "scaffoldT",
+      "in": {
+        "kelp": 100
+      },
+      "out": 1,
+      "res": "rope",
+      "desc": "搓出来的捆扎件。压舱库 / 藻食库扩容的原料。"
+    },
+    {
+      "id": "craft_steelpart",
+      "name": "钢制零件",
+      "need": "metalrefine",
+      "in": {
+        "steel": 25
+      },
+      "out": 1,
+      "res": "steelPart",
+      "desc": "把钢锻成结构件。阿尔巴达热液大学与大学升级的原料。"
+    },
+    {
+      "id": "craft_scaffold",
+      "name": "脚手架",
+      "need": "physics",
+      "in": {
+        "hardCoral": 100,
+        "rope": 100
+      },
+      "out": 1,
+      "res": "scaffold",
+      "desc": "把硬化珊瑚与绳捆成作业面。天壳切削器的原料。"
+    },
+    {
+      "id": "craft_artwork",
+      "name": "艺术品",
+      "needCivic": "historiography",
+      "in": {
+        "culture": 5000,
+        "rope": 100
+      },
+      "out": 1,
+      "res": "artwork",
+      "desc": "把文明凝成可陈列的造物。历史哲学的造物之一。"
+    },
+    {
+      "id": "craft_tidal_record",
+      "name": "潮纹记录",
+      "needCivic": "historiography",
+      "in": {
+        "science": 5000,
+        "steelPart": 10
+      },
+      "out": 1,
+      "res": "tidalRecord",
+      "desc": "把潮纹读成可传承的知识。历史哲学的造物之一。"
+    },
+    {
+      "id": "craft_drill",
+      "name": "共振钻头",
+      "need": "shellgeo",
+      "in": {
+        "steelPart": 10,
+        "titanium": 10,
+        "rope": 100
+      },
+      "out": 1,
+      "res": "resonantDrill",
+      "desc": "把钢制零件、钛与绳锻成可以啃穿天壳的钻头。天穹钻机的耗材。"
+    }
+  ],
+  "WONDERS": [
+    {
+      "id": "wonder_tide_stele",
+      "name": "海潮方碑",
+      "era": 1,
+      "need": "masonry",
+      "cost": {
+        "stoneBeam": 20,
+        "coral": 300
+      },
+      "effect": {
+        "craftRatio": 0.05,
+        "matMax": 200
+      },
+      "desc": "石工技法的凭证：工艺制作效率 +5%，各材料仓储 +200。"
+    },
+    {
+      "id": "wonder_great_lighthouse",
+      "name": "大灯塔",
+      "era": 2,
+      "need": "navigation",
+      "cost": {
+        "stoneBeam": 30,
+        "hardCoral": 50
+      },
+      "effect": {
+        "civic": 2
+      },
+      "desc": "灯塔的高塔版本：每秒 +2 市政点；建成后每座灯塔的仓储额外 +60/级（= 压舱仓一半），随灯塔数量与等级缩放。"
+    },
+    {
+      "id": "wonder_great_library",
+      "name": "大潮纹馆",
+      "era": 2,
+      "needCivic": "records",
+      "cost": {
+        "stoneBeam": 50,
+        "ironBracket": 50,
+        "rope": 50
+      },
+      "effect": {
+        "libLvl": 3,
+        "grant": {
+          "science": 1000
+        }
+      },
+      "desc": "潮纹馆的高塔版本：按效果视为 +3 潮纹馆等级（不提高潮纹馆的建造成本），建成时一次性 +1000 科技点。"
+    },
+    {
+      "id": "wonder_albada",
+      "name": "阿尔巴达热液大学",
+      "era": 3,
+      "need": "education",
+      "cost": {
+        "stoneBeam": 500,
+        "ironBracket": 200,
+        "steelPart": 50
+      },
+      "effect": {
+        "minePop": true
+      },
+      "desc": "热液大学的尖塔：矿场产出额外 +人口数%（金属与伴生暖石）。"
+    },
+    {
+      "id": "wonder_stt_abbey",
+      "name": "圣泰坦尼克修道院",
+      "era": 3,
+      "needCivic": "sovereign",
+      "cost": {
+        "stoneBeam": 300,
+        "hardCoral": 300
+      },
+      "effect": {
+        "faithPerCivic": 0.01
+      },
+      "desc": "信仰的里程碑：每研发完成一个市政，信仰产出 +1%。"
+    },
+    {
+      "id": "wonder_grand_bazaar",
+      "name": "大巴扎",
+      "era": 3,
+      "needCivic": "guild",
+      "cost": {
+        "rope": 500,
+        "ironBracket": 50,
+        "steel": 50
+      },
+      "effect": {
+        "luxPerPop": 0.01
+      },
+      "desc": "万商云集：每名鲛人 +1% 奢侈品获取。"
+    },
+    {
+      "id": "wonder_grand_exchange",
+      "name": "王国大交易所",
+      "era": 4,
+      "need": "banking",
+      "cost": {
+        "steelPart": 50,
+        "ironBracket": 600,
+        "stoneBeam": 1000
+      },
+      "effect": {
+        "happyBonus": 1,
+        "tradeSave": 0.1
+      },
+      "desc": "幸福的里程碑：幸福度 +1；贸易区域建筑消耗 -10%。"
+    },
+    {
+      "id": "wonder_shellcutter",
+      "name": "天壳切削器",
+      "era": 4,
+      "need": "invert",
+      "cost": {
+        "steelPart": 200,
+        "scaffold": 200,
+        "titanium": 1000
+      },
+      "effect": {
+        "cutterMul": true
+      },
+      "desc": "把天壳当工地：科技与市政产出各 +x%，x = 天壳观测站等级。"
+    },
+    {
+      "id": "wonder_olo_wa_cathedral",
+      "name": "欧'洛瓦宗座教堂",
+      "era": 4,
+      "needCivic": "reformed",
+      "cost": {
+        "stoneBeam": 300,
+        "hardCoral": 300
+      },
+      "effect": {
+        "religSlot": 1
+      },
+      "desc": "信仰的丰碑：额外提供 1 个宗教政策卡槽。"
+    },
+    {
+      "id": "wonder_luluka",
+      "name": "卢'卢卡工坊",
+      "era": 5,
+      "need": "industrialize",
+      "cost": {
+        "scaffold": 100,
+        "steelPart": 500
+      },
+      "effect": {
+        "craftRatio": 0.5
+      },
+      "desc": "工坊的里程碑：工厂 / 工坊效果 +50%（加法叠进工艺制作效率）。"
+    },
+    {
+      "id": "wonder_presspipe",
+      "name": "高压热机管道",
+      "era": 5,
+      "need": "highthermo",
+      "cost": {
+        "scaffold": 225,
+        "steelPart": 500
+      },
+      "effect": {
+        "hydroBonus": 10
+      },
+      "desc": "热机的高压血脉：热液能供给侧 +10/s（并联进汽口，不随汽轮机台数缩放）。"
+    },
+    {
+      "id": "wonder_skydrill",
+      "name": "天穹钻机",
+      "era": 5,
+      "need": "skydrill",
+      "cost": {
+        "scaffold": 400,
+        "resonantDrill": 20
+      },
+      "effect": {},
+      "desc": "破壳的终章：凿穿最后一段天壳（机器运行逻辑待实装）。"
+    },
+    {
+      "id": "wonder_shadow_theater",
+      "name": "夏'多桑大剧院",
+      "era": 5,
+      "needCivic": "sharksong",
+      "cost": {
+        "scaffold": 400,
+        "stoneBeam": 1000
+      },
+      "effect": {
+        "civic": 5,
+        "civicSlots": 1
+      },
+      "desc": "市政的丰碑：每秒 +5 市政点；额外提供 1 个政策卡槽。"
+    },
+    {
+      "id": "wonder_congress",
+      "name": "国会大厦",
+      "era": 5,
+      "needCivic": "socialscience",
+      "cost": {
+        "scaffold": 600,
+        "steelPart": 400
+      },
+      "effect": {
+        "happyConsume": 0.1
+      },
+      "desc": "立法的丰碑：鲛人幸福度消耗 −10%。"
+    }
+  ],
+  "CIVICS": [
+    {
+      "id": "laws",
+      "name": "法典",
+      "cost": 0,
+      "era": 1,
+      "layer": 1,
+      "reqs": [],
+      "boost": null,
+      "gov": "tribe",
+      "desc": "定下规矩：解锁政体「酋邦制」。",
+      "note": "基础市政，无需鼓舞。"
+    },
+    {
+      "id": "craft",
+      "name": "技艺",
+      "cost": 100,
+      "era": 1,
+      "layer": 2,
+      "reqs": [
+        "laws"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "workshop",
+        "n": 1
+      },
+      "card": "card_craft",
+      "desc": "解锁政策卡「技艺」。",
+      "note": "鼓舞：建成 1 级工坊。"
+    },
+    {
+      "id": "mystic",
+      "name": "神秘主义",
+      "cost": 100,
+      "era": 1,
+      "layer": 2,
+      "reqs": [
+        "laws"
+      ],
+      "boost": {
+        "t": "tech",
+        "id": "tiddivine"
+      },
+      "card": "card_mystic",
+      "desc": "解锁政策卡「神秘主义」：科技产出 +0.3/秒。",
+      "note": "鼓舞：完成科技「海潮占卜」。"
+    },
+    {
+      "id": "trade",
+      "name": "对外贸易",
+      "cost": 800,
+      "era": 2,
+      "layer": 3,
+      "reqs": [
+        "laws"
+      ],
+      "boost": {
+        "t": "tech",
+        "id": "lighting"
+      },
+      "job": "merchant",
+      "desc": "解锁职业「商人」——奢侈品的唯一进项。",
+      "note": "鼓舞：完成科技「照明」。"
+    },
+    {
+      "id": "drama",
+      "name": "戏剧与诗歌",
+      "cost": 900,
+      "era": 2,
+      "layer": 3,
+      "reqs": [
+        "laws"
+      ],
+      "boost": {
+        "t": "wonder",
+        "n": 1
+      },
+      "card": "card_drama",
+      "desc": "解锁建筑「广场」，以及政策卡「戏剧与诗歌」。",
+      "note": "鼓舞：建成一座奇观。"
+    },
+    {
+      "id": "theology",
+      "name": "神学",
+      "cost": 1400,
+      "era": 2,
+      "layer": 4,
+      "reqs": [
+        "drama"
+      ],
+      "boost": {
+        "t": "pop",
+        "n": 25
+      },
+      "card": "card_theology",
+      "desc": "解锁信仰资源、建筑「神庙」，以及政策卡「神学」。",
+      "note": "鼓舞：人口达 25。"
+    },
+    {
+      "id": "records",
+      "name": "历史记录",
+      "cost": 1200,
+      "era": 2,
+      "layer": 4,
+      "reqs": [
+        "drama"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "library",
+        "n": 6
+      },
+      "card": "card_records",
+      "wonder": "wonder_great_library",
+      "desc": "解锁奇观「大潮纹馆」，以及政策卡「历史记录」。",
+      "note": "鼓舞：潮纹馆达 6 级。"
+    },
+    {
+      "id": "political",
+      "name": "政治哲学",
+      "cost": 1500,
+      "era": 2,
+      "layer": 5,
+      "reqs": [
+        "records",
+        "theology"
+      ],
+      "boost": {
+        "t": "tech",
+        "id": "engineeringT"
+      },
+      "govs": [
+        "autocracy",
+        "oligarchy",
+        "classical_republic"
+      ],
+      "desc": "解锁三种政体：独裁统治、寡头统治、古典共和（择一采用）。",
+      "note": "鼓舞：掌握科技「工程学」。"
+    },
+    {
+      "id": "sovereign",
+      "name": "王权神授",
+      "cost": 8000,
+      "era": 3,
+      "layer": 1,
+      "reqs": [
+        "theology",
+        "political"
+      ],
+      "boost": {
+        "t": "gathered",
+        "r": "faith",
+        "n": 10000
+      },
+      "card": "card_sovereign",
+      "wonder": "wonder_stt_abbey",
+      "desc": "解锁政策卡「王权神授」，以及奇观「圣泰坦尼克修道院」。",
+      "note": "鼓舞：累计信仰产出达 10000。"
+    },
+    {
+      "id": "feudalism",
+      "name": "封建主义",
+      "cost": 3000,
+      "era": 3,
+      "layer": 1,
+      "reqs": [
+        "records"
+      ],
+      "boost": {
+        "t": "zoneLvl",
+        "zone": "food",
+        "n": 100
+      },
+      "autoUpg": true,
+      "desc": "解锁政策卡「农奴制」，以及生息区建筑的自动升级（逐建筑开关）。",
+      "note": "鼓舞：生息区建筑合计等级达 100。"
+    },
+    {
+      "id": "market",
+      "name": "中世纪集市",
+      "cost": 4000,
+      "era": 3,
+      "layer": 2,
+      "reqs": [
+        "political"
+      ],
+      "boost": {
+        "t": "gathered",
+        "r": "luxury",
+        "n": 10000
+      },
+      "card": "card_market",
+      "desc": "解锁政策卡「中世纪集市」；商人同时产出科学 +0.05/秒、市政点 +0.05/秒。",
+      "note": "鼓舞：累计奢侈品产出达 10000。"
+    },
+    {
+      "id": "guild",
+      "name": "职业行会",
+      "cost": 5000,
+      "era": 3,
+      "layer": 2,
+      "reqs": [
+        "market"
+      ],
+      "boost": {
+        "t": "total",
+        "n": 55
+      },
+      "card": "card_guild",
+      "wonder": "wonder_grand_bazaar",
+      "desc": "解锁政策卡「职业行会」（取代技艺），以及奇观「大巴扎」。",
+      "note": "鼓舞：建筑总等级达 55。"
+    },
+    {
+      "id": "department",
+      "name": "行政部门",
+      "cost": 6000,
+      "era": 3,
+      "layer": 2,
+      "reqs": [
+        "feudalism"
+      ],
+      "boost": {
+        "t": "pop",
+        "n": 55
+      },
+      "govs": [
+        "monarchy"
+      ],
+      "scribeRename": true,
+      "scribeCivicMul": 0.5,
+      "desc": "解锁政体「君主制」（5 槽：礁栖核心建筑建造消耗 −10%），以及建筑「王国潮道」。书手更名为官员，市政点产出 +50%。",
+      "note": "鼓舞：人口达 55。"
+    },
+    {
+      "id": "explore",
+      "name": "探索",
+      "cost": 20000,
+      "era": 4,
+      "layer": 1,
+      "reqs": [
+        "market"
+      ],
+      "boost": {
+        "t": "upgrade",
+        "id": "upg_ballast_2"
+      },
+      "building": "caravanserai",
+      "card": "card_triangular",
+      "gov": "merchant_republic",
+      "seasonGrant": true,
+      "desc": "解锁建筑「商队驿站」、政策卡「三角贸易」、政体「商人共和国」；每季节判定一次，获得任意资源 1 分钟产量。",
+      "note": "鼓舞：完成钢铁仓库升级（压舱库扩容 II）。"
+    },
+    {
+      "id": "reformed",
+      "name": "归正会",
+      "cost": 25000,
+      "era": 4,
+      "layer": 1,
+      "reqs": [
+        "department"
+      ],
+      "boost": {
+        "t": "religion"
+      },
+      "wonder": "wonder_olo_wa_cathedral",
+      "religSlot": 1,
+      "gov": "theocracy",
+      "card": "card_divine_right",
+      "desc": "解锁奇观「欧'洛瓦宗座教堂」(+1 宗教政策卡槽)、政体「神权政体」、政策卡「天赋神权」。",
+      "note": "鼓舞：已建立宗教（70 鲛人已由前置《行政部门》保证）。"
+    },
+    {
+      "id": "mercantilism",
+      "name": "重商主义",
+      "cost": 40000,
+      "era": 4,
+      "layer": 2,
+      "reqs": [
+        "explore"
+      ],
+      "boost": {
+        "t": "job",
+        "j": "merchant",
+        "n": 20
+      },
+      "card": "card_mercantilism",
+      "desc": "解锁政策卡「重商主义」（银行的商人产出加成 +100%）。",
+      "note": "鼓舞：同时拥有 20 名商人。"
+    },
+    {
+      "id": "enlightenment",
+      "name": "启蒙运动",
+      "cost": 50000,
+      "era": 4,
+      "layer": 2,
+      "reqs": [
+        "department"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "observatory",
+        "n": 1
+      },
+      "card": "card_enlightenment",
+      "building": "museum",
+      "desc": "解锁政策卡「启蒙运动」（替代历史记录：潮纹馆/大学科技 +100%、神庙信仰 −50%）、建筑「博物馆」。",
+      "note": "鼓舞：天壳观测站等级 ≥ 1。"
+    },
+    {
+      "id": "historiography",
+      "name": "历史哲学",
+      "cost": 60000,
+      "era": 4,
+      "layer": 2,
+      "reqs": [
+        "reformed"
+      ],
+      "boost": {
+        "t": "wonder",
+        "n": 6
+      },
+      "wonderEraCivic": 5,
+      "desc": "解锁工艺制品「艺术品」「潮纹记录」；ERA1/2/3 的奇观 +5 市政点获取。",
+      "note": "鼓舞：奇观建立超过 5 座（≥6 座）。"
+    },
+    {
+      "id": "sharksong",
+      "name": "渊潜鲛歌",
+      "cost": 80000,
+      "era": 5,
+      "layer": 1,
+      "reqs": [
+        "enlightenment"
+      ],
+      "boost": {
+        "t": "zoneLvl",
+        "zone": "civic",
+        "n": 50
+      },
+      "wonder": "wonder_shadow_theater",
+      "building": "theater",
+      "desc": "解锁奇观「夏'多桑大剧院」（+5 市政点/秒、+1 政策卡槽），以及建筑「歌剧院」。",
+      "note": "鼓舞：市政区建筑合计等级达 50。"
+    },
+    {
+      "id": "rationing",
+      "name": "工业化配给",
+      "cost": 90000,
+      "era": 5,
+      "layer": 1,
+      "reqs": [
+        "enlightenment"
+      ],
+      "boost": {
+        "t": "gathered",
+        "r": "steel",
+        "n": 10000
+      },
+      "card": "card_rationing",
+      "desc": "解锁政策卡「工业化配给」「政治经济学」。",
+      "note": "鼓舞：累计钢产量达 10000。"
+    },
+    {
+      "id": "socialscience",
+      "name": "社会科学",
+      "cost": 110000,
+      "era": 5,
+      "layer": 2,
+      "reqs": [
+        "sharksong"
+      ],
+      "boost": {
+        "t": "total",
+        "n": 300
+      },
+      "wonder": "wonder_congress",
+      "desc": "解锁奇观「国会大厦」（鲛人幸福度消耗 −10%）。",
+      "note": "鼓舞：建筑总等级达 300。"
+    },
+    {
+      "id": "urbanization",
+      "name": "城市化",
+      "cost": 120000,
+      "era": 5,
+      "layer": 2,
+      "reqs": [
+        "rationing"
+      ],
+      "boost": {
+        "t": "total",
+        "n": 510
+      },
+      "card": "card_logistics",
+      "building": "tenement",
+      "desc": "解锁建筑「廉租社区」、政策卡「基础物流建设」。",
+      "note": "鼓舞：建筑总等级达 510。"
+    },
+    {
+      "id": "mobilization",
+      "name": "国民动员",
+      "cost": 150000,
+      "era": 5,
+      "layer": 3,
+      "reqs": [
+        "socialscience",
+        "urbanization"
+      ],
+      "boost": {
+        "t": "wonders",
+        "ids": [
+          "wonder_shellcutter",
+          "wonder_presspipe"
+        ]
+      },
+      "card": "card_heat_priority",
+      "desc": "解锁政策卡「热能优先」「总动员令」。",
+      "note": "鼓舞：建成奇观「天壳切削器」与「高压热机管道」。"
+    }
+  ],
+  "GOVS": [
+    {
+      "id": "tribe",
+      "name": "酋邦制",
+      "slots": {
+        "wild": 1
+      },
+      "effect": {
+        "kelp": 5
+      },
+      "desc": "藻食产出 +5/秒。"
+    },
+    {
+      "id": "autocracy",
+      "name": "独裁统治",
+      "slots": {
+        "wild": 3
+      },
+      "effect": {},
+      "craftRatio": 0.1,
+      "desc": "工艺制作效率 +10%（石梁等工坊产物）。"
+    },
+    {
+      "id": "oligarchy",
+      "name": "寡头统治",
+      "slots": {
+        "wild": 3
+      },
+      "effect": {},
+      "luxuryMul": 1.2,
+      "desc": "奢侈品产出 +20%（商人贸易供给）。"
+    },
+    {
+      "id": "classical_republic",
+      "name": "古典共和",
+      "slots": {
+        "wild": 3
+      },
+      "effect": {},
+      "happyBonus": 1,
+      "desc": "幸福度 +1（常驻，提高全产乘区档位）。"
+    },
+    {
+      "id": "monarchy",
+      "name": "君主制",
+      "slots": {
+        "wild": 5
+      },
+      "effect": {},
+      "buildSave": 0.1,
+      "desc": "5 个政策卡槽；礁栖核心建筑建造消耗 −10%。"
+    },
+    {
+      "id": "merchant_republic",
+      "name": "商人共和国",
+      "slots": {
+        "wild": 5
+      },
+      "effect": {},
+      "happyConsumeMul": 0.7,
+      "desc": "5 个万能政策卡槽；幸福度消耗 −30%。"
+    },
+    {
+      "id": "theocracy",
+      "name": "神权政体",
+      "slots": {
+        "wild": 3,
+        "relig": 1
+      },
+      "effect": {},
+      "faithPerAcademy": 1,
+      "faithPerCivic": 0.5,
+      "desc": "3 万能槽 + 1 宗教槽；每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰。"
+    }
+  ],
+  "POLICIES": [
+    {
+      "id": "card_craft",
+      "name": "技艺",
+      "civic": "craft",
+      "type": "prod",
+      "effect": {},
+      "craftRatio": 0.2,
+      "retiredBy": "guild",
+      "desc": "工坊效率 +20%（工艺制作产出，装在卡槽里才生效）。"
+    },
+    {
+      "id": "card_mystic",
+      "name": "神秘主义",
+      "civic": "mystic",
+      "type": "sci",
+      "effect": {
+        "science": 0.3
+      },
+      "desc": "科技产出 +0.3/秒。"
+    },
+    {
+      "id": "card_drama",
+      "name": "戏剧与诗歌",
+      "civic": "drama",
+      "type": "sci",
+      "effect": {},
+      "squareMul": 2,
+      "desc": "广场的市政点乘区 ×2（即「广场效果 +100%」）。"
+    },
+    {
+      "id": "card_theology",
+      "name": "神学",
+      "civic": "theology",
+      "type": "sci",
+      "effect": {},
+      "templeMul": 2,
+      "desc": "神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。"
+    },
+    {
+      "id": "card_records",
+      "name": "历史记录",
+      "civic": "records",
+      "type": "sci",
+      "effect": {},
+      "libraryMul": 2,
+      "retiredBy": "enlightenment",
+      "desc": "潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。"
+    },
+    {
+      "id": "card_sovereign",
+      "name": "王权神授",
+      "civic": "sovereign",
+      "effect": {},
+      "retiredBy": "reformed",
+      "desc": "城堡每级增加 10% 信仰产出（装在卡槽里才生效）。完成《归正会》后被「天赋神权」取代而退役。"
+    },
+    {
+      "id": "card_serfdom",
+      "name": "农奴制",
+      "civic": "feudalism",
+      "effect": {},
+      "desc": "每级牧场给藻场效果 +1%，每级藻场给牧场效果 +1%（互乘，装在卡槽里才生效）。"
+    },
+    {
+      "id": "card_market",
+      "name": "中世纪集市",
+      "civic": "market",
+      "type": "sci",
+      "effect": {},
+      "storeMul": 2,
+      "desc": "仓储区所有建筑的仓储 +100%（即海藻仓/压舱仓/灯塔的容量贡献翻倍）。"
+    },
+    {
+      "id": "card_guild",
+      "name": "职业行会",
+      "civic": "guild",
+      "type": "prod",
+      "effect": {},
+      "craftRatio": 0.4,
+      "desc": "工坊效率 +40%（取代「技艺」；研究完成后技艺卡退役）。"
+    },
+    {
+      "id": "card_triangular",
+      "name": "三角贸易",
+      "civic": "explore",
+      "type": "prod",
+      "effect": {},
+      "canalMul": 2,
+      "desc": "王国潮道（运河）效果额外 +100%（居民奢侈品消耗减免翻倍）。"
+    },
+    {
+      "id": "card_divine_right",
+      "name": "天赋神权",
+      "civic": "reformed",
+      "type": "relig",
+      "effect": {},
+      "coreFaithMul": 0.1,
+      "desc": "礁栖核心所有建筑每级 +10% 信仰产出（替代「王权神授」）。"
+    },
+    {
+      "id": "card_mercantilism",
+      "name": "重商主义",
+      "civic": "mercantilism",
+      "type": "prod",
+      "effect": {},
+      "bankMerchantMul": 2,
+      "desc": "银行的商人产出加成 +100%。"
+    },
+    {
+      "id": "card_enlightenment",
+      "name": "启蒙运动",
+      "civic": "enlightenment",
+      "type": "sci",
+      "effect": {},
+      "libraryMul": 2,
+      "universityMul": 2,
+      "templeFaithMul": 0.5,
+      "desc": "潮纹馆、大学的科技加成 +100%，神庙信仰加成 −50%（替代「历史记录」）。"
+    },
+    {
+      "id": "card_rationing",
+      "name": "工业化配给",
+      "civic": "rationing",
+      "type": "prod",
+      "effect": {},
+      "happyOffset": -1,
+      "craftRatio": 0.4,
+      "desc": "幸福度 −1；工坊（工艺制作）效率 +40%。"
+    },
+    {
+      "id": "card_political_econ",
+      "name": "政治经济学",
+      "civic": "rationing",
+      "type": "sci",
+      "effect": {},
+      "retiredBy": "drama",
+      "squareMul": 2.5,
+      "theaterMul": 2.5,
+      "desc": "广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5（取代「戏剧与诗歌」）。"
+    },
+    {
+      "id": "card_logistics",
+      "name": "基础物流建设",
+      "civic": "urbanization",
+      "type": "prod",
+      "effect": {},
+      "retiredBy": "market",
+      "storeMul": 3,
+      "desc": "仓储区建筑容量 ×3（取代「中世纪集市」）。"
+    },
+    {
+      "id": "card_heat_priority",
+      "name": "热能优先",
+      "civic": "mobilization",
+      "effect": {},
+      "civicOutMul": 0.5,
+      "sciOutMul": 0.5,
+      "hydroSupplyMul": 2,
+      "desc": "市政与科技产出 −50%，热液能（蒸汽）供给 +100%。"
+    },
+    {
+      "id": "card_mobilization",
+      "name": "总动员令",
+      "civic": "mobilization",
+      "effect": {},
+      "shellSpeedPerIdle": 0.01,
+      "desc": "每点闲置鲛人提供 1% 破壳速度（待天穹钻机机器态实装后生效）。"
+    }
+  ],
+  "ERAS": [
+    {
+      "id": 1,
+      "name": "暗流纪",
+      "motto": "摸到石头",
+      "color": "#6FE3D2",
+      "glyph": "一",
+      "desc": "在冰壳下认得第一块能用的东西：珊瑚、骨材、怎么活过第一个寒季。"
+    },
+    {
+      "id": 2,
+      "name": "冷焰纪",
+      "motto": "第一次有光",
+      "color": "#7FE9C8",
+      "glyph": "二",
+      "desc": "学会留住热、把珊瑚凿成骨材、让一部分人不再去采而是去想。"
+    },
+    {
+      "id": 3,
+      "name": "硫泉纪",
+      "motto": "材料革命",
+      "color": "#FF7A45",
+      "glyph": "三",
+      "desc": "热液丘把硫铁送到手里。精铁一旦够用，冰壳就第一次变成「可以算的工程量」。"
+    },
+    {
+      "id": 4,
+      "name": "洋流纪",
+      "motto": "借力",
+      "color": "#4FC3F7",
+      "glyph": "四",
+      "desc": "潮汐的机械能被抓在手里：地热、转速、把整座礁当成一台机器。"
+    },
+    {
+      "id": 5,
+      "name": "破壳纪",
+      "motto": "工业化",
+      "color": "#F2C14E",
+      "glyph": "五",
+      "desc": "造得出天穹钻机这样的奇迹装置，凿穿最后 25% 壳厚是这一纪元的全部内容。"
+    }
+  ],
+  "BRANCHES": [
+    {
+      "id": "survive",
+      "name": "生存",
+      "color": "#D85A30",
+      "desc": "采集 · 抗寒 · 住房 · 破壳"
+    },
+    {
+      "id": "live",
+      "name": "生计",
+      "color": "#5DCAA5",
+      "desc": "产出 · 加工 · 仓储"
+    },
+    {
+      "id": "know",
+      "name": "求知",
+      "color": "#7F77DD",
+      "desc": "科技 · 效率 · 解锁"
+    }
+  ],
+  "PERKS": [
+    {
+      "id": "food",
+      "name": "前朝藻席",
+      "cost": 1,
+      "desc": "每局开局 +200 藻食",
+      "kind": "start"
+    },
+    {
+      "id": "coral",
+      "name": "沉船残骸",
+      "cost": 2,
+      "desc": "每局开局 +150 珊瑚",
+      "kind": "start"
+    },
+    {
+      "id": "g1",
+      "name": "异族鳍肢",
+      "costs": [
+        3,
+        6,
+        12
+      ],
+      "desc": "采集产出 +10%/级",
+      "kind": "rate",
+      "n": 3,
+      "apply": {
+        "gather": 1
+      }
+    },
+    {
+      "id": "g2",
+      "name": "深鳃",
+      "costs": [
+        6
+      ],
+      "desc": "采集产出再 +10%",
+      "kind": "rate",
+      "n": 3,
+      "apply": {
+        "gather": 1
+      },
+      "nest": "g1"
+    },
+    {
+      "id": "g3",
+      "name": "流线体形",
+      "costs": [
+        12
+      ],
+      "desc": "采集产出再 +10%",
+      "kind": "rate",
+      "n": 3,
+      "apply": {
+        "gather": 1
+      },
+      "nest": "g2"
+    },
+    {
+      "id": "c1",
+      "name": "祖先之热",
+      "costs": [
+        3,
+        7
+      ],
+      "desc": "破壳系数 +0.20/级",
+      "kind": "coef",
+      "n": 2,
+      "apply": {
+        "coef": 1
+      }
+    },
+    {
+      "id": "c2",
+      "name": "脉息",
+      "costs": [
+        7
+      ],
+      "desc": "破壳系数再 +0.20",
+      "kind": "coef",
+      "n": 2,
+      "apply": {
+        "coef": 1
+      },
+      "nest": "c1"
+    },
+    {
+      "id": "d1",
+      "name": "薄壳一代",
+      "costs": [
+        4,
+        9,
+        18
+      ],
+      "desc": "冰壳厚度 −10%/级",
+      "kind": "thin",
+      "n": 3,
+      "apply": {
+        "thin": 1
+      }
+    },
+    {
+      "id": "d2",
+      "name": "裂脉",
+      "costs": [
+        9
+      ],
+      "desc": "冰壳再薄 10%",
+      "kind": "thin",
+      "n": 3,
+      "apply": {
+        "thin": 1
+      },
+      "nest": "d1"
+    },
+    {
+      "id": "d3",
+      "name": "内生热泉",
+      "costs": [
+        18
+      ],
+      "desc": "冰壳再薄 10%",
+      "kind": "thin",
+      "n": 3,
+      "apply": {
+        "thin": 1
+      },
+      "nest": "d2"
+    },
+    {
+      "id": "popcap",
+      "name": "广厦之基",
+      "costs": [
+        2,
+        4,
+        6
+      ],
+      "desc": "永久人口上限 +1/级（最多 3 级）",
+      "kind": "popcap",
+      "n": 3,
+      "apply": {
+        "popcap": 1
+      }
+    },
+    {
+      "id": "housePlan",
+      "name": "生息建筑规划",
+      "cost": 20,
+      "desc": "所有人口建筑每级各 +1 人口上限（买断）",
+      "kind": "house",
+      "n": 1,
+      "apply": {
+        "housePlan": 1
+      }
+    },
+    {
+      "id": "coldStore",
+      "name": "寒潮储备",
+      "costs": [
+        2,
+        4,
+        8,
+        12
+      ],
+      "desc": "寒季资源产出倍率 +0.02/级（最多 4 级）",
+      "kind": "climate",
+      "n": 4,
+      "apply": {
+        "coldStore": 1
+      }
+    },
+    {
+      "id": "offline",
+      "name": "离潮计时",
+      "costs": [
+        2,
+        4,
+        8,
+        12
+      ],
+      "desc": "单次离线上限 +25%/级（最多 4 级）",
+      "kind": "offline",
+      "n": 4,
+      "apply": {
+        "offline": 1
+      }
+    },
+    {
+      "id": "matStore",
+      "name": "材料总仓",
+      "costs": [
+        4,
+        8,
+        12,
+        16,
+        20,
+        24,
+        28,
+        32,
+        36,
+        40,
+        44,
+        48,
+        52,
+        56,
+        60,
+        64,
+        68,
+        72,
+        76,
+        80
+      ],
+      "desc": "所有普通资源容量 +5%/级（最多 20 级）",
+      "kind": "store",
+      "n": 20,
+      "apply": {
+        "matStore": 1
+      }
+    },
+    {
+      "id": "autoCraft1",
+      "name": "自动制作槽 I",
+      "cost": 6,
+      "desc": "自动制作槽 +1（自动工坊已自带 1 个）",
+      "kind": "auto",
+      "n": 3,
+      "apply": {
+        "autoCraft": 1
+      }
+    },
+    {
+      "id": "autoCraft2",
+      "name": "自动制作槽 II",
+      "cost": 12,
+      "desc": "自动制作槽再 +1（累计 +2）",
+      "kind": "auto",
+      "n": 3,
+      "apply": {
+        "autoCraft": 1
+      },
+      "nest": "autoCraft1"
+    },
+    {
+      "id": "autoCraft3",
+      "name": "自动制作槽 III",
+      "cost": 24,
+      "desc": "自动制作槽再 +1（累计 +3）",
+      "kind": "auto",
+      "n": 3,
+      "apply": {
+        "autoCraft": 1
+      },
+      "nest": "autoCraft2"
+    },
+    {
+      "id": "legacyCraft",
+      "name": "轮回前遗产制作",
+      "cost": 8,
+      "desc": "解锁轮回结算前自动制作艺术品与潮纹记录（买断）",
+      "kind": "auto",
+      "n": 1,
+      "apply": {
+        "legacyCraft": 1
+      }
+    },
+    {
+      "id": "wonderBlueprint",
+      "name": "遗址施工图 I",
+      "costs": [
+        2,
+        4,
+        6,
+        8
+      ],
+      "desc": "所有奇观建造成本 −5%/级（最多 −20%）",
+      "kind": "wonder",
+      "n": 4,
+      "apply": {
+        "wonderBlueprint": 1
+      }
+    },
+    {
+      "id": "shellSurvey",
+      "name": "破界测绘 I",
+      "costs": [
+        3,
+        6,
+        9
+      ],
+      "desc": "天穹钻机每单位功率削壳量 +5%/级（最多 +15%）",
+      "kind": "break",
+      "n": 3,
+      "apply": {
+        "shellSurvey": 1
+      }
+    },
+    {
+      "id": "civicArchive",
+      "name": "旧典编纂 I",
+      "costs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "desc": "市政点获取 +10%/级（不设上限）",
+      "kind": "civic",
+      "n": null,
+      "apply": {
+        "civicArchive": 1
+      }
+    },
+    {
+      "id": "civicPlan",
+      "name": "政令档案 I",
+      "costs": [
+        2,
+        4,
+        6
+      ],
+      "desc": "保存 1/2/3 份政体与政策卡方案",
+      "kind": "template",
+      "n": 3,
+      "apply": {
+        "civicPlan": 1
+      }
+    },
+    {
+      "id": "govRoutine",
+      "name": "议事惯例 I",
+      "costs": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "desc": "换政策卡/政体费用 −10%/级（最多 −50%）",
+      "kind": "civic",
+      "n": 5,
+      "apply": {
+        "govRoutine": 1
+      }
+    },
+    {
+      "id": "tideProof",
+      "name": "潮纹校勘 I",
+      "costs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "desc": "科技点获取 +10%/级（不设上限）",
+      "kind": "science",
+      "n": null,
+      "apply": {
+        "tideProof": 1
+      }
+    },
+    {
+      "id": "scienceStart",
+      "name": "旧学开篇 I",
+      "costs": [
+        2,
+        4,
+        6
+      ],
+      "desc": "每局初始科技点 +100/级（取最高档，最多 +300）",
+      "kind": "science",
+      "n": 3,
+      "apply": {
+        "scienceStart": 100
+      }
+    },
+    {
+      "id": "autoStudy",
+      "name": "旧学自动研究",
+      "cost": 6,
+      "desc": "解锁科技自动研究器（买断，默认关闭）",
+      "kind": "auto",
+      "n": 1,
+      "apply": {
+        "autoStudy": 1
+      }
+    },
+    {
+      "id": "autoCivic",
+      "name": "市政自动研究",
+      "cost": 6,
+      "desc": "解锁市政自动研究器（买断，默认关闭）",
+      "kind": "auto",
+      "n": 1,
+      "apply": {
+        "autoCivic": 1
+      }
+    },
+    {
+      "id": "coralPact",
+      "name": "珊瑚礁契",
+      "costs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20,
+        22,
+        24,
+        26,
+        28,
+        30,
+        32,
+        34,
+        36,
+        38,
+        40
+      ],
+      "desc": "珊瑚产出 +10%/级（不设上限）",
+      "kind": "rate",
+      "n": null,
+      "apply": {
+        "coralPact": 1
+      }
+    },
+    {
+      "id": "mineTax",
+      "name": "矿脉税契",
+      "costs": [
+        3,
+        6,
+        9,
+        12,
+        15,
+        18,
+        21,
+        24,
+        27,
+        30,
+        33,
+        36,
+        39,
+        42,
+        45,
+        48,
+        51,
+        54,
+        57,
+        60
+      ],
+      "desc": "石头 + 金属 + 暖石产出各 +10%/级（不设上限）",
+      "kind": "rate",
+      "n": null,
+      "apply": {
+        "mineTax": 1
+      }
+    },
+    {
+      "id": "algaeCrop",
+      "name": "潮田轮作",
+      "costs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "desc": "采集者藻食产出 +10%/级（不设上限）",
+      "kind": "rate",
+      "n": null,
+      "apply": {
+        "algaeCrop": 1
+      }
+    },
+    {
+      "id": "furnaceBoost",
+      "name": "炉心增压",
+      "costs": [
+        4,
+        8,
+        12,
+        16,
+        20,
+        24,
+        28,
+        32,
+        36,
+        40,
+        44,
+        48,
+        52,
+        56,
+        60,
+        64,
+        68,
+        72,
+        76,
+        80
+      ],
+      "desc": "精铁产出 +10%/级（不设上限）",
+      "kind": "rate",
+      "n": null,
+      "apply": {
+        "furnaceBoost": 1
+      }
+    },
+    {
+      "id": "sacrament",
+      "name": "祭祀唱诗",
+      "costs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "desc": "信仰产出 +10%/级（不设上限）",
+      "kind": "faith",
+      "n": null,
+      "apply": {
+        "sacrament": 1
+      }
+    },
+    {
+      "id": "craftQuota",
+      "name": "工坊定额",
+      "costs": [
+        3,
+        6,
+        9,
+        12,
+        15,
+        18,
+        21,
+        24,
+        27,
+        30,
+        33,
+        36,
+        39,
+        42,
+        45,
+        48,
+        51,
+        54,
+        57,
+        60
+      ],
+      "desc": "工坊制作产出 +10%/级（不设上限）",
+      "kind": "rate",
+      "n": null,
+      "apply": {
+        "craftQuota": 1
+      }
+    },
+    {
+      "id": "luxuryPact",
+      "name": "奢侈品契",
+      "costs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20,
+        22,
+        24,
+        26,
+        28,
+        30,
+        32,
+        34,
+        36,
+        38,
+        40
+      ],
+      "desc": "奢侈品产出 +10%/级（不设上限）",
+      "kind": "rate",
+      "n": null,
+      "apply": {
+        "luxuryPact": 1
+      }
+    },
+    {
+      "id": "buildSave",
+      "name": "匠作省料",
+      "costs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20,
+        22,
+        24,
+        26,
+        28,
+        30,
+        32,
+        34,
+        36,
+        38,
+        40
+      ],
+      "desc": "所有建筑消耗 −1%/级（最多 −20%）",
+      "kind": "build",
+      "n": 20,
+      "apply": {
+        "buildSave": 1
+      }
+    },
+    {
+      "id": "autoClicker1",
+      "name": "自动采集 I",
+      "cost": 4,
+      "desc": "藻食+珊瑚 自动点击 1 次/秒",
+      "kind": "auto",
+      "n": 1,
+      "apply": {
+        "autoClick": 1
+      }
+    },
+    {
+      "id": "autoClicker2",
+      "name": "自动采集 II",
+      "cost": 8,
+      "desc": "自动点击 2 次/秒（需先购 I）",
+      "kind": "auto",
+      "n": 1,
+      "apply": {
+        "autoClick": 1
+      },
+      "nest": "autoClicker1"
+    },
+    {
+      "id": "autoClicker3",
+      "name": "自动采集 III",
+      "cost": 16,
+      "desc": "自动点击 3 次/秒（需先购 II）",
+      "kind": "auto",
+      "n": 1,
+      "apply": {
+        "autoClick": 1
+      },
+      "nest": "autoClicker2"
+    },
+    {
+      "id": "autoEvent",
+      "name": "自动拾取",
+      "cost": 6,
+      "desc": "天壳震动等点击事件出现即自动拾取",
+      "kind": "auto",
+      "n": 1,
+      "apply": {
+        "autoEvent": 1
+      }
+    }
+  ]
+}

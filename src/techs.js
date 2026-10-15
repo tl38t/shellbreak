@@ -175,7 +175,7 @@
       cond: { t: 'gathered', r: 'kelp', n: 200 },
       /* 【2026-09-30 用户拍板：去掉历法的「季节减产收窄」效果】
        * 历法现在**只**是信息型奖励：掌握后 seasonMeta 才返回海底火山周期名与读数
-       * （见 economy.seasonMeta / ui/render.js renderEnv），不再动任何产量。
+       * （见 economy.seasonMeta / ui/render-environment.js renderEnv），不再动任何产量。
        * 季节减产的收窄改由**海潮占卜（tiddivine.season 0.18）单独提供**，避免两档叠加；
        * 若哪天想让历法也收窄，把下面这行加回来即可：eff: { season: 0.25 }。
        * ⚠️ 历法仍是纪元一关键节点（与石工一起推进纪元），去掉收窄不影响它的 key 地位。

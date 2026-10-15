@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="0zlehYCbuD5f1DImLSdD1w">
+<head data-page-node-id="SHpRYBRRIDcP8Bx75nsUrT">
+<meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
+<title>渊海天壳 · SHELLBREAK</title>
+<script>
+  try {
+    var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
+    if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="css/main.css?v=134" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+</head>
+<body data-page-node-id="6EizOSKr1rrrICybgB8xui">
+<div class="atmosphere" id="atmosphere" aria-hidden="true">
+  <div class="atmosphere-scene scene-a"></div>
+  <div class="atmosphere-scene scene-b"></div>
+  <div class="atmosphere-vignette"></div>
+</div>
+<div class="wrap" data-page-node-id="R3GyesNvCCnIGdybfi94vw">
+  <header class="brandline" data-page-node-id="BrandLineP0">
+    <div class="brandmark" aria-hidden="true"></div>
+    <div>
+      <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">渊海天壳 <small data-page-node-id="hp4Kyh6NeGNVYnRp4XyHzx">SHELLBREAK · 原始时代 → 破冰重置</small></h1>
+      <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自渊海，至天壳</div>
+    </div>
+    <div class="theme-switch" role="group" aria-label="界面配色">
+      <button type="button" data-ui-theme-choice="day" aria-pressed="false">☀ 日间</button>
+      <button type="button" data-ui-theme-choice="night" aria-pressed="true">☾ 夜间</button>
+    </div>
+  </header>
+
+  <!-- 点击时间事件横幅（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）：底部常驻卡（position:fixed 贴视口底部、
+       随滚动始终可见），活动事件出现时显示。hidden 默认；#omenName / #omenCopy / #omenCd 由 render.js 的
+       renderEvent 按签名节流填，#omenBtn 带 data-omen="claim" 走 input.js 的 document 级委托拾取。
+       倒计时走 #omenCd 的 textContent 每帧刷，文案只在活动事件切换时重写——避免每帧重建 innerHTML 吞掉那一次点击。
+       事件出现/消失时 render.js 给 body 切 omen-open，CSS 据此给页面底部留白，避免横幅盖住「速度/凿穿」控制条。 -->
+  <div class="card omen" id="omen" hidden data-page-node-id="OmenCard01">
+    <div class="omen-hd"><span class="omen-name" id="omenName"></span><span class="omen-cd" id="omenCd"></span></div>
+    <div class="omen-copy" id="omenCopy"></div>
+    <button class="btn big" data-omen="claim" id="omenBtn">拾取</button>
+  </div>
+
+  <!-- 资源卡（2026-09-30）：加可折叠彩色标题条（data-fold=res，见 render.js CARD_META）。
+       #res 网格与 #res-craft-wrap 由渲染层填，标题是静态 HTML，不被 2 秒刷新冲掉。 -->
+  <div class="overview-grid" data-page-node-id="OverviewGridP0">
+  <div class="card" id="card-res" data-page-node-id="sT3O7PuNiGltaiSUpAeb44">
+    <div class="cardhd" data-fold="res" style="--hc:#4dd8e6" title="点击折叠 / 展开"><span class="cv">▾</span>资源</div>
+    <div class="grid" id="res" data-page-node-id="7G9KZbNOPP20HFvS1BGVPa"></div>
+    <div id="res-craft-wrap" hidden>
+      <div class="restitle">工艺资源</div>
+      <div class="grid" id="res-craft"></div>
+    </div>
+  </div>
+
+  <!-- 自然环境卡（2026-09-30）：标题由 .secttl 改为可折叠 cardhd（data-fold=env，紫），
+       与资源卡同折叠体系；正文（天壳 / 海底火山 / 暖石）是每帧刷新的容器，折叠只收 CSS。 -->
+  <div class="card" id="card-env" data-page-node-id="Qt6uTfn92BgbfljGBJcAXF">
+    <div class="cardhd" data-fold="env" style="--hc:#a78bfa" title="点击折叠 / 展开"><span class="cv">▾</span>自然环境</div>
+    <div class="shellbar" data-page-node-id="eynVQQUb0BxQL8DGBH7d94">
+      <span data-page-node-id="bc4bEQ2I69f1zi5HW9nok7">天壳 · 冰封层厚度</span>
+      <span id="shellTxt" data-page-node-id="IVUYeiy2RdxuRqCHPwPrny"></span>
+    </div>
+    <div class="shellwrap" data-page-node-id="WyCg3jiyRbnXHXsZ0AMT8P"><div class="shellfill" id="shellFill" style="width:100%" data-page-node-id="M0LEEsFsp1Glfe5fCUzIMn"></div></div>
+    <div class="note" id="shellHint" data-page-node-id="LSdy9fhV1CRs5Ah36ogATZ"></div>
+    <!-- 海底火山周期：内容由 ui/render.js 的 renderEnv 每帧填（随「历法」是否掌握整块换文案）。
+         ⚠️ 这个容器是每帧重画的，里面**不许放按钮**（见 renderEnv 的注释）。 -->
+    <div class="row envsplit" id="envVolcano" data-page-node-id="EnvVolcano01"></div>
+    <!-- 暖石开关（保温法的兑现物）：2026-09-27 用户要求从「巢穴」页搬到这一卡，
+         因为它是**看天候才有用**的动作（只在寒流季烧），摆在建造成群里没人会想到去翻。
+         ⚠️ 它同样是每帧刷新的容器，但**不是每帧重建 DOM** —— renderWarm 只在
+            状态签名（开/关 × 寒流季/非 × 烧/不烧）变化时才重写 innerHTML，
+            库存数字走 textContent 单独刷。否则「按下与抬起之间元素被换掉」的那次点击会丢。 -->
+    <div class="row envsplit" id="envWarm" data-page-node-id="EnvWarm01"></div>
+  </div>
+  </div>
+
+  <!-- 2026-10-05 系统指引：每个页签旁挂一个「?」按钮，点击弹出该系统的介绍（intro-mask #introPop）。
+       ⚠️ 巢穴页签的 id 下移到内层 span：renderAll 用 villageTabName.textContent 写纪元名，
+          若 id 在 .tab 上会把「?」按钮一起清掉 —— 所以 id 只挂在 span 上。 -->
+  <div class="tabs" data-page-node-id="Iwq243yLf7atqw3YKGoPWL">
+    <div class="tab on" data-tab="village"><span id="villageTabName" data-page-node-id="BSR2cRGflazOwzxnhvPnJ3">巢穴</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('village')" title="这是什么？">?</button></div>
+    <div class="tab" data-tab="folk" data-page-node-id="S1PgmZRsoxXJOq6GZkGuGV"><span id="folkTabName">族民</span><i class="growbar" id="growbar" title=""></i><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('folk')" title="这是什么？">?</button></div>
+    <div class="tab locked" id="tab-tech" data-tab="tech" title="建成 5 座深海藻场后开启" data-page-node-id="rILZuBt5zAaFz2Kz16ijXA">科技<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('tech')" title="这是什么？">?</button></div>
+    <div class="tab locked" id="tab-civic" data-tab="civic" title="建成议事厅后开启" data-page-node-id="CivTab01CivicLocks">市政<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('civic')" title="这是什么？">?</button></div>
+    <!-- 信仰页签（2026-09-30 用户：「单独起一个信仰面板」）：与巢穴/科技/市政并列。
+         门 = 完成《神学》，与资源行 / 产出线同源（resUnlocked(s,'faith') ⇔ s.civics.theology）。 -->
+    <div class="tab locked" id="tab-faith" data-tab="faith" title="研究「神学」后开启" data-page-node-id="FaithTab01Faith">信仰<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('faith')" title="这是什么？">?</button></div>
+    <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-page-node-id="WrkTab01Workshop">工坊<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？">?</button></div>
+    <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-page-node-id="WdrTab01Wonder">奇观<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？">?</button></div>
+    <div class="tab locked" data-tab="dig" title="研究「天壳观测」后开启" data-page-node-id="nceC5is2qjcujupm14G1J0">剥壳工程<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('dig')" title="这是什么？">?</button></div>
+    <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl">轮回商店<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？">?</button></div>
+  </div>
+
+  <div class="card" id="pane-village" data-page-node-id="Fuoti5loQT1P876HC45wlI"></div>
+  <div class="card hidden" id="pane-folk" data-page-node-id="yEByXFxaxi1sTAKvW94q1J"></div>
+  <div class="card hidden" id="pane-tech" data-page-node-id="DpzQCGONsy3uHYX4tBbics"></div>
+  <div class="card hidden" id="pane-civic" data-page-node-id="PaneCivic001抽屉"></div>
+  <!-- 信仰页（2026-09-30）：静态标题 + 持久命名框 #religionBox + 可重写正文 #pane-faith-body。
+       ⚠️ 命名框必须留在持久节点（不进 2 秒刷新的正文），否则每敲一字丢焦点；
+          正文另放 body 容器，renderPanes 只写 body，不碰标题与命名框。 -->
+  <div class="card hidden" id="pane-faith" data-page-node-id="PaneFaith001Faith">
+    <div class="cardhd" data-fold="faith" style="--hc:#e691b0" title="点击折叠 / 展开"><span class="cv">▾</span>信仰</div>
+    <div class="card" id="religionBox" style="display:none" data-page-node-id="ReligionBox01"></div>
+    <div id="pane-faith-body"></div>
+  </div>
+  <div class="card hidden" id="pane-workshop" data-page-node-id="PaneWrk01Workshop"></div>
+  <div class="card hidden" id="pane-wonder" data-page-node-id="PaneWdr01Wonder"></div>
+  <div class="card hidden" id="pane-dig" data-page-node-id="En1N5HOL57AR32HOBpWmW4"></div>
+  <div class="card hidden" id="pane-meta" data-page-node-id="OsoF8zzJJXG46B5FmuHcwv"></div>
+
+  <div class="card" data-page-node-id="v486295fD7Ww5xIRjRWFIF">
+    <div class="foot" data-page-node-id="Mup8CMe6kDpRa78GiFXAQ6">
+      <span style="color:var(--dim);font-size:12px" data-page-node-id="ZVzwoY0IIRU3gKJFOmvhJ9">速度</span>
+      <button class="spd on" data-spd="1" data-page-node-id="4O1Jq8opVCNyUAXQGbsBGk">1×</button>
+      <button class="spd" data-spd="5" data-page-node-id="S4In78ez5Sl1ufg83psJZW">5×</button>
+      <button class="spd" data-spd="10" data-page-node-id="k10new0a1B2c">10×</button>
+      <button class="spd" data-spd="20" data-page-node-id="OhTKrV2yqDNOiBqpzO44Cz">20×</button>
+      <button class="btn" id="btnReset" data-page-node-id="RstBtn01Reset">重开本周目</button>
+      <button class="btn danger" id="btnWipe" data-page-node-id="WipeBtn01Danger">清空存档</button>
+      <span id="clock" style="margin-left:auto;color:var(--dim);font-size:12px" data-page-node-id="1A5pLAjiAdlCtbmGV6OJtE"></span>
+    </div>
+    <div class="foot" data-page-node-id="ZNV0CXzr3oW6dMIZCrEVYF">
+      <button class="big" id="btnBreak" disabled data-page-node-id="sc3WiBhKuDYmDEddAM85xY">凿穿冰壳</button>
+      <span id="breakHint" style="font-size:12px;color:var(--dim)" data-page-node-id="d8HcLfglHR68VzJOqVA6LG"></span>
+    </div>
+    <div class="log" id="log" data-page-node-id="IX7irOvtve8VlhblV4gx2P"></div>
+  </div>
+</div>
+
+<div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
+  <!-- 2026-10-05 系统指引弹窗：点页签旁的「?」打开；内容由 SB.ui.openIntro 从 INTRO 表填入 #introPop。
+       复用 body.modal-open 的「弹窗期间禁用 tab 交互」规则（见 main.css），避免背后切页。 -->
+  <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
+
+<!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
+<script src="src/config.js?v=123"></script>
+<script src="src/config-content.js?v=1"></script>
+<script src="src/config-buildings.js?v=1"></script>
+<!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
+     state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
+<script src="src/techs.js?v=103"></script>
+<script src="src/tech.js?v=99"></script>
+<!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
+     （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
+     但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
+<script src="src/civics-data.js?v=1"></script>
+<script src="src/civics.js?v=102"></script>
+<script src="src/state.js?v=109"></script>
+<script src="src/workshop.js?v=97"></script>
+<script src="src/wonder.js?v=96"></script>
+<script src="src/economy.js?v=125"></script>
+<!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
+     运行期才调用，加载顺序只需在 game.js 之前即可。 -->
+<script src="src/events.js?v=1"></script>
+<script src="src/autoplay.js?v=1"></script>
+<script src="src/shell.js?v=95"></script>
+<script src="src/habitat.js?v=99"></script>
+<script src="src/folk.js?v=97"></script>
+<script src="src/prestige.js?v=106"></script>
+<script src="src/ui/render.js?v=144"></script>
+<script src="src/game.js?v=108"></script>
+<script src="src/ui/input.js?v=107"></script>
+<script src="src/ui/theme.js?v=1"></script>
+<script src="src/ui/background.js?v=2"></script>
+<script src="src/main.js?v=95"></script>
+<script>
+window.addEventListener('load', function () {
+  setTimeout(function () {
+    try {
+      var S = SB.game.run();
+      S.techs.metalrefine = true; S.techs.industrialize = true;
+      S.lvl.workshop = 1; S.lvl.hydroturbine = 3; S.lvl.hydroshop = 2; S.lvl.hotforge = 1;
+      S.res.warmstone = 1e9;
+      SB.game.setTab('build'); SB.game.renderAll();
+      var out = {};
+      // 热液工坊控件
+      out.shopCtrl = (document.querySelectorAll('[data-shop-dec="1"],[data-shop-inc="1"]').length > 0);
+      out.shopTxt = (function(){ var b=document.querySelector('[data-shop-dec="1"]'); return b? b.parentElement.textContent.replace(/\s+/g,' ').trim():null; })();
+      // 热锻工厂所在区
+      var hf = document.querySelector('[data-build-info="hotforge"]');
+      var zone = hf? null: 'no-hotforge-btn';
+      if (hf){ var p=hf; while(p && !(p.classList&&p.classList.contains('bzone'))) p=p.parentElement; zone = p? p.getAttribute('data-zone'):'no-bzone-ancestor'; }
+      out.hotforgeZone = zone;
+      // 汽轮机控件仍在
+      out.turbCtrl = (document.querySelectorAll('[data-turbine-dec="1"]').length>0);
+      console.log('SHOPZONE ' + JSON.stringify(out));
+    } catch(e){ console.log('SHOPZONE_ERR ' + ((e&&e.stack)||e)); }
+  }, 1500);
+});
+</script>
+</body>
+</html>

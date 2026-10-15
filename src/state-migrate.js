@@ -1,0 +1,252 @@
+/* 天壳 / SHELLBREAK — 存档迁移。由 state.js 提供 freshRun 默认模板。 */
+(function (root) {
+  'use strict';
+  var SB = root.SB || (root.SB = {});
+  var migrations = SB.stateMigrations || (SB.stateMigrations = {});
+
+  /* 存档迁移：旧档缺新键（如 P1 新增的 weir/warmnest/ballast）时，
+   * undefined 会顺着 lvlSum / costOf 污染成 NaN——破壳系数、壳厚、建筑成本全灭，
+   * 玩家看到的是「NaN / 200000」和一排 NaN 价格。以 freshRun 为底逐键合并，
+   * 非有限数（含 JSON 里的 null）一律回默认值，未知顶层字段丢弃。
+   * 旧档永远能安全载入，新加字段不再需要玩家清档。 */
+  function migrateRun(raw, freshRun, emptyPerks) {
+    var base = freshRun(false);
+    if (!raw || typeof raw !== 'object') return base;
+    var out = {}, k;
+    for (k in base) out[k] = base[k];
+    for (k in raw) if (k in base) out[k] = raw[k];
+    if (raw.challenge && typeof raw.challenge === 'object' && SB.challenges && SB.challenges.byId(raw.challenge.id)) {
+      var challengeDef = SB.challenges.byId(raw.challenge.id);
+      out.challenge = { id: raw.challenge.id,
+        tier: Math.max(0, Math.min(challengeDef.tiers.length - 1, raw.challenge.tier | 0)) };
+    } else out.challenge = null;
+    var repairedResources = [];
+    function fixTable(obj, ref, repairKeys) {
+      var o = {}, key;
+      for (key in ref) {
+        var v = obj ? obj[key] : undefined;
+        if (repairKeys && obj && Object.prototype.hasOwnProperty.call(obj, key)
+            && !(typeof v === 'number' && isFinite(v))) repairKeys.push(key);
+        o[key] = (typeof v === 'number' && isFinite(v)) ? v : ref[key];
+      }
+      return o;
+    }
+    out.res = fixTable(raw.res, base.res, repairedResources);
+    /* 这是一次性诊断信息，不参与游戏数据，也不落盘。
+     * JSON.stringify(NaN) 会把 NaN 写成 null；读档保护只能把它回落到默认值 0，
+     * 但玩家需要知道这是旧档损坏的结果，而不是资源产出逻辑主动清零。 */
+    Object.defineProperty(out, '_repairedResources', {
+      value: repairedResources,
+      enumerable: false,
+      configurable: true
+    });
+    out.lvl = fixTable(raw.lvl, base.lvl);
+    /* 热泉炉「开几座」迁移（2026-09-30）：旧档只有布尔 `furnaceOn`（见 freshRun 那条注）。
+     *   false ⇒ 全部停（停用数 = 当前等级）；true / 缺键 ⇒ 全开（0）。
+     *   再夹到 [0, lv]：存了一个比等级还大的停用数时，运行座数会算成负数。
+     *   ⚠️ 必须在 fixTable(raw.lvl) 之后——判据要用到迁移后的等级。 */
+    if (raw.furnaceOn === false) out.furnaceStop = out.lvl.furnace || 0;
+    if (!(typeof out.furnaceStop === 'number' && isFinite(out.furnaceStop))) out.furnaceStop = 0;
+    out.furnaceStop = Math.max(0, Math.min(Math.floor(out.furnaceStop), out.lvl.furnace || 0));
+    /* 热液汽轮机「开几座」迁移（2026-10-07）：与 furnaceStop 同口径——无旧档布尔，仅夹到 [0, lv]
+     *   防存档里写入非法的超大停用数（运行座数会算成负数）。必须在 fixTable(raw.lvl) 之后。 */
+    if (!(typeof out.turbineStop === 'number' && isFinite(out.turbineStop))) out.turbineStop = 0;
+    out.turbineStop = Math.max(0, Math.min(Math.floor(out.turbineStop), out.lvl.hydroturbine || 0));
+    /* 热液工坊「开几座」迁移（2026-10-07）：与 turbineStop 同口径——无旧档布尔，仅夹到 [0, lv]。 */
+    if (!(typeof out.hydroshopStop === 'number' && isFinite(out.hydroshopStop))) out.hydroshopStop = 0;
+    out.hydroshopStop = Math.max(0, Math.min(Math.floor(out.hydroshopStop), out.lvl.hydroshop || 0));
+    /* ⚠️ 城堡「真升级」老档迁移（2026-10-06）。
+     *   背景：`castle` 建筑是 2026-09-30 起的误读实装（把「由议事厅升级而来」做成
+     *   need:'hall' 前置 + 一座**独立**建筑），已于本轮从 BUILDINGS 删除。删掉之后
+     *   `fixTable(raw.lvl, base.lvl)` 会**静默丢掉**存档里的 `lvl.castle`
+     *   ——玩家在那座误造建筑上花掉的石头/珊瑚买来的等级会凭空消失。
+     *   所以这里先把它并回 `lvl.hall`（城堡本就是议事厅的升级形态，等级理应归它）。
+     *   ⚠️ 幂等：读一次之后存档里 castle=0，重复读档不会二次相加。 */
+    var _legacyCastle = (raw.lvl && typeof raw.lvl.castle === 'number' && isFinite(raw.lvl.castle))
+      ? Math.max(0, Math.floor(raw.lvl.castle)) : 0;
+    if (_legacyCastle > 0) {
+      out.lvl.hall = (out.lvl.hall || 0) + _legacyCastle;
+      out.lvl.castle = 0;
+    }
+    out.jobs = fixTable(raw.jobs, base.jobs);
+    /* ⚠️ 职业总和必须 ≤ pop（folk 的恒等式）。2026-09-30 之前 `merchant` 漏在 folk.IDS 之外，
+     *    商人不计入 sum ⇒ 可以被**无限雇**，被污染的档里 jobs 总和会远超 pop
+     *    （玩家实测：族民 34、上限 35，却挂着 100 名商人）。folk.IDS 已改为从 JOBS 派生，
+     *    这里负责把**已经污染的老档**收回来，否则 UI 会打出「闲置 −99」这种自相矛盾的读数。
+     * 回收顺序 = **从尾部职业往前**（越新的职业越是超额来源，且商人在贸易落地前近乎无用）——
+     *    这样保住采集者/农民这些人命关天的老职业，而不是照 reconcile「从最大的退」把农民一起切掉。 */
+    var _jids = (SB.JOBS || []).map(function (j) { return j.id; });
+    var _jsum = 0, _ji;
+    for (_ji = 0; _ji < _jids.length; _ji++) _jsum += (out.jobs[_jids[_ji]] || 0);
+    var _jover = _jsum - out.pop;
+    for (_ji = _jids.length - 1; _ji >= 0 && _jover > 0; _ji--) {
+      var _jid = _jids[_ji], _jv = out.jobs[_jid] || 0;
+      var _jcut = Math.min(_jv, _jover);
+      out.jobs[_jid] = _jv - _jcut; _jover -= _jcut;
+    }
+    /* 市政台账加固。⚠️ 这里**不能**用上面的 fixTable：那是按 `ref` 的键遍历的，
+     *    而 base.civics 是空表 `{}` ⇒ 遍历出空对象 ⇒ **所有已完成的市政被清空**，
+     *    症状是「刷新之后市政树重置了，政体却还在」（政体/政策卡是标量、走的是
+     *    上面 173-174 行的直接拷贝，只有这张表整张没了）。2026-09-27 实证复现。
+     *   ⇒ 正确做法 = 按**数据定义**（SB.CIVICS）逐个 id 取，缺的补 false。
+     *   ⚠️ 顺带兜住「存档里有、数据里已删」的 id：它照原样留下，而不是被静默丢弃
+     *    ——那种 id 只影响一次读档，丢掉它换不回任何好处，反而让「存档凭空少东西」。 */
+    out.civics = {};
+    var rawCivics = (raw.civics && typeof raw.civics === 'object') ? raw.civics : {};
+    if (SB.CIVICS && typeof SB.CIVICS.forEach === 'function') {
+      /* ⚠️ 值统一归一成布尔：`!!`（且只认**真值**）。
+       *    早期 civics.research 写的是 `1`，而这里是 `true` —— 同一个存档里两种值都可能
+       *    存在（`if (s.civics[id])` 都算已完，但 `=== 1` / `=== true` 这种逐个比对就会
+       *    一半错一半对）。归一之后读回的值域只有一种，别处不必猜。 */
+      SB.CIVICS.forEach(function (c) { out.civics[c.id] = !!rawCivics[c.id]; });
+    } else {
+      out.civics = Object.assign({}, rawCivics);
+    }
+    for (k in rawCivics) if (!(k in out.civics)) out.civics[k] = !!rawCivics[k];
+    /* 奇观买断表加固，口径与上面 civics 那条同源：
+     *   ⚠️ 不能用 fixTable(raw.wonders, base.wonders) —— base.wonders 是空表 `{}`，
+     *      按 ref 遍历会得出空对象，**所有已建成的奇观被清空**。
+     *   按数据定义 SB.WONDERS 逐个 id 取，缺的补 false；存档里多出来的（数据已删的）原样保留。 */
+    out.wonders = {};
+    var rawWonders = (raw.wonders && typeof raw.wonders === 'object') ? raw.wonders : {};
+    var _WL = (SB.WONDERS && SB.WONDERS.length) || [];
+    for (var _wi = 0; _wi < _WL; _wi++) out.wonders[SB.WONDERS[_wi].id] = !!rawWonders[SB.WONDERS[_wi].id];
+    for (k in rawWonders) if (!(k in out.wonders)) out.wonders[k] = !!rawWonders[k];
+    /* 工艺升级项买断表（2026-09-28），与上面 wonders 同口径：
+     *   ⚠️ 老档根本没有这个键 —— 但这里不必按 SB.UPGRADES 逐个 id 取（upgrades 只装
+     *      「已装」而不表达顺序，且按数据定义逐个取也 OK）：上面那段 `for (k in base)` 的
+     *      拷贝已经把 freshRun 的 `{}` 带了过来，缺键的存档落在这里 ⇒ 按没装处理。
+     *      需要防御的是另一头：存档里若带了**非对象**的值（旧版本或手工改档），
+     *      `s.upgrades[id]` 会读出字符串/数字 ⇒ capOf 里 `matCap * capMul` 变 NaN
+     *      ⇒ 整条资源线容量 NaN ⇒ 玩家什么都攒不了。所以非对象一律退回空表。 */
+    out.upgrades = (raw.upgrades && typeof raw.upgrades === 'object')
+      ? Object.assign({}, raw.upgrades) : (out.upgrades || {});
+    /* 工坊自动制作槽（2026-10-07）：数组逐槽，元素是 null 或 `{id, pct}`。
+     *   老档没有这个键 ⇒ freshRun 的 `[]` 已由上面 `for (k in base)` 带过来，不必补默认值；
+     *   要防的是另一头：存档里塞了**非数组**或被手改成怪值 ⇒ workshop.autoTick 遍历它时
+     *   读 `.pct` 得 undefined ⇒ 不报错、只是那个槽永远不造（又一条静默断链）。
+     *   ⇒ 非数组一律退回空表；元素逐个校验：id 必须是 CRAFTS 里真有的配方、
+     *     pct 必须是 SB.CFG.AUTO.PCTS 里的档位，否则该槽作废（宁可空着也别造出怪东西）。 */
+    out.autoSlots = [];
+    var _rawSlots = Array.isArray(raw.autoSlots) ? raw.autoSlots : null;
+    if (_rawSlots) {
+      var _CL = SB.CRAFTS || [], _PL = (SB.CFG && SB.CFG.AUTO && SB.CFG.AUTO.PCTS) || [0.25, 0.5, 0.75, 1];
+      for (var _ai = 0; _ai < _rawSlots.length; _ai++) {
+        var _sl = _rawSlots[_ai];
+        if (!_sl || typeof _sl !== 'object') continue;
+        var _hit = false, _pi;
+        for (_pi = 0; _pi < _CL.length; _pi++) if (_CL[_pi].id === _sl.id) _hit = true;
+        if (!_hit) continue;
+        var _pOk = false;
+        for (_pi = 0; _pi < _PL.length; _pi++) if (_PL[_pi] === _sl.pct) _pOk = true;
+        if (!_pOk) continue;
+        out.autoSlots.push({ id: _sl.id, pct: _sl.pct });
+      }
+    }
+    out.perk = Object.assign(emptyPerks(), (raw.perk && typeof raw.perk === 'object') ? raw.perk : {});
+    /* 老档科技名 → 新树 id。2026-09-25 之前只有 8 项平铺科技（calendar/heat/bonework/
+     * smelt/pick/ignition/dive/siegeT），不做映射的话玩家研究过的科技会凭空消失、
+     * 破壳系数凭空掉一截，看起来像「存档坏了」。映射完再按新树过滤一遍：
+     * 指向新树里不存在的 id 直接丢弃，不把垃圾带进运行状态。 */
+    out.techs = {};
+    var rawTechs = (raw.techs && typeof raw.techs === 'object') ? raw.techs : {};
+    var legacy = SB.LEGACY_MAP || {};
+    for (k in rawTechs) {
+      if (!rawTechs[k]) continue;
+      var nid = legacy[k] || k;
+      if (SB.TECHS) {
+        var hit = false;
+        for (var ti = 0; ti < SB.TECHS.length; ti++) if (SB.TECHS[ti].id === nid) hit = true;
+        if (!hit) continue;
+      }
+      out.techs[nid] = true;
+    }
+    out.techVer = (out.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约（迁移写入 s.techs 后失效旧缓存）
+    /* 政策卡槽升维（2026-09-29）：s.card 单值 → s.cards 数组。
+     * ⚠️ 老档只有 `card`（单值）⇒ 迁成 `cards: [card]`（装在第 0 号槽）。
+     *    新档直接有 `cards` ⇒ 原样保留。两者都没有 ⇒ 空数组。
+     *    s.card 保留为第 0 号槽镜像（与 freshRun 默认一致），方便旧代码读。 */
+    if (Array.isArray(raw.cards)) out.cards = raw.cards.map(function (x) { return x || null; });
+    else if (raw.card) out.cards = [raw.card];
+    else out.cards = [];
+    out.card = out.cards[0] || null;
+    /* 宗教名（2026-09-29）：老档没有这个字段 ⇒ 迁成 ''（未命名）。新档原样保留。 */
+    out.religionName = (typeof raw.religionName === 'string') ? raw.religionName : '';
+    /* 老档没有「科技面板开门」这个机制，玩家的科技页一直是开着的。
+     * 于是这里直接记账为「弹窗已播」，不回去播一次结绳叙事——
+     * 那句话的语境是「第一次知道有今天和明天」，对玩了几小时的老档是废话。
+     * ⚠️ 面板开不开仍然由 tech.panelOpen 派生（读结绳的 cond），这里不存那个状态。 */
+    out.techPopup = true;
+    /* 其余页签的叙事弹窗也是新加的：老档若已经跨过对应门槛，就视为已经见过，
+     * 不把一段「首次发现」的文案倒灌给已经玩过的存档。新档 / 新代码产生的字段
+     * 已经在 base 里存在，只有字段缺失时才走这里的兼容判定。 */
+    if (!Object.prototype.hasOwnProperty.call(raw, 'civicPopup'))
+      out.civicPopup = !!(raw.lvl && raw.lvl.hall > 0);
+    if (!Object.prototype.hasOwnProperty.call(raw, 'faithPopup'))
+      out.faithPopup = !!(raw.civics && raw.civics.theology);
+    if (!Object.prototype.hasOwnProperty.call(raw, 'workshopPopup'))
+      out.workshopPopup = !!(raw.lvl && raw.lvl.workshop > 0);
+    if (!Object.prototype.hasOwnProperty.call(raw, 'wonderPopup'))
+      out.wonderPopup = !!(raw.techs && raw.techs.masonry);
+
+    out.era = (typeof raw.era === 'number' && isFinite(raw.era))
+      ? Math.max(1, Math.min(5, Math.floor(raw.era))) : 1;
+    /* ⚠️ 尤里卡一律重来：老档根本没有这个字段，而它记录的是「这些条件当时达成了」。
+     * 保留一个空壳会让 UI 声称「已揭示」却没揭示。下一 tick 的 discover() 会
+     * 按当前真实状态补上，玩家看到的是同一批条件被重新点亮一次。 */
+    out.eureka = {};
+    /* 达成台账只做类型收口，**不按 eureka 回填**：老档的 eureka 是被 revealEra 整批
+     * 刷真的，拿它当「达成过」正是用户指出的那个 bug（条件 0/60、内容却亮着）。
+     * 留空之后由 discover() 按真实条件补记，补不上的就该是「未揭露」。 */
+    out.eurekaMet = (raw.eurekaMet && typeof raw.eurekaMet === 'object') ? raw.eurekaMet : {};
+    /* 补揭示当前纪元。eureka 被清空重来是刻意的（见上面那段注释），
+     * 但清空之后若不让当前纪元的节点转可见，回到纪元三的存档打开面板就是一页问号，
+     * 玩家会以为存档把科技吃了。条件已达成的不受影响——下一点滴的 discover() 会照常处理。 */
+    if (SB.tech && SB.tech.revealEra) SB.tech.revealEra(out, out.era, true);
+    out.got = {};
+    for (var gk in base.got) {
+      out.got[gk] = (raw.got && typeof raw.got[gk] === 'number' && isFinite(raw.got[gk]))
+        ? raw.got[gk] : 0;
+    }
+
+    /* seen 只收建筑表里真实存在的 id，且值必须是真值——存档手改也进不了坏状态。 */
+    out.seen = {};
+    for (var si = 0; si < SB.BUILDINGS.length; si++) {
+      var bid = SB.BUILDINGS[si].id;
+      if (raw.seen && raw.seen[bid]) out.seen[bid] = 1;
+    }
+    var nums = ['t', 'wallT', 'shell', 'iceShell', 'baseShell', 'pop', 'peak', 'coldTicks',
+      'deaths', 'frostDeaths', 'famineDeaths', 'famine', 'happy'];
+    for (var i = 0; i < nums.length; i++) {
+      var v2 = out[nums[i]];
+      if (typeof v2 !== 'number' || !isFinite(v2)) out[nums[i]] = base[nums[i]];
+    }
+
+    /* ⚠️⚠️ 壳厚版本迁移（2026-10-07 用户把 ICE_SHELL 从 100000 拍到 500000 时补上）
+     * 【为什么必须在这里补，否则改壳厚等于只对新人生效】
+     *   上面那段 nums 循环只校验「是不是数字」，**不重算**。而 `game.resumeRun(saved)`
+     *   是**无条件拿存档当本局**的 —— 于是任何改配置前创建的存档，会永远跑在旧厚度上
+     *   （实测：CFG 已是 500000，但老档 run() 读出来仍是 iceShell=100000 / shell=25000，
+     *   上屏显示「25000 / 100000（25.0%）」，看起来像改动没生效）。
+     * 【判据：用存档里的 baseShell 当版本戳】
+     *   baseShell 是「这局开始时的总厚」，不随破壳进度变化 ⇒ 它与当前 CFG.ICE_SHELL
+     *   不等，就说明这份存档是**另一个厚度版本**留下的。相等则原样放过（幂等，
+     *   反复迁移不会把壳越翻越厚）。
+     * 【等比重算，不是直接赋值】
+     *   直接赋 iceShell = 新值会把「已经凿到 25%」的进度重置成满壳 = 白送进度；
+     *   按 shell/iceShell 的比例缩放，玩家看到的剩余百分比不变，只是分母变大。
+     *   另有 perk.thin（冰壳永久削弱，每级 ×0.9）：它已经体现在存档的 iceShell 里，
+     *   所以按比例缩放天然继承，不重复乘。 */
+    var curBase = SB.CFG.ICE_SHELL;
+    if (typeof out.baseShell === 'number' && out.baseShell > 0 && out.baseShell !== curBase) {
+      var keepRatio = out.iceShell > 0 ? out.shell / out.iceShell : 1;
+      if (!(keepRatio >= 0 && keepRatio <= 1)) keepRatio = 1;   // 存档被手改成越界值时按满壳处理
+      out.iceShell = Math.round(curBase * Math.pow(0.9, (out.perk && out.perk.thin) || 0));
+      out.baseShell = curBase;
+      out.shell = Math.round(out.iceShell * keepRatio);
+    }
+    return out;
+  }
+
+  migrations.migrateRun = migrateRun;
+})(typeof window !== 'undefined' ? window : globalThis);

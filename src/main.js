@@ -6,6 +6,7 @@
   var SB = root.SB;
   function boot() {
     if (SB.ad && SB.ad.init) SB.ad.init();
+    if (SB.achv && SB.achv.init) SB.achv.init();
     SB.ui.input.boot();
     SB.game.boot();
     if (SB.ui.background && SB.ui.background.boot) SB.ui.background.boot();

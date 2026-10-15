@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>天壳之外 · 破壳动画 Demo</title>
+<style>
+  :root{color-scheme:dark;--ink:#eaf4fa;--muted:#a6bdc9;--cyan:#89e5ea;--gold:#f3d797}
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0,#17354b,#091522 65%);color:var(--ink);font-family:system-ui,"Microsoft YaHei",sans-serif}
+  .demo{width:min(1120px,100%)}.top{display:flex;justify-content:space-between;align-items:end;gap:18px;margin:0 2px 12px}.eyebrow{color:var(--cyan);font-size:10px;font-weight:800;letter-spacing:2px}.top h1{margin:2px 0 0;font-size:clamp(20px,3vw,28px);letter-spacing:.06em}.top p{margin:0 0 2px;color:var(--muted);font-size:12px;text-align:right}
+  .stage{position:relative;overflow:hidden;aspect-ratio:16/9;border:1px solid rgba(154,213,227,.3);border-radius:16px;background:#06111e;box-shadow:0 24px 80px #0009}.scene{position:absolute;inset:0;background:#071523}.scene img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 54%;opacity:0;transition:opacity 850ms ease}.stage[data-phase="intro"] .frame-intro,.stage[data-phase="impact"] .frame-impact,.stage[data-phase="gaze"] .frame-gaze,.stage[data-phase="ending"] .frame-ending{opacity:1}
+  .caption{position:absolute;z-index:2;left:clamp(16px,4vw,42px);right:clamp(16px,4vw,42px);bottom:clamp(20px,5vw,48px);pointer-events:none;text-shadow:0 2px 16px #000}.caption-text{max-width:72%}.caption small{display:block;margin-bottom:5px;color:var(--cyan);font-size:10px;letter-spacing:2px;font-weight:800}.caption h2{margin:0;font-size:clamp(21px,4vw,42px);line-height:1.1;letter-spacing:.06em}.caption p{margin:7px 0 0;color:#d4e4ee;font-size:clamp(10px,1.5vw,14px)}
+  .caption-text{display:none}.stage[data-phase="intro"] .cap-intro,.stage[data-phase="impact"] .cap-impact,.stage[data-phase="gaze"] .cap-gaze,.stage[data-phase="ending"] .cap-ending{display:block}
+  .hud{position:absolute;z-index:3;left:16px;right:16px;top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px}.phase-label{padding:6px 9px;border:1px solid #c6ebf330;border-radius:999px;background:#081522a8;color:#d7eaf2;font-size:10px}.phase-label b{color:var(--cyan);margin-right:4px}.counter{color:#d3e1e8;font-size:10px;text-shadow:0 1px 8px #000}
+  .end-card{position:absolute;z-index:3;right:clamp(16px,4vw,42px);top:clamp(16px,4vw,38px);padding:11px 14px;border:1px solid #d8efff50;border-radius:10px;background:#071321a8;opacity:0;transition:opacity .5s}.stage[data-phase="ending"] .end-card{opacity:1}.end-card small{color:#b9d6e5;font-size:9px;letter-spacing:1px}.end-card strong{display:block;margin-top:2px;color:#fff0c7;font-size:15px}
+  .controls{display:flex;align-items:center;gap:8px;margin-top:12px}.controls button{min-height:38px;padding:8px 14px;border:1px solid #86cdd34d;border-radius:9px;background:#122b3d;color:#dff7f8;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.controls button:hover{border-color:#8be6ec;background:#193b50}.controls .primary{border-color:#8de1e4;background:linear-gradient(135deg,#28616b,#254b62);color:#fff}.hint{margin-left:auto;color:#8fa8b6;font-size:10px}
+  @media(max-width:650px){body{padding:12px}.top{align-items:start;flex-direction:column;gap:4px}.top p{text-align:left}.stage{aspect-ratio:4/3;border-radius:12px}.caption-text{max-width:84%}.end-card{right:12px;top:48px;padding:8px 10px}.end-card strong{font-size:12px}.hint{display:none}}
+  @media(prefers-reduced-motion:reduce){.scene img,.end-card{transition:none}}
+</style>
+</head>
+<body>
+<main class="demo">
+  <header class="top"><div><div class="eyebrow">SHELLBREAK · STORYBOARD 01</div><h1>天穹钻机 · 凿穿天壳</h1></div><p>连续分镜图草案｜每个阶段都是完整画面</p></header>
+  <section class="stage" id="stage" data-phase="intro" aria-label="天穹钻机击穿天壳动画演示">
+    <div class="scene">
+      <img class="frame-intro" src="assets/backgrounds/sequence/era-5/frame-01.webp" alt="天穹钻机蓄力，准备冲击天壳">
+      <img class="frame-impact" src="assets/backgrounds/sequence/era-5/frame-02.webp" alt="钻机击中天壳，裂纹与碎冰都在画面中">
+      <img class="frame-gaze" src="assets/backgrounds/sequence/era-5/frame-03.webp" alt="鲛人游近钻机，仰望裂开的天壳">
+      <img class="frame-ending" src="assets/backgrounds/breakthrough/end-stars-draft-low.jpg" alt="天壳打开，钻机和鲛人共同仰望星空">
+    </div>
+    <div class="hud"><div class="phase-label"><b>✦</b><span id="phaseName">钻机蓄力</span></div><div class="counter" id="counter">01 / 04</div></div>
+    <div class="caption">
+      <div class="caption-text cap-intro"><small>终章 · 天穹钻机</small><h2>共振，启动。</h2><p>整座海底城市，为这一击积蓄力量。</p></div>
+      <div class="caption-text cap-impact"><small>突破临界点</small><h2>钻头触壳。</h2><p>共振沿冰层蔓延，第一道裂纹亮起。</p></div>
+      <div class="caption-text cap-gaze"><small>天壳崩解 · 鲛人仰望</small><h2>裂痕，扩散。</h2><p>鲛人游向钻机，望向逐渐打开的天穹。</p></div>
+      <div class="caption-text cap-ending"><small>文明的新纪元</small><h2>天壳之外。</h2><p>曾经仰望的边界，如今已在身后。</p></div>
+    </div>
+    <div class="end-card"><small>阶段完成</small><strong>破壳纪 · 仰望群星</strong></div>
+  </section>
+  <div class="controls"><button class="primary" id="replay" type="button">↻ 重播分镜</button><button id="skip" type="button">跳到结尾</button><span class="hint">约 6 秒｜画面切换，无叠加特效</span></div>
+</main>
+<script>
+  (function(){
+    var stage=document.getElementById('stage'),label=document.getElementById('phaseName'),counter=document.getElementById('counter');
+    var timers=[],steps=[['intro','钻机蓄力','01 / 04',0],['impact','钻头触壳','02 / 04',1500],['gaze','鲛人仰望','03 / 04',3200],['ending','阶段完成','04 / 04',4900]];
+    function clear(){timers.forEach(clearTimeout);timers=[]}
+    function setStep(step){stage.dataset.phase=step[0];label.textContent=step[1];counter.textContent=step[2]}
+    function play(){clear();setStep(steps[0]);steps.slice(1).forEach(function(step){timers.push(setTimeout(function(){setStep(step)},step[3]))})}
+    document.getElementById('replay').addEventListener('click',play);
+    document.getElementById('skip').addEventListener('click',function(){clear();setStep(steps[4])});
+    play();
+  })();
+</script>
+</body>
+</html>
