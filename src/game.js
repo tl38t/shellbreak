@@ -81,6 +81,38 @@
     log('2× 加速已' + (S.ad.on ? '开启' : '关闭') + (S.ad.ms > 0 ? '（剩余 ' + fmtDur(S.ad.ms / 1000) + '）' : '（无剩余时间）') + '。');
   }
 
+  /* 「看广告 +1 轮回点」用的本地日期键（YYYY-M-D），跨天自动重置当日计数。 */
+  function todayKey() {
+    var d = new Date();
+    return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  }
+  /* 取当日已看计数（跨天 / 旧档无键 ⇒ 重置）。直接复用 meta.adRebirth（跨周目保留，只按日期归零）。 */
+  function adRebirthState(m) {
+    var st = (m && m.adRebirth) || {};
+    if (!st || typeof st !== 'object' || st.date !== todayKey()) st = { date: todayKey(), count: 0 };
+    if (typeof st.count !== 'number' || st.count < 0) st.count = 0;
+    return st;
+  }
+  /* 看完「+1 轮回点」广告发奖：meta.tide +1，且当日次数 +1 并落盘；达每日上限则拒发。
+   * 与 grantAdBoost 同口径——只有 SB.ad.show 判定「看完」才调用，不看白送。
+   * 每日上限 AD.REBIRTH_DAILY_MAX（10），按本地日期滑动窗口重置，不随倍速/离线变化。 */
+  function grantRebirthAd() {
+    if (!S) return false;
+    var m = state();
+    if (!m) return false;
+    var max = (SB.CFG && SB.CFG.AD && SB.CFG.AD.REBIRTH_DAILY_MAX) || 10;
+    var st = adRebirthState(m);
+    if (st.count >= max) { log('今日「看广告 +1 轮回点」已看满 ' + max + ' 次，明天再来。'); return false; }
+    st.count += 1;
+    st.date = todayKey();
+    m.adRebirth = st;
+    m.tide = (m.tide || 0) + 1;          // 累计轮回点 +1（与破壳/挑战同账本，跨周目保留）
+    SB.state.saveMeta(m);
+    dirty = true; renderAll();
+    log('看广告获得 1 轮回点（今日第 ' + st.count + '/' + max + ' 次，累计 ' + m.tide + '）。');
+    return true;
+  }
+
   function log(msg) {
     logLines.push('· ' + msg);
     if (logLines.length > LOG_MAX) logLines.splice(0, logLines.length - LOG_MAX);
@@ -502,6 +534,10 @@
     if (w > (rankLast.wonder || 0)) entries.push({ key: 'wonder', value: w });
     var c = m.cycle || 0;
     if (c > (rankLast.cycle || 0)) entries.push({ key: 'cycle', value: c });
+    /* 最多轮回点：累计 = 当前余额 + 已花费（tide + spent），单调不减 ⇒ calcType:best 取历史最大。
+     * 入口 4→5 项仍 ≤ submitScores 单次 5 条上限（破壳上报走另一条 5 条专用路径）。 */
+    var td = Math.floor((m.tide || 0) + (m.spent || 0));
+    if (td > (rankLast.tide || 0)) entries.push({ key: 'tide', value: td });
     var star = Math.floor((S.res.starExplore || 0));
     if (star > (rankLast.star || 0)) entries.push({ key: 'star', value: star });
     if (!entries.length) return;
@@ -511,11 +547,13 @@
     });
   }
 
-  /* 破壳结算那一刻：一次性提交（fastest/dev/wonder/cycle/star 共 5 项，正好卡在 submitScores 的 5 条上限；star 不依赖 valid）。
+  /* 破壳结算那一刻：一次性提交（fastest/wonder/cycle/star/tide 共 5 项，正好卡在 submitScores 的 5 条上限）。
    * ⛔ 通关口径（用户 2026-10-07 拍板）：**只认「凿穿 + 已建神学」**。
    *   依据 prestige.qualified(s) = !!s.civics.theology —— 壳凿穿但没建神学的局
    *   r.locked=true、轮回点归 0，那种局不该出现在「最快通关」榜首。
-   *⚠️ 用 wallT 而非 s.t：s.t 是逻辑秒、吃倍速，广告 2× 会让时间腰斩。 */
+   *⚠️ 用 wallT 而非 s.t：s.t 是逻辑秒、吃倍速，广告 2× 会让时间腰斩。
+   *⚠️ dev（综合发展分）从本路径移除、改走 submitRankPeriodic（同样单调不减、5 分钟节流），
+   *   把第 5 个配额让给 tide（最多轮回点），使破壳即时上榜。 */
   function submitRankOnBreak(s, report) {
     if (!SB.rank || !report) return;
     var m = SB.game.meta ? SB.game.meta() : {};
@@ -523,12 +561,14 @@
     var entries = [];
     if (valid) {
       entries.push({ key: 'fastest', value: s.wallT });
-      entries.push({ key: 'dev', value: report.developmentScore });
     }
-    /* 这两个不依赖「有效通关」：建成即算，锁不锁都有意义。 */
+    /* 这三个不依赖「有效通关」：建成即算，锁不锁都有意义。 */
     entries.push({ key: 'wonder', value: countWonders(s) });
     entries.push({ key: 'cycle', value: (m.cycle || 0) + 1 });
     entries.push({ key: 'star', value: s.res.starExplore });   // 星空探索峰值（破壳时该局已结束，取最终累计；calcType:best 自动取历史最大）
+    /* 最多轮回点：此时 meta.tide 已含本局所得（prestige.doBreak 先累加再调本函数），
+     * + 历史已花费 = 累计；calcType:best 取历史最大。占满第 5 条配额。 */
+    entries.push({ key: 'tide', value: Math.floor((m.tide || 0) + (m.spent || 0)) });
     /* 记入定期上报的去重表：破壳刚发过的高值，5 分钟后的定期拍就不会重发同值。 */
     for (var i = 0; i < entries.length; i++) rankLast[entries[i].key] = Math.floor(entries[i].value);
     SB.rank.submitRun(entries, function (done, sent) {
@@ -895,6 +935,14 @@
     };
     var btnAdTog = document.getElementById('btnAdToggle');
     if (btnAdTog) btnAdTog.onclick = function () { toggleAdBoost(); };
+    var btnAdRebirth = document.getElementById('btnAdRebirth');
+    if (btnAdRebirth) btnAdRebirth.onclick = function () {
+      if (!SB.ad || !SB.ad.available || !SB.ad.available()) { log('广告暂不可用。'); return; }
+      SB.ad.show(
+        function () { grantRebirthAd(); },
+        function (why) { log(why === 'unavailable' ? '广告暂不可用。' : '广告未看完，未发放轮回点。'); }
+      );
+    };
     var btnRank = document.getElementById('btnRank');
     if (btnRank) btnRank.onclick = function () {
       if (SB.ui && SB.ui.render && SB.ui.render.openRankChooser) SB.ui.render.openRankChooser();
@@ -916,6 +964,7 @@
   SB.game = {
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
     adMul: adMul, grantAdBoost: grantAdBoost, toggleAdBoost: toggleAdBoost,
+    grantRebirthAd: grantRebirthAd, adRebirthState: adRebirthState, todayKey: todayKey,
     startRun: startRun, nextCycle: nextCycle, stay: stay,
     resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave,
     /* 离线补算核心函数暴露为调试/测试入口（纯接口，逻辑仅在上面定义处）。

@@ -84,10 +84,11 @@ assert 'adtest\\b(?!=)' in abody, '包内 ad.js 的 devMode 判定被改宽了�
 # 排行榜 6 个 ID 必须已回填（2026-10-10 建 5 个 + 2026-10-13 加星空探索榜 ewv1...）
 # ⚠️ 同广告位坑：rank.js 无 ID 时不提交且入口隐藏 ⇒ 空串包 = 榜功能静默消失。
 LB_IDS = ('vl1ankteasrn2ba0g3', '2obin1zkh91ss7lyac', 'v6y5wvn3daf1a9i7es',
-          'ljn2b6ppris2alrlji', 'dhkg9zq7in4m37vpos', 'ewv1anvdnpxk28ruen')
+          'ljn2b6ppris2alrlji', 'dhkg9zq7in4m37vpos', 'ewv1anvdnpxk28ruen',
+          '8zfssfmdmc64u27iyx')
 missing = [i for i in LB_IDS if i not in body]
 assert not missing, f'包内 config.js 的 RANK.LB 缺榜 ID: {missing}，先同步源码'
-print('打包前置检查: OK (500000 + cache-buster + 无手动倍速 + 广告按钮 + 壳厚迁移 + 广告位1054324 + dev口收紧 + 排行榜6ID)')
+print('打包前置检查: OK (500000 + cache-buster + 无手动倍速 + 广告按钮 + 壳厚迁移 + 广告位1054324 + dev口收紧 + 排行榜7ID)')
 
 # ---------- 打包 ----------
 n = 0

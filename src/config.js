@@ -95,7 +95,8 @@
     SPACE_ID: '1054324',
     BOOST_MIN: 30,           // 每次看完加多少分钟
     BOOST_CAP_MIN: 360,      // 累计上限（6 小时），防一次刷满无限囤
-    MUL: 2                   // 加速倍率（在玩家所选档位上再乘）
+    MUL: 2,                  // 加速倍率（在玩家所选档位上再乘）
+    REBIRTH_DAILY_MAX: 10    // 「看广告 +1 轮回点」每日可看次数上限（本地日期跨天自动重置）
   },
 
   /* ---- 排行榜（2026-10-07）----
@@ -131,7 +132,8 @@
       dev: 'v6y5wvn3daf1a9i7es',        // 综合发展分     numeric / desc / best
       wonder: 'ljn2b6ppris2alrlji',     // 入藏奇观数     numeric / desc / best
       cycle: 'dhkg9zq7in4m37vpos',      // 轮回次数       numeric / desc / best
-      star: 'ewv1anvdnpxk28ruen'         // 最大星空探索   numeric / desc / best（TapTap 榜已建并发布：DB 8148 / 客户端 ID；回填于 2026-10-13）
+      star: 'ewv1anvdnpxk28ruen',        // 最大星空探索   numeric / desc / best（TapTap 榜已建并发布：DB 8148 / 客户端 ID；回填于 2026-10-13）
+      tide: '8zfssfmdmc64u27iyx'         // 最多轮回点     numeric / desc / best（累计 = meta.tide + meta.spent；TapTap 榜已建并发布：DB 8774 / 客户端 ID；回填于 2026-10-16）
     },
     /* 榜 -> 参数表。与 LB 平行维护，键必须对得上。 */
     MAP: {
@@ -140,7 +142,8 @@
       dev:      { title: '综合发展分',   scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
       wonder:   { title: '入藏奇观',scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
       cycle:    { title: '轮回次数',     scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
-      star:     { title: '最大星空探索', scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' }
+      star:     { title: '最大星空探索', scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
+      tide:     { title: '最多轮回点',   scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' }
     },
     /* 时间榜的显示单位（分数仍是整秒，这里只管 UI 上怎么写）。
      *⛔ 不做「毫秒榜」：score 必须是整数，秒以下精度平台存不了。 */

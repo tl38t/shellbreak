@@ -21,6 +21,10 @@
       religionSeen: false, shopUnlocked: false,
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
       challenges: { completed: { cold: false, small: false, science: 0, abyss: 0 } },
+      /* 「看广告 +1 轮回点」每日次数计数（跨周目保留，但按本地日期重置）。
+       * date 为本地日期串（YYYY-M-D），与 todayKey() 同源；跨天或旧档无此键 ⇒ 视为重置。
+       * count 为当日已看次数，达 AD.REBIRTH_DAILY_MAX（10）即封顶。 */
+      adRebirth: { date: '', count: 0 },
       /* 更新日志：上次看过弹窗的版本号。空串 = 从未看过 ⇒ 首次进入会弹。
        * 存 meta（跨周目保留），软重置不触发重复弹；清空存档会归零 ⇒ 重装后还会弹一次。 */
       seenVersion: '' };

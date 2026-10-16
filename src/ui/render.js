@@ -563,6 +563,18 @@
       tog.textContent = ad.ms > 0 ? ('2× 加速 ' + (ad.on ? '开' : '关')) : '2× 加速';
       tog.disabled = ad.ms <= 0;                  // 没余额时开关无意义（中性灰，不显示开/关）
     }
+    /* 「看广告 +1 轮回点」：按钮文案固定；副文本显示当日已看次数/上限；达上限禁用并提示。 */
+    var rb = el('btnAdRebirth'), rbRem = el('adRebirthRemain');
+    var max = (SB.CFG.AD ? SB.CFG.AD.REBIRTH_DAILY_MAX : 10) || 10;
+    var m = (SB.game && SB.game.meta) ? SB.game.meta() : {};
+    var st = (SB.game && SB.game.adRebirthState) ? SB.game.adRebirthState(m) : { count: 0 };
+    if (rb) {
+      rb.disabled = st.count >= max;
+      rb.textContent = '看广告 +1 轮回点';
+    }
+    if (rbRem) {
+      rbRem.textContent = (st.count >= max) ? ('今日已满 ' + max + '/10') : ('今日 ' + st.count + '/' + max);
+    }
   }
   /* 排行榜入口按钮的可见性（2026-10-10）：榜不可用（无 SDK / 无榜 ID）⇒ 隐藏，不留死按钮。 */
   function renderRank() {

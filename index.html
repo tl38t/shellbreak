@@ -132,6 +132,8 @@
         <button class="btn ad-watch" id="btnAd" data-page-node-id="AdWatch01" title="看一次广告：获得 30 分钟 2 倍速（墙钟真实时间计时，不受游戏内倍速影响）">看广告 +30min 2×</button>
         <button class="btn ad-toggle on" id="btnAdToggle" data-page-node-id="AdToggle01" title="开关 2× 加速（关着时剩余时间不流逝）">2× 加速 开</button>
         <span class="ad-remain" id="adRemain" data-page-node-id="AdRemain01">无加速</span>
+        <button class="btn ad-watch ad-rebirth" id="btnAdRebirth" data-page-node-id="AdRebirth01" title="看一次广告：获得 1 轮回点（每日最多 10 次）">看广告 +1 轮回点</button>
+        <span class="ad-remain" id="adRebirthRemain" data-page-node-id="AdRebirthRemain01">今日 0/10</span>
       </span>
       <button class="btn" id="btnRank" data-page-node-id="RankBtn01View" title="查看 TapTap 排行榜（最快凿穿冰壳 / 最快立教 / 综合发展分 / 入藏奇观数 / 轮回次数）">排行榜</button>
       <button class="btn" id="btnChangelog" data-page-node-id="ChgLog01View" title="查看游戏更新日志（本次及历史更新内容）">更新日志</button>
@@ -153,7 +155,7 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=158"></script>
+<script src="src/config.js?v=159"></script>
 <script src="src/config-catalog.js?v=1"></script>
 <script src="src/config-content.js?v=1"></script>
 <script src="src/config-buildings.js?v=1"></script>
@@ -203,8 +205,8 @@
 <script src="src/ui/render-pane-wonder.js?v=1"></script>
 <script src="src/ui/render-pane-workshop.js?v=1"></script>
 <script src="src/ui/render-environment.js?v=4"></script>
-<script src="src/ui/render.js?v=188"></script>
-<script src="src/game.js?v=126"></script>
+<script src="src/ui/render.js?v=189"></script>
+<script src="src/game.js?v=127"></script>
 <script src="src/ui/input.js?v=120"></script>
 <script src="src/ai-strategy.js?v=1"></script>
 <script src="src/ui/theme.js?v=1"></script>

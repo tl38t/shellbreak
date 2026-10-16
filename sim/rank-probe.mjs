@@ -70,7 +70,7 @@ check('① CFG.RANK.MAP 存在', !!(RANK && RANK.MAP));
 const VALID_TYPE = ['numeric', 'time'];
 const VALID_ORDER = ['desc', 'asc'];
 const VALID_CALC = ['sum', 'best', 'latest'];
-const EXPECT_KEYS = ['fastest', 'firstFaith', 'dev', 'wonder', 'cycle', 'star'];
+const EXPECT_KEYS = ['fastest', 'firstFaith', 'dev', 'wonder', 'cycle', 'star', 'tide'];
 for (const k of EXPECT_KEYS) {
   const m = RANK.MAP[k];
   check(`② MAP.${k} 存在`, !!m, JSON.stringify(m));
@@ -86,7 +86,7 @@ check('② firstFaith 是 time+asc', RANK.MAP.firstFaith.scoreType === 'time' &&
 for (const k of ['dev', 'wonder', 'cycle', 'star']) {
   check(`② ${k} 是 desc（累计榜高者在前）`, RANK.MAP[k].scoreOrder === 'desc');
 }
-check('② 共 6 个排行榜指标', EXPECT_KEYS.length === 6, String(EXPECT_KEYS.length));
+check('② 共 7 个排行榜指标', EXPECT_KEYS.length === 7, String(EXPECT_KEYS.length));
 
 // ---- ③ 榜 ID 全空 ⇒ 不提交、入口不显示（线上不能"假装成功"）----
 /* 2026-10-10 起生产 LB 已回填真 ID（后台建榜 + MCP 实读），未回填分支改由夹具复测：
@@ -99,17 +99,18 @@ const LB_TRUTH = {
   dev: 'v6y5wvn3daf1a9i7es',
   wonder: 'ljn2b6ppris2alrlji',
   cycle: 'dhkg9zq7in4m37vpos',
-  star: 'ewv1anvdnpxk28ruen'
+  star: 'ewv1anvdnpxk28ruen',
+  tide: '8zfssfmdmc64u27iyx'
 };
 check('③ 生产 ID 与平台实读逐字一致',
   EXPECT_KEYS.every(k => LB_PROD[k] === LB_TRUTH[k]),
   JSON.stringify(LB_PROD));
-check('③ 回填后 6 个 ID 均为非空串且够长',
+check('③ 回填后 7 个 ID 均为非空串且够长',
   EXPECT_KEYS.every(k => typeof LB_PROD[k] === 'string' && LB_PROD[k].length >= 16),
   JSON.stringify(LB_PROD));
 for (const k of EXPECT_KEYS) RANK.LB[k] = '';
 check('③ 无 ID 时 readyKeys 为空', SB.rank.readyKeys().length === 0, JSON.stringify(SB.rank.readyKeys()));
-check('③ 无 ID 时 missingKeys 列出全部 6 个', SB.rank.missingKeys().length === 6, JSON.stringify(SB.rank.missingKeys()));
+check('③ 无 ID 时 missingKeys 列出全部 7 个', SB.rank.missingKeys().length === 7, JSON.stringify(SB.rank.missingKeys()));
 check('③ 无 ID 时 available() = false', SB.rank.available() === false);
 submitted.length = 0;
 SB.rank.submitRun([{ key: 'fastest', value: 100 }, { key: 'dev', value: 5 }]);
@@ -122,7 +123,8 @@ RANK.LB.dev = 'lb_dev';
 RANK.LB.wonder = 'lb_wonder';
 RANK.LB.cycle = 'lb_cycle';
 RANK.LB.star = 'lb_star';
-check('④ 回填后 readyKeys = 6', SB.rank.readyKeys().length === 6);
+RANK.LB.tide = 'lb_tide';
+check('④ 回填后 readyKeys = 7', SB.rank.readyKeys().length === 7);
 check('④ 回填后 missingKeys 为空', SB.rank.missingKeys().length === 0);
 check('④ 回填后 available() = true', SB.rank.available() === true);
 
@@ -254,7 +256,7 @@ const perIdx = gameSrc.indexOf('function submitRankPeriodic');
 check('⑬ game.js 存在 submitRankPeriodic', perIdx >= 0);
 if (perIdx >= 0) {
   const perSrc = gameSrc.slice(perIdx, gameSrc.indexOf('}', gameSrc.indexOf('SB.rank.submitRun', perIdx)) + 1);
-  check('⑬ 定期路径含 dev/wonder/cycle/star 四键', ['dev', 'wonder', 'cycle', 'star'].every(k => perSrc.includes(`key: '${k}'`)));
+  check('⑬ 定期路径含 dev/wonder/cycle/star/tide 五键', ['dev', 'wonder', 'cycle', 'star', 'tide'].every(k => perSrc.includes(`key: '${k}'`)));
   check('⑬ 定期路径绝不报时间榜（fastest/firstFaith）',
     !/key:\s*'(fastest|firstFaith)'/.test(perSrc), perSrc.slice(0, 120));
   check('⑬ 定期上报有 available 守卫', /SB\.rank\.available && SB\.rank\.available\(\)/.test(perSrc));
