@@ -578,7 +578,12 @@
     s.res.science -= researchCost(s, t);
     s.techs[id] = true;
     s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
-    if (emit) emit('研究完成：' + t.name + '（' + effectText(t) + '）');
+    if (emit) {
+      var summary = effectText(t);
+      if (summary === '（无直接效果）') summary = t.effectDesc || '无直接数值加成';
+      if (t.unlockDesc) summary += '；' + t.unlockDesc;
+      emit('研究完成：' + t.name + '（' + summary + '）');
+    }
     return true;
   }
 
@@ -619,6 +624,7 @@
       if (k === 'unlockBuild') out.push('解锁建筑 ' + e[k].map(bName).join('、'));
       else if (k === 'unlockJob') out.push('解锁职业 ' + e[k].map(jobName).join('、'));
       else if (k === 'season') out.push('季节减产收窄 ' + Math.round(v * 100) + '%');
+      else if (k === 'craftRatio') out.push(nm + ' +' + (Math.round(v * 10000) / 100) + '%');
       else if (ADD[k]) out.push(nm + ' +' + v);
       else out.push(nm + ' ×' + (1 + v));
     }

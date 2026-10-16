@@ -66,6 +66,10 @@
       SB.ui.render.renderPanes();
       return;
     }
+    if (d.workshopTab !== undefined) {
+      SB.ui.render.openWorkshopFromInfo();
+      return;
+    }
     if (d.buildInfo) {
       SB.ui.render.showBuildingInfo(d.buildInfo);
       return;
@@ -336,16 +340,9 @@
       return;
     }
     if (d.job) {
-      /* 双击 ＋/− = 最大/最小（e.detail 是浏览器原生连击计数，单击=1、双击=2；
-       * 假 DOM / 探针合成的 click 事件没有 detail ⇒ undefined >= 2 为 false，不受影响）。
-       * 先单击的那一下已经 ±步长，随后 max/min 覆盖到端点，净效果仍=端点。 */
-      if (e.detail >= 2) {
-        if (+d.d > 0 ? SB.folk.assignMax(s, d.job) : SB.folk.assignMin(s, d.job)) {
-          SB.game.markDirty(); SB.game.renderAll();
-        }
-        SB.game.pumpTech(s, emit);
-        return;
-      }
+      /* 单击 ±步长（步长由 folk.assign 双向钳制：加钳到 idle、减钳到在岗数）。
+       * ⚠️ 2026-10-16 用户：删掉「双击 = 最大/最小」——太容易误触把整职业清零/塞满，
+       *   要大量加减用「×N」胶囊多按几次即可。 */
       if (SB.folk.assign(s, d.job, +d.d)) {
         SB.game.markDirty(); SB.game.renderAll();
       }
@@ -459,7 +456,7 @@
    * 关掉 ⇒ 星空槽暂停被动累积（文明推力不再往星空槽灌）；开着（默认）则持续累积到 STAR_CAP。
    * **只记账，不结算**——真正生效取决于下一 tick 的 shell.tickStar（与暖石开关同纪律）。 */
   function toggleStarScope(s) {
-    if (!s || !s.broken) return false;
+    if (!s || s.shell > 0 || !(s.broken || s.shellOpened || s.breakSettled)) return false;
     s.starScopeOn = (s.starScopeOn === false);   // undefined/true → false；false → true
     SB.game.markDirty(); SB.game.renderAll();
     SB.game.log(s.starScopeOn ? '星空观测站启用：星空槽恢复被动累积。' : '星空观测站已停用：星空槽暂停累积。');

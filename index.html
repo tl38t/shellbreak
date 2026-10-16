@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=147" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=148" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -98,6 +98,7 @@
     <div class="tab locked" id="tab-faith" data-tab="faith" title="研究「神学」后开启" data-page-node-id="FaithTab01Faith">信仰<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('faith')" title="这是什么？">?</button></div>
     <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-page-node-id="WrkTab01Workshop">工坊<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？">?</button></div>
     <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-page-node-id="WdrTab01Wonder">奇观<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？">?</button></div>
+    <div class="tab locked" id="tab-star-map" data-tab="star-map" title="凿穿天壳后开启">星图<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('star-map')" title="这是什么？">?</button></div>
     <!-- 公司页签（ERA6 市政《宏观经济学》解锁）：与科技/市政并列，门 = 拥有《宏观经济学》。 -->
     <div class="tab locked" id="tab-company" data-tab="company" title="研究「宏观经济学」后开启" data-page-node-id="CmpTab01Company">公司<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('company')" title="这是什么？">?</button></div>
     <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl">轮回商店<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？">?</button></div>
@@ -118,6 +119,7 @@
   </div>
   <div class="card hidden" id="pane-workshop" data-page-node-id="PaneWrk01Workshop"></div>
   <div class="card hidden" id="pane-wonder" data-page-node-id="PaneWdr01Wonder"></div>
+  <div class="card hidden" id="pane-star-map"></div>
   <!-- 公司页（ERA6 市政《宏观经济学》解锁）：静态标题 + 可重写正文 #pane-company-body（仿信仰页，避免 2 秒刷新冲掉标题）。 -->
   <div class="card hidden" id="pane-company" data-page-node-id="PaneCmp01Company">
     <div class="cardhd" data-fold="company" style="--hc:#6fa8dc" title="点击折叠 / 展开"><span class="cv">▾</span>公司</div>
@@ -172,12 +174,12 @@
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=4"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
-<script src="src/state-migrate.js?v=2"></script>
-<script src="src/state.js?v=124"></script>
+<script src="src/state-migrate.js?v=3"></script>
+<script src="src/state.js?v=125"></script>
 <script src="src/workshop.js?v=99"></script>
 <script src="src/wonder.js?v=100"></script>
 <script src="src/economy-social.js?v=2"></script>
-<script src="src/economy.js?v=150"></script>
+<script src="src/economy.js?v=151"></script>
 <script src="src/economy-rates.js?v=2"></script>
 <script src="src/economy-tick.js?v=2"></script>
 <script src="src/offline-scheduler.js?v=1"></script>
@@ -185,14 +187,14 @@
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=1"></script>
-<script src="src/shell.js?v=98"></script>
+<script src="src/shell.js?v=99"></script>
 <script src="src/habitat.js?v=103"></script>
 <script src="src/folk.js?v=100"></script>
-<script src="src/prestige.js?v=111"></script>
+<script src="src/prestige.js?v=112"></script>
 <script src="src/challenges.js?v=5"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=3"></script>
+<script src="src/ui/render-content.js?v=4"></script>
 <script src="src/ui/render-common.js?v=3"></script>
 <script src="src/ui/render-info.js?v=1"></script>
 <script src="src/ui/render-pane-research.js?v=1"></script>
@@ -203,11 +205,12 @@
 <script src="src/ui/render-pane-company.js?v=1"></script>
 <script src="src/ui/render-pane-faith.js?v=1"></script>
 <script src="src/ui/render-pane-wonder.js?v=1"></script>
+<script src="src/ui/render-pane-star-map.js?v=1"></script>
 <script src="src/ui/render-pane-workshop.js?v=1"></script>
-<script src="src/ui/render-environment.js?v=4"></script>
-<script src="src/ui/render.js?v=189"></script>
-<script src="src/game.js?v=127"></script>
-<script src="src/ui/input.js?v=120"></script>
+<script src="src/ui/render-environment.js?v=5"></script>
+<script src="src/ui/render.js?v=190"></script>
+<script src="src/game.js?v=128"></script>
+<script src="src/ui/input.js?v=121"></script>
 <script src="src/ai-strategy.js?v=1"></script>
 <script src="src/ui/theme.js?v=1"></script>
 <script src="src/ui/background.js?v=2"></script>

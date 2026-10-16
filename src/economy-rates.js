@@ -46,6 +46,10 @@
      *    这里取 warmBurningNow（纯查询、无副作用）算 relief，**不能调 warmRelief**
      *    （它有副作用：会烧石、会置 warmBurning ⇒ 渲染路径里调 = 玩家盯着面板就偷烧一 tick）。 */
     var relief = warmBurningNow(s) ? SB.CFG.WARM_RELIEF : 0;
+    /* ⚠️ 汽轮机暖石消耗（第三路）必须并进暖石净速率：否则面板上暖石一直是涨的，
+     *    实际库存却被汽轮机按「运行座数 × hydroWarm × warmEff」每秒烧掉 ——
+     *    正是用户报的「明明是正的却一直在消耗」。与 steelFlow 第 1003 行同源同式（dt=1）。 */
+    var _turL = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
     /* ⚠️ 一次算好热液能三个数（产钢 / 净消耗 / 总生产）：steelRate 内部会跑 hydroAlloc，
      *    在 return 里连写三次等于每秒多跑两遍流分配，而 rates() 本来就重。 */
     var _sr = steelRate(s);
@@ -100,7 +104,8 @@
                  * gatherMul(s) * toolMul(s, 'miner') * cold
                  * globalMul(s) * (1 + (Tr ? Tr.warmMul : 0)) * mineTaxMul(s)
                  * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)
-                 - (warmBurningNow(s) ? SB.CFG.WARM_RATE : 0) - fc * ((Tr ? Tr.bldEff : 1)) * warmEff(s),
+                 - (warmBurningNow(s) ? SB.CFG.WARM_RATE : 0) - fc * ((Tr ? Tr.bldEff : 1)) * warmEff(s)
+                 - _turL * SB.UNIT.hydroWarm * warmEff(s),
       /* ⚠️ `iron` 记的是**消耗掉的原料份数**，不是产出的精铁量 —— 沿用原有口径。
        *    铁是「一进一出」的中间资源，净额可能比看起来还负（这里没有把金属那一侧的
        *    消耗减掉，与改造之前一致）。改这一行前先读铁器产出那段的量纲注。 */

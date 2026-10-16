@@ -10,6 +10,13 @@ console.log('\n=== 市政 ===');
 {
   const noop = function () {};
 
+  const playerFacingIds = ['historiography', 'naturalhistory', 'macroeconomics', 'archaeology', 'civilization'];
+  const unclearDesc = playerFacingIds.map(id => SB.civic.byId(id)).filter(c =>
+    !c || /\b(?:game|workshop|prestige|economy)\.|\bcycle\b|ERA[1-6]|×\s*1\s*\+/i.test(c.desc)
+  ).map(c => c ? c.id : 'missing civic');
+  check('重点市政效果文案不暴露内部代码、原始公式或英文纪元缩写', unclearDesc.length === 0,
+    unclearDesc.join(','));
+
   // ① 面板开门就是议事厅：派生值，不存档
   const shut = SB.state.freshRun(false);
   check('未建议事厅 ⇒ 市政页不开', SB.civic.panelOpen(shut) === false);
@@ -1161,7 +1168,7 @@ console.log('\n=== 市政 ===');
 
     /* 破壳后、无升级：freshRun 上 breakCoef=0 ⇒ starRate = STAR_BASE×0 + 0 = 0 ⇒ 不累积。 */
     const brk = SB.state.freshRun(false);
-    brk.broken = true; brk.starScopeOn = true;
+    brk.broken = true; brk.shell = 0; brk.starScopeOn = true;
     const r0 = SB.economy.starRate(brk);
     check('星空槽：破壳后无升级 ⇒ starRate≥0（freshRun 下 coef=0 ⇒ 0/s）', r0 >= 0, 'r0=' + r0);
 
@@ -1182,10 +1189,13 @@ console.log('\n=== 市政 ===');
     const before2 = brk.res.starExplore || 0;
     SB.shell.tickStar(brk, 10, null);
     check('星空槽：暂停（starScopeOn=false）⇒ tickStar 不累积', (brk.res.starExplore || 0) === before2);
+    brk.broken = false; brk.breakSettled = true; brk.starScopeOn = true;
+    SB.shell.tickStar(brk, 10, null);
+    check('星空槽：破壳后留在本局仍继续累积', brk.res.starExplore > before2);
 
     /* 满槽 ⇒ 置 starComplete + 触发结算回调（与 showStarComplete 挂钩），且 cap 不溢出。 */
     const full = SB.state.freshRun(false);
-    full.broken = true; full.starScopeOn = true; full.upgrades.upg_starscope = true;
+    full.broken = true; full.shell = 0; full.starScopeOn = true; full.upgrades.upg_starscope = true;
     full.res.starExplore = SB.CFG.STAR_CAP - 0.5;   // 差一点满
     let shown = false;
     SB.shell.tickStar(full, 10, function () { shown = true; });
@@ -1212,15 +1222,31 @@ console.log('\n=== 市政 ===');
 
     /* 渲染层：破壳后 renderShell 把 shellbar 翻转为星空槽文案（含 STAR_CAP 目标）。 */
     const loop = SB.game.run();            // 直接 mutate 当前 live run（与 cpRun 同手法）
-    loop.broken = true; loop.starScopeOn = true; loop.upgrades.upg_starscope = true;
+    const oldShell = loop.shell;
+    loop.broken = true; loop.shell = 0; loop.starScopeOn = true; loop.upgrades.upg_starscope = true;
     SB.ui.render.renderShell();
     var shellTxt = (doc.getElementById('shellTxt') || {})._html || '';
     check('星空槽：破壳后 renderShell 显示星空槽进度（含 STAR_CAP 目标数值）',
       shellTxt.indexOf('星空槽') >= 0 && shellTxt.indexOf('10,000,000') >= 0, 'snip=' + shellTxt.slice(0, 80));
 
     /* 还原 live run，避免污染后续测试。 */
-    loop.broken = false; loop.starScopeOn = true; loop.upgrades.upg_starscope = false;
+    loop.broken = false; loop.shell = oldShell; loop.starScopeOn = true; loop.upgrades.upg_starscope = false;
     loop.res.starExplore = 0; loop.starComplete = false;
+
+    const emptyRun = SB.state.freshRun(false);
+    check('星图：新周目锁定且发射记录为空', !emptyRun.breakSettled && emptyRun.spacecraft.length === 0);
+    const savedCraft = loop.spacecraft;
+    const settled = loop.breakSettled;
+    loop.shell = 0; loop.breakSettled = true;
+    loop.spacecraft = [{ id: 'europa-1', type: 'satellite', body: 'europa', name: '欧罗巴一号', launchedAt: 42 },
+      { id: 'saturn-1', type: 'station', body: 'saturn', name: '土星站', launchedAt: 84 }];
+    const mapHTML = SB.ui.renderParts.paneStarMap();
+    check('星图：破壳后显示欧罗巴、土星及已发射卫星/空间站',
+      mapHTML.includes('欧罗巴一号') && mapHTML.includes('土星站') && mapHTML.includes('已发射航天器 2'));
+    const restored = SB.state.migrateRun(JSON.parse(JSON.stringify(loop)));
+    check('星图：刷新后保留解锁与本周目发射记录',
+      restored.breakSettled && restored.spacecraft.length === 2);
+    loop.shell = oldShell; loop.breakSettled = settled; loop.spacecraft = savedCraft;
   }
 
   /* ══ 公司页可见性 + 公司系统接线（2026-10-12 修两个实装 bug）═════════════════

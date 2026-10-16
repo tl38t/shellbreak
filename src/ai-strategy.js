@@ -135,7 +135,13 @@
   }
   function hydroSupportCap(s) {
     var per = SB.UNIT && SB.UNIT.hydroWarm || 5;
+    /* ⚠️ 2026-10-16：rates().warmstone 已扣掉**当前运行**汽轮机的耗石（面板===结算，
+     *   见 economy-rates 里那行 _turL 扣减）。直接拿它算「还能跑几座」会变成**循环定义** ——
+     *   汽轮机一跑，余量就被它自己吃掉一份，cap 反而归 0；bot 于是把刚开的又停掉，
+     *   停掉后余量回升、下一步再开，来回抖（症状：单步 step 后 running 恒为 0）。
+     *   判断依据必须是**毛供**（不含汽轮机自身扣费）：把已扣的那一份加回来。 */
     var warmRate = SB.economy && SB.economy.rates ? SB.economy.rates(s).warmstone || 0 : 0;
+    if (SB.economy && SB.economy.warmDraw) warmRate += SB.economy.warmDraw(s, 'hydroturbine');
     return Math.max(0, Math.floor((warmRate + 1e-9) / per));
   }
   function minersForWarmstone(s, targetRate) {

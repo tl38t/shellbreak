@@ -135,17 +135,21 @@
    * 未达资格门：tidePoints 归 0、不发任何遗产、不解锁商店（与「普通重开」同口径）。 */
   function doBreak(s, emit, options) {
     options = options || {};
-    if (s.broken) return null;
+    if (s.breakSettled) return null;
     var meta = SB.game.meta();
     var r = breakReport(s);
     /* 破壳结算只允许进入一次；否则主循环在 shell<=0 时会每 100ms 重播结算/动画。 */
     s.broken = true;
+    s.shellOpened = true;
+    s.breakSettled = true;
     if (!qualified(s)) {
       r.tidePoints = 0;
       r.locked = true;
       /* ⛔ 通关榜排除这一局（用户 2026-10-07 拍板：只认「凿穿 + 已建神学」）。
        * 仍然上报 wonder/cycle ——「建成了什么」不因没建神学而失效。*/
       if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
+      if (SB.state && SB.game.snapshot && SB.game.run && SB.game.run() === s)
+        SB.state.saveRun(SB.game.snapshot(s));
       if (!options.silent) (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
       if (emit) emit('本局未达《神学》资格门，不发放轮回点。');
       return r;
@@ -180,6 +184,8 @@
     /* TapTap 成就：合格破壳时解锁「首次轮回」与挑战通关（幂等，靠 meta.achievements 去重）。 */
     if (SB.achv && SB.achv.onBreak) SB.achv.onBreak(r, meta);
     SB.state.saveMeta(meta);
+    if (SB.state && SB.game.snapshot && SB.game.run && SB.game.run() === s)
+      SB.state.saveRun(SB.game.snapshot(s));
     /* ✅ 有效通关（已建神学）⇒ 报最快时间 / 综合发展分 / 奇观 / 轮回数。 */
     if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
     if (!options.silent) (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);

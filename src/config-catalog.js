@@ -19,21 +19,21 @@
     { id: 'food',  name: '前朝藻席',   cost: 1,  desc: '每局开局 +200 藻食',          kind: 'start' },
     { id: 'coral', name: '沉船残骸',   cost: 2,  desc: '每局开局 +150 珊瑚',          kind: 'start' },
     /* ── 重复操作自动化：采集 ── */
-    { id: 'g1', name: '异族鳍肢', costs: [3, 6, 12], desc: '采集产出 +10%/级', kind: 'rate', n: 3, apply: { gather: 1 } },
-    { id: 'g2', name: '深鳃',     costs: [6],      desc: '采集产出再 +10%',   kind: 'rate', n: 3, apply: { gather: 1 }, nest: 'g1' },
-    { id: 'g3', name: '流线体形', costs: [12],     desc: '采集产出再 +10%',   kind: 'rate', n: 3, apply: { gather: 1 }, nest: 'g2' },
+    { id: 'g1', name: '异族鳍肢', costs: [3, 6, 12], desc: '采集产出 +10%/级', kind: 'gather', n: 3, apply: { gather: 1 } },
+    { id: 'g2', name: '深鳃',     costs: [6],      desc: '采集产出再 +10%',   kind: 'gather', n: 3, apply: { gather: 1 }, nest: 'g1' },
+    { id: 'g3', name: '流线体形', costs: [12],     desc: '采集产出再 +10%',   kind: 'gather', n: 3, apply: { gather: 1 }, nest: 'g2' },
     /* ── 重复操作自动化：破壳 ── */
-    { id: 'c1', name: '祖先之热', costs: [3, 7],    desc: '破壳系数 +0.20/级',     kind: 'coef', n: 2, apply: { coef: 1 } },
-    { id: 'c2', name: '脉息',     costs: [7],       desc: '破壳系数再 +0.20',   kind: 'coef', n: 2, apply: { coef: 1 }, nest: 'c1' },
-    { id: 'd1', name: '薄壳一代', costs: [4, 9, 18], desc: '冰壳厚度 −10%/级',    kind: 'thin', n: 3, apply: { thin: 1 } },
-    { id: 'd2', name: '裂脉',     costs: [9],        desc: '冰壳再薄 10%',       kind: 'thin', n: 3, apply: { thin: 1 }, nest: 'd1' },
-    { id: 'd3', name: '内生热泉', costs: [18],       desc: '冰壳再薄 10%',       kind: 'thin', n: 3, apply: { thin: 1 }, nest: 'd2' },
+    { id: 'c1', name: '祖先之热', costs: [3, 7],    desc: '破壳系数 +0.20/级',     kind: 'break', n: 2, apply: { coef: 1 } },
+    { id: 'c2', name: '脉息',     costs: [7],       desc: '破壳系数再 +0.20',   kind: 'break', n: 2, apply: { coef: 1 }, nest: 'c1' },
+    { id: 'd1', name: '薄壳一代', costs: [4, 9, 18], desc: '冰壳厚度 −10%/级',    kind: 'break', n: 3, apply: { thin: 1 } },
+    { id: 'd2', name: '裂脉',     costs: [9],        desc: '冰壳再薄 10%',       kind: 'break', n: 3, apply: { thin: 1 }, nest: 'd1' },
+    { id: 'd3', name: '内生热泉', costs: [18],       desc: '冰壳再薄 10%',       kind: 'break', n: 3, apply: { thin: 1 }, nest: 'd2' },
     /* ── 重复操作自动化：人口与住房 ── */
-    { id: 'popcap', name: '广厦之基', costs: [2, 4, 6], desc: '永久人口上限 +1/级（最多 3 级）', kind: 'popcap', n: 3, apply: { popcap: 1 } },
-    { id: 'housePlan', name: '生息建筑规划', cost: 20, desc: '所有人口建筑每级各 +1 人口上限（买断）', kind: 'house', n: 1, apply: { housePlan: 1 } },
-    { id: 'coldStore', name: '寒潮储备', costs: [2, 4, 8, 12], desc: '寒季资源产出倍率 +0.02/级（最多 4 级）', kind: 'climate', n: 4, apply: { coldStore: 1 } },
-    { id: 'offline', name: '离潮计时', costs: [2, 4, 8, 12], desc: '单次离线上限 +25%/级（最多 4 级）', kind: 'offline', n: 4, apply: { offline: 1 } },
-    { id: 'matStore', name: '材料总仓', costs: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80], desc: '所有普通资源容量 +5%/级（最多 20 级）', kind: 'store', n: 20, apply: { matStore: 1 } },
+    { id: 'popcap', name: '广厦之基', costs: [2, 4, 6], desc: '永久人口上限 +1/级（最多 3 级）', kind: 'pop', n: 3, apply: { popcap: 1 } },
+    { id: 'housePlan', name: '生息建筑规划', cost: 20, desc: '所有人口建筑每级各 +1 人口上限（买断）', kind: 'pop', n: 1, apply: { housePlan: 1 } },
+    { id: 'coldStore', name: '寒潮储备', costs: [2, 4, 8, 12], desc: '寒季资源产出倍率 +0.02/级（最多 4 级）', kind: 'pop', n: 4, apply: { coldStore: 1 } },
+    { id: 'offline', name: '离潮计时', costs: [2, 4, 8, 12], desc: '单次离线上限 +25%/级（最多 4 级）', kind: 'pop', n: 4, apply: { offline: 1 } },
+    { id: 'matStore', name: '材料总仓', costs: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80], desc: '所有普通资源容量 +5%/级（最多 20 级）', kind: 'pop', n: 20, apply: { matStore: 1 } },
     /* ── 重复操作自动化：模板与自动制作 ── */
     /* ⚠️ 2026-10-07：`s.perk.autoCraft` 此前是**零读端死字段**（买了扣轮回点、等级真涨、
      *   但没有任何代码读它 ⇒ 不报错、也不生效）。现在由 workshop.slotCap 读它，
@@ -47,7 +47,7 @@
     { id: 'shellSurvey', name: '破界测绘 I', costs: [3, 6, 9], desc: '天穹钻机每单位功率削壳量 +5%/级（最多 +15%）', kind: 'break', n: 3, apply: { shellSurvey: 1 } },
     /* ── 市政与政策 ── */
     { id: 'civicArchive', name: '旧典编纂 I', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '市政点获取 +10%/级（不设上限）', kind: 'civic', n: Infinity, apply: { civicArchive: 1 } },
-    { id: 'civicPlan', name: '政令档案 I', costs: [2, 4, 6], desc: '保存 1/2/3 份政体与政策卡方案', kind: 'template', n: 3, apply: { civicPlan: 1 } },
+    { id: 'civicPlan', name: '政令档案 I', costs: [2, 4, 6], desc: '保存 1/2/3 份政体与政策卡方案', kind: 'civic', n: 3, apply: { civicPlan: 1 } },
     { id: 'govRoutine', name: '议事惯例 I', costs: [1, 2, 3, 4, 5], desc: '换政策卡/政体费用 −10%/级（最多 −50%）', kind: 'civic', n: 5, apply: { govRoutine: 1 } },
     /* ── 科研 ── */
     { id: 'tideProof', name: '潮纹校勘 I', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '科技点获取 +10%/级（不设上限）', kind: 'science', n: Infinity, apply: { tideProof: 1 } },
@@ -71,13 +71,13 @@
      *  ⚠️ 2026-10-05 晚用户拍板：本段 9 条全部改为 **+10%/级、不设等级上限**（n:Infinity）。
    *    价目沿用各自现有等差曲线：数组内照读，数组耗尽后由 prestige.perkNextCost 等差外推
    *    （珊瑚/奢侈 +2/级、矿脉/工坊 +3/级、炉心 +4/级、藻食/旧典/校勘/祭祀 +1/级）。 */
-    { id: 'coralPact', name: '珊瑚礁契', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '珊瑚产出 +10%/级（不设上限）', kind: 'rate', n: Infinity, apply: { coralPact: 1 } },
-    { id: 'mineTax', name: '矿脉税契', costs: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60], desc: '石头 + 金属 + 暖石产出各 +10%/级（不设上限）', kind: 'rate', n: Infinity, apply: { mineTax: 1 } },
-    { id: 'algaeCrop', name: '潮田轮作', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '采集者藻食产出 +10%/级（不设上限）', kind: 'rate', n: Infinity, apply: { algaeCrop: 1 } },
-    { id: 'furnaceBoost', name: '炉心增压', costs: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80], desc: '精铁产出 +10%/级（不设上限）', kind: 'rate', n: Infinity, apply: { furnaceBoost: 1 } },
+    { id: 'coralPact', name: '珊瑚礁契', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '珊瑚产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { coralPact: 1 } },
+    { id: 'mineTax', name: '矿脉税契', costs: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60], desc: '石头 + 金属 + 暖石产出各 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { mineTax: 1 } },
+    { id: 'algaeCrop', name: '潮田轮作', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '采集者藻食产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { algaeCrop: 1 } },
+    { id: 'furnaceBoost', name: '炉心增压', costs: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80], desc: '精铁产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { furnaceBoost: 1 } },
     { id: 'sacrament', name: '祭祀唱诗', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '信仰产出 +10%/级（不设上限）', kind: 'faith', n: Infinity, apply: { sacrament: 1 } },
-    { id: 'craftQuota', name: '工坊定额', costs: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60], desc: '工坊制作产出 +10%/级（不设上限）', kind: 'rate', n: Infinity, apply: { craftQuota: 1 } },
-    { id: 'luxuryPact', name: '奢侈品契', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '奢侈品产出 +10%/级（不设上限）', kind: 'rate', n: Infinity, apply: { luxuryPact: 1 } },
+    { id: 'craftQuota', name: '工坊定额', costs: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60], desc: '工坊制作产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { craftQuota: 1 } },
+    { id: 'luxuryPact', name: '奢侈品契', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '奢侈品产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { luxuryPact: 1 } },
     /* ⚠️ 建造消耗减耗 perk（用户拍板「-1%/级建造消耗」）：
      *  【为什么不复用 hallMul / invertBuildSave 的键】那三个是**建筑给的**减耗，
      *  而这一项是**轮回商店给**的，来源不同就该独立相乘（与 costOf 里

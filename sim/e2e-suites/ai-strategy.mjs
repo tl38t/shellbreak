@@ -163,7 +163,11 @@ export function run({ SB, check, noop }) {
   Object.assign(steelTools.res, { kelp: 10000, coral: 10000, stone: 100, hardCoral: 1000,
     iron: 0, silt: 1000, warmstone: 1000, science: 200000, culture: 100000 });
   const steelToolDecision = SB.aiStrategy.step(steelTools, { emit: noop });
-  const steelToolWarmRate = SB.economy.rates(steelTools).warmstone;
+  /* ⚠️ 2026-10-16：rates().warmstone 现在已扣掉**运行中**汽轮机的耗石（面板===结算，
+   *   见 economy-rates 的 _turL 扣减行）。这条断言要的是「暖石毛供 ≥ 一台汽轮机一份」
+   *   —— 即暖石线撑得起它 —— 所以把汽轮机自身那一份加回来（与 ai-strategy.hydroSupportCap 同口径）。 */
+  const steelToolWarmRate = SB.economy.rates(steelTools).warmstone +
+    (SB.economy.warmDraw ? SB.economy.warmDraw(steelTools, 'hydroturbine') : 0);
   const steelToolRunning = steelTools.lvl.hydroturbine - (steelTools.turbineStop || 0);
   check('钢工具尤里卡缺钢时配够矿工，并保留石料采集以建设热液生产线',
     steelTools.jobs.miner >= 10 && steelTools.jobs.quarrier > 0 &&

@@ -72,15 +72,15 @@
         '<div class="ds">' + j.desc + '</div></div>' +
         '<div class="folk-job-controls">' +
         /* 2026-10-14 方案 B（猫国式极简 + 步长胶囊）：可见 UI 只有一对 −/＋ 小按钮，
-         * ±5/±10 收进「×N」胶囊（点击循环 ×1→×5→×10，全局记忆不每行一份）；
-         * 最小/最大收进双击（input 里 e.detail>=2 ⇒ assignMax/assignMin）。
+         * ±5/±10 收进「×N」胶囊（点击循环 ×1→×5→×10，全局记忆不每行一份）。
          * 大步长是交互问题不是按钮问题——修「8 个 40px 按钮喧宾夺主」。
-         * 步长仍由 folk.assign 双向钳制（加钳到 idle、减钳到在岗数）。 */
+         * 步长仍由 folk.assign 双向钳制（加钳到 idle、减钳到在岗数）。
+         * ⚠️ 2026-10-16 用户：取消「双击 = 最大/最小」——容易误触整职业清零/塞满。 */
         '<button class="btn fc-step" data-step="1" title="点击切换步长：×1 → ×5 → ×10（所有职业共用）">×' + stp + '</button>' +
         '<button class="btn" data-job="' + j.id + '" data-d="-' + stp + '"' + (s.jobs[j.id] <= 0 ? ' disabled' : '') +
-          ' title="−' + stp + '（不足则全退）；双击 = 最小（全部退回闲置）">−</button>' +
+          ' title="−' + stp + '（不足则全退）">−</button>' +
         '<button class="btn" data-job="' + j.id + '" data-d="' + stp + '"' + (idle <= 0 || atJobLimit ? ' disabled' : '') +
-          ' title="' + (jobLimitReason || ('＋' + stp + '（不足则加全部闲置）；双击 = 最大（闲置全塞进）')) + '">＋</button>' +
+          ' title="' + (jobLimitReason || ('＋' + stp + '（不足则加全部闲置）')) + '">＋</button>' +
         '</div></div>';
     }
     /* ⚠️ 硬上限之后开局的**第一步是珊瑚不是藻食**（2026-09-26）：那 1 名族民顶着

@@ -181,7 +181,8 @@
        * ⚠️ 历法仍是纪元一关键节点（与石工一起推进纪元），去掉收窄不影响它的 key 地位。
        * 【「看得见」在哪】seasonMeta(s) 在历法掌握后才返回周期名与读数，
        *   未掌握时玩家只看到一句「看不出规律」——信息型奖励（海底 lens 铁律 3）。 */
-      note: '信息型奖励：第一次把海底火山的活跃 / 平稳 / 休眠周期变成一句能背下来的算数。\n      *   关键节点。' },
+      effectDesc: '信息奖励：显示海底火山的周期阶段与读数；不影响资源产出。',
+      note: '关键节点。' },
 
     /* ── 层三 · 加深 ── */
     /* 书写 = 原「治学」（scholarT）改名 + 提前，并**接管潮纹馆的解锁**。
@@ -288,7 +289,7 @@
        * 【为什么 cond 要暖石 20】暖石只有矿工产、且是伴生（SB.UNIT.warmstone 0.05），
        *   要求存量 20 等于要求玩家真的雇了矿工——这条线的存在感全在这里。 */
       eff: { },
-      note: '暖石开关：休眠期消耗暖石，抵消季节减产。' },
+      unlockDesc: '解锁暖石开关：寒流季启用后消耗暖石，抵消部分季节减产并免除冻伤。' },
 
     /* ── 以下三项随纪元一重排一起处理 ──
      * reefwork / warmkeep / tidewatch：原纪元一成員，重排后移到纪元二（见下）。 */
@@ -351,7 +352,7 @@
     { id: 'horsemanship', name: '马术', icon: 'assets/tech-icons/era-2/era2-horsemanship.png', era: 2, cost: 1200, branch: 'live', key: false, reqs: ['lighting'], layer: 2,
       cond: { t: 'built', b: 'warmnest', n: 8 },
       eff: {},
-      note: 'Civ6: Horseback Riding 位 · 有了光才知道什么时候该出门。' },
+      unlockDesc: '解锁工坊工具「马具」；购买后商人奢侈品产出 +50%。' },
 
     { id: 'ironwork',  name: '铁器',   icon: 'assets/tech-icons/era-2/era2-ironwork.png', era: 2, cost: 800, branch: 'survive', key: false, reqs: [], layer: 1,
       cond: { t: 'res', r: 'silt', n: 60 },
@@ -417,8 +418,7 @@
       reqs: ['ironwork'], layer: 3,
       cond: { t: 'built', b: 'furnace', n: 3 },
       eff: {},
-      note: '热泉炉冒到第三级，才有人开始算「这炉子能撑多少料」。解锁铁制支架的配方，'
-          + '以及压舱库 / 藻食库两道扩容升级。' },
+      unlockDesc: '解锁工坊配方「铁制支架」，以及压舱库、藻食库扩容升级。' },
 
     /* 【尤里卡「拥有 1000 科技点」的可达性，逐项核过】
      *   · 判的是**当前库存**（`t:'res'`），不是累计产出 —— 用户口径「拥有」，
@@ -444,7 +444,7 @@
     { id: 'scaffoldT',   name: '构架术', icon: 'assets/tech-icons/era-2/era2-scaffolding.png', era: 2, cost: 1600, branch: 'live', key: false,
       reqs: ['navigation'], layer: 3,
       eff: { craftRatio: 0.15 },
-      note: 'Civ6: Masonry 位 · 解锁成捆东西的绳。同时工坊效率 +15%。' },
+      unlockDesc: '解锁工坊配方「绳」。' },
 
 
     /* ═════════ 纪元三 · 硫泉（5 项 · 300/300/390/390/390） ═════════
@@ -455,7 +455,7 @@
     { id: 'apprentice', name: '学徒制', icon: 'assets/tech-icons/era-3/era3-apprenticeship.png', era: 3, cost: 3000, branch: 'survive', key: true, reqs: [], layer: 1,
       cond: { t: 'tools', ids: ['tool_ironSickle', 'tool_ironAxe', 'tool_ironPick'] },
       eff: {},
-      note: 'Civ6: Apprenticeship · 买齐三件铁制工具（镰/斧/镐）即掌握。解锁鱼骨矿井。' },
+      unlockDesc: '解锁砂矿坑升级「鱼骨矿井」；购买后矿工金属产出 +50%、伴生暖石 +1000%。' },
 
     /* 马镫的尤里卡 = 5 名商人（cond 'job'）。与马具(tool_harnes) 是独立乘区：
      *   马具走 toolMul(merchant)、马镫走工坊升级 upg_horseshoe(luxuryMul 0.5)，
@@ -463,21 +463,22 @@
     { id: 'horseshoe',  name: '马镫',   icon: 'assets/tech-icons/era-3/era3-horseshoe.png', era: 3, cost: 4500, branch: 'live', key: false, reqs: [], layer: 1,
       cond: { t: 'job', j: 'merchant', n: 5 },
       eff: {},
-      note: 'Civ6: Horseshoeing · 5 名商人即掌握。解锁马镫（工坊升级，奢侈品 +50%）。' },
+      unlockDesc: '解锁工坊升级「马镫」；购买后商人奢侈品产出 +50%，可与工具「马具」叠加。' },
 
     /* 教育前置 = 学徒制 + 数学。尤里卡 = 三级研究所（built institute n=3）。
      * 大学(工坊升级 upg_university) 与 阿尔巴达(奇观 wonder_albada) 的解锁权各自写在其表。 */
     { id: 'education',  name: '教育',   icon: 'assets/tech-icons/era-3/era3-education.png', era: 3, cost: 8000, branch: 'know', key: false, reqs: ['apprentice', 'mathematics'], layer: 3,
       cond: { t: 'built', b: 'institute', n: 3 },
       eff: {},
-      note: 'Civ6: Education · 三级研究所即掌握。解锁大学（工坊升级）与阿尔巴达热液大学（奇观）。' },
+      unlockDesc: '解锁研究所升级「大学」（学者科技产出 +100%/级）和奇观「阿尔巴达热液大学」。' },
 
     /* 金属精炼前置 = 学徒制。尤里卡 = 完成鱼骨矿井（装 upg_fishbonemine，cond 'upgrade'）。
      * 尤里卡查鱼骨矿井、unlockBuild 查汽轮机/工坊——两件不同节点，不互锁。 */
     { id: 'metalrefine', name: '金属精炼', icon: 'assets/tech-icons/era-3/era3-metal-refining.png', era: 3, cost: 6500, branch: 'survive', key: true, reqs: ['apprentice'], layer: 2,
       cond: { t: 'upgrade', id: 'upg_fishbonemine' },
       eff: { unlockBuild: ['hydroturbine', 'hydroshop'] },
-      note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。' },
+      note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。',
+      unlockDesc: '解锁工坊配方「钢制零件」。' },
 
     /* ═══ ERA3 精铁·钢提速（用户 2026-10 设计）：黑烟囱炼铁 ─══
      * 复用「铁器」的 smelt 乘区（乘法叠加，零接线风险）。非 key，不动纪元推进分母。
@@ -493,7 +494,7 @@
     { id: 'castle',     name: '城堡',   icon: 'assets/tech-icons/era-3/era3-castle.png', era: 3, cost: 10000, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
       cond: { t: 'gov', wild: 3 },
       eff: {},
-      note: 'Civ6: Castles · 启用任一三槽政体即掌握。解锁工坊升级「城堡」——议事厅升级为城堡：议价减耗 +50%、每级 +50 容量。' },
+      unlockDesc: '解锁议事厅升级「城堡」；购买后降低建筑造价，每级为所有有上限资源 +50 容量、市政点 +0.05/秒。' },
 
     /* ═════════ 纪元四 · 天壳工程（6 项 · 2万~7.5万） ═════════
      * ⚠️ 2026-09-30 用户重设计：旧五项（点火术/涡轮/测壳/洋流/壳铸）**整体删除**，换成下面六项。
@@ -524,7 +525,7 @@
       /* 「完成所有钢铁工具的升级」= 钢镰/钢斧/钢镐三件都买断。与学徒制同一 cond 类型。 */
       cond: { t: 'tools', ids: ['tool_steelSickle', 'tool_steelAxe', 'tool_steelPick'] },
       eff: {},
-      note: 'Civ6: Scientific Theory · 钢器趁手了，才谈得上把力气算成数。' },
+      unlockDesc: '解锁工坊配方「脚手架」和砂矿坑升级「深层矿井」（矿工开始伴生钛）。' },
 
     { id: 'banking', name: '银行业', icon: 'assets/tech-icons/era-4/era4-banking.png', era: 4, cost: 40000, branch: 'live', key: false,
       reqs: ['printing'], layer: 4,
@@ -541,7 +542,7 @@
       /* 用户 2026-09-30 澄清：「热液泵」= **热液汽轮机**(hydroturbine)。 */
       cond: { t: 'built', b: 'hydroturbine', n: 5 },
       eff: {},
-      note: 'Civ6: Industrialization · 汽轮机五级，压力才谈得上被拿去利用。' },
+      unlockDesc: '解锁工坊升级「高压气泵」；购买后热液汽轮机的热液能产出 +50%。' },
 
     /* ═══ ERA4 精铁·钢提速（用户 2026-10 设计）═══
      * 海流锻钢：钢的产出乘区 steelMul（新键，economy 接线 2 行）。非 key。layer 4 ≤ thermo(L4)。
@@ -563,7 +564,7 @@
       reqs: ['physics'], layer: 5,
       cond: { t: 'pop', n: 50 },
       eff: {},
-      note: 'Civ6: Urban Design · 关键节点。五十人同族，才有把天壳当工地的一批人。' },
+      unlockDesc: '解锁奇观「天壳切削器」；建成后科技与市政产出各增加相当于天壳观测站等级的百分比。' },
 
     /* ═════════ 纪元五 · 破壳（6 项 · layer 5/5/5/6/6/7） ═════════
      * 工业化。破冰祭坛（奇迹装置）的解锁仍走 config 的 miracle.requiredTech（见下方别处），
@@ -603,19 +604,19 @@
       reqs: ['industrialize'], layer: 6,
       cond: { t: 'upgrade', id: 'upg_hppump' },
       eff: {},
-      note: 'Civ6: High Pressure Engines · 完成高压气泵升级。' },
+      unlockDesc: '解锁工坊升级「热回收改造」「废钢锻造」和奇观「高压热机管道」；奇观提供热液能 +10/秒。' },
 
     { id: 'shellgeo', name: '天壳地质学', icon: 'assets/tech-icons/era-5/era5-shell-geology.png', era: 5, cost: 120000, branch: 'know', key: false,
       reqs: ['invert'], layer: 6,
       cond: { t: 'shell', n: 0.5 },
       eff: {},
-      note: 'Civ6: Geology · 破壳达到 50%（壳剩余 ≤ 50%）。' },
+      unlockDesc: '解锁工坊配方「共振钻头」和工坊升级「倒置工程学」（所有建筑造价 −20%）。' },
 
     { id: 'skydrill', name: '天穹钻机', icon: 'assets/tech-icons/era-5/era5-sky-drill.png', era: 5, cost: 150000, branch: 'know', key: true,
       reqs: ['abyssgeo', 'shellgeo'], layer: 7,
       cond: { t: 'wonders', ids: ['wonder_shellcutter', 'wonder_presspipe'] },
       eff: {},
-      note: 'Civ6: Skyscraper · 关键节点。建成天壳切削器 + 高压热机管道两座奇观。破壳纪收尾。' },
+      unlockDesc: '解锁奇观「天穹钻机」；当前版本的机器运行逻辑尚未实装。' },
 
     /* ═════════ 纪元六 · 太空（10 项 · layer 8/9/10） ═════════
      * 出壳之后的工业线。layer 全局 8/9/10（skydrill 是 L7，本纪元整体 +7）。
@@ -628,7 +629,7 @@
       /* 解锁「工坊合成钛金板件」配方 craft_tiplate（need:'minipump' 双写一致）。
        * 猫国口径：纯钛=冶炼产出，钛合金=工坊制造（钛作原料）；本作钛已存在（矿工伴生），
        * 钛金板件是工坊用钛合成的制造料，不是首次引入钛。 */
-      note: '工坊解锁钛金板件配方（钛 50→1）。解锁钛金板件工具口。' },
+      unlockDesc: '解锁工坊配方「钛金板件」：50 钛制成 1 个钛金板件。' },
 
     { id: 'modpart', name: '可替换部件', icon: 'assets/tech-icons/era-6/era6-modpart.png', era: 6, cost: 150000, branch: 'live', key: false, reqs: ['skydrill'], layer: 8,
       cond: { t: 'built', b: 'hotforge', n: 3 },
@@ -647,27 +648,27 @@
       cond: { t: 'res', r: 'tidalRecord', n: 1000 },
       eff: {},
       /* 潮纹记录制造消耗-20%（读 s.techs.engraving，workshop 成本端乘 0.8）。 */
-      note: '潮纹记录制造消耗 -20%。' },
+      effectDesc: '潮纹记录制造消耗 −20%。' },
 
     { id: 'sealbin', name: '密闭水仓', icon: 'assets/tech-icons/era-6/era6-sealbin.png', era: 6, cost: 300000, branch: 'live', key: false, reqs: ['modpart', 'minipump'], layer: 9,
       cond: { t: 'gathered', r: 'titanium', n: 200 },
       eff: {},
       /* 工艺物品封闭藻仓（craft_sealbin，need:'sealbin'）+ 温水藻场升级（upg_warmalgalfarm，need:'sealbin'）。 */
-      note: '工坊解锁工艺物品「封闭藻仓」（钛金板件+藻食）；解锁温水藻场升级（每级耗0.05热液能、不受季节、额外+0.5科技点，cost 300钛金板件+20w科技点）。' },
+      unlockDesc: '解锁工坊配方「封闭藻仓」和工坊升级「温水藻场」；购买升级后，每级藻场额外提供 +0.5 科技点/秒，且不受季节影响。' },
 
     { id: 'refine', name: '精炼', icon: 'assets/tech-icons/era-6/era6-refine.png', era: 6, cost: 300000, branch: 'live', key: false, reqs: ['minipump'], layer: 9,
       cond: { t: 'rate', r: 'warmstone', n: 100 },
       eff: {},
       /* 精铁(ironFlow)/钢(steelFlow/汽轮机) 暖石消耗-30%（读 s.techs.refine，economy 暖石扣减端乘 0.7）。
        * ⚠️ 钛是矿工伴生、不吃暖石，旧「钛合金暖石-30%」是死效果，已删。 */
-      note: '生产精铁、钢的暖石消耗 -30%。' },
+      effectDesc: '生产精铁和钢时，暖石消耗 −30%。' },
 
     { id: 'specfuel', name: '特种燃料', icon: 'assets/tech-icons/era-6/era6-specfuel.png', era: 6, cost: 600000, branch: 'live', key: false, reqs: ['refine'], layer: 10,
       cond: { t: 'tech', id: 'refine' },
       eff: {},
       /* 热液汽轮机暖石消耗-30%（读 s.techs.specfuel，hydroAlloc 暖石需求乘 0.7）。
        * ⚠️ 尤里卡「完成精炼研究」= 前置同义（用户拍板不动），属冗余已知。 */
-      note: '热液汽轮机暖石消耗 -30%。' },
+      effectDesc: '热液汽轮机运行时，暖石消耗 −30%。' },
 
     { id: 'exostruct', name: '壳外建筑', icon: 'assets/tech-icons/era-6/era6-exostruct.png', era: 6, cost: 800000, branch: 'live', key: true, reqs: ['sealbin'], layer: 10,
       cond: { t: 'shell', n: 1 },
@@ -676,20 +677,20 @@
        * 天壳观测站→星空观测站，科技产出+40%、每 tick +1 星空探索（耗1热液能，可开关）；
        * 深空探测手动按钮（耗热液能换星空探索）。星空探索 = 轻量版星图进度（星图系统晚点立项）。
        * ⚠️ exostruct 只解锁星空探索资源显示（0/s）；实际产出由 upg_starscope 提供（economy.hydroAlloc 读 upgSum('starExplore') 判定）。 */
-      note: '解锁星空观测站升级（科技产出+40%、星空探索+1/tick、耗1热液能、可开关）+ 深空探测按钮。关键节点。' },
+      unlockDesc: '解锁「星空观测站」升级和深空探测功能；购买升级后科技产出 +40%、每秒增加 1 星空探索，并消耗热液能（可开关）。' },
 
     { id: 'hotforge_hammer', name: '热力锻锤', icon: 'assets/tech-icons/era-6/era6-hotforge-hammer.png', era: 6, cost: 350000, branch: 'live', key: false, reqs: ['minipump'], layer: 9,
       cond: { t: 'built', b: 'hotforge', n: 5 },
       eff: {},
       /* 新自动工艺槽位（读 s.techs.hotforge_hammer，workshop.slotCap 加 1）。 */
-      note: '新自动工艺槽位 +1。' },
+      effectDesc: '自动制作槽位 +1。' },
 
     { id: 'modtrans', name: '现代化交通', icon: 'assets/tech-icons/era-6/era6-modtrans.png', era: 6, cost: 700000, branch: 'live', key: false, reqs: ['minipump'], layer: 10,
       cond: { t: 'built', b: 'canal', n: 20 },
       eff: {},
       /* 奇观总物流站（wonder_logistics，need:'modtrans'）：王国潮道升级为鲛货两用物流管网，
        * 与市政《城市设计》的全国快速物流通道互锁翻倍（互锁机制属批次3）。 */
-      note: '解锁奇观「总物流站」（王国潮道每级+1%工艺效率；若同时拥有全国快速物流通道则升级为鲛货两用物流管网、效果翻倍）。' }
+      unlockDesc: '解锁奇观「总物流站」；建成后王国潮道每级提供 +1% 工艺效率。若同时建成「全国快速物流通道」，该通道的精铁/钢产能加成翻倍。' }
   ];
 
   var BRANCHES = [

@@ -609,4 +609,49 @@ console.log('\n=== 顶栏读数与自然环境卡 ===');
  *    ⇒ 这条断言必须改成「证伪 tech 侧的抗寒」：谁要是哪天把 eff.warm 加回来，这里要红。
  * 这一节把两条线锁住。 */
 
+/* 空 eff 的科技详情不得再把旧 note/Civ6 对标文案塞进「效果」栏；
+ * 实际解锁独立显示，研究条件达成前仍按揭示规则隐藏。 */
+{
+  const s = SB.game.run();
+  const bak = { techs: s.techs, lvl: s.lvl, era: s.era };
+  const modal = doc.getElementById('modal');
+  const bodyWasOpen = doc.body.classList.contains('modal-open');
+  const modalClasses = ['hidden', 'tree-modal', 'tree-tech', 'tree-civic']
+    .reduce((out, name) => { out[name] = modal.classList.contains(name); return out; }, {});
+  s.techs = Object.assign({}, s.techs, { lighting: true });
+  s.lvl = Object.assign({}, s.lvl, { warmnest: 8, workshop: 1 });
+  s.era = 2;
+  SB.ui.renderParts.info.showTreeDetail('tech', 'horsemanship');
+  const detail = g('modalBox');
+  check('马术详情将无数值加成与马具解锁分栏显示，不再显示 Civ6 残留文案',
+    detail.indexOf('无直接数值加成。') >= 0 && detail.indexOf('解锁内容') >= 0 &&
+    detail.indexOf('马具') >= 0 && detail.indexOf('Civ6: Horseback Riding') < 0,
+    detail.replace(/<[^>]+>/g, ' ').slice(0, 180));
+  check('科技解锁文案中的工坊入口指向工坊页，而非工坊建筑详情',
+    detail.indexOf('data-workshop-tab="workshop"') >= 0 &&
+    detail.indexOf('data-build-info="workshop"') < 0,
+    detail.match(/<span[^>]*data-workshop-tab[^>]*>工坊<\/span>/)?.[0] || '未找到工坊页入口');
+  const oldTab = SB.game.getTab();
+  SB.ui.render.openWorkshopFromInfo();
+  check('点击详情里的工坊入口会关闭详情并打开工坊页',
+    SB.game.getTab() === 'workshop' && modal.classList.contains('hidden'), 'tab=' + SB.game.getTab());
+  SB.game.setTab(oldTab);
+  SB.ui.renderParts.info.showTreeDetail('tech', 'scaffoldT');
+  const scaffoldDetail = g('modalBox');
+  const scaffoldText = scaffoldDetail.replace(/<[^>]+>/g, '').replace(/\s+/g, '');
+  check('构架术详情明确写出绳的工坊配方，效率以百分比显示',
+    scaffoldText.indexOf('工坊配方「绳」') >= 0 &&
+    scaffoldText.indexOf('工艺制作效率+15%') >= 0 &&
+    scaffoldDetail.indexOf('data-workshop-tab="workshop"') >= 0,
+    scaffoldDetail.replace(/<[^>]+>/g, ' ').slice(0, 180));
+  check('市政里的工坊配方也生成工坊页入口',
+    SB.ui.renderParts.info.linkInfoNames('解锁工坊配方「艺术品」', true)
+      .indexOf('data-workshop-tab="workshop"') >= 0, '历史哲学配方入口');
+  s.techs = bak.techs; s.lvl = bak.lvl; s.era = bak.era;
+  modalClasses.hidden ? modal.classList.add('hidden') : modal.classList.remove('hidden');
+  ['tree-modal', 'tree-tech', 'tree-civic'].forEach(name =>
+    modalClasses[name] ? modal.classList.add(name) : modal.classList.remove(name));
+  bodyWasOpen ? doc.body.classList.add('modal-open') : doc.body.classList.remove('modal-open');
+}
+
 }

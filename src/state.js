@@ -381,6 +381,9 @@
       upgrades: {},
       famine: 0,
       broken: false,
+      shellOpened: false, // 天壳已打开；星图解锁且留在本局后仍可继续推进
+      breakSettled: false, // 本周目轮回奖励/遗产已入账
+      spacecraft: [],     // 本周目发射的卫星与空间站；新周目重置
       starComplete: false,   // 星空槽满槽（太空时代达成）标记；仅占位结算，无机制奖励（2026-10-13）
       /* 点击时间事件的临时全产 buff（信仰显圣）：墙钟毫秒戳，globalMul 读它判定是否仍在生效。
        * 默认 0（已过期）。不进离线补算的真值、不污染存档迁移（migrateRun 以 freshRun 为底座，自动带出）。

@@ -84,8 +84,7 @@
         '/秒）<b>只在寒流季生效</b>——顶回藻场减产（不是全额，留一点残余），' +
         '寒流季若触发冰封期则冻伤归零。一份暖石两件事都靠它，其余季不耗石。' +
         (challengeBlocksHeating ? '<br><b>寒流禁火挑战：寒流季保温法停用；热泉炉和热液设备仍照常运行。</b>' : '') +
-        '<br>热液汽轮机每秒耗暖石 <span id="envWarmDraw">0</span>（产热液能 → 供钢与钻机）；' +
-        '热液能为<b>流态不囤积</b>，顶栏只显示当前实时生成量。</div></div>' +
+        '</div></div>' +
         /* 按钮文案 = **当前状态**（底色表态：绿=启用 / 灰=停用），不是「点了会怎样」——
          * 原先写「开/关」两可，玩家读不出此刻到底是开是关（用户 2026-09-30 报）。
          * 正在烧时再加一圈琥珀描边，把「已启用」与「真在烧」两个状态分开。 */
@@ -97,14 +96,6 @@
     /* 库存数字单独刷：不进签名，所以烧起来时它是唯一在动的节点，按钮不动。 */
     var ws = el('envWarmWs');
     if (ws) ws.textContent = Math.floor(s.res.warmstone || 0);
-    /* 汽轮机暖石消耗（产钢 / 热液能那条线）单独刷：随运行座数与降耗科技变化，
-     * 不进签名，避免按钮被反复重建丢点击（与上面的库存数字同纪律）。 */
-    var wd = el('envWarmDraw');
-    if (wd) {
-      var _turL = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
-      var _draw = _turL * (SB.UNIT ? SB.UNIT.hydroWarm : 0) * SB.economy.warmEff(s);
-      wd.textContent = _draw.toFixed(2);
-    }
   }
 
   /* ── 天穹钻机启动行（2026-10-07）────────────────────────────────────
@@ -180,7 +171,7 @@
     var box = el('envStar'); if (!box) return;
     /* 闸门：破壳后（s.broken）星空槽才开始累积，本开关用于暂停/恢复被动累积。
      * 与 shell.tickStar 的 starScopeOn 门控同源（starScopeOn===false ⇒ tickStar 直接 return）。 */
-    if (!s.broken) {
+    if (!(s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled))) {
       if (starSig !== '') { starSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
       return;
     }

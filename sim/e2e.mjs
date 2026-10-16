@@ -1391,9 +1391,11 @@ SB.state.saveMeta(SB.game.meta());
 SB.game.renderAll();
 tabOn('meta');
 const metaMarkup = doc.getElementById('pane-meta').innerHTML;
-check('轮回商店有余额摘要与三组商品分区',
+check('轮回商店有余额摘要与 10 组语义分区（2026-10-16 由「三桶」重整）',
   metaMarkup.includes('meta-overview') && metaMarkup.includes('meta-legacy-grid') &&
-  metaMarkup.includes('开局馈赠') && metaMarkup.includes('破壳门槛') && metaMarkup.includes('恒久增益'));
+  metaMarkup.includes('meta-shop-group') &&
+  ['开局馈赠', '破壳攻坚', '人口与储备', '采集与产出', '建造减耗',
+   '自动化', '科研', '市政治理', '信仰', '奇观营造'].every(t => metaMarkup.includes(t)));
 check('轮回商店每项商品仍对应唯一购买按钮',
   SB.PERKS.every(p => (metaMarkup.match(new RegExp('data-perk="' + p.id + '"', 'g')) || []).length === 1));
 const s3 = SB.game.run();

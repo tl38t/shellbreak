@@ -24,11 +24,16 @@
      * 这次是常数取错），玩家点一下发现和按钮上写的不一样。同源了之后
      * e2e 那条「读数与常数同源」断言才真的在守什么东西。 */
     var GA = SB.GATHER || { kelp: 1, coral: 1 };
-    h += '<div class="row"><div><div class="nm">手动采集</div>' +
+    /* ⚠️ 2026-10-16 用户「这里也统一一下」：两个采集按钮包进 .gather-btns，行加 .gather-row ——
+     *   旧状两钮是 .row 的裸 flex 子项、无宽度约束，被文本列挤成逐字竖排，且「+1 / +0.1」
+     *   宽窄不一。尺寸统一写进 CSS（见 50-module-polish）。 */
+    h += '<div class="row gather-row"><div><div class="nm">手动采集</div>' +
       '<div class="ds">开局 1 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢' +
       '（人口上限 1 → 3），再攒 15 藻食建深海菌圃让口粮跟上。</div></div>' +
+      '<div class="gather-btns">' +
       '<button class="btn buy" data-gather="kelp">采藻食 +' + GA.kelp + '</button>' +
-      '<button class="btn buy" data-gather="coral">采珊瑚 +' + GA.coral + '</button></div>';
+      '<button class="btn buy" data-gather="coral">采珊瑚 +' + GA.coral + '</button>' +
+      '</div></div>';
 
     /* ── 海底火山周期已挪走（2026-09-26 用户要求）──
      * 它是**读天候的**，和天壳（冰封层厚度）是一类东西，摆在「巢穴」这堆建造动作里
@@ -124,12 +129,17 @@
         var furnBtn = '';
         if (b.id === 'furnace' && lv > 0) {
           var _frun = Math.max(0, lv - Math.max(0, s.furnaceStop || 0));
+          /* 炉子每秒吃掉的暖石（额定，满转口径）直接标在这一行——用户 2026-10-16：
+           *   「直接在消耗暖石的地方写明消耗多少」。与 economy.warmDraw 同源（面板===结算家族）。 */
+          var _fdw = (SB.economy && SB.economy.warmDraw) ? SB.economy.warmDraw(s, 'furnace') : 0;
           furnBtn = '<span class="furnctl' + (_frun > 0 ? ' on' : '') + '">' +
             '<button class="fbtn" data-furnace-dec="1" title="少开一座"' +
             (_frun <= 0 ? ' disabled' : '') + '>−</button>' +
             '<b class="fnum">开 ' + _frun + '/' + lv + '</b>' +
             '<button class="fbtn" data-furnace-inc="1" title="多开一座"' +
             (_frun >= lv ? ' disabled' : '') + '>＋</button>' +
+            (_fdw > 0 ? '<span class="fdraw" title="满转口径：这几座热泉炉每秒消耗的暖石">暖石 −' +
+              _fdw.toFixed(2) + '/秒</span>' : '') +
             '</span>';
         }
         /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
@@ -139,12 +149,16 @@
         var turbBtn = '';
         if (b.id === 'hydroturbine' && lv > 0) {
           var _trun = Math.max(0, lv - Math.max(0, s.turbineStop || 0));
+          /* 与热泉炉同一纪律：把「每秒吃多少暖石」标在控件行（用户 2026-10-16）。 */
+          var _tdw = (SB.economy && SB.economy.warmDraw) ? SB.economy.warmDraw(s, 'hydroturbine') : 0;
           turbBtn = '<span class="furnctl' + (_trun > 0 ? ' on' : '') + '">' +
             '<button class="fbtn" data-turbine-dec="1" title="停一座"' +
             (_trun <= 0 ? ' disabled' : '') + '>−</button>' +
             '<b class="fnum">开 ' + _trun + '/' + lv + '</b>' +
             '<button class="fbtn" data-turbine-inc="1" title="开一座"' +
             (_trun >= lv ? ' disabled' : '') + '>＋</button>' +
+            (_tdw > 0 ? '<span class="fdraw" title="满转口径：这几座热液汽轮机每秒消耗的暖石">暖石 −' +
+              _tdw.toFixed(2) + '/秒</span>' : '') +
             '</span>';
         }
         /* 热液工坊「开几座」（2026-10-07，与汽轮机 turbineStop / 热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。

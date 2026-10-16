@@ -46,6 +46,16 @@ console.log('\n=== 科技树形状 ===');
   check('第三层 ≥ 4 项可并行', at(2).length + at(3).length >= 6,
     'L2=' + at(2).length + ' L3=' + at(3).length);
 
+  /* 空 eff 的科技不能再把设计备注塞进「效果」栏；玩家文案必须有明确归属。 */
+  const noEffect = T.filter(t => !t.eff || Object.keys(t.eff).length === 0);
+  const noCopy = noEffect.filter(t => !t.effectDesc && !t.unlockDesc).map(t => t.id);
+  check('没有结构化数值效果的科技都有玩家可读的效果或解锁说明', noCopy.length === 0,
+    noCopy.join(','));
+  const devCopy = noEffect.filter(t => /Civ6:|\b(?:game|workshop|prestige|economy)\.|\bcycle\b|\btick\b|\bcost\b/i
+    .test([t.effectDesc, t.unlockDesc].filter(Boolean).join(' '))).map(t => t.id);
+  check('空效果科技的玩家文案不暴露对标来源或内部实现术语', devCopy.length === 0,
+    devCopy.join(','));
+
   /* ③ 层（2026-09-26 暗流纪重排按用户规格分四层）。
    * ⚠️ 这条是**显示层的教训**：layer 曾经只写在 techs.js 的**注释**里，数据表与面板
    *    都不读它 ⇒ 结绳（层一）和历法（层二）在面板上平铺成并排，玩家根本看不出分层，

@@ -32,6 +32,26 @@
       return o;
     }
     out.res = fixTable(raw.res, base.res, repairedResources);
+    /* 旧档破壳后可能已经点过「留在这一局」（broken 被复位）。壳厚为 0
+     * 表示本周目已经破壳；补上一次性结算标记，避免读档后重复发轮回奖励。 */
+    out.shellOpened = raw.shellOpened === true || (typeof raw.shell === 'number' && raw.shell <= 0);
+    /* 旧版壳厚归零时已自动发放结算，因此旧存档归零状态视为已结算；新版本会显式保存 shellOpened。 */
+    out.breakSettled = raw.breakSettled === true || (!Object.prototype.hasOwnProperty.call(raw, 'shellOpened') && typeof raw.shell === 'number' && raw.shell <= 0);
+    var rawCraft = Array.isArray(raw.spacecraft) ? raw.spacecraft : [];
+    out.spacecraft = [];
+    var knownBodies = { europa: true, saturn: true };
+    if (SB.STAR_MAP_BODIES) for (var bi = 0; bi < SB.STAR_MAP_BODIES.length; bi++)
+      knownBodies[SB.STAR_MAP_BODIES[bi].id] = true;
+    for (var sci = 0; sci < rawCraft.length && out.spacecraft.length < 200; sci++) {
+      var craft = rawCraft[sci];
+      if (!craft || typeof craft !== 'object') continue;
+      if (craft.type !== 'satellite' && craft.type !== 'station') continue;
+      if (!Object.prototype.hasOwnProperty.call(knownBodies, craft.body)) continue;
+      if (typeof craft.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(craft.id)) continue;
+      out.spacecraft.push({ id: craft.id, type: craft.type, body: craft.body,
+        name: typeof craft.name === 'string' ? craft.name.slice(0, 50) : '',
+        launchedAt: typeof craft.launchedAt === 'number' && isFinite(craft.launchedAt) ? craft.launchedAt : 0 });
+    }
     /* 这是一次性诊断信息，不参与游戏数据，也不落盘。
      * JSON.stringify(NaN) 会把 NaN 写成 null；读档保护只能把它回落到默认值 0，
      * 但玩家需要知道这是旧档损坏的结果，而不是资源产出逻辑主动清零。 */

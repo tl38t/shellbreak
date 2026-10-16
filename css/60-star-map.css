@@ -1,0 +1,37 @@
+/* 破壳后星图：纯 CSS 天体与轨道，适配 TapTap H5 竖屏。 */
+.starmap-intro{display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+  padding:4px 2px 14px;color:#d5e3ff;font-size:15px}
+.starmap-intro span{font-size:11px;color:var(--dim)}
+.starmap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.starmap-body{min-width:0;overflow:hidden;border:1px solid #284366;border-radius:12px;
+  background:radial-gradient(circle at 50% 25%,#172d4b 0,#0c192c 56%,#0a1423 100%)}
+.starmap-visual{height:235px;position:relative;overflow:hidden;
+  background-image:radial-gradient(1px 1px at 14% 22%,#bfd7ff 99%,transparent),
+    radial-gradient(1px 1px at 73% 16%,#c9ddff 99%,transparent),
+    radial-gradient(1px 1px at 82% 68%,#89a7d1 99%,transparent),
+    radial-gradient(1px 1px at 27% 78%,#b7d4f5 99%,transparent)}
+.starmap-orbit{position:absolute;width:68%;height:68%;left:16%;top:16%;border:1px solid #56789c88;
+  border-radius:50%;transform:scaleY(.64);box-shadow:0 0 28px #6f9bdd15}
+.starmap-planet{position:absolute;width:90px;height:90px;left:50%;top:50%;transform:translate(-50%,-50%);
+  border-radius:50%;box-shadow:inset -17px -10px 21px #061329aa,0 0 33px #8bc9ff55}
+.starmap-visual.europa .starmap-planet{background:repeating-linear-gradient(163deg,#d9d4bf 0 8px,#9fb1b8 9px 11px,#e5ddc7 12px 22px,#bd9990 23px 25px)}
+.starmap-visual.saturn .starmap-planet{width:108px;height:108px;background:repeating-linear-gradient(177deg,#d5bf94 0 10px,#a88c68 11px 15px,#e3cda1 16px 27px)}
+.starmap-visual.saturn .starmap-planet:after{content:"";position:absolute;width:180px;height:48px;
+  left:50%;top:50%;transform:translate(-50%,-50%) rotate(-18deg);border:11px solid #bfa980a6;
+  border-left-color:#d3c09cbd;border-right-color:#8e795d99;border-radius:50%;box-sizing:border-box}
+.starmap-craft{position:absolute;display:block;z-index:2;width:13px;height:13px;transform:translate(-50%,-50%) rotate(45deg);
+  border:2px solid #8ee3f0;background:#173e58;box-shadow:0 0 10px #64d9ebaa}
+.starmap-craft.station{width:17px;height:17px;border-color:#f6cf81;background:#6c4925;box-shadow:0 0 12px #f6c36aaa}
+.starmap-info{padding:0 16px 16px}
+.starmap-kicker{font-size:11px;letter-spacing:1px;color:#8caed0}
+.starmap-info h3{margin:4px 0 8px;font-size:20px;color:#e9f1ff}
+.starmap-info p{margin:0;min-height:44px;font-size:12px;line-height:1.65;color:var(--dim)}
+.starmap-count{margin:12px 0 8px;padding-top:10px;border-top:1px solid #2a4260;font-size:11px;color:#b6cff0}
+.starmap-records{list-style:none;margin:0;padding:0;max-height:138px;overflow:auto}
+.starmap-records li{display:flex;gap:8px;align-items:center;padding:5px 0;font-size:12px;color:#d7e6f6}
+.starmap-records li.empty{color:var(--dim)}
+.starmap-type{min-width:42px;text-align:center;font-size:10px;padding:2px 5px;border-radius:4px;background:#17485b;color:#92e4f1}
+.starmap-type.station{background:#614628;color:#f7d48d}
+.starmap-footnote{margin:12px 2px 2px;color:var(--dim);font-size:11px;line-height:1.5}
+@media(max-width:700px){.starmap-grid{grid-template-columns:1fr}.starmap-visual{height:210px}
+  .starmap-info p{min-height:0}.starmap-intro{flex-wrap:wrap}}

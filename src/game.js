@@ -35,6 +35,7 @@
     /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
+    if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
@@ -141,12 +142,14 @@
     log('壳薄到 25% 会停手；凿穿最后一段要建成天穹钻机，并在自然环境卡里启动它。');
     dirty = true;
     renderAll();
+    if (tab === 'star-map') setTab('village');
     SB.state.saveRun(snapshot(S));   // 新周目必须立刻落盘，否则刷新会丢掉这一局
   }
 
   // 继续未完成的上一周目（刷新页面时）
   function resumeRun(saved) {
     S = saved;
+    if (S.shellOpened) S.broken = false;
     if (!S.perk) S.perk = SB.state.emptyPerks();
     meta.cycle = Math.max(1, meta.cycle);
     dirty = true;
@@ -191,6 +194,7 @@
     log('存档已清空，回到第 1 周目。轮回点与破层层级一并抹去。');
     dirty = true;
     renderAll();
+    if (tab === 'star-map') setTab('village');
     SB.state.saveRun(snapshot(S));
   }
 
@@ -199,6 +203,37 @@
     SB.ui.render.hideModal();
     dirty = true;
     renderAll();
+    if (S) SB.state.saveRun(snapshot(S));
+  }
+
+  /* 玩家主动选择轮回时才结算当前最新发展分；留在本局不会调用此入口。 */
+  function settleBreak() {
+    if (!S || !S.shellOpened || S.shell > 0 || S.breakSettled) return null;
+    var report = SB.prestige.doBreak(S, emit, { silent: true });
+    if (report) SB.ui.render.showBreakPanel(report);
+    return report;
+  }
+
+  /* 发射系统接入点：发射动作完成后登记航天器，由星图展示并随本周目保存。
+   * 资源消耗和发射条件由未来的发射玩法决定，这里只接受已完成的发射结果。 */
+  function recordLaunch(type, body, name) {
+    if (!S || !S.shellOpened || S.shell > 0) return null;
+    if (type !== 'satellite' && type !== 'station') return null;
+    var bodies = SB.STAR_MAP_BODIES || [], known = false;
+    for (var i = 0; i < bodies.length; i++) if (bodies[i].id === body) known = true;
+    if (!known) return null;
+    if (!Array.isArray(S.spacecraft)) S.spacecraft = [];
+    if (S.spacecraft.length >= 200) return null;
+    var seq = S.spacecraft.length + 1, id;
+    do { id = 'craft-' + seq++; }
+    while (S.spacecraft.some(function (x) { return x && x.id === id; }));
+    var item = { id: id, type: type, body: body,
+      name: (typeof name === 'string' && name.trim() ? name.trim().slice(0, 50)
+        : (type === 'station' ? '空间站 ' : '卫星 ') + (seq - 1)), launchedAt: S.t || 0 };
+    S.spacecraft.push(item);
+    SB.state.saveRun(snapshot(S));
+    dirty = true; renderAll();
+    return item;
   }
 
   function render() { if (dirty) { dirty = false; SB.ui.render.renderAll(); } }
@@ -853,7 +888,7 @@
 
   function boot() {
     var saved = SB.state.loadRun();
-    if (saved && !saved.broken && saved.shell !== undefined) {
+    if (saved && (!saved.broken || saved.shellOpened || saved.breakSettled) && saved.shell !== undefined) {
       /* 启动时的离线补算：存档里记了墙钟时间戳 _ts（snapshot 写入），
        * 这一次性补完（沿用 economy.tick 同一条路径），随后 _lastWall 对齐到「现在」
        * ——否则接下来每帧都会把这个已被补掉的间隙再补一遍。 */
@@ -873,7 +908,7 @@
     maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
     maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志
     document.getElementById('btnBreak').onclick = function () {
-      if (S.shell <= 0 && !S.broken) SB.prestige.doBreak(S, emit);
+      if (S.shell <= 0 && !S.broken && !S.breakSettled && S.shellOpened) settleBreak();
     };
     document.getElementById('btnReset').onclick = function () {
       var t = S ? (S.t / 3600).toFixed(2) + ' 小时 · 峰值族民 ' + S.peak + ' · 建筑 ' + SB.economy.lvlSum(S) + ' 级' : '';
@@ -965,8 +1000,8 @@
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
     adMul: adMul, grantAdBoost: grantAdBoost, toggleAdBoost: toggleAdBoost,
     grantRebirthAd: grantRebirthAd, adRebirthState: adRebirthState, todayKey: todayKey,
-    startRun: startRun, nextCycle: nextCycle, stay: stay,
-    resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave,
+    startRun: startRun, nextCycle: nextCycle, stay: stay, recordLaunch: recordLaunch,
+    resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave, settleBreak: settleBreak,
     /* 离线补算核心函数暴露为调试/测试入口（纯接口，逻辑仅在上面定义处）。
      * 供 sim/_probe_offline_ad.mjs 等探针直接驱动离线补算、复用生产路径，
      * 不在任何 UI 调用链上，不影响在线行为。 */

@@ -188,6 +188,18 @@ html[data-ui-theme="day"] .gov-choice-detail{border-color:#d6e2df}
 #pane-village .bzone .row .btn.buy{min-width:116px;border-color:rgba(105,226,223,.26);background:rgba(20,58,86,.84);font-weight:700}
 #pane-village .bzone .row.is-ready .btn.buy{border-color:rgba(111,224,174,.38);background:rgba(26,70,50,.62);color:var(--green)}
 #pane-village .bzone .row .btn.buy:disabled{border-color:rgba(130,157,176,.18);background:rgba(25,37,50,.6);color:var(--dim);opacity:.72}
+/* 手动采集行（2026-10-16 用户「这里也统一一下」）：两个采集按钮**同尺寸、横排** ——
+ * 旧状两钮是 .row 的裸 flex 子项、无宽度约束，被左侧文本列挤成逐字竖排，且
+ * 「采藻食 +1 / 采珊瑚 +0.1」宽窄不一。建筑升级按钮那次（30-visual-polish）只罩
+ * .bzone 内的行，这一行在 .bzone 之外，故在此单独补。 */
+#pane-village .gather-row>.gather-btns{display:flex;gap:8px;flex:0 0 auto}
+#pane-village .gather-btns>.btn.buy{margin:0;white-space:nowrap;width:112px;height:36px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
+@media(max-width:760px){
+  #pane-village .gather-row{flex-wrap:wrap}
+  #pane-village .gather-row>div:first-child{flex:1 1 100%}
+  #pane-village .gather-row>.gather-btns{width:100%;flex:1 1 100%}
+  #pane-village .gather-btns>.btn.buy{width:auto;flex:1 1 0}
+}
 #pane-village .building-name{letter-spacing:.1px}
 #pane-folk .row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:11px 12px;border:1px solid transparent;border-bottom-color:rgba(104,164,196,.15);border-radius:10px;transition:background .16s,border-color .16s,transform .16s}
 #pane-folk .row:hover{background:rgba(21,54,80,.25);border-color:rgba(104,164,196,.22)}

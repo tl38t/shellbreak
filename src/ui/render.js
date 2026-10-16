@@ -13,7 +13,7 @@
 
   /* 页签 / 面板键顺序（也是 renderPanes 的遍历顺序）。faith 紧挨 civic：
    *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'company', 'meta', 'challenges'];
+  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'challenges'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
@@ -39,6 +39,7 @@
     faith:    { name: '信仰',     color: '#e691b0' },
     workshop: { name: '工坊',     color: '#f0a45c' },
     wonder:   { name: '奇观',     color: '#ffd166' },
+    'star-map': { name: '星图',   color: '#87a7ff' },
     meta:     { name: '轮回商店', color: '#9fb4ff' }
   };
   /* ── 巢穴页内的建筑分区标题配色（2026-09-30 晚，用户：「这里的文字颜色也改了，就是生息区这些」）──
@@ -224,7 +225,7 @@
     var f = el('shellFill'), txt = el('shellTxt'), hint = el('shellHint');
     /* 破壳后：破壳槽 → 星空槽（太空时代终局资源，2026-10-13 镜像破壳）。
      * 复用同一条 shellbar（#shellFill/#shellTxt/#shellHint），内容换成星空累积进度。 */
-    if (s.broken) {
+    if (s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled)) {
       var cap = SB.CFG.STAR_CAP || 0;
       var cur = s.res.starExplore || 0;
       var p = cap > 0 ? (cur / cap) * 100 : 0;
@@ -267,18 +268,18 @@
   /* 星空槽满槽占位结算面板（2026-10-13）。
    * 复用现有 #modal 浮层；无 modal 元素时直接 no-op（shellbar 已完成态仍会显示「★ 太空时代达成」）。 */
   function showStarComplete(s) {
-    var modal = el('modal'); if (!modal) return;
+    var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
     var cap = SB.CFG.STAR_CAP || 0;
     var cur = (s && s.res && s.res.starExplore) || 0;
-    modal.innerHTML = '<div class="panel star-complete-panel">'
+    box.innerHTML = '<div class="star-complete-panel">'
       + '<h2>★ 太空时代达成</h2>'
       + '<p>星空槽已填满（' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '）。</p>'
       + '<p class="muted">你的文明已越过天壳，望向群星。终局奖励与后续内容将在后续版本接入。</p>'
       + '<div class="break-controls"><button class="btn big" type="button" id="starCompleteClose">继续</button></div>'
       + '</div>';
-    modal.classList.add('show');
+    modal.classList.remove('hidden'); bodyModalClass(true);
     var btn = el('starCompleteClose');
-    if (btn) btn.onclick = function () { modal.classList.remove('show'); modal.innerHTML = ''; };
+    if (btn) btn.onclick = hideModal;
   }
 
 
@@ -302,7 +303,8 @@
 
 
   var PANES = { village: paneVillage, folk: paneFolk, tech: paneTech, civic: paneCivic,
-    faith: SB.ui.renderParts.paneFaith, workshop: SB.ui.renderParts.paneWorkshop, wonder: SB.ui.renderParts.paneWonder, meta: paneMeta,
+    faith: SB.ui.renderParts.paneFaith, workshop: SB.ui.renderParts.paneWorkshop, wonder: SB.ui.renderParts.paneWonder,
+    'star-map': SB.ui.renderParts.paneStarMap, meta: paneMeta,
     challenges: SB.ui.renderParts.paneChallenges,
     company: SB.ui.renderParts.paneCompany };
 
@@ -415,9 +417,12 @@
    *    位置得重落一次（他可能自己滑到别处去了）。 */
   function renderBreakBtn() {
     var s = res(); if (!s) return;
-    var ready = s.shell <= 0 && !s.broken;
+    var ready = s.shell <= 0 && !s.broken && !s.breakSettled && s.shellOpened;
     el('btnBreak').disabled = !ready;
-    el('breakHint').textContent = ready ? '壳已归零——凿下去。'
+    el('btnBreak').textContent = s.shellOpened && s.shell <= 0 ? '轮回结算' : '凿穿冰壳';
+    el('breakHint').textContent = s.shellOpened && s.shell <= 0
+      ? '当前轮回预估：' + (SB.prestige.qualified(s) ? SB.prestige.breakReport(s).tidePoints.toFixed(2) : '0.00') + ' 点；留在本局继续发展可提高预估。'
+      : ready ? '壳已归零——凿下去。'
       : s.shell > 0 ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。'
       : '冰壳停住了：需要建成「天穹钻机」奇观才能凿穿最后一段。';
     /* 重置按钮文案随「**当局**是否建立宗教」翻转：本局还没建立宗教 ⇒「重开本周目」，
@@ -754,7 +759,7 @@
       '<div class="kv"><span>工坊解锁项（' + (r.workshopCount || 0) + ' 项 ×' + ((CFG.TIDE && CFG.TIDE.CRAFT_W) || 4) + '）</span><b>' + (r.craftScore || 0).toFixed(1) + '</b></div>' +
       '<div class="kv"><span>总发展分</span><b>' + (r.developmentScore || 0).toFixed(1) + '</b></div>' +
       '<div class="kv"><span>破壳进度</span><b>' + (r.q != null ? (r.q * 100).toFixed(0) : '0') + '%</b></div>' +
-      '<div class="kv" style="border:0;margin-top:8px"><span>获得轮回点</span><b style="color:var(--amber);font-size:17px">' + (r.tidePoints || 0).toFixed(2) + '</b></div>';
+      '<div class="kv" style="border:0;margin-top:8px"><span>' + (res() && res().breakSettled ? '本次获得轮回点' : '当前预估轮回点') + '</span><b style="color:var(--amber);font-size:17px">' + (r.tidePoints || 0).toFixed(2) + '</b></div>';
     var extra = '';
     if (r.challengePointMul > 1) extra += '<div class="note">轮回挑战永久加成：轮回点获取 +' + Math.round((r.challengePointMul - 1) * 100) + '%</div>';
     if (r.challengeClear) extra += '<div class="note">挑战通关：<b>' + r.challengeClear.name + ' · ' + r.challengeClear.label + '</b>，永久获得 ' + r.challengeClear.reward + '；之后轮回点获取再 +10%。</div>';
@@ -763,18 +768,25 @@
     if (r.oldTideStele) extra += '<div class="note">转入旧日潮纹碑石 ' + r.oldTideStele + ' 件（固定科技点/秒）</div>';
     var note = r.locked
       ? '<div class="note" style="color:var(--red)">本局未达《神学》资格门，不发放轮回点、不解锁商店。</div>'
-      : (extra || '<div class="note">轮回点 = 1 + floor(发展分 × 系数 × 破壳系数)，发展分 = 2×峰值族民 + 建筑纪元分 + 工坊解锁项；下一局继承轮回点、已购增益与旧日遗产账本。</div>');
+      : (res() && !res().breakSettled
+        ? '<div class="note">这只是当前预估，留在本局继续发展后，轮回结算会按最新进度重新计算。</div>'
+        : (extra || '<div class="note">轮回点 = 1 + floor(发展分 × 系数 × 破壳系数)，发展分 = 2×峰值族民 + 建筑纪元分 + 工坊解锁项；下一局继承轮回点、已购增益与旧日遗产账本。</div>'));
     box.innerHTML =
       '<h3>冰壳裂开了</h3>' +
       rows +
       note +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
-      '<button class="btn" id="mStay">留在这一局</button>' +
-      '<button class="big" id="mNext">开始轮回</button></div>';
+      (res() && res().breakSettled ? '' : '<button class="btn" id="mStay">探索壳外的星空</button>') +
+      '<button class="big" id="mNext">' + (res() && res().breakSettled ? '开始轮回' : '结算并轮回') + '</button></div>';
     el('modal').classList.remove('hidden'); bodyModalClass(true);
-    el('mStay').onclick = function () { SB.game.stay(); };
-    el('mNext').textContent = (m && m.religionSeen) ? '开始轮回' : '重开本周目';
-    el('mNext').onclick = function () { SB.game.nextCycle(); };
+    if (el('mStay')) el('mStay').onclick = function () { SB.game.stay(); };
+    if (res() && res().breakSettled) {
+      el('mNext').textContent = (m && m.religionSeen) ? '开始轮回' : '重开本周目';
+      el('mNext').onclick = function () { SB.game.nextCycle(); };
+    } else {
+      el('mNext').textContent = SB.prestige.qualified(res()) ? '结算并轮回' : '结算后重开';
+      el('mNext').onclick = function () { SB.game.settleBreak(); };
+    }
   }
 
   /* body.modal-open 的开关（2026-09-30）：配合 main.css 的
@@ -807,6 +819,15 @@
   var showWonderInfo = infoParts.showWonderInfo;
   var showPolicyInfo = infoParts.showPolicyInfo;
   var showWorkshopInfo = infoParts.showWorkshopInfo;
+  function openWorkshopFromInfo() {
+    var s = SB.game && SB.game.run ? SB.game.run() : null;
+    if (s && s.lvl && s.lvl.workshop > 0) {
+      hideModal();
+      SB.game.setTab('workshop');
+    } else {
+      showBuildingInfo('workshop');
+    }
+  }
   /* 通用确认框。danger: true 时确认键走红色配色。
    * requireCheck 存在时确认键初始禁用，必须勾上才能执行——不可逆操作靠这一步兜底，
    * 不靠「再点一次」这种玩家会顺手连点的惯性。 */
@@ -938,6 +959,12 @@
       cp.classList.toggle('locked', !copn);
       cp.title = copn ? '' : '研究「宏观经济学」后开启公司页';
     }
+    var sm = document.querySelector('.tab[data-tab="star-map"]');
+    if (sm) {
+      var ss = res(), sop = !!(ss && (ss.shellOpened || ss.breakSettled) && ss.shell <= 0);
+      sm.classList.toggle('locked', !sop);
+      sm.title = sop ? '' : '凿穿天壳后开启星图';
+    }
   }
 
 
@@ -961,6 +988,7 @@
            * 走 resUnlocked 而不是直接读 s.civics.theology：门只有一处定义。 */
           if (node.dataset.tab === 'faith' &&
               !(SB.economy && SB.economy.resUnlocked(res(), 'faith'))) return;
+          if (node.dataset.tab === 'star-map' && !(res() && (res().shellOpened || res().breakSettled) && res().shell <= 0)) return;
           /* 高亮不在这里翻 —— 它是 setTab 的一部分（见 game.js 那段注释：
            * 弹窗里那条直达科技的路径也走 setTab，高亮写在事件里就会漏掉那条路）。 */
           SB.game.setTab(node.dataset.tab);
@@ -1039,7 +1067,8 @@
         var infoLink = e.target && e.target.closest ? e.target.closest('.inline-info-link') : null;
         if (infoLink) {
           e.preventDefault();
-          if (infoLink.dataset.buildInfo) showBuildingInfo(infoLink.dataset.buildInfo);
+          if (infoLink.dataset.workshopTab !== undefined) openWorkshopFromInfo();
+          else if (infoLink.dataset.buildInfo) showBuildingInfo(infoLink.dataset.buildInfo);
           else if (infoLink.dataset.wonderInfo) showWonderInfo(infoLink.dataset.wonderInfo);
           else if (infoLink.dataset.policyInfo) showPolicyInfo(infoLink.dataset.policyInfo);
         }
@@ -1074,6 +1103,7 @@
     cycleJobStep: cycleJobStep, jobStep: getJobStep, paintGrow: paintGrow,
     setWorkshopView: SB.ui.renderParts.setWorkshopView,
     showBuildingInfo: showBuildingInfo,
+    openWorkshopFromInfo: openWorkshopFromInfo,
     showWonderInfo: showWonderInfo,
     showPolicyInfo: showPolicyInfo,
     openRankChooser: openRankChooser,

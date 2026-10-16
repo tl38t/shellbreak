@@ -156,7 +156,12 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 #pane-village .bzone .row>div:first-child{min-width:0}
 #pane-village .bzone .row .nm{display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.45}
 #pane-village .bzone .row .ds{display:none}
-#pane-village .bzone .row .btn.buy{max-width:180px;min-height:30px;margin:0;padding:4px 8px;font-size:11px;white-space:normal;line-height:1.3}
+/* 升级 / 建造按钮：**定宽定高**（2026-10-16 用户：「按钮大小能统一吗」，PC 与手机两端）。
+ * 旧式 `max-width:180px;min-height:30px` 让宽度随文案长短（116~180px）、高度随行数
+ * （单资源 1 行 / 双资源 2 行）各自伸缩 ⇒ 一列按钮参差不齐、左缘也对不齐。
+ * 现在固定 176×40 + 内容居中：无论几行、几个资源，所有按钮同一尺寸、整齐成列。
+ * 建筑成本最多 2 个资源（见 config-buildings），2 行文字在 40px 内放得下（11px×1.25×2+8≈35.5）。 */
+#pane-village .bzone .row .btn.buy{width:176px;height:40px;display:inline-flex;align-items:center;justify-content:center;text-align:center;margin:0;padding:4px 8px;font-size:11px;white-space:normal;line-height:1.25}
 .building-name{display:inline;padding:0;border:0;border-bottom:1px dotted rgba(105,226,223,.4);border-radius:0;background:none;color:var(--txt);font:inherit;font-weight:700;line-height:inherit;text-align:left;cursor:pointer}
 .building-name:hover{color:var(--cyan);border-bottom-color:var(--cyan)}
 .building-name:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:3px}

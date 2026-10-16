@@ -92,16 +92,19 @@
       }
     }
 
-    if (s.shell <= 0 && !s.broken) { s.shell = 0; onShellZero(s, emit); }
+    if (s.shell <= 0 && !s.shellOpened && !s.breakSettled) { s.shell = 0; onShellZero(s, emit); }
     return cut;
   }
 
   function onShellZero(s, emit) {
     s.shell = 0;
-    /* 注意：这里绝不能先置 s.broken。prestige.doBreak 开头有「已结算则返回」的守卫，
-     * 若在调用前把 broken 置位，doBreak 会立刻 return，结算面板与洋流点全部丢失——
-     * broken 的置位权只属于 doBreak。 */
-    SB.prestige.doBreak(s, emit);
+    /* 破壳先展示当前结算预估；只有玩家选择轮回时才真正入账。留在本局后，
+     * shellOpened 保持为真，文明可继续发展，之后再次按最新状态结算。 */
+    s.shellOpened = true;
+    s.broken = true;
+    var report = SB.prestige.breakReport(s);
+    if (!SB.prestige.qualified(s)) { report.tidePoints = 0; report.locked = true; }
+    (SB.game.showBreakAnimation || SB.game.showBreakPanel)(report);
     if (emit) emit('冰壳裂开了。');
   }
 
@@ -110,7 +113,7 @@
    * 速率来自 economy.starRate（= STAR_BASE × breakCoef + 升级加成），按 dt 累加、cap 到 STAR_CAP。
    * 满槽 ⇒ 置 s.starComplete（只触发一次）+ 调 render.showStarComplete 弹占位结算面板。 */
   function tickStar(s, dt, emit) {
-    if (!s || !s.broken || s.starComplete) return;
+    if (!s || s.shell > 0 || !(s.broken || s.shellOpened || s.breakSettled) || s.starComplete) return;
     if (s.starScopeOn === false) return;
     var rate = (SB.economy && SB.economy.starRate) ? SB.economy.starRate(s) : 0;
     if (!(rate > 0)) return;

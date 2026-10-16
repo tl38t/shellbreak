@@ -892,6 +892,34 @@
     return isFinite(f) && f > 0 ? f : 1;
   }
 
+  /* 面板用：某设备**每秒暖石消耗**（额定口径，供巢穴页热泉炉 / 热液汽轮机控件行标注）。
+   * 【为什么要它】用户 2026-10-16：「不要在这里写文案，直接在消耗暖石的地方写明消耗多少」——
+   *   消耗量要落在**真正吃石的那一行**（设备的「开几座」控件行），而不是到环境卡说明段里去解释。
+   * 【额定 ≠ 实扣】这里给的是「满转口径」（不按库存打折），回答「开这几座要烧多少」；
+   *   与「这一 tick 实际扣了多少」是两件事（后者已并入顶栏净速率）。
+   *   本式与引擎侧扣费（热泉炉 ironFlow 的暖石门控、汽轮机 steelFlow 的实扣）同源同式，
+   *   也与顶栏净速率 rates().warmstone 里并入的那笔扣减同一口径 —— 几处数字必须一致，
+   *   否则又是「同一个量两个面板两种说法」（面板撒谎家族）。纯函数只读 s。 */
+  function warmDraw(s, id) {
+    if (!s) return 0;
+    if (id === 'hydroturbine') {
+      var t = Math.max(0, (s.lvl.hydroturbine || 0) - Math.max(0, s.turbineStop || 0));
+      return t * (SB.UNIT.hydroWarm || 0) * warmEff(s);
+    }
+    if (id === 'furnace') {
+      var lv = s.lvl.furnace || 0;
+      if (!(lv > 0)) return 0;
+      var run = Math.max(0, lv - Math.max(0, s.furnaceStop || 0));
+      if (run <= 0) return 0;
+      var T = SB.tech ? SB.tech.mul(s) : null;
+      var e = (T ? T.bldEff : 1);
+      var cold = isCold(s) ? coldSeasonMul(s) : 1;
+      var rate = SB.UNIT.iron * run * (T ? T.smelt : 1) * cold * (T ? T.craft : 1);
+      return rate * e * warmEff(s);
+    }
+    return 0;
+  }
+
   function ironFlow(s, cold, dt) {
     var lv = s.lvl.furnace || 0;
     if (!(lv > 0)) return 0;
@@ -981,7 +1009,7 @@
    *        + 每级星空观测站升级额外 +STAR_UPG_BONUS/s（保留旧升级语义）。
    * 实际落点与满槽判定在 shell.tickStar（每 tick 调用）。 */
   function starRate(s) {
-    if (!s || !s.broken || s.starComplete) return 0;
+    if (!s || s.shell > 0 || !(s.broken || s.shellOpened || s.breakSettled) || s.starComplete) return 0;
     if (s.starScopeOn === false) return 0;
     var coef = (SB.shell && SB.shell.breakCoef) ? SB.shell.breakCoef(s) : 0;
     var upg = (upgSum ? upgSum(s, 'starExplore') : 0);
@@ -1336,6 +1364,10 @@
      *   暖石面板要显示汽轮机每秒暖石消耗的**真实值**（= 运行座数 × hydroWarm × warmEff），
      *   不导出则 UI 只能按基准值谎称，降耗科技上线后数字对不上（面板撒谎家族）。纯函数只读 s。 */
     warmEff: warmEff,
+    /* ⚠️ 2026-10-16 导出 warmDraw：某设备每秒暖石消耗（额定口径），
+     *   巢穴页热泉炉 / 热液汽轮机的「开几座」控件行直接标这个数，
+     *   玩家不用去环境卡说明里找「它在吃多少石」。纯函数只读 s。 */
+    warmDraw: warmDraw,
     /* ⚠️ faithRate / faithMul 导出是为了回归取证：乘区本身可读才测得准
      *    （只测 rates.faith 会被「基础产出为 0」恒乘以 0，看不出乘区有没有挂上）。
      *    同理 libraryLevel 导出——虚级是「效果级」，只能直接读才知道有没有接进科技产出。 */

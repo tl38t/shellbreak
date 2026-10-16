@@ -113,6 +113,33 @@ const metaPre = SB.game.meta();
 metaPre.tide = 12.5;                                  // 埋一批跨周目进度
 const cyclePre = metaPre.cycle;
 
+/* 6-pre) 破壳只预览，不立即结算；留下后发展分能增加，再次轮回才按最新值入账。 */
+{
+  const live = SB.game.run();
+  const beforeMeta = JSON.parse(JSON.stringify(SB.game.meta()));
+  const oldAnim = SB.game.showBreakAnimation;
+  SB.game.showBreakAnimation = function () {};
+  live.civics = { theology: true }; live.peak = 20; live.shell = 0;
+  live.broken = false; live.shellOpened = false; live.breakSettled = false;
+  const beforeTide = SB.game.meta().tide;
+  SB.shell.onShellZero(live, null);
+  check('破壳先打开星图并预览，不立即入账轮回点',
+    live.shellOpened && !live.breakSettled && SB.game.meta().tide === beforeTide);
+  live.broken = false; // 等同点「留在这一局」
+  const estimate1 = SB.prestige.breakReport(live).tidePoints;
+  live.peak = 80;
+  const estimate2 = SB.prestige.breakReport(live).tidePoints;
+  check('留在本局后发展，轮回点预估随峰值人口增长', estimate2 > estimate1,
+    estimate1.toFixed(2) + ' → ' + estimate2.toFixed(2));
+  SB.game.settleBreak();
+  check('之后再次轮回可按最新进度结算', live.breakSettled && SB.game.meta().tide > beforeTide);
+  SB.game.showBreakAnimation = oldAnim;
+  const currentMeta = SB.game.meta();
+  Object.keys(currentMeta).forEach(k => delete currentMeta[k]);
+  Object.assign(currentMeta, beforeMeta);
+  SB.state.saveMeta(currentMeta);
+}
+
 /* 6a) 未研究《神学》⇒ 纯软重置：清空本局、保留跨周目资产、cycle+1（不发点、不结算）。
  *     ⚠️ 必须显式把本局 civics 清空：前面测试若残留 theology=true，routeReset 会误判为
  *     轮回结算分支（选项 B 的资格门 = 本局《神学》真值）。 */

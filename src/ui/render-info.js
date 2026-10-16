@@ -13,9 +13,10 @@
 
   /* 在效果文案中把已解锁内容转成内联入口。逐段匹配并优先长名称，
    * 避免「大灯塔」被较短的「灯塔」再次切坏。 */
-  function linkInfoNames(text) {
+  function linkInfoNames(text, linkWorkshopTab) {
     text = String(text || '');
     var names = [], i, list = SB.BUILDINGS || [], wonders = SB.wonder ? SB.wonder.list() : [], policies = SB.POLICIES || [];
+    if (linkWorkshopTab) names.push({ name: '工坊', id: 'workshop', type: 'workshopTab' });
     for (i = 0; i < list.length; i++) names.push({ name: list[i].name, id: list[i].id, type: 'build' });
     for (i = 0; i < wonders.length; i++) names.push({ name: wonders[i].name, id: wonders[i].id, type: 'wonder' });
     for (i = 0; i < policies.length; i++) names.push({ name: policies[i].name, id: policies[i].id, type: 'policy' });
@@ -26,12 +27,13 @@
       for (i = 0; i < names.length; i++) {
         at = text.indexOf(names[i].name, cursor);
         if (at >= 0 && (bestAt < 0 || at < bestAt)) { bestAt = at; best = names[i]; }
-        else if (at === bestAt && best && names[i].name.length > best.name.length) best = names[i];
+        else if (at === bestAt && best && (names[i].name.length > best.name.length ||
+          (names[i].name.length === best.name.length && names[i].type === 'workshopTab'))) best = names[i];
       }
       if (!best) break;
       out += text.slice(cursor, bestAt);
       out += '<span role="button" tabindex="0" class="inline-info-link" ' +
-        (best.type === 'build' ? 'data-build-info' : best.type === 'wonder' ? 'data-wonder-info' : 'data-policy-info') +
+        (best.type === 'workshopTab' ? 'data-workshop-tab' : best.type === 'build' ? 'data-build-info' : best.type === 'wonder' ? 'data-wonder-info' : 'data-policy-info') +
         '="' + best.id + '" aria-haspopup="dialog">' + best.name + '</span>';
       cursor = bestAt + best.name.length;
     }
@@ -93,8 +95,7 @@
     if (!reqHtml) reqHtml = '<span class="tree-req met">无 · 起始节点</span>';
 
     /* 科技详情必须展示数据里的真实尤里卡条件（item.cond）。
-     * item.note 只是 Civ6 对标/氛围备注，不能在揭示后拿来替换条件；否则同一项科技
-     * 会从「实际门槛」变成一段看似合理但游戏根本不判定的自编文案。 */
+     * 玩家效果与解锁说明走独立字段，不用设计备注或第三方对标文案兜底。 */
     var condition = tech
       ? (item.cond ? (SB.tech.condText(item.cond) || '尤里卡条件') : '无需尤里卡')
       : SB.civic.boostText(s, item);
@@ -103,7 +104,11 @@
       ? Math.max(0, Math.min(100, short.now / short.need * 100)) : 0;
     var showProgress = !revealed && short && short.need > 0;
     var effect = tech ? SB.tech.effectText(item) : item.desc;
-    if (tech && effect.indexOf('（无直接效果）') === 0 && item.note) effect = item.note.split('\n')[0];
+    if (tech && effect === '（无直接效果）') effect = item.effectDesc || '无直接数值加成。';
+    var unlockSection = tech && item.unlockDesc
+      ? '<section class="tree-detail-section"><h4>解锁内容</h4><p>' +
+        (revealed ? linkInfoNames(item.unlockDesc, true) : '达成揭示条件后显示。') + '</p></section>'
+      : '';
     var cost = item.cost || 0;
     var blockDetail = '';
     if (tech && !done && blocked) {
@@ -137,9 +142,11 @@
       (showProgress ? '<div class="tree-progress"><i style="width:' + progress.toFixed(1) + '%"></i></div>' : '') +
       (showProgress ? '<small>进度 ' + progress.toFixed(0) + '%</small>' : '') + '</section>' +
       '<section class="tree-detail-section"><h4>效果</h4><p>' +
-      (revealed ? linkInfoNames(effect) : '达成揭示条件后显示。') + '</p></section>' +
+      (revealed ? linkInfoNames(effect, !tech && /工坊配方/.test(effect)) : '达成揭示条件后显示。') + '</p></section>' +
+      unlockSection +
       '<section class="tree-detail-section"><h4>前置节点</h4><div class="tree-reqs">' + reqHtml + '</div></section>' +
       (tech && revealed && TECH_FLAVOR[id] ? '<p class="b-flavor">' + TECH_FLAVOR[id] + '</p>' : '') +
+      (!tech && revealed && SB.ui.renderContent.CIVIC_FLAVOR[id] ? '<p class="b-flavor">' + SB.ui.renderContent.CIVIC_FLAVOR[id] + '</p>' : '') +
       '<div class="tree-detail-actions"><button class="btn buy" type="button" data-tree-study="' + (tech ? 'tech' : 'civic') + '" data-' + (tech ? 'tech' : 'civic') + '="' + id + '"' +
       (done || blocked ? ' disabled' : '') + (blocked ? ' title="' + blocked + '"' : '') + '>' + buttonText + '</button>' +
       '<button class="btn tree-back" type="button" data-modal-close="1">返回树图</button></div>';

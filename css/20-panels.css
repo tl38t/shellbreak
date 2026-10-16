@@ -71,6 +71,9 @@
 .furnctl .fbtn:disabled{opacity:.35;cursor:not-allowed}
 .furnctl .fnum{font-size:12px;font-variant-numeric:tabular-nums;color:var(--txt);min-width:54px;text-align:center}
 .furnctl.on .fnum{color:var(--green)}
+/* 设备行尾的「每秒消耗暖石」标注（2026-10-16）：紧跟在「开 X/Y」后面，
+ * 让玩家在调座数的那一行就看到会烧多少石，而不是去环境卡说明段里读文案。 */
+.furnctl .fdraw{font-size:11px;color:var(--dim);margin-left:4px;font-variant-numeric:tabular-nums}
 
 /* 工坊自动制作槽的档位行（2026-10-07）：配方行下面独立一行，与上面四颗制造按钮分开
  * ——两者语义不同（手动造几份 vs 满仓后自动转制多少），挤在一行会被读成同一组按钮。
