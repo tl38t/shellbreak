@@ -13,7 +13,7 @@
 
   /* 页签 / 面板键顺序（也是 renderPanes 的遍历顺序）。faith 紧挨 civic：
    *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'challenges'];
+  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'challenges', 'star-dome'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
@@ -40,7 +40,8 @@
     workshop: { name: '工坊',     color: '#f0a45c' },
     wonder:   { name: '奇观',     color: '#ffd166' },
     'star-map': { name: '星图',   color: '#87a7ff' },
-    meta:     { name: '轮回商店', color: '#9fb4ff' }
+    meta:     { name: '轮回商店', color: '#9fb4ff' },
+    'star-dome': { name: '星穹商店', color: '#b08bff' }
   };
   /* ── 巢穴页内的建筑分区标题配色（2026-09-30 晚，用户：「这里的文字颜色也改了，就是生息区这些」）──
    * 上一步只把最外层卡片标题上了色，页**内部**的区标题（礁栖核心 / 生息区 / 工坊区 …）还是
@@ -240,7 +241,7 @@
       } else {
         txt.innerHTML = '星空槽 ' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '（' + p.toFixed(2) + '%）';
         hint.textContent = '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积，满槽即太空时代达成。'
-          + (s.starScopeOn === false ? '（已暂停：点下方开关恢复）' : '');
+          + '卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。';
       }
       return;
     }
@@ -306,7 +307,26 @@
     faith: SB.ui.renderParts.paneFaith, workshop: SB.ui.renderParts.paneWorkshop, wonder: SB.ui.renderParts.paneWonder,
     'star-map': SB.ui.renderParts.paneStarMap, meta: paneMeta,
     challenges: SB.ui.renderParts.paneChallenges,
-    company: SB.ui.renderParts.paneCompany };
+    company: SB.ui.renderParts.paneCompany, 'star-dome': paneStarDome };
+
+  /* 星穹商店（ERA7 · spec §7）：页签骨架 + 星屑余额显示。
+   * ⚠️ 本 spec 只做骨架——实际商品另开一轮设计（用户未定义），不在本 spec 落地。
+   *   门 = 首个太空建筑建成（s.lvl.satellite>=1）；结算发放逻辑在 prestige.doBreak。 */
+  function paneStarDome() {
+    var s = res(); if (!s) return '';
+    var m = meta();
+    var sd = (m && (m.stardust || 0)) || 0;
+    var spaceLvls = ((s.lvl && s.lvl.satellite) || 0) + ((s.lvl && s.lvl.spacestation) || 0);
+    var starPct = (SB.CFG.STAR_CAP > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / SB.CFG.STAR_CAP) : 0;
+    var nextGain = Math.floor(spaceLvls * 0.1 * (1 + starPct));
+    return '<div class="cardbody">' +
+      '<div class="kv"><span>星屑余额</span><b>' + sd + '</b></div>' +
+      '<div class="kv"><span>下个周目结算可得</span><b>' + nextGain + '</b></div>' +
+      '<div class="note">星屑是跨周目局外资源，仅在周目结算时发放（不做逐秒滴流）。' +
+        '预计：floor( 太空建筑等级 ' + spaceLvls + ' × 0.1 × (1 + 星空进度 ' + Math.round(starPct * 100) + '%) )。</div>' +
+      '<div class="note warn">星穹商店商品尚未开放（设计中）。</div>' +
+      '</div>';
+  }
 
   /* ── pane 重写会换掉里面的元素，于是「活在 DOM 上的滚动位置」归零 ──
    * 唯一有内部滚动条的是科技长卷（横卷）：内部位置 = 玩家正在看哪个纪元。
@@ -322,6 +342,9 @@
    *    只会让「滑到一半被拽回左边」静默复发，所以 e2e 有一条断言盯着这个 id。
    * ⚠️ 新内容比旧的短时浏览器会自己把 scrollLeft 夹到上限，不需要在这里 clamp。 */
   var techScrollLeft = 0, techShown = false;
+  /* 星图是 iframe 动画组件：记上一次写进 pane-star-map 的 HTML，只有内容真的变化
+   * （未破壳的提示 ↔ 已破壳的星图）才重写，否则每 2 秒 PANE_REFRESH 会把 iframe 重载。 */
+  var lastStarMapHTML = null;
   /* 市政树（civicScroll）与科技长卷同一个病、同一副药（2026-09-28 用户报：
    * 「市政树界面和之前科技树界面一样，固定时间会被拉到最左边」）。
    * 机制一模一样：PANE_REFRESH 每 2 秒壁钟重画一次 renderPanes，innerHTML 一重写，
@@ -346,6 +369,7 @@
     /* 科技 tab 的灰态随开门那一刻翻转，所以每次画面板都同步一次（5 个节点，很便宜）。
      * 放在这里而不是只在 initTabs 做一次：开门是由建造动作触发的，那时 initTabs 早跑完了。 */
     syncTabLocks();
+    syncTabResearchDots();
     var tech = el('pane-tech');
     var shown = !tech || !tech.classList || !tech.classList.contains('hidden');
 
@@ -379,7 +403,11 @@
        * 假 DOM（e2e / 探针）的 getElementById 对任意 id 都懒造一个桩，于是
        * pane-village-body 也会返回真值，导致所有页的正文被写进幽灵桩、真面板恒空、
        * e2e 整片红（真实浏览器里这些 -body 不存在，反而正常）。 */
-      if (k === 'faith' || k === 'company') {
+      if (k === 'star-map') {
+        /* iframe 动画组件：内容只在门翻转时变化，其余 tick 跳过重写以免 iframe 重载。 */
+        var smHtml = cardHeadHTML(k) + PANES[k]();
+        if (smHtml !== lastStarMapHTML) { node.innerHTML = smHtml; lastStarMapHTML = smHtml; }
+      } else if (k === 'faith' || k === 'company' || k === 'village') {
         var body = el('pane-' + k + '-body');
         if (body) body.innerHTML = PANES[k]();
       } else {
@@ -529,9 +557,13 @@
     /* 巢穴 tab 名随纪元演进（与卡片标题同一来源，避免 tab 写「巢穴」、面板写「渊海之国」打架）。 */
     var vt = el('villageTabName');
     if (vt && SB.habitat && SB.habitat.habitatName) vt.textContent = SB.habitat.habitatName(s);
+    /* 巢穴页内卡片标题（#villageHeadName，index.html 静态头，不进 2 秒刷新的 body）同步聚落名。 */
+    var vh = el('villageHeadName');
+    if (vh && SB.habitat && SB.habitat.habitatName) vh.textContent = SB.habitat.habitatName(s);
     renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar();
     SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderDrill(s);
     SB.ui.renderParts.renderStar(s); SB.ui.renderParts.renderReligion(s);
+    SB.ui.renderParts.renderHabitatName(s);
     renderIdleTag(); renderEvent(s); renderAd(); renderRank();
   }
   function renderTick() {
@@ -777,7 +809,7 @@
       note +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
       (res() && res().breakSettled ? '' : '<button class="btn" id="mStay">探索壳外的星空</button>') +
-      '<button class="big" id="mNext">' + (res() && res().breakSettled ? '开始轮回' : '结算并轮回') + '</button></div>';
+      '<button class="btn big" id="mNext">' + (res() && res().breakSettled ? '开始轮回' : '结算并轮回') + '</button></div>';
     el('modal').classList.remove('hidden'); bodyModalClass(true);
     if (el('mStay')) el('mStay').onclick = function () { SB.game.stay(); };
     if (res() && res().breakSettled) {
@@ -850,6 +882,48 @@
       chk.onchange = function () { okBtn.disabled = !chk.checked; };
     }
     okBtn.onclick = function () { hideModal(); if (o.onOk) o.onOk(); };
+  }
+
+  /* 无上限原料配方没有「满仓」触发点，玩家在单独弹窗里填写批次数。
+   * 不能把数字输入框塞进每 2 秒重画一次的工坊 pane，否则输入时会丢焦点/丢值。 */
+  function openAutoBatchDialog(id) {
+    var s = res(), c = SB.workshop && SB.workshop.craftById(id);
+    if (!s || !c || SB.workshop.hasFiniteInput(s, c)) return false;
+    var box = el('modalBox'), modal = el('modal');
+    var current = SB.workshop.slotBatch(s, id);
+    var max = (CFG.AUTO && CFG.AUTO.BATCH_MAX) || 9007199254740991;
+    box.innerHTML =
+      '<div class="modal-hd"><b>自动制造批次</b><button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<p style="color:var(--dim);line-height:1.6;margin:0 0 14px">' + c.name + '：当库存足够制造你填写的数量时，自动制造这一整批；多出的材料会保留。</p>' +
+      '<label for="autoBatchInput" style="display:block;margin-bottom:6px">每批制造次数</label>' +
+      '<input id="autoBatchInput" type="number" min="1" max="' + max + '" step="1" inputmode="numeric" value="' + current + '"' +
+      ' style="box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--text);font:inherit">' +
+      '<div id="autoBatchError" role="alert" style="min-height:18px;margin-top:6px;color:var(--red);font-size:12px"></div>' +
+      '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
+      '<button type="button" class="btn" data-modal-close="1">取消</button>' +
+      '<button type="button" class="btn buy" id="autoBatchSave">保存</button></div>';
+    modal.classList.remove('hidden'); bodyModalClass(true);
+    var input = el('autoBatchInput'), save = el('autoBatchSave');
+    function saveBatch() {
+      var raw = String(input.value || '').trim();
+      var batch = Number(raw);
+      var error = el('autoBatchError');
+      if (!/^\d+$/.test(raw) || !isFinite(batch) || Math.floor(batch) !== batch || batch < 1 || batch > max) {
+        error.textContent = '请输入 1 到 ' + max + ' 之间的整数。';
+        return;
+      }
+      var live = res();
+      if (!live || !SB.workshop.setSlotBatch(live, id, batch)) {
+        error.textContent = '保存失败：自动槽已不可用，请检查工坊升级与槽位。';
+        return;
+      }
+      hideModal();
+      SB.game.markDirty(); SB.game.renderAll();
+    }
+    save.onclick = saveBatch;
+    input.onkeydown = function (e) { if (e.key === 'Enter') saveBatch(); };
+    if (input.focus) input.focus();
+    return true;
   }
 
   /* 叙事弹窗：科研面板开门那一刻的台词（文案由用户 2026-09-25 给定，
@@ -965,6 +1039,33 @@
       sm.classList.toggle('locked', !sop);
       sm.title = sop ? '' : '凿穿天壳后开启星图';
     }
+    /* 星穹商店（ERA7）：第七个独立门槛 —— 首个太空建筑（轨道卫星）。与 tab 灰态、pane 显示同源。 */
+    var sd = document.querySelector('.tab[data-tab="star-dome"]');
+    if (sd) {
+      var ssd = res(), sdop = !!(ssd && ssd.lvl && ssd.lvl.satellite >= 1);
+      sd.classList.toggle('locked', !sdop);
+      sd.title = sdop ? '' : '建成首座太空建筑（轨道卫星）后开启星穹商店';
+    }
+  }
+
+  /* 科技 / 市政页签的「可研究」红点：各自分类存在当前即可研究的项时点亮（活指示，不记 localStorage）。
+   * 复用 SB.tech/civic.hasResearchable（与节点「可研究」状态同源）；面板未开（locked）不亮。
+   * 每次 PANE_REFRESH 重算 —— 尤里卡/鼓舞达成或攒够点数，红点应即时出现/消失。 */
+  function syncTabResearchDots() {
+    var doc = (typeof document !== 'undefined') ? document : null;
+    if (!doc) return;
+    var s = res();
+    var tt = doc.querySelector('.tab[data-tab="tech"]');
+    if (tt) {
+      var techOn = !!(SB.tech && SB.tech.hasResearchable && techTabOpen() && SB.tech.hasResearchable(s));
+      tt.classList.toggle('avail', techOn);
+    }
+    var ct = doc.querySelector('.tab[data-tab="civic"]');
+    if (ct) {
+      var cop = !!(SB.civic && SB.civic.panelOpen && s && SB.civic.panelOpen(s));
+      var civOn = cop && !!(SB.civic.hasResearchable && SB.civic.hasResearchable(s));
+      ct.classList.toggle('avail', civOn);
+    }
   }
 
 
@@ -989,6 +1090,8 @@
           if (node.dataset.tab === 'faith' &&
               !(SB.economy && SB.economy.resUnlocked(res(), 'faith'))) return;
           if (node.dataset.tab === 'star-map' && !(res() && (res().shellOpened || res().breakSettled) && res().shell <= 0)) return;
+          /* 星穹商店（ERA7）：门 = 首个太空建筑建成（轨道卫星），与 star-dome 页的显示/结算同源。 */
+          if (node.dataset.tab === 'star-dome' && !(res() && res().lvl && res().lvl.satellite >= 1)) return;
           /* 高亮不在这里翻 —— 它是 setTab 的一部分（见 game.js 那段注释：
            * 弹窗里那条直达科技的路径也走 setTab，高亮写在事件里就会漏掉那条路）。 */
           SB.game.setTab(node.dataset.tab);
@@ -1092,6 +1195,7 @@
     initTabs: initTabs, initSpeeds: initSpeeds, techGoEra: techGoEra, scheduleTechJumpTo: scheduleTechJumpTo,
     showOfflineModal: showOfflineModal, setOfflineProgress: setOfflineProgress,
     showTreeDetail: showTreeDetail,
+    openAutoBatchDialog: openAutoBatchDialog,
     /* 主页面分区卡片的折叠（2026-09-30）：toggle 供 input.js 的 d.fold 委托调用，
      * applyAllFolds 供启动时按持久化状态落地。
      * 巢穴页**内**的区折叠（2026-09-30 晚）同理由 d.zfold 委托调用 —— 用的也是这一对：

@@ -21,15 +21,24 @@
     /* 奇观页的提示必须绑定当前奇观；幸福度账本是汇总口径，不能把
      * 「王国大交易所」这一项的标签复用到所有已建成奇观上。 */
     if (which === 'wonder' && sourceId !== 'wonder_grand_exchange') return '';
-    if (!SB.economy.happyLedger) return '';
-    var L = SB.economy.happyLedger(s);
-    if (!L.bonusParts || !L.bonusParts.length) return '';
-    var want = HAPPY_BONUS_LABELS[which], out = [];
-    for (var i = 0; i < L.bonusParts.length; i++) {
-      if (L.bonusParts[i].label === want) out.push(L.bonusParts[i].v);
+    var v;
+    if (which === 'card') {
+      /* 卡库按**单张卡**说明效果；幸福账本的「政策卡」是所有已装卡的合计，
+       * 若把合计贴到每张卡上，就会让一张 -1 的卡看起来像多张都在扣。 */
+      if (!sourceId || !SB.civic || !SB.civic.cardHappyOffsetFor) return '';
+      v = SB.civic.cardHappyOffsetFor(s, sourceId);
+      if (!v) return '';
+    } else {
+      if (!SB.economy || !SB.economy.happyLedger) return '';
+      var L = SB.economy.happyLedger(s);
+      if (!L.bonusParts || !L.bonusParts.length) return '';
+      var want = HAPPY_BONUS_LABELS[which], out = [];
+      for (var i = 0; i < L.bonusParts.length; i++) {
+        if (L.bonusParts[i].label === want) out.push(L.bonusParts[i].v);
+      }
+      if (!out.length) return '';   // 这件东西此刻没给幸福度 ⇒ 不摆（别在奇观页给每座都挂一句"无效果"）
+      v = out[0];
     }
-    if (!out.length) return '';   // 这件东西此刻没给幸福度 ⇒ 不摆（别在奇观页给每座都挂一句"无效果"）
-    var v = out[0];
     /* ⚠️ 措辞分方向：policy card「工业化配给」是 **−1**（压低），
      *   若统一写「抬高全产乘区档位」，玩家读到「−1 · 抬高」会以为抵消不了。 */
     return '<i class="cap">幸福度 ' + (v > 0 ? '+' : '') + (+v.toFixed(2)) +
@@ -44,7 +53,11 @@
   function happyPanelHTML(s) {
     if (!SB.economy.resUnlocked(s, 'luxury') || !SB.economy.happyLedger) return '';
     var L = SB.economy.happyLedger(s);
-    var tiers = SB.economy.HAPPY_TIERS || [];
+    /* ⚠️ 档位表必须走门控口 happyTierList(s)（2026-10-17 用户报「黄金时代都有了条没改」）：
+     *   原先这里直接拿全表，且下方标签行手抄 6 个旧档名 —— ERA6 大众传媒新增三档后
+     *   标签行没跟着变，比例尺上限也被拉到全表末档 lo=6（未研究时永远够不着）。
+     *   标签行改为由表生成，杜绝第三份手抄。 */
+    var tiers = SB.economy.happyTierList ? SB.economy.happyTierList(s) : (SB.economy.HAPPY_TIERS || []);
     var low = SB.CFG.HAPPY_FLOOR, high = tiers.length ? tiers[tiers.length - 1].lo : 3;
     var pct = Math.max(0, Math.min(100, (L.H - low) / (high - low) * 100));
     var flow = '奢侈品供给 ' + L.out.toFixed(2) + '/秒 · 居民消耗 ' + L.burn.toFixed(2) + '/秒 · ' +
@@ -75,7 +88,7 @@
       '<div class="happy-meter" role="meter" aria-label="幸福度等级" aria-valuemin="' + low + '" aria-valuemax="' + high +
       '" aria-valuenow="' + L.H.toFixed(2) + '"><div class="happy-meter-fill"></div>' +
       '<i class="happy-marker" id="happyMarker" style="left:' + pct.toFixed(2) + '%"></i></div>' +
-      '<div class="happy-labels"><span>动荡</span><span>不满</span><span>安定</span><span>愉悦</span><span>欢欣</span><span>欣喜若狂</span></div>' +
+      '<div class="happy-labels">' + tiers.map(function (t) { return '<span>' + t.name + '</span>'; }).join('') + '</div>' +
       '<div class="happy-flow" id="happyFlow">' + flow + '</div>' + bonus +
       '<div class="happy-next" id="happyNext">' + next + '</div></section>';
   }
@@ -84,7 +97,9 @@
     var marker = root.document.getElementById('happyMarker');
     if (!marker || !s || !SB.economy.happyLedger) return;
     var L = SB.economy.happyLedger(s);
-    var tiers = SB.economy.HAPPY_TIERS || [];
+    /* ⚠️ 与 happyPanelHTML 同一条门控：比例尺上限 = 门控表末档 lo（大众传媒未拥有时 = 3）。
+     *   两处若不同源，重建面板与逐 tick 刷标记就会各画各的。 */
+    var tiers = SB.economy.happyTierList ? SB.economy.happyTierList(s) : (SB.economy.HAPPY_TIERS || []);
     var low = SB.CFG.HAPPY_FLOOR, high = tiers.length ? tiers[tiers.length - 1].lo : 3;
     marker.style.left = Math.max(0, Math.min(100, (L.H - low) / (high - low) * 100)) + '%';
     var value = root.document.getElementById('happyValue');

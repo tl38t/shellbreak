@@ -1,0 +1,1939 @@
+<!doctype html>
+<html lang="en" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Star Map Demo</title>
+<style>:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, "Segoe UI", sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --icon-size: 16px;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --corner-shape: round;
+  --radius: var(--border-radius-lg, 10px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z'/%3E%3C/svg%3E");
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html > body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: var(--visualize-paint-gutter, 0px);
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+.cursor-interaction {
+  cursor: var(--cursor-interaction, pointer);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: var(--cursor-interaction, pointer);
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive > .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align="right"]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align="center"]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: var(--corner-shape);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget > :not(.card, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+hr {
+  width: 100%;
+  height: 1px;
+  margin-block: 6px;
+  border: 0;
+  background: var(--border);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress {
+  display: flex;
+  height: 8px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 8px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar:only-child {
+  border-radius: var(--radius-full);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls > .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls > .form-label > :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.nav-link,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn,
+.nav-link {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: var(--cursor-interaction, pointer);
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover,
+.nav-link:not(:disabled):not([aria-disabled="true"]):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.nav-pills .nav-link {
+  min-width: 0;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.nav-justified .nav-link {
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.nav-pills .nav-link.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.btn:disabled,
+.nav-link:disabled,
+.nav-link[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type="file"] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type="file"]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type="file"]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type="color"] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: var(--corner-shape);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type="checkbox"]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: "";
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type="radio"]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: "";
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed="true"],
+  [aria-selected="true"],
+  .is-selected
+) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed="true"], [aria-selected="true"], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .nav-link,
+  .form-control,
+  .form-select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Keep small-screen WebKit from zooming when a text field receives focus. */
+  .form-control,
+  .form-select {
+    font-size: max(16px, var(--font-size-normal));
+  }
+
+  .form-control[type="file"]::file-selector-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .form-control-color[type="color"] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .form-control:is(
+    [type="date"],
+    [type="datetime-local"],
+    [type="month"],
+    [type="time"],
+    [type="week"]
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+  }
+
+  .form-check {
+    min-height: 44px;
+    padding-inline: 15px;
+  }
+
+  .form-check-input {
+    position: relative;
+  }
+
+  .form-check-input::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: "";
+    transform: translate(-50%, -50%);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .form-range {
+    height: 44px;
+    touch-action: pan-y;
+  }
+
+  .form-range::-webkit-slider-runnable-track {
+    height: 44px;
+  }
+
+  .form-range::-moz-range-track {
+    height: 44px;
+  }
+
+  .form-range::-webkit-slider-thumb {
+    margin-top: 12px;
+  }
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget > svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html>body{padding:0}</style>
+</head>
+<body>
+<script type="application/json" id="codex-visualization-widget-state">__CODEX_VISUALIZATION_WIDGET_STATE__</script>
+<script>(() => {
+  const root = document.documentElement;
+  const mediaQuery = globalThis.matchMedia("(prefers-color-scheme: dark)");
+  const apply = Reflect.apply;
+  const isArray = Array.isArray;
+  const hasOwn = Object.hasOwn;
+  const parentWindow = globalThis.parent;
+  const stringify = JSON.stringify;
+  const parse = JSON.parse;
+  const encode = TextEncoder.prototype.encode.bind(new TextEncoder());
+  const initialStateElement = document.getElementById(
+    "codex-visualization-widget-state",
+  );
+  const initialGlobals = parse(initialStateElement?.textContent ?? "{}");
+  initialStateElement?.remove();
+  /** @type {Record<string, unknown> | null} */
+  let state = initialGlobals.widgetState ?? null;
+  const statePersistence = initialGlobals.statePersistence ?? "none";
+  let nextStateRequestId = 0;
+  /** @type {Map<number, { resolve: () => void; reject: (error: Error) => void; timeout: ReturnType<typeof globalThis.setTimeout>; serializedState: string }>} */
+  const pendingStateWrites = new Map();
+  const persistenceError = () =>
+    Object.assign(
+      new Error("The host could not persist the widget state update"),
+      {
+        code: -32000,
+        data: { code: "widget_state_persistence_failed", retryable: false },
+      },
+    );
+  /**
+   * @param {object} prototype
+   * @param {string} property
+   */
+  const getPrototypeGetter = (prototype, property) => {
+    // oxlint-disable-next-line typescript/unbound-method -- invoked through captured Reflect.apply
+    const getter = Object.getOwnPropertyDescriptor(prototype, property)?.get;
+    if (getter == null) {
+      throw new Error(`Missing ${property} getter`);
+    }
+    return getter;
+  };
+  const getMessageData = getPrototypeGetter(MessageEvent.prototype, "data");
+  const getMessagePorts = getPrototypeGetter(MessageEvent.prototype, "ports");
+  const getMessageSource = getPrototypeGetter(MessageEvent.prototype, "source");
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const addHostMessageListener = MessagePort.prototype.addEventListener;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const postHostMessage = MessagePort.prototype.postMessage;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const startHostPort = MessagePort.prototype.start;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const stopMessagePropagation = Event.prototype.stopImmediatePropagation;
+  /** @type {MessagePort | null} */
+  let hostPort = null;
+  const postToHost = (type, payload) => {
+    if (hostPort != null) {
+      apply(postHostMessage, hostPort, [{ type, ...payload }]);
+    }
+  };
+  const openExternal = ({ href }) => {
+    if (globalThis.navigator.userActivation?.isActive === true) {
+      postToHost("open-external", { href });
+    }
+  };
+  const sendFollowUpMessage = ({ context, prompt, title }) => {
+    if (globalThis.navigator.userActivation?.isActive === true) {
+      postToHost("follow-up", { context, prompt, title });
+    }
+    return Promise.resolve();
+  };
+  /**
+   * @param {Record<string, unknown> | ((previous: Record<string, unknown> | null) => Record<string, unknown>)} next
+   * @returns {Promise<void>}
+   */
+  const setWidgetState = async (next) => {
+    const nextState = typeof next === "function" ? next(state) : next;
+    if (
+      nextState == null ||
+      typeof nextState !== "object" ||
+      isArray(nextState)
+    ) {
+      throw new TypeError("Widget state must be a JSON object");
+    }
+    const inputState = stringify(
+      nextState,
+      (_key, /** @type {unknown} */ value) => {
+        if (
+          typeof value === "undefined" ||
+          typeof value === "function" ||
+          typeof value === "symbol" ||
+          (typeof value === "number" && !Number.isFinite(value))
+        ) {
+          throw new TypeError("Widget state must be a JSON object");
+        }
+        return value;
+      },
+    );
+    const parsedState = parse(inputState);
+    if (
+      parsedState == null ||
+      typeof parsedState !== "object" ||
+      isArray(parsedState)
+    ) {
+      throw new TypeError("Widget state must be a JSON object");
+    }
+    const storedState = {
+      modelContent: null,
+      privateContent: null,
+      ...parsedState,
+    };
+    const serializedState = stringify(storedState);
+    if (encode(serializedState).length > 16 * 1024) {
+      throw new TypeError(
+        "Widget state must be a JSON object of at most 16 KiB",
+      );
+    }
+    if (
+      hasOwn(storedState, "imageIds") &&
+      (!isArray(storedState.imageIds) ||
+        storedState.imageIds.some(
+          (/** @type {unknown} */ id) => typeof id !== "string",
+        ))
+    ) {
+      throw new TypeError("Widget state imageIds must be an array of strings");
+    }
+    if (storedState.imageIds?.length > 0) {
+      throw Object.assign(
+        new TypeError("Visualization state does not support image attachments"),
+        { code: -32602, data: { code: "images_unsupported" } },
+      );
+    }
+    state = storedState;
+    globalThis.openai.widgetState = state;
+    globalThis.dispatchEvent(
+      new CustomEvent("openai:set_globals", {
+        detail: { globals: { widgetState: state } },
+      }),
+    );
+    if (statePersistence === "none") {
+      throw persistenceError();
+    }
+    const id = ++nextStateRequestId;
+    return new Promise((resolve, reject) => {
+      const timeout = globalThis.setTimeout(() => {
+        pendingStateWrites.delete(id);
+        reject(persistenceError());
+      }, 30_000);
+      pendingStateWrites.set(id, { resolve, reject, timeout, serializedState });
+      postToHost("widget-state-write", { id, state: serializedState });
+    });
+  };
+  const syncTheme = () => {
+    const theme = mediaQuery.matches ? "dark" : "light";
+    root.dataset.theme = theme;
+    globalThis.openai = {
+      ...globalThis.openai,
+      openExternal,
+      sendFollowUpMessage,
+      setWidgetState,
+      theme,
+      visualizationStyleVariables: {},
+      visualizationTheme: theme,
+      widgetState: state,
+      statePersistence,
+      stateModelContext: "none",
+    };
+    globalThis.dispatchEvent(
+      new CustomEvent("openai:set_globals", {
+        detail: { globals: globalThis.openai },
+      }),
+    );
+  };
+  const sendHeight = () => {
+    postToHost("height", {
+      height: Math.ceil(
+        Math.max(
+          document.body.scrollHeight,
+          document.body.getBoundingClientRect().height,
+        ),
+      ),
+    });
+  };
+
+  globalThis.addEventListener(
+    "message",
+    (event) => {
+      const data = apply(getMessageData, event, []);
+      const ports = apply(getMessagePorts, event, []);
+      const source = apply(getMessageSource, event, []);
+      if (
+        hostPort != null ||
+        source !== parentWindow ||
+        typeof data !== "object" ||
+        data?.type !== "codex-visualization-initialize" ||
+        !isArray(ports) ||
+        ports.length !== 1
+      ) {
+        return;
+      }
+      apply(stopMessagePropagation, event, []);
+      const nextHostPort = ports[0];
+      try {
+        apply(addHostMessageListener, nextHostPort, [
+          "message",
+          (event) => {
+            const data = apply(getMessageData, event, []);
+            if (typeof data === "object" && data?.type === "measure") {
+              sendHeight();
+            } else if (
+              typeof data === "object" &&
+              data?.type === "widget-state-result"
+            ) {
+              /** @type {unknown} */
+              const id = data.id;
+              if (typeof id !== "number") {
+                return;
+              }
+              const pending = pendingStateWrites.get(id);
+              if (pending != null) {
+                pendingStateWrites.delete(id);
+                globalThis.clearTimeout(pending.timeout);
+                if (data.ok === true) {
+                  pending.resolve();
+                } else {
+                  pending.reject(persistenceError());
+                }
+              }
+            }
+          },
+        ]);
+        apply(startHostPort, nextHostPort, []);
+      } catch {
+        return;
+      }
+      hostPort = nextHostPort;
+      for (const [id, { serializedState }] of pendingStateWrites) {
+        postToHost("widget-state-write", { id, state: serializedState });
+      }
+      sendHeight();
+    },
+    { capture: true },
+  );
+  document.currentScript?.remove();
+  mediaQuery.addEventListener("change", syncTheme);
+  globalThis.addEventListener("click", (event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+    let element = null;
+    if (event.target instanceof globalThis.Element) {
+      element = event.target;
+    } else if (event.target instanceof globalThis.Node) {
+      element = event.target.parentElement;
+    }
+    const link = element?.closest("a[href]");
+    const href = link?.getAttribute("href");
+    if (href == null) {
+      return;
+    }
+    if (href.startsWith("#")) {
+      let id;
+      try {
+        id = decodeURIComponent(href.slice(1));
+      } catch {
+        return;
+      }
+      const target = id.length === 0 ? root : document.getElementById(id);
+      if (
+        target == null ||
+        globalThis.navigator.userActivation?.isActive !== true
+      ) {
+        return;
+      }
+      event.preventDefault();
+      postToHost("scroll-to", {
+        top: target.getBoundingClientRect().top + globalThis.scrollY,
+      });
+      return;
+    }
+    event.preventDefault();
+    openExternal({ href });
+  });
+  new ResizeObserver(sendHeight).observe(document.body);
+  syncTheme();
+})();
+</script>
+<div id="star-map-mock" aria-label="萨图恩行星系星图演示">
+<style>
+#star-map-mock{--bg:#07111d;--panel:#0c1a29;--text:#e5edf7;--dim:#98abc1;--line:#25384c;--cyan:#8ed9ed;--gold:#e6c27b;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);max-width:1040px;margin:0 auto;padding:20px;border-radius:18px;background:var(--bg);box-sizing:border-box}#star-map-mock *{box-sizing:border-box}.sm-head{display:flex;justify-content:space-between;align-items:flex-start;margin:0 2px 14px;gap:12px}.sm-eyebrow{color:var(--cyan);font-size:11px;letter-spacing:.16em}.sm-head h2{font-size:23px;line-height:1.2;margin:4px 0 0;font-weight:600}.sm-cycle{color:var(--dim);font-size:12px;padding-top:5px}.sm-map{height:auto;aspect-ratio:16/8.5;min-height:460px;position:relative;overflow:hidden;border:1px solid #25384c;border-radius:15px;background:radial-gradient(ellipse at 26% 52%,#c7954326 0,transparent 27%),radial-gradient(ellipse at 75% 50%,#9a74422b 0,transparent 30%),radial-gradient(ellipse at 50% 50%,#233b5a55 0,transparent 52%),linear-gradient(130deg,#081421,#0b1728 58%,#111a27)}.sm-map:before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(1px 1px at 8% 20%,#d9ecff 99%,transparent),radial-gradient(1px 1px at 16% 63%,#d9ecff 99%,transparent),radial-gradient(1px 1px at 23% 37%,#9eb9d7 99%,transparent),radial-gradient(1px 1px at 34% 17%,#d9ecff 99%,transparent),radial-gradient(1px 1px at 47% 79%,#9eb9d7 99%,transparent),radial-gradient(1px 1px at 57% 25%,#d9ecff 99%,transparent),radial-gradient(1px 1px at 69% 65%,#d9ecff 99%,transparent),radial-gradient(1px 1px at 81% 17%,#9eb9d7 99%,transparent),radial-gradient(1px 1px at 94% 49%,#d9ecff 99%,transparent)}.sm-system{position:absolute;width:360px;height:300px;transform:translate(-50%,-50%);z-index:1}.sm-saturn-system{left:50%;top:51%;width:520px;height:390px}.sm-system-name{position:absolute;top:0;left:50%;transform:translateX(-50%);color:#d8e5f3;letter-spacing:.12em;font-size:12px;white-space:nowrap}.sm-orbit{position:absolute;left:50%;top:53%;border:1px solid #91a6bd48;border-radius:50%;transform:translate(-50%,-50%) rotate(var(--tilt));pointer-events:none}.sm-orbit.e1{width:144px;height:72px;--tilt:-23deg}.sm-orbit.e2{width:238px;height:124px;--tilt:18deg}.sm-orbit.s1{width:224px;height:120px;--tilt:-23deg}.sm-orbit.s2{width:300px;height:160px;--tilt:17deg}.sm-orbit.s3{width:420px;height:224px;--tilt:-10deg}.sm-orbit.s4{width:500px;height:276px;--tilt:27deg}.sm-planet{position:absolute;left:50%;top:53%;transform:translate(-50%,-50%);z-index:2}.sm-planet canvas{display:block}.sm-planet.jupiter canvas{width:82px;height:82px}.sm-planet.saturn canvas{width:150px;height:150px}.sm-central-label{position:absolute;left:50%;top:calc(100% - 4px);transform:translateX(-50%);font-size:11px;color:#d9e5f2;text-shadow:0 1px 4px #000;background:#07111dbb;padding:1px 5px;border-radius:4px;white-space:nowrap}.sm-body{position:absolute;left:50%;top:53%;width:46px;height:46px;border:0;padding:0;background:transparent;transform:translate(-50%,-50%);cursor:pointer;z-index:3}.sm-body canvas{display:block;width:34px;height:34px;margin:auto;filter:drop-shadow(0 2px 5px #0009)}.sm-body:hover canvas,.sm-body[aria-pressed=true] canvas{filter:drop-shadow(0 0 8px #8ed9edaa)}.sm-body-label{position:absolute;top:34px;left:50%;transform:translateX(-50%);font-size:11px;white-space:nowrap;color:#d9e5f2;text-shadow:0 1px 4px #000;background:#07111dbb;padding:1px 5px;border-radius:4px}.sm-body[aria-pressed=true] .sm-body-label{color:var(--cyan)}.sm-ring-target{position:absolute;left:calc(50% - 260px);top:calc(53% + 140px);z-index:4;border:1px solid #d5b775;background:#29251c;color:#f3d991;padding:6px 9px;border-radius:7px;font-size:11px;cursor:pointer;white-space:nowrap;box-shadow:0 0 15px #e6c27b22}.sm-ring-target:hover,.sm-ring-target[aria-pressed=true]{background:#52452b}.sm-local-orbit{position:absolute;left:50%;top:45%;width:82px;height:44px;transform:translate(-50%,-50%) rotate(-18deg);border:1px solid #83c9db8a;border-radius:50%;z-index:1;pointer-events:none}.sm-body#sm-europa .sm-body-label{top:calc(100% + 22px)}.sm-body canvas{position:relative;z-index:2}.sm-local-marker{position:absolute;left:50%;top:45%;width:7px;height:7px;border-radius:50%;background:#9beaff;box-shadow:0 0 7px #8edfff;transform:translate(-50%,-50%);z-index:4;pointer-events:none}.sm-local-marker.station{width:8px;height:8px;border-radius:1px;background:#e6c27b;box-shadow:0 0 8px #e6c27b;transform:translate(-50%,-50%) rotate(45deg)}.sm-map-legend{position:absolute;bottom:12px;left:15px;color:#9fb1c5;font-size:11px}.sm-map-legend i{display:inline-block;width:7px;height:7px;margin:0 5px 0 10px;background:#9beaff;border-radius:50%}.sm-map-legend i.station{background:#e6c27b;border-radius:0;transform:rotate(45deg)}.sm-map-note{position:absolute;bottom:12px;right:15px;color:#71859c;font-size:10px}.sm-detail{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:12px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}.sm-detail h3{font-size:15px;margin:0 0 3px}.sm-detail p{color:var(--dim);font-size:12px;margin:0}.sm-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.sm-chip{border:1px solid #345066;color:#b8d9e5;background:#132535;border-radius:999px;padding:4px 8px;font-size:10px;white-space:nowrap}.sm-targets{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.sm-targets span{font-size:11px;color:#aabbd0;padding:5px 9px;border:1px solid #24364a;border-radius:999px}.sm-targets b{color:#e7c781;font-weight:500}.sm-foot{color:#71859a;font-size:10px;margin:9px 2px 0}@media(max-width:380px){#star-map-mock .sm-saturn-system{transform:translate(-50%,-50%) scale(.55)}}@media(max-width:700px){#star-map-mock{padding:14px}.sm-head{display:block}.sm-cycle{font-size:11px}.sm-map{aspect-ratio:auto;height:560px;min-height:0}.sm-saturn-system{left:50%;top:50%;transform:translate(-50%,-50%) scale(.70)}.sm-detail{grid-template-columns:1fr}.sm-chips{justify-content:flex-start}}
+</style>
+<div class="sm-head"><div><div class="sm-eyebrow">SHELLBREAK · STAR MAP</div><h2>壳外星空</h2></div><div class="sm-cycle">萨图恩行星系</div></div>
+<div class="sm-map">
+<section class="sm-system sm-saturn-system"><div class="sm-system-name">萨图恩行星系</div><div class="sm-orbit s1"></div><div class="sm-orbit s2"></div><div class="sm-orbit s3"></div><div class="sm-orbit s4"></div><div class="sm-planet saturn"><canvas class="sm-canvas" width="150" height="150" data-planet="saturn"></canvas><span class="sm-central-label">萨图恩</span></div>
+<button class="sm-body" id="sm-enceladus" data-id="enceladus" data-rx="112" data-ry="60" data-tilt="-23" data-period="14000" data-phase="2.8" aria-pressed="false" title="恩克拉多斯"><canvas class="sm-canvas" width="60" height="60" data-planet="ice"></canvas><span class="sm-body-label">恩克拉多斯</span></button>
+<button class="sm-body" id="sm-rhea" data-id="rhea" data-rx="150" data-ry="80" data-tilt="17" data-period="21000" data-phase=".8" aria-pressed="false" title="瑞亚"><canvas class="sm-canvas" width="60" height="60" data-planet="temperate"></canvas><span class="sm-body-label">瑞亚</span></button>
+<button class="sm-body" id="sm-titan" data-id="titan" data-rx="210" data-ry="112" data-tilt="-10" data-period="30000" data-phase="4.5" aria-pressed="true" title="泰坦"><canvas class="sm-canvas" width="66" height="66" data-planet="titan"></canvas><span class="sm-body-label">泰坦</span></button>
+<button class="sm-body" id="sm-europa" data-id="europa" data-rx="250" data-ry="138" data-tilt="27" data-period="38000" data-phase="1.3" aria-pressed="false" title="欧罗巴"><canvas class="sm-canvas" width="64" height="64" data-planet="ice"></canvas><span class="sm-local-orbit" aria-hidden="true"></span><span class="sm-local-marker" aria-hidden="true"></span><span class="sm-local-marker station" aria-hidden="true"></span><span class="sm-body-label">欧罗巴</span></button>
+<button class="sm-ring-target" id="sm-saturn-ring" data-id="ring" aria-pressed="false">萨图恩环 · 工厂</button></section>
+<div class="sm-map-legend"><i></i>已发射卫星<i class="station"></i>空间站</div><div class="sm-map-note">星图示意 · 行星与轨道非比例尺</div></div>
+<div class="sm-detail"><div><h3 id="sm-detail-title">泰坦</h3><p id="sm-detail-copy">碳氢化工中心：可以直接获取热液能，额外获得燃料。</p></div><div class="sm-chips" id="sm-chips"><span class="sm-chip">萨图恩行星系</span><span class="sm-chip">热液能 · 燃料</span></div></div>
+<div class="sm-foot">已发射卫星与空间站沿欧罗巴局部轨道运行；欧罗巴同时绕萨图恩行星运行。</div>
+<script>
+// ---- 行星 Canvas 纹理与渲染 ----
+const _PLANET_SPEEDS  = { lava:0.0009, gas:0.0006, jupiter:0.0008, saturn:0.0007, titan:0.0010, ice:0.0012, plasma:0.0005, temperate:0.0010, storm:0.0015 };
+const _PLANET_TILTS   = { lava:15, gas:20, jupiter:12, saturn:27, titan:8, ice:210, plasma:330, temperate:55, storm:140 };
+const _PLANET_HAS_RING= { saturn:true };
+const _PLANET_TEX_CACHE = {};
+const _PLANET_MASK_CACHE = {};
+
+function _buildPlanetGradients() {
+  return {
+    lava:      [[0,'#552200'],[0.5,'#993300'],[0.7,'#dd5500'],[1,'#772200']],
+    gas:       [[0,'#0f2a3a'],[0.3,'#1a4466'],[0.6,'#337799'],[0.8,'#4488bb'],[1,'#1a4466']],
+    jupiter:   [[0,'#684b3e'],[0.22,'#c08d65'],[0.44,'#e0ba8f'],[0.62,'#9f6d51'],[0.82,'#d7ad7b'],[1,'#725344']],
+    saturn:    [[0,'#594939'],[0.18,'#c9aa78'],[0.38,'#e5d2a8'],[0.58,'#a8875f'],[0.8,'#dcc393'],[1,'#70583e']],
+    titan:     [[0,'#523222'],[0.25,'#a95e30'],[0.48,'#d99a58'],[0.7,'#f0c37a'],[1,'#82451f']],
+    ice:       [[0,'#2a5566'],[0.4,'#4488aa'],[0.7,'#99ccdd'],[1,'#4488aa']],
+    plasma:    [[0,'#331166'],[0.4,'#6622bb'],[0.7,'#9944ee'],[1,'#6622bb']],
+    temperate: [[0,'#0d3344'],[0.3,'#1a5577'],[0.6,'#2a77aa'],[0.8,'#4499cc'],[1,'#2a77aa']],
+    storm:     [[0,'#112233'],[0.3,'#223355'],[0.6,'#445577'],[0.8,'#556688'],[1,'#334466']]
+  };
+}
+
+function _getPlanetTexture(type) {
+  if (_PLANET_TEX_CACHE[type]) return _PLANET_TEX_CACHE[type];
+  const w = 512, h = 256;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const grads = _buildPlanetGradients();
+  const stops = grads[type] || grads.lava;
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  for (const [pos, color] of stops) grad.addColorStop(pos, color);
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+
+  if (type === 'lava') {
+    for (let i = 0; i < 14; i++) {
+      const x = Math.random() * w, y = Math.random() * h, r = 8 + Math.random() * 40;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,'+(200+Math.random()*55)+',80,'+(0.7+Math.random()*0.3)+')');
+      g.addColorStop(0.6, 'rgba(255,'+(150+Math.random()*50)+',30,'+(0.4+Math.random()*0.3)+')');
+      g.addColorStop(1, 'rgba(255,80,0,0)');
+      ctx.fillStyle = g; ctx.beginPath();
+      ctx.ellipse(x, y, r*(0.6+Math.random()*0.8), r*(0.4+Math.random()*0.6), Math.random()*2, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+  if (type === 'gas' || type === 'saturn') {
+    for (let i = 0; i < 8; i++) {
+      const y = (0.05 + i*0.12 + Math.random()*0.04) * h;
+      ctx.fillStyle = 'rgba(200,230,255,'+(0.15+Math.random()*0.25)+')';
+      ctx.fillRect(0, y-4, w, 6+Math.random()*10);
+    }
+    ctx.save(); ctx.shadowColor='rgba(255,180,80,0.4)'; ctx.shadowBlur=25;
+    ctx.beginPath(); ctx.ellipse(w*0.35, h*0.52, 44, 28, 0, 0, Math.PI*2);
+    ctx.fillStyle='#dd7744'; ctx.fill();
+    ctx.shadowBlur=12; ctx.beginPath(); ctx.ellipse(w*0.35, h*0.52, 28, 16, 0, 0, Math.PI*2);
+    ctx.fillStyle='#ff9955'; ctx.fill();
+    ctx.shadowBlur=6; ctx.beginPath(); ctx.ellipse(w*0.35, h*0.52, 12, 7, 0, 0, Math.PI*2);
+    ctx.fillStyle='#ffbb77'; ctx.fill(); ctx.restore();
+    for (let i = 0; i < 20; i++) {
+      const x = Math.random()*w, y = Math.random()*h, r = 2+Math.random()*6;
+      ctx.beginPath(); ctx.ellipse(x, y, r, r*0.5, Math.random()*2, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,255,255,'+(0.04+Math.random()*0.06)+')'; ctx.fill();
+    }
+  }
+  if (type === 'ice') {
+    for (let i = 0; i < 25; i++) {
+      const x = Math.random()*w, y = Math.random()*h, len = 8+Math.random()*35;
+      ctx.strokeStyle = 'rgba(60,90,110,'+(0.25+Math.random()*0.35)+')';
+      ctx.lineWidth = 1+Math.random()*2; ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x+len*(Math.random()-0.5)*2, y+len*(Math.random()-0.5)*2); ctx.stroke();
+    }
+    for (let i = 0; i < 8; i++) {
+      const x = Math.random()*w, y = Math.random()*h, r = 15+Math.random()*45;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,'+(0.08+Math.random()*0.12)+')');
+      g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  if (type === 'plasma') {
+    const cols = ['#ff88ff','#66aaff','#aa44ff','#44ccff'];
+    for (let i = 0; i < 16; i++) {
+      const x = Math.random()*w, y = Math.random()*h, r = 10+Math.random()*32;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      const col = cols[Math.floor(Math.random()*cols.length)];
+      g.addColorStop(0, col+'aa'); g.addColorStop(0.5, col+'55'); g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g; ctx.beginPath();
+      ctx.ellipse(x, y, r*(0.5+Math.random()*0.8), r*(0.3+Math.random()*0.6), Math.random()*2, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  if (type === 'temperate') {
+    const landCols = ['#55bb44','#66bb55','#77cc66','#99dd77','#88cc66'];
+    for (let i = 0; i < 12; i++) {
+      const x = Math.random()*w, y = Math.random()*h, r = 12+Math.random()*38;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      const col = landCols[Math.floor(Math.random()*landCols.length)];
+      g.addColorStop(0, col+'aa'); g.addColorStop(0.7, col+'60'); g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g; ctx.beginPath();
+      ctx.ellipse(x, y, r*(0.5+Math.random()*0.9), r*(0.4+Math.random()*0.7), Math.random()*2, 0, Math.PI*2); ctx.fill();
+    }
+    for (let i = 0; i < 6; i++) {
+      const x = Math.random()*w, y = Math.random()*h, r = 20+Math.random()*55;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,'+(0.08+Math.random()*0.08)+')');
+      g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(x, y, r*(0.5+Math.random()*0.8), r*(0.3+Math.random()*0.5), Math.random()*2, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  if (type === 'storm') {
+    for (let i = 0; i < 14; i++) {
+      const x = Math.random()*w, y = Math.random()*h, r = 8+Math.random()*30;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      const bright = 130+Math.random()*125;
+      g.addColorStop(0, 'rgba('+bright+','+(bright-40)+',255,'+(0.4+Math.random()*0.4)+')');
+
+      g.addColorStop(0.6, 'rgba('+(bright-60)+','+(bright-100)+',220,'+(0.15+Math.random()*0.25)+')');
+      g.addColorStop(1, 'transparent'); ctx.fillStyle = g; ctx.beginPath();
+      ctx.ellipse(x, y, r*(0.4+Math.random()*0.8), r*(0.3+Math.random()*0.6), Math.random()*2, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  const imgData = ctx.getImageData(0, 0, w, h);
+  _PLANET_TEX_CACHE[type] = { data: imgData.data, w, h };
+  return _PLANET_TEX_CACHE[type];
+}
+
+function _getPlanetMask(size) {
+  const key = 'm'+size;
+  if (_PLANET_MASK_CACHE[key]) return _PLANET_MASK_CACHE[key];
+  const baseR = (size/2-4)*0.66;
+  const mc = document.createElement('canvas'); mc.width = size; mc.height = size;
+  const mCtx = mc.getContext('2d');
+  const grad = mCtx.createRadialGradient(baseR*0.65, baseR*0.35, 0, baseR, baseR, baseR);
+  grad.addColorStop(0, 'rgba(255,255,255,0)');
+  grad.addColorStop(0.4, 'rgba(255,255,255,0)');
+  grad.addColorStop(0.7, 'rgba(0,0,0,0.18)');
+  grad.addColorStop(0.9, 'rgba(0,0,0,0.40)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.70)');
+  mCtx.fillStyle = grad; mCtx.fillRect(0, 0, size, size);
+  const hl = mCtx.createRadialGradient(baseR*0.32, baseR*0.22, 0, baseR*0.32, baseR*0.22, baseR*0.5);
+  hl.addColorStop(0, 'rgba(255,255,255,0.40)');
+  hl.addColorStop(0.3, 'rgba(255,255,255,0.14)');
+  hl.addColorStop(1, 'rgba(255,255,255,0)');
+  mCtx.fillStyle = hl; mCtx.beginPath(); mCtx.arc(baseR*0.32, baseR*0.22, baseR*0.5, 0, Math.PI*2); mCtx.fill();
+  mCtx.globalCompositeOperation = 'destination-in'; mCtx.beginPath(); mCtx.arc(size/2, size/2, baseR, 0, Math.PI*2); mCtx.fill();
+  _PLANET_MASK_CACHE[key] = mc;
+  return mc;
+}
+
+const _PLANET_RING_LAYER_CACHE={};
+function _drawPlanetRing(ctx,cx,cy,r,type,half){
+ctx.save();ctx.beginPath();if(half==="back")ctx.rect(0,0,ctx.canvas.width,cy);else ctx.rect(0,cy,ctx.canvas.width,ctx.canvas.height-cy);ctx.clip();
+ctx.translate(cx,cy);ctx.scale(1,.28);ctx.rotate(.18);ctx.shadowColor='rgba(210,185,120,.42)';ctx.shadowBlur=12;
+ctx.strokeStyle='rgba(232,205,145,.82)';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(0,0,r*1.55,r*2.2,0,0,Math.PI*2);ctx.stroke();
+ctx.shadowBlur=5;ctx.strokeStyle='rgba(255,235,185,.68)';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,0,r*1.25,r*1.7,0,0,Math.PI*2);ctx.stroke();ctx.restore();
+}
+function _drawPlanetSphere(canvas, type, scrollOffset) {
+  const size = canvas.width;
+  const baseR = (size/2-4)*0.66;
+  const cx = size/2, cy = size/2;
+  const tex = _getPlanetTexture(type);
+  const maskCanvas = _getPlanetMask(size);
+  const ctx = canvas.getContext('2d');
+  const tiltDeg = _PLANET_TILTS[type] || 15;
+  const tiltRad = tiltDeg * Math.PI / 180;
+  const cosT = Math.cos(tiltRad), sinT = Math.sin(tiltRad);
+  const r = baseR;
+  const ow = Math.ceil(r*2), oh = Math.ceil(r*2);
+  const imageData = ctx.createImageData(ow, oh);
+  const data = imageData.data;
+  const texW = tex.w, texH = tex.h;
+
+  for (let py = 0; py < oh; py++) {
+    for (let px = 0; px < ow; px++) {
+      const nx = (px - r)/r, ny = (py - r)/r;
+      const dist2 = nx*nx + ny*ny;
+      if (dist2 > 1) continue;
+      const nz = Math.sqrt(1 - dist2);
+      const rx = nx;
+      const ry = ny*cosT - nz*sinT;
+      const rz = ny*sinT + nz*cosT;
+      const theta = Math.atan2(rz, rx);
+      const phi = Math.asin(Math.max(-1, Math.min(1, ry)));
+      let u = (theta/(2*Math.PI) + 0.5 + scrollOffset) % 1;
+      if (u < 0) u += 1;
+      const v = phi/Math.PI + 0.5;
+      const tx = Math.floor(u*texW) % texW;
+      const ty = Math.min(texH-1, Math.max(0, Math.floor(v*texH)));
+      const tidx = (ty*texW + tx)*4;
+      const idx = (py*ow + px)*4;
+      data[idx]=tex.data[tidx]; data[idx+1]=tex.data[tidx+1]; data[idx+2]=tex.data[tidx+2]; data[idx+3]=255;
+    }
+  }
+  ctx.clearRect(0, 0, size, size);
+  const offsetX = cx - r, offsetY = cy - r;
+  ctx.putImageData(imageData, offsetX, offsetY);
+
+  // 光照遮罩
+  ctx.save(); ctx.globalCompositeOperation = 'multiply';
+  ctx.drawImage(maskCanvas, offsetX, offsetY, r*2, r*2);
+  ctx.restore();
+
+  // 辉光
+  ctx.save();
+  const glow = ctx.createRadialGradient(cx, cy, r*0.7, cx, cy, r);
+  glow.addColorStop(0, 'rgba(255,255,255,0)');
+  glow.addColorStop(0.95, 'rgba(180,220,255,0.08)');
+  glow.addColorStop(1, 'rgba(180,220,255,0.04)');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(180,220,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+
+  // 星环
+  if(_PLANET_HAS_RING[type]){let layer=_PLANET_RING_LAYER_CACHE[size];if(!layer){layer=document.createElement('canvas');layer.width=size;layer.height=size;_PLANET_RING_LAYER_CACHE[size]=layer;}const layerCtx=layer.getContext('2d');layerCtx.clearRect(0,0,size,size);layerCtx.drawImage(canvas,0,0);ctx.clearRect(0,0,size,size);_drawPlanetRing(ctx,cx,cy,r,type,'back');ctx.drawImage(layer,0,0);_drawPlanetRing(ctx,cx,cy,r,type,'front');}
+}
+(()=>{const descriptions={europa:["欧罗巴","冰封海洋世界，也是萨图恩行星系的重要探索目标。",["萨图恩行星系","冰卫星"]],titan:["泰坦","碳氢化工中心：可以直接获取热液能，额外获得燃料。",["萨图恩行星系","热液能","额外燃料"]],rhea:["瑞亚","可以获取石梁、硬化珊瑚、铀。",["萨图恩行星系","石梁","硬化珊瑚","铀"]],ring:["萨图恩环","自动星环工厂可以直接获取钛合金。",["萨图恩行星系","钛合金"]],enceladus:["恩克拉多斯","环境改造，可以直接降低5级建筑。",["萨图恩行星系","环境改造","建筑等级"]]};const buttons=[...document.querySelectorAll("#star-map-mock .sm-body,#sm-saturn-ring")];function select(id){const d=descriptions[id];buttons.forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.id===id)));document.getElementById("sm-detail-title").textContent=d[0];document.getElementById("sm-detail-copy").textContent=d[1];document.getElementById("sm-chips").innerHTML=d[2].map(x=>'<span class="sm-chip">'+x+'</span>').join("")}buttons.forEach(b=>b.addEventListener("click",()=>select(b.dataset.id)));const canvases=[...document.querySelectorAll("#star-map-mock .sm-canvas")];const offsets=new WeakMap();canvases.forEach((c,i)=>offsets.set(c,i*.13));let last=performance.now();function animate(now){const elapsed=Math.min(5,(now-last)/(1000/60));last=now;canvases.forEach(c=>{const type=c.dataset.planet;const speed=type==="titan"?.001:type==="saturn"?.0007:type==="jupiter"?.0008:.0012;const o=(offsets.get(c)+speed*elapsed)%1;offsets.set(c,o);_drawPlanetSphere(c,type,o)});document.querySelectorAll(".sm-body[data-rx]").forEach(b=>{const period=Number(b.dataset.period),phase=Number(b.dataset.phase),a=(now/period*Math.PI*2+phase),rx=Number(b.dataset.rx),ry=Number(b.dataset.ry),tilt=Number(b.dataset.tilt)*Math.PI/180,x=rx*Math.cos(a),y=ry*Math.sin(a),xr=x*Math.cos(tilt)-y*Math.sin(tilt),yr=x*Math.sin(tilt)+y*Math.cos(tilt);b.style.left="calc(50% + "+xr+"px)";b.style.top="calc(53% + "+yr+"px)";b.style.zIndex=Math.sin(a)<0?"1":"3"});document.querySelectorAll("#sm-europa .sm-local-marker").forEach((m,i)=>{const a=now/(i?6100:4200)*Math.PI*2+(i?1.2:0),x=41*Math.cos(a),y=22*Math.sin(a),t=-18*Math.PI/180,xr=x*Math.cos(t)-y*Math.sin(t),yr=x*Math.sin(t)+y*Math.cos(t);m.style.left="calc(50% + "+xr+"px)";m.style.top="calc(45% + "+yr+"px)";m.style.zIndex=yr<0?"1":"4"});requestAnimationFrame(animate)}requestAnimationFrame(animate)})();
+</script></div>
+<script>
+(() => {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set(["top", "right", "bottom", "left"]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+  let lastPointerWasTouch = false;
+  let pinnedByTouch = false;
+
+  const getTrigger = (event) => {
+    for (const target of event.composedPath()) {
+      if (target?.nodeType === Node.ELEMENT_NODE) {
+        const trigger = target.closest("[data-tooltip]");
+        if (trigger) return trigger;
+      }
+    }
+    return null;
+  };
+  const containsTarget = (trigger, target) =>
+    target?.nodeType != null && trigger.contains(target);
+  const getContent = (trigger) =>
+    trigger.getAttribute("data-tooltip")?.trim() ?? "";
+  const getPlacement = (trigger) => {
+    const placement = trigger.getAttribute("data-tooltip-placement");
+    return tooltipPlacements.has(placement) ? placement : "top";
+  };
+  const getTooltip = () => {
+    if (tooltip == null) {
+      tooltip = document.createElement("div");
+      tooltip.id = tooltipId;
+      tooltip.className = "tooltip";
+      tooltip.setAttribute("role", "tooltip");
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) => {
+    const ids = new Set(
+      (trigger.getAttribute("aria-describedby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute("aria-describedby");
+    } else {
+      trigger.setAttribute("aria-describedby", [...ids].join(" "));
+    }
+  };
+  const clearOpenTimeout = () => {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) => {
+    clearOpenTimeout();
+    pinnedByTouch = false;
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) => {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              "--tooltip-available-width",
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              "--tooltip-available-height",
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: "fixed",
+    })
+      .then(({ x, y }) => {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = "visible";
+      })
+      .catch(() => {
+        if (activeTrigger === trigger && request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) => {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = "hidden";
+    floating.style.transform = "translate(0, 0)";
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () => {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) => {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() < skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() => {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) => {
+    if (event.pointerType === "touch") {
+      return;
+    }
+    const trigger = getTrigger(event);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handlePointer = (event) => {
+    lastPointerWasTouch =
+      event.type === "pointerdown" && event.pointerType === "touch";
+  };
+  const handleTouchClick = (event) => {
+    const isTouch = event.pointerType === "touch" || lastPointerWasTouch;
+    lastPointerWasTouch = false;
+    if (!isTouch || event.detail === 0) {
+      return;
+    }
+    const trigger = getTrigger(event);
+    if (
+      trigger == null ||
+      !trigger.isConnected ||
+      getContent(trigger).length === 0 ||
+      (pinnedByTouch && activeTrigger === trigger)
+    ) {
+      if (pinnedByTouch) {
+        closeTooltip();
+      }
+      return;
+    }
+    openTooltip(trigger);
+    pinnedByTouch = activeTrigger === trigger;
+    window.setTimeout(() => {
+      if (activeTrigger === trigger && !trigger.isConnected) {
+        closeTooltip(false);
+      }
+    }, 0);
+  };
+  const handleLeave = (event) => {
+    if (pinnedByTouch) {
+      return;
+    }
+    const trigger = getTrigger(event);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) => {
+    const trigger = getTrigger(event);
+    if (trigger?.matches(":focus-visible")) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) => {
+    lastPointerWasTouch = false;
+    const trigger = getTrigger(event);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handlers = {
+    pointerover: handlePointerOpen,
+    pointerdown: handlePointer,
+    pointercancel: handlePointer,
+    click: handleTouchClick,
+    pointerout: handleLeave,
+    focusin: handleFocusIn,
+    focusout: handleLeave,
+    keydown: handleKeyDown,
+    contextmenu: handleContextMenu,
+  };
+  const roots = new Map();
+  const handledEvents = new WeakSet();
+  const handleEvent = (event) => {
+    if (handledEvents.has(event)) return;
+    handledEvents.add(event);
+    handlers[event.type](event);
+  };
+  const discoverRoots = (node) => {
+    if (node.shadowRoot) listen(node.shadowRoot);
+    for (const element of node.querySelectorAll("*")) {
+      if (element.shadowRoot) listen(element.shadowRoot);
+    }
+  };
+  const listen = (root) => {
+    if (roots.has(root)) return;
+    for (const type of Object.keys(handlers)) root.addEventListener(type, handleEvent);
+    const observer = new window.MutationObserver((records) => {
+      for (const { addedNodes } of records) {
+        for (const node of addedNodes) {
+          if (node.nodeType === Node.ELEMENT_NODE) discoverRoots(node);
+        }
+      }
+      for (const [root, cleanup] of roots) {
+        if (root.host && !root.host.isConnected) {
+          cleanup();
+          roots.delete(root);
+        }
+      }
+      if (activeTrigger && !activeTrigger.isConnected) closeTooltip(false);
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    roots.set(root, () => {
+      observer.disconnect();
+      for (const type of Object.keys(handlers)) root.removeEventListener(type, handleEvent);
+    });
+    discoverRoots(root);
+  };
+  const destroy = () => {
+    closeTooltip(false);
+    lastPointerWasTouch = false;
+    for (const cleanup of roots.values()) cleanup();
+    roots.clear();
+    tooltip = null;
+  };
+
+  // Events between children of one shadow root never reach the document.
+  listen(document);
+  window.addEventListener("pagehide", destroy, { once: true });
+})();
+</script>
+<script id="codex-visualization-tabs">
+(() => {
+  const selector = '.nav[role="tablist"] [role="tab"]';
+  const disabled = ':disabled,[aria-disabled="true"]';
+  const selectTab = (selected) => {
+    const panelId = selected.getAttribute("aria-controls");
+    for (const tab of selected.closest('[role="tablist"]').querySelectorAll('[role="tab"]')) {
+      const active = tab === selected;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", String(active));
+      const id = tab.getAttribute("aria-controls");
+      const panel = id && document.getElementById(id);
+      if (panel != null) {
+        panel.hidden = id !== panelId;
+        if (!panel.hidden && selected.id) {
+          panel.setAttribute("aria-labelledby", selected.id);
+        }
+      }
+    }
+  };
+  const interact = (event) => {
+    const tab = event.target?.closest?.(selector);
+    if (event.defaultPrevented || tab == null || tab.matches(disabled)) {
+      return;
+    }
+    if (event.type === "click") {
+      selectTab(tab);
+      return;
+    }
+    const tabs = Array.from(
+      tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]'),
+    ).filter((candidate) => !candidate.matches(disabled));
+    const current = tabs.indexOf(tab);
+    let next;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      next = (current + 1) % tabs.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      next = (current + tabs.length - 1) % tabs.length;
+    } else if (event.key === "Home") {
+      next = 0;
+    } else if (event.key === "End") {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    tabs[next].focus();
+    selectTab(tabs[next]);
+  };
+
+  for (const list of document.querySelectorAll('.nav[role="tablist"]')) {
+    const selected =
+      list.querySelector('[role="tab"][aria-selected="true"]') ??
+      list.querySelector('[role="tab"].active') ??
+      list.querySelector('[role="tab"]');
+    if (selected != null) {
+      selectTab(selected);
+    }
+  }
+  document.addEventListener("click", interact);
+  document.addEventListener("keydown", interact);
+  window.addEventListener("pagehide", () => {
+    document.removeEventListener("click", interact);
+    document.removeEventListener("keydown", interact);
+  }, { once: true });
+})();
+</script>
+<script>
+(() => {
+  const initialize = () => {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById("codex-visualization-lucide")
+    ?.addEventListener("load", initialize, { once: true });
+})();
+</script>
+
+</body>
+</html>

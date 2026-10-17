@@ -179,6 +179,16 @@
     meta.oldArtworkEarnedTotal = (meta.oldArtworkEarnedTotal || 0) + r.oldArtwork;
     r.oldTideStele = Math.floor(Math.max(0, (s.res && s.res.tidalRecord) || 0));
     meta.oldTideStelesEarnedTotal = (meta.oldTideStelesEarnedTotal || 0) + r.oldTideStele;
+    // ⑥ 星屑（ERA7 · spec §7）：仅在合格轮回结算时发放，进跨周目 meta（与轮回点同侧）。
+    //    星屑 = floor( Σ太空建筑等级 × 0.1 × (1 + starExplore进度%) )，进度% = starExplore / STAR_CAP。
+    //    Σ太空建筑等级 = 轨道卫星 + 空间站（zone:'space' 两座；核热厂是地面建筑，不入列）。
+    var _spaceLvls = ((s.lvl && s.lvl.satellite) || 0) + ((s.lvl && s.lvl.spacestation) || 0);
+    var _starPct = (SB.CFG.STAR_CAP > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / SB.CFG.STAR_CAP) : 0;
+    var _sd = Math.floor(_spaceLvls * 0.1 * (1 + _starPct));
+    // 先民遗产市政（ERA7 · spec §7）：本轮回星屑获取 +20%（破壳结算时计入，与轮回点同侧）。
+    if (s.civics && s.civics.ancestor_heritage) _sd = Math.floor(_sd * 1.2);
+    r.stardust = _sd;
+    meta.stardust = (meta.stardust || 0) + _sd;
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
     /* TapTap 成就：合格破壳时解锁「首次轮回」与挑战通关（幂等，靠 meta.achievements 去重）。 */
@@ -252,6 +262,19 @@
     if (p.id === 'coral') s.res.coral += 150;
   }
 
+  /* 自动研究购买后默认关闭，由玩家在轮回商店单独切换；开关跨周目保留。 */
+  function toggleAutoResearch(kind) {
+    if (kind !== 'tech' && kind !== 'civic') return null;
+    var m = SB.game && SB.game.meta ? SB.game.meta() : null;
+    if (!m || !m.perks) return null;
+    var perkId = kind === 'tech' ? 'autoStudy' : 'autoCivic';
+    if (!(m.perks[perkId] > 0)) return null;
+    if (!m.autoResearch || typeof m.autoResearch !== 'object') m.autoResearch = { tech: false, civic: false };
+    m.autoResearch[kind] = !m.autoResearch[kind];
+    SB.state.saveMeta(m);
+    return m.autoResearch[kind];
+  }
+
   /* 当局是否已建立宗教（**周目内**状态）= 玩家写入了非空宗教名。
    * 与 meta.religionSeen 分工：religionEstablished 管**文案**（底栏按钮）；
    * meta.religionSeen 管**机制**（maybeReligionPopup 永久解锁）。
@@ -272,6 +295,7 @@
     perkDef: perkDef,
     perkLocked: perkLocked,
     buyPerk: buyPerk,
-    applyPerk: applyPerk
+    applyPerk: applyPerk,
+    toggleAutoResearch: toggleAutoResearch
   };
 })(typeof window !== 'undefined' ? window : globalThis);

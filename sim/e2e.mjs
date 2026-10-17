@@ -10,6 +10,7 @@ import { loadAll, ROOT, mulberry32 } from './load-sb.mjs';
 /* Suites receive this run's shared SB/check fixture and run in sequence; keep one loadAll. */
 import { run as runClickEvents } from './e2e-suites/click-events.mjs';
 import { run as runAutoPlay } from './e2e-suites/autoplay.mjs';
+import { run as runAutoResearch } from './e2e-suites/auto-research.mjs';
 import { run as runTechShape } from './e2e-suites/tech-shape.mjs';
 import { run as runEra3Content } from './e2e-suites/era3-content.mjs';
 import { run as runPersistence } from './e2e-suites/persistence.mjs';
@@ -213,7 +214,7 @@ const step = sandbox._intervals[0];
 
 // 快速单测离线分段器，避免每次调它都跑后面的整局点击模拟。
 if (process.argv.includes('--offline-only')) {
-  runOfflineFastForward({ SB, check });
+  runOfflineFastForward({ SB, check, sandbox });
   const failedOffline = checks.filter(c => !c.ok);
   console.log(`\n离线快进测试：${checks.length - failedOffline.length}/${checks.length} 通过`);
   process.exit(failedOffline.length ? 1 : 0);
@@ -316,8 +317,8 @@ console.log('\n=== 开局解锁链 ===');
   /* 按钮的读数必须与常数同源：这里把「渲染出来的文案」和「实际入账的量」焊在一起，
    * 免得以后改了常数忘了改提示，玩家点一下发现和按钮上写的不一样。 */
   check('采集按钮的读数与 GATHER 常数同源',
-    g('pane-village').indexOf(SB.GATHER.coral + '') !== -1 && SB.GATHER.coral > 0,
-    '珊瑚读数 ' + SB.GATHER.coral + ' / 面板含 =' + (g('pane-village').indexOf('+0.1') >= 0));
+    g('pane-village-body').indexOf(SB.GATHER.coral + '') !== -1 && SB.GATHER.coral > 0,
+    '珊瑚读数 ' + SB.GATHER.coral + ' / 面板含 =' + (g('pane-village-body').indexOf('+0.1') >= 0));
 
   /* 首建（深海菌圃）必须用藻食定价：开局珊瑚为 0，若首建吃珊瑚，
    * 循环第一步就断——这是「首建必须用食物定价」的可验证形式。 */
@@ -465,7 +466,7 @@ console.log('\n=== 开局解锁链 ===');
   s.famine = 0;
 
   // 渲染层必须跟解锁判定一致：未露头的建筑整行不出现（照猫国）
-  const pane0 = g('pane-village');
+  const pane0 = g('pane-village-body');
   check('开局建筑面板只渲染深海藻场一行',
     pane0.indexOf('深海藻场') !== -1 && pane0.indexOf('工坊') === -1 &&
     pane0.indexOf('压舱仓') === -1 && pane0.indexOf('破冰祭坛') === -1,
@@ -484,7 +485,7 @@ console.log('\n=== 开局解锁链 ===');
   check('研究青铜术后工坊即解锁（不再卡 30% 库存门槛，珊瑚不足只是买不起、不是不露头）',
     SB.habitat.unlocked(s, SB.habitat.buildingById('workshop')), 'coral=' + s.res.coral);
   SB.game.markDirty(); SB.game.render();
-  check('露头后建筑面板同步出现工坊行', g('pane-village').indexOf('工坊') !== -1);
+  check('露头后建筑面板同步出现工坊行', g('pane-village-body').indexOf('工坊') !== -1);
   /* ⚠️ 还原（2026-09-28）：上面这个 bronze 夹具**漏还原**了 —— 它比下面这段早出现的
    *    「三处必须还回去」那条纪律（367 行的 bak/delete）还要早，于是 `techs.bronze=true`
    *    一路带进了后面 40000 帧的整局模拟：bot 白拿一项 600 科学、且提前拿到工坊解锁，
@@ -508,7 +509,7 @@ console.log('\n=== 开局解锁链 ===');
     s.lvl.kelp = 3; s.res.kelp = 1e6; s.res.coral = 1e6;
     s.techs.lighting = true;                   // 压舱仓的科技门（不装它整行不渲染）
     SB.game.markDirty(); SB.ui.render.renderPanes();
-    const pv = g('pane-village');
+    const pv = g('pane-village-body');
     const ck = SB.economy.costOwnedTxt(s, SB.economy.costOf(s, 'kelp'));
     const cb = SB.economy.costOwnedTxt(s, SB.economy.costOf(s, 'ballast'));
     check('建筑按钮摊开成本并带「已拥有/需要」（够钱时也写着，形如「升级 藻食 100…/21.1」）',
@@ -789,18 +790,19 @@ console.log('\n=== 纪元三 · economy 接线 ===');
    *   不是另造一座建筑。声明在 UPGRADES 的 `upgradesBuilding` 字段，判定在 render。 */
   {
     /* ERA6（2026-10 实装）：upg_starscope 把 天壳观测站 升级为 星空观测站，
-     *   与城堡×3 同类「买了就地改名」契约；下面是第 5 条。 */
-    const CHAIN = { upg_fishbonemine: 'siltpit', upg_university: 'institute', upg_castle: 'hall', upg_deepmine: 'siltpit', upg_starscope: 'observatory' };
+     *   与城堡×3 同类「买了就地改名」契约；下面是第 5 条。
+     * ERA7（2026-10-17 实装）：upg_logiware 把 商队驿站 升级为 物流仓库，是第 6 条。 */
+    const CHAIN = { upg_fishbonemine: 'siltpit', upg_university: 'institute', upg_castle: 'hall', upg_deepmine: 'siltpit', upg_starscope: 'observatory', upg_logiware: 'caravanserai' };
     const declared = SB.UPGRADES.filter(u => u.upgradesBuilding);
-    /* ⚠️ 2026-10 ERA6：upg_starscope（观测站→星空观测站）是第 5 条，与城堡×3 同类契约。
-     *    不是「随手加一条」，是 approved 设计里观测站可被升级。 */
-    check('建筑升级型共 5 条，全部声明了 upgradesBuilding（+50%/级 扩容那几条不算）',
-      declared.length === 5, '实=' + declared.length);
+    /* ⚠️ 2026-10 ERA6：upg_starscope（观测站→星空观测站）是第 5 条；2026-10-17 ERA7：upg_logiware（商队驿站→物流仓库）是第 6 条。
+     *    与城堡×3 同类契约，不是「随手加一条」，是 approved 设计里商队驿站可被升级。 */
+    check('建筑升级型共 6 条，全部声明了 upgradesBuilding（+50%/级 扩容那几条不算）',
+      declared.length === 6, '实=' + declared.length);
     const badDecl = declared.filter(u => !SB.habitat.buildingById(u.upgradesBuilding));
     check('每条 upgradesBuilding 都指向真实存在的建筑（别写错 id）', badDecl.length === 0,
       '错=' + badDecl.map(u => u.id + '→' + u.upgradesBuilding).join(','));
     const wrong = declared.filter(u => u.upgradesBuilding !== CHAIN[u.id]);
-    check('四条顶替关系与设计一致（矿坑×2 / 研究所 / 议事厅）', wrong.length === 0,
+    check('五条顶替关系与设计一致（矿坑×2 / 研究所 / 议事厅 / 商队驿站）', wrong.length === 0,
       '错=' + wrong.map(u => u.id).join(','));
     const noDesc = declared.filter(u => !u.buildingDesc);
     check('每条都写了 buildingDesc（建筑行文案不能复用 desc 的「X升级：」主语）',
@@ -1596,7 +1598,7 @@ check('首次轮回后 meta 页解锁（不再 locked）',
 /* 巢穴页内区标题配色 + 分区折叠（2026-09-30 晚 · 用户：「这里的文字颜色也改了，就是生息区这些」
  *   「各个分区的折叠呢，没做啊」）：
  * 前两轮分别漏了「页**内**区标题着色」与「页**内**区折叠」——只管到了最外层卡片。
- * 这里强制露出 core + food 各一座，renderPanes 后 pane-village 里必须出现
+ * 这里强制露出 core + food 各一座，renderPanes 后 pane-village-body 里必须出现
  * 「带行内 --hc 的**可折叠区**」（.bzone[data-zone] > .bztitle[data-zfold] + .bzbody），
  * 且翻 ZONE_FOLDED 后重画能把 folded **重拼回 HTML**（pane 每 2 秒整块重画，落类会被冲掉）。
  * ⚠️ 断言必须在**活着的这一局**上 render（pane 画的是 SB.game.run()），跑完还原 lvl/seen。 */
@@ -1605,7 +1607,7 @@ check('首次轮回后 meta 页解锁（不再 locked）',
   const lvBak = Object.assign({}, sVc.lvl), seenBak = Object.assign({}, sVc.seen);
   sVc.lvl.nest = 1; sVc.lvl.kelp = 1;    // core / food 各露一座
   SB.game.markDirty(); SB.ui.render.renderPanes();
-  const vHtml = doc.getElementById('pane-village').innerHTML;
+  const vHtml = doc.getElementById('pane-village-body').innerHTML;
   check('巢穴页内区标题带行内 --hc 配色（礁栖核心=青 #4dd8e6，不再是灰 .bztitle）',
     /class="bztitle" data-zfold="core"[^>]*style="--hc:#4dd8e6"/.test(vHtml), '');
   check('巢穴页内区标题按区取色（生息区=绿 #4ade80）',
@@ -1619,7 +1621,7 @@ check('首次轮回后 meta 页解锁（不再 locked）',
   const foodBefore = /<div class="bzone folded" data-zone="food">/.test(vHtml);
   SB.ui.render.toggleZoneFold('core');
   SB.game.markDirty(); SB.ui.render.renderPanes();
-  const vFold = doc.getElementById('pane-village').innerHTML;
+  const vFold = doc.getElementById('pane-village-body').innerHTML;
   check('折叠某区：重画后该区带 folded，且只动该区（状态重拼，不怕 2 秒重画）',
     /<div class="bzone folded" data-zone="core">/.test(vFold) === !coreBefore &&
     /<div class="bzone folded" data-zone="food">/.test(vFold) === foodBefore, '');
@@ -1636,9 +1638,9 @@ check('首次轮回后 meta 页解锁（不再 locked）',
 runUiAccessibility({ SB, check, noop, doc, g, fs, path, ROOT, drainStoryModals });
 
 runCalendarWarmstone({ SB, check, noop, doc, g, fs, path, ROOT, fire });
-runOfflineFastForward({ SB, check });
+runOfflineFastForward({ SB, check, sandbox });
 
-runWorkshopEconomy({ SB, check, noop, doc, g, fs, path, ROOT, fire, pending });
+runWorkshopEconomy({ SB, check, noop, doc, g, fs, path, ROOT, fire, pending, sandbox });
 
 /* ---------------- ERA4 市政（2026-10-01 用户设计稿实装）----------------
  * 覆盖三层：
@@ -1882,6 +1884,7 @@ console.log('\n=== era1 专项核算：真实开局，科技全部研究完 ==='
 
 runClickEvents({ SB, check, noop });
 runAutoPlay({ SB, check });
+runAutoResearch({ SB, check });
 runChallenges({ SB, check, noop });
 runAiStrategy({ SB, check, noop });
 console.log('\n================ 汇总 ================');

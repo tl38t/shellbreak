@@ -17,8 +17,9 @@
     if (active) {
       var activeDef = api.byId(active.id), activeTier = activeDef.tiers[active.tier] || activeDef.tiers[0];
       var progressText = '';
+      var scribeName = SB.folk.jobName(s, 'scribe');
       if (active.id === 'science') progressText = '学者 ' + (s.jobs.scholar || 0) + ' / ' + activeTier.cap +
-        ' · 书手 ' + (s.jobs.scribe || 0) + ' / ' + activeTier.cap;
+        ' · ' + scribeName + ' ' + (s.jobs.scribe || 0) + ' / ' + activeTier.cap;
       else if (active.id === 'small') progressText = '当前人口 ' + s.pop + ' / ' + activeTier.cap;
       else if (active.id === 'abyss') progressText = '全产出 -' + Math.round(activeTier.cap * 100) + '%';
       else progressText = api.warmHeatingBlocked(s) ? '寒流季：保温法禁用，产业仍可消耗暖石' : '非寒流季：保温法可正常使用';
@@ -32,14 +33,17 @@
     h += '<section class="challenge-grid">';
     for (var i = 0; i < list.length; i++) {
       var d = list[i], done = api.tierDone(d.id, m), isActive = active && active.id === d.id;
+      var scribeName = SB.folk.jobName(s, 'scribe');
+      var summary = d.id === 'science' ? '限制学者与' + scribeName + '人数，考验基础经营。' : d.summary;
+      var rule = d.id === 'science' ? '学者与' + scribeName + '岗位人数各不得超过本档上限' : d.rule;
       var exhausted = done >= d.tiers.length, next = Math.min(done, d.tiers.length - 1);
       var blocked = !!active && !isActive;
       var status = isActive ? '进行中' : exhausted ? '已完成' : blocked ? '等待当前挑战结束' : (d.tiers.length > 1 ? '下一档可挑战' : '尚未完成');
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
       h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + d.badge + '" alt=""></span>' +
-        '<div class="challenge-card-name"><h3>' + d.name + '</h3><small>' + d.kind + ' · ' + d.summary + '</small></div>' +
+        '<div class="challenge-card-name"><h3>' + d.name + '</h3><small>' + d.kind + ' · ' + summary + '</small></div>' +
         '<span class="challenge-status' + (exhausted ? ' done' : isActive ? ' active' : '') + '">' + status + '</span></header>';
-      h += '<div class="challenge-card-rule"><small>本轮限制</small><p>' + d.rule + '</p>' +
+      h += '<div class="challenge-card-rule"><small>本轮限制</small><p>' + rule + '</p>' +
         '<small>通关目标</small><p>完成《神学》并凿穿天壳</p></div>';
 
       if (d.tiers.length > 1) {
@@ -47,7 +51,7 @@
         for (var ti = 0; ti < d.tiers.length; ti++) {
           var td = d.tiers[ti], tierActive = isActive && active.tier === ti;
           var tierState = ti < done ? '已通关' : tierActive ? '进行中' : ti === done && !blocked && !exhausted ? '下一档' : '锁定';
-          var tierRule = d.id === 'science' ? '学者、书手各 ≤ ' + td.cap + ' 人' : '本轮全产出 -' + Math.round(td.cap * 100) + '%';
+          var tierRule = d.id === 'science' ? '学者、' + scribeName + '各 ≤ ' + td.cap + ' 人' : '本轮全产出 -' + Math.round(td.cap * 100) + '%';
           h += '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? ' active' : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
             '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + d.badge + '" alt=""><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
             '<div><b>' + td.label + '</b><span>' + tierState + '</span></div><small>' + tierRule + '</small>' +

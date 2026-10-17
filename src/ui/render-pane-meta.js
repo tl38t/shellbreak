@@ -52,10 +52,16 @@
         '</b><span>' + group.hint + '</span><i>' + items.length + ' 项</i></div><div class="meta-shop-grid">';
       for (var ii = 0; ii < items.length; ii++) {
         var p = items[ii], st = SB.prestige.perkState(p.id);
-        h += '<article class="meta-perk-card' + (st.done ? ' is-done' : st.locked ? ' is-locked' : '') + '"><div class="meta-perk-copy"><div class="nm">' + p.name +
+        var autoKind = p.id === 'autoStudy' ? 'tech' : p.id === 'autoCivic' ? 'civic' : '';
+        var autoOn = !!(autoKind && m.autoResearch && m.autoResearch[autoKind]);
+        h += '<article class="meta-perk-card' + (st.done ? ' is-done' : st.locked ? ' is-locked' : '') +
+          (autoKind && st.lv > 0 ? ' has-auto-toggle' : '') + '"><div class="meta-perk-copy"><div class="nm">' + p.name +
           ' <span class="tag">' + st.lv + '/' + (isFinite(st.max) ? st.max : '∞') + '</span>' +
           ' <span class="tag meta-kind-tag">' + (KMAP[p.kind] || p.kind) + '</span></div>' +
-          '<div class="ds">' + p.desc + (st.locked ? '（需先解锁上一层）' : '') + '</div></div>' +
+          '<div class="ds">' + p.desc + (st.locked ? '（需先解锁上一层）' : '') + '</div>' +
+          (autoKind && st.lv > 0 ? '<button type="button" class="btn meta-auto-toggle" data-auto-research="' + autoKind +
+            '" aria-pressed="' + autoOn + '" title="自动研究默认关闭；只会研究当前满足全部条件且资源足够的项目">' +
+            (autoOn ? '关闭' : '开启') + (autoKind === 'tech' ? '科技' : '市政') + '自动研究</button>' : '') + '</div>' +
           '<button class="btn buy meta-buy" data-perk="' + p.id + '"' +
           (st.done || st.locked || !st.afford ? ' disabled' : '') + '>' +
           (st.done ? '已满级' : st.locked ? '尚未解锁' : st.next + ' 点') + '</button></article>';

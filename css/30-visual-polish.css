@@ -93,7 +93,9 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 .happy-meter{height:12px;position:relative;margin:14px 2px 8px;border:1px solid rgba(226,242,250,.18);border-radius:99px;background:#172437}
 .happy-meter-fill{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(90deg,#ec626b 0%,#e98870 22%,#d7b878 42%,#a9cb82 62%,#69cf9b 82%,#55cfc7 100%);box-shadow:inset 0 1px 2px rgba(255,255,255,.18)}
 .happy-marker{position:absolute;top:50%;width:4px;height:21px;border:1px solid rgba(255,255,255,.92);border-radius:99px;background:#f4fbff;transform:translate(-50%,-50%);box-shadow:0 0 9px rgba(232,250,255,.78);transition:left .22s ease;z-index:1}
-.happy-labels{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;margin:0 -4px 10px;text-align:center;font-size:10px;line-height:1.35;color:var(--dim)}
+/* 标签行条数随大众传媒门控变（6 ↔ 9 档），grid 定 6 列会折行 ⇒ 改 flex 均分（2026-10-17）。 */
+.happy-labels{display:flex;gap:2px;margin:0 -4px 10px;text-align:center;font-size:10px;line-height:1.35;color:var(--dim)}
+.happy-labels span{flex:1;min-width:0}
 .happy-labels span:first-child,.happy-labels span:nth-child(2){color:#f19a91}
 .happy-labels span:nth-child(3){color:#e0ca8d}
 .happy-labels span:nth-child(n+4){color:#8ddbb4}

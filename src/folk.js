@@ -36,6 +36,14 @@
     var n = base ? base.name : jid;
     if (jid === FARM_JOB && s && s.techs && s.techs[FARM_TECH]) n = FARM_NAME;
     if (jid === SCHOLAR_JOB && s && s.techs && s.techs[SCHOLAR_TECH]) n = SCHOLAR_NAME;
+    /* 《行政部门》声明 scribeRename 后，职业身份改称「官员」；id 仍为 scribe，
+     * 所有产出、人口限制与旧存档键不变，只切换玩家可见名称。 */
+    if (jid === 'scribe' && s && s.civics) {
+      var civics = SB.CIVICS || [];
+      for (var i = 0; i < civics.length; i++) {
+        if (civics[i].scribeRename && s.civics[civics[i].id]) { n = '官员'; break; }
+      }
+    }
     return n;
   }
 

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ui-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计预览 · 科技树呼吸 / 工坊学校 / 精炼钢厂</title>
+<link rel="stylesheet" href="css/main.css?v=152">
+<style>
+  /* 仅 demo 用的外框，不进入游戏源码 */
+  body{ padding:18px; }
+  .demobanner{
+    max-width:1080px;margin:0 auto 14px;padding:10px 14px;border-radius:10px;
+    background:rgba(245,205,107,.10);border:1px solid rgba(245,205,107,.42);color:var(--gold);
+    font-size:12.5px;line-height:1.6;
+  }
+  .demobanner b{color:var(--amber)}
+  .demowrap{max-width:1080px;margin:0 auto}
+  .demosect{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+  .demosect h2{font-size:14px;margin:0 0 10px;color:var(--cyan);letter-spacing:1px}
+  .demosect .note{margin-top:10px;font-size:11.5px;color:var(--dim)}
+  /* 让树可滚，贴真实 .techscroll 行为 */
+  .techscroll{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:8px;background:#061320}
+  .treecanvas{position:relative}
+</style>
+</head>
+<body>
+
+<div class="demobanner">
+  <b>设计预览 · 非实机存档。</b> 本页用真实游戏 CSS（`css/main.css`）渲染，DOM 结构与 <code>render-pane-research.js</code> / <code>render-pane-workshop.js</code> 中的科技树／市政树与升级项卡片一致。下面展示四处设计：① 主标签栏「市政」红点（存在可研究市政时）；② 科技树「可研究」节点的金色呼吸高亮（本次补做）；③ 市政树新增节点「工坊学校」（纪元五、父级=启蒙运动、可研究态同样金色呼吸高亮）；④ 工坊「升级项」页签的「已完成 n/共 m」+ NEW，以及新增升级「精炼钢厂」（由工坊学校解锁，钢产出 +25%）。
+</div>
+
+<div class="demowrap">
+
+  <!-- ① 主标签栏：市政高亮 + 红点（存在可研究市政） -->
+  <div class="tabs" role="tablist" aria-label="主分区">
+    <button class="tab">资源</button>
+    <button class="tab">族民</button>
+    <button class="tab">科技</button>
+    <button class="tab on avail" aria-selected="true" title="存在可研究的市政">市政</button>
+    <button class="tab">信仰</button>
+    <button class="tab">工坊</button>
+    <button class="tab">奇观</button>
+    <button class="tab">挖掘</button>
+  </div>
+
+  <!-- ② 科技页：科技树（本次补做 · 可研究科技的金色呼吸） -->
+  <div class="demosect">
+    <h2>科技页 · 科技树（可研究节点金色呼吸）</h2>
+    <div class="techscroll tree-tech" id="techScroll">
+      <div class="techcanvas" style="width:560px;height:480px">
+
+        <div class="tnband" style="left:46px;width:500px;color:#7fd7c9">纪元五 · 工业<span class="tnc">3 列</span></div>
+
+        <!-- 连线：天壳地质学(已完成) → 三个子节点 -->
+        <svg class="techlines" width="560" height="480">
+          <path class="tel done" d="M202,229 C249,229 249,103 296,103"></path>
+          <path class="tel open" d="M202,229 C249,229 249,229 296,229"></path>
+          <path class="tel" d="M202,229 C249,229 249,355 296,355"></path>
+        </svg>
+
+        <!-- 已掌握（不呼吸） -->
+        <button type="button" class="technode st done tree-node" id="techrow-shellgeo"
+          data-node="shellgeo" data-x="46" data-y="176" data-layer="2" data-lit="1"
+          data-tree-node="1" data-tree-type="tech" data-tree-id="shellgeo"
+          aria-label="天壳地质学，已掌握，打开详情"
+          style="left:46px;top:176px;width:156px;height:106px">
+          <span class="tnhd"><img class="tree-node-icon branch-know" src="assets/tech-icons/era-5/era5-shell-geology.png" alt=""><span class="tnm">天壳地质学</span></span>
+          <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">已掌握</span><span class="tree-open-hint">查看详情　›</span></span>
+        </button>
+
+        <!-- 可研究 → 金色呼吸高亮（本次补做） -->
+        <button type="button" class="technode st open tree-node" id="techrow-abyssgeo"
+          data-node="abyssgeo" data-x="296" data-y="50" data-layer="1" data-lit="1"
+          data-tree-node="1" data-tree-type="tech" data-tree-id="abyssgeo"
+          aria-label="渊海地质学，可研究，打开详情"
+          title="渊海地质学 · 可研究（边框金色呼吸）"
+          style="left:296px;top:50px;width:156px;height:106px">
+          <span class="tnhd"><img class="tree-node-icon branch-know" src="assets/tech-icons/era-5/era5-abyssal-geology.png" alt=""><span class="tnm">渊海地质学</span></span>
+          <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">可研究</span><span class="tree-open-hint">查看详情　›</span></span>
+        </button>
+
+        <!-- 暂不可研究（lock · 已揭示但门禁未过） -->
+        <button type="button" class="technode st lock tree-node" id="techrow-highthermo"
+          data-node="highthermo" data-x="296" data-y="176" data-layer="1" data-lit="1"
+          data-tree-node="1" data-tree-type="tech" data-tree-id="highthermo"
+          aria-label="高压热机，暂不可研究，打开详情"
+          style="left:296px;top:176px;width:156px;height:106px">
+          <span class="tnhd"><img class="tree-node-icon branch-survive" src="assets/tech-icons/era-5/era5-high-pressure-engine.png" alt=""><span class="tnm">高压热机</span></span>
+          <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">暂不可研究</span><span class="tree-open-hint">查看详情　›</span></span>
+        </button>
+
+        <!-- 未揭示（lock + 尤里卡进度 · 无图标） -->
+        <button type="button" class="technode st lock tree-node" id="techrow-skydrill"
+          data-node="skydrill" data-x="296" data-y="302" data-layer="1" data-lit="0"
+          data-tree-node="1" data-tree-type="tech" data-tree-id="skydrill"
+          aria-label="未揭露的科技，未揭示，打开详情"
+          style="left:296px;top:302px;width:156px;height:106px">
+          <span class="tnhd"><span class="tnm">未揭露的科技</span></span>
+          <span class="tree-eureka">尤里卡 · 观测天壳裂缝 3 次</span>
+          <span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:33.3%"></i></span><b>33%</b></span>
+          <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">未揭示</span><span class="tree-open-hint">查看详情　›</span></span>
+        </button>
+
+      </div>
+    </div>
+    <div class="note">只有「可研究」（<code>.technode.open</code>）带金色呼吸；<b>已掌握</b>（done）、<b>暂不可研究</b>／<b>未揭示</b>（lock）都不亮。金色边框在这个青色系树上是唯一的暖色，最跳；呼吸动画在浏览器里是活的，截图只能定格一帧。</div>
+  </div>
+
+  <!-- ③ 市政页：市政树（含新增「工坊学校」） -->
+  <div class="demosect">
+    <h2>市政页 · 市政树</h2>
+    <div class="panel-subtabs civic-subtabs" role="group" aria-label="市政分区">
+      <button type="button" class="subtab" aria-pressed="false">政体</button>
+      <button type="button" class="subtab on" aria-pressed="true">市政树</button>
+    </div>
+    <div class="subtab-panel civic-tree-panel" style="margin-top:12px">
+
+      <div class="techscroll tree-civic" id="civicScroll">
+        <div class="techcanvas" style="width:740px;height:480px">
+
+          <!-- 纪元轨道（演示用三条） -->
+          <div class="tnband" style="left:20px;width:230px;color:#7fb0d7">纪元三 · 行会<span class="tnc">1 列</span></div>
+          <div class="tnband" style="left:260px;width:230px;color:#7fd7c9">纪元四 · 启蒙<span class="tnc">1 列</span></div>
+          <div class="tnband" style="left:500px;width:230px;color:#9b8bf0">纪元五 · 工业<span class="tnc">1 列</span></div>
+
+          <!-- 连线 -->
+          <svg class="techlines" width="740" height="480">
+            <!-- 职业行会(纪元三·已完成) → 工坊学校（纪元四·第二列，跨一层，体现「放在职业行会后面一层」） -->
+            <path class="tel open" d="M176,163 C218,163 218,283 260,283"></path>
+            <!-- 启蒙运动(纪元四·已完成) → 渊潜鲛歌 / 工业化配给（纪元五） -->
+            <path class="tel open" d="M416,103 C458,103 458,163 500,163"></path>
+            <path class="tel open" d="M416,103 C458,103 458,289 500,289"></path>
+          </svg>
+
+          <!-- 职业行会（纪元三·已完成，不呼吸，新父级） -->
+          <button type="button" class="technode stdone tree-node" id="civicrow-guild"
+            data-node="guild" data-x="20" data-y="110" data-layer="2" data-revealed="1"
+            data-tree-node="1" data-tree-type="civic" data-tree-id="guild"
+            aria-label="职业行会，已完成，打开详情"
+            style="left:20px;top:110px;width:156px;height:106px">
+            <span class="tnhd"><span class="tree-node-icon civic-icon">⚒️</span><span class="tnm">职业行会</span></span>
+            <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">已完成</span><span class="tree-open-hint">查看详情　›</span></span>
+          </button>
+
+          <!-- 启蒙运动（纪元四·已完成，不呼吸） -->
+          <button type="button" class="technode stdone tree-node" id="civicrow-enlightenment"
+            data-node="enlightenment" data-x="260" data-y="50" data-layer="2" data-revealed="1"
+            data-tree-node="1" data-tree-type="civic" data-tree-id="enlightenment"
+            aria-label="启蒙运动，已完成，打开详情"
+            style="left:260px;top:50px;width:156px;height:106px">
+            <span class="tnhd"><span class="tree-node-icon civic-icon">📜</span><span class="tnm">启蒙运动</span></span>
+            <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">已完成</span><span class="tree-open-hint">查看详情　›</span></span>
+          </button>
+
+          <!-- 工坊学校（新增 · 纪元四·第二列 · 可研究 → 黄色呼吸高亮，父级=职业行会） -->
+          <button type="button" class="technode stopen tree-node" id="civicrow-steelschool"
+            data-node="steelschool" data-x="260" data-y="230" data-layer="2" data-revealed="1"
+            data-tree-node="1" data-tree-type="civic" data-tree-id="steelschool"
+            aria-label="工坊学校，可研究，打开详情"
+            title="工坊学校 · 人人皆有受教育的权利。"
+            style="left:260px;top:230px;width:156px;height:106px">
+            <span class="tnhd"><span class="tree-node-icon civic-icon">📚</span><span class="tnm">工坊学校</span></span>
+            <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">可研究</span><span class="tree-open-hint">查看详情　›</span></span>
+          </button>
+
+          <!-- 渊潜鲛歌（已有 · 纪元五 · 可研究，同样呼吸，作同级对照，父级=启蒙运动） -->
+          <button type="button" class="technode stopen tree-node" id="civicrow-sharksong"
+            data-node="sharksong" data-x="500" data-y="110" data-layer="1" data-revealed="1"
+            data-tree-node="1" data-tree-type="civic" data-tree-id="sharksong"
+            aria-label="渊潜鲛歌，可研究，打开详情"
+            style="left:500px;top:110px;width:156px;height:106px">
+            <span class="tnhd"><span class="tree-node-icon civic-icon">🐋</span><span class="tnm">渊潜鲛歌</span></span>
+            <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">可研究</span><span class="tree-open-hint">查看详情　›</span></span>
+          </button>
+
+          <!-- 工业化配给（已有 · 纪元五 · 可研究，作同级对照，父级=启蒙运动） -->
+          <button type="button" class="technode stopen tree-node" id="civicrow-rationing"
+            data-node="rationing" data-x="500" data-y="236" data-layer="1" data-revealed="1"
+            data-tree-node="1" data-tree-type="civic" data-tree-id="rationing"
+            aria-label="工业化配给，可研究，打开详情"
+            style="left:500px;top:236px;width:156px;height:106px">
+            <span class="tnhd"><span class="tree-node-icon civic-icon">🏭</span><span class="tnm">工业化配给</span></span>
+            <span class="tree-node-foot"><i class="tree-state-dot"></i><span class="tree-node-status">可研究</span><span class="tree-open-hint">查看详情　›</span></span>
+          </button>
+
+        </div>
+      </div>
+
+      <div class="note">节点：纪元三《职业行会》的下一层即纪元四，故「工坊学校」本次落在<b>纪元四·第二列</b>、挂在《职业行会》之下（成本亦从纪元五的 85000 降到纪元四档 30000）。渊潜鲛歌 / 工业化配给仍挂在《启蒙运动》（纪元四）之下、伸到纪元五。四个节点均「可研究」态，带黄色呼吸边框。工坊学校为本次新增，纪元四·第二列。</div>
+      <div class="civic-detail" style="margin-top:12px;padding:12px 14px;border:1px solid rgba(245,205,107,.4);border-radius:8px;background:rgba(245,205,107,.08)">
+        <div style="font-size:13px;color:var(--gold);font-weight:700;margin-bottom:6px">工坊学校 <span style="font-size:10px;color:var(--dim);font-weight:500">市政详情预览（点开节点后看到）</span></div>
+        <div style="font-size:12px;line-height:1.7;color:var(--ink)">
+          <div><b>文案：</b><span style="color:var(--gold)">人人皆有受教育的权利。</span></div>
+          <div><b>鼓舞：</b>建成 3 座热液工坊。</div>
+          <div><b>效果：</b>解锁工坊升级「精炼钢厂」（钢产出 +25%）。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ 工坊 · 升级项（精炼钢厂由工坊学校解锁） -->
+  <div class="demosect">
+    <h2>工坊 · 升级项（精炼钢厂由「工坊学校」解锁）</h2>
+    <div class="panel-subtabs workshop-subtabs" role="group" aria-label="工坊分区">
+      <button type="button" class="subtab" aria-pressed="false">制造</button>
+      <button type="button" class="subtab on" aria-pressed="true" data-workshop-view="upgrades">升级项
+        <span class="subcnt">已完成 5 / 共 9</span>
+        <span class="subnew" title="有升级项你还没看过">NEW</span>
+      </button>
+    </div>
+    <div class="subtab-panel" style="margin-top:12px">
+
+      <!-- 已有升级（已完成） -->
+      <div class="row" data-owned="1">
+        <div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="upg_wasteforge">废钢锻造</button> <span class="tag ok">已装填</span></div>
+        <div class="ds">钢产出 +20%（成本：钢部件 80 · 钛 40）</div>
+        <button class="btn" data-upgrade="upg_wasteforge" disabled title="">已装上</button>
+      </div>
+
+      <!-- 新增升级（未看过 → NEW + 可装上） -->
+      <div class="row">
+        <div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="upg_steelforge">精炼钢厂</button> <span class="tag new">NEW</span></div>
+        <div class="ds">把钢产线升级为精炼钢厂：钢产出 +25%。需先完成市政「工坊学校」。（成本：钢部件 200 · 钛 100 · 硬珊瑚 200）</div>
+        <button class="btn buy" data-upgrade="upg_steelforge" title="">装上 钢部件200·钛100·硬珊瑚200</button>
+      </div>
+
+      <div class="note">「精炼钢厂」走现有 <code>steelBonus</code> 键（与废钢锻造 +20% **加法叠加** ⇒ 全开 = 1 + 0.20 + 0.25 = ×1.45 钢产出，零经济代码改动）。门槛用新增的 <code>needCivic:'civ_steelschool'</code>（与现有 <code>u.need</code> 科技门槛同构），未点出工坊学校时该卡按渲染层「先需…」规则隐藏。</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

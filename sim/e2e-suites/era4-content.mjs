@@ -21,6 +21,10 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
   const keys4 = T4.filter(t => t.key).map(t => t.id).sort();
   check('纪元四关键节点 = 天壳观测 + 倒置搭建（用户拍板「天壳那两项」）',
     keys4.join() === 'invert,shellwatch', keys4.join());
+  check('倒置搭建效果文案说明脚手架需求 −25%',
+    m4.invert.eff && m4.invert.eff.scaffoldCostSave === 0.25 &&
+    SB.tech.effectText(m4.invert).indexOf('脚手架需求 −25%') >= 0,
+    SB.tech.effectText(m4.invert));
 
   /* ② 前置 / 层级 / 分支 / 成本 —— 数据表 landed 的凭证。
    *    ⚠️ 绝对层级是 3/4/5 而不是用户表里的 1/2/3：layer 是全局列号，
@@ -99,19 +103,126 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
   }));
   check('三项 unlockBuild 都指向真实建筑', missing.length === 0, '查不到=' + missing.join(','));
 
-  /* ④ 钛 / 脚手架两个新资源：钛 2026-10-07 重分类为「有上限的资源」（CAP_BASE.titanium=200、
-   *   摘 kind:'craft' 回资源主区），脚手架仍是工艺制品（无 CAP_BASE 键 ⇒ Infinity）；
-   *   两者 state 均已 seed（防 addRes 漏键染 NaN）。 */
+  /* ④ 钛 / 脚手架 / 钛金板件：钛、钛金板件有上限；脚手架是无上限工艺制品；
+   *   三者 state 均已 seed（防 addRes 漏键染 NaN）。 */
   const fr4 = SB.state.freshRun(false);
   const notInf = ['scaffold'].filter(r => SB.economy.capOf(fr4, r) !== Infinity);
   check('脚手架 capOf = Infinity（工艺制品，无上限）', notInf.length === 0, '有上限的=' + notInf.join(','));
   check('钛 capOf 有有限上限（不再是 Infinity，CAP_BASE=200 档）',
     SB.economy.capOf(fr4, 'titanium') !== Infinity && SB.economy.capOf(fr4, 'titanium') > 0,
     'capOf=' + SB.economy.capOf(fr4, 'titanium'));
+  check('钛金板件基础仓储上限为 200',
+    SB.RESS.tiplate.kind === 'craft' && SB.CFG.CAP_BASE.tiplate === 200 &&
+      SB.economy.capOf(fr4, 'tiplate') === 200,
+    'kind=' + SB.RESS.tiplate.kind + ' capOf=' + SB.economy.capOf(fr4, 'tiplate'));
+  fr4.techs.lighting = true;
+  fr4.lvl.ballast = 10;
+  const storedTiplateCap = SB.economy.capOf(fr4, 'tiplate');
+  SB.economy.addRes(fr4, 'tiplate', 5000);
+  const legacyTiplateStore = SB.state.migrateRun({ lvl: { tiplateStore: 3 } });
+  check('钛金板件受压舱仓容量影响，库存不能超过上限',
+    SB.economy.capOf(fr4, 'tiplate') === storedTiplateCap &&
+      storedTiplateCap > SB.CFG.CAP_BASE.tiplate && fr4.res.tiplate === storedTiplateCap &&
+      !SB.BUILDINGS.some(b => b.id === 'tiplateStore') &&
+      legacyTiplateStore.lvl.tiplateStore === undefined,
+    'capOf=' + SB.economy.capOf(fr4, 'tiplate') + ' stock=' + fr4.res.tiplate);
+  const plateWarehouse = SB.state.freshRun(false);
+  const kCap0 = SB.economy.capOf(plateWarehouse, 'kelp');
+  plateWarehouse.lvl.ballast = 5; // 750 钛在普通仓容量内，测试按真实可达库存购买
+  const pCapBeforeUpgrade = SB.economy.capOf(plateWarehouse, 'tiplate');
+  const cCapBeforeUpgrade = SB.economy.capOf(plateWarehouse, 'coral');
+  plateWarehouse.res.tiplate = 50;
+  plateWarehouse.res.titanium = 750;
+  plateWarehouse.res.science = 200000;
+  plateWarehouse.techs.minipump = false;
+  const alloyWarehouseLocked = SB.workshop.upgradeBlocked(plateWarehouse, 'upg_alloy_warehouse');
+  plateWarehouse.techs.minipump = true;
+  const alloyWarehouseBlocked = SB.workshop.upgradeBlocked(plateWarehouse, 'upg_alloy_warehouse');
+  const alloyWarehouseBought = SB.workshop.upgradeBuy(plateWarehouse, 'upg_alloy_warehouse', noop);
+  check('合金仓储升级：minipump 解锁、材料科技扣费、非藻食容量 ×1.5',
+    alloyWarehouseLocked !== null && alloyWarehouseBlocked === null && alloyWarehouseBought &&
+      plateWarehouse.res.tiplate === 0 && plateWarehouse.res.titanium === 0 && plateWarehouse.res.science === 0 &&
+      Math.abs(SB.economy.capOf(plateWarehouse, 'tiplate') / pCapBeforeUpgrade - 1.5) < 1e-9 &&
+      Math.abs(SB.economy.capOf(plateWarehouse, 'coral') / cCapBeforeUpgrade - 1.5) < 1e-9 &&
+      SB.economy.capOf(plateWarehouse, 'kelp') === kCap0,
+    'locked=' + alloyWarehouseLocked + ' blocked=' + alloyWarehouseBlocked + ' bought=' + alloyWarehouseBought +
+      ' tiplate=' + SB.economy.capOf(plateWarehouse, 'tiplate') +
+      ' coral=' + SB.economy.capOf(plateWarehouse, 'coral') + ' kelp=' + SB.economy.capOf(plateWarehouse, 'kelp'));
+  const monumentStorage = SB.state.freshRun(false);
+  monumentStorage.wonders.wonder_tide_stele = true;
+  check('海潮方碑仓储加成包含钛金板件',
+    SB.wonder.matMaxBonus(monumentStorage, 'tiplate') === 200 &&
+      SB.economy.capOf(monumentStorage, 'tiplate') === 400,
+    'bonus=' + SB.wonder.matMaxBonus(monumentStorage, 'tiplate') +
+      ' cap=' + SB.economy.capOf(monumentStorage, 'tiplate'));
   check('钛 / 脚手架已进 res 与 got 台账（缺键会把资源池染成 NaN）',
     fr4.res.titanium === 0 && fr4.res.scaffold === 0 &&
     fr4.got.titanium === 0 && fr4.got.scaffold === 0,
     'res=' + JSON.stringify({ t: fr4.res.titanium, s: fr4.res.scaffold }));
+  /* 2026-10-17：所有含脚手架成本的项目（含奇观）统一减半；制作配方本身不消耗脚手架。 */
+  {
+    const expected = {
+      tenement: 25,
+      upg_invertbuild: 150,
+      wonder_shellcutter: 100,
+      wonder_luluka: 50,
+      wonder_presspipe: 112.5,
+      wonder_skydrill: 200,
+      wonder_shadow_theater: 200,
+      wonder_congress: 300,
+      wonder_logistics: 100,
+      wonder_national_logistics: 100
+    };
+    const entries = [].concat(SB.BUILDINGS || [], SB.UPGRADES || [], SB.WONDERS || []);
+    const actual = {};
+    entries.forEach(x => {
+      if (x && x.cost && Object.prototype.hasOwnProperty.call(x.cost, 'scaffold')) actual[x.id] = x.cost.scaffold;
+    });
+    const ids = Object.keys(expected).sort();
+    const actualIds = Object.keys(actual).sort();
+    check('廉租社区、工坊升级及全部奇观的脚手架成本均已减半',
+      ids.join() === actualIds.join() && ids.every(id => actual[id] === expected[id]),
+      '实际=' + JSON.stringify(actual));
+  }
+  {
+    const base = SB.state.freshRun(false), inverted = SB.state.freshRun(false);
+    inverted.techs.invert = true;
+    const b0 = SB.economy.costOf(base, 'tenement'), b1 = SB.economy.costOf(inverted, 'tenement');
+    const w0 = SB.wonder.discountedCost(base, 'wonder_shellcutter');
+    const w1 = SB.wonder.discountedCost(inverted, 'wonder_shellcutter');
+    check('倒置搭建：建筑脚手架需求 −25%，其他材料不变',
+      Math.abs(b1.scaffold / b0.scaffold - 0.75) < 1e-9 && b1.steel === b0.steel,
+      '建筑成本=' + JSON.stringify(b0) + '→' + JSON.stringify(b1));
+    check('倒置搭建：奇观脚手架需求 −25%，其他材料不变',
+      w1.scaffold === w0.scaffold * 0.75 && w1.steelPart === w0.steelPart && w1.titanium === w0.titanium,
+      '奇观成本=' + JSON.stringify(w0) + '→' + JSON.stringify(w1));
+
+    const u = SB.state.freshRun(false);
+    u.techs.invert = true; u.techs.shellgeo = true;
+    u.res.scaffold = 112.5; u.res.science = 1e9;
+    check('倒置搭建：工坊升级按折后脚手架需求判定并实际扣费',
+      SB.workshop.upgradeCost(u, 'upg_invertbuild').scaffold === 112.5 &&
+      SB.workshop.upgradeBlocked(u, 'upg_invertbuild') === null &&
+      SB.workshop.upgradeBuy(u, 'upg_invertbuild', noop) && Math.abs(u.res.scaffold) < 1e-9,
+      '折后需求 112.5，扣后=' + u.res.scaffold);
+  }
+  {
+    const base = SB.state.freshRun(false), geology = SB.state.freshRun(false);
+    base.jobs.miner = 2; geology.jobs.miner = 2;
+    [base, geology].forEach(s => {
+      s.upgrades.upg_fishbonemine = true;
+      s.upgrades.upg_deepmine = true;
+    });
+    geology.techs.abyssgeo = true;
+    const warm0 = SB.economy.rates(base).warmstone, warm1 = SB.economy.rates(geology).warmstone;
+    const titanium0 = SB.economy.rates(base).titanium, titanium1 = SB.economy.rates(geology).titanium;
+    check('渊海地质学暖石 +300%（×4），并已移除钛加成',
+      SB.tech.byId('abyssgeo').eff.warmMul === 3 &&
+      !Object.prototype.hasOwnProperty.call(SB.tech.byId('abyssgeo').eff, 'titaniumMul') &&
+      SB.tech.mul(geology).warmMul === 3 && SB.tech.mul(geology).titaniumMul === 0 &&
+      Math.abs(warm1 / warm0 - 4) < 1e-9 && Math.abs(titanium1 - titanium0) < 1e-9,
+      '暖石=' + warm0 + '→' + warm1 + '；钛=' + titanium0 + '→' + titanium1);
+  }
   check('三座新建筑已在 lvl 表内（漏键 = 读档静默丢弃）',
     fr4.lvl.observatory === 0 && fr4.lvl.coralfarm === 0 && fr4.lvl.bank === 0,
     'observatory=' + fr4.lvl.observatory);

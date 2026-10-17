@@ -16,10 +16,19 @@
    *   二·冷焰「第一次有光」→ 灯火山厝（有火有光，搬进厝）
    *   三·硫泉「材料革命」→ 锻火镇（精铁够用，出锻造业）
    *   四·洋流「借力」→ 潮机城（整座礁当一台机器）
-   *   五·破壳「工业化」→ 渊海之国（2026-10-05 用户拍板：壳将破、往外走的国） */
+   *   五·破壳「工业化」→ 渊海之国（2026-10-05 用户拍板：壳将破、往外走的国）
+   *   ⚠️ ERA6+（2026-10-17）：聚落已迈入太空时代，硬编码演进名到头了。
+   *   玩家可在巢穴页的命名框自建名（s.habitatName，本轮回有效，轮回重置）。
+   *   未起名时沿用末档演进名「渊海之国」（用户拍板：无缝、一眼知道能改名）。
+   *   纪元 < 6 仍是固定演进名（巢穴 → … → 渊海之国），保持原样。 */
   var HABITAT_NAMES = { 1: '巢穴', 2: '灯火山厝', 3: '锻火镇', 4: '潮机城', 5: '渊海之国' };
+  var HABITAT_DEFAULT_ERA6 = '渊海之国';   // ERA6+ 未起名时的兜底名（与纪元五末档一致，过渡无缝）
   function habitatName(s) {
     var e = (s && s.era) || 1;
+    if (e >= 6) {
+      var custom = s && s.habitatName && ('' + s.habitatName).trim();
+      return custom || HABITAT_DEFAULT_ERA6;
+    }
     return HABITAT_NAMES[e] || HABITAT_NAMES[1];
   }
 
@@ -184,27 +193,56 @@
     if (!SB.tech) {                       // tech.js 未加载时的兜底，避免整局假死
       var t = null;
       for (var i = 0; SB.TECHS && i < SB.TECHS.length; i++) if (SB.TECHS[i].id === id) t = SB.TECHS[i];
-      if (!t || s.techs[id] || !SB.economy.enough(s.res.science, t.cost)) return false;
-      s.res.science -= t.cost; s.techs[id] = true; s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
+      if (!t || s.techs[id]) return false;
+      /* 兜底折扣（2026-10-17）：tech.js 不可用时镜像 tech.researchCost 的同一条公式
+       * （每级 −2%、封顶 0.90）——否则兜底扣原价、正常路径扣折后价，两套账。
+       * 判定与扣费都用折后价，与 tech.canStudy/study 同口径。
+       * ⚠️ 若将来改折扣公式，两处必须同步（tech.js 是权威，这里只是镜像）。 */
+      var disc = ((s.lvl && s.lvl.researchlab) || 0) * ((SB.BLD && SB.BLD.researchLabSave) || 0);
+      if (!(typeof disc === 'number' && isFinite(disc))) disc = 0;
+      var cap = (SB.BLD && SB.BLD.researchLabSaveMax) || 0;
+      if (disc > cap) disc = cap;
+      var netCost = t.cost * (1 - disc);
+      if (!SB.economy.enough(s.res.science, netCost)) return false;
+      s.res.science -= netCost; s.techs[id] = true; s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
       if (emit) emit('研究完成：' + t.name);
       return true;
     }
     return SB.tech.study(s, id, emit);
   }
 
-  /* 生息区自动升级（2026-09-30 用户规格 · 市政《封建主义》解锁2）：
-   *   「解锁生息区建筑自动升级，可一一选择开关」。开关逐建筑放 s.autoUpg[id]
+  /* 区域建筑自动建造/升级（2026-09-30 用户规格 · 由市政逐区解锁）：
+   *   每个市政通过 autoBuildZones 声明权限；开关逐建筑放 s.autoUpg[id]
    *   （state 初始化空表），执行语义 = **「买得起就买一级」**——与手动点建造走同一条
    *   build() 通道（解锁/前置/钳制/扣费全复用，自动与手动不可能出现两套规则）。
    * ⚠️ 调用点只在**在线**泵（game.js 的 2 秒周期）：离线补算只结算产出、不替玩家花
    *   资源——这是「离线闸门」同一精神；玩家回来看到的存档不该被后台偷偷改。
    * ⚠️ 2 秒一拍而不是每 tick：每 tick 买会把玩家攒着的缓冲资源瞬间烧穿，2 秒的颗粒度
    *   让玩家还能抢在自动升级前面把资源留给大件。 */
+  /* 科技侧自动建造通道（2026-10-17 · ERA7 spec §4 火箭研究解锁1）：
+   *   原先 autoZoneUnlocked 只认市政 autoBuildZones ⇒ techs.js:647 声称 modpart 解锁
+   *   「工坊区自动建造」是死注释（全库无科技侧接线，开关从未出现）。
+   *   现在开 TECH_AUTO_ZONES 一张表：rocket → 科研区（academy），modpart → 工坊区（workshop）。
+   *   开关 UI / 在线泵 / 「买得起就买一级」语义全部复用现有系统，零新增。 */
+  var TECH_AUTO_ZONES = { rocket: ['academy'], modpart: ['workshop'] };
+  function autoZoneUnlocked(s, zone) {
+    if (!s || !s.civics) return false;
+    var C = SB.CIVICS || [];
+    for (var i = 0; i < C.length; i++) {
+      if (!s.civics[C[i].id] || !Array.isArray(C[i].autoBuildZones)) continue;
+      if (C[i].autoBuildZones.indexOf(zone) >= 0) return true;
+    }
+    /* 科技侧：s.techs 命中 TECH_AUTO_ZONES 即视为该区已授权（modpart 死注释就此修复）。 */
+    if (s.techs) for (var tid in TECH_AUTO_ZONES) {
+      if (s.techs[tid] && TECH_AUTO_ZONES[tid].indexOf(zone) >= 0) return true;
+    }
+    return false;
+  }
   function autoTick(s, emit) {
-    if (!s || !s.civics || !s.civics.feudalism || !s.autoUpg) return;
+    if (!s || !s.autoUpg) return;
     for (var i = 0; i < SB.BUILDINGS.length; i++) {
       var b = SB.BUILDINGS[i];
-      if (b.zone !== 'food' || !s.autoUpg[b.id]) continue;
+      if (!autoZoneUnlocked(s, b.zone) || !s.autoUpg[b.id]) continue;
       build(s, b.id, emit);
     }
   }
@@ -215,6 +253,6 @@
     /* retired（2026-10-06）：render 的可见性判定要用它滤掉已退役建筑的常驻行，
      *   与 unlocked() 里的那一判同源（同一个函数）。 */
     retired: retired,
-    autoTick: autoTick, habitatName: habitatName
+    autoZoneUnlocked: autoZoneUnlocked, autoTick: autoTick, habitatName: habitatName
   };
 })(typeof window !== 'undefined' ? window : globalThis);

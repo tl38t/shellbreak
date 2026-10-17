@@ -1,8 +1,9 @@
 /* e2e suite: event-batched offline catch-up stays close to the 0.1s reference. */
-export function run({ SB, check }) {
+export function run({ SB, check, sandbox }) {
   const oldRng = SB.rng;
   const STEP = 0.1;
   const OFFLINE_SECONDS = 1800;
+  let breakCfg = null;
 
   function configure(s) {
     s.t = 0;
@@ -128,7 +129,38 @@ export function run({ SB, check }) {
         Math.abs(starveFast.famine - starveRef.famine) <= 1,
       '人口 ' + starveRef.pop + '/' + starveFast.pop + '，饿死 ' + starveRef.famineDeaths + '/' + starveFast.famineDeaths +
         '，饥荒进度 ' + starveRef.famine.toFixed(3) + '/' + starveFast.famine.toFixed(3));
+
+    // Offline breach must stop catch-up, persist the pending choice, and show the break panel directly.
+    breakCfg = { base: SB.CFG.BREAK_BASE, floor: SB.CFG.FLOOR_AT };
+    const breach = runOne();
+    SB.CFG.BREAK_BASE = 1000;
+    SB.CFG.FLOOR_AT = 0;
+    breach.shell = 1;
+    breach.iceShell = 1;
+    breach.shellOpened = false;
+    breach.broken = false;
+    breach.breakSettled = false;
+    SB.game.planCatchUp(breach, 120);
+    SB.game.drainCatchUp(1000000);
+    const saved = SB.state.loadRun();
+    const modal = sandbox && sandbox.document && sandbox.document.getElementById('modal');
+    const modalHtml = sandbox && sandbox.document && sandbox.document.getElementById('modalBox')._html;
+    check('离线补算破壳后立即停止剩余时间', breach.broken && breach.shell === 0 && breach.t < 120,
+      '逻辑时间推进 ' + breach.t.toFixed(1) + '/120 秒');
+    check('离线破壳直接显示结算选择而非普通离线总结', !!modal && !modal.classList.contains('hidden') &&
+      /冰壳裂开了/.test(modalHtml) && !/离线结算/.test(modalHtml), '结算面板已显示');
+    check('离线破壳待选择状态已写入存档', !!saved && saved.broken && saved.shellOpened && !saved.breakSettled,
+      saved ? 'broken=' + saved.broken + '，shellOpened=' + saved.shellOpened : '未读到存档');
+    SB.game.boot(); // 模拟刷新后重新启动：启动路径必须优先恢复待处理的破壳选择。
+    const resumedModal = sandbox && sandbox.document && sandbox.document.getElementById('modal');
+    const resumedHtml = sandbox && sandbox.document && sandbox.document.getElementById('modalBox')._html;
+    check('刷新后仍直接恢复破壳结算界面', SB.game.run().broken && !!resumedModal &&
+      !resumedModal.classList.contains('hidden') && /冰壳裂开了/.test(resumedHtml), '待结算状态已恢复');
   } finally {
+    if (breakCfg) {
+      SB.CFG.BREAK_BASE = breakCfg.base;
+      SB.CFG.FLOOR_AT = breakCfg.floor;
+    }
     SB.economy.tick = SB.economyTickParts.tick;
     SB.rng = oldRng;
     SB.game.resetRun();

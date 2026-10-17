@@ -158,8 +158,7 @@ console.log('\n=== 食物三旋钮 ===');
       steel: 1, hydro: 1, steelPart: 1,
       /* ERA4（2026-09-30）：脚手架 = 工艺制作的产物（硬化珊瑚 100 + 绳 100 → 1），与石梁/铁制支架同口径。
        *   不给 CAP_BASE 键 ⇒ capOf 恒 Infinity（无仓储上限）；给上限会卡死「攒材料造脚手架」的进度。
-       *   ⚠️ 钛 2026-10-07 已从本白名单移除：用户拍板重分类为资源主区材料并加 CAP_BASE.titanium=200，
-       *      不再是无上限，故反向对照里它必须**有**上限、不该出现在这里。 */
+       *   钛与钛金板件均有仓储上限，不在白名单；板件基础上限见 CAP_BASE.tiplate。 */
       scaffold: 1,
       /* ERA4（2026-09-30）：artwork（艺术品）/ tidalRecord（潮汐志录）。
        *   与 stoneBeam/ironBracket/rope 同属「工艺制作的产物」一类 —— 由工坊配方造出来、
@@ -175,7 +174,11 @@ console.log('\n=== 食物三旋钮 ===');
        * 「工艺制作的产物」一类 —— 由工坊配方 craft_sealbin（钛金板件 5 + 温水藻 200 → 1）造出来、
        *   成批消耗（温水藻场升级材料）。照石梁那套口径（猫国 warehouse 没有 beamMax ⇒ 恒无上限）。
        *   不给 CAP_BASE 上限键，否则「攒材料造封闭藻仓」会被仓储卡死。不是漏写 CAP_BASE。 */
-      sealbin: 1 };
+      sealbin: 1,
+      /* ERA7（2026-10-17 · spec §7）：星屑（stardust）—— 跨周目局外资源，与科技/市政点同口径无上限
+       *   （存 meta 存档，不进 res 池上限）。故意不给 CAP_BASE 键（与 science/culture 同处理由）。
+       *   本周目只作为 eureka 累计台账（s.got.stardust = meta seed）读到，不是可囤资源。 */
+      stardust: 1 };
     check('反向对照：科技 / 市政点 / 石梁 / 工艺制品仍表外无上限（批准名单，加别的必红）',
       noCap.length > 0 && noCap.every(k => !!CAPLESS_OK[k]),
       '[' + noCap.join(', ') + ']');
@@ -215,10 +218,7 @@ console.log('\n=== 食物三旋钮 ===');
      *    不是「全局增量」复活 —— 所以排除它的理由与那两座相同，不是放宽这条断言。
      *    ⚠️ 加仓库建筑时报「会涨」是预期行为；加**非仓库**建筑时报才是真漏。 */
     for (const b of SB.BUILDINGS) {
-      /* ERA6（2026-10 实装）：tiplateStore（钛金板件仓）是**有意效仿** kelpstore/ballast/lighthouse
-       *   的容量建筑——capOf 的 tiplate 专属分支读 s.lvl.tiplateStore × BLD.tiplateCap 给容量。
-       *   它涨容量是设计内行为，与那三座同口径，不是「全局增量」复活，故排除。 */
-      if (!['kelpstore', 'ballast', 'lighthouse', 'tiplateStore'].includes(b.id)) many.lvl[b.id] = 10;
+      if (!['kelpstore', 'ballast', 'lighthouse'].includes(b.id)) many.lvl[b.id] = 10;
     }
     const moved = RESS.filter(k => co(many, k) !== co(zero, k));
     check('每建筑级的全局增量已彻底删除（铺满建筑也不涨容量）',
@@ -485,16 +485,16 @@ console.log('\n=== 食物双源 ===');
   check('矿工产金属，砂矿坑加成 = 1+级数×siltBonus（3 级 ⇒ ×1.6）',
     Math.abs(m3.res.silt / m0.res.silt - 1.6) < 1e-9,
     '比值=' + (m3.res.silt / m0.res.silt).toFixed(6) + '（m0=' + m0.res.silt.toFixed(4) + ' m3=' + m3.res.silt.toFixed(4) + '）');
-  check('砂矿坑加成不波及暖石（伴生副产品不吃建筑加成）',
-    Math.abs(m3.res.warmstone - m0.res.warmstone) < 1e-9,
-    'm0=' + m0.res.warmstone.toFixed(4) + ' m3=' + m3.res.warmstone.toFixed(4));
+  check('砂矿坑加成也放大暖石（2026-10-16 起伴生矿物同吃矿坑等级，3 级 ⇒ ×1.6）',
+    Math.abs(m3.res.warmstone / m0.res.warmstone - 1.6) < 1e-9,
+    '比值=' + (m3.res.warmstone / m0.res.warmstone).toFixed(6) + '（m0=' + m0.res.warmstone.toFixed(4) + ' m3=' + m3.res.warmstone.toFixed(4) + '）');
 
   /* 2026-10-05 用户拍板：采石工也吃砂矿坑的 +20%/级（复用 siltBonus，与矿工同值）。
    * 【为什么必须钉这条】改之前采石工是四家采集职业里唯一没有建筑级乘区的，
    * 而 UNIT.stone 0.30 却是除珊瑚匠外最高 ⇒ 「基数大却不能放大」，同人口下永远弱于矿工。
    * 钉的是**比值**（1+3×0.2=1.6），同 freshRun ⇒ 季节/采集倍率完全一致，不用复算 cold。
-   * ⚠️ 另钉一条反向：暖石**仍然不乘**（金属与石头同源、暖石是伴生副产品），
-   *    免得以后有人把「砂矿坑 = 矿脉设施」读成「矿脉产的一切都加」。 */
+   * ⚠️ 2026-10-16 起：上面那条暖石断言已翻转为「暖石同样被砂矿坑放大」（见 economy-tick.js 的 _siltPit
+   *    与 rates() 的 mineBonus）——矿脉设施现在放大一切矿工伴生产出。此反向保护已不再成立。 */
   const q0 = SB.state.freshRun(false); q0.jobs.quarrier = 2; q0.res.stone = 0;
   SB.economy.tick(q0, 1, noop);
   const q3 = SB.state.freshRun(false); q3.jobs.quarrier = 2; q3.lvl.siltpit = 3; q3.res.stone = 0;

@@ -100,7 +100,8 @@
       + s.lvl.coralhouse * SB.BLD.house2
       + s.lvl.tenement * SB.BLD.tenementPop
       + (p.popcap || 0)
-      + (p.housePlan || 0) * popBuildLev;
+      + (p.housePlan || 0) * popBuildLev
+      + (SB.civic && SB.civic.popCapPerPopBldg ? SB.civic.popCapPerPopBldg(s) * popBuildLev : 0);  // ERA7 公摊面积卡：人口建筑每级 +0.5 上限
     return Math.min(cap, SB.challenges ? SB.challenges.populationLimit(s) : Infinity);
   }
   /* 「住满」= 人口已经顶到上限，下一胎不会来。
@@ -157,7 +158,7 @@
   }
 
   // ---- 仓储（S2）----
-  /* 未在 CAP_BASE 中的资源（现在只剩 science）为无限，不设浪费判定。
+  /* 未在 CAP_BASE 中配置的资源为无限，不设浪费判定（如 science、石梁、脚手架等）。
    * ⚠️ 判「表外」必须写 `=== undefined`。旧版是 `!SB.CFG.CAP_BASE[k]`，而 `!0 === true`
    *    ⇒ stone / warmstone 这两条**「明写 0」**的资源被当成了表外 ⇒ 整局无上限。
    *    当时的注释还写着「明写 0 与表外等价，且更清楚」——两者恰恰相反：
@@ -167,8 +168,8 @@
     var base = SB.CFG.CAP_BASE[k];
     if (base === undefined) return Infinity;
     /* ⚠️ 2026-09-26 第三轮：**删掉「每建筑级给全局容量」那一轴**（旧 CAP_PER_LVL）。
-     *    上限现在是「起步容量 + 专门的仓库建筑」—— 猫国形态。两条线各认自己的仓
-     *    （藻食 → 海藻仓、材料 → 压舱仓），**不共用一个 store**，理由见 config 的两座仓库注。
+     *    上限现在是「起步容量 + 专门仓库建筑 + 工坊扩容乘区」—— 猫国形态。
+     *    藻食走海藻仓与藻食扩容；其余有上限资源走压舱仓与通用扩容，互不串线。
      * ⚠️ 科技侧对容量也有话说（`tech.mul(s).kelpCap`），这条通道**曾经是死键**：
      *    mul() 算出了值、UI 也照着显示「藻食上限 +200」，但 capOf 从来没读过它 ⇒
      *    「储藻术」研究完什么也没发生。这正是「加了科技但忘了接线」那一类静默断链。
@@ -202,19 +203,7 @@
         * capUpgradeMul(s, 'upg_kelpstore_2')   /* 2026-10-01 II 级扩容：与压舱库 II 同构，补上这条乘法轴（漏接 = 死升级） */
         * matMul;
     }
-    /* ERA6（2026-10 实装）：钛金板件有**专属仓库**（钛金板件仓），走与 kelp 同型的专属分支
-     * （专属 store 等级 × 专属增量 tiplateCap），不进下面「其余资源」那条压舱仓轴。
-     * ⚠️ 同样吃 _sm（中世纪集市仓储区翻倍只作用贸易区建筑贡献，钛金板件仓归贸易区域，符合）与
-     *    matMul（轮回材料总仓对所有有上限资源生效）。starExplore 无此分支、走下面 matCap 通用路径。 */
-    if (k === 'tiplate') {
-      var tpStore = (typeof s.lvl.tiplateStore === 'number' && isFinite(s.lvl.tiplateStore) && s.lvl.tiplateStore >= 0)
-        ? s.lvl.tiplateStore : 0;
-      var tpCapPerLevel = (typeof SB.BLD.tiplateCap === 'number' && isFinite(SB.BLD.tiplateCap)) ? SB.BLD.tiplateCap : 0;
-      var tpCap = base + _sm * tpStore * tpCapPerLevel + techKelpCap;
-      if (!(typeof tpCap === 'number' && isFinite(tpCap) && tpCap >= 0)) tpCap = base;
-      return tpCap * matMul;
-    }
-    /* 其余资源：基础 + 压舱仓（材料容量的**唯一**增长通道）。 */
+    /* 其余有上限资源：基础 + 压舱仓 + 通用扩容；表外资源已在上方直接返回 Infinity。 */
     /* ⚠️ **2026-09-28：这里少一对括号，把整条资源线的容量打成了 0。**
      *    原样是 `... + ballast*cap + SB.wonder ? bonus : 0`，而 `+` 的优先级高于 `?:`
      *    ⇒ 它被解析成 `(base + ballast*cap + SB.wonder) ? bonus : 0`，
@@ -250,11 +239,15 @@
        *   ⚠️ **只加给材料，不加石梁** —— 石梁是无上限资源（用户拍），给它加 200 没有意义。
        *    ⚠️ 用**白名单**而不是「除 stoneBeam 之外全加」：将来加新资源时，
        *        白名单会逼着人决定「新资源吃不吃这个加成」，黑名单则让人默认漏掉。 */
-      + matBonus;
+      + matBonus
+      /* ERA7（2026-10-17 · spec §4）：物流仓库（upg_logiware，顶替商队驿站）每级给所有有上限材料 +200 容量。
+       *   ⚠️ 与 matBonus（海潮方碑，一次性 +200）同源相加：都是「材料容量加法轴」，互不踩定义域。 */
+      + ((s.upgrades && s.upgrades.upg_logiware) || 0) * (SB.BLD.logiwareCap || 0);
     if (!(typeof matCap === 'number' && isFinite(matCap) && matCap >= 0)) matCap = base;
     var matCastle = castleCapBonus(s);
     if (!(typeof matCastle === 'number' && isFinite(matCastle) && matCastle >= 0)) matCastle = 0;
-    var cap = (matCap + matCastle) * capUpgradeMul(s, 'upg_ballast_1') * capUpgradeMul(s, 'upg_ballast_2') * matMul;
+    var cap = (matCap + matCastle) * capUpgradeMul(s, 'upg_ballast_1')
+      * capUpgradeMul(s, 'upg_ballast_2') * capUpgradeMul(s, 'upg_alloy_warehouse') * matMul;
     return (typeof cap === 'number' && isFinite(cap) && cap >= 0) ? cap : base;
   }
 
@@ -391,6 +384,18 @@
     var eff  = getLimitedDR(Math.min(_n * rate, lim), lim);   // 走和容量轴同一道衰减曲线
     return 1 - eff;
   }
+  /* 倒置搭建：只减少脚手架材料，不影响同一造价中的其它资源。
+   * 建筑、工坊升级与奇观共用此函数，保证显示、材料判定和实际扣费一致。 */
+  function scaffoldCostMul(s) {
+    var T = SB.tech ? SB.tech.mul(s) : null;
+    return Math.max(0, 1 - (T ? (T.scaffoldCostSave || 0) : 0));
+  }
+  function scaffoldAdjustedCost(s, cost) {
+    var out = {}, k, mul = scaffoldCostMul(s);
+    if (!cost) return out;
+    for (k in cost) out[k] = cost[k] * (k === 'scaffold' ? mul : 1);
+    return out;
+  }
   // 单级增量成本。递增系数是建筑自己的 `ratio`（猫国 priceRatio），不是全局常数——
   // 住房 2.5 贵到买不动，产能建筑 1.12 便宜到可以一路铺开，这是两条不同的曲线。
   function costOf(s, id) {
@@ -437,8 +442,26 @@
      * ⚠️ 面板侧 `fmt()` 是 `Math.floor` + 千分位（给「成本/上限」用的），**会把 2.3 显示成 2** ——
      *   那是**显示层**的问题，不是这一行的问题。若面板要显示小数得单独改 fmt 的分档。
      *   本次只改 costOf（数据层），显示层要不要跟由用户另拍。 */
-    for (var k in b.cost) o[k] = b.cost[k] * Math.pow(b.ratio, n) * hm * gm * wm * isb * hsb * bsb;
+    var sc = scaffoldCostMul(s);
+    /* ERA7（spec §6）：太空建筑（zone==='space'）建造成本吃软上限乘区——
+     *   超古代科技 −20% 是第一个源，多源**乘法**叠加、地板 ×0.30（=70% 封顶）。
+     *   作用域只限 space 区两座（卫星/空间站），不含奇观与地面建筑。 */
+    var scm = (b.zone === 'space') ? spaceCostMul(s) : 1;
+    for (var k in b.cost) o[k] = b.cost[k] * Math.pow(b.ratio, n) * hm * gm * wm * isb * hsb * bsb
+      * scm * (k === 'scaffold' ? sc : 1);
     return o;
+  }
+  /* ERA7（spec §6）：太空建筑建造成本软上限。
+   * 规则：× Π(1−rᵢ)，乘积下限 0.30。乘法叠加的数学性质：每多一个 −20% 源边际递减
+   * （20%→16%→12.8%…），永远摸不到 70%，×0.30 只是兜底硬地板；
+   * 单源时精确兑现字面值（只有超古代 = ×0.80，不缩水——这是否决 tanh 方案的原因）。
+   * ⚠️ 新减免源往这里加一行 `m *= 1 - r`，别写成加法。 */
+  var SPACE_COST_FLOOR = 0.30;
+  function spaceCostMul(s) {
+    var m = 1;
+    if (s.techs && s.techs.ancient) m *= 0.80;   // 超古代科技 −20%（叶子科技，spec §4）
+    if (SB.civic && SB.civic.cardSpaceBuildSave) m *= (1 - SB.civic.cardSpaceBuildSave(s));  // ERA7 太空竞赛卡：太空建筑 −20%
+    return m < SPACE_COST_FLOOR ? SPACE_COST_FLOOR : m;
   }
   /* ⚠️ 2026-10-05：成本标签改用 `fmtAmt`（**一位小数**）而不是 `fmt`（Math.floor 取整）。
    *   起因是同轮去掉了 `costOf` 里的 `Math.ceil` —— 造价变回浮点（2.3 / 2.645 / 3.042…），
@@ -671,7 +694,8 @@
      *   这里把 0.40 当 +0.40 直接加进返回值（upgSum 读 UPGRADES 表的 obsSciBoost 字段，不在本函数写死）。 */
     var boost = (SB.economy && SB.economy.upgSum) ? SB.economy.upgSum(s, 'obsSciBoost') : 0;
     if (!(typeof boost === 'number' && isFinite(boost))) boost = 0;
-    return 1 + x / 100 + boost;
+    var _obs = (SB.civic && SB.civic.cardObsSciMul) ? SB.civic.cardObsSciMul(s) : 1;  // ERA7 神不在此卡：观测站产出 ×1.5
+    return (1 + x / 100 + boost) * ((typeof _obs === 'number' && isFinite(_obs)) ? _obs : 1);
   }
 
   function toolMul(s, job) {
@@ -764,6 +788,11 @@
      *    离线补算期间若戳仍在（≤30s 真实），buff 自然生效——属 bonus，不影响 8–14h 窗核算。
      * ⚠️ `s.eventAllUntil` 缺键（旧档 / e2e 未触发）时为 undefined ⇒ 走 `&&` 短路恒为 1，安全。 */
     if (s.eventAllUntil && (typeof Date.now === 'function' ? Date.now() : 0) < s.eventAllUntil) m *= 1.10;
+    /* ERA7（2026-10 实装）：政策卡《延长工时》所有职业产出 +30%（jobOutMul 走通用逐槽相乘，默认 1）。
+     * 折叠进 globalMul ⇒ tick 与 rates 自动同式（面板===结算），天然覆盖珊瑚/石/金属/暖石/钛/铀/铁/钢/科技/市政点。
+     * ⚠️ 副作用：铁/钢等加工产出也吃这 30%（globalMul 本就是「全资源产出」乘区）；若需把铁/钢排除出「职业产出」口径，
+     *   改为只裹采集/职业那几行（更高改动风险），此处先按「全产出」口径落地。 */
+    m *= (SB.civic && SB.civic.cardJobOutMul) ? SB.civic.cardJobOutMul(s) : 1;
     return m;
   }
   /* 冻伤减免 = **这一瞬间暖石在烧**（2026-09-26：暖壳石 / hearth 随骨材线一并删除，
@@ -920,6 +949,49 @@
     return 0;
   }
 
+  /* 面板用：某设备**每秒吃掉的每样原料**（额定 / 满转口径），一次给齐 金属 / 暖石 / 热液能。
+   * 【为什么要有它】用户 2026-10-17：「所有有消耗的建筑，消耗的东西也要写明，不光是暖石」——
+   *   之前只给暖石一项，导致热泉炉看着只烧石头（其实还吃金属）、热液工坊整行一个消耗都没标。
+   *   三处 UI（巢穴页控件行 / 建筑信息卡）都读这一处，别再各写一份。
+   * 【三个数与各自的结算式同源 —— 面板===结算家族】
+   *   暖石  = warmDraw（汽轮机 turL×hydroWarm×warmEff；热泉炉 fc 口径×bldEff×warmEff）；
+   *   金属  = 热泉炉 `fc × bldEff`（economy-tick.js:157 的扣除式）、热液工坊 `shopDraw × steelMetal × bldEff`
+   *           （steelFlow 的 metalWant 同式）—— bldEff 是「同产出只耗 e× 原料」的效率折扣，必须跟着扣；
+   *   热液能 = 工坊需求 `运行座数 × hydroShopLvl`（满转口径；flow 不储存，停产即 0）。
+   * 【额定 ≠ 实扣】与 warmDraw 同纪律：这里回答「这几座开满要烧多少」，不按库存打折；
+   *   实际那一 tick 因缺料降产的数字在顶栏净速率里。纯函数只读 s。 */
+  function consumeRates(s, id) {
+    var out = { metal: 0, warm: 0, hydro: 0 };
+    if (!s || !s.lvl) return out;
+    var T = SB.tech ? SB.tech.mul(s) : null;
+    var e = (T ? T.bldEff : 1);
+    out.warm = warmDraw(s, id);      // 只有汽轮机 / 热泉炉 > 0
+    if (id === 'furnace') {
+      var flv = s.lvl.furnace || 0;
+      var frun = Math.max(0, flv - Math.max(0, s.furnaceStop || 0));
+      if (flv > 0 && frun > 0) {
+        /* 与 ironFlow 的 rate 完全同式（那里是「转几份/秒」，这里乘 bldEff 得「吃几吨金属/秒」）。 */
+        var cold = isCold(s) ? coldSeasonMul(s) : 1;
+        var frate = SB.UNIT.iron * frun * (T ? T.smelt : 1) * cold * (T ? T.craft : 1);
+        out.metal = frate * e;
+      }
+    } else if (id === 'hydroshop') {
+      /* ⚠️ 工坊这里给的是**需求（满转）**而不是 hydroAlloc 的 shopDraw（已被供给打折）。
+       *   同 warmDraw 的额定纪律：这一行回答「这几座开满要多少能/多少金属」，
+       *   汽轮机不够、工坊被饿着的情况在顶栏净速率与热液能面板里看，不在这行重复打折
+       *   （否则「开几座」这个控件就变成在问一个会随供给自己变小的数，没法用来规划）。 */
+      var shopL = Math.max(0, (s.lvl.hydroshop || 0) - Math.max(0, s.hydroshopStop || 0));
+      out.hydro = shopL * (SB.UNIT.hydroShopLvl || 0);
+      out.metal = out.hydro * (SB.UNIT.steelMetal || 0) * e;
+    } else if (id === 'spacestation') {
+      /* ERA7（2026-10-17 · spec §5）：空间站每级耗 2 热液能/秒（额定口径，按运行座数）。
+       *   与 hydroAlloc 的 stationDraw 同源同式（运行座数 = 等级 − spacestationStop）。 */
+      var ssL = Math.max(0, (s.lvl.spacestation || 0) - Math.max(0, s.spacestationStop || 0));
+      out.hydro = ssL * (SB.BLD.stationHydro || 0);
+    }
+    return out;
+  }
+
   function ironFlow(s, cold, dt) {
     var lv = s.lvl.furnace || 0;
     if (!(lv > 0)) return 0;
@@ -950,14 +1022,18 @@
     /* ⚠️ 热液汽轮机「开几座」（2026-10-07）：运行座数 = 等级 − 停用数（state.turbineStop），
      *   与热泉炉 furnaceStop 同口径。停产的汽轮机既不再供流、也不再参与暖石门控。 */
     var turL = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0)),
-        shopL = Math.max(0, (s.lvl.hydroshop || 0) - (s.hydroshopStop || 0));
+        shopL = Math.max(0, (s.lvl.hydroshop || 0) - (s.hydroshopStop || 0)),
+        /* ERA7：核热厂（不烧暖石的新热液源）与空间站（耗流方）都参与流分配，早退判据要带上。 */
+        fisL = s.lvl.fissionplant || 0,
+        staL = s.lvl.spacestation || 0;
     /* ⚠️ 提前返回也必须**补齐全部键**（含三个 Rate）：少一个键，读它的人拿到 undefined
      *    而不是 0 —— steelFlow 的 `s.res.hydro = HF.supplyRate` 会把顶栏主数写成 undefined
      *    （解了 metalrefine 但一台汽轮机都没建时就是这样），rates().hydroSupply 同理。
      *    这种缺键不报错、只在面板上变成 NaN/undefined，属于「面板撒谎」家族。 */
-    if (turL <= 0 && shopL <= 0)
+    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0)
       return { supply: 0, supplyRate: 0, shopDraw: 0, shopRate: 0, shopRatio: 0,
-        skyDraw: 0, skyRate: 0, left: 0, starDraw: 0, starRate: 0 };
+        skyDraw: 0, skyRate: 0, left: 0, starDraw: 0, starRate: 0, drillDraw: 0, drillRate: 0,
+        stationDraw: 0, stationRate: 0 };
     /* ERA5（2026-10-02）：高压热机管道(wonder_presspipe) 给热液能**供给侧 +10 绝对量**，
      *   走 wonder.hydroWonderMul 出口。与高压气泵升级的 hydroMul（乘区）是两回事，这里加法叠加。 */
     var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
@@ -974,6 +1050,13 @@
       supply = (turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) + _press) * dt * rW
         * (SB.civic ? SB.civic.cardHydroMul(s) : 1)
         * (SB.civic ? SB.civic.govHydroPerPop(s) : 1)   // ERA6 平等主义：每名鲛人 +0.1% 热液能产出
+        * (SB.challenges ? SB.challenges.productionMul(s) : 1);
+    }
+    /* ERA7（2026-10-17 · spec §4）：核热厂——每级 +10 热液能/秒，**不烧暖石**的新热液源
+     *   （供给侧直接相加，与高压热机管道 _press 同类；×挑战乘区与汽轮机同口径）。
+     *   ⚠️ 铀消耗不在此扣（tick 侧直耗），这里只管流；「断铀不停堆」为提议口径待标定。 */
+    if (fisL > 0) {
+      supply += fisL * (SB.BLD.fissionHydro || 0) * dt
         * (SB.challenges ? SB.challenges.productionMul(s) : 1);
     }
     /* 工坊（低阶科技先吃满）：从本 tick 流里取 min(需求, 供给)。 */
@@ -993,27 +1076,64 @@
      *   新累积在 shell.tickStar 里按 STAR_BASE × breakCoef 被动累加、cap 到 STAR_CAP。
      *   这里 starDraw 恒 0，仅保留键位以兼容 rates()/steelFlow 的结构读取。 */
     var starDraw = 0;
+    /* ERA7（2026-10-17 · spec §4）：自动化钻探（upg_autodrill）——每级耗 1 热液能/秒，
+     *   优先级最低（工坊→天穹钻机→钻探）：从天穹钻机取用后的剩流里取，取不满则按比例降产
+     *   的语义不存在（它只是耗流，不产出流内之物——产出加成在矿线乘区，与流解耦）。
+     *   ⚠️ 与矿线加成共用同一个开关 s.autoDrillOn：关掉 ⇒ 加成与耗能一起停（面板===结算）。 */
+    var drillDraw = 0;
+    if (s.autoDrillOn !== false && s.upgrades && s.upgrades.upg_autodrill) {
+      var _adNeed = s.upgrades.upg_autodrill * (SB.UNIT.drillHydro || 1) * dt;
+      var _adLeft = Math.max(0, left - skyDraw);
+      drillDraw = Math.min(_adNeed, _adLeft);
+    }
+    /* ERA7（2026-10-17 · spec §5）：空间站运转耗——每级 2 热液能/秒，挂 spacestationStop 开关。
+     *   优先级在钻探之后（工坊→天穹钻机→钻探→空间站）；断流时只停耗、星空加成仍在
+     *   （starRate 与本处解耦，见那里的注释）。停用座数 = spacestationStop，运行座数 = 等级 − 停用数。 */
+    var stationDraw = 0;
+    var staRun = Math.max(0, staL - (s.spacestationStop || 0));
+    if (staRun > 0) {
+      /* ERA7（2026-10-17 · spec §4 至高圣座）：空间站有效等级 +stationBonus（throne 免费 +3），
+       *   耗流也按有效等级算（与 starRate 同源；免费、不收差价）。 */
+      var _stEff = staRun + (SB.wonder ? SB.wonder.stationBonus(s) : 0);
+      var _stNeed = _stEff * (SB.BLD.stationHydro || 0) * dt;
+      var _stLeft = Math.max(0, left - skyDraw - drillDraw);
+      stationDraw = Math.min(_stNeed, _stLeft);
+    }
     return { supply: supply, supplyRate: dt > 0 ? supply / dt : supply,
       shopDraw: shopDraw, shopRate: dt > 0 ? shopDraw / dt : shopDraw,
       skyDraw: skyDraw, skyRate: dt > 0 ? skyDraw / dt : skyDraw,
       shopRatio: shopDemand > 0 ? shopDraw / shopDemand : (shopL > 0 ? 1 : 0),
-      left: left - skyDraw - starDraw, starDraw: starDraw, starRate: dt > 0 ? starDraw / dt : starDraw };
+      left: left - skyDraw - starDraw - drillDraw - stationDraw,
+      starDraw: starDraw, starRate: dt > 0 ? starDraw / dt : starDraw,
+      drillDraw: drillDraw, drillRate: dt > 0 ? drillDraw / dt : drillDraw,
+      stationDraw: stationDraw, stationRate: dt > 0 ? stationDraw / dt : stationDraw };
   }
   /* 副作用版（tick 调用）：算好流分配后**只扣暖石**，且把 s.res.hydro 写成「每秒供给」
    * （覆盖写，绝不再 += —— 这就是 flow 模型「不储存」的核心）。工坊据此产钢。
    * ⚠️ 单位铁律：这里存的是 **每秒**（÷dt 归一），不是「这一 tick 产多少」——
    *    顶栏主数要与速率行同口径（/s），否则 STEP 一变主数就跟着缩，量纲当场漂掉。 */
   /* 星空槽被动累积速率（太空时代终局资源，2026-10-13 镜像破壳）。
-   * 仅破壳后（s.broken）且未被玩家暂停（starScopeOn !== false）才 > 0；
+   * 仅破壳后（s.broken）且未达成（s.starComplete）才 > 0；基础文明推力始终在跑。
    * 速率 = STAR_BASE × breakCoef（与破壳同一文明推力，复用 shell.breakCoef）
-   *        + 每级星空观测站升级额外 +STAR_UPG_BONUS/s（保留旧升级语义）。
+   *        + 每级星空观测站升级额外 +STAR_UPG_BONUS/s（保留旧升级语义）
+   *        + 太空建筑运行座数贡献（轨道卫星每级 +5/s、空间站每级 +10/s，按「开几座」运行座数计）。
    * 实际落点与满槽判定在 shell.tickStar（每 tick 调用）。 */
   function starRate(s) {
     if (!s || s.shell > 0 || !(s.broken || s.shellOpened || s.breakSettled) || s.starComplete) return 0;
-    if (s.starScopeOn === false) return 0;
     var coef = (SB.shell && SB.shell.breakCoef) ? SB.shell.breakCoef(s) : 0;
     var upg = (upgSum ? upgSum(s, 'starExplore') : 0);
-    return (SB.CFG.STAR_BASE || 0) * coef + upg * (SB.CFG.STAR_UPG_BONUS || 0);
+    /* ERA7（2026-10-17 · spec §5）：太空建筑入列——轨道卫星每级 +5/秒、空间站每级 +10/秒。
+     *   按「开几座」运行座数计（卫星 satelliteStop / 空间站 spacestationStop，默认全开）；
+     *   ⚠️ 与空间站的运转耗（hydroAlloc stationDraw，同一 spacestationStop 开关）**故意解耦**：
+     *   断电不停观测（提议口径；若要「断电停摆」须把本行乘上供电率，另拍）。 */
+    /* ERA7（2026-10-17 · spec §4 至高圣座）：空间站有效等级 +stationBonus（throne 免费 +3），
+     *   这里只放大星空产出，不进 costOf / lvlSum（与图书馆虚级同构）。 */
+    var satRun = Math.max(0, ((s.lvl && s.lvl.satellite) || 0) - (s.satelliteStop || 0));
+    var staRun = Math.max(0, ((s.lvl && s.lvl.spacestation) || 0) - (s.spacestationStop || 0));
+    var staEff = staRun + (SB.wonder ? SB.wonder.stationBonus(s) : 0);
+    var spaceLvl = satRun * (SB.BLD.satelliteStar || 0)
+      + staEff * (SB.BLD.stationStar || 0);
+    return (SB.CFG.STAR_BASE || 0) * coef + upg * (SB.CFG.STAR_UPG_BONUS || 0) + spaceLvl;
   }
 
   function steelFlow(s, dt) {
@@ -1064,7 +1184,7 @@
     /* 容量口径（砂矿充足假设）：bldEff 不改产能 ⇒ 不动此处；steelMul 放大钢产能（与 steelBonus 独立相乘）。 */
     var steel = HF.shopDraw * SB.UNIT.steelPerHydro * globalMul(s) * (1 + upgSum(s, 'steelBonus')) * (T ? T.steelMul : 1)
       * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0));
-    var hydro = -(HF.shopDraw + HF.skyDraw + HF.starDraw);
+    var hydro = -(HF.shopDraw + HF.skyDraw + HF.starDraw + HF.drillDraw + HF.stationDraw);
     return { steel: steel, hydro: hydro, hydroSupply: HF.supplyRate, starRate: HF.starRate };
   }
 
@@ -1114,7 +1234,9 @@
       * (SB.wonder ? SB.wonder.cutterCivicMul(s) : 1)
       + (SB.civic ? SB.civic.wonderEraCivicBonus(s) : 0)
       + (SB.wonder ? SB.wonder.skydrillCivic(s) : 0)
-      + (SB.civic ? SB.civic.civicPerPop(s) : 0))   // ERA6 大众传媒卡：每名鲛人 +0.5 市政点/秒（绝对量）
+      + (SB.civic ? SB.civic.civicPerPop(s) : 0)   // ERA6 大众传媒卡：每名鲛人 +0.5 市政点/秒（绝对量）
+      + (SB.civic ? SB.civic.stadiumCivic(s) : 0))   // ERA7 直播竞技卡：人口 × 体育场等级（装卡且建体育场）
+      * (SB.civic ? SB.civic.wonderCivicGainMul(s) : 1)   // ERA7 文化遗产：每座奇观 +1% 市政点获取
       * cMul + cAdd;
   }
 
@@ -1179,6 +1301,7 @@
       * (SB.civic && SB.civic.castleFaithMul ? SB.civic.castleFaithMul(s) : 1)
       * (SB.civic && SB.civic.coreFaithMul ? SB.civic.coreFaithMul(s) : 1)
       * (SB.wonder && SB.wonder.abbeyFaithMul ? SB.wonder.abbeyFaithMul(s) : 1)
+      * (SB.wonder && SB.wonder.throneFaithMul ? SB.wonder.throneFaithMul(s) : 1)
       + (SB.civic && SB.civic.theoFaithBonus ? SB.civic.theoFaithBonus(s) : 0)
       + (SB.civic && SB.civic.faithPerBuildingBonus ? SB.civic.faithPerBuildingBonus(s) : 0))
       * (SB.challenges ? SB.challenges.productionMul(s) : 1);   // ERA6 教权国：所有建筑每级 +1 信仰/秒
@@ -1211,7 +1334,8 @@
     var _bank = bankMul(s);
     var _S = (s.jobs.merchant || 0) * SB.UNIT.luxury * _tMer * baseMul(s)
       * (SB.civic ? SB.civic.govLuxuryMul(s) : 1) * (1 + _uLux) * _lp * _bank
-      * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1);
+      * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1)
+      * (SB.civic ? SB.civic.cardJobOutMul(s) : 1);   // ERA7 延长工时卡：商人产出 +30%（与面板 happySupply 同式，面板===结算）
     var _Hmech = (s.happy || 0) - _gb;
     var _D = (s.pop || 0) * SOCIAL.happyCost(_Hmech) * SOCIAL.luxDemandMul(s)
       * (SB.civic ? SB.civic.govHappyConsumeMul(s) : 1)
@@ -1255,7 +1379,7 @@
   };
   SB.economy = {
     fmt: fmt, fmtAmt: fmtAmt,
-    rOf: rOf, starRate: starRate, isCold: isCold, popCap: popCap, isFull: isFull, lvlSum: lvlSum,
+    rOf: rOf, starRate: starRate, spaceCostMul: spaceCostMul, isCold: isCold, popCap: popCap, isFull: isFull, lvlSum: lvlSum,
     enough: enough,
     /* ⚠️ upgSum 导出（2026-09-29 工坊升级 craftRatio）：工坊效率的第五个加法来源
      *    （建筑级 / 奇观 / 科技 / 政体 / 工坊升级）读它就位，单一聚合函数避免各模块重算漏键。 */
@@ -1268,7 +1392,8 @@
      *   三条每级效果（减耗 / 市政点 / 容量轴基数）与面板注脚都读它。
      *   导出是为了 e2e 与 UI 能直接断言这个读数，不必把口径抄四遍。 */
     coreLvl: coreLvl,
-    costOf: costOf, costTxt: costTxt, costOwnedTxt: costOwnedTxt, canAfford: canAfford, pay: pay,
+    costOf: costOf, scaffoldAdjustedCost: scaffoldAdjustedCost,
+    costTxt: costTxt, costOwnedTxt: costOwnedTxt, canAfford: canAfford, pay: pay,
     /* farmMul / gatherMul 成对导出（2026-09-27 工坊工具）：工具就是插在这两条乘区上的，
      * 回归必须能直接读乘区本身 —— 读 foodRate 会被 byBuild 那一份稀释，测不出精确的 ×1.8。 */
     farmMul: farmMul, gatherMul: gatherMul,
@@ -1298,6 +1423,8 @@
      *   ⚠️ 别再在 render.js 里手抄档名/门槛 —— 此前 render:183 与本文件各存一份，
      *   改一处漏一处不报错，只会「面板写 ×0.92、结算按 ×0.80 算」。 */
     happyTier: SOCIAL.happyTier, happyOf: SOCIAL.happyOf, HAPPY_TIERS: SOCIAL.HAPPY_TIERS,
+    /* happyTierList（2026-10-17）：门控后的档位表，UI 标签行与比例尺上限共用这一口。 */
+    happyTierList: SOCIAL.happyTierList,
     /* ⚠️ 2026-10-05 用户拍板「要在幸福度那里写明产出多少、扣减多少」：
      *   把收支**四项**一次算清交给 UI，避免 render 自己拼数字（拼 = 第二份口径 = 会漂）。
      *   字段：out 产出/秒、burn 扣减/秒、net 净值/秒（out−burn，>0 回升、<0 下滑）、
@@ -1368,6 +1495,10 @@
      *   巢穴页热泉炉 / 热液汽轮机的「开几座」控件行直接标这个数，
      *   玩家不用去环境卡说明里找「它在吃多少石」。纯函数只读 s。 */
     warmDraw: warmDraw,
+    /* ⚠️ 2026-10-17 导出 consumeRates：某设备每秒吃掉的**全部**原料（金属/暖石/热液能）。
+     *   取代 UI 各拿到 warmDraw 就以为「消耗只有暖石」的半截口径（热泉炉还吃金属、
+     *   热液工坊吃热液能+金属）。巢穴页控件行与建筑信息卡共用这一处，绝不允许再分叉。 */
+    consumeRates: consumeRates,
     /* ⚠️ faithRate / faithMul 导出是为了回归取证：乘区本身可读才测得准
      *    （只测 rates.faith 会被「基础产出为 0」恒乘以 0，看不出乘区有没有挂上）。
      *    同理 libraryLevel 导出——虚级是「效果级」，只能直接读才知道有没有接进科技产出。 */

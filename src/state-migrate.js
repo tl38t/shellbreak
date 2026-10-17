@@ -123,6 +123,16 @@
       out.civics = Object.assign({}, rawCivics);
     }
     for (k in rawCivics) if (!(k in out.civics)) out.civics[k] = !!rawCivics[k];
+    /* 政体采用台账：旧档将当前政体视为已采用，避免切走后重复享受免费；
+     * 其它政体仍可各自享受首次采用免费。 */
+    out.govAdopted = {};
+    var rawGovAdopted = (raw.govAdopted && typeof raw.govAdopted === 'object') ? raw.govAdopted : {};
+    var _GL = SB.GOVS || [];
+    for (var _gi = 0; _gi < _GL.length; _gi++) {
+      var _gid = _GL[_gi].id;
+      out.govAdopted[_gid] = !!rawGovAdopted[_gid];
+    }
+    if (out.gov && out.govAdopted[out.gov] !== undefined) out.govAdopted[out.gov] = true;
     /* 奇观买断表加固，口径与上面 civics 那条同源：
      *   ⚠️ 不能用 fixTable(raw.wonders, base.wonders) —— base.wonders 是空表 `{}`，
      *      按 ref 遍历会得出空对象，**所有已建成的奇观被清空**。
@@ -141,16 +151,17 @@
      *      ⇒ 整条资源线容量 NaN ⇒ 玩家什么都攒不了。所以非对象一律退回空表。 */
     out.upgrades = (raw.upgrades && typeof raw.upgrades === 'object')
       ? Object.assign({}, raw.upgrades) : (out.upgrades || {});
-    /* 工坊自动制作槽（2026-10-07）：数组逐槽，元素是 null 或 `{id, pct}`。
+    /* 工坊自动制作槽：数组逐槽，元素是 null 或 `{id, pct}` / `{id, batch}`。
      *   老档没有这个键 ⇒ freshRun 的 `[]` 已由上面 `for (k in base)` 带过来，不必补默认值；
-     *   要防的是另一头：存档里塞了**非数组**或被手改成怪值 ⇒ workshop.autoTick 遍历它时
-     *   读 `.pct` 得 undefined ⇒ 不报错、只是那个槽永远不造（又一条静默断链）。
+     *   要防的是另一头：存档里塞了**非数组**或被手改成怪值 ⇒ workshop.autoTick 读到无效档位，
+     *   不报错、只是那个槽永远不造（又一条静默断链）。
      *   ⇒ 非数组一律退回空表；元素逐个校验：id 必须是 CRAFTS 里真有的配方、
-     *     pct 必须是 SB.CFG.AUTO.PCTS 里的档位，否则该槽作废（宁可空着也别造出怪东西）。 */
+     *     pct 必须是配置中的比例档位；batch 必须是正安全整数，否则该槽作废。 */
     out.autoSlots = [];
     var _rawSlots = Array.isArray(raw.autoSlots) ? raw.autoSlots : null;
     if (_rawSlots) {
       var _CL = SB.CRAFTS || [], _PL = (SB.CFG && SB.CFG.AUTO && SB.CFG.AUTO.PCTS) || [0.25, 0.5, 0.75, 1];
+      var _BMAX = (SB.CFG && SB.CFG.AUTO && SB.CFG.AUTO.BATCH_MAX) || 9007199254740991;
       for (var _ai = 0; _ai < _rawSlots.length; _ai++) {
         var _sl = _rawSlots[_ai];
         if (!_sl || typeof _sl !== 'object') continue;
@@ -159,8 +170,12 @@
         if (!_hit) continue;
         var _pOk = false;
         for (_pi = 0; _pi < _PL.length; _pi++) if (_PL[_pi] === _sl.pct) _pOk = true;
-        if (!_pOk) continue;
-        out.autoSlots.push({ id: _sl.id, pct: _sl.pct });
+        var _bOk = isFinite(_sl.batch) && Math.floor(_sl.batch) === _sl.batch && _sl.batch >= 1 && _sl.batch <= _BMAX;
+        if (!_pOk && !_bOk) continue;
+        var _cleanSlot = { id: _sl.id };
+        if (_pOk) _cleanSlot.pct = _sl.pct;   // 旧档 pct 槽仍兼容；无上限配方运行时默认批次 80
+        if (_bOk) _cleanSlot.batch = _sl.batch;
+        out.autoSlots.push(_cleanSlot);
       }
     }
     out.perk = Object.assign(emptyPerks(), (raw.perk && typeof raw.perk === 'object') ? raw.perk : {});
@@ -189,9 +204,25 @@
     if (Array.isArray(raw.cards)) out.cards = raw.cards.map(function (x) { return x || null; });
     else if (raw.card) out.cards = [raw.card];
     else out.cards = [];
+    /* 迁移旧存档中的退役卡：新卡说明「取代」但旧档可能仍把两张都留在槽里。
+     * 保留槽位索引、只把失效卡清空；效果层也会检查 cardOwned 作第二道防线。 */
+    var _policies = SB.POLICIES || [], _pi, _pci;
+    for (_pi = 0; _pi < out.cards.length; _pi++) {
+      if (!out.cards[_pi]) continue;
+      for (_pci = 0; _pci < _policies.length; _pci++) {
+        var _policy = _policies[_pci];
+        if (_policy.id === out.cards[_pi] && _policy.retiredBy && out.civics[_policy.retiredBy]) {
+          out.cards[_pi] = null;
+          break;
+        }
+      }
+    }
     out.card = out.cards[0] || null;
     /* 宗教名（2026-09-29）：老档没有这个字段 ⇒ 迁成 ''（未命名）。新档原样保留。 */
     out.religionName = (typeof raw.religionName === 'string') ? raw.religionName : '';
+    /* 聚落名（2026-10-17）：老档没有这个字段 ⇒ 迁成 ''（未起名；ERA6+ 沿用「渊海之国」兜底）。
+     * 新档原样保留。本轮回有效，轮回 doBreak 后由 state.js 重置为 ''。 */
+    out.habitatName = (typeof raw.habitatName === 'string') ? raw.habitatName : '';
     /* 老档没有「科技面板开门」这个机制，玩家的科技页一直是开着的。
      * 于是这里直接记账为「弹窗已播」，不回去播一次结绳叙事——
      * 那句话的语境是「第一次知道有今天和明天」，对玩了几小时的老档是废话。
@@ -210,7 +241,7 @@
       out.wonderPopup = !!(raw.techs && raw.techs.masonry);
 
     out.era = (typeof raw.era === 'number' && isFinite(raw.era))
-      ? Math.max(1, Math.min(5, Math.floor(raw.era))) : 1;
+      ? Math.max(1, Math.min(7, Math.floor(raw.era))) : 1;
     /* ⚠️ 尤里卡一律重来：老档根本没有这个字段，而它记录的是「这些条件当时达成了」。
      * 保留一个空壳会让 UI 声称「已揭示」却没揭示。下一 tick 的 discover() 会
      * 按当前真实状态补上，玩家看到的是同一批条件被重新点亮一次。 */

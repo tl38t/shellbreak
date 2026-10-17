@@ -50,6 +50,34 @@
      * 外层按 BUILD_ZONES 顺序分区，区内沿用上面「露头/解锁」判定；
      * 某区零可见建筑时整段区标题隐藏（开局只露出礁栖核心 + 生息区，其余随进度展开）。
      * 露头逻辑与原平铺版完全一致，只是多了一层分区外壳。 */
+    /* 消耗标注（2026-10-17 用户：「所有有消耗的建筑，消耗的东西也要写明，不光是暖石」）。
+     * 只标暖石是**半截口径**：热泉炉同时吃金属、热液工坊吃热液能+金属，玩家挑「开几座」
+     * 时看不到另一样就会开到缺料停摆。三个数全部来自 economy.consumeRates（与结算同式），
+     * UI 不自己算乘区 —— 面板===结算家族。
+     * 顺序由 SB.ui.consumeMeta.BUILDING_CONSUME 维护（与信息卡同源），天然对齐「金属在前 / 热液能在前」的语序。
+     * ⚠️ 行为：该建筑吃的所有类型**始终列出**——满转给数值、停产给「（停产时为 0）」占位，不再「全 0 就不出行」。 */
+    /* 2026-10-17 收口：消耗类型表统一走 SB.ui.consumeMeta（由 render-info.js 挂出），
+     * 巢穴页控件行与信息卡共用同一份「吃哪几样 + IDLE 文案」，不再各写一份（单一数据源）。
+     * ⚠️ 关键行为变更：之前「全 0（停产）就不出行」⇒ 玩家把工坊座数全关（让流给天穹钻机）
+     *   时整行没有任何消耗标注，看着像「热液能消耗漏标」。现在改为**始终列出该建筑吃的所有类型**，
+     *   满转给数值、停产给「（停产时为 0）」占位——与信息卡口径对齐，消耗类型永远可见。 */
+    function drawTag(sp, id) {
+      var meta = SB.ui && SB.ui.consumeMeta;
+      var cr = (SB.economy && SB.economy.consumeRates) ? SB.economy.consumeRates(sp, id) : null;
+      if (!cr || !meta) return '';
+      var eats = meta.BUILDING_CONSUME[id];
+      if (!eats || !eats.length) return '';
+      var ps = [];
+      for (var k = 0; k < eats.length; k++) {
+        var key = eats[k];
+        ps.push(cr[key] > 0
+          ? meta.CONSUME_LABEL[key] + ' −' + cr[key].toFixed(2) + '/秒'
+          : meta.CONSUME_IDLE[key]);
+      }
+      return '<span class="fdraw" title="满转口径：这几座每秒消耗 ' +
+        ps.map(function (x) { return x.replace(' −', ' ').replace('/秒', ''); }).join('、') +
+        '（与结算同式，缺料时会按比例降产）">' + ps.join(' · ') + '</span>';
+    }
     for (var zi = 0; zi < (SB.BUILD_ZONES || []).length; zi++) {
       var z = SB.BUILD_ZONES[zi];
       var zRows = '';
@@ -111,15 +139,15 @@
          * 「亮着但点了没反应」（build 内部静默 return false）。 */
         var canalCap = b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);
         if (canalCap) label = '需先升灯塔（现 ' + (s.lvl.lighthouse || 0) + ' 级）';
-        /* 生息区自动升级开关（2026-09-30 · 封建主义解锁2）：逐建筑开关放 s.autoUpg[id]，
-         * 点击走 input.js 的 data-auto 分支。执行在 game.js 在线泵的 habitat.autoTick。 */
+        /* 区域建筑自动建造/升级开关：权限由已完成市政的 autoBuildZones 决定，
+         * 生息区归封建主义、贸易区域归重商主义；仍复用 s.autoUpg 与 data-auto。 */
         var autoBtn = '';
-        if (z.id === 'food' && s.civics && s.civics.feudalism) {
+        if (SB.habitat.autoZoneUnlocked(s, z.id)) {
           var _au = !!(s.autoUpg && s.autoUpg[b.id]);
           /* 与暖石开关同一套「启用 / 停用 + 绿 / 灰」（2026-09-30 用户：开/关分不清）——
            * 同一页里两种开关语言会让人以为它们不是一回事。 */
           autoBtn = '<button class="btn tog' + (_au ? ' on' : '') + '" data-auto="' + b.id + '"' +
-            ' title="自动升级：点击切换启用 / 停用">' +
+            ' title="自动建造 / 升级：点击切换启用 / 停用">' +
             (_au ? '自动·启用' : '自动·停用') + '</button>';
         }
         /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）：建成（lv>0）后才出现。
@@ -129,17 +157,14 @@
         var furnBtn = '';
         if (b.id === 'furnace' && lv > 0) {
           var _frun = Math.max(0, lv - Math.max(0, s.furnaceStop || 0));
-          /* 炉子每秒吃掉的暖石（额定，满转口径）直接标在这一行——用户 2026-10-16：
-           *   「直接在消耗暖石的地方写明消耗多少」。与 economy.warmDraw 同源（面板===结算家族）。 */
-          var _fdw = (SB.economy && SB.economy.warmDraw) ? SB.economy.warmDraw(s, 'furnace') : 0;
           furnBtn = '<span class="furnctl' + (_frun > 0 ? ' on' : '') + '">' +
             '<button class="fbtn" data-furnace-dec="1" title="少开一座"' +
             (_frun <= 0 ? ' disabled' : '') + '>−</button>' +
             '<b class="fnum">开 ' + _frun + '/' + lv + '</b>' +
             '<button class="fbtn" data-furnace-inc="1" title="多开一座"' +
             (_frun >= lv ? ' disabled' : '') + '>＋</button>' +
-            (_fdw > 0 ? '<span class="fdraw" title="满转口径：这几座热泉炉每秒消耗的暖石">暖石 −' +
-              _fdw.toFixed(2) + '/秒</span>' : '') +
+            /* 金属 + 暖石 两样都标（2026-10-17）：原来只标暖石，玩家会以为炉子只烧石头。 */
+            drawTag(s, 'furnace') +
             '</span>';
         }
         /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
@@ -149,16 +174,14 @@
         var turbBtn = '';
         if (b.id === 'hydroturbine' && lv > 0) {
           var _trun = Math.max(0, lv - Math.max(0, s.turbineStop || 0));
-          /* 与热泉炉同一纪律：把「每秒吃多少暖石」标在控件行（用户 2026-10-16）。 */
-          var _tdw = (SB.economy && SB.economy.warmDraw) ? SB.economy.warmDraw(s, 'hydroturbine') : 0;
           turbBtn = '<span class="furnctl' + (_trun > 0 ? ' on' : '') + '">' +
             '<button class="fbtn" data-turbine-dec="1" title="停一座"' +
             (_trun <= 0 ? ' disabled' : '') + '>−</button>' +
             '<b class="fnum">开 ' + _trun + '/' + lv + '</b>' +
             '<button class="fbtn" data-turbine-inc="1" title="开一座"' +
             (_trun >= lv ? ' disabled' : '') + '>＋</button>' +
-            (_tdw > 0 ? '<span class="fdraw" title="满转口径：这几座热液汽轮机每秒消耗的暖石">暖石 −' +
-              _tdw.toFixed(2) + '/秒</span>' : '') +
+            /* 汽轮机只烧暖石，走同一条 drawTag（口径统一：以后它若多吃一样不用再改这里）。 */
+            drawTag(s, 'hydroturbine') +
             '</span>';
         }
         /* 热液工坊「开几座」（2026-10-07，与汽轮机 turbineStop / 热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
@@ -173,6 +196,38 @@
             '<b class="fnum">开 ' + _srun + '/' + lv + '</b>' +
             '<button class="fbtn" data-shop-inc="1" title="开一座"' +
             (_srun >= lv ? ' disabled' : '') + '>＋</button>' +
+            /* 工坊原先一个消耗都没标（用户 2026-10-17 截图指出）：它吃 热液能 + 金属 两样。 */
+            drawTag(s, 'hydroshop') +
+            '</span>';
+        }
+        /* 轨道卫星「开几座」（2026-10-17 · spec §5，与 furnaceStop 同口径）：建成（lv>0）后才出现。
+         * 卫星每级 +5/s 星空探索，不耗料；玩家要省星空推进时按下几颗。
+         * 运行座数 = lv − 停用数（s.satelliteStop），结算在 economy.starRate。复用 .furnctl 样式。 */
+        var satBtn = '';
+        if (b.id === 'satellite' && lv > 0) {
+          var _satrun = Math.max(0, lv - Math.max(0, s.satelliteStop || 0));
+          satBtn = '<span class="furnctl' + (_satrun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-satellite-dec="1" title="少开一颗"' +
+            (_satrun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _satrun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-satellite-inc="1" title="多开一颗"' +
+            (_satrun >= lv ? ' disabled' : '') + '>＋</button>' +
+            '</span>';
+        }
+        /* 空间站「开几座」（2026-10-17 · spec §5，与 satelliteStop 同口径）：建成（lv>0）后才出现。
+         * 空间站每级 +10/s 星空探索、耗 2 热液能/秒；玩家要省热液能（或不想推星空）时按下几座。
+         * 运行座数 = lv − 停用数（s.spacestationStop），结算在 economy.starRate（星空产出）+ hydroAlloc（热液耗）。
+         * 复用 .furnctl 样式，并标出它的热液能消耗（drawTag 走 consumeRates 同式）。 */
+        var ssBtn = '';
+        if (b.id === 'spacestation' && lv > 0) {
+          var _ssrun = Math.max(0, lv - Math.max(0, s.spacestationStop || 0));
+          ssBtn = '<span class="furnctl' + (_ssrun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-spacestation-dec="1" title="停一座"' +
+            (_ssrun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _ssrun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-spacestation-inc="1" title="开一座"' +
+            (_ssrun >= lv ? ' disabled' : '') + '>＋</button>' +
+            drawTag(s, 'spacestation') +
             '</span>';
         }
         // 没有等级上限，所以只显示当前级数，不显示 x/上限
@@ -187,7 +242,7 @@
           '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
           ' <span class="tag" data-lv="' + b.id + '"' +
           (lvTxt !== String(lv) ? ' title="含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）"' : '') +
-          '>' + lvTxt + '</span>' + autoBtn + furnBtn + turbBtn + shopBtn + '</div>' +
+          '>' + lvTxt + '</span>' + autoBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + '</div>' +
           '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div>' +
           '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap ? '' : ' disabled') + '>' + label + '</button></div>';

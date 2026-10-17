@@ -53,6 +53,12 @@ console.log('\n=== 建筑解锁来源 ===');
   /* 反向也不许有：表里的键在 BUILDINGS 里找不到 ⇒ 玩家永远点不到它、而它占着存档位。 */
   const ghostLvl = Object.keys(baseLvl).filter(k => !B.some(b => b.id === k));
   check('lvl 表没有建筑表里已删掉的幽灵键', ghostLvl.length === 0, ghostLvl.join(','));
+
+  const titaniumCosts = Object.fromEntries(B.filter(b => b.cost && b.cost.titanium)
+    .map(b => [b.id, b.cost.titanium]));
+  check('建筑钛造价：热锻工厂 150、学校十倍，且无遗漏项',
+    JSON.stringify(titaniumCosts) === JSON.stringify({ hotforge: 150, school: 200 }),
+    JSON.stringify(titaniumCosts));
 }
 
 /* ---------------- 建筑分区（静态自查 · 2026-09-30 纯 UI 分区 A）----------------

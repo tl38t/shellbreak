@@ -66,10 +66,12 @@
   }
 
   function applyEra(era) {
-    era = Math.max(1, Math.min(5, +era || 1));
-    currentEra = era;
+    era = Math.max(1, Math.min(7, +era || 1));
+    /* ERA7（2026-10-17）：钳位 5→7。ERA6/7 暂无专属背景序列 ⇒ currentEra 回退破壳纪（5），
+     *   免得 frames[era] undefined 崩掉 preload；data-bg-era 仍记真实纪元（CSS 钩子不受影响）。 */
+    currentEra = frames[era] ? era : 5;
     frameIndex = 0;
-    var list = frames[era];
+    var list = frames[currentEra];
     preload(list);
     document.body.setAttribute('data-bg-era', String(era));
     setScene(list[0], !active);

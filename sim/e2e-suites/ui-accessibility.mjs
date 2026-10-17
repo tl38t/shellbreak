@@ -111,6 +111,11 @@ console.log('\n=== 奇观未解锁不显示 ===');
   const bakTech = Object.assign({}, s.techs);
   const bakCiv = Object.assign({}, s.civics);
   const bakWon = Object.assign({}, s.wonders || {});
+  const bakBroken = s.broken;
+  const bakShell = s.shell;
+  const bakShellOpened = s.shellOpened;
+  const bakBreakSettled = s.breakSettled;
+  const bakSkydrillOn = s.skydrillOn;
   let allHiddenOk = true, allOpenOk = true, badHidden = [], badOpen = [];
 
   for (const w of SB.WONDERS) {
@@ -162,7 +167,27 @@ console.log('\n=== 奇观未解锁不显示 ===');
   const exchangeMarkup = SB.ui.render.paneWonder();
   check('王国大交易所显示幸福度 +1 提示', exchangeMarkup.indexOf('幸福度 +1') >= 0);
 
-  s.techs = bakTech; s.civics = bakCiv; s.wonders = bakWon;
+  /* 天穹钻机破壳前是凿壳机器，破壳后转为奇观属性；奇观页的摘要也标明生效阶段。 */
+  /* 已结算后刷新时 broken 会被清成 false；持久阶段由 shellOpened / breakSettled 保留。 */
+  s.broken = false; s.shell = 0; s.shellOpened = true; s.breakSettled = true;
+  s.wonders = { wonder_skydrill: true };
+  s.skydrillOn = true;
+  check('破壳后常驻加成跨刷新保留，不再按运行态惩罚计算',
+    SB.wonder.skydrillCivic(s) === 100 && SB.wonder.skydrillHappyOffset(s) === 1);
+  check('已破壳的钻机不能再次启动', SB.ui.input.toggleSkydrill(s) === false && s.skydrillOn);
+  SB.ui.renderParts.renderDrill(s);
+  const postBreakDrill = doc.getElementById('envDrill').innerHTML;
+  check('破壳后自然环境页显示天穹钻机奇观属性且不再显示启动按钮',
+    postBreakDrill.indexOf('破壳后奇观效果') >= 0 && postBreakDrill.indexOf('市政点 +100/秒') >= 0 &&
+    postBreakDrill.indexOf('幸福度 +1') >= 0 && postBreakDrill.indexOf('data-skydrill') < 0);
+  const postBreakWonderMarkup = SB.ui.render.paneWonder();
+  check('奇观页明确天穹钻机的效果在破壳后生效',
+    postBreakWonderMarkup.indexOf('破壳后效果：每秒 +100 市政点，幸福度 +1。') >= 0);
+
+  s.techs = bakTech; s.civics = bakCiv; s.wonders = bakWon; s.broken = bakBroken;
+  s.shell = bakShell; s.shellOpened = bakShellOpened; s.breakSettled = bakBreakSettled;
+  s.skydrillOn = bakSkydrillOn;
+  SB.ui.renderParts.renderDrill(s);
 }
 
 /* ---------------- 工坊页：未解锁不显示（2026-10-05 用户拍板）----------------
@@ -647,6 +672,37 @@ console.log('\n=== 顶栏读数与自然环境卡 ===');
   check('市政里的工坊配方也生成工坊页入口',
     SB.ui.renderParts.info.linkInfoNames('解锁工坊配方「艺术品」', true)
       .indexOf('data-workshop-tab="workshop"') >= 0, '历史哲学配方入口');
+  const renameSnapshot = { civics: s.civics, jobs: s.jobs };
+  s.civics = Object.assign({}, s.civics, { department: 1 });
+  s.jobs = Object.assign({}, s.jobs, { scribe: 1 });
+  const folkPane = SB.ui.renderParts.paneFolk();
+  const scribeRowAt = folkPane.indexOf('data-job-row="scribe"');
+  const nextJobRowAt = folkPane.indexOf('<div class="row folk-job-row"', scribeRowAt + 1);
+  const scribeRow = scribeRowAt >= 0
+    ? folkPane.slice(scribeRowAt, nextJobRowAt >= 0 ? nextJobRowAt : undefined) : '';
+  check('行政部门完成后族民页的书手行实际显示为官员',
+    scribeRow.indexOf('官员') >= 0 && scribeRow.indexOf('书手') < 0, scribeRow);
+  s.civics = renameSnapshot.civics;
+  s.jobs = renameSnapshot.jobs;
+  const steelSchool = SB.civic.byId('civ_steelschool');
+  const civicSnapshot = {
+    civics: s.civics, civShown: s.civShown, culture: s.res.culture
+  };
+  s.civics = Object.assign({}, s.civics, { guild: 1 });
+  delete s.civics.civ_steelschool;
+  s.civShown = Object.assign({}, s.civShown, { civ_steelschool: 1 });
+  s.era = 4; /* ERA7 前 civ_steelschool 是 era 4，套件本函数 s.era=2 会触发纪元门挡住文化点不足块；
+               * 抬到 4 让纪元放行，才能测到「市政点不足」显示（bak 在 :641 捕获、:704 还原）。 */
+  s.res.culture = 19000;
+  SB.ui.renderParts.info.showTreeDetail('civic', 'civ_steelschool');
+  const civicDetail = g('modalBox');
+  check('市政点不足时详情明确显示市政点余额与需求',
+    !!steelSchool && civicDetail.indexOf('市政点不足') >= 0 &&
+    civicDetail.indexOf('现有 19.0k / 需求 30.0k') >= 0,
+    civicDetail.replace(/<[^>]+>/g, ' ').slice(0, 220));
+  s.civics = civicSnapshot.civics;
+  s.civShown = civicSnapshot.civShown;
+  s.res.culture = civicSnapshot.culture;
   s.techs = bak.techs; s.lvl = bak.lvl; s.era = bak.era;
   modalClasses.hidden ? modal.classList.add('hidden') : modal.classList.remove('hidden');
   ['tree-modal', 'tree-tech', 'tree-civic'].forEach(name =>

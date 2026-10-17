@@ -47,6 +47,9 @@
     castleFaithRatio: 0.10,
     canalLuxSave: 0.003,
     caravanseraiLuxSave: 0.01,
+    /* stadiumLuxSave：建筑「体育场」——每级减少族民奢侈品消耗 5%（economy.luxSaveAll 读）。
+     * 总减免封顶 75%（至多 15 级的有效减免，超出部分按 0.75 截断），由读数处 clamp。 */
+    stadiumLuxSave: 0.05,
     /* 商人副产（2026-09-30 用户规格 · 市政《中世纪集市》解锁2）：商人同时产出科学与市政点。
      * 「+0.05/s 科学 +0.05/s 市政」是**每名商人**的量，走 globalMul（与学者/书手同待遇）。 */
     marketJobSci: 0.05, marketJobCulture: 0.05,
@@ -198,9 +201,18 @@
      * researchLabSave / researchLabSaveMax：科研所每级让研究科技消耗 −2%，合计不超过
      *   researchLabSaveMax（防成本翻负）。读 tech.study / tech.studyBlocked（扣费与「够不够」
      *   判定共用同一折扣入口，避免按钮灰错的断链）。
-     * tiplateCap：钛金板件仓每级给钛金板件上限 +500（走 capOf 的 tiplate 专属分支，类比 kelpCap）。
-     *   ⚠️ 500 为**提议值，待标定**。 */
-    researchLabSci: 0.10, researchLabSave: 0.02, researchLabSaveMax: 0.90, tiplateCap: 500,
+     */
+    researchLabSci: 0.10, researchLabSave: 0.02, researchLabSaveMax: 0.90,
+    /* ── ERA7（2026-10-17 · spec §5/§4 提议值，待标定）──
+     * satelliteStar / stationStar：轨道卫星/空间站每级星空探索 +5/+10 每秒（economy.starRate 读）。
+     * satelliteScholar：轨道卫星每级学者产出 +25%（tick/rates 学者行乘区）。
+     * stationHydro：空间站每级运转耗 2 热液能/秒（hydroAlloc 的 stationDraw，挂 spacestationStop「开几座」开关）。
+     * fissionHydro / fissionUranium / fissionLuxAdd：核热厂每级 +10 热液能/秒（不烧暖石的新热液源）、
+     *   −0.02 铀/秒、居民奢侈品消耗 +10%（§0-3 用户拍板的负面效果，走 luxDemandMul 同一括号）。 */
+    satelliteStar: 5, stationStar: 10, satelliteScholar: 0.25, stationHydro: 2,
+    fissionHydro: 10, fissionUranium: 0.02, fissionLuxAdd: 0.10,
+    /* ERA7（spec §4）：物流仓库（upg_logiware）每级给所有有上限材料 +200 容量（capOf 材料分支读）。 */
+    logiwareCap: 200,
     /* siltBonus：砂矿坑对**矿工金属产出**的加成（+20%/级）。
      * 2026-09-26 金属归位（对齐猫国）：砂矿坑不再自动产金属，改吃这条——
      * 1 + lvl.siltpit × siltBonus 乘进矿工的 silt 产出（economy.js 矿工那两行），
@@ -522,7 +534,7 @@
      *    对位建筑，不该跟材料线抢珊瑚），石头那半 200 是新加的——石头此后由采石工与
      *    石梁/绳共用，这条改动让广场也参与消耗它。 */
     { id: 'square', name: '广场', ratio: 1.15, cost: {coral: 50, stone: 200},
-      desc: '市政点产出 ×10%/级（仅作用于书手；装政策卡「戏剧与诗歌」后翻倍）',
+      desc: '市政点产出 ×10%/级（仅作用于市政点职业；装政策卡「戏剧与诗歌」后翻倍）',
       requiredCivic: 'drama' },
     /* 神庙（2026-09-28 用户规格 · 市政《神学》完成后解锁）——**潮纹馆的第三座对位**：
      * 潮纹馆给科技 +10%/级、广场给市政点 +10%/级、神庙给信仰 +10%/级。
@@ -634,10 +646,10 @@
      * 【学校】由「普及教育」解锁（requiredTech，与 techs.js pubedu 的 eff.unlockBuild 双写一致）。
      *   效果：每级给商人 +0.5 科技/s（BLD.schoolMerchantSci），tick/rates 两处同式读。
      *   ⚠️【cost 为提议值，未拍板】。 */
-    { id: 'hotforge', name: '热锻工厂', ratio: 1.5, cost: { steel: 400, titanium: 10 },
+    { id: 'hotforge', name: '热锻工厂', ratio: 1.5, cost: { steel: 400, titanium: 150 },
       desc: '工艺制作效率 +7%/级（加法乘区，与工坊级/奇观/科技同一条轴）',
       requiredTech: ['industrialize'] },
-    { id: 'school', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 20 },
+    { id: 'school', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 200 },
       desc: '每级给商人 +0.5 科技/s（由 BLD.schoolMerchantSci 读，tick/rates 两处同式）',
       requiredTech: ['pubedu'] },
 
@@ -651,22 +663,39 @@
     { id: 'theater', name: '歌剧院', ratio: 1.5, cost: { steel: 100, stone: 400 },
       desc: '官员（书手）市政点产出 +15%/级（由 theaterCivicMul 读）。',
       requiredCivic: 'sharksong' },
-    { id: 'tenement', name: '廉租社区', ratio: 3, cost: { scaffold: 50, steel: 100 },
+    { id: 'tenement', name: '廉租社区', ratio: 3, cost: { scaffold: 25, steel: 100 },
       desc: '人口上限 +10/级（由 popCap 读）；每级额外 +5% 居民奢侈品消耗（增耗，economy.tenementLuxAdd 读）。',
       requiredCivic: 'urbanization' },
-    /* ── ERA6（2026-10 实装）两座新建筑 ──
-     * 钛金板件仓（modpart 解锁，requiredTech 与科技 eff.unlockBuild 双写一致，见 e2e「建筑解锁来源」三断言）：
-     *   钛金板件的**专属仓储**（capOf 走 tiplate 专属分支，tiplateCap 每级 +500）。
-     *   ⚠️ 造价 { steel + tiplate } 为**提议值，待标定**（tiplate 是 ERA6 才出现的结构件，量级照 era5 高阶料）。
-     * 科研所（chemistry 解锁，双写一致）：
+    /* ── ERA6（2026-10 实装）：科研所（chemistry 解锁，双写一致）：
      *   每级科技产出 +10%（researchLabSci，tick/rates 同式），且使研究科技消耗 −2%/级（researchLabSave，
-     *   由 tech.study 读）。造价全 tiplate（提议值，待标定）。 */
-    { id: 'tiplateStore', name: '钛金板件仓', ratio: 1.15, cost: { steel: 100, tiplate: 50 },
-      desc: '钛金板件上限 +500/级（走 capOf 专属分支）。',
-      requiredTech: ['modpart'] },
-    { id: 'researchlab', name: '科研所', ratio: 1.15, cost: { tiplate: 200 },
+     *   由 tech.study 读）。造价全 tiplate。
+     *   ⚠️ ratio 2026-10-17 用户拍板 1.15 → 2（成本每级翻倍，收敛更快；收益曲线同步前移）。 */
+    { id: 'researchlab', name: '科研所', ratio: 2, cost: { tiplate: 200 },
       desc: '科技产出 +10%/级（researchLabSci）；研究科技消耗 −2%/级（researchLabSave）。',
-      requiredTech: ['chemistry'] }
+      requiredTech: ['chemistry'] },
+
+    /* ── ERA7（2026-10-17 实装 · spec §5 太空建筑系统 + §4 核裂变）──
+     * 【星海区】新分区：1 级 = 1 颗/1 座。建造成本吃 spaceCostMul 软上限（economy.costOf 对 zone==='space'）。
+     * 【轨道卫星】每级星空探索 +5/秒（starRate）+ 学者产出 +25%（学者线乘区）。ratio 1.5 用户拍板。
+     * 【空间站】每级星空探索 +10/秒、运转耗 2 热液能/秒（hydroAlloc stationDraw，挂 spacestationStop「开几座」开关）。
+     * 【核热厂】归工坊区（热液产线家族）：每级 +10 热液能/秒（不烧暖石，hydroAlloc 供给侧相加）、
+     *   −0.02 铀/秒（tick 直耗）、居民奢侈品消耗 +10%/级（tenementLuxAdd 同构通道，§0-3 负面）。 */
+    { id: 'satellite', name: '轨道卫星', ratio: 1.5, cost: { tiplate: 100, rocketFuel: 100 },
+      desc: '星空探索 +5/秒、学者产出 +25%/级。1 级 = 1 颗。',
+      requiredTech: ['rocket'] },
+    { id: 'spacestation', name: '空间站', ratio: 1.5, cost: { rocketEngine: 5 },
+      desc: '星空探索 +10/秒、运转耗 2 热液能/秒（建筑页可「开几座」）。1 级 = 1 座。',
+      requiredTech: ['spacestation'] },
+    { id: 'fissionplant', name: '核热厂', ratio: 1.15, cost: { tiplate: 2000, steel: 400 },
+      desc: '热液能 +10/秒/级（不烧暖石）；耗铀 0.02/秒/级；居民奢侈品消耗 +10%/级（负面）。',
+      requiredTech: ['fission'] },
+    /* ── ERA7（2026-10 实装 · 竞技体育 解锁）──
+     * 【体育场】requiredCivic='athletics'。效果 = 族民奢侈品消耗 -5%/级（economy.luxSaveAll 读 BLD.stadiumLuxSave，
+     *   总减免封顶 75%）；装填《直播竞技》卡时额外产出市政点（economy.cultureRate 读 liveCompCivic）。
+     * 【多实例】ratio 1.5（1 级 = 1 座，可叠建，与轨道卫星/空间站同形）。cost 1600 钢为用户规格原值。 */
+    { id: 'stadium', name: '体育场', ratio: 1.5, cost: { steel: 1600 },
+      desc: '族民奢侈品消耗 -5%/级（封顶 -75%）；装填《直播竞技》时额外产出市政点 = 人口 × 体育场等级。',
+      requiredCivic: 'athletics' }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -684,6 +713,8 @@
     { id: 'academy',  name: '学术区' },
     { id: 'civic',    name: '市政区' },
     { id: 'faith',    name: '信仰区' },
+    /* ERA7（2026-10-17 · spec §5）：太空区 —— 轨道卫星/空间站。分区名为提议值，待用户拍。 */
+    { id: 'space',    name: '星海区' },
     { id: 'break',    name: '破界区' }
   ];
   /* id → zone 归属表。改分区只动这张表（与 BUILDINGS 解耦，规避并行 Edit 覆盖坑）。 */
@@ -714,13 +745,16 @@
     /* 学校 / 歌剧院（2026-10-07 用户报「地方放错了」）：两座此前漏登本表，
      *   zone 走了 `|| 'core'` 兜底掉进礁栖核心。学校归学术区（教育类）；
      *   歌剧院归市政区（效果就是官员市政点产出 +15%/级，且《渊潜鲛歌》鼓舞
-     *   数的「市政区合计等级 50」理应把它算进去）。 */
+     *   数的「市政区合计等级 30」理应把它算进去）。 */
     school: 'academy', theater: 'civic',
+    /* 体育场（2026-10 实装 · 竞技体育 解锁）：归市政区（官员/行政/民生相关建筑同区）。 */
+    stadium: 'civic',
     /* 廉租社区（2026-10-07 用户拍板）：就放礁栖核心（住房类，与巢/珊瑚屋同区）。 */
     tenement: 'core',
-    /* ERA6（2026-10 实装）：钛金板件仓归贸易区域（仓储类，与海藻仓/压舱仓同区）；
-     *   科研所归学术区（科研类，与潮纹馆/研究所同区）。改分区只动这张表。 */
-    tiplateStore: 'trade', researchlab: 'academy'
+    /* ERA6（2026-10 实装）：科研所归学术区（科研类，与潮纹馆/研究所同区）。 */
+    researchlab: 'academy',
+    /* ERA7（2026-10-17 · spec §5）：太空两座归新分区「星海区」；核热厂归工坊区（热液产线家族）。 */
+    satellite: 'space', spacestation: 'space', fissionplant: 'workshop'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';

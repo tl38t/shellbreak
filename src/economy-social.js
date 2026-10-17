@@ -57,7 +57,11 @@
     var canal = Math.min(1, (_lv.canal || 0) * (SB.BLD.canalLuxSave || 0)
       * (SB.civic ? SB.civic.canalSaveMul(s) : 1));
     var car = Math.min(1 - canal, (_lv.caravanserai || 0) * (SB.BLD.caravanseraiLuxSave || 0));
-    return canal + car;
+    /* ERA7（2026-10 实装）：体育场每级 −5% 族民奢侈品消耗（BLD.stadiumLuxSave），单源封顶 75%；
+     *   旅游观光卡每座已建奇观 −3%（civic.cardWonderLuxSaveMul）。两者均为居民侧减耗，并列相加。 */
+    var stadium = Math.min(0.75, (_lv.stadium || 0) * (SB.BLD.stadiumLuxSave || 0));
+    var tourism = (SB.civic ? SB.civic.cardWonderLuxSaveMul(s) : 0);
+    return Math.min(1, canal + car + stadium + tourism);
   }
   /* 廉租社区每级 +5% 居民奢侈品**消耗**（2026-10-13 新增；与 luxSaveAll 减耗反号）。
    * 【为什么是加项不是减项】王国潮道/商队驿站是「省耗」（乘 (1 − Σ)），廉租社区是
@@ -68,6 +72,13 @@
     var _lv = (s && s.lvl) || {};
     return (_lv.tenement || 0) * (SB.BLD.tenementLuxAdd || 0);
   }
+  /* 核热厂每级 +10% 居民奢侈品消耗（2026-10-17 · ERA7 spec §4，§0-3 用户拍板的负面效果）。
+   * 【与 tenementLuxAdd 同构】建筑级增耗走同一条通道；三处同源纪律不变——
+   *   tick 的 _D、rates 的 D、happyBurn 都只读 luxDemandMul，本函数只被 luxDemandMul 调。 */
+  function fissionLuxAdd(s) {
+    var _lv = (s && s.lvl) || {};
+    return (_lv.fissionplant || 0) * (SB.BLD.fissionLuxAdd || 0);
+  }
   /* 居民奢侈品消耗的**净系数**（2026-10-14 用户拍板：增耗与减耗合并成一个括号互相抵消）。
    * 【旧口径为什么改】增耗三项（公司 +10% / 大众传媒卡 +50% / 廉租社区每级 +5%）原先与
    *   居民减耗（luxSaveAll）分属两个乘区相乘：(1−减Σ)×(1+增Σ) —— 玩家无法把两边看成
@@ -75,7 +86,9 @@
    * 【三处同源】tick 的 `_D`、rates 的 `D`、happyBurn 三处**只读这一个函数**——
    *   漏一路就是面板撒谎。e2e 有断言钉「三处同值」。 */
   function luxDemandMul(s) {
-    var inc = companyLuxMul(s) + (SB.civic ? SB.civic.cardLuxConsumeMul(s) : 0) + tenementLuxAdd(s);
+    /* ERA7：核热厂 fissionLuxAdd 加入增耗三项（2026-10-17）——仍是单括号先抵消口径。 */
+    var inc = companyLuxMul(s) + (SB.civic ? SB.civic.cardLuxConsumeMul(s) : 0)
+      + tenementLuxAdd(s) + fissionLuxAdd(s);
     var net = 1 + inc - luxSaveAll(s);
     return net < 0 ? 0 : net;      // 护栏：极端减耗下净需求不为负
   }
@@ -123,7 +136,8 @@
       * (SB.civic ? SB.civic.govLuxuryMul(s) : 1)
       * (1 + SB.economy.upgSum(s, 'luxuryMul'))
       * SB.economy.bankMul(s)
-      * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1);
+      * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1)
+      * (SB.civic ? SB.civic.cardJobOutMul(s) : 1);   // ERA7 延长工时卡：商人产出 +30%（职业产出口径）
   }
   /* 幸福度 → 全产乘区（台阶式，与文明6 同构：需求连续、效果分段）。
    * ⚠️ 排除 luxury 自身（luxury 产出行走 baseMul）：happy 增益不放大自己的燃料。 */
@@ -171,6 +185,15 @@
     return HAPPY_TIERS[Math.min(nat, maxIdx)];
   }
 
+  /* 门控后的**档位表**（UI 用，2026-10-17 用户报「黄金时代都有了条没改」时收口）：
+   * 未拥有大众传媒时只露出前 6 档（与 happyTier 的封顶索引 5 同一条规则，别再手抄第二份）。
+   * 用途：幸福度条的标签行 + 比例尺上限（high = 门控表末档 lo）——
+   * 漏门控 ⇒ 没研究大众传媒的玩家看到一条「拉宽到 6 却永远到不了」的假比例尺。 */
+  function happyTierList(s) {
+    var maxIdx = (s && s.civics && s.civics.massmedia) ? HAPPY_TIERS.length - 1 : 5;
+    return HAPPY_TIERS.slice(0, maxIdx + 1);
+  }
+
   /* ── ERA6 公司系统（宏观经济学解锁的「公司」标签，2026-10-12）──
    * 设计：拥有市政「宏观经济学」后自动成立两家公司（藻食→kelp / 珊瑚→coral），玩家无手动操作。
    *   公司成立后的**游戏内时长**（s.t − s.companyState[res].epoch，逐家独立）决定等级（乡镇→地方→全国），产出加成随之提升；
@@ -205,9 +228,10 @@
 
   SB.economySocial = {
     happyCost: happyCost, happyBonusTotal: happyBonusTotal, happyMech: happyMech,
-    luxSaveAll: luxSaveAll, tenementLuxAdd: tenementLuxAdd, luxDemandMul: luxDemandMul,
+    luxSaveAll: luxSaveAll, tenementLuxAdd: tenementLuxAdd, fissionLuxAdd: fissionLuxAdd, luxDemandMul: luxDemandMul,
     happyBurn: happyBurn, happyCostPer: happyCostPer, happySupply: happySupply,
     happyMul: happyMul, happyOf: happyOf, happyTier: happyTier, HAPPY_TIERS: HAPPY_TIERS,
+    happyTierList: happyTierList,
     companyTierIndex: companyTierIndex, companyMul: companyMul, companyLuxMul: companyLuxMul
   };
 })(typeof window !== 'undefined' ? window : globalThis);

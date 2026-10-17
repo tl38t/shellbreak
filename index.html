@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=148" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=154" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -99,13 +99,22 @@
     <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-page-node-id="WrkTab01Workshop">工坊<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？">?</button></div>
     <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-page-node-id="WdrTab01Wonder">奇观<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？">?</button></div>
     <div class="tab locked" id="tab-star-map" data-tab="star-map" title="凿穿天壳后开启">星图<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('star-map')" title="这是什么？">?</button></div>
+    <!-- 星穹商店（ERA7 · spec §7）：与星图并列，门 = 建成首座太空建筑（轨道卫星）。本 spec 只做页签骨架 + 星屑余额显示；商店商品另开一轮设计。 -->
+    <div class="tab locked" id="tab-star-dome" data-tab="star-dome" title="建成首座太空建筑（轨道卫星）后开启星穹商店" data-page-node-id="StarDome01StarDome">星穹商店<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('star-dome')" title="这是什么？">?</button></div>
     <!-- 公司页签（ERA6 市政《宏观经济学》解锁）：与科技/市政并列，门 = 拥有《宏观经济学》。 -->
     <div class="tab locked" id="tab-company" data-tab="company" title="研究「宏观经济学」后开启" data-page-node-id="CmpTab01Company">公司<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('company')" title="这是什么？">?</button></div>
     <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl">轮回商店<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？">?</button></div>
     <div class="tab locked" data-tab="challenges" title="首次轮回后开启轮回挑战">轮回挑战</div>
   </div>
 
-  <div class="card" id="pane-village" data-page-node-id="Fuoti5loQT1P876HC45wlI"></div>
+  <!-- 巢穴页（2026-10-17）：静态标题 + 持久命名框 #habitatBox + 可重写正文 #pane-village-body。
+       命名框必须留在持久节点（不进 2 秒刷新的正文），否则每敲一字丢焦点；
+       正文另放 body 容器，renderPanes 只写 body，不碰标题与命名框。ERA6+ 玩家可在框里给聚落起名。 -->
+  <div class="card" id="pane-village" data-page-node-id="Fuoti5loQT1P876HC45wlI">
+    <div class="cardhd" data-fold="village" style="--hc:#ffb84d" title="点击折叠 / 展开"><span class="cv">▾</span><span id="villageHeadName">巢穴</span></div>
+    <div class="card" id="habitatBox" style="display:none" data-page-node-id="HabitatBox01"></div>
+    <div id="pane-village-body"></div>
+  </div>
   <div class="card hidden" id="pane-folk" data-page-node-id="yEByXFxaxi1sTAKvW94q1J"></div>
   <div class="card hidden" id="pane-tech" data-page-node-id="DpzQCGONsy3uHYX4tBbics"></div>
   <div class="card hidden" id="pane-civic" data-page-node-id="PaneCivic001抽屉"></div>
@@ -120,6 +129,8 @@
   <div class="card hidden" id="pane-workshop" data-page-node-id="PaneWrk01Workshop"></div>
   <div class="card hidden" id="pane-wonder" data-page-node-id="PaneWdr01Wonder"></div>
   <div class="card hidden" id="pane-star-map"></div>
+  <!-- 星穹商店（ERA7 · spec §7）：页签骨架 + 星屑余额显示；实际商品未开放（设计中）。门 = 首个太空建筑。 -->
+  <div class="card hidden" id="pane-star-dome" data-page-node-id="PaneStarDome01StarDome"></div>
   <!-- 公司页（ERA6 市政《宏观经济学》解锁）：静态标题 + 可重写正文 #pane-company-body（仿信仰页，避免 2 秒刷新冲掉标题）。 -->
   <div class="card hidden" id="pane-company" data-page-node-id="PaneCmp01Company">
     <div class="cardhd" data-fold="company" style="--hc:#6fa8dc" title="点击折叠 / 展开"><span class="cv">▾</span>公司</div>
@@ -157,61 +168,62 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=159"></script>
+<script src="src/config.js?v=164"></script>
 <script src="src/config-catalog.js?v=1"></script>
-<script src="src/config-content.js?v=1"></script>
-<script src="src/config-buildings.js?v=1"></script>
+<script src="src/config-content.js?v=7"></script>
+<script src="src/config-buildings.js?v=8"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=112"></script>
-<script src="src/tech.js?v=107"></script>
+<script src="src/techs.js?v=115"></script>
+<script src="src/tech.js?v=111"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=1"></script>
-<script src="src/civics.js?v=115"></script>
+<script src="src/civics-data.js?v=7"></script>
+<script src="src/civics.js?v=121"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=4"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
-<script src="src/state-migrate.js?v=3"></script>
-<script src="src/state.js?v=125"></script>
-<script src="src/workshop.js?v=99"></script>
-<script src="src/wonder.js?v=100"></script>
-<script src="src/economy-social.js?v=2"></script>
-<script src="src/economy.js?v=151"></script>
-<script src="src/economy-rates.js?v=2"></script>
-<script src="src/economy-tick.js?v=2"></script>
+<script src="src/state-migrate.js?v=6"></script>
+<script src="src/state.js?v=130"></script>
+<script src="src/workshop.js?v=104"></script>
+<script src="src/wonder.js?v=102"></script>
+<script src="src/economy-social.js?v=3"></script>
+<script src="src/economy.js?v=157"></script>
+<script src="src/economy-rates.js?v=4"></script>
+<script src="src/economy-tick.js?v=3"></script>
 <script src="src/offline-scheduler.js?v=1"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=1"></script>
-<script src="src/shell.js?v=99"></script>
-<script src="src/habitat.js?v=103"></script>
-<script src="src/folk.js?v=100"></script>
-<script src="src/prestige.js?v=112"></script>
+<script src="src/shell.js?v=100"></script>
+<script src="src/habitat.js?v=104"></script>
+<script src="src/folk.js?v=101"></script>
+<script src="src/prestige.js?v=114"></script>
 <script src="src/challenges.js?v=5"></script>
+<script src="src/auto-research.js?v=1"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=4"></script>
-<script src="src/ui/render-common.js?v=3"></script>
-<script src="src/ui/render-info.js?v=1"></script>
-<script src="src/ui/render-pane-research.js?v=1"></script>
-<script src="src/ui/render-pane-village.js?v=3"></script>
+<script src="src/ui/render-content.js?v=5"></script>
+<script src="src/ui/render-common.js?v=5"></script>
+<script src="src/ui/render-info.js?v=8"></script>
+<script src="src/ui/render-pane-research.js?v=6"></script>
+<script src="src/ui/render-pane-village.js?v=6"></script>
 <script src="src/ui/render-pane-folk.js?v=1"></script>
-<script src="src/ui/render-pane-meta.js?v=1"></script>
+<script src="src/ui/render-pane-meta.js?v=2"></script>
 <script src="src/ui/render-pane-challenges.js?v=5"></script>
 <script src="src/ui/render-pane-company.js?v=1"></script>
 <script src="src/ui/render-pane-faith.js?v=1"></script>
 <script src="src/ui/render-pane-wonder.js?v=1"></script>
-<script src="src/ui/render-pane-star-map.js?v=1"></script>
-<script src="src/ui/render-pane-workshop.js?v=1"></script>
-<script src="src/ui/render-environment.js?v=5"></script>
-<script src="src/ui/render.js?v=190"></script>
-<script src="src/game.js?v=128"></script>
-<script src="src/ui/input.js?v=121"></script>
-<script src="src/ai-strategy.js?v=1"></script>
+<script src="src/ui/render-pane-star-map.js?v=2"></script>
+<script src="src/ui/render-pane-workshop.js?v=5"></script>
+<script src="src/ui/render-environment.js?v=7"></script>
+<script src="src/ui/render.js?v=195"></script>
+<script src="src/game.js?v=130"></script>
+<script src="src/ui/input.js?v=126"></script>
+<script src="src/ai-strategy.js?v=3"></script>
 <script src="src/ui/theme.js?v=1"></script>
 <script src="src/ui/background.js?v=2"></script>
 <script src="src/ad.js?v=3"></script>

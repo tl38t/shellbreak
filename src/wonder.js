@@ -97,7 +97,7 @@
    * ⚠️ 只加给材料，不加石梁 —— 石梁是无上限资源（用户拍），给它加 200 是没有意义的操作。
    * ⚠️ 用**白名单**而不是「石梁之外全加」：以后加新资源时白名单会逼着人决定
    *    「新资源吃不吃这个加成」，黑名单则让人默认漏掉。 */
-  var MAT_MAX_KEYS = { kelp: 1, coral: 1, stone: 1, silt: 1, warmstone: 1, iron: 1, titanium: 1 };
+  var MAT_MAX_KEYS = { kelp: 1, coral: 1, stone: 1, silt: 1, warmstone: 1, iron: 1, titanium: 1, tiplate: 1 };
   function matMaxBonus(s, k) {
     if (!MAT_MAX_KEYS[k]) return 0;
     var m = 0, i, o = owned(s), L = list();
@@ -243,21 +243,23 @@
   }
 
   /* ⑪ 天穹钻机（ERA5 破壳终章，2026-10-02 实装）：
-   *   运行态（破壳进行中，!s.broken）：幸福度 −1（机器轰鸣，effect 占位里写的是「−1」）。
-   *   破壳完成后（s.broken）：转奇观态，+100 市政点/s + 幸福度 +1。
+   *   凿壳运行态：幸福度 −1（机器轰鸣）。
+   *   天壳打开后：转奇观态，+100 市政点/s + 幸福度 +1。
    *   ⚠️ 这两个量**不能**写进 wonder_skydrill.effect（那样会在破壳前就生效、且不分运行/奇观态），
    *       所以走专属出口；破壳速率/资源消耗在 shell.tickShell ③，这里只出「持续效果」给 economy 读数。
-   *   ⚠️ 读 s.broken 判阶段：prestige.doBreak 开头有「已结算则返回」守卫，broken 置位权只在
-   *       doBreak 内，故这里读到的 broken 是「已轮回」的权威标志（纪律③延伸：别处不散读 s.wonders）。 */
+   *   阶段判定必须用持久状态：已结算存档恢复时 broken 会被清掉，但 shellOpened / breakSettled 保留。 */
+  function skydrillPostBreak(s) {
+    return !!(s && s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled));
+  }
   function skydrillCivic(s) {
-    if (owned(s).wonder_skydrill && s.broken) return SB.CFG.SKYDRILL_CIVIC;
+    if (owned(s).wonder_skydrill && skydrillPostBreak(s)) return SB.CFG.SKYDRILL_CIVIC;
     return 0;
   }
   function skydrillHappyOffset(s) {
     if (!owned(s).wonder_skydrill) return 0;
     /* 2026-10-07 钻机改手动启动：「运行态 −1」的「运行」从此指 skydrillOn（真在转），
      *   不再是「建成就算」——停着不动的机器不该轰鸣。破壳后仍转奇观态 +1（与开关无关）。 */
-    if (s.broken) return SB.CFG.SKYDRILL_HAPPY_WONDER;
+    if (skydrillPostBreak(s)) return SB.CFG.SKYDRILL_HAPPY_WONDER;
     return s.skydrillOn ? -SB.CFG.SKYDRILL_HAPPY_RUN : 0;
   }
 
@@ -269,10 +271,66 @@
     if (!w || !w.cost) return {};
     var lv = (SB.prestige && SB.prestige.legacy) ? SB.prestige.legacy().wonderBlueprintLevel : 0;
     var mul = Math.max(0, 1 - 0.05 * lv);
+    var cost = SB.economy && SB.economy.scaffoldAdjustedCost
+      ? SB.economy.scaffoldAdjustedCost(s, w.cost) : w.cost;
     var out = {}, k;
-    for (k in w.cost) out[k] = Math.ceil(w.cost[k] * mul);
+    for (k in cost) out[k] = Math.ceil(cost[k] * mul);
     return out;
   }
+
+  /* ⑭ ERA7（2026-10-17 · spec §4 摇篮）：矿线全产出 +20%（effect.mineMul，加法叠进矿工各产出行）。
+   *   ⚠️ 与砂矿坑 per-level、鱼骨矿井、阿尔巴达热液大学的人口乘区是**独立乘区**：
+   *       落点是 economy 矿工那几条 addRes（金属 silt / 伴生暖石 / 铀 / 钛），逐条 ×(1+mineMul)。
+   *   ⚠️ 通道只有这一条：economy 读 wonder.mineMul，别在矿工行散读 s.wonders（纪律③）。 */
+  function mineMul(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.mineMul) || 0;
+    }
+    return 1 + m;
+  }
+
+  /* ⑮ ERA7（spec §4 至高圣座）：空间站**有效等级 +3**（effect.stationBonus，免费、不收差价）。
+   *   ⚠️ 只加在「效应读数」上（starRate / hydroAlloc stationDraw），**不**进 costOf / lvlSum：
+   *       你不需要为这 3 级付钱，但空间站该给的星空加成与耗流照给。与图书馆虚级（libBonus）同构——
+   *       「按效果算、按建筑不算」。 */
+  function stationBonus(s) {
+    var b = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      b += (L[i].effect && L[i].effect.stationBonus) || 0;
+    }
+    return b;
+  }
+
+  /* ⑰ ERA7（spec §4 博洛西洛漂浮发射场）：载人火箭工艺效率 +100%（effect.mannedRocket 加法，乘区 ×2）。
+   *   ⚠️ 只应用于载人火箭工艺（craft_rocketengine），不进全局 craftMul 基值——
+   *       否则会顺手放大所有工艺制品，把「火箭工艺 ×2」曲解成「全工艺 ×2」。
+   *   ⚠️ 通道只有这一条：workshop.craftMul(s,c) 在 c.id==='craft_rocketengine' 时读它，别处不散读。 */
+  function mannedRocketMul(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.mannedRocket) || 0;
+    }
+    return 1 + m;
+  }
+
+  /* ⑯ ERA7（spec §4 至高圣座 · 政体分支效果）：拥有时按 s.gov 三目给一项 +10%
+   *   · theo_state      → 信仰产出 +10%（throneFaithMul，economy.faithRate 乘区）
+   *   · egalitarianism  → 工艺效率 +10%（throneCraftMul，workshop.craftMul 乘区）
+   *   · federalism      → 科技产出 +10%（throneSciMul，economy 科技行乘区）
+   *   三项是**互斥分支**（一个政体只命中一条），与 cutterSci/Civic 那种「同值双出口」不同。 */
+  function throneGovHit(s, target) {
+    var o = owned(s);
+    if (!o.wonder_throne) return 1;
+    if (s.gov === target) return 1.10;
+    return 1;
+  }
+  function throneFaithMul(s) { return throneGovHit(s, 'theo_state'); }
+  function throneCraftMul(s) { return throneGovHit(s, 'egalitarianism'); }
+  function throneSciMul(s) { return throneGovHit(s, 'federalism'); }
 
   SB.wonder = {
     list: list, byId: byId, owned: owned, count: count,
@@ -284,7 +342,10 @@
     cutterSciMul: cutterSciMul, cutterCivicMul: cutterCivicMul,
     happyBonus: happyBonus, tradeSaveMul: tradeSaveMul,
     hydroWonderMul: hydroWonderMul, happyConsumeMul: happyConsumeMul,
+    skydrillPostBreak: skydrillPostBreak,
     skydrillCivic: skydrillCivic, skydrillHappyOffset: skydrillHappyOffset,
-    discountedCost: discountedCost
+    discountedCost: discountedCost,
+    mineMul: mineMul, stationBonus: stationBonus, mannedRocketMul: mannedRocketMul,
+    throneFaithMul: throneFaithMul, throneCraftMul: throneCraftMul, throneSciMul: throneSciMul
   };
 })(typeof window !== 'undefined' ? window : globalThis);

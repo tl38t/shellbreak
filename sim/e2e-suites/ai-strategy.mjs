@@ -23,6 +23,26 @@ export function run({ SB, check, noop }) {
     !!s.upgrades.upg_ballast_1 && SB.economy.capOf(s, 'coral') > before,
     'decision=' + JSON.stringify(decision) + ' cap=' + before + '→' + SB.economy.capOf(s, 'coral'));
 
+  const alloyStorage = SB.state.freshRun(false);
+  alloyStorage.era = 6;
+  alloyStorage.pop = 1000000; alloyStorage.peak = 1000000;
+  Object.assign(alloyStorage.lvl, { nest: 40, coralhouse: 10, workshop: 1, ballast: 5, hall: 20 });
+  Object.assign(alloyStorage.upgrades, {
+    upg_castle: true, upg_ballast_1: true, upg_ballast_2: true
+  });
+  SB.TECHS.forEach(t => { if (t.era <= 6) alloyStorage.techs[t.id] = true; });
+  Object.assign(alloyStorage.res, { tiplate: 50, titanium: 750, science: 200000 });
+  const alloyCapBefore = SB.economy.capOf(alloyStorage, 'tiplate');
+  const alloyDecision = SB.aiStrategy.step(alloyStorage, { emit: noop });
+  check('已装压舱库扩容 I/II 后，容量受阻时 bot 会购买「合金仓储」并扩容板件',
+    !!alloyStorage.upgrades.upg_alloy_warehouse &&
+      SB.economy.capOf(alloyStorage, 'tiplate') > alloyCapBefore &&
+      alloyStorage.res.tiplate === 0 && alloyStorage.res.titanium === 0 && alloyStorage.res.science === 0,
+    'decision=' + JSON.stringify(alloyDecision) + ' 板件上限=' + alloyCapBefore + '→' +
+      SB.economy.capOf(alloyStorage, 'tiplate') + ' 库存=' + JSON.stringify({
+        tiplate: alloyStorage.res.tiplate, titanium: alloyStorage.res.titanium, science: alloyStorage.res.science
+      }));
+
   const coldBuffer = SB.state.freshRun(false);
   coldBuffer.era = 3; coldBuffer.pop = 31; coldBuffer.peak = 31;
   Object.assign(coldBuffer.lvl, { nest: 15, kelp: 20, workshop: 1, hall: 20,
@@ -148,7 +168,10 @@ export function run({ SB, check, noop }) {
       ' sustainable=' + sustainable);
 
   const steelTools = SB.state.freshRun(false);
-  steelTools.era = 4; steelTools.pop = 31; steelTools.peak = 31;
+  steelTools.era = 4; steelTools.pop = 80; steelTools.peak = 80; /* 2026-10-17：原 pop=31 工人被食物/其它职业挤到仅 13 矿工，
+               * 暖石毛供 3.64/s < 单机 5/s（hydroWarm）⇒ 汽轮机被正常停用、running=0。
+               * 抬到 80 解除工人瓶颈，AI 可分到 ~21 矿工、毛供 ~5.9/s ⇒ 汽轮机正常运行。
+               * 暖石唯一来源是矿工（economy-rates.js:118），siltpit 只放大基准不增工人，故调 pop 而非 siltpit。 */
   Object.assign(steelTools.lvl, { kelp: 20, nest: 10, coralhouse: 6, hall: 20,
     ballast: 20, workshop: 1, siltpit: 3, hydroturbine: 1, hydroshop: 0, library: 12, institute: 8 });
   Object.assign(steelTools.upgrades, { upg_castle: true, upg_ballast_1: true, upg_ballast_2: true,
@@ -217,6 +240,34 @@ export function run({ SB, check, noop }) {
   check('钻头预算覆盖最后 25% 壳层与建造耗材',
     SB.aiStrategy.drillStockTarget(drillAtFloor) === 152,
     'target=' + SB.aiStrategy.drillStockTarget(drillAtFloor));
+
+  const wonderTechGate = SB.state.freshRun(false);
+  wonderTechGate.era = 5;
+  SB.TECHS.forEach(t => { if (t.era <= 5) wonderTechGate.techs[t.id] = true; });
+  wonderTechGate.techs.industrialize = false;
+  wonderTechGate.techs.highthermo = false;
+  wonderTechGate.techs.skydrill = false;
+  wonderTechGate.wonders.wonder_shellcutter = true;
+  const wonderGateGoal = SB.aiStrategy.researchGoal(wonderTechGate);
+  check('关键科技的必需奇观被普通科技锁住时，bot 回溯到解锁科技及其前置',
+    wonderGateGoal.id === 'industrialize' && wonderGateGoal.cond &&
+      wonderGateGoal.cond.t === 'rate' && wonderGateGoal.cond.r === 'hydroSupply',
+    'goal=' + wonderGateGoal.id + ' cond=' + JSON.stringify(wonderGateGoal.cond));
+
+  wonderTechGate.pop = 51; wonderTechGate.peak = 51;
+  Object.assign(wonderTechGate.lvl, { kelp: 29, nest: 11, coralhouse: 7, hall: 20,
+    siltpit: 3, workshop: 1, ballast: 37, hydroturbine: 5, hydroshop: 5 });
+  Object.assign(wonderTechGate.upgrades, { upg_castle: true, upg_ballast_1: true,
+    upg_ballast_2: true, upg_fishbonemine: true, upg_deepmine: true, upg_hppump: true });
+  Object.assign(wonderTechGate.jobs, { gather: 9, miner: 9, coralwright: 11,
+    quarrier: 5, scholar: 11, scribe: 4, merchant: 2 });
+  Object.keys(wonderTechGate.res).forEach(r => { wonderTechGate.res[r] = 1e9; });
+  const supplyBefore = SB.economy.rates(wonderTechGate).hydroSupply;
+  const supplyDecision = SB.aiStrategy.step(wonderTechGate, { emit: noop });
+  check('追逐热液能供给尤里卡时自动扩建足够数量的汽轮机',
+    supplyBefore < 10 && wonderTechGate.lvl.hydroturbine > 5,
+    'supply=' + supplyBefore + ' turbine=' + wonderTechGate.lvl.hydroturbine +
+      ' decision=' + JSON.stringify(supplyDecision));
 
   const optionalMaterial = SB.state.freshRun(false);
   optionalMaterial.era = 6;

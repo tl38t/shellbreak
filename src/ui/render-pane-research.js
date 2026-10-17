@@ -117,7 +117,8 @@
       (t.key ? '<span class="tntag">关键</span>' : '') + '</span>' +
       (!lit ? '<span class="tree-eureka">尤里卡 · ' + (eureka ? eureka.txt : '达成条件后揭示') + '</span>' +
         (eureka && eureka.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + eurekaPct.toFixed(1) + '%"></i></span><b>' + eurekaPct.toFixed(0) + '%</b></span>' : '') : '') +
-      '<span class="tree-node-foot"><i class="tree-state-dot"></i>' + status +
+      '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
+      '<span class="tree-node-status">' + status + '</span>' +
       '<span class="tree-open-hint">查看详情　›</span></span></button>';
     return h;
   }
@@ -288,11 +289,13 @@
   }
 
   function paneCivicLocked() {
-    var why = SB.civic ? SB.civic.panelBlock(res()) : '市政系统尚未解锁。';
+    var s = res();
+    var why = SB.civic ? SB.civic.panelBlock(s) : '市政系统尚未解锁。';
+    var scribeName = SB.folk.jobName(s, 'scribe');
     return '<div class="secttl">市政</div>' +
       '<div class="row"><div class="nm">市政页未开启</div>' +
       '<div class="ds">' + (why || '') + '</div></div>' +
-      '<div class="note">议事厅由「石工」解锁，它同时是书手这个职业的来源——' +
+      '<div class="note">议事厅由「石工」解锁，它同时是' + scribeName + '这个职业的来源——' +
       '建起来之后这里会给出：政体、政策卡槽，以及三条市政。</div>';
   }
 
@@ -329,6 +332,7 @@
         continue;
       }
       var expanded = !!govExpanded[v.id];
+      var firstFree = C.govFirstAdoptionFree(s, v.id);
       options += '<div class="gov-choice' + (expanded ? ' expanded' : '') + '" id="govrow-' + v.id + '">' +
         '<div class="gov-choice-main"><button type="button" class="inline-info-link gov-choice-name"' +
         ' data-gov-detail="' + v.id + '" aria-expanded="' + expanded + '" aria-controls="govdetail-' + v.id + '">' +
@@ -336,7 +340,8 @@
         '<div class="gov-choice-preview">' + v.desc + '</div>' +
         '<div class="gov-choice-slots">' + recipeText(v) + '</div></div>' +
         '<button class="btn buy gov-adopt" data-gov="' + v.id + '"' + (why ? ' disabled' : '') +
-        ' title="' + (why || '采用此政体') + '">采用</button>' +
+        ' title="' + (why || (firstFree ? '该政体首次采用免费' : '采用此政体')) + '">' +
+        (firstFree ? '首次免费' : '采用') + '</button>' +
         (expanded ? '<div class="gov-choice-detail" id="govdetail-' + v.id + '"><b>完整效果</b><p>' + v.desc +
           '</p><span>政策卡槽：' + recipeText(v) + '</span>' + (why ? '<small>' + why + '</small>' : '') + '</div>' : '') +
         '</div>';
@@ -344,10 +349,10 @@
     h += current || '';
     if (options) h += '<div class="gov-options-heading"><b>可选政体</b><span>' + (owned.length - (current ? 1 : 0)) + ' 项</span></div>' +
       '<div class="gov-choice-grid">' + options + '</div>';
-    /* 换政体收费要写在明面上，否则玩家以为按钮只是灰着。只在已采用过政体后提示。 */
-    if (s.gov && C.topCost(s) > 0) {
-      h += '<div class="note">换政体需 ' + C.govCost(s) + ' 市政点（两倍最高已完成市政）；' +
-        '首次采用免费。</div>';
+    /* 每个政体各自首次采用免费；重采用收费规则也要明示。 */
+    if (C.topCost(s) > 0) {
+      h += '<div class="note">每个政体首次采用免费一次；之后更换需 ' + C.govCost(s) +
+        ' 市政点（当前最高已完成市政研究成本的 1/5）。</div>';
     }
     return h;
   }
@@ -388,7 +393,7 @@
       h += '<div class="row"><div class="ds">当前政体不提供政策卡槽——换个政体才能装卡。</div></div>';
       return h + pool(s, armedCard);
     }
-    h += '<div style="display:flex;gap:10px;flex-wrap:wrap">';
+    h += '<div class="policy-slot-grid">';
     for (i = 0; i < list.length; i++) {
       var st = list[i].type, filled = (s.cards && s.cards[i]) ? C.policyById(s.cards[i]) : null;
       /* 2026-10-13：点卡选位两步法——armedCard 命中且本槽对口时高亮成 slot-target，提示「点这里装」。 */
@@ -422,7 +427,7 @@
     }
     var _fn = s.cardFreeRemoves || 0;
     h += '<div class="note">装填（安装）永远免费；<b>卸下</b>政策卡通常收取 ' +
-      C.cardCost(s) + ' 市政点，但每完成一个市政会积 1 次<b>免费卸下机会</b>（当前剩 ' +
+      C.cardCost(s) + ' 市政点（当前最高已完成市政研究成本的 1/5），但每完成一个市政会积 1 次<b>免费卸下机会</b>（当前剩 ' +
       _fn + ' 次，可累积）。</div>';
     return h + pool(s, armedCard);
   }
@@ -434,36 +439,53 @@
   function pool(s, armedCard) {
     var C = SB.civic, h = '';
     var own = [], i, p;
+    var categoryOrder = ['prod', 'sci', 'grow', 'relig', 'wild'];
+    var categories = { prod: [], sci: [], grow: [], relig: [], wild: [] };
     for (i = 0; i < SB.POLICIES.length; i++) {
       p = SB.POLICIES[i];
-      if (C.cardOwned(s, p.id)) own.push(p);
+      if (C.cardOwned(s, p.id)) {
+        own.push(p);
+        /* 老卡未标 type 时按规则视为万能卡；未知类型也安全回落，避免 UI 出现 undefined。 */
+        var category = categories[p.type] ? p.type : 'wild';
+        categories[category].push(p);
+      }
     }
     h += '<div class="secttl">政策卡库 <span class="tag">' + own.length + '</span></div>';
     if (own.length === 0) {
       h += '<div class="row"><div class="ds">尚未解锁任何政策卡——完成市政树上的条目即可解锁对应卡片。</div></div>';
       return h;
     }
-    for (var j = 0; j < own.length; j++) {
-      var q = own[j], why = C.cardBlocked(s, q.id), on = (s.cards && s.cards.indexOf(q.id) >= 0);
-      var fits = C.cardFits(q, C.currentSlotType(s));
-      h += '<div class="row"><div><div class="nm">' +
-        '<span class="tag t' + q.type + '">' + C.slotTypeName(q.type) + '</span> ' + q.name +
-        (on ? ' <span class="tag ok">已装填</span>' : '') +
-        /* ⚠️ 2026-10-05 用户「都补上」：cardHappyOffset 读 s.cards（只算**装在槽里**的），
-         *   所以只在 on 时挂。库里的卡片摆着这个提示会骗人 —— 装填了才生效。 */
-        (on ? SB.ui.renderCommon.happyBonusNote(s, 'card') : '') + '</div>' +
-        '<div class="ds">' + q.desc +
-        (on ? '' : fits ? '' : '<br>⚠ 与第 0 号槽不对口：需要 ' + C.slotTypeName(q.type) + '类槽') +
-        '</div></div>' +
-        '<button class="btn' + (on || why ? '' : ' buy') + '" data-card="' + q.id + '"' +
-        /* ⚠️ 2026-10-14 修：只有「硬拦」才禁用按钮——没解锁 / 槽型不对；
-         *   「缺市政点」是软拦，必须放行点卡 arm，否则两步选槽对买不起的卡
-         *   永远点不动（disabled 按钮不触发 click）。点槽时 setCard 会据实返回
-         *   false 并在 log 报「换卡需 X 市政点」。 */
-        ((why && armedCard !== q.id && why.indexOf('市政点') === -1) ? ' disabled' : '') +
-        ' title="' + (why || (on ? '已装填' : '')) + '">' +
-        (on ? '在槽' : (armedCard === q.id ? '点槽安装' :
-          (why ? (why.indexOf('市政点') >= 0 ? '需市政点' : '装不了') : '装填'))) + '</button></div>';
+    for (var g = 0; g < categoryOrder.length; g++) {
+      var groupType = categoryOrder[g], group = categories[groupType];
+      if (!group.length) continue;
+      var groupName = groupType === 'wild' ? '万能类' : C.slotTypeName(groupType).replace(/槽$/, '') + '类';
+      h += '<section class="policy-group policy-group-' + groupType + '" data-policy-category="' + groupType + '">' +
+        '<div class="policy-group-title"><span>' + groupName + '</span><span class="policy-group-count">' + group.length + '</span></div>' +
+        '<div class="policy-card-grid">';
+      for (var j = 0; j < group.length; j++) {
+        var q = group[j], why = C.cardBlocked(s, q.id), on = (s.cards && s.cards.indexOf(q.id) >= 0);
+        var fits = C.cardFits(q, C.currentSlotType(s));
+        h += '<article class="policy-card policy-card-' + groupType + (on ? ' is-installed' : '') +
+          (armedCard === q.id ? ' is-armed' : '') + '">' +
+          '<div class="policy-card-top"><span class="tag t' + groupType + '">' + C.slotTypeName(groupType) + '</span>' +
+          (on ? '<span class="tag ok">已装填</span>' : '') + '</div>' +
+          '<div class="policy-card-name">' + q.name + '</div>' +
+          /* 幸福度提示按当前卡自己的 happyOffset 显示；不能把所有已装卡的合计重复贴到每张卡上。 */
+          (on ? SB.ui.renderCommon.happyBonusNote(s, 'card', q.id) : '') +
+          '<div class="policy-card-desc">' + q.desc +
+          (on ? '' : fits ? '' : '<br><span class="policy-card-warning">⚠ 与当前槽型不对口：需要 ' + C.slotTypeName(groupType) + '</span>') +
+          '</div>' +
+          '<button class="btn' + (on || why ? '' : ' buy') + '" data-card="' + q.id + '"' +
+          /* ⚠️ 2026-10-14 修：只有「硬拦」才禁用按钮——没解锁 / 槽型不对；
+           *   「缺市政点」是软拦，必须放行点卡 arm，否则两步选槽对买不起的卡
+           *   永远点不动（disabled 按钮不触发 click）。点槽时 setCard 会据实返回
+           *   false 并在 log 报「换卡需 X 市政点」。 */
+          ((why && armedCard !== q.id && why.indexOf('市政点') === -1) ? ' disabled' : '') +
+          ' title="' + (why || (on ? '已装填' : '')) + '">' +
+          (on ? '在槽' : (armedCard === q.id ? '点槽安装' :
+            (why ? (why.indexOf('市政点') >= 0 ? '需市政点' : '装不了') : '装填'))) + '</button></article>';
+      }
+      h += '</div></section>';
     }
     return h;
   }
@@ -526,7 +548,7 @@
       if (_castleOverride) _coreName = _castleOverride;
     }
     h += '<div class="note">市政点 ' + SB.economy.fmtAmt(s.res.culture) +
-      '（+' + rate.toFixed(2) + '/秒 ＝ 书手 ' + (s.jobs.scribe || 0) + ' × ' + SB.UNIT.culture +
+      '（+' + rate.toFixed(2) + '/秒 ＝ ' + SB.folk.jobName(s, 'scribe') + ' ' + (s.jobs.scribe || 0) + ' × ' + SB.UNIT.culture +
       ' ＋ ' + _coreName + ' ' + SB.economy.coreLvl(s) + ' 级 × ' + SB.CFG.CIVIC.HALL_RATE + '）。' +
       '鼓舞只揭示这条路，不替你付市政点。</div>';
     return h;
@@ -559,7 +581,8 @@
       '</span>' + (!rev ? '<span class="tree-eureka">鼓舞 · ' +
         (boost ? boost.txt : c.boost ? '达成鼓舞条件后揭示' : '无需鼓舞') + '</span>' +
         (boost && boost.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + boostPct.toFixed(1) + '%"></i></span><b>' + boostPct.toFixed(0) + '%</b></span>' : '') : '') +
-      '<span class="tree-node-foot"><i class="tree-state-dot"></i>' + status +
+      '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
+      '<span class="tree-node-status">' + status + '</span>' +
       '<span class="tree-open-hint">查看详情　›</span></span></button>';
     return h;
   }

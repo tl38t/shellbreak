@@ -93,7 +93,11 @@
     { id: 5, name: '破壳纪', motto: '工业化', color: '#F2C14E', glyph: '五',
       desc: '造得出天穹钻机这样的奇迹装置，凿穿最后 ' + 25 + '% 壳厚是这一纪元的全部内容。' },
     { id: 6, name: '天外纪', motto: '出壳', color: '#9B7BFF', glyph: '六',
-      desc: '壳已破。钛金板件让工坊第一次造出「壳外」才用得上的东西：研究实验室、星空观测站、总物流站。' }
+      desc: '壳已破。钛金板件让工坊第一次造出「壳外」才用得上的东西：研究实验室、星空观测站、总物流站。' },
+    /* ERA7（2026-10-17 实装 · spec docs/ERA7_TECHS_SPEC_v0.1.md）：名称/口号/配色为提议值，待用户拍。
+     * 关键节点 = 火箭研究（rocket）——研成即推进入本纪元；本纪元终局无 key，靠星空探索/星图线收尾。 */
+    { id: 7, name: '观星纪', motto: '离开摇篮', color: '#FF8ED4', glyph: '七',
+      desc: '燃料把第一枚火箭送出海面。卫星、空间站与核火点亮夜空——摇篮之外，还有整片星海。' }
   ];
 
   var TECHS = [
@@ -455,7 +459,7 @@
     { id: 'apprentice', name: '学徒制', icon: 'assets/tech-icons/era-3/era3-apprenticeship.png', era: 3, cost: 3000, branch: 'survive', key: true, reqs: [], layer: 1,
       cond: { t: 'tools', ids: ['tool_ironSickle', 'tool_ironAxe', 'tool_ironPick'] },
       eff: {},
-      unlockDesc: '解锁砂矿坑升级「鱼骨矿井」；购买后矿工金属产出 +50%、伴生暖石 +1000%。' },
+      unlockDesc: '解锁砂矿坑升级「鱼骨矿井」；购买后矿工金属产出 +50%、伴生暖石 +400%。' },
 
     /* 马镫的尤里卡 = 5 名商人（cond 'job'）。与马具(tool_harnes) 是独立乘区：
      *   马具走 toolMul(merchant)、马镫走工坊升级 upg_horseshoe(luxuryMul 0.5)，
@@ -548,7 +552,9 @@
      * 海流锻钢：钢的产出乘区 steelMul（新键，economy 接线 2 行）。非 key。layer 4 ≤ thermo(L4)。
      * 热泉回流：建筑原料效率 bldEff（新键，economy 接线 furnace+shop 原料×0.6）。
      *   与「海流锻钢」分工 = 效率≠产出：海流锻钢放大钢产能，热泉回流让两栋建筑少耗原料（同产出）。
-     *   对热泉炉 = 砂矿+暖石各×0.6；对热液工坊 = 砂矿×0.6（热液能是 flow，其「效率」=steelMul，已另立）。
+     *   对热泉炉 = 金属+暖石各×0.6；对热液工坊 = 金属×0.6（热液能是 flow、不是原料，不进本键；其「效率」=steelMul，已另立）。
+     *   ⚠️ 2026-10-17：资源名一律按**显示名**写（silt 显示名 = 金属，见 config-content 资源表顶部）；
+     *      旧注释与 note 里的「砂矿」是改名前的旧称（砂矿坑仍是建筑名，别混），已订正。
      *   两者均非 key，不动纪元推进分母。layer 4 ≤ physics(L4)/thermo(L4)。 */
     { id: 'hydrocarbur', name: '海流锻钢', icon: 'assets/tech-icons/era-4/era4-thermodynamics.png', era: 4, cost: 55000, branch: 'survive', key: false, reqs: ['thermo'], layer: 5,
       cond: { t: 'built', b: 'hydroshop', n: 3 },
@@ -558,12 +564,19 @@
     { id: 'ventrecir', name: '热泉回流', icon: 'assets/tech-icons/era-4/era4-physics.png', era: 4, cost: 45000, branch: 'survive', key: false, reqs: ['physics'], layer: 5,
       cond: { t: 'built', b: 'furnace', n: 5 },
       eff: { bldEff: -0.4 },
-      note: '更深热泉的循环工艺：热泉炉与热液工坊原料消耗 ×0.6（−40%），产能不变。热泉炉省砂矿+暖石、热液工坊省砂矿。' },
+      /* 玩家向显式文案（用户 2026-10-17 反馈「原料消耗 ×0.6」没写清 = 哪栋建筑、哪样原料）：
+       *   bldEff 自动生成只会印出「原料消耗 ×0.6」⇒ 写 effectDesc，tech.effectText 入口优先读它
+       *   （见 tech.js 那张 LABEL 表上方的注释）。放这里而不是改 LABEL：文案是**逐项**的，
+       *   写进通用键名会把「热泉炉/热液工坊」钉死在一个本该通用的键上。
+       * 建筑名会被 render-info 的 linkInfoNames 自动挂成可点链接，玩家能跳去看两栋建筑各自的原料表。 */
+      effectDesc: '热泉炉（金属+暖石 → 精铁）与热液工坊（金属 → 钢）的原料消耗 ×0.6（−40%）；只省原料，产能不变。',
+      note: '更深热泉的循环工艺：热泉炉省金属+暖石、热液工坊省金属，各 ×0.6（−40%）＝同产出只耗六成原料，产能不变。' },
 
     { id: 'invert', name: '倒置搭建', icon: 'assets/tech-icons/era-4/era4-inverted-construction.png', era: 4, cost: 75000, branch: 'survive', key: true,
       reqs: ['physics'], layer: 5,
       cond: { t: 'pop', n: 50 },
-      eff: {},
+      eff: { scaffoldCostSave: 0.25 },
+      effectDesc: '所有建筑、工坊升级与奇观的脚手架需求 −25%；不影响其他材料。',
       unlockDesc: '解锁奇观「天壳切削器」；建成后科技与市政产出各增加相当于天壳观测站等级的百分比。' },
 
     /* ═════════ 纪元五 · 破壳（6 项 · layer 5/5/5/6/6/7） ═════════
@@ -597,8 +610,9 @@
     { id: 'abyssgeo', name: '渊海地质学', icon: 'assets/tech-icons/era-5/era5-abyssal-geology.png', era: 5, cost: 100000, branch: 'know', key: false,
       reqs: ['physics'], layer: 5,
       cond: { t: 'upgrade', id: 'upg_deepmine' },
-      eff: { warmMul: 5.0, titaniumMul: 1.0 },
-      note: 'Civ6: Seafaring · 完成深层矿井升级。暖石 +500% / 钛 +100%。' },
+      eff: { warmMul: 3.0 },
+      effectDesc: '矿工伴生暖石产出 +300%。',
+      note: 'Civ6: Seafaring · 完成深层矿井升级。暖石 +300%。' },
 
     { id: 'highthermo', name: '高压热机', icon: 'assets/tech-icons/era-5/era5-high-pressure-engine.png', era: 5, cost: 110000, branch: 'survive', key: false,
       reqs: ['industrialize'], layer: 6,
@@ -626,16 +640,19 @@
     { id: 'minipump', name: '热液泵小型化', icon: 'assets/tech-icons/era-6/era6-minipump.png', era: 6, cost: 150000, branch: 'live', key: false, reqs: ['skydrill'], layer: 8,
       cond: { t: 'rate', r: 'hydroSupply', n: 50 },
       eff: {},
-      /* 解锁「工坊合成钛金板件」配方 craft_tiplate（need:'minipump' 双写一致）。
+      /* 解锁工坊配方「钛金板件」及工坊升级「合金仓储」（need:'minipump'）。
        * 猫国口径：纯钛=冶炼产出，钛合金=工坊制造（钛作原料）；本作钛已存在（矿工伴生），
        * 钛金板件是工坊用钛合成的制造料，不是首次引入钛。 */
-      unlockDesc: '解锁工坊配方「钛金板件」：50 钛制成 1 个钛金板件。' },
+      unlockDesc: '解锁工坊配方「钛金板件」（50 钛制成 1 个），以及扩容升级「合金仓储」。' },
 
     { id: 'modpart', name: '可替换部件', icon: 'assets/tech-icons/era-6/era6-modpart.png', era: 6, cost: 150000, branch: 'live', key: false, reqs: ['skydrill'], layer: 8,
       cond: { t: 'built', b: 'hotforge', n: 3 },
-      eff: { unlockBuild: ['tiplateStore'] },
-      /* 工坊区自动建造（读 s.techs.modpart）+ 钛金板件仓库（建筑，requiredTech 双写）。 */
-      note: '解锁工坊区自动建造 + 钛金板件仓库（材料仓储 +N/级）。' },
+      eff: {},
+      /* 工坊区自动建造由 s.techs.modpart 解锁（2026-10-17 修复死注释：habitat.TECH_AUTO_ZONES
+       *   现在真的接了 modpart:['workshop']——此前全库无科技侧接线，开关从未出现过）；
+       *   通用仓储扩容由工坊升级「合金仓储」提供。 */
+      unlockDesc: '解锁工坊区自动建造。',
+      note: '解锁工坊区自动建造。' },
 
     { id: 'chemistry', name: '化学', icon: 'assets/tech-icons/era-6/era6-chemistry.png', era: 6, cost: 400000, branch: 'know', key: true, reqs: ['modpart'], layer: 9,
       cond: { t: 'wonders', ids: ['wonder_great_library', 'wonder_albada'] },
@@ -690,7 +707,76 @@
       eff: {},
       /* 奇观总物流站（wonder_logistics，need:'modtrans'）：王国潮道升级为鲛货两用物流管网，
        * 与市政《城市设计》的全国快速物流通道互锁翻倍（互锁机制属批次3）。 */
-      unlockDesc: '解锁奇观「总物流站」；建成后王国潮道每级提供 +1% 工艺效率。若同时建成「全国快速物流通道」，该通道的精铁/钢产能加成翻倍。' }
+      unlockDesc: '解锁奇观「总物流站」；建成后王国潮道每级提供 +1% 工艺效率。若同时建成「全国快速物流通道」，该通道的精铁/钢产能加成翻倍。' },
+
+    /* ═════════ 纪元七 · 观星（9 项 · 全局 layer 11/12/13） ═════════
+     * spec：docs/ERA7_TECHS_SPEC_v0.1.md §3（2026-10-17 实装）。
+     * cost 锚点 = ERA6 同 within-era layer ×3（§0-5 用户拍板「上一纪元同 layer 的 3 倍左右」）：
+     *   L11=450k（ERA6 L8 150k×3）/ L12=1,000k（L9 300-400k×3 取中）/ L13=1,050k~2,400k（L10 350-800k×3）。
+     * eff 纪律同 ERA6：只写有消费者的键；解锁配方/升级/奇观走各自 need 字段 + 直接读 s.techs。
+     * ⚠️ 《超古代科技》是**叶子科技**（§0-2 用户拍板）：无任何下游 reqs 引用它，缺它照样通关。 */
+    { id: 'rocket', name: '火箭研究', icon: 'assets/tech-icons/era-7/era7-rocket.png', era: 7, cost: 450000, branch: 'live', key: true, reqs: ['refine', 'exostruct'], layer: 11,
+      cond: { t: 'gathered', r: 'rocketFuel', n: 1000 },
+      eff: { unlockBuild: ['satellite'] },
+      /* 关键节点（本纪元门）。解锁1：科研区自动建造（habitat.TECH_AUTO_ZONES.rocket → academy）。
+       * 解锁2：太空建筑「轨道卫星」（BUILDINGS.satellite requiredTech 双写）。
+       * 首个太空建筑建成 ⇒ 激活 meta 星屑累计 + 星穹商店（波次4）。 */
+      unlockDesc: '解锁科研区自动建造与太空建筑「轨道卫星」。' },
+
+    { id: 'autodrill', name: '自动化钻探', icon: 'assets/tech-icons/era-7/era7-autodrill.png', era: 7, cost: 450000, branch: 'live', key: false, reqs: ['exostruct'], layer: 11,
+      cond: { t: 'built', b: 'siltpit', n: 20 },
+      eff: {},
+      /* 解锁1：工坊升级「自动化钻探」（upg_autodrill，need:'autodrill'）：矿井产出乘区 + 每级耗热液能。
+       * 解锁2：矿工开始伴生采出铀（economy-tick/rates 的 uranium 行门=本科技）。 */
+      unlockDesc: '解锁工坊升级「自动化钻探」；矿工开始伴生采出铀。' },
+
+    { id: 'surface', name: '地表探测', icon: 'assets/tech-icons/era-7/era7-surface.png', era: 7, cost: 1000000, branch: 'know', key: false, reqs: ['rocket'], layer: 12,
+      cond: { t: 'built', b: 'satellite', n: 5 },
+      eff: {},
+      /* 奇观「摇篮」（wonder_cradle，need:'surface'）：矿线全产出 +20%（spec §4——原表「卫星学者+25%/级」
+       *   已拆给卫星本体，奇观只背矿井 +20%）。 */
+      unlockDesc: '解锁奇观「摇篮」：建成后矿线全产出 +20%。' },
+
+    { id: 'crewed', name: '载人航天', icon: 'assets/tech-icons/era-7/era7-crewed.png', era: 7, cost: 1000000, branch: 'know', key: false, reqs: ['rocket'], layer: 12,
+      cond: { t: 'gathered', r: 'starExplore', n: 30000 },
+      eff: {},
+      /* 解锁1：工艺「火箭引擎」（craft_rocketengine，need:'crewed'，与 RESS.unlock 双写）。
+       * 解锁2：工坊升级「可控爆炸工艺」（upg_boomcraft，need:'crewed'）：craftRatio 乘区 ×1.5。 */
+      unlockDesc: '解锁工坊配方「火箭引擎」与工坊升级「可控爆炸工艺」（工艺效率 ×1.5）。' },
+
+    { id: 'architect', name: '大型架构', icon: 'assets/tech-icons/era-7/era7-architect.png', era: 7, cost: 1000000, branch: 'live', key: false, reqs: ['exostruct'], layer: 12,
+      cond: { t: 'zoneLvl', zone: 'trade', n: 100 },
+      eff: {},
+      /* 工坊升级「物流仓库」（upg_logiware）：upgradesBuilding='caravanserai' 改造模式（对标城堡），
+       *   商队驿站更名「物流仓库」，每级全产物 +200 容量。 */
+      unlockDesc: '解锁工坊升级「物流仓库」：商队驿站升级后更名，每级给所有产物 +200 容量。' },
+
+    { id: 'ancient', name: '超古代科技', icon: 'assets/tech-icons/era-7/era7-ancient.png', era: 7, cost: 1050000, branch: 'know', key: false, reqs: ['surface'], layer: 13,
+      cond: { t: 'gathered', r: 'stardust', n: 5 },
+      eff: {},
+      /* 叶子科技（无任何下游 reqs 引用，e2e 有断言钉死）。太空建筑建造消耗 −20%：
+       *   spaceCostMul（economy.spaceCostMul）读 s.techs.ancient，多源乘法叠加、地板 ×0.30（spec §6）。 */
+      effectDesc: '所有太空建筑建造消耗 −20%（多个减免源乘法叠加，合计至多 −70%）。星屑跨周目累计，在周目结算时发放。' },
+
+    { id: 'spacestation', name: '空间站', icon: 'assets/tech-icons/era-7/era7-spacestation.png', era: 7, cost: 2400000, branch: 'know', key: false, reqs: ['crewed'], layer: 13,
+      cond: { t: 'gathered', r: 'rocketEngine', n: 10 },
+      eff: { unlockBuild: ['spacestation'] },
+      /* 太空建筑「空间站」（BUILDINGS.spacestation requiredTech 双写）+ 奇观「至高圣座/太空共同体/国际空间站」
+       *   （wonder_skyspire，need:'spacestation'，按 s.gov 三分支改名+效果——波次4）。 */
+      unlockDesc: '解锁太空建筑「空间站」与奇观「至高圣座」。' },
+
+    { id: 'fission', name: '核裂变', icon: 'assets/tech-icons/era-7/era7-fission.png', era: 7, cost: 1800000, branch: 'live', key: false, reqs: ['autodrill'], layer: 13,
+      cond: { t: 'gathered', r: 'uranium', n: 100 },
+      eff: { unlockBuild: ['fissionplant'] },
+      /* 建筑「核热厂」（BUILDINGS.fissionplant requiredTech 双写）：每级 +10 热液能/秒（不烧暖石的新热液源）、
+       *   −0.02 铀/秒、居民奢侈品消耗 +10%/级（§0-3 用户拍板，负面效果）。 */
+      unlockDesc: '解锁建筑「核热厂」：每级 +10 热液能/秒，耗铀，且居民奢侈品消耗 +10%（负面）。' },
+
+    { id: 'complexf', name: '复合型工厂', icon: 'assets/tech-icons/era-7/era7-complexf.png', era: 7, cost: 2100000, branch: 'live', key: false, reqs: ['architect'], layer: 13,
+      cond: { t: 'upgrade', id: 'upg_logiware' },
+      eff: {},
+      /* +1 自动工艺槽位（读 s.techs.complexf，workshop.slotCap 与 hotforge_hammer 同款）。 */
+      effectDesc: '自动制作槽位 +1。' }
   ];
 
   var BRANCHES = [

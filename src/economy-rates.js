@@ -53,6 +53,11 @@
     /* ⚠️ 一次算好热液能三个数（产钢 / 净消耗 / 总生产）：steelRate 内部会跑 hydroAlloc，
      *    在 return 里连写三次等于每秒多跑两遍流分配，而 rates() 本来就重。 */
     var _sr = steelRate(s);
+    /* ⚠️ 2026-10-16 用户拍板：砂矿坑（鱼骨/深层矿井）建筑等级对**所有矿工/采石工产出**生效，
+     *   含暖石、钛以及以后新增的矿工伴生矿物（此前只乘了 stone/silt，暖石/钛被排除）。
+     *   本乘子必须与 economy-tick.js 的 _siltPit 同值同源，保证面板===结算。
+     *   ⚠️ 任何新增矿工伴生矿物，都必须在 rates() 与 tick() 两侧都乘它，否则又变面板撒谎。 */
+    var mineBonus = 1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus;
     return {
       kelp:    foodRate(s, cold, relief) - foodUse(s) + (cv ? (cv.kelp || 0) : 0),
       /* ⚠️ 2026-09-27 删骨材：这一项原先还减 `bc`（工坊把珊瑚转骨材那一笔）。
@@ -70,25 +75,37 @@
       /* ⚠️ 减掉的那份 fc 是**扣**不是产，不乘 globalMul —— 乘了会变成「灯塔让 furnace
        *    每转一份白扣两份原料」。产出那一段与 tick 的 miner 行逐字同式（含 globalMul）。 */
       silt:    (j.miner || 0) * SB.UNIT.silt
-                 * (1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus)
-                 * (1 + upgSum(s, 'mineSilt'))
+                 * mineBonus
+                 * (1 + upgSum(s, 'mineSilt')
+                    /* ERA7：自动化钻探（upg_autodrill）每级 +100%，受 s.autoDrillOn 开关——与 tick 同式。 */
+                    + ((s.autoDrillOn !== false && s.upgrades && s.upgrades.upg_autodrill) || 0))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
-                 * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s) * mineTaxMul(s) - fc * (Tr ? Tr.bldEff : 1),
+                 * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s) * mineTaxMul(s)
+                 * (SB.wonder ? SB.wonder.mineMul(s) : 1) - fc * (Tr ? Tr.bldEff : 1),
       /* ⚠️ 2026-09-30 ERA4 · 钛（深层矿井 upg_deepmine 上线后才有产出）：
        *    与上面 silt/warmstone 同源同式（同一批 gatherMul・toolMul(miner)・cold・globalMul），
        *    只是多一道「装了深层矿井才产」的门。装的是**买断升级**（s.upgrades），不是建筑等级。 */
       titanium: (s.upgrades && s.upgrades.upg_deepmine)
-                 ? (j.miner || 0) * SB.UNIT.titanium
+                 ? (j.miner || 0) * SB.UNIT.titanium * mineBonus
                    * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s)
+                   * (SB.wonder ? SB.wonder.mineMul(s) : 1)
                    * (1 + (Tr ? Tr.titaniumMul : 0))
                  : 0,
+      /* ERA7（2026-10-17 · spec §2）：铀 —— 与 tick 的 uranium 行逐字同构（同一批
+       *   mineBonus・gatherMul・toolMul・cold・globalMul），门=科技 autodrill（面板路与结算路同源）。 */
+      uranium: (s.techs && s.techs.autodrill)
+                 ? (j.miner || 0) * SB.UNIT.uranium * mineBonus
+                   * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s)
+                   * (SB.wonder ? SB.wonder.mineMul(s) : 1)
+                 : 0,
       /* stone / warmstone：与 tick 同源（同一个 gatherMul・cold 乘子）。
-       * ⚠️ 暖石**只有伴生这一条来源**，没有建筑产它——保温法那道开关要烧的暖石全靠矿工，
-       *    所以「矿工几个人」直接决定保温法能不能用，这是「采矿」这条线真正的分量。
+       * ⚠️ 暖石是矿工**伴生**产物（唯一来源 = 矿工人数 × 矿工乘子），没有别的建筑单独产它；
+       *    2026-10-16 起**也吃砂矿坑等级加成**（mineBonus，与 stone/silt 同式）——矿脉设施现放大一切
+       *    矿工伴生产出（含暖石/钛及未来新增）。"矿工几个人"仍决定保温法能不能烧，只是基准随矿坑等级上浮。
        * ⚠️ 2026-10-05：stone 与 tick 的采石工行**逐字同式**（含砂矿坑 ×(1+级数×siltBonus)）——
        *    面板路漏掉这个乘区就是「面板撒谎」，见上面 silt 那条的同源警告。 */
       stone:   (j.quarrier || 0) * SB.UNIT.stone
-                 * (1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus)
+                 * mineBonus
                  * gatherMul(s) * toolMul(s, 'quarrier') * cold * globalMul(s) * mineTaxMul(s),
       /* 暖石的净速率要减掉**开关正在烧的**那一份：不减的话面板上写着暖石在涨，
        * 玩家开着他以为只是在攒，实际有一路正在往火里扔。
@@ -98,12 +115,13 @@
        *    第二个去处。不减的话，玩家会看到暖石一路在涨（伴生 > 保温消耗）而实际有
        *    一路正在被炉子吃掉——同一个「面板撒谎」的坑，只是这次是两口消耗。
        *    ⚠️ 这里复用 fc（本秒转出的份数），与 tick 里扣 warmstone 的那一行同源。 */
-      warmstone: (j.miner || 0) * SB.UNIT.warmstone
+      warmstone: (j.miner || 0) * SB.UNIT.warmstone * mineBonus
                  * (1 + upgSum(s, 'mineWarm'))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
                  * gatherMul(s) * toolMul(s, 'miner') * cold
                  * globalMul(s) * (1 + (Tr ? Tr.warmMul : 0)) * mineTaxMul(s)
                  * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)
+                 * (SB.wonder ? SB.wonder.mineMul(s) : 1)
                  - (warmBurningNow(s) ? SB.CFG.WARM_RATE : 0) - fc * ((Tr ? Tr.bldEff : 1)) * warmEff(s)
                  - _turL * SB.UNIT.hydroWarm * warmEff(s),
       /* ⚠️ `iron` 记的是**消耗掉的原料份数**，不是产出的精铁量 —— 沿用原有口径。
@@ -136,6 +154,9 @@
                     + upgSum(s, 'algalfarmSci') * (s.lvl.kelp || 0))
                  * obsSciMul(s)                                  /* 天壳观测站：+x%（冰壳反比，上限 20） */
                  * (SB.wonder ? SB.wonder.cutterSciMul(s) : 1)   /* 天壳切削器：+% = 观测站等级 */
+                 /* ERA7（2026-10-17 · spec §5）：轨道卫星每级学者产出 +25%，与 tick 学者行 _satScholar 逐字同构。 */
+                 * (1 + (s.lvl.satellite || 0) * (SB.BLD.satelliteScholar || 0))
+                 * (SB.wonder ? SB.wonder.throneSciMul(s) : 1)
                  * (Tr ? Tr.sci : 1) + (cv ? (cv.science || 0) : 0)
                  /* 商人副产（2026-09-30 · 中世纪集市解锁2）：与 tick 4c' 同式，在 globalMul 乘区内。 */
                  /* ERA5（2026-10-02）：学校每级给商人 +0.5 科技/s（与 tick 4c' 同式相加进同一括号）。 */
@@ -144,9 +165,8 @@
                  * (lg ? lg.relicScienceMul * (1 + lg.shopScienceBonus) : 1)
                  + (lg ? lg.oldTideSteleScienceRate : 0)) * (SB.challenges ? SB.challenges.scienceCultureMul(s) : 1),
       fuel:    (j.craft > 0 ? fuelRate(s, cold) : 0) - burn,
-      /* ERA6（2026-10-12 修 bug）：星空探索每秒产出。仅星空观测站升级（upg_starscope）产出，
-       *   且受 s.starScopeOn 开关控制（关掉 ⇒ 0/s，把热液能让给炼钢）。
-       *   读 steelRate 的 starRate（与 tick 同口径，已扣热液能可用性，热液不够时降到 min(需求,剩流)）。 */
+      /* ERA6→ERA7：星空探索每秒产出。基础文明推力 + 星空观测站升级（upg_starscope）+ 太空建筑运行座数贡献，
+       *   读 economy.starRate（与 tick 同口径；太空建筑的「开几座」开关在此生效）。 */
       starExplore: SB.economy.starRate(s),
       /* ⚠️ 与 tick 同源：同一个 cultureRate 函数（书手 + 议事厅）。
        *    别在这里另写 `j.scribe * SB.UNIT.culture`——那两份算式会各自演化。

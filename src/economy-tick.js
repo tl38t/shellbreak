@@ -59,6 +59,11 @@
     var _tMer = toolMul(s, 'merchant');
     var _uSilt = upgSum(s, 'mineSilt');
     var _uWarm = upgSum(s, 'mineWarm');
+    /* ERA7（2026-10-17 · spec §4）：工坊升级「自动化钻探」——矿井产出每级 +100%（加法叠进
+     *   鱼骨矿井同一括号），每级耗 1 热液能/秒（hydroAlloc 的 drillDraw，与加成同一个开关）。
+     *   ⚠️ 判 s.autoDrillOn !== false：关掉 ⇒ 加成与耗能一起停（upgSum 无开关感知，故显式判）。
+     *   ⚠️ 与 rates 的 silt 行同式，漏一路就是面板撒谎。 */
+    var _adLvl = (s.autoDrillOn !== false && s.upgrades && s.upgrades.upg_autodrill) || 0;
     /* ⚠️ 2026-10-05 新增 6 条 perk 乘区的每 tick 缓存（与 _gm/_gather 同口径：
      *   tick 内 s.perk 不会被改 —— 买 perk 走 prestige.buyPerk，只写 meta.perks 与本局
      *   s.perk，而那发生在 tick 之外的游戏主循环里，故一个 tick 内恒定，可安全缓存）。
@@ -82,6 +87,9 @@
     /* ERA5（2026-10-02）：科技乘区在 tick 开头算一次（与 globalMul/gatherMul 同口径的
      *   每 tick 缓存），供下面的暖石/钛产出行读 warmMul / titaniumMul。rates 侧读 Tr（同函数）。 */
     var _T = SB.tech ? SB.tech.mul(s) : null;
+    /* ⚠️ 2026-10-16 用户拍板：砂矿坑建筑等级放大所有矿工/采石工产出（含暖石/钛/未来伴生矿物）。
+     *   与 rates() 的 mineBonus 同源同值；stone/silt/暖石/钛四条产出行都必须乘它。 */
+    var _siltPit = 1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus;
 
     /* 1) 材料线两条入口。采集者产的是藻食（食物线，见 foodRate），不产材料。
      * 珊瑚 = 猫国 wood，原作 **只有 woodcutter 职业能产、没有产木材的建筑**，
@@ -101,15 +109,28 @@
     /* ⚠️ 2026-09-30 ERA4 · 钛：装了深层矿井(upg_deepmine) 后矿工伴生钛。
      *    门读的是 `s.upgrades`（买断升级），不是建筑等级 —— 与 rates.titanium 同一门同一式。 */
     if (j.miner > 0 && s.upgrades && s.upgrades.upg_deepmine) {
-      addRes(s, 'titanium', j.miner * SB.UNIT.titanium * _gather * _tM * cold * _gm * (1 + (_T ? _T.titaniumMul : 0)) * dt);
+      addRes(s, 'titanium', j.miner * SB.UNIT.titanium * _siltPit * _gather * _tM * cold * _gm * (1 + (_T ? _T.titaniumMul : 0)) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+    }
+    /* ERA7（2026-10-17 · spec §2）：铀 —— 矿工伴生（0.002/秒/人，暖石 0.05 的 1/25，稀有度对齐）。
+     *   门=科技《自动化钻探》（s.techs.autodrill，spec 拍的是科技门，与钛的升级门不同源）。
+     *   乘区照钛那行同族：砂矿坑（矿脉设施放大一切伴生产出）+ 采集 + 矿镐 + 季节 + 全产；
+     *   ⚠️ 与 rates 的 uranium 行逐字同构，漏一路就是面板撒谎。 */
+    if (j.miner > 0 && s.techs && s.techs.autodrill) {
+      addRes(s, 'uranium', j.miner * SB.UNIT.uranium * _siltPit * _gather * _tM * cold * _gm * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+    }
+    /* ERA7（2026-10-17 · spec §4）：核热厂每级耗铀 0.02/秒（fissionUranium）。
+     *   ⚠️ 直接消耗（不进 hydroAlloc 流）；铀是带上限普通资源，扣到 0 止。
+     *   ⚠️ addRes 对负数早退（v <= 0 直接忽略），故此处用直接减法并 Math.max(0,…) 钳底。 */
+    if (s.lvl.fissionplant > 0) {
+      s.res.uranium = Math.max(0, (s.res.uranium || 0) - s.lvl.fissionplant * (SB.BLD.fissionUranium || 0) * dt);
     }
     /* 采石工产石头、矿工产金属（silt 这个 id）并**伴生暖石**。
      * 矿工是两条 addRes 而不是一条：暖石若淹死在金属那一行里，将来调 SB.UNIT.warmstone
      * 容易顺手以为它跟金属同量级，实际它是副产品（SB.UNIT.warmstone 0.05 vs SB.UNIT.silt 0.09）。
      * ⚠️ 两条都乘了 gatherMul —— 礁石平台/深潜是「采集」倍率，矿工手持的也是采集工具，
      *    与珊瑚匠同理；别把它当成加工倍率塞进 T.craft 那条线。
-     * ⚠️ 金属那条还乘 siltMul（1 + 砂矿坑级数 × SB.BLD.siltBonus）——对标猫国 mine 的
-     *    mineralsRatio；**暖石不乘**：砂矿坑给伴生副产品加成说不通（见 config SB.BLD.siltBonus 注）。
+     * ⚠️ 金属那条乘 _siltPit（1 + 砂矿坑级数 × SB.BLD.siltBonus）——对标猫国 mine 的
+     *    mineralsRatio；**2026-10-16 起暖石也乘同一乘子**（矿脉设施放大一切矿工伴生产出，含暖石/钛），与 rates() 的 mineBonus 同源。
      * ⚠️ 青铜镐绑的是 **quarrier + miner 两个职业**，而矿工产两行（金属 + 暖石），
      *    所以金属与暖石这两处都得算上 miner 那套工具 —— 只乘金属会让暖石漏掉。 */
     if (j.quarrier > 0) {
@@ -121,25 +142,23 @@
        *    【为什么复用 siltBonus 而不是新开 stoneBonus】两个乘区会变成两个旋钮，
        *    而「采石场」这个建筑已经被用户 2026-09-25 删掉（见 config.js:1551），
        *    采石线目前**根本没有专属建筑** ⇒ 新字段没有任何建筑能读它，必然变成死键。
-       *    复用之后语义是「砂矿坑 = 矿脉设施，金属与石头同源」，与暖石不同：
-       *    暖石仍是伴生副产品，**不乘**（见 SB.BLD.siltBonus 注）。 */
-      var stonePit = 1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus;
-      addRes(s, 'stone', j.quarrier * SB.UNIT.stone * stonePit
+     *    复用之后语义是「砂矿坑 = 矿脉设施，金属/石头/暖石/钛同源」——2026-10-16 起
+     *    所有矿工伴生产出都乘砂矿坑等级（见 _siltPit，与 rates() 的 mineBonus 同源）。 */
+      addRes(s, 'stone', j.quarrier * SB.UNIT.stone * _siltPit
         * _gather * _tQ * cold * _gm * _mt * dt);
     }
     if (j.miner > 0) {
-      var siltMul = 1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus;
       var mine = _tM;
-      /* ERA3 矿场倍率（2026-09-29）：鱼骨矿井(upg_fishbonemine) 金属 +50%/暖石 +1000%，
+      /* ERA3 矿场倍率（2026-09-29；暖石值于 2026-10-17 调整）：鱼骨矿井(upg_fishbonemine) 金属 +50%/暖石 +400%，
        *   阿尔巴达热液大学(wonder_albada) 矿场产出 +人口数%。三条独立乘区，与砂矿坑 per-level 相加。 */
-      var fishSilt = 1 + _uSilt;
+      var fishSilt = 1 + _uSilt + _adLvl;
       var fishWarm = 1 + _uWarm;
       var popMul = (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1;
-      addRes(s, 'silt', j.miner * SB.UNIT.silt * siltMul * fishSilt * popMul
-        * _gather * mine * cold * _gm * _mt * dt);
-      addRes(s, 'warmstone', j.miner * SB.UNIT.warmstone * fishWarm * popMul
+      addRes(s, 'silt', j.miner * SB.UNIT.silt * _siltPit * fishSilt * popMul
+        * _gather * mine * cold * _gm * _mt * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+      addRes(s, 'warmstone', j.miner * SB.UNIT.warmstone * _siltPit * fishWarm * popMul
         * _gather * mine * cold * _gm * (1 + (_T ? _T.warmMul : 0)) * _mt
-        * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1) * dt);
+        * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
     }
 
     // 2) 加工（2026-09-28 起改为**建筑自动**：熔炉建成就转，不再要匠人）
@@ -198,6 +217,9 @@
     var _lgSci = SB.prestige ? SB.prestige.legacy() : null;
     var _lgSciMul = _lgSci ? _lgSci.relicScienceMul * (1 + _lgSci.shopScienceBonus) : 1;
     var _challengeSciCulture = SB.challenges ? SB.challenges.scienceCultureMul(s) : 1;
+    /* ERA7（2026-10-17 · spec §5）：轨道卫星每级学者产出 +25%（乘区挂学者线，与 _obs/_cutter 并列）。
+     *   ⚠️ 与 rates().science 的对应位置逐字同构，漏一路就是面板撒谎。 */
+    var _satScholar = 1 + (s.lvl.satellite || 0) * (SB.BLD.satelliteScholar || 0);
     s.res.science += (j.scholar * SB.UNIT.sci
       * (1 + libraryLevel(s) * SB.BLD.sciRatio * (SB.civic ? SB.civic.libraryMul(s) : 1)
         + (s.lvl.institute || 0) * (SB.BLD.instituteSci + _uInst) * (SB.civic ? SB.civic.universityMul(s) : 1)
@@ -207,7 +229,7 @@
         /* ERA6：温水藻场升级（upg_warmalgalfarm）解锁后，每级（× 藻场等级）额外 +0.5 科技/s。
          *   ⚠️ 本作无独立「温水藻场」建筑，按「藻场等级」兑现（待标定口径，用户可调）。 */
         + (SB.economy ? SB.economy.upgSum(s, 'algalfarmSci') : 0) * (s.lvl.kelp || 0))
-      * _obs * _cutter * (Tt ? Tt.sci : 1) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm
+      * _obs * _cutter * _satScholar * (SB.wonder ? SB.wonder.throneSciMul(s) : 1) * (Tt ? Tt.sci : 1) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm
       * _lgSciMul * dt
       + (_lgSci ? _lgSci.oldTideSteleScienceRate : 0) * dt) * _challengeSciCulture;
 
@@ -332,6 +354,10 @@
       if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit('生育：一名族民降生。'); }
     } else s._grow = 0;
     s.peak = Math.max(s.peak, s.pop);
+    /* ERA7（2026-10 实装）：政策卡《公摊面积》取下时其 +0.5/人口建筑 的加成消失 ⇒ 人口上限可能跌破当前人口。
+     * 此处把人口钳回上限（「超额人口消失」）——isFull 只停生育、不主动减员，拆卡不会自动掉人，故在此收口。
+     * ⚠️ popCap 定义在 economy.js（SB.economy.popCap），本模块不自带 ⇒ 走 SB.economy 单一真源。 */
+    if (s.pop > (SB.economy ? SB.economy.popCap(s) : Infinity)) s.pop = (SB.economy ? SB.economy.popCap(s) : s.pop);
 
     // 7) 冻伤（仅冰封期）
     if (cold < 1) {
@@ -353,7 +379,7 @@
     } // 闭合 if (!(opts && opts.skipFoodPop))：food/pop 段整体交给 integrateFoodPop 接管
 
     // 8) 天壳推进（基础削壳 + 祭坛削壳）
-    SB.shell.tickShell(s, dt, emit);
+    SB.shell.tickShell(s, dt, emit, opts);
     /* ⚠️ 星空槽（starExplore）的累积**不放这里**：economy.tick 在 s.broken 时于顶部直接早退
      *   （line 1335 `if (s.broken) return;`），破壳后这条路径根本不跑。
      *   星空槽是破壳后的终局资源，累积由 game.loop()（在线）/ drainCatchUp()（离线）直接调

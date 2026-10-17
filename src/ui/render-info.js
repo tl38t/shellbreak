@@ -65,16 +65,26 @@
         if (!s.techs[item.reqs[i]]) { detailReqsMet = false; break; }
       }
     }
+    /* cost 必须先于 blockKind 算（2026-10-17 用户拍板实装折扣断链）：
+     * 科技侧走唯一折扣口 researchCost（科研所 researchLabSave，与 canStudy/study 同源）；
+     * 市政侧无折扣，走原价。旧版判定/显示各裸读 item.cost ⇒ 卡面显示原价、实扣折后价。 */
+    var cost = tech
+      ? (SB.tech.researchCost ? SB.tech.researchCost(s, item) : (item.cost || 0))
+      : (item.cost || 0);
     var blockKind = '';
     if (tech && !done && blocked) {
       if (!revealed) blockKind = 'unrevealed';
       else if (item.era > (s.era || 1)) blockKind = 'era';
       else if (!SB.tech.metOf(s, item)) blockKind = 'eureka';
       else if (!detailReqsMet) blockKind = 'prereq';
-      else if (!SB.economy.enough(s.res.science, item.cost || 0)) blockKind = 'science';
+      else if (!SB.economy.enough(s.res.science, cost)) blockKind = 'science';
+    } else if (!tech && !done && blocked && revealed) {
+      if (item.era && item.era > (s.era || 1)) blockKind = 'era';
+      else if (SB.civic.reqsMet(s, item) && !SB.economy.enough(s.res.culture, item.cost || 0)) blockKind = 'culture';
     }
     var state = done ? (tech ? '已掌握' : '已完成') : !revealed ? '未揭露' :
       !blocked ? '可研究' : blockKind === 'science' ? '科技点不足' :
+      blockKind === 'culture' ? '市政点不足' :
       blockKind === 'prereq' ? '缺少前置' : blockKind === 'era' ? '纪元未到' :
       blockKind === 'eureka' ? '尤里卡未达成' : '暂不可研究';
     var currency = tech ? 'science' : 'culture';
@@ -109,7 +119,6 @@
       ? '<section class="tree-detail-section"><h4>解锁内容</h4><p>' +
         (revealed ? linkInfoNames(item.unlockDesc, true) : '达成揭示条件后显示。') + '</p></section>'
       : '';
-    var cost = item.cost || 0;
     var blockDetail = '';
     if (tech && !done && blocked) {
       if (blockKind === 'unrevealed') {
@@ -123,8 +132,14 @@
       } else if (blockKind === 'era') {
         blockDetail = '<div class="tree-detail-blocked era"><b>纪元未到</b><span>' + blocked.replace(/^纪元未到：/, '') + '</span></div>';
       }
+    } else if (!tech && !done && (blockKind === 'culture' || blockKind === 'era')) {
+      if (blockKind === 'era') {
+        blockDetail = '<div class="tree-detail-blocked era"><b>纪元未到</b><span>' + blocked.replace(/^纪元未到：/, '') + '</span></div>';
+      } else {
+        blockDetail = '<div class="tree-detail-blocked culture"><b>市政点不足</b><span>现有 ' + SB.economy.fmtAmt(s.res.culture) + ' / 需求 ' + SB.economy.fmtAmt(cost) + '</span></div>';
+      }
     }
-    var buttonText = done ? state : blocked ? (blockKind === 'science' ? '科技点不足' : state) : cost
+    var buttonText = done ? state : blocked ? (blockKind === 'science' ? '科技点不足' : blockKind === 'culture' ? '市政点不足' : state) : cost
       ? '研究　' + SB.economy.costOwnedTxt(s, (function () { var c = {}; c[currency] = cost; return c; })())
       : '免费研究';
     var box = el('modalBox'), modal = el('modal');
@@ -206,28 +221,75 @@
       case 'library':      return pct('科技产出（仅学者）', B.sciRatio * 100, B.sciRatio * 100 * L, 0);
       case 'institute':    return pct('科技产出（仅学者）', B.instituteSci * 100, B.instituteSci * 100 * L, 0) +
                                  '；升级为大学后变 ×100%/级';
-      case 'square':       return pct('市政点产出（仅书手）', B.squareCivRatio * 100, B.squareCivRatio * 100 * L, 0) +
+      case 'square':       return pct('市政点产出（仅' + SB.folk.jobName(s, 'scribe') + '）', B.squareCivRatio * 100, B.squareCivRatio * 100 * L, 0) +
                                  '；装《戏剧与诗歌》后翻倍';
       case 'temple':       return pct('信仰产出', B.templeFaithRatio * 100, B.templeFaithRatio * 100 * L, 0) +
                                  '；宗教系统落地后生效';
-      case 'hydroturbine': return add('热液能', U.hydroOut || 0, (U.hydroOut || 0) * L, '/秒', 0) +
-                                 '；耗暖石 ' + ((U.hydroWarm || 0) * L) + '/秒';
+      case 'hydroturbine': return add('热液能', U.hydroOut || 0, (U.hydroOut || 0) * L, '/秒', 0);
       case 'coralfarm':    return pct('珊瑚匠产出', B.coralFarmCW * 100, B.coralFarmCW * 100 * L, 0);
       case 'bank':         return pct('商人产出', B.bankLux * 100, B.bankLux * 100 * L, 0);
       case 'school':       return add('每名商人科技产出', B.schoolMerchantSci, B.schoolMerchantSci * L, '/秒', 1);
-      case 'theater':      return pct('官员（书手）市政点产出', B.theaterCivRatio * 100, B.theaterCivRatio * 100 * L, 0);
+      case 'theater':      return pct(SB.folk.jobName(s, 'scribe') + '市政点产出', B.theaterCivRatio * 100, B.theaterCivRatio * 100 * L, 0);
       case 'hotforge':     return pct('工艺制作效率', B.hotforgeCraft * 100, B.hotforgeCraft * 100 * L, 0);
       case 'canal':        return pct('居民奢侈品消耗', B.canalLuxSave * 100, B.canalLuxSave * 100 * L, 1, '−') +
                                  '；等级最高不超过灯塔等级';
       case 'caravanserai': return pct('居民奢侈品消耗', B.caravanseraiLuxSave * 100, B.caravanseraiLuxSave * 100 * L, 0, '−') +
                                  '；每季节额外获得「等级 × 1 分钟」产量的任意时产资源';
-      case 'museum':       return '官员（书手）市政点产出 +20%（建成即生效，不随等级递增）';
-      case 'hydroshop':    return '每级耗 ' + (U.hydroShopLvl || 0) + ' 热液能/秒，吃金属产钢（产钢量随热液能供给浮动）';
+      case 'museum':       return SB.folk.jobName(s, 'scribe') + '市政点产出 +20%（建成即生效，不随等级递增）';
+      case 'hydroshop':    return '吃金属产钢（产钢量随热液能供给浮动）';
       case 'furnace':      return '解锁 金属 → 精铁（一次性效果，不随等级递增）';
       case 'observatory':  return '科技产出 +x%（x 与冰壳厚度成反比，最高 +' + (B.obsMaxBonus || 0) + '%，与建筑等级无关）';
       case 'hall':         return '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级';
       default:             return b.desc || '';
     }
+  }
+
+  /* 建筑信息卡「运行消耗」段：把每座**持续消耗资源**的建筑吃掉的东西逐项写明，
+   * 与 earlier「直接在消耗暖石的地方写明消耗多少」（2026-10-16，仅 furnace/turbine 行内标暖石）
+   * 一脉相承，但把口径扩到**所有有消耗的建筑**、且**不只写暖石**——
+   * 例如热泉炉除暖石外还吃金属、热液工坊吃热液能+金属，这些此前在卡面上都没写。
+   * 【口径纪律】这里只列「资源名 + 可用速率」，不再重复写「产出」；产出归 buildingEffectText。
+   *   ① 三个数一律走 economy.consumeRates（金属/暖石/热液能一次给齐，与结算同式的额定每秒）
+   *      —— 巢穴页「开几座」控件行读同一函数，卡面与面板不会再各说一套（面板撒谎家族）。
+   *      停产（运转座数=0）时它自然归 0，文案自动转「停产时为 0」避免写死一个过时数。
+   *   ② 金属不再是「每份扣 1」这种模糊话：consumeRates 已把它折成每秒（含 bldEff 效率折扣），
+   *      与 tick 实扣同式，所以卡面给的数就是玩家真的会看到的扣减速率。
+   *   ③ 不进存档、不被 e2e 读值，纯展示——改它 = 改文案，不需要标定。 */
+  /* 每种建筑**真吃哪几样**（顺序=效果描述的语序）。不在表里 = 不吃料、不出现「运行消耗」段。
+   * ⚠️ 别用「有值就列」来推：汽轮机完全不吃金属，而它的 metal 恰好是 0，靠值判断会漏；
+   *   反过来热泉炉停产时金属也是 0，靠值判断会把整段吞掉。**吃什么是静态事实，写死在表里**。 */
+  var BUILDING_CONSUME = {
+    furnace: ['metal', 'warm'],        // 金属 + 暖石 → 精铁
+    hydroturbine: ['warm'],            // 暖石 → 热液能
+    hydroshop: ['hydro', 'metal'],     // 热液能 + 金属 → 钢
+    spacestation: ['hydro']            // 热液能 → 星空探索（每级 2/s）
+  };
+  var CONSUME_LABEL = { metal: '金属', warm: '暖石', hydro: '热液能' };
+  /* 停产/未建成时的口径说明：不给数字 0，否则玩家会读成「这东西不要料」。 */
+  var CONSUME_IDLE = {
+    metal: '金属（按转制份数扣，停产时为 0）',
+    warm: '暖石（按运转座数扣，停产时为 0）',
+    hydro: '热液能（按等级需求，停产时为 0）'
+  };
+  /* 2026-10-17：把「这座建筑吃哪几样」静态表与 IDLE 文案挂到 SB.ui.consumeMeta，
+   * 供巢穴页控件行（render-pane-village.js 的 drawTag）与信息卡（buildingConsumeText）
+   * 共用同一份事实——避免两处各写一份、改一处漏一处（单一数据源）。 */
+  SB.ui.consumeMeta = { BUILDING_CONSUME: BUILDING_CONSUME, CONSUME_LABEL: CONSUME_LABEL, CONSUME_IDLE: CONSUME_IDLE };
+
+  function buildingConsumeText(s, b, lv) {
+    /* ⚠️ 2026-10-17 改口径：三个数一律走 economy.consumeRates（与结算同式的**额定每秒**），
+     *   不再在这里各写「每份扣 1 / 随等级」这类模糊话。理由：巢穴页「开几座」控件行
+     *   也读同一个函数 ⇒ 卡面与面板不会再各说一套（面板撒谎家族）。 */
+    var order = BUILDING_CONSUME[b.id];
+    if (!order) return null;
+    var cr = (SB.economy && SB.economy.consumeRates) ? SB.economy.consumeRates(s, b.id) : null;
+    if (!cr) return null;
+    var parts = [];
+    for (var i = 0; i < order.length; i++) {
+      var k = order[i];
+      parts.push(cr[k] > 0 ? CONSUME_LABEL[k] + ' −' + cr[k].toFixed(2) + '/秒' : CONSUME_IDLE[k]);
+    }
+    return parts.join('；') + '（满转口径：按当前开着的座数折算，缺料按比例降产）';
   }
 
   // 展示文案由 render-content.js 提供，集中维护且不进入存档。
@@ -269,8 +331,13 @@
       ? '需先建成「' + requirement.name + '」' + ((s.lvl && s.lvl[b.need]) ? ' · 已满足' : ' · 未满足')
       : '无额外建筑前置';
     if (canalCap) reqText = '潮道等级不能超过灯塔等级；先升级灯塔。';
+    var consumeText = buildingConsumeText(s, b, lv);
+    var consumeSection = consumeText
+      ? '<section class="tree-detail-section"><h4>运行消耗</h4><p>' + linkInfoNames(consumeText) + '</p></section>'
+      : '';
     var body = '<div class="tree-cost"><span>当前等级</span><b>' + lv + '</b></div>' +
       '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(effectText) + '</p></section>' +
+      consumeSection +
       '<section class="tree-detail-section"><h4>下一次建造 / 升级</h4><p>' +
       SB.economy.costOwnedTxt(s, cost) + '</p></section>' +
       '<section class="tree-detail-section"><h4>建造条件</h4><p>' + reqText + '</p></section>' +
@@ -350,10 +417,11 @@
     var state = owned ? { cls: 'done', text: type === 'tool' ? '已拥有' : '已装上' }
       : why ? { cls: 'locked', text: /^需要先/.test(why) ? '条件未满足' : '材料不足' }
         : { cls: 'ready', text: type === 'craft' ? '可制作' : '可购买' };
-    var cost = type === 'craft' ? item.in : item.cost;
+    var cost = type === 'craft' ? item.in
+      : type === 'upgrade' ? W.upgradeCost(s, id) : item.cost;
     var desc = item.desc || '';
     if (type === 'craft') {
-      var mul = W.craftMul(s);
+      var mul = W.craftMul(s, item);
       desc += ' 每次消耗 ' + SB.economy.costTxt(item.in) + '，产出 ' +
         SB.economy.fmtAmt(item.out * mul) + ' ' + (SB.RESS[item.res] ? SB.RESS[item.res].name : item.res) +
         '（含当前工艺效率 +' + ((mul - 1) * 100).toFixed(0) + '%）。';

@@ -96,8 +96,16 @@ console.log('\n=== 纪元三 · 资源/建筑/升级/奇观 落地 ===');
   U.forEach(u => { um[u.id] = u; });
   check('upg_fishbonemine: need=apprentice, mineSilt/mineWarm 生效',
     um.upg_fishbonemine && um.upg_fishbonemine.need === 'apprentice' &&
-    um.upg_fishbonemine.mineSilt === 0.5 && um.upg_fishbonemine.mineWarm === 10.0,
+    um.upg_fishbonemine.mineSilt === 0.5 && um.upg_fishbonemine.mineWarm === 4.0,
     'fishbonemine=' + JSON.stringify(um.upg_fishbonemine));
+  {
+    const m0 = SB.state.freshRun(false), m1 = SB.state.freshRun(false);
+    m0.jobs.miner = 2; m1.jobs.miner = 2;
+    m1.upgrades.upg_fishbonemine = true;
+    const r0 = SB.economy.rates(m0).warmstone, r1 = SB.economy.rates(m1).warmstone;
+    check('鱼骨矿井暖石产出 +400%（对应 ×5）', Math.abs(r1 / r0 - 5) < 1e-9,
+      '暖石=' + r0 + '→' + r1 + '（×' + (r1 / r0).toFixed(2) + '）');
+  }
   check('upg_autoshop: need=metalrefine, craftRatio=0.10',
     um.upg_autoshop && um.upg_autoshop.need === 'metalrefine' && um.upg_autoshop.craftRatio === 0.10,
     'autoshop=' + JSON.stringify(um.upg_autoshop));

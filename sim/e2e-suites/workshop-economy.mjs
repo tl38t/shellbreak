@@ -1,5 +1,5 @@
 /* e2e suite: workshop, tools, crafting, and connected economy regressions. */
-export function run({ SB, check, noop, doc, g, fs, path, ROOT, fire, pending }) {
+export function run({ SB, check, noop, doc, g, fs, path, ROOT, fire, pending, sandbox }) {
 /* ---------------- 工坊：青铜工具 ---------------- *
  * 这一节存在唯一理由：**工具接错落点不会报错，只会静默无效**。
  * 三件都写同一个 target 也一样绿：玩家买了斧头，石头莫名其妙跟着涨 —— 这正是
@@ -854,6 +854,82 @@ console.log('\n=== 工坊：青铜工具 ===');
         '藻食上限 ' + SB.economy.capOf(s, 'kelp') + '（CAP_BASE ' + SB.CFG.CAP_BASE.kelp + '）');
     }
 
+    /* ⑤-b 市政解锁的升级项（2026-10-17 · 市政《工坊学校》→「精炼钢厂」钢产出 +25%）。
+     *   守的是 workshop.upgradeBlocked 里**新补的 needCivic 分支**（此前只有 CRAFTS 用 needCivic，
+     *   UPGRADES 没有这道门 ⇒ 写上去也会被静默忽略 = 死字段）。三条判据：
+     *    ① 未完成市政 ⇒ 报「需要先完成市政「工坊学校」」，且**以「需要先」开头**
+     *       （render-pane-workshop.js:335 正按这个前缀决定**隐藏**该卡，未解锁不显示）；
+     *    ② 完成市政后这道门打开、转为缺料（缺哪样缺多少说得清）；
+     *    ③ 装填后 steelBonus 真的进 SB.economy.upgSum —— 与废钢锻造的 +20% **加法叠加**。
+     *   ⚠️ steelBonus 是**加法档**不是乘法档（economy.js:1046 `(1 + upgSum(s,'steelBonus'))`），
+     *      故两件都装是 +0.45 ⇒ ×1.45，不是 ×1.20×1.25。 */
+    {
+      const s = F();
+      s.lvl.workshop = 1; s.lvl.hydroshop = 3;
+      const c0 = String(SB.workshop.upgradeBlocked(s, 'upg_steelforge'));
+      check('未完成《工坊学校》时「精炼钢厂」装不了，且提示以「需要先」开头（渲染层据此隐藏）',
+        /^需要先完成市政「工坊学校」/.test(c0), c0);
+      s.civics.civ_steelschool = 1;
+      const c1 = String(SB.workshop.upgradeBlocked(s, 'upg_steelforge'));
+      check('完成《工坊学校》后门开、转为缺料（缺哪样缺多少说得清）',
+        /钢制零件 200/.test(c1) && /钛 100/.test(c1) && /硬化珊瑚 200/.test(c1), c1);
+      s.res.steelPart = 200; s.res.titanium = 100; s.res.hardCoral = 200;
+      const b0 = SB.economy.upgSum(s, 'steelBonus') || 0;
+      const ok = SB.workshop.upgradeBuy(s, 'upg_steelforge', () => {});
+      const b1 = SB.economy.upgSum(s, 'steelBonus') || 0;
+      check('「精炼钢厂」装得上，且钢产出加成 +0.25 真的进 upgSum(steelBonus)',
+        ok && Math.abs((b1 - b0) - 0.25) < 1e-9,
+        'steelBonus ' + b0 + ' → ' + b1);
+      check('钢产出加成是**加法**：废钢锻造(+0.20)+精炼钢厂(+0.25) ⇒ ×1.45（非 ×1.20×1.25）',
+        Math.abs((1 + 0.20 + 0.25) - 1.45) < 1e-9, '两件全开倍率 ' + (1 + 0.20 + 0.25));
+    }
+
+    /* ⑤-c 消耗口径（2026-10-17 · 用户：「所有有消耗的建筑，消耗的东西也要写明，不光是暖石」）。
+     *   守的是 economy.consumeRates —— 巢穴页「开几座」控件行与建筑信息卡「运行消耗」段
+     *   共用它；此前只标暖石 ⇒ 热泉炉看着只烧石头（还吃金属）、热液工坊整行一个消耗都没标。
+     *   四条判据：
+     *    ① 暖石那一项必须与 warmDraw **逐位相等**（两个出口不许漂）；
+     *    ② 热泉炉的金属速率 = 引擎一秒真扣的量（ironFlow(…,1) × bldEff），即「面板给的数就是结算扣的数」；
+     *    ③ 工坊热液能 = 运行座数 × hydroShopLvl，金属 = 热液能 × steelMetal × bldEff；
+     *    ④ 停产 ⇒ 三项全 0（不是「显示旧值」），不吃料的建筑（藻食场）恒 0。 */
+    {
+      const s = F();
+      s.lvl.furnace = 10; s.lvl.hydroturbine = 4; s.lvl.hydroshop = 6;
+      s.furnaceStop = 0; s.turbineStop = 0; s.hydroshopStop = 0;
+      s.res.silt = 1e9; s.res.warmstone = 1e9;
+      const T = SB.tech.mul(s); const e = T ? T.bldEff : 1;
+      const cf = SB.economy.consumeRates(s, 'furnace');
+      const ct = SB.economy.consumeRates(s, 'hydroturbine');
+      const cs = SB.economy.consumeRates(s, 'hydroshop');
+      check('consumeRates 的暖石项与 warmDraw 逐位相等（控件行/信息卡同一个数）',
+        Math.abs(cf.warm - SB.economy.warmDraw(s, 'furnace')) < 1e-12 &&
+        Math.abs(ct.warm - SB.economy.warmDraw(s, 'hydroturbine')) < 1e-12,
+        'furnace ' + cf.warm + '/' + SB.economy.warmDraw(s, 'furnace') +
+        ' turbine ' + ct.warm + '/' + SB.economy.warmDraw(s, 'hydroturbine'));
+      /* 金属充足时 ironFlow 一秒转多少份 ⇒ 金属扣 fc×bldEff，就是 consumeRates.metal。
+       * ⚠️ ironFlow 挂在 SB.economyInternals（不对外当面板 API），e2e 取内部件是允许的。
+       * ⚠️ 它的第 2 个参数是**冷季乘子（数字）不是布尔**：传 false 会让 rate 乘 0、
+       *    断言变成「0 == consumeRates.metal」的假红/假绿。必须用与 tick 同一表达式取 cold。 */
+      const _P = SB.economyInternals;
+      const coldMul = _P.isCold(s) ? _P.coldSeasonMul(s) : 1;
+      const fc1 = _P.ironFlow(s, coldMul, 1);
+      check('热泉炉「金属/秒」= 引擎一秒真扣（ironFlow(1) × bldEff，面板===结算）',
+        Math.abs(cf.metal - fc1 * e) < 1e-9 && cf.metal > 0,
+        'consumeRates.metal=' + cf.metal + ' 引擎 fc×e=' + (fc1 * e));
+      check('热液工坊：热液能 = 运行座数×hydroShopLvl、金属 = 热液能×steelMetal×bldEff',
+        Math.abs(cs.hydro - 6 * (SB.UNIT.hydroShopLvl || 0)) < 1e-9 &&
+        Math.abs(cs.metal - cs.hydro * (SB.UNIT.steelMetal || 0) * e) < 1e-9,
+        'hydro=' + cs.hydro + ' metal=' + cs.metal);
+      s.furnaceStop = 10; s.hydroshopStop = 6; s.turbineStop = 4;
+      const cf0 = SB.economy.consumeRates(s, 'furnace');
+      const cs0 = SB.economy.consumeRates(s, 'hydroshop');
+      const ck0 = SB.economy.consumeRates(s, 'kelp');
+      check('停产 ⇒ 三项归 0；不吃料的建筑恒 0（不靠「有值才列」推消耗品有哪些）',
+        cf0.metal === 0 && cf0.warm === 0 && cs0.hydro === 0 && cs0.metal === 0 &&
+        ck0.metal === 0 && ck0.warm === 0 && ck0.hydro === 0,
+        JSON.stringify({ furnace: cf0, shop: cs0, kelp: ck0 }));
+    }
+
     /* ⑥ 藻食库扩容反过来：只抬藻食，材料不动。 */
     {
       const s = F();
@@ -970,6 +1046,76 @@ console.log('\n=== 工坊：青铜工具 ===');
     const st100 = (SB.workshop.steps || []).filter(x => x.id === 'x100')[0];
     const got100 = st100 ? SB.workshop.stepAmt(many100, cb, st100) : -1;
     check('点「+100」就是造 100 份（不是库存的 100%）', got100 === 100, 'amt=' + got100);
+
+    /* ③b MAX 档（「100%」）按钮上标的**产出量**必须与真按下去到手的量同源。
+     *     用户 2026-10-16：MAX 档要体现「会生产多少」⇒ 那个数就是 stepOut()。
+     *     口径要点：份数先 floor 再乘效率（craft() 里 `amt = Math.floor(amt)`）——
+     *     不 floor 的话库存 12345 ÷ 单价 100 = 123.45 份会让按钮多报 0.45 份的产出。
+     *     这条同时钉死「面板（stepOut）=== 结算（craft 返回值）」。 */
+    const stMax = (SB.workshop.steps || []).filter(x => x.id === 'max')[0];
+    const moP = F(); moP.lvl.workshop = 1; moP.res.stone = 12345;
+    const predMax = stMax ? SB.workshop.stepOut(moP, cb, stMax) : -1;
+    const moC = F(); moC.lvl.workshop = 1; moC.res.stone = 12345;
+    const realMax = stMax
+      ? SB.workshop.craft(moC, 'craft_stonebeam', SB.workshop.stepAmt(moC, cb, stMax), () => {})
+      : -2;
+    check('MAX 档标出的产出量 == 真按下去到手的量（面板===结算，份额先 floor）',
+      stMax && Math.abs(predMax - realMax) < 1e-9 && predMax > 0,
+      'stepOut=' + predMax + ' craft=' + realMax + '（12345 石 ÷ 100 ⇒ 123 份 × 1.05）');
+
+    /* ── 升级项页签「已完成 n / 共 m」+ 未读 NEW（2026-10-17 用户）──
+     * 核心三条：① 页签现算 n/m（doneCount 同源）；② 有未读项时页签角标 NEW，
+     *   且**只在人不在升级项页签上**才亮（正在看就别挂 NEW）；③ 行级 NEW 仅在进入
+     *   页签的快照里打、离开时整批落盘，落盘后角标消失。
+     * ⚠️ workshopView / pendingNew 是跨用例 module 级状态（前面 第⑧⑨ 块动过），
+     *   所以开头先归位到一个干净基态：清 localStorage → 进 upgrades 快照全部 → 回
+     *   making 落盘全部 → 再清空 seen。这样终态是「seen 空、pendingNew=null、
+     *   workshopView='making'」，最符合「玩家从新开局第一次进工坊」的语义。 */
+    {
+      const RP = SB.ui.renderParts;
+      const SEEN = 'sb.wsSeen.v1';
+      const total = SB.TOOLS.length + SB.workshop.upgrades().length;
+      /* 干净基态（见上段注） */
+      try { sandbox.localStorage.removeItem(SEEN); } catch (e) {}
+      RP.setWorkshopView('upgrades');   // 快照全部未读 → pendingNew = 全部键
+      RP.setWorkshopView('making');     // 落盘全部 → localStorage 满；pendingNew=null
+      try { sandbox.localStorage.removeItem(SEEN); } catch (e) {}  // 现在清空 seen，保留干净基态
+
+      const s = SB.game.run();
+      s.lvl.workshop = 1;               // 建成工坊，解锁面板
+      s.tools = {}; s.upgrades = {};    // 尚未买断任何东西 ⇒ n = 0
+
+      /* (1) 未读态、停在「制造」页签：页签写「已完成 0 / 共 m」并带 NEW 角标 */
+      RP.setWorkshopView('making');
+      const tabHtml = RP.paneWorkshop();
+      check('升级项页签显示「已完成 0 / 共 m」计分母（n/m 同源 doneCount，含未解锁项）',
+        tabHtml.indexOf('已完成 0 / 共 ' + total) >= 0,
+        '期望含「已完成 0 / 共 ' + total + '」，实际片段=' + (tabHtml.match(/已完成 \d+ \/ 共 \d+/) || [''])[0]);
+      check('有未读升级项时页签带 NEW 角标（且人不在升级项页签上）',
+        /class="subnew"[^>]*>NEW/.test(tabHtml),
+        'tab 里是否含 subnew: ' + /subnew/.test(tabHtml));
+
+      /* (2) 进入升级项页签：行级 NEW 打在尚未看过的条目前；页签角标此时应消失（正在看） */
+      RP.setWorkshopView('upgrades');
+      const upHtml = RP.paneWorkshop();
+      check('进入升级项后行前带 NEW（工具/升级项各自），且页签角标消掉（正在看就不该还挂 NEW）',
+        /class="tag new">NEW/.test(upHtml) && !/class="subnew"[^>]*>NEW/.test(upHtml),
+        '行内 NEW: ' + /tag new/.test(upHtml) + '，页签角标仍在: ' + /subnew/.test(upHtml));
+
+      /* (3) 离开升级项 ⇒ 整批落盘；再回制造页签时角标消失 */
+      RP.setWorkshopView('making');
+      const seen = JSON.parse((sandbox.localStorage.getItem(SEEN) || '[]'));
+      check('离开升级项页签时把未读项整批落盘（localStorage 记满全部条目键）',
+        seen.length === total &&
+        seen.indexOf('t:' + SB.TOOLS[0].id) >= 0 &&
+        seen.indexOf('u:' + SB.workshop.upgrades()[0].id) >= 0,
+        'seen 数量=' + seen.length + ' / 期望 ' + total);
+      const tab2 = RP.paneWorkshop();
+      check('落盘后回到制造页签，未读角标消失（已完成 0 / 共 m 仍保留）',
+        !/class="subnew"[^>]*>NEW/.test(tab2) && tab2.indexOf('已完成 0 / 共 ' + total) >= 0,
+        '角标仍在: ' + /subnew/.test(tab2));
+    }
+
 
     /* ④ 石梁无仓储上限——**用户拍的设计**，用断言钉住，
      *    免得将来有人顺手补个上限，还以为在修 bug。 */

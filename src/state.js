@@ -19,6 +19,7 @@
      *   oldTideStelesEarnedTotal 旧日潮纹碑石累计获得总数（固定科技点/秒，递减曲线） */
     return { tide: 0, spent: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null,
       religionSeen: false, shopUnlocked: false,
+      autoResearch: { tech: false, civic: false },
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
       challenges: { completed: { cold: false, small: false, science: 0, abyss: 0 } },
       /* 「看广告 +1 轮回点」每日次数计数（跨周目保留，但按本地日期重置）。
@@ -27,7 +28,10 @@
       adRebirth: { date: '', count: 0 },
       /* 更新日志：上次看过弹窗的版本号。空串 = 从未看过 ⇒ 首次进入会弹。
        * 存 meta（跨周目保留），软重置不触发重复弹；清空存档会归零 ⇒ 重装后还会弹一次。 */
-      seenVersion: '' };
+      seenVersion: '',
+      /* ERA7（2026-10-17 · spec §7）：星屑跨周目局外资源。只在周目结算时累加（prestige.doBreak），
+       *   与轮回点同侧；freshRun 时 seed 进 s.got.stardust 供超古代科技 eureka 读。 */
+      stardust: 0 };
   }
   function emptyPerks() {
     /* 轮回商店增益的运行时累加表。键必须与 config.PERKS 各商品的 apply 键一致；
@@ -88,6 +92,10 @@
     }
     var thin = perk.thin || 0;
     var iceShell = Math.round(SB.CFG.ICE_SHELL * Math.pow(0.9, thin));
+    /* ERA7（2026-10-17 · spec §7）：星屑跨周目局外资源，freshRun 时把 meta 存量 seed 进 got.stardust，
+     *   供超古代科技 eureka t:'gathered' 直接读（§2）。meta 取不到则按 0 处理（新档 / e2e 沙箱）。 */
+    var _meta = null;
+    try { if (SB.game && SB.game.meta) _meta = SB.game.meta(); } catch (e) { _meta = null; }
     return {
       t: 0,
       /* wallT = 墙钟秒（真实流逝的时间），排行榜专用。
@@ -138,10 +146,13 @@
          *   （与上面那条同源事故）。got 台账不记工艺制品，故不进 got（见 stoneBeam 那条口径）。 */
         artwork: 0, tidalRecord: 0, resonantDrill: 0,
         /* ERA6（2026-10 实装）：钛金板件 / 星空探索 / 封闭藻仓。seed 只防 addRes 漏键染 NaN
-         *   （与上面那条同源事故）。tiplate 有 CAP_BASE 上限键（capOf 走 tiplate 专属分支）；
-         *   starExplore / sealbin 无上限键 ⇒ capOf 恒 Infinity（starExplore 走了通用 matCap 路径，
-         *   sealbin 是工艺制品，与石梁同口径）。 */
-        tiplate: 0, starExplore: 0, sealbin: 0 },
+         *   （与上面那条同源事故）。钛金板件有 CAP_BASE 上限；starExplore 有专用阶段上限；
+         *   sealbin 无 CAP_BASE 键 ⇒ capOf 恒 Infinity（工艺制品，与石梁同口径）。 */
+        tiplate: 0, starExplore: 0, sealbin: 0,
+        /* ERA7（2026-10-17 · spec §2）：燃料/铀/火箭引擎/星屑。铀有 CAP_BASE 键（200），
+         *   燃料 20000、火箭引擎 50；星屑无上限键（跨周目局外，同 science 口径）。
+         *   stardust 波次4 起由 meta 存档 seed 进来（freshRun(false) 时保持 0）。 */
+        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: 0 },
       /* lvl 的键必须与 SB.BUILDINGS 的 id 一一对应（quarry 已随「采石场改职业」移除）。
        * ⚠️ 漏一个键 = 一次 NaN 事故：`undefined * 0.12` 经 addRes 的 Math.min
        * 污染资源池，再顺着 lvlSum 污染破壳系数。与「加职业漏加表」「存档缺键」同类。 */
@@ -192,9 +203,15 @@
         /* ERA5（2026-10-02）：歌剧院（sharksong 解锁）/ 廉租社区（urbanization 解锁）。
          *   漏键 = costOf 读到 undefined ⇒ 全表造价 NaN / 读档静默丢（与上面每一条同源）。 */
         theater: 0, tenement: 0,
-        /* ERA6（2026-10 实装）：钛金板件仓库（modpart 解锁）/ 研究实验室（chemistry 解锁）。
-         * 漏键 = costOf 读到 undefined ⇒ 全表造价 NaN / 读档静默丢（与上面每一条同源）。 */
-        tiplateStore: 0, researchlab: 0 },
+        /* ERA6（2026-10 实装）：研究实验室（chemistry 解锁）。 */
+        researchlab: 0,
+        /* ERA7（2026-10-17 · spec §5/§4）：轨道卫星 / 空间站（星海区）/ 核热厂（工坊区）。
+         *   漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
+         *   migrateRun 的 fixTable 以本 seed 为 ref ⇒ 同步覆盖，无需第二处补。 */
+        satellite: 0, spacestation: 0, fissionplant: 0,
+        /* ERA7（2026-10 实装 · 竞技体育市政解锁）：体育场（civic 区域，ratio 1.5 多实例）。
+         * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。 */
+        stadium: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * SB.UNIT.kelp` 变成
@@ -251,6 +268,16 @@
        *   默认 0 = 全开。运行座数 = max(0, lvl.hydroshop − hydroshopStop)，结算在 economy.hydroAlloc（钢的产出随运行座数缩放）。
        *   热液工坊吃的是**流**（热液能，不进库存），停产不省任何可囤资源，唯一意义是把流让给天穹钻机。 */
       hydroshopStop: 0,
+      /* ERA7（2026-10-17 · spec §5）：轨道卫星「开几座」（与 furnaceStop / turbineStop 同口径）：
+       *   存**停了几座** satelliteStop，默认 0 = 全开。运行座数 = max(0, lvl.satellite − satelliteStop)，
+       *   结算在 economy.starRate（星空产出随运行座数缩放）。卫星不耗料，停产只停星空贡献。
+       *   旧档无 satelliteStop 键 ⇒ 0（全开），`|| 0` 兜底，无需迁移。 */
+      satelliteStop: 0,
+      /* ERA7（2026-10-17 · spec §5）：空间站「开几座」（与 satelliteStop 同口径）：
+       *   存**停了几座** spacestationStop，默认 0 = 全开。运行座数 = max(0, lvl.spacestation − spacestationStop)，
+       *   结算在 economy.starRate（星空产出）与 economy.hydroAlloc（每级耗 2 热液能/秒）两处，
+       *   面板 rates 与 tick 同源。旧档无此键 ⇒ 0（全开），`|| 0` 兜底，无需迁移。 */
+      spacestationStop: 0,
       /* 冰封期状态（2026-09-27 新增：从「壳≤25% 恒真」改成「寒流季掷骰」）。
        * `frozen` 是**本季是否冰封**，换季那一刻由 economy.seasonTurn 写入；
        * `_seasonIdx` 是换季检测的游标（记住上次是哪一季）。
@@ -304,7 +331,10 @@
         titanium: 0, scaffold: 0,
         faith: 0, luxury: 0,
         /* ERA6（2026-10 实装）：与 res 那批同口径 seed，防 addRes 漏键染 NaN。 */
-        tiplate: 0, starExplore: 0, sealbin: 0 },
+        tiplate: 0, starExplore: 0, sealbin: 0,
+        /* ERA7（2026-10-17 · spec §2/§7）：与 res 那批同口径 seed。星屑记的是**结算发放**累计
+         *   （got.stardust = meta seed + 本周目发放），供超古代科技 eureka t:'gathered' 直接读。 */
+        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: (_meta ? (_meta.stardust || 0) : 0) },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
        *   civBoost —— 鼓舞条件**达成过**的台账（与技术树的 eurekaMet 同构：
@@ -319,9 +349,11 @@
       civBoost: {},
       civShown: {},
       gov: null,
+      govAdopted: {},       // 已采用过的政体 id；每个政体仅首次采用免费
       cards: [],            // 政策卡槽（数组，逐槽；2026-09-29 由 s.card 单值升维）
       card: null,          // 第 0 号槽镜像（旧代码/回归读方便，非事实来源）
       religionName: '',     // 玩家给信仰起的名字（空 = 未命名；神学解锁后可改，无消耗）
+      habitatName: '',      // 玩家给聚落起的名字（空 = 未起名；ERA6+ 可在巢穴页改名，本轮回有效）
       /* ERA6 市政（2026-10 实装）—— 意识形态门槛 / 政体命名 / 公司系统所需的顶层字段：
        *   lifetimeCulture —— 累计市政点**产出**（不是存量，存量采纳时已被消费）。
        *       意识形态「累计市政产出 ≥ 900000」读它，用 `||0` 兜底（旧档无此键 = 0）。
@@ -338,10 +370,10 @@
        * ⚠️ 顶层字段，由 companies.js 的 SB.companyState(s, res) 读写（含旧档迁移）。 */
       companyState: {},
       companyNames: {},
-      /* ERA6（2026-10-12）：星空观测站升级（upg_starscope）的「可开关」状态。
-       *   装了升级默认开（true）；关掉则星空探索停止累加（把热液能让给炼钢）。
-       *   `!== false` 判据 ⇒ 旧档无此键（undefined）一律视为开，向后兼容、不会误关。 */
-      starScopeOn: true,
+      /* ERA7（2026-10-17）：工坊升级「自动化钻探」（upg_autodrill）的可开关状态。
+       *   与 furnaceStop / turbineStop 等「开几座」同口径的停用数思路不同——
+       *   自动钻探是升级布尔开关（装了默认开，`!== false` 判据保旧档缺键=开）。 */
+      autoDrillOn: true,
       /* 政策卡槽**人生第一次**装填过没有。
        * ⚠️ 它不能省：换卡收费若按「槽当前空不空」判，「拔下→再装填」就能无限免费换效果。
        *    一次性标记才堵得住。见 civics.cardBlocked 那条注。 */
@@ -351,14 +383,15 @@
        *   动机：让玩家有节奏地调整政策卡，不被「卸下收费」门槛卡死。
        *   ⚠️ 迁移：旧档无此键 ⇒ migrateRun 里补 0（见 state.migrateRun）。 */
       cardFreeRemoves: 0,
-      /* 生息区自动升级开关（2026-09-30 用户规格 · 市政《封建主义》解锁2）：
-       *   `{ kelp: true, weir: false, ... }`，键 = 生息区建筑 id，真 = 开着自动买级。
-       *   泵在 game.pumpAuto（每 TECH_PUMP 秒扫一遍，买得起就 habitat.build 一级）。
+      /* 区域建筑自动建造/升级开关（2026-09-30 起）：
+       *   `{ kelp: true, lighthouse: false, ... }`，键 = 建筑 id，真 = 开着自动买级。
+       *   可用区域由市政 autoBuildZones 声明；在线泵每 TECH_PUMP 秒扫一遍，买得起就 build 一级。
        *   ⚠️ 刻意**不进离线补算**：离线批量花钱买级会把离线结算从「纯产出回放」变成
        *      「产出 + 消费决策」，与离线闸门（先算完才能操作）的口径冲突。 */
       autoUpg: {},
-      /* 工坊自动制作槽（2026-10-07 用户拍板）：**数组，逐槽**，元素为 null（空槽）或
-       *   `{ id: 'craft_stonebeam', pct: 0.25 }`（配方 id + 满仓后转制的比例）。
+      /* 工坊自动制作槽：**数组，逐槽**，元素为 null（空槽）或
+       *   `{ id: 'craft_stonebeam', pct: 0.25 }`（有上限原料：满仓转制比例）/
+       *   `{ id: 'craft_scaffold', batch: 80 }`（全无上限原料：库存达到批次数后造这一批）。
        *   ⚠️ 用数组而不是 `{craftId: pct}` 映射：槽是**有位置**的资源（槽数由升级项与
        *     轮回商店决定，"第几槽"本身就是玩家看得到的东西），映射表表达不了「槽位已满」。
        *   ⚠️ 长度**不预填**到上限：槽数是派生的（slotCap 现算），预填会让「买了 perk 之后
@@ -407,6 +440,8 @@
       if (rawStr) {
         var parsed = JSON.parse(rawStr);
         m = Object.assign(m, parsed);
+        if (!m.autoResearch || typeof m.autoResearch !== 'object' || Array.isArray(m.autoResearch)) m.autoResearch = {};
+        m.autoResearch = { tech: m.autoResearch.tech === true, civic: m.autoResearch.civic === true };
         if (!m.challenges || typeof m.challenges !== 'object') m.challenges = { completed: {} };
         if (!m.challenges.completed || typeof m.challenges.completed !== 'object') m.challenges.completed = {};
         var challengeIds = { cold: true, small: true, science: true, abyss: true };

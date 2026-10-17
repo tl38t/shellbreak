@@ -24,6 +24,18 @@
     }
     return id;
   }
+  function wonderTechPrereq(s, key) {
+    var cond = key && key.cond;
+    if (!cond || cond.t !== 'wonders') return null;
+    var ids = cond.ids || [];
+    for (var i = 0; i < ids.length; i++) {
+      var w = SB.workshop.wonderById(ids[i]);
+      if (!w || isOwned(s, w.id) || !w.need || s.techs && s.techs[w.need]) continue;
+      var id = firstMissingPrereq(s, w.need), t = id && SB.tech.byId(id);
+      if (t && t.era <= s.era) return t;
+    }
+    return null;
+  }
   function researchGoal(s) {
     var keys = SB.tech.keysOf(s.era) || [], key = null;
     for (var i = 0; i < keys.length; i++) if (!s.techs[keys[i].id]) { key = keys[i]; break; }
@@ -36,6 +48,16 @@
       }
     }
     var id = key && firstMissingPrereq(s, key.id), tech = id && SB.tech.byId(id);
+    /* 关键科技的尤里卡有时要求建奇观，而该奇观又被本纪元普通科技锁住。
+     * 若只追 key 的尤里卡，bot 会永远等一个当前不可建的奇观（ERA5：天穹钻机
+     * 等高压热机管道，但管道需要先研究《高压热机》）。先回溯必需奇观的科技门，
+     * 把对应科技/其前置当作当前目标，让它自己的尤里卡驱动资源与建筑策略。 */
+    var wonderTech = key && id === key.id ? wonderTechPrereq(s, key) : null;
+    if (wonderTech) {
+      key = wonderTech;
+      id = firstMissingPrereq(s, key.id);
+      tech = id && SB.tech.byId(id);
+    }
     /* 关键科技被前置链挡住时，当前目标是缺失前置，不是关键科技本身。
      * 必须随 goal.id 切换尤里卡条件；否则会错误追逐远端 key 的地块门槛
      * （例如先冲学术区 35 级，却不建导航要求的 3 座压舱物）。 */
@@ -104,7 +126,7 @@
     return null;
   }
   function storageUpgrade(s) {
-    var ids = ['upg_ballast_1', 'upg_ballast_2'];
+    var ids = ['upg_ballast_1', 'upg_ballast_2', 'upg_alloy_warehouse'];
     for (var i = 0; i < ids.length; i++) {
       var u = SB.workshop.upgradeById(ids[i]);
       if (!u || s.upgrades && s.upgrades[ids[i]]) continue;
@@ -220,6 +242,22 @@
      * 结果到了石梁、硬化珊瑚或市政门槛时才发现生产设施从未建起来。 */
     if (availableBuilding(s, 'workshop') && !s.lvl.workshop) return 'workshop';
     if (availableBuilding(s, 'hall') && !s.lvl.hall) return 'hall';
+    /* 《工业化》的尤里卡检查热液能总供给，不是扣除工坊消耗后的净流量。
+     * 关键科技回溯可能把该 rate 条件设为当前目标；按真实 rates 补汽轮机。 */
+    if (cond && cond.t === 'rate' && cond.r === 'hydroSupply') {
+      var hydroSupply = SB.economy.rates(s).hydroSupply || 0;
+      if (hydroSupply + 1e-9 < cond.n) {
+        var runningTurbines = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
+        var perTurbine = runningTurbines > 0 ? hydroSupply / runningTurbines :
+          Math.max(0.001, SB.UNIT && SB.UNIT.hydroOut || 1);
+        perTurbine = Math.max(0.001, perTurbine);
+        var neededTurbines = runningTurbines + Math.ceil((cond.n - hydroSupply) / perTurbine);
+        /* 先铺出所需装机容量，即使当前暖石只够部分汽轮机运行；step() 会停掉不可持续部分，
+         * 并提高矿工权重补暖石。把「当前可持续数」当建造上限会让条件长期低于阈值、反复选别的建筑。 */
+        if (availableBuilding(s, 'hydroturbine') && (s.lvl.hydroturbine || 0) < neededTurbines)
+          return 'hydroturbine';
+      }
+    }
     /* 钢制工具的工具尤里卡需要真实钢库存；钢来自「热液汽轮机 → 热液工坊」，
      * 不是矿工直接生产。门槛到达时补齐这条生产链，避免只给矿工配工却永远等不到钢。 */
     if (cond && cond.t === 'tools') {
@@ -302,6 +340,11 @@
     if (availableBuilding(s, 'siltpit') && s.lvl.siltpit < 3) return 'siltpit';
     return null;
   }
+  function shouldPrioritizeConditionBuild(s, goal, buildId) {
+    var cond = goal && goal.cond;
+    return buildId === 'hydroturbine' && cond && cond.t === 'rate' && cond.r === 'hydroSupply' &&
+      (SB.economy.rates(s).hydroSupply || 0) + 1e-9 < cond.n;
+  }
   function recipeByResource(resource) {
     var rows = SB.workshop.crafts();
     for (var i = 0; i < rows.length; i++) if (rows[i].res === resource) return rows[i];
@@ -317,7 +360,7 @@
     seen = seen || [];
     if (seen.indexOf(resource) >= 0) return false;
     seen.push(resource);
-    var mul = SB.workshop.craftMul(s), perOut = c.out * mul;
+    var mul = SB.workshop.craftMul(s, c), perOut = c.out * mul;
     var wanted = Math.max(1, Math.ceil((target - have) / perOut));
     var costMul = SB.workshop.craftCostMul(s, c);
     /* 原料库存可能永远装不下整份目标（例如多级压舱仓所需的石头 > 石料仓上限）。
@@ -345,7 +388,7 @@
     seen.push(resource);
     var n = Math.max(0, amount - (s.res[resource] || 0));
     if (n <= 0) return;
-    var batches = n / (c.out * SB.workshop.craftMul(s));
+    var batches = n / (c.out * SB.workshop.craftMul(s, c));
     var cm = SB.workshop.craftCostMul(s, c);
     for (var k in c.in) expandPrimaryNeeds(s, k, batches * c.in[k] * cm, out, seen.slice());
   }
@@ -378,7 +421,9 @@
     });
     for (var i = 0; i < ordered.length; i++) {
       var t = ordered[i];
-      if (t.era <= s.era && SB.tech.isRevealed(s, t.id) && SB.tech.reqsMet(s, t) && SB.tech.condMet(s, t.cond)) return t.cost;
+      /* 折扣口（2026-10-17）：科研所 researchLabSave 让实付 < t.cost，排序/预算按折后价才不失真。 */
+      if (t.era <= s.era && SB.tech.isRevealed(s, t.id) && SB.tech.reqsMet(s, t) && SB.tech.condMet(s, t.cond))
+        return SB.tech.researchCost ? SB.tech.researchCost(s, t) : t.cost;
     }
     return null;
   }
@@ -449,9 +494,21 @@
     if (cond && cond.t === 'res') {
       var cj = resourceJob(cond.r); if (cj && cj !== 'gather') weights[cj] = 0.68;
     }
+    if (cond && cond.t === 'rate' && cond.r === 'hydroSupply' &&
+        (SB.economy.rates(s).hydroSupply || 0) + 1e-9 < cond.n) {
+      var runningTurbines = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
+      var perTurbine = runningTurbines > 0
+        ? (SB.economy.rates(s).hydroSupply || 0) / runningTurbines
+        : Math.max(0.001, SB.UNIT && SB.UNIT.hydroOut || 1);
+      var requiredTurbines = Math.ceil(cond.n / Math.max(0.001, perTurbine));
+      if (hydroSupportCap(s) < requiredTurbines) weights.miner = Math.max(weights.miner || 0, 0.85);
+    }
     if (cond && cond.t === 'job') weights[cond.j] = 0.72;
-    var nextWonder = chooseWonder(s, goal, options);
     var nextBuild = chooseBuild(s, goal, options);
+    var nextWonder = chooseWonder(s, goal, options);
+    /* 未满足的硬性科技条件优先于可选奇观：否则奇观队列会抢走建造动作，
+     * bot 明明识别出要补汽轮机，却一直停在同一尤里卡门槛。 */
+    if (shouldPrioritizeConditionBuild(s, goal, nextBuild)) nextWonder = null;
     var supportUpgradeId = wonderPrereqUpgrade(s, goal);
     var housingTarget = houseCapacityTarget(s, goal, options);
     var housingNeed = pickHouse(s, housingTarget);
@@ -630,8 +687,9 @@
         did(SB.workshop.upgradeBuy(s, storageCapacityUpgrade.id, emit));
         break;
       }
-      nextWonder = chooseWonder(s, goal, options);
       nextBuild = chooseBuild(s, goal, options);
+      nextWonder = chooseWonder(s, goal, options);
+      if (shouldPrioritizeConditionBuild(s, goal, nextBuild)) nextWonder = null;
       if (nextWonder && SB.workshop.wonderBlocked(s, nextWonder) === null) {
         if (!did(SB.workshop.build(s, nextWonder, emit))) break;
         continue;

@@ -104,7 +104,16 @@
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
    * ⚠️ 投入不变、产出乘 (1+ratio) —— 是「100 石头出 1.05 石梁」，
    *    **不是**「95 石头出 1 石梁」。成本端从不打折（见 craft 里的 prices 循环）。 */
-  function craftMul(s) { return 1 + craftRatio(s); }
+  function craftMul(s, c) {
+    /* ERA7（2026-10-17 · spec §4）：可控爆炸工艺（upg_boomcraft）给 craftRatio 乘区 ×1.5（新增乘区，不改基值）。
+     *   boomcraftMul 字段 = 0.5 ⇒ 总输出 ×(1 + 0.5) = ×1.5。与 craftRatio 加法轴**相乘**，
+     *   是「整条工艺产出放大」而非「把 0.05 加成再翻 1.5 倍」。 */
+    var m = (1 + craftRatio(s)) * (1 + (SB.economy ? SB.economy.upgSum(s, 'boomcraftMul') : 0)) * (SB.wonder ? SB.wonder.throneCraftMul(s) : 1);
+    /* ERA7（spec §4 博洛西洛发射场）：仅载人火箭工艺（craft_rocketengine）额外 ×mannedRocketMul（×2）。
+     * 用可选参数 c 区分——不进基值，避免放大所有工艺制品（面板===结算纪律：stepOut/craft/两处面板都传 c）。 */
+    if (c && c.id === 'craft_rocketengine' && SB.wonder && SB.wonder.mannedRocketMul) m *= SB.wonder.mannedRocketMul(s);
+    return m;
+  }
 
   /* ERA6（2026-10 实装）：刻纹腐蚀术（engraving）使潮纹记录制造消耗 −20%（×0.8）。
    * 统一折扣入口：maxCraftable / 档位估算 / 实际扣费三处共用，避免「面板能造 N、实际扣原价」断链。
@@ -151,6 +160,19 @@
     var byPct = Math.floor(all * st.pct);
     return Math.max(st.fixed, byPct);
   }
+  /* 这一档**实际会到手的成品量**（2026-10-16 用户「100% 要体现会生产多少」）。
+   * 面板上要给玩家看的数字必须与按下后真正得到的量**逐字同源**，口径抄 craft()：
+   *   ① 份数先 Math.floor（craft 里就是 `amt = Math.floor(amt)`）；
+   *   ② 再被「买得起几份」夹一次（fixed 档可能写得比库存能造的还多，craft 会往下压）；
+   *   ③ 最后 × c.out × 效率。
+   * ⚠️ 漏掉 ① 或 ② 都会让按钮上的数**比实际多一点** —— 又是「面板撒谎」。 */
+  function stepOut(s, c, st) {
+    var amt = Math.floor(stepAmt(s, c, st));
+    var cap = Math.floor(maxCraftable(s, c));
+    if (amt > cap) amt = cap;
+    if (!(amt > 0)) return 0;
+    return amt * c.out * craftMul(s, c);
+  }
 
   /* 制造。amt 是**基准份数**，实际产出 = amt × (1+效率)。返回实际造出多少。
    * ⚠️ 2026-09-28：产物资源由 `c.res` 给出（石梁条目上补的，两道新配方各写了自己的），
@@ -177,7 +199,7 @@
     }
     if (amt <= 0) return 0;
     for (k in c.in) s.res[k] -= c.in[k] * cm * amt;
-    var gain = amt * c.out * craftMul(s);
+    var gain = amt * c.out * craftMul(s, c);
     /* 产出**不设上限**：无 CAP_BASE 的资源（石梁与两道新制品）仓储恒 Infinity，
      * 与猫国 beam 一致。⚠️ 走 addRes 仍然是对的 —— 它内部有 Math.min 与 NaN 兜底，
      * 这一趟不会截掉任何东西，将来给某道配方补上 CAP_BASE 时也不用回来改这里。 */
@@ -195,21 +217,21 @@
    * 两个来源：**工坊升级项「自动工坊」自带 1 个**（装了就有，见 SB.UPGRADES.upg_autoshop），
    * 轮回商店 `autoCraft1/2/3` 每级 +1（写进 s.perk.autoCraft）。上限 SB.CFG.AUTO.SLOT_MAX。
    *
-   * 【槽 = 配方 + 一档百分比，语义是「满了才造」】
-   *   触发：该配方**任一原料达到仓储上限**（capOf）—— 满了再产也是溢出浪费，转制才留住它。
-   *   造多少：当时可造份数 × 该档百分比（25 / 50 / 75 / 100%）。
+   * 【槽按原料是否有上限选择触发方式】
+   *   有上限原料：任一原料满仓后，转制当时可造份数的 25 / 50 / 75 / 100%。
+   *   全部原料无上限：玩家填写批次数；够造一批才动手，造完保留多余库存。
    * ⚠️ 为什么不是「够一份就造」：那是把玩家的建材直接吃掉（石头刚够 100 就被转成石梁，
    *    想建的房子永远差那点料）。「满了才造」只在**本来就要浪费**的那一刻动手，
    *    玩家不需要再设一道预留线——这就是用户选阈值而不是固定份数的原因。
    * ⚠️ 无上限原料（capOf = Infinity：钢、各工艺制品）**不参与「满」判定**：
    *    它永远不会溢出，拿它当触发条件 ⇒ 那种配方的槽永远不动。
-   *    全部原料都无上限时退化成「够一份就造」（见 autoReady 的返回值注）。
+   *    全部原料都无上限时不再等不存在的「满仓」，而是等到玩家填写的批次数。
    * ⚠️ 调用点只在**在线**泵（game.js 的 TECH_PUMP 周期，与 habitat.autoTick 并列）：
    *    离线补算只结算产出、不替玩家花资源（离线闸门同一精神）。
    * ⚠️ 一档百分比 = 造**当时可造量**的这一比例，不是「造到 25% 仓位」——
    *    后者在原料满仓时等于造 0 份（已经在 100% 了），槽会永远不动。 */
 
-  /* 槽位上限与档位表从 SB.CFG.AUTO 读（写在数据侧，实现里不硬编码，见 config 那条注）。 */
+  /* 槽位上限与自动制作参数从 SB.CFG.AUTO 读（写在数据侧，实现里不硬编码，见 config 那条注）。 */
   function slotMax() { return (SB.CFG.AUTO && SB.CFG.AUTO.SLOT_MAX) || 4; }
   function pcts() { return (SB.CFG.AUTO && SB.CFG.AUTO.PCTS) || [0.25, 0.5, 0.75, 1]; }
 
@@ -223,6 +245,8 @@
     n += (s.perk && s.perk.autoCraft) || 0;
     /* ERA6（2026-10 实装）：热力锻锤（hotforge_hammer）每级 +1 自动制作槽（与 upg_autoshop 同源叠加）。 */
     if (s.techs && s.techs.hotforge_hammer) n += 1;
+    /* ERA7（2026-10-17 · spec §4）：复合型工厂（upg_complexf）+1 自动工艺槽位（与热锻锤同源叠加）。 */
+    if (s.upgrades && s.upgrades.upg_complexf) n += 1;
     return Math.max(0, Math.min(n, slotMax()));
   }
 
@@ -239,20 +263,54 @@
     return i < 0 ? 0 : (s.autoSlots[i].pct || 0);
   }
 
+  function hasFiniteInput(s, c) {
+    if (!c || !c.in) return true;
+    for (var k in c.in) {
+      var cap = SB.economy ? SB.economy.capOf(s, k) : Infinity;
+      if (isFinite(cap)) return true;
+    }
+    return false;
+  }
+
+  function defaultBatch() { return (SB.CFG.AUTO && SB.CFG.AUTO.BATCH_DEFAULT) || 80; }
+  function maxBatch() { return (SB.CFG.AUTO && SB.CFG.AUTO.BATCH_MAX) || 9007199254740991; }
+  function slotBatch(s, id) {
+    var i = slotIndexOf(s, id);
+    if (i >= 0) {
+      var saved = s.autoSlots[i].batch;
+      if (isFinite(saved) && Math.floor(saved) === saved && saved >= 1 && saved <= maxBatch()) return saved;
+    }
+    /* 旧档的无上限配方只存 pct；切换到批次语义后默认 80 次，可由玩家填写调整。 */
+    return defaultBatch();
+  }
+
   /* 分配 / 改档。返回真 = 真的坐进了槽；返回假 = 槽位不够（UI 该显示「槽位已满」）。
    * ⚠️ 幂等：同一配方再点一次只改档位，不会占第二个槽（见 slotIndexOf 那条注）。
    * ⚠️ pct 只认 SB.CFG.AUTO.PCTS 里的档位，其它值一律拒绝 ——
    *    存档里被人手改出一个 0.9 的档位时，宁可不动也别按着怪值造。 */
   function setSlot(s, id, pct) {
-    if (!s || !craftById(id)) return false;
+    var c = craftById(id);
+    if (!s || !c || !hasFiniteInput(s, c)) return false;
     var ok = false, P = pcts(), i;
     for (i = 0; i < P.length; i++) if (P[i] === pct) ok = true;
     if (!ok) return false;
     var idx = slotIndexOf(s, id);
-    if (idx >= 0) { s.autoSlots[idx].pct = pct; return true; }
+    if (idx >= 0) { s.autoSlots[idx].pct = pct; delete s.autoSlots[idx].batch; return true; }
     s.autoSlots = s.autoSlots || [];
     if (s.autoSlots.length >= slotCap(s)) return false;
     s.autoSlots.push({ id: id, pct: pct });
+    return true;
+  }
+
+  function setSlotBatch(s, id, batch) {
+    var c = craftById(id);
+    if (!s || !c || hasFiniteInput(s, c)) return false;
+    if (!isFinite(batch) || Math.floor(batch) !== batch || batch < 1 || batch > maxBatch()) return false;
+    var idx = slotIndexOf(s, id);
+    if (idx >= 0) { s.autoSlots[idx].batch = batch; delete s.autoSlots[idx].pct; return true; }
+    s.autoSlots = s.autoSlots || [];
+    if (s.autoSlots.length >= slotCap(s)) return false;
+    s.autoSlots.push({ id: id, batch: batch });
     return true;
   }
   /* 释放槽。**真的从数组里删掉**而不是置 null：槽位是玩家看得到的资源，
@@ -264,20 +322,16 @@
     return true;
   }
 
-  /* 「满了吗」——自动制造的触发判据。
-   *   返回 true  ⇒ 该动手了；
-   *   返回 false ⇒ 还没满，别动（玩家的料还在涨，现在转制是抢他的建材）。
-   * ⚠️ 全部原料都无上限时返回 true（退化成「够一份就造」）：那种配方没有「溢出」这回事，
-   *    只有「够不够」，否则槽会永远不动（见上面那段设计注）。 */
+  /* 自动制造触发判据：有限原料等任一原料满仓；全无限原料等库存够玩家填写的批次数。 */
   function autoReady(s, c) {
-    var anyFinite = false, k;
+    if (!hasFiniteInput(s, c)) return Math.floor(maxCraftable(s, c)) >= slotBatch(s, c.id);
+    var k;
     for (k in c.in) {
       var cap = SB.economy ? SB.economy.capOf(s, k) : Infinity;
       if (!isFinite(cap)) continue;          // 无上限原料不参与「满」判定
-      anyFinite = true;
       if (((s.res && s.res[k]) || 0) >= cap) return true;
     }
-    return !anyFinite;
+    return false;
   }
 
   /* 在线泵每 TECH_PUMP 秒跑一次：逐槽判定、满了就按档位造。
@@ -297,10 +351,16 @@
       if (!autoReady(s, c)) continue;
       var all = maxCraftable(s, c);
       if (!(all > 0)) continue;
-      /* ⚠️ `Math.max(1, …)`：满仓时可造量通常远大于 1，但边缘情况（刚够 1 份就满仓）
-       *    25% 档会算出 floor(0.25)=0 ⇒ 这个槽**永远不动**，而 UI 上它明明是开着的。
-       *    至少造 1 份只在这种边缘生效，不会把 25% 变成「每次都造满」。 */
-      var amt = Math.max(1, Math.floor(all * (sl.pct || 0)));
+      var amt;
+      if (hasFiniteInput(s, c)) {
+        /* ⚠️ `Math.max(1, …)`：满仓时可造量通常远大于 1，但边缘情况（刚够 1 份就满仓）
+         *    25% 档会算出 floor(0.25)=0 ⇒ 这个槽永远不动。 */
+        if (!(sl.pct > 0)) continue;
+        amt = Math.max(1, Math.floor(all * sl.pct));
+      } else {
+        /* 无上限原料没有满仓时刻：达到玩家填写的批次数才造固定一批，多出的原料留给后续用途。 */
+        amt = Math.min(Math.floor(all), slotBatch(s, c.id));
+      }
       var got = craft(s, sl.id, amt, null);
       if (got > 0) made += got;
     }
@@ -351,6 +411,11 @@
     for (i = 0; i < L.length; i++) if (L[i].id === id) return L[i];
     return null;
   }
+  function upgradeCost(s, id) {
+    var u = upgradeById(id);
+    return u ? (SB.economy && SB.economy.scaffoldAdjustedCost
+      ? SB.economy.scaffoldAdjustedCost(s, u.cost) : u.cost) : {};
+  }
   function upgradeBlocked(s, id) {
     var u = upgradeById(id);
     if (!u) return '没有这项升级';
@@ -360,7 +425,17 @@
       var ut = SB.tech && SB.tech.byId ? SB.tech.byId(u.need) : null;
       return '需要先研究「' + (ut ? ut.name : u.need) + '」';
     }
-    var lack = lackText(s, u.cost);
+    /* ── `u.needCivic` 这道门（2026-10-17 新增 · 市政《工坊学校》解锁「精炼钢厂」）──
+     * 与 crafts 表的 needCivic（workshop.craftBlocked 已读）同构：判 **已完成**的市政。
+     * 报市政**名**而不是 id，与上面 need 那道同口径。
+     * ⚠️ 返回的提示以「需要先」开头 ⇒ 升级项列表（render-pane-workshop.js:335）会把它
+     *    **隐藏**直到该市政完成，与 craft 的 needCivic 行为一致（未解锁不显示）。 */
+    if (u.needCivic && !(s.civics && s.civics[u.needCivic])) {
+      var un = '市政';
+      if (SB.CIVICS) for (var _ui = 0; _ui < SB.CIVICS.length; _ui++) if (SB.CIVICS[_ui].id === u.needCivic) { un = SB.CIVICS[_ui].name; break; }
+      return '需要先完成市政「' + un + '」';
+    }
+    var lack = lackText(s, upgradeCost(s, id));
     if (lack) return '还缺 ' + lack;
     return null;
   }
@@ -371,7 +446,8 @@
     /* 扣费先于置位、失败一分不扣 —— 与 buy / habitat.build 同口径，
      * 否则「点了之后材料少了、升级却没装上」会写进存档。 */
     var k;
-    for (k in u.cost) s.res[k] -= u.cost[k];
+    var cost = upgradeCost(s, id);
+    for (k in cost) s.res[k] -= cost[k];
     s.upgrades = s.upgrades || {};
     s.upgrades[id] = true;
     if (emit) emit('装上了「' + u.name + '」：' + u.desc + '。');
@@ -502,14 +578,15 @@
     /* 工艺制作下半区 */
     crafts: craftRows, craftById: craftById,
     craftRatio: craftRatio, craftMul: craftMul, craftCostMul: craftCostMul,
-    maxCraftable: maxCraftable, stepAmt: stepAmt, craftBlocked: craftBlocked,
+    maxCraftable: maxCraftable, stepAmt: stepAmt, stepOut: stepOut, craftBlocked: craftBlocked,
     craft: craft, steps: CRAFT_STEPS,
     /* 自动制作槽（2026-10-07）：槽数 / 占槽 / 改档 / 释放 / 满仓判定 / 泵 */
     slotMax: slotMax, pcts: pcts, slotCap: slotCap, slotPct: slotPct,
-    setSlot: setSlot, clearSlot: clearSlot, autoReady: autoReady, autoTick: autoTick,
+    slotBatch: slotBatch, hasFiniteInput: hasFiniteInput, slotIndexOf: slotIndexOf,
+    setSlot: setSlot, setSlotBatch: setSlotBatch, clearSlot: clearSlot, autoReady: autoReady, autoTick: autoTick,
     /* 工艺升级项（第三种形态：一次性装填，存 s.upgrades） */
     upgrades: upgradeRows, upgradeById: upgradeById,
-    upgradeBlocked: upgradeBlocked, upgradeCanBuy: upgradeCanBuy,
+    upgradeCost: upgradeCost, upgradeBlocked: upgradeBlocked, upgradeCanBuy: upgradeCanBuy,
     upgradeBuy: upgradeBuy,
     /* 奇观 */
     wonders: list, wonderById: wonderById,

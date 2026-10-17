@@ -45,7 +45,7 @@
 
   /* 一个 tick 的天壳推进。dt 为秒。
    * 返回本次实际削掉的壳量，供渲染层显示「正在以 X 点/秒 推进」。 */
-  function tickShell(s, dt, emit) {
+  function tickShell(s, dt, emit, opts) {
     if (s.broken) return 0;
     var cut = 0;
 
@@ -92,11 +92,11 @@
       }
     }
 
-    if (s.shell <= 0 && !s.shellOpened && !s.breakSettled) { s.shell = 0; onShellZero(s, emit); }
+    if (s.shell <= 0 && !s.shellOpened && !s.breakSettled) { s.shell = 0; onShellZero(s, emit, opts); }
     return cut;
   }
 
-  function onShellZero(s, emit) {
+  function onShellZero(s, emit, opts) {
     s.shell = 0;
     /* 破壳先展示当前结算预估；只有玩家选择轮回时才真正入账。留在本局后，
      * shellOpened 保持为真，文明可继续发展，之后再次按最新状态结算。 */
@@ -104,23 +104,28 @@
     s.broken = true;
     var report = SB.prestige.breakReport(s);
     if (!SB.prestige.qualified(s)) { report.tidePoints = 0; report.locked = true; }
-    (SB.game.showBreakAnimation || SB.game.showBreakPanel)(report);
+    /* 离线补算期间由结算器统一接管弹窗：不要让动画先弹出、又被离线总结覆盖。 */
+    if (!(opts && opts.deferBreakUI)) (SB.game.showBreakAnimation || SB.game.showBreakPanel)(report);
     if (emit) emit('冰壳裂开了。');
   }
 
   /* 星空槽推进（2026-10-13 镜像破壳：破壳后把「破壳槽」翻转为「星空槽」）。
-   * 破壳前（!s.broken）或已达成（s.starComplete）或玩家暂停（starScopeOn===false）直接 return。
-   * 速率来自 economy.starRate（= STAR_BASE × breakCoef + 升级加成），按 dt 累加、cap 到 STAR_CAP。
+   * 破壳前（!s.broken）或已达成（s.starComplete）直接 return。
+   * 速率来自 economy.starRate（= STAR_BASE × breakCoef + 升级加成 + 太空建筑运行座数贡献），
+   *   按 dt 累加、cap 到 STAR_CAP。太空建筑各自的「开几座」开关（satelliteStop / spacestationStop）
+   *   决定它们贡献多少，基础文明推力部分始终在跑（不再有全局暂停开关）。
    * 满槽 ⇒ 置 s.starComplete（只触发一次）+ 调 render.showStarComplete 弹占位结算面板。 */
   function tickStar(s, dt, emit) {
     if (!s || s.shell > 0 || !(s.broken || s.shellOpened || s.breakSettled) || s.starComplete) return;
-    if (s.starScopeOn === false) return;
     var rate = (SB.economy && SB.economy.starRate) ? SB.economy.starRate(s) : 0;
     if (!(rate > 0)) return;
     var cap = SB.CFG.STAR_CAP || 0;
     var cur = s.res.starExplore || 0;
     var next = Math.min(cap, cur + rate * dt);
     s.res.starExplore = next;
+    /* 累计产出台账（gathered 尤里卡读它）：星空槽直写 res、不经过 addRes，
+     * 所以这里把本帧增量手动同步进 got，否则 crewed（累计星空探索 30000）永远卡死。 */
+    if (s.got) s.got.starExplore = (s.got.starExplore || 0) + (next - cur);
     if (cap > 0 && next >= cap) {
       s.starComplete = true;
       if (emit) emit('星空槽已填满——太空时代达成。');

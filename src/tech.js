@@ -243,6 +243,25 @@
         var _g = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
         return !!(s.gov && _g && _g.slots && (_g.slots.wild || 0) >= (c.wild || 3));
       }
+      /* `govWildSlots` —— **启用任意 N 槽政体**（ERA7 市政《现代思潮》《竞技体育》的 boost 条件）。
+       * ⚠️ 与 `gov`（写死「≥3 槽」的三槽政体判定、condText 硬编码「启用三槽政体」）不是一回事：
+       *    这里 N 是参数（现代思潮/竞技体育要的是 7 槽教权国/平等主义/联邦制），复用 gov+wild 会把
+       *    文案印成「三槽政体」造成误导，故独立成带参数的类型。判定口径与 gov 同：比 slots.wild。 */
+      case 'govWildSlots': {
+        var _gw = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
+        return !!(s.gov && _gw && _gw.slots && (_gw.slots.wild || 0) >= (c.n || 7));
+      }
+      /* `anyWonders` —— **指定奇观列表里建成任意一座（OR 语义）**（ERA7 市政《星球村》的 boost 条件
+       *    「总物流站 **或** 全国快速物流通道任一建成」）。
+       * ⚠️ 与 `wonders`（指定列表**全部**建成，AND 语义）一字之差、语义相反：星球村要的是「任一座」，
+       *    不能用 wonders（那会变成「两座都建好」）。同样走 SB.wonder.owned（纪律③，防第二读取点）。 */
+      case 'anyWonders': {
+        var _aws = c.ids || [], _ak;
+        for (_ak = 0; _ak < _aws.length; _ak++) {
+          if (SB.wonder && SB.wonder.owned(s)[_aws[_ak]]) return true;
+        }
+        return false;
+      }
       /* `upgrade` —— **已安装某件工坊升级**（2026-09-29 ERA3 金属精炼尤里卡）。
        * ⚠️ 查 `s.upgrades[id]`（workshop.upgradeBuy 置真）；与 unlockBuild 不同，
        *   这条指向工坊制品而非建筑，避免「尤里卡查自己解锁的建筑」那种死锁。 */
@@ -307,7 +326,7 @@
         if (SB.challenges && SB.challenges.ignorePopulationGates(s)) return null;
         return { txt: jobName(c.j) + ' ' + (s.jobs[c.j] || 0) + ' 人 / ' + c.n, now: s.jobs[c.j] || 0, need: c.n };
       case 'techs': return { txt: '已掌握科技 ' + techCount(s) + ' / ' + c.n, now: techCount(s), need: c.n };
-      case 'tech': return { txt: '掌握科技「' + byId(c.id).name + '」', now: (s.techs && s.techs[c.id]) ? 1 : 0, need: 1 };
+      case 'tech': return { txt: '掌握科技「' + techName(c.id) + '」', now: (s.techs && s.techs[c.id]) ? 1 : 0, need: 1 };
       case 'wonder': {
         var wonderN = (SB.wonder && SB.wonder.count) ? SB.wonder.count(s) : 0;
         return { txt: '已建成奇观 ' + wonderN + ' / ' + c.n, now: wonderN, need: c.n };
@@ -329,9 +348,23 @@
         var _ok = !!(s.gov && _g2 && _g2.slots && (_g2.slots.wild || 0) >= (c.wild || 3));
         return { txt: _ok ? '已启用三槽政体' : '需启用三槽政体（独裁/寡头/古典共和）', now: _ok ? 1 : 0, need: 1 };
       }
+      /* govWildSlots / anyWonders 的「还差多少」，与 condMet 同口径。 */
+      case 'govWildSlots': {
+        var _gw2 = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
+        var _cur = (s.gov && _gw2 && _gw2.slots) ? (_gw2.slots.wild || 0) : 0;
+        var _need = c.n || 7;
+        return { txt: _cur >= _need ? '已启用 ' + _need + ' 槽政体' : '需启用 ' + _need + ' 槽政体（教权国/平等主义/联邦制）', now: _cur, need: _need };
+      }
+      case 'anyWonders': {
+        var _aws2 = c.ids || [], _an = 0, _aw;
+        for (_aw = 0; _aw < _aws2.length; _aw++) {
+          if (SB.wonder && SB.wonder.owned(s)[_aws2[_aw]]) _an++;
+        }
+        return { txt: '建成奇观之一（' + _wNames(_aws2) + '）', now: _an, need: 1 };
+      }
       case 'upgrade': {
         var _up = !!(s.upgrades && s.upgrades[c.id]);
-        return { txt: '完成工坊升级「' + c.id + '」', now: _up ? 1 : 0, need: 1 };
+        return { txt: '完成工坊升级「' + upgradeName(c.id) + '」', now: _up ? 1 : 0, need: 1 };
       }
       /* religion（ERA4 市政《归正会》）：已建立宗教。空串 = 未建立。 */
       case 'religion': {
@@ -367,7 +400,7 @@
         }
         return { txt: '建成奇观（' + _wNames(_wa) + '）', now: _wn, need: _wa.length };
       }
-      case 'civic': return { txt: '完成市政「' + c.id + '」', now: (s.civics && s.civics[c.id]) ? 1 : 0, need: 1 };
+      case 'civic': return { txt: '完成市政「' + civicName(c.id) + '」', now: (s.civics && s.civics[c.id]) ? 1 : 0, need: 1 };
     }
     return null;
   }
@@ -375,7 +408,23 @@
   function bName(id) {
     for (var i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++)
       if (SB.BUILDINGS[i].id === id) return SB.BUILDINGS[i].name;
-    return id;
+    return '未知建筑';
+  }
+  function upgradeName(id) {
+    var upgrades = SB.UPGRADES || [];
+    for (var i = 0; i < upgrades.length; i++)
+      if (upgrades[i].id === id) return upgrades[i].name;
+    return '未知工坊升级';
+  }
+  function techName(id) {
+    var item = byId(id);
+    return item ? item.name : '未知科技';
+  }
+  function civicName(id) {
+    var civics = SB.CIVICS || [];
+    for (var i = 0; i < civics.length; i++)
+      if (civics[i].id === id) return civics[i].name;
+    return '未知市政';
   }
   /* `wonders` 条件的 id 列表 → 中文名列表。键是完整配置 id（wonder_xxx），
    * 面板不能把生 id 印给玩家（2026-10-07 截图里印成「shellcutter、presspipe」就是这病）。 */
@@ -383,11 +432,11 @@
     var out = [], i, w;
     for (i = 0; i < ids.length; i++) {
       w = (SB.wonder && SB.wonder.byId) ? SB.wonder.byId(ids[i]) : null;
-      out.push(w ? w.name : ids[i]);
+      out.push(w ? w.name : '未知奇观');
     }
     return out.join('、');
   }
-  function resName(id) { return SB.RESS && SB.RESS[id] ? SB.RESS[id].name : id; }
+  function resName(id) { return SB.RESS && SB.RESS[id] ? SB.RESS[id].name : '未知资源'; }
   /* `rate` 类尤里卡条件的读数显示名。
    * ⚠️ rates() 里有些键**不是资源**，而是同一资源的另一种口径：
    *    `hydroSupply` = 热液能**总生产**，而 `hydro` = 净消耗（取负）。它不能进 SB.RESS
@@ -545,7 +594,10 @@
      * 于是条件没达成的科技照样买得到。 */
     if (!metOf(s, t)) return false;
     if (!reqsMet(s, t)) return false;
-    return SB.economy.enough(s.res.science, t.cost);
+    /* ⚠️ 必须与 study 的扣费同口 researchCost（2026-10-17 用户拍板实装折扣断链）：
+     *   旧版裸读 t.cost ⇒ 建科研所后「科技点在折后价~原价之间」时本函数 false、
+     *   而 studyBlocked（折扣口）判 null ⇒ 红点亮、点了没反应，且折扣从未让人更早买得起。 */
+    return SB.economy.enough(s.res.science, researchCost(s, t));
   }
   function studyBlocked(s, id) {
     var t = byId(id);
@@ -559,6 +611,18 @@
     if (!reqsMet(s, t)) return '缺少前置科技：' + t.reqs.map(function (r) { return byId(r).name; }).join('、');
     if (!SB.economy.enough(s.res.science, researchCost(s, t))) return '科技点不足：现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(researchCost(s, t));
     return null;
+  }
+
+  /* 是否存在「当前即可研究」的科技（面板已开 + 有未掌握且 studyBlocked 为 null 的项）。
+   * 供页签红点用，复用 studyBlocked 这唯一门禁，与节点「可研究」状态同源。 */
+  function hasResearchable(s) {
+    if (!s || !panelOpen(s)) return false;
+    var T = SB.TECHS || [], i;
+    for (i = 0; i < T.length; i++) {
+      if (s.techs[T[i].id]) continue;
+      if (studyBlocked(s, T[i].id) === null) return true;
+    }
+    return false;
   }
 
   /* ERA6（2026-10 实装）：科研所（researchlab）每级让研究科技消耗 −2%（researchLabSave），
@@ -608,16 +672,24 @@
    *    它与 `craft`（加工产出 / 烟囱炉 +15%、壳铸 +30%）**不是同一个东西**：
    *    前者进 workshop.craftRatio（工坊造石梁那条线），后者进 economy 的精铁线。
    *    名字都带 craft，是本项目最容易误接的一对。 */
-  var ADD = { coef: 1, house: 1, kelpCap: 1, season: 1, craftRatio: 1, warmMul: 1, titaniumMul: 1 };
+  var ADD = { coef: 1, house: 1, kelpCap: 1, season: 1, craftRatio: 1, warmMul: 1, titaniumMul: 1,
+    scaffoldCostSave: 1 };
   var LABEL = {
     gather: '采集产出', food: '藻食产出', sci: '科技产出', craft: '加工产出',
     fuel: '地热产出', smelt: '金属→精铁',
     farm: '采集者藻食产出', coef: '破壳系数',
     house: '人口上限', kelpCap: '藻食上限', craftRatio: '工艺制作效率',
-    warmMul: '暖石产出', titaniumMul: '钛产出',
+    warmMul: '暖石产出', titaniumMul: '钛产出', scaffoldCostSave: '脚手架需求减免',
     steelMul: '钢产出', bldEff: '原料消耗'
   };
+  /* ⚠️ 数据里的 `effectDesc`（2026-10-17 起）= **玩家向显式覆盖**：写了它就整条替代下面的自动生成。
+   *    起因：用户 2026-10-17 反馈「热泉回流」的效果栏只印出「原料消耗 ×0.6」，
+   *    读不出是**哪栋建筑**、**哪样原料**（bldEff 这个键名对玩家没有语义）。
+   *    原先 effectDesc 只在 eff 为空时被调用方兜底取用（render-info / study 里那句
+   *    `=== '（无直接效果）'`）——现在提前到入口 ⇒ 对原有 5 项（eff 全为 {}）输出**不变**，
+   *    只是多了一条更早的出口。⇒ 以后「eff 键说不清」的科技写 effectDesc 即可。 */
   function effectText(t) {
+    if (t && t.effectDesc) return t.effectDesc;
     var e = t.eff || {}, out = [], k;
     for (k in e) {
       var nm = LABEL[k] || k, v = e[k];
@@ -727,8 +799,7 @@
       case 'job': return jobName(c.j) + ' ' + c.n + ' 人';
       case 'techs': return '已掌握科技 ' + c.n + ' 项';
       case 'tech': {
-        var _tech = byId(c.id);
-        return '掌握科技「' + (_tech ? _tech.name : c.id) + '」';
+        return '掌握科技「' + techName(c.id) + '」';
       }
       case 'wonder': return '建成奇观 ' + c.n + ' 座';
       case 'coef': return '破壳系数 ' + c.n;
@@ -736,16 +807,12 @@
       case 'shell': return '破壳 ' + ((c.n || 0) * 100) + '%';
       case 'tools': return '买齐铁制工具（' + (c.ids || []).length + ' 件）';
       case 'gov': return '启用三槽政体';
-      case 'upgrade': {
-        var _upgrades = SB.UPGRADES || [], _up;
-        for (var _ui = 0; _ui < _upgrades.length; _ui++) {
-          if (_upgrades[_ui].id === c.id) { _up = _upgrades[_ui]; break; }
-        }
-        return '完成工坊升级「' + (_up ? _up.name : c.id) + '」';
-      }
+      case 'govWildSlots': return '启用 ' + (c.n || 7) + ' 槽政体';
+      case 'anyWonders': return '建成奇观之一（' + _wNames(c.ids || []) + '）';
+      case 'upgrade': return '完成工坊升级「' + upgradeName(c.id) + '」';
       case 'religion': return '建立宗教';
       case 'zoneLvl': {
-        var _zoneName = c.zone, _zones = SB.BUILD_ZONES || [];
+        var _zoneName = '未知区域', _zones = SB.BUILD_ZONES || [];
         for (var _zi = 0; _zi < _zones.length; _zi++) {
           if (_zones[_zi].id === c.zone) { _zoneName = _zones[_zi].name; break; }
         }
@@ -754,13 +821,13 @@
       case 'wonders': return '建成奇观（' + _wNames(c.ids || []) + '）';
       case 'lifetimeCulture': return '累计市政产出 ' + c.n;
       case 'cycle': return '轮回数 ' + c.n + ' 周目';
-      case 'civic': return '完成市政「' + c.id + '」';
+      case 'civic': return '完成市政「' + civicName(c.id) + '」';
     }
     return '';
   }
   function jobName(id) {
     for (var i = 0; SB.JOBS && i < SB.JOBS.length; i++) if (SB.JOBS[i].id === id) return SB.JOBS[i].name;
-    return id;
+    return '未知职业';
   }
 
   // ── 闭合效果词表 ─────────────────────────────────────────────────
@@ -785,7 +852,7 @@
        * 与 food 的区别：food 是全局食物乘区（会连藻场一起放大），farm 只管采集者。 */
       farm: 1,
       coef: 0, house: 0, kelpCap: 0, season: 0, craftRatio: 0,
-      warmMul: 0, titaniumMul: 0
+      warmMul: 0, titaniumMul: 0, scaffoldCostSave: 0
     };
     for (var i = 0; i < T.length; i++) {
       var t = T[i], e = t.eff;
@@ -810,7 +877,9 @@
     metOf: metOf,
     panelOpen: panelOpen, popupSeen: popupSeen, markPopupSeen: markPopupSeen,
     reqsMet: reqsMet, known: known,
-    canStudy: canStudy, study: study, studyBlocked: studyBlocked, effectText: effectText,
+    canStudy: canStudy, study: study, studyBlocked: studyBlocked, hasResearchable: hasResearchable, effectText: effectText,
+    /* researchCost（2026-10-17）：科技消耗的唯一折扣口（科研所 researchLabSave），供 UI 显示与门禁共用。 */
+    researchCost: researchCost,
     keysOf: keysOf, eraProgress: eraProgress, advanceEra: advanceEra, pump: pump,
     eurekaLine: eurekaLine, flushEureka: flushEureka,
     mul: mul, techCount: techCount, eraTechCount: eraTechCount,

@@ -17,6 +17,48 @@ console.log('\n=== 市政 ===');
   check('重点市政效果文案不暴露内部代码、原始公式或英文纪元缩写', unclearDesc.length === 0,
     unclearDesc.join(','));
 
+  /* 新增市政《工坊学校》(2026-10-17)：在市政里补一条「加钢生产」通路 ——
+   * 完成即解锁工坊升级「精炼钢厂」(upg_steelforge, 钢产出 +25%)。基础钢产出翻倍
+   * 已在 config-content.js 的 UNIT.steelPerHydro 落实。这里只钉**数据契约**三条：
+   *   ① era4 第二列、挂《职业行会》之下（2026-10-17 用户拍板「放在职业行会后面一层」——
+   *      职业行会 era3/layer2 的下一层即纪元四，故 era4/layer2、reqs=['guild']，纪元四列数不变、
+   *      连线条数==reqs 总数仍成立）；
+   *   ② 鼓舞 = 建成 3 座热液工坊（built/hydroshop/3，与印刷术 techs.js:519 同口径；热液工坊由纪元三《金属精炼》解锁，纪元四可达）；
+   *   ③ 兑现物「精炼钢厂」的 needCivic 指回本市政、steelBonus=0.25（门的行为见 workshop-economy.mjs ⑤-b）。 */
+  {
+    const c = SB.civic.byId('civ_steelschool');
+    check('新市政《工坊学校》存在且为 era4 第二列、reqs=[guild]（挂在《职业行会》之后的纪元四）',
+      !!c && c.name === '工坊学校' && c.era === 4 && c.layer === 2 &&
+      (c.reqs || []).join() === 'guild',
+      c ? JSON.stringify({ n: c.name, era: c.era, layer: c.layer, reqs: c.reqs }) : 'missing civic');
+    check('《工坊学校》鼓舞 = 建成 3 座热液工坊（built/hydroshop/3）',
+      !!c && c.boost && c.boost.t === 'built' && c.boost.b === 'hydroshop' && c.boost.n === 3,
+      c ? JSON.stringify(c.boost) : 'missing civic');
+    const up = (SB.UPGRADES || []).filter(u => u.id === 'upg_steelforge')[0];
+    check('《工坊学校》兑现物「精炼钢厂」由它解锁（upgrade.needCivic 指回本市政、steelBonus=0.25）',
+      !!up && up.needCivic === 'civ_steelschool' && Math.abs(up.steelBonus - 0.25) < 1e-9,
+      up ? JSON.stringify({ needCivic: up.needCivic, steelBonus: up.steelBonus }) : 'missing upgrade');
+  }
+
+  // ①-甲 数值校准（2026-10-17）：王权神授 cost 倒挂修复 —— 原 8000 比同块 feudal/market/guild/department
+  //   (3000/4000/5000/6000) 都高、且背离 10-05 拍板的「降」意图；用户拍板定为 3500（介于封建主义 3000 与中世纪集市 4000 之间）。
+  check('王权神授 cost 校准为 3500（消除 era3 同块梯度倒挂，防回归）',
+    SB.civic.byId('sovereign').cost === 3500,
+    'sovereign.cost=' + SB.civic.byId('sovereign').cost);
+
+  // ①-乙 数值校准（2026-10-17）：渊潜鲛歌的鼓舞「市政区建筑合计等级」50 → 30。
+  //   用户实测进度条长期卡在 31/50（62%）推不动 ⇒ 拍板降到 30。锁死这个阈值防回归，
+  //   同时锁 note 文案与 boost.n 同源（文案写 30、门也按 30 判，不许各写一份）。
+  {
+    const sk = SB.civic.byId('sharksong');
+    check('渊潜鲛歌鼓舞 zoneLvl/civic 校准为 30（原 50 基本达不到，防回归）',
+      !!sk && sk.boost && sk.boost.t === 'zoneLvl' && sk.boost.zone === 'civic' && sk.boost.n === 30,
+      sk ? JSON.stringify(sk.boost) : 'missing civic');
+    check('渊潜鲛歌 note 文案与 boost.n 同源（都写 30）',
+      !!sk && /达 30/.test(String(sk.note)) && !/达 50/.test(String(sk.note)),
+      sk ? String(sk.note) : 'missing civic');
+  }
+
   // ① 面板开门就是议事厅：派生值，不存档
   const shut = SB.state.freshRun(false);
   check('未建议事厅 ⇒ 市政页不开', SB.civic.panelOpen(shut) === false);
@@ -24,6 +66,20 @@ console.log('\n=== 市政 ===');
     String(SB.civic.panelBlock(shut)));
   shut.lvl.hall = 1;
   check('建成议事厅 ⇒ 市政页开', SB.civic.panelOpen(shut) === true);
+
+  // ③ 页签红点谓词 hasResearchable：复用 blocked 同一门禁，与节点「可研究」状态同源
+  check('SB.civic.hasResearchable 是可调用函数', typeof SB.civic.hasResearchable === 'function');
+  check('面板关（未建议事厅）⇒ 无红点', SB.civic.hasResearchable(shut) === false);
+  const hr = SB.state.freshRun(false); hr.lvl.hall = 1;
+  check('初始（无鼓舞/无市政点）⇒ 无红点', SB.civic.hasResearchable(hr) === false);
+  const c0 = SB.CIVICS[0];
+  hr.civShown = hr.civShown || {}; hr.civShown[c0.id] = true;
+  (c0.reqs || []).forEach(r => { hr.civics[r] = 1; });
+  hr.res.culture = c0.cost;
+  check('揭示某市政 + 前置满足 + 市政点够 ⇒ 有红点', SB.civic.hasResearchable(hr) === true,
+    'c0=' + c0.id + ' blocked=' + (SB.civic.blocked(hr, c0) || 'null'));
+  hr.civics[c0.id] = 1;
+  check('该市政完成后 ⇒ 红点消（完成项不再计入）', SB.civic.hasResearchable(hr) === false);
 
   // ② 市政点产线：tick 与 rates 必须同式（面板/结算同源铁律）
   const cv = SB.state.freshRun(false);
@@ -427,6 +483,8 @@ console.log('\n=== 市政 ===');
   check('读档迁移：老档无 religionName ⇒ 补空字符串', rnOld.religionName === '');
   const rnNew = SB.state.migrateRun({ res: {}, techs: {}, lvl: {}, civics: {}, religionName: '深渊低语' });
   check('读档迁移：新档 religionName 原样保留', rnNew.religionName === '深渊低语');
+  const govOld = SB.state.migrateRun({ res: {}, techs: {}, lvl: {}, civics: { laws: true }, gov: 'tribe' });
+  check('读档迁移：旧档当前政体记为已采用', govOld.govAdopted.tribe === true);
   /* 标签逻辑（与 renderRes 同源）：信仰行 rowName = 有名字用名字、否则用「信仰」。 */
   function faithRowName(st) { var rn = (st.religionName || '').trim(); return rn ? rn : SB.RESS.faith.name; }
   check('信仰行标签：命名后用宗教名、未命名用「信仰」',
@@ -531,7 +589,8 @@ console.log('\n=== 市政 ===');
     'culture=' + cs.res.culture);
   check('政策卡装填后才生效（神秘主义 科技 +0.3/秒）',
     Math.abs(SB.civic.flow(cs).science - 0.3) < 1e-9, 'science=' + SB.civic.flow(cs).science);
-  check('卸下收费单价 = 1× 最高已完成市政 cost', SB.civic.cardCost(cs) === 100);
+  const _cardFee = SB.civic.topCost(cs) / 5;
+  check('卸下收费单价 = 最高已完成市政研究成本的 1/5', SB.civic.cardCost(cs) === _cardFee);
   /* ⚠️ 2026-10-14 新增「免费卸下机会」后，本节的「卸下扣市政点」断言必须先清零令牌：
    *    第 ④ 节 `research(cs,'laws')` 真的完成了法典 ⇒ 给 cs 送了 1 次免费卸下机会，
    *    不清零则本节卸下会走令牌路径（免费）、culture 不降 ⇒ 断言误红。
@@ -539,7 +598,7 @@ console.log('\n=== 市政 ===');
   cs.cardFreeRemoves = 0;
   /* 卸下才扣点：装填免费、卸下收费，换卡 = 卸旧(付费) + 装新(免费) 总付费一次，无法绕过。 */
   check('卸下收费（唯一扣点动作）',
-    SB.civic.setCard(cs, null, noop) === true && cs.res.culture === 400, 'culture=' + cs.res.culture);
+    SB.civic.setCard(cs, null, noop) === true && cs.res.culture === 500 - _cardFee, 'culture=' + cs.res.culture);
   /* 槽空 ⇒ 加成整体消失（flow 里 policyById(null) 返回 null，不是「给了 0」）。
    * ⚠️ 断言要写在卸下之后：写在前面读到的是**装填中**的 0.3，会误判成没生效。 */
   check('卸下即失效（研究出市政 ≠ 白拿效果）',
@@ -547,26 +606,26 @@ console.log('\n=== 市政 ===');
     'science=' + SB.civic.flow(cs).science + ' card=' + cs.card);
   /* 重新装填 = 免费（安装不再扣点，仅之前那次卸下已收费） */
   check('重新装填 = 免费（安装不扣点）',
-    SB.civic.setCard(cs, 'card_mystic', noop) === true && cs.res.culture === 400,
+    SB.civic.setCard(cs, 'card_mystic', noop) === true && cs.res.culture === 500 - _cardFee,
     'culture=' + cs.res.culture);
   /* 「拔下 → 再装填」一个来回：卸下扣 1×、装填免费 ⇒ 总共只扣 1 次（不是两次）。 */
   check('「拔下 → 再装填」一个来回只扣 1×',
     SB.civic.setCard(cs, null, noop) === true &&
     SB.civic.setCard(cs, 'card_mystic', noop) === true &&
-    Math.abs(cs.res.culture - 300) < 1e-9, 'culture=' + cs.res.culture);
-  /* 余额为 300 ⇒ 换卡前先卸下扣 100 ⇒ 装填免费 ⇒ 余额 200，不是 0。
+    Math.abs(cs.res.culture - (500 - 2 * _cardFee)) < 1e-9, 'culture=' + cs.res.culture);
+  /* 再换卡仍只扣一次卸下费用，装填免费。
    * 这条证明「装填免费」：若安装也扣点，这里会被再扣一次变 100。 */
   check('两张卡之间互换：卸旧(扣) + 装新(免费) 只扣 1×',
     SB.civic.cardOwned(cs, 'card_craft') === true &&
-    SB.civic.setCard(cs, null, noop) === true &&           // 先卸下 mystic（扣 100 → 200）
+    SB.civic.setCard(cs, null, noop) === true &&           // 先卸下 mystic
     SB.civic.setCard(cs, 'card_craft', noop) === true &&    // 再装填 craft（免费）
-    Math.abs(cs.res.culture - 200) < 1e-9, 'culture=' + cs.res.culture);
+    Math.abs(cs.res.culture - (500 - 3 * _cardFee)) < 1e-9, 'culture=' + cs.res.culture);
   /* 余额归零后卸下应被拦——卸下收费的**拦逆**一侧，别只测扣钱那一侧。 */
   cs.res.culture = 0;
   check('余额为 0 时卸下被拦（卸下收费受付不起约束）',
     SB.civic.setCard(cs, null, noop) === false && cs.card === 'card_craft',
     'card=' + cs.card + ' culture=' + cs.res.culture);
-  check('换政体 = 2×', SB.civic.govCost(cs) === 200);
+  check('重复采用政体费用 = 最高已完成市政研究成本的 1/5', SB.civic.govCost(cs) === _cardFee);
 
   // ⑤b 卸下按钮真的上了屏：已装槽渲染出 data-remove，空槽不渲染（否则没法卸下、也没有卸下入口）
   /* ⚠️ 这条钉死本次修复的 UI 缺口：之前「不给拔下按钮」拍板后，说明文案却写「卸下收费」，
@@ -582,6 +641,28 @@ console.log('\n=== 市政 ===');
   check('空槽不渲染卸下按钮（只对已装槽显示）',
     /data-remove="0"/.test(emptyHtml) === false,
     'emptyHtml 是否误含 data-remove="0"=' + /data-remove="0"/.test(emptyHtml));
+  check('政策卡槽使用统一网格容器，卡库保留卡牌与分类结构',
+    /class="policy-slot-grid"/.test(slotHtml) && /class="policy-card-grid"/.test(slotHtml) &&
+    /class="policy-card /.test(slotHtml), '槽位/卡牌网格标记');
+  const policyUi = SB.state.freshRun(false);
+  policyUi.gov = 'tribe';
+  policyUi.civics.feudalism = 1; policyUi.civics.mystic = 1; policyUi.civics.craft = 1;
+  const policyPoolHtml = SB.ui.render.paneCivicSlot(policyUi);
+  check('未标类型的政策卡按万能类归组，不再显示 undefined',
+    /data-policy-category="wild"/.test(policyPoolHtml) && /data-card="card_serfdom"/.test(policyPoolHtml) &&
+    !/undefined/.test(policyPoolHtml), '农奴制万能类归组=' + /data-card="card_serfdom"/.test(policyPoolHtml));
+  const happyCardUi = SB.state.freshRun(false);
+  happyCardUi.gov = 'autocracy';
+  happyCardUi.civics.craft = 1; happyCardUi.civics.rationing = 1;
+  happyCardUi.cards = ['card_craft', 'card_rationing', null];
+  const happyCardsHtml = SB.ui.render.paneCivicSlot(happyCardUi);
+  const happyCardBlocks = happyCardsHtml.match(/<article class="policy-card[\s\S]*?<\/article>/g) || [];
+  const cardBlock = id => happyCardBlocks.find(block => block.indexOf('data-card="' + id + '"') >= 0) || '';
+  const rationingBlock = cardBlock('card_rationing'), craftBlock = cardBlock('card_craft');
+  check('政策卡幸福度惩罚只显示在产生该效果的《工业化配给》上',
+    /幸福度 -1（常驻/.test(rationingBlock) && craftBlock && !/幸福度/.test(craftBlock),
+    '工业化配给有 -1=' + /幸福度 -1（常驻/.test(rationingBlock) +
+      '；技艺卡误带提示=' + /幸福度/.test(craftBlock));
 
   // ⑤c 免费卸下机会（2026-10-14 新功能）：每完成一个市政 +1、可累积；卸下优先消耗，令牌用尽再走市政点收费
   /* 授予点 = research；消耗点 = setCardAt（卸下优先扣令牌）；拦截点 = cardBlocked（有令牌即便市政点 0 也放行）。
@@ -730,6 +811,14 @@ console.log('\n=== 市政 ===');
     'IDS=' + SB.folk.IDS.join(',') + ' / JOBS=' + SB.JOBS.map(j => j.id).join(','));
   check('书手由「石工」解锁（与议事厅同一个科技）',
     SB.folk.jobTechOf('scribe') === 'masonry', '→ ' + SB.folk.jobTechOf('scribe'));
+  const scribeRenameRun = SB.state.freshRun(false);
+  check('行政部门完成前，scribe 职业显示为书手',
+    SB.folk.jobName(scribeRenameRun, 'scribe') === '书手');
+  scribeRenameRun.civics.department = 1;
+  check('完成声明 scribeRename 的行政部门后，职业显示名变为官员',
+    SB.civic.byId('department').scribeRename === true &&
+    SB.folk.jobName(scribeRenameRun, 'scribe') === '官员',
+    SB.folk.jobName(scribeRenameRun, 'scribe'));
 
   /* ⑨ bot 是否真的跑过这条线。断言放在最后是因为它读的是**整局结束后的真实存档**——
    *    ⚠️ 「回归全绿」证明不了新东西在跑。书手若不在 bot 的配工权重表里（上面 ② 那处），
@@ -891,7 +980,7 @@ console.log('\n=== 市政 ===');
    * ⚠️ 与政体外壳同批：核三件事真存在：
    *      ① 政治哲学解锁三条政体（govs 数组被 govOwned 认）；
    *      ② 三选一采用后各自效果真进结算（工坊效率/奢侈品/幸福度）；
-   *      ③ 采用走 setGov（2× 收费），不自动锁死。 */
+   *      ③ 采用走 setGov（重复采用时按最高已完成市政成本的 1/5 收费），不自动锁死。 */
   const pol = SB.state.freshRun(false);
   pol.lvl.hall = 1; pol.civics.laws = 1; pol.gov = 'tribe';
   check('政治哲学未完成 ⇒ 三种政体都锁（govOwned=false）',
@@ -937,6 +1026,7 @@ console.log('\n=== 市政 ===');
       /data-gov-detail="autocracy" aria-expanded="true"/.test(expandedChoice) &&
       /id="govdetail-autocracy"/.test(expandedChoice) &&
       /data-gov="autocracy"/.test(expandedChoice) &&
+      /首次免费/.test(expandedChoice) &&
       /gov-choice-grid/.test(withChoices),
       '展开=' + /id="govdetail-autocracy"/.test(expandedChoice) +
       ' 采用按钮=' + /data-gov="autocracy"/.test(expandedChoice));
@@ -1048,7 +1138,7 @@ console.log('\n=== 市政 ===');
 
   /* 技艺 +20% 工坊效率（政策卡，2026-09-30 用户拍）：走与政体同一条加法乘区，
    * 装在卡槽里才生效（cardCraftRatio 读 s.cards，与 mulOfField 同口径）。 */
-  const cc = SB.state.freshRun(false); cc.cards = ['card_craft']; cc.card = 'card_craft';
+  const cc = SB.state.freshRun(false); cc.civics.craft = 1; cc.cards = ['card_craft']; cc.card = 'card_craft';
   check('技艺卡：工坊效率 +20%（craftRatio 含卡片项，装槽才生效）',
     SB.civic.policyById('card_craft').craftRatio === 0.20 &&
     Math.abs(SB.workshop.craftRatio(cc) - 0.20) < 1e-9 &&
@@ -1152,11 +1242,11 @@ console.log('\n=== 市政 ===');
 
   /* ══ 星空槽（2026-10-13 镜像破壳：破壳后终局资源，被动累积到 STAR_CAP）═══════════
    * 设计：破壳前星空探索恒 0；破壳后由文明推力被动累积（速率 = STAR_BASE × breakCoef + 升级加成），
-   *   满槽 STAR_CAP(1e7) 即太空时代达成，弹占位结算面板。旧「吃热液能产出」路线已废弃。 */
+   *   满槽 STAR_CAP（现 1e9 占位）即太空时代达成，弹占位结算面板。旧「吃热液能产出」路线已废弃。 */
   {
-    /* 资源 cap 已从 10000 抬到 1e7（满槽目标 10m）。 */
-    check('星空槽：资源 cap = STAR_CAP（1e7，破壳后终局累积目标）',
-      SB.CFG.CAP_BASE.starExplore === SB.CFG.STAR_CAP && SB.CFG.STAR_CAP === 10000000,
+    /* 资源 cap：10000 → 1e7 → 2026-10-17 用户拍板抬到 1e9 占位（ERA7 完工后标定结局阈值）。 */
+    check('星空槽：资源 cap = STAR_CAP（1e9 占位，破壳后终局累积目标）',
+      SB.CFG.CAP_BASE.starExplore === SB.CFG.STAR_CAP && SB.CFG.STAR_CAP === 1000000000,
       'cap=' + SB.CFG.CAP_BASE.starExplore);
 
     /* 破壳前：tickStar 不累积（starExplore 恒 0）。 */
@@ -1168,7 +1258,7 @@ console.log('\n=== 市政 ===');
 
     /* 破壳后、无升级：freshRun 上 breakCoef=0 ⇒ starRate = STAR_BASE×0 + 0 = 0 ⇒ 不累积。 */
     const brk = SB.state.freshRun(false);
-    brk.broken = true; brk.shell = 0; brk.starScopeOn = true;
+    brk.broken = true; brk.shell = 0;
     const r0 = SB.economy.starRate(brk);
     check('星空槽：破壳后无升级 ⇒ starRate≥0（freshRun 下 coef=0 ⇒ 0/s）', r0 >= 0, 'r0=' + r0);
 
@@ -1184,18 +1274,29 @@ console.log('\n=== 市政 ===');
     const gained = (brk.res.starExplore || 0) - before;
     check('星空槽：破壳后 tickStar 按 rate×dt 累积', Math.abs(gained - r1 * 10) < 1e-6, 'gained=' + gained + ' expect=' + (r1 * 10));
 
-    /* 暂停（starScopeOn=false）⇒ tickStar 不累积。 */
-    brk.starScopeOn = false;
-    const before2 = brk.res.starExplore || 0;
+    /* 2026-10-17 重构：顶栏已无全局暂停开关，星空产出只受太空建筑「开几座」控制。 */
+    brk.lvl.spacestation = 1; brk.spacestationStop = 0;
+    const rSsOn = SB.economy.starRate(brk);
+    brk.spacestationStop = 1;   // 全停空间站
+    const rSsOff = SB.economy.starRate(brk);
+    check('星空槽：停掉空间站 ⇒ 该建筑星空贡献归零（starRate 下降 stationStar×等级）',
+      Math.abs((rSsOn - rSsOff) - (SB.BLD.stationStar || 0)) < 1e-9, 'Δ=' + (rSsOn - rSsOff) + ' expect=' + (SB.BLD.stationStar || 0));
+    brk.spacestationStop = 0;   // 恢复运行
+    /* got 台账修复（2026-10-17）：tickStar 直写 res 不经过 addRes，须手动同步 got.starExplore，否则 crewed 尤里卡卡死。 */
+    const gotBefore = brk.got.starExplore || 0;
+    const resBefore = brk.res.starExplore || 0;
     SB.shell.tickStar(brk, 10, null);
-    check('星空槽：暂停（starScopeOn=false）⇒ tickStar 不累积', (brk.res.starExplore || 0) === before2);
-    brk.broken = false; brk.breakSettled = true; brk.starScopeOn = true;
+    const dRes = (brk.res.starExplore || 0) - resBefore;
+    const dGot = (brk.got.starExplore || 0) - gotBefore;
+    check('星空槽：tickStar 同步累计台账 got.starExplore（修复 crewed 尤里卡卡死）',
+      Math.abs(dGot - dRes) < 1e-6 && dRes > 0, 'dRes=' + dRes + ' dGot=' + dGot);
+    brk.broken = false; brk.breakSettled = true;
     SB.shell.tickStar(brk, 10, null);
-    check('星空槽：破壳后留在本局仍继续累积', brk.res.starExplore > before2);
+    check('星空槽：破壳后留在本局（breakSettled）仍继续累积', brk.res.starExplore > resBefore);
 
     /* 满槽 ⇒ 置 starComplete + 触发结算回调（与 showStarComplete 挂钩），且 cap 不溢出。 */
     const full = SB.state.freshRun(false);
-    full.broken = true; full.shell = 0; full.starScopeOn = true; full.upgrades.upg_starscope = true;
+    full.broken = true; full.shell = 0; full.upgrades.upg_starscope = true;
     full.res.starExplore = SB.CFG.STAR_CAP - 0.5;   // 差一点满
     let shown = false;
     SB.shell.tickStar(full, 10, function () { shown = true; });
@@ -1214,7 +1315,7 @@ console.log('\n=== 市政 ===');
      * 钉死「破壳后调 economy.tick 不动星空」这一事实，防止有人把 tickStar 误放回 tick（变死代码）。
      * 真实累积由 game.loop()（在线）/ drainCatchUp()（离线）直接调 SB.shell.tickStar 推进（上文已逐测）。 */
     const tInv = SB.state.freshRun(false);
-    tInv.broken = true; tInv.starScopeOn = true; tInv.upgrades.upg_starscope = true;
+    tInv.broken = true; tInv.upgrades.upg_starscope = true;
     const invBefore = tInv.res.starExplore || 0;
     SB.economy.tick(tInv, 100, null);
     check('星空槽：economy.tick 在破壳后早退（不负责星空累积，由 game.loop 负责）',
@@ -1223,14 +1324,14 @@ console.log('\n=== 市政 ===');
     /* 渲染层：破壳后 renderShell 把 shellbar 翻转为星空槽文案（含 STAR_CAP 目标）。 */
     const loop = SB.game.run();            // 直接 mutate 当前 live run（与 cpRun 同手法）
     const oldShell = loop.shell;
-    loop.broken = true; loop.shell = 0; loop.starScopeOn = true; loop.upgrades.upg_starscope = true;
+    loop.broken = true; loop.shell = 0; loop.upgrades.upg_starscope = true;
     SB.ui.render.renderShell();
     var shellTxt = (doc.getElementById('shellTxt') || {})._html || '';
     check('星空槽：破壳后 renderShell 显示星空槽进度（含 STAR_CAP 目标数值）',
-      shellTxt.indexOf('星空槽') >= 0 && shellTxt.indexOf('10,000,000') >= 0, 'snip=' + shellTxt.slice(0, 80));
+      shellTxt.indexOf('星空槽') >= 0 && shellTxt.indexOf(SB.CFG.STAR_CAP.toLocaleString()) >= 0, 'snip=' + shellTxt.slice(0, 80));
 
     /* 还原 live run，避免污染后续测试。 */
-    loop.broken = false; loop.shell = oldShell; loop.starScopeOn = true; loop.upgrades.upg_starscope = false;
+    loop.broken = false; loop.shell = oldShell; loop.upgrades.upg_starscope = false;
     loop.res.starExplore = 0; loop.starComplete = false;
 
     const emptyRun = SB.state.freshRun(false);
@@ -1241,8 +1342,14 @@ console.log('\n=== 市政 ===');
     loop.spacecraft = [{ id: 'europa-1', type: 'satellite', body: 'europa', name: '欧罗巴一号', launchedAt: 42 },
       { id: 'saturn-1', type: 'station', body: 'saturn', name: '土星站', launchedAt: 84 }];
     const mapHTML = SB.ui.renderParts.paneStarMap();
-    check('星图：破壳后显示欧罗巴、土星及已发射卫星/空间站',
-      mapHTML.includes('欧罗巴一号') && mapHTML.includes('土星站') && mapHTML.includes('已发射航天器 2'));
+    /* 2026-10-17 星图改版：视觉换成 GPT 制作的 iframe 动画星图（star-map-frame.html），
+     * 发射记录尚未接入 frame（占位期）⇒ 断言改为「iframe 挂载 + 记录不被清空」；
+     * 待 frame 接入游戏状态后，把「发射记录上屏」的展示断言加回来。 */
+    check('星图：破壳后挂载 iframe 动画星图（star-map-frame.html?v=1）',
+      mapHTML.indexOf('<iframe') >= 0 && mapHTML.indexOf('star-map-frame.html?v=1') >= 0,
+      'snip=' + mapHTML.slice(0, 120));
+    check('星图：本周目发射记录仍在（frame 接入后上屏）',
+      loop.spacecraft.length === 2 && loop.spacecraft[0].name === '欧罗巴一号' && loop.spacecraft[1].name === '土星站');
     const restored = SB.state.migrateRun(JSON.parse(JSON.stringify(loop)));
     check('星图：刷新后保留解锁与本周目发射记录',
       restored.breakSettled && restored.spacecraft.length === 2);
@@ -1319,8 +1426,8 @@ console.log('\n=== 市政 ===');
    *    **零读端死字段** —— 买了扣轮回点、等级真涨、UI 显示已购，而全项目没有任何一行
    *    读它 ⇒ 不报错、也不生效（与 BLD.workshopCraft / T.craftRatio 同一类静默断链）。
    *    与它配套的还有「自动工坊」这个升级项：名字叫自动，却只给 +10% 效率、不自动制造。
-   * ⇒ 现在两者合一：**自动工坊升级自带 1 槽 + perk 每级 1 槽**，
-   *    语义是「原料攒满仓储上限才动手，按玩家选的档位转制当时可造量的那一比例」。
+   * ⇒ 现在两者合一：**自动工坊升级自带 1 槽 + perk 每级 1 槽**；
+   *    有限原料配方满仓后按比例转制，无上限原料配方按玩家填写的批次数触发。
    *    判据：**谁读它**必须有断言钉住，否则下次改表又会退化成死键。 */
   {
     const W = SB.workshop;
@@ -1336,7 +1443,7 @@ console.log('\n=== 市政 ===');
     check('自动槽：封顶 CFG.AUTO.SLOT_MAX',
       W.slotCap(s0) === SB.CFG.AUTO.SLOT_MAX, 'slotCap=' + W.slotCap(s0));
 
-    /* 占槽 / 改档 / 释放。档位只认 CFG.AUTO.PCTS（25/50/75/100%）。 */
+    /* 占槽 / 改档 / 释放。比例档位只认 CFG.AUTO.PCTS。 */
     const sa = SB.state.freshRun(false);
     sa.lvl.workshop = 1; sa.upgrades = { upg_autoshop: true };   // 只有自带那 1 槽 ⇒ 好验「槽位用完」
     check('自动槽：非法档位（0.9）被拒 —— 手改存档也造不出怪东西',
@@ -1393,20 +1500,47 @@ console.log('\n=== 市政 ===');
       Math.abs(sc.res.stoneBeam - allC * SB.workshop.craftMul(sc)) < 1e-9 && sc.res.stone < 100,
       '可造=' + allC + ' 石梁=' + sc.res.stoneBeam + ' 余石头=' + sc.res.stone);
 
-    /* 无上限原料（钢 → 钢制零件）：没有「溢出」这回事 ⇒ 退化成「够一份就造」，
-     * 否则这种配方的槽会永远不动（capOf = Infinity 永远不满）。 */
+    /* 无上限原料（硬化珊瑚 + 绳 → 脚手架）：按批次数触发，不因「够一份」就抢着吃掉库存。 */
     const sd = SB.state.freshRun(false);
     sd.lvl.workshop = 1; sd.upgrades = { upg_autoshop: true };
-    sd.techs.metalrefine = true;      // 钢制零件的 need 门
-    W.setSlot(sd, 'craft_steelpart', 0.5);
-    sd.res.steel = 25;
-    check('自动槽：原料无仓储上限（钢）⇒ 退化成「够一份就造」',
-      W.autoReady(sd, W.craftById('craft_steelpart')) === true && sd.res.steelPart === 0,
-      'ready=' + W.autoReady(sd, W.craftById('craft_steelpart')));
+    sd.techs.physics = true;          // 脚手架配方的 need 门
+    check('自动槽：无上限原料配方允许填写任意正整数、拒绝零和小数',
+      W.setSlotBatch(sd, 'craft_scaffold', 137) === true &&
+      W.slotBatch(sd, 'craft_scaffold') === 137 &&
+      W.setSlotBatch(sd, 'craft_scaffold', 0) === false &&
+      W.setSlotBatch(sd, 'craft_scaffold', 1.5) === false &&
+      W.setSlot(sd, 'craft_scaffold', 0.5) === false &&
+      W.setSlotBatch(sd, 'craft_scaffold', 80) === true &&
+      W.slotBatch(sd, 'craft_scaffold') === 80,
+      'batch=' + W.slotBatch(sd, 'craft_scaffold'));
+    sd.res.hardCoral = 7999; sd.res.rope = 8000;
+    check('自动槽：脚手架库存不到 80 份原料时不触发',
+      W.autoReady(sd, W.craftById('craft_scaffold')) === false,
+      '可造=' + W.maxCraftable(sd, W.craftById('craft_scaffold')));
     W.autoTick(sd, null);
-    check('自动槽：无上限配方真的造得出来（不是挂在面板上的摆设）',
-      sd.res.steelPart > 0 && sd.res.steel === 0,
-      '钢制零件=' + sd.res.steelPart + ' 余钢=' + sd.res.steel);
+    check('自动槽：脚手架阈值未到时不消耗材料',
+      sd.res.hardCoral === 7999 && sd.res.rope === 8000 && sd.res.scaffold === 0);
+    sd.res.hardCoral = 9000; sd.res.rope = 9000;
+    check('自动槽：达到 80 份材料阈值后触发',
+      W.autoReady(sd, W.craftById('craft_scaffold')) === true,
+      '可造=' + W.maxCraftable(sd, W.craftById('craft_scaffold')));
+    W.autoTick(sd, null);
+    check('自动槽：达到 80 次后只造 80 次，并保留多出的材料',
+      Math.abs(sd.res.scaffold - 80 * W.craftMul(sd)) < 1e-9 &&
+      sd.res.hardCoral === 1000 && sd.res.rope === 1000,
+      '脚手架=' + sd.res.scaffold + ' 硬化珊瑚余=' + sd.res.hardCoral + ' 绳余=' + sd.res.rope);
+
+    const migratedAuto = SB.state.migrateRun({ autoSlots: [
+      { id: 'craft_scaffold', batch: 137 },
+      { id: 'craft_stonebeam', pct: 0.75 },
+      { id: 'craft_steelpart', pct: 0.5 }
+    ] });
+    check('自动槽存档：新批次档与旧百分比档都能保留',
+      migratedAuto.autoSlots.length === 3 &&
+      W.slotBatch(migratedAuto, 'craft_scaffold') === 137 &&
+      W.slotPct(migratedAuto, 'craft_stonebeam') === 0.75 &&
+      W.slotBatch(migratedAuto, 'craft_steelpart') === 80,
+      JSON.stringify(migratedAuto.autoSlots));
 
     /* ── UI：功能点得到才算存在（本轮死字段的根因就是**只有数据、没有入口**）── */
     const su = SB.state.freshRun(false); su.lvl.workshop = 1;
@@ -1416,6 +1550,32 @@ console.log('\n=== 市政 ===');
     su.upgrades = { upg_autoshop: true };
     const withSlot = SB.ui.render.paneCraftRows(su);
     check('自动槽 UI：装上之后出现「＋自动」按钮', withSlot.indexOf('＋自动') >= 0);
+    su.techs.physics = true;
+    check('自动槽 UI：脚手架默认提供 80 次批次入口',
+      SB.ui.render.paneCraftRows(su).indexOf('data-aslot="craft_scaffold" data-abatch="80"') >= 0);
+    W.setSlotBatch(su, 'craft_scaffold', 137);
+    const scaffoldAutoRow = SB.ui.render.paneCraftRows(su);
+    check('自动槽 UI：脚手架显示玩家填写的批次数并提供编辑入口',
+      scaffoldAutoRow.indexOf('data-abatch-edit="craft_scaffold"') >= 0 &&
+      scaffoldAutoRow.indexOf('批次 137 次') >= 0 &&
+      scaffoldAutoRow.indexOf('点击填写次数') >= 0 &&
+      scaffoldAutoRow.indexOf('data-aoff="craft_scaffold"') >= 0);
+    check('自动槽 UI：编辑入口打开数字输入弹窗（不是预设档位）',
+      SB.ui.render.openAutoBatchDialog('craft_scaffold') === true &&
+      g('modalBox').indexOf('type="number"') >= 0 &&
+      g('modalBox').indexOf('step="1"') >= 0 &&
+      g('modalBox').indexOf('保存') >= 0);
+    SB.ui.render.hideModal();
+    W.clearSlot(su, 'craft_scaffold');
+    const drillAuto = SB.state.freshRun(false);
+    drillAuto.lvl.workshop = 1; drillAuto.upgrades = { upg_autoshop: true };
+    drillAuto.techs.shellgeo = true;
+    W.setSlot(drillAuto, 'craft_drill', 0.5);
+    const drillAutoRow = SB.ui.render.paneCraftRows(drillAuto);
+    check('共振钻头含有仓储上限钛，沿用满仓百分比自动档而非批次输入',
+      W.hasFiniteInput(drillAuto, W.craftById('craft_drill')) &&
+      drillAutoRow.indexOf('data-aslot="craft_drill" data-apct="0.5"') >= 0 &&
+      drillAutoRow.indexOf('data-abatch-edit="craft_drill"') < 0);
     W.setSlot(su, 'craft_stonebeam', 0.25);
     const onRow = SB.ui.render.paneCraftRows(su);
     check('自动槽 UI：占槽后四档都在、当前档 25% 高亮',
@@ -1560,6 +1720,41 @@ console.log('\n=== 市政 ===');
       'before=' + before + ' after=' + SB.civic.cardOwned(gd, 'card_craft'));
   }
 
+  /* 国家凝聚力明确取代职业行会卡：完成意识形态时清槽，旧档迁移也不能保留双卡叠加。 */
+  {
+    const oldGuildCard = SB.state.freshRun(false);
+    oldGuildCard.era = 6;
+    oldGuildCard.civics.guild = 1;
+    oldGuildCard.civics.massmedia = 1;
+    oldGuildCard.civics.naturalhistory = 1;
+    oldGuildCard.civShown.ideology = 1;
+    oldGuildCard.gov = 'tribe';
+    oldGuildCard.res.culture = SB.civic.byId('ideology').cost;
+    oldGuildCard.cards = ['card_guild', null]; oldGuildCard.card = 'card_guild';
+    const researchIdeology = SB.civic.research(oldGuildCard, 'ideology');
+    check('意识形态完成后自动退役并卸下职业行会卡',
+      researchIdeology && oldGuildCard.cards[0] === null && oldGuildCard.card === null &&
+      !SB.civic.cardOwned(oldGuildCard, 'card_guild'),
+      'research=' + researchIdeology + ' cards=' + JSON.stringify(oldGuildCard.cards));
+
+    const legacyDouble = SB.state.freshRun(false);
+    legacyDouble.civics.guild = 1; legacyDouble.civics.ideology = 1;
+    legacyDouble.cards = ['card_guild', 'card_national_solidarity'];
+    check('双卡旧状态的效果按退役规则过滤，只保留国家凝聚力 +80%',
+      Math.abs(SB.civic.cardCraftRatio(legacyDouble) - 0.80) < 1e-9,
+      'craftRatio=' + SB.civic.cardCraftRatio(legacyDouble));
+
+    const migratedDouble = SB.state.migrateRun({
+      era: 6,
+      civics: { guild: true, ideology: true },
+      cards: ['card_guild', 'card_national_solidarity']
+    });
+    check('读档会清除已退役的职业行会卡并保留槽位中的国家凝聚力',
+      migratedDouble.cards[0] === null && migratedDouble.cards[1] === 'card_national_solidarity' &&
+      migratedDouble.card === null && Math.abs(SB.civic.cardCraftRatio(migratedDouble) - 0.80) < 1e-9,
+      'cards=' + JSON.stringify(migratedDouble.cards));
+  }
+
   /* ⑧b 两条鼓舞门槛下调（2026-10-06 用户拍板，与同批科技三条一起降）。
    *   ⚠️ 重点是**口径也换了**：职业行会从「工坊区合计等级 100」改成「**建筑总等级 55**」
    *   （`zoneLvl` → `total`）。所以必须证明 `total` 真的按**全区**算 ——
@@ -1606,7 +1801,7 @@ console.log('\n=== 市政 ===');
       !!d.civShown.department, 'shown=' + d.civShown.department);
   }
 
-  /* ⑨ 生息区自动升级：封建主义 + 开关 → 买得起就自动建一级；没开关/没市政不动作。 */
+  /* ⑨ 区域建筑自动建造/升级：对应市政 + 逐建筑开关 → 买得起就自动建一级。 */
   {
     const aU = SB.state.freshRun(false);
     aU.res.kelp = 1e6;
@@ -1622,9 +1817,49 @@ console.log('\n=== 市政 ===');
       'before=' + before + ' mid=' + mid + ' after=' + aU.lvl.kelp);
   }
 
+  {
+    const trade = SB.state.freshRun(false);
+    trade.res.stone = 1e6; trade.res.silt = 1e6;
+    trade.techs.navigation = true;
+    const tradeBuilding = SB.habitat.buildingById('lighthouse');
+    check('重商主义声明开放贸易区域自动建造/升级',
+      SB.civic.byId('mercantilism').autoBuildZones.indexOf('trade') >= 0 &&
+      SB.habitat.autoZoneUnlocked(trade, 'trade') === false);
+    SB.habitat.autoTick(trade, null);
+    const noCivic = trade.lvl.lighthouse || 0;
+    trade.civics.mercantilism = 1;
+    SB.habitat.autoTick(trade, null);
+    const noToggle = trade.lvl.lighthouse || 0;
+    trade.autoUpg = { lighthouse: true };
+    SB.habitat.autoTick(trade, null);
+    check('贸易区域自动建造：重商主义 + 对应建筑开关才动作（灯塔 0→1）',
+      !!tradeBuilding && noCivic === 0 && noToggle === 0 && trade.lvl.lighthouse === 1 &&
+      SB.habitat.autoZoneUnlocked(trade, 'trade') === true,
+      '无市政=' + noCivic + ' 无开关=' + noToggle + ' 开启后=' + trade.lvl.lighthouse);
+
+    const live = SB.game.run();
+    const liveSnapshot = { civics: live.civics, techs: live.techs, seen: live.seen };
+    live.civics = Object.assign({}, live.civics, { mercantilism: 0 });
+    live.techs = Object.assign({}, live.techs, { navigation: true });
+    live.seen = Object.assign({}, live.seen);
+    const noAutoControl = SB.ui.renderParts.paneVillage();
+    live.civics.mercantilism = 1;
+    const withAutoControl = SB.ui.renderParts.paneVillage();
+    check('贸易区建筑行复用逐建筑自动开关，且仅重商主义完成后出现',
+      noAutoControl.indexOf('data-auto="lighthouse"') < 0 &&
+      withAutoControl.indexOf('data-auto="lighthouse"') >= 0 &&
+      withAutoControl.indexOf('自动建造 / 升级') >= 0,
+      '未完成重商主义=' + (noAutoControl.indexOf('data-auto="lighthouse"') >= 0) +
+        ' 完成后=' + (withAutoControl.indexOf('data-auto="lighthouse"') >= 0));
+    live.civics = liveSnapshot.civics;
+    live.techs = liveSnapshot.techs;
+    live.seen = liveSnapshot.seen;
+  }
+
   /* ⑩ 职业行会卡：工坊效率 +40%（取代技艺的 +20% 通道，同一加法聚合）。 */
   {
     const gl = SB.state.freshRun(false);
+    gl.civics.guild = 1;
     gl.cards = ['card_guild']; gl.card = 'card_guild';
     check('职业行会卡：工坊效率 +40%（craftMul=1.40）',
       Math.abs(SB.workshop.craftRatio(gl) - 0.40) < 1e-9,
@@ -1655,15 +1890,28 @@ console.log('\n=== 市政 ===');
     Math.abs(cr2.happy - (noGov.happy + 1)) < 0.1 && cr2.happy > noGov.happy && cr2.happy < 50,
     '共和 H=' + cr2.happy.toFixed(3) + ' 无政体 H=' + noGov.happy.toFixed(3));
 
-  /* 采用政体走 setGov（2× 收费），不自动锁死 */
+  /* 每个政体首次采用免费一次；之后重采用按最高已完成市政研究成本的 1/5 收费。 */
+  const firstGov = SB.state.freshRun(false);
+  firstGov.lvl.hall = 1; firstGov.civics.laws = 1; firstGov.civics.political = 1;
+  firstGov.gov = 'tribe'; firstGov.govAdopted = { tribe: true }; firstGov.res.culture = 0;
+  check('新解锁政体首次采用：即使市政点为 0 也可免费采用',
+    SB.civic.govFirstAdoptionFree(firstGov, 'autocracy') &&
+    SB.civic.govBlocked(firstGov, 'autocracy') === null &&
+    SB.civic.setGov(firstGov, 'autocracy', noop) === true &&
+    firstGov.gov === 'autocracy' && firstGov.res.culture === 0 && firstGov.govAdopted.autocracy === true);
+  firstGov.gov = 'tribe'; firstGov.res.culture = 0;
+  check('不同政体分别享有首次免费；已采用过的政体不能重复免费',
+    SB.civic.govFirstAdoptionFree(firstGov, 'oligarchy') &&
+    SB.civic.govBlocked(firstGov, 'oligarchy') === null &&
+    SB.civic.govBlocked(firstGov, 'autocracy') !== null);
   const adopt = SB.state.freshRun(false);
   adopt.lvl.hall = 1; adopt.civics.laws = 1; adopt.civics.political = 1;
-  adopt.gov = 'tribe'; adopt.res.culture = 5000;
+  adopt.gov = 'tribe'; adopt.govAdopted = { tribe: true, autocracy: true }; adopt.res.culture = 5000;
   const _topC = SB.civic.topCost(adopt);
-  check('采用独裁统治（换政体）= 2× 最高已完成市政',
+  check('采用独裁统治（换政体）= 最高已完成市政研究成本的 1/5',
     SB.civic.setGov(adopt, 'autocracy', noop) === true && adopt.gov === 'autocracy' &&
-    Math.abs(adopt.res.culture - (5000 - _topC * 2)) < 1e-9,
-    'culture=' + adopt.res.culture + ' 收费=' + (_topC * 2));
+    Math.abs(adopt.res.culture - (5000 - _topC / 5)) < 1e-9,
+    'culture=' + adopt.res.culture + ' 收费=' + (_topC / 5));
 
   SB.ui.render.setCivicView('tree');
   SB.game.markDirty(); SB.game.render();

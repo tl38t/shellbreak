@@ -125,7 +125,7 @@
       SB.game.pumpTech(s, emit);
       return;
     }
-    /* 生息区自动升级开关（2026-09-30 · 封建主义解锁2）：翻 s.autoUpg[id]。
+    /* 区域建筑自动建造/升级开关：翻 s.autoUpg[id]。
      * 真正的「自动买级」在 game.js 在线泵的 habitat.autoTick（2 秒一拍），
      * 这里只翻开关——动作语义与状态变更分离，是本文件头那条规矩。 */
     if (d.auto) {
@@ -190,6 +190,42 @@
       }
       return;
     }
+    /* 轨道卫星「开几座」（2026-10-17 · spec §5，与 furnaceStop / turbineStop / hydroshopStop 同口径）：
+     * 只改**停用数** `s.satelliteStop`，结算在 economy.starRate 读它（运行座数 = 等级 − 停用数）。
+     * data-satellite-inc = 多开一颗（停用数 −1）、data-satellite-dec = 少开一颗（停用数 +1），夹在 [0, lv]。
+     * 老档无 satelliteStop 键 ⇒ 0（全开）。卫星只产星空探索（每级 +5/s），停产只停星空贡献。 */
+    if (d.satelliteInc || d.satelliteDec) {
+      var _satlv = s.lvl.satellite || 0;
+      var _satstop = Math.max(0, Math.min(s.satelliteStop || 0, _satlv));
+      _satstop += d.satelliteDec ? 1 : -1;
+      _satstop = Math.max(0, Math.min(_satstop, _satlv));
+      if (_satstop !== (s.satelliteStop || 0)) {
+        s.satelliteStop = _satstop;
+        var _satrun = _satlv - _satstop;
+        SB.game.log('轨道卫星：开 ' + _satrun + '/' + _satlv + ' 颗' +
+          (_satrun === 0 ? '（停产，不再贡献星空探索）。' : '。'));
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
+    /* 空间站「开几座」（2026-10-17 · spec §5，与 satelliteStop 同口径）：只改**停用数**
+     * `s.spacestationStop`，结算在 economy.starRate（星空产出）与 economy.hydroAlloc（每级耗 2 热液能/秒）两处
+     * （运行座数 = 等级 − 停用数）。data-spacestation-inc = 开一座（停用数 −1）、
+     * data-spacestation-dec = 停一座（停用数 +1），夹在 [0, lv]。老档无此键 ⇒ 0（全开）。 */
+    if (d.spacestationInc || d.spacestationDec) {
+      var _stlv = s.lvl.spacestation || 0;
+      var _ststop = Math.max(0, Math.min(s.spacestationStop || 0, _stlv));
+      _ststop += d.spacestationDec ? 1 : -1;
+      _ststop = Math.max(0, Math.min(_ststop, _stlv));
+      if (_ststop !== (s.spacestationStop || 0)) {
+        s.spacestationStop = _ststop;
+        var _strun = _stlv - _ststop;
+        SB.game.log('空间站：开 ' + _strun + '/' + _stlv + ' 座' +
+          (_strun === 0 ? '（停产，不再贡献星空探索、不再消耗热液能）。' : '。'));
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
     if (d.tech) {
       if (SB.habitat.study(s, d.tech, emit)) { SB.game.markDirty(); SB.game.renderAll(); }
       SB.game.pumpTech(s, emit);   // 关键节点全清 ⇒ 这里就进下一纪元
@@ -216,14 +252,21 @@
       }
       return;
     }
-    /* 工坊自动制作槽（2026-10-07）：`data-aslot` = 占一个槽（或改档），`data-aoff` = 腾出槽。
-     * ⚠️ 这里只**翻状态**（setSlot / clearSlot），真正的「满了才造」在 game.js 在线泵的
+    var batchEdit = t.closest && t.closest('[data-abatch-edit]');
+    if (batchEdit) {
+      SB.ui.render.openAutoBatchDialog(batchEdit.dataset.abatchEdit);
+      return;
+    }
+    /* 工坊自动制作槽：`data-aslot` = 占槽 / 改档，`data-abatch` 是无上限原料的批次数，
+     * `data-apct` 是有上限原料的满仓转制比例，`data-aoff` = 腾出槽。
+     * ⚠️ 这里只**翻状态**（setSlot / setSlotBatch / clearSlot），真正制造在 game.js 在线泵的
      *    workshop.autoTick —— 与本文件里 data-auto（生息区自动升级）同一条分工。
-     * ⚠️ pct 从按钮上原样带来（0.25/0.5/0.75/1），不在这里做换算：档位表只有一个来源
-     *    （CFG.AUTO.PCTS），换算写在这儿就等于第二份事实。 */
+     * ⚠️ 新增无上限配方时使用默认批次；后续修改走独立数字弹窗，不在被定时重画的 pane 内输入。 */
     if (d.aslot) {
-      var _ap = parseFloat(d.apct);
-      if (SB.workshop.setSlot(s, d.aslot, _ap)) { SB.game.markDirty(); SB.game.renderAll(); }
+      var _saved = d.abatch !== undefined
+        ? SB.workshop.setSlotBatch(s, d.aslot, parseInt(d.abatch, 10))
+        : SB.workshop.setSlot(s, d.aslot, parseFloat(d.apct));
+      if (_saved) { SB.game.markDirty(); SB.game.renderAll(); }
       else SB.game.log('自动槽不够：先装「自动工坊」升级或在轮回商店买槽。');
       return;
     }
@@ -253,11 +296,13 @@
       SB.game.pumpTech(s, emit);
       return;
     }
-    if (d.era) {
+    var eraTarget = d.era !== undefined ? t : (t.closest && t.closest('[data-era]'));
+    var eraValue = eraTarget && eraTarget.dataset ? eraTarget.dataset.era : undefined;
+    if (eraValue !== undefined) {
       /* 纪元导航按钮：纯视图动作 —— 切详情卡 + 把长卷滚到那一纪元的左边界。
        * 它不动任何游戏状态（纪元闸门在 tech.canStudy 里判），所以不补跑 pumpTech。
        * 已抵达的纪元才会真的滚；未来纪元的描述读得到，但滚过去只有空白，没意义。 */
-      if (SB.ui.render.techGoEra(+d.era)) { SB.game.markDirty(); SB.game.renderAll(); }
+      if (SB.ui.render.techGoEra(+eraValue)) { SB.game.markDirty(); SB.game.renderAll(); }
       return;
     }
     if (d.warm) {
@@ -266,10 +311,6 @@
     }
     if (d.skydrill) {
       toggleSkydrill(SB.game.run());
-      return;
-    }
-    if (d.starscope) {
-      toggleStarScope(SB.game.run());
       return;
     }
     if (d.companyClose) {
@@ -285,6 +326,14 @@
       if (SB.rebuildCompany && SB.rebuildCompany(SB.game.run(), d.companyRebuild)) {
         SB.game.markDirty(); SB.game.renderAll();
         SB.game.log('已重建 ' + d.companyRebuild + ' 公司：从乡镇企业重新开始成长。');
+      }
+      return;
+    }
+    if (d.autoResearch) {
+      var autoState = SB.prestige.toggleAutoResearch(d.autoResearch);
+      if (autoState !== null) {
+        SB.game.markDirty(); SB.game.renderAll();
+        SB.game.log((d.autoResearch === 'tech' ? '科技' : '市政') + '自动研究已' + (autoState ? '开启' : '关闭') + '。');
       }
       return;
     }
@@ -441,25 +490,13 @@
    * 闸门 = 奇观已建成（与 renderDrill 的显示条件同源：没建成这按钮根本不出现在页面上，
    * 这里再判一道防直达调用）。停摆（缺料）不回拨开关——补料后自动续转。 */
   function toggleSkydrill(s) {
-    if (!s || !SB.wonder || !SB.wonder.owned(s).wonder_skydrill || s.broken) return false;
+    if (!s || !SB.wonder || !SB.wonder.owned(s).wonder_skydrill || SB.wonder.skydrillPostBreak(s)) return false;
     s.skydrillOn = !s.skydrillOn;
     /* 从「停」拨到「开」的瞬间清一下停摆位：上一轮停摆的提示已经过时，
      * 下一 tick tickShell 会按真实供需重新落位。 */
     if (s.skydrillOn) s.skydrillStarved = false;
     SB.game.markDirty(); SB.game.renderAll();
     SB.game.log(s.skydrillOn ? '天穹钻机启动：共振钻头与热液能就位后开始凿壳。' : '天穹钻机已停机。');
-    return true;
-  }
-
-  /* ── 星空槽 暂停 / 恢复（2026-10-13 镜像破壳后终局资源）────────
-   * 闸门 = 已破壳（s.broken）。破壳前星空槽不存在，按钮不出现（renderShell 也只在 broken 后显示槽）。
-   * 关掉 ⇒ 星空槽暂停被动累积（文明推力不再往星空槽灌）；开着（默认）则持续累积到 STAR_CAP。
-   * **只记账，不结算**——真正生效取决于下一 tick 的 shell.tickStar（与暖石开关同纪律）。 */
-  function toggleStarScope(s) {
-    if (!s || s.shell > 0 || !(s.broken || s.shellOpened || s.breakSettled)) return false;
-    s.starScopeOn = (s.starScopeOn === false);   // undefined/true → false；false → true
-    SB.game.markDirty(); SB.game.renderAll();
-    SB.game.log(s.starScopeOn ? '星空观测站启用：星空槽恢复被动累积。' : '星空观测站已停用：星空槽暂停累积。');
     return true;
   }
 
@@ -519,6 +556,15 @@
       s.religionName = (t.value || '').slice(0, 16);
       SB.game.markDirty();
       SB.game.maybeReligionPopup(s);   // 写入第一个名字 = 建立宗教 ⇒ 播「轮回」弹窗
+      SB.game.renderAll();
+    }
+    /* 聚落命名框（2026-10-17 · ERA6+）：data-habitat 的 input 在 blur/回车（change 事件）时写回名字。
+     * ⚠️ 只写不重建：renderHabitatName 用签名节流，改名不触发重画 ⇒ 输入框焦点/内容不动。
+     *   本轮回有效，轮回重置（freshRun 把 habitatName 归 ''）。 */
+    if (t.dataset && t.dataset.habitat !== undefined) {
+      var s2 = run(); if (!s2) return;
+      s2.habitatName = (t.value || '').slice(0, 16);
+      SB.game.markDirty();
       SB.game.renderAll();
     }
   }

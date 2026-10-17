@@ -36,6 +36,7 @@
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
     if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;
+    if (k === 'star-dome' && S && !(S.lvl && S.lvl.satellite >= 1)) return;
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
@@ -149,7 +150,9 @@
   // 继续未完成的上一周目（刷新页面时）
   function resumeRun(saved) {
     S = saved;
-    if (S.shellOpened) S.broken = false;
+    /* 未结算的破壳是一个待玩家选择的持久状态；刷新后必须仍停在结算界面。
+     * 已结算的旧档则沿用原行为，恢复为可继续发展的破壳后周目。 */
+    if (S.shellOpened && !(S.broken && !S.breakSettled)) S.broken = false;
     if (!S.perk) S.perk = SB.state.emptyPerks();
     meta.cycle = Math.max(1, meta.cycle);
     dirty = true;
@@ -204,6 +207,8 @@
     dirty = true;
     renderAll();
     if (S) SB.state.saveRun(snapshot(S));
+    /* 破壳待处理时启动会优先展示结算选择，推迟的首次解锁提示在玩家选择留在本局后补播。 */
+    if (S) { maybeSciencePopup(S); maybeReligionPopup(S); maybeTabUnlockPopups(S); maybeChangelogPopup(); }
   }
 
   /* 玩家主动选择轮回时才结算当前最新发展分；留在本局不会调用此入口。 */
@@ -697,8 +702,11 @@
       if (S._seasonGrantPending) { SB.economy.seasonGrant(S); S._seasonGrantPending = false; }
       loop.acc -= STEP;
       loop._tp = (loop._tp || 0) + STEP;
-      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit); maybeReligionPopup(S); maybeCompanyFound(S); maybeTabUnlockPopups(S);
-        /* 生息区自动升级（2026-09-30 · 封建主义解锁2）：只挂在线泵——离线补算（line ~363）
+      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit);
+        /* 轮回商店自动研究：沿用两类节点的标准门禁；只在在线逻辑泵运行，离线不替玩家投入科技/市政点。 */
+        if (SB.autoResearch && SB.autoResearch.tick) SB.autoResearch.tick(S, meta, emit);
+        maybeReligionPopup(S); maybeCompanyFound(S); maybeTabUnlockPopups(S);
+        /* 区域建筑自动建造/升级：只挂在线泵——离线补算（line ~363）
          * 不调它，离线只结算产出、不替玩家花资源（与离线闸门同一精神）。 */
         if (SB.habitat && SB.habitat.autoTick) SB.habitat.autoTick(S, emit);
         /* 工坊自动制作槽（2026-10-07）：与生息区自动升级同一拍、同一道「只在线」闸门 ——
@@ -710,7 +718,9 @@
      * ⚠️ 不能放 economy.tick 里——tick 在 s.broken 时顶部直接早退（1335 行），破壳后那条路径不跑。
      *   故挂在这里：只要 S 存在就按真实帧时推进；tickStar 内部判 !broken → 早退（破壳前不累积）。
      *   离线补算走 drainCatchUp（同语义、按真实离线秒推进）。 */
-    if (S) SB.shell.tickStar(S, elapsed * speed * adMul(), emit);
+    /* 未结算的破壳选择期间冻结星空槽；玩家选择留在本局后才继续推进。 */
+    if (S && !(S.broken && S.shellOpened && !S.breakSettled))
+      SB.shell.tickStar(S, elapsed * speed * adMul(), emit);
 
     if (S && !S.broken) {
       /* 点击时间事件（天壳震动等）：只在线推进——离线补算 drainCatchUp 不跑本系统。
@@ -822,18 +832,18 @@
     /* 离线补算按「真实秒」记账、按事件块推进：每块最多 OFFLINE_STEP 个游戏秒，
      * 广告银行覆盖时按 2× 换算真实时长，并在余额归零处切段后回落 1×。
      * 旧循环每次只推进 1 个真实秒，导致 1× 时 dt 永远 <=1 秒；现在可跨真实秒批量结算。 */
-    while (j.left > 0 && Date.now() - t0 < budgetMs) {
+    while (j.left > 0 && !j.breakReached && Date.now() - t0 < budgetMs) {
       var mul = adMul();
       var realChunk = j.left;
       if (mul > 1) realChunk = Math.min(realChunk, j.s.ad.ms / 1000); // 银行归零处切开
       var gameLeft = realChunk * mul;
       var realDone = 0;
-      while (gameLeft > 1e-9) {
+      while (gameLeft > 1e-9 && !j.breakReached) {
         var dt = offlineStep(j.s, j, gameLeft);
         var t0 = j.s.t;
         // 食物/人口积分器在 0.1s 微步内自行推进 happyStep（与食物同栅格重采样），故 tick 侧
         // 同时跳过 food 与 happy（skipFoodPop + skipHappy），避免 happy/奢侈品被双重推进。
-        SB.economy.tick(j.s, dt, null, { skipFoodPop: true, skipHappy: true });   // 其他资源/season/pump/shell 仍走原 tick；food/happy 交给积分器
+        SB.economy.tick(j.s, dt, null, { skipFoodPop: true, skipHappy: true, deferBreakUI: true });   // 其他资源/season/pump/shell 仍走原 tick；food/happy 交给积分器
         SB.offline.integrateFoodPop(j.s, dt, { t0: t0 }, null);  // 食物/人口 + 幸福度：事件边界闭式积分（替代 tick 内联 food/happy 段）
         if (j.s._seasonGrantPending) { SB.economy.seasonGrant(j.s); j.s._seasonGrantPending = false; }
         j.tp = (j.tp || 0) + dt;
@@ -841,16 +851,30 @@
         realDone += dt / mul;
         if (mul > 1) j.s.ad.ms = Math.max(0, j.s.ad.ms - dt / mul * 1000);
         if (j.tp >= TECH_PUMP - 1e-9) { j.tp = Math.max(0, j.tp - TECH_PUMP); pumpTech(j.s, null); pumpCivic(j.s, null); }
+        if (j.s.broken && j.s.shellOpened && !j.s.breakSettled) {
+          j.breakReached = true;
+          break;
+        }
         /* 星空槽在破壳后独立于 economy.tick 推进；按同一事件块累计，线性速率结果不变。 */
         SB.shell.tickStar(j.s, dt, null);
       }
       j.left = Math.max(0, j.left - realDone);
     }
     if (j.total) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);
-    if (j.left <= 0) finishCatchUp(j);
+    if (j.left <= 0 || j.breakReached) finishCatchUp(j);
   }
   function finishCatchUp(j) {
     loop.job = null;
+    if (j.s.broken && j.s.shellOpened && !j.s.breakSettled) {
+      /* 破壳就是离线补算的终点：保存待结算状态，剩余离线时间不再推进，
+       * 直接给玩家与在线破壳相同的选择面板（不播动画、不显示普通离线总结）。 */
+      SB.state.saveRun(snapshot(j.s));
+      renderAll();
+      var report = SB.prestige.breakReport(j.s);
+      if (!SB.prestige.qualified(j.s)) { report.tidePoints = 0; report.locked = true; }
+      SB.ui.render.showBreakPanel(report);
+      return;
+    }
     var lines = [], any = false, rk = RESS_KEYS(), i, k, d;
     for (i = 0; i < rk.length; i++) {
       k = rk[i]; d = j.s.res[k] - j.before[k];
@@ -903,10 +927,17 @@
     }
     SB.ui.render.initTabs();
     SB.ui.render.initSpeeds();
-    maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
-    maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
-    maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
-    maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志
+    var pendingBreak = !!(S && S.broken && S.shellOpened && !S.breakSettled);
+    if (pendingBreak) {
+      var report = SB.prestige.breakReport(S);
+      if (!SB.prestige.qualified(S)) { report.tidePoints = 0; report.locked = true; }
+      SB.ui.render.showBreakPanel(report);
+    } else {
+      maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
+      maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
+      maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
+      maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志
+    }
     document.getElementById('btnBreak').onclick = function () {
       if (S.shell <= 0 && !S.broken && !S.breakSettled && S.shellOpened) settleBreak();
     };

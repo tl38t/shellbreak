@@ -108,16 +108,29 @@
    * 【面板三态】未启动（灰按钮）/ 运转中 / 停摆——停摆 = 开着但缺料，是 shell.tickShell
    *   的 skydrillStarved 位；原因只有两种：共振钻头见底，或热液能剩流 < 20/s。
    *   每种都把「为什么」写全，否则玩家读不出该去补哪条线。
-   * 【隐藏两态】未建成奇观 / 已破壳（钻机转奇观态，跟壳厚无关了）——整行不显示。 */
+   * 【隐藏态】未建成奇观——整行不显示。
+   * 【阶段转换】破壳后机器不再作为操作项，改显示已生效的奇观属性。 */
   var drillSig = '';
   function renderDrill(s) {
     var box = el('envDrill'); if (!box) return;
     var owned = !!(SB.wonder && SB.wonder.owned(s).wonder_skydrill);
-    if (!owned || s.broken) {
+    if (!owned) {
       if (drillSig !== '') { drillSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
       return;
     }
     box.style.display = '';
+    if (SB.wonder.skydrillPostBreak(s)) {
+      var postBreakSig = 'post-break';
+      if (drillSig !== postBreakSig) {
+        drillSig = postBreakSig;
+        var civicBonus = SB.wonder.skydrillCivic(s);
+        var happyBonus = SB.wonder.skydrillHappyOffset(s);
+        box.innerHTML = '<div><div class="nm">天穹钻机 <span class="tag ok">破壳后奇观效果</span></div>' +
+          '<div class="ds">市政点 +' + civicBonus + '/秒；幸福度 ' + (happyBonus >= 0 ? '+' : '') +
+          happyBonus + '。此处显示的是破壳后的常驻效果。</div></div>';
+      }
+      return;
+    }
     var starved = !!s.skydrillStarved && !!s.skydrillOn;
     /* ⚠️ 2026-10-07 用户报「已启动还是没反应」：停摆文案原是「钻头见底，或剩流不足」二选一
      *   的泛化句，玩家读不出自己卡在哪条。改为**带实测数字**的诊断：
@@ -163,28 +176,25 @@
    * 【为什么住在这一卡】与暖石/钻机同归属逻辑：观测站是「看星空进度才有用」的动作，
    *   自然环境卡就是它的天然位置。星空探索资源行在 #res（每帧刷），但开关是**手动动作**，
    *   按 warm/drill 同纪律放在持久容器 #envStar，签名节流避免点击丢。
-   * 【状态签名节流】签名 = 开/关 × 升级在否。只有这两件事翻转才重写 innerHTML；
+   * 【状态签名节流】签名固定为 'fixed'（顶栏已无开关，2026-10-17 重构）；只有隐藏↔显示翻转才重写 innerHTML。
    *   星空探索速率（每帧可能变，热液剩流不够会降）走独立 span 的 textContent 单独刷，不进签名。
-   * 【隐藏两态】破壳前（s.broken 未置）整行不显示；破壳后星空槽才开始被动累积，本开关用于暂停/恢复。 */
+   * 【隐藏两态】破壳前（s.broken 未置）整行不显示；破壳后星空槽才开始被动累积。 */
   var starSig = '';
   function renderStar(s) {
     var box = el('envStar'); if (!box) return;
-    /* 闸门：破壳后（s.broken）星空槽才开始累积，本开关用于暂停/恢复被动累积。
-     * 与 shell.tickStar 的 starScopeOn 门控同源（starScopeOn===false ⇒ tickStar 直接 return）。 */
+    /* 闸门：破壳后（s.broken）星空槽才开始累积。顶栏已无全局暂停开关（2026-10-17 重构）。 */
     if (!(s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled))) {
       if (starSig !== '') { starSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
       return;
     }
     box.style.display = '';
-    var on = s.starScopeOn !== false;
-    var sig = on ? 'on' : 'off';
-    if (sig !== starSig) {
-      starSig = sig;
+    /* 顶栏不再有全局暂停开关（2026-10-17 重构）：基础文明推力始终累积，
+     *   卫星/空间站各自的「开几座」开关只控制它们的贡献。本卡只显示速率与说明。 */
+    if (starSig !== 'fixed') {
+      starSig = 'fixed';
       box.innerHTML = '<div><div class="nm">星空槽 <span class="tag" id="envStarRt">0</span></div>' +
         '<div class="ds">破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积星空探索，满槽即太空时代达成。' +
-        '暂停后累积停止、推力让给其他系统。</div></div>' +
-        '<button class="btn tog' + (on ? ' on' : '') +
-        '" data-starscope="1" title="点击暂停 / 恢复星空槽被动累积">' + (on ? '累积中' : '已暂停') + '</button>';
+        '卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。</div></div>';
     }
     /* 速率单独刷：不进签名，所以文明推力变化时它是唯一在动的节点，按钮不动。 */
     var rt = el('envStarRt');
@@ -220,9 +230,37 @@
         '<div class="ds">这个名字会显示在你的信仰资源上。改名随时可改，无消耗。</div>';
     }
   }
+
+  /* ── 聚落命名框（2026-10-17 · ERA6+）─────────────────────────────────
+   * 【为什么是持久容器、不走 pane 每 2 秒重建】与宗教名框同理：输入框塞进每 2 秒重画的
+   *   #pane-village-body 会被换掉、丢焦点。所以聚落名框是 index.html 里的持久节点 #habitatBox，
+   *   这里用签名节流只管 gate：签名 = 纪元是否 ≥ 6（ERA6 起聚落迈入太空时代、演进名到头，
+   *   改由玩家自建）。门一开渲染一次输入框，之后只在 gate 翻转时重建；
+   *   玩家打字只写 state、不触发本函数重建 ⇒ 焦点不丢。
+   * 【写回时机】走 input.js 的 onChange（blur/回车）→ 写 s.habitatName。改名后下一帧 renderAll
+   *   把 tab 名与卡片头名同步刷新。本轮回有效：nextCycle → startRun → freshRun 重置为 ''。 */
+  var habSig = '';
+  function renderHabitatName(s) {
+    var box = el('habitatBox'); if (!box) return;
+    var open = !!(s && s.era >= 6);
+    if (!open) {
+      if (habSig !== '') { habSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+      return;
+    }
+    box.style.display = '';
+    if (habSig !== 'open') {
+      habSig = 'open';
+      var nm = (s.habitatName || '').trim();
+      box.innerHTML = '<div class="nm">你的国度</div>' +
+        '<input class="relname" data-habitat="1" type="text" maxlength="16" placeholder="给你的国度起个名字…"' +
+        (nm ? ' value="' + nm.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"' : '') + '>' +
+        '<div class="ds">名字会显示在巢穴页签与标题上，本轮回有效、轮回后重新起。改名随时可改，无消耗。</div>';
+    }
+  }
   parts.renderEnv = renderEnv;
   parts.renderWarm = renderWarm;
   parts.renderDrill = renderDrill;
   parts.renderStar = renderStar;
   parts.renderReligion = renderReligion;
+  parts.renderHabitatName = renderHabitatName;
 })(typeof window !== 'undefined' ? window : globalThis);

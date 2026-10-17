@@ -21,7 +21,7 @@ console.log('\n=== 历法读数与暖石开关 ===');
   check('未掌握历法：面板不报季名，只说看不出规律',
     g('envVolcano').indexOf('看不出规律') !== -1, '');
   check('海底火山已离开巢穴页（它是环境读数，不是建造动作）',
-    g('pane-village').indexOf('海底火山') === -1, '');
+    g('pane-village-body').indexOf('海底火山') === -1, '');
 
   /* ② 掌握了 ⇒ 报的是 seasonMul（实际生效值），不是 SEASONS 的裸倍率。
    *    报裸值会出现「学了历法反而看到倍率变差」，那纯属显示坑。 */
@@ -338,7 +338,7 @@ console.log('\n=== 历法读数与暖石开关 ===');
   check('保温法已掌握：开关出现在「自然环境」卡的 #envWarm',
     g('envWarm').indexOf('data-warm="1"') !== -1, '');
   check('开关已从巢穴页搬走（不在出现两份）',
-    g('pane-village').indexOf('data-warm="1"') === -1, '');
+    g('pane-village-body').indexOf('data-warm="1"') === -1, '');
   /* ⚠️ 搬容器带来一个真实风险，必须钉住：#envWarm 是每帧刷新的容器，
    *    input.js 是 document 级委托 ⇒ 按钮元素若被逐帧换掉，「按下与抬起之间元素被换掉」
    *    的那次点击会整个丢失（开关点了没反应，而且不报任何错）。
@@ -739,6 +739,17 @@ console.log('\n=== 历法读数与暖石开关 ===');
     pt4.indexOf(e2.desc) === -1,
     '纪元一描述上屏？' + (pt4.indexOf(e1.desc) !== -1) +
     '　纪元二描述还在？' + (pt4.indexOf(e2.desc) !== -1));
+
+  /* 浏览器点击按钮里的名字/徽标时，event.target 是 span 而不是 button；
+   * 必须沿 closest('[data-era]') 找回纪元按钮，否则看起来像「纪元点不动」。 */
+  const eraButtonTarget = { dataset: { era: '2' } };
+  fire({ dataset: {}, closest: selector => selector === '[data-era]' ? eraButtonTarget : null });
+  const nestedEraHtml = g('pane-tech');
+  const era2Desc = e2.desc;
+  check('点击纪元按钮内部文字也能切换（子元素事件向上找到 data-era）',
+    /class="erabtn on[^"]*" data-era="2"/.test(nestedEraHtml) &&
+    nestedEraHtml.indexOf('<div class="edesc">' + era2Desc) !== -1,
+    '纪元二描述上屏？' + (nestedEraHtml.indexOf(era2Desc) !== -1));
 
   /* ── 长卷拖动 ────────────────────────────────────────────────────
    * 手机上手指滑是原生滚动（有惯性、能回弹，不该接管），**桌面鼠标按住左键拖是拖不动的**

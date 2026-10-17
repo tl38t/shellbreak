@@ -68,7 +68,7 @@
   function jobLimitReason(s, job) {
     var cap = jobLimit(s, job), count = s && s.jobs ? (s.jobs[job] || 0) : 0;
     if (count < cap) return null;
-    var label = job === 'scholar' ? '学者' : '书手';
+    var label = SB.folk && SB.folk.jobName ? SB.folk.jobName(s, job) : job === 'scholar' ? '学者' : '书手';
     return '忽视科文挑战限制：' + label + '已达 ' + cap + ' 人上限';
   }
   function jobLimitExceeded(s, capOverride) {

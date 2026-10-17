@@ -12,8 +12,8 @@
  *    ⇒ 揭示只打开「可以投点」这扇门，100 点的定价完好。
  *    ⚠️  Civ6 的鼓舞还返一笔文化（一次性），本作**不返**——用户口径是
  *       「只揭示、不填充 50%」，返一笔就是小号填充。要加请重新拍板，这不是遗漏。
- * 3. 政体 / 政策卡。**换**东西要收费：换政策卡 = 最高已完成市政的 cost；
- *    换政体 = 两倍。首次装填 / 首次采用免费（市政本身是白的，再收一次等于同一动作收两遍）。
+ * 3. 政体 / 政策卡。**调整**东西要收费：卸下政策卡、重复采用政体均为当前最高已完成市政
+ *    研究成本的 1/5。首次装填免费；每个政体首次采用也免费（避免对解锁动作重复收费）。
  *
  * ── 结构上的三条取舍（结构归我定，数值归用户）──
  *
@@ -24,7 +24,7 @@
  *   ⚠️ 《技艺》《神秘主义》之间**没有**互相前置：两条都解锁自己的政策卡，
  *      而卡槽只有 1 个 ⇒ 选哪张是玩家真要做出的取舍。
  * · 政体：酋邦制（法典自带）+ 独裁/寡头/古典共和（由《政治哲学》解锁，三选一采用）。
- *   换政体机制（2× 收费、越权拦截、槽位配方）已落地，三种新政体立即生效，无需返工。
+ *   换政体机制（统一 1/5 收费、越权拦截、槽位配方）已落地，三种新政体立即生效，无需返工。
  */
 (function (root) {
   'use strict';
@@ -70,6 +70,8 @@
     card_market: 'storeMul',
     /* 启蒙运动（2026-10-01 ERA4）：潮纹馆科技 +100%，与《历史记录》同字段（卡退役后不冲突）。 */
     card_enlightenment: 'libraryMul',
+    /* ERA7（2026-10 实装）：神不在此卡——潮纹馆科技 ×3（替代启蒙运动的 ×2，启蒙退役后不冲突）。 */
+    card_no_god_here: 'libraryMul',
     /* ERA5（2026-10-02）：政治经济学卡——歌剧院的官员市政点乘区 ×2.5（theaterMul）。 */
     card_political_econ: 'theaterMul'
   };
@@ -146,11 +148,9 @@
     return (cd && typeof cd.canalMul === 'number') ? cd.canalMul : 1;
   }
   /* 重商主义卡：银行商人产出加成 +100%。economy.bankMul 读（乘在 bankLux 那一段上）。 */
-  function bankMerchantMul(s) {
-    if (!cardSlotted(s, 'card_mercantilism')) return 1;
-    var cd = policyById('card_mercantilism');
-    return (cd && typeof cd.bankMerchantMul === 'number') ? cd.bankMerchantMul : 1;
-  }
+  /* 重商主义卡 / 跨国经济卡：银行的商人产出加成（bankMerchantMul 字段）。2026-10 ERA7：改为通用逐槽相乘，
+   * 使《跨国经济》（card_transnational，×4）在《重商主义》退役后无缝上位（同一字段、互斥装填）。 */
+  function bankMerchantMul(s) { return cardFieldMul(s, 'bankMerchantMul'); }
   /* 天赋神权卡：礁栖核心所有建筑每级 +10% 信仰产出（coreFaithMul 存的是每级比率）。
    * 乘在 faithRate 整段上，coreLevels = 礁栖核心分区建筑合计等级。 */
   function coreFaithMul(s) {
@@ -162,18 +162,13 @@
       if (SB.BUILDINGS[_i].zone === 'core') lv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
     return 1 + lv * ratio;
   }
-  /* 启蒙运动卡：大学科技 +100%（universityMul）。economy 的学者/研究所科技段读。 */
-  function universityMul(s) {
-    if (!cardSlotted(s, 'card_enlightenment')) return 1;
-    var cd = policyById('card_enlightenment');
-    return (cd && typeof cd.universityMul === 'number') ? cd.universityMul : 1;
-  }
-  /* 启蒙运动卡：神庙信仰 −50%（templeFaithMul 0.5）。economy.faithMul 读（乘神庙那一段）。 */
-  function templeFaithMul(s) {
-    if (!cardSlotted(s, 'card_enlightenment')) return 1;
-    var cd = policyById('card_enlightenment');
-    return (cd && typeof cd.templeFaithMul === 'number') ? cd.templeFaithMul : 1;
-  }
+  /* 大学（研究所）科技乘区（universityMul 字段）。2026-10 ERA7：改为通用逐槽相乘，
+   * 使《神不在此》（card_no_god_here，×3）在《启蒙运动》（×2）退役后无缝上位。 */
+  function universityMul(s) { return cardFieldMul(s, 'universityMul'); }
+  /* 神庙信仰乘区（templeFaithMul 字段）。2026-10 ERA7：改为通用逐槽相乘，
+   * 使《神不在此》（×0.5）/《未来主义神学》（×5）在《启蒙运动》退役后无缝上位。
+   * ⚠️ 与 MUL_FIELD 的 templeMul（卡《神学》×2）是**两个独立乘区**，economy 里两者相乘。 */
+  function templeFaithMul(s) { return cardFieldMul(s, 'templeFaithMul'); }
   /* 博物馆建筑：官员（书手）市政点产出 +20%（museumCivicMul，flat）。economy.cultureRate 的 scribe 段读。
    * ERA6：① 博物学完成后，艺术品效果随轮回 +10%/cycle（落点同为博物馆的市政加成，语义=博物馆即艺术展示口）；
    *   ② 博物馆管理卡装着时 effect.museumMul(2) 让博物馆效果翻倍。两者乘法叠加。 */
@@ -216,16 +211,28 @@
     }
     return m;
   }
-  function cardCivicOutMul(s) { return cardFieldMul(s, 'civicOutMul'); }
-  function cardSciOutMul(s)   { return cardFieldMul(s, 'sciOutMul'); }
-  function cardHydroMul(s)    { return cardFieldMul(s, 'hydroSupplyMul'); }
-  function cardHappyOffset(s) {
-    var o = 0, arr = (s && s.cards) || [], i, cd;
+  /* 通用**求和**版（2026-10 ERA7）：同一字段多张卡相加（如奢侈消耗加成、人口建筑上限加成、
+   * 太空建造减免）。与 cardFieldMul 同口径：只认装在槽里的卡（逐槽扫 s.cards）。返回 0 = 无任何卡。 */
+  function cardFieldSum(s, field) {
+    var m = 0, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
       if (!arr[i]) continue;
       cd = policyById(arr[i]);
-      if (cd && typeof cd.happyOffset === 'number') o += cd.happyOffset;
+      if (cd && typeof cd[field] === 'number') m += cd[field];
     }
+    return m;
+  }
+  function cardCivicOutMul(s) { return cardFieldMul(s, 'civicOutMul'); }
+  function cardSciOutMul(s)   { return cardFieldMul(s, 'sciOutMul'); }
+  function cardHydroMul(s)    { return cardFieldMul(s, 'hydroSupplyMul'); }
+  function cardHappyOffsetFor(s, id) {
+    if (!id || !cardSlotted(s, id)) return 0;
+    var cd = policyById(id);
+    return cd && typeof cd.happyOffset === 'number' ? cd.happyOffset : 0;
+  }
+  function cardHappyOffset(s) {
+    var o = 0, arr = (s && s.cards) || [], i;
+    for (i = 0; i < arr.length; i++) o += cardHappyOffsetFor(s, arr[i]);
     return o;
   }
   /* 神权政体：每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰（加在人口基础产出之上）。
@@ -252,11 +259,41 @@
     var per = (cd && typeof cd.civicPerPop === 'number') ? cd.civicPerPop : 0;
     return per * (s.pop || 0);
   }
-  /* 大众传媒卡：奢侈品消耗 +50%（返回加在 (1+...) 因子上的量）。economy.happyBurn / tick 的 _D 读。 */
-  function cardLuxConsumeMul(s) {
-    if (!cardSlotted(s, 'card_massmedia')) return 0;
-    var cd = policyById('card_massmedia');
-    return (cd && typeof cd.luxConsumeMul === 'number') ? cd.luxConsumeMul : 0;
+  /* 奢侈消耗加成（luxConsumeMul 字段）求和：公摊面积 +100%、延长工时 +30%、大众传媒 +50% 等
+   * 多张卡可同时生效，叠加进 luxDemandMul 的增耗项。2026-10 ERA7：改为通用求和（原只认大众传媒卡）。 */
+  function cardLuxConsumeMul(s) { return cardFieldSum(s, 'luxConsumeMul'); }
+
+  /* ── ERA7（2026-10 实装）· 各动态效果读数 ──
+   * 统一纪律：只读 s.cards / s.civics / s.wonders，没装/没完成 = 返回基准值，绝不污染产线。 */
+  /* 公摊面积卡：人口建筑每级 +0.5 人口上限（popCapPerPopBldg）。economy.popCap 读，乘人口建筑总级。 */
+  function popCapPerPopBldg(s) { return cardFieldSum(s, 'popCapPerPopBldg'); }
+  /* 延长工时卡：所有职业产出 ×(jobOutMul)。economy 职业产出行（tick/rates 两路）逐字同构地读。 */
+  function cardJobOutMul(s) { return cardFieldMul(s, 'jobOutMul'); }
+  /* 太空竞赛卡：太空建筑建造 −(spaceBuildSave)。economy.spaceCostMul 读，乘 (1 − 此值)。 */
+  function cardSpaceBuildSave(s) { return cardFieldSum(s, 'spaceBuildSave'); }
+  /* 神不在此卡：星空观测站产出 ×(obsSciMul)。economy.obsSciMul 读。 */
+  function cardObsSciMul(s) { return cardFieldMul(s, 'obsSciMul'); }
+  /* 直播竞技卡：体育场额外产出 = 人口 × 体育场等级 × liveCompCivic /秒（仅建体育场且装卡时生效）。
+   * economy.cultureRate 加在总量上（绝对量，独立于乘区）。 */
+  function stadiumCivic(s) {
+    if (!cardSlotted(s, 'card_live_comp')) return 0;
+    var lv = (s.lvl && s.lvl.stadium) || 0;
+    if (lv < 1) return 0;
+    var cd = policyById('card_live_comp');
+    var per = (cd && typeof cd.liveCompCivic === 'number') ? cd.liveCompCivic : 0;
+    return per * (s.pop || 0) * lv;
+  }
+  /* 文化遗产市政：每座已建奇观 +1% 市政点获取（wonderCivicGainMul）。economy.cultureRate 整段乘区。 */
+  function wonderCivicGainMul(s) {
+    if (!(s.civics && s.civics.cultural_heritage)) return 1;
+    return 1 + 0.01 * builtWonderCount(s);
+  }
+  /* 旅游观光卡：每座已建奇观额外 −3% 奢侈品消耗（wonderLuxSave × 奇观数）。economy.luxSaveAll 加进减耗和。 */
+  function cardWonderLuxSaveMul(s) {
+    if (!cardSlotted(s, 'card_tourism')) return 0;
+    var cd = policyById('card_tourism');
+    var per = (cd && typeof cd.wonderLuxSave === 'number') ? cd.wonderLuxSave : 0;
+    return per * builtWonderCount(s);
   }
   /* 教权国：所有建筑每级 +1 信仰/秒（绝对量，加在 faithRate 末尾）。仅采用该政体时生效。 */
   function faithPerBuildingBonus(s) {
@@ -328,6 +365,22 @@
     for (i = 0; i < L.length; i++) {
       if (!o[L[i].id]) continue;
       m += (L[i].effect && L[i].effect.civicSlots) || 0;
+    }
+    return m;
+  }
+  /* 已建奇观总数（2026-10 ERA7 复用）：文化遗产市政 / 旅游观光卡按奇观数缩放效果。 */
+  function builtWonderCount(s) {
+    var L = SB.wonder ? SB.wonder.list() : [], o = (s.wonders && typeof s.wonders === 'object') ? s.wonders : {}, n = 0, i;
+    for (i = 0; i < L.length; i++) if (o[L[i].id]) n++;
+    return n;
+  }
+  /* 超古代市政送的政策卡槽（2026-10 ERA7）：ancient_civics.policySlot = +1 政策槽（万能型）。
+   * 与 wonderCivicSlots 同构：遍历已完成市政的 policySlot 字段求和。 */
+  function civicPolicySlots(s) {
+    var m = 0, i, c;
+    for (i = 0; i < CIVICS.length; i++) {
+      c = CIVICS[i];
+      if (c.policySlot && s.civics && s.civics[c.id]) m += c.policySlot;
     }
     return m;
   }
@@ -478,7 +531,9 @@
     var n = 0;
     for (var i = 0; i < CIVICS.length; i++) {
       var c = CIVICS[i];
-      if (c.era && c.era > (s.era || 1)) continue;
+      /* 鼓舞达成即揭示，不按纪元卡（研究侧仍由 blocked() 的纪元闸锁住，
+       * 避免「未来纪元市政提前露名却点不动」的割裂）。原 era 闸在此处会令
+       * era≠1 的市政永不写 civShown，与 condShort 实时算的进度条不同源 ⇒ 矛盾。 */
       if (!s.civBoost) s.civBoost = {};
       if (c.boost && !s.civBoost[c.id] && condMet(s, c.boost)) s.civBoost[c.id] = 1;
       if (s.civShown[c.id]) continue;
@@ -499,6 +554,9 @@
   function blocked(s, c) {
     if (s.civics[c.id]) return null;
     if (!isRevealed(s, c.id)) return '尚未揭示——先达成鼓舞条件';
+    /* 纪元闸（对齐 tech.studyBlocked:571）：鼓舞达成可揭示，但不能跳纪元偷研究。
+     * 揭示与可研究脱钩，正是方案 A 的核心——让「100% 进度条」与「未揭示」不再自相矛盾。 */
+    if (c.era && c.era > (s.era || 1)) return '纪元未到：属于 ' + (SB.tech && SB.tech.eraName ? SB.tech.eraName(c.era) : (c.era + ' 纪元')) + '，先推进当前纪元';
     if (!reqsMet(s, c)) {
       var need = [];
       for (var i = 0; i < c.reqs.length; i++) if (!s.civics[c.reqs[i]]) need.push(byId(c.reqs[i]).name);
@@ -507,6 +565,19 @@
     if ((s.res.culture || 0) < c.cost) return '市政点 ' + Math.floor(s.res.culture || 0) + ' / ' + c.cost;
     return null;
   }
+
+  /* 是否存在「当前即可研究」的市政（面板已开 + 有未投入且 blocked 为 null 的项）。
+   * 供页签红点用，复用 blocked 这唯一门禁，与节点「可研究」状态同源。 */
+  function hasResearchable(s) {
+    if (!s || !panelOpen(s)) return false;
+    var C = SB.CIVICS || [], i;
+    for (i = 0; i < C.length; i++) {
+      if (s.civics[C[i].id]) continue;
+      if (blocked(s, C[i]) === null) return true;
+    }
+    return false;
+  }
+
   function canResearch(s, id) {
     var c = byId(id);
     if (!c) return false;
@@ -527,7 +598,11 @@
     if (emit) emit('获得 1 次免费卸下机会（当前共 ' + s.cardFreeRemoves + ' 次）');
     /* 政体随《法典》自带。用 s.gov 是否为 null 判「还没采用过」而不是靠 cost 判——
      * 老档读进来时 gov 可能是 null，这条免费路径必须仍然走得到。 */
-    if (c.gov && !s.gov) s.gov = c.gov;
+    if (c.gov && !s.gov) {
+      s.gov = c.gov;
+      s.govAdopted = s.govAdopted || {};
+      s.govAdopted[c.gov] = true;
+    }
     /* 卡退役（2026-09-30）：完成后扫一遍 POLICIES，把 retiredBy 指向本市政的卡从
      * 所有槽里拔下。**免费**——退役是制度行为，不是玩家「换卡」，不该收换卡费。
      * （不拔的话卡还留在 s.cards 里，craftRatio/mulOfField 只看槽不查所有权，
@@ -549,7 +624,7 @@
   }
 
   // ── 换卡 / 换政体 ─────────────────────────────────────────────────
-  /* 「当前最高完成的市政」的 cost。空手时算 0（这时也确实无卡可换）。 */
+  /* 「当前最高已完成市政」的研究成本。空手时算 0（这时也确实无卡/政体可调整）。 */
   function topCost(s) {
     var m = 0;
     for (var i = 0; i < CIVICS.length; i++) {
@@ -575,8 +650,8 @@
   function govRoutineMul(s) {
     return 1 - 0.10 * (s.perk && s.perk.govRoutine ? s.perk.govRoutine : 0);
   }
-  function cardCost(s) { return topCost(s) * govRoutineMul(s); }  // 换政策卡 = 1× 最高已完成市政 × 折扣
-  function govCost(s) { return topCost(s) * 2 * govRoutineMul(s); }  // 换政体 = 2×，原话「两倍」
+  function cardCost(s) { return topCost(s) * 0.2 * govRoutineMul(s); } // 卸下政策卡 = 最高已完成市政的 1/5 × 折扣
+  function govCost(s) { return topCost(s) * 0.2 * govRoutineMul(s); } // 重复采用政体 = 同一费用
 
   function cardOwned(s, id) {
     var p = policyById(id);
@@ -608,14 +683,15 @@
   function govCraftRatio(s) { var g = govById(s.gov); return (g && typeof g.craftRatio === 'number' ? g.craftRatio : 0) + govCraftPerPop(s); }
   /* ⚠️ 政策卡的 craftRatio（2026-09-30 用户拍：技艺卡 = 工坊效率 +20%）。
    * 与 govCraftRatio 同一条加法乘区、同一纪律：数据在政策卡表、读在这里，
-   * **装在卡槽里才生效**（没装 = 0），多个槽逐槽相加（可装多张带 craftRatio 的卡，叠加）。
+   * **装在卡槽里且仍拥有才生效**（没装/已退役 = 0），多个有效槽逐槽相加。
    * 读 s.cards 数组（与 mulOfField 同口径），单值 s.card 只是第 0 号槽镜像。 */
   function cardCraftRatio(s) {
     var arr = (s && s.cards) || [], m = 0, id, cd;
     for (var i = 0; i < arr.length; i++) {
       id = arr[i]; if (!id) continue;
       cd = policyById(id);
-      if (cd && typeof cd.craftRatio === 'number') m += cd.craftRatio;
+      /* 旧存档/手改状态即使残留已退役卡，也不能继续叠加工坊效率。 */
+      if (cd && typeof cd.craftRatio === 'number' && cardOwned(s, id)) m += cd.craftRatio;
     }
     return m;
   }
@@ -830,11 +906,15 @@
     return setCardAt(s, slot, null, emit);
   }
 
+  /* 每个政体各有一次免费采用；自动随市政授予的当前政体也记作已采用。 */
+  function govFirstAdoptionFree(s, id) {
+    return !!govById(id) && !(s.govAdopted && s.govAdopted[id]);
+  }
   function govBlocked(s, id) {
     if (!govById(id)) return '没有这个政体';
     if (s.gov === id) return null;
     if (!govOwned(s, id)) return '需先完成解锁它的市政';
-    if (s.gov === null) return null;                        // 首次采用免费
+    if (govFirstAdoptionFree(s, id)) return null;
     var cost = govCost(s);
     if (cost > 0 && (s.res.culture || 0) < cost)
       return '换政体需 ' + cost + ' 市政点（现有 ' + Math.floor(s.res.culture || 0) + '）';
@@ -845,9 +925,12 @@
   function setGov(s, id, emit) {
     if (s.gov === id) return false;
     if (!canSetGov(s, id)) return false;
-    var fee = govCost(s);
-    if (s.gov !== null && fee > 0) s.res.culture -= fee;
+    var firstFree = govFirstAdoptionFree(s, id);
+    var fee = firstFree ? 0 : govCost(s);
+    if (fee > 0) s.res.culture -= fee;
     s.gov = id;
+    s.govAdopted = s.govAdopted || {};
+    s.govAdopted[id] = true;
     /* ERA6（2026-10-12）：采用三个新政体之一且尚未起名 ⇒ 弹窗命名（采用 = 命名时机，
      *   与用户规格「采用时弹窗命名、更名为 XX 教权国/联盟/联邦」一致）。无 DOM 环境
      *   （e2e 沙箱）直接跳过，govName 留空不报错。采用其它政体不触发。 */
@@ -860,7 +943,7 @@
     if (emit) emit(s.gov === null
       ? '政体已撤回。'
       : '政体换为「' + govById(id).name + '」' +
-        (fee > 0 && s.gov !== null ? '（花 ' + fee + ' 市政点）' : '（首次采用免费）'));
+        (firstFree ? '（该政体首次采用免费）' : fee > 0 ? '（花 ' + fee + ' 市政点）' : '（免费）'));
     return true;
   }
 
@@ -885,6 +968,9 @@
     /* ERA5（2026-10-02）：夏'多桑大剧院送的市政政策槽（wonderCivicSlots），叠加在政体自带槽之上。 */
     var _cs = wonderCivicSlots(s);
     for (var _ci = 0; _ci < _cs; _ci++) out.push({ type: 'wild' });
+    /* ERA7（2026-10）：超古代市政送的市政政策槽（civicPolicySlots），叠加在政体自带槽之上。 */
+    var _ps = civicPolicySlots(s);
+    for (var _pi = 0; _pi < _ps; _pi++) out.push({ type: 'wild' });
     return out;
   }
   /* 政策卡能进哪种槽。万能槽吃一切；卡的 type 缺省视为万能（老卡没标类型 ⇒ 不硬堵）。 */
@@ -943,13 +1029,17 @@
     switch (b.t) {
       case 'built': return '建成 ' + b.n + ' 级' + buildingName(b.b);
       case 'tech': return '掌握科技「' + techName(b.id) + '」';
+      case 'civic': {
+        var _civic = byId(b.id);
+        return '完成市政「' + (_civic ? _civic.name : '另一项市政') + '」';
+      }
       case 'total': return '建筑总级数达 ' + b.n;
       case 'res': return '存量 ' + resName(b.r) + ' 达 ' + b.n;
       case 'gathered': return '累计产出 ' + resName(b.r) + ' 达 ' + b.n;
       case 'pop': return '人口达 ' + b.n;
       /* zoneLvl（2026-09-30）：分区合计等级。分区名从 BUILD_ZONES 取，不另写清单。 */
       case 'zoneLvl': {
-        var _zname = b.zone;
+        var _zname = '未知区域';
         for (var _zi = 0; SB.BUILD_ZONES && _zi < SB.BUILD_ZONES.length; _zi++)
           if (SB.BUILD_ZONES[_zi].id === b.zone) _zname = SB.BUILD_ZONES[_zi].name;
         return _zname + '建筑合计等级达 ' + b.n;
@@ -959,7 +1049,7 @@
        *    匠人职业本身已按用户指令删除（config.JOBS）。 */
       case 'job': {
         var _jn = (SB.JOBS || []).filter(function (x) { return x.id === b.j; })[0];
-        return (_jn ? _jn.name : b.j) + '达 ' + b.n + ' 人';
+        return (_jn ? _jn.name : '未知职业') + '达 ' + b.n + ' 人';
       }
       case 'techs': return '掌握 ' + b.n + ' 项科技';
       case 'coef': return '破壳系数达 ' + b.n;
@@ -969,14 +1059,14 @@
   function buildingName(id) {
     for (var i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++)
       if (SB.BUILDINGS[i].id === id) return SB.BUILDINGS[i].name;
-    return id;
+    return '未知建筑';
   }
   function techName(id) {
     for (var i = 0; SB.TECHS && i < SB.TECHS.length; i++)
       if (SB.TECHS[i].id === id) return SB.TECHS[i].name;
-    return id;
+    return '未知科技';
   }
-  function resName(id) { return SB.RESS && SB.RESS[id] ? SB.RESS[id].name : id; }
+  function resName(id) { return SB.RESS && SB.RESS[id] ? SB.RESS[id].name : '未知资源'; }
 
   SB.CIVICS = CIVICS;
   SB.GOVS = GOVS;
@@ -989,11 +1079,12 @@
     layout: layout, geo: geo,
     /* pitch 按当前 geo 现算（卡片尺寸是借来的，写死在导出对象里会与 geo 脱钩）。 */
     pitch: function () { var G = geo(); return { col: G.W + GEO.COL, row: G.H + GEO.ROW }; },
-    reqsMet: reqsMet, blocked: blocked, canResearch: canResearch, research: research,
+    reqsMet: reqsMet, blocked: blocked, hasResearchable: hasResearchable, canResearch: canResearch, research: research,
     topCost: topCost, cardCost: cardCost, govCost: govCost, govRoutineMul: govRoutineMul,
     cardOwned: cardOwned, govOwned: govOwned,
     cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
     removeCard: removeCard,
+    govFirstAdoptionFree: govFirstAdoptionFree,
     govBlocked: govBlocked, canSetGov: canSetGov, setGov: setGov,
     slots: slots, slotList: slotList, cardFits: cardFits, slotTypeName: slotTypeName,
     currentSlotType: currentSlotType,
@@ -1012,8 +1103,14 @@
     theaterMul: theaterMul, theaterCivicMul: theaterCivicMul,
     cardCivicOutMul: cardCivicOutMul, cardSciOutMul: cardSciOutMul,
     cardHydroMul: cardHydroMul, cardHappyOffset: cardHappyOffset,
+    cardHappyOffsetFor: cardHappyOffsetFor,
     theoFaithBonus: theoFaithBonus, wonderEraCivicBonus: wonderEraCivicBonus,
     wonderReligSlots: wonderReligSlots, wonderCivicSlots: wonderCivicSlots,
+    /* ERA7（2026-10 实装）：政策卡/市政的动态效果读数出口。 */
+    civicPolicySlots: civicPolicySlots, builtWonderCount: builtWonderCount,
+    popCapPerPopBldg: popCapPerPopBldg, cardJobOutMul: cardJobOutMul, cardSpaceBuildSave: cardSpaceBuildSave,
+    cardObsSciMul: cardObsSciMul, stadiumCivic: stadiumCivic,
+    wonderCivicGainMul: wonderCivicGainMul, cardWonderLuxSaveMul: cardWonderLuxSaveMul,
     /* ERA6（2026-10-12 实装）效果读数出口。 */
     civicPerPop: civicPerPop, cardLuxConsumeMul: cardLuxConsumeMul, faithPerBuildingBonus: faithPerBuildingBonus,
     govHydroPerPop: govHydroPerPop, govMinePerPop: govMinePerPop, govCraftPerPop: govCraftPerPop,
