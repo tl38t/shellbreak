@@ -152,7 +152,7 @@
         /* ERA7（2026-10-17 · spec §2）：燃料/铀/火箭引擎/星屑。铀有 CAP_BASE 键（200），
          *   燃料 20000、火箭引擎 50；星屑无上限键（跨周目局外，同 science 口径）。
          *   stardust 波次4 起由 meta 存档 seed 进来（freshRun(false) 时保持 0）。 */
-        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: 0 },
+        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: 0, thetaMetal: 0, thinafilm: 0 },
       /* lvl 的键必须与 SB.BUILDINGS 的 id 一一对应（quarry 已随「采石场改职业」移除）。
        * ⚠️ 漏一个键 = 一次 NaN 事故：`undefined * 0.12` 经 addRes 的 Math.min
        * 污染资源池，再顺着 lvlSum 污染破壳系数。与「加职业漏加表」「存档缺键」同类。 */
@@ -211,7 +211,11 @@
         satellite: 0, spacestation: 0, fissionplant: 0,
         /* ERA7（2026-10 实装 · 竞技体育市政解锁）：体育场（civic 区域，ratio 1.5 多实例）。
          * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。 */
-        stadium: 0 },
+        stadium: 0,
+        /* ERA8（2026-10-18 · spec §4）：生物材料研究所 / 瑞亚星矿井 / 泰坦星气云采集站。
+         *   漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）；
+         *   thetaFlow 读 lvl.biomatlab 也依赖本 seed（undefined > 0 恒 false 是侥幸不是保障）。 */
+        biomatlab: 0, rheamine: 0, titancloud: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * SB.UNIT.kelp` 变成
@@ -334,7 +338,7 @@
         tiplate: 0, starExplore: 0, sealbin: 0,
         /* ERA7（2026-10-17 · spec §2/§7）：与 res 那批同口径 seed。星屑记的是**结算发放**累计
          *   （got.stardust = meta seed + 本周目发放），供超古代科技 eureka t:'gathered' 直接读。 */
-        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: (_meta ? (_meta.stardust || 0) : 0) },
+        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: (_meta ? (_meta.stardust || 0) : 0), thetaMetal: 0, thinafilm: 0 },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
        *   civBoost —— 鼓舞条件**达成过**的台账（与技术树的 eurekaMet 同构：
@@ -374,6 +378,13 @@
        *   与 furnaceStop / turbineStop 等「开几座」同口径的停用数思路不同——
        *   自动钻探是升级布尔开关（装了默认开，`!== false` 判据保旧档缺键=开）。 */
       autoDrillOn: true,
+      /* ERA8（2026-10-18）：工坊升级「工业机器人」（upg_indrobot）的可开关状态（对标 autoDrillOn）。 */
+      indRobotOn: true,
+      /* ERA8（2026-10-18 · spec §4）：**单局 buff 标记表**（run-scoped）。
+       *   laserEngrave —— 激光快速雕版（upg_laserengrave）「本周目制造成本 −30%」。
+       *   只由 workshop.upgradeBuy 置位、prestige.doBreak 清除；craftCostMul 只读标记。
+       *   freshRun 全新重建 ⇒ 轮回自然失效，「失效需重买」语义单一事实来源。 */
+      runBuffs: {},
       /* 政策卡槽**人生第一次**装填过没有。
        * ⚠️ 它不能省：换卡收费若按「槽当前空不空」判，「拔下→再装填」就能无限免费换效果。
        *    一次性标记才堵得住。见 civics.cardBlocked 那条注。 */

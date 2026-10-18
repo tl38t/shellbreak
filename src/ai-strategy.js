@@ -139,6 +139,11 @@
     return !isOwned(s, w.id) && w.era <= s.era &&
       (!w.need || s.techs[w.need]) && (!w.needCivic || s.civics && s.civics[w.needCivic]);
   }
+  function shellGateNeedsDrill(s, goal) {
+    var cond = goal && goal.cond;
+    return !!(cond && cond.t === 'shell' && SB.shell && SB.shell.brokenRatio &&
+      SB.shell.brokenRatio(s) + 1e-9 < cond.n);
+  }
   function goalCost(s, goal) {
     var cond = goal && goal.cond;
     if (!cond) return {};
@@ -199,8 +204,9 @@
      * 小国寡民则由人口上限自然钳住目标。若已解锁的待研究市政明确要求奇观，
      * 先补这座关键奇观，避免住房扩张反过来堵住《神学》等通关前置。 */
     if (!wonderUnlocksCivic && SB.economy.popCap(s) < houseCapacityTarget(s, goal, options)) return null;
-    /* 可复用 bot 默认补齐所有可建奇观。天穹钻机必须最后建：它一旦运行就会破壳，
-     * 若提前建造，时代六的奇观和其它已解锁奇观就永远没有建造窗口。
+    /* 可复用 bot 默认补齐所有可建奇观。天穹钻机通常排最后；但若当前关键科技
+     * 明确要求壳层 100% 破除，且剩余奇观被破壳后的科技锁住，就必须先启动钻机打通时代门，
+     * 玩家选择留在本局后 bot 再回来补齐剩余奇观。
      * 调用方可显式 buildAllWonders:false 恢复旧的「只建当前门槛奇观/首座奇观」策略。 */
     var rows = SB.WONDERS || [];
     if (!options || options.buildAllWonders !== false) {
@@ -210,7 +216,7 @@
         return w.id !== 'wonder_skydrill' && !isOwned(s, w.id);
       });
       var drill = SB.workshop.wonderById('wonder_skydrill');
-      if (!pendingBeforeDrill && drill && wonderEligible(s, drill)) return drill.id;
+      if ((!pendingBeforeDrill || shellGateNeedsDrill(s, goal)) && drill && wonderEligible(s, drill)) return drill.id;
       return null;
     }
     if (SB.wonder.count(s) > 0) return null;
@@ -559,7 +565,7 @@
     var allPreDrillWondersBuilt = (SB.WONDERS || []).every(function (w) {
       return w.id === 'wonder_skydrill' || isOwned(s, w.id);
     });
-    if (!allPreDrillWondersBuilt) drillTarget = 0;
+    if (!allPreDrillWondersBuilt && !shellGateNeedsDrill(s, goal)) drillTarget = 0;
     if (drillTarget > 0) {
       expandPrimaryNeeds(s, 'resonantDrill', Math.max(0, drillTarget - (s.res.resonantDrill || 0)), needs, []);
     }
@@ -729,7 +735,9 @@
       if (civic && did(SB.civic.research(s, civic.id, emit))) SB.game.pumpCivic(s, emit);
       if (s.gov) {
         var storagePressure = housingCapacityBlocked || buildCapacityBlocked, installedStorageCard = false;
-        var storageCards = ['card_market', 'card_logistics'];
+        /* 2026-10-18：card_logistics 此前 retiredBy 方向写反（出生即退役）bot 永远装不上；
+         *   修正后按链升级到 ERA8 洲际物流 ×5（canSetCard 自带退役判定，旧卡完成后自动跳下一张）。 */
+        var storageCards = ['card_market', 'card_logistics', 'card_interlog'];
         /* 容量卡一旦把当前造价抬进仓储上限，storagePressure 会暂时变成 false；
          * 但如果目标住房还没建成，普通选卡会立刻把容量卡覆盖掉，下一帧又重新受阻。
          * 在住房目标达成前持续保护它，避免容量卡与普通卡来回切换。 */

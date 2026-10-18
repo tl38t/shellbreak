@@ -56,8 +56,9 @@ console.log('\n=== 建筑解锁来源 ===');
 
   const titaniumCosts = Object.fromEntries(B.filter(b => b.cost && b.cost.titanium)
     .map(b => [b.id, b.cost.titanium]));
-  check('建筑钛造价：热锻工厂 150、学校十倍，且无遗漏项',
-    JSON.stringify(titaniumCosts) === JSON.stringify({ hotforge: 150, school: 200 }),
+  /* ERA8（2026-10-18）：biomatlab 加入钛造价清单（200，θ产线建筑与学校同档——AI 定待标定）。 */
+  check('建筑钛造价：热锻工厂 150、学校/生物材料研究所 200，且无遗漏项',
+    JSON.stringify(titaniumCosts) === JSON.stringify({ hotforge: 150, school: 200, biomatlab: 200 }),
     JSON.stringify(titaniumCosts));
 }
 

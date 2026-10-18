@@ -332,6 +332,71 @@
   function throneCraftMul(s) { return throneGovHit(s, 'egalitarianism'); }
   function throneSciMul(s) { return throneGovHit(s, 'federalism'); }
 
+  /* ⑱ ERA8（2026-10-18 · spec §4 旅行者1号）：星空进度**两档**条件效果。
+   *   未满 25% ⇒ +100 星空探索/秒（追赶档）；≥25% ⇒ +25/秒（巡航档）且学者产出 ×1.10。
+   *   ⚠️ 不能写成 effect 静态键（建成时就得定档）——同天穹钻机 skydrillPostBreak 的
+   *      「条件效果走专属出口」模式。阈值/两档数值在 CFG.VOYAGER_*（数值只改 config.js）。
+   *   ⚠️ 进度 = 存量 / STAR_CAP（破壳前存量恒 0 ⇒ 未满档），不做插值：两档是用户规格原话。
+   *   ⚠️ 落点：economy.starRate（星空速率）与 tick/rates 学者行（ScholarMul），各接一路；
+   *       漏一路就是「面板撒谎」。 */
+  function voyagerPct(s) {
+    var cap = SB.CFG.STAR_CAP || 0;
+    return cap > 0 ? (s.res && s.res.starExplore || 0) / cap : 1;
+  }
+  function voyagerStarRate(s) {
+    if (!owned(s).wonder_voyager) return 0;
+    return voyagerPct(s) < (SB.CFG.VOYAGER_PCT || 0.25)
+      ? (SB.CFG.VOYAGER_STAR_FULL || 100)
+      : (SB.CFG.VOYAGER_STAR_AFTER || 25);
+  }
+  function voyagerScholarMul(s) {
+    if (!owned(s).wonder_voyager) return 1;
+    return voyagerPct(s) >= (SB.CFG.VOYAGER_PCT || 0.25) ? 1 + (SB.CFG.VOYAGER_SCHOLAR || 0) : 1;
+  }
+
+  /* ⑲ ERA8（spec §4 萨图恩巨星气行星轨道采集站）：三个**绝对量**出口。
+   *   hydroBonus 走既有 hydroWonderMul（供给侧，与高压热机管道同一通道，无需新函数）；
+   *   fuelBonus / starBonus 是新键 ⇒ 新出口，economy 燃料行 / starRate 各接一路。
+   *   ⚠️ 与 civicBonus 同款「每秒绝对量、不是乘区」口径——奇观给「一笔看得见的量」。 */
+  function wonderFuelBonus(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.fuelBonus) || 0;
+    }
+    return m;
+  }
+  function wonderStarFlat(s) {
+    var m = 0, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      m += (L[i].effect && L[i].effect.starBonus) || 0;
+    }
+    return m;
+  }
+
+  /* ⑳ ERA8 市政奇观（2026-10-18 · 用户市政表）：哈'利法宇宙望远镜——与旅行者1号同构的两档条件效果，
+   *   **独立叠加**（同进度两座满档 = +50/s；未满档两座 = +200/s，用户确认这是设计意图）。
+   *   学者 +10% 挂满档（与旅行者文案同构：「已满时+25星空探索，且书手产出+10%」）。
+   *   阈值/数值在 CFG.KHALIFA_*；economy.starRate 与 tick/rates 学者行各接一路。 */
+  function khalifaStarRate(s) {
+    if (!owned(s).wonder_khalifa) return 0;
+    return voyagerPct(s) < (SB.CFG.KHALIFA_PCT || 0.25)
+      ? (SB.CFG.KHALIFA_STAR_FULL || 100)
+      : (SB.CFG.KHALIFA_STAR_AFTER || 25);
+  }
+  function khalifaScholarMul(s) {
+    if (!owned(s).wonder_khalifa) return 1;
+    return voyagerPct(s) >= (SB.CFG.KHALIFA_PCT || 0.25) ? 1 + (SB.CFG.KHALIFA_SCHOLAR || 0) : 1;
+  }
+
+  /* ㉑ ERA8 市政奇观：魔鱼世界VR——运转持续耗热液能（用户拍 H1=C：流量资源不能当库存造价，
+   *   改为「建成 + 每秒持续耗 5」）。与空间站「断流只停耗、加成仍在」同口径：断流只停耗、幸福 +1 仍在
+   *   （effect.happyBonus 走既有通道，与流解耦）。economy.hydroAlloc 的 vrDraw 读。 */
+  function fishvrHydroDraw(s) {
+    return owned(s).wonder_fishvr ? (SB.CFG.FISHVR_HYDRO || 0) : 0;
+  }
+
   SB.wonder = {
     list: list, byId: byId, owned: owned, count: count,
     wonderCraftRatio: wonderCraftRatio, matMaxBonus: matMaxBonus,
@@ -346,6 +411,10 @@
     skydrillCivic: skydrillCivic, skydrillHappyOffset: skydrillHappyOffset,
     discountedCost: discountedCost,
     mineMul: mineMul, stationBonus: stationBonus, mannedRocketMul: mannedRocketMul,
-    throneFaithMul: throneFaithMul, throneCraftMul: throneCraftMul, throneSciMul: throneSciMul
+    throneFaithMul: throneFaithMul, throneCraftMul: throneCraftMul, throneSciMul: throneSciMul,
+    voyagerStarRate: voyagerStarRate, voyagerScholarMul: voyagerScholarMul,
+    wonderFuelBonus: wonderFuelBonus, wonderStarFlat: wonderStarFlat,
+    khalifaStarRate: khalifaStarRate, khalifaScholarMul: khalifaScholarMul,
+    fishvrHydroDraw: fishvrHydroDraw
   };
 })(typeof window !== 'undefined' ? window : globalThis);

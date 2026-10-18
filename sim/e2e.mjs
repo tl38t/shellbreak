@@ -899,6 +899,167 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     .filter(r => SB.RESS[r].kind !== 'craft');
   check('6 个工艺资源均标 kind:craft（钢已移出，见下一组）', craftKind.length === 0, '未标=' + craftKind.join(','));
 
+  /* ══ ERA8 探星纪（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）══ */
+  {
+    /* ① θ生物金属：登记完整性（RESS kind craft / CAP_BASE 200 / 解锁门=科技 biomat）。 */
+    check('ERA8 θ金属：RESS 登记 + kind:craft + 解锁门 biomat',
+      !!SB.RESS.thetaMetal && SB.RESS.thetaMetal.kind === 'craft'
+      && SB.RESS.thetaMetal.unlock && SB.RESS.thetaMetal.unlock.tech === 'biomat');
+    /* ⚠️ capOf 用**纯净夹具**：共享夹具 fr 被前序断言塞了 hall=20（castleCap +50）
+     *    等通用容量通道 ⇒ capOf 会 >200。纯净 freshRun 下应恰等于 CAP_BASE（无压舱仓/奇观）。 */
+    const _th0 = SB.state.freshRun(false);
+    check('ERA8 θ金属：CAP_BASE 200 ⇒ capOf 有限且恰为 200（纯净夹具）',
+      SB.economy.capOf(_th0, 'thetaMetal') === 200
+        && SB.economy.capOf(fr, 'thetaMetal') >= 200 && isFinite(SB.economy.capOf(fr, 'thetaMetal')),
+      'pure=' + SB.economy.capOf(_th0, 'thetaMetal') + ' fr=' + SB.economy.capOf(fr, 'thetaMetal'));
+    check('ERA8 θ金属：解锁前隐藏，研究生物材料后显示',
+      !SB.economy.resUnlocked(fr, 'thetaMetal')
+      && (fr.techs.biomat = true, SB.economy.resUnlocked(fr, 'thetaMetal')));
+    /* ② 9 科技 + 前置链 + 层号 + 关键节点。 */
+    const E8 = ['deepspace', 'biomat', 'laser', 'robotics', 'xenoconst', 'bigdata', 'gascloud', 'protoai', 'nanotech'];
+    const miss8 = E8.filter(id => { const t = SB.tech.byId(id); return !t || t.era !== 8; });
+    check('ERA8 九科技全部存在且 era=8', miss8.length === 0, '缺=' + miss8.join(','));
+    check('ERA8 关键节点=生物材料（biomat key=true）',
+      SB.tech.byId('biomat').key === true
+      && E8.filter(id => SB.tech.byId(id).key).length === 1);
+    check('ERA8 前置链（L14→L16 三档）',
+      SB.tech.byId('laser').reqs.includes('biomat') && SB.tech.byId('robotics').reqs.includes('biomat')
+      && SB.tech.byId('xenoconst').reqs.includes('deepspace') && SB.tech.byId('bigdata').reqs.includes('robotics')
+      && SB.tech.byId('gascloud').reqs.includes('xenoconst') && SB.tech.byId('protoai').reqs.includes('robotics')
+      && SB.tech.byId('nanotech').reqs.includes('robotics'));
+    check('ERA8 层号 L14/L15/L16（与用户表 1/2/3 对齐）',
+      [SB.tech.byId('deepspace').layer, SB.tech.byId('biomat').layer].every(l => l === 14)
+      && [SB.tech.byId('laser').layer, SB.tech.byId('robotics').layer, SB.tech.byId('xenoconst').layer].every(l => l === 15)
+      && [SB.tech.byId('bigdata').layer, SB.tech.byId('gascloud').layer, SB.tech.byId('protoai').layer, SB.tech.byId('nanotech').layer].every(l => l === 16));
+    /* ③ 新 cond 类型三处同登记冒烟（condMet 判定 / condShort 有读数 / condText 有文案）。 */
+    const cc = { t: 'cap', r: 'kelp', n: 30000 };
+    check('ERA8 cond cap 三处登记（met+short+text）',
+      SB.tech.condMet(fr, cc) === (SB.economy.capOf(fr, 'kelp') >= 30000)
+      && !!SB.tech.condShort(fr, cc) && !!SB.tech.condText(cc));
+    const cs = { t: 'starPct', n: 10 };
+    const _pct = (fr.res.starExplore || 0) / SB.CFG.STAR_CAP * 100;
+    check('ERA8 cond starPct 三处登记（met+short+text）',
+      SB.tech.condMet(fr, cs) === (_pct >= 10)
+      && !!SB.tech.condShort(fr, cs) && !!SB.tech.condText(cs));
+    check('ERA8 STAR_CAP=400k（用户拍暂定值）', SB.CFG.STAR_CAP === 400000, 'CAP=' + SB.CFG.STAR_CAP);
+    /* ④ 建筑双写：BUILDINGS.requiredTech ↔ 科技 eff.unlockBuild（e2e「建筑解锁来源」同款口径）。 */
+    for (const [bid, tid] of [['biomatlab', 'biomat'], ['rheamine', 'xenoconst'], ['titancloud', 'gascloud']]) {
+      const b = SB.BUILDINGS.find(x => x.id === bid);
+      const t = SB.tech.byId(tid);
+      check('ERA8 建筑 ' + bid + ' 双写（requiredTech ↔ unlockBuild）+ 分区',
+        !!b && !!t && b.requiredTech.includes(tid) && !!t.eff.unlockBuild && t.eff.unlockBuild.includes(bid)
+        && !!b.zone, 'zone=' + (b && b.zone));
+    }
+    /* ⑤ 奇观两座 + 机器人充能站挂起。 */
+    check('ERA8 奇观：旅行者1号(need deepspace, tiplate 1600) / 萨图恩(need gascloud)',
+      !!SB.wonder.byId('wonder_voyager') && SB.wonder.byId('wonder_voyager').need === 'deepspace'
+      && SB.wonder.byId('wonder_voyager').cost.tiplate === 1600
+      && !!SB.wonder.byId('wonder_saturn') && SB.wonder.byId('wonder_saturn').need === 'gascloud');
+    check('ERA8 机器人机制延后：robotbay 不在 BUILDINGS、protoai 无 unlockBuild（挂起有据）',
+      !SB.BUILDINGS.some(x => x.id === 'robotbay') && !SB.tech.byId('protoai').eff.unlockBuild);
+    /* ⑥ 永久乘区词表：四个新 eff 键在 mul 默认表有键（漏登记 = 守卫静默吞）。 */
+    const _m0 = SB.tech.mul(fr);
+    check('ERA8 eff 词表：workshopEff/satStar/biomatlabOut/biomatlabEff 默认 1',
+      _m0.workshopEff === 1 && _m0.satStar === 1 && _m0.biomatlabOut === 1 && _m0.biomatlabEff === 1);
+    /* ⑦ 产线接进 rates：θ金属 / 石梁 / 硬化珊瑚键存在且有穷（缺键 = undefined 面板撒谎）。 */
+    const _rt = SB.economy.rates(fr);
+    check('ERA8 rates 补键：thetaMetal / stoneBeam / hardCoral 有穷',
+      isFinite(_rt.thetaMetal) && isFinite(_rt.stoneBeam) && isFinite(_rt.hardCoral),
+      'θ=' + _rt.thetaMetal + ' 梁=' + _rt.stoneBeam + ' 硬=' + _rt.hardCoral);
+    /* ⑧ run-scoped：freshRun 种子 runBuffs 空 + 工业机器人开关种子 true。 */
+    const _r8 = SB.state.freshRun(false);
+    check('ERA8 runBuffs/indRobotOn 种子', _r8.runBuffs && Object.keys(_r8.runBuffs).length === 0
+      && _r8.indRobotOn === true);
+  }
+
+  /* ══ ERA8 市政（2026-10-18 用户规格表 · 实装）══════════════════════ */
+  {
+    /* ① 9 市政存在 + era/层号 + 前置都指向已存在市政（树几何断链会在市政树几何一节红，这里钉 id）。 */
+    const C8 = { starfaith: [1, ['space_race', 'planet_village']], globalization: [1, ['planet_village']],
+      cosmic_indifference: [2, ['starfaith']], faith_echo: [2, ['starfaith']],
+      social_network: [2, ['globalization']], virtual_reality: [2, ['globalization']],
+      space_politics: [3, ['cosmic_indifference', 'social_network']],
+      far_sight: [3, ['cosmic_indifference']], star_ruins: [3, ['faith_echo']] };
+    for (const [cid, [lay, reqs]] of Object.entries(C8)) {
+      const c = (SB.CIVICS || []).find(x => x.id === cid);
+      check('ERA8 市政 ' + cid + '（era8/layer' + lay + '/前置齐）',
+        !!c && c.era === 8 && c.layer === lay
+        && reqs.every(r => c.reqs.includes(r) && (SB.CIVICS || []).some(x => x.id === r)));
+    }
+    /* ② 7 政策卡 + civic 反查 + 退役映射（retiredBy 设在被替代卡上）。 */
+    const P8 = ['card_star_broadcast', 'card_interlog', 'card_we_are_here', 'card_social_network',
+      'card_vr', 'card_space_net', 'card_fever'];
+    check('ERA8 七张政策卡齐全且 civic 反查正确', P8.every(id => {
+      const p = (SB.POLICIES || []).find(x => x.id === id);
+      return p && (SB.CIVICS || []).some(x => x.id === p.civic && x.era === 8);
+    }), P8.join(','));
+    check('ERA8 替代链：大众传媒→社交网络 / 天赋神权→我们在此 / 总动员令→星际探索热潮',
+      (SB.POLICIES.find(x => x.id === 'card_massmedia') || {}).retiredBy === 'social_network'
+      && (SB.POLICIES.find(x => x.id === 'card_divine_right') || {}).retiredBy === 'cosmic_indifference'
+      && (SB.POLICIES.find(x => x.id === 'card_mobilization') || {}).retiredBy === 'far_sight');
+    /* ②b 2026-10-18 用户纠错（retiredBy 方向反了 ⇒ 基础物流建设出生即死、中世纪集市永不退役）：
+     *   仓储链 中世纪集市 ×2 →(城市化)→ 基础物流建设 ×3 →(全球化)→ 洲际物流 ×5。
+     *   ⚠️ 方向纪律：retiredBy 写在**旧卡**上、指向**新市政**（后期淘汰早期），全部先例同方向。 */
+    check('ERA8 仓储卡三级替代链方向正确（market→urbanization / logistics→globalization）',
+      (SB.POLICIES.find(x => x.id === 'card_market') || {}).retiredBy === 'urbanization'
+      && (SB.POLICIES.find(x => x.id === 'card_logistics') || {}).retiredBy === 'globalization'
+      && (SB.POLICIES.find(x => x.id === 'card_interlog') || {}).retiredBy === undefined);
+    /* ③ 新 cond 类型三处同登记冒烟：oldFaith / wonderEra / lvlSum。 */
+    const co = { t: 'oldFaith', n: 50000 };
+    check('ERA8 cond oldFaith 三处登记（met+short+text）',
+      typeof SB.tech.condMet(fr, co) === 'boolean' && !!SB.tech.condShort(fr, co) && !!SB.tech.condText(co));
+    const cw = { t: 'wonderEra', era: 7, n: 1 };
+    check('ERA8 cond wonderEra 三处登记（met+short+text）',
+      typeof SB.tech.condMet(fr, cw) === 'boolean' && !!SB.tech.condShort(fr, cw) && !!SB.tech.condText(cw));
+    const cl = { t: 'lvlSum', ids: ['rheamine', 'titancloud'], n: 5 };
+    const _bakR = fr.lvl.rheamine, _bakT = fr.lvl.titancloud;
+    fr.lvl.rheamine = 3; fr.lvl.titancloud = 2;
+    check('ERA8 cond lvlSum 三处登记（met=3+2≥5 / short / text）',
+      SB.tech.condMet(fr, cl) === true && !!SB.tech.condShort(fr, cl) && !!SB.tech.condText(cl));
+    fr.lvl.rheamine = _bakR; fr.lvl.titancloud = _bakT;
+    /* ④ 市政奇观两座：哈利法（needCivic 宇宙冷漠，造价 100 引擎 + 400 板件）/
+     *   魔鱼VR（needCivic 虚拟现实，造价 10 薄膜，happyBonus 1 走既有通道）。 */
+    check('ERA8 奇观：哈利法(needCivic cosmic_indifference) / 魔鱼VR(happyBonus 1 + 薄膜×10)',
+      !!SB.wonder.byId('wonder_khalifa') && SB.wonder.byId('wonder_khalifa').needCivic === 'cosmic_indifference'
+      && SB.wonder.byId('wonder_khalifa').cost.tiplate === 400
+      && !!SB.wonder.byId('wonder_fishvr') && SB.wonder.byId('wonder_fishvr').needCivic === 'virtual_reality'
+      && SB.wonder.byId('wonder_fishvr').cost.thinafilm === 10
+      && SB.wonder.byId('wonder_fishvr').effect.happyBonus === 1);
+    /* ⑤ θ薄膜：五处登记（RESS kind craft / CAP_BASE 20 / 工艺产出指向它）。 */
+    const _tf0 = SB.state.freshRun(false);
+    check('ERA8 薄膜：RESS 登记 + capOf 20 + craft_thinafilm 产出指向',
+      !!SB.RESS.thinafilm && SB.RESS.thinafilm.kind === 'craft'
+      && SB.economy.capOf(_tf0, 'thinafilm') === 20
+      && (SB.CRAFTS || []).some(c => c.id === 'craft_thinafilm' && c.res === 'thinafilm'));
+    /* ⑥ 动态卡读数基准值（无卡 = 乘区 1 / 加值 0，不污染产线）。 */
+    check('ERA8 卡读数基准：dynFaith=1 / fever=1 / farsight=1 / planet=1 / vr=0',
+      SB.civic.dynFaithCardMul(fr) === 1 && SB.civic.cardFeverStarMul(fr) === 1
+      && SB.civic.civicFarsightStarMul(fr) === 1 && SB.civic.cardPlanetOutMul(fr) === 1
+      && SB.civic.cardVrCraftRatio(fr) === 0);
+    /* ⑦ 装卡读数：星际物流网 ×1.3 / 星际探索热潮 +1%×人口 / 虚拟现实 −1%×人口。 */
+    const _rc = SB.state.freshRun(false);
+    _rc.pop = 40; _rc.cards = ['card_space_net'];
+    check('ERA8 星际物流网装卡 ×1.3', SB.civic.cardPlanetOutMul(_rc) === 1.3);
+    _rc.cards = ['card_fever'];
+    check('ERA8 星际探索热潮装卡 +1%×人口', Math.abs(SB.civic.cardFeverStarMul(_rc) - 1.4) < 1e-9,
+      'mul=' + SB.civic.cardFeverStarMul(_rc));
+    _rc.cards = ['card_vr'];
+    check('ERA8 虚拟现实装卡 −1%×人口', Math.abs(SB.civic.cardVrCraftRatio(_rc) + 0.4) < 1e-9,
+      'vr=' + SB.civic.cardVrCraftRatio(_rc));
+    _rc.cards = ['card_star_broadcast'];
+    _rc.lvl.satellite = 6;
+    check('ERA8 星际广播装卡 每卫星+5%', Math.abs(SB.civic.dynFaithCardMul(_rc) - 1.3) < 1e-9,
+      'mul=' + SB.civic.dynFaithCardMul(_rc));
+    /* ⑧ 星际物流网进 rates：异星行（stoneBeam）随卡放大（面板===结算抽样）。 */
+    const _rp = SB.state.freshRun(false);
+    _rp.lvl.rheamine = 2; _rp.cards = ['card_space_net'];
+    const _rOn = SB.economy.rates(_rp).stoneBeam;
+    _rp.cards = [];
+    const _rOff = SB.economy.rates(_rp).stoneBeam;
+    check('ERA8 rates 异星行吃星际物流网乘区（开卡=关卡×1.3）',
+      _rOff > 0 && Math.abs(_rOn - _rOff * 1.3) < 1e-9, 'on=' + _rOn + ' off=' + _rOff);
+  }
+
   /* ⑤ 热泉炉「开几座」（2026-09-30）：存的是**停了几座** furnaceStop（默认 0 = 全开）。
    *   运行座数 = lv − furnaceStop，铁产随运行座数线性，结算在 economy.ironFlow 一处，
    *   面板 rates 与 tick 都读它 ⇒ 两条路同源。默认全开（freshRun 自带 furnaceStop:0）

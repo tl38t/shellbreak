@@ -82,7 +82,13 @@ console.log('\n=== 科技树形状 ===');
    *       surface/crewed/architect(d=12) → ancient/spacestation/fission/complexf(d=13)，
    *       其中 ancient 链 = ancient(d=13) ← surface(d=12) ← rocket(d=11) ← refine/exostruct，
    *       再沿破壳链回溯 ⇒ 最深 14。深度直接由 approved 的 reqs 链推出，不是迁就现状。 */
-  check('最深科技 ≤ 14 层（破壳链 6 + era5 天穹钻机叠 2 + 纪元一 4 层 + ERA6 叠 3 + ERA7 叠 3）', maxD <= 14,
+  /* ⑥ ERA8（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）在 exostruct/rocket
+   *    之上的三档：deepspace/biomat(d=14) → laser/robotics/xenoconst(d=15) →
+   *    bigdata/gascloud/protoai/nanotech(d=16)。
+   *    ⚠️ 口径：**链深度 = layer + 1** —— rocket→crewed 那条线（layer 11/12）深度差 1
+   *       （基线最深 14 = layer 13 的 spacestation/complexf）。同差保留 ⇒ 最深 17。
+   *       深度仍由 approved 的 reqs 链推出，不是迁就现状。 */
+  check('最深科技 ≤ 17 层（破壳链 6 + era5 叠 2 + 纪元一 4 层 + ERA6 叠 3 + ERA7 叠 3 + ERA8 叠 3；深度=layer+1）', maxD <= 17,
     '最深 ' + maxD + ' 层：' + at(maxD).map(t => t.id).join(','));
   check('第二层 ≥ 3 项可并行（不是一根直链）', at(1).length >= 3, 'L1=' + at(1).length + ' 项');
   check('第三层 ≥ 4 项可并行', at(2).length + at(3).length >= 6,

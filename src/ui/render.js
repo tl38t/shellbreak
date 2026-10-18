@@ -407,6 +407,20 @@
         /* iframe 动画组件：内容只在门翻转时变化，其余 tick 跳过重写以免 iframe 重载。 */
         var smHtml = cardHeadHTML(k) + PANES[k]();
         if (smHtml !== lastStarMapHTML) { node.innerHTML = smHtml; lastStarMapHTML = smHtml; }
+        /* 已破壳：每周期向星图 iframe 推送最新航天器与星空探索数据（frame 收到后动态绘制）。
+         * 即使 innerHTML 未变也照推——iframe 是独立文档，父页面靠 postMessage 注入状态。 */
+        var _smS = SB.game && SB.game.run ? SB.game.run() : null;
+        if (_smS && (_smS.shellOpened || _smS.breakSettled) && _smS.shell <= 0) {
+          var _ifr = node.querySelector('iframe');
+          if (_ifr && _ifr.contentWindow) {
+            _ifr.contentWindow.postMessage({
+              type: 'sb-spacecraft',
+              list: _smS.spacecraft || [],
+              bodies: SB.STAR_MAP_BODIES || [],
+              star: { value: (_smS.res && _smS.res.starExplore) || 0, cap: (SB.CFG && SB.CFG.STAR_CAP) || 0 }
+            }, '*');
+          }
+        }
       } else if (k === 'faith' || k === 'company' || k === 'village') {
         var body = el('pane-' + k + '-body');
         if (body) body.innerHTML = PANES[k]();

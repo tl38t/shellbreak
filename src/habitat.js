@@ -181,6 +181,9 @@
    *   城堡 = 议事厅买下工坊升级 `upg_castle` 之后的新名字（render 改显示名），
    *   两者是同一座建筑、同一个 lvl.hall，不存在两座之间的等级搬运。 */
     reveal(s, b);
+    /* 星图「造即发射」：轨道卫星/空间站建成本就多一颗在轨航天器（运行座数 = 等级 − 停用数），
+     * 同步到 S.spacecraft 供星图展示（syncSpacecraft 幂等，重复调用无副作用）。 */
+    if ((id === 'satellite' || id === 'spacestation') && SB.game && SB.game.syncSpacecraft) SB.game.syncSpacecraft(s);
     // 建造不再直接削壳：壳厚只由「系数驱动的持续削壳」表达，
     // 建造的贡献体现在 lvlSum 推高破壳系数上。这样玩家看得到因果，而不是看到一次跳变。
     if (emit) emit('建成 ' + b.name + ' ×' + s.lvl[id] + '，破壳系数 ' + SB.shell.breakCoef(s).toFixed(2));
@@ -224,7 +227,10 @@
    *   「工坊区自动建造」是死注释（全库无科技侧接线，开关从未出现）。
    *   现在开 TECH_AUTO_ZONES 一张表：rocket → 科研区（academy），modpart → 工坊区（workshop）。
    *   开关 UI / 在线泵 / 「买得起就买一级」语义全部复用现有系统，零新增。 */
-  var TECH_AUTO_ZONES = { rocket: ['academy'], modpart: ['workshop'] };
+  var TECH_AUTO_ZONES = { rocket: ['academy'], modpart: ['workshop'],
+    /* ERA8（2026-10-18 · spec §2 大数据解锁）：礁栖核心（core 区）自动建造——
+     *   礁口巢/珊瑚屋/议事厅那批住房与统治核心随大数据自动买级。 */
+    bigdata: ['core'] };
   function autoZoneUnlocked(s, zone) {
     if (!s || !s.civics) return false;
     var C = SB.CIVICS || [];

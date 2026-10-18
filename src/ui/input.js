@@ -204,6 +204,7 @@
         var _satrun = _satlv - _satstop;
         SB.game.log('轨道卫星：开 ' + _satrun + '/' + _satlv + ' 颗' +
           (_satrun === 0 ? '（停产，不再贡献星空探索）。' : '。'));
+        SB.game.syncSpacecraft(s);  // 星图：停几座 ⇒ 移除对应在轨航天器
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -222,6 +223,7 @@
         var _strun = _stlv - _ststop;
         SB.game.log('空间站：开 ' + _strun + '/' + _stlv + ' 座' +
           (_strun === 0 ? '（停产，不再贡献星空探索、不再消耗热液能）。' : '。'));
+        SB.game.syncSpacecraft(s);  // 星图：停几座 ⇒ 移除对应在轨航天器
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;

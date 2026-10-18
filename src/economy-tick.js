@@ -182,9 +182,33 @@
     // 2b) ERA3 热液能 → 钢（热液汽轮机产热液能、热液工坊吃能产钢；比例降产）
     steelFlow(s, dt);
 
+    // 2c) ERA8 θ生物金属（生物材料研究所：耗 藻食/精铁/钛/铀 ⇒ 产 θ；开工率=最紧原料）。
+    //     ⚠️ 在 steelFlow 之后调：hydroAlloc 的 labDraw（研究所耗流）已在同一 tick 分配好。
+    SB.economy.thetaFlow(s, dt);
+
+    // 2d) ERA8 瑞亚星矿井（星海区在地开采）：每级 石梁/硬化珊瑚/铀 三行，吃 globalMul。
+    //     石梁/硬化珊瑚是无上限 craft 资源（capOf 恒 Infinity），addRes 直进不钳。
+    //     ⚠️ 与 rates 的 stoneBeam/hardCoral/uranium 三行逐字同构（面板===结算）。
+    //     ERA8 市政（2026-10-18）：星际物流网卡 planetOutMul ×1.3 罩异星建筑三行（装卡才 >1）。
+    var _planetMul = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1);
+    if (s.lvl.rheamine > 0) {
+      var _rl = s.lvl.rheamine;
+      addRes(s, 'stoneBeam', _rl * (SB.BLD.rheamineBeam || 0) * _gm * _planetMul * dt);
+      addRes(s, 'hardCoral', _rl * (SB.BLD.rheamineCoral || 0) * _gm * _planetMul * dt);
+      addRes(s, 'uranium', _rl * (SB.BLD.rheamineUranium || 0) * _gm * _planetMul * dt);
+    }
+
     // 3) 地热（排在祭坛消耗之前，先产后烧）。这一行是唯一原本就乘了 dt 的，
     //    修单位时保持不动——它现在只是「铁律」的一个 conform 例子。
-    if (j.craft > 0) addRes(s, 'fuel', fuelRate(s, cold) * dt);
+    /* ERA8（2026-10-18 · spec §4）：燃料行并入两个新来源——
+     *   泰坦星气云采集站每级 +5/秒（BLD.titancloudFuel）、萨图恩 effect.fuelBonus 30/秒
+     *   （wonder.wonderFuelBonus 出口）。都是绝对量、不依赖匠人职业 ⇒ 门改成 _fuelOut > 0
+     *   （原 `j.craft > 0` 门会让「没雇匠人但建了采集站」的燃料凭空消失）。
+     *   ⚠️ 与 rates().fuel 逐字同构，漏一路就是面板撒谎。 */
+    var _fuelOut = fuelRate(s, cold)
+      + (s.lvl.titancloud || 0) * (SB.BLD.titancloudFuel || 0) * _planetMul
+      + (SB.wonder ? SB.wonder.wonderFuelBonus(s) : 0);
+    if (_fuelOut > 0) addRes(s, 'fuel', _fuelOut * dt);
 
     // 4) 科技
     /* 复用 tick 开头算好的 _T（与 globalMul/gatherMul 同口径的每 tick 缓存），避免重复遍历全表。 */
@@ -220,6 +244,11 @@
     /* ERA7（2026-10-17 · spec §5）：轨道卫星每级学者产出 +25%（乘区挂学者线，与 _obs/_cutter 并列）。
      *   ⚠️ 与 rates().science 的对应位置逐字同构，漏一路就是面板撒谎。 */
     var _satScholar = 1 + (s.lvl.satellite || 0) * (SB.BLD.satelliteScholar || 0);
+    /* ERA8（2026-10-18 · spec §4 旅行者1号巡航档）：星空进度 ≥25% 后学者产出 ×1.10
+     *   （voyagerScholarMul，未满档恒 1）。与 _satScholar 独立相乘；rates 同位置逐字同构。
+     * ERA8 市政奇观：哈'利法宇宙望远镜满档学者 ×1.10（khalifaScholarMul，与旅行者独立叠加）。 */
+    var _voySch = (SB.wonder ? SB.wonder.voyagerScholarMul(s) : 1)
+      * (SB.wonder && SB.wonder.khalifaScholarMul ? SB.wonder.khalifaScholarMul(s) : 1);
     s.res.science += (j.scholar * SB.UNIT.sci
       * (1 + libraryLevel(s) * SB.BLD.sciRatio * (SB.civic ? SB.civic.libraryMul(s) : 1)
         + (s.lvl.institute || 0) * (SB.BLD.instituteSci + _uInst) * (SB.civic ? SB.civic.universityMul(s) : 1)
@@ -229,7 +258,7 @@
         /* ERA6：温水藻场升级（upg_warmalgalfarm）解锁后，每级（× 藻场等级）额外 +0.5 科技/s。
          *   ⚠️ 本作无独立「温水藻场」建筑，按「藻场等级」兑现（待标定口径，用户可调）。 */
         + (SB.economy ? SB.economy.upgSum(s, 'algalfarmSci') : 0) * (s.lvl.kelp || 0))
-      * _obs * _cutter * _satScholar * (SB.wonder ? SB.wonder.throneSciMul(s) : 1) * (Tt ? Tt.sci : 1) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm
+      * _obs * _cutter * _satScholar * _voySch * (SB.wonder ? SB.wonder.throneSciMul(s) : 1) * (Tt ? Tt.sci : 1) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm
       * _lgSciMul * dt
       + (_lgSci ? _lgSci.oldTideSteleScienceRate : 0) * dt) * _challengeSciCulture;
 

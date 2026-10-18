@@ -19,12 +19,14 @@ console.log('\n=== 工坊：青铜工具 ===');
    *    2026-09-29 用户拍板实装（商人奢侈品产出 +50%）⇒ 原「占位三条」断言随实化作废，
    *    升级为钉**真件**的行为（见下块）。数量断言只守「表里还在」，行为归下块。 */
   /* ⚠️ 2026-09-30 钢质三件（metalrefine 线）加入 ⇒ 10 件。数量断言只守「表里还在」，
-   *    行为归下块（need 门）与加法合并断言（镰线三件相加）。 */
-  check('工具表十件齐全（青铜镰斧镐 + 铁镰斧镐 + 钢镰斧镐 + 马具）',
-    T.length === 10 && !!w.byId('tool_sickle') && !!w.byId('tool_axe') && !!w.byId('tool_pick')
+   *    行为归下块（need 门）与加法合并断言（镰线三件相加）。
+   * ⚠️ 2026-10-18 ERA8 θ工具三件套（biomat 线，bonus 2.00）加入 ⇒ 13 件。 */
+  check('工具表十三件齐全（青铜镰斧镐 + 铁镰斧镐 + 钢镰斧镐 + 马具 + θ镰斧镐）',
+    T.length === 13 && !!w.byId('tool_sickle') && !!w.byId('tool_axe') && !!w.byId('tool_pick')
       && !!w.byId('tool_ironSickle') && !!w.byId('tool_ironAxe') && !!w.byId('tool_ironPick')
       && !!w.byId('tool_steelSickle') && !!w.byId('tool_steelAxe') && !!w.byId('tool_steelPick')
-      && !!w.byId('tool_harnes'),
+      && !!w.byId('tool_harnes')
+      && !!w.byId('tool_thetaSickle') && !!w.byId('tool_thetaAxe') && !!w.byId('tool_thetaPick'),
     T.map(t => t.id).join(','));
 
   /* ⚠️ 2026-09-29 马具实装后的四条行为断言：
@@ -393,16 +395,20 @@ console.log('\n=== 工坊：青铜工具 ===');
      * ⚠️ 2026-09-30 钢质三件同理：开 metalrefine 门 + 清 steel，不然它们叫「未解锁」。 */
     const bakIron = g.res.iron, bakTech = !!g.techs.ironwork, bakHorse = !!g.techs.horsemanship;
     const bakSteel = g.res.steel, bakMetal = !!g.techs.metalrefine;
+    /* ERA8（2026-10-18）：θ三件吃 θ金属 —— 夹具同样清零，让它们也落到「钱不够」态。 */
+    const bakTheta = g.res.thetaMetal;
     g.techs.ironwork = true;
     g.techs.horsemanship = true;
     g.techs.metalrefine = true;
-    g.res.iron = 0; g.res.coral = 0; g.res.silt = 0; g.res.steel = 0;
+    g.techs.biomat = true;
+    g.res.iron = 0; g.res.coral = 0; g.res.silt = 0; g.res.steel = 0; g.res.thetaMetal = 0;
     SB.game.setTab('workshop');
     const msg = doc.getElementById('pane-workshop').innerHTML;
-    g.res.iron = bakIron; g.res.steel = bakSteel;
+    g.res.iron = bakIron; g.res.steel = bakSteel; g.res.thetaMetal = bakTheta;
     if (!bakTech) delete g.techs.ironwork;
     if (!bakHorse) delete g.techs.horsemanship;
     if (!bakMetal) delete g.techs.metalrefine;
+    if (!g.techs.biomat) delete g.techs.biomat;
 
     /* 标签的取法跟着 render.js 的口径走（`/^需要先/.test(why) ? '未解锁' : '买不起'`），
      * 这里不重写那份规则 —— 一重写两边就各自演化，又变成两套逻辑。 */

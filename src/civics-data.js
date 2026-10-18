@@ -378,7 +378,66 @@
     { id: 'planet_village', name: '星球村', icon: 'assets/civic-icons/era-7/era7-village.png', cost: 1100000, era: 7, layer: 3,
       reqs: ['cultural_heritage'], boost: { t: 'anyWonders', ids: ['wonder_logistics', 'wonder_national_logistics'] },
       desc: '解锁政策卡「跨国经济」「未来主义神学」。',
-      note: '鼓舞：建成奇观「总物流站」或「全国快速物流通道」之一。' }
+      note: '鼓舞：建成奇观「总物流站」或「全国快速物流通道」之一。' },
+
+    /* ══ ERA8 市政（2026-10-18 用户规格表 · 实装）══════════════════════
+     * 【cost 为提议值，未标定】对齐 ERA8 科技量级（200万~720万）取 130万~350万；调它 = 标定，待用户拍。
+     * 【鼓舞全部走 tech.condMet】既有类型：starPct/wonders(AND)/built/tech/gathered；
+     *   新类型 3 个（本波加进 tech.js 三处登记）：oldFaith(跨周目旧日信仰)、wonderEra(按纪元数奇观)、
+     *   lvlSum(指定建筑等级合计——「真正别的星球上」= rheamine+titancloud，用户拍 Q5-A)。
+     * 【被动市政有先例】信仰回响/远见主义哲学(解锁2)/星间遗迹/群星与神明(解锁1) 无卡无政体无奇观，
+     *   效果由 economy/prestige 读 s.civics.*（与文明构造 +20% 轮回点、先民遗产 +20% 星屑同款）。
+     * 【替代链】社交网络→大众传媒、我们在此→天赋神权、星际探索热潮→总动员令
+     *   （retiredBy 设在被替代卡上，单值字段）；仓储链 2026-10-18 用户纠错后补全：
+     *   中世纪集市 ×2 →(城市化)→ 基础物流建设 ×3 →(全球化)→ 洲际物流 ×5。 */
+    { id: 'starfaith', name: '群星与神明', icon: 'assets/civic-icons/era-8/era8-starfaith.png', cost: 1300000, era: 8, layer: 1,
+      reqs: ['space_race', 'planet_village'], boost: { t: 'starPct', n: 5 },
+      /* 被动：信仰产出 ×(1 + 星空进度)（进度=starExplore/STAR_CAP 小数）。economy.faithRate 读。 */
+      desc: '信仰产出提高 x%，x 为星空探索进度（破壳后随星空累积持续变强）。',
+      note: '鼓舞：星空探索进度超过 5%。' },
+    { id: 'globalization', name: '全球化', icon: 'assets/civic-icons/era-8/era8-globalization.png', cost: 1500000, era: 8, layer: 1,
+      reqs: ['planet_village'], boost: { t: 'wonders', ids: ['wonder_logistics', 'wonder_national_logistics'] },
+      card: 'card_interlog',
+      desc: '解锁政策卡「洲际物流」：仓储区建筑容量 ×5（取代「基础物流建设」×3，后者又取代中世纪集市 ×2）。',
+      note: '鼓舞：总物流站与全国快速物流通道均已完成。' },
+    { id: 'cosmic_indifference', name: '宇宙冷漠', icon: 'assets/civic-icons/era-8/era8-indifference.png', cost: 2000000, era: 8, layer: 2,
+      reqs: ['starfaith'], boost: { t: 'built', b: 'spacestation', n: 3 },
+      card: 'card_we_are_here', wonder: 'wonder_khalifa',
+      desc: '解锁政策卡「我们在此」（取代天赋神权），以及奇观「哈\'利法宇宙望远镜」。',
+      note: '鼓舞：空间站等级超过 3。' },
+    { id: 'faith_echo', name: '信仰回响', icon: 'assets/civic-icons/era-8/era8-faithecho.png', cost: 1800000, era: 8, layer: 2,
+      reqs: ['starfaith'], boost: { t: 'oldFaith', n: 50000 },
+      /* 两个本轮回被动（用户拍 Q3）：① 全产加成档位 ×2（prestige.legacy().oldFaithAllProductionBonus 在 baseMul 乘 2）；
+       *   ② doBreak 本局剩余信仰入账 ×1.2。都读 s.civics.faith_echo。 */
+      desc: '本轮回：旧日信仰的全产出加成翻倍（每档 +1%）；本轮回破壳入账的旧日信仰 +20%。',
+      note: '鼓舞：旧日信仰超过 50k（跨周目账本）。' },
+    { id: 'social_network', name: '社交网络', icon: 'assets/civic-icons/era-8/era8-social.png', cost: 2200000, era: 8, layer: 2,
+      reqs: ['globalization'], boost: { t: 'wonderEra', era: 7, n: 1 },
+      card: 'card_social_network',
+      desc: '解锁政策卡「社交网络」（取代大众传媒）。',
+      note: '鼓舞：完成任意纪元七奇观。' },
+    { id: 'virtual_reality', name: '虚拟现实', icon: 'assets/civic-icons/era-8/era8-vr.png', cost: 2400000, era: 8, layer: 2,
+      reqs: ['globalization'], boost: { t: 'tech', id: 'biomat' },
+      card: 'card_vr', wonder: 'wonder_fishvr',
+      desc: '解锁政策卡「虚拟现实」，以及奇观「魔鱼世界VR」。',
+      note: '鼓舞：完成科技「生物材料」。' },
+    { id: 'space_politics', name: '星际政治', icon: 'assets/civic-icons/era-8/era8-spacepol.png', cost: 3000000, era: 8, layer: 3,
+      reqs: ['cosmic_indifference', 'social_network'], boost: { t: 'lvlSum', ids: ['rheamine', 'titancloud'], n: 5 },
+      card: 'card_space_net',
+      desc: '解锁政策卡「星际物流网」：异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +30%。',
+      note: '鼓舞：异星建筑（瑞亚/泰坦）合计等级超过 5。' },
+    { id: 'far_sight', name: '远见主义哲学', icon: 'assets/civic-icons/era-8/era8-farsight.png', cost: 3200000, era: 8, layer: 3,
+      reqs: ['cosmic_indifference'], boost: { t: 'starPct', n: 25 },
+      card: 'card_fever',
+      /* 双份 +x%（用户拍 Q2：+x% 且卡与被动并行叠加）：卡走 cardFeverStarMul，被动走 civicFarsightStarMul，
+       *   economy.starRate 各乘一次（两份都 = 1 + 0.01×人口）。 */
+      desc: '解锁政策卡「星际探索热潮」（替代总动员令）；完成本市政额外使星空探索速率 +x%（x=人口数，与政策卡并行叠加）。',
+      note: '鼓舞：星空探索进度超过 25%。' },
+    { id: 'star_ruins', name: '星间遗迹', icon: 'assets/civic-icons/era-8/era8-ruins.png', cost: 3500000, era: 8, layer: 3,
+      reqs: ['faith_echo'], boost: { t: 'gathered', r: 'stardust', n: 30 },
+      /* 被动（用户拍 Q6）：doBreak 星屑结算乘 ×(1 + 0.01×太空/异星建筑合计等级)，prestige 读。 */
+      desc: '本次轮回结算时，每级太空/异星建筑（卫星/空间站/瑞亚/泰坦）+1% 星屑点获取。',
+      note: '鼓舞：累计星屑点超过 30（跨周目）。' }
   ];
 
   /* 槽位类型。Civ6 是 军事 / 经济 / 外交 / 万能；本作按约束 §2 砍掉军事（没有军事单位）、
@@ -534,6 +593,11 @@
       desc: '每级牧场给藻场效果 +1%，每级藻场给牧场效果 +1%（互乘，装在卡槽里才生效）。' },
     { id: 'card_market', name: '中世纪集市', civic: 'market', type: 'sci',
       effect: {}, storeMul: 2,
+      /* 2026-10-18 用户纠错（原为 card_logistics.retiredBy='market'，方向写反 ⇒ 本卡永不退役、
+       *   基础物流建设一出生就是退役态的死内容）：retiredBy 写在**旧卡**上指向**新市政**——
+       *   《城市化》(ERA5) 完成后本卡退役，由 card_logistics（storeMul ×3）上位替代。
+       *   与技艺→guild / 历史记录→enlightenment 等 5 处先例同方向。 */
+      retiredBy: 'urbanization',
       desc: '仓储区所有建筑的仓储 +100%（即海藻仓/压舱仓/灯塔的容量贡献翻倍）。' },
     { id: 'card_guild', name: '职业行会', civic: 'guild', type: 'prod',
       effect: {}, craftRatio: 0.40,
@@ -550,6 +614,8 @@
       canalMul: 2,
       desc: '王国潮道（运河）效果额外 +100%（居民奢侈品消耗减免翻倍）。' },
     { id: 'card_divine_right', name: '天赋神权', civic: 'reformed', type: 'relig', effect: {},
+      /* ERA8（2026-10-18）：被《我们在此》卡取代后退役（core+space 每级 +10% 信仰 上位替代 core 每级 +10%）。 */
+      retiredBy: 'cosmic_indifference',
       /* 礁栖核心所有建筑每级 +10% 信仰产出：coreFaithMul(s) 读它，乘在 faithRate 整段上。 */
       coreFaithMul: 0.10,
       desc: '礁栖核心所有建筑每级 +10% 信仰产出（替代「王权神授」）。' },
@@ -580,14 +646,18 @@
       retiredBy: 'drama', squareMul: 2.5, theaterMul: 2.5,
       desc: '广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5（取代「戏剧与诗歌」）。' },
     { id: 'card_logistics', name: '基础物流建设', civic: 'urbanization', type: 'prod', effect: {},
-      /* 替代《中世纪集市》（retiredBy）：仓储区建筑容量 ×3（storeMul，走 MUL_FIELD）。 */
-      retiredBy: 'market', storeMul: 3,
+      /* 2026-10-18 用户纠错 + 链补全：原 retiredBy:'market' 方向反了（ERA2 市政淘汰 ERA5 卡 ⇒ 出生即死）。
+       *   修正后替代链：中世纪集市 ×2 →(城市化)→ 本卡 ×3 →(全球化)→ 洲际物流 ×5（card_interlog）。 */
+      retiredBy: 'globalization', storeMul: 3,
       desc: '仓储区建筑容量 ×3（取代「中世纪集市」）。' },
     { id: 'card_heat_priority', name: '热能优先', civic: 'mobilization', effect: {},
       /* 市政/科技产出 −50%（cardCivicOutMul / cardSciOutMul）；热液能供给 +100%（cardHydroMul）。 */
       civicOutMul: 0.5, sciOutMul: 0.5, hydroSupplyMul: 2,
       desc: '市政与科技产出 −50%，热液能（蒸汽）供给 +100%。' },
     { id: 'card_mobilization', name: '总动员令', civic: 'mobilization', effect: {},
+      /* ERA8（2026-10-18）：被《星际探索热潮》卡取代后退役（效果通道 shellSpeedPerIdle 本就挂起，
+       *   天穹钻机机器态未实装——退役不损失任何现役效果）。 */
+      retiredBy: 'far_sight',
       /* 闲置鲛人每提供 1% 破壳速度（shellSpeedPerIdle）。⚠️ 天穹钻机机器态（wonder_skydrill 的运转速度）
        *   尚未实装，此效果通道暂挂起——字段预留、不接读数函数，等机器态落地再接线。 */
       shellSpeedPerIdle: 0.01,
@@ -596,7 +666,10 @@
     /* ── ERA6 政策卡（2026-10-12 用户规格）──
      * 字段沿用既有通道：civicPerPop / luxConsumeMul（大众传媒卡）、museumMul（博物馆管理卡）、craftRatio（国家凝聚力卡）。 */
     { id: 'card_massmedia', name: '大众传媒', civic: 'massmedia', type: 'prod', effect: {},
-      civicPerPop: 0.5, luxConsumeMul: 0.5,
+      /* ERA8（2026-10-18）：被《社交网络》卡取代后退役（每鲛人 0.5→3 市政点的上位替代）。
+       *   ⚠️ 幸福度新 3 档门控在**市政完成**（s.civics.massmedia，economy-social.happyTier），
+       *      不在卡上 ⇒ 卡退役不影响档位，只换 civicPerPop/luxConsumeMul 这组数值。 */
+      retiredBy: 'social_network', civicPerPop: 0.5, luxConsumeMul: 0.5,
       desc: '每名鲛人 +0.5 市政点/秒；但奢侈品消耗 +50%。' },
     { id: 'card_museum', name: '博物馆管理', civic: 'naturalhistory', type: 'prod', effect: {},
       museumMul: 2,
@@ -648,7 +721,42 @@
     { id: 'card_future_theology', name: '未来主义神学', civic: 'planet_village', type: 'sci', effect: {},
       /* 替代《神学》（retiredBy 设在 card_theology 上 = planet_village）：神庙信仰 ×5（templeFaithMul，通用相乘）、科技 -30%（sciOutMul）。 */
       retiredBy: 'planet_village', templeFaithMul: 5, sciOutMul: 0.70,
-      desc: '替代「神学」：神庙信仰 ×5、科技产出 −30%。' }
+      desc: '替代「神学」：神庙信仰 ×5、科技产出 −30%。' },
+
+    /* ── ERA8 政策卡（2026-10-18 用户规格 · 实装）──
+     * 字段通道：storeMul（MUL_FIELD，洲际物流 ×5）、civicPerPop / luxConsumeMul（社交网络，通用求和）、
+     * craftRatioPerPop（虚拟现实，新动态字段：craftRatio 轴 −1%×人口，workshop 源⑩读）、
+     * planetOutMul（星际物流网，cardFieldMul 通用逐槽相乘，economy 异星建筑行读）、
+     * 动态信仰双乘（星际广播 faithSatMul / 我们在此 coreSpaceFaithMul，civics.dynFaithCardMul 读）、
+     * starPerPop（星际探索热潮，civics.cardFeverStarMul 读）。退役映射：大众传媒→社交网络、
+     * 天赋神权→我们在此、总动员令→星际探索热潮（retiredBy 设在各自被替代卡上）。 */
+    { id: 'card_star_broadcast', name: '星际广播', civic: 'starfaith', type: 'relig', effect: {},
+      /* 每颗（轨道卫星每级）+5% 信仰产出：dynFaithCardMul 动态读 s.lvl.satellite。 */
+      faithSatMul: 0.05,
+      desc: '每颗轨道卫星使信仰产出 +5%（随卫星升级变强）。' },
+    { id: 'card_interlog', name: '洲际物流', civic: 'globalization', type: 'prod', effect: {},
+      /* 仓储区建筑容量 ×5（storeMul 走 MUL_FIELD）。退役关系写在旧卡 card_logistics 上
+       *   （retiredBy:'globalization'，2026-10-18 用户纠错后补全的 ×2→×3→×5 三级链末环）。 */
+      storeMul: 5,
+      desc: '仓储区建筑容量 ×5（取代「基础物流建设」）。' },
+    { id: 'card_we_are_here', name: '我们在此', civic: 'cosmic_indifference', type: 'relig', effect: {},
+      /* 礁栖核心+太空区所有建筑每级 +10% 信仰产出：dynFaithCardMul 动态读两级合计（用户拍 Q4 乘区）。 */
+      coreSpaceFaithMul: 0.10,
+      desc: '礁栖核心、星海区所有建筑每级 +10% 信仰产出（取代「天赋神权」）。' },
+    { id: 'card_social_network', name: '社交网络', civic: 'social_network', type: 'prod', effect: {},
+      civicPerPop: 3, luxConsumeMul: 0.8,
+      desc: '每名鲛人 +3 市政点/秒；但奢侈品消耗 +80%（取代「大众传媒」）。' },
+    { id: 'card_vr', name: '虚拟现实', civic: 'virtual_reality', type: 'grow', effect: {},
+      /* 工坊效率 −1%×人口（craftRatioPerPop，加法轴源⑩；用户确认轴上正源够厚不做护栏之外的处理）。
+       * 奢侈品消耗 −60%（luxConsumeMul 通用求和可为负，luxDemandMul 已有 ≥0 护栏）。 */
+      craftRatioPerPop: 1, luxConsumeMul: -0.6,
+      desc: '工坊效率 −1%×人口数（加算）；奢侈品消耗 −60%（加算）。' },
+    { id: 'card_space_net', name: '星际物流网', civic: 'space_politics', type: 'prod', effect: {},
+      planetOutMul: 1.3,
+      desc: '异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +30%。' },
+    { id: 'card_fever', name: '星际探索热潮', civic: 'far_sight', type: 'grow', effect: {},
+      starPerPop: 1,
+      desc: '星空探索速率 +x%，x = 人口数（%）（替代「总动员令」）。' }
   ];
   // Public content tables are shared by migration, UI, and the civic rules module.
   SB.CIVICS = CIVICS;

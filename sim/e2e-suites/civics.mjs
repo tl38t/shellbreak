@@ -1242,11 +1242,12 @@ console.log('\n=== 市政 ===');
 
   /* ══ 星空槽（2026-10-13 镜像破壳：破壳后终局资源，被动累积到 STAR_CAP）═══════════
    * 设计：破壳前星空探索恒 0；破壳后由文明推力被动累积（速率 = STAR_BASE × breakCoef + 升级加成），
-   *   满槽 STAR_CAP（现 1e9 占位）即太空时代达成，弹占位结算面板。旧「吃热液能产出」路线已废弃。 */
+   *   满槽 STAR_CAP 即太空时代达成，弹占位结算面板。旧「吃热液能产出」路线已废弃。 */
   {
-    /* 资源 cap：10000 → 1e7 → 2026-10-17 用户拍板抬到 1e9 占位（ERA7 完工后标定结局阈值）。 */
-    check('星空槽：资源 cap = STAR_CAP（1e9 占位，破壳后终局累积目标）',
-      SB.CFG.CAP_BASE.starExplore === SB.CFG.STAR_CAP && SB.CFG.STAR_CAP === 1000000000,
+    /* 资源 cap：10000 → 1e7 → 1e9 占位 → 2026-10-18 ERA8 实装用户拍暂定 **400k**
+     *   （spec §0-B4：让「星空进度 >10%」类尤里卡可达；结局阈值待标定回填）。 */
+    check('星空槽：资源 cap = STAR_CAP（400k 暂定，破壳后终局累积目标）',
+      SB.CFG.CAP_BASE.starExplore === SB.CFG.STAR_CAP && SB.CFG.STAR_CAP === 400000,
       'cap=' + SB.CFG.CAP_BASE.starExplore);
 
     /* 破壳前：tickStar 不累积（starExplore 恒 0）。 */

@@ -219,6 +219,47 @@
     return report;
   }
 
+  /* 星图天体清单（萨图恩行星系，与 star-map-frame.html 的 data-id 对齐）。
+   * europa 是航天器局部轨道载体（已发射卫星/空间站沿其局部轨道运行，见 frame foot 注释）。
+   * 供 recordLaunch 校验、state-migrate 已知天体白名单、星图 iframe 渲染使用。 */
+  SB.STAR_MAP_BODIES = [
+    { id: 'enceladus', name: '恩克拉多斯' },
+    { id: 'rhea', name: '瑞亚' },
+    { id: 'titan', name: '泰坦' },
+    { id: 'europa', name: '欧罗巴' },
+    { id: 'ring', name: '萨图恩环' }
+  ];
+
+  /* 星图航天器同步（造即发射）：把 S.spacecraft 幂等对齐到当前运行座数。
+   * 轨道卫星/空间站是普通建筑（可叠建多座、用 *Stop「开几座」），其「运行座数」
+   * 即本轮回在轨航天器数。未破壳不发射；europa 必须是合法天体（局部轨道载体）。
+   * 返回是否发生改变；本函数只改写数组并落盘，渲染由调用方/主循环负责。 */
+  function syncSpacecraft(s) {
+    if (!s || !s.shellOpened || s.shell > 0) return false;
+    var bodies = SB.STAR_MAP_BODIES || [], hasEuropa = false;
+    for (var bi = 0; bi < bodies.length; bi++) if (bodies[bi].id === 'europa') hasEuropa = true;
+    if (!hasEuropa) return false;
+    if (!Array.isArray(s.spacecraft)) s.spacecraft = [];
+    var satRun = Math.max(0, ((s.lvl && s.lvl.satellite) || 0) - (s.satelliteStop || 0));
+    var staRun = Math.max(0, ((s.lvl && s.lvl.spacestation) || 0) - (s.spacestationStop || 0));
+    var existSat = 0, existSta = 0;
+    for (var i = 0; i < s.spacecraft.length; i++) {
+      var t = s.spacecraft[i] && s.spacecraft[i].type;
+      if (t === 'satellite') existSat++; else if (t === 'station') existSta++;
+    }
+    if (existSat === satRun && existSta === staRun) return false;  // 已对齐，幂等早退
+    var seq = s.spacecraft.length || 0, ns = 0, nt = 0, list = [];
+    function newId() { return 'craft-' + (++seq); }
+    for (var a = 0; a < satRun; a++)
+      list.push({ id: newId(), type: 'satellite', body: 'europa', name: '卫星 ' + (++ns), launchedAt: s.t || 0 });
+    for (var b = 0; b < staRun; b++)
+      list.push({ id: newId(), type: 'station', body: 'europa', name: '空间站 ' + (++nt), launchedAt: s.t || 0 });
+    s.spacecraft = list;
+    SB.state.saveRun(snapshot(S));
+    dirty = true;
+    return true;
+  }
+
   /* 发射系统接入点：发射动作完成后登记航天器，由星图展示并随本周目保存。
    * 资源消耗和发射条件由未来的发射玩法决定，这里只接受已完成的发射结果。 */
   function recordLaunch(type, body, name) {
@@ -1032,6 +1073,7 @@
     adMul: adMul, grantAdBoost: grantAdBoost, toggleAdBoost: toggleAdBoost,
     grantRebirthAd: grantRebirthAd, adRebirthState: adRebirthState, todayKey: todayKey,
     startRun: startRun, nextCycle: nextCycle, stay: stay, recordLaunch: recordLaunch,
+    syncSpacecraft: syncSpacecraft,
     resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave, settleBreak: settleBreak,
     /* 离线补算核心函数暴露为调试/测试入口（纯接口，逻辑仅在上面定义处）。
      * 供 sim/_probe_offline_ad.mjs 等探针直接驱动离线补算、复用生产路径，

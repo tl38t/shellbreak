@@ -775,7 +775,9 @@
     var m = (1 + (s.lvl.lighthouse || 0) * SB.BLD.lighthouseProd) * faithAllMul(s);
     if (SB.wonder) m += SB.wonder.globalBonus(s);
     var lg = SB.prestige ? SB.prestige.legacy() : null;
-    if (lg) m *= (1 + lg.oldFaithAllProductionBonus);
+    /* ERA8 市政《信仰回响》（2026-10-18 用户拍 Q3）：本轮回旧日信仰全产加成档位 ×2
+     *   （0.5%/档 → 1%/档；仅本轮回，轮回清掉 s.civics 后自动失效）。 */
+    if (lg) m *= 1 + lg.oldFaithAllProductionBonus * ((s.civics && s.civics.faith_echo) ? 2 : 1);
     if (SB.challenges) m *= SB.challenges.productionMul(s);
     return m;
   }
@@ -1025,15 +1027,20 @@
         shopL = Math.max(0, (s.lvl.hydroshop || 0) - (s.hydroshopStop || 0)),
         /* ERA7：核热厂（不烧暖石的新热液源）与空间站（耗流方）都参与流分配，早退判据要带上。 */
         fisL = s.lvl.fissionplant || 0,
-        staL = s.lvl.spacestation || 0;
+        staL = s.lvl.spacestation || 0,
+        /* ERA8：泰坦星气云采集站（新热液源）与生物材料研究所/工业机器人（耗流方）同上。 */
+        tcL = s.lvl.titancloud || 0,
+        labL = s.lvl.biomatlab || 0,
+        robotL = (s.indRobotOn !== false && s.upgrades && s.upgrades.upg_indrobot) || 0;
     /* ⚠️ 提前返回也必须**补齐全部键**（含三个 Rate）：少一个键，读它的人拿到 undefined
      *    而不是 0 —— steelFlow 的 `s.res.hydro = HF.supplyRate` 会把顶栏主数写成 undefined
      *    （解了 metalrefine 但一台汽轮机都没建时就是这样），rates().hydroSupply 同理。
      *    这种缺键不报错、只在面板上变成 NaN/undefined，属于「面板撒谎」家族。 */
-    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0)
+    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0)
       return { supply: 0, supplyRate: 0, shopDraw: 0, shopRate: 0, shopRatio: 0,
         skyDraw: 0, skyRate: 0, left: 0, starDraw: 0, starRate: 0, drillDraw: 0, drillRate: 0,
-        stationDraw: 0, stationRate: 0 };
+        stationDraw: 0, stationRate: 0, labDraw: 0, labRate: 0, robotDraw: 0, robotRate: 0,
+        vrDraw: 0, vrRate: 0 };
     /* ERA5（2026-10-02）：高压热机管道(wonder_presspipe) 给热液能**供给侧 +10 绝对量**，
      *   走 wonder.hydroWonderMul 出口。与高压气泵升级的 hydroMul（乘区）是两回事，这里加法叠加。 */
     var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
@@ -1057,6 +1064,12 @@
      *   ⚠️ 铀消耗不在此扣（tick 侧直耗），这里只管流；「断铀不停堆」为提议口径待标定。 */
     if (fisL > 0) {
       supply += fisL * (SB.BLD.fissionHydro || 0) * dt
+        * (SB.challenges ? SB.challenges.productionMul(s) : 1);
+    }
+    /* ERA8（2026-10-18 · spec §4）：泰坦星气云采集站——每级 +6 热液能/秒（不烧暖石，
+     *   与核热厂同一供给侧通道）+ 每级产 5 燃料/秒（燃料行在 tick/rates，不进流）。 */
+    if (tcL > 0) {
+      supply += tcL * (SB.BLD.titancloudHydro || 0) * dt
         * (SB.challenges ? SB.challenges.productionMul(s) : 1);
     }
     /* 工坊（低阶科技先吃满）：从本 tick 流里取 min(需求, 供给)。 */
@@ -1099,14 +1112,44 @@
       var _stLeft = Math.max(0, left - skyDraw - drillDraw);
       stationDraw = Math.min(_stNeed, _stLeft);
     }
+    /* ERA8（2026-10-18 · spec §4）：生物材料研究所每级耗 3 热液能/秒（labDraw），
+     *   优先级在空间站之后（工坊→钻机→钻探→空间站→研究所）。
+     *   ⚠️ 断流只停耗、θ产出照给——与空间站「断流只停耗、星空加成仍在」同一提议口径；
+     *      若要「断电停产」须把 thetaFlow 乘供电率（labDraw/labNeed），另拍。 */
+    var labDraw = 0;
+    if (labL > 0) {
+      var _lbNeed = labL * (SB.BLD.biomatlabHydro || 0) * dt;
+      var _lbLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw);
+      labDraw = Math.min(_lbNeed, _lbLeft);
+    }
+    /* ERA8（spec §4）：工业机器人（upg_indrobot）耗流，优先级最后；
+     *   开关 s.indRobotOn 与加成同一个判据（关掉 ⇒ 加成与耗能一起停，面板===结算）。 */
+    var robotDraw = 0;
+    if (robotL) {
+      var _rbNeed = s.upgrades.upg_indrobot * (SB.UNIT.robotHydro || 1) * dt;
+      var _rbLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw);
+      robotDraw = Math.min(_rbNeed, _rbLeft);
+    }
+    /* ERA8 市政奇观（2026-10-18 · 用户市政表 H1=C）：魔鱼世界VR 运转持续耗 5 热液能/秒，
+     *   优先级最后（…→研究所→机器人→魔鱼VR）。断流只停耗、幸福 +1 仍在（与空间站同口径，
+     *   effect.happyBonus 与流解耦）。 */
+    var vrDraw = 0;
+    var _vrNeed = (SB.wonder && SB.wonder.fishvrHydroDraw ? SB.wonder.fishvrHydroDraw(s) : 0) * dt;
+    if (_vrNeed > 0) {
+      var _vrLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw);
+      vrDraw = Math.min(_vrNeed, _vrLeft);
+    }
     return { supply: supply, supplyRate: dt > 0 ? supply / dt : supply,
       shopDraw: shopDraw, shopRate: dt > 0 ? shopDraw / dt : shopDraw,
       skyDraw: skyDraw, skyRate: dt > 0 ? skyDraw / dt : skyDraw,
       shopRatio: shopDemand > 0 ? shopDraw / shopDemand : (shopL > 0 ? 1 : 0),
-      left: left - skyDraw - starDraw - drillDraw - stationDraw,
+      left: left - skyDraw - starDraw - drillDraw - stationDraw - labDraw - robotDraw - vrDraw,
       starDraw: starDraw, starRate: dt > 0 ? starDraw / dt : starDraw,
       drillDraw: drillDraw, drillRate: dt > 0 ? drillDraw / dt : drillDraw,
-      stationDraw: stationDraw, stationRate: dt > 0 ? stationDraw / dt : stationDraw };
+      stationDraw: stationDraw, stationRate: dt > 0 ? stationDraw / dt : stationDraw,
+      labDraw: labDraw, labRate: dt > 0 ? labDraw / dt : labDraw,
+      robotDraw: robotDraw, robotRate: dt > 0 ? robotDraw / dt : robotDraw,
+      vrDraw: vrDraw, vrRate: dt > 0 ? vrDraw / dt : vrDraw };
   }
   /* 副作用版（tick 调用）：算好流分配后**只扣暖石**，且把 s.res.hydro 写成「每秒供给」
    * （覆盖写，绝不再 += —— 这就是 flow 模型「不储存」的核心）。工坊据此产钢。
@@ -1131,9 +1174,23 @@
     var satRun = Math.max(0, ((s.lvl && s.lvl.satellite) || 0) - (s.satelliteStop || 0));
     var staRun = Math.max(0, ((s.lvl && s.lvl.spacestation) || 0) - (s.spacestationStop || 0));
     var staEff = staRun + (SB.wonder ? SB.wonder.stationBonus(s) : 0);
-    var spaceLvl = satRun * (SB.BLD.satelliteStar || 0)
+    /* ERA8（2026-10-18 · spec §2 机器人技术解锁2 永久乘区）：人造卫星星空探索 +100%
+     *   （satStar，乘区只罩卫星项——空间站/奇观的星空不受它放大，spec 原话「人造卫星」）。 */
+    var _satStarMul = 1 + ((SB.tech && SB.tech.mul) ? (SB.tech.mul(s).satStar || 0) : 0);
+    var spaceLvl = satRun * (SB.BLD.satelliteStar || 0) * _satStarMul
       + staEff * (SB.BLD.stationStar || 0);
-    return (SB.CFG.STAR_BASE || 0) * coef + upg * (SB.CFG.STAR_UPG_BONUS || 0) + spaceLvl;
+    /* ERA8（spec §4 两奇观）：旅行者1号两档（voyagerStarRate，条件出口）+
+     *   萨图恩 effect.starBonus（wonderStarFlat，绝对量）。都是平坦加项，与 spaceLvl 相加。
+     * ERA8 市政奇观：哈'利法宇宙望远镜两档（khalifaStarRate）——与旅行者**独立叠加**（用户确认）。 */
+    var _voy = (SB.wonder && SB.wonder.voyagerStarRate) ? SB.wonder.voyagerStarRate(s) : 0;
+    var _satFlat = (SB.wonder && SB.wonder.wonderStarFlat) ? SB.wonder.wonderStarFlat(s) : 0;
+    var _khal = (SB.wonder && SB.wonder.khalifaStarRate) ? SB.wonder.khalifaStarRate(s) : 0;
+    /* ERA8 市政（2026-10-18 用户拍 Q2）：星际探索热潮卡 + 远见主义哲学被动，各 +1%×人口，
+     *   并行叠加（相乘两份）。乘区罩整段（基础+卫星+奇观都随人口放大）。 */
+    var _fever = (SB.civic && SB.civic.cardFeverStarMul) ? SB.civic.cardFeverStarMul(s) : 1;
+    var _farsight = (SB.civic && SB.civic.civicFarsightStarMul) ? SB.civic.civicFarsightStarMul(s) : 1;
+    return ((SB.CFG.STAR_BASE || 0) * coef + upg * (SB.CFG.STAR_UPG_BONUS || 0)
+      + spaceLvl + _voy + _satFlat + _khal) * _fever * _farsight;
   }
 
   function steelFlow(s, dt) {
@@ -1184,8 +1241,58 @@
     /* 容量口径（砂矿充足假设）：bldEff 不改产能 ⇒ 不动此处；steelMul 放大钢产能（与 steelBonus 独立相乘）。 */
     var steel = HF.shopDraw * SB.UNIT.steelPerHydro * globalMul(s) * (1 + upgSum(s, 'steelBonus')) * (T ? T.steelMul : 1)
       * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0));
-    var hydro = -(HF.shopDraw + HF.skyDraw + HF.starDraw + HF.drillDraw + HF.stationDraw);
+    /* ERA8：补 labDraw（生物材料研究所）/ robotDraw（工业机器人）两个新耗流方——
+     *   漏加 = 顶栏热液能净消耗少算两路（面板撒谎家族）。 */
+    var hydro = -(HF.shopDraw + HF.skyDraw + HF.starDraw + HF.drillDraw + HF.stationDraw + HF.labDraw + HF.robotDraw + HF.vrDraw);
     return { steel: steel, hydro: hydro, hydroSupply: HF.supplyRate, starRate: HF.starRate };
+  }
+
+  /* ── ERA8（2026-10-18 · spec §3）：θ生物金属产线（生物材料研究所）────────
+   * 形制照 steelFlow/steelRate 对：tick 走副作用版 thetaFlow（扣四样原料）、
+   * rates 走纯读版 thetaRate（dt=1 同式不扣）⇒ 面板 === 结算。
+   * 【开工率】四种原料（藻食/精铁/钛/铀，×bldEff 原料效率）各自「库存 ÷ 需求」取最小，
+   *   钳 [0,1] —— 哪个先见底就按哪个比例降产（与热液工坊的 metal 门控同构）。
+   * 【乘区】产出 = 每级基准 × 开工率 × globalMul × (1+biomatlabOut)×(1+biomatlabEff)
+   *   （纳米技术两键独立相乘 ⇒ ×1.43）；原料扣减端吃 bldEff（热泉回流同一条效率轴）。
+   * 【热液能耗】不在这里——labDraw 由 hydroAlloc 统一分配（断流只停耗、产出照给，
+   *   与空间站同口径，见 hydroAlloc 那条注）。 */
+  function thetaRatio(s) {
+    var T = SB.tech ? SB.tech.mul(s) : null;
+    var lv = s.lvl.biomatlab || 0;
+    if (lv <= 0) return { ratio: 0, T: T, lv: 0 };
+    var e = (T ? T.bldEff : 1);
+    var nK = lv * (SB.BLD.biomatlabKelp || 0) * e;
+    var nI = lv * (SB.BLD.biomatlabIron || 0) * e;
+    var nT = lv * (SB.BLD.biomatlabTi || 0) * e;
+    var nU = lv * (SB.BLD.biomatlabU || 0) * e;
+    var ratio = 1;
+    if (nK > 0) ratio = Math.min(ratio, (s.res.kelp || 0) / nK);
+    if (nI > 0) ratio = Math.min(ratio, (s.res.iron || 0) / nI);
+    if (nT > 0) ratio = Math.min(ratio, (s.res.titanium || 0) / nT);
+    if (nU > 0) ratio = Math.min(ratio, (s.res.uranium || 0) / nU);
+    ratio = Math.max(0, Math.min(1, ratio));
+    return { ratio: ratio, T: T, lv: lv, nK: nK, nI: nI, nT: nT, nU: nU };
+  }
+  function thetaOut(s, lv, ratio, T) {
+    return lv * (SB.BLD.biomatlabOutRate || 0) * ratio * globalMul(s)
+      * (T ? (1 + (T.biomatlabOut || 0)) * (1 + (T.biomatlabEff || 0)) : 1);
+  }
+  function thetaFlow(s, dt) {
+    var q = thetaRatio(s);
+    if (q.lv <= 0 || q.ratio <= 0) return 0;
+    /* 扣四样原料（×开工率×dt，min 双限防抽负）。原料按 bldEff 折扣扣（与铁器同口径）。 */
+    s.res.kelp -= Math.min(q.nK * q.ratio * dt, s.res.kelp || 0);
+    s.res.iron -= Math.min(q.nI * q.ratio * dt, s.res.iron || 0);
+    s.res.titanium -= Math.min(q.nT * q.ratio * dt, s.res.titanium || 0);
+    s.res.uranium -= Math.min(q.nU * q.ratio * dt, s.res.uranium || 0);
+    var out = thetaOut(s, q.lv, q.ratio, q.T) * dt;
+    addRes(s, 'thetaMetal', out);
+    return out;
+  }
+  function thetaRate(s) {
+    var q = thetaRatio(s);
+    if (q.lv <= 0) return 0;
+    return thetaOut(s, q.lv, q.ratio, q.T);
   }
 
   /* 市政点的产出：**书手 + 议事厅**两条（双来源，2026-09-27 用户拍板，见 CIVICS §3）。
@@ -1300,6 +1407,12 @@
       * (1 + 0.10 * (s.perk.sacrament || 0))            // 2026-10-05 拍板 祭祀唱诗 +10%/级（不设上限）
       * (SB.civic && SB.civic.castleFaithMul ? SB.civic.castleFaithMul(s) : 1)
       * (SB.civic && SB.civic.coreFaithMul ? SB.civic.coreFaithMul(s) : 1)
+      /* ERA8 市政《群星与神明》（2026-10-18 用户表解锁1）：信仰产出 ×(1+星空进度)。
+       *   进度 = starExplore / STAR_CAP 小数（5% ⇒ ×1.05），破壳前恒 ×1。市政完成即生效（非卡）。 */
+      * (s.civics && s.civics.starfaith
+          ? 1 + (SB.CFG.STAR_CAP > 0 ? (s.res.starExplore || 0) / SB.CFG.STAR_CAP : 0) : 1)
+      /* ERA8 两张动态信仰卡（星际广播每卫星 +5% / 我们在此 core+space 每级 +10%，装卡才生效）。 */
+      * (SB.civic && SB.civic.dynFaithCardMul ? SB.civic.dynFaithCardMul(s) : 1)
       * (SB.wonder && SB.wonder.abbeyFaithMul ? SB.wonder.abbeyFaithMul(s) : 1)
       * (SB.wonder && SB.wonder.throneFaithMul ? SB.wonder.throneFaithMul(s) : 1)
       + (SB.civic && SB.civic.theoFaithBonus ? SB.civic.theoFaithBonus(s) : 0)
@@ -1375,10 +1488,16 @@
     libraryLevel: libraryLevel, luxuryPactMul: luxuryPactMul, mineTaxMul: mineTaxMul,
     obsSciMul: obsSciMul, resUnlocked: resUnlocked, seasonTurn: seasonTurn,
     steelFlow: steelFlow, steelRate: steelRate, toolMul: toolMul, upgSum: upgSum,
-    warmBurningNow: warmBurningNow, warmCap: warmCap, warmEff: warmEff, warmRelief: warmRelief
+    warmBurningNow: warmBurningNow, warmCap: warmCap, warmEff: warmEff, warmRelief: warmRelief,
+    /* ERA8：θ生物金属产线（tick 走 thetaFlow、rates 走 thetaRate，与 steelFlow/steelRate 对同构）。 */
+    thetaFlow: thetaFlow, thetaRate: thetaRate
   };
   SB.economy = {
     fmt: fmt, fmtAmt: fmtAmt,
+    /* ERA8：θ生物金属产线（tick 走 thetaFlow、rates 走 thetaRate，与 steelFlow/steelRate 对同构）。
+     * ⚠️ 必须挂在 SB.economy 本体——economy-rates.js 的 rates() 调 SB.economy.thetaRate，
+     *    只进 economyInternals（sim 侧 P 表）运行时拿不到（首跑 e2e 即因此崩）。 */
+    thetaFlow: thetaFlow, thetaRate: thetaRate,
     rOf: rOf, starRate: starRate, spaceCostMul: spaceCostMul, isCold: isCold, popCap: popCap, isFull: isFull, lvlSum: lvlSum,
     enough: enough,
     /* ⚠️ upgSum 导出（2026-09-29 工坊升级 craftRatio）：工坊效率的第五个加法来源

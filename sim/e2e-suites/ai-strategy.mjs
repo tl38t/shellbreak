@@ -224,8 +224,8 @@ export function run({ SB, check, noop }) {
   cutter.jobs.gather = finalGather;
   const finalFoodNeed = Math.max(0, Math.min(Math.ceil((SB.economy.foodUse(cutter) * 1.12 - finalBuiltFood) /
     Math.max(finalGatherMarginal, 0.000001)), cutter.pop - 1));
-  check('奇观目标按珊瑚产速补藻食制绳，并自动解锁后续高压气泵前置',
-    cutterDecision.goal === 'skydrill' && finalGather >= Math.max(0, finalFoodNeed - 1) &&
+  check('关键奇观的科技门回溯到高压热机，并按珊瑚产速补藻食制绳',
+    cutterDecision.goal === 'highthermo' && finalGather >= Math.max(0, finalFoodNeed - 1) &&
       cutter.jobs.gather <= finalFoodNeed + Math.ceil(cutter.pop * 0.25) &&
       cutterRates.kelp + 1e-9 >= Math.max(1, cutterRates.coral) &&
       cutter.jobs.coralwright >= 5 && cutter.upgrades.upg_hppump,
@@ -268,6 +268,24 @@ export function run({ SB, check, noop }) {
     supplyBefore < 10 && wonderTechGate.lvl.hydroturbine > 5,
     'supply=' + supplyBefore + ' turbine=' + wonderTechGate.lvl.hydroturbine +
       ' decision=' + JSON.stringify(supplyDecision));
+
+  const shellGateWonders = SB.state.freshRun(false);
+  shellGateWonders.era = 6;
+  shellGateWonders.pop = 31; shellGateWonders.peak = 31;
+  shellGateWonders.shell = 1;
+  Object.assign(shellGateWonders.lvl, { nest: 15, workshop: 1, hall: 1 });
+  SB.TECHS.forEach(t => { if (t.era <= 6) shellGateWonders.techs[t.id] = true; });
+  shellGateWonders.techs.exostruct = false;
+  SB.CIVICS.forEach(c => { shellGateWonders.civics[c.id] = true; });
+  SB.WONDERS.forEach(w => { shellGateWonders.wonders[w.id] = true; });
+  shellGateWonders.wonders.wonder_skydrill = false;
+  shellGateWonders.wonders.wonder_cradle = false; // ERA7 奇观要破壳后科技，不能成为钻机前置死锁
+  Object.keys(shellGateWonders.res).forEach(r => { shellGateWonders.res[r] = 1e9; });
+  const shellGateDecision = SB.aiStrategy.step(shellGateWonders, { emit: noop });
+  check('壳外科技被 100% 破壳门槛挡住时，允许钻机先打通时代门，再回来补 ERA7 奇观',
+    shellGateDecision.goal === 'exostruct' && !!shellGateWonders.wonders.wonder_skydrill,
+    'decision=' + JSON.stringify(shellGateDecision) + ' sky=' + !!shellGateWonders.wonders.wonder_skydrill +
+      ' remaining=' + SB.WONDERS.filter(w => !shellGateWonders.wonders[w.id]).map(w => w.id).join(','));
 
   const optionalMaterial = SB.state.freshRun(false);
   optionalMaterial.era = 6;

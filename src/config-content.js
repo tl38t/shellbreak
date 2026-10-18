@@ -76,6 +76,18 @@
      *   属工艺资源（kind:'craft'），但有基础仓储上限 200；通过通用仓储设施/扩容升级增加容量。
      *   解锁权双写：craft_tiplate 配方的 need:'minipump' 真读（与铁制支架/绳同构），科技侧 eff 留空不写死键。 */
     tiplate:    { name: '钛金板件', short: '板', kind: 'craft', unlock: { tech: 'minipump' } },
+    /* ERA8（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）：θ生物金属 —— 生物材料研究所（建筑）制造的「壳外」生物基材料。
+     * ⚠️ kind:'craft' = 进顶栏「工艺资源」折叠区（与钛金板件同族，但它是建筑制造而非工坊配方）；
+     *   解锁权挂科技『生物材料』（biomat）。CAP_BASE.thetaMetal=200（用户拍定案，待标定）——
+     *   与 stoneBeam/hardCoral 这类「无上限工艺制品」不同：θ金属是 ERA8 主线材料（机器人充能站/萨图恩奇观都吃），
+     *   故给有限上限，避免囤积失控；若后续要放开再回 config.js 改。 */
+    thetaMetal: { name: 'θ生物金属', short: 'θ', kind: 'craft', unlock: { tech: 'biomat' } },
+    /* ERA8 市政（2026-10-18 · 用户市政表 H2 拍板）：θ金属自适应薄膜成为**可持有资源**——
+     *   上一波实装时工艺产出折算成了钛金板件（避免「无 CAP 无去处的工艺资源」），
+     *   但用户市政表《虚拟现实》解锁的奇观「魔鱼世界VR」造价是「薄膜 ×10」，
+     *   折算方案下薄膜这个持有物不存在 ⇒ 造价无附着点。改为独立资源（CAP_BASE 20，见 config.js），
+     *   craft_thinafilm 产出同步改指 thinafilm（5 处登记：RESS/CAP_BASE/state res/got seed/e2e）。 */
+    thinafilm: { name: 'θ金属自适应薄膜', short: '膜', kind: 'craft', unlock: { tech: 'nanotech' } },
     /* ERA6（2026-10 实装）：星空探索 —— 轻量版「星图进度」替代资源（星图系统晚点立项）。
      *   exostruct 解锁资源显示（0/s）；实际产出由星空观测站升级（upg_starscope）每 tick +1 提供，耗 1 热液能。
      *   有 CAP_BASE.starExplore 上限键（1e9 占位，见 config.js CAP_BASE.starExplore；ERA7 完工后标定为太空时代结局阈值）。 */
@@ -327,7 +339,21 @@
       desc: '把暖石高压精炼成火箭燃料。每 100 暖石出 1 份燃料。' },
     { id: 'craft_rocketengine', name: '火箭引擎', need: 'crewed',
       in: { rocketFuel: 200, sealbin: 10 }, out: 1, res: 'rocketEngine',
-      desc: '燃料与封闭藻仓组装成的火箭引擎。空间站的建造材料。' }
+      desc: '燃料与封闭藻仓组装成的火箭引擎。空间站的建造材料。' },
+
+    /* ── ERA8 工艺配方（2026-10-18 实装 · spec §4）──
+     * 【θ金属自适应薄膜】need='nanotech'（纳米技术，与 RESS.unlock 双写轴同构——
+     *   纳米技术的尤里卡是「θ金属产出 5/秒」，配方门天然晚于产线存在，无死锁）。
+     * 【产出 = tiplate】把 100 θ生物金属压成 1 块高规格钛金板件——
+     *   薄膜是 θ 金属的「降维出口」：θ 是 era8 新材料，出产时还没有自己的消费链，
+     *   折回 tiplate 这条已有全链消费（奇观/太空建筑/合金仓储）的板件，
+     *   不引入第三个无 CAP 无去处的工艺资源（石梁那条注的同一条纪律）。
+     *   100:1 与燃料（100 暖石）、火箭引擎（200 燃料）同档偏贵——θ 同时是建筑造价主料，刻意稀缺。 */
+    { id: 'craft_thinafilm', name: 'θ金属自适应薄膜', need: 'nanotech',
+      in: { thetaMetal: 100 }, out: 1, res: 'thinafilm',
+      /* 2026-10-18 市政表 H2：产出从折算 tiplate 改为独立资源 thinafilm——
+       *   魔鱼世界VR 造价「薄膜 ×10」需要它可持有（CAP_BASE.thinafilm 20，config.js）。 */
+      desc: '把 θ生物金属压成自适应薄膜。每 100 θ 出 1 卷薄膜（魔鱼世界VR 的建造材料）。' }
   ];
 
   /* ── 工艺升级项（2026-09-28 用户规格 · era2 第三层）───────────────
@@ -541,7 +567,26 @@
      *   cost 科技点 2,100,000 = 《复合型工厂》自身 cost；材料提议值。 */
     { id: 'upg_complexf', name: '复合型工厂', need: 'complexf',
       cost: { tiplate: 800, rocketEngine: 5, science: 2100000 },
-      desc: '自动工艺槽位 +1。' }
+      desc: '自动工艺槽位 +1。' },
+
+    /* ── ERA8 工艺升级两项（2026-10-18 实装 · spec §4）──
+     * 【激光快速雕版】need=激光技术（laser）。**单局（per-run）**效果：全部工艺制造成本 −30%
+     *   （×0.7，与雕版术/考古学折扣同一入口 workshop.craftCostMul）。
+     *   实现口径（spec §4 注）：买断置位时同时置 run-scoped 标记 s.runBuffs.laserEngrave = true；
+     *   craftCostMul 只读**标记**不读 s.upgrades；prestige.doBreak（破壳结算）清 runBuffs ⇒
+     *   轮回/破壳后效果失效。s.upgrades 跨轮回本就重置（freshRun 全新表）⇒ 重新买即重新生效，
+     *   「失效需重研」的语义自然成立。cost 为提议值，待标定。
+     * 【工业机器人】need=机器人技术（robotics）。工坊工艺制作效率 +100%（独立乘区 ×2，
+     *   与 boomcraftMul/throneCraftMul 同形态相乘）；每级（=装 1 级）耗 1 热液能/秒
+     *   （hydroAlloc 的 robotDraw，优先级最后）；可开关 s.indRobotOn（对标 autoDrillOn：
+     *   关掉 ⇒ 加成与耗能一起停。⚠️ 开关 UI 通道与 autoDrillOn 同状态——读侧已接线，UI 待补）。
+     *   cost 科技点 3,000,000 = 《机器人技术》自身 cost（§0-4 先例）；材料提议值。 */
+    { id: 'upg_laserengrave', name: '激光快速雕版', need: 'laser',
+      cost: { thetaMetal: 120, science: 2000000 },
+      desc: '本周目全部工艺制造成本 −30%（轮回/破壳后失效，重新购买即再次生效）。' },
+    { id: 'upg_indrobot', name: '工业机器人', need: 'robotics',
+      cost: { thetaMetal: 200, science: 3000000 },
+      desc: '工坊工艺制作效率 +100%（独立乘区 ×2）；每级耗 1 热液能/秒（可开关）。' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
@@ -760,7 +805,44 @@
     { id: 'wonder_bolocillo', name: '博洛西洛漂浮发射场', era: 7, needCivic: 'space_race',
       cost: { tiplate: 1000, sealbin: 80 },
       effect: { mannedRocket: 1.0 },
-      desc: '载人火箭工艺效率 +100%（工艺制作乘区 ×2，economy 载人火箭工艺段读 wonder.mannedRocketMul）。' }
+      desc: '载人火箭工艺效率 +100%（工艺制作乘区 ×2，economy 载人火箭工艺段读 wonder.mannedRocketMul）。' },
+
+    /* ── ERA8 奇观两座（2026-10-18 实装 · spec §4）──
+     * 【旅行者1号】need=深空力学（deepspace）。效果**随星空进度切换两档**，不能写成静态
+     *   effect 键（那会在建成时就定死档位）——走 wonder.js 专属出口 voyagerStarRate /
+     *   voyagerScholarMul（同天穹钻机 skydrillPostBreak 的「条件效果」模式）：
+     *     星空进度 <25% ⇒ +100 星空探索/秒（追赶档）；≥25% ⇒ +25/秒 且学者产出 +10%（巡航档）。
+     *   阈值与两档数值在 CFG（VOYAGER_PCT / VOYAGER_STAR_FULL / VOYAGER_STAR_AFTER）。
+     *   cost 火箭引擎 100 + **tiplate 1600**（§0-B6 用户拍：400→1600，×4 拉开与太空建筑的量级）。
+     * 【萨图恩巨星气行星轨道采集站】need=气云采集（gascloud）。三个效果都是**绝对量**：
+     *   hydroBonus: 30 走既有 hydroWonderMul（与高压热机管道同一供给侧通道，零新代码）；
+     *   fuelBonus: 30 / starBonus: 10 走新出口 wonder.wonderFuelBonus / wonder.wonderStarFlat
+     *   （economy 燃料行 / starRate 各接一路）。
+     *   cost 500 θ金属 + 50 火箭引擎（spec §4 用户规格原值）。 */
+    { id: 'wonder_voyager', name: '旅行者1号', era: 8, need: 'deepspace',
+      cost: { rocketEngine: 100, tiplate: 1600 },
+      effect: {},
+      desc: '星际探测的起点：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为每秒 +25 且学者产出 +10%。' },
+    { id: 'wonder_saturn', name: '萨图恩巨星气行星轨道采集站', era: 8, need: 'gascloud',
+      cost: { thetaMetal: 500, rocketEngine: 50 },
+      effect: { hydroBonus: 30, fuelBonus: 30, starBonus: 10 },
+      desc: '气态巨行星的轨道工厂：热液能 +30/秒、燃料 +30/秒、星空探索 +10/秒。' },
+
+    /* ── ERA8 市政奇观（2026-10-18 · 用户市政表）──
+     *   哈利法：解锁权在市政《宇宙冷漠》（needCivic，与博洛西洛 needCivic:space_race 同构）。
+     *   星空两档与学者 +10% 走专属出口（wonder.khalifaStarRate/khalifaScholarMul），
+     *   阈值/数值在 CFG.KHALIFA_*；与旅行者1号的两档**独立叠加**（同进度两座都满档 = +50/s）。
+     *   cost「400 钛合金」= 钛金板件 tiplate（游戏内该档资源名，已与用户对齐口径）。
+     *   魔鱼世界VR：effect.happyBonus 走既有 happyBonus 通道（与王国大交易所同款，零新代码）；
+     *   「持续耗热液能 5/秒」（用户拍 H1=C）走 hydroAlloc 新 draw（vrDraw，CFG.FISHVR_HYDRO）。 */
+    { id: 'wonder_khalifa', name: '哈\'利法宇宙望远镜', era: 8, needCivic: 'cosmic_indifference',
+      cost: { rocketEngine: 100, tiplate: 400 },
+      effect: {},
+      desc: '轨道巨眼：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为每秒 +25 且书手产出 +10%。' },
+    { id: 'wonder_fishvr', name: '魔鱼世界VR', era: 8, needCivic: 'virtual_reality',
+      cost: { thinafilm: 10 },
+      effect: { happyBonus: 1 },
+      desc: '全域沉浸幻境：幸福度 +1；运转持续消耗热液能 5/秒（断流只停幻境不停幸福加成，与空间站同口径）。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。
@@ -824,7 +906,9 @@
      *   门=科技 autodrill（tick/rates 两处同式）；调产出只改此处。 */
     uranium: 0.002,
     /* ERA7（spec §4）：自动化钻探（upg_autodrill）每级每秒耗热液能（提议值）。 */
-    drillHydro: 1 };
+    drillHydro: 1,
+    /* ERA8（2026-10-18 · spec §4）：工业机器人（upg_indrobot）每级每秒耗热液能（提议值）。 */
+    robotHydro: 1 };
   SB.SEASONS = SEASONS;
   SB.RESS = RESS;
   SB.CRAFTS = CRAFTS;

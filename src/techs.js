@@ -97,7 +97,11 @@
     /* ERA7（2026-10-17 实装 · spec docs/ERA7_TECHS_SPEC_v0.1.md）：名称/口号/配色为提议值，待用户拍。
      * 关键节点 = 火箭研究（rocket）——研成即推进入本纪元；本纪元终局无 key，靠星空探索/星图线收尾。 */
     { id: 7, name: '观星纪', motto: '离开摇篮', color: '#FF8ED4', glyph: '七',
-      desc: '燃料把第一枚火箭送出海面。卫星、空间站与核火点亮夜空——摇篮之外，还有整片星海。' }
+      desc: '燃料把第一枚火箭送出海面。卫星、空间站与核火点亮夜空——摇篮之外，还有整片星海。' },
+    /* ERA8（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）。关键节点 = 生物材料（biomat）。
+     * 颜色深空蓝紫（与观星纪粉区分）；glyph 八；口号「星海为家」。 */
+    { id: 8, name: '探星纪', motto: '星海为家', color: '#6E5BD6', glyph: '八',
+      desc: '深空力学推开星门，生物材料改写生命形态，星海区第一次有了「在地」的工业。' }
   ];
 
   var TECHS = [
@@ -776,7 +780,83 @@
       cond: { t: 'upgrade', id: 'upg_logiware' },
       eff: {},
       /* +1 自动工艺槽位（读 s.techs.complexf，workshop.slotCap 与 hotforge_hammer 同款）。 */
-      effectDesc: '自动制作槽位 +1。' }
+      effectDesc: '自动制作槽位 +1。' },
+
+    /* ═════════ 纪元八 · 探星（9 项 · 全局 layer 14/15/16） ═════════
+     * spec：docs/ERA8_TECHS_SPEC_v0.1.md v0.3（2026-10-18 用户拍「实装」）。
+     * cost 锚点（AI 定待标定）：L14=135万（对齐 spacestation 档）/ L15=300万 / L16=315万、
+     *   gascloud 720万（双解锁 capstone：建筑 + 奇观）。
+     * ⚠️ laser 尤里卡 r:'hydroSupply' 而不是 spec 原文的 'hydro'：rates().hydro 是
+     *    **净消耗**（恒 ≤0，工坊/钻机吃流），'hydro' 永远到不了 100 ⇒ 死条件；
+     *    「热液能产出 100/秒」的正确口径是 hydroSupply（rateName 有专名的那条先例）。
+     * ⚠️ protoai 本波 eff:{}：其唯一解锁「机器人充能站 robotbay」随 B7 机器人机制延后，
+     *    待 robotbay 落地时补 eff.unlockBuild:['robotbay']（挂起+写死理由，绝不改断言迁就）。
+     * ⚠️ 新 eff 键 workshopEff / satStar / biomatlabOut / biomatlabEff 已在 tech.js
+     *    mul 默认表 + LABEL 双登记（漏登记 = m[k]===undefined 守卫静默忽略）。 */
+    { id: 'deepspace', name: '深空力学', icon: 'assets/tech-icons/era-8/era8-deepspace.png', era: 8, cost: 1350000, branch: 'know', key: false, reqs: ['spacestation', 'fission'], layer: 14,
+      cond: { t: 'civic', id: 'space_race' },
+      eff: {},
+      /* 解锁：奇观「旅行者1号」（wonder_voyager，need:'deepspace'）——星空进度两档条件效果，
+       *   走 wonder.js voyagerStarRate / voyagerScholarMul 专属出口（spec §4）。 */
+      unlockDesc: '解锁奇观「旅行者1号」：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为 +25/秒且学者产出 +10%。' },
+
+    { id: 'biomat', name: '生物材料', icon: 'assets/tech-icons/era-8/era8-biomat.png', era: 8, cost: 1350000, branch: 'live', key: true, reqs: ['spacestation'], layer: 14,
+      /* 本纪元关键节点：研成即推进探星纪。尤里卡 = 新 cond 类型 cap（藻食**上限** 30000，
+       *   tech.js condMet/condShort/condText 三处已登记）。 */
+      cond: { t: 'cap', r: 'kelp', n: 30000 },
+      eff: { unlockBuild: ['biomatlab'] },
+      /* 建筑「生物材料研究所」（BUILDINGS.biomatlab requiredTech 双写）：θ金属产线。
+       * 工坊升级「θ工具三件套」（tool_thetaSickle/Axe/Pick，need:'biomat'）。 */
+      unlockDesc: '解锁建筑「生物材料研究所」（制造 θ生物金属）与工坊升级「θ生物金属工具三件套」。' },
+
+    { id: 'laser', name: '激光技术', icon: 'assets/tech-icons/era-8/era8-laser.png', era: 8, cost: 3000000, branch: 'know', key: false, reqs: ['biomat'], layer: 15,
+      cond: { t: 'rate', r: 'hydroSupply', n: 100 },
+      /* 解锁2（用户拍②永久乘区）：工坊工艺制作效率 +50%——workshop.craftMul 读 mul().workshopEff。 */
+      eff: { workshopEff: 0.5 },
+      /* 解锁1：工坊升级「激光快速雕版」（upg_laserengrave，单局 −30% 制造消耗，run-scoped）。 */
+      unlockDesc: '解锁工坊升级「激光快速雕版」（本周目制造消耗 −30%，轮回后失效）。工坊工艺制作效率 +50%（永久）。' },
+
+    { id: 'robotics', name: '机器人技术', icon: 'assets/tech-icons/era-8/era8-robotics.png', era: 8, cost: 3000000, branch: 'live', key: false, reqs: ['biomat'], layer: 15,
+      cond: { t: 'built', b: 'biomatlab', n: 3 },
+      /* 解锁2（用户拍③永久乘区）：人造卫星星空探索 +100%——economy.starRate 卫星项乘 mul().satStar。 */
+      eff: { satStar: 1.0 },
+      /* 解锁1：工坊升级「工业机器人」（upg_indrobot，效率 ×2、耗热液能、可开关）。 */
+      unlockDesc: '解锁工坊升级「工业机器人」（工坊效率 +100%，可开关，耗热液能）。人造卫星星空探索 +100%（永久）。' },
+
+    { id: 'xenoconst', name: '异星建筑工程', icon: 'assets/tech-icons/era-8/era8-xenoconst.png', era: 8, cost: 3000000, branch: 'live', key: false, reqs: ['deepspace'], layer: 15,
+      /* 尤里卡 = 新 cond 类型 starPct（星空探索进度 ≥10%，读 res.starExplore/STAR_CAP）。 */
+      cond: { t: 'starPct', n: 10 },
+      eff: { unlockBuild: ['rheamine'] },
+      /* 建筑「瑞亚星矿井」（BUILDINGS.rheamine requiredTech 双写）。 */
+      unlockDesc: '解锁建筑「瑞亚星矿井」（星海区在地开采）。' },
+
+    { id: 'bigdata', name: '大数据', icon: 'assets/tech-icons/era-8/era8-bigdata.png', era: 8, cost: 3150000, branch: 'know', key: false, reqs: ['robotics'], layer: 16,
+      cond: { t: 'civic', id: 'planet_village' },
+      eff: {},
+      /* 礁栖核心自动建造：habitat.TECH_AUTO_ZONES.bigdata → ['core']（rocket/modpart 同通道复用）。 */
+      unlockDesc: '解锁礁栖核心自动建造（建筑页的自动升级开关对该区生效）。' },
+
+    { id: 'gascloud', name: '气云采集', icon: 'assets/tech-icons/era-8/era8-gascloud.png', era: 8, cost: 7200000, branch: 'live', key: false, reqs: ['xenoconst'], layer: 16,
+      cond: { t: 'built', b: 'rheamine', n: 3 },
+      eff: { unlockBuild: ['titancloud'] },
+      /* 建筑「泰坦星气云采集站」（BUILDINGS.titancloud requiredTech 双写）
+       * + 奇观「萨图恩巨星气行星轨道采集站」（wonder_saturn，need:'gascloud'）。 */
+      unlockDesc: '解锁建筑「泰坦星气云采集站」与奇观「萨图恩巨星气行星轨道采集站」（热液 +30/燃料 +30/星空 +10 每秒）。' },
+
+    { id: 'protoai', name: '初级人工智能', icon: 'assets/tech-icons/era-8/era8-protoai.png', era: 8, cost: 3150000, branch: 'know', key: false, reqs: ['robotics'], layer: 16,
+      cond: { t: 'pop', n: 70 },
+      /* ⚠️ eff 空是**挂起**不是漏接：唯一解锁「机器人充能站」随 B7 机器人机制延后（spec §6，
+       *    用户拍「机器人机制单独做」）。robotbay 落地时在 eff 补 unlockBuild:['robotbay']。 */
+      eff: {},
+      unlockDesc: '解锁建筑「机器人充能站」（机器人机制延后批次，本项暂无即时效果）。' },
+
+    { id: 'nanotech', name: '纳米技术', icon: 'assets/tech-icons/era-8/era8-nanotech.png', era: 8, cost: 3150000, branch: 'know', key: false, reqs: ['robotics'], layer: 16,
+      /* 尤里卡依赖 θ金属产线（thetaRate 进 rates().thetaMetal）——产线随 biomatlab 先落地。 */
+      cond: { t: 'rate', r: 'thetaMetal', n: 5 },
+      /* 生物材料研究所 产出+10% × 效率+30%（thetaFlow/thetaRate 读 (1+out)×(1+eff)，合 ×1.43）。 */
+      eff: { biomatlabOut: 0.10, biomatlabEff: 0.30 },
+      /* 工艺「θ金属自适应薄膜」（craft_thinafilm，need:'nanotech'）。 */
+      unlockDesc: '解锁工艺「θ金属自适应薄膜」（100θ → 1 钛金板件）。生物材料研究所产出 +10%、效率 +30%。' }
   ];
 
   var BRANCHES = [

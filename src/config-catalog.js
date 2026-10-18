@@ -264,7 +264,24 @@
     { id: 'tool_harnes', name: '马具', need: 'horsemanship',
       target: ['merchant'], bonus: 0.5,
       cost: { coral: 300 },
-      desc: '商人产奢侈品 +50%' }
+      desc: '商人产奢侈品 +50%' },
+
+    /* ── θ生物金属工具三件套（2026-10-18 ERA8 实装 · spec §4）──
+     * 与青铜/铁/钢三件同构：target 逐件绑职业、加法合并（economy.toolMul）。
+     * ⚠️ bonus = 2.00（spec §4 用户拍：上一级钢质 1.00 的 2 倍）
+     *    ⇒ 镰线全买 = 1 + 0.8(青铜) + 0.8(铁) + 1.0(钢) + 2.0(θ) = **×5.6**。
+     * 【need: 'biomat'】真字段（workshop.blocked 读）；生物材料的尤里卡是「藻食上限 30000」，
+     *    与产线无关，无死锁。cost 用 θ金属（θ 由生物材料研究所产，CAP_BASE 200），
+     *    数量 30/40/50 对齐 θ 是「era8 建筑造价主料」的稀缺定位（三件共 120 θ ≈ 大半仓）。 */
+    { id: 'tool_thetaSickle', name: 'θ镰', need: 'biomat', target: ['gather'],
+      bonus: 2.00, cost: { thetaMetal: 30 },
+      desc: '农民采藻食 +200%（与青铜/铁/钢镰相加合并，四件全买 = ×5.6）' },
+    { id: 'tool_thetaAxe', name: 'θ斧', need: 'biomat', target: ['coralwright'],
+      bonus: 2.00, cost: { thetaMetal: 40 },
+      desc: '珊瑚匠凿珊瑚 +200%（不影响石头与金属）' },
+    { id: 'tool_thetaPick', name: 'θ镐', need: 'biomat', target: ['quarrier', 'miner'],
+      bonus: 2.00, cost: { thetaMetal: 50 },
+      desc: '采石工采石头、矿工采金属并伴生暖石，三项各 +200%（不影响珊瑚）' }
   ];
 
   NS.PERKS = PERKS;

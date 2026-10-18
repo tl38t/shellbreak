@@ -213,6 +213,19 @@
     fissionHydro: 10, fissionUranium: 0.02, fissionLuxAdd: 0.10,
     /* ERA7（spec §4）：物流仓库（upg_logiware）每级给所有有上限材料 +200 容量（capOf 材料分支读）。 */
     logiwareCap: 200,
+    /* ── ERA8（2026-10-18 · spec §3/§4 提议值，AI 定待标定）──
+     * biomatlabKelp/Iron/Ti/U：生物材料研究所每级每秒的四种原料消耗（thetaFlow 读，×bldEff 原料效率）。
+     * biomatlabOutRate：生物材料研究所每级每秒产 θ生物金属（原料最紧者决定开工率，断供按比例降产）。
+     * biomatlabHydro：生物材料研究所每级每秒耗热液能（hydroAlloc 的 labDraw，优先级最后；
+     *   断流只停耗、产出照给——与空间站 stationDraw 同一口径）。
+     * rheamineBeam/Coral/Uranium：瑞亚星矿井每级每秒产 石梁/硬化珊瑚/铀
+     *   （铀 0.005 = 自动钻探后矿工基准 0.002 × 2.5，spec §4 原话）。
+     * titancloudHydro / titancloudFuel：泰坦星气云采集站每级 +6 热液能/秒（hydroAlloc 供给侧，
+     *   与核热厂同类不烧暖石）、+5 燃料/秒（tick/rates 燃料行绝对量）。 */
+    biomatlabKelp: 10, biomatlabIron: 4, biomatlabTi: 2, biomatlabU: 0.05,
+    biomatlabOutRate: 0.5, biomatlabHydro: 3,
+    rheamineBeam: 0.05, rheamineCoral: 0.05, rheamineUranium: 0.005,
+    titancloudHydro: 6, titancloudFuel: 5,
     /* siltBonus：砂矿坑对**矿工金属产出**的加成（+20%/级）。
      * 2026-09-26 金属归位（对齐猫国）：砂矿坑不再自动产金属，改吃这条——
      * 1 + lvl.siltpit × siltBonus 乘进矿工的 silt 产出（economy.js 矿工那两行），
@@ -695,7 +708,27 @@
      * 【多实例】ratio 1.5（1 级 = 1 座，可叠建，与轨道卫星/空间站同形）。cost 1600 钢为用户规格原值。 */
     { id: 'stadium', name: '体育场', ratio: 1.5, cost: { steel: 1600 },
       desc: '族民奢侈品消耗 -5%/级（封顶 -75%）；装填《直播竞技》时额外产出市政点 = 人口 × 体育场等级。',
-      requiredCivic: 'athletics' }
+      requiredCivic: 'athletics' },
+
+    /* ── ERA8（2026-10-18 实装 · spec §4）──
+     * 【生物材料研究所】学术区。θ生物金属的唯一产线：每级耗 藻食10/精铁4/钛2/铀0.05（×bldEff
+     *   原料效率）⇒ 产 θ 0.5（原料最紧者决定开工率，thetaFlow/thetaRate 单一真源）；
+     *   每级耗热液能 3/秒（hydroAlloc labDraw，断流只停耗）；纳米技术后 产出×1.1 × 效率×1.3。
+     *   ratio 1.15（多级收敛，与核热厂同档）：纳米技术尤里卡「θ 产出 5/秒」= 10 级可达。
+     * 【瑞亚星矿井】星海区。每级产 石梁 0.05 / 硬化珊瑚 0.05 / 铀 0.005（=矿工基准×2.5），
+     *   吃 globalMul；气云采集的尤里卡「矿井 ≥3 级」是它的下游门。
+     * 【泰坦星气云采集站】星海区。每级 +6 热液能/秒（供给侧，不烧暖石）+5 燃料/秒。
+     * ⚠️ 三座都在星海区（space）⇒ 建造成本自动吃 spaceCostMul 软上限（costOf 对 zone==='space'），
+     *    与轨道卫星/空间站同待遇，无需另接。 */
+    { id: 'biomatlab', name: '生物材料研究所', ratio: 1.15, cost: { titanium: 200, tiplate: 60 },
+      desc: '制造 θ生物金属：每级耗 藻食10/精铁4/钛2/铀0.05 ⇒ 产 θ +0.5/秒；耗热液能 3/秒（断流只停耗）。',
+      requiredTech: ['biomat'] },
+    { id: 'rheamine', name: '瑞亚星矿井', ratio: 1.5, cost: { thetaMetal: 60, rocketEngine: 10 },
+      desc: '异星在地开采：每级 石梁 +0.05/秒、硬化珊瑚 +0.05/秒、铀 +0.005/秒。1 级 = 1 座。',
+      requiredTech: ['xenoconst'] },
+    { id: 'titancloud', name: '泰坦星气云采集站', ratio: 1.5, cost: { thetaMetal: 100, rocketEngine: 10 },
+      desc: '采集泰坦星气云：每级 热液能 +6/秒（不烧暖石）、燃料 +5/秒。1 级 = 1 座。',
+      requiredTech: ['gascloud'] }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -754,7 +787,10 @@
     /* ERA6（2026-10 实装）：科研所归学术区（科研类，与潮纹馆/研究所同区）。 */
     researchlab: 'academy',
     /* ERA7（2026-10-17 · spec §5）：太空两座归新分区「星海区」；核热厂归工坊区（热液产线家族）。 */
-    satellite: 'space', spacestation: 'space', fissionplant: 'workshop'
+    satellite: 'space', spacestation: 'space', fissionplant: 'workshop',
+    /* ERA8（2026-10-18 · spec §4）：生物材料研究所归学术区（转换产线，与研究所/科研所同区）；
+     *   瑞亚星矿井/泰坦星气云采集站归星海区（在地工业，与卫星/空间站同区 ⇒ 吃 spaceCostMul）。 */
+    biomatlab: 'academy', rheamine: 'space', titancloud: 'space'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';

@@ -142,6 +142,10 @@
     s.broken = true;
     s.shellOpened = true;
     s.breakSettled = true;
+    /* ERA8（2026-10-18 · spec §4 激光快速雕版）：**单局 buff 在破壳结算这一刻清零**。
+     *   「单局」的边界 = 本周目：无论玩家随后选择轮回（freshRun 重建 runBuffs）还是
+     *   留在本局继续（标记已清 ⇒ 效果失效，重新购买升级才再生效），都从结算这一刻起算。 */
+    s.runBuffs = {};
     if (!qualified(s)) {
       r.tidePoints = 0;
       r.locked = true;
@@ -162,7 +166,9 @@
     /* 挑战必须完成《神学》资格并真正凿穿天壳；普通结算/重开不兑现挑战奖励。 */
     if (s.shell <= 0 && SB.challenges) r.challengeClear = SB.challenges.resolveRun(s, meta);
     // ② 旧日信仰：本局剩余信仰并入总量
-    meta.oldFaith = (meta.oldFaith || 0) + Math.max(0, (s.res && s.res.faith) || 0);
+    /* ERA8 市政《信仰回响》（2026-10-18 用户表解锁2）：本轮回入账 ×1.2（仅当轮，不跨周目累积）。 */
+    meta.oldFaith = (meta.oldFaith || 0)
+      + Math.max(0, (s.res && s.res.faith) || 0) * ((s.civics && s.civics.faith_echo) ? 1.2 : 1);
     // ③ 旧日遗迹观光点：首次建成的独特奇观入藏
     var newly = [];
     if (s.wonders && meta.memorialWonders) {
@@ -187,6 +193,13 @@
     var _sd = Math.floor(_spaceLvls * 0.1 * (1 + _starPct));
     // 先民遗产市政（ERA7 · spec §7）：本轮回星屑获取 +20%（破壳结算时计入，与轮回点同侧）。
     if (s.civics && s.civics.ancestor_heritage) _sd = Math.floor(_sd * 1.2);
+    /* ERA8 市政《星间遗迹》（2026-10-18 用户表解锁1，拍板 Q6）：每级太空/异星建筑
+     *   （卫星/空间站/瑞亚矿井/泰坦气云）+1% 星屑获取——乘区罩在先民遗产之后。 */
+    if (s.civics && s.civics.star_ruins) {
+      var _ruinLvls = ((s.lvl && s.lvl.satellite) || 0) + ((s.lvl && s.lvl.spacestation) || 0)
+        + ((s.lvl && s.lvl.rheamine) || 0) + ((s.lvl && s.lvl.titancloud) || 0);
+      _sd = Math.floor(_sd * (1 + 0.01 * _ruinLvls));
+    }
     r.stardust = _sd;
     meta.stardust = (meta.stardust || 0) + _sd;
     // 首次合格轮回即解锁商店

@@ -58,6 +58,9 @@
      *   本乘子必须与 economy-tick.js 的 _siltPit 同值同源，保证面板===结算。
      *   ⚠️ 任何新增矿工伴生矿物，都必须在 rates() 与 tick() 两侧都乘它，否则又变面板撒谎。 */
     var mineBonus = 1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus;
+    /* ERA8 市政（2026-10-18）：星际物流网卡 planetOutMul ×1.3 罩异星建筑（瑞亚/泰坦）各行，装卡才 >1。
+     *   必须在 return 对象**之前**声明（对象字面量里不能写 var——上一次落点就是踩了这个）。 */
+    var _planetMulR = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1);
     return {
       kelp:    foodRate(s, cold, relief) - foodUse(s) + (cv ? (cv.kelp || 0) : 0),
       /* ⚠️ 2026-09-27 删骨材：这一项原先还减 `bc`（工坊把珊瑚转骨材那一笔）。
@@ -93,11 +96,18 @@
                  : 0,
       /* ERA7（2026-10-17 · spec §2）：铀 —— 与 tick 的 uranium 行逐字同构（同一批
        *   mineBonus・gatherMul・toolMul・cold・globalMul），门=科技 autodrill（面板路与结算路同源）。 */
-      uranium: (s.techs && s.techs.autodrill)
+      uranium: ((s.techs && s.techs.autodrill)
                  ? (j.miner || 0) * SB.UNIT.uranium * mineBonus
                    * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s)
                    * (SB.wonder ? SB.wonder.mineMul(s) : 1)
-                 : 0,
+                 : 0)
+      /* ERA8：瑞亚星矿井每级 +0.005 铀/秒（与 tick 的 rheamine 铀行同式相加；含星际物流网乘区）。 */
+               + (s.lvl.rheamine || 0) * (SB.BLD.rheamineUranium || 0) * globalMul(s) * _planetMulR,
+      /* ERA8（2026-10-18 · spec §4 瑞亚星矿井）：石梁/硬化珊瑚行，与 tick 的 rheamine 块
+       *   逐字同构（吃 globalMul + 星际物流网乘区）。⚠️ 这两项此前 rates 无键（只能工坊造、速率恒 0），
+       *   矿井上线后必须有键，否则 renderRes 拿到的 rate 是 undefined（面板撒谎家族）。 */
+      stoneBeam:  (s.lvl.rheamine || 0) * (SB.BLD.rheamineBeam || 0) * globalMul(s) * _planetMulR,
+      hardCoral:  (s.lvl.rheamine || 0) * (SB.BLD.rheamineCoral || 0) * globalMul(s) * _planetMulR,
       /* stone / warmstone：与 tick 同源（同一个 gatherMul・cold 乘子）。
        * ⚠️ 暖石是矿工**伴生**产物（唯一来源 = 矿工人数 × 矿工乘子），没有别的建筑单独产它；
        *    2026-10-16 起**也吃砂矿坑等级加成**（mineBonus，与 stone/silt 同式）——矿脉设施现放大一切
@@ -156,6 +166,10 @@
                  * (SB.wonder ? SB.wonder.cutterSciMul(s) : 1)   /* 天壳切削器：+% = 观测站等级 */
                  /* ERA7（2026-10-17 · spec §5）：轨道卫星每级学者产出 +25%，与 tick 学者行 _satScholar 逐字同构。 */
                  * (1 + (s.lvl.satellite || 0) * (SB.BLD.satelliteScholar || 0))
+                 /* ERA8：旅行者1号巡航档学者 +10%（voyagerScholarMul，与 tick 的 _voySch 同源）。 */
+                 * (SB.wonder ? SB.wonder.voyagerScholarMul(s) : 1)
+                 /* ERA8 市政奇观：哈'利法满档学者 +10%（khalifaScholarMul，与 tick 同源、独立叠加）。 */
+                 * (SB.wonder && SB.wonder.khalifaScholarMul ? SB.wonder.khalifaScholarMul(s) : 1)
                  * (SB.wonder ? SB.wonder.throneSciMul(s) : 1)
                  * (Tr ? Tr.sci : 1) + (cv ? (cv.science || 0) : 0)
                  /* 商人副产（2026-09-30 · 中世纪集市解锁2）：与 tick 4c' 同式，在 globalMul 乘区内。 */
@@ -164,7 +178,12 @@
                  ) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * globalMul(s)
                  * (lg ? lg.relicScienceMul * (1 + lg.shopScienceBonus) : 1)
                  + (lg ? lg.oldTideSteleScienceRate : 0)) * (SB.challenges ? SB.challenges.scienceCultureMul(s) : 1),
-      fuel:    (j.craft > 0 ? fuelRate(s, cold) : 0) - burn,
+      /* ERA8：泰坦星气云采集站每级 +5/秒 + 萨图恩 effect.fuelBonus（与 tick 的 _fuelOut 逐字同构，含星际物流网乘区）。 */
+      fuel:    (j.craft > 0 ? fuelRate(s, cold) : 0)
+               + (s.lvl.titancloud || 0) * (SB.BLD.titancloudFuel || 0) * _planetMulR
+               + (SB.wonder ? SB.wonder.wonderFuelBonus(s) : 0) - burn,
+      /* ERA8：θ生物金属产线（thetaRate 与 thetaFlow 同式不扣料，开工率按当前库存现算）。 */
+      thetaMetal: SB.economy.thetaRate(s),
       /* ERA6→ERA7：星空探索每秒产出。基础文明推力 + 星空观测站升级（upg_starscope）+ 太空建筑运行座数贡献，
        *   读 economy.starRate（与 tick 同口径；太空建筑的「开几座」开关在此生效）。 */
       starExplore: SB.economy.starRate(s),

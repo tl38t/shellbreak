@@ -99,6 +99,9 @@
     /* ⑨ 总物流站（ERA6 · wonder_logistics）：王国潮道每级 +1% 工艺制作效率（effect.canalCraft × lvl.canal）。
      *   与市政《城市设计》互锁翻倍待批次 3。效果只从 SB.wonder.logisticsCraftRatio 进，将来加奇观不用改这里。 */
     if (SB.wonder && SB.wonder.logisticsCraftRatio) m += SB.wonder.logisticsCraftRatio(s) || 0;
+    /* ⑩ 虚拟现实卡（ERA8 市政 · 2026-10-18 用户表）：工坊效率 −1%×人口（加法轴，用户拍 Q1：
+     *   「工坊这些升级会给效率的，没问题」——轴上正源够厚，不加下限护栏）。装卡才生效。 */
+    if (SB.civic && SB.civic.cardVrCraftRatio) m += SB.civic.cardVrCraftRatio(s) || 0;
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
@@ -108,7 +111,18 @@
     /* ERA7（2026-10-17 · spec §4）：可控爆炸工艺（upg_boomcraft）给 craftRatio 乘区 ×1.5（新增乘区，不改基值）。
      *   boomcraftMul 字段 = 0.5 ⇒ 总输出 ×(1 + 0.5) = ×1.5。与 craftRatio 加法轴**相乘**，
      *   是「整条工艺产出放大」而非「把 0.05 加成再翻 1.5 倍」。 */
-    var m = (1 + craftRatio(s)) * (1 + (SB.economy ? SB.economy.upgSum(s, 'boomcraftMul') : 0)) * (SB.wonder ? SB.wonder.throneCraftMul(s) : 1);
+    /* ERA8（2026-10-18 · spec §2 laser 解锁2 永久乘区）：workshopEff（激光技术 +50%）乘区，
+     *   读 tech.mul(s).workshopEff（默认 1，未研究 = 无效果）——与 boomcraft/throne 同形态独立相乘。
+     *   【工业机器人】upg_indrobot 工坊效率 +100%（独立乘区 ×2），开关 s.indRobotOn：
+     *   关掉 ⇒ 加成与耗能（hydroAlloc robotDraw）一起停，与 autoDrillOn 同一套判据。 */
+    var _Tm = (SB.tech && SB.tech.mul) ? SB.tech.mul(s) : null;
+    var _robot = (s.indRobotOn !== false && s.upgrades && s.upgrades.upg_indrobot) ? 2 : 1;
+    /* ⚠️ ERA8 市政（2026-10-18）：虚拟现实卡让加法轴可为负（−1%×人口）。护栏只防**符号反转**
+     *   （(1+ratio)<0 ⇒ 产出倒流，NaN/倒贴家族 bug，不是标定）：下限 0 = 工坊停摆，不锁正收益。 */
+    var _cr = Math.max(0, 1 + craftRatio(s));
+    var m = _cr * (1 + (SB.economy ? SB.economy.upgSum(s, 'boomcraftMul') : 0))
+      * (SB.wonder ? SB.wonder.throneCraftMul(s) : 1)
+      * (_Tm ? (_Tm.workshopEff || 1) : 1) * _robot;
     /* ERA7（spec §4 博洛西洛发射场）：仅载人火箭工艺（craft_rocketengine）额外 ×mannedRocketMul（×2）。
      * 用可选参数 c 区分——不进基值，避免放大所有工艺制品（面板===结算纪律：stepOut/craft/两处面板都传 c）。 */
     if (c && c.id === 'craft_rocketengine' && SB.wonder && SB.wonder.mannedRocketMul) m *= SB.wonder.mannedRocketMul(s);
@@ -119,6 +133,12 @@
    * 统一折扣入口：maxCraftable / 档位估算 / 实际扣费三处共用，避免「面板能造 N、实际扣原价」断链。
    * 扩展新折扣时只改这里（按 c.id 判），别散落到三处循环里。 */
   function craftCostMul(s, c) {
+    /* ERA8（2026-10-18 · spec §4 激光快速雕版）：**单局（per-run）**全部工艺制造成本 −30%（×0.7）。
+     * ⚠️ 只读 run-scoped 标记 s.runBuffs.laserEngrave，**不读** s.upgrades——
+     *    标记由 upgradeBuy 置位、prestige.doBreak 清除（轮回/破壳失效），s.upgrades 本身
+     *    跨轮回重置与否都与效果无关 ⇒ 「本周目」语义只由标记承担，单一事实来源。
+     * ⚠️ 放在最前（作用于全部配方，不按 c.id 判）。 */
+    if (s && s.runBuffs && s.runBuffs.laserEngrave) return 0.7;
     if (c && c.id === 'craft_tidal_record' && s && s.techs && s.techs.engraving) return 0.8;
     /* ERA6（2026-10-12 实装）：市政《考古学》完成后，艺术品制造消耗 −20%（×0.8）。
      * 与雕版术（潮纹记录 −20%）同源、各自独立——都满足则艺术品 0.8、潮纹记录 0.8，互不叠加。 */
@@ -450,6 +470,13 @@
     for (k in cost) s.res[k] -= cost[k];
     s.upgrades = s.upgrades || {};
     s.upgrades[id] = true;
+    /* ERA8（2026-10-18 · spec §4 激光快速雕版）：单局效果置位——买断的同一刻把 run-scoped
+     *   标记也置上（craftCostMul 只认标记）。清除点在 prestige.doBreak（破壳结算）；
+     *   s.upgrades 随 freshRun 全新重建 ⇒ 下一局重新买即重新生效。 */
+    if (id === 'upg_laserengrave') {
+      s.runBuffs = s.runBuffs || {};
+      s.runBuffs.laserEngrave = true;
+    }
     if (emit) emit('装上了「' + u.name + '」：' + u.desc + '。');
     return true;
   }

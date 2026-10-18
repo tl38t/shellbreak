@@ -91,8 +91,10 @@ export function run({ SB, check, noop }) {
     s.challenge = { id: 'science', tier: 0 };
     const sciencePeopleGates = SB.TECHS.filter(t => t.cond && (t.cond.t === 'pop' || t.cond.t === 'job'));
     const civicPeopleGates = SB.CIVICS.filter(c => c.boost && (c.boost.t === 'pop' || c.boost.t === 'job'));
+    /* ERA8（2026-10-18）：protoai 尤里卡「人口 70」加入 ⇒ 科技人数门槛 3 → 4
+     *    （「忽视科文仍保留人数门槛」的语义要求新门槛同样被正常判定——下面 every 照查）。 */
     check('忽视科文仍保留尤里卡与鼓舞中的所有人数门槛', !api.ignorePopulationGates(s) &&
-      sciencePeopleGates.length === 3 && civicPeopleGates.length === 3 &&
+      sciencePeopleGates.length === 4 && civicPeopleGates.length === 3 &&
       sciencePeopleGates.every(t => !SB.tech.condMet(s, t.cond)) &&
       civicPeopleGates.every(c => !SB.civic.boostMet(s, c)),
       '人数门槛仍由正常条件判定');

@@ -82,6 +82,10 @@ const sandbox = {
   _intervals: [],
   setInterval(fn) { sandbox._intervals.push(fn); return sandbox._intervals.length; },
   clearInterval() {},
+  /* 破壳动画会安排几段 UI 定时器；模拟只验证状态流，不播放动画。 */
+  _timeouts: [],
+  setTimeout(fn) { sandbox._timeouts.push(fn); return sandbox._timeouts.length; },
+  clearTimeout() {},
   Math, Date, JSON, Object, Array, String, Number, Boolean, Set, Map, isNaN, parseInt, parseFloat
 };
 sandbox.window = sandbox;
@@ -269,11 +273,16 @@ const st0 = SB.game.run();
 
 const MAX_FRAMES = Number(process.env.SB_MAXFRAMES || 600000);
 const PROGRESS_EVERY = Math.max(1, Number(process.env.SB_PROGRESS_EVERY || 100000));
+/* 可选扩展验收：破壳时模拟玩家点「探索壳外的星空」留在本局，继续跑 ERA7。
+ * ancient 需要跨周目结算发放的星屑，首周目不作为 ERA7 完成门槛。 */
+const CONTINUE_AFTER_BREAK = process.env.SB_CONTINUE_AFTER_BREAK === '1';
+const REQUIRE_ERA7 = process.env.SB_REQUIRE_ERA7 === '1';
 /* 浏览器 AI 实际约每 400ms 做一次决策；20× 下相当于每 8 个游戏秒。
  * 模拟仍逐 0.1 秒精确推进经济，只节流重复的策略计算，默认约减少 80 倍 bot 调用。 */
 const AI_EVERY_FRAMES = Math.max(1, Number(process.env.SB_AI_EVERY_FRAMES || Math.round(80 / SIM_SPEED)));
 const eraMarks = [{ era: 1, t: 0 }];
 let frame = 0, runHours = 0, skyStarted = null, skyDone = null;
+let breakReachedAt = null, continuedAfterBreak = false, completionReason = null;
 let nextBotFrame = 0;
 const startShell = SB.game.run().iceShell;
 console.log('iceShell = ' + startShell + '  SPEED=' + SIM_SPEED + '×  MAX_FRAMES=' + MAX_FRAMES + '（≈' + (MAX_FRAMES * 0.1 * SIM_SPEED / 3600).toFixed(1) + 'h 上限）' +
@@ -281,7 +290,30 @@ console.log('iceShell = ' + startShell + '  SPEED=' + SIM_SPEED + '×  MAX_FRAME
 
 while (frame < MAX_FRAMES) {
   const s = SB.game.run();
-  if (!s || s.broken) { runHours = s ? s.t / 3600 : 0; break; }
+  if (!s) break;
+  if (s.broken) {
+    if (CONTINUE_AFTER_BREAK && s.shellOpened && !s.breakSettled) {
+      if (breakReachedAt === null) {
+        breakReachedAt = s.t / 3600;
+        console.log('  ★ 破壳 @ ' + breakReachedAt.toFixed(2) + 'h；自动选择「探索壳外的星空」，继续验证 ERA7。');
+      }
+      SB.game.stay();
+      continuedAfterBreak = true;
+    } else {
+      runHours = s.t / 3600;
+      break;
+    }
+  }
+  if (REQUIRE_ERA7 && s.shellOpened && s.shell <= 0) {
+    const era7Reachable = SB.TECHS.filter(t => t.era === 7 && t.id !== 'ancient');
+    const allEra7Reachable = era7Reachable.every(t => !!(s.techs && s.techs[t.id]));
+    const allWondersNow = (SB.WONDERS || []).every(w => !!(s.wonders && s.wonders[w.id]));
+    if (allEra7Reachable && (process.env.SB_REQUIRE_ALL_WONDERS !== '1' || allWondersNow)) {
+      completionReason = 'ERA7 可达科技完成' + (process.env.SB_REQUIRE_ALL_WONDERS === '1' ? '且全部奇观建成' : '');
+      runHours = s.t / 3600;
+      break;
+    }
+  }
   if (frame >= nextBotFrame) {
     botStep();
     nextBotFrame = frame + AI_EVERY_FRAMES;
@@ -303,10 +335,21 @@ while (frame < MAX_FRAMES) {
       ` starv=${s.skydrillStarved?1:0}`);
   }
 }
-if (SB.game.run() && !SB.game.run().broken) runHours = SB.game.run().t / 3600;
+if (SB.game.run() && (!SB.game.run().broken || continuedAfterBreak)) runHours = SB.game.run().t / 3600;
 
 console.log('\n================ 第一次轮回测算 ================');
-console.log('  ★ 是否达成破冰（第一次轮回）：' + (SB.game.run().broken ? '是' : '否（未达成，可能撞到 MAX_FRAMES 上限或资源卡死）'));
+console.log('  ★ 是否达成破冰（第一次轮回）：' + (SB.game.run().shellOpened && SB.game.run().shell <= 0 ? '是' : '否（未达成，可能撞到 MAX_FRAMES 上限或资源卡死）'));
+if (continuedAfterBreak) console.log('  ★ 破壳后留在本局：是（' + (breakReachedAt || 0).toFixed(2) + 'h 破壳）');
+if (completionReason) console.log('  ★ 模拟停止原因：' + completionReason);
+{
+  const s = SB.game.run();
+  const era7 = SB.TECHS.filter(t => t.era === 7);
+  const done = era7.filter(t => s.techs && s.techs[t.id]).map(t => t.id);
+  const missing = era7.filter(t => !s.techs || !s.techs[t.id]).map(t => t.id);
+  console.log('  ★ ERA7 科技：' + done.length + '/' + era7.length + '（已完成 ' + done.join(', ') +
+    (missing.length ? '；未完成 ' + missing.join(', ') : '') + '；首周目星屑门槛除外时需完成 ' +
+    era7.filter(t => t.id !== 'ancient').length + ' 项）');
+}
 if (challengeId) {
   const c = SB.challenges.progress(SB.game.meta());
   const clearedTier = SB.challenges.byId(challengeId).tiers.length === 1
@@ -335,6 +378,10 @@ if (skyStarted !== null) console.log('  ★ 天穹钻机开始破壳时刻：' +
     ' 奇观=' + builtWonderIds.length + '/' + SB.WONDERS.length +
     '（' + (allWondersBuilt ? '全部建成' : '未建：' + missingWonders.join(', ')) + '）');
   if (process.env.SB_REQUIRE_ALL_WONDERS === '1' && !allWondersBuilt) process.exitCode = 1;
+  if (REQUIRE_ERA7) {
+    const missingEra7 = (SB.TECHS || []).filter(t => t.era === 7 && t.id !== 'ancient' && !s.techs[t.id]);
+    if (missingEra7.length) process.exitCode = 1;
+  }
   console.log('  ★ 资源：食物=' + (s.res.kelp || 0).toFixed(1) + ' 珊瑚=' + (s.res.coral || 0).toFixed(1) +
     ' 暖石=' + (s.res.warmstone || 0).toFixed(1) + ' 精铁=' + (s.res.iron || 0).toFixed(1) +
     ' 科技=' + (s.res.science || 0).toFixed(1) + ' 市政=' + (s.res.culture || 0).toFixed(1));

@@ -295,6 +295,63 @@
     var per = (cd && typeof cd.wonderLuxSave === 'number') ? cd.wonderLuxSave : 0;
     return per * builtWonderCount(s);
   }
+
+  /* ── ERA8 市政（2026-10-18 用户规格 · 实装）动态卡读数 ──
+   * 统一同构：装卡才生效、没装 = 基准值（乘区 1 / 加值 0），绝不污染产线。 */
+
+  /* 星际广播（faithSatMul 0.05）+ 我们在此（coreSpaceFaithMul 0.10）：信仰产出的两张动态乘区卡。
+   *   前者按轨道卫星等级（s.lvl.satellite，含停用座——广播是全频段信号，与运转开关解耦）；
+   *   后者按 礁栖核心+星海区 建筑合计等级（BUILDINGS[].zone 判，不手抄分区清单）。
+   *   economy.faithRate 读，两卡同时装则相乘。 */
+  function dynFaithCardMul(s) {
+    var m = 1, arr = (s && s.cards) || [], i, cd;
+    var _csLv = null;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (!cd) continue;
+      if (typeof cd.faithSatMul === 'number')
+        m *= 1 + cd.faithSatMul * ((s.lvl && s.lvl.satellite) || 0);
+      if (typeof cd.coreSpaceFaithMul === 'number') {
+        if (_csLv === null) {
+          _csLv = 0;
+          if (SB.BUILDINGS) for (var _bi = 0; _bi < SB.BUILDINGS.length; _bi++)
+            if (SB.BUILDINGS[_bi].zone === 'core' || SB.BUILDINGS[_bi].zone === 'space')
+              _csLv += (s.lvl[SB.BUILDINGS[_bi].id] || 0);
+        }
+        m *= 1 + cd.coreSpaceFaithMul * _csLv;
+      }
+    }
+    return m;
+  }
+  /* 星际探索热潮卡（starPerPop 1）：星空探索速率 +1%×人口。economy.starRate 读（用户拍 Q2：+x%）。 */
+  function cardFeverStarMul(s) {
+    var m = 1, arr = (s && s.cards) || [], i, cd;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && typeof cd.starPerPop === 'number') m *= 1 + cd.starPerPop * 0.01 * (s.pop || 0);
+    }
+    return m;
+  }
+  /* 远见主义哲学被动：星空探索速率再 +1%×人口（与卡并行叠加，同式相乘；用户拍 Q2）。 */
+  function civicFarsightStarMul(s) {
+    return (s.civics && s.civics.far_sight) ? 1 + 0.01 * (s.pop || 0) : 1;
+  }
+  /* 星际物流网卡（planetOutMul 1.3）：异星建筑（瑞亚/泰坦）产出乘区。economy-tick/rates 异星行读。 */
+  function cardPlanetOutMul(s) { return cardFieldMul(s, 'planetOutMul'); }
+  /* 虚拟现实卡（craftRatioPerPop 1）：工坊效率加法轴 −1%×人口（用户确认加算、Q1 不设护栏）。
+   * 返回**负的加值**，workshop.craftRatio 源⑩直加（轴上正源：工坊级/热锻级/科技/政体/卡/perk）。 */
+  function cardVrCraftRatio(s) {
+    var arr = (s && s.cards) || [], i, cd;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && typeof cd.craftRatioPerPop === 'number')
+        return -cd.craftRatioPerPop * 0.01 * (s.pop || 0);
+    }
+    return 0;
+  }
   /* 教权国：所有建筑每级 +1 信仰/秒（绝对量，加在 faithRate 末尾）。仅采用该政体时生效。 */
   function faithPerBuildingBonus(s) {
     var g = govById(s.gov);
@@ -1099,6 +1156,10 @@
     /* ERA4（2026-10-01 用户设计稿）效果读数出口：happiness / faith / culture / bank / canal / 宗教槽。 */
     govHappyConsumeMul: govHappyConsumeMul, canalSaveMul: canalSaveMul, bankMerchantMul: bankMerchantMul,
     coreFaithMul: coreFaithMul, universityMul: universityMul, templeFaithMul: templeFaithMul,
+    /* ERA8 市政（2026-10-18）：动态卡读数五件（见各函数头注）。 */
+    dynFaithCardMul: dynFaithCardMul, cardFeverStarMul: cardFeverStarMul,
+    civicFarsightStarMul: civicFarsightStarMul, cardPlanetOutMul: cardPlanetOutMul,
+    cardVrCraftRatio: cardVrCraftRatio,
     museumCivicMul: museumCivicMul, scribeCivicMul: scribeCivicMul,
     theaterMul: theaterMul, theaterCivicMul: theaterCivicMul,
     cardCivicOutMul: cardCivicOutMul, cardSciOutMul: cardSciOutMul,

@@ -288,11 +288,48 @@
        * ⚠️ 查累计量 s.lifetimeCulture（economy.js 在 culture 产出行同 dt 累加），
        *    不是存量 s.res.culture（采纳市政时被消费，存量会归零 ⇒ 不能用）。 */
       case 'lifetimeCulture': return (s.lifetimeCulture || 0) >= c.n;
+      /* `cap` —— **资源上限 ≥ n**（ERA8 生物材料的尤里卡「藻食上限 >30k」）。
+       * ⚠️ 读 economy.capOf（含海藻仓/压舱仓/扩容/奇观全部通道），不自己重算——
+       *    那是第二份事实来源，改仓储线时它必然脱钩。economy 未加载时 false 静默降级。 */
+      case 'cap':
+        return (SB.economy && SB.economy.capOf) ? SB.economy.capOf(s, c.r) >= c.n : false;
+      /* `starPct` —— **星空探索进度 % ≥ n**（ERA8 异星建筑工程的尤里卡「进度 >10%」）。
+       * ⚠️ 进度 = 存量 / STAR_CAP（config.js CAP_BASE.starExplore），破壳前存量恒 0
+       *    ⇒ 不达成（星空槽是破壳后资源，见 shell.tickStar），这是口径不是 bug。 */
+      case 'starPct': {
+        var _capPct = SB.CFG.STAR_CAP || 0;
+        if (_capPct <= 0) return false;
+        return ((s.res.starExplore || 0) / _capPct * 100) >= (c.n || 0);
+      }
       /* `cycle` —— **轮回数 ≥ n**（ERA6 考古学 cycle≥3 / 文明构造 cycle≥7 的 boost 条件）。
        * ⚠️ 读 SB.game.meta().cycle（跨周目累计的全局轮回计数）；未加载 game 时返回 false 静默降级。 */
       case 'cycle': {
         var _meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
         return !!_meta && (_meta.cycle || 0) >= c.n;
+      }
+      /* `oldFaith` —— **跨周目旧日信仰 ≥ n**（ERA8 市政《信仰回响》鼓舞 50k）。
+       * ⚠️ 读 meta.oldFaith（本局剩余信仰的跨周目并账总量，state.js 旧日遗产账本），
+       *    不是本局 s.res.faith（那是当轮存量，破壳才入账）。未加载 game 时静默降级 false。 */
+      case 'oldFaith': {
+        var _metaOf = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+        return !!_metaOf && ((_metaOf.oldFaith || 0) >= c.n);
+      }
+      /* `wonderEra` —— **第 c.era 纪元的已建奇观数 ≥ n**（ERA8 市政《社交网络》鼓舞「任意 era7 奇观」）。
+       * ⚠️ 走 wonder.list() 的 era 字段过滤 + owned() 判建成；别用 condMet 'wonder'（那是全纪元总数）。 */
+      case 'wonderEra': {
+        if (!SB.wonder || !SB.wonder.list) return false;
+        var _wOwned = SB.wonder.owned(s), _wCnt = 0, _wL = SB.wonder.list(), _wi;
+        for (_wi = 0; _wi < _wL.length; _wi++)
+          if (_wL[_wi].era === c.era && _wOwned[_wL[_wi].id]) _wCnt++;
+        return _wCnt >= c.n;
+      }
+      /* `lvlSum` —— **指定建筑等级合计 ≥ n**（ERA8 市政《星际政治》鼓舞，用户拍 Q5：
+       *   「真正别的星球上」= 瑞亚星矿井 + 泰坦气云采集站，不含轨道卫星/空间站）。
+       * ⚠️ 与 zoneLvl（按分区）不同：这里按显式 id 列表，分区归属变化不影响语义。 */
+      case 'lvlSum': {
+        var _ls = 0, _li;
+        for (_li = 0; _li < c.ids.length; _li++) _ls += (s.lvl[c.ids[_li]] || 0);
+        return _ls >= c.n;
       }
       default: return false;
     }
@@ -384,10 +421,37 @@
       }
       /* lifetimeCulture / cycle 的「还差多少」，与 condMet 同口径。 */
       case 'lifetimeCulture': return { txt: '累计市政产出 ' + Math.floor(s.lifetimeCulture || 0) + ' / ' + c.n, now: s.lifetimeCulture || 0, need: c.n };
+      /* cap / starPct 的「还差多少」，与 condMet 同口径（同一个 capOf / STAR_CAP）。 */
+      case 'cap': {
+        var _capV = (SB.economy && SB.economy.capOf) ? SB.economy.capOf(s, c.r) : 0;
+        return { txt: resName(c.r) + '上限 ' + Math.floor(_capV) + ' / ' + c.n, now: Math.floor(_capV), need: c.n };
+      }
+      case 'starPct': {
+        var _capS2 = SB.CFG.STAR_CAP || 0;
+        var _pctNow = _capS2 > 0 ? (s.res.starExplore || 0) / _capS2 * 100 : 0;
+        return { txt: '星空进度 ' + _pctNow.toFixed(1) + '% / ' + (c.n || 0) + '%', now: _pctNow, need: c.n || 0 };
+      }
       case 'cycle': {
         var _meta2 = (SB.game && SB.game.meta) ? SB.game.meta() : null;
         var _cyc = _meta2 ? (_meta2.cycle || 0) : 0;
         return { txt: '轮回数 ' + _cyc + ' / ' + c.n, now: _cyc, need: c.n };
+      }
+      case 'oldFaith': {
+        var _meta3 = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+        var _of = _meta3 ? (_meta3.oldFaith || 0) : 0;
+        return { txt: '旧日信仰 ' + Math.floor(_of) + ' / ' + c.n, now: _of, need: c.n };
+      }
+      case 'wonderEra': {
+        var _weCnt = 0, _weL = (SB.wonder && SB.wonder.list) ? SB.wonder.list() : [];
+        var _weO = (SB.wonder && SB.wonder.owned) ? SB.wonder.owned(s) : {};
+        for (var _wj = 0; _wj < _weL.length; _wj++)
+          if (_weL[_wj].era === c.era && _weO[_weL[_wj].id]) _weCnt++;
+        return { txt: eraName(c.era) + '奇观 ' + _weCnt + ' / ' + c.n, now: _weCnt, need: c.n };
+      }
+      case 'lvlSum': {
+        var _lsN = 0, _lk;
+        for (_lk = 0; _lk < c.ids.length; _lk++) _lsN += (s.lvl[c.ids[_lk]] || 0);
+        return { txt: bName(c.ids[0]) + '等建筑合计等级 ' + _lsN + ' / ' + c.n, now: _lsN, need: c.n };
       }
       case 'shell': {
         var _br = (SB.shell && SB.shell.brokenRatio) ? SB.shell.brokenRatio(s) : 0;
@@ -680,7 +744,9 @@
     farm: '采集者藻食产出', coef: '破壳系数',
     house: '人口上限', kelpCap: '藻食上限', craftRatio: '工艺制作效率',
     warmMul: '暖石产出', titaniumMul: '钛产出', scaffoldCostSave: '脚手架需求减免',
-    steelMul: '钢产出', bldEff: '原料消耗'
+    steelMul: '钢产出', bldEff: '原料消耗',
+    workshopEff: '工坊工艺效率', satStar: '卫星星空探索',
+    biomatlabOut: '生物材料研究所产出', biomatlabEff: '生物材料研究所效率'
   };
   /* ⚠️ 数据里的 `effectDesc`（2026-10-17 起）= **玩家向显式覆盖**：写了它就整条替代下面的自动生成。
    *    起因：用户 2026-10-17 反馈「热泉回流」的效果栏只印出「原料消耗 ×0.6」，
@@ -822,6 +888,12 @@
       case 'lifetimeCulture': return '累计市政产出 ' + c.n;
       case 'cycle': return '轮回数 ' + c.n + ' 周目';
       case 'civic': return '完成市政「' + civicName(c.id) + '」';
+      /* ERA8 新条件类型的纯文案（不碰状态）。 */
+      case 'cap': return resName(c.r) + '上限达到 ' + c.n;
+      case 'starPct': return '星空探索进度 ' + (c.n || 0) + '%';
+      case 'oldFaith': return '旧日信仰 ' + c.n + '（跨周目账本）';
+      case 'wonderEra': return '建成任意 ' + eraName(c.era) + '奇观';
+      case 'lvlSum': return bName(c.ids[0]) + '等建筑合计等级 ' + c.n;
     }
     return '';
   }
@@ -851,6 +923,12 @@
        * 「采集者变成农民」说的是那个人变能干了，不是那片藻田变能干了。
        * 与 food 的区别：food 是全局食物乘区（会连藻场一起放大），farm 只管采集者。 */
       farm: 1,
+      /* ERA8（2026-10-18 · spec §2/§4）四个新乘区键。⚠️ 默认表与 ADD/LABEL 必须同时改，
+       *   漏默认表 ⇒ m[k]===undefined 守卫把研究完的 eff 静默吞掉（构架术那条老教训）。 */
+      workshopEff: 1,       // 激光技术：工坊工艺制作效率（workshop.craftMul 乘区）
+      satStar: 1,           // 机器人技术：人造卫星星空探索（economy.starRate 卫星项乘区）
+      biomatlabOut: 1,      // 纳米技术：生物材料研究所 θ产出（thetaFlow/thetaRate）
+      biomatlabEff: 1,      // 纳米技术：生物材料研究所效率（同上，与 Out 独立相乘）
       coef: 0, house: 0, kelpCap: 0, season: 0, craftRatio: 0,
       warmMul: 0, titaniumMul: 0, scaffoldCostSave: 0
     };
