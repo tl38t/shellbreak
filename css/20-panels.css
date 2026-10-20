@@ -63,6 +63,20 @@
 .policy-card-desc{margin:7px 0 12px;color:var(--dim);font-size:12px;line-height:1.55;flex:1}
 .policy-card-warning{color:var(--amber)}
 .policy-card .btn{width:100%;margin-top:auto;padding:6px 10px;font-size:11px}
+/* ERA9 虚境信仰卡（locked）：紫红色卡面 + 眼睛图标，强调「永恒锚定、不可卸下」。 */
+.policy-card.is-locked-vr{
+  border-color:#b13bd6;
+  background:linear-gradient(155deg,#3a1140 0%,#5a1570 38%,#7d1f5e 72%,#0d1727 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 14px rgba(177,59,214,.35)}
+.policy-card.is-locked-vr::before{background:#d65cff;opacity:1}
+.policy-card.is-locked-vr .policy-card-name{color:#f3c8ff}
+.policy-card.is-locked-vr .policy-card-desc{color:#e3b8f0}
+.policy-card.is-locked-vr .tag.vr{background:linear-gradient(135deg,#7d1f5e,#b13bd6);color:#fff;border-color:#d65cff}
+.slotcard.locked-vr{color:#f3c8ff;text-shadow:0 0 8px rgba(177,59,214,.6)}
+.slotcard.locked-vr .eye{font-size:12px;vertical-align:middle}
+.locknote{margin-top:6px;font-size:11px;color:#e3b8f0;background:rgba(177,59,214,.16);
+  border:1px solid rgba(177,59,214,.4);border-radius:6px;padding:4px 7px;line-height:1.35}
+input.relname.locked{opacity:.85;border-color:#b13bd6;color:#f3c8ff;background:rgba(177,59,214,.12);cursor:not-allowed}
 @media(max-width:560px){
   .policy-slot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .policy-card-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
@@ -115,6 +129,43 @@
 .craftauto{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
 .craftauto .asl{font-size:11px;color:var(--dim);min-width:28px}
 .craftauto .btn{padding:3px 9px;font-size:11px}
+.craftauto-hint{flex-basis:100%;padding-left:34px;box-sizing:border-box;color:var(--amber);font-size:10px;line-height:1.5}
+
+/* 热液能流面板：放在自然环境卡底部，强调「当秒供给 / 分配 / 余流」，
+ * 让玩家把它当作能量流看待，而不是一份可以囤积的材料。 */
+#envHydro{margin-top:14px;padding-top:12px;border-top:1px dashed #29425c}
+.hydro-panel{padding:12px 14px;border:1px solid #25445a;border-radius:10px;
+  background:linear-gradient(115deg,rgba(27,74,91,.34),rgba(18,34,55,.82) 62%,rgba(34,31,61,.58));
+  box-shadow:inset 0 1px 0 rgba(190,239,255,.035)}
+.hydro-head{display:flex;align-items:center;gap:9px}
+.hydro-icon{display:grid;place-items:center;width:30px;height:30px;flex:none;border-radius:9px;
+  color:#9be8ef;background:rgba(72,192,205,.13);border:1px solid rgba(91,204,214,.25);font-size:21px;font-weight:700}
+.hydro-title{display:flex;flex-direction:column;line-height:1.3}
+.hydro-title b{font-size:13px;color:var(--txt)}
+.hydro-title span{font-size:10px;color:var(--dim);margin-top:2px}
+.hydro-live{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding:3px 7px;border-radius:999px;
+  border:1px solid rgba(91,204,214,.2);background:rgba(72,192,205,.08);color:#8bd5dc;font-size:10px;white-space:nowrap}
+.hydro-live i{width:5px;height:5px;border-radius:50%;background:#5dd6cb;box-shadow:0 0 7px #5dd6cb;animation:hydroPulse 1.8s ease-in-out infinite}
+@keyframes hydroPulse{50%{opacity:.4;box-shadow:0 0 2px #5dd6cb}}
+.hydro-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.hydro-metric{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border:1px solid rgba(112,155,180,.14);
+  border-radius:7px;background:rgba(6,17,31,.3);min-width:0}
+.hydro-metric>span{font-size:10px;color:var(--dim)}
+.hydro-metric>b{display:flex;align-items:baseline;gap:4px;font-size:18px;font-variant-numeric:tabular-nums;line-height:1.2;color:#b9eaf0}
+.hydro-metric>b small{font-size:10px;font-weight:400;color:var(--dim)}
+.hydro-metric-left>b{color:#72dfbd}
+.hydro-track{display:flex;height:7px;overflow:hidden;margin-top:10px;border-radius:99px;background:#091522;
+  box-shadow:inset 0 0 0 1px rgba(128,171,197,.16)}
+.hydro-track i{display:block;height:100%;transition:width .18s ease}
+.hydro-used-fill{background:linear-gradient(90deg,#318da5,#65d6d0)}
+.hydro-left-fill{background:linear-gradient(90deg,#55c8b0,#9ce5bd)}
+.hydro-routing{display:grid;gap:6px;margin-top:9px;padding-top:8px;border-top:1px solid rgba(112,155,180,.14)}
+.hydro-route{display:grid;grid-template-columns:42px minmax(0,1fr);gap:8px;font-size:10px;line-height:1.5}
+.hydro-route>b{color:#8ed6de;font-weight:600;letter-spacing:.5px}
+.hydro-route>span{color:#b3c5d4;overflow-wrap:anywhere}
+.hydro-foot{margin-top:6px;color:var(--dim);font-size:9px;line-height:1.4;text-align:right}
+#hydroFlowHint{color:var(--dim)}
+@media(max-width:430px){.hydro-metrics{gap:5px}.hydro-metric{padding:7px}.hydro-metric>b{font-size:16px}.hydro-route{grid-template-columns:36px minmax(0,1fr)}}
 
 /* ── 点击时间事件横幅（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）──
  * 底部常驻卡：position:fixed 贴在视口底部、水平居中、宽度对齐 .wrap；活动事件出现时显示、

@@ -88,7 +88,16 @@ console.log('\n=== 科技树形状 ===');
    *    ⚠️ 口径：**链深度 = layer + 1** —— rocket→crewed 那条线（layer 11/12）深度差 1
    *       （基线最深 14 = layer 13 的 spacestation/complexf）。同差保留 ⇒ 最深 17。
    *       深度仍由 approved 的 reqs 链推出，不是迁就现状。 */
-  check('最深科技 ≤ 17 层（破壳链 6 + era5 叠 2 + 纪元一 4 层 + ERA6 叠 3 + ERA7 叠 3 + ERA8 叠 3；深度=layer+1）', maxD <= 17,
+  /* ⑦ ERA9（光帆纪 · 2026-10-19 实装 · spec docs/ERA9_TECHS_SPEC_v0.1.md v0.2）在 ERA8
+   *    之上的三叠层：microwave_heat/alien_eng/blackhistory(d=19) → terraform/interlog/winter(d=20)。
+   *    深度由 approved 的 reqs 链推出（terraform←alien_eng←ecological_restoration←…），
+   *    不是迁就现状；d=20 是纪元九正常加深上限 ⇒ 边界抬到 20。 */
+  /* ⑧ ERA10（戴森纪 · 2026-10-20 实装 · 用户 ERA10 表）在 ERA9 之上再叠三层：
+   *    L1 绝热材料/强人工智能/引力弹弓(d=21) → L2 近恒星轨道/空间矢量/继承繁星(d=22)
+   *    → L3 大统一方程(d=23)。深度同样由 approved 的 reqs 链推出（不是迁就现状）⇒ 边界抬到 23。
+   *    ⚠️ 这条不是「上限」，是「当前设计应该有多深」的账：下一次加纪元照此格式续写，
+   *       并在括号里继续累加来源（本行是第 8 次追加）。 */
+  check('最深科技 ≤ 23 层（破壳链 6 + era5 叠 2 + 纪元一 4 层 + ERA6 叠 3 + ERA7 叠 3 + ERA8 叠 3 + ERA9 叠 3 + ERA10 叠 3；深度=layer+1）', maxD <= 23,
     '最深 ' + maxD + ' 层：' + at(maxD).map(t => t.id).join(','));
   check('第二层 ≥ 3 项可并行（不是一根直链）', at(1).length >= 3, 'L1=' + at(1).length + ' 项');
   check('第三层 ≥ 4 项可并行', at(2).length + at(3).length >= 6,

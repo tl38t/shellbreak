@@ -31,22 +31,22 @@
    *   解锁前不显示。unlock 描述符：{tech:'X'} 研究 X / {build:'X'} 建成 X / {job:'X'} 指派 X
    *   / {civic:'X'} 解锁 X；省略 = 开局即显示（核心资源）。判定见 economy.resUnlocked。 */
   var RESS = {
-    kelp:    { name: '藻食', short: '藻' },
-    coral:   { name: '珊瑚', short: '珊' },
+    kelp:    { name: '藻食', short: '藻', storageEra: 1 },
+    coral:   { name: '珊瑚', short: '珊', storageEra: 1 },
     /* 材料线四条也有门（2026-09-30 用户报「开局不该看到石头/暖石/精铁/金属」）：
      *   石头=研究「采石」（采石工上岗才有进项）；金属/暖石=研究「采矿」（矿工）；
      *   精铁=建成热泉炉（它是 金属+暖石→精铁 的唯一转换口，见 economy.ironFlow）。
      * ⚠️ 建筑成本标签里的资源名仍照显（上一轮已拍），这里藏的只是顶栏存量行。 */
-    stone:   { name: '石头', short: '石', unlock: { tech: 'quarry' } },
-    silt:    { name: '金属', short: '金', unlock: { tech: 'mining' } },
-    warmstone: { name: '暖石', short: '暖', unlock: { tech: 'mining' } },
+    stone:   { name: '石头', short: '石', unlock: { tech: 'quarry' }, storageEra: 1 },
+    silt:    { name: '金属', short: '金', unlock: { tech: 'mining' }, storageEra: 1 },
+    warmstone: { name: '暖石', short: '暖', unlock: { tech: 'mining' }, storageEra: 1 },
     /* ⚠️ 骨材 bone 已于 2026-09-27 用户拍板删除（原「珊瑚→骨材」这条加工线整体作废）。
      *   连带删除：UNIT.bone / CAP_BASE.bone / state 的 res·got 键 / boneFlow / 骨工法科技。
      *   原挂在 bone 上的三处建筑成本**落到珊瑚上**（热泉炉 112 / 热泉井 175 / 破冰祭坛 400），
      *   理由与 A/B 实证见下面 furnace 那节的注 —— 别改回精铁。
      *   ⚠️ 工坊（workshop）原本的效果正是「解锁珊瑚→骨材」⇒ **它现在是空壳**，效果待设计。
      *   保暖术（hearthfire）的尤里卡 cond 原为「骨材 50」，已改挂「建成工坊」。 */
-    iron:    { name: '精铁', short: '铁', unlock: { build: 'furnace' } },
+    iron:    { name: '精铁', short: '铁', unlock: { build: 'furnace' }, storageEra: 2 },
     /* 钢（2026-10-06 用户拍板移位）：**放在精铁下面一格**，顶栏与精铁同区（不再是工艺资源）。
      *   ⚠️【为什么从工艺区挪出来】用户原话「钢应该放到精铁下面一格，而不是放到工艺资源里」。
      *      语义依据：钢与精铁是**同一条金属链的相邻两级**（精铁 = 金属+暖石经热泉炉，
@@ -66,38 +66,38 @@
      *   猫国原版钛主要来自斑马贸易、矿井直产是本作变体；基准产率见 UNIT.titanium。
      *   满仓浪费判定现已对它生效；自动槽对 resonantDrill（吃 10 钛）的「满仓判定」也随之激活。
      *   ⚠️ 位置 = 定义顺序：放在 steel 之后，顶栏跟其他矿石扎堆；别挪回 ERA4 块（会掉到 faith 后面）。 */
-    titanium:  { name: '钛', short: '钛', unlock: { tech: 'physics' } },
+    titanium:  { name: '钛', short: '钛', unlock: { tech: 'physics' }, storageEra: 4 },
     /* ERA7（2026-10-17 实装 · spec docs/ERA7_TECHS_SPEC_v0.1.md §2）：铀 —— 矿工伴生采集材料
      *   （0.002/秒/人，暖石 0.05 的 1/25，稀有度对齐），研究《自动化钻探》（autodrill）后出现。
      *   ⚠️ 与钛的门不同：钛挂买断升级 upg_deepmine，铀按 spec 直接挂科技门（spec §2 拍板）。
      *   CAP_BASE.uranium=200（对齐 iron/silt 档）。位置=定义顺序：跟钛扎堆（同为稀有采集材料）。 */
-    uranium:   { name: '铀', short: '铀', unlock: { tech: 'autodrill' } },
+    uranium:   { name: '铀', short: '铀', unlock: { tech: 'autodrill' }, storageEra: 7 },
     /* ERA6：钛金板件 —— 工坊用钛合成的「壳外」制造料（对标猫国钛合金走工坊），
-     *   属工艺资源（kind:'craft'），但有基础仓储上限 200；通过通用仓储设施/扩容升级增加容量。
+     *   属工艺资源（kind:'craft'），按统一规则无仓储上限。
      *   解锁权双写：craft_tiplate 配方的 need:'minipump' 真读（与铁制支架/绳同构），科技侧 eff 留空不写死键。 */
     tiplate:    { name: '钛金板件', short: '板', kind: 'craft', unlock: { tech: 'minipump' } },
-    /* ERA8（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）：θ生物金属 —— 生物材料研究所（建筑）制造的「壳外」生物基材料。
-     * ⚠️ kind:'craft' = 进顶栏「工艺资源」折叠区（与钛金板件同族，但它是建筑制造而非工坊配方）；
-     *   解锁权挂科技『生物材料』（biomat）。CAP_BASE.thetaMetal=200（用户拍定案，待标定）——
-     *   与 stoneBeam/hardCoral 这类「无上限工艺制品」不同：θ金属是 ERA8 主线材料（机器人充能站/萨图恩奇观都吃），
-     *   故给有限上限，避免囤积失控；若后续要放开再回 config.js 改。 */
-    thetaMetal: { name: 'θ生物金属', short: 'θ', kind: 'craft', unlock: { tech: 'biomat' } },
+    /* ERA8（2026-10-18）：θ生物金属是普通库存资源，由生物材料研究所制造，基础仓储上限 200；
+     *   与工艺资源区分开，不标 kind:'craft'。解锁权挂科技『生物材料』（biomat）。 */
+    thetaMetal: { name: 'θ生物金属', short: 'θ', unlock: { tech: 'biomat' }, storageEra: 8 },
     /* ERA8 市政（2026-10-18 · 用户市政表 H2 拍板）：θ金属自适应薄膜成为**可持有资源**——
      *   上一波实装时工艺产出折算成了钛金板件（避免「无 CAP 无去处的工艺资源」），
      *   但用户市政表《虚拟现实》解锁的奇观「魔鱼世界VR」造价是「薄膜 ×10」，
-     *   折算方案下薄膜这个持有物不存在 ⇒ 造价无附着点。改为独立资源（CAP_BASE 20，见 config.js），
-     *   craft_thinafilm 产出同步改指 thinafilm（5 处登记：RESS/CAP_BASE/state res/got seed/e2e）。 */
+     *   折算方案下薄膜这个持有物不存在 ⇒ 造价无附着点。改为独立资源，
+     *   craft_thinafilm 产出同步改指 thinafilm；作为工艺资源不设仓储上限。 */
     thinafilm: { name: 'θ金属自适应薄膜', short: '膜', kind: 'craft', unlock: { tech: 'nanotech' } },
+    /* ERA9（2026-10-19 实装）：强工质火箭引擎 —— 由「行星际航行」工艺制造（燃料500 + θ金属10 → 1），
+     *   是 mars_workshop / europa_launch 的造价与运行耗料（用户规格）。工艺资源，不设仓储上限，与 thinafilm 同纪律。 */
+    strongProp: { name: '强工质火箭引擎', short: '箭', kind: 'craft', unlock: { tech: 'interplanetary' } },
     /* ERA6（2026-10 实装）：星空探索 —— 轻量版「星图进度」替代资源（星图系统晚点立项）。
      *   exostruct 解锁资源显示（0/s）；实际产出由星空观测站升级（upg_starscope）每 tick +1 提供，耗 1 热液能。
      *   有 CAP_BASE.starExplore 上限键（1e9 占位，见 config.js CAP_BASE.starExplore；ERA7 完工后标定为太空时代结局阈值）。 */
-    starExplore:{ name: '星空探索', short: '星', unlock: { tech: 'exostruct' } },
+    starExplore:{ name: '星空探索', short: '星', unlock: { tech: 'exostruct' }, storageEra: 6 },
     /* 科技（科技点）：门控挂在「结绳」(writing) 上，而不是「书写」(scholarT)。
      * 学者职业由免费项结绳解锁、且科技面板在结绳完成时才开门——这正是玩家
      * 开始产出/消耗科技点的时点。若挂在 scholarT，整段前期（凿珊瑚/采石/种植/
      * 历法/畜牧/采矿/海潮占卜/书写本身）都看不到科技存量，等于盲打研究。 */
     science: { name: '科技', short: '科', unlock: { tech: 'writing' } },
-    fuel:    { name: '地热', short: '热', unlock: { build: 'geyser' } },  // 热泉井已删 ⇒ 永不显示
+    fuel:    { name: '地热', short: '热', unlock: { build: 'geyser' }, storageEra: 1 },  // 热泉井已删 ⇒ 永不显示
     /* 市政点（2026-09-27 用户拍板「对标科技点」新开的资源线，见 docs/CIVICS_v0.1.md §3）。
      * 与科技分属两个池子 ⇒ 两条树可以错开冲刺，这是 Civ6 那条「文化是独立资源」的落地。
      * ⚠️ **CAP_BASE 里故意不给 culture 键**：沿用 science 的做法（走 Infinity）——
@@ -218,10 +218,10 @@
     /* ── ERA7（2026-10-17 实装 · spec docs/ERA7_TECHS_SPEC_v0.1.md §2）──
      * 【燃料 rocketFuel】工艺制品：100 暖石 → 1（craft_rocketfuel，need:'refine'）。
      *   ⚠️ id 不能叫 fuel —— 被已删除的「地热」占用（RESS.fuel 那条永不显示），不可复用（spec §1）。
-     *   CAP_BASE.rocketFuel=20000（摇篮奇观要吃 10000，cap 必须 > 需求）。
+     *   工艺资源无仓储上限，摇篮奇观消耗 10000 不会被容量挡住。
      * 【火箭引擎 rocketEngine】工艺制品：燃料 200 + 封闭藻仓 10 → 1（craft_rocketengine，need:'crewed'）。
-     *   CAP_BASE.rocketEngine=50（提议值）。
-     * 【星屑 stardust】跨周目局外资源（spec §7）：只在周目结算时发放，不做逐秒产出
+     *   火箭引擎同样无仓储上限。
+     * 【星屑 stardust】跨周目局外资源：结算发放并可在星穹商店兑换，不做逐秒产出
      *   ⇒ 无 UNIT 键、无 tick/rates 行；故意不给 CAP_BASE 键（同 science/culture 口径 ⇒ capOf 恒 Infinity）。
      *   显示门=首个太空建筑建成（satellite 由波次3实装，门先挂上不阻塞）。 */
     rocketFuel:   { name: '燃料', short: '燃', kind: 'craft', unlock: { tech: 'refine' } },
@@ -341,6 +341,13 @@
       in: { rocketFuel: 200, sealbin: 10 }, out: 1, res: 'rocketEngine',
       desc: '燃料与封闭藻仓组装成的火箭引擎。空间站的建造材料。' },
 
+    /* ── ERA9 工艺配方（2026-10-19 实装）──
+     * 【强工质火箭引擎】燃料 500 + θ金属 10 → 1。need='interplanetary'（行星际航行，与 RESS.unlock 双写轴同构）。
+     *   工艺资源 strongProp（RESS.unlock:{tech:'interplanetary'} 同源门），不设仓储上限。 */
+    { id: 'craft_strongprop', name: '强工质火箭引擎', need: 'interplanetary',
+      in: { rocketFuel: 500, thetaMetal: 10 }, out: 1, res: 'strongProp',
+      desc: '行星际航行解锁的工艺制造：燃料 500 + θ金属 10 合成 1 枚强工质火箭引擎。' },
+
     /* ── ERA8 工艺配方（2026-10-18 实装 · spec §4）──
      * 【θ金属自适应薄膜】need='nanotech'（纳米技术，与 RESS.unlock 双写轴同构——
      *   纳米技术的尤里卡是「θ金属产出 5/秒」，配方门天然晚于产线存在，无死锁）。
@@ -352,7 +359,7 @@
     { id: 'craft_thinafilm', name: 'θ金属自适应薄膜', need: 'nanotech',
       in: { thetaMetal: 100 }, out: 1, res: 'thinafilm',
       /* 2026-10-18 市政表 H2：产出从折算 tiplate 改为独立资源 thinafilm——
-       *   魔鱼世界VR 造价「薄膜 ×10」需要它可持有（CAP_BASE.thinafilm 20，config.js）。 */
+       *   魔鱼世界VR 造价「薄膜 ×10」需要它可持有；工艺资源统一无上限。 */
       desc: '把 θ生物金属压成自适应薄膜。每 100 θ 出 1 卷薄膜（魔鱼世界VR 的建造材料）。' }
   ];
 
@@ -376,14 +383,15 @@
    *   `unlockUpgrade` 键会造出全仓无人读取的死键（同 unlockTool 那个教训）。 */
   /* ⚠️ `capMul` 是 economy.capOf 读的那个数（见那里），**不写死在 economy 里** ——
    *    将来加级只改这一张表。⚠️ 乘的是「基础 + 等级增量 + 科技/奇观加成」**整体**
-   *    （`× 1.5` 作用在整条容量上），不是只乘增量 —— 与猫国 `effect *= 1 + ratio` 同式。
+   *    （`× 1.5` 作用在整条容量上），不是只乘增量 —— 与猫国 `effect *= 1 + ratio` 同式；
+   *    但只覆盖 `capEra` 及之前解锁的资源，不再预抬后期资源的上限。
    *    若只乘增量，玩家基础容量 0 时买升级等于没买，这是「乘区作用错了对象」。 */
   var UPGRADES = [
-    { id: 'upg_ballast_1', name: '压舱库扩容 I', need: 'engineeringT',
+    { id: 'upg_ballast_1', name: '压舱库扩容 I', need: 'engineeringT', capEra: 2,
       capMul: 1.5,
       cost: { ironBracket: 50, rope: 50 },
-      desc: '各材料仓储上限 ×1.5（藻食除外）' },
-    { id: 'upg_kelpstore_1', name: '藻食库扩容 I', need: 'engineeringT',
+      desc: '已解锁至纪元二的材料仓储上限 ×1.5（藻食除外）' },
+    { id: 'upg_kelpstore_1', name: '藻食库扩容 I', need: 'engineeringT', capEra: 2,
       capMul: 1.5,
       cost: { ironBracket: 50, rope: 50 },
       desc: '藻食上限 ×1.5' },
@@ -394,17 +402,17 @@
      * 本作升级只吃材料（不耗科技点），故把猫国「二阶多出的那笔科技闸门」折算成更高阶材料 hardCoral，
      * 终值 ironBracket 100 + hardCoral 150（≈ I 的 3.5 倍、且改用 era3 高阶料，符合「城堡才解锁」档位）。
      * ⚠️ 未设「需先装 I」的前置：与猫国各乘区升级相互独立同构；若要强制 II 依赖 I，需在 workshop.upgradeBlocked 加 reqUpg 判据。 */
-    { id: 'upg_ballast_2', name: '压舱库扩容 II', need: 'castle',
+    { id: 'upg_ballast_2', name: '压舱库扩容 II', need: 'castle', capEra: 3,
       capMul: 1.5,
       cost: { ironBracket: 100, hardCoral: 150 },
-      desc: '各材料仓储上限 再 ×1.5（与 I 叠加 ⇒ 合计 ×2.25，藻食除外）' },
-    /* ERA6 通用仓储扩容：沿用压舱库扩容的 capMul 通道，覆盖所有有上限的非藻食资源，
-     *   包括钛金板件；藻食仍走独立扩容线。成本参照猫国 alloyWarehouses 的钛 / 科技 / 合金组合。 */
-    { id: 'upg_alloy_warehouse', name: '合金仓储', need: 'minipump',
+      desc: '已解锁至纪元三的材料仓储上限再 ×1.5（与 I 叠加，藻食除外）' },
+    /* ERA6 通用仓储扩容：只作用于已解锁至纪元六的有上限材料；后续纪元的新资源
+     *   不继承旧升级加成。藻食仍走独立扩容线。成本参照猫国 alloyWarehouses 的钛 / 科技 / 合金组合。 */
+    { id: 'upg_alloy_warehouse', name: '合金仓储', need: 'minipump', capEra: 6,
       capMul: 1.5,
       cost: { tiplate: 50, titanium: 750, science: 200000 },
-      desc: '所有有上限的非藻食资源仓储容量 ×1.5' },
-    { id: 'upg_kelpstore_2', name: '藻食库扩容 II', need: 'castle',
+      desc: '已解锁至纪元六的非藻食资源仓储容量 ×1.5' },
+    { id: 'upg_kelpstore_2', name: '藻食库扩容 II', need: 'castle', capEra: 3,
       capMul: 1.5,
       cost: { ironBracket: 100, hardCoral: 150 },
       desc: '藻食上限 再 ×1.5（与 I 叠加 ⇒ 合计 ×2.25）' },
@@ -435,13 +443,13 @@
      *      面板里是正确的主语（它确实是在说升级什么），但同一句显示在建筑行上时，
      *      那一行已经叫「鱼骨矿井」了，主语自相矛盾。⇒ 两处各用各的文案。 */
     /* 鱼骨矿井（砂矿坑升级）：need=学徒制（学徒制的尤里卡=买齐三件铁制工具 ⇒ 研究完即解锁）。
-     *   效果：矿工金属 +50%（mineSilt 0.5）、暖石 +400%（mineWarm 4.0，即 ×5）。
+     *   效果：矿工金属 +50%（mineSilt 0.5）、暖石 +100%（mineWarm 1.0，即 ×2）。
      *   cost 50 铁制支架 + 50 硬化珊瑚（用户规格终值）。 */
     { id: 'upg_fishbonemine', name: '鱼骨矿井', need: 'apprentice', upgradesBuilding: 'siltpit',
-      buildingDesc: '矿工金属产出 +50%、伴生暖石 +400%。每级矿工都吃这份加成。',
-      mineSilt: 0.5, mineWarm: 4.0,
+      buildingDesc: '矿工金属产出 +50%、伴生暖石 +100%。每级矿工都吃这份加成。',
+      mineSilt: 0.5, mineWarm: 1.0,
       cost: { ironBracket: 50, hardCoral: 50 },
-      desc: '砂矿坑升级：矿工金属产出 +50%、伴生暖石 +400%。' },
+      desc: '砂矿坑升级：矿工金属产出 +50%、伴生暖石 +100%。' },
     /* 自动工坊：need=金属精炼。效果：工艺制作效率 +10%（craftRatio，与工坊每级 +5% 同通道相加）。
      *   cost 600 绳（用户规格终值）。
      * ⚠️ 2026-10-07 用户拍板：**它自带 1 个自动制作槽**（此前名字叫「自动」却不会自动制造，
@@ -459,15 +467,15 @@
       desc: '研究所升级：学者科技产出 +100%（每级合计 ×100%）。' },
     /* 城堡：need=城堡(科技)。效果：① 议价减耗（hallSaveMul 0.5，HALL_SAVE 每级 ×1.5、
      *   软上限固定基础 50%、其它仓库叠加到最高 75%，走 getLimitedDR 边际递减）；
-     *   ② 每级议事厅给所有有上限资源 +50 容量（castleCap 50），走 getLimitedDR 衰减。
+     *   ② 每级议事厅给纪元三及之前有上限资源 +50 容量（castleCap 50），走 getLimitedDR 衰减。
      *   cost 50 石梁 + 50 硬化珊瑚。 */
-    { id: 'upg_castle', name: '城堡', need: 'castle', upgradesBuilding: 'hall',
+    { id: 'upg_castle', name: '城堡', need: 'castle', capEra: 3, upgradesBuilding: 'hall',
       buildingDesc: '随统治核心等级降低所有建筑下一级成本；' +
-        '每级给所有有上限资源 +50 容量；市政点 +0.05/级/秒。' +
+        '每级给纪元三及之前有上限资源 +50 容量；市政点 +0.05/级/秒。' +
         '装政策卡「王权神授」每级再 +10% 信仰产出',
       hallSaveMul: 0.5, castleCap: 50,
       cost: { stoneBeam: 50, hardCoral: 50 },
-      desc: '议事厅升级：降低所有建筑建造成本，每级议事厅给所有有上限资源 +50 容量。' },
+      desc: '议事厅升级：降低所有建筑建造成本，每级议事厅给纪元三及之前有上限资源 +50 容量。' },
     /* 马镫：need=马镫(科技，尤里卡=5 名商人)。效果：奢侈品 +50%（luxuryMul 0.5，
      *   与马具 tool_harnes 的 +50% 独立相乘 ⇒ 合计 +100%）。cost 400 绳（用户规格终值）。 */
     { id: 'upg_horseshoe', name: '马镫', need: 'horseshoe',
@@ -551,12 +559,12 @@
       cost: { tiplate: 300, resonantDrill: 300, science: 450000 },
       desc: '矿井产出每级 +100%，每级耗 1 热液能/秒（可开关）。' },
     /* ERA7（spec §4）：物流仓库 —— 顶替商队驿站（upgradesBuilding），买下后商队驿站更名「物流仓库」。
-     *   每级给所有有上限材料 +200 容量（capOf 材料分支，BLD.logiwareCap）。
+     *   每级给纪元七及之前解锁的有上限材料 +200 容量（capOf 材料分支，BLD.logiwareCap）。
      *   cost 科技点 1,000,000 = 解锁它的科技《大型架构》自身 cost（§0-4 开先例）；材料为提议值（与另两条 era7 升级同口径，不含脚手架）。 */
-    { id: 'upg_logiware', name: '物流仓库', need: 'architect', upgradesBuilding: 'caravanserai',
+    { id: 'upg_logiware', name: '物流仓库', need: 'architect', capEra: 7, upgradesBuilding: 'caravanserai',
       cost: { tiplate: 500, science: 1000000 },
-      buildingDesc: '商队驿站→物流仓库：每级所有有上限材料 +200 容量。',
-      desc: '商队驿站升级为物流仓库：每级所有有上限材料 +200 容量。' },
+      buildingDesc: '商队驿站→物流仓库：每级纪元七及之前解锁的有上限材料 +200 容量。',
+      desc: '商队驿站升级为物流仓库：每级纪元七及之前解锁的有上限材料 +200 容量。' },
     /* ERA7（spec §4）：可控爆炸工艺 —— 给 craftRatio 乘区 ×1.5（新增乘区，不改基值）。
      *   boomcraftMul=0.5 ⇒ 整条工艺产出 ×1.5。cost 科技点 1,000,000 = 《载人航天》自身 cost；材料提议值。 */
     { id: 'upg_boomcraft', name: '可控爆炸工艺', need: 'crewed',
@@ -586,7 +594,16 @@
       desc: '本周目全部工艺制造成本 −30%（轮回/破壳后失效，重新购买即再次生效）。' },
     { id: 'upg_indrobot', name: '工业机器人', need: 'robotics',
       cost: { thetaMetal: 200, science: 3000000 },
-      desc: '工坊工艺制作效率 +100%（独立乘区 ×2）；每级耗 1 热液能/秒（可开关）。' }
+      desc: '工坊工艺制作效率 +100%（独立乘区 ×2）；每级耗 1 热液能/秒（可开关）。' },
+    /* ── ERA10（2026-10-20 实装 · 用户 ERA10 表「强人工智能」解锁）──
+     * 【强人工智能】need=强人工智能（strong_ai）。消耗 1000 θ金属（用户表原值）。
+     * 效果两件（用户拍 Q3「进人口基项」）：
+     *   ① 机器人产出 ×1.2 → ×1.5：folk.robotMult(s) 读数替代写死的 ROBOT_MULT，effJobs 合并时用；
+     *   ② 机器人按人口口径产信仰：economy.faithRate 人口基项 +robotPop(s)，**升级门控**
+     *      （没买升级前机器人仍不进信仰基项，robotbay 原 desc「不影响信仰点」随之改口径）。 */
+    { id: 'upg_strongai', name: '强人工智能', need: 'strong_ai',
+      cost: { thetaMetal: 1000 },
+      desc: '机器人产出 ×1.2 → ×1.5，且机器人按人口口径产出信仰（消耗 1000 θ金属）。' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
@@ -747,6 +764,17 @@
       effect: {},
       desc: '破壳后效果：每秒 +100 市政点，幸福度 +1。' },
 
+    /* ── ERA9 奇观（2026-10-19 实装 · 生态重塑 解锁）──
+     * 【星球重构机 G.E.E.K】need='ecological_restoration'（与 wonder_skydrill.need 同机制：
+     *   workshop/wonderBlocked 读 w.need 拦「先研究生态重塑」；非 tech 的 unlockWonder 字段，那个键全 src 无消费点）。
+     *   effect 空：G.E.E.K 唯一效果是「覆盖建筑升级花费削减」(s.geek.costOffset)，落点 economy.costOf，
+     *   不经 wonder.effect 通道（无幸福度/市政/产出效果，用户拍板「不加」）。运行态在 shell.tickShell ③段。 */
+    { id: 'wonder_geek', name: '星球重构机 G.E.E.K', era: 9, need: 'ecological_restoration',
+      cost: { thetaMetal: 1000, steel: 4000, iron: 6000, coral: 10000, kelp: 10000 },
+      effect: {},
+      desc: '生态重塑的丰碑：建成后于「自然环境」卡启动，依次改造瑞亚星（1800s）与泰拉星（3600s）。' +
+            '完成后人口/速生珊瑚林/矿井/生息区建筑升级花费大幅削减（瑞亚回到 L3 之前、泰拉再叠回 L5 之前）。' },
+
     /* ── ERA5 市政奇观（2026-10-02 实装 · 渊潜鲛歌/社会科学 解锁）──
      * 【夏'多桑大剧院】needCivic='sharksong'。effect.civic:5 = 每秒 +5 市政点（走 wonder.civicBonus，
      *   绝对量，与现有奇观同通道）；effect.civicSlots:1 = 额外送 1 个政策卡槽（走 civics.wonderCivicSlots，
@@ -785,11 +813,10 @@
     /* ── ERA7 奇观（2026-10-17 实装 · spec §4）──
      * 【摇篮】need=surface（地表探测）。效果 mineMul:0.20 —— 矿线全产出 +20%
      *   （金属 silt / 伴生暖石 / 铀 / 钛，economy 矿工各行 ×1.2）。
-     *   cost 燃料 10000（摇篮要 10000，CAP_BASE.rocketFuel=20000 已留足）。
+     *   cost 燃料 10000（工艺资源无仓储上限，不会因容量卡住）。
      * 【至高圣座】need=spacestation（空间站）。效果 stationBonus:3（空间站有效等级 +3，免费不收差价）
      *   + 政体分支 +10%（theo_state 信仰 / egalitarianism 工艺 / federalism 科技，互斥三目，wonder.throne*Mul 读）。
-     *   cost 火箭引擎 30（提议值，待标定）。⚠️ 按政体改名（至高圣座/太空共同体/国际空间站）属渲染层，
-     *   本版先落「单一名 + 三分支效果」，改名沿用城堡 GOV_CASTLE_NAME 同构另开。 */
+     *   cost 火箭引擎 30（提议值，待标定）；渲染层按政体显示分支名称与专属加成。 */
     { id: 'wonder_cradle', name: '摇篮', era: 7, need: 'surface',
       cost: { rocketFuel: 10000 },
       effect: { mineMul: 0.20 },
@@ -842,7 +869,19 @@
     { id: 'wonder_fishvr', name: '魔鱼世界VR', era: 8, needCivic: 'virtual_reality',
       cost: { thinafilm: 10 },
       effect: { happyBonus: 1 },
-      desc: '全域沉浸幻境：幸福度 +1；运转持续消耗热液能 5/秒（断流只停幻境不停幸福加成，与空间站同口径）。' }
+      desc: '全域沉浸幻境：幸福度 +1；运转持续消耗热液能 5/秒（断流只停幻境不停幸福加成，与空间站同口径）。' },
+
+    /* ── ERA10（2026-10-20 实装 · 用户 ERA10 表「引力弹弓」解锁）──
+     * 【朱庇特质量加速站】need=引力弹弓（gravity_sling）。建造 20 强工质火箭引擎 + 100 θ金属自适应薄膜（用户表原值）。
+     *   · 运转耗 20 热液能/秒（用户表「消耗热液能20」按 G.E.E.K/europa 先例做成 /秒 运行耗流，
+     *     hydroAlloc 新 draw jupitorDraw，最低优先级，断流只停耗）——CFG.JUPITOR_HYDRO。
+     *   · 生物材料研究所产出 +100%：effect.biomatlabOut = 1.0，wonder.js 新增 wonderBiomatlabOut
+     *     读数（乘区，默认 1，与纳米技术 biomatlabOut ×1.10 独立相乘 ⇒ 合计 ×2.10），
+     *     接 economy.thetaOut（tick/rates 两处同式）。 */
+    { id: 'wonder_jupitor_mas', name: '朱庇特质量加速站', era: 10, need: 'gravity_sling',
+      cost: { strongProp: 20, thinafilm: 100 },
+      effect: { biomatlabOut: 1.0 },
+      desc: '气态巨星的质量投射器：每秒耗 20 热液能，生物材料研究所产出 +100%。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。
@@ -908,7 +947,11 @@
     /* ERA7（spec §4）：自动化钻探（upg_autodrill）每级每秒耗热液能（提议值）。 */
     drillHydro: 1,
     /* ERA8（2026-10-18 · spec §4）：工业机器人（upg_indrobot）每级每秒耗热液能（提议值）。 */
-    robotHydro: 1 };
+    robotHydro: 1,
+    /* ERA8（2026-10-19 · B7）：机器人充能站（robotbay）每级每秒耗热液能（spec §4 列 8）。 */
+    robotbayHydro: 8,
+    /* ERA9（2026-10-19）：欧罗巴冰面发射场（europa_launch）每级每秒耗热液能（hydroAlloc 流耗，最低优先级）。 */
+    europaHydro: 2 };
   SB.SEASONS = SEASONS;
   SB.RESS = RESS;
   SB.CRAFTS = CRAFTS;

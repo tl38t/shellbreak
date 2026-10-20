@@ -203,18 +203,28 @@
 
     if (sel === era) {
       /* 当前纪元：把「还差什么」摊开。这一段是原「当前纪元横幅」的内容，
-       * 逐句搬过来 —— 删掉它这页就只剩一张地图，玩家不知道该往哪使力。 */
-      var keys = SB.tech.keysOf(era), kl = '', i;
-      for (i = 0; i < keys.length; i++) {
-        var k = keys[i];
-        kl += '<span class="' + (s.techs[k.id] ? 'done' : '') + '">' +
-          (s.techs[k.id] ? '✓ ' : '○ ') + k.name + '</span>';
+       * 逐句搬过来 —— 删掉它这页就只剩一张地图，玩家不知道该往哪使力。
+       * ⚠️ ERA10（2026-10-20）：**终局纪元必须单独分支**。keysOf(10) = 0（没有关键节点闸门，
+       *    advanceEra 靠 `p.era >= E.length` 兜底，既不会瞬跳也不可能再推进），沿用通用文案会打出
+       *    「本纪元关键节点 0 / 0。全部掌握即进入下一纪元」——一句在终局完全不成立的谎，
+       *    0/0 的迷你进度条还像页面坏了。终局真正该说清的是「通关条件去哪看」。 */
+      var isLast = era >= (SB.ERAS || []).length;
+      if (isLast) {
+        h += '<div class="edesc">终局纪元：本纪元不设关键节点闸门，也没有下一纪元，七项科技点完为止。' +
+          '通关看<b>戴森球</b>——星图页的戴森球面板到 100%（太阳帆 10000 ＋ 戴森球节点 1000）即竣工。</div>';
+      } else {
+        var keys = SB.tech.keysOf(era), kl = '', i;
+        for (i = 0; i < keys.length; i++) {
+          var k = keys[i];
+          kl += '<span class="' + (s.techs[k.id] ? 'done' : '') + '">' +
+            (s.techs[k.id] ? '✓ ' : '○ ') + k.name + '</span>';
+        }
+        h += '<div class="keysline">' + kl + '</div>';
+        h += '<div class="minibar" style="margin-top:7px"><i style="width:' +
+          (prog.keysTotal ? (prog.keysDone / prog.keysTotal * 100).toFixed(0) : 0) + '%"></i></div>';
+        h += '<div class="edesc">本纪元关键节点 ' + prog.keysDone + ' / ' + prog.keysTotal +
+          '。全部掌握即进入下一纪元——越纪元研究是不可能的，这是硬闸门。</div>';
       }
-      h += '<div class="keysline">' + kl + '</div>';
-      h += '<div class="minibar" style="margin-top:7px"><i style="width:' +
-        (prog.keysTotal ? (prog.keysDone / prog.keysTotal * 100).toFixed(0) : 0) + '%"></i></div>';
-      h += '<div class="edesc">本纪元关键节点 ' + prog.keysDone + ' / ' + prog.keysTotal +
-        '。全部掌握即进入下一纪元——越纪元研究是不可能的，这是硬闸门。</div>';
       var next = era < (SB.ERAS || []).length ? eraOf(era + 1) : null;
       h += '<div class="teaser">现有科技 <b>' + Math.floor(s.res.science) + '</b>（+' +
         sci.toFixed(2) + '/ 秒）' + (next ? '　下一纪元：<b>' + next.name + '</b>「' +
@@ -407,16 +417,21 @@
       /* 2026-10-14：按钮 title 反映「免费卸下机会」——有令牌时写「免费（剩 N 次）」，否则写市政点花费。 */
       var _freeN = s.cardFreeRemoves || 0;
       var _rCost = _freeN > 0 ? ('免费（剩 ' + _freeN + ' 次）') : ('收取 ' + C.cardCost(s) + ' 市政点');
+      /* ERA9 虚境信仰卡（locked）：永恒锚定、不可卸下——槽里不显示「卸下」按钮，改成锁死提示。 */
+      var _locked = !!(filled && filled.locked);
       h += '<div class="slotbox' + (_canHere ? ' slot-target' : '') + '" id="slotrow-' + i + '" data-slot="' + i + '">' +
         '<div class="slottt">' + C.slotTypeName(st) + ' <span class="tg">#' + (i + 1) + '</span></div>' +
         (filled
-          ? '<div class="slotcard' + (_fit ? '' : ' bad') + '">' + filled.name + '</div>' +
+          ? '<div class="slotcard' + (_fit ? '' : ' bad') + (_locked ? ' locked-vr' : '') + '">' +
+              filled.name + (_locked ? ' <span class="eye" title="虚境信仰 · 永恒锚定">👁</span>' : '') + '</div>' +
             '<div class="slotsub' + (_fit ? '' : ' bad') + '">' +
               (_fit ? (filled.effectText ? C.effectText(filled.effect) : filled.desc)
                     : '与这个槽不对口，装填新卡可覆盖') +
             '</div>' +
-            '<button class="btn danger" data-remove="' + i + '" ' +
-              'title="卸下此政策卡（' + _rCost + '）">卸下</button>'
+            (_locked
+              ? '<div class="locknote" title="虚境信仰已永恒锚定，不可卸下">🔒 永恒锚定 · 不可卸下</div>'
+              : '<button class="btn danger" data-remove="' + i + '" ' +
+                'title="卸下此政策卡（' + _rCost + '）">卸下</button>')
           : '<div class="slotcard empty">空置</div>' +
             '<div class="slotsub">点击装填</div>') +
         '</div>';
@@ -465,10 +480,13 @@
       for (var j = 0; j < group.length; j++) {
         var q = group[j], why = C.cardBlocked(s, q.id), on = (s.cards && s.cards.indexOf(q.id) >= 0);
         var fits = C.cardFits(q, C.currentSlotType(s));
+        /* ERA9 虚境信仰卡（q.locked）：紫红色卡面 + 眼睛图标，池里标「永恒卡」，装填后仍不可卸下。 */
+        var _qlocked = !!q.locked;
         h += '<article class="policy-card policy-card-' + groupType + (on ? ' is-installed' : '') +
+          (_qlocked ? ' is-locked-vr' : '') +
           (armedCard === q.id ? ' is-armed' : '') + '">' +
           '<div class="policy-card-top"><span class="tag t' + groupType + '">' + C.slotTypeName(groupType) + '</span>' +
-          (on ? '<span class="tag ok">已装填</span>' : '') + '</div>' +
+          (_qlocked ? '<span class="tag vr">👁 永恒卡</span>' : (on ? '<span class="tag ok">已装填</span>' : '')) + '</div>' +
           '<div class="policy-card-name">' + q.name + '</div>' +
           /* 幸福度提示按当前卡自己的 happyOffset 显示；不能把所有已装卡的合计重复贴到每张卡上。 */
           (on ? SB.ui.renderCommon.happyBonusNote(s, 'card', q.id) : '') +
@@ -481,8 +499,8 @@
            *   永远点不动（disabled 按钮不触发 click）。点槽时 setCard 会据实返回
            *   false 并在 log 报「换卡需 X 市政点」。 */
           ((why && armedCard !== q.id && why.indexOf('市政点') === -1) ? ' disabled' : '') +
-          ' title="' + (why || (on ? '已装填' : '')) + '">' +
-          (on ? '在槽' : (armedCard === q.id ? '点槽安装' :
+          ' title="' + (why || (on ? (_qlocked ? '虚境信仰 · 永恒锚定' : '已装填') : '')) + '">' +
+          (on ? (_qlocked ? '永恒·不可卸下' : '在槽') : (armedCard === q.id ? '点槽安装' :
             (why ? (why.indexOf('市政点') >= 0 ? '需市政点' : '装不了') : '装填'))) + '</button></article>';
       }
       h += '</div></section>';

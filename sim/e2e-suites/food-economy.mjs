@@ -90,13 +90,13 @@ console.log('\n=== 食物三旋钮 ===');
   /* ---- 仓储形态（2026-09-26 第三轮·用户拍板「除了基础仓储之外的都改成和猫国一致，
    *      通过专门的仓库建筑和科技给库存」）----
    * 三条规格：
-   *   ① 每种资源都必须**真的有上限** —— 旧版 `if (!CFG.CAP_BASE[k])` 把「明写 0」
-   *      也判成表外 ⇒ stone / warmstone 整局无上限。那是 bug，不是设计。
+   *   ① 常规材料按 CAP_BASE 管容量；kind:'craft' 的工艺资源全部无上限。
+   *      旧版 `if (!CFG.CAP_BASE[k])` 把「明写 0」也判成表外 ⇒ stone / warmstone 整局无上限，那是 bug。
    *   ② 上限不再有「每建筑级给一点全局容量」那一轴（旧 CAP_PER_LVL 已删）——
    *      猫国的容量 100% 来自专门的仓库建筑（barn / warehouse / harbor / 对撞机）。
    *   ③ 藻食与材料**两条线各认自己的仓**：藻食 → 海藻仓（era1「种植」解锁）、
    *      材料 → 压舱仓（era2 解锁）。一个 store 管两件事会让「储」这个旋钮失焦。
-   * 反向对照两条：科技必须仍然表外无上限；材料仓对藻食必须零作用。
+   * 反向对照：科技与全部工艺资源必须表外无上限；材料仓对藻食必须零作用。
    * ⚠️ 这里要盯的**不是数值大小**（那是标定，用户来定），而是「哪条线归谁、接没接上」。 */
   {
     const zero = SB.state.freshRun(false);
@@ -121,7 +121,9 @@ console.log('\n=== 食物三旋钮 ===');
     check('石头 / 暖石必须吃仓储（旧版把「明写 0」当成表外 ⇒ 整局无上限）',
       noCap.indexOf('stone') === -1 && noCap.indexOf('warmstone') === -1,
       '无上限的资源 = [' + noCap.join(', ') + ']');
-    /* ⚠️ 2026-09-27：`culture`（市政点）也进表外了，与 science 同类——
+    /* 工艺资源统一不设上限：`kind:'craft'` 是 UI 分类，不受仓储容量约束；
+     *   无上限名单覆盖全部当前工艺资源，新增时也会被显式审查。
+     * ⚠️ 2026-09-27：`culture`（市政点）也进表外了，与 science 同类——
      *    两条都是「只用于解锁、不存在花不掉」的资源，撞上仓储上限只会让玩家
      *    在快够 100 点时被卡住。以后再加这类线，都要走「不给 CAP_BASE 键」。
      * ⚠️ 同日还多出一条 `stoneBeam`（石梁）——**是用户拍的，不是漏写**：
@@ -158,7 +160,7 @@ console.log('\n=== 食物三旋钮 ===');
       steel: 1, hydro: 1, steelPart: 1,
       /* ERA4（2026-09-30）：脚手架 = 工艺制作的产物（硬化珊瑚 100 + 绳 100 → 1），与石梁/铁制支架同口径。
        *   不给 CAP_BASE 键 ⇒ capOf 恒 Infinity（无仓储上限）；给上限会卡死「攒材料造脚手架」的进度。
-       *   钛与钛金板件均有仓储上限，不在白名单；板件基础上限见 CAP_BASE.tiplate。 */
+       *   钛是采集材料、有仓储上限；工艺资源统一无上限。 */
       scaffold: 1,
       /* ERA4（2026-09-30）：artwork（艺术品）/ tidalRecord（潮汐志录）。
        *   与 stoneBeam/ironBracket/rope 同属「工艺制作的产物」一类 —— 由工坊配方造出来、
@@ -170,6 +172,11 @@ console.log('\n=== 食物三旋钮 ===');
        *   扣 0.1，建一座就吃 20 份）。照石梁那套口径（猫国 warehouse 没有 beamMax ⇒ 恒无上限）。
        *   不给 CAP_BASE 上限键，否则「攒 20 钻头建天穹钻机」会被仓储卡死。不是漏写 CAP_BASE。 */
       resonantDrill: 1,
+      /* 用户要求：所有 craft 资源无上限；θ金属现为普通限量资源，因此不在白名单。 */
+      /* ERA9（2026-10-19）：强工质火箭引擎（strongProp）—— craft 资源，与 thinafilm/rocketFuel/
+       *   rocketEngine 同口径（工艺制造产物，无仓储上限）。mars_workshop/europa_launch 造价与
+       *   运行耗料，不设 CAP_BASE 键 ⇒ capOf 恒 Infinity。漏进白名单会被反向对照误报成漏写 CAP_BASE。 */
+      tiplate: 1, thinafilm: 1, rocketFuel: 1, rocketEngine: 1, strongProp: 1,
       /* ERA6（2026-10 实装）：封闭藻仓（sealbin）。与 artwork/tidalRecord/stoneBeam 同属
        * 「工艺制作的产物」一类 —— 由工坊配方 craft_sealbin（钛金板件 5 + 温水藻 200 → 1）造出来、
        *   成批消耗（温水藻场升级材料）。照石梁那套口径（猫国 warehouse 没有 beamMax ⇒ 恒无上限）。
@@ -182,6 +189,8 @@ console.log('\n=== 食物三旋钮 ===');
     check('反向对照：科技 / 市政点 / 石梁 / 工艺制品仍表外无上限（批准名单，加别的必红）',
       noCap.length > 0 && noCap.every(k => !!CAPLESS_OK[k]),
       '[' + noCap.join(', ') + ']');
+    const cappedCraft = RESS.filter(k => SB.RESS[k].kind === 'craft' && isFinite(co(zero, k)));
+    check('所有工艺资源无仓储上限', cappedCraft.length === 0, '有上限=' + cappedCraft.join(','));
 
     /* ⑤ 钢的顶栏位置（2026-10-06 用户拍板：「钢应该放到精铁下面一格，而不是放到工艺资源里」）。
      *   位置由两件事决定，缺一不可：

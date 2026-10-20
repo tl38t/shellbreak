@@ -181,7 +181,6 @@ html[data-ui-theme="day"] .brandmark { background: linear-gradient(145deg,rgba(2
 html[data-ui-theme="day"] .card {
   background: linear-gradient(145deg,rgba(249,252,250,.97),rgba(235,244,241,.96));
   border-color: rgba(74,113,120,.22); box-shadow: 0 12px 35px rgba(31,68,74,.11);
-  backdrop-filter: blur(8px);
 }
 html[data-ui-theme="day"] .res { background: rgba(224,237,234,.78); border-color: rgba(66,110,116,.17); }
 html[data-ui-theme="day"] .res:hover { background: #eff7f4; border-color: rgba(20,127,135,.4); }

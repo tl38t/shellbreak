@@ -35,3 +35,34 @@
 .starmap-footnote{margin:12px 2px 2px;color:var(--dim);font-size:11px;line-height:1.5}
 @media(max-width:700px){.starmap-grid{grid-template-columns:1fr}.starmap-visual{height:210px}
   .starmap-info p{min-height:0}.starmap-intro{flex-wrap:wrap}}
+
+/* ═══ ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁2）：戴森球终局面板 ═══
+ * 位于星图 iframe 下方（#dyson-panel，render-pane-star-map.js 的 refreshDysonPanel 写内容）。
+ * 五档阶段背景图：renderDysonPanel 切 .dyson-stage-20/40/60/80/100 + 内联 background-image
+ * （assets/dyson/stage-*.png 占位资产）。未解锁《绝热材料》时容器为空、不占位。 */
+.dyson-panel{margin:14px 0 0;border:1px solid #284366;border-radius:12px;overflow:hidden;
+  background:radial-gradient(circle at 50% 130%,#10283c 0,#0a1423 68%);color:#d5e3ff}
+/* 阶段背景图（assets/dyson/stage-*.png，720×240）：cover + 右对齐，星环留右侧、左侧压暗区承载文字。
+ * ⚠️ background-size 必须写在 background 简写之后——简写会把它重置成 auto。 */
+.dyson-panel{background-size:cover;background-position:right center;background-repeat:no-repeat}
+.dyson-panel .cardhd{border-bottom:1px solid #284366}
+.dyson-bar{height:10px;margin:12px 14px 4px;border-radius:6px;background:#0d1d31;
+  border:1px solid #284366;overflow:hidden}
+.dyson-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#2f8f86,#4FD1C9,#8ef0e6);
+  box-shadow:0 0 12px #4fd1c988;transition:width .3s ease}
+.dyson-counts{padding:8px 14px 0;font-size:13px;color:#e9f1ff;line-height:1.7}
+.dyson-counts b{color:#4FD1C9;font-variant-numeric:tabular-nums}
+.dyson-panel .ds{padding:6px 14px 14px;font-size:11px;color:var(--dim);line-height:1.6}
+.dyson-panel .ds b{color:#bfe9e4}
+/* 竣工态：星环青描边 + 微光（与 hcsub 的 ★ 同步） */
+.dyson-panel.is-done{border-color:#4FD1C9;box-shadow:0 0 18px #4fd1c944}
+.dyson-panel.is-done .hcsub{color:#4FD1C9}
+@media(max-width:700px){.dyson-counts{font-size:12px}.dyson-bar{margin:10px 12px 2px}}
+
+/* ERA10（2026-10-20）：戴森球通关弹窗（showDysonComplete，镜像星空槽满槽先例）。
+ * 两出口：立即轮回（走 SB.game.askReset 确认面板）/ 继续游玩（关窗接着攒）。 */
+.dyson-complete-panel{padding:18px 16px 6px}
+.dyson-complete-panel h2{margin:0 0 10px;font-size:20px;color:#8ef0e6}
+.dyson-complete-panel p{margin:8px 0;font-size:13px;line-height:1.7;color:#d5e3ff}
+.dyson-complete-panel p.muted{color:var(--dim);font-size:12px}
+.dyson-complete-panel b{color:#4FD1C9;font-variant-numeric:tabular-nums}

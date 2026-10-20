@@ -741,9 +741,12 @@ console.log('\n=== 历法读数与暖石开关 ===');
     '　纪元二描述还在？' + (pt4.indexOf(e2.desc) !== -1));
 
   /* 浏览器点击按钮里的名字/徽标时，event.target 是 span 而不是 button；
-   * 必须沿 closest('[data-era]') 找回纪元按钮，否则看起来像「纪元点不动」。 */
-  const eraButtonTarget = { dataset: { era: '2' } };
-  fire({ dataset: {}, closest: selector => selector === '[data-era]' ? eraButtonTarget : null });
+   * 必须沿 `.erabtn[data-era]` 找回纪元按钮，否则看起来像「纪元点不动」。
+   * ⚠️ 2026-10-20：判据从裸 `closest('[data-era]')` 收窄到 `.erabtn[data-era]`
+   *   （根元素 <html data-era> 是纪元皮肤属性，裸判据会被它命中 ⇒ 吞掉全站点击）。
+   *   这条 stub 因此跟着新契约走：只认带 erabtn 的那个选择器。 */
+  const eraButtonTarget = { dataset: { era: '2' }, className: 'erabtn' };
+  fire({ dataset: {}, closest: selector => /erabtn/.test(selector) && /data-era/.test(selector) ? eraButtonTarget : null });
   const nestedEraHtml = g('pane-tech');
   const era2Desc = e2.desc;
   check('点击纪元按钮内部文字也能切换（子元素事件向上找到 data-era）',

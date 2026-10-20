@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-page-node-id="0zlehYCbuD5f1DImLSdD1w">
+<html lang="zh-CN" data-era="1" data-page-node-id="0zlehYCbuD5f1DImLSdD1w">
 <head data-page-node-id="SHpRYBRRIDcP8Bx75nsUrT">
 <meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=154" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=182" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -68,6 +68,9 @@
          ⚠️ 与 #envWarm 同一套纪律：持久容器 + renderDrill 状态签名节流——签名不变一个 DOM 节点都不动，
             否则「按下与抬起之间元素被换掉」的那次点击整个丢。共振钻头库存走 textContent 单独刷。 -->
     <div class="row envsplit" id="envDrill" style="display:none" data-page-node-id="EnvDrill01"></div>
+    <!-- 星球重构机 G.E.E.K 启动行（ERA9）：建成生态重塑解锁的奇观后，按钮挂在天穹钻机正下方。
+         ⚠️ 与 #envDrill 同一套纪律：持久容器 + renderGeek 状态签名节流——签名不变 DOM 不动，否则点击丢。 -->
+    <div class="row envsplit" id="envGeek" style="display:none" data-page-node-id="EnvGeek01"></div>
     <!-- 海底火山周期：内容由 ui/render-environment.js 的 renderEnv 每帧填（随「历法」是否掌握整块换文案）。
          ⚠️ 这个容器是每帧重画的，里面**不许放按钮**（见 renderEnv 的注释）。 -->
     <div class="row envsplit" id="envVolcano" data-page-node-id="EnvVolcano01"></div>
@@ -82,6 +85,8 @@
             签名变化时重写 innerHTML，按钮在位不丢点击）；星空探索速率走 textContent 单独刷。
          ⚠️ 关掉 ⇒ 星空探索暂停累加、把热液能让给炼钢；开着（默认）则 +1/s 耗 1 热液能。 -->
     <div class="row envsplit" id="envStar" style="display:none" data-page-node-id="EnvStar01"></div>
+    <!-- 热液能为瞬时流，不列进材料库存；能源分配面板由 renderHydro 放在自然环境卡最底部。 -->
+    <div id="envHydro" class="envsplit" style="display:none" data-page-node-id="EnvHydro01"></div>
   </div>
   </div>
 
@@ -107,11 +112,20 @@
     <div class="tab locked" data-tab="challenges" title="首次轮回后开启轮回挑战">轮回挑战</div>
   </div>
 
+  <section class="challenge-notice" id="challengeNotice" hidden aria-label="当前轮回挑战">
+    <span class="challenge-notice-mark" aria-hidden="true">⚑</span>
+    <div class="challenge-notice-copy">
+      <div class="challenge-notice-heading"><span>挑战进行中</span><strong id="challengeNoticeTitle"></strong></div>
+      <div class="challenge-notice-detail"><span id="challengeNoticeRule"></span><span class="challenge-notice-progress" id="challengeNoticeProgress"></span></div>
+    </div>
+    <button class="challenge-notice-link" type="button" onclick="SB.game.setTab('challenges')">挑战详情 <span aria-hidden="true">↗</span></button>
+  </section>
+
   <!-- 巢穴页（2026-10-17）：静态标题 + 持久命名框 #habitatBox + 可重写正文 #pane-village-body。
        命名框必须留在持久节点（不进 2 秒刷新的正文），否则每敲一字丢焦点；
        正文另放 body 容器，renderPanes 只写 body，不碰标题与命名框。ERA6+ 玩家可在框里给聚落起名。 -->
   <div class="card" id="pane-village" data-page-node-id="Fuoti5loQT1P876HC45wlI">
-    <div class="cardhd" data-fold="village" style="--hc:#ffb84d" title="点击折叠 / 展开"><span class="cv">▾</span><span id="villageHeadName">巢穴</span></div>
+    <div class="cardhd" data-fold="village" style="--hc:#ffb84d" title="点击折叠 / 展开"><span class="cv">▾</span><span id="villageHeadName">巢穴</span><button type="button" class="btn building-icon-toggle" id="building-icon-toggle" data-building-icons-toggle aria-pressed="true" title="点击隐藏建筑图标">图标：显示</button></div>
     <div class="card" id="habitatBox" style="display:none" data-page-node-id="HabitatBox01"></div>
     <div id="pane-village-body"></div>
   </div>
@@ -150,6 +164,7 @@
       </span>
       <button class="btn" id="btnRank" data-page-node-id="RankBtn01View" title="查看 TapTap 排行榜（最快凿穿冰壳 / 最快立教 / 综合发展分 / 入藏奇观数 / 轮回次数）">排行榜</button>
       <button class="btn" id="btnChangelog" data-page-node-id="ChgLog01View" title="查看游戏更新日志（本次及历史更新内容）">更新日志</button>
+      <button class="btn" id="btnSaveManager" title="导出、导入或同步存档">存档管理</button>
       <button class="btn" id="btnReset" data-page-node-id="RstBtn01Reset">重开本周目</button>
       <button class="btn danger" id="btnWipe" data-page-node-id="WipeBtn01Danger">清空存档</button>
       <span id="clock" style="margin-left:auto;color:var(--dim);font-size:12px" data-page-node-id="1A5pLAjiAdlCtbmGV6OJtE"></span>
@@ -168,67 +183,68 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=167"></script>
-<script src="src/config-catalog.js?v=2"></script>
-<script src="src/config-content.js?v=9"></script>
-<script src="src/config-buildings.js?v=9"></script>
+<script src="src/config.js?v=172"></script>
+<script src="src/config-catalog.js?v=4"></script>
+<script src="src/config-content.js?v=16"></script>
+<script src="src/config-buildings.js?v=21"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=116"></script>
+<script src="src/techs.js?v=121"></script>
 <script src="src/tech.js?v=113"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=9"></script>
+<script src="src/civics-data.js?v=10"></script>
 <script src="src/civics.js?v=122"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=4"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
-<script src="src/state-migrate.js?v=6"></script>
-<script src="src/state.js?v=132"></script>
-<script src="src/workshop.js?v=106"></script>
-<script src="src/wonder.js?v=104"></script>
+<script src="src/state-migrate.js?v=11"></script>
+<script src="src/state.js?v=140"></script>
+<script src="src/workshop.js?v=108"></script>
+<script src="src/wonder.js?v=107"></script>
 <script src="src/economy-social.js?v=3"></script>
-<script src="src/economy.js?v=159"></script>
-<script src="src/economy-rates.js?v=6"></script>
-<script src="src/economy-tick.js?v=5"></script>
+<script src="src/economy.js?v=170"></script>
+<script src="src/economy-rates.js?v=10"></script>
+<script src="src/economy-tick.js?v=8"></script>
 <script src="src/offline-scheduler.js?v=1"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=1"></script>
-<script src="src/shell.js?v=100"></script>
-<script src="src/habitat.js?v=105"></script>
-<script src="src/folk.js?v=101"></script>
-<script src="src/prestige.js?v=116"></script>
-<script src="src/challenges.js?v=5"></script>
+<script src="src/shell.js?v=101"></script>
+<script src="src/habitat.js?v=108"></script>
+<script src="src/folk.js?v=106"></script>
+<script src="src/prestige.js?v=118"></script>
+<script src="src/challenges.js?v=6"></script>
 <script src="src/auto-research.js?v=1"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=5"></script>
+<script src="src/ui/render-content.js?v=6"></script>
 <script src="src/ui/render-common.js?v=5"></script>
-<script src="src/ui/render-info.js?v=8"></script>
+<script src="src/ui/render-info.js?v=12"></script>
 <script src="src/ui/render-pane-research.js?v=6"></script>
-<script src="src/ui/render-pane-village.js?v=6"></script>
-<script src="src/ui/render-pane-folk.js?v=1"></script>
-<script src="src/ui/render-pane-meta.js?v=2"></script>
-<script src="src/ui/render-pane-challenges.js?v=5"></script>
+<script src="src/ui/render-pane-village.js?v=12"></script>
+<script src="src/ui/render-pane-folk.js?v=4"></script>
+<script src="src/ui/render-pane-meta.js?v=3"></script>
+<script src="src/ui/render-pane-challenges.js?v=6"></script>
 <script src="src/ui/render-pane-company.js?v=1"></script>
 <script src="src/ui/render-pane-faith.js?v=1"></script>
-<script src="src/ui/render-pane-wonder.js?v=1"></script>
-<script src="src/ui/render-pane-star-map.js?v=2"></script>
-<script src="src/ui/render-pane-workshop.js?v=5"></script>
-<script src="src/ui/render-environment.js?v=7"></script>
-<script src="src/ui/render.js?v=195"></script>
-<script src="src/game.js?v=130"></script>
-<script src="src/ui/input.js?v=126"></script>
+<script src="src/ui/render-pane-wonder.js?v=2"></script>
+<script src="src/ui/render-pane-star-map.js?v=5"></script>
+<script src="src/ui/render-pane-workshop.js?v=6"></script>
+<script src="src/ui/render-environment.js?v=11"></script>
+<script src="src/ui/render.js?v=206"></script>
+<script src="src/game.js?v=134"></script>
+<script src="src/save-transfer.js?v=1"></script>
+<script src="src/ui/input.js?v=142"></script>
 <script src="src/ai-strategy.js?v=4"></script>
 <script src="src/ui/theme.js?v=1"></script>
-<script src="src/ui/background.js?v=2"></script>
+<script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=1"></script>
 <script src="src/achv.js?v=1"></script>
-<script src="src/main.js?v=97"></script>
+<script src="src/main.js?v=98"></script>
 </body>
 </html>

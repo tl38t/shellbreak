@@ -110,7 +110,12 @@
     return (s.pop || 0) * happyCost(happyMech(s))
       * luxDemandMul(s)                                                            // 2026-10-14 净系数（增耗三项 − 居民减耗，先抵消）
       * (SB.civic ? SB.civic.govHappyConsumeMul(s) : 1)
-      * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1);   // 政体：商人共和国 −30% / 奇观：国会大厦 −10%（政体·奇观乘区，不参与居民侧抵消）
+      * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1)   // 政体：商人共和国 −30% / 奇观：国会大厦 −10%（政体·奇观乘区，不参与居民侧抵消）
+      /* ERA10 市政《节能减耗》（2026-10-20 用户表「居民幸福度消耗 +50%」）：居民侧增耗乘区 ×1.5。
+       * ⚠️ 与上面两条减免是**同一乘区链相乘**（先各自成乘区，最后整体相乘），不做「先加后乘」抵消——
+       *    用户表里它是独立的卡面代价，与政体/奇观给的减免互不吞并。
+       * ⚠️ 落点在 happyBurn（rates 与 tick 共用同一个函数），所以面板 burn 与实扣天然同源。 */
+      * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1);
   }
   /* 每人每秒消耗（2026-10-05 · 幸福度那行要摆出来给玩家看）。
    * ⚠️ 只给**政策调整前**的裸值：govHappyConsumeMul / happyConsumeMul 是政体与奇观给的
@@ -133,6 +138,9 @@
     return s.jobs.merchant * SB.UNIT.luxury
       * SB.economy.toolMul(s, 'merchant')
       * SB.economy.baseMul(s)
+      /* ERA10（2026-10-20）：大统一方程全产轴同样罩奢侈品（与旧日信仰同在 baseMul 轴，
+       * 用户表「除科技、市政、信仰之外的全产」字面包含它；与 happyStep 的 _S 同式）。 */
+      * (SB.economy.unifiedMul ? SB.economy.unifiedMul(s) : 1)
       * (SB.civic ? SB.civic.govLuxuryMul(s) : 1)
       * (1 + SB.economy.upgSum(s, 'luxuryMul'))
       * SB.economy.bankMul(s)

@@ -20,8 +20,13 @@
      *   - 格式 v0.MAJOR.MINOR，每次发版 +0.0.1（v0.1.2 → 下次 v0.1.3）。
      *   - 每个自然日最多升一档（一天内多次改动只升一次版本号）。
      *   - 升版时同步在 CHANGELOG 头部插一条，并 bump index.html 里 config.js 的 ?v=。 */
-    VERSION: 'v0.1.7',
+    VERSION: 'v0.1.8',
     CHANGELOG: [
+      { v: 'v0.1.8', date: '2026-10-20', items: [
+        '新增存档管理：支持导出存档文件、复制存档码、从文件或存档码导入；TapTap 小游戏运行环境内可手动上传和下载云存档。',
+        '读档异常时暂停启动并保留原始存档，避免静默开新档覆盖旧进度。',
+        '新增「逐光竞速」破壳挑战：16 / 8 / 4 小时三档，离线继续计时，通关后永久提高全产出。'
+      ] },
       { v: 'v0.1.7', date: '2026-10-18', items: [
         '新增纪元八（探星纪）科技树：天体力学、生物材料、激光技术、机器人技术、异星建筑、大数据、气云采集、初级人工智能、纳米技术共 9 项科技，铺开星海为家的在地工业路线；生物材料为进入本纪元的钥匙节点。配套新增资源「θ生物金属」、建筑「生物材料研究所 / 瑞亚星矿井 / 泰坦气云采集站」与奇观「旅行者1号 / 萨图恩巨星气行星轨道采集站」。',
         '新增纪元八（探星纪）市政树：群星与神明、全球化、宇宙冷漠、信仰回响、社交网络、虚拟现实、星际政治、远见主义哲学、星间遗迹共 9 项市政，及其配套 7 张政策卡（星际广播、洲际物流、我们在此、社交网络、虚拟现实、星际物流网、星际探索热潮）与奇观「哈\'利法宇宙望远镜 / 魔鱼世界VR」。'
@@ -60,6 +65,10 @@
         '接入 TapTap 激励视频：观看广告可在当前所选档位上获得额外加速（竖屏）。'
       ] }
     ],
+    // ---- ERA9 星海终局常量 ----
+    /* SUNSAIL_HYDRO：太阳帆（星图累加器，s.sunSails，无限）每帆每秒供给的热液能（用户 2026-10-19 确认：0.1→0.05）。
+     *   进 hydro 供给侧，与核热厂/泰坦气云并联相加（economy.hydroAlloc sunSailSupply）。 */
+    SUNSAIL_HYDRO: 0.05,
     // ---- 天壳 ----
     // 厚度不是随手填的：扫描得出 rational 10.65h / rush 9.80h，都落在 8-14h 带内中部。
     // 它不是「难度」，是「长度」——砍薄只会让玩家更快看到结局。
@@ -97,6 +106,15 @@
     /* ⚠️ 2026-10-17 用户拍板：ERA7 开发期占位 1e9（避免太空时代结局中途触发 / 放开「星空探索>阈值」类尤里卡），
      *   ERA7 全部做完再回这里标定。必须与 CAP_BASE.starExplore 保持相等（e2e 有断言盯）。 */
     STAR_CAP: 400000,   // 星空槽满槽目标（太空时代终局资源）：破壳后被动累积至此 ⇒ 太空时代达成。2026-10-18 ERA8 实装：从 1e9 开发占位降到 400k（用户拍板暂定值，待标定）。
+    /* ERA10（2026-10-20）：发射场制造节律基准（秒）——欧罗巴冰面发射场每「运行满 1 节律」
+     * 产出 1 太阳帆或 1 戴森球节点（按等级并行：N 级 = N 份独立计时）。
+     * 《空间矢量控制》eff.launchCycle = −2 ⇒ 实际节律 = max(1, 本值 + T.launchCycle)。
+     * tick（economy-tick 2f）与 rates（economy-rates 发射场段）必须同读这一处。 */
+    LAUNCH_CYCLE: 10,
+    /* ERA10（2026-10-20）：戴森球通关目标——太阳帆 / 戴森球节点各需此数。
+     * 进度 = min(帆/DYSON_SAIL_CAP, 节点/DYSON_NODE_CAP)（双达标取小，用户拍 Q4）。 */
+    DYSON_SAIL_CAP: 10000,
+    DYSON_NODE_CAP: 1000,
 
   // ---- 广告加速（TapTap 激励视频）----
   // 看一次广告 = 当前所选档位再 ×MUL，持续 BOOST_MIN 分钟（墙钟真实时间，关游戏也在走）。
@@ -148,7 +166,7 @@
       wonder: 'ljn2b6ppris2alrlji',     // 入藏奇观数     numeric / desc / best
       cycle: 'dhkg9zq7in4m37vpos',      // 轮回次数       numeric / desc / best
       star: 'ewv1anvdnpxk28ruen',        // 最大星空探索   numeric / desc / best（TapTap 榜已建并发布：DB 8148 / 客户端 ID；回填于 2026-10-13）
-      tide: '8zfssfmdmc64u27iyx'         // 最多轮回点     numeric / desc / best（累计 = meta.tide + meta.spent；TapTap 榜已建并发布：DB 8774 / 客户端 ID；回填于 2026-10-16）
+      tide: '8zfssfmdmc64u27iyx'         // 最多轮回点     numeric / desc / best（累计获得数单独记账，兑换往返不重复计入）
     },
     /* 榜 -> 参数表。与 LB 平行维护，键必须对得上。 */
     MAP: {
@@ -226,6 +244,12 @@
     KHALIFA_STAR_AFTER: 25,
     KHALIFA_SCHOLAR: 0.10,
     FISHVR_HYDRO: 5,
+    /* ERA10（2026-10-20 · 用户 ERA10 表「引力弹弓」）：朱庇特质量加速站每秒耗热液能。
+     * ⚠️ 奇观的运行耗流常量一直住在 CFG（对照 FISHVR_HYDRO:5 / SKYDRILL_HYDRO:20 /
+     *    GEEK_HYDRO:40），建筑级耗流才住 UNIT（europaHydro / robotbayHydro）。
+     *    本轮曾把这条误写进 SB.UNIT.jupitorHydro 而 wonder.js 读 CFG ⇒ 读不存在的键
+     *    恒得 0，奇观建成一滴热液能都不耗（e2e era10-content 已钉住这个读数）。 */
+    JUPITOR_HYDRO: 20,
 
     // ---- 天穹钻机（ERA5 破壳终章，2026-10-02 实装）----
     // 基础自动削壳卡在 FLOOR_AT（25%）；凿穿最后 25% 的终章交给天穹钻机：
@@ -236,6 +260,17 @@
     SKYDRILL_CIVIC: 100,        // 破壳完成后（奇观态）：每秒市政点 +100
     SKYDRILL_HAPPY_RUN: 1,      // 运行态：幸福度 −1（机器轰鸣）
     SKYDRILL_HAPPY_WONDER: 1,   // 破壳完成后（奇观态）：幸福度 +1
+
+    // ---- 星球重构机 G.E.E.K（ERA9 · 生态重塑解锁奇观，2026-10-19 实装）----
+    // 运行态：每 s 吃热液能流（geekHydro，走 hydroAlloc 取剩流）+ 库存 kelp/metal/coral；
+    // 缺料/断流暂停、进度保留（rheaRun/terraRun 累加，绝不回拨开关）。无幸福度副作用（用户拍板）。
+    // 瑞亚 1800s → 覆盖建筑造价等级偏移 +3；泰拉 3600s → 叠加 +5（合计 +8，costOf 单一落点）。
+    GEEK_HYDRO: 40,             // 每秒消耗的热液能（flow，hydroAlloc 取剩流）
+    GEEK_KELP: 500,             // 每秒消耗的藻食（库存）
+    GEEK_METAL: 100,            // 每秒消耗的金属（库存）
+    GEEK_CORAL: 100,            // 每秒消耗的珊瑚（库存）
+    GEEK_RHEA_SECONDS: 1800,    // 瑞亚星改造耗时（游戏内秒，受 10×/离线影响）
+    GEEK_TERRA_SECONDS: 3600,   // 泰拉星改造耗时（游戏内秒）
 
     // ---- 仓储（S2）----
     // 超上限的部分直接浪费。囤积不再是无收益的，玩家必须把产出导向消费。
@@ -265,25 +300,16 @@
      *   CAP_BASE.warmstone（= SEASON_TICKS × WARM_RATE），否则「一季烧 600」的前提失效。
      * ⚠️ 表外资源（science）不给键 ⇒ 走 Infinity。科技不吃仓储是设计决定，
      *   capOf 用 `=== undefined` 判表外，所以「明写 0」与「缺键」是两件事。 */
-    CAP_BASE: { kelp: 200, coral: 600, stone: 400, silt: 200, warmstone: 600, iron: 200, titanium: 200, tiplate: 200, fuel: 300,
-      /* ERA8（2026-10-18 · spec docs/ERA8_TECHS_SPEC_v0.1.md §3）：θ生物金属 200（对齐 iron/tiplate 档，AI 定待标定）。
-       *   由生物材料研究所（biomatlab）制造；瑞亚星矿井(60)/泰坦气云采集站(100)/萨图恩(500)/工业机器人(200)
-       *   都吃它 ⇒ 200 的基础容量 + 压舱仓/合金仓储扩容是那条线的量纲门槛（与精铁同构）。 */
-      thetaMetal: 200,
-      /* ERA8 市政（2026-10-18 · 用户市政表 H2）：θ金属自适应薄膜 20——工艺 100θ 出 1 卷，
-       *   唯一去处是魔鱼世界VR（造价 10 卷）⇒ 基础容量 20 卷够造两座，不鼓励囤（AI 定待标定）。 */
-      thinafilm: 20,
-      /* ERA6：钛金板件为有仓储上限的工艺材料（基础 200），由压舱仓与通用扩容升级增加容量；
-       * 星空探索走通用 matCap 路径。
+    CAP_BASE: { kelp: 200, coral: 600, stone: 400, silt: 200, warmstone: 600, iron: 200, titanium: 200, thetaMetal: 200, fuel: 300,
+      /* 星空探索走通用 matCap 路径；所有 kind:'craft' 工艺资源均不设 CAP_BASE。
        * ERA8（2026-10-18 · spec §0-B4 用户拍暂定）：星空探索上限从 ERA7 的 1e9 占位降回 **400k**
        *   （与下方 CFG.STAR_CAP 一致——两处必须同步，civics e2e 有断言钉；starPct 尤里卡 10% = 4 万可达）。
        *   ⚠️ 历史注：ERA7 开发期曾抬 1e9 防「星空探索>阈值」类尤里卡提前触发；
        *      现 starPct（异星建筑工程 进度>10%）就是设计内的触发点，占位口径作废，结局阈值待标定回填。 */
       starExplore: 400000,
-      /* ERA7（2026-10-17 · spec §2 提议值）：燃料 20000（摇篮奇观要 10000，cap 必须 > 需求）；
-       *   铀 200（对齐 iron/silt 档）；火箭引擎 50。
+      /* ERA7（2026-10-17 · spec §2 提议值）：铀 200（对齐 iron/silt 档）。
        *   ⚠️ 星屑 stardust 故意不给键 —— 跨周目局外资源，同 science/culture 口径（capOf 恒 Infinity）。 */
-      rocketFuel: 20000, uranium: 200, rocketEngine: 50 },
+      uranium: 200 },
 
     // ---- 族民 ----
     // 对齐猫国开局（js/village.js:3 kittens:0 / jobs 全 0，叙事上是 1 只猫）：
@@ -418,6 +444,8 @@
 
     SAVE_KEY: 'shellbreak.meta.v2',
     RUN_KEY: 'shellbreak.run.v2',
+    SAVE_BACKUP_KEY: 'shellbreak.meta.backup.v1',
+    RUN_BACKUP_KEY: 'shellbreak.run.backup.v1',
   };
 
 

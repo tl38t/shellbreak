@@ -9,6 +9,7 @@
     if (SB.achv && SB.achv.init) SB.achv.init();
     SB.ui.input.boot();
     SB.game.boot();
+    if (SB.saveTransfer && SB.saveTransfer.boot) SB.saveTransfer.boot();
     if (SB.ui.background && SB.ui.background.boot) SB.ui.background.boot();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

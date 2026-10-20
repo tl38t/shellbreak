@@ -251,6 +251,13 @@
         var _gw = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
         return !!(s.gov && _gw && _gw.slots && (_gw.slots.wild || 0) >= (c.n || 7));
       }
+      /* `govId` —— **采用某条特定政体**（ERA9 市政《繁荣一统》《共同命运》《神圣之路》的鼓舞
+       *   「使用政体：星际联邦 / 星海共同体 / 寰宇教会」）。与 `gov`/`govWildSlots`（只比槽位数）不是一回事：
+       *   这里比政体 id 本身。采用即成立，没采用 = 0。 */
+      case 'govId': {
+        var _gid = (SB.civic && SB.civic.govById) ? SB.civic.govById(c.id) : null;
+        return !!(s.gov && _gid && s.gov === c.id);
+      }
       /* `anyWonders` —— **指定奇观列表里建成任意一座（OR 语义）**（ERA7 市政《星球村》的 boost 条件
        *    「总物流站 **或** 全国快速物流通道任一建成」）。
        * ⚠️ 与 `wonders`（指定列表**全部**建成，AND 语义）一字之差、语义相反：星球村要的是「任一座」，
@@ -272,6 +279,12 @@
       /* `civic` —— **已完成某项市政**（ERA6 层级理论/神恩与威权/权责对等 的鼓舞条件「完成意识形态」）。
        * ⚠️ 查 s.civics[id]（research 置位），与 reqs 同源；reqs 已要求该市政，这里只作揭示门控。 */
       case 'civic': return !!(s.civics && s.civics[c.id]);
+      /* `card` —— **已装备某项政策卡**（ERA10 市政《虚境探索》鼓舞 = 已装备「轮回之终末」）。
+       * ⚠️ 判 s.cards（槽里当下的选择，可卸），不是 s.civics（已完成，永久）：
+       *    「装备」这件事玩家随时能改，鼓舞条件就该跟着当下的装备状态走。
+       * ⚠️ 三处登记缺一不可（condMet / condShort / condText）——漏 condShort 会让
+       *    市政面板的「还差什么」显示成空白（条件文案的默认分支），玩家不知道要装哪张卡。 */
+      case 'card': return !!(s.cards && s.cards.indexOf(c.id) >= 0);
       /* `zoneLvl` —— **某个建筑分区的合计等级**（2026-09-30 ERA3 市政鼓舞）。
        * ⚠️ 分区归属唯一来源是 config 的 BUILD_ZONE_OF（已经挂在每座建筑的 .zone 上），
        *    这里逐座建筑对 zone 求和，不许另写一份「分区名 → 建筑 id 清单」——
@@ -331,6 +344,30 @@
         for (_li = 0; _li < c.ids.length; _li++) _ls += (s.lvl[c.ids[_li]] || 0);
         return _ls >= c.n;
       }
+      /* `geekRhea` —— **G.E.E.K 已完成瑞亚星改造**（ERA9 科技《星球改造》的尤里卡前置）。
+       * ⚠️ 读 s.geek.rheaDone（G.E.E.K 运行态落地的瑞亚进度完成旗）；G.E.E.K 运行态本轮未实装，
+       *    故本条件当前恒 false（占位门控），等运行态落地后自然成立、terraform 随之解锁。 */
+      case 'geekRhea': return !!(s.geek && s.geek.rheaDone);
+      /* `challenge` —— **挑战已进入（active）= 当前周目正在运行指定挑战**（ERA9 科技《严冬计划》尤里卡）。
+       * ⚠️ 用户拍「挑战进入」= entered 语义（已开始，非已完成）：查 SB.challenges.active(s)
+       *    的 id 是否匹配，不查 meta.challenges.completed（那是「完成」语义）。
+       *    drift_terra 挑战本身是占位（challenges.js 加定义但无规则/奖励），故只有「进入」这一种可达成路径。 */
+      case 'challenge': {
+        var _ca = (SB.challenges && SB.challenges.active) ? SB.challenges.active(s) : null;
+        return !!(_ca && _ca.id === c.id);
+      }
+      /* ERA10（2026-10-20）：`sunSails` —— 太阳帆累计 ≥ n（《绝热材料》尤里卡，用户表「制造超过50」）。
+       * ⚠️ 读 s.sunSails（发射场每运行满 1 节律 +1，无限累积）；≥ 口径与 built/total 一致
+       *    （严格大于则 n+1，一行可改）。 */
+      case 'sunSails': return (s.sunSails || 0) >= c.n;
+      /* ERA10（2026-10-20）：`dysonPct` —— 戴森球进度 ≥ n%（近恒星轨道/矢量控制/大统一三项尤里卡）。
+       * ⚠️ 口径 = economy.dysonPct（min(帆/10000, 节点/1000)，**双达标取小**，用户拍 Q4）；
+       *    必须走 SB.economy 单一读数（tick/面板/此处同源），不在这里重算公式。
+       * ⚠️ −1e-9 浮点护栏：0.4×100 可能落在 39.999…，与 faithTier 的 +1e-9 同族。 */
+      case 'dysonPct': {
+        var _dp = (SB.economy && SB.economy.dysonPct) ? SB.economy.dysonPct(s) : 0;
+        return _dp * 100 >= c.n - 1e-9;
+      }
       default: return false;
     }
   }
@@ -363,6 +400,16 @@
         if (SB.challenges && SB.challenges.ignorePopulationGates(s)) return null;
         return { txt: jobName(c.j) + ' ' + (s.jobs[c.j] || 0) + ' 人 / ' + c.n, now: s.jobs[c.j] || 0, need: c.n };
       case 'techs': return { txt: '已掌握科技 ' + techCount(s) + ' / ' + c.n, now: techCount(s), need: c.n };
+      /* ERA10：太阳帆累计 / 戴森进度（与 condMet 同口径；dysonPct 走 economy 单源，不重算）。 */
+      case 'sunSails': {
+        var _ss = s.sunSails || 0;
+        return { txt: '太阳帆 ' + _ss + ' / ' + c.n, now: _ss, need: c.n };
+      }
+      case 'dysonPct': {
+        var _dp2 = (SB.economy && SB.economy.dysonPct) ? SB.economy.dysonPct(s) : 0;
+        var _pc = _dp2 * 100;
+        return { txt: '戴森球进度 ' + _pc.toFixed(1) + '% / ' + c.n + '%', now: _pc, need: c.n };
+      }
       case 'tech': return { txt: '掌握科技「' + techName(c.id) + '」', now: (s.techs && s.techs[c.id]) ? 1 : 0, need: 1 };
       case 'wonder': {
         var wonderN = (SB.wonder && SB.wonder.count) ? SB.wonder.count(s) : 0;
@@ -391,6 +438,10 @@
         var _cur = (s.gov && _gw2 && _gw2.slots) ? (_gw2.slots.wild || 0) : 0;
         var _need = c.n || 7;
         return { txt: _cur >= _need ? '已启用 ' + _need + ' 槽政体' : '需启用 ' + _need + ' 槽政体（教权国/平等主义/联邦制）', now: _cur, need: _need };
+      }
+      case 'govId': {
+        var _gid2 = (SB.civic && SB.civic.govById) ? SB.civic.govById(c.id) : null;
+        return { txt: '采用政体「' + (_gid2 ? _gid2.name : c.id) + '」', now: (s.gov === c.id ? 1 : 0), need: 1 };
       }
       case 'anyWonders': {
         var _aws2 = c.ids || [], _an = 0, _aw;
@@ -465,6 +516,23 @@
         return { txt: '建成奇观（' + _wNames(_wa) + '）', now: _wn, need: _wa.length };
       }
       case 'civic': return { txt: '完成市政「' + civicName(c.id) + '」', now: (s.civics && s.civics[c.id]) ? 1 : 0, need: 1 };
+      /* ERA10（2026-10-20）：已装备指定政策卡（虚境探索 鼓舞 = 轮回之终末）。与 condMet 同口径。 */
+      case 'card': {
+        var _cd = !!(s.cards && s.cards.indexOf(c.id) >= 0);
+        return { txt: (_cd ? '已装备' : '需装备') + '政策卡「' + policyName(c.id) + '」', now: _cd ? 1 : 0, need: 1 };
+      }
+      /* geekRhea / challenge 的「还差多少」，与 condMet 同口径。 */
+      case 'geekRhea': {
+        var _gr = !!(s.geek && s.geek.rheaDone);
+        return { txt: _gr ? '星球重构机 已完成瑞亚星改造' : '需 星球重构机 完成瑞亚星改造', now: _gr ? 1 : 0, need: 1 };
+      }
+      case 'challenge': {
+        var _caS = (SB.challenges && SB.challenges.active) ? SB.challenges.active(s) : null;
+        var _entered = !!(_caS && _caS.id === c.id);
+        var _cDef = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(c.id) : null;
+        var _cNm = _cDef ? _cDef.name : c.id;
+        return { txt: _entered ? ('已进入挑战「' + _cNm + '」') : ('需进入挑战「' + _cNm + '」'), now: _entered ? 1 : 0, need: 1 };
+      }
     }
     return null;
   }
@@ -489,6 +557,15 @@
     for (var i = 0; i < civics.length; i++)
       if (civics[i].id === id) return civics[i].name;
     return '未知市政';
+  }
+  /* ERA10（2026-10-20）：政策卡 id → 中文名（`card` 条件用；与 civicName 同构）。
+   * ⚠️ 别用 SB.civic.policyById —— 那是 civic 模块内部函数、不保证已加载；
+   *   条件文案在渲染期调用，而 SB.POLICIES 是数据表、加载顺序更早，读它最稳。 */
+  function policyName(id) {
+    var ps = SB.POLICIES || [];
+    for (var i = 0; i < ps.length; i++)
+      if (ps[i].id === id) return ps[i].name;
+    return '未知政策卡';
   }
   /* `wonders` 条件的 id 列表 → 中文名列表。键是完整配置 id（wonder_xxx），
    * 面板不能把生 id 印给玩家（2026-10-07 截图里印成「shellcutter、presspipe」就是这病）。 */
@@ -737,16 +814,18 @@
    *    前者进 workshop.craftRatio（工坊造石梁那条线），后者进 economy 的精铁线。
    *    名字都带 craft，是本项目最容易误接的一对。 */
   var ADD = { coef: 1, house: 1, kelpCap: 1, season: 1, craftRatio: 1, warmMul: 1, titaniumMul: 1,
-    scaffoldCostSave: 1 };
+    scaffoldCostSave: 1, alienOutMul: 1, launchCycle: 1 };
   var LABEL = {
     gather: '采集产出', food: '藻食产出', sci: '科技产出', craft: '加工产出',
     fuel: '地热产出', smelt: '金属→精铁',
     farm: '采集者藻食产出', coef: '破壳系数',
     house: '人口上限', kelpCap: '藻食上限', craftRatio: '工艺制作效率',
     warmMul: '暖石产出', titaniumMul: '钛产出', scaffoldCostSave: '脚手架需求减免',
+    alienOutMul: '异星建筑产出',
     steelMul: '钢产出', bldEff: '原料消耗',
     workshopEff: '工坊工艺效率', satStar: '卫星星空探索',
-    biomatlabOut: '生物材料研究所产出', biomatlabEff: '生物材料研究所效率'
+    biomatlabOut: '生物材料研究所产出', biomatlabEff: '生物材料研究所效率',
+    launchCycle: '发射场制造节律'
   };
   /* ⚠️ 数据里的 `effectDesc`（2026-10-17 起）= **玩家向显式覆盖**：写了它就整条替代下面的自动生成。
    *    起因：用户 2026-10-17 反馈「热泉回流」的效果栏只印出「原料消耗 ×0.6」，
@@ -763,6 +842,7 @@
       else if (k === 'unlockJob') out.push('解锁职业 ' + e[k].map(jobName).join('、'));
       else if (k === 'season') out.push('季节减产收窄 ' + Math.round(v * 100) + '%');
       else if (k === 'craftRatio') out.push(nm + ' +' + (Math.round(v * 10000) / 100) + '%');
+      else if (k === 'alienOutMul') out.push(nm + ' +' + (Math.round(v * 10000) / 100) + '%');
       else if (ADD[k]) out.push(nm + ' +' + v);
       else out.push(nm + ' ×' + (1 + v));
     }
@@ -860,6 +940,8 @@
       case 'total': return '建筑总级数 ' + c.n;
       case 'res': return resName(c.r) + ' 存量 ' + c.n;
       case 'gathered': return '累计产出 ' + resName(c.r) + ' ' + c.n;
+      case 'sunSails': return '太阳帆累计 ' + c.n;
+      case 'dysonPct': return '戴森球进度 ' + c.n + '%';
       case 'rate': return rateName(c.r) + ' ' + c.n + '/秒';
       case 'pop': return '人口 ' + c.n;
       case 'job': return jobName(c.j) + ' ' + c.n + ' 人';
@@ -874,6 +956,7 @@
       case 'tools': return '买齐铁制工具（' + (c.ids || []).length + ' 件）';
       case 'gov': return '启用三槽政体';
       case 'govWildSlots': return '启用 ' + (c.n || 7) + ' 槽政体';
+      case 'govId': { var _gid3 = (SB.civic && SB.civic.govById) ? SB.civic.govById(c.id) : null; return '采用政体「' + (_gid3 ? _gid3.name : c.id) + '」'; }
       case 'anyWonders': return '建成奇观之一（' + _wNames(c.ids || []) + '）';
       case 'upgrade': return '完成工坊升级「' + upgradeName(c.id) + '」';
       case 'religion': return '建立宗教';
@@ -888,12 +971,19 @@
       case 'lifetimeCulture': return '累计市政产出 ' + c.n;
       case 'cycle': return '轮回数 ' + c.n + ' 周目';
       case 'civic': return '完成市政「' + civicName(c.id) + '」';
+      case 'card': return '装备政策卡「' + policyName(c.id) + '」';
       /* ERA8 新条件类型的纯文案（不碰状态）。 */
       case 'cap': return resName(c.r) + '上限达到 ' + c.n;
       case 'starPct': return '星空探索进度 ' + (c.n || 0) + '%';
       case 'oldFaith': return '旧日信仰 ' + c.n + '（跨周目账本）';
       case 'wonderEra': return '建成任意 ' + eraName(c.era) + '奇观';
       case 'lvlSum': return bName(c.ids[0]) + '等建筑合计等级 ' + c.n;
+      /* ERA9 新条件类型的纯文案（不碰状态）。 */
+      case 'geekRhea': return '星球重构机 完成瑞亚星改造';
+      case 'challenge': {
+        var _ctD = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(c.id) : null;
+        return '进入挑战「' + (_ctD ? _ctD.name : c.id) + '」';
+      }
     }
     return '';
   }
@@ -930,7 +1020,12 @@
       biomatlabOut: 1,      // 纳米技术：生物材料研究所 θ产出（thetaFlow/thetaRate）
       biomatlabEff: 1,      // 纳米技术：生物材料研究所效率（同上，与 Out 独立相乘）
       coef: 0, house: 0, kelpCap: 0, season: 0, craftRatio: 0,
-      warmMul: 0, titaniumMul: 0, scaffoldCostSave: 0
+      warmMul: 0, titaniumMul: 0, scaffoldCostSave: 0,
+      alienOutMul: 0,
+      /* ERA10（2026-10-20）：launchCycle —— 发射场制造节律（秒）**加法**修正。
+       * 《空间矢量控制》eff.launchCycle = −2 ⇒ 节律 10s→8s（帆/节点同吃）。
+       * ⚠️ 默认表/ADD/LABEL 三处已同步；漏默认表 ⇒ m[k]===undefined 守卫静默吞 eff。 */
+      launchCycle: 0
     };
     for (var i = 0; i < T.length; i++) {
       var t = T[i], e = t.eff;

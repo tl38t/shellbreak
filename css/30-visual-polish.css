@@ -64,7 +64,6 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
   box-shadow:0 18px 50px rgba(0,0,0,.22);
   padding:15px 17px;
   margin-bottom:12px;
-  backdrop-filter:blur(10px);
 }
 .cardhd{font-size:13px;letter-spacing:1.25px;margin:-1px 0 13px;padding-left:10px;min-height:17px}
 .cardhd::before{width:3px;top:0;bottom:0}
@@ -156,7 +155,29 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 /* P2：建筑、科技、市政面板——提高说明文字与操作目标的辨识度，保持树节点几何不变。 */
 #pane-village .bzone .row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
 #pane-village .bzone .row>div:first-child{min-width:0}
-#pane-village .bzone .row .nm{display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.45}
+/* PC 建筑行：名称栏按最长建筑名预留宽度，操作紧接名称区。 */
+#pane-village .bzone .row .bld-main{display:grid;grid-template-columns:32px minmax(0,1fr);align-items:center;gap:8px;width:100%;box-sizing:border-box}
+#pane-village .bzone .row .bld-main:not(.has-building-icon)::before{content:"";display:block;width:32px;height:32px;visibility:hidden}
+#pane-village .bzone .row .bld-copy{min-width:0;width:100%}
+#pane-village .bzone .row .nm{display:grid;grid-template-columns:160px minmax(0,1fr);align-items:start;column-gap:16px;line-height:1.45;width:100%}
+#pane-village .bzone .row .bld-label{display:flex;align-items:center;gap:6px;width:160px;min-width:0}
+#pane-village .bzone .row .bld-label .building-name{flex:0 1 auto;max-width:112px;min-width:0;overflow:visible;text-overflow:clip;white-space:nowrap}
+#pane-village .bzone .row .bld-label .tag{flex:0 0 42px;width:42px;margin-left:auto;box-sizing:border-box;text-align:center}
+#pane-village .bzone .row .bld-ops{display:flex;align-items:center;align-content:center;justify-content:flex-start;gap:8px;flex-wrap:wrap;min-width:0;min-height:26px;width:100%;box-sizing:border-box}
+#pane-village .bzone .row .bld-ops>.btn.tog{width:104px;min-width:104px;margin:0;padding-left:6px;padding-right:6px;text-align:center;white-space:nowrap}
+#pane-village .bzone .row .bld-ops .furnctl{width:232px;min-width:0;max-width:232px;flex:0 1 232px;box-sizing:border-box;flex-wrap:wrap;margin-left:0}
+#pane-village .bzone .row .bld-ops .fdraw{flex:1 0 100%;margin-left:0;white-space:normal;line-height:1.35}
+#star-map-buildings .row{display:grid;grid-template-columns:minmax(0,1fr) 176px;align-items:center;gap:8px 10px}
+#star-map-buildings .row>div:first-child{min-width:0}
+#star-map-buildings .row>div:first-child{width:100%}
+#star-map-buildings .row .nm{display:grid;grid-template-columns:160px minmax(0,1fr);align-items:start;column-gap:16px;line-height:1.45;width:100%}
+#star-map-buildings .row .bld-label{display:flex;align-items:center;gap:6px;width:160px;min-width:0}
+#star-map-buildings .row .bld-label .building-name{flex:0 1 auto;max-width:112px;min-width:0;overflow:visible;text-overflow:clip;white-space:nowrap}
+#star-map-buildings .row .bld-label .tag{flex:0 0 42px;width:42px;margin-left:auto;box-sizing:border-box;text-align:center}
+#star-map-buildings .row .bld-ops{display:flex;align-items:center;align-content:center;justify-content:flex-start;gap:8px;flex-wrap:wrap;min-width:0;min-height:26px;width:100%;box-sizing:border-box}
+#star-map-buildings .row .bld-ops>.btn.tog{width:104px;min-width:104px;margin:0;padding-left:6px;padding-right:6px;text-align:center;white-space:nowrap}
+#star-map-buildings .row .bld-ops .furnctl{width:232px;min-width:0;max-width:232px;flex:0 1 232px;box-sizing:border-box;flex-wrap:wrap;margin-left:0}
+#star-map-buildings .row .bld-ops .fdraw{flex:1 0 100%;margin-left:0;white-space:normal;line-height:1.35}
 #pane-village .bzone .row .ds{display:none}
 /* 升级 / 建造按钮：**定宽定高**（2026-10-16 用户：「按钮大小能统一吗」，PC 与手机两端）。
  * 旧式 `max-width:180px;min-height:30px` 让宽度随文案长短（116~180px）、高度随行数
@@ -205,8 +226,32 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
   .tabs{overflow:visible;flex-wrap:wrap;justify-content:flex-start}
   .tab{flex:0 0 auto;white-space:nowrap;max-width:100%}
   #pane-village,#pane-folk,#pane-tech,#pane-civic,#pane-faith,#pane-workshop,#pane-wonder,#pane-dig,#pane-meta{padding:14px}
+  #pane-village .bzone .row .nm,#star-map-buildings .row .nm{grid-template-columns:minmax(0,1fr);gap:5px}
+  #pane-village .bzone .row .bld-label,#star-map-buildings .row .bld-label{width:100%}
+  #pane-village .bzone .row .bld-ops,#star-map-buildings .row .bld-ops{grid-column:1;min-height:26px}
+  #star-map-buildings .row{grid-template-columns:minmax(0,1fr);gap:9px}
+  #star-map-buildings .row>.btn.buy{width:100%;min-width:0}
   .brandline{margin-bottom:17px}
   h1{font-size:20px}
+}
+@media (min-width:761px) and (max-width:900px){
+  #pane-village .bzone .row .nm,#star-map-buildings .row .nm{grid-template-columns:minmax(0,1fr);row-gap:7px}
+  #pane-village .bzone .row .bld-ops,#star-map-buildings .row .bld-ops{grid-column:1;gap:8px}
+}
+@media (min-width:761px){
+  #pane-village .bzone .bzbody{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:8px;min-width:0;width:100%;box-sizing:border-box}
+  #pane-village .bzone .bzbody>.row{min-width:0;box-sizing:border-box;margin-top:0}
+}
+/* Follow the building section's available width, not the viewport: keep PC at two columns,
+   and give each card enough room before the buy button returns to the side. */
+@container (min-width:928px){
+  #pane-village .bzone .bzbody{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@container (min-width:928px) and (max-width:1199px){
+  #pane-village .bzone .bzbody>.row{grid-template-columns:minmax(0,1fr);align-items:stretch;gap:6px}
+  #pane-village .bzone .bzbody>.row>.btn.buy{grid-column:1;justify-self:end}
+  #pane-village .bzone .row .nm,#star-map-buildings .row .nm{grid-template-columns:152px minmax(0,1fr);column-gap:12px}
+  #pane-village .bzone .row .bld-label,#star-map-buildings .row .bld-label{width:152px}
 }
 @media (max-width:520px){
   #pane-village .bzone .row{grid-template-columns:minmax(0,1fr) auto;gap:8px}

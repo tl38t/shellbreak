@@ -26,14 +26,16 @@
     for (i = 0; i < L.length; i++) {
       var w = L[i];
       var done = !!(s.wonders && s.wonders[w.id]);
+      var wonderName = SB.wonder.displayName(s, w.id);
+      var wonderDesc = SB.wonder.displayDesc(s, w.id);
       var why = done ? null : SB.workshop.wonderBlocked(s, w.id);
       if (!done && why && /^需要先/.test(why)) continue;   // 未解锁 ⇒ 整行不显示
       shown++;
       if (done) completed++;
       cards += '<div class="row"' + (done ? ' data-owned="1"' : '') + '>' +
-        '<div class="nm"><button type="button" class="building-name" data-wonder-info="' + w.id + '" aria-haspopup="dialog" title="查看奇观效果与建造条件">' + w.name + '</button>' + (done ? ' <span class="tag ok">已建成</span>' : '') +
+        '<div class="nm"><button type="button" class="building-name" data-wonder-info="' + w.id + '" aria-haspopup="dialog" title="查看奇观效果与建造条件">' + wonderName + '</button>' + (done ? ' <span class="tag ok">已建成</span>' : '') +
         (done ? SB.ui.renderCommon.happyBonusNote(s, 'wonder', w.id) : '') + '</div>' +
-        '<div class="ds">' + w.desc + '<span class="wonder-cost">建造材料：' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) + '</span></div>' +
+        '<div class="ds">' + wonderDesc + '<span class="wonder-cost">建造材料：' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) + '</span></div>' +
         (!done ? '<span class="wonder-state ' + (why ? 'waiting' : 'ready') + '">' + (why ? '材料不足' : '可建造') + '</span>' : '') +
         '<button class="btn' + (done || why ? '' : ' buy') + '" data-wonder="' + w.id + '"' +
         (done || why ? ' disabled' : '') + ' title="' + (why || '') + '">' +

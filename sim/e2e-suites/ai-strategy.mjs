@@ -23,25 +23,12 @@ export function run({ SB, check, noop }) {
     !!s.upgrades.upg_ballast_1 && SB.economy.capOf(s, 'coral') > before,
     'decision=' + JSON.stringify(decision) + ' cap=' + before + '→' + SB.economy.capOf(s, 'coral'));
 
-  const alloyStorage = SB.state.freshRun(false);
-  alloyStorage.era = 6;
-  alloyStorage.pop = 1000000; alloyStorage.peak = 1000000;
-  Object.assign(alloyStorage.lvl, { nest: 40, coralhouse: 10, workshop: 1, ballast: 5, hall: 20 });
-  Object.assign(alloyStorage.upgrades, {
-    upg_castle: true, upg_ballast_1: true, upg_ballast_2: true
-  });
-  SB.TECHS.forEach(t => { if (t.era <= 6) alloyStorage.techs[t.id] = true; });
-  Object.assign(alloyStorage.res, { tiplate: 50, titanium: 750, science: 200000 });
-  const alloyCapBefore = SB.economy.capOf(alloyStorage, 'tiplate');
-  const alloyDecision = SB.aiStrategy.step(alloyStorage, { emit: noop });
-  check('已装压舱库扩容 I/II 后，容量受阻时 bot 会购买「合金仓储」并扩容板件',
-    !!alloyStorage.upgrades.upg_alloy_warehouse &&
-      SB.economy.capOf(alloyStorage, 'tiplate') > alloyCapBefore &&
-      alloyStorage.res.tiplate === 0 && alloyStorage.res.titanium === 0 && alloyStorage.res.science === 0,
-    'decision=' + JSON.stringify(alloyDecision) + ' 板件上限=' + alloyCapBefore + '→' +
-      SB.economy.capOf(alloyStorage, 'tiplate') + ' 库存=' + JSON.stringify({
-        tiplate: alloyStorage.res.tiplate, titanium: alloyStorage.res.titanium, science: alloyStorage.res.science
-      }));
+  const unlimitedCraft = SB.state.freshRun(false);
+  unlimitedCraft.res.tiplate = 50;
+  SB.economy.addRes(unlimitedCraft, 'tiplate', 60000);
+  check('钛金板件累积不受仓储或合金仓储升级限制',
+    SB.economy.capOf(unlimitedCraft, 'tiplate') === Infinity && unlimitedCraft.res.tiplate === 60050,
+    'cap=' + SB.economy.capOf(unlimitedCraft, 'tiplate') + ' 板件=' + unlimitedCraft.res.tiplate);
 
   const coldBuffer = SB.state.freshRun(false);
   coldBuffer.era = 3; coldBuffer.pop = 31; coldBuffer.peak = 31;

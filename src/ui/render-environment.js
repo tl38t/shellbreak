@@ -172,6 +172,73 @@
     if (ct) ct.textContent = Math.floor(s.res.resonantDrill || 0) + ' 钻头';
   }
 
+  /* ── 星球重构机 G.E.E.K 开关（ERA9 · 生态重塑解锁奇观，2026-10-19 实装）──
+   * 【面板三态】未启动（灰按钮）/ 运转中（带进度条）/ 停摆（开着但缺料或断流）。
+   *   停摆 = shell.tickShell ③段的 geekStarved 位；原因：藻食/金属/珊瑚见底，或热液能剩流不足。
+   * 【隐藏态】未建成奇观（wonder.need='ecological_restoration' 未满足）——整行不显示。
+   * 【阶段转换】瑞亚完成 → 泰拉阶段（需研究 terraform）；两段共用同一启动开关，进度条切换文案。
+   * 【无幸福度副作用】运行态不加 −1（用户拍板）。 */
+  var geekSig = '';
+  function renderGeek(s) {
+    var box = el('envGeek'); if (!box) return;
+    var owned = !!(SB.wonder && SB.wonder.owned(s).wonder_geek);
+    if (!owned) {
+      if (geekSig !== '') { geekSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+      return;
+    }
+    box.style.display = '';
+    var starved = !!(s.geekStarved && s.geek && s.geek.geekOn);
+    var rheaDone = !!(s.geek && s.geek.rheaDone);
+    var terraDone = !!(s.geek && s.geek.terraDone);
+    var terraUnlocked = !!((s.techs && s.techs.terraform) && !terraDone);
+    var phaseTxt, prog, total;
+    if (!rheaDone) {
+      phaseTxt = '瑞亚星改造'; prog = s.geek ? s.geek.rheaRun || 0 : 0;
+      total = SB.economy && SB.economy.starTerraformDuration
+        ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_RHEA_SECONDS) : SB.CFG.GEEK_RHEA_SECONDS;
+    } else if (terraUnlocked) {
+      phaseTxt = '泰拉星改造'; prog = s.geek ? s.geek.terraRun || 0 : 0;
+      total = SB.economy && SB.economy.starTerraformDuration
+        ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
+    }
+    else { phaseTxt = '瑞亚已完成'; prog = 0; total = 1; }
+    var pct = total > 0 ? Math.max(0, Math.min(100, Math.floor(100 * prog / total))) : 0;
+    /* 剩流诊断（与钻机同口径：hydroAlloc(s,1) 纯函数，各字段已是每秒口径）。 */
+    var _HF = (SB.economy && SB.economy.hydroAlloc) ? SB.economy.hydroAlloc(s, 1) : null;
+    var _left = _HF ? Math.max(0, _HF.left) : 0;
+    var sig = (s.geek && s.geek.geekOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
+      (rheaDone ? 'R' : 'r') + (terraDone ? 'T' : (terraUnlocked ? 't' : '-')) + '|' + pct;
+    if (sig !== geekSig) {
+      geekSig = sig;
+      var ds;
+      if (!s.geek || !s.geek.geekOn) {
+        ds = '星球重构机已就绪，尚未启动。点右侧按钮开始' + (rheaDone ? '泰拉星改造' : '瑞亚星改造') +
+          '——运转期间持续吃热液能（' + SB.CFG.GEEK_HYDRO + '/秒，从热液工坊剩流取）+ 藻食(' + SB.CFG.GEEK_KELP +
+          '/秒)+金属(' + SB.CFG.GEEK_METAL + '/秒)+珊瑚(' + SB.CFG.GEEK_CORAL + '/秒)。';
+      } else if (starved) {
+        if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP || (s.res.metal || 0) < SB.CFG.GEEK_METAL || (s.res.coral || 0) < SB.CFG.GEEK_CORAL) {
+          ds = '停摆：材料见底（现存 藻食 ' + Math.floor(s.res.kelp || 0) + ' / 金属 ' + Math.floor(s.res.metal || 0) +
+            ' / 珊瑚 ' + Math.floor(s.res.coral || 0) + '，运转每秒耗 ' + SB.CFG.GEEK_KELP + '/' + SB.CFG.GEEK_METAL +
+            '/' + SB.CFG.GEEK_CORAL + '）。补足后自动恢复，无需重启。';
+        } else {
+          ds = '停摆：热液能剩流 ' + _left.toFixed(1) + '/秒，不足 ' + SB.CFG.GEEK_HYDRO + '/秒——汽轮机供 ' +
+            (_HF ? _HF.supplyRate.toFixed(1) : '?') + '/秒，热液工坊吃 ' + (_HF ? _HF.shopRate.toFixed(1) : '?') +
+            '/秒。升汽轮机或停用热液工坊；补足后自动恢复，无需重启。';
+        }
+      } else {
+        ds = '运转中：' + phaseTxt + '进度 ' + Math.floor(prog) + '/' + total + 's（' + pct + '%）。' +
+          (rheaDone && !terraUnlocked ? '研究《星球改造》后可启动泰拉星改造。' : '缺料暂停、进度保留，补足自动续。');
+      }
+      box.innerHTML = '<div><div class="nm">星球重构机 G.E.E.K ' +
+        (rheaDone ? '<span class="tag ok">瑞亚已完成</span>' : '') +
+        (terraDone ? '<span class="tag ok">泰拉已完成</span>' : '') + '</div>' +
+        '<div class="progbar"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="ds">' + ds + '</div></div>' +
+        '<button class="btn tog' + ((s.geek && s.geek.geekOn) ? ' on' : '') +
+        '" data-geek="1" title="点击启动 / 停机">' + ((s.geek && s.geek.geekOn) ? '已启动' : '已停机') + '</button>';
+    }
+  }
+
   /* ── 星空观测站开关（2026-10-12 用户拍板「可开关」）────────────────
    * 【为什么住在这一卡】与暖石/钻机同归属逻辑：观测站是「看星空进度才有用」的动作，
    *   自然环境卡就是它的天然位置。星空探索资源行在 #res（每帧刷），但开关是**手动动作**，
@@ -204,6 +271,74 @@
     }
   }
 
+  /* ── 热液能流（ERA3+）：能源读数放在自然环境卡底部，脱离材料库存栏。
+   * 热液能是瞬时流而不是库存：hydroAlloc(s,1) 与本 tick 的供需分配同源，
+   * 展示总供给、实际分配、剩余流量；不把某一秒的供给快照误读成可囤积数量。
+   * 容器与子节点只在解锁后创建一次，之后仅更新 textContent / 宽度，避免每帧重建。 */
+  var hydroBuilt = false;
+  function renderHydro(s) {
+    var box = el('envHydro'); if (!box) return;
+    var unlocked = !!(SB.economy && SB.economy.resUnlocked(s, 'hydro'));
+    if (!unlocked) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    if (!hydroBuilt) {
+      hydroBuilt = true;
+      box.innerHTML = '<section class="hydro-panel">' +
+        '<div class="hydro-head"><span class="hydro-icon" aria-hidden="true">≈</span>' +
+        '<div class="hydro-title"><b>热液能流</b><span>即产即用 · 不存入库存</span></div>' +
+        '<span class="hydro-live"><i></i>实时分配</span></div>' +
+        '<div class="hydro-metrics">' +
+        '<div class="hydro-metric"><span>总供给</span><b><span id="hydroSupply">0.0</span><small>/秒</small></b></div>' +
+        '<div class="hydro-metric"><span>已分配</span><b><span id="hydroUsed">0.0</span><small>/秒</small></b></div>' +
+        '<div class="hydro-metric hydro-metric-left"><span>剩余流量</span><b><span id="hydroLeft">0.0</span><small>/秒</small></b></div>' +
+        '</div>' +
+        '<div class="hydro-track" role="img" aria-label="热液能流分配比例">' +
+        '<i class="hydro-used-fill" id="hydroUsedFill"></i><i class="hydro-left-fill" id="hydroLeftFill"></i></div>' +
+        '<div class="hydro-routing">' +
+        '<div class="hydro-route"><b>来处</b><span id="hydroSources">暂无供给来源</span></div>' +
+        '<div class="hydro-route"><b>去处</b><span id="hydroUses">暂无设备取用</span></div>' +
+        '</div>' +
+        '<div class="hydro-foot"><span id="hydroFlowHint">余流不会累积到下一秒</span></div>' +
+        '</section>';
+    }
+    var flow = SB.economy.hydroAlloc(s, 1);
+    var supply = Math.max(0, flow.supplyRate || 0);
+    var left = Math.max(0, Math.min(supply, flow.left || 0));
+    var used = Math.max(0, supply - left);
+    var pctUsed = supply > 0 ? Math.max(0, Math.min(100, used / supply * 100)) : 0;
+    var pctLeft = supply > 0 ? Math.max(0, Math.min(100 - pctUsed, left / supply * 100)) : 0;
+    var supplyEl = el('hydroSupply'), usedEl = el('hydroUsed'), leftEl = el('hydroLeft');
+    var usedFill = el('hydroUsedFill'), leftFill = el('hydroLeftFill');
+    if (supplyEl) supplyEl.textContent = supply.toFixed(1);
+    if (usedEl) usedEl.textContent = used.toFixed(1);
+    if (leftEl) leftEl.textContent = left.toFixed(1);
+    if (usedFill) usedFill.style.width = pctUsed.toFixed(2) + '%';
+    if (leftFill) leftFill.style.width = pctLeft.toFixed(2) + '%';
+    var sources = [
+      ['热液汽轮机', flow.turbineRate], ['高压热机管道', flow.pressRate],
+      ['核热厂', flow.fissionRate], ['泰坦气云采集站', flow.titancloudRate], ['太阳帆', flow.sunSailRate]
+    ].filter(function (item) { return item[1] > 0.005; }).map(function (item) {
+      return item[0] + ' +' + item[1].toFixed(1) + '/秒';
+    });
+    /* 取用方清单：ERA10（2026-10-20）补齐此前漏列的四路 —— 机器人充能站 / 欧罗巴发射场 /
+     *   星球重构机 / 朱庇特质量加速站。它们**本来就在** hydroAlloc 里扣流（所以「已用/余流」总数
+     *   一直是对的），只是这一行清单没列出来 ⇒ 玩家看到「总量少了」，列表里却找不到是谁吃的。 */
+    var consumers = [
+      ['工坊', flow.shopRate], ['天穹钻机', flow.skyRate], ['自动化钻探', flow.drillRate],
+      ['空间站', flow.stationRate], ['生物材料研究所', flow.labRate],
+      ['工业机器人', flow.robotRate], ['机器人充能站', flow.robotbayRate], ['魔鱼世界VR', flow.vrRate],
+      /* ERA10 市政（2026-10-20）：这里吃的是**三座发射场合计**耗流（欧罗巴 + 泰拉星 + 瑞亚星），
+       * 标签必须跟着改——写成「欧罗巴发射场」会让玩家以为多建的两座不耗能。 */
+      ['发射场（三座合计）', flow.europaRate], ['星球重构机', flow.geekRate], ['朱庇特质量加速站', flow.jupitorRate]
+    ].filter(function (item) { return item[1] > 0.005; }).map(function (item) {
+      return item[0] + ' −' + item[1].toFixed(1) + '/秒';
+    });
+    var sourceLabel = el('hydroSources'), useLabel = el('hydroUses'), hint = el('hydroFlowHint');
+    if (sourceLabel) sourceLabel.textContent = sources.length ? sources.join(' · ') : '暂无供给来源';
+    if (useLabel) useLabel.textContent = consumers.length ? consumers.join(' · ') : '暂无设备取用';
+    if (hint) hint.textContent = supply > 0 ? '余流不会累积到下一秒' : '当前没有热液能供给';
+  }
+
   /* ── 宗教命名框（2026-09-29）────────────────────────────────────
    * 【为什么是持久容器、不走 #res / pane 每帧重建】信仰资源行在 #res（每帧 innerHTML 重写），
    *   civic pane 每 2 秒重写 —— 里面塞 <input> 每敲一字就被换掉、丢焦点。
@@ -221,13 +356,23 @@
       return;
     }
     box.style.display = '';
-    if (relSig !== 'open') {
-      relSig = 'open';
-      var nm = (s.religionName || '').trim();
-      box.innerHTML = '<div class="nm">你的信仰</div>' +
-        '<input class="relname" data-religion="1" type="text" maxlength="16" placeholder="给信仰起个名字…"' +
-        (nm ? ' value="' + nm.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"' : '') + '>' +
-        '<div class="ds">这个名字会显示在你的信仰资源上。改名随时可改，无消耗。</div>';
+    /* ERA9 虚境信仰卡装填后：信仰更名「虚境」并锁死（覆盖玩家自定义名，输入框禁用 + 提示）。 */
+    var locked = !!(SB.civic && SB.civic.faithNameLocked && SB.civic.faithNameLocked(s));
+    var sig = locked ? 'open-locked' : 'open';
+    if (relSig !== sig) {
+      relSig = sig;
+      var nm = SB.civic && SB.civic.faithDisplayName ? SB.civic.faithDisplayName(s) : ((s.religionName || '').trim());
+      if (locked) {
+        box.innerHTML = '<div class="nm">你的信仰</div>' +
+          '<input class="relname locked" data-religion="1" type="text" maxlength="16" value="' +
+            nm.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" disabled>' +
+          '<div class="ds">信仰已更名为「<b>虚境</b>」并<b>锁死</b>（虚境信仰永恒锚定，不可更改）。</div>';
+      } else {
+        box.innerHTML = '<div class="nm">你的信仰</div>' +
+          '<input class="relname" data-religion="1" type="text" maxlength="16" placeholder="给信仰起个名字…"' +
+          (nm ? ' value="' + nm.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"' : '') + '>' +
+          '<div class="ds">这个名字会显示在你的信仰资源上。改名随时可改，无消耗。</div>';
+      }
     }
   }
 
@@ -260,7 +405,9 @@
   parts.renderEnv = renderEnv;
   parts.renderWarm = renderWarm;
   parts.renderDrill = renderDrill;
+  parts.renderGeek = renderGeek;
   parts.renderStar = renderStar;
+  parts.renderHydro = renderHydro;
   parts.renderReligion = renderReligion;
   parts.renderHabitatName = renderHabitatName;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -209,23 +209,29 @@
      * stationHydro：空间站每级运转耗 2 热液能/秒（hydroAlloc 的 stationDraw，挂 spacestationStop「开几座」开关）。
      * fissionHydro / fissionUranium / fissionLuxAdd：核热厂每级 +10 热液能/秒（不烧暖石的新热液源）、
      *   −0.02 铀/秒、居民奢侈品消耗 +10%（§0-3 用户拍板的负面效果，走 luxDemandMul 同一括号）。 */
-    satelliteStar: 5, stationStar: 10, satelliteScholar: 0.25, stationHydro: 2,
+    satelliteStar: 5, stationStar: 10, satelliteScholar: 0.25, stationHydro: 2, satelliteHydro: 1,
     fissionHydro: 10, fissionUranium: 0.02, fissionLuxAdd: 0.10,
-    /* ERA7（spec §4）：物流仓库（upg_logiware）每级给所有有上限材料 +200 容量（capOf 材料分支读）。 */
+    /* ERA7（spec §4）：物流仓库（upg_logiware）每级给纪元七及之前解锁的有上限材料 +200 容量。 */
     logiwareCap: 200,
     /* ── ERA8（2026-10-18 · spec §3/§4 提议值，AI 定待标定）──
      * biomatlabKelp/Iron/Ti/U：生物材料研究所每级每秒的四种原料消耗（thetaFlow 读，×bldEff 原料效率）。
      * biomatlabOutRate：生物材料研究所每级每秒产 θ生物金属（原料最紧者决定开工率，断供按比例降产）。
      * biomatlabHydro：生物材料研究所每级每秒耗热液能（hydroAlloc 的 labDraw，优先级最后；
      *   断流只停耗、产出照给——与空间站 stationDraw 同一口径）。
-     * rheamineBeam/Coral/Uranium：瑞亚星矿井每级每秒产 石梁/硬化珊瑚/铀
-     *   （铀 0.005 = 自动钻探后矿工基准 0.002 × 2.5，spec §4 原话）。
+     * rheamineBeam/Coral/Uranium：瑞亚星矿井每级每秒产 石梁/硬化珊瑚/铀；
+     *   按用户要求，三项产出均较原值提高 50 倍。
      * titancloudHydro / titancloudFuel：泰坦星气云采集站每级 +6 热液能/秒（hydroAlloc 供给侧，
      *   与核热厂同类不烧暖石）、+5 燃料/秒（tick/rates 燃料行绝对量）。 */
-    biomatlabKelp: 10, biomatlabIron: 4, biomatlabTi: 2, biomatlabU: 0.05,
-    biomatlabOutRate: 0.5, biomatlabHydro: 3,
-    rheamineBeam: 0.05, rheamineCoral: 0.05, rheamineUranium: 0.005,
+    biomatlabKelp: 100, biomatlabIron: 4, biomatlabTi: 2, biomatlabU: 0.05,
+    biomatlabOutRate: 0.0625, biomatlabHydro: 3,
+    /* ERA10（2026-10-20）：太阳星环每级每秒产 θ金属（用户 ERA10 表「近恒星轨道建设」原值 0.05）。
+     * 平产（不吃 biomatlab 开工率/globalMul），economy.solarRingOut 读。 */
+    solarRingOut: 0.05,
+    rheamineBeam: 2.5, rheamineCoral: 2.5, rheamineUranium: 0.25,
     titancloudHydro: 6, titancloudFuel: 5,
+    /* ERA9（2026-10-19 实装）：马尔斯工造中心每级每秒产 钛金板件/钛（用户拍 P7①：tiplate+3、titanium+2）。
+     *   与 rheamine/titancloud 同族，吃 _planetMul（星际物流网卡 ×1.3 + 行星际快速物流 +20% 加算）。 */
+    marsTiplate: 3, marsTitanium: 2,
     /* siltBonus：砂矿坑对**矿工金属产出**的加成（+20%/级）。
      * 2026-09-26 金属归位（对齐猫国）：砂矿坑不再自动产金属，改吃这条——
      * 1 + lvl.siltpit × siltBonus 乘进矿工的 silt 产出（economy.js 矿工那两行），
@@ -276,7 +282,7 @@
     /* ⚠️ 显示名三度改判（只改 name，id 不动，不触发 migrateRun 与标定）：
      * 「深海藻场」→ 文档 §2.3 定的「深海藻田」→ 2026-09-25 用户拍「深海藻场」。
      * 建筑清单、成本、算式全不认这个名字，它只出现在 UI。 */
-    { id: 'kelp',     name: '深海藻场', ratio: 1.12, cost: {kelp: 15},    desc: '自动产藻食 +0.45/级/秒，吃季节减产',
+    { id: 'kelp', icon: 'assets/building-icons/era-1/era1-kelp.png',     name: '深海藻场', ratio: 1.12, cost: {kelp: 15},    desc: '自动产藻食 +0.45/级/秒，吃季节减产',
       defaultUnlockable: true },
     /* 住房的程序化说明：它给的就是**人口位**，照猫国 maxKittens —— 住满即停止生育
      * （economy.isFull / tick 第 6 步），住房是人口线唯一的闸门。
@@ -286,7 +292,7 @@
      *    「族民 7（人口上限 2）」自相矛盾 —— 已改回硬上限，见本文件 CFG 里的「住房」节。
      * 成本：猫国 hut = wood 5（材料线）⇒ 本作 **coral 5**。人口建筑吃材料、不吃食物，
      * 这样「养人」不与「吃饭」抢同一笔预算，两条线各自独立（猫国即如此）。 */
-    { id: 'nest',     name: '礁口巢',   ratio: 2.50, cost: {coral: 5},    desc: '人口上限 +2，住满后不再生育',
+    { id: 'nest', icon: 'assets/building-icons/era-1/era1-nest.png',     name: '礁口巢',   ratio: 2.50, cost: {coral: 5},    desc: '人口上限 +2，住满后不再生育',
       defaultUnlockable: true },
     /* ---- 住房第二档（猫国 Log House 的对应物，2026-09-26 新增）----
      * 【为什么要有第二档】礁口巢 ratio 2.5 是指数：第 5 座就要 390 珊瑚、第 7 座 2441，
@@ -323,7 +329,7 @@
     /* ⚠️ 2026-09-26 用户拍板：**去掉库存门槛**，解锁权只在「石工」一项，且**双写一致**
      *   （建筑侧 requiredTech 与科技侧 masonry 的 eff.unlockBuild 指向同一项，见 e2e
      *   「建筑解锁来源」三条断言）。玩家研究完石工立刻就能建，卡点只剩「买不买得起」。 */
-    { id: 'coralhouse', name: '石屋', ratio: 2.5, cost: {stone: 100}, desc: '人口上限 +4/级，可一路铺',
+    { id: 'coralhouse', icon: 'assets/building-icons/era-1/era1-coralhouse.png', name: '石屋', ratio: 2.5, cost: {stone: 100}, desc: '人口上限 +4/级，可一路铺',
       requiredTech: ['masonry'] },
     /* ---- 矿砂线（猫国 minerals，与珊瑚是两条独立的线）----
      * 采集者只产藻食之后，矿砂曾一度没有任何来源：furnace 转不出精铁，
@@ -339,7 +345,7 @@
      *   解锁权并入「采矿」科技（与矿工同门，见 techs.js mining）。
      * 【不写 unlockRatio】同 warmnest/ballast 的规矩：解锁权只在科技一处，
      *   玩家看到「需先掌握科技：采矿」一句话就知道卡在哪，不用猜「是科技没开还是珊瑚不够」。 */
-    { id: 'siltpit',  name: '砂矿坑',     ratio: 1.15, cost: {coral: 200},
+    { id: 'siltpit', icon: 'assets/building-icons/era-1/era1-siltpit.png',  name: '砂矿坑',     ratio: 1.15, cost: {coral: 200},
       desc: '矿工金属产出 +20%/级（升级为鱼骨矿井/深层矿井后更高）',
       requiredTech: ['mining'] },
     /* ---- 议事厅（2026-09-26「石工」解锁项）----
@@ -357,7 +363,7 @@
      *   从「议事厅」改写成「城堡」——**等级、造价曲线、建造动作全是同一条**，只是名字与
      *   每级效果升级了（render 读 `s.upgrades.upg_castle` 切名，见 ui/render.js）。
      *   ⇒ 不存在「议事厅退役」这回事，也就**不需要** `retiredBy` 字段。 */
-    { id: 'hall',     name: '议事厅',   ratio: 1.2, cost: {stone: 80, coral: 60}, desc: '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级',
+    { id: 'hall', icon: 'assets/building-icons/era-1/era1-hall.png',     name: '议事厅',   ratio: 1.2, cost: {stone: 80, coral: 60}, desc: '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给纪元三及之前有上限资源 +50 容量/级',
       requiredTech: ['masonry'] },
 
     /* ---- 食物三旋钮（猫国 pasture / aqueduct / barn 的对应物）----
@@ -373,7 +379,7 @@
     /* ⚠️ 2026-09-26 用户拍板：**放弃库存门槛，改挂「保温法」（thermal，纪元一，reqs 采矿、
      *   cond 暖石 20）**。食物线的「增」因此排在 采矿 → 矿工上工 → 攒够伴生暖石 → 保温法 之后。
      *   这是玩家要的「解锁权只认科技」，代价是它比单纯的库存门槛晚约一整段纪元一。 */
-    { id: 'weir',     name: '喷口导流堤', ratio: 1.15, cost: {silt: 60},   desc: '藻食产出 +3%/级',
+    { id: 'weir', icon: 'assets/building-icons/era-1/era1-weir.png',     name: '喷口导流堤', ratio: 1.15, cost: {silt: 60},   desc: '藻食产出 +3%/级',
       requiredTech: ['thermal'] },
     /* warmnest / ballast 两座的解锁权在科技树上（保温法/储藻术的 eff.unlockBuild），
      * **不写 unlockRatio**——两种机制同时挂着会让「到底卡在哪」变成两句话，玩家看不出来。
@@ -388,7 +394,7 @@
      * ⚠️ requiredTech 由 `herd`（畜牧）——纪元一重排后原本指着的纪元二那项已整项删除，
      *    「保温法」那一项改成了暖石开关（不再解锁建筑），省口粮这个位必须由畜牧来开，
      *    否则它会在整棵树里没有任何解锁项。 */
-    { id: 'warmnest', name: '深海鱼牧场', ratio: 1.15, cost: {kelp: 100, coral: 10}, desc: '族口粮 −0.5%/级（可叠级，无减免上限）',
+    { id: 'warmnest', icon: 'assets/building-icons/era-1/era1-warmnest.png', name: '深海鱼牧场', ratio: 1.15, cost: {kelp: 100, coral: 10}, desc: '族口粮 −0.5%/级（可叠级，无减免上限）',
       requiredTech: ['herd'] },
     /* ---- 两座仓库（2026-09-26 第三轮：按猫国拆成 barn / warehouse 两座）----
      * 猫国的容量 100% 来自专门的仓库建筑，且粮仓与材料仓是**两座独立建筑**
@@ -402,7 +408,7 @@
      *   存多少」钉死在 3 座。1.15 与本作其余建筑一致，能一路铺。
      * 【解锁权双写】plant 的 eff.unlockBuild 与这里的 requiredTech 指向同一项，
      *   同 ballast/lighting 的规矩（e2e「建筑解锁来源」守着两边）。 */
-    { id: 'kelpstore', name: '海藻仓', ratio: 1.15, cost: {stone: 60, coral: 60},  desc: '藻食上限 +5000/级',
+    { id: 'kelpstore', icon: 'assets/building-icons/era-1/era1-kelpstore.png', name: '海藻仓', ratio: 1.15, cost: {stone: 60, coral: 60},  desc: '藻食上限 +5000/级',
       requiredTech: ['plant'] },
     /* 压舱仓（对标猫国 warehouse）。材料容量的唯一增长通道（全局增量已删）。
      * ⚠️ 2026-09-26 第三轮：藻食那条线（+800/级）已拆出去给海藻仓，这里只剩材料。
@@ -411,7 +417,7 @@
      *   珊瑚不再直接进造价，只作硬化珊瑚的原料（珊瑚 100 → 1）。2 份是按「建造成本」给的
      *   一次性门槛，不是猫国那种每级重复付——本作建筑是「一次建成 + 每级 ratio 涨」，
      *   与猫国「每级付结构件」结构不同，但「仓库吃两种初级结构件」的语义已对齐。 */
-    { id: 'ballast',  name: '压舱仓',   ratio: 1.15, cost: {stoneBeam: 2, hardCoral: 2},  desc: '其余资源上限 +120/级',
+    { id: 'ballast', icon: 'assets/building-icons/era-2/era2-ballast.png',  name: '压舱仓',   ratio: 1.15, cost: {stoneBeam: 2, hardCoral: 2},  desc: '其余资源上限 +120/级',
       requiredTech: ['lighting'] },
     /* ⚠️ 2026-09-28：礁石平台（reef）**已删除**（用户拍板：它是纪元一整段的老设计，
      *    在本轮纪元二重排里不再保留）。
@@ -437,14 +443,14 @@
      * ⚠️ 两类效果（`lighthouseProd` 与 `lighthouseCap`）分属**两条不同的乘区**：
      *   前者在 economy.globalMul（全资源产出，与 tick/rates 两条路都有关），
      *   后者在 economy.capOf（容量）。改任一条前先看 BLD 表里那两处注释。 */
-    { id: 'lighthouse', name: '灯塔',  ratio: 1.15, cost: {stone: 200, silt: 120},
+    { id: 'lighthouse', icon: 'assets/building-icons/era-2/era2-lighthouse.png', name: '灯塔',  ratio: 1.15, cost: {stone: 200, silt: 120},
       desc: '全资源产出 +1%/级，其余资源上限 +120/级',
       requiredTech: ['navigation'] },
     /* ⚠️ 订正（2026-09-29，用户纠正「工坊里有各自升级」）：旧注「工坊现在是空壳」已删——
      *    工坊的内容 = 每级 +5% 工艺制作效率（下方 craftRatio）+ 工坊页全部商品
      *    （TOOLS 七件 / CRAFTS 两件 / UPGRADES 两道，见 config 顶部那几张表）。
      *    作废的只是「珊瑚→骨材」那条加工线（2026-09-27 骨材线废），工坊不是空壳。 */
-    { id: 'workshop', name: '工坊',      ratio: 1.15, cost: {stone: 200, coral: 200},   desc: '加工线入口',
+    { id: 'workshop', icon: 'assets/building-icons/era-1/era1-workshop.png', name: '工坊',      ratio: 1.15, cost: {stone: 200, coral: 200},   desc: '加工线入口',
       /* ⚠️【解锁权双写】科技侧 bronze（青铜术）的 eff.unlockBuild 反查给工坊，
        *    这里必须再显式写 requiredTech：habitat.unlocked 首行的 guard 只认
        *    requiredTech / unlockScheme / requiredCivic 四种显式源，否则「只有科技侧声明」
@@ -476,7 +482,7 @@
      *      （峰值人口卡 18 以下、拿不到洋流点、进不了下一周目）」—— 别改回 iron。
      *   ③ 珊瑚那半**没动**（仍 112）：金属是**新增**的约束，不是替换 ⇒ 首建成本从
      *      112 珊瑚变成 112 珊瑚 + 50 金属，压力加在材料线而不是把珊瑚线压掉。 */
-    { id: 'furnace',  name: '热泉炉',   ratio: 1.15, cost: {stone: 60, silt: 100},  desc: '解锁 金属→精铁',
+    { id: 'furnace', icon: 'assets/building-icons/era-2/era2-furnace.png',  name: '热泉炉',   ratio: 1.15, cost: {stone: 60, silt: 100},  desc: '解锁 金属→精铁',
       need: 'workshop', requiredTech: ['ironwork'] },
     /* ⚠️ 2026-09-27 删骨材：这三处的 `bone:` 成本**落到珊瑚上**（不是精铁），原总量不变：
      *   热泉炉 bone 112 → coral 112；热泉井 bone 175+iron 62 → coral 175+iron 62；
@@ -505,7 +511,7 @@
      * ⚠️ requiredTech 由 `calendar` 改为 `scholarT`（书写）：解锁权现在写在科技侧那一项的
      *    eff.unlockBuild 上，建筑身上这份要与之一致，否则会出现「研究完还是灰的」。
      *    e2e「建筑解锁来源」那节会检查两边一致。 */
-    { id: 'library',  name: '潮纹馆',   ratio: 1.15, cost: {coral: 150},  desc: '科技产出 +10%/级（仅作用于学者）',
+    { id: 'library', icon: 'assets/building-icons/era-1/era1-library.png',  name: '潮纹馆',   ratio: 1.15, cost: {coral: 150},  desc: '科技产出 +10%/级（仅作用于学者）',
       requiredTech: ['scholarT'] },
     /* ── 研究所（2026-09-28 用户规格 · era2 第三层 · 由「数学」解锁）──
      * 【对标猫国 University】猫国 `js/buildings.js` 的 university：一次性建筑，
@@ -529,7 +535,7 @@
      *   e2e「建筑解锁来源」守着两边一致。
      * ⚠️ 死锁自查：数学的尤里卡条件是「库存科技 1000」，**不指向研究所本身**
      *   （若写成「建成研究所」就是尤里卡要求自己解锁的那座建筑 ⇒ 永远达不成）。 */
-    { id: 'institute', name: '研究所',   ratio: 1.15, cost: {stone: 100, silt: 100},
+    { id: 'institute', icon: 'assets/building-icons/era-2/era2-institute.png', name: '研究所',   ratio: 1.15, cost: {stone: 100, silt: 100},
       desc: '科技产出 ×50%（仅作用于学者）；升级为大学后变 ×100%', requiredTech: ['mathematics'] },
     /* ── 广场（2026-09-28 用户规格 · 市政《戏剧与诗歌》解锁）──
      * 【对标物是潮纹馆，不是热泉井】潮纹馆（library）给科技、广场给市政点，
@@ -546,7 +552,7 @@
      *    首级成本从「一条珊瑚」变成「两条线各出一点」：珊瑚那半降到 50（广场是市政线的
      *    对位建筑，不该跟材料线抢珊瑚），石头那半 200 是新加的——石头此后由采石工与
      *    石梁/绳共用，这条改动让广场也参与消耗它。 */
-    { id: 'square', name: '广场', ratio: 1.15, cost: {coral: 50, stone: 200},
+    { id: 'square', icon: 'assets/building-icons/era-2/era2-square.png', name: '广场', ratio: 1.15, cost: {coral: 50, stone: 200},
       desc: '市政点产出 ×10%/级（仅作用于市政点职业；装政策卡「戏剧与诗歌」后翻倍）',
       requiredCivic: 'drama' },
     /* 神庙（2026-09-28 用户规格 · 市政《神学》完成后解锁）——**潮纹馆的第三座对位**：
@@ -561,7 +567,7 @@
      * ⚠️ 2026-09-28 用户改价：珊瑚 250 → `{stone 150, silt 50}`。
      *    与广场同一个路子，但拆得更开：石头是**采石工那条线**的货、金属是**矿工那条线**的，
      *    ⇒ 建一座神庙要同时拉动两条采集线，而不是纯珊瑚。 */
-    { id: 'temple', name: '神庙', ratio: 1.15, cost: {stone: 150, silt: 50},
+    { id: 'temple', icon: 'assets/building-icons/era-2/era2-temple.png', name: '神庙', ratio: 1.15, cost: {stone: 150, silt: 50},
       desc: '信仰产出 ×10%/级（宗教系统落地后生效；装政策卡「神学」后翻倍）',
       requiredCivic: 'theology' },
     /* ⚠️ 热泉井（geyser）**已按用户 2026-09-28 指令整体删除**——「这些都等着重新设计」。
@@ -585,9 +591,9 @@
      *     （UNIT.steelPerHydro / steelMetal）。流不够时按比例降产（工坊低阶科技先吃满）。
      *   ⚠️ 天穹钻机（ERA5）从工坊吃剩的流里再取 SKYDRILL_HYDRO/tick。
      * 【成本口径】（待标定默认，数值等用户拍）：汽轮机偏结构件、工坊偏材料。 */
-    { id: 'hydroturbine', name: '热液汽轮机', ratio: 1.15, cost: {stone: 300, hardCoral: 10},
+    { id: 'hydroturbine', icon: 'assets/building-icons/era-3/era3-hydroturbine.png', name: '热液汽轮机', ratio: 1.15, cost: {stone: 300, hardCoral: 10},
       desc: '热液能 +1/级/秒，耗暖石 5/级/秒', requiredTech: ['metalrefine'] },
-    { id: 'hydroshop', name: '热液工坊', ratio: 1.15, cost: {stone: 300, iron: 100},
+    { id: 'hydroshop', icon: 'assets/building-icons/era-3/era3-hydroshop.png', name: '热液工坊', ratio: 1.15, cost: {stone: 300, iron: 100},
       desc: '耗热液能产钢：每级耗 1 热液能/秒，吃金属产钢', requiredTech: ['metalrefine'] },
 
     /* ── 王国潮道（2026-09-30 ERA3 市政扩展 · 用户规格表）──
@@ -603,7 +609,7 @@
      *   （economy 奢侈需求 D 读 luxSaveMul）；等级 ≤ 灯塔等级（habitat.build 钳制，
      *   灯塔 0 级时一座都建不起来——规格原文「等级最高不超过灯塔等级」）。
      *   成本按规格原文 100 石头 + 5 钢/级；ratio 提议 1.15（未拍板）。 */
-    { id: 'canal', name: '王国潮道', ratio: 1.15, cost: {stone: 100, steel: 5},
+    { id: 'canal', icon: 'assets/building-icons/era-3/era3-canal.png', name: '王国潮道', ratio: 1.15, cost: {stone: 100, steel: 5},
       desc: '每级减少居民奢侈品消耗 0.3%；等级最高不超过灯塔等级',
       requiredCivic: 'department' },
 
@@ -620,13 +626,13 @@
      * 【银行】每级商人产出 +10%（走奢侈品供给 S 那一侧）。
      * ⚠️【造价】三项的成本都是用户表里定的终值；速生珊瑚林的成本成长 ratio 2.5
      *    （比常规 1.15 陡得多）也是用户指明要的，别顺手改回 1.15。 */
-    { id: 'observatory', name: '天壳观测站', ratio: 1.15, cost: { steel: 20, stoneBeam: 200 },
+    { id: 'observatory', icon: 'assets/building-icons/era-4/era4-observatory.png', name: '天壳观测站', ratio: 1.15, cost: { steel: 20, stoneBeam: 200 },
       desc: '每级负责把天壳量清楚：科技产出 +x%，x 与冰壳厚度成反比，最高 +20%',
       requiredTech: ['shellwatch'] },
-    { id: 'coralfarm', name: '速生珊瑚林', ratio: 2.5, cost: { kelp: 1000 },
+    { id: 'coralfarm', icon: 'assets/building-icons/era-4/era4-coralfarm.png', name: '速生珊瑚林', ratio: 2.5, cost: { kelp: 1000 },
       desc: '每级珊瑚匠产出 +10%（职业专精建筑，与工具乘区独立相乘）',
       requiredTech: ['printing'] },
-    { id: 'bank', name: '银行', ratio: 2, cost: { steel: 30, stoneBeam: 400 },
+    { id: 'bank', icon: 'assets/building-icons/era-4/era4-bank.png', name: '银行', ratio: 2, cost: { steel: 30, stoneBeam: 400 },
       desc: '每级商人产出 +10%（走奢侈品供给那一侧）',
       requiredTech: ['banking'] },
 
@@ -642,14 +648,24 @@
      * 【博物馆】由《启蒙运动》解锁（requiredCivic）。效果 = 官员（书手）市政点产出 +20%，
      *   由 economy.cultureRate 的 museumCivicMul(s) 读（lvl≥1 即 +20%，flat）。
      *   ⚠️ 两座的 cost/ratio 是提议值（用户拍「先这样，后续重做」），未标定。 */
-    { id: 'caravanserai', name: '商队驿站', ratio: 1.15,
+    { id: 'caravanserai', icon: 'assets/building-icons/era-4/era4-caravanserai.png', name: '商队驿站', ratio: 1.15,
       cost: { stone: 200, rope: 100 },
       desc: '每季节判定一次：获得任意时产资源「等级 × 1 分钟」产量；每级另减 1% 居民奢侈品消耗。',
       requiredCivic: 'explore' },
-    { id: 'museum', name: '博物馆', ratio: 2,
+    { id: 'museum', icon: 'assets/building-icons/era-4/era4-museum.png', name: '博物馆', ratio: 2,
       cost: { stone: 400 },
       desc: '官员（书手）市政点产出 +20%。',
       requiredCivic: 'enlightenment' },
+
+    /* ══ ERA9 建筑（2026-10-20 用户规格 · 由《神们自己》解锁）══
+     * 黑色方碑：消耗 1000 石梁，每级造价 ×1.5（ratio:1.5）；建成即全局信仰产出 ×1.2
+     * （globalFaithMul:0.2，economy.faithRate 经 civics.buildingFaithMul 读，乘整段）。
+     * 无 zone（不参与分区/人口/产能统计），纯信仰增益建筑。解锁走 requiredCivic（神们自己）。 */
+    { id: 'black_monolith', icon: 'assets/building-icons/era-9/era9-black-monolith.png', name: '黑色方碑', ratio: 1.5,
+      cost: { stoneBeam: 1000 },
+      globalFaithMul: 0.2,
+      desc: '建成即全局信仰产出 ×1.2（消耗 1000 石梁，每级造价 ×1.5）。',
+      requiredCivic: 'gods_themselves' },
 
     /* ── ERA5 两座建筑（2026-10-02 实装）──
      * 【热锻工厂】由「工业化」解锁（requiredTech，与 techs.js industrialize 的 eff.unlockBuild 双写一致）。
@@ -659,10 +675,10 @@
      * 【学校】由「普及教育」解锁（requiredTech，与 techs.js pubedu 的 eff.unlockBuild 双写一致）。
      *   效果：每级给商人 +0.5 科技/s（BLD.schoolMerchantSci），tick/rates 两处同式读。
      *   ⚠️【cost 为提议值，未拍板】。 */
-    { id: 'hotforge', name: '热锻工厂', ratio: 1.5, cost: { steel: 400, titanium: 150 },
+    { id: 'hotforge', icon: 'assets/building-icons/era-5/era5-hotforge.png', name: '热锻工厂', ratio: 1.5, cost: { steel: 400, titanium: 150 },
       desc: '工艺制作效率 +7%/级（加法乘区，与工坊级/奇观/科技同一条轴）',
       requiredTech: ['industrialize'] },
-    { id: 'school', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 200 },
+    { id: 'school', icon: 'assets/building-icons/era-5/era5-school.png', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 200 },
       desc: '每级给商人 +0.5 科技/s（由 BLD.schoolMerchantSci 读，tick/rates 两处同式）',
       requiredTech: ['pubedu'] },
 
@@ -673,17 +689,17 @@
      * 【廉租社区】requiredCivic='urbanization'。效果 = 人口上限 +10/级（economy.popCap 读
      *   s.lvl.tenement * BLD.tenementPop）。⚠️ ratio 3 为用户原话「升级倍率设定为3」，待标定。
      * ⚠️【cost 为提议值，未拍板】量级对齐 era5 建筑（钢 + 钛/脚手架高阶料）。 */
-    { id: 'theater', name: '歌剧院', ratio: 1.5, cost: { steel: 100, stone: 400 },
+    { id: 'theater', icon: 'assets/building-icons/era-5/era5-theater.png', name: '歌剧院', ratio: 1.5, cost: { steel: 100, stone: 400 },
       desc: '官员（书手）市政点产出 +15%/级（由 theaterCivicMul 读）。',
       requiredCivic: 'sharksong' },
-    { id: 'tenement', name: '廉租社区', ratio: 3, cost: { scaffold: 25, steel: 100 },
+    { id: 'tenement', icon: 'assets/building-icons/era-5/era5-tenement.png', name: '廉租社区', ratio: 3, cost: { scaffold: 25, steel: 100 },
       desc: '人口上限 +10/级（由 popCap 读）；每级额外 +5% 居民奢侈品消耗（增耗，economy.tenementLuxAdd 读）。',
       requiredCivic: 'urbanization' },
     /* ── ERA6（2026-10 实装）：科研所（chemistry 解锁，双写一致）：
      *   每级科技产出 +10%（researchLabSci，tick/rates 同式），且使研究科技消耗 −2%/级（researchLabSave，
      *   由 tech.study 读）。造价全 tiplate。
      *   ⚠️ ratio 2026-10-17 用户拍板 1.15 → 2（成本每级翻倍，收敛更快；收益曲线同步前移）。 */
-    { id: 'researchlab', name: '科研所', ratio: 2, cost: { tiplate: 200 },
+    { id: 'researchlab', icon: 'assets/building-icons/era-6/era6-researchlab.png', name: '科研所', ratio: 2, cost: { tiplate: 200 },
       desc: '科技产出 +10%/级（researchLabSci）；研究科技消耗 −2%/级（researchLabSave）。',
       requiredTech: ['chemistry'] },
 
@@ -693,42 +709,108 @@
      * 【空间站】每级星空探索 +10/秒、运转耗 2 热液能/秒（hydroAlloc stationDraw，挂 spacestationStop「开几座」开关）。
      * 【核热厂】归工坊区（热液产线家族）：每级 +10 热液能/秒（不烧暖石，hydroAlloc 供给侧相加）、
      *   −0.02 铀/秒（tick 直耗）、居民奢侈品消耗 +10%/级（tenementLuxAdd 同构通道，§0-3 负面）。 */
-    { id: 'satellite', name: '轨道卫星', ratio: 1.5, cost: { tiplate: 100, rocketFuel: 100 },
-      desc: '星空探索 +5/秒、学者产出 +25%/级。1 级 = 1 颗。',
+    { id: 'satellite', stardustFacility: true, icon: 'assets/building-icons/era-7/era7-satellite.png', name: '轨道卫星', ratio: 1.5, cost: { tiplate: 100, rocketFuel: 100 },
+      desc: '星空探索 +5/秒、学者产出 +25%/级。运转耗 1 热液能/秒（可「开几座」）。1 级 = 1 颗。',
       requiredTech: ['rocket'] },
-    { id: 'spacestation', name: '空间站', ratio: 1.5, cost: { rocketEngine: 5 },
+    { id: 'spacestation', stardustFacility: true, icon: 'assets/building-icons/era-7/era7-spacestation.png', name: '空间站', ratio: 1.5, cost: { rocketEngine: 5 },
       desc: '星空探索 +10/秒、运转耗 2 热液能/秒（建筑页可「开几座」）。1 级 = 1 座。',
       requiredTech: ['spacestation'] },
-    { id: 'fissionplant', name: '核热厂', ratio: 1.15, cost: { tiplate: 2000, steel: 400 },
+    { id: 'fissionplant', icon: 'assets/building-icons/era-7/era7-fissionplant.png', name: '核热厂', ratio: 1.15, cost: { tiplate: 2000, steel: 400 },
       desc: '热液能 +10/秒/级（不烧暖石）；耗铀 0.02/秒/级；居民奢侈品消耗 +10%/级（负面）。',
       requiredTech: ['fission'] },
     /* ── ERA7（2026-10 实装 · 竞技体育 解锁）──
      * 【体育场】requiredCivic='athletics'。效果 = 族民奢侈品消耗 -5%/级（economy.luxSaveAll 读 BLD.stadiumLuxSave，
      *   总减免封顶 75%）；装填《直播竞技》卡时额外产出市政点（economy.cultureRate 读 liveCompCivic）。
      * 【多实例】ratio 1.5（1 级 = 1 座，可叠建，与轨道卫星/空间站同形）。cost 1600 钢为用户规格原值。 */
-    { id: 'stadium', name: '体育场', ratio: 1.5, cost: { steel: 1600 },
+    { id: 'stadium', icon: 'assets/building-icons/era-7/era7-stadium.png', name: '体育场', ratio: 1.5, cost: { steel: 1600 },
       desc: '族民奢侈品消耗 -5%/级（封顶 -75%）；装填《直播竞技》时额外产出市政点 = 人口 × 体育场等级。',
       requiredCivic: 'athletics' },
 
     /* ── ERA8（2026-10-18 实装 · spec §4）──
-     * 【生物材料研究所】学术区。θ生物金属的唯一产线：每级耗 藻食10/精铁4/钛2/铀0.05（×bldEff
-     *   原料效率）⇒ 产 θ 0.5（原料最紧者决定开工率，thetaFlow/thetaRate 单一真源）；
+     * 【生物材料研究所】学术区。θ生物金属的唯一产线：每级耗 藻食100/精铁4/钛2/铀0.05（×bldEff
+     *   原料效率）⇒ 产 θ 0.0625（原料最紧者决定开工率，thetaFlow/thetaRate 单一真源）；
      *   每级耗热液能 3/秒（hydroAlloc labDraw，断流只停耗）；纳米技术后 产出×1.1 × 效率×1.3。
-     *   ratio 1.15（多级收敛，与核热厂同档）：纳米技术尤里卡「θ 产出 5/秒」= 10 级可达。
-     * 【瑞亚星矿井】星海区。每级产 石梁 0.05 / 硬化珊瑚 0.05 / 铀 0.005（=矿工基准×2.5），
+     *   ratio 1.15（多级收敛，与核热厂同档）；纳米技术尤里卡门槛仍为「θ 产出 5/秒」。
+     * 【瑞亚星矿井】星海区。每级产 石梁 2.5 / 硬化珊瑚 2.5 / 铀 0.25（较原值提高 50 倍），
      *   吃 globalMul；气云采集的尤里卡「矿井 ≥3 级」是它的下游门。
      * 【泰坦星气云采集站】星海区。每级 +6 热液能/秒（供给侧，不烧暖石）+5 燃料/秒。
      * ⚠️ 三座都在星海区（space）⇒ 建造成本自动吃 spaceCostMul 软上限（costOf 对 zone==='space'），
      *    与轨道卫星/空间站同待遇，无需另接。 */
-    { id: 'biomatlab', name: '生物材料研究所', ratio: 1.15, cost: { titanium: 200, tiplate: 60 },
-      desc: '制造 θ生物金属：每级耗 藻食10/精铁4/钛2/铀0.05 ⇒ 产 θ +0.5/秒；耗热液能 3/秒（断流只停耗）。',
+    { id: 'biomatlab', icon: 'assets/building-icons/era-8/era8-biomatlab.png', name: '生物材料研究所', ratio: 1.15, cost: { titanium: 200, tiplate: 60 },
+      desc: '制造 θ生物金属：每级耗 藻食100/精铁4/钛2/铀0.05 ⇒ 产 θ +0.0625/秒；耗热液能 3/秒（断流只停耗）。',
       requiredTech: ['biomat'] },
-    { id: 'rheamine', name: '瑞亚星矿井', ratio: 1.5, cost: { thetaMetal: 60, rocketEngine: 10 },
-      desc: '异星在地开采：每级 石梁 +0.05/秒、硬化珊瑚 +0.05/秒、铀 +0.005/秒。1 级 = 1 座。',
+    { id: 'rheamine', stardustFacility: true, icon: 'assets/building-icons/era-8/era8-rheamine.png', name: '瑞亚星矿井', ratio: 1.5, cost: { thetaMetal: 60, rocketEngine: 10 },
+      desc: '异星在地开采：每级 石梁 +2.5/秒、硬化珊瑚 +2.5/秒、铀 +0.25/秒。1 级 = 1 座。',
       requiredTech: ['xenoconst'] },
-    { id: 'titancloud', name: '泰坦星气云采集站', ratio: 1.5, cost: { thetaMetal: 100, rocketEngine: 10 },
+    { id: 'titancloud', stardustFacility: true, icon: 'assets/building-icons/era-8/era8-titancloud.png', name: '泰坦星气云采集站', ratio: 1.5, cost: { thetaMetal: 100, rocketEngine: 10 },
       desc: '采集泰坦星气云：每级 热液能 +6/秒（不烧暖石）、燃料 +5/秒。1 级 = 1 座。',
-      requiredTech: ['gascloud'] }
+      requiredTech: ['gascloud'] },
+    /* ── ERA8（2026-10-19 · B7 机器人机制实装 · spec §6）──
+     * 【机器人充能站】工坊区。每级维持 4 机器人人口（folk.robotPop = 4 × lvl）；
+     *   机器人仅能担任非书手/学者的岗位（folk.robotJobAllowed），产出 ×robotMult(s)
+     *   （默认 1.2；ERA10 强人工智能升级后 1.5，effJobs 合并、剔除 scribe/scholar）。
+     *   ERA10（2026-10-20）：买了升级「强人工智能」后机器人**按人口口径产信仰**
+     *   （economy.faithRate 基项 +robotPop）—— desc 与注释同步改，别再写「不影响信仰点」。
+     *   每级耗热液能 8/秒（hydroAlloc robotbayDraw，断流只停耗）。
+     *   ratio 1.15（与核热厂/生物材料研究所同档）；造价 100θ + 800 tiplate（spec §4 B6：200→800 ×4）。
+     *   requiredTech='protoai' 与 protoai.unlockBuild 同源（都指向初级人工智能）。 */
+    { id: 'robotbay', icon: 'assets/building-icons/era-8/era8-robotbay.png', name: '机器人充能站', ratio: 1.15, cost: { thetaMetal: 100, tiplate: 800 },
+      desc: '维持 4 机器人人口/级：仅担任非书手/学者的岗位，产出 +20%。工坊升级「强人工智能」后产出 +50%，且按人口口径产出信仰。耗热液能 8/秒/级。',
+      requiredTech: ['protoai'] },
+    /* ── ERA9（2026-10-19 实装）──
+     * 【马尔斯工造中心】星海区（用户拍 P5：马尔斯算异星，与 rheamine/titancloud 同区 ⇒ 吃 spaceCostMul）。
+     *   ratio 1.5（与 rheamine/titancloud 同档）；造价 160θ生物金属 + 10 强工质火箭引擎（用户规格）；
+     *   requiredTech='alien_eng' 与 alien_eng.unlockBuild 同源。每级 钛金板件 +3/秒、钛 +2/秒（P7①）。 */
+    { id: 'mars_workshop', stardustFacility: true, icon: 'assets/building-icons/era-9/era9-mars-workshop.png', name: '马尔斯工造中心', ratio: 1.5, cost: { thetaMetal: 160, strongProp: 10 },
+      desc: '火星在地制造中心：每级 钛金板件 +3/秒、钛 +2/秒。1 级 = 1 座。',
+      requiredTech: ['alien_eng'] },
+    /* 【欧罗巴冰面发射场】母星（欧罗巴）发射设施（用户拍 P6/⑥：欧罗巴是母星、不算异星 ⇒ 不进 lvlSum、归礁栖核心）。
+     *   ratio 1.5；造价用户未给，按量级给 steel 1000 + θ金属 200 + 强工质火箭引擎 50（待标定）。
+     *   运行耗料每 s：强工质火箭引擎 0.1 + θ金属自适应薄膜 0.1 + 热液能 2（flow）；正常累计 10s ⇒ 星图太阳帆 +1（累加器）。
+     *   requiredTech='microwave_heat' 与微波加热解锁同源；耗料与帆累加逻辑在 economy-tick / hydroAlloc。 */
+    { id: 'europa_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-9/era9-europa-launch.png', name: '欧罗巴冰面发射场', ratio: 1.5, cost: { steel: 1000, thetaMetal: 200, strongProp: 50 },
+      desc: '欧罗巴冰面发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。《绝热材料》完成后可切换制造戴森球节点（每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板，节律相同）。',
+      requiredTech: ['microwave_heat'] },
+    /* 【太阳星环】ERA10（2026-10-20 实装 · 用户 ERA10 表「近恒星轨道建设」解锁）：近恒星轨道环形结构。
+     *   ratio 1.5（与 era9 两座同档）；造价 300 θ金属 + 20 封闭藻仓（sealbin，ERA6 工艺物品，现成 key）。
+     *   每级 +0.05 θ金属/秒（economy.thetaOut 新项，与 biomatlab 线**独立相加**）、人口上限 +1/级（economy.popCap）。
+     *   requiredTech='near_star_orbit' 与科技侧 eff.unlockBuild 双写（解锁权两处同源，e2e 三断言口径）。 */
+    { id: 'solar_ring', stardustFacility: true, icon: 'assets/building-icons/era-10/era10-solar-ring.png', name: '太阳星环', ratio: 1.5, cost: { thetaMetal: 300, sealbin: 20 },
+      desc: '近恒星轨道环：每秒产 0.05 θ金属/级；人口上限 +1/级。',
+      requiredTech: ['near_star_orbit'] },
+
+    /* ── ERA10 市政（2026-10-20 用户规格 · 实装）──
+     * 【泰拉星轨道发射场 / 瑞亚星轨道发射场】（市政《公共工程局》解锁）
+     *   用户拍 Q1 = **新建两座独立建筑**，与欧罗巴发射场同功能（各推 1 帆/级/节律）；
+     *   用户追加「两个新发射场和欧罗巴原发射场制造消耗设计相同」⇒ 运行耗料**逐字同值**：
+     *     帆模式 0.1 强工质引擎 + 0.1 θ薄膜 + 2 热液能 /秒/级；节点模式 1 + 1 + 3。
+     *   ⇒ 三座共用 economy 的 launch* 单一落点（launchLvl / launchCycleOf / launchHydroPer），
+     *     绝不在 tick 与 rates 各写一份（那正是面板撒谎家族）。
+     * 【造价「从 1 级开始」】用户表原文。落地 = **不进 COST_OFFSET_COVERED**
+     *   （G.E.E.K 瑞亚/泰拉改造会给覆盖建筑造价等级 −3/−5，新发射场刻意不吃这份折扣）。
+     *   造价为提议值（欧罗巴 steel1000+θ200+火箭50 上浮），待标定。
+     * 【解锁走 requiredCivic】解锁权在市政身上（与黑色方碑同一轴），不走科技 eff.unlockBuild。 */
+    { id: 'terra_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-10/era10-terra-launch.png', name: '泰拉星轨道发射场', ratio: 1.5,
+      cost: { steel: 1500, thetaMetal: 400, strongProp: 100 },
+      desc: '泰拉星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。',
+      requiredCivic: 'public_works' },
+    { id: 'rhea_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-10/era10-rhea-launch.png', name: '瑞亚星轨道发射场', ratio: 1.5,
+      cost: { steel: 1200, thetaMetal: 320, strongProp: 80 },
+      desc: '瑞亚星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。',
+      requiredCivic: 'public_works' },
+
+    /* 【虚境祭坛】（市政《虚境探索》解锁）
+     *   用户规格：消耗 30 人口、成本成长 1.5、最高 3 级、每升一级按钮上叠一层血纹。
+     *   ⚠️ `cost.pop` 是**人口造价**，不是资源：economy.costOf 跳过它、canAfford 特判 s.pop、
+     *      pay 不扣（扣人口走 habitat.consumePop，按用户拍板「扣当前人口，按当前职业分配比例扣」）。
+     *   ⚠️ `maxLvl` 是全仓第一条等级上限：habitat.build / autoTick / 卡片 UI 三处都要认它，
+     *      漏自动建造那一处 = 挂一晚自动买到 99 级。
+     *   ⚠️ 无产出（用户未给效果）：它是《飞升虚境》的鼓舞门槛 + 血纹视觉。
+     *   血纹纯 UI（render-pane-village 读 lvl 拼类名，CSS 画层），不进结算。 */
+    { id: 'void_altar', icon: 'assets/building-icons/era-10/era10-void-altar.png', name: '虚境祭坛', ratio: 1.5,
+      cost: { pop: 30 }, maxLvl: 3,
+      desc: '以族民为祭：每建一级消耗 30 人口（按当前职业分配比例扣减），最高 3 级。三级俱成，虚境的门为你打开。',
+      requiredCivic: 'void_explore' }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -788,9 +870,18 @@
     researchlab: 'academy',
     /* ERA7（2026-10-17 · spec §5）：太空两座归新分区「星海区」；核热厂归工坊区（热液产线家族）。 */
     satellite: 'space', spacestation: 'space', fissionplant: 'workshop',
-    /* ERA8（2026-10-18 · spec §4）：生物材料研究所归学术区（转换产线，与研究所/科研所同区）；
+    /* ERA8（2026-10-18）：生物材料研究所归工坊区（原料转换产线）；
      *   瑞亚星矿井/泰坦星气云采集站归星海区（在地工业，与卫星/空间站同区 ⇒ 吃 spaceCostMul）。 */
-    biomatlab: 'academy', rheamine: 'space', titancloud: 'space'
+    biomatlab: 'workshop', rheamine: 'space', titancloud: 'space',
+    /* ERA8（2026-10-19 · B7）：机器人充能站归工坊区（机器人产线家族，与工坊/炉/汽轮机同区）。 */
+    robotbay: 'workshop',
+    /* ERA9（2026-10-19）：马尔斯工造中心归星海区（异星制造，与 rheamine/titancloud 同区 ⇒ 吃 spaceCostMul）；
+     *   欧罗巴冰面发射场归礁栖核心（欧罗巴是母星、不算异星，不进 lvlSum）。 */
+    mars_workshop: 'space', europa_launch: 'core',
+    /* ERA10（2026-10-20）：太阳星环归星海区（近恒星轨道建筑，与卫星/空间站同区 ⇒ 吃 spaceCostMul）。
+     * 两座异星发射场同归星海区（在地工业 → 与 rheamine/titancloud/mars_workshop 同区，同样吃 spaceCostMul）；
+     * 虚境祭坛归信仰区（与神庙/黑色方碑同区，纯 UI 分区，不吃 spaceCostMul）。 */
+    solar_ring: 'space', terra_launch: 'space', rhea_launch: 'space', void_altar: 'faith'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';

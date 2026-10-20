@@ -850,9 +850,11 @@ console.log('\n=== 市政 ===');
     CL.geo.PADX === SB.tech.geo.PADX && CL.geo.PADY === SB.tech.geo.PADY,
     `市政 ${CL.geo.W}×${CL.geo.H} / 科技 ${SB.tech.geo.W}×${SB.tech.geo.H}`);
 
-  /* 连线必须数与 reqs 数一致：少一条线时树是「断的」，而渲染层对此完全静默。 */
-  const reqN = SB.CIVICS.filter(c => c.reqs && c.reqs.length)
-    .reduce((n, c) => n + c.reqs.length, 0);
+  /* 连线必须数与 reqs 数一致：少一条线时树是「断的」，而渲染层对此完全静默。
+   * ⚠️ 2026-10-20 修正：ERA9 引入 OR 前置 `reqsAny`（太阳系后勤保障 3 选 1），
+   *   layout() 对 reqs 与 reqsAny 都画边 ⇒ 计数须两者相加，否则会虚报「少画了 3 条线」。 */
+  const reqN = SB.CIVICS.filter(c => (c.reqs && c.reqs.length) || (c.reqsAny && c.reqsAny.length))
+    .reduce((n, c) => n + (c.reqs ? c.reqs.length : 0) + (c.reqsAny ? c.reqsAny.length : 0), 0);
   check('市政树的连线条数与 reqs 总数一致（线不是漏画的）',
     CL.edges.length === reqN && CL.edges.length > 0,
     `${CL.edges.length} 条线 / ${reqN} 条 reqs`);
@@ -1346,8 +1348,8 @@ console.log('\n=== 市政 ===');
     /* 2026-10-17 星图改版：视觉换成 GPT 制作的 iframe 动画星图（star-map-frame.html），
      * 发射记录尚未接入 frame（占位期）⇒ 断言改为「iframe 挂载 + 记录不被清空」；
      * 待 frame 接入游戏状态后，把「发射记录上屏」的展示断言加回来。 */
-    check('星图：破壳后挂载 iframe 动画星图（star-map-frame.html?v=1）',
-      mapHTML.indexOf('<iframe') >= 0 && mapHTML.indexOf('star-map-frame.html?v=1') >= 0,
+    check('星图：破壳后挂载 iframe 动画星图（star-map-frame.html?v=2）',
+      mapHTML.indexOf('<iframe') >= 0 && mapHTML.indexOf('star-map-frame.html?v=2') >= 0,
       'snip=' + mapHTML.slice(0, 120));
     check('星图：本周目发射记录仍在（frame 接入后上屏）',
       loop.spacecraft.length === 2 && loop.spacecraft[0].name === '欧罗巴一号' && loop.spacecraft[1].name === '土星站');

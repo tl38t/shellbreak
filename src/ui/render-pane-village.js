@@ -7,6 +7,7 @@
 
   function paneVillage() {
     var s = SB.game.run(); let h = '';
+    var buildingIconsShown = !!(SB.ui.render && SB.ui.render.buildingIconsShown && SB.ui.render.buildingIconsShown());
     /* 猫国开局唯一产能是手动点 "Gather catnip"（点一下 +1 猫薄荷）。
      * 本作对应物：点一下 +1 藻食——对齐 docs/DESIGN_v0.3.md §4「采集者 gatherer |
      * 藻食（手动也能点）」。手动采集产珊瑚是错的：那会把采集接到材料线上，
@@ -139,6 +140,11 @@
          * 「亮着但点了没反应」（build 内部静默 return false）。 */
         var canalCap = b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);
         if (canalCap) label = '需先升灯塔（现 ' + (s.lvl.lighthouse || 0) + ' 级）';
+        /* ERA10 市政（2026-10-20 · 虚境祭坛 `maxLvl:3`）：等级上限与 habitat.build **同判据**
+         * （都读建筑条目的 maxLvl，不烤死数字）。跑到上限时按钮灰掉且文案直说，
+         * 绝不能留一个「亮着但点了静默 return false」的按钮（与 canalCap 同一纪律）。 */
+        var maxReached = !!(b.maxLvl && lv >= b.maxLvl);
+        if (maxReached) label = '已达上限 ' + b.maxLvl + ' 级';
         /* 区域建筑自动建造/升级开关：权限由已完成市政的 autoBuildZones 决定，
          * 生息区归封建主义、贸易区域归重商主义；仍复用 s.autoUpg 与 data-auto。 */
         var autoBtn = '';
@@ -201,7 +207,7 @@
             '</span>';
         }
         /* 轨道卫星「开几座」（2026-10-17 · spec §5，与 furnaceStop 同口径）：建成（lv>0）后才出现。
-         * 卫星每级 +5/s 星空探索，不耗料；玩家要省星空推进时按下几颗。
+         * 卫星每级 +5/s 星空探索、运转耗 1 热液能/秒（与空间站同口径，停产停耗与星空贡献）；玩家要省星空推进时按下几颗。
          * 运行座数 = lv − 停用数（s.satelliteStop），结算在 economy.starRate。复用 .furnctl 样式。 */
         var satBtn = '';
         if (b.id === 'satellite' && lv > 0) {
@@ -212,6 +218,9 @@
             '<b class="fnum">开 ' + _satrun + '/' + lv + '</b>' +
             '<button class="fbtn" data-satellite-inc="1" title="多开一颗"' +
             (_satrun >= lv ? ' disabled' : '') + '>＋</button>' +
+            /* ERA7（2026-10-18 · 用户纠正补）：卫星每级耗 1 热液能/秒，与空间站同口径，
+             * 走 drawTag 显示总额（drawTag 读 BUILDING_CONSUME + consumeRates 同式）。 */
+            drawTag(s, 'satellite') +
             '</span>';
         }
         /* 空间站「开几座」（2026-10-17 · spec §5，与 satelliteStop 同口径）：建成（lv>0）后才出现。
@@ -230,22 +239,61 @@
             drawTag(s, 'spacestation') +
             '</span>';
         }
+        /* ERA8 生物材料研究所「开几座」：一并控制四种原料、θ产出和热液能耗。 */
+        var biomatlabBtn = '';
+        if (b.id === 'biomatlab' && lv > 0) {
+          var _blrun = Math.max(0, lv - Math.max(0, s.biomatlabStop || 0));
+          biomatlabBtn = '<span class="furnctl' + (_blrun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-biomatlab-dec="1" title="停一座"' +
+            (_blrun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _blrun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-biomatlab-inc="1" title="开一座"' +
+            (_blrun >= lv ? ' disabled' : '') + '>＋</button>' +
+            drawTag(s, 'biomatlab') + '</span>';
+        }
+        /* ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁1）：发射场制造模式切换。
+         * ERA10 市政（2026-10-20）：判据从写死 `europa_launch` 改成建筑上的 `launchpad` 标记
+         * ——泰拉/瑞亚两座新发射场自动获得同一个钮（三座共用一个 s.launchMode，
+         * 它们是同一套制造体系，分开切只会让玩家以为是两套规则）。
+         * 建成（lv>0）且完成《绝热材料》后才出钮（科技门与 economy-tick 2f 的 _nodeMode 同源）。
+         * 点它在「太阳帆 ⇄ 戴森球节点」间切（s.launchMode，state.js seed 默认 'sail'）。
+         * 复用 .furnctl 样式；按钮文字 = 当前模式，一点即翻。 */
+        var elBtn = '';
+        if (b.launchpad && lv > 0 && s.techs && s.techs.adiabatic) {
+          var _nodeOn = (s.launchMode === 'node');
+          elBtn = '<span class="furnctl' + (_nodeOn ? ' on' : '') + '">' +
+            '<button class="fbtn" data-launch-mode="1" title="' +
+            (_nodeOn ? '点击切换到「太阳帆」（每级每 10s 推 1 帆）'
+                     : '点击切换到「戴森球节点」（每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板）') +
+            '">' + (_nodeOn ? '节点' : '太阳帆') + '</button>' +
+            '<b class="fnum">制造 ' + (_nodeOn ? '戴森球节点' : '太阳帆') + '</b></span>';
+        }
         // 没有等级上限，所以只显示当前级数，不显示 x/上限
         // 潮纹馆带「虚级」（大潮纹馆 +3，按效果算、按建筑不算，见 wonder.libBonus）：
         // 徽章直接写成「1+3」——真实等级在前、虚级在后，一眼看出哪部分是白送的。
         // 其它建筑没有虚级通道，照旧只写一个数。
         var lvTxt = (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0)
           ? lv + '+' + SB.wonder.libBonus(s) : lv;
+        /* ERA10 市政：带等级上限的建筑显示「当前/上限」，让玩家一眼看到还剩几级可建。 */
+        if (b.maxLvl) lvTxt = lv + '/' + b.maxLvl;
         var rowState = 'bld-row' + (lv > 0 ? ' is-owned' : '') + (blocked || canalCap ? ' is-blocked' : '') +
           (!blocked && !canalCap && ok ? ' is-ready' : '');
-        zRows += '<div class="row ' + rowState + '"><div><div class="nm"><button type="button" class="building-name" data-build-info="' + b.id +
+        /* ERA10 市政（2026-10-20 · 虚境祭坛「每升一级按钮上就加一些血纹」）：
+         * 血纹是**纯 CSS 装饰**（不做结算、不进 save）：按等级给行加 `void-lv-N`，
+         * `60-star-map.css` 之外另开一块在 `40-atmosphere-theme.css`? 不——血纹放
+         * `50-module-polish.css` 的祭坛段，纯伪元素，不引图片、不影响点击热区。 */
+        if (b.id === 'void_altar') rowState += ' void-altar void-lv-' + lv;
+        var buildingIconHTML = buildingIconsShown && b.icon
+          ? '<img class="building-icon" src="' + b.icon + '" alt="" aria-hidden="true" width="32" height="32">' : '';
+        zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
+          '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
           '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
           ' <span class="tag" data-lv="' + b.id + '"' +
           (lvTxt !== String(lv) ? ' title="含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）"' : '') +
-          '>' + lvTxt + '</span>' + autoBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + '</div>' +
+          '>' + lvTxt + '</span></span><span class="bld-ops">' + autoBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + elBtn + '</span></div>' +
           '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
-          '</div></div>' +
-          '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap ? '' : ' disabled') + '>' + label + '</button></div>';
+          '</div></div></div>' +
+          '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button></div>';
         zShown++;
       }
       /* 区标题按区着色（2026-09-30 晚）：--hc 交给 CSS 画左色条 + 同色文字，

@@ -9,15 +9,15 @@ export function run({ SB, check, noop }) {
     const api = SB.challenges;
     let s = SB.state.freshRun(false);
 
-    check('四类挑战已注册，分档挑战只开放顺序下一档', api.list().length === 4 &&
+    check('五类挑战已注册，分档挑战只开放顺序下一档', api.list().length === 5 &&
       api.canStart('science', s, meta) && !api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
       '挑战数=' + api.list().length);
     let pane = SB.ui.render.paneChallenges();
-    check('挑战独立页展示四项挑战与首次开始入口',
-      ['寒流禁火', '小国寡民', '忽视科文', '深渊重压'].every(name => pane.includes(name)) &&
+    check('挑战独立页展示五项挑战与首次开始入口',
+      ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉'].every(name => pane.includes(name)) &&
       pane.includes('暖石产出 -30%') && pane.includes('学者、书手各 ≤ 15 人') &&
       pane.includes('总人口、职业人数门槛豁免') &&
-      (pane.match(/data-challenge-start=/g) || []).length === 4,
+      (pane.match(/data-challenge-start=/g) || []).length === 5,
       '开始入口=' + ((pane.match(/data-challenge-start=/g) || []).length));
     meta.challenges = { completed: { cold: true, small: true, science: 1, abyss: 1 } };
     pane = SB.ui.render.paneChallenges();

@@ -140,7 +140,9 @@
   function civicKelpPerSec(s) {
     var cv = (SB.civic && SB.civic.flow) ? SB.civic.flow(s) : null;
     var k = cv && cv.kelp ? cv.kelp : 0;
-    return k > 0 ? k * P.globalMul(s) : 0;   // 与 tick 第 4b 段 cv.kelp * _gm 同式
+    /* ERA10（2026-10-20）：藻食吃大统一方程轴（globalMulX）——与 tick 第 4b 段 cv.kelp * _gmx 同式。
+     * 科技/市政/信仰之外的产出一律走 globalMulX，此处藻食不属排除集。 */
+    return k > 0 ? k * P.globalMulX(s) : 0;   // 与 tick 第 4b 段 cv.kelp * _gmx 同式
   }
 
   /* 单个微步（mdt ≤ STEP=0.1s）推进食物/人口 + 奢侈品 + 幸福度。

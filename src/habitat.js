@@ -26,8 +26,24 @@
   function habitatName(s) {
     var e = (s && s.era) || 1;
     if (e >= 6) {
-      var custom = s && s.habitatName && ('' + s.habitatName).trim();
-      return custom || HABITAT_DEFAULT_ERA6;
+      /* 政体后缀：只有三新政体（教权国/联盟/联邦）带后缀，其余政体（酋邦制/独裁/
+       * 寡头/古典共和/神权）返回 ''。 */
+      var suf = (SB.civic && SB.civic.govTitleSuffix) ? SB.civic.govTitleSuffix(s && s.gov) : '';
+      /* 基础名：巢穴页「你的国度」输入框优先；没填时用政体弹窗起的名字（s.govName）。
+       * 两者都算「玩家自己起的名字」，区别只是入口。
+       * ⚠️ 后缀是**政体的一部分**，不因名字来自哪一处而被跳过——只要当前政体带后缀
+       *    就一定拼上（用户 2026-10-18 明确：要「自己起的名字 + 政体带的名字」）。 */
+      var base = (s && s.habitatName && ('' + s.habitatName).trim()) ||
+                 (s && s.govName && ('' + s.govName).trim()) || '';
+      if (base) {
+        /* 玩家可能把后缀一起写进名字（如「深渊联邦」），再拼一次会变「深渊联邦联邦」。
+         * 末尾已带该后缀 ⇒ 原样返回。 */
+        if (suf && base.slice(-suf.length) !== suf) return base + suf;
+        return base;
+      }
+      /* 一次都没起名 ⇒ 沿用纪元五末档「渊海之国」，不加政体后缀
+       * （默认演进名不是玩家起的名字，拼上「联邦」反而像 bug）。 */
+      return HABITAT_DEFAULT_ERA6;
     }
     return HABITAT_NAMES[e] || HABITAT_NAMES[1];
   }
@@ -165,10 +181,52 @@
     return null;
   }
 
+  /* ERA10 市政（2026-10-20 · 虚境祭坛）：**人口造价**扣减（全仓第一处）。
+   * 用户拍板原话：「就是扣当前人口，按当前职业分配比例扣，不扣上限」。
+   *   ① 不扣人口上限（popCap 不变）——养祭坛花的是活人，不是居住空间；
+   *   ② 各职业按「该职业占总人口的比例」等比缩水（闲置人口自然承担它那一份：
+   *      总 pop 减 take，职业减 Σ(jobs×take/pop)，差额就落在闲置池上）；
+   *   ③ 取整用**最大余数法**补齐，保证 Σ扣减 = round(总职业 × 比例)，不会因 floor
+   *      让某些职业白嫖（那样重复建祭坛会系统性少扣人）。
+   * ⚠️ 扣完 Σjobs ≤ pop 恒成立（比例不变），不会把状态推进 folk 的 over 分支。
+   * ⚠️ 唯一实现：habitat.build 调它；economy.pay 刻意跳过 'pop' 键（见那里的注释）。 */
+  function consumePop(s, n) {
+    var pop = s.pop || 0;
+    if (!(n > 0) || pop <= 0) return 0;
+    var take = Math.min(n, pop);
+    var ratio = take / pop;
+    var ids = [], total = 0, k, i;
+    for (k in s.jobs) if ((s.jobs[k] || 0) > 0) { ids.push(k); total += s.jobs[k]; }
+    if (total <= 0) { s.pop = pop - take; return take; }   // 全员闲置：直接扣人
+    var dec = {}, acc = 0, fracs = [];
+    for (i = 0; i < ids.length; i++) {
+      var jn = s.jobs[ids[i]] || 0;
+      var ex = jn * ratio;
+      var f = Math.min(jn, Math.floor(ex));
+      dec[ids[i]] = f; acc += f;
+      fracs.push({ id: ids[i], frac: ex - f });
+    }
+    var target = Math.min(total, Math.round(total * ratio));
+    var rem = target - acc;
+    fracs.sort(function (a, b) { return b.frac - a.frac; });
+    for (i = 0; rem > 0 && i < fracs.length; i++) {
+      var id = fracs[i].id;
+      if (dec[id] < (s.jobs[id] || 0)) { dec[id]++; acc++; rem--; }
+    }
+    for (k in dec) if (dec[k] > 0) s.jobs[k] = Math.max(0, (s.jobs[k] || 0) - dec[k]);
+    s.pop = pop - take;
+    return take;
+  }
+
   function build(s, id, emit) {
     var b = buildingById(id);
     if (!b || !unlocked(s, b)) return false;
     if (!needMet(s, b)) return false;
+    /* ERA10 市政（2026-10-20 · 虚境祭坛 `maxLvl:3`）：全仓第一条等级上限。
+     * ⚠️ 拦在这里而不是 UI：autoTick 走的也是 build()，UI 灰按钮只挡手动点击，
+     *    自动建造能一路买到 99 级（挂一晚就废档）。
+     * ⚠️ 上限读建筑条目（不烤进存档）⇒ 将来调高上限对老档立即生效。 */
+    if (b.maxLvl && (s.lvl[id] || 0) >= b.maxLvl) return false;
     var c = SB.economy.costOf(s, id);
     if (!SB.economy.canAfford(s, c)) return false;
     /* 王国潮道（2026-09-30 · 市政《行政部门》解锁2）：等级 ≤ 灯塔等级（规格原文）。
@@ -176,6 +234,10 @@
      * ⚠️ 判定读 s.lvl 而不是建筑定义，灯塔没有等级上限，两边永远同源。 */
     if (id === 'canal' && (s.lvl.canal || 0) + 1 > (s.lvl.lighthouse || 0)) return false;
     SB.economy.pay(s, c);
+    /* ERA10 市政（2026-10-20 · 虚境祭坛）：人口造价在 pay 之后单独结算。
+     * ⚠️ economy.pay 显式跳过 'pop' 键（人口不在 s.res 里，扣它会在存档里造垃圾键）；
+     *    真正扣人只此一处，走 consumePop（按职业占比缩水，不碰人口上限）。 */
+    if (typeof c.pop === 'number' && c.pop > 0) consumePop(s, c.pop);
     s.lvl[id]++;
     /* ⚠️ 这里**没有**「建城堡时把议事厅等级并过去」的转移逻辑——那是被撤回的误读。
    *   城堡 = 议事厅买下工坊升级 `upg_castle` 之后的新名字（render 改显示名），
@@ -232,10 +294,13 @@
      *   礁口巢/珊瑚屋/议事厅那批住房与统治核心随大数据自动买级。 */
     bigdata: ['core'] };
   function autoZoneUnlocked(s, zone) {
-    if (!s || !s.civics) return false;
+    if (!s) return false;
+    /* 星屑商店的一次性先行建造协议：所有分区开关可见，默认仍关闭；
+     * 实际建造继续走 build() 的科技、前置与资源校验。 */
+    if (s.perk && s.perk.earlyAutoBuild > 0) return true;
     var C = SB.CIVICS || [];
     for (var i = 0; i < C.length; i++) {
-      if (!s.civics[C[i].id] || !Array.isArray(C[i].autoBuildZones)) continue;
+      if (!(s.civics && s.civics[C[i].id]) || !Array.isArray(C[i].autoBuildZones)) continue;
       if (C[i].autoBuildZones.indexOf(zone) >= 0) return true;
     }
     /* 科技侧：s.techs 命中 TECH_AUTO_ZONES 即视为该区已授权（modpart 死注释就此修复）。 */

@@ -9,6 +9,7 @@
 
   var S = null;
   var meta = SB.state.loadMeta();
+  var suppressExitSave = false;
   var speed = 1;
   var tab = 'village';
   var dirty = true;
@@ -109,6 +110,7 @@
     st.date = todayKey();
     m.adRebirth = st;
     m.tide = (m.tide || 0) + 1;          // 累计轮回点 +1（与破壳/挑战同账本，跨周目保留）
+    m.tideEarnedTotal = (m.tideEarnedTotal || 0) + 1;
     SB.state.saveMeta(m);
     dirty = true; renderAll();
     log('看广告获得 1 轮回点（今日第 ' + st.count + '/' + max + ' 次，累计 ' + m.tide + '）。');
@@ -134,7 +136,7 @@
      * 旧档（已有跨周目进度）由 loadMeta 迁移补双解锁。 */
     var prev = S;
     S = SB.state.freshRun(true);
-    if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0 };
+    if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now() };
     if (prev && prev.perk) S.perk = Object.assign(SB.state.emptyPerks(), prev.perk);
     SB.state.saveMeta(meta);
     clearLog();
@@ -615,9 +617,9 @@
     if (w > (rankLast.wonder || 0)) entries.push({ key: 'wonder', value: w });
     var c = m.cycle || 0;
     if (c > (rankLast.cycle || 0)) entries.push({ key: 'cycle', value: c });
-    /* 最多轮回点：累计 = 当前余额 + 已花费（tide + spent），单调不减 ⇒ calcType:best 取历史最大。
+    /* 最多轮回点：累计获得量单独记账，兑换往返不会重复计入 ⇒ calcType:best 取历史最大。
      * 入口 4→5 项仍 ≤ submitScores 单次 5 条上限（破壳上报走另一条 5 条专用路径）。 */
-    var td = Math.floor((m.tide || 0) + (m.spent || 0));
+    var td = Math.floor(m.tideEarnedTotal || 0);
     if (td > (rankLast.tide || 0)) entries.push({ key: 'tide', value: td });
     var star = Math.floor((S.res.starExplore || 0));
     if (star > (rankLast.star || 0)) entries.push({ key: 'star', value: star });
@@ -647,9 +649,8 @@
     entries.push({ key: 'wonder', value: countWonders(s) });
     entries.push({ key: 'cycle', value: (m.cycle || 0) + 1 });
     entries.push({ key: 'star', value: s.res.starExplore });   // 星空探索峰值（破壳时该局已结束，取最终累计；calcType:best 自动取历史最大）
-    /* 最多轮回点：此时 meta.tide 已含本局所得（prestige.doBreak 先累加再调本函数），
-     * + 历史已花费 = 累计；calcType:best 取历史最大。占满第 5 条配额。 */
-    entries.push({ key: 'tide', value: Math.floor((m.tide || 0) + (m.spent || 0)) });
+    /* 最多轮回点：累计获得量单独记账，兑出再兑回不改变总获得数。占满第 5 条配额。 */
+    entries.push({ key: 'tide', value: Math.floor(m.tideEarnedTotal || 0) });
     /* 记入定期上报的去重表：破壳刚发过的高值，5 分钟后的定期拍就不会重发同值。 */
     for (var i = 0; i < entries.length; i++) rankLast[entries[i].key] = Math.floor(entries[i].value);
     SB.rank.submitRun(entries, function (done, sent) {
@@ -820,6 +821,7 @@
     var adActive = !!(s.ad && s.ad.on && s.ad.ms > 0);  // 起点若双倍银行在线，整段按覆盖情况吃 2×
     loop.job = {
       s: s, left: secs, total: secs, secs: secs, cap: cap, adActive: adActive,
+      uncountedSecs: Math.max(0, gap - secs),
       before: before, bPop: s.pop, bShell: s.shell,
       bFam: s.famineDeaths, bFrost: s.frostDeaths
     };
@@ -916,24 +918,77 @@
       SB.ui.render.showBreakPanel(report);
       return;
     }
-    var lines = [], any = false, rk = RESS_KEYS(), i, k, d;
+    var lines = [], resourceRows = [], overviewCards = '', incidentRows = '', any = false, rk = RESS_KEYS(), i, k, d;
     for (i = 0; i < rk.length; i++) {
       k = rk[i]; d = j.s.res[k] - j.before[k];
-      if (Math.abs(d) >= 0.5) { lines.push(SB.RESS[k].name + ' ' + (d >= 0 ? '+' : '') + d.toFixed(0)); any = true; }
+      if (Math.abs(d) >= 0.5) {
+        var resourceName = SB.RESS[k].name, resourceDelta = (d >= 0 ? '+' : '') + d.toFixed(0);
+        lines.push(resourceName + ' ' + resourceDelta);
+        resourceRows.push('<div class="offline-resource-row ' + (d >= 0 ? 'is-gain' : 'is-loss') + '">' +
+          '<span class="offline-resource-mark" aria-hidden="true"></span><span class="offline-resource-name">' + resourceName + '</span>' +
+          '<strong>' + resourceDelta + '</strong></div>');
+        any = true;
+      }
     }
-    if (j.s.pop !== j.bPop) { lines.push('族民 ' + j.bPop + '→' + j.s.pop); any = true; }
-    if (j.s.shell !== j.bShell) { lines.push('壳厚 ' + Math.round(j.bShell) + '→' + Math.round(j.s.shell)); any = true; }
-    if (j.s.famineDeaths > j.bFam) { lines.push('饿死 ' + (j.s.famineDeaths - j.bFam)); any = true; }
-    if (j.s.frostDeaths > j.bFrost) { lines.push('冻死 ' + (j.s.frostDeaths - j.bFrost)); any = true; }
-    var summary = '<div class="note">离开期间结算完成：</div><div style="margin:8px 0;line-height:1.9">' +
-      (any ? lines.join('　') : '资源几乎没变（没人干活，或产出被口粮吃光）') + '</div>';
-    log('离线结算：' + (any ? lines.join('，') : '资源几乎没变（没人干活，或产出被口粮吃光）') + '。');
+    if (j.s.pop !== j.bPop) {
+      var popDelta = j.s.pop - j.bPop;
+      lines.push('族民 ' + j.bPop + '→' + j.s.pop);
+      overviewCards += '<article class="offline-stat-card"><span>族民</span><strong>' + j.s.pop + '</strong>' +
+        '<small>离线前 ' + j.bPop + ' <b class="' + (popDelta >= 0 ? 'is-positive' : 'is-negative') + '">' +
+        (popDelta >= 0 ? '+' : '') + popDelta + '</b></small></article>';
+      any = true;
+    }
+    if (j.s.shell !== j.bShell) {
+      var shellDelta = Math.round(j.s.shell) - Math.round(j.bShell);
+      lines.push('壳厚 ' + Math.round(j.bShell) + '→' + Math.round(j.s.shell));
+      overviewCards += '<article class="offline-stat-card"><span>壳厚</span><strong>' + Math.round(j.s.shell) + '</strong>' +
+        '<small>离线前 ' + Math.round(j.bShell) + ' <b class="' + (shellDelta <= 0 ? 'is-positive' : 'is-negative') + '">' +
+        (shellDelta > 0 ? '+' : '') + shellDelta + '</b></small></article>';
+      any = true;
+    }
+    if (!overviewCards) overviewCards = '<div class="offline-stable-card"><span class="offline-stable-mark">✓</span>' +
+      '<div><strong>人口与壳体保持稳定</strong><small>离线期间没有明显变化</small></div></div>';
+    if (j.s.famineDeaths > j.bFam) {
+      var famineDelta = j.s.famineDeaths - j.bFam;
+      lines.push('饿死 ' + famineDelta);
+      incidentRows += '<span class="offline-incident is-warning">口粮不足 · ' + famineDelta + ' 人</span>';
+      any = true;
+    }
+    if (j.s.frostDeaths > j.bFrost) {
+      var frostDelta = j.s.frostDeaths - j.bFrost;
+      lines.push('冻死 ' + frostDelta);
+      incidentRows += '<span class="offline-incident is-cold">冻死 · ' + frostDelta + ' 人</span>';
+      any = true;
+    }
+    var noteRows = '';
+    if (j.uncountedSecs > 0) noteRows += '<div class="offline-footnote">超出单次离线上限的 ' + fmtDur(j.uncountedSecs) + ' 未计入本次结算。</div>';
+    if (j.adActive) noteRows += '<div class="offline-footnote is-boost">双倍加速在离线期间生效，覆盖时段已按 2× 结算。</div>';
+    var resourceContent = resourceRows.length ? resourceRows.join('') :
+      '<div class="offline-empty-state">资源几乎没有变化</div>';
+    var summaryText = any ? lines.join('，') : '资源几乎没变（没人干活，或产出被口粮吃光）';
+    var summary = '<div class="offline-report">' +
+      '<header class="offline-report-hero"><div class="offline-report-emblem" aria-hidden="true"><span>✦</span></div>' +
+      '<div class="offline-report-heading"><span class="offline-report-kicker">ABYSSAL LOG · 离线记录</span>' +
+      '<h2>离线结算</h2><p>你离开期间，文明仍在持续运转</p></div>' +
+      '<div class="offline-duration-card"><span>离线时长</span><strong>' + fmtDur(j.secs) + '</strong></div></header>' +
+      '<div class="offline-report-scroll"><section class="offline-report-section"><div class="offline-section-heading">' +
+      '<div><span class="offline-section-kicker">WORLD STATUS</span><h3>世界变化</h3></div>' +
+      '<span class="offline-report-badge">' + (any ? '结算完成' : '平稳度过') + '</span></div>' +
+      '<div class="offline-stat-grid">' + overviewCards + '</div>' +
+      (incidentRows ? '<div class="offline-incidents">' + incidentRows + '</div>' : '') + '</section>' +
+      '<section class="offline-report-section"><div class="offline-section-heading">' +
+      '<div><span class="offline-section-kicker">RESOURCE FLOW</span><h3>资源变化</h3></div>' +
+      '<span class="offline-resource-count">' + resourceRows.length + ' 项</span></div>' +
+      '<div class="offline-resource-list">' + resourceContent + '</div></section>' + noteRows +
+      '</div></div>';
+    log('离线结算：' + summaryText + '。');
     /* 离线闸门第二阶段：把「补算中」换成结算面板，只有点「继续」才解锁界面
      * （否则玩家边补算边点建造，就会看到材料飞快被灌满）。科研 / 宗教开门弹窗
      * 顺延到关掉本面板之后，否则会被本面板覆盖、玩家看不到。 */
     SB.ui.render.showOfflineModal({
       title: '离线结算',
       body: summary,
+      summary: true,
       ok: '继续',
       onOk: function () { maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); }
     });
@@ -951,8 +1006,91 @@
     return o;
   }
 
+  /* 导入前先完整验证，并在同一个同步事务里保留现有原始存档。 */
+  function installImportedSave(bundle) {
+    if (!bundle || bundle.format !== 'shellbreak-save' || bundle.version !== 1 || !bundle.save)
+      throw new Error('存档文件格式或版本不受支持。');
+    var incomingMeta = SB.state.normalizeMeta(bundle.save.meta);
+    var incomingRunRaw = bundle.save.run;
+    if (!incomingRunRaw || typeof incomingRunRaw !== 'object' || Array.isArray(incomingRunRaw)
+        || !incomingRunRaw.res || typeof incomingRunRaw.res !== 'object'
+        || !incomingRunRaw.lvl || typeof incomingRunRaw.lvl !== 'object'
+        || !incomingRunRaw.jobs || typeof incomingRunRaw.jobs !== 'object'
+        || typeof incomingRunRaw.shell !== 'number' || !isFinite(incomingRunRaw.shell))
+      throw new Error('周目存档缺少必要数据，未修改本地存档。');
+    var oldMeta = meta, incomingRun;
+    try { meta = incomingMeta; incomingRun = SB.state.migrateRun(incomingRunRaw); }
+    finally { meta = oldMeta; }
+    var serializedMeta = JSON.stringify(incomingMeta), serializedRun = JSON.stringify(incomingRun);
+    if (!root.localStorage) throw new Error('浏览器本地存储不可用。');
+    var oldMetaRaw = root.localStorage.getItem(CFG.SAVE_KEY);
+    var oldRunRaw = root.localStorage.getItem(CFG.RUN_KEY);
+    try {
+      /* 必须先备份两份旧值；任一备份失败时不动主存档。 */
+      if (oldMetaRaw !== null) root.localStorage.setItem(CFG.SAVE_BACKUP_KEY, oldMetaRaw);
+      if (oldRunRaw !== null) root.localStorage.setItem(CFG.RUN_BACKUP_KEY, oldRunRaw);
+    } catch (backupError) {
+      throw new Error('无法先备份当前存档，导入已取消：' + (backupError.message || backupError));
+    }
+    try {
+      root.localStorage.setItem(CFG.SAVE_KEY, serializedMeta);
+      root.localStorage.setItem(CFG.RUN_KEY, serializedRun);
+    } catch (writeError) {
+      /* 回滚尽力恢复；原始值仍保存在 backup key，便于手动救援。 */
+      try {
+        if (oldMetaRaw === null) root.localStorage.removeItem(CFG.SAVE_KEY);
+        else root.localStorage.setItem(CFG.SAVE_KEY, oldMetaRaw);
+        if (oldRunRaw === null) root.localStorage.removeItem(CFG.RUN_KEY);
+        else root.localStorage.setItem(CFG.RUN_KEY, oldRunRaw);
+      } catch (rollbackError) {}
+      throw new Error('导入写入失败，已尝试恢复当前存档：' + (writeError.message || writeError));
+    }
+    suppressExitSave = true;
+    root.location.reload();
+    return true;
+  }
+
+  function restoreRawSave(raw) {
+    if (!raw || typeof raw !== 'object'
+        || !(raw.meta === null || typeof raw.meta === 'string')
+        || !(raw.run === null || typeof raw.run === 'string')
+        || (raw.meta === null && raw.run === null))
+      throw new Error('原始救援包无效，未修改本地存档。');
+    if (!root.localStorage) throw new Error('浏览器本地存储不可用。');
+    var oldMetaRaw = root.localStorage.getItem(CFG.SAVE_KEY);
+    var oldRunRaw = root.localStorage.getItem(CFG.RUN_KEY);
+    try {
+      if (oldMetaRaw !== null) root.localStorage.setItem(CFG.SAVE_BACKUP_KEY, oldMetaRaw);
+      if (oldRunRaw !== null) root.localStorage.setItem(CFG.RUN_BACKUP_KEY, oldRunRaw);
+    } catch (backupError) {
+      throw new Error('无法先备份当前原始存档，恢复已取消：' + (backupError.message || backupError));
+    }
+    try {
+      if (raw.meta === null) root.localStorage.removeItem(CFG.SAVE_KEY);
+      else root.localStorage.setItem(CFG.SAVE_KEY, raw.meta);
+      if (raw.run === null) root.localStorage.removeItem(CFG.RUN_KEY);
+      else root.localStorage.setItem(CFG.RUN_KEY, raw.run);
+    } catch (writeError) {
+      try {
+        if (oldMetaRaw === null) root.localStorage.removeItem(CFG.SAVE_KEY);
+        else root.localStorage.setItem(CFG.SAVE_KEY, oldMetaRaw);
+        if (oldRunRaw === null) root.localStorage.removeItem(CFG.RUN_KEY);
+        else root.localStorage.setItem(CFG.RUN_KEY, oldRunRaw);
+      } catch (rollbackError) {}
+      throw new Error('恢复原始存档失败，现有数据已另存到本机备份：' + (writeError.message || writeError));
+    }
+    suppressExitSave = true;
+    root.location.reload();
+    return true;
+  }
+
   function boot() {
     var saved = SB.state.loadRun();
+    var loadProblems = SB.state.loadProblems();
+    if (loadProblems.meta || loadProblems.run) {
+      if (SB.saveTransfer && SB.saveTransfer.showLoadProblem) SB.saveTransfer.showLoadProblem(loadProblems);
+      return; /* 解析失败时绝不 startRun/saveMeta 覆盖原始数据。 */
+    }
     if (saved && (!saved.broken || saved.shellOpened || saved.breakSettled) && saved.shell !== undefined) {
       /* 启动时的离线补算：存档里记了墙钟时间戳 _ts（snapshot 写入），
        * 这一次性补完（沿用 economy.tick 同一条路径），随后 _lastWall 对齐到「现在」
@@ -963,6 +1101,11 @@
       delete saved._ts;
       if (typeof ts === 'number' && ts > 0) loop._lastWall = ts;
       resumeRun(saved);
+    } else if (saved) {
+      var invalidRun = { message: '本周目状态不完整，未自动创建新周目。', raw: null };
+      if (SB.saveTransfer && SB.saveTransfer.showLoadProblem)
+        SB.saveTransfer.showLoadProblem({ meta: null, run: invalidRun });
+      return;
     } else {
       startRun();
     }
@@ -983,41 +1126,7 @@
       if (S.shell <= 0 && !S.broken && !S.breakSettled && S.shellOpened) settleBreak();
     };
     document.getElementById('btnReset').onclick = function () {
-      var t = S ? (S.t / 3600).toFixed(2) + ' 小时 · 峰值族民 ' + S.peak + ' · 建筑 ' + SB.economy.lvlSum(S) + ' 级' : '';
-      /* 结算分流（2026-10-05 拍板）：本局研究完《神学》⇒ 走真正轮回结算 doBreak
-       * （发点 + 并入旧日遗产账本）；未研究 ⇒ 仅软重置 resetRun，不结算、不发点。
-       * 分流判据与 prestige.qualified 同源（本局 civics.theology 真值），不另写第二份。 */
-      var qual = SB.game.routeReset(S) === 'break';
-      var rep = qual ? SB.prestige.breakReport(S) : null;
-      var gained = rep ? rep.tidePoints : 0;
-      /* 旧日遗产入账预览：与 doBreak ②③④⑤ 完全同口径（剩余信仰 / 未入藏奇观 / 完整件数），
-       * 只做展示不落账——真正的写入只发生在 onOk 的 doBreak 里，这里不产生第二份真相。 */
-      var faithAmt = 0, artN = 0, steleN = 0, newW = 0;
-      if (qual && S) {
-        faithAmt = Math.max(0, (S.res && S.res.faith) || 0);
-        artN = Math.floor(Math.max(0, (S.res && S.res.artwork) || 0));
-        steleN = Math.floor(Math.max(0, (S.res && S.res.tidalRecord) || 0));
-        var meta0 = state();
-        if (S.wonders && meta0.memorialWonders)
-          for (var wid in S.wonders)
-            if (S.wonders[wid] && !meta0.memorialWonders[wid]) newW++;
-      }
-      SB.ui.render.confirmPanel({
-        title: qual ? '轮回（结算并发放轮回点）？' : '重开本周目？',
-        body: '<div class="warnbox">当前这局的进度会全部作废：' + t + '。</div>' +
-          (qual
-            ? '<div class="note">本次轮回将结算并发放：<b>' + gained.toFixed(2) + ' 轮回点</b>' +
-              '（按峰值族民 + 建筑纪元 + 工坊解锁项 + 破壳进度计算）。</div>' +
-              '<div class="note">旧日遗产入账：剩余信仰 <b>' + SB.economy.fmtAmt(faithAmt) + '</b>' +
-              '（并入跨周目总量，按数量级给全产加成）；纪念奇观新入藏 <b>' + newW + '</b> 座' +
-              '（每座 +1% 科技/市政获取）；旧日艺术品 <b>' + artN + '</b> 件（固定市政点/秒）；' +
-              '旧日潮纹碑石 <b>' + steleN + '</b> 件（固定科技点/秒）。</div>' +
-              '<div class="note">已持有的跨周目资产（轮回点、破层层级、已购增益、科技记录）继续保留。周目计数会 +1。</div>'
-            : '<div class="note">（未研究《神学》）此次仅重开本周目：不结算、不发放轮回点、不入账旧日遗产。</div>' +
-              '<div class="note">已持有的跨周目资产继续保留。周目计数会 +1。</div>'),
-        ok: qual ? '轮回' : '重开',
-        onOk: function () { if (qual) SB.prestige.doBreak(S, emit); else SB.game.resetRun(); }
-      });
+      askResetRun();
     };
     document.getElementById('btnWipe').onclick = function () {
       SB.ui.render.confirmPanel({
@@ -1060,12 +1169,56 @@
     };
     /* 关标签页 / 刷新前立刻落盘：有 5 秒节流在，玩家在这一窗口里刷新就会丢最后几秒，
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */
-    function flush() { if (S && !S.broken) SB.state.saveRun(snapshot(S)); }
+    function flush() { if (!suppressExitSave && S && !S.broken) SB.state.saveRun(snapshot(S)); }
     if (root.addEventListener) root.addEventListener('pagehide', flush);
     if (document && document.addEventListener) document.addEventListener('visibilitychange', function () {
       if (document.hidden) flush();
     });
     if (root.setInterval) root.setInterval(loop, 100);
+  }
+
+  /* ERA10（2026-10-20）：轮回确认流程 —— 顶栏「重置/轮回」钮与戴森球通关弹窗的「立即轮回」钮
+   * **共用这一份**（确认面板 + 结算预览 + doBreak 分流），不写第二套。
+   * ⚠️ 必须住在模块作用域：下面 SB.game 的导出块在 boot() 之外，函数若留在 boot() 里，
+   *    `askReset: askResetRun` 在**脚本加载时**就抛 ReferenceError（2026-10-20 首跑 e2e 撞到，
+   *    e2e 报「启动即抛错」，整局回归一条都没跑）。 */
+  function askResetRun() {
+    var S0 = SB.game.run();
+    var t = S0 ? (S0.t / 3600).toFixed(2) + ' 小时 · 峰值族民 ' + S0.peak + ' · 建筑 ' + SB.economy.lvlSum(S0) + ' 级' : '';
+    /* 结算分流（2026-10-05 拍板）：本局研究完《神学》⇒ 走真正轮回结算 doBreak
+     * （发点 + 并入旧日遗产账本）；未研究 ⇒ 仅软重置 resetRun，不结算、不发点。
+     * 分流判据与 prestige.qualified 同源（本局 civics.theology 真值），不另写第二份。 */
+    var qual = SB.game.routeReset(S0) === 'break';
+    var rep = qual ? SB.prestige.breakReport(S0) : null;
+    var gained = rep ? rep.tidePoints : 0;
+    /* 旧日遗产入账预览：与 doBreak ②③④⑤ 完全同口径（剩余信仰 / 未入藏奇观 / 完整件数），
+     * 只做展示不落账——真正的写入只发生在 onOk 的 doBreak 里，这里不产生第二份真相。 */
+    var faithAmt = 0, artN = 0, steleN = 0, newW = 0;
+    if (qual && S0) {
+      faithAmt = Math.max(0, (S0.res && S0.res.faith) || 0);
+      artN = Math.floor(Math.max(0, (S0.res && S0.res.artwork) || 0));
+      steleN = Math.floor(Math.max(0, (S0.res && S0.res.tidalRecord) || 0));
+      var meta0 = state();
+      if (S0.wonders && meta0.memorialWonders)
+        for (var wid in S0.wonders)
+          if (S0.wonders[wid] && !meta0.memorialWonders[wid]) newW++;
+    }
+    SB.ui.render.confirmPanel({
+      title: qual ? '轮回（结算并发放轮回点）？' : '重开本周目？',
+      body: '<div class="warnbox">当前这局的进度会全部作废：' + t + '。</div>' +
+        (qual
+          ? '<div class="note">本次轮回将结算并发放：<b>' + gained.toFixed(2) + ' 轮回点</b>' +
+            '（按峰值族民 + 建筑纪元 + 工坊解锁项 + 破壳进度计算）。</div>' +
+            '<div class="note">旧日遗产入账：剩余信仰 <b>' + SB.economy.fmtAmt(faithAmt) + '</b>' +
+            '（并入跨周目总量，按数量级给全产加成）；纪念奇观新入藏 <b>' + newW + '</b> 座' +
+            '（每座 +1% 科技/市政获取）；旧日艺术品 <b>' + artN + '</b> 件（固定市政点/秒）；' +
+            '旧日潮纹碑石 <b>' + steleN + '</b> 件（固定科技点/秒）。</div>' +
+            '<div class="note">已持有的跨周目资产（轮回点、破层层级、已购增益、科技记录）继续保留。周目计数会 +1。</div>'
+          : '<div class="note">（未研究《神学》）此次仅重开本周目：不结算、不发放轮回点、不入账旧日遗产。</div>' +
+            '<div class="note">已持有的跨周目资产继续保留。周目计数会 +1。</div>'),
+      ok: qual ? '轮回' : '重开',
+      onOk: function () { if (qual) SB.prestige.doBreak(S0, emit); else SB.game.resetRun(); }
+    });
   }
 
   SB.game = {
@@ -1075,6 +1228,9 @@
     startRun: startRun, nextCycle: nextCycle, stay: stay, recordLaunch: recordLaunch,
     syncSpacecraft: syncSpacecraft,
     resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave, settleBreak: settleBreak,
+    /* ERA10（2026-10-20）：轮回确认流程导出——戴森球通关弹窗的「立即轮回」钮复用
+     * （与顶栏「重置/轮回」按钮同一份 confirmPanel + doBreak 逻辑，不写第二套）。 */
+    askReset: askResetRun,
     /* 离线补算核心函数暴露为调试/测试入口（纯接口，逻辑仅在上面定义处）。
      * 供 sim/_probe_offline_ad.mjs 等探针直接驱动离线补算、复用生产路径，
      * 不在任何 UI 调用链上，不影响在线行为。 */
@@ -1084,6 +1240,7 @@
     maybeReligionPopup: maybeReligionPopup,
     maybeGovNamingPopup: maybeGovNamingPopup, confirmGovName: confirmGovName,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
+    installImportedSave: installImportedSave, restoreRawSave: restoreRawSave,
     showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); },
     showBreakAnimation: function (r) { SB.ui.render.showBreakAnimation(r); },
     submitRankOnBreak: submitRankOnBreak,

@@ -926,6 +926,57 @@ console.log('\n=== 工坊：青铜工具 ===');
         Math.abs(cs.hydro - 6 * (SB.UNIT.hydroShopLvl || 0)) < 1e-9 &&
         Math.abs(cs.metal - cs.hydro * (SB.UNIT.steelMetal || 0) * e) < 1e-9,
         'hydro=' + cs.hydro + ' metal=' + cs.metal);
+      s.lvl.biomatlab = 2;
+      check('生物材料研究所参数：每级耗藻食 100/秒，产 θ 0.0625/秒，其余输入不变',
+        SB.BLD.biomatlabKelp === 100 && SB.BLD.biomatlabIron === 4 &&
+        SB.BLD.biomatlabTi === 2 && SB.BLD.biomatlabU === 0.05 &&
+        SB.BLD.biomatlabOutRate === 0.0625 && SB.BLD.biomatlabHydro === 3,
+        JSON.stringify({ kelp: SB.BLD.biomatlabKelp, iron: SB.BLD.biomatlabIron,
+          titanium: SB.BLD.biomatlabTi, uranium: SB.BLD.biomatlabU,
+          theta: SB.BLD.biomatlabOutRate, hydro: SB.BLD.biomatlabHydro }));
+      const cb = SB.economy.consumeRates(s, 'biomatlab');
+      check('生物材料研究所显示四种生产原料及热液能额定消耗',
+        Math.abs(cb.kelp - 200 * e) < 1e-9 && Math.abs(cb.iron - 8 * e) < 1e-9 &&
+        Math.abs(cb.titanium - 4 * e) < 1e-9 && Math.abs(cb.uranium - 0.1 * e) < 1e-9 &&
+        cb.hydro === 6,
+        JSON.stringify(cb));
+      const consumeMeta = SB.ui.consumeMeta;
+      check('生物材料研究所消耗展示包含藻食、精铁、钛、铀和热液能',
+        JSON.stringify(consumeMeta.BUILDING_CONSUME.biomatlab) ===
+          JSON.stringify(['kelp', 'iron', 'titanium', 'uranium', 'hydro']) &&
+        ['kelp', 'iron', 'titanium', 'uranium', 'hydro'].every(k => !!consumeMeta.CONSUME_LABEL[k]),
+        JSON.stringify(consumeMeta.BUILDING_CONSUME.biomatlab));
+      s.res.kelp = 1000; s.res.iron = 1000; s.res.titanium = 1000; s.res.uranium = 1000;
+      const thetaBase = SB.economy.thetaRate(s);
+      s.techs.nanotech = true; s.techVer = (s.techVer | 0) + 1;
+      const thetaNano = SB.economy.thetaRate(s);
+      s.techs.nanotech = false; s.techVer = (s.techVer | 0) + 1;
+      check('θ产量按 0.0625/级计算；纳米技术仅乘 1.1×1.3',
+        Math.abs(thetaBase - 0.125 * SB.economy.globalMul(s)) < 1e-9 &&
+        Math.abs(thetaNano - thetaBase * 1.1 * 1.3) < 1e-9,
+        '未研究=' + thetaBase + ' 纳米=' + thetaNano);
+      const thetaIn = SB.economy.thetaInputRates(s);
+      const runningRates = SB.economy.rates(s);
+      s.biomatlabStop = 2;
+      const stoppedRates = SB.economy.rates(s);
+      check('顶栏原料净速率会扣除研究所实际开工消耗（与启停前后差值一致）',
+        Math.abs((stoppedRates.kelp - runningRates.kelp) - thetaIn.kelp) < 1e-9 &&
+        Math.abs((stoppedRates.iron - runningRates.iron) - thetaIn.iron) < 1e-9 &&
+        Math.abs((stoppedRates.titanium - runningRates.titanium) - thetaIn.titanium) < 1e-9 &&
+        Math.abs((stoppedRates.uranium - runningRates.uranium) - thetaIn.uranium) < 1e-9,
+        JSON.stringify({ inputs: thetaIn, running: {
+          kelp: runningRates.kelp, iron: runningRates.iron,
+          titanium: runningRates.titanium, uranium: runningRates.uranium
+        } }));
+      s.res.thetaMetal = 0; s.biomatlabStop = 2;
+      const cbStopped = SB.economy.consumeRates(s, 'biomatlab');
+      const thetaStopped = SB.economy.thetaFlow(s, 1);
+      const stoppedHydro = SB.economy.hydroAlloc(s, 1);
+      check('停用全部生物材料研究所后原料/热液能消耗与θ产出都归零',
+        cbStopped.kelp === 0 && cbStopped.iron === 0 && cbStopped.titanium === 0 &&
+        cbStopped.uranium === 0 && cbStopped.hydro === 0 && thetaStopped === 0 && stoppedHydro.labDraw === 0,
+        JSON.stringify({ consume: cbStopped, theta: thetaStopped, hydro: stoppedHydro.labDraw }));
+      s.biomatlabStop = 0;
       s.furnaceStop = 10; s.hydroshopStop = 6; s.turbineStop = 4;
       const cf0 = SB.economy.consumeRates(s, 'furnace');
       const cs0 = SB.economy.consumeRates(s, 'hydroshop');

@@ -10,16 +10,19 @@
   var coralFarmMul = P.coralFarmMul, coralPactMul = P.coralPactMul;
   var cultureRate = P.cultureRate, faithRate = P.faithRate, foodRate = P.foodRate;
   var foodUse = P.foodUse, fuelRate = P.fuelRate, furnaceBoostMul = P.furnaceBoostMul;
-  var gatherMul = P.gatherMul, globalMul = P.globalMul, ironFlow = P.ironFlow;
+  var gatherMul = P.gatherMul, globalMul = P.globalMul, globalMulX = P.globalMulX, ironFlow = P.ironFlow;
   var isCold = P.isCold, libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
   var mineTaxMul = P.mineTaxMul, obsSciMul = P.obsSciMul, steelRate = P.steelRate;
   var toolMul = P.toolMul, upgSum = P.upgSum, warmBurningNow = P.warmBurningNow;
   var warmEff = P.warmEff;
+  /* ERA10 市政（2026-10-20）：发射场读数与 tick 同源（三座合计等级 / 节律 / 每级耗流）。 */
+  var launchLvl = P.launchLvl, launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
+  var starDysonCostMul = P.starDysonCostMul;
 
   function rates(s) {
     var lg = SB.prestige ? SB.prestige.legacy() : null;
     var cold = isCold(s) ? coldSeasonMul(s) : 1;
-    var j = s.jobs;
+    var j = SB.folk.effJobs(s);   // ERA8 B7：合并人类 + 机器人×1.2（剔除 scribe/scholar）
     /* 传 dt=1，即「一秒窗口」的流量。tick 传的是真实 dt，同一个函数两种窗口，
      * 于是「面板显示的速率」天然等于「实际每秒结算」，不会各写一套公式。 */
     var fc = ironFlow(s, cold, 1);
@@ -53,6 +56,8 @@
     /* ⚠️ 一次算好热液能三个数（产钢 / 净消耗 / 总生产）：steelRate 内部会跑 hydroAlloc，
      *    在 return 里连写三次等于每秒多跑两遍流分配，而 rates() 本来就重。 */
     var _sr = steelRate(s);
+    /* 研究所原料消耗与 tick 共用相同库存开工率，净速率不能只显示生产端。 */
+    var _thetaIn = SB.economy.thetaInputRates(s);
     /* ⚠️ 2026-10-16 用户拍板：砂矿坑（鱼骨/深层矿井）建筑等级对**所有矿工/采石工产出**生效，
      *   含暖石、钛以及以后新增的矿工伴生矿物（此前只乘了 stone/silt，暖石/钛被排除）。
      *   本乘子必须与 economy-tick.js 的 _siltPit 同值同源，保证面板===结算。
@@ -60,9 +65,33 @@
     var mineBonus = 1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus;
     /* ERA8 市政（2026-10-18）：星际物流网卡 planetOutMul ×1.3 罩异星建筑（瑞亚/泰坦）各行，装卡才 >1。
      *   必须在 return 对象**之前**声明（对象字面量里不能写 var——上一次落点就是踩了这个）。 */
-    var _planetMulR = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1);
+    var _planetMulR = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1)
+      * (1 + (Tr ? Tr.alienOutMul : 0));   // ERA9 行星际快速物流：异星建筑产出 +20%（与星际物流网卡 ×1.3 加算）
+    /* ERA9（2026-10-19）：欧罗巴发射场库存耗料净速率（strongProp/thinafilm），与 tick 2f 同判据
+     *   （hydro 满供 + 库存够才扣）。_sr.europaRate 即 hydroAlloc 的 europaRate（dt=1），与 tick 同源。
+     * ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」）：节点模式（launchMode='node' 且已完成
+     *   《绝热材料》）耗料换成 1 强工质引擎 + 1 θ薄膜 + 3 钛合金板 /秒/级，并多一项 tiplate；
+     *   帆/节点产出速率（sunSailRate / dysonNodeRate）按「N 级并行 ÷ 节律」显示。
+     *   ⚠️ 本段必须与 tick 2f 逐字同构：模式门（科技门）、三项耗料量、满供判据（含 tiplate）、
+     *      节律（CFG.LAUNCH_CYCLE + Tr.launchCycle，矢量控制 −2s）。漏一路就是面板撒谎。 */
+    var _elR = launchLvl(s);
+    var _nodeR = (s.launchMode === 'node' && !!(s.techs && s.techs.adiabatic));
+    var _cycR = launchCycleOf(s);
+    var _elHydNeedR = _elR * launchHydroPer(s);
+    var _dysonCostMulR = _nodeR ? starDysonCostMul(s) : 1;
+    var _elSpUnitR = _nodeR ? _dysonCostMulR : 0.10, _elTfUnitR = _nodeR ? _dysonCostMulR : 0.10, _elTpUnitR = _nodeR ? 3 * _dysonCostMulR : 0;
+    var _elRunR = (_sr.europaRate >= _elHydNeedR - 1e-6)
+      && (s.res.strongProp || 0) >= _elR * _elSpUnitR && (s.res.thinafilm || 0) >= _elR * _elTfUnitR
+      && (!_elTpUnitR || (s.res.tiplate || 0) >= _elR * _elTpUnitR);
+    var _elSpRate = _elRunR ? _elR * _elSpUnitR : 0;
+    var _elTfRate = _elRunR ? _elR * _elTfUnitR : 0;
+    var _elTpRate = _elRunR ? _elR * _elTpUnitR : 0;
+    /* 产出速率（/秒）：满供满料时 = 等级 ÷ 节律（tick 累加器 dt×N ÷ cyc 的连续口径）。 */
+    var _elOutRate = _elRunR ? _elR / _cycR : 0;
+    var _elSailRate = _nodeR ? 0 : _elOutRate;
+    var _elNodeRate = _nodeR ? _elOutRate : 0;
     return {
-      kelp:    foodRate(s, cold, relief) - foodUse(s) + (cv ? (cv.kelp || 0) : 0),
+      kelp:    foodRate(s, cold, relief) - foodUse(s) + (cv ? (cv.kelp || 0) : 0) - _thetaIn.kelp,
       /* ⚠️ 2026-09-27 删骨材：这一项原先还减 `bc`（工坊把珊瑚转骨材那一笔）。
        *    那条加工线整体作废 ⇒ 珊瑚再没有加工消耗，净额就是采集者的产出。
        *    ⚠️ 别顺手把变量 `bc` 加回来——它已经被一起删了，加回引用会直接 ReferenceError。 */
@@ -71,7 +100,7 @@
        *    乘在珊瑚匠这一行、与工具乘区**独立相乘** —— 它不是被删掉的 gatherMul 全局轴。 */
       coral:   (j.coralwright || 0) * SB.UNIT.coral
                  * gatherMul(s) * toolMul(s, 'coralwright') * coralFarmMul(s) * coralPactMul(s)
-                 * cold * globalMul(s) * SOCIAL.companyMul(s, 'coral'),
+                 * cold * globalMulX(s) * SOCIAL.companyMul(s, 'coral'),
       /* 与 tick 同源：金属只来自矿工，且同样吃 siltMul（砂矿坑加成）。tick 那边
        * 把 siltpit 自动产出删了之后，这里若还留着「+ lvl.siltpit × SB.UNIT.silt」，
        * 面板就会凭空多报一份金属——「面板撒谎」家族的标准成因（tick 路 === 面板路）。 */
@@ -83,31 +112,45 @@
                     /* ERA7：自动化钻探（upg_autodrill）每级 +100%，受 s.autoDrillOn 开关——与 tick 同式。 */
                     + ((s.autoDrillOn !== false && s.upgrades && s.upgrades.upg_autodrill) || 0))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
-                 * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s) * mineTaxMul(s)
+                 * gatherMul(s) * toolMul(s, 'miner') * cold * globalMulX(s) * mineTaxMul(s)
                  * (SB.wonder ? SB.wonder.mineMul(s) : 1) - fc * (Tr ? Tr.bldEff : 1),
       /* ⚠️ 2026-09-30 ERA4 · 钛（深层矿井 upg_deepmine 上线后才有产出）：
        *    与上面 silt/warmstone 同源同式（同一批 gatherMul・toolMul(miner)・cold・globalMul），
        *    只是多一道「装了深层矿井才产」的门。装的是**买断升级**（s.upgrades），不是建筑等级。 */
-      titanium: (s.upgrades && s.upgrades.upg_deepmine)
+      titanium: ((s.upgrades && s.upgrades.upg_deepmine)
                  ? (j.miner || 0) * SB.UNIT.titanium * mineBonus
-                   * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s)
+                   * gatherMul(s) * toolMul(s, 'miner') * cold * globalMulX(s)
                    * (SB.wonder ? SB.wonder.mineMul(s) : 1)
                    * (1 + (Tr ? Tr.titaniumMul : 0))
-                 : 0,
+                 : 0)
+                 /* ERA9（2026-10-19）：马尔斯工造中心每级 +2 钛/秒（与 tick 的 mars 块逐字同构，含星际物流网乘区）。 */
+                 + (s.lvl.mars_workshop || 0) * (SB.BLD.marsTitanium || 0) * globalMulX(s) * _planetMulR
+                 - _thetaIn.titanium,
+      /* ERA9（2026-10-19）：马尔斯工造中心每级 +3 钛金板件/秒（craft 资源，无上限，与 tick 同式相加）。
+         ERA10（2026-10-20）：节点模式多扣 3 钛合金板/秒/级（_elTpRate，与 tick 2f 同判据）。 */
+      tiplate:  (s.lvl.mars_workshop || 0) * (SB.BLD.marsTiplate || 0) * globalMulX(s) * _planetMulR - _elTpRate,
+      /* ERA9（2026-10-19）：欧罗巴发射场每 s 耗 strongProp/thinafilm（库存，与 tick 2f 同判据）；断料/断流时 0（面板===结算）。
+         ERA10（2026-10-20）：节点模式再多耗 tiplate（3/秒/级）；sunSailRate/dysonNodeRate 为
+         当前模式的产出速率（/秒，满供满料才非 0）——戴森面板与发射场建筑行读这两键。 */
+      strongProp: -_elSpRate,
+      thinafilm: -_elTfRate,
+      sunSailRate: _elSailRate,
+      dysonNodeRate: _elNodeRate,
       /* ERA7（2026-10-17 · spec §2）：铀 —— 与 tick 的 uranium 行逐字同构（同一批
        *   mineBonus・gatherMul・toolMul・cold・globalMul），门=科技 autodrill（面板路与结算路同源）。 */
       uranium: ((s.techs && s.techs.autodrill)
                  ? (j.miner || 0) * SB.UNIT.uranium * mineBonus
-                   * gatherMul(s) * toolMul(s, 'miner') * cold * globalMul(s)
+                   * gatherMul(s) * toolMul(s, 'miner') * cold * globalMulX(s)
                    * (SB.wonder ? SB.wonder.mineMul(s) : 1)
                  : 0)
-      /* ERA8：瑞亚星矿井每级 +0.005 铀/秒（与 tick 的 rheamine 铀行同式相加；含星际物流网乘区）。 */
-               + (s.lvl.rheamine || 0) * (SB.BLD.rheamineUranium || 0) * globalMul(s) * _planetMulR,
+      /* ERA8：瑞亚星矿井每级 +0.25 铀/秒（与 tick 的 rheamine 铀行同式相加；含星际物流网乘区）。 */
+               + (s.lvl.rheamine || 0) * (SB.BLD.rheamineUranium || 0) * globalMulX(s) * _planetMulR
+               - (s.lvl.fissionplant || 0) * (SB.BLD.fissionUranium || 0) - _thetaIn.uranium,
       /* ERA8（2026-10-18 · spec §4 瑞亚星矿井）：石梁/硬化珊瑚行，与 tick 的 rheamine 块
        *   逐字同构（吃 globalMul + 星际物流网乘区）。⚠️ 这两项此前 rates 无键（只能工坊造、速率恒 0），
        *   矿井上线后必须有键，否则 renderRes 拿到的 rate 是 undefined（面板撒谎家族）。 */
-      stoneBeam:  (s.lvl.rheamine || 0) * (SB.BLD.rheamineBeam || 0) * globalMul(s) * _planetMulR,
-      hardCoral:  (s.lvl.rheamine || 0) * (SB.BLD.rheamineCoral || 0) * globalMul(s) * _planetMulR,
+      stoneBeam:  (s.lvl.rheamine || 0) * (SB.BLD.rheamineBeam || 0) * globalMulX(s) * _planetMulR,
+      hardCoral:  (s.lvl.rheamine || 0) * (SB.BLD.rheamineCoral || 0) * globalMulX(s) * _planetMulR,
       /* stone / warmstone：与 tick 同源（同一个 gatherMul・cold 乘子）。
        * ⚠️ 暖石是矿工**伴生**产物（唯一来源 = 矿工人数 × 矿工乘子），没有别的建筑单独产它；
        *    2026-10-16 起**也吃砂矿坑等级加成**（mineBonus，与 stone/silt 同式）——矿脉设施现放大一切
@@ -129,7 +172,7 @@
                  * (1 + upgSum(s, 'mineWarm'))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
                  * gatherMul(s) * toolMul(s, 'miner') * cold
-                 * globalMul(s) * (1 + (Tr ? Tr.warmMul : 0)) * mineTaxMul(s)
+                 * globalMulX(s) * (1 + (Tr ? Tr.warmMul : 0)) * mineTaxMul(s)
                  * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)
                  * (SB.wonder ? SB.wonder.mineMul(s) : 1)
                  - (warmBurningNow(s) ? SB.CFG.WARM_RATE : 0) - fc * ((Tr ? Tr.bldEff : 1)) * warmEff(s)
@@ -137,8 +180,9 @@
       /* ⚠️ `iron` 记的是**消耗掉的原料份数**，不是产出的精铁量 —— 沿用原有口径。
        *    铁是「一进一出」的中间资源，净额可能比看起来还负（这里没有把金属那一侧的
        *    消耗减掉，与改造之前一致）。改这一行前先读铁器产出那段的量纲注。 */
-      iron:    fc * globalMul(s) * (1 + upgSum(s, 'ironBonus')) * furnaceBoostMul(s)
-        * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0)),
+      iron:    fc * globalMulX(s) * (1 + upgSum(s, 'ironBonus')) * furnaceBoostMul(s) * P.smeltingOutMul(s)
+        * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0))
+        - _thetaIn.iron,
       /* ERA3 热液能系统（2026-10-05 flow 模型）：steelRate 非变异版，与 tick 的 steelFlow 同式（dt=1）。
        *   steel = 工坊实际产钢速率；hydro = 本 tick **实际消耗**（工坊吃 + 钻机吃），作顶栏速率行（−M/s）。
        *   ⚠️ 顶栏热液能**主数**是 s.res.hydro（tick 写的供给快照），速率行才是这里的消耗 —— 二者分工见 render.js。 */

@@ -10,7 +10,7 @@
     var lg = SB.prestige.legacy();
     var h = '<section class="meta-overview"><div class="meta-balance"><span>轮回点余额</span>' +
       '<strong>' + m.tide.toFixed(2) + '</strong><small>跨周目保留 · 用于永久强化</small></div>' +
-      '<div class="meta-stats"><div><span>累计消费</span><b>' + m.spent.toFixed(2) + '</b></div>' +
+      '<div class="meta-stats"><div><span>累计消费/兑出</span><b>' + m.spent.toFixed(2) + '</b></div>' +
       '<div><span>周目</span><b>' + m.cycle + '</b></div><div><span>破层</span><b>' + m.layers + '</b></div></div></section>';
     /* ⚠️ 2026-10-05 用户报「弹窗说会保留的东西，商店里很多都没显示」：
      *    结算弹窗承诺保留的旧日遗产四项，商店页此前一行都没渲染。数字全部走

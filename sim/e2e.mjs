@@ -16,6 +16,8 @@ import { run as runEra3Content } from './e2e-suites/era3-content.mjs';
 import { run as runPersistence } from './e2e-suites/persistence.mjs';
 import { run as runBuildingShape } from './e2e-suites/building-shape.mjs';
 import { run as runEra4Content } from './e2e-suites/era4-content.mjs';
+import { run as runEra10Content } from './e2e-suites/era10-content.mjs';
+import { run as runEra10Civics } from './e2e-suites/era10-civics.mjs';
 import { run as runFoodEconomy } from './e2e-suites/food-economy.mjs';
 import { run as runCivics } from './e2e-suites/civics.mjs';
 import { run as runWorkshopEconomy } from './e2e-suites/workshop-economy.mjs';
@@ -220,7 +222,32 @@ if (process.argv.includes('--offline-only')) {
   process.exit(failedOffline.length ? 1 : 0);
 }
 
+/* ⚠️ 2026-10-20 补：假点击目标**必须带祖先 closest 能力**，否则整类「祖先特征判据」的
+ * 回归在这里永远看不见（真实踩过：input.js 用 `closest('[data-era]')` 认纪元按钮，
+ * 而「页面材质」把 data-era 写在 <html> 上 ⇒ 全站按钮从采集到市政研究全部静默失联，
+ * e2e 1189 条断言全绿 —— 因为假 target 没有 closest，那条判据直接短路成 undefined）。
+ * 这里按真实 DOM 的形状补一个最小 closest：
+ *   · 根元素 <html> 带 data-era（皮肤属性，值=当前纪元）；
+ *   · 其余祖先**不带**任何 data-* 点击钩子（与真实页面一致，祖先上只有 data-page-node-id）。
+ * 于是「用祖先特征当点击判据」的写法会在这里真的失效，而不是被短路掩盖。 */
+const ROOT_ANCESTOR = { dataset: { era: '1' }, tagName: 'HTML', className: '' };
+function attachClosest(el) {
+  if (!el || typeof el !== 'object' || el.closest) return el;
+  el.closest = function (sel) {
+    if (!sel) return null;
+    const s = String(sel).trim();
+    /* 必须按**真实 DOM 的选择器语义**判，不能「选择器里含 data-era 就算命中」：
+     * 根元素只有 data-era 这一个属性、没有 class，所以
+     *   裸 `[data-era]` / `html[data-era]`  ⇒ 命中根元素（旧宽判据就是这么被吞的）；
+     *   `.erabtn[data-era]` 这类带 class/标签限定的 ⇒ **不该**命中根元素。
+     * 第一版 stub 写成「含 data-era 即命中」，结果把修复后的 .erabtn 判据也一起吞了，
+     * 复现出同一个 bug —— 说明这条路子对，但建模必须忠实。 */
+    return (s === '[data-era]' || s === 'html[data-era]') ? ROOT_ANCESTOR : null;
+  };
+  return el;
+}
 function fire(clk) {
+  attachClosest(clk);
   const fns = doc._ev['click'] || [];
   for (const fn of fns) fn({ target: clk });
 }
@@ -314,6 +341,23 @@ console.log('\n=== 开局解锁链 ===');
   check('手动采集：珊瑚 ' + SB.GATHER.coral + '/次（远低于职业，不是手速替代）',
     Math.abs(s.res.coral - SB.GATHER.coral) < 1e-9 && SB.GATHER.coral < 1,
     'coral=' + s.res.coral);
+  /* ⚠️ 2026-10-20 真 bug 的永久断言（用户「手动采集珊瑚没反应」）：
+   *   `data-era` 有两个用途——① 纪元 skin（挂在 <html>，CSS :root[data-era]）；
+   *   ② 纪元导航按钮的点击标记（.erabtn）。input.js 曾用裸 `closest('[data-era]')`
+   *   判 ②，于是从任何按钮往上都命中 ① 的根元素 ⇒ 判定 return ⇒ 排在它后面的
+   *   十几个分支（采集/一键最大/市政研究/政策卡/暖石/发射场模式/自动研究…）全成死代码。
+   *   当时 e2e 全绿，因为假 target 没有 closest，判据被短路成 undefined。
+   *   这里显式再造一次「只有根祖先带 data-era」的点击，把这个失败模式钉死。 */
+  {
+    const beforeC = s.res.coral;
+    const rootTarget = attachClosest({ dataset: { gather: 'coral' } });
+    check('假点击目标确实带着「<html data-era>」祖先（护栏自身有效）',
+      !!rootTarget.closest('[data-era]'), 'closest([data-era]) = ' + !!rootTarget.closest('[data-era]'));
+    for (const fn of doc._ev['click'] || []) fn({ target: rootTarget });
+    check('祖先（html）带 data-era 皮肤属性时，采集点击不被误认成纪元导航吞掉',
+      Math.abs(s.res.coral - (beforeC + SB.GATHER.coral)) < 1e-9,
+      'coral ' + beforeC + ' → ' + s.res.coral + '（期望 ' + (beforeC + SB.GATHER.coral) + '）');
+  }
   /* 按钮的读数必须与常数同源：这里把「渲染出来的文案」和「实际入账的量」焊在一起，
    * 免得以后改了常数忘了改提示，玩家点一下发现和按钮上写的不一样。 */
   check('采集按钮的读数与 GATHER 常数同源',
@@ -899,19 +943,56 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     .filter(r => SB.RESS[r].kind !== 'craft');
   check('6 个工艺资源均标 kind:craft（钢已移出，见下一组）', craftKind.length === 0, '未标=' + craftKind.join(','));
 
+  /* ERA7：至高圣座按政体改变展示名称和专属效果，且与实际倍率分支一致。 */
+  {
+    const variants = [
+      ['theo_state', '至高圣座', '信仰产出 +10%', 'throneFaithMul'],
+      ['egalitarianism', '太空共同体', '工坊工艺效率 +10%', 'throneCraftMul'],
+      ['federalism', '国际空间站', '科技产出 +10%', 'throneSciMul']
+    ];
+    const ok = variants.every(([gov, name, effect, mulKey]) => {
+      const s = SB.state.freshRun(false);
+      s.gov = gov; s.wonders.wonder_throne = true;
+      const m = SB.wonder[mulKey](s);
+      return SB.wonder.displayName(s, 'wonder_throne') === name &&
+        SB.wonder.displayDesc(s, 'wonder_throne').includes(effect) && m === 1.1;
+    });
+    check('至高圣座随政体显示专属名称、效果，且匹配实际加成分支', ok);
+  }
+
   /* ══ ERA8 探星纪（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）══ */
   {
-    /* ① θ生物金属：登记完整性（RESS kind craft / CAP_BASE 200 / 解锁门=科技 biomat）。 */
-    check('ERA8 θ金属：RESS 登记 + kind:craft + 解锁门 biomat',
-      !!SB.RESS.thetaMetal && SB.RESS.thetaMetal.kind === 'craft'
+    /* ① θ生物金属：普通有限库存资源，基础上限 200 / 解锁门=科技 biomat。 */
+    check('ERA8 θ金属：RESS 登记为普通资源 + 解锁门 biomat',
+      !!SB.RESS.thetaMetal && !SB.RESS.thetaMetal.kind
       && SB.RESS.thetaMetal.unlock && SB.RESS.thetaMetal.unlock.tech === 'biomat');
-    /* ⚠️ capOf 用**纯净夹具**：共享夹具 fr 被前序断言塞了 hall=20（castleCap +50）
-     *    等通用容量通道 ⇒ capOf 会 >200。纯净 freshRun 下应恰等于 CAP_BASE（无压舱仓/奇观）。 */
+    /* θ金属基础容量为 200；容量公式按普通资源处理。 */
     const _th0 = SB.state.freshRun(false);
-    check('ERA8 θ金属：CAP_BASE 200 ⇒ capOf 有限且恰为 200（纯净夹具）',
-      SB.economy.capOf(_th0, 'thetaMetal') === 200
-        && SB.economy.capOf(fr, 'thetaMetal') >= 200 && isFinite(SB.economy.capOf(fr, 'thetaMetal')),
-      'pure=' + SB.economy.capOf(_th0, 'thetaMetal') + ' fr=' + SB.economy.capOf(fr, 'thetaMetal'));
+    check('ERA8 θ金属：基础仓储上限为 200',
+      SB.CFG.CAP_BASE.thetaMetal === 200 &&
+        SB.economy.capOf(_th0, 'thetaMetal') === 200,
+      'base=' + SB.economy.capOf(_th0, 'thetaMetal'));
+    check('所有有限库存资源都标明仓储所属纪元',
+      Object.keys(SB.CFG.CAP_BASE).every(r => Number.isInteger(SB.RESS[r] && SB.RESS[r].storageEra)));
+    const _storageEra = SB.state.freshRun(false);
+    _storageEra.upgrades.upg_ballast_1 = true;
+    _storageEra.upgrades.upg_ballast_2 = true;
+    _storageEra.upgrades.upg_castle = true;
+    _storageEra.upgrades.upg_alloy_warehouse = true;
+    _storageEra.lvl.hall = 10;
+    check('早期仓储扩容不放大后续资源容量（ERA8 θ金属仍为 200）',
+      SB.economy.capOf(_storageEra, 'thetaMetal') === 200);
+    check('ERA6 合金仓储只扩到 ERA6 资源，不影响 ERA7 铀',
+      SB.economy.capOf(_storageEra, 'titanium') === 300 && SB.economy.capOf(_storageEra, 'uranium') === 200,
+      '钛=' + SB.economy.capOf(_storageEra, 'titanium') + ' 铀=' + SB.economy.capOf(_storageEra, 'uranium'));
+    _storageEra.upgrades.upg_logiware = 2;
+    check('ERA7 物流仓库可扩充铀，但不会提前扩充 ERA8 θ金属',
+      SB.economy.capOf(_storageEra, 'uranium') === 600 && SB.economy.capOf(_storageEra, 'thetaMetal') === 200,
+      '铀=' + SB.economy.capOf(_storageEra, 'uranium') + ' θ=' + SB.economy.capOf(_storageEra, 'thetaMetal'));
+    const thetaStorage = SB.state.freshRun(false);
+    SB.economy.addRes(thetaStorage, 'thetaMetal', 1000);
+    check('θ生物金属作为普通资源受 200 基础仓储上限约束', thetaStorage.res.thetaMetal === 200,
+      '库存=' + thetaStorage.res.thetaMetal + ' cap=' + SB.economy.capOf(thetaStorage, 'thetaMetal'));
     check('ERA8 θ金属：解锁前隐藏，研究生物材料后显示',
       !SB.economy.resUnlocked(fr, 'thetaMetal')
       && (fr.techs.biomat = true, SB.economy.resUnlocked(fr, 'thetaMetal')));
@@ -955,12 +1036,52 @@ console.log('\n=== 纪元三 · economy 接线 ===');
       !!SB.wonder.byId('wonder_voyager') && SB.wonder.byId('wonder_voyager').need === 'deepspace'
       && SB.wonder.byId('wonder_voyager').cost.tiplate === 1600
       && !!SB.wonder.byId('wonder_saturn') && SB.wonder.byId('wonder_saturn').need === 'gascloud');
-    check('ERA8 机器人机制延后：robotbay 不在 BUILDINGS、protoai 无 unlockBuild（挂起有据）',
-      !SB.BUILDINGS.some(x => x.id === 'robotbay') && !SB.tech.byId('protoai').eff.unlockBuild);
+    check('ERA8 机器人机制已实装：robotbay 在 BUILDINGS 且 protoai 经 unlockBuild 解锁它',
+      SB.BUILDINGS.some(x => x.id === 'robotbay')
+      && !!SB.tech.byId('protoai').eff.unlockBuild
+      && SB.tech.byId('protoai').eff.unlockBuild.includes('robotbay'));
+    /* ⑤-B B7 机器人子系统功能回归（接在「已实装」判定之后，独立 freshRun 不污染夹具）。 */
+    {
+      const rb = SB.state.freshRun(false);
+      rb.lvl.robotbay = 2;
+      check('B7 机器人人口 = 4 × 充能站等级（lvl.robotbay=2 ⇒ 8）',
+        SB.folk.robotPop(rb) === 8 && SB.folk.robotIdle(rb) === 8);
+      check('B7 机器人拒绝书手/学者（robotJobAllowed 剔除）',
+        SB.folk.assignRobot(rb, 'scribe', 1) === false
+        && SB.folk.assignRobot(rb, 'scholar', 1) === false);
+      /* 正向分配：gather 恒解锁（jobUnlocked 直返 true），双向钳制到 idle。 */
+      rb.jobs.gather = 0;
+      const _ok = SB.folk.assignRobot(rb, 'gather', 3);
+      check('B7 机器人正向分配 + 双向钳制（idle 8 ⇒ 分 3 剩 5）',
+        _ok && rb.robotJobs.gather === 3 && SB.folk.robotIdle(rb) === 5);
+      check('B7 effJobs 合并：人类 gather + 机器人×1.2（3×1.2=3.6）',
+        Math.abs((SB.folk.effJobs(rb).gather || 0) - (rb.jobs.gather + 3 * 1.2)) < 1e-9);
+      /* 超额回收：充能站降到 1 级（4 机器人）但分配了 10，reconcile 应砍到 4。 */
+      rb.lvl.robotbay = 1; rb.robotJobs.gather = 10; SB.folk.reconcileRobot(rb);
+      check('B7 reconcileRobot 超额回收（10 机器人但 pop=4 ⇒ 砍到 4）',
+        rb.robotJobs.gather === 4);
+      /* 热液能：充能站每级耗 8/s，lvl=1 且供给充足 ⇒ robotbayRate=8。
+       * ⚠️ 汽轮机烧暖石才供流——必须给足 warmstone，否则 rW=0 ⇒ 全流为 0 ⇒ robotbayDraw 被钳到 0。 */
+      const _ra = SB.state.freshRun(false);
+      _ra.lvl.robotbay = 1; _ra.lvl.hydroturbine = 50; _ra.res.warmstone = 1e9;   // 供给充足
+      const _ha = SB.economy.hydroAlloc(_ra, 1);
+      check('B7 充能站耗流 8/秒/级（lvl=1 ⇒ robotbayRate=8）',
+        _ha.robotbayRate === 8, 'rate=' + _ha.robotbayRate);
+      /* 回归（本轮回 bug）：robotJobs 缺键的老档/未初始化态，assignRobot 不得抛
+       * 「Cannot read properties of undefined」——点加号原本静默失效。须自建对象并上岗。 */
+      const _rbOld = SB.state.freshRun(false);
+      _rbOld.lvl.robotbay = 1; delete _rbOld.robotJobs;
+      let _rbThrew = false;
+      try { SB.folk.assignRobot(_rbOld, 'gather', 1); } catch (e) { _rbThrew = true; }
+      check('B7 老档缺 robotJobs 键：assignRobot 不抛错且自建对象上岗',
+        !_rbThrew && !!_rbOld.robotJobs && _rbOld.robotJobs.gather === 1);
+    }
     /* ⑥ 永久乘区词表：四个新 eff 键在 mul 默认表有键（漏登记 = 守卫静默吞）。 */
     const _m0 = SB.tech.mul(fr);
     check('ERA8 eff 词表：workshopEff/satStar/biomatlabOut/biomatlabEff 默认 1',
       _m0.workshopEff === 1 && _m0.satStar === 1 && _m0.biomatlabOut === 1 && _m0.biomatlabEff === 1);
+    check('瑞亚星矿井产出为原值 50 倍（每级石梁/硬化珊瑚 2.5，铀 0.25）',
+      SB.BLD.rheamineBeam === 2.5 && SB.BLD.rheamineCoral === 2.5 && SB.BLD.rheamineUranium === 0.25);
     /* ⑦ 产线接进 rates：θ金属 / 石梁 / 硬化珊瑚键存在且有穷（缺键 = undefined 面板撒谎）。 */
     const _rt = SB.economy.rates(fr);
     check('ERA8 rates 补键：thetaMetal / stoneBeam / hardCoral 有穷',
@@ -1025,11 +1146,11 @@ console.log('\n=== 纪元三 · economy 接线 ===');
       && !!SB.wonder.byId('wonder_fishvr') && SB.wonder.byId('wonder_fishvr').needCivic === 'virtual_reality'
       && SB.wonder.byId('wonder_fishvr').cost.thinafilm === 10
       && SB.wonder.byId('wonder_fishvr').effect.happyBonus === 1);
-    /* ⑤ θ薄膜：五处登记（RESS kind craft / CAP_BASE 20 / 工艺产出指向它）。 */
+    /* ⑤ θ薄膜：RESS kind craft、无限容量、工艺产出指向它。 */
     const _tf0 = SB.state.freshRun(false);
-    check('ERA8 薄膜：RESS 登记 + capOf 20 + craft_thinafilm 产出指向',
+    check('ERA8 薄膜：RESS 登记 + 无上限 + craft_thinafilm 产出指向',
       !!SB.RESS.thinafilm && SB.RESS.thinafilm.kind === 'craft'
-      && SB.economy.capOf(_tf0, 'thinafilm') === 20
+      && SB.CFG.CAP_BASE.thinafilm === undefined && SB.economy.capOf(_tf0, 'thinafilm') === Infinity
       && (SB.CRAFTS || []).some(c => c.id === 'craft_thinafilm' && c.res === 'thinafilm'));
     /* ⑥ 动态卡读数基准值（无卡 = 乘区 1 / 加值 0，不污染产线）。 */
     check('ERA8 卡读数基准：dynFaith=1 / fever=1 / farsight=1 / planet=1 / vr=0',
@@ -1501,6 +1622,12 @@ while (frame < MAX_FRAMES) {
 
 runCivics({ SB, check, noop, doc, g, fs, path, ROOT });
 
+/* 纪元十 · 戴森纪（2026-10-20）：7 科技 / 太阳星环 / 发射场双模式 / 戴森终局 / 朱庇特 / 大统一轴。
+ * ⚠️ 必须传 fs/path/ROOT：这个 suite 会把 13 个占位资产的**磁盘存在性**一起钉住
+ *    （图标与五档背景图是「数据落了没人读」最容易漏的一环 —— 路径写错只表现为空图，不报错）。 */
+runEra10Content({ SB, check, noop, fs, path, ROOT });
+runEra10Civics({ SB, check, noop });
+
 /* 破冰面板 —— **前提：这一局真的破了冰**。
  * ⚠️ 2026-09-28 入口条件改了，原写法有两个洞：
  *    ① 原来写 `if (!modal.classList.contains('hidden'))` —— 而 modal 很可能是**前面某个
@@ -1767,6 +1894,7 @@ check('首次轮回后 meta 页解锁（不再 locked）',
   const sVc = SB.game.run();
   const lvBak = Object.assign({}, sVc.lvl), seenBak = Object.assign({}, sVc.seen);
   sVc.lvl.nest = 1; sVc.lvl.kelp = 1;    // core / food 各露一座
+  if (!SB.ui.render.buildingIconsShown()) SB.ui.render.toggleBuildingIcons();
   SB.game.markDirty(); SB.ui.render.renderPanes();
   const vHtml = doc.getElementById('pane-village-body').innerHTML;
   check('巢穴页内区标题带行内 --hc 配色（礁栖核心=青 #4dd8e6，不再是灰 .bztitle）',
@@ -1777,6 +1905,19 @@ check('首次轮回后 meta 页解锁（不再 locked）',
     /<div class="bzone" data-zone="core">/.test(vHtml) &&
     /<div class="bzone" data-zone="food">/.test(vHtml) &&
     /class="bzbody"/.test(vHtml), '');
+  check('ERA1已解锁建筑行显示各自的图标',
+    vHtml.includes('assets/building-icons/era-1/era1-nest.png') &&
+    vHtml.includes('assets/building-icons/era-1/era1-kelp.png'), '');
+  fire({ dataset: { buildingIconsToggle: '' } });
+  SB.game.markDirty(); SB.ui.render.renderPanes();
+  const vIconsOff = doc.getElementById('pane-village-body').innerHTML;
+  check('巢穴标题栏开关可隐藏建筑图标',
+    !SB.ui.render.buildingIconsShown() && !vIconsOff.includes('class="building-icon"'), '');
+  fire({ dataset: { buildingIconsToggle: '' } });
+  SB.game.markDirty(); SB.ui.render.renderPanes();
+  const vIconsOn = doc.getElementById('pane-village-body').innerHTML;
+  check('再次点击开关可恢复图标',
+    SB.ui.render.buildingIconsShown() && vIconsOn.includes('era1-nest.png'), '');
   /* 折叠真源是 ZONE_FOLDED：翻一次 → 重画 → 该区带 folded，且**只动那一个区**。 */
   const coreBefore = /<div class="bzone folded" data-zone="core">/.test(vHtml);
   const foodBefore = /<div class="bzone folded" data-zone="food">/.test(vHtml);

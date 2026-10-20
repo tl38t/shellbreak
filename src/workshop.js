@@ -95,13 +95,20 @@
      *   ⚠️ 别误读成 `T.craft`（那是加工产出/精铁那条线，与本条互不干涉）。
      *   ⚠️ 这条只管**工艺制作产出**（craftMul → 产出那截），投入/成本端从不打折
      *   （见 craft 里的 prices 循环与 craftMul 上方注）。 */
-    m += 0.10 * (s.perk && s.perk.craftQuota ? s.perk.craftQuota : 0);
+    m += 0.10 * (s.perk && s.perk.craftQuota ? s.perk.craftQuota : 0)
+      * (SB.economy && SB.economy.infinitePerkMul ? SB.economy.infinitePerkMul(s) : 1);
     /* ⑨ 总物流站（ERA6 · wonder_logistics）：王国潮道每级 +1% 工艺制作效率（effect.canalCraft × lvl.canal）。
      *   与市政《城市设计》互锁翻倍待批次 3。效果只从 SB.wonder.logisticsCraftRatio 进，将来加奇观不用改这里。 */
     if (SB.wonder && SB.wonder.logisticsCraftRatio) m += SB.wonder.logisticsCraftRatio(s) || 0;
     /* ⑩ 虚拟现实卡（ERA8 市政 · 2026-10-18 用户表）：工坊效率 −1%×人口（加法轴，用户拍 Q1：
      *   「工坊这些升级会给效率的，没问题」——轴上正源够厚，不加下限护栏）。装卡才生效。 */
     if (SB.civic && SB.civic.cardVrCraftRatio) m += SB.civic.cardVrCraftRatio(s) || 0;
+    /* ⑪ ERA10《继承繁星之人》（2026-10-20 · 用户 ERA10 表解锁2）：工坊效率 +x%，
+     *   x = 星屑点**累计结算发放数**（s.got.stardust——freshRun 从 meta.stardustEarned seed，跨周目累积）。
+     * ⚠️ 动态值进不了静态 eff 表（科技表的 eff 是写死数）⇒ 必须在这里写读数，这是
+     *   「数据落了没人读 ⇒ 静默为 0」家族的标准形态：科技完成即生效（非卡非升级）。
+     * ⚠️ 无封顶：门 70 星屑 = +70%，meta 几百星屑 = +几百%（用户未要求封顶，待标定）。 */
+    if (s.techs && s.techs.heir_of_stars) m += (s.got && s.got.stardust || 0) / 100;
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
@@ -119,10 +126,17 @@
     var _robot = (s.indRobotOn !== false && s.upgrades && s.upgrades.upg_indrobot) ? 2 : 1;
     /* ⚠️ ERA8 市政（2026-10-18）：虚拟现实卡让加法轴可为负（−1%×人口）。护栏只防**符号反转**
      *   （(1+ratio)<0 ⇒ 产出倒流，NaN/倒贴家族 bug，不是标定）：下限 0 = 工坊停摆，不锁正收益。 */
-    var _cr = Math.max(0, 1 + craftRatio(s));
+    /* ERA9 星际后勤保障卡（craftRatioRecipes）：指定配方（craft_rocketengine / craft_strongprop）
+     *   工艺效率 +100%——只作用于该配方（有 c.id 才加成），与全局 craftRatio 同一条**加法轴**。 */
+    var _recipeCraft = (SB.civic && SB.civic.cardCraftRatioRecipes && c) ? SB.civic.cardCraftRatioRecipes(s, c.id) : 0;
+    var _cr = Math.max(0, 1 + craftRatio(s) + _recipeCraft);
     var m = _cr * (1 + (SB.economy ? SB.economy.upgSum(s, 'boomcraftMul') : 0))
       * (SB.wonder ? SB.wonder.throneCraftMul(s) : 1)
-      * (_Tm ? (_Tm.workshopEff || 1) : 1) * _robot;
+      * (_Tm ? (_Tm.workshopEff || 1) : 1) * _robot
+      /* ERA10 市政《我们的海》（2026-10-20 用户表「工坊效率翻倍」，用户拍「乘区 ×2」）：
+       *   与 boomcraft / 工业机器人 / throne / workshopEff 同属**乘区链**，不进 craftRatio 加法轴
+       *   （加法轴里 +100% 在基值 0.5 时只等于 ×1.67，不是「翻倍」）。装卡才生效，没装 = 1。 */
+      * ((SB.civic && SB.civic.cardOurSeaCraftMul) ? SB.civic.cardOurSeaCraftMul(s) : 1);
     /* ERA7（spec §4 博洛西洛发射场）：仅载人火箭工艺（craft_rocketengine）额外 ×mannedRocketMul（×2）。
      * 用可选参数 c 区分——不进基值，避免放大所有工艺制品（面板===结算纪律：stepOut/craft/两处面板都传 c）。 */
     if (c && c.id === 'craft_rocketengine' && SB.wonder && SB.wonder.mannedRocketMul) m *= SB.wonder.mannedRocketMul(s);
@@ -537,7 +551,7 @@
       for (k in grant) SB.economy.addRes(s, k, grant[k]);
       if (emit) emit('一次性获得 ' + grant.science + ' 科技点。');
     }
-    if (emit) emit('建成了「' + w.name + '」：' + w.desc);
+    if (emit) emit('建成了「' + SB.wonder.displayName(s, id) + '」：' + SB.wonder.displayDesc(s, id));
     return true;
   }
 

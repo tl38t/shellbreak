@@ -10,7 +10,7 @@
   var INTERVAL = 5200;
   var frames = {};
 
-  for (var i = 1; i <= 5; i++) {
+  for (var i = 1; i <= 8; i++) {
     frames[i] = [
       'assets/backgrounds/sequence/era-' + i + '/frame-01.webp',
       'assets/backgrounds/sequence/era-' + i + '/frame-02.webp',
@@ -66,9 +66,8 @@
   }
 
   function applyEra(era) {
-    era = Math.max(1, Math.min(7, +era || 1));
-    /* ERA7（2026-10-17）：钳位 5→7。ERA6/7 暂无专属背景序列 ⇒ currentEra 回退破壳纪（5），
-     *   免得 frames[era] undefined 崩掉 preload；data-bg-era 仍记真实纪元（CSS 钩子不受影响）。 */
+    era = Math.max(1, Math.min(8, +era || 1));
+    /* ERA6–8 都有专属四帧序列；保留缺失资源时回退到破壳纪的保护逻辑。 */
     currentEra = frames[era] ? era : 5;
     frameIndex = 0;
     var list = frames[currentEra];
@@ -81,8 +80,9 @@
   function sync() {
     if (!SB.game || !SB.game.run) return;
     var s = SB.game.run();
-    var era = s && s.era ? s.era : 1;
-    if (era !== currentEra) applyEra(era);
+    var era = Math.max(1, Math.min(8, +(s && s.era) || 1));
+    var sceneEra = frames[era] ? era : 5;
+    if (sceneEra !== currentEra) applyEra(era);
   }
 
   function boot() {

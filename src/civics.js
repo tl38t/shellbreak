@@ -66,21 +66,32 @@
    *      已全部走数组，本次实测无遗漏读者。 */
   var MUL_FIELD = {
     card_drama: 'squareMul', card_theology: 'templeMul', card_records: 'libraryMul',
-    /* 中世纪集市（2026-09-30）：仓储区建筑的容量贡献 ×2。静态字段，走同一张表。 */
-    card_market: 'storeMul',
+    /* 仓储容量链：中世纪集市 ×2 → 基础物流建设 ×3 → 洲际物流 ×5。 */
+    card_market: 'storeMul', card_logistics: 'storeMul', card_interlog: 'storeMul',
     /* 启蒙运动（2026-10-01 ERA4）：潮纹馆科技 +100%，与《历史记录》同字段（卡退役后不冲突）。 */
     card_enlightenment: 'libraryMul',
     /* ERA7（2026-10 实装）：神不在此卡——潮纹馆科技 ×3（替代启蒙运动的 ×2，启蒙退役后不冲突）。 */
     card_no_god_here: 'libraryMul',
     /* ERA5（2026-10-02）：政治经济学卡——歌剧院的官员市政点乘区 ×2.5（theaterMul）。 */
-    card_political_econ: 'theaterMul'
+    card_political_econ: 'theaterMul',
+    /* ERA9（2026-10-20）：联邦枢密院卡**同时**给两个乘区（广场市政 ×4 + 歌剧院官员市政 ×4）。
+     * ⚠️ 这是本表唯一一张「一卡两乘区」的卡：原表强制一卡一字段（见 mulOfField 上方注：
+     *   「squareMul 只乘带 squareMul 字段的卡」），单字段会让其中一个乘区**静默为 1**。
+     *   故值允许数组，mulOfField 按请求的 field 逐项匹配，两区各自独立相乘互不串扰。 */
+    card_federal_privy: ['squareMul', 'theaterMul']
   };
   function policyMul(s, cardId) {
     if (!cardId) return 1;                       // 槽是空的（或还没这一项）⇒ 没有乘区
     var cd = policyById(cardId);
     if (!cd) return 1;                           // 装了一张不存在的卡：当没有，别让 NaN 往下走
     var f = MUL_FIELD[cardId];
-    return (f && typeof cd[f] === 'number') ? cd[f] : 1;
+    if (!f) return 1;
+    /* 与 mulOfField 同构：值可为单字段或字段数组（ERA9 联邦枢密院一卡两乘区）。
+     * 单卡语义下取第一个真正有数值的字段（缺失该字段的卡退化成 1，不产生 NaN）。 */
+    var fl = (typeof f === 'string') ? [f] : f;
+    for (var i = 0; i < fl.length; i++)
+      if (typeof cd[fl[i]] === 'number') return cd[fl[i]];
+    return 1;
   }
   /* 三个乘区出口各自**只认自己字段的那张卡**：squareMul 只乘带 squareMul 字段的卡，
    * 不碰别人槽里带 libraryMul / templeMul 的卡。否则装《戏剧与诗歌》+《历史记录》两张，
@@ -90,7 +101,12 @@
     var arr = (s && s.cards) || [], m = 1, id, cd;
     for (var i = 0; i < arr.length; i++) {
       id = arr[i]; if (!id) continue;
-      if (MUL_FIELD[id] === field) {
+      var _f = MUL_FIELD[id];
+      if (!_f) continue;
+      /* 一卡可带多个乘区字段（ERA9 联邦枢密院：squareMul + theaterMul）。
+       * 值是字符串还是数组都要认：只有请求的 field 命中才乘，两区不互相串。 */
+      var _fl = (typeof _f === 'string') ? [_f] : _f;
+      if (_fl.indexOf(field) >= 0) {
         cd = policyById(id);
         if (cd && typeof cd[field] === 'number') m *= cd[field];
       }
@@ -340,6 +356,95 @@
   }
   /* 星际物流网卡（planetOutMul 1.3）：异星建筑（瑞亚/泰坦）产出乘区。economy-tick/rates 异星行读。 */
   function cardPlanetOutMul(s) { return cardFieldMul(s, 'planetOutMul'); }
+  /* ── ERA9 市政（2026-10-20 实装）· 各动态效果读数 ──
+   * 统一纪律：只读 s.cards / s.gov / s.civics，没装/没采用 = 返回基准值，绝不污染产线。 */
+  /* 星际联邦政体：全产 +10%（allOutMul）。economy.globalMul 末尾乘，覆盖珊瑚/石/金属/暖石/精铁/科技/市政点/藻食/地热/奢侈品。 */
+  function govAllOutMul(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.allOutMul === 'number') ? g.allOutMul : 1;
+  }
+  /* 寰宇教会政体：信仰产出 ×(faithMul) + 旧日信仰全产档 ×(oldFaithMul)。economy.faithRate / baseMul 读。 */
+  function govFaithMul(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.faithMul === 'number') ? g.faithMul : 1;
+  }
+  function govOldFaithMul(s) {
+    var g = govById(s.gov);
+    return (g && typeof g.oldFaithMul === 'number') ? g.oldFaithMul : 1;
+  }
+  /* 血肉苦弱卡：精铁/钢/θ金属等资源乘区（resOutMul map）。economy iron/steel/theta 行读，逐资源相乘。 */
+  function cardResOutMul(s, res) {
+    var m = 1, arr = (s && s.cards) || [], i, cd;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && cd.resOutMul && typeof cd.resOutMul[res] === 'number') m *= cd.resOutMul[res];
+    }
+    return m;
+  }
+  /* 璀璨星图卡：人口信仰产出乘区（popFaithMul）。economy.faithRate 人口基项读。 */
+  function cardPopFaithMul(s) {
+    var m = 1, arr = (s && s.cards) || [], i, cd;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && typeof cd.popFaithMul === 'number') m *= cd.popFaithMul;
+    }
+    return m;
+  }
+  /* 心胜于物卡：奇观建造消耗减免求和（wonderBuildSave）。wonder.discountedCost 读 (1 − 此值)。 */
+  function cardWonderBuildSave(s) { return cardFieldSum(s, 'wonderBuildSave'); }
+  /* 轮回之终末卡：信仰全产加成翻倍（faithAllProdDouble）。economy.baseMul 旧日信仰段 ×2（装卡才生效）。 */
+  function cardFaithAllProdDouble(s) {
+    return (cardSlotted(s, 'card_cycle_terminus')) ? 2 : 1;
+  }
+  /* ── ERA10 市政政策卡（2026-10-20 用户规格 · 实装）· 读数 ──
+   * 统一纪律：只读 s.cards，没装 = 基准值（乘区 1 / 加值 0），绝不污染产线。
+   * ⚠️ 这五条都不是「装哪张卡」的硬编码判断，而是按字段名扫 s.cards——
+   *    将来再加一张带同名同义字段的卡不用改这里。 */
+  /* 至高指令卡（launchCycle −2s）：**加法键**。economy.launchCycleOf 把它与科技
+   *   《空间矢量控制》的 −2s 相加（10s −2 −2 = 6s，钳下限 1 在那一个函数里）。
+   *   返回 Σ 该字段（多张卡同字段相加，与 resOutMul 的乘法语义不同）。 */
+  function cardLaunchCycle(s) { return cardFieldSum(s, 'launchCycle'); }
+  /* 节能减耗卡（launchHydroMul 0.5）：发射场每级热液能耗乘区。
+   *   落点 economy.launchHydroPer —— tick / rates / hydroAlloc 三处共用那一个函数。 */
+  function cardLaunchHydroMul(s) { return cardFieldMul(s, 'launchHydroMul'); }
+  /* 我们的海卡（faithOutMul 0.7）：信仰产出乘区（economy.faithRate 整段乘）。 */
+  function cardFaithOutMul(s) { return cardFieldMul(s, 'faithOutMul'); }
+  /* 节能减耗卡（happyConsumeMul 1.5）：居民幸福度消耗乘区。
+   *   落点 economy-social.happyBurn（与政体/奇观两条减免乘区同链相乘，互不抵消）。 */
+  function cardHappyConsumeMul(s) { return cardFieldMul(s, 'happyConsumeMul'); }
+  /* 我们的海卡（craftMul 2）：工坊效率**乘区 ×2**（用户 2026-10-20 拍「乘区」）。
+   *   落点 workshop.craftMul 的乘区链（与 boomcraft / 工业机器人同形态），
+   *   ⚠️ 不进 craftRatio 加法轴：加法轴里 +100% 在基值 0.5 时只等于 ×1.67，不是「翻倍」。 */
+  function cardOurSeaCraftMul(s) { return cardFieldMul(s, 'craftMul'); }
+  /* 星际后勤保障卡：指定配方工艺效率加成（craftRatioRecipes map）。workshop.craftMul 读，加法轴。 */
+  function cardCraftRatioRecipes(s, recipeId) {
+    var add = 0, arr = (s && s.cards) || [], i, cd;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && cd.craftRatioRecipes && typeof cd.craftRatioRecipes[recipeId] === 'number') add += cd.craftRatioRecipes[recipeId];
+    }
+    return add;
+  }
+  /* 黑色方碑建筑：建成即全局信仰产出 ×(1 + globalFaithMul)。economy.faithRate 读（乘整段）。 */
+  function buildingFaithMul(s) {
+    var m = 1;
+    if (SB.BUILDINGS) for (var _bi2 = 0; _bi2 < SB.BUILDINGS.length; _bi2++) {
+      var _b2 = SB.BUILDINGS[_bi2];
+      if (_b2 && typeof _b2.globalFaithMul === 'number' && (s.lvl && s.lvl[_b2.id] > 0)) m *= 1 + _b2.globalFaithMul;
+    }
+    return m;
+  }
+  /* 虚境信仰（card_cycle_terminus，locked 卡）：信仰更名「虚境」并锁死。
+   * 装填该卡后，信仰资源名强制为「虚境」，玩家改名框失效（覆盖并锁死，不可逆）。 */
+  function faithNameLocked(s) {
+    return cardSlotted(s, 'card_cycle_terminus');
+  }
+  function faithDisplayName(s) {
+    return faithNameLocked(s) ? '虚境' : ((s && s.religionName) || '').trim();
+  }
   /* 虚拟现实卡（craftRatioPerPop 1）：工坊效率加法轴 −1%×人口（用户确认加算、Q1 不设护栏）。
    * 返回**负的加值**，workshop.craftRatio 源⑩直加（轴上正源：工坊级/热锻级/科技/政体/卡/perk）。 */
   function cardVrCraftRatio(s) {
@@ -513,17 +618,20 @@
     var edges = [];
     for (i = 0; i < C.length; i++) {
       t = C[i];
-      if (!t.reqs || !t.reqs.length) continue;
+      if (!t.reqs || !t.reqs.length) {
+        if (!t.reqsAny || !t.reqsAny.length) continue;
+      }
       var to = cells[t.id];
       if (!to) continue;
-      for (var r = 0; r < t.reqs.length; r++) {
-        var from = cells[t.reqs[r]];
+      var _reqList = (t.reqs || []).concat(t.reqsAny || []);
+      for (var r = 0; r < _reqList.length; r++) {
+        var from = cells[_reqList[r]];
         if (!from) continue;
         var x1 = from.x + G.W, y1 = from.y + G.H / 2;
         var x2 = to.x, y2 = to.y + G.H / 2;
         var dx = Math.max(40, (x2 - x1) / 2);
         edges.push({
-          from: t.reqs[r], to: t.id,
+          from: _reqList[r], to: t.id,
           d: 'M' + x1 + ' ' + y1 + ' C' + (x1 + dx) + ' ' + y1 + ' ' + (x2 - dx) + ' ' + y2 +
              ' ' + x2 + ' ' + y2
         });
@@ -604,7 +712,14 @@
 
   // ── 研究市政 ──────────────────────────────────────────────────────
   function reqsMet(s, c) {
-    for (var i = 0; i < c.reqs.length; i++) if (!s.civics || !s.civics[c.reqs[i]]) return false;
+    if (c.reqs) for (var i = 0; i < c.reqs.length; i++) if (!s.civics || !s.civics[c.reqs[i]]) return false;
+    /* `reqsAny` —— **OR 前置**（ERA9 市政《太阳系后勤保障》的「繁荣一统/共同命运/神圣之路 任一」）。
+     *   与 `reqs`（AND）互补：两者都空 ⇒ 无前置；两者都有 ⇒ AND(reqs) 且 OR(reqsAny)。 */
+    if (c.reqsAny && c.reqsAny.length) {
+      var _any = false;
+      for (var j = 0; j < c.reqsAny.length; j++) if (s.civics && s.civics[c.reqsAny[j]]) { _any = true; break; }
+      if (!_any) return false;
+    }
     return true;
   }
   /* 返回 null 表示可以研究，否则返回「为什么不行」——这句会挂成灰按钮的 title。 */
@@ -616,7 +731,8 @@
     if (c.era && c.era > (s.era || 1)) return '纪元未到：属于 ' + (SB.tech && SB.tech.eraName ? SB.tech.eraName(c.era) : (c.era + ' 纪元')) + '，先推进当前纪元';
     if (!reqsMet(s, c)) {
       var need = [];
-      for (var i = 0; i < c.reqs.length; i++) if (!s.civics[c.reqs[i]]) need.push(byId(c.reqs[i]).name);
+      if (c.reqs) for (var i = 0; i < c.reqs.length; i++) if (!s.civics[c.reqs[i]]) need.push(byId(c.reqs[i]).name);
+      if (c.reqsAny) for (var k = 0; k < c.reqsAny.length; k++) if (!s.civics[c.reqsAny[k]]) need.push(byId(c.reqsAny[k]).name);
       return '需先完成：' + need.join('、');
     }
     if ((s.res.culture || 0) < c.cost) return '市政点 ' + Math.floor(s.res.culture || 0) + ' / ' + c.cost;
@@ -774,7 +890,8 @@
    *   政体显示名 = 玩家起的名 + 后缀；城堡随政体更名（圣座居所 / 人民大厅 / 国会）。
    *   ⚠️ 这套只认这三个 id，其它政体（酋邦制 / 独裁 / 寡头 / 古典共和 / 神权）不沾，
    *       它们的名字就是数据里的 name，没有「玩家起名」这一步。 */
-  var GOV_TITLE_SUFFIX = { theo_state: '教权国', egalitarianism: '联盟', federalism: '联邦' };
+  var GOV_TITLE_SUFFIX = { theo_state: '教权国', egalitarianism: '联盟', federalism: '联邦',
+    interstellar_federation: '星际联邦', star_sea_coop: '星海共同体', universal_church: '寰宇教会' };
   var GOV_CASTLE_NAME  = { theo_state: '圣座居所', egalitarianism: '人民大厅', federalism: '国会' };
   function govTitleSuffix(id) { return GOV_TITLE_SUFFIX[id] || ''; }
   /* 政体面板 / 顶栏用的「显示名」：新政体且已起名 ⇒ 玩家名 + 后缀；否则数据 name。 */
@@ -861,6 +978,9 @@
     /* 拔下：slot 指定拔哪格（UI 逐槽按钮），不指定则拔第一格有卡的。 */
     var sl = (slot !== undefined && slot !== null) ? slot : firstFilled(s);
     if (sl < 0) return null;                          // 没卡可拔 ⇒ 无动作不收钱
+    /* ERA9（2026-10-20）：被 lock 的政策卡（轮回之终末）不可卸下——拒绝拔下动作。 */
+    var _lc = s.cards && s.cards[sl];
+    if (_lc && policyById(_lc) && policyById(_lc).locked) return '「' + policyById(_lc).name + '」已锁死，不可卸下';
     if (!s.cardEver) return null;
     /* 2026-10-14：有免费卸下机会 ⇒ 直接放行（不查市政点）。令牌优先于市政点收费。 */
     if (s.cardFreeRemoves > 0) return null;
@@ -930,6 +1050,9 @@
     if (slot < 0 || slot >= s.cards.length) return false;
     var tid = (id === undefined || id === null) ? null : id;
     if (s.cards[slot] === tid) return false;
+    /* ERA9（2026-10-20）：被 lock 的政策卡（轮回之终末）不可卸下、也不可被覆盖——守住这一格。 */
+    var _oc = s.cards[slot];
+    if (_oc) { var _op = policyById(_oc); if (_op && _op.locked) return false; }
     /* ⚠️ 2026-10-14 修：安装（id 非 null）永远免费；市政点只在「卸下」（id===null）时扣。
      *   修正「装填免费、卸除才消耗」的预期模型；此前装和卸都扣，造成第 2/3 张卡静默装不上。
      *   同次新增：卸下时优先消耗 1 次「免费卸下机会」（s.cardFreeRemoves，每完成一个市政 +1、可累积），
@@ -950,8 +1073,13 @@
           ? '（用掉 1 次免费卸下机会，剩 ' + s.cardFreeRemoves + ' 次）'
           : (fee > 0 ? '（花 ' + fee + ' 市政点）' : '（免费）');
         emit('政策卡已拔下' + rmMsg + '。');
-      } else emit('政策卡换为「' + policyById(tid).name + '」' +
-        (fee > 0 ? '（花 ' + fee + ' 市政点）' : '（人生第一次装填，免费）'));
+      } else {
+        var _np = policyById(tid);
+        emit('政策卡换为「' + _np.name + '」' +
+          (fee > 0 ? '（花 ' + fee + ' 市政点）' : '（人生第一次装填，免费）'));
+        /* ERA9 虚境信仰卡：装填即刻给玩家提示——信仰更名「虚境」并永恒锚定。 */
+        if (_np && _np.locked) emit('✦ 虚境信仰已锚定：信仰更名为「虚境」且<b>不可更改/不可卸下</b>，全产加成翻倍永久生效。');
+      }
     }
     return true;
   }
@@ -1159,6 +1287,15 @@
     /* ERA8 市政（2026-10-18）：动态卡读数五件（见各函数头注）。 */
     dynFaithCardMul: dynFaithCardMul, cardFeverStarMul: cardFeverStarMul,
     civicFarsightStarMul: civicFarsightStarMul, cardPlanetOutMul: cardPlanetOutMul,
+    govAllOutMul: govAllOutMul, govFaithMul: govFaithMul, govOldFaithMul: govOldFaithMul,
+    cardResOutMul: cardResOutMul, cardPopFaithMul: cardPopFaithMul, cardWonderBuildSave: cardWonderBuildSave,
+    cardFaithAllProdDouble: cardFaithAllProdDouble, cardCraftRatioRecipes: cardCraftRatioRecipes, buildingFaithMul: buildingFaithMul,
+    /* ERA10 市政（2026-10-20）：五条新卡读数。economy.launchCycleOf / launchHydroPer / faithRate、
+     *   economy-social.happyBurn、workshop.craftMul 各读其一（各自单一落点）。 */
+    cardLaunchCycle: cardLaunchCycle, cardLaunchHydroMul: cardLaunchHydroMul,
+    cardFaithOutMul: cardFaithOutMul, cardHappyConsumeMul: cardHappyConsumeMul,
+    cardOurSeaCraftMul: cardOurSeaCraftMul,
+    faithNameLocked: faithNameLocked, faithDisplayName: faithDisplayName,
     cardVrCraftRatio: cardVrCraftRatio,
     museumCivicMul: museumCivicMul, scribeCivicMul: scribeCivicMul,
     theaterMul: theaterMul, theaterCivicMul: theaterCivicMul,

@@ -27,13 +27,28 @@
   /* 建筑 → 起始解锁纪元（metaEra）。按各建筑解锁所依赖的科技/市政纪元反查（见方案文档）：
    *   纪元权重 W: 1/2/3/5/8（暗流/冷焰/硫泉/洋流/破壳纪）。
    * 仅 defaultUnlockable / 仅 unlockRatio 的建筑归纪元 1。 */
-  var W = { 1: 1, 2: 2, 3: 3, 4: 5, 5: 8 };
+  /* ERA6–10 星海/新建筑回填（2026-10-19 · docs/ERA9_TECHS_SPEC §9；ERA10 2026-10-20 续）：
+   *   旧档 W 只到 5、META_ERA 只到 era5，
+   *   导致 era6+ 建筑（科研所/太空建筑/异星建筑/光帆纪建筑）在破壳结算 buildingScore 里被 `if(!e) continue` 静默跳过。
+   *   W 续 Fibonacci（1/2/3/5/8/13/21/34/55/89）；META_ERA 按建筑真实纪元回填（researchlab 属 era6，此前漏登；
+   *   太阳星环属 era10，2026-10-20 补登——**漏登记 = 玩家花钱建满一座新建筑，发展分一分不涨，且不报错**）。
+   *   ⚠️ 具体权重数值属标定范畴（建议值，待用户另拍），但「这些建筑必须登记」是结构性硬要求。 */
+  var W = { 1: 1, 2: 2, 3: 3, 4: 5, 5: 8, 6: 13, 7: 21, 8: 34, 9: 55, 10: 89 };
   var META_ERA = {
     kelp: 1, nest: 1, coralhouse: 1, siltpit: 1, hall: 1, weir: 1, warmnest: 1, kelpstore: 1, workshop: 1, library: 1,
     ballast: 2, lighthouse: 2, furnace: 2, institute: 2, square: 2, temple: 2,
     hydroturbine: 3, hydroshop: 3, canal: 3,
     observatory: 4, coralfarm: 4, bank: 4, caravanserai: 4, museum: 4,
-    hotforge: 5, school: 5, theater: 5, tenement: 5
+    hotforge: 5, school: 5, theater: 5, tenement: 5,
+    researchlab: 6,
+    satellite: 7, spacestation: 7,
+    biomatlab: 8, rheamine: 8, titancloud: 8, robotbay: 8,
+    mars_workshop: 9, europa_launch: 9,
+    /* ERA10（2026-10-20）：太阳星环归纪元十。⚠️ 与 W[10] 必须同时登记：
+     *   只加 META_ERA ⇒ W[10] 为 undefined ⇒ buildingScore 变 NaN（比跳过更糟）。
+     * ERA10 市政（2026-10-20）：泰拉/瑞亚星轨道发射场 + 虚境祭坛同样归纪元十
+     *   （虚境祭坛虽是"无产出"建筑，但它吃 30 人口/级，理应在发展分里算数）。 */
+    solar_ring: 10, terra_launch: 10, rhea_launch: 10, void_altar: 10
   };
 
   /* 调和级数 H(n) = Σ_{k=1..n} 1/k，用于旧日艺术品/碑石的固定速率递减。 */
@@ -53,6 +68,7 @@
      * 浮点边界 +1e-9，value<=0 时档位为 0。 */
     var faithTier = oldFaith > 0 ? Math.floor(Math.log10(oldFaith) + 1e-9) : 0;
     var p = m.perks || {};
+    var starPerkBoost = 1 + ((m.starPerks && m.starPerks.starInfinite) || 0);
     function finiteOr(v, d) { return (typeof v === 'number' && isFinite(v)) ? v : d; }
     return {
       relicCount: relicCount,
@@ -61,8 +77,8 @@
       oldArtworkCultureRate: 0.15 * harmonic(finiteOr(m.oldArtworkEarnedTotal, 0)),
       oldTideSteleScienceRate: 0.15 * harmonic(finiteOr(m.oldTideStelesEarnedTotal, 0)),
       oldFaithAllProductionBonus: 0.005 * faithTier,
-      shopCivicBonus: 0.10 * (p.civicArchive || 0),   // 2026-10-05 拍板 +10%/级、无上限
-      shopScienceBonus: 0.10 * (p.tideProof || 0),    // 同上
+      shopCivicBonus: 0.10 * (p.civicArchive || 0) * starPerkBoost,   // 星屑轮回共鸣放大每级效果
+      shopScienceBonus: 0.10 * (p.tideProof || 0) * starPerkBoost,
       coldStoreLevel: p.coldStore || 0,
       matStoreLevel: finiteOr(p.matStore, 0),
       shellSurveyLevel: p.shellSurvey || 0,
@@ -149,6 +165,10 @@
     if (!qualified(s)) {
       r.tidePoints = 0;
       r.locked = true;
+      if (s.shell <= 0 && SB.challenges) {
+        var unqualifiedChallengeOutcome = SB.challenges.resolveRun(s, meta);
+        if (unqualifiedChallengeOutcome && unqualifiedChallengeOutcome.failed) r.challengeFailure = unqualifiedChallengeOutcome;
+      }
       /* ⛔ 通关榜排除这一局（用户 2026-10-07 拍板：只认「凿穿 + 已建神学」）。
        * 仍然上报 wonder/cycle ——「建成了什么」不因没建神学而失效。*/
       if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
@@ -163,8 +183,13 @@
      * 不跨周目累积）。在写入 meta.tide 之前乘，与「本局结算」口径一致；未拥有 = 不乘。 */
     if (s.civics && s.civics.civilization) r.tidePoints *= 1.2;
     meta.tide += r.tidePoints;
+    meta.tideEarnedTotal = (meta.tideEarnedTotal || 0) + r.tidePoints;
     /* 挑战必须完成《神学》资格并真正凿穿天壳；普通结算/重开不兑现挑战奖励。 */
-    if (s.shell <= 0 && SB.challenges) r.challengeClear = SB.challenges.resolveRun(s, meta);
+    if (s.shell <= 0 && SB.challenges) {
+      var challengeOutcome = SB.challenges.resolveRun(s, meta);
+      if (challengeOutcome && challengeOutcome.failed) r.challengeFailure = challengeOutcome;
+      else r.challengeClear = challengeOutcome;
+    }
     // ② 旧日信仰：本局剩余信仰并入总量
     /* ERA8 市政《信仰回响》（2026-10-18 用户表解锁2）：本轮回入账 ×1.2（仅当轮，不跨周目累积）。 */
     meta.oldFaith = (meta.oldFaith || 0)
@@ -185,23 +210,12 @@
     meta.oldArtworkEarnedTotal = (meta.oldArtworkEarnedTotal || 0) + r.oldArtwork;
     r.oldTideStele = Math.floor(Math.max(0, (s.res && s.res.tidalRecord) || 0));
     meta.oldTideStelesEarnedTotal = (meta.oldTideStelesEarnedTotal || 0) + r.oldTideStele;
-    // ⑥ 星屑（ERA7 · spec §7）：仅在合格轮回结算时发放，进跨周目 meta（与轮回点同侧）。
-    //    星屑 = floor( Σ太空建筑等级 × 0.1 × (1 + starExplore进度%) )，进度% = starExplore / STAR_CAP。
-    //    Σ太空建筑等级 = 轨道卫星 + 空间站（zone:'space' 两座；核热厂是地面建筑，不入列）。
-    var _spaceLvls = ((s.lvl && s.lvl.satellite) || 0) + ((s.lvl && s.lvl.spacestation) || 0);
-    var _starPct = (SB.CFG.STAR_CAP > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / SB.CFG.STAR_CAP) : 0;
-    var _sd = Math.floor(_spaceLvls * 0.1 * (1 + _starPct));
-    // 先民遗产市政（ERA7 · spec §7）：本轮回星屑获取 +20%（破壳结算时计入，与轮回点同侧）。
-    if (s.civics && s.civics.ancestor_heritage) _sd = Math.floor(_sd * 1.2);
-    /* ERA8 市政《星间遗迹》（2026-10-18 用户表解锁1，拍板 Q6）：每级太空/异星建筑
-     *   （卫星/空间站/瑞亚矿井/泰坦气云）+1% 星屑获取——乘区罩在先民遗产之后。 */
-    if (s.civics && s.civics.star_ruins) {
-      var _ruinLvls = ((s.lvl && s.lvl.satellite) || 0) + ((s.lvl && s.lvl.spacestation) || 0)
-        + ((s.lvl && s.lvl.rheamine) || 0) + ((s.lvl && s.lvl.titancloud) || 0);
-      _sd = Math.floor(_sd * (1 + 0.01 * _ruinLvls));
-    }
+    // ⑥ 星屑：轨道与异星设施等级、星空探索进度和戴森球进度共同决定本轮结算。
+    var _sd = stardustGain(s);
     r.stardust = _sd;
     meta.stardust = (meta.stardust || 0) + _sd;
+    meta.stardustEarned = (meta.stardustEarned || 0) + _sd;
+    if (s.got) s.got.stardust = meta.stardustEarned;
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
     /* TapTap 成就：合格破壳时解锁「首次轮回」与挑战通关（幂等，靠 meta.achievements 去重）。 */
@@ -253,6 +267,71 @@
       locked: perkLocked(p),
       afford: meta.tide >= next
     };
+  }
+
+  function stardustFacilityLevels(s) {
+    var n = 0, buildings = SB.BUILDINGS || [];
+    for (var i = 0; i < buildings.length; i++) {
+      if (buildings[i].stardustFacility) n += Math.max(0, (s.lvl && s.lvl[buildings[i].id]) || 0);
+    }
+    return n;
+  }
+  function stardustGain(s) {
+    var levels = stardustFacilityLevels(s);
+    var starPct = (SB.CFG.STAR_CAP > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / SB.CFG.STAR_CAP) : 0;
+    var dysonPct = SB.economy && SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0;
+    var mul = (1 + starPct) * (1 + 0.5 * dysonPct);
+    if (s.civics && s.civics.ancestor_heritage) mul *= 1.2;
+    if (s.civics && s.civics.star_ruins) mul *= 1 + 0.01 * levels;
+    if (s.techs && s.techs.heir_of_stars) mul *= 2;
+    return Math.floor(levels * 0.1 * mul);
+  }
+  function starPerkDef(id) {
+    var defs = SB.STAR_PERKS || [];
+    for (var i = 0; i < defs.length; i++) if (defs[i].id === id) return defs[i];
+    return null;
+  }
+  function starPerkState(id) {
+    var p = starPerkDef(id);
+    if (!p) return null;
+    var meta = SB.game.meta();
+    var levels = meta.starPerks || {};
+    var lv = levels[id] || 0;
+    var next = p.costs ? p.costs[lv] : (p.cost || 0) + (p.costStep || 0) * lv;
+    return { perk: p, lv: lv, max: p.n || 1, next: next,
+      done: lv >= (p.n || 1), afford: (meta.stardust || 0) >= next };
+  }
+  function buyStarPerk(id) {
+    var st = starPerkState(id);
+    if (!st || st.done || !isFinite(st.next) || !st.afford) return false;
+    var meta = SB.game.meta();
+    if (!meta.starPerks || typeof meta.starPerks !== 'object') meta.starPerks = {};
+    meta.stardust -= st.next;
+    meta.starPerks[id] = st.lv + 1;
+    var s = SB.game.run();
+    if (s && s.perk) {
+      var a = st.perk.apply || {};
+      for (var k in a) s.perk[k] = (s.perk[k] || 0) + a[k];
+    }
+    SB.state.saveMeta(meta);
+    return true;
+  }
+  function exchangeTideForStardust() {
+    var meta = SB.game.meta();
+    if (!meta || (meta.tide || 0) < 10) return false;
+    meta.tide -= 10;
+    meta.spent = (meta.spent || 0) + 10;
+    meta.stardust = (meta.stardust || 0) + 1;
+    SB.state.saveMeta(meta);
+    return true;
+  }
+  function exchangeStardustForTide() {
+    var meta = SB.game.meta();
+    if (!meta || (meta.stardust || 0) < 1) return false;
+    meta.stardust -= 1;
+    meta.tide = (meta.tide || 0) + 10;
+    SB.state.saveMeta(meta);
+    return true;
   }
   function buyPerk(id) {
     var st = perkState(id);
@@ -308,6 +387,13 @@
     perkDef: perkDef,
     perkLocked: perkLocked,
     buyPerk: buyPerk,
+    stardustFacilityLevels: stardustFacilityLevels,
+    stardustGain: stardustGain,
+    starPerkDef: starPerkDef,
+    starPerkState: starPerkState,
+    buyStarPerk: buyStarPerk,
+    exchangeTideForStardust: exchangeTideForStardust,
+    exchangeStardustForTide: exchangeStardustForTide,
     applyPerk: applyPerk,
     toggleAutoResearch: toggleAutoResearch
   };

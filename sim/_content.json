@@ -2,39 +2,45 @@
   "RESS": {
     "kelp": {
       "name": "藻食",
-      "short": "藻"
+      "short": "藻",
+      "storageEra": 1
     },
     "coral": {
       "name": "珊瑚",
-      "short": "珊"
+      "short": "珊",
+      "storageEra": 1
     },
     "stone": {
       "name": "石头",
       "short": "石",
       "unlock": {
         "tech": "quarry"
-      }
+      },
+      "storageEra": 1
     },
     "silt": {
       "name": "金属",
       "short": "金",
       "unlock": {
         "tech": "mining"
-      }
+      },
+      "storageEra": 1
     },
     "warmstone": {
       "name": "暖石",
       "short": "暖",
       "unlock": {
         "tech": "mining"
-      }
+      },
+      "storageEra": 1
     },
     "iron": {
       "name": "精铁",
       "short": "铁",
       "unlock": {
         "build": "furnace"
-      }
+      },
+      "storageEra": 2
     },
     "steel": {
       "name": "钢",
@@ -48,7 +54,56 @@
       "short": "钛",
       "unlock": {
         "tech": "physics"
+      },
+      "storageEra": 4
+    },
+    "uranium": {
+      "name": "铀",
+      "short": "铀",
+      "unlock": {
+        "tech": "autodrill"
+      },
+      "storageEra": 7
+    },
+    "tiplate": {
+      "name": "钛金板件",
+      "short": "板",
+      "kind": "craft",
+      "unlock": {
+        "tech": "minipump"
       }
+    },
+    "thetaMetal": {
+      "name": "θ生物金属",
+      "short": "θ",
+      "unlock": {
+        "tech": "biomat"
+      },
+      "storageEra": 8
+    },
+    "thinafilm": {
+      "name": "θ金属自适应薄膜",
+      "short": "膜",
+      "kind": "craft",
+      "unlock": {
+        "tech": "nanotech"
+      }
+    },
+    "strongProp": {
+      "name": "强工质火箭引擎",
+      "short": "箭",
+      "kind": "craft",
+      "unlock": {
+        "tech": "interplanetary"
+      }
+    },
+    "starExplore": {
+      "name": "星空探索",
+      "short": "星",
+      "unlock": {
+        "tech": "exostruct"
+      },
+      "storageEra": 6
     },
     "science": {
       "name": "科技",
@@ -62,7 +117,8 @@
       "short": "热",
       "unlock": {
         "build": "geyser"
-      }
+      },
+      "storageEra": 1
     },
     "culture": {
       "name": "市政点",
@@ -164,6 +220,37 @@
       "kind": "craft",
       "unlock": {
         "tech": "shellgeo"
+      }
+    },
+    "sealbin": {
+      "name": "封闭藻仓",
+      "short": "舱",
+      "kind": "craft",
+      "unlock": {
+        "tech": "sealbin"
+      }
+    },
+    "rocketFuel": {
+      "name": "燃料",
+      "short": "燃",
+      "kind": "craft",
+      "unlock": {
+        "tech": "refine"
+      }
+    },
+    "rocketEngine": {
+      "name": "火箭引擎",
+      "short": "引",
+      "kind": "craft",
+      "unlock": {
+        "tech": "crewed"
+      }
+    },
+    "stardust": {
+      "name": "星屑",
+      "short": "尘",
+      "unlock": {
+        "build": "satellite"
       }
     }
   },
@@ -271,7 +358,8 @@
         "r": "kelp",
         "n": 200
       },
-      "note": "信息型奖励：第一次把海底火山的活跃 / 平稳 / 休眠周期变成一句能背下来的算数。\n      *   关键节点。"
+      "effectDesc": "信息奖励：显示海底火山的周期阶段与读数；不影响资源产出。",
+      "note": "关键节点。"
     },
     {
       "id": "scholarT",
@@ -441,7 +529,7 @@
         "n": 20
       },
       "eff": {},
-      "note": "暖石开关：休眠期消耗暖石，抵消季节减产。"
+      "unlockDesc": "解锁暖石开关：寒流季启用后消耗暖石，抵消部分季节减产并免除冻伤。"
     },
     {
       "id": "lighting",
@@ -503,7 +591,7 @@
         "n": 8
       },
       "eff": {},
-      "note": "Civ6: Horseback Riding 位 · 有了光才知道什么时候该出门。"
+      "unlockDesc": "解锁工坊工具「马具」；购买后商人奢侈品产出 +50%。"
     },
     {
       "id": "ironwork",
@@ -546,7 +634,7 @@
         "n": 3
       },
       "eff": {},
-      "note": "热泉炉冒到第三级，才有人开始算「这炉子能撑多少料」。解锁铁制支架的配方，以及压舱库 / 藻食库两道扩容升级。"
+      "unlockDesc": "解锁工坊配方「铁制支架」，以及压舱库、藻食库扩容升级。"
     },
     {
       "id": "mathematics",
@@ -587,11 +675,12 @@
       "eff": {
         "craftRatio": 0.15
       },
-      "note": "Civ6: Masonry 位 · 解锁成捆东西的绳。同时工坊效率 +15%。"
+      "unlockDesc": "解锁工坊配方「绳」。"
     },
     {
       "id": "apprentice",
       "name": "学徒制",
+      "icon": "assets/tech-icons/era-3/era3-apprenticeship.png",
       "era": 3,
       "cost": 3000,
       "branch": "survive",
@@ -607,11 +696,12 @@
         ]
       },
       "eff": {},
-      "note": "Civ6: Apprenticeship · 买齐三件铁制工具（镰/斧/镐）即掌握。解锁鱼骨矿井。"
+      "unlockDesc": "解锁砂矿坑升级「鱼骨矿井」；购买后矿工金属产出 +50%、伴生暖石 +400%。"
     },
     {
       "id": "horseshoe",
       "name": "马镫",
+      "icon": "assets/tech-icons/era-3/era3-horseshoe.png",
       "era": 3,
       "cost": 4500,
       "branch": "live",
@@ -624,11 +714,12 @@
         "n": 5
       },
       "eff": {},
-      "note": "Civ6: Horseshoeing · 5 名商人即掌握。解锁马镫（工坊升级，奢侈品 +50%）。"
+      "unlockDesc": "解锁工坊升级「马镫」；购买后商人奢侈品产出 +50%，可与工具「马具」叠加。"
     },
     {
       "id": "education",
       "name": "教育",
+      "icon": "assets/tech-icons/era-3/era3-education.png",
       "era": 3,
       "cost": 8000,
       "branch": "know",
@@ -644,11 +735,12 @@
         "n": 3
       },
       "eff": {},
-      "note": "Civ6: Education · 三级研究所即掌握。解锁大学（工坊升级）与阿尔巴达热液大学（奇观）。"
+      "unlockDesc": "解锁研究所升级「大学」（学者科技产出 +100%/级）和奇观「阿尔巴达热液大学」。"
     },
     {
       "id": "metalrefine",
       "name": "金属精炼",
+      "icon": "assets/tech-icons/era-3/era3-metal-refining.png",
       "era": 3,
       "cost": 6500,
       "branch": "survive",
@@ -667,11 +759,35 @@
           "hydroshop"
         ]
       },
-      "note": "Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。"
+      "note": "Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。",
+      "unlockDesc": "解锁工坊配方「钢制零件」。"
+    },
+    {
+      "id": "blacksmoker",
+      "name": "黑烟囱炼铁",
+      "icon": "assets/tech-icons/era-3/era3-blacksmoker.png",
+      "era": 3,
+      "cost": 7000,
+      "branch": "survive",
+      "key": false,
+      "reqs": [
+        "metalrefine"
+      ],
+      "layer": 3,
+      "cond": {
+        "t": "built",
+        "b": "furnace",
+        "n": 3
+      },
+      "eff": {
+        "smelt": 0.25
+      },
+      "note": "黑烟囱（海底热液喷口）的炽热矿浆富含铁硫，经富集提纯后炼铁更出铁。精铁产出 ×1.25（与「铁器」乘法叠加）。"
     },
     {
       "id": "castle",
       "name": "城堡",
+      "icon": "assets/tech-icons/era-3/era3-castle.png",
       "era": 3,
       "cost": 10000,
       "branch": "live",
@@ -685,11 +801,12 @@
         "wild": 3
       },
       "eff": {},
-      "note": "Civ6: Castles · 启用任一三槽政体即掌握。解锁工坊升级「城堡」——议事厅升级为城堡：议价减耗 +50%、每级 +50 容量。"
+      "unlockDesc": "解锁议事厅升级「城堡」；购买后降低建筑造价，每级为纪元三及之前有上限资源 +50 容量、市政点 +0.05/秒。"
     },
     {
       "id": "shellwatch",
       "name": "天壳观测",
+      "icon": "assets/tech-icons/era-4/era4-shellwatch.png",
       "era": 4,
       "cost": 20000,
       "branch": "know",
@@ -713,6 +830,7 @@
     {
       "id": "printing",
       "name": "印刷术",
+      "icon": "assets/tech-icons/era-4/era4-printing.png",
       "era": 4,
       "cost": 25000,
       "branch": "know",
@@ -736,6 +854,7 @@
     {
       "id": "physics",
       "name": "物理",
+      "icon": "assets/tech-icons/era-4/era4-physics.png",
       "era": 4,
       "cost": 40000,
       "branch": "know",
@@ -753,11 +872,12 @@
         ]
       },
       "eff": {},
-      "note": "Civ6: Scientific Theory · 钢器趁手了，才谈得上把力气算成数。"
+      "unlockDesc": "解锁工坊配方「脚手架」和砂矿坑升级「深层矿井」（矿工开始伴生钛）。"
     },
     {
       "id": "banking",
       "name": "银行业",
+      "icon": "assets/tech-icons/era-4/era4-banking.png",
       "era": 4,
       "cost": 40000,
       "branch": "live",
@@ -781,6 +901,7 @@
     {
       "id": "thermo",
       "name": "热力学",
+      "icon": "assets/tech-icons/era-4/era4-thermodynamics.png",
       "era": 4,
       "cost": 50000,
       "branch": "survive",
@@ -795,11 +916,57 @@
         "n": 5
       },
       "eff": {},
-      "note": "Civ6: Industrialization · 汽轮机五级，压力才谈得上被拿去利用。"
+      "unlockDesc": "解锁工坊升级「高压气泵」；购买后热液汽轮机的热液能产出 +50%。"
+    },
+    {
+      "id": "hydrocarbur",
+      "name": "海流锻钢",
+      "icon": "assets/tech-icons/era-4/era4-hydrocarbur.png",
+      "era": 4,
+      "cost": 55000,
+      "branch": "survive",
+      "key": false,
+      "reqs": [
+        "thermo"
+      ],
+      "layer": 5,
+      "cond": {
+        "t": "built",
+        "b": "hydroshop",
+        "n": 3
+      },
+      "eff": {
+        "steelMul": 0.3
+      },
+      "note": "用洋流的机械力锻打钢坯（海上版锻钢）。钢产出 ×1.30（新乘区 steelMul，与废钢锻造加法叠加）。"
+    },
+    {
+      "id": "ventrecir",
+      "name": "热泉回流",
+      "icon": "assets/tech-icons/era-4/era4-ventrecir.png",
+      "era": 4,
+      "cost": 45000,
+      "branch": "survive",
+      "key": false,
+      "reqs": [
+        "physics"
+      ],
+      "layer": 5,
+      "cond": {
+        "t": "built",
+        "b": "furnace",
+        "n": 5
+      },
+      "eff": {
+        "bldEff": -0.4
+      },
+      "effectDesc": "热泉炉（金属+暖石 → 精铁）与热液工坊（金属 → 钢）的原料消耗 ×0.6（−40%）；只省原料，产能不变。",
+      "note": "更深热泉的循环工艺：热泉炉省金属+暖石、热液工坊省金属，各 ×0.6（−40%）＝同产出只耗六成原料，产能不变。"
     },
     {
       "id": "invert",
       "name": "倒置搭建",
+      "icon": "assets/tech-icons/era-4/era4-inverted-construction.png",
       "era": 4,
       "cost": 75000,
       "branch": "survive",
@@ -812,12 +979,16 @@
         "t": "pop",
         "n": 50
       },
-      "eff": {},
-      "note": "Civ6: Urban Design · 关键节点。五十人同族，才有把天壳当工地的一批人。"
+      "eff": {
+        "scaffoldCostSave": 0.25
+      },
+      "effectDesc": "所有建筑、工坊升级与奇观的脚手架需求 −25%；不影响其他材料。",
+      "unlockDesc": "解锁奇观「天壳切削器」；建成后科技与市政产出各增加相当于天壳观测站等级的百分比。"
     },
     {
       "id": "industrialize",
       "name": "工业化",
+      "icon": "assets/tech-icons/era-5/era5-industrialization.png",
       "era": 5,
       "cost": 80000,
       "branch": "survive",
@@ -841,6 +1012,7 @@
     {
       "id": "pubedu",
       "name": "普及教育",
+      "icon": "assets/tech-icons/era-5/era5-public-schooling.png",
       "era": 5,
       "cost": 90000,
       "branch": "know",
@@ -865,6 +1037,7 @@
     {
       "id": "abyssgeo",
       "name": "渊海地质学",
+      "icon": "assets/tech-icons/era-5/era5-abyssal-geology.png",
       "era": 5,
       "cost": 100000,
       "branch": "know",
@@ -878,14 +1051,15 @@
         "id": "upg_deepmine"
       },
       "eff": {
-        "warmMul": 5,
-        "titaniumMul": 1
+        "warmMul": 1
       },
-      "note": "Civ6: Seafaring · 完成深层矿井升级。暖石 +500% / 钛 +100%。"
+      "effectDesc": "矿工伴生暖石产出 +100%。",
+      "note": "Civ6: Seafaring · 完成深层矿井升级。暖石 +100%。"
     },
     {
       "id": "highthermo",
       "name": "高压热机",
+      "icon": "assets/tech-icons/era-5/era5-high-pressure-engine.png",
       "era": 5,
       "cost": 110000,
       "branch": "survive",
@@ -899,11 +1073,12 @@
         "id": "upg_hppump"
       },
       "eff": {},
-      "note": "Civ6: High Pressure Engines · 完成高压气泵升级。"
+      "unlockDesc": "解锁工坊升级「热回收改造」「废钢锻造」和奇观「高压热机管道」；奇观提供热液能 +10/秒。"
     },
     {
       "id": "shellgeo",
       "name": "天壳地质学",
+      "icon": "assets/tech-icons/era-5/era5-shell-geology.png",
       "era": 5,
       "cost": 120000,
       "branch": "know",
@@ -917,11 +1092,12 @@
         "n": 0.5
       },
       "eff": {},
-      "note": "Civ6: Geology · 破壳达到 50%（壳剩余 ≤ 50%）。"
+      "unlockDesc": "解锁工坊配方「共振钻头」和工坊升级「倒置工程学」（所有建筑造价 −20%）。"
     },
     {
       "id": "skydrill",
       "name": "天穹钻机",
+      "icon": "assets/tech-icons/era-5/era5-sky-drill.png",
       "era": 5,
       "cost": 150000,
       "branch": "know",
@@ -939,12 +1115,943 @@
         ]
       },
       "eff": {},
-      "note": "Civ6: Skyscraper · 关键节点。建成天壳切削器 + 高压热机管道两座奇观。破壳纪收尾。"
+      "unlockDesc": "解锁奇观「天穹钻机」；当前版本的机器运行逻辑尚未实装。"
+    },
+    {
+      "id": "minipump",
+      "name": "热液泵小型化",
+      "icon": "assets/tech-icons/era-6/era6-minipump.png",
+      "era": 6,
+      "cost": 150000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "skydrill"
+      ],
+      "layer": 8,
+      "cond": {
+        "t": "rate",
+        "r": "hydroSupply",
+        "n": 50
+      },
+      "eff": {},
+      "unlockDesc": "解锁工坊配方「钛金板件」（50 钛制成 1 个），以及扩容升级「合金仓储」。"
+    },
+    {
+      "id": "modpart",
+      "name": "可替换部件",
+      "icon": "assets/tech-icons/era-6/era6-modpart.png",
+      "era": 6,
+      "cost": 150000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "skydrill"
+      ],
+      "layer": 8,
+      "cond": {
+        "t": "built",
+        "b": "hotforge",
+        "n": 3
+      },
+      "eff": {},
+      "unlockDesc": "解锁工坊区自动建造。",
+      "note": "解锁工坊区自动建造。"
+    },
+    {
+      "id": "chemistry",
+      "name": "化学",
+      "icon": "assets/tech-icons/era-6/era6-chemistry.png",
+      "era": 6,
+      "cost": 400000,
+      "branch": "know",
+      "key": true,
+      "reqs": [
+        "modpart"
+      ],
+      "layer": 9,
+      "cond": {
+        "t": "wonders",
+        "ids": [
+          "wonder_great_library",
+          "wonder_albada"
+        ]
+      },
+      "eff": {
+        "unlockBuild": [
+          "researchlab"
+        ]
+      },
+      "note": "解锁研究实验室（每级+10%科技产出 软30/硬50 递减 + 科研消耗-2%/级，造价全钛金板件）；完成后学者改称科学家。关键节点。"
+    },
+    {
+      "id": "engraving",
+      "name": "刻纹腐蚀术",
+      "icon": "assets/tech-icons/era-6/era6-engraving.png",
+      "era": 6,
+      "cost": 350000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "chemistry"
+      ],
+      "layer": 10,
+      "cond": {
+        "t": "res",
+        "r": "tidalRecord",
+        "n": 1000
+      },
+      "eff": {},
+      "effectDesc": "潮纹记录制造消耗 −20%。"
+    },
+    {
+      "id": "sealbin",
+      "name": "密闭水仓",
+      "icon": "assets/tech-icons/era-6/era6-sealbin.png",
+      "era": 6,
+      "cost": 300000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "modpart",
+        "minipump"
+      ],
+      "layer": 9,
+      "cond": {
+        "t": "gathered",
+        "r": "titanium",
+        "n": 200
+      },
+      "eff": {},
+      "unlockDesc": "解锁工坊配方「封闭藻仓」和工坊升级「温水藻场」；购买升级后，每级藻场额外提供 +0.5 科技点/秒，且不受季节影响。"
+    },
+    {
+      "id": "refine",
+      "name": "精炼",
+      "icon": "assets/tech-icons/era-6/era6-refine.png",
+      "era": 6,
+      "cost": 300000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "minipump"
+      ],
+      "layer": 9,
+      "cond": {
+        "t": "rate",
+        "r": "warmstone",
+        "n": 100
+      },
+      "eff": {},
+      "effectDesc": "生产精铁和钢时，暖石消耗 −30%。"
+    },
+    {
+      "id": "specfuel",
+      "name": "特种燃料",
+      "icon": "assets/tech-icons/era-6/era6-specfuel.png",
+      "era": 6,
+      "cost": 600000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "refine"
+      ],
+      "layer": 10,
+      "cond": {
+        "t": "tech",
+        "id": "refine"
+      },
+      "eff": {},
+      "effectDesc": "热液汽轮机运行时，暖石消耗 −30%。"
+    },
+    {
+      "id": "exostruct",
+      "name": "壳外建筑",
+      "icon": "assets/tech-icons/era-6/era6-exostruct.png",
+      "era": 6,
+      "cost": 800000,
+      "branch": "live",
+      "key": true,
+      "reqs": [
+        "sealbin"
+      ],
+      "layer": 10,
+      "cond": {
+        "t": "shell",
+        "n": 1
+      },
+      "eff": {},
+      "unlockDesc": "解锁「星空观测站」升级和深空探测功能；购买升级后科技产出 +40%、每秒增加 1 星空探索，并消耗热液能（可开关）。"
+    },
+    {
+      "id": "hotforge_hammer",
+      "name": "热力锻锤",
+      "icon": "assets/tech-icons/era-6/era6-hotforge-hammer.png",
+      "era": 6,
+      "cost": 350000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "minipump"
+      ],
+      "layer": 9,
+      "cond": {
+        "t": "built",
+        "b": "hotforge",
+        "n": 5
+      },
+      "eff": {},
+      "effectDesc": "自动制作槽位 +1。"
+    },
+    {
+      "id": "modtrans",
+      "name": "现代化交通",
+      "icon": "assets/tech-icons/era-6/era6-modtrans.png",
+      "era": 6,
+      "cost": 700000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "minipump"
+      ],
+      "layer": 10,
+      "cond": {
+        "t": "built",
+        "b": "canal",
+        "n": 20
+      },
+      "eff": {},
+      "unlockDesc": "解锁奇观「总物流站」；建成后王国潮道每级提供 +1% 工艺效率。若同时建成「全国快速物流通道」，该通道的精铁/钢产能加成翻倍。"
+    },
+    {
+      "id": "rocket",
+      "name": "火箭研究",
+      "icon": "assets/tech-icons/era-7/era7-rocket.png",
+      "era": 7,
+      "cost": 450000,
+      "branch": "live",
+      "key": true,
+      "reqs": [
+        "refine",
+        "exostruct"
+      ],
+      "layer": 11,
+      "cond": {
+        "t": "gathered",
+        "r": "rocketFuel",
+        "n": 1000
+      },
+      "eff": {
+        "unlockBuild": [
+          "satellite"
+        ]
+      },
+      "unlockDesc": "解锁科研区自动建造与太空建筑「轨道卫星」。"
+    },
+    {
+      "id": "autodrill",
+      "name": "自动化钻探",
+      "icon": "assets/tech-icons/era-7/era7-autodrill.png",
+      "era": 7,
+      "cost": 450000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "exostruct"
+      ],
+      "layer": 11,
+      "cond": {
+        "t": "built",
+        "b": "siltpit",
+        "n": 20
+      },
+      "eff": {},
+      "unlockDesc": "解锁工坊升级「自动化钻探」；矿工开始伴生采出铀。"
+    },
+    {
+      "id": "surface",
+      "name": "地表探测",
+      "icon": "assets/tech-icons/era-7/era7-surface.png",
+      "era": 7,
+      "cost": 1000000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "rocket"
+      ],
+      "layer": 12,
+      "cond": {
+        "t": "built",
+        "b": "satellite",
+        "n": 5
+      },
+      "eff": {},
+      "unlockDesc": "解锁奇观「摇篮」：建成后矿线全产出 +20%。"
+    },
+    {
+      "id": "crewed",
+      "name": "载人航天",
+      "icon": "assets/tech-icons/era-7/era7-crewed.png",
+      "era": 7,
+      "cost": 1000000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "rocket"
+      ],
+      "layer": 12,
+      "cond": {
+        "t": "gathered",
+        "r": "starExplore",
+        "n": 30000
+      },
+      "eff": {},
+      "unlockDesc": "解锁工坊配方「火箭引擎」与工坊升级「可控爆炸工艺」（工艺效率 ×1.5）。"
+    },
+    {
+      "id": "architect",
+      "name": "大型架构",
+      "icon": "assets/tech-icons/era-7/era7-architect.png",
+      "era": 7,
+      "cost": 1000000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "exostruct"
+      ],
+      "layer": 12,
+      "cond": {
+        "t": "zoneLvl",
+        "zone": "trade",
+        "n": 100
+      },
+      "eff": {},
+      "unlockDesc": "解锁工坊升级「物流仓库」：商队驿站升级后更名，每级给纪元七及之前解锁的有上限材料 +200 容量。"
+    },
+    {
+      "id": "ancient",
+      "name": "超古代科技",
+      "icon": "assets/tech-icons/era-7/era7-ancient.png",
+      "era": 7,
+      "cost": 1050000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "surface"
+      ],
+      "layer": 13,
+      "cond": {
+        "t": "gathered",
+        "r": "stardust",
+        "n": 5
+      },
+      "eff": {},
+      "effectDesc": "所有太空建筑建造消耗 −20%（多个减免源乘法叠加，合计至多 −70%）。星屑跨周目累计，在周目结算时发放。"
+    },
+    {
+      "id": "spacestation",
+      "name": "空间站",
+      "icon": "assets/tech-icons/era-7/era7-spacestation.png",
+      "era": 7,
+      "cost": 2400000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "crewed"
+      ],
+      "layer": 13,
+      "cond": {
+        "t": "gathered",
+        "r": "rocketEngine",
+        "n": 10
+      },
+      "eff": {
+        "unlockBuild": [
+          "spacestation"
+        ]
+      },
+      "unlockDesc": "解锁太空建筑「空间站」与政体专属奇观（名称与加成随政体变化）。"
+    },
+    {
+      "id": "fission",
+      "name": "核裂变",
+      "icon": "assets/tech-icons/era-7/era7-fission.png",
+      "era": 7,
+      "cost": 1800000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "autodrill"
+      ],
+      "layer": 13,
+      "cond": {
+        "t": "gathered",
+        "r": "uranium",
+        "n": 100
+      },
+      "eff": {
+        "unlockBuild": [
+          "fissionplant"
+        ]
+      },
+      "unlockDesc": "解锁建筑「核热厂」：每级 +10 热液能/秒，耗铀，且居民奢侈品消耗 +10%（负面）。"
+    },
+    {
+      "id": "complexf",
+      "name": "复合型工厂",
+      "icon": "assets/tech-icons/era-7/era7-complexf.png",
+      "era": 7,
+      "cost": 2100000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "architect"
+      ],
+      "layer": 13,
+      "cond": {
+        "t": "upgrade",
+        "id": "upg_logiware"
+      },
+      "eff": {},
+      "effectDesc": "自动制作槽位 +1。"
+    },
+    {
+      "id": "deepspace",
+      "name": "深空力学",
+      "icon": "assets/tech-icons/era-8/era8-deepspace.png",
+      "era": 8,
+      "cost": 1350000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "spacestation",
+        "fission"
+      ],
+      "layer": 14,
+      "cond": {
+        "t": "civic",
+        "id": "space_race"
+      },
+      "eff": {},
+      "unlockDesc": "解锁奇观「旅行者1号」：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为 +25/秒且学者产出 +10%。"
+    },
+    {
+      "id": "biomat",
+      "name": "生物材料",
+      "icon": "assets/tech-icons/era-8/era8-biomat.png",
+      "era": 8,
+      "cost": 1350000,
+      "branch": "live",
+      "key": true,
+      "reqs": [
+        "spacestation"
+      ],
+      "layer": 14,
+      "cond": {
+        "t": "cap",
+        "r": "kelp",
+        "n": 30000
+      },
+      "eff": {
+        "unlockBuild": [
+          "biomatlab"
+        ]
+      },
+      "unlockDesc": "解锁建筑「生物材料研究所」（制造 θ生物金属）与工坊升级「θ生物金属工具三件套」。"
+    },
+    {
+      "id": "laser",
+      "name": "激光技术",
+      "icon": "assets/tech-icons/era-8/era8-laser.png",
+      "era": 8,
+      "cost": 3000000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "biomat"
+      ],
+      "layer": 15,
+      "cond": {
+        "t": "rate",
+        "r": "hydroSupply",
+        "n": 100
+      },
+      "eff": {
+        "workshopEff": 0.5
+      },
+      "unlockDesc": "解锁工坊升级「激光快速雕版」（本周目制造消耗 −30%，轮回后失效）。工坊工艺制作效率 +50%（永久）。"
+    },
+    {
+      "id": "robotics",
+      "name": "机器人技术",
+      "icon": "assets/tech-icons/era-8/era8-robotics.png",
+      "era": 8,
+      "cost": 3000000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "biomat"
+      ],
+      "layer": 15,
+      "cond": {
+        "t": "built",
+        "b": "biomatlab",
+        "n": 3
+      },
+      "eff": {
+        "satStar": 1
+      },
+      "unlockDesc": "解锁工坊升级「工业机器人」（工坊效率 +100%，可开关，耗热液能）。人造卫星星空探索 +100%（永久）。"
+    },
+    {
+      "id": "xenoconst",
+      "name": "异星建筑工程",
+      "icon": "assets/tech-icons/era-8/era8-xenoconst.png",
+      "era": 8,
+      "cost": 3000000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "deepspace"
+      ],
+      "layer": 15,
+      "cond": {
+        "t": "starPct",
+        "n": 10
+      },
+      "eff": {
+        "unlockBuild": [
+          "rheamine"
+        ]
+      },
+      "unlockDesc": "解锁建筑「瑞亚星矿井」（星海区在地开采）。"
+    },
+    {
+      "id": "bigdata",
+      "name": "大数据",
+      "icon": "assets/tech-icons/era-8/era8-bigdata.png",
+      "era": 8,
+      "cost": 3150000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "robotics"
+      ],
+      "layer": 16,
+      "cond": {
+        "t": "civic",
+        "id": "planet_village"
+      },
+      "eff": {},
+      "unlockDesc": "解锁礁栖核心自动建造（建筑页的自动升级开关对该区生效）。"
+    },
+    {
+      "id": "gascloud",
+      "name": "气云采集",
+      "icon": "assets/tech-icons/era-8/era8-gascloud.png",
+      "era": 8,
+      "cost": 7200000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "xenoconst"
+      ],
+      "layer": 16,
+      "cond": {
+        "t": "built",
+        "b": "rheamine",
+        "n": 3
+      },
+      "eff": {
+        "unlockBuild": [
+          "titancloud"
+        ]
+      },
+      "unlockDesc": "解锁建筑「泰坦星气云采集站」与奇观「萨图恩巨星气行星轨道采集站」（热液 +30/燃料 +30/星空 +10 每秒）。"
+    },
+    {
+      "id": "protoai",
+      "name": "初级人工智能",
+      "icon": "assets/tech-icons/era-8/era8-protoai.png",
+      "era": 8,
+      "cost": 3150000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "robotics"
+      ],
+      "layer": 16,
+      "cond": {
+        "t": "pop",
+        "n": 70
+      },
+      "eff": {
+        "unlockBuild": [
+          "robotbay"
+        ]
+      },
+      "unlockDesc": "解锁建筑「机器人充能站」（维持 4 机器人人口/级：仅担任非书手/学者岗位，产出 +20%、不影响信仰点）。"
+    },
+    {
+      "id": "nanotech",
+      "name": "纳米技术",
+      "icon": "assets/tech-icons/era-8/era8-nanotech.png",
+      "era": 8,
+      "cost": 3150000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "robotics"
+      ],
+      "layer": 16,
+      "cond": {
+        "t": "rate",
+        "r": "thetaMetal",
+        "n": 5
+      },
+      "eff": {
+        "biomatlabOut": 0.1,
+        "biomatlabEff": 0.3
+      },
+      "unlockDesc": "解锁工艺「θ金属自适应薄膜」（100θ → 1 钛金板件）。生物材料研究所产出 +10%、效率 +30%。"
+    },
+    {
+      "id": "nuclear_fusion",
+      "name": "核聚变",
+      "icon": "assets/tech-icons/era-9/era9-nuclear-fusion.png",
+      "era": 9,
+      "cost": 3000000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "nanotech"
+      ],
+      "layer": 17,
+      "cond": {
+        "t": "built",
+        "b": "fissionplant",
+        "n": 3
+      },
+      "eff": {},
+      "unlockDesc": "核热厂：铀消耗 ×2、热液能产出 ×5。"
+    },
+    {
+      "id": "ecological_restoration",
+      "name": "生态重塑",
+      "icon": "assets/tech-icons/era-9/era9-ecological-restoration.png",
+      "era": 9,
+      "cost": 3500000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "gascloud",
+        "nanotech"
+      ],
+      "layer": 17,
+      "cond": {
+        "t": "starPct",
+        "n": 50
+      },
+      "eff": {},
+      "unlockDesc": "解锁奇观「星球重构机 G.E.E.K」（运行态机制随后单独实装）。完成瑞亚星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前。"
+    },
+    {
+      "id": "interplanetary",
+      "name": "行星际航行",
+      "icon": "assets/tech-icons/era-9/era9-interplanetary.png",
+      "era": 9,
+      "cost": 4000000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "nanotech",
+        "protoai"
+      ],
+      "layer": 17,
+      "cond": {
+        "t": "gathered",
+        "r": "rocketEngine",
+        "n": 500
+      },
+      "eff": {},
+      "unlockDesc": "工艺制造：强工质火箭引擎（燃料 500 + θ金属 10 → 1）。所有异星建筑每级 +5% 星空探索速度。"
+    },
+    {
+      "id": "microwave_heat",
+      "name": "超远距微波加热",
+      "icon": "assets/tech-icons/era-9/era9-microwave-heat.png",
+      "era": 9,
+      "cost": 5000000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "interplanetary"
+      ],
+      "layer": 18,
+      "cond": {
+        "t": "starPct",
+        "n": 75
+      },
+      "eff": {
+        "unlockBuild": [
+          "europa_launch"
+        ]
+      },
+      "unlockDesc": "建筑：欧罗巴冰面发射场（每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；运行 10s → 星图 +1 太阳帆）。星图每 1 太阳帆 +0.05 热液能/秒。"
+    },
+    {
+      "id": "alien_eng",
+      "name": "大型异星工程",
+      "icon": "assets/tech-icons/era-9/era9-alien-eng.png",
+      "era": 9,
+      "cost": 6000000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "ecological_restoration"
+      ],
+      "layer": 18,
+      "cond": {
+        "t": "lvlSum",
+        "ids": [
+          "rheamine",
+          "titancloud",
+          "mars_workshop"
+        ],
+        "n": 20
+      },
+      "eff": {
+        "unlockBuild": [
+          "mars_workshop"
+        ]
+      },
+      "unlockDesc": "建筑：马尔斯工造中心（造价 160θ生物金属 + 10 强工质火箭引擎，每级产钛与钛金板件）。"
+    },
+    {
+      "id": "blackhistory",
+      "name": "黑历史蓝图",
+      "icon": "assets/tech-icons/era-9/era9-blackhistory.png",
+      "era": 9,
+      "cost": 5500000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "interplanetary"
+      ],
+      "layer": 18,
+      "cond": {
+        "t": "cycle",
+        "n": 15
+      },
+      "eff": {
+        "workshopEff": 1.2
+      },
+      "unlockDesc": "工艺效率 +120%（工坊工艺制作乘区，与激光技术 +50% 加法叠加）。"
+    },
+    {
+      "id": "terraform",
+      "name": "星球改造",
+      "icon": "assets/tech-icons/era-9/era9-terraform.png",
+      "era": 9,
+      "cost": 7000000,
+      "branch": "live",
+      "key": true,
+      "reqs": [
+        "alien_eng"
+      ],
+      "layer": 19,
+      "cond": {
+        "t": "geekRhea"
+      },
+      "eff": {},
+      "unlockDesc": "可启动泰拉星球改造（需启动星球重构机 G.E.E.K，运行态随后实装）。泰拉改造 1h 完成后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到五级之前。"
+    },
+    {
+      "id": "interlog",
+      "name": "行星际快速物流",
+      "icon": "assets/tech-icons/era-9/era9-interlog.png",
+      "era": 9,
+      "cost": 6500000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "microwave_heat"
+      ],
+      "layer": 19,
+      "cond": {
+        "t": "civic",
+        "id": "space_politics"
+      },
+      "eff": {
+        "alienOutMul": 0.2
+      },
+      "unlockDesc": "异星建筑产出 +20%（与星际物流网卡 ×1.3 加算：总产出倍数 = 1.3 + 0.2 = 1.5）。"
+    },
+    {
+      "id": "winter",
+      "name": "严冬计划",
+      "icon": "assets/tech-icons/era-9/era9-winter.png",
+      "era": 9,
+      "cost": 6000000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "blackhistory"
+      ],
+      "layer": 19,
+      "cond": {
+        "t": "challenge",
+        "id": "drift_terra"
+      },
+      "eff": {},
+      "unlockDesc": "暂时占位（流浪泰拉挑战相关机制随后设计）。"
+    },
+    {
+      "id": "adiabatic",
+      "name": "绝热材料",
+      "icon": "assets/tech-icons/era-10/era10-adiabatic.png",
+      "era": 10,
+      "cost": 8000000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "terraform"
+      ],
+      "layer": 20,
+      "cond": {
+        "t": "sunSails",
+        "n": 50
+      },
+      "eff": {},
+      "unlockDesc": "欧罗巴冰面发射场可切换制造太阳帆或戴森球节点（节点每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板）。星图开启戴森球终局面板：太阳帆 10000 + 戴森球节点 1000 即通关。"
+    },
+    {
+      "id": "strong_ai",
+      "name": "强人工智能",
+      "icon": "assets/tech-icons/era-10/era10-strong-ai.png",
+      "era": 10,
+      "cost": 8500000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "terraform"
+      ],
+      "layer": 20,
+      "cond": {
+        "t": "built",
+        "b": "robotbay",
+        "n": 10
+      },
+      "eff": {},
+      "unlockDesc": "工坊升级「强人工智能」（消耗 1000 θ金属）：机器人产出 ×1.2 → ×1.5，且机器人按人口口径产出信仰。"
+    },
+    {
+      "id": "gravity_sling",
+      "name": "引力弹弓",
+      "icon": "assets/tech-icons/era-10/era10-gravity-sling.png",
+      "era": 10,
+      "cost": 9000000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "interlog"
+      ],
+      "layer": 20,
+      "cond": {
+        "t": "civic",
+        "id": "solar_logistics"
+      },
+      "eff": {},
+      "unlockDesc": "奇观「朱庇特质量加速站」（消耗 20 强工质火箭引擎 + 100 θ金属自适应薄膜）：每秒耗 20 热液能，生物材料研究所产出 +100%。"
+    },
+    {
+      "id": "near_star_orbit",
+      "name": "近恒星轨道建设",
+      "icon": "assets/tech-icons/era-10/era10-near-star-orbit.png",
+      "era": 10,
+      "cost": 10000000,
+      "branch": "live",
+      "key": false,
+      "reqs": [
+        "adiabatic"
+      ],
+      "layer": 21,
+      "cond": {
+        "t": "dysonPct",
+        "n": 40
+      },
+      "eff": {
+        "unlockBuild": [
+          "solar_ring"
+        ]
+      },
+      "unlockDesc": "建筑「太阳星环」（消耗 300 θ金属 + 20 封闭藻仓）：每秒产 0.05 θ金属/级，人口上限 +1/级。"
+    },
+    {
+      "id": "vector_ctrl",
+      "name": "空间矢量控制",
+      "icon": "assets/tech-icons/era-10/era10-vector-ctrl.png",
+      "era": 10,
+      "cost": 10500000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "adiabatic",
+        "strong_ai"
+      ],
+      "layer": 21,
+      "cond": {
+        "t": "dysonPct",
+        "n": 20
+      },
+      "eff": {
+        "launchCycle": -2
+      },
+      "unlockDesc": "发射场制造时间减少 2 秒（太阳帆与戴森球节点的产出节律 10 秒 → 8 秒）。"
+    },
+    {
+      "id": "heir_of_stars",
+      "name": "继承繁星之人",
+      "icon": "assets/tech-icons/era-10/era10-heir-of-stars.png",
+      "era": 10,
+      "cost": 11000000,
+      "branch": "know",
+      "key": false,
+      "reqs": [],
+      "layer": 21,
+      "cond": {
+        "t": "gathered",
+        "r": "stardust",
+        "n": 70
+      },
+      "eff": {},
+      "unlockDesc": "本轮回星屑点 +100%；工坊工艺效率 +x%，x 为星屑点累计数（跨周目累积）。"
+    },
+    {
+      "id": "unified_field",
+      "name": "大统一方程",
+      "icon": "assets/tech-icons/era-10/era10-unified-field.png",
+      "era": 10,
+      "cost": 15000000,
+      "branch": "know",
+      "key": false,
+      "reqs": [
+        "near_star_orbit",
+        "vector_ctrl"
+      ],
+      "layer": 22,
+      "cond": {
+        "t": "dysonPct",
+        "n": 80
+      },
+      "eff": {},
+      "unlockDesc": "按当前科技点 + 市政点给予全产加成（与旧日信仰同式：每高一个数量级 +0.5%），作用于除科技、市政、信仰之外的全部产出。"
     }
   ],
   "BUILDINGS": [
     {
       "id": "kelp",
+      "icon": "assets/building-icons/era-1/era1-kelp.png",
       "name": "深海藻场",
       "ratio": 1.12,
       "cost": {
@@ -956,6 +2063,7 @@
     },
     {
       "id": "nest",
+      "icon": "assets/building-icons/era-1/era1-nest.png",
       "name": "礁口巢",
       "ratio": 2.5,
       "cost": {
@@ -967,6 +2075,7 @@
     },
     {
       "id": "coralhouse",
+      "icon": "assets/building-icons/era-1/era1-coralhouse.png",
       "name": "石屋",
       "ratio": 2.5,
       "cost": {
@@ -980,6 +2089,7 @@
     },
     {
       "id": "siltpit",
+      "icon": "assets/building-icons/era-1/era1-siltpit.png",
       "name": "砂矿坑",
       "ratio": 1.15,
       "cost": {
@@ -993,13 +2103,14 @@
     },
     {
       "id": "hall",
+      "icon": "assets/building-icons/era-1/era1-hall.png",
       "name": "议事厅",
       "ratio": 1.2,
       "cost": {
         "stone": 80,
         "coral": 60
       },
-      "desc": "随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级",
+      "desc": "随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给纪元三及之前有上限资源 +50 容量/级",
       "requiredTech": [
         "masonry"
       ],
@@ -1007,6 +2118,7 @@
     },
     {
       "id": "weir",
+      "icon": "assets/building-icons/era-1/era1-weir.png",
       "name": "喷口导流堤",
       "ratio": 1.15,
       "cost": {
@@ -1020,6 +2132,7 @@
     },
     {
       "id": "warmnest",
+      "icon": "assets/building-icons/era-1/era1-warmnest.png",
       "name": "深海鱼牧场",
       "ratio": 1.15,
       "cost": {
@@ -1034,6 +2147,7 @@
     },
     {
       "id": "kelpstore",
+      "icon": "assets/building-icons/era-1/era1-kelpstore.png",
       "name": "海藻仓",
       "ratio": 1.15,
       "cost": {
@@ -1048,6 +2162,7 @@
     },
     {
       "id": "ballast",
+      "icon": "assets/building-icons/era-2/era2-ballast.png",
       "name": "压舱仓",
       "ratio": 1.15,
       "cost": {
@@ -1062,6 +2177,7 @@
     },
     {
       "id": "lighthouse",
+      "icon": "assets/building-icons/era-2/era2-lighthouse.png",
       "name": "灯塔",
       "ratio": 1.15,
       "cost": {
@@ -1076,6 +2192,7 @@
     },
     {
       "id": "workshop",
+      "icon": "assets/building-icons/era-1/era1-workshop.png",
       "name": "工坊",
       "ratio": 1.15,
       "cost": {
@@ -1091,6 +2208,7 @@
     },
     {
       "id": "furnace",
+      "icon": "assets/building-icons/era-2/era2-furnace.png",
       "name": "热泉炉",
       "ratio": 1.15,
       "cost": {
@@ -1106,6 +2224,7 @@
     },
     {
       "id": "library",
+      "icon": "assets/building-icons/era-1/era1-library.png",
       "name": "潮纹馆",
       "ratio": 1.15,
       "cost": {
@@ -1119,6 +2238,7 @@
     },
     {
       "id": "institute",
+      "icon": "assets/building-icons/era-2/era2-institute.png",
       "name": "研究所",
       "ratio": 1.15,
       "cost": {
@@ -1133,18 +2253,20 @@
     },
     {
       "id": "square",
+      "icon": "assets/building-icons/era-2/era2-square.png",
       "name": "广场",
       "ratio": 1.15,
       "cost": {
         "coral": 50,
         "stone": 200
       },
-      "desc": "市政点产出 ×10%/级（仅作用于书手；装政策卡「戏剧与诗歌」后翻倍）",
+      "desc": "市政点产出 ×10%/级（仅作用于市政点职业；装政策卡「戏剧与诗歌」后翻倍）",
       "requiredCivic": "drama",
       "zone": "civic"
     },
     {
       "id": "temple",
+      "icon": "assets/building-icons/era-2/era2-temple.png",
       "name": "神庙",
       "ratio": 1.15,
       "cost": {
@@ -1157,6 +2279,7 @@
     },
     {
       "id": "hydroturbine",
+      "icon": "assets/building-icons/era-3/era3-hydroturbine.png",
       "name": "热液汽轮机",
       "ratio": 1.15,
       "cost": {
@@ -1171,6 +2294,7 @@
     },
     {
       "id": "hydroshop",
+      "icon": "assets/building-icons/era-3/era3-hydroshop.png",
       "name": "热液工坊",
       "ratio": 1.15,
       "cost": {
@@ -1185,6 +2309,7 @@
     },
     {
       "id": "canal",
+      "icon": "assets/building-icons/era-3/era3-canal.png",
       "name": "王国潮道",
       "ratio": 1.15,
       "cost": {
@@ -1197,6 +2322,7 @@
     },
     {
       "id": "observatory",
+      "icon": "assets/building-icons/era-4/era4-observatory.png",
       "name": "天壳观测站",
       "ratio": 1.15,
       "cost": {
@@ -1211,6 +2337,7 @@
     },
     {
       "id": "coralfarm",
+      "icon": "assets/building-icons/era-4/era4-coralfarm.png",
       "name": "速生珊瑚林",
       "ratio": 2.5,
       "cost": {
@@ -1224,8 +2351,9 @@
     },
     {
       "id": "bank",
+      "icon": "assets/building-icons/era-4/era4-bank.png",
       "name": "银行",
-      "ratio": 1.15,
+      "ratio": 2,
       "cost": {
         "steel": 30,
         "stoneBeam": 400
@@ -1238,6 +2366,7 @@
     },
     {
       "id": "caravanserai",
+      "icon": "assets/building-icons/era-4/era4-caravanserai.png",
       "name": "商队驿站",
       "ratio": 1.15,
       "cost": {
@@ -1250,8 +2379,9 @@
     },
     {
       "id": "museum",
+      "icon": "assets/building-icons/era-4/era4-museum.png",
       "name": "博物馆",
-      "ratio": 1.15,
+      "ratio": 2,
       "cost": {
         "stone": 400
       },
@@ -1260,12 +2390,26 @@
       "zone": "civic"
     },
     {
+      "id": "black_monolith",
+      "icon": "assets/building-icons/era-9/era9-black-monolith.png",
+      "name": "黑色方碑",
+      "ratio": 1.5,
+      "cost": {
+        "stoneBeam": 1000
+      },
+      "globalFaithMul": 0.2,
+      "desc": "建成即全局信仰产出 ×1.2（消耗 1000 石梁，每级造价 ×1.5）。",
+      "requiredCivic": "gods_themselves",
+      "zone": "core"
+    },
+    {
       "id": "hotforge",
+      "icon": "assets/building-icons/era-5/era5-hotforge.png",
       "name": "热锻工厂",
-      "ratio": 1.15,
+      "ratio": 1.5,
       "cost": {
         "steel": 400,
-        "titanium": 10
+        "titanium": 150
       },
       "desc": "工艺制作效率 +7%/级（加法乘区，与工坊级/奇观/科技同一条轴）",
       "requiredTech": [
@@ -1275,11 +2419,12 @@
     },
     {
       "id": "school",
+      "icon": "assets/building-icons/era-5/era5-school.png",
       "name": "学校",
       "ratio": 1.15,
       "cost": {
         "steel": 300,
-        "titanium": 20
+        "titanium": 200
       },
       "desc": "每级给商人 +0.5 科技/s（由 BLD.schoolMerchantSci 读，tick/rates 两处同式）",
       "requiredTech": [
@@ -1289,8 +2434,9 @@
     },
     {
       "id": "theater",
+      "icon": "assets/building-icons/era-5/era5-theater.png",
       "name": "歌剧院",
-      "ratio": 1.15,
+      "ratio": 1.5,
       "cost": {
         "steel": 100,
         "stone": 400
@@ -1301,15 +2447,245 @@
     },
     {
       "id": "tenement",
+      "icon": "assets/building-icons/era-5/era5-tenement.png",
       "name": "廉租社区",
       "ratio": 3,
       "cost": {
-        "scaffold": 50,
+        "scaffold": 25,
         "steel": 100
       },
-      "desc": "人口上限 +10/级（由 popCap 读）。",
+      "desc": "人口上限 +10/级（由 popCap 读）；每级额外 +5% 居民奢侈品消耗（增耗，economy.tenementLuxAdd 读）。",
       "requiredCivic": "urbanization",
       "zone": "core"
+    },
+    {
+      "id": "researchlab",
+      "icon": "assets/building-icons/era-6/era6-researchlab.png",
+      "name": "科研所",
+      "ratio": 2,
+      "cost": {
+        "tiplate": 200
+      },
+      "desc": "科技产出 +10%/级（researchLabSci）；研究科技消耗 −2%/级（researchLabSave）。",
+      "requiredTech": [
+        "chemistry"
+      ],
+      "zone": "academy"
+    },
+    {
+      "id": "satellite",
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-7/era7-satellite.png",
+      "name": "轨道卫星",
+      "ratio": 1.5,
+      "cost": {
+        "tiplate": 100,
+        "rocketFuel": 100
+      },
+      "desc": "星空探索 +5/秒、学者产出 +25%/级。运转耗 1 热液能/秒（可「开几座」）。1 级 = 1 颗。",
+      "requiredTech": [
+        "rocket"
+      ],
+      "zone": "space"
+    },
+    {
+      "id": "spacestation",
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-7/era7-spacestation.png",
+      "name": "空间站",
+      "ratio": 1.5,
+      "cost": {
+        "rocketEngine": 5
+      },
+      "desc": "星空探索 +10/秒、运转耗 2 热液能/秒（建筑页可「开几座」）。1 级 = 1 座。",
+      "requiredTech": [
+        "spacestation"
+      ],
+      "zone": "space"
+    },
+    {
+      "id": "fissionplant",
+      "icon": "assets/building-icons/era-7/era7-fissionplant.png",
+      "name": "核热厂",
+      "ratio": 1.15,
+      "cost": {
+        "tiplate": 2000,
+        "steel": 400
+      },
+      "desc": "热液能 +10/秒/级（不烧暖石）；耗铀 0.02/秒/级；居民奢侈品消耗 +10%/级（负面）。",
+      "requiredTech": [
+        "fission"
+      ],
+      "zone": "workshop"
+    },
+    {
+      "id": "stadium",
+      "icon": "assets/building-icons/era-7/era7-stadium.png",
+      "name": "体育场",
+      "ratio": 1.5,
+      "cost": {
+        "steel": 1600
+      },
+      "desc": "族民奢侈品消耗 -5%/级（封顶 -75%）；装填《直播竞技》时额外产出市政点 = 人口 × 体育场等级。",
+      "requiredCivic": "athletics",
+      "zone": "civic"
+    },
+    {
+      "id": "biomatlab",
+      "icon": "assets/building-icons/era-8/era8-biomatlab.png",
+      "name": "生物材料研究所",
+      "ratio": 1.15,
+      "cost": {
+        "titanium": 200,
+        "tiplate": 60
+      },
+      "desc": "制造 θ生物金属：每级耗 藻食100/精铁4/钛2/铀0.05 ⇒ 产 θ +0.0625/秒；耗热液能 3/秒（断流只停耗）。",
+      "requiredTech": [
+        "biomat"
+      ],
+      "zone": "workshop"
+    },
+    {
+      "id": "rheamine",
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-8/era8-rheamine.png",
+      "name": "瑞亚星矿井",
+      "ratio": 1.5,
+      "cost": {
+        "thetaMetal": 60,
+        "rocketEngine": 10
+      },
+      "desc": "异星在地开采：每级 石梁 +2.5/秒、硬化珊瑚 +2.5/秒、铀 +0.25/秒。1 级 = 1 座。",
+      "requiredTech": [
+        "xenoconst"
+      ],
+      "zone": "space"
+    },
+    {
+      "id": "titancloud",
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-8/era8-titancloud.png",
+      "name": "泰坦星气云采集站",
+      "ratio": 1.5,
+      "cost": {
+        "thetaMetal": 100,
+        "rocketEngine": 10
+      },
+      "desc": "采集泰坦星气云：每级 热液能 +6/秒（不烧暖石）、燃料 +5/秒。1 级 = 1 座。",
+      "requiredTech": [
+        "gascloud"
+      ],
+      "zone": "space"
+    },
+    {
+      "id": "robotbay",
+      "icon": "assets/building-icons/era-8/era8-robotbay.png",
+      "name": "机器人充能站",
+      "ratio": 1.15,
+      "cost": {
+        "thetaMetal": 100,
+        "tiplate": 800
+      },
+      "desc": "维持 4 机器人人口/级：仅担任非书手/学者的岗位，产出 +20%。工坊升级「强人工智能」后产出 +50%，且按人口口径产出信仰。耗热液能 8/秒/级。",
+      "requiredTech": [
+        "protoai"
+      ],
+      "zone": "workshop"
+    },
+    {
+      "id": "mars_workshop",
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-9/era9-mars-workshop.png",
+      "name": "马尔斯工造中心",
+      "ratio": 1.5,
+      "cost": {
+        "thetaMetal": 160,
+        "strongProp": 10
+      },
+      "desc": "火星在地制造中心：每级 钛金板件 +3/秒、钛 +2/秒。1 级 = 1 座。",
+      "requiredTech": [
+        "alien_eng"
+      ],
+      "zone": "space"
+    },
+    {
+      "id": "europa_launch",
+      "launchpad": true,
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-9/era9-europa-launch.png",
+      "name": "欧罗巴冰面发射场",
+      "ratio": 1.5,
+      "cost": {
+        "steel": 1000,
+        "thetaMetal": 200,
+        "strongProp": 50
+      },
+      "desc": "欧罗巴冰面发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。《绝热材料》完成后可切换制造戴森球节点（每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板，节律相同）。",
+      "requiredTech": [
+        "microwave_heat"
+      ],
+      "zone": "core"
+    },
+    {
+      "id": "solar_ring",
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-10/era10-solar-ring.png",
+      "name": "太阳星环",
+      "ratio": 1.5,
+      "cost": {
+        "thetaMetal": 300,
+        "sealbin": 20
+      },
+      "desc": "近恒星轨道环：每秒产 0.05 θ金属/级；人口上限 +1/级。",
+      "requiredTech": [
+        "near_star_orbit"
+      ],
+      "zone": "space"
+    },
+    {
+      "id": "terra_launch",
+      "launchpad": true,
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-10/era10-terra-launch.png",
+      "name": "泰拉星轨道发射场",
+      "ratio": 1.5,
+      "cost": {
+        "steel": 1500,
+        "thetaMetal": 400,
+        "strongProp": 100
+      },
+      "desc": "泰拉星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。",
+      "requiredCivic": "public_works",
+      "zone": "space"
+    },
+    {
+      "id": "rhea_launch",
+      "launchpad": true,
+      "stardustFacility": true,
+      "icon": "assets/building-icons/era-10/era10-rhea-launch.png",
+      "name": "瑞亚星轨道发射场",
+      "ratio": 1.5,
+      "cost": {
+        "steel": 1200,
+        "thetaMetal": 320,
+        "strongProp": 80
+      },
+      "desc": "瑞亚星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。",
+      "requiredCivic": "public_works",
+      "zone": "space"
+    },
+    {
+      "id": "void_altar",
+      "icon": "assets/building-icons/era-10/era10-void-altar.png",
+      "name": "虚境祭坛",
+      "ratio": 1.5,
+      "cost": {
+        "pop": 30
+      },
+      "maxLvl": 3,
+      "desc": "以族民为祭：每建一级消耗 30 人口（按当前职业分配比例扣减），最高 3 级。三级俱成，虚境的门为你打开。",
+      "requiredCivic": "void_explore",
+      "zone": "faith"
     }
   ],
   "JOBS": [
@@ -1480,6 +2856,46 @@
         "coral": 300
       },
       "desc": "商人产奢侈品 +50%"
+    },
+    {
+      "id": "tool_thetaSickle",
+      "name": "θ镰",
+      "need": "biomat",
+      "target": [
+        "gather"
+      ],
+      "bonus": 2,
+      "cost": {
+        "thetaMetal": 30
+      },
+      "desc": "农民采藻食 +200%（与青铜/铁/钢镰相加合并，四件全买 = ×5.6）"
+    },
+    {
+      "id": "tool_thetaAxe",
+      "name": "θ斧",
+      "need": "biomat",
+      "target": [
+        "coralwright"
+      ],
+      "bonus": 2,
+      "cost": {
+        "thetaMetal": 40
+      },
+      "desc": "珊瑚匠凿珊瑚 +200%（不影响石头与金属）"
+    },
+    {
+      "id": "tool_thetaPick",
+      "name": "θ镐",
+      "need": "biomat",
+      "target": [
+        "quarrier",
+        "miner"
+      ],
+      "bonus": 2,
+      "cost": {
+        "thetaMetal": 50
+      },
+      "desc": "采石工采石头、矿工采金属并伴生暖石，三项各 +200%（不影响珊瑚）"
     }
   ],
   "UPGRADES": [
@@ -1487,17 +2903,19 @@
       "id": "upg_ballast_1",
       "name": "压舱库扩容 I",
       "need": "engineeringT",
+      "capEra": 2,
       "capMul": 1.5,
       "cost": {
         "ironBracket": 50,
         "rope": 50
       },
-      "desc": "各材料仓储上限 ×1.5（藻食除外）"
+      "desc": "已解锁至纪元二的材料仓储上限 ×1.5（藻食除外）"
     },
     {
       "id": "upg_kelpstore_1",
       "name": "藻食库扩容 I",
       "need": "engineeringT",
+      "capEra": 2,
       "capMul": 1.5,
       "cost": {
         "ironBracket": 50,
@@ -1509,17 +2927,32 @@
       "id": "upg_ballast_2",
       "name": "压舱库扩容 II",
       "need": "castle",
+      "capEra": 3,
       "capMul": 1.5,
       "cost": {
         "ironBracket": 100,
         "hardCoral": 150
       },
-      "desc": "各材料仓储上限 再 ×1.5（与 I 叠加 ⇒ 合计 ×2.25，藻食除外）"
+      "desc": "已解锁至纪元三的材料仓储上限再 ×1.5（与 I 叠加，藻食除外）"
+    },
+    {
+      "id": "upg_alloy_warehouse",
+      "name": "合金仓储",
+      "need": "minipump",
+      "capEra": 6,
+      "capMul": 1.5,
+      "cost": {
+        "tiplate": 50,
+        "titanium": 750,
+        "science": 200000
+      },
+      "desc": "已解锁至纪元六的非藻食资源仓储容量 ×1.5"
     },
     {
       "id": "upg_kelpstore_2",
       "name": "藻食库扩容 II",
       "need": "castle",
+      "capEra": 3,
       "capMul": 1.5,
       "cost": {
         "ironBracket": 100,
@@ -1532,14 +2965,14 @@
       "name": "鱼骨矿井",
       "need": "apprentice",
       "upgradesBuilding": "siltpit",
-      "buildingDesc": "矿工金属产出 +50%、伴生暖石 +1000%。每级矿工都吃这份加成。",
+      "buildingDesc": "矿工金属产出 +50%、伴生暖石 +100%。每级矿工都吃这份加成。",
       "mineSilt": 0.5,
-      "mineWarm": 10,
+      "mineWarm": 1,
       "cost": {
         "ironBracket": 50,
         "hardCoral": 50
       },
-      "desc": "砂矿坑升级：矿工金属产出 +50%、伴生暖石 +1000%。"
+      "desc": "砂矿坑升级：矿工金属产出 +50%、伴生暖石 +100%。"
     },
     {
       "id": "upg_autoshop",
@@ -1568,15 +3001,16 @@
       "id": "upg_castle",
       "name": "城堡",
       "need": "castle",
+      "capEra": 3,
       "upgradesBuilding": "hall",
-      "buildingDesc": "随统治核心等级降低所有建筑下一级成本；每级给所有有上限资源 +50 容量；市政点 +0.05/级/秒。装政策卡「王权神授」每级再 +10% 信仰产出",
+      "buildingDesc": "随统治核心等级降低所有建筑下一级成本；每级给纪元三及之前有上限资源 +50 容量；市政点 +0.05/级/秒。装政策卡「王权神授」每级再 +10% 信仰产出",
       "hallSaveMul": 0.5,
       "castleCap": 50,
       "cost": {
         "stoneBeam": 50,
         "hardCoral": 50
       },
-      "desc": "议事厅升级：降低所有建筑建造成本，每级议事厅给所有有上限资源 +50 容量。"
+      "desc": "议事厅升级：降低所有建筑建造成本，每级议事厅给纪元三及之前有上限资源 +50 容量。"
     },
     {
       "id": "upg_horseshoe",
@@ -1605,13 +3039,13 @@
       "name": "深层矿井",
       "need": "physics",
       "upgradesBuilding": "siltpit",
-      "buildingDesc": "矿工金属 +50%、伴生暖石 +1000%，并开始伴生钛（产量待标定）。",
+      "buildingDesc": "矿工开始伴生钛。",
       "mineTitanium": true,
       "cost": {
         "steelPart": 50,
         "hardCoral": 200
       },
-      "desc": "砂矿坑升级：矿工开始伴生钛（UNIT.titanium，产量待标定）。"
+      "desc": "砂矿坑升级：矿工开始伴生钛。"
     },
     {
       "id": "upg_hppump",
@@ -1631,7 +3065,7 @@
       "invertBuildSave": 0.2,
       "cost": {
         "science": 100000,
-        "scaffold": 300
+        "scaffold": 150
       },
       "desc": "倒置搭建的延伸：所有建筑造价 −20%。"
     },
@@ -1658,6 +3092,119 @@
         "titanium": 100
       },
       "desc": "把废钢重新锻入产线：精铁产出 +20%、钢产出 +20%。"
+    },
+    {
+      "id": "upg_steelforge",
+      "name": "精炼钢厂",
+      "needCivic": "civ_steelschool",
+      "steelBonus": 0.25,
+      "cost": {
+        "steelPart": 200,
+        "titanium": 100,
+        "hardCoral": 200
+      },
+      "desc": "把钢产线升级为精炼钢厂：钢产出 +25%（与废钢锻造的 +20% 加法叠加）。"
+    },
+    {
+      "id": "upg_starscope",
+      "name": "星空观测站升级",
+      "need": "exostruct",
+      "upgradesBuilding": "observatory",
+      "buildingDesc": "天壳观测站→星空观测站：科技产出 +40%、每 tick +1 星空探索（耗 1 热液能，可开关）。",
+      "obsSciBoost": 0.4,
+      "starExplore": true,
+      "cost": {
+        "tiplate": 300,
+        "science": 200000
+      },
+      "desc": "观测站升级为星空观测站：科技产出 +40%，并开始积累星空探索。"
+    },
+    {
+      "id": "upg_warmalgalfarm",
+      "name": "温水藻场升级",
+      "need": "sealbin",
+      "algalfarmSci": 0.5,
+      "cost": {
+        "tiplate": 300,
+        "science": 200000
+      },
+      "desc": "温水藻场：每级（× 藻场等级）额外 +0.5 科技/秒，不受季节、耗 0.05 热液能（首版简化为科学加成）。"
+    },
+    {
+      "id": "upg_autodrill",
+      "name": "自动化钻探",
+      "need": "autodrill",
+      "cost": {
+        "tiplate": 300,
+        "resonantDrill": 300,
+        "science": 450000
+      },
+      "desc": "矿井产出每级 +100%，每级耗 1 热液能/秒（可开关）。"
+    },
+    {
+      "id": "upg_logiware",
+      "name": "物流仓库",
+      "need": "architect",
+      "capEra": 7,
+      "upgradesBuilding": "caravanserai",
+      "cost": {
+        "tiplate": 500,
+        "science": 1000000
+      },
+      "buildingDesc": "商队驿站→物流仓库：每级纪元七及之前解锁的有上限材料 +200 容量。",
+      "desc": "商队驿站升级为物流仓库：每级纪元七及之前解锁的有上限材料 +200 容量。"
+    },
+    {
+      "id": "upg_boomcraft",
+      "name": "可控爆炸工艺",
+      "need": "crewed",
+      "cost": {
+        "tiplate": 400,
+        "resonantDrill": 200,
+        "science": 1000000
+      },
+      "boomcraftMul": 0.5,
+      "desc": "工艺制作产出 ×1.5（新增乘区，不影响成本）。"
+    },
+    {
+      "id": "upg_complexf",
+      "name": "复合型工厂",
+      "need": "complexf",
+      "cost": {
+        "tiplate": 800,
+        "rocketEngine": 5,
+        "science": 2100000
+      },
+      "desc": "自动工艺槽位 +1。"
+    },
+    {
+      "id": "upg_laserengrave",
+      "name": "激光快速雕版",
+      "need": "laser",
+      "cost": {
+        "thetaMetal": 120,
+        "science": 2000000
+      },
+      "desc": "本周目全部工艺制造成本 −30%（轮回/破壳后失效，重新购买即再次生效）。"
+    },
+    {
+      "id": "upg_indrobot",
+      "name": "工业机器人",
+      "need": "robotics",
+      "cost": {
+        "thetaMetal": 200,
+        "science": 3000000
+      },
+      "desc": "工坊工艺制作效率 +100%（独立乘区 ×2）；每级耗 1 热液能/秒（可开关）。"
+    },
+    {
+      "id": "upg_strongai",
+      "name": "强人工智能",
+      "need": "strong_ai",
+      "cost": {
+        "thetaMetal": 1000
+      },
+      "desc": "机器人产出 ×1.2 → ×1.5，且机器人按人口口径产出信仰（消耗 1000 θ金属）。"
     }
   ],
   "CRAFTS": [
@@ -1751,6 +3298,29 @@
       "desc": "把潮纹读成可传承的知识。历史哲学的造物之一。"
     },
     {
+      "id": "craft_tiplate",
+      "name": "钛金板件",
+      "need": "minipump",
+      "in": {
+        "titanium": 50
+      },
+      "out": 1,
+      "res": "tiplate",
+      "desc": "把钛压成壳外才用得上的结构件。每 50 钛出 1 板件。"
+    },
+    {
+      "id": "craft_sealbin",
+      "name": "封闭藻仓",
+      "need": "sealbin",
+      "in": {
+        "tiplate": 5,
+        "kelp": 200
+      },
+      "out": 1,
+      "res": "sealbin",
+      "desc": "用钛金板件封住藻仓，存住温水藻场。温水藻场升级的材料。"
+    },
+    {
       "id": "craft_drill",
       "name": "共振钻头",
       "need": "shellgeo",
@@ -1762,6 +3332,52 @@
       "out": 1,
       "res": "resonantDrill",
       "desc": "把钢制零件、钛与绳锻成可以啃穿天壳的钻头。天穹钻机的耗材。"
+    },
+    {
+      "id": "craft_rocketfuel",
+      "name": "燃料",
+      "need": "refine",
+      "in": {
+        "warmstone": 100
+      },
+      "out": 1,
+      "res": "rocketFuel",
+      "desc": "把暖石高压精炼成火箭燃料。每 100 暖石出 1 份燃料。"
+    },
+    {
+      "id": "craft_rocketengine",
+      "name": "火箭引擎",
+      "need": "crewed",
+      "in": {
+        "rocketFuel": 200,
+        "sealbin": 10
+      },
+      "out": 1,
+      "res": "rocketEngine",
+      "desc": "燃料与封闭藻仓组装成的火箭引擎。空间站的建造材料。"
+    },
+    {
+      "id": "craft_strongprop",
+      "name": "强工质火箭引擎",
+      "need": "interplanetary",
+      "in": {
+        "rocketFuel": 500,
+        "thetaMetal": 10
+      },
+      "out": 1,
+      "res": "strongProp",
+      "desc": "行星际航行解锁的工艺制造：燃料 500 + θ金属 10 合成 1 枚强工质火箭引擎。"
+    },
+    {
+      "id": "craft_thinafilm",
+      "name": "θ金属自适应薄膜",
+      "need": "nanotech",
+      "in": {
+        "thetaMetal": 100
+      },
+      "out": 1,
+      "res": "thinafilm",
+      "desc": "把 θ生物金属压成自适应薄膜。每 100 θ 出 1 卷薄膜（魔鱼世界VR 的建造材料）。"
     }
   ],
   "WONDERS": [
@@ -1879,7 +3495,7 @@
       "need": "invert",
       "cost": {
         "steelPart": 200,
-        "scaffold": 200,
+        "scaffold": 100,
         "titanium": 1000
       },
       "effect": {
@@ -1907,7 +3523,7 @@
       "era": 5,
       "need": "industrialize",
       "cost": {
-        "scaffold": 100,
+        "scaffold": 50,
         "steelPart": 500
       },
       "effect": {
@@ -1921,7 +3537,7 @@
       "era": 5,
       "need": "highthermo",
       "cost": {
-        "scaffold": 225,
+        "scaffold": 112.5,
         "steelPart": 500
       },
       "effect": {
@@ -1935,11 +3551,26 @@
       "era": 5,
       "need": "skydrill",
       "cost": {
-        "scaffold": 400,
+        "scaffold": 200,
         "resonantDrill": 20
       },
       "effect": {},
-      "desc": "破壳的终章：凿穿最后一段天壳（机器运行逻辑待实装）。"
+      "desc": "破壳后效果：每秒 +100 市政点，幸福度 +1。"
+    },
+    {
+      "id": "wonder_geek",
+      "name": "星球重构机 G.E.E.K",
+      "era": 9,
+      "need": "ecological_restoration",
+      "cost": {
+        "thetaMetal": 1000,
+        "steel": 4000,
+        "iron": 6000,
+        "coral": 10000,
+        "kelp": 10000
+      },
+      "effect": {},
+      "desc": "生态重塑的丰碑：建成后于「自然环境」卡启动，依次改造瑞亚星（1800s）与泰拉星（3600s）。完成后人口/速生珊瑚林/矿井/生息区建筑升级花费大幅削减（瑞亚回到 L3 之前、泰拉再叠回 L5 之前）。"
     },
     {
       "id": "wonder_shadow_theater",
@@ -1947,7 +3578,7 @@
       "era": 5,
       "needCivic": "sharksong",
       "cost": {
-        "scaffold": 400,
+        "scaffold": 200,
         "stoneBeam": 1000
       },
       "effect": {
@@ -1962,19 +3593,156 @@
       "era": 5,
       "needCivic": "socialscience",
       "cost": {
-        "scaffold": 600,
+        "scaffold": 300,
         "steelPart": 400
       },
       "effect": {
         "happyConsume": 0.1
       },
       "desc": "立法的丰碑：鲛人幸福度消耗 −10%。"
+    },
+    {
+      "id": "wonder_logistics",
+      "name": "总物流站",
+      "era": 6,
+      "need": "modtrans",
+      "cost": {
+        "tiplate": 500,
+        "scaffold": 100
+      },
+      "effect": {
+        "canalCraft": 0.01
+      },
+      "desc": "王国潮道每级 +1% 工艺效率（与市政《城市设计》互锁翻倍待批次 3）。"
+    },
+    {
+      "id": "wonder_national_logistics",
+      "name": "全国快速物流通道",
+      "era": 6,
+      "needCivic": "urbandesign",
+      "cost": {
+        "tiplate": 500,
+        "scaffold": 100
+      },
+      "effect": {
+        "canalCraftIronSteel": 0.01
+      },
+      "desc": "王国潮道每级 +1% 精铁/钢产能（同时拥有总物流站则翻倍）。"
+    },
+    {
+      "id": "wonder_cradle",
+      "name": "摇篮",
+      "era": 7,
+      "need": "surface",
+      "cost": {
+        "rocketFuel": 10000
+      },
+      "effect": {
+        "mineMul": 0.2
+      },
+      "desc": "地表勘探计划：矿线全产出 +20%（金属、暖石、铀、钛）。"
+    },
+    {
+      "id": "wonder_throne",
+      "name": "至高圣座",
+      "era": 7,
+      "need": "spacestation",
+      "cost": {
+        "rocketEngine": 30
+      },
+      "effect": {
+        "stationBonus": 3,
+        "throneGov": true
+      },
+      "desc": "空间站有效等级 +3（免费、不收差价）；按政体分支额外 +10%：教权国信仰 / 平等主义工艺 / 联邦制科技。"
+    },
+    {
+      "id": "wonder_bolocillo",
+      "name": "博洛西洛漂浮发射场",
+      "era": 7,
+      "needCivic": "space_race",
+      "cost": {
+        "tiplate": 1000,
+        "sealbin": 80
+      },
+      "effect": {
+        "mannedRocket": 1
+      },
+      "desc": "载人火箭工艺效率 +100%（工艺制作乘区 ×2，economy 载人火箭工艺段读 wonder.mannedRocketMul）。"
+    },
+    {
+      "id": "wonder_voyager",
+      "name": "旅行者1号",
+      "era": 8,
+      "need": "deepspace",
+      "cost": {
+        "rocketEngine": 100,
+        "tiplate": 1600
+      },
+      "effect": {},
+      "desc": "星际探测的起点：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为每秒 +25 且学者产出 +10%。"
+    },
+    {
+      "id": "wonder_saturn",
+      "name": "萨图恩巨星气行星轨道采集站",
+      "era": 8,
+      "need": "gascloud",
+      "cost": {
+        "thetaMetal": 500,
+        "rocketEngine": 50
+      },
+      "effect": {
+        "hydroBonus": 30,
+        "fuelBonus": 30,
+        "starBonus": 10
+      },
+      "desc": "气态巨行星的轨道工厂：热液能 +30/秒、燃料 +30/秒、星空探索 +10/秒。"
+    },
+    {
+      "id": "wonder_khalifa",
+      "name": "哈'利法宇宙望远镜",
+      "era": 8,
+      "needCivic": "cosmic_indifference",
+      "cost": {
+        "rocketEngine": 100,
+        "tiplate": 400
+      },
+      "effect": {},
+      "desc": "轨道巨眼：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为每秒 +25 且书手产出 +10%。"
+    },
+    {
+      "id": "wonder_fishvr",
+      "name": "魔鱼世界VR",
+      "era": 8,
+      "needCivic": "virtual_reality",
+      "cost": {
+        "thinafilm": 10
+      },
+      "effect": {
+        "happyBonus": 1
+      },
+      "desc": "全域沉浸幻境：幸福度 +1；运转持续消耗热液能 5/秒（断流只停幻境不停幸福加成，与空间站同口径）。"
+    },
+    {
+      "id": "wonder_jupitor_mas",
+      "name": "朱庇特质量加速站",
+      "era": 10,
+      "need": "gravity_sling",
+      "cost": {
+        "strongProp": 20,
+        "thinafilm": 100
+      },
+      "effect": {
+        "biomatlabOut": 1
+      },
+      "desc": "气态巨星的质量投射器：每秒耗 20 热液能，生物材料研究所产出 +100%。"
     }
   ],
   "CIVICS": [
     {
       "id": "laws",
       "name": "法典",
+      "icon": "assets/civic-icons/era-1/era1-laws.png",
       "cost": 0,
       "era": 1,
       "layer": 1,
@@ -1987,6 +3755,7 @@
     {
       "id": "craft",
       "name": "技艺",
+      "icon": "assets/civic-icons/era-1/era1-craft.png",
       "cost": 100,
       "era": 1,
       "layer": 2,
@@ -2005,6 +3774,7 @@
     {
       "id": "mystic",
       "name": "神秘主义",
+      "icon": "assets/civic-icons/era-1/era1-mystic.png",
       "cost": 100,
       "era": 1,
       "layer": 2,
@@ -2022,6 +3792,7 @@
     {
       "id": "trade",
       "name": "对外贸易",
+      "icon": "assets/civic-icons/era-2/era2-trade.png",
       "cost": 800,
       "era": 2,
       "layer": 3,
@@ -2039,6 +3810,7 @@
     {
       "id": "drama",
       "name": "戏剧与诗歌",
+      "icon": "assets/civic-icons/era-2/era2-drama.png",
       "cost": 900,
       "era": 2,
       "layer": 3,
@@ -2056,6 +3828,7 @@
     {
       "id": "theology",
       "name": "神学",
+      "icon": "assets/civic-icons/era-2/era2-theology.png",
       "cost": 1400,
       "era": 2,
       "layer": 4,
@@ -2073,6 +3846,7 @@
     {
       "id": "records",
       "name": "历史记录",
+      "icon": "assets/civic-icons/era-2/era2-records.png",
       "cost": 1200,
       "era": 2,
       "layer": 4,
@@ -2092,6 +3866,7 @@
     {
       "id": "political",
       "name": "政治哲学",
+      "icon": "assets/civic-icons/era-2/era2-political.png",
       "cost": 1500,
       "era": 2,
       "layer": 5,
@@ -2114,7 +3889,8 @@
     {
       "id": "sovereign",
       "name": "王权神授",
-      "cost": 8000,
+      "icon": "assets/civic-icons/era-3/era3-sovereign.png",
+      "cost": 3500,
       "era": 3,
       "layer": 1,
       "reqs": [
@@ -2134,6 +3910,7 @@
     {
       "id": "feudalism",
       "name": "封建主义",
+      "icon": "assets/civic-icons/era-3/era3-feudalism.png",
       "cost": 3000,
       "era": 3,
       "layer": 1,
@@ -2145,13 +3922,16 @@
         "zone": "food",
         "n": 100
       },
-      "autoUpg": true,
-      "desc": "解锁政策卡「农奴制」，以及生息区建筑的自动升级（逐建筑开关）。",
+      "autoBuildZones": [
+        "food"
+      ],
+      "desc": "解锁政策卡「农奴制」，以及生息区建筑自动建造/升级（逐建筑开关）。",
       "note": "鼓舞：生息区建筑合计等级达 100。"
     },
     {
       "id": "market",
       "name": "中世纪集市",
+      "icon": "assets/civic-icons/era-3/era3-market.png",
       "cost": 4000,
       "era": 3,
       "layer": 2,
@@ -2170,6 +3950,7 @@
     {
       "id": "guild",
       "name": "职业行会",
+      "icon": "assets/civic-icons/era-3/era3-guild.png",
       "cost": 5000,
       "era": 3,
       "layer": 2,
@@ -2188,6 +3969,7 @@
     {
       "id": "department",
       "name": "行政部门",
+      "icon": "assets/civic-icons/era-3/era3-department.png",
       "cost": 6000,
       "era": 3,
       "layer": 2,
@@ -2209,6 +3991,7 @@
     {
       "id": "explore",
       "name": "探索",
+      "icon": "assets/civic-icons/era-4/era4-explore.png",
       "cost": 20000,
       "era": 4,
       "layer": 1,
@@ -2229,6 +4012,7 @@
     {
       "id": "reformed",
       "name": "归正会",
+      "icon": "assets/civic-icons/era-4/era4-reformed.png",
       "cost": 25000,
       "era": 4,
       "layer": 1,
@@ -2248,6 +4032,7 @@
     {
       "id": "mercantilism",
       "name": "重商主义",
+      "icon": "assets/civic-icons/era-4/era4-mercantilism.png",
       "cost": 40000,
       "era": 4,
       "layer": 2,
@@ -2260,12 +4045,16 @@
         "n": 20
       },
       "card": "card_mercantilism",
-      "desc": "解锁政策卡「重商主义」（银行的商人产出加成 +100%）。",
+      "autoBuildZones": [
+        "trade"
+      ],
+      "desc": "解锁政策卡「重商主义」（银行的商人产出加成 +100%），以及贸易区域建筑自动建造/升级（逐建筑开关）。",
       "note": "鼓舞：同时拥有 20 名商人。"
     },
     {
       "id": "enlightenment",
       "name": "启蒙运动",
+      "icon": "assets/civic-icons/era-4/era4-enlightenment.png",
       "cost": 50000,
       "era": 4,
       "layer": 2,
@@ -2285,6 +4074,7 @@
     {
       "id": "historiography",
       "name": "历史哲学",
+      "icon": "assets/civic-icons/era-4/era4-historiography.png",
       "cost": 60000,
       "era": 4,
       "layer": 2,
@@ -2296,12 +4086,13 @@
         "n": 6
       },
       "wonderEraCivic": 5,
-      "desc": "解锁工艺制品「艺术品」「潮纹记录」；ERA1/2/3 的奇观 +5 市政点获取。",
+      "desc": "解锁工坊配方「艺术品」「潮纹记录」；纪元一至三的奇观每座额外提供 +5 市政点/秒。",
       "note": "鼓舞：奇观建立超过 5 座（≥6 座）。"
     },
     {
       "id": "sharksong",
       "name": "渊潜鲛歌",
+      "icon": "assets/civic-icons/era-5/era5-sharksong.png",
       "cost": 80000,
       "era": 5,
       "layer": 1,
@@ -2311,16 +4102,17 @@
       "boost": {
         "t": "zoneLvl",
         "zone": "civic",
-        "n": 50
+        "n": 30
       },
       "wonder": "wonder_shadow_theater",
       "building": "theater",
       "desc": "解锁奇观「夏'多桑大剧院」（+5 市政点/秒、+1 政策卡槽），以及建筑「歌剧院」。",
-      "note": "鼓舞：市政区建筑合计等级达 50。"
+      "note": "鼓舞：市政区建筑合计等级达 30。"
     },
     {
       "id": "rationing",
       "name": "工业化配给",
+      "icon": "assets/civic-icons/era-5/era5-rationing.png",
       "cost": 90000,
       "era": 5,
       "layer": 1,
@@ -2337,8 +4129,27 @@
       "note": "鼓舞：累计钢产量达 10000。"
     },
     {
+      "id": "civ_steelschool",
+      "name": "工坊学校",
+      "icon": "assets/civic-icons/era-4/era4-steelschool.png",
+      "cost": 30000,
+      "era": 4,
+      "layer": 2,
+      "reqs": [
+        "guild"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "hydroshop",
+        "n": 3
+      },
+      "desc": "解锁工坊升级「精炼钢厂」：钢产出 +25%。",
+      "note": "鼓舞：建成 3 座热液工坊。"
+    },
+    {
       "id": "socialscience",
       "name": "社会科学",
+      "icon": "assets/civic-icons/era-5/era5-socialscience.png",
       "cost": 110000,
       "era": 5,
       "layer": 2,
@@ -2356,6 +4167,7 @@
     {
       "id": "urbanization",
       "name": "城市化",
+      "icon": "assets/civic-icons/era-5/era5-urbanization.png",
       "cost": 120000,
       "era": 5,
       "layer": 2,
@@ -2374,6 +4186,7 @@
     {
       "id": "mobilization",
       "name": "国民动员",
+      "icon": "assets/civic-icons/era-5/era5-mobilization.png",
       "cost": 150000,
       "era": 5,
       "layer": 3,
@@ -2391,6 +4204,751 @@
       "card": "card_heat_priority",
       "desc": "解锁政策卡「热能优先」「总动员令」。",
       "note": "鼓舞：建成奇观「天壳切削器」与「高压热机管道」。"
+    },
+    {
+      "id": "massmedia",
+      "name": "大众传媒",
+      "icon": "assets/civic-icons/era-6/era6-massmedia.png",
+      "cost": 200000,
+      "era": 6,
+      "layer": 1,
+      "reqs": [
+        "mobilization"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "tenement",
+        "n": 3
+      },
+      "card": "card_massmedia",
+      "desc": "解锁政策卡「大众传媒」；拓展幸福度等级（兴盛/繁荣/黄金时代）。",
+      "note": "鼓舞：廉租社区达 3 级。"
+    },
+    {
+      "id": "naturalhistory",
+      "name": "博物学",
+      "icon": "assets/civic-icons/era-6/era6-naturalhistory.png",
+      "cost": 220000,
+      "era": 6,
+      "layer": 1,
+      "reqs": [
+        "mobilization"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "museum",
+        "n": 3
+      },
+      "card": "card_museum",
+      "desc": "解锁政策卡「博物馆管理」；每完成一次轮回，艺术品效果额外提高 10%。",
+      "note": "鼓舞：博物馆达 3 级。"
+    },
+    {
+      "id": "macroeconomics",
+      "name": "宏观经济学",
+      "icon": "assets/civic-icons/era-6/era6-macro.png",
+      "cost": 320000,
+      "era": 6,
+      "layer": 2,
+      "reqs": [
+        "massmedia"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "bank",
+        "n": 3
+      },
+      "desc": "解锁「公司」页面；研究完成后自动成立藻食公司和珊瑚公司。",
+      "note": "鼓舞：银行达 3 级。"
+    },
+    {
+      "id": "urbandesign",
+      "name": "城市设计",
+      "icon": "assets/civic-icons/era-6/era6-urbandesign.png",
+      "cost": 340000,
+      "era": 6,
+      "layer": 2,
+      "reqs": [
+        "massmedia"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "canal",
+        "n": 20
+      },
+      "desc": "解锁奇观「全国快速物流通道」；王国潮道每级使精铁、钢产能 +1%，若同时建成「总物流站」，这部分产能加成翻倍。",
+      "note": "鼓舞：王国潮道达 20 级。"
+    },
+    {
+      "id": "archaeology",
+      "name": "考古学",
+      "icon": "assets/civic-icons/era-6/era6-archaeology.png",
+      "cost": 300000,
+      "era": 6,
+      "layer": 2,
+      "reqs": [
+        "naturalhistory"
+      ],
+      "boost": {
+        "t": "cycle",
+        "n": 3
+      },
+      "desc": "艺术品制造消耗 −20%。",
+      "note": "鼓舞：轮回数达 3 周目。"
+    },
+    {
+      "id": "ideology",
+      "name": "意识形态",
+      "icon": "assets/civic-icons/era-6/era6-ideology.png",
+      "cost": 380000,
+      "era": 6,
+      "layer": 2,
+      "reqs": [
+        "massmedia",
+        "naturalhistory"
+      ],
+      "boost": {
+        "t": "lifetimeCulture",
+        "n": 900000
+      },
+      "card": "card_national_solidarity",
+      "desc": "解锁政策卡「国家凝聚力」。",
+      "note": "鼓舞：累计市政产出达 900000。"
+    },
+    {
+      "id": "civilization",
+      "name": "文明构造",
+      "icon": "assets/civic-icons/era-6/era6-civilization.png",
+      "cost": 500000,
+      "era": 6,
+      "layer": 3,
+      "reqs": [
+        "archaeology"
+      ],
+      "boost": {
+        "t": "cycle",
+        "n": 7
+      },
+      "desc": "本轮回破壳时获得的轮回点 +20%。",
+      "note": "鼓舞：轮回数达 7 周目。"
+    },
+    {
+      "id": "theo_merit",
+      "name": "神恩与威权",
+      "icon": "assets/civic-icons/era-6/era6-theomerit.png",
+      "cost": 420000,
+      "era": 6,
+      "layer": 3,
+      "reqs": [
+        "ideology"
+      ],
+      "boost": {
+        "t": "civic",
+        "id": "ideology"
+      },
+      "gov": "theo_state",
+      "desc": "解锁政体「教权国」（7 政策卡槽，所有建筑每级 +1 信仰/秒）；采用时弹窗命名、城堡更名「圣座居所」。",
+      "note": "鼓舞：完成市政「意识形态」。"
+    },
+    {
+      "id": "egalitarianism",
+      "name": "层级理论",
+      "icon": "assets/civic-icons/era-6/era6-egalitarianism.png",
+      "cost": 440000,
+      "era": 6,
+      "layer": 3,
+      "reqs": [
+        "ideology"
+      ],
+      "boost": {
+        "t": "civic",
+        "id": "ideology"
+      },
+      "gov": "egalitarianism",
+      "desc": "解锁政体「平等主义」（7 政策卡槽，每名鲛人 +0.1% 工坊/热液/矿井产出）；采用时弹窗命名、城堡更名「人民大厅」。",
+      "note": "鼓舞：完成市政「意识形态」。"
+    },
+    {
+      "id": "federalism",
+      "name": "权责对等",
+      "icon": "assets/civic-icons/era-6/era6-federalism.png",
+      "cost": 460000,
+      "era": 6,
+      "layer": 3,
+      "reqs": [
+        "ideology"
+      ],
+      "boost": {
+        "t": "civic",
+        "id": "ideology"
+      },
+      "gov": "federalism",
+      "desc": "解锁政体「联邦制」（7 政策卡槽，+10% 科技/市政产出、鲛人食物消耗 −10%）；采用时弹窗命名、城堡更名「国会」。",
+      "note": "鼓舞：完成市政「意识形态」。"
+    },
+    {
+      "id": "modern_thought",
+      "name": "现代思潮",
+      "icon": "assets/civic-icons/era-7/era7-modern-thought.png",
+      "cost": 450000,
+      "era": 7,
+      "layer": 1,
+      "reqs": [
+        "ideology"
+      ],
+      "boost": {
+        "t": "govWildSlots",
+        "n": 7
+      },
+      "desc": "解锁政策卡「公摊面积」「延长工时」。",
+      "note": "前置：完成市政「意识形态」。鼓舞：启用 7 槽政体（教权国/平等主义/联邦制）。"
+    },
+    {
+      "id": "athletics",
+      "name": "竞技体育",
+      "icon": "assets/civic-icons/era-7/era7-athletics.png",
+      "cost": 500000,
+      "era": 7,
+      "layer": 2,
+      "reqs": [
+        "modern_thought"
+      ],
+      "boost": {
+        "t": "govWildSlots",
+        "n": 7
+      },
+      "building": "stadium",
+      "desc": "解锁建筑「体育场」，以及政策卡「直播竞技」。",
+      "note": "鼓舞：启用 7 槽政体。"
+    },
+    {
+      "id": "ancient_civics",
+      "name": "超古代市政",
+      "icon": "assets/civic-icons/era-7/era7-ancient.png",
+      "cost": 500000,
+      "era": 7,
+      "layer": 2,
+      "reqs": [
+        "modern_thought"
+      ],
+      "boost": {
+        "t": "gathered",
+        "r": "stardust",
+        "n": 5
+      },
+      "policySlot": 1,
+      "desc": "政策卡槽位 +1。",
+      "note": "鼓舞：星屑累积达 5。"
+    },
+    {
+      "id": "cultural_heritage",
+      "name": "文化遗产",
+      "icon": "assets/civic-icons/era-7/era7-heritage.png",
+      "cost": 500000,
+      "era": 7,
+      "layer": 2,
+      "reqs": [
+        "modern_thought"
+      ],
+      "boost": {
+        "t": "wonder",
+        "n": 10
+      },
+      "desc": "所有奇观额外 +1% 市政点获取；解锁政策卡「旅游观光」。",
+      "note": "鼓舞：建成 10 座奇观。"
+    },
+    {
+      "id": "space_race",
+      "name": "太空竞赛",
+      "icon": "assets/civic-icons/era-7/era7-space.png",
+      "cost": 900000,
+      "era": 7,
+      "layer": 3,
+      "reqs": [
+        "athletics"
+      ],
+      "boost": {
+        "t": "zoneLvl",
+        "zone": "space",
+        "n": 5
+      },
+      "wonder": "wonder_bolocillo",
+      "desc": "解锁政策卡「太空竞赛」「神不在此」，以及奇观「博洛西洛漂浮发射场」。",
+      "note": "鼓舞：星海区建筑合计等级达 5。"
+    },
+    {
+      "id": "ancestor_heritage",
+      "name": "先民遗产",
+      "icon": "assets/civic-icons/era-7/era7-ancestor.png",
+      "cost": 800000,
+      "era": 7,
+      "layer": 3,
+      "reqs": [
+        "ancient_civics"
+      ],
+      "boost": {
+        "t": "cycle",
+        "n": 10
+      },
+      "desc": "本轮回星屑获取 +20%（破壳结算时计入）。",
+      "note": "鼓舞：轮回数达 10 周目。"
+    },
+    {
+      "id": "planet_village",
+      "name": "星球村",
+      "icon": "assets/civic-icons/era-7/era7-village.png",
+      "cost": 1100000,
+      "era": 7,
+      "layer": 3,
+      "reqs": [
+        "cultural_heritage"
+      ],
+      "boost": {
+        "t": "anyWonders",
+        "ids": [
+          "wonder_logistics",
+          "wonder_national_logistics"
+        ]
+      },
+      "desc": "解锁政策卡「跨国经济」「未来主义神学」。",
+      "note": "鼓舞：建成奇观「总物流站」或「全国快速物流通道」之一。"
+    },
+    {
+      "id": "starfaith",
+      "name": "群星与神明",
+      "icon": "assets/civic-icons/era-8/era8-starfaith.png",
+      "cost": 1300000,
+      "era": 8,
+      "layer": 1,
+      "reqs": [
+        "space_race",
+        "planet_village"
+      ],
+      "boost": {
+        "t": "starPct",
+        "n": 5
+      },
+      "desc": "信仰产出提高 x%，x 为星空探索进度（破壳后随星空累积持续变强）。",
+      "note": "鼓舞：星空探索进度超过 5%。"
+    },
+    {
+      "id": "globalization",
+      "name": "全球化",
+      "icon": "assets/civic-icons/era-8/era8-globalization.png",
+      "cost": 1500000,
+      "era": 8,
+      "layer": 1,
+      "reqs": [
+        "planet_village"
+      ],
+      "boost": {
+        "t": "wonders",
+        "ids": [
+          "wonder_logistics",
+          "wonder_national_logistics"
+        ]
+      },
+      "card": "card_interlog",
+      "desc": "解锁政策卡「洲际物流」：仓储区建筑容量 ×5（取代「基础物流建设」×3，后者又取代中世纪集市 ×2）。",
+      "note": "鼓舞：总物流站与全国快速物流通道均已完成。"
+    },
+    {
+      "id": "cosmic_indifference",
+      "name": "宇宙冷漠",
+      "icon": "assets/civic-icons/era-8/era8-indifference.png",
+      "cost": 2000000,
+      "era": 8,
+      "layer": 2,
+      "reqs": [
+        "starfaith"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "spacestation",
+        "n": 3
+      },
+      "card": "card_we_are_here",
+      "wonder": "wonder_khalifa",
+      "desc": "解锁政策卡「我们在此」（取代天赋神权），以及奇观「哈'利法宇宙望远镜」。",
+      "note": "鼓舞：空间站等级超过 3。"
+    },
+    {
+      "id": "faith_echo",
+      "name": "信仰回响",
+      "icon": "assets/civic-icons/era-8/era8-faithecho.png",
+      "cost": 1800000,
+      "era": 8,
+      "layer": 2,
+      "reqs": [
+        "starfaith"
+      ],
+      "boost": {
+        "t": "oldFaith",
+        "n": 50000
+      },
+      "desc": "本轮回：旧日信仰的全产出加成翻倍（每档 +1%）；本轮回破壳入账的旧日信仰 +20%。",
+      "note": "鼓舞：旧日信仰超过 50k（跨周目账本）。"
+    },
+    {
+      "id": "social_network",
+      "name": "社交网络",
+      "icon": "assets/civic-icons/era-8/era8-social.png",
+      "cost": 2200000,
+      "era": 8,
+      "layer": 2,
+      "reqs": [
+        "globalization"
+      ],
+      "boost": {
+        "t": "wonderEra",
+        "era": 7,
+        "n": 1
+      },
+      "card": "card_social_network",
+      "desc": "解锁政策卡「社交网络」（取代大众传媒）。",
+      "note": "鼓舞：完成任意纪元七奇观。"
+    },
+    {
+      "id": "virtual_reality",
+      "name": "虚拟现实",
+      "icon": "assets/civic-icons/era-8/era8-vr.png",
+      "cost": 2400000,
+      "era": 8,
+      "layer": 2,
+      "reqs": [
+        "globalization"
+      ],
+      "boost": {
+        "t": "tech",
+        "id": "biomat"
+      },
+      "card": "card_vr",
+      "wonder": "wonder_fishvr",
+      "desc": "解锁政策卡「虚拟现实」，以及奇观「魔鱼世界VR」。",
+      "note": "鼓舞：完成科技「生物材料」。"
+    },
+    {
+      "id": "space_politics",
+      "name": "星际政治",
+      "icon": "assets/civic-icons/era-8/era8-spacepol.png",
+      "cost": 3000000,
+      "era": 8,
+      "layer": 3,
+      "reqs": [
+        "cosmic_indifference",
+        "social_network"
+      ],
+      "boost": {
+        "t": "lvlSum",
+        "ids": [
+          "rheamine",
+          "titancloud"
+        ],
+        "n": 5
+      },
+      "card": "card_space_net",
+      "desc": "解锁政策卡「星际物流网」：异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +30%。",
+      "note": "鼓舞：异星建筑（瑞亚/泰坦）合计等级超过 5。"
+    },
+    {
+      "id": "far_sight",
+      "name": "远见主义哲学",
+      "icon": "assets/civic-icons/era-8/era8-farsight.png",
+      "cost": 3200000,
+      "era": 8,
+      "layer": 3,
+      "reqs": [
+        "cosmic_indifference"
+      ],
+      "boost": {
+        "t": "starPct",
+        "n": 25
+      },
+      "card": "card_fever",
+      "desc": "解锁政策卡「星际探索热潮」（替代总动员令）；完成本市政额外使星空探索速率 +x%（x=人口数，与政策卡并行叠加）。",
+      "note": "鼓舞：星空探索进度超过 25%。"
+    },
+    {
+      "id": "star_ruins",
+      "name": "星间遗迹",
+      "icon": "assets/civic-icons/era-8/era8-ruins.png",
+      "cost": 3500000,
+      "era": 8,
+      "layer": 3,
+      "reqs": [
+        "faith_echo"
+      ],
+      "boost": {
+        "t": "gathered",
+        "r": "stardust",
+        "n": 30
+      },
+      "desc": "本次轮回结算时，每级轨道与异星设施 +1% 星屑点获取。",
+      "note": "鼓舞：累计星屑点超过 30（跨周目）。"
+    },
+    {
+      "id": "distributed_sov",
+      "name": "分布式主权",
+      "icon": "assets/civic-icons/era-9/era9-distributed.png",
+      "cost": 2000000,
+      "era": 9,
+      "layer": 1,
+      "reqs": [
+        "space_politics"
+      ],
+      "boost": {
+        "t": "lvlSum",
+        "ids": [
+          "rheamine",
+          "titancloud",
+          "satellite",
+          "spacestation",
+          "robotbay",
+          "biomatlab"
+        ],
+        "n": 10
+      },
+      "gov": "interstellar_federation",
+      "desc": "解锁政体「星际联邦」（9 槽，全产 +10%，幸福度 +1）；国家后缀改为星际联邦。",
+      "note": "前置：星际政治。鼓舞：异星/太空建筑（瑞亚/泰坦/卫星/空间站/机械湾/生物材料）合计等级超 10。"
+    },
+    {
+      "id": "hypervision",
+      "name": "超远见主义",
+      "icon": "assets/civic-icons/era-9/era9-hypervision.png",
+      "cost": 2200000,
+      "era": 9,
+      "layer": 1,
+      "reqs": [
+        "space_politics"
+      ],
+      "boost": {
+        "t": "civic",
+        "id": "far_sight"
+      },
+      "gov": "star_sea_coop",
+      "desc": "解锁政体「星海合作社」（9 槽，工艺效率 +100%）；国家后缀改为星海共同体。",
+      "note": "前置：星际政治。鼓舞：完成市政「远见主义哲学」。"
+    },
+    {
+      "id": "star_faith9",
+      "name": "繁星信仰",
+      "icon": "assets/civic-icons/era-9/era9-starfaith.png",
+      "cost": 2200000,
+      "era": 9,
+      "layer": 1,
+      "reqs": [
+        "space_politics"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "temple",
+        "n": 30
+      },
+      "gov": "universal_church",
+      "desc": "解锁政体「寰宇教会」（9 槽，信仰/旧日信仰产出加成 ×1.5）；国家后缀改为寰宇教会。",
+      "note": "前置：星际政治。鼓舞：神庙等级 ≥ 30。"
+    },
+    {
+      "id": "gods_themselves",
+      "name": "神们自己",
+      "icon": "assets/civic-icons/era-9/era9-godsthemselves.png",
+      "cost": 2400000,
+      "era": 9,
+      "layer": 1,
+      "reqs": [
+        "space_politics"
+      ],
+      "boost": {
+        "t": "cycle",
+        "n": 15
+      },
+      "building": "black_monolith",
+      "desc": "解锁建筑「黑色方碑」（消耗 1000 石梁，每级造价 ×1.5，建成即全局信仰产出 ×1.2）。",
+      "note": "前置：星际政治。鼓舞：轮回次数超过 15。"
+    },
+    {
+      "id": "prosperity_unity",
+      "name": "繁荣一统",
+      "icon": "assets/civic-icons/era-9/era9-prosperity.png",
+      "cost": 3000000,
+      "era": 9,
+      "layer": 2,
+      "reqs": [
+        "distributed_sov"
+      ],
+      "boost": {
+        "t": "govId",
+        "id": "interstellar_federation"
+      },
+      "card": "card_alien_abundance",
+      "desc": "解锁政策卡「上上善道」（异星建筑产出 +40%）；政策卡「联邦枢密院」（广场/歌剧院官员市政点乘区 ×4，取代政治经济学）。",
+      "note": "前置：分布式主权。鼓舞：采用政体「星际联邦」。"
+    },
+    {
+      "id": "common_destiny",
+      "name": "共同命运",
+      "icon": "assets/civic-icons/era-9/era9-commondestiny.png",
+      "cost": 3000000,
+      "era": 9,
+      "layer": 2,
+      "reqs": [
+        "hypervision"
+      ],
+      "boost": {
+        "t": "govId",
+        "id": "star_sea_coop"
+      },
+      "card": "card_flesh_weak",
+      "desc": "解锁政策卡「血肉苦弱」（精铁/钢/θ金属产出 +30%）；政策卡「各员一层奋力努力」（工艺效率 +140%、幸福度 −2，取代工业化配给）。",
+      "note": "前置：超远见主义。鼓舞：采用政体「星海共同体」。"
+    },
+    {
+      "id": "sacred_path",
+      "name": "神圣之路",
+      "icon": "assets/civic-icons/era-9/era9-sacredpath.png",
+      "cost": 3000000,
+      "era": 9,
+      "layer": 2,
+      "reqs": [
+        "star_faith9"
+      ],
+      "boost": {
+        "t": "govId",
+        "id": "universal_church"
+      },
+      "card": "card_mind_over_matter",
+      "desc": "解锁政策卡「心胜于物」（奇观建造消耗 −30%）；政策卡「超凡入圣」（科技 +300/秒，取代神秘主义）。",
+      "note": "前置：繁星信仰。鼓舞：采用政体「寰宇教会」。"
+    },
+    {
+      "id": "solar_logistics",
+      "name": "太阳系后勤保障",
+      "icon": "assets/civic-icons/era-9/era9-solarlogi.png",
+      "cost": 4000000,
+      "era": 9,
+      "layer": 3,
+      "reqsAny": [
+        "prosperity_unity",
+        "common_destiny",
+        "sacred_path"
+      ],
+      "boost": {
+        "t": "tech",
+        "id": "interlog"
+      },
+      "card": "card_interstellar_logi",
+      "desc": "解锁政策卡「星际后勤保障」（火箭引擎/强工质火箭引擎工艺效率 +100%）；政策卡「璀璨星图」（人口信仰 −50%、科技 ×3.5，取代神不在此）。",
+      "note": "前置：繁荣一统/共同命运/神圣之路任一。鼓舞：完成科技「行星际快速物流」。"
+    },
+    {
+      "id": "void_faith",
+      "name": "虚境信仰",
+      "icon": "assets/civic-icons/era-9/era9-voidfaith.png",
+      "cost": 4000000,
+      "era": 9,
+      "layer": 3,
+      "reqs": [
+        "gods_themselves"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "black_monolith",
+        "n": 3
+      },
+      "card": "card_cycle_terminus",
+      "desc": "解锁政策卡「轮回之终末」（信仰全产加成翻倍、不可卸下、信仰更名「虚境」并锁死）。",
+      "note": "前置：神们自己。鼓舞：黑色方碑等级超过 3。"
+    },
+    {
+      "id": "public_works",
+      "name": "公共工程局",
+      "icon": "assets/civic-icons/era-10/era10-publicworks.png",
+      "cost": 6000000,
+      "era": 10,
+      "layer": 1,
+      "reqs": [
+        "solar_logistics"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "europa_launch",
+        "n": 2
+      },
+      "desc": "解锁建筑「泰拉星轨道发射场」「瑞亚星轨道发射场」：制造节律与耗料与欧罗巴发射场完全相同，造价按 1 级起算（不吃星球改造的等级折扣）。",
+      "note": "前置：太阳系后勤保障。鼓舞：欧罗巴发射场等级 ≥ 2。"
+    },
+    {
+      "id": "supreme_directive",
+      "name": "至高指令",
+      "icon": "assets/civic-icons/era-10/era10-supreme.png",
+      "cost": 8000000,
+      "era": 10,
+      "layer": 2,
+      "reqs": [
+        "public_works"
+      ],
+      "boost": {
+        "t": "tech",
+        "id": "adiabatic"
+      },
+      "card": "card_supreme_directive",
+      "desc": "解锁政策卡「至高指令」（发射场制造时间 −2s，取代「星际探索热潮」）；政策卡「节能减耗」（发射场热液能消耗 −50%、居民幸福度消耗 +50%）。",
+      "note": "前置：公共工程局。鼓舞：完成科技「绝热材料」。"
+    },
+    {
+      "id": "void_explore",
+      "name": "虚境探索",
+      "icon": "assets/civic-icons/era-10/era10-voidexplore.png",
+      "cost": 8000000,
+      "era": 10,
+      "layer": 2,
+      "reqs": [
+        "solar_logistics",
+        "void_faith"
+      ],
+      "boost": {
+        "t": "card",
+        "id": "card_cycle_terminus"
+      },
+      "desc": "解锁建筑「虚境祭坛」：每级消耗 30 人口（按当前职业分配比例扣减），最高 3 级。",
+      "note": "前置：太阳系后勤保障、虚境信仰。鼓舞：已装备政策卡「轮回之终末」。"
+    },
+    {
+      "id": "ascend_void",
+      "name": "飞升虚境",
+      "icon": "assets/civic-icons/era-10/era10-ascend.png",
+      "cost": 10000000,
+      "era": 10,
+      "layer": 3,
+      "reqs": [
+        "void_explore"
+      ],
+      "boost": {
+        "t": "built",
+        "b": "void_altar",
+        "n": 3
+      },
+      "desc": "本身没有产出。戴森球建设完成后，文明将迎来「飞升虚境」的结局——到那时，语言已不足以承载你们的名字。",
+      "note": "前置：虚境探索。鼓舞：虚境祭坛达到 3 级。"
+    },
+    {
+      "id": "our_sea",
+      "name": "我们的海",
+      "icon": "assets/civic-icons/era-10/era10-oursea.png",
+      "cost": 10000000,
+      "era": 10,
+      "layer": 3,
+      "reqs": [
+        "supreme_directive"
+      ],
+      "boost": {
+        "t": "dysonPct",
+        "n": 60
+      },
+      "card": "card_our_sea",
+      "desc": "解锁政策卡「我们的海」：信仰与科研产出 −30%，工坊效率翻倍（乘区 ×2）。",
+      "note": "前置：至高指令。鼓舞：戴森球进度达到 60%。"
     }
   ],
   "GOVS": [
@@ -2465,7 +5023,73 @@
       "effect": {},
       "faithPerAcademy": 1,
       "faithPerCivic": 0.5,
-      "desc": "3 万能槽 + 1 宗教槽；每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰。"
+      "desc": "3 万能槽 + 1 宗教槽；每级学术区建筑 +1 faith、每级市政区建筑 +0.5 信仰。"
+    },
+    {
+      "id": "theo_state",
+      "name": "教权国",
+      "slots": {
+        "wild": 7
+      },
+      "effect": {},
+      "faithPerBuilding": 1,
+      "desc": "7 个政策卡槽；所有建筑每级 +1 信仰/秒。"
+    },
+    {
+      "id": "egalitarianism",
+      "name": "平等主义",
+      "slots": {
+        "wild": 7
+      },
+      "effect": {},
+      "craftPerPop": 0.001,
+      "hydroPerPop": 0.001,
+      "minePerPop": 0.001,
+      "desc": "7 个政策卡槽；每名鲛人 +0.1% 工坊效率 / +0.1% 热液能产出 / +0.1% 矿井产出。"
+    },
+    {
+      "id": "federalism",
+      "name": "联邦制",
+      "slots": {
+        "wild": 7
+      },
+      "effect": {},
+      "civicOutMul": 1.1,
+      "sciOutMul": 1.1,
+      "mermanFoodMul": 0.1,
+      "desc": "7 个政策卡槽；科技与市政产出 +10%，鲛人食物消耗 −10%。"
+    },
+    {
+      "id": "interstellar_federation",
+      "name": "星际联邦",
+      "slots": {
+        "wild": 9
+      },
+      "effect": {},
+      "allOutMul": 1.1,
+      "happyBonus": 1,
+      "desc": "9 个政策卡槽；全产 +10%，幸福度 +1。"
+    },
+    {
+      "id": "star_sea_coop",
+      "name": "星海合作社",
+      "slots": {
+        "wild": 9
+      },
+      "effect": {},
+      "craftRatio": 1,
+      "desc": "9 个政策卡槽；工艺效率 +100%。"
+    },
+    {
+      "id": "universal_church",
+      "name": "寰宇教会",
+      "slots": {
+        "wild": 9
+      },
+      "effect": {},
+      "faithMul": 1.5,
+      "oldFaithMul": 1.5,
+      "desc": "9 个政策卡槽；信仰与旧日信仰产出加成 ×1.5。"
     }
   ],
   "POLICIES": [
@@ -2487,6 +5111,7 @@
       "effect": {
         "science": 0.3
       },
+      "retiredBy": "sacred_path",
       "desc": "科技产出 +0.3/秒。"
     },
     {
@@ -2505,6 +5130,7 @@
       "type": "sci",
       "effect": {},
       "templeMul": 2,
+      "retiredBy": "planet_village",
       "desc": "神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。"
     },
     {
@@ -2539,6 +5165,7 @@
       "type": "sci",
       "effect": {},
       "storeMul": 2,
+      "retiredBy": "urbanization",
       "desc": "仓储区所有建筑的仓储 +100%（即海藻仓/压舱仓/灯塔的容量贡献翻倍）。"
     },
     {
@@ -2548,6 +5175,7 @@
       "type": "prod",
       "effect": {},
       "craftRatio": 0.4,
+      "retiredBy": "ideology",
       "desc": "工坊效率 +40%（取代「技艺」；研究完成后技艺卡退役）。"
     },
     {
@@ -2565,6 +5193,7 @@
       "civic": "reformed",
       "type": "relig",
       "effect": {},
+      "retiredBy": "cosmic_indifference",
       "coreFaithMul": 0.1,
       "desc": "礁栖核心所有建筑每级 +10% 信仰产出（替代「王权神授」）。"
     },
@@ -2574,6 +5203,7 @@
       "civic": "mercantilism",
       "type": "prod",
       "effect": {},
+      "retiredBy": "planet_village",
       "bankMerchantMul": 2,
       "desc": "银行的商人产出加成 +100%。"
     },
@@ -2583,6 +5213,7 @@
       "civic": "enlightenment",
       "type": "sci",
       "effect": {},
+      "retiredBy": "space_race",
       "libraryMul": 2,
       "universityMul": 2,
       "templeFaithMul": 0.5,
@@ -2594,6 +5225,7 @@
       "civic": "rationing",
       "type": "prod",
       "effect": {},
+      "retiredBy": "common_destiny",
       "happyOffset": -1,
       "craftRatio": 0.4,
       "desc": "幸福度 −1；工坊（工艺制作）效率 +40%。"
@@ -2604,7 +5236,7 @@
       "civic": "rationing",
       "type": "sci",
       "effect": {},
-      "retiredBy": "drama",
+      "retiredBy": "prosperity_unity",
       "squareMul": 2.5,
       "theaterMul": 2.5,
       "desc": "广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5（取代「戏剧与诗歌」）。"
@@ -2615,7 +5247,7 @@
       "civic": "urbanization",
       "type": "prod",
       "effect": {},
-      "retiredBy": "market",
+      "retiredBy": "globalization",
       "storeMul": 3,
       "desc": "仓储区建筑容量 ×3（取代「中世纪集市」）。"
     },
@@ -2634,8 +5266,309 @@
       "name": "总动员令",
       "civic": "mobilization",
       "effect": {},
+      "retiredBy": "far_sight",
       "shellSpeedPerIdle": 0.01,
       "desc": "每点闲置鲛人提供 1% 破壳速度（待天穹钻机机器态实装后生效）。"
+    },
+    {
+      "id": "card_massmedia",
+      "name": "大众传媒",
+      "civic": "massmedia",
+      "type": "prod",
+      "effect": {},
+      "retiredBy": "social_network",
+      "civicPerPop": 0.5,
+      "luxConsumeMul": 0.5,
+      "desc": "每名鲛人 +0.5 市政点/秒；但奢侈品消耗 +50%。"
+    },
+    {
+      "id": "card_museum",
+      "name": "博物馆管理",
+      "civic": "naturalhistory",
+      "type": "prod",
+      "effect": {},
+      "museumMul": 2,
+      "desc": "博物馆效果翻倍（书手市政点 +40% 而非 +20%）；艺术品效果随轮回额外放大。"
+    },
+    {
+      "id": "card_national_solidarity",
+      "name": "国家凝聚力",
+      "civic": "ideology",
+      "type": "prod",
+      "effect": {},
+      "craftRatio": 0.8,
+      "desc": "工坊效率 +80%（取代「职业行会」的 +40%）。"
+    },
+    {
+      "id": "card_public_share",
+      "name": "公摊面积",
+      "civic": "modern_thought",
+      "type": "grow",
+      "effect": {},
+      "popCapPerPopBldg": 0.5,
+      "luxConsumeMul": 2,
+      "desc": "所有人口建筑（巢/珊瑚屋/廉租社区）每级 +0.5 人口上限；奢侈品消耗 +100%。取下卡时超额人口消失。"
+    },
+    {
+      "id": "card_overtime",
+      "name": "延长工时",
+      "civic": "modern_thought",
+      "type": "prod",
+      "effect": {},
+      "jobOutMul": 1.3,
+      "luxConsumeMul": 1.3,
+      "desc": "所有职业产出 +30%；奢侈品消耗 +30%。"
+    },
+    {
+      "id": "card_live_comp",
+      "name": "直播竞技",
+      "civic": "athletics",
+      "type": "sci",
+      "effect": {},
+      "liveCompCivic": 1,
+      "desc": "体育场额外产出 = 人口数 × 体育场等级 的市政点/秒（需建造体育场且装填本卡）。"
+    },
+    {
+      "id": "card_tourism",
+      "name": "旅游观光",
+      "civic": "cultural_heritage",
+      "type": "grow",
+      "effect": {},
+      "wonderLuxSave": 0.03,
+      "desc": "每座已建奇观额外 -3% 奢侈品消耗（叠加）。"
+    },
+    {
+      "id": "card_space_race",
+      "name": "太空竞赛",
+      "civic": "space_race",
+      "type": "prod",
+      "effect": {},
+      "spaceBuildSave": 0.2,
+      "civicOutMul": 0.8,
+      "desc": "太空建筑建造 -20%；市政产出 -20%。"
+    },
+    {
+      "id": "card_no_god_here",
+      "name": "神不在此",
+      "civic": "space_race",
+      "type": "sci",
+      "effect": {},
+      "retiredBy": "solar_logistics",
+      "libraryMul": 3,
+      "universityMul": 3,
+      "templeFaithMul": 0.5,
+      "obsSciMul": 1.5,
+      "desc": "替代「启蒙运动」：潮纹馆科技 ×3、研究所科技 ×3、神庙信仰 −50%、星空观测站产出 ×1.5。"
+    },
+    {
+      "id": "card_transnational",
+      "name": "跨国经济",
+      "civic": "planet_village",
+      "type": "prod",
+      "effect": {},
+      "retiredBy": "planet_village",
+      "bankMerchantMul": 4,
+      "desc": "替代「重商主义」：银行的商人产出加成 ×4。"
+    },
+    {
+      "id": "card_future_theology",
+      "name": "未来主义神学",
+      "civic": "planet_village",
+      "type": "sci",
+      "effect": {},
+      "retiredBy": "planet_village",
+      "templeFaithMul": 5,
+      "sciOutMul": 0.7,
+      "desc": "替代「神学」：神庙信仰 ×5、科技产出 −30%。"
+    },
+    {
+      "id": "card_star_broadcast",
+      "name": "星际广播",
+      "civic": "starfaith",
+      "type": "relig",
+      "effect": {},
+      "faithSatMul": 0.05,
+      "desc": "每颗轨道卫星使信仰产出 +5%（随卫星升级变强）。"
+    },
+    {
+      "id": "card_interlog",
+      "name": "洲际物流",
+      "civic": "globalization",
+      "type": "prod",
+      "effect": {},
+      "storeMul": 5,
+      "desc": "仓储区建筑容量 ×5（取代「基础物流建设」）。"
+    },
+    {
+      "id": "card_we_are_here",
+      "name": "我们在此",
+      "civic": "cosmic_indifference",
+      "type": "relig",
+      "effect": {},
+      "coreSpaceFaithMul": 0.1,
+      "desc": "礁栖核心、星海区所有建筑每级 +10% 信仰产出（取代「天赋神权」）。"
+    },
+    {
+      "id": "card_social_network",
+      "name": "社交网络",
+      "civic": "social_network",
+      "type": "prod",
+      "effect": {},
+      "civicPerPop": 3,
+      "luxConsumeMul": 0.8,
+      "desc": "每名鲛人 +3 市政点/秒；但奢侈品消耗 +80%（取代「大众传媒」）。"
+    },
+    {
+      "id": "card_vr",
+      "name": "虚拟现实",
+      "civic": "virtual_reality",
+      "type": "grow",
+      "effect": {},
+      "craftRatioPerPop": 1,
+      "luxConsumeMul": -0.6,
+      "desc": "工坊效率 −1%×人口数（加算）；奢侈品消耗 −60%（加算）。"
+    },
+    {
+      "id": "card_space_net",
+      "name": "星际物流网",
+      "civic": "space_politics",
+      "type": "prod",
+      "effect": {},
+      "planetOutMul": 1.3,
+      "desc": "异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +30%。"
+    },
+    {
+      "id": "card_fever",
+      "name": "星际探索热潮",
+      "civic": "far_sight",
+      "type": "grow",
+      "effect": {},
+      "starPerPop": 1,
+      "retiredBy": "supreme_directive",
+      "desc": "星空探索速率 +x%，x = 人口数（%）（替代「总动员令」）。"
+    },
+    {
+      "id": "card_alien_abundance",
+      "name": "上上善道",
+      "civic": "prosperity_unity",
+      "type": "prod",
+      "effect": {},
+      "planetOutMul": 1.4,
+      "desc": "异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +40%。"
+    },
+    {
+      "id": "card_federal_privy",
+      "name": "联邦枢密院",
+      "civic": "prosperity_unity",
+      "type": "sci",
+      "effect": {},
+      "squareMul": 4,
+      "theaterMul": 4,
+      "desc": "广场的市政点乘区 ×4、歌剧院的官员市政点乘区 ×4（取代「政治经济学」）。"
+    },
+    {
+      "id": "card_flesh_weak",
+      "name": "血肉苦弱",
+      "civic": "common_destiny",
+      "type": "prod",
+      "effect": {},
+      "resOutMul": {
+        "iron": 1.3,
+        "steel": 1.3,
+        "thetaMetal": 1.3
+      },
+      "desc": "精铁、钢、θ金属产出 +30%。"
+    },
+    {
+      "id": "card_egal_work",
+      "name": "各员一层奋力努力",
+      "civic": "common_destiny",
+      "type": "prod",
+      "effect": {},
+      "craftRatio": 1.4,
+      "happyOffset": -2,
+      "desc": "工艺效率 +140%、幸福度 −2（取代「工业化配给」）。"
+    },
+    {
+      "id": "card_mind_over_matter",
+      "name": "心胜于物",
+      "civic": "sacred_path",
+      "type": "prod",
+      "effect": {},
+      "wonderBuildSave": 0.3,
+      "desc": "奇观建造消耗 −30%。"
+    },
+    {
+      "id": "card_transcendence",
+      "name": "超凡入圣",
+      "civic": "sacred_path",
+      "type": "sci",
+      "effect": {
+        "science": 300
+      },
+      "desc": "科技产出 +300/秒（取代「神秘主义」）。"
+    },
+    {
+      "id": "card_interstellar_logi",
+      "name": "星际后勤保障",
+      "civic": "solar_logistics",
+      "type": "prod",
+      "effect": {},
+      "craftRatioRecipes": {
+        "craft_rocketengine": 1,
+        "craft_strongprop": 1
+      },
+      "desc": "火箭引擎、强工质火箭引擎的工艺制作效率 +100%。"
+    },
+    {
+      "id": "card_brilliant_star_map",
+      "name": "璀璨星图",
+      "civic": "solar_logistics",
+      "type": "sci",
+      "effect": {},
+      "popFaithMul": 0.5,
+      "sciOutMul": 3.5,
+      "desc": "人口信仰产出 −50%、科技产出 ×3.5（取代「神不在此」）。"
+    },
+    {
+      "id": "card_cycle_terminus",
+      "name": "轮回之终末",
+      "civic": "void_faith",
+      "type": "relig",
+      "effect": {},
+      "faithAllProdDouble": true,
+      "locked": true,
+      "desc": "信仰的全产加成翻倍；不可卸下；完成后信仰更名「虚境」并锁死（要给玩家提示）。"
+    },
+    {
+      "id": "card_supreme_directive",
+      "name": "至高指令",
+      "civic": "supreme_directive",
+      "type": "prod",
+      "effect": {},
+      "launchCycle": -2,
+      "desc": "发射场制造节律 −2 秒（与《空间矢量控制》的 −2s 相加，10s → 6s）；取代「星际探索热潮」。"
+    },
+    {
+      "id": "card_saving",
+      "name": "节能减耗",
+      "civic": "supreme_directive",
+      "type": "prod",
+      "effect": {},
+      "launchHydroMul": 0.5,
+      "happyConsumeMul": 1.5,
+      "desc": "发射场热液能消耗 −50%；居民幸福度消耗 +50%。"
+    },
+    {
+      "id": "card_our_sea",
+      "name": "我们的海",
+      "civic": "our_sea",
+      "type": "prod",
+      "effect": {},
+      "sciOutMul": 0.7,
+      "faithOutMul": 0.7,
+      "craftMul": 2,
+      "desc": "信仰、科研产出 −30%；工坊效率翻倍（乘区 ×2）。"
     }
   ],
   "ERAS": [
@@ -2678,6 +5611,46 @@
       "color": "#F2C14E",
       "glyph": "五",
       "desc": "造得出天穹钻机这样的奇迹装置，凿穿最后 25% 壳厚是这一纪元的全部内容。"
+    },
+    {
+      "id": 6,
+      "name": "天外纪",
+      "motto": "出壳",
+      "color": "#9B7BFF",
+      "glyph": "六",
+      "desc": "壳已破。钛金板件让工坊第一次造出「壳外」才用得上的东西：研究实验室、星空观测站、总物流站。"
+    },
+    {
+      "id": 7,
+      "name": "观星纪",
+      "motto": "离开摇篮",
+      "color": "#FF8ED4",
+      "glyph": "七",
+      "desc": "燃料把第一枚火箭送出海面。卫星、空间站与核火点亮夜空——摇篮之外，还有整片星海。"
+    },
+    {
+      "id": 8,
+      "name": "探星纪",
+      "motto": "星海为家",
+      "color": "#6E5BD6",
+      "glyph": "八",
+      "desc": "深空力学推开星门，生物材料改写生命形态，星海区第一次有了「在地」的工业。"
+    },
+    {
+      "id": 9,
+      "name": "光帆纪",
+      "motto": "以光为帆",
+      "color": "#FFC857",
+      "glyph": "九",
+      "desc": "恒星工程纪——太阳帆航线连接聚落、能源与轨道农业，文明的尺度第一次以光年计。"
+    },
+    {
+      "id": 10,
+      "name": "戴森纪",
+      "motto": "以星为盾",
+      "color": "#4FD1C9",
+      "glyph": "十",
+      "desc": "太阳帆铺成轨道环，戴森球的影子第一次落在母星上——文明的尺度开始以恒星计。"
     }
   ],
   "BRANCHES": [
@@ -2724,7 +5697,7 @@
         12
       ],
       "desc": "采集产出 +10%/级",
-      "kind": "rate",
+      "kind": "gather",
       "n": 3,
       "apply": {
         "gather": 1
@@ -2737,7 +5710,7 @@
         6
       ],
       "desc": "采集产出再 +10%",
-      "kind": "rate",
+      "kind": "gather",
       "n": 3,
       "apply": {
         "gather": 1
@@ -2751,7 +5724,7 @@
         12
       ],
       "desc": "采集产出再 +10%",
-      "kind": "rate",
+      "kind": "gather",
       "n": 3,
       "apply": {
         "gather": 1
@@ -2766,7 +5739,7 @@
         7
       ],
       "desc": "破壳系数 +0.20/级",
-      "kind": "coef",
+      "kind": "break",
       "n": 2,
       "apply": {
         "coef": 1
@@ -2779,7 +5752,7 @@
         7
       ],
       "desc": "破壳系数再 +0.20",
-      "kind": "coef",
+      "kind": "break",
       "n": 2,
       "apply": {
         "coef": 1
@@ -2795,7 +5768,7 @@
         18
       ],
       "desc": "冰壳厚度 −10%/级",
-      "kind": "thin",
+      "kind": "break",
       "n": 3,
       "apply": {
         "thin": 1
@@ -2808,7 +5781,7 @@
         9
       ],
       "desc": "冰壳再薄 10%",
-      "kind": "thin",
+      "kind": "break",
       "n": 3,
       "apply": {
         "thin": 1
@@ -2822,7 +5795,7 @@
         18
       ],
       "desc": "冰壳再薄 10%",
-      "kind": "thin",
+      "kind": "break",
       "n": 3,
       "apply": {
         "thin": 1
@@ -2838,7 +5811,7 @@
         6
       ],
       "desc": "永久人口上限 +1/级（最多 3 级）",
-      "kind": "popcap",
+      "kind": "pop",
       "n": 3,
       "apply": {
         "popcap": 1
@@ -2849,7 +5822,7 @@
       "name": "生息建筑规划",
       "cost": 20,
       "desc": "所有人口建筑每级各 +1 人口上限（买断）",
-      "kind": "house",
+      "kind": "pop",
       "n": 1,
       "apply": {
         "housePlan": 1
@@ -2865,7 +5838,7 @@
         12
       ],
       "desc": "寒季资源产出倍率 +0.02/级（最多 4 级）",
-      "kind": "climate",
+      "kind": "pop",
       "n": 4,
       "apply": {
         "coldStore": 1
@@ -2881,7 +5854,7 @@
         12
       ],
       "desc": "单次离线上限 +25%/级（最多 4 级）",
-      "kind": "offline",
+      "kind": "pop",
       "n": 4,
       "apply": {
         "offline": 1
@@ -2913,7 +5886,7 @@
         80
       ],
       "desc": "所有普通资源容量 +5%/级（最多 20 级）",
-      "kind": "store",
+      "kind": "pop",
       "n": 20,
       "apply": {
         "matStore": 1
@@ -3037,7 +6010,7 @@
         6
       ],
       "desc": "保存 1/2/3 份政体与政策卡方案",
-      "kind": "template",
+      "kind": "civic",
       "n": 3,
       "apply": {
         "civicPlan": 1
@@ -3155,7 +6128,7 @@
         40
       ],
       "desc": "珊瑚产出 +10%/级（不设上限）",
-      "kind": "rate",
+      "kind": "gather",
       "n": null,
       "apply": {
         "coralPact": 1
@@ -3187,7 +6160,7 @@
         60
       ],
       "desc": "石头 + 金属 + 暖石产出各 +10%/级（不设上限）",
-      "kind": "rate",
+      "kind": "gather",
       "n": null,
       "apply": {
         "mineTax": 1
@@ -3219,7 +6192,7 @@
         20
       ],
       "desc": "采集者藻食产出 +10%/级（不设上限）",
-      "kind": "rate",
+      "kind": "gather",
       "n": null,
       "apply": {
         "algaeCrop": 1
@@ -3251,7 +6224,7 @@
         80
       ],
       "desc": "精铁产出 +10%/级（不设上限）",
-      "kind": "rate",
+      "kind": "gather",
       "n": null,
       "apply": {
         "furnaceBoost": 1
@@ -3315,7 +6288,7 @@
         60
       ],
       "desc": "工坊制作产出 +10%/级（不设上限）",
-      "kind": "rate",
+      "kind": "gather",
       "n": null,
       "apply": {
         "craftQuota": 1
@@ -3347,7 +6320,7 @@
         40
       ],
       "desc": "奢侈品产出 +10%/级（不设上限）",
-      "kind": "rate",
+      "kind": "gather",
       "n": null,
       "apply": {
         "luxuryPact": 1
@@ -3430,6 +6403,44 @@
       "apply": {
         "autoEvent": 1
       }
+    }
+  ],
+  "ZONES": [
+    {
+      "id": "core",
+      "name": "礁栖核心"
+    },
+    {
+      "id": "food",
+      "name": "生息区"
+    },
+    {
+      "id": "workshop",
+      "name": "工坊区"
+    },
+    {
+      "id": "trade",
+      "name": "贸易区域"
+    },
+    {
+      "id": "academy",
+      "name": "学术区"
+    },
+    {
+      "id": "civic",
+      "name": "市政区"
+    },
+    {
+      "id": "faith",
+      "name": "信仰区"
+    },
+    {
+      "id": "space",
+      "name": "星海区"
+    },
+    {
+      "id": "break",
+      "name": "破界区"
     }
   ]
 }

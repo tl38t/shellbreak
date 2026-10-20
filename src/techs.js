@@ -101,7 +101,20 @@
     /* ERA8（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）。关键节点 = 生物材料（biomat）。
      * 颜色深空蓝紫（与观星纪粉区分）；glyph 八；口号「星海为家」。 */
     { id: 8, name: '探星纪', motto: '星海为家', color: '#6E5BD6', glyph: '八',
-      desc: '深空力学推开星门，生物材料改写生命形态，星海区第一次有了「在地」的工业。' }
+      desc: '深空力学推开星门，生物材料改写生命形态，星海区第一次有了「在地」的工业。' },
+    /* ERA9（2026-10-19 实装）：名称/口号/配色为提议值。颜色太阳金，与 era8 深紫、era7 粉拉开。
+     * ⚠️ 2026-10-20 ERA10 实装后本纪元**不再是终局**：层顶「星球改造」已改 key:true
+     *    （ERA9 原本零 key ⇒ eraProgress.done 恒真，加 ERA10 会令玩家进 ERA9 后瞬跳）。
+     *    星球改造本就是绝热材料/强人工智能的前置，拿它当门不挡任何正常路线。 */
+    { id: 9, name: '光帆纪', motto: '以光为帆', color: '#FFC857', glyph: '九',
+      desc: '恒星工程纪——太阳帆航线连接聚落、能源与轨道农业，文明的尺度第一次以光年计。' },
+    /* ERA10（2026-10-20 实装 · 用户 ERA10 科技表）：名称/口号/配色为提议值，待用户拍。
+     * 关键节点 = 星球改造（terraform，ERA9 层顶，见上注）——研成即推进入本纪元。
+     * 纪元内部三层无 key：L1 绝热材料/强人工智能/引力弹弓 → L2 近恒星轨道建设/空间矢量控制/
+     * 继承繁星之人（孤儿）→ L3 大统一方程；终局靠戴森球进度（双达标取小）收尾。
+     * 颜色星环青 #4FD1C9，与 ERA9 金 / ERA8 紫 / ERA7 粉拉开。 */
+    { id: 10, name: '戴森纪', motto: '以星为盾', color: '#4FD1C9', glyph: '十',
+      desc: '太阳帆铺成轨道环，戴森球的影子第一次落在母星上——文明的尺度开始以恒星计。' }
   ];
 
   var TECHS = [
@@ -491,7 +504,7 @@
     /* ═══ ERA3 精铁·钢提速（用户 2026-10 设计）：黑烟囱炼铁 ─══
      * 复用「铁器」的 smelt 乘区（乘法叠加，零接线风险）。非 key，不动纪元推进分母。
      * layer 2 ≤ 前置 metalrefine(L2)。 */
-    { id: 'blacksmoker', name: '黑烟囱炼铁', icon: 'assets/tech-icons/era-3/era3-metal-refining.png', era: 3, cost: 7000, branch: 'survive', key: false, reqs: ['metalrefine'], layer: 3,
+    { id: 'blacksmoker', name: '黑烟囱炼铁', icon: 'assets/tech-icons/era-3/era3-blacksmoker.png', era: 3, cost: 7000, branch: 'survive', key: false, reqs: ['metalrefine'], layer: 3,
       cond: { t: 'built', b: 'furnace', n: 3 },
       eff: { smelt: 0.25 },
       note: '黑烟囱（海底热液喷口）的炽热矿浆富含铁硫，经富集提纯后炼铁更出铁。精铁产出 ×1.25（与「铁器」乘法叠加）。' },
@@ -502,7 +515,7 @@
     { id: 'castle',     name: '城堡',   icon: 'assets/tech-icons/era-3/era3-castle.png', era: 3, cost: 10000, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
       cond: { t: 'gov', wild: 3 },
       eff: {},
-      unlockDesc: '解锁议事厅升级「城堡」；购买后降低建筑造价，每级为所有有上限资源 +50 容量、市政点 +0.05/秒。' },
+      unlockDesc: '解锁议事厅升级「城堡」；购买后降低建筑造价，每级为纪元三及之前有上限资源 +50 容量、市政点 +0.05/秒。' },
 
     /* ═════════ 纪元四 · 天壳工程（6 项 · 2万~7.5万） ═════════
      * ⚠️ 2026-09-30 用户重设计：旧五项（点火术/涡轮/测壳/洋流/壳铸）**整体删除**，换成下面六项。
@@ -560,12 +573,12 @@
      *   ⚠️ 2026-10-17：资源名一律按**显示名**写（silt 显示名 = 金属，见 config-content 资源表顶部）；
      *      旧注释与 note 里的「砂矿」是改名前的旧称（砂矿坑仍是建筑名，别混），已订正。
      *   两者均非 key，不动纪元推进分母。layer 4 ≤ physics(L4)/thermo(L4)。 */
-    { id: 'hydrocarbur', name: '海流锻钢', icon: 'assets/tech-icons/era-4/era4-thermodynamics.png', era: 4, cost: 55000, branch: 'survive', key: false, reqs: ['thermo'], layer: 5,
+    { id: 'hydrocarbur', name: '海流锻钢', icon: 'assets/tech-icons/era-4/era4-hydrocarbur.png', era: 4, cost: 55000, branch: 'survive', key: false, reqs: ['thermo'], layer: 5,
       cond: { t: 'built', b: 'hydroshop', n: 3 },
       eff: { steelMul: 0.30 },
       note: '用洋流的机械力锻打钢坯（海上版锻钢）。钢产出 ×1.30（新乘区 steelMul，与废钢锻造加法叠加）。' },
 
-    { id: 'ventrecir', name: '热泉回流', icon: 'assets/tech-icons/era-4/era4-physics.png', era: 4, cost: 45000, branch: 'survive', key: false, reqs: ['physics'], layer: 5,
+    { id: 'ventrecir', name: '热泉回流', icon: 'assets/tech-icons/era-4/era4-ventrecir.png', era: 4, cost: 45000, branch: 'survive', key: false, reqs: ['physics'], layer: 5,
       cond: { t: 'built', b: 'furnace', n: 5 },
       eff: { bldEff: -0.4 },
       /* 玩家向显式文案（用户 2026-10-17 反馈「原料消耗 ×0.6」没写清 = 哪栋建筑、哪样原料）：
@@ -614,9 +627,9 @@
     { id: 'abyssgeo', name: '渊海地质学', icon: 'assets/tech-icons/era-5/era5-abyssal-geology.png', era: 5, cost: 100000, branch: 'know', key: false,
       reqs: ['physics'], layer: 5,
       cond: { t: 'upgrade', id: 'upg_deepmine' },
-      eff: { warmMul: 3.0 },
-      effectDesc: '矿工伴生暖石产出 +300%。',
-      note: 'Civ6: Seafaring · 完成深层矿井升级。暖石 +300%。' },
+      eff: { warmMul: 1.0 },
+      effectDesc: '矿工伴生暖石产出 +100%。',
+      note: 'Civ6: Seafaring · 完成深层矿井升级。暖石 +100%。' },
 
     { id: 'highthermo', name: '高压热机', icon: 'assets/tech-icons/era-5/era5-high-pressure-engine.png', era: 5, cost: 110000, branch: 'survive', key: false,
       reqs: ['industrialize'], layer: 6,
@@ -752,8 +765,8 @@
       cond: { t: 'zoneLvl', zone: 'trade', n: 100 },
       eff: {},
       /* 工坊升级「物流仓库」（upg_logiware）：upgradesBuilding='caravanserai' 改造模式（对标城堡），
-       *   商队驿站更名「物流仓库」，每级全产物 +200 容量。 */
-      unlockDesc: '解锁工坊升级「物流仓库」：商队驿站升级后更名，每级给所有产物 +200 容量。' },
+       *   商队驿站更名「物流仓库」，每级给纪元七及之前解锁的有上限材料 +200 容量。 */
+      unlockDesc: '解锁工坊升级「物流仓库」：商队驿站升级后更名，每级给纪元七及之前解锁的有上限材料 +200 容量。' },
 
     { id: 'ancient', name: '超古代科技', icon: 'assets/tech-icons/era-7/era7-ancient.png', era: 7, cost: 1050000, branch: 'know', key: false, reqs: ['surface'], layer: 13,
       cond: { t: 'gathered', r: 'stardust', n: 5 },
@@ -767,7 +780,7 @@
       eff: { unlockBuild: ['spacestation'] },
       /* 太空建筑「空间站」（BUILDINGS.spacestation requiredTech 双写）+ 奇观「至高圣座/太空共同体/国际空间站」
        *   （wonder_skyspire，need:'spacestation'，按 s.gov 三分支改名+效果——波次4）。 */
-      unlockDesc: '解锁太空建筑「空间站」与奇观「至高圣座」。' },
+      unlockDesc: '解锁太空建筑「空间站」与政体专属奇观（名称与加成随政体变化）。' },
 
     { id: 'fission', name: '核裂变', icon: 'assets/tech-icons/era-7/era7-fission.png', era: 7, cost: 1800000, branch: 'live', key: false, reqs: ['autodrill'], layer: 13,
       cond: { t: 'gathered', r: 'uranium', n: 100 },
@@ -845,10 +858,10 @@
 
     { id: 'protoai', name: '初级人工智能', icon: 'assets/tech-icons/era-8/era8-protoai.png', era: 8, cost: 3150000, branch: 'know', key: false, reqs: ['robotics'], layer: 16,
       cond: { t: 'pop', n: 70 },
-      /* ⚠️ eff 空是**挂起**不是漏接：唯一解锁「机器人充能站」随 B7 机器人机制延后（spec §6，
-       *    用户拍「机器人机制单独做」）。robotbay 落地时在 eff 补 unlockBuild:['robotbay']。 */
-      eff: {},
-      unlockDesc: '解锁建筑「机器人充能站」（机器人机制延后批次，本项暂无即时效果）。' },
+      /* B7（2026-10-19 实装）：唯一解锁「机器人充能站」落地 ⇒ 补 unlockBuild:['robotbay']。
+       * 机器人机制（robotbay 建筑 + folk.js 人口子系统）随本波一并实装。 */
+      eff: { unlockBuild: ['robotbay'] },
+      unlockDesc: '解锁建筑「机器人充能站」（维持 4 机器人人口/级：仅担任非书手/学者岗位，产出 +20%、不影响信仰点）。' },
 
     { id: 'nanotech', name: '纳米技术', icon: 'assets/tech-icons/era-8/era8-nanotech.png', era: 8, cost: 3150000, branch: 'know', key: false, reqs: ['robotics'], layer: 16,
       /* 尤里卡依赖 θ金属产线（thetaRate 进 rates().thetaMetal）——产线随 biomatlab 先落地。 */
@@ -856,7 +869,149 @@
       /* 生物材料研究所 产出+10% × 效率+30%（thetaFlow/thetaRate 读 (1+out)×(1+eff)，合 ×1.43）。 */
       eff: { biomatlabOut: 0.10, biomatlabEff: 0.30 },
       /* 工艺「θ金属自适应薄膜」（craft_thinafilm，need:'nanotech'）。 */
-      unlockDesc: '解锁工艺「θ金属自适应薄膜」（100θ → 1 钛金板件）。生物材料研究所产出 +10%、效率 +30%。' }
+      unlockDesc: '解锁工艺「θ金属自适应薄膜」（100θ → 1 钛金板件）。生物材料研究所产出 +10%、效率 +30%。' },
+
+    // ═════════ 纪元九 · 光帆（9 项 · 三层） ═════════
+    // 整簇尤里卡门槛 = 纪元八全清（advanceEra 推进入纪元九）；各科技另有下方 cond 单行门。
+    { id: 'nuclear_fusion', name: '核聚变', icon: 'assets/tech-icons/era-9/era9-nuclear-fusion.png', era: 9, cost: 3000000, branch: 'live', key: false, reqs: ['nanotech'], layer: 17,
+      /* 尤里卡 = 核热厂 ≥3 级（built 条件，与 era7 核裂变同族）。 */
+      cond: { t: 'built', b: 'fissionplant', n: 3 },
+      eff: {},
+      /* 效果读 s.techs.nuclear_fusion 直接接线（economy 核热厂单体）：铀耗 ×2、热液能产出 ×5。无通用 mul 键。 */
+      unlockDesc: '核热厂：铀消耗 ×2、热液能产出 ×5。' },
+
+    { id: 'ecological_restoration', name: '生态重塑', icon: 'assets/tech-icons/era-9/era9-ecological-restoration.png', era: 9, cost: 3500000, branch: 'live', key: false, reqs: ['gascloud', 'nanotech'], layer: 17,
+      /* 尤里卡 = 星空探索进度 >50%（starPct，与异星建筑工程同口径）。 */
+      cond: { t: 'starPct', n: 50 },
+      eff: {},
+      /* 解锁1 = 奇观「星球重构机 G.E.E.K」（wonder_geek.need='ecological_restoration'，运行态机制随后单独实装）。
+       * 解锁2 = 完成瑞亚星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前（G.E.E.K 运行态，本轮占位）。 */
+      unlockDesc: '解锁奇观「星球重构机 G.E.E.K」（运行态机制随后单独实装）。完成瑞亚星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前。' },
+
+    { id: 'interplanetary', name: '行星际航行', icon: 'assets/tech-icons/era-9/era9-interplanetary.png', era: 9, cost: 4000000, branch: 'know', key: false, reqs: ['nanotech', 'protoai'], layer: 17,
+      /* 尤里卡 = 累计产火箭引擎 >500（gathered，与 era7 火箭研究同源）。 */
+      cond: { t: 'gathered', r: 'rocketEngine', n: 500 },
+      eff: {},
+      /* 解锁1 = 工艺制造强工质火箭引擎（craft_strongprop.need='interplanetary' 真读，燃料500+10θ金属→1）。
+       * 解锁2 = 所有异星建筑每级 +5% 星空探索速度（economy.starRate 读 s.techs.interplanetary）。 */
+      unlockDesc: '工艺制造：强工质火箭引擎（燃料 500 + θ金属 10 → 1）。所有异星建筑每级 +5% 星空探索速度。' },
+
+    { id: 'microwave_heat', name: '超远距微波加热', icon: 'assets/tech-icons/era-9/era9-microwave-heat.png', era: 9, cost: 5000000, branch: 'live', key: false, reqs: ['interplanetary'], layer: 18,
+      /* 尤里卡 = 星空探索进度 >75%（starPct，与生态重塑同口径）。 */
+      cond: { t: 'starPct', n: 75 },
+      /* 解锁1 = 建筑欧罗巴冰面发射场（BUILDINGS.europa_launch.requiredTech 双写）。 */
+      eff: { unlockBuild: ['europa_launch'] },
+      /* 解锁2 = 星图太阳帆进度：每 1 太阳帆 +0.05 热液能/秒（economy.hydroAlloc 读 s.sunSails）。 */
+      unlockDesc: '建筑：欧罗巴冰面发射场（每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；运行 10s → 星图 +1 太阳帆）。星图每 1 太阳帆 +0.05 热液能/秒。' },
+
+    { id: 'alien_eng', name: '大型异星工程', icon: 'assets/tech-icons/era-9/era9-alien-eng.png', era: 9, cost: 6000000, branch: 'live', key: false, reqs: ['ecological_restoration'], layer: 18,
+      /* 尤里卡 = 异星建筑总等级 >20（lvlSum，含 rheamine/titancloud/mars_workshop）。 */
+      cond: { t: 'lvlSum', ids: ['rheamine', 'titancloud', 'mars_workshop'], n: 20 },
+      /* 解锁 = 建筑马尔斯工造中心（BUILDINGS.mars_workshop.requiredTech 双写）。 */
+      eff: { unlockBuild: ['mars_workshop'] },
+      unlockDesc: '建筑：马尔斯工造中心（造价 160θ生物金属 + 10 强工质火箭引擎，每级产钛与钛金板件）。' },
+
+    { id: 'blackhistory', name: '黑历史蓝图', icon: 'assets/tech-icons/era-9/era9-blackhistory.png', era: 9, cost: 5500000, branch: 'know', key: false, reqs: ['interplanetary'], layer: 18,
+      /* 尤里卡 = 轮回次数 >15（cycle，与考古学/文明构造同族）。 */
+      cond: { t: 'cycle', n: 15 },
+      /* 工艺效率 +120%（workshopEff 加法叠进，与激光技术 +50% 同源）。 */
+      eff: { workshopEff: 1.2 },
+      unlockDesc: '工艺效率 +120%（工坊工艺制作乘区，与激光技术 +50% 加法叠加）。' },
+
+    { id: 'terraform', name: '星球改造', icon: 'assets/tech-icons/era-9/era9-terraform.png', era: 9, cost: 7000000, branch: 'live', key: true, reqs: ['alien_eng'], layer: 19,
+      /* ⚠️ 2026-10-20 ERA10 实装：key false → **true**。ERA9 原本零 key 节点
+       * （eraProgress.done 恒真）⇒ ERAS 加第 10 条后玩家一进 ERA9 就被 advanceEra 瞬跳。
+       * terraform 是 ERA9 层顶、且 ERA10 两项 L1（绝热材料/强人工智能）都要它，拿它当门最自然。
+       * 尤里卡 = 完成瑞亚星改造（geekRhea，新 cond；G.E.E.K 运行态随后单独实装，本轮该条件恒 false）。 */
+      cond: { t: 'geekRhea' },
+      eff: {},
+      /* 解锁1 = 可启动泰拉星球改造（需启动 G.E.E.K，随后实装）。
+       * 解锁2 = 泰拉改造 1h 完成后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到五级之前（减消耗，替换 Rhea 的 3 级偏移）。 */
+      unlockDesc: '可启动泰拉星球改造（需启动星球重构机 G.E.E.K，运行态随后实装）。泰拉改造 1h 完成后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到五级之前。' },
+
+    { id: 'interlog', name: '行星际快速物流', icon: 'assets/tech-icons/era-9/era9-interlog.png', era: 9, cost: 6500000, branch: 'live', key: false, reqs: ['microwave_heat'], layer: 19,
+      /* 尤里卡 = 完成星际政治市政（civic，与 era8 星际政治同口径）。 */
+      cond: { t: 'civic', id: 'space_politics' },
+      /* 异星建筑产出 +20%（alienOutMul 加法；与星际物流网卡 planetOutMul ×1.3 加算）。 */
+      eff: { alienOutMul: 0.2 },
+      unlockDesc: '异星建筑产出 +20%（与星际物流网卡 ×1.3 加算：总产出倍数 = 1.3 + 0.2 = 1.5）。' },
+
+    { id: 'winter', name: '严冬计划', icon: 'assets/tech-icons/era-9/era9-winter.png', era: 9, cost: 6000000, branch: 'know', key: false, reqs: ['blackhistory'], layer: 19,
+      /* 尤里卡 = 进入挑战流浪泰拉（challenge，新 cond；entered 语义）。 */
+      cond: { t: 'challenge', id: 'drift_terra' },
+      eff: {},
+      unlockDesc: '暂时占位（流浪泰拉挑战相关机制随后设计）。' },
+
+    // ═════════ 纪元十 · 戴森（7 项 · 三层） ═════════
+    // 2026-10-20 用户 ERA10 表实装（授权「实装吧」）。成本阶梯：L1 800/850/900 万、
+    // L2 1000/1050/1100 万、L3 1500 万（ERA9 为 300-700 万）。layer 20-22 接 ERA9 的 19。
+    { id: 'adiabatic', name: '绝热材料', icon: 'assets/tech-icons/era-10/era10-adiabatic.png', era: 10, cost: 8000000, branch: 'know', key: false, reqs: ['terraform'], layer: 20,
+      /* 尤里卡 = 太阳帆制造超过 50（sunSails，ERA10 新 cond；≥ 口径，与 built/total 一致）。 */
+      cond: { t: 'sunSails', n: 50 },
+      eff: {},
+      /* 解锁1 = 发射场模式切换（太阳帆 / 戴森球节点，s.launchMode；economy-tick 2f 段读，
+       *   UI 在欧罗巴冰面发射场建筑行加切换钮）。节点耗料 = 1 强工质火箭引擎 + 1 θ金属
+       *   自适应薄膜 + 3 钛合金板 / 秒 / 级（用户表只给了每秒量，按与帆模式对称取 /级）。
+       * 解锁2 = 戴森球终局面板（星图 pane）：太阳帆 10000 + 戴森球节点 1000，进度双达标取小
+       *   （用户拍 Q4），20/40/60/80/100 五档背景图，100% 弹通关窗（可轮回或继续攒）。 */
+      unlockDesc: '欧罗巴冰面发射场可切换制造太阳帆或戴森球节点（节点每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板）。星图开启戴森球终局面板：太阳帆 10000 + 戴森球节点 1000 即通关。' },
+
+    { id: 'strong_ai', name: '强人工智能', icon: 'assets/tech-icons/era-10/era10-strong-ai.png', era: 10, cost: 8500000, branch: 'know', key: false, reqs: ['terraform'], layer: 20,
+      /* 尤里卡 = 机器人充能站等级 ≥10（built，现成类型）。 */
+      cond: { t: 'built', b: 'robotbay', n: 10 },
+      eff: {},
+      /* 解锁 = 工坊升级「强人工智能」（UPGRADES.upg_strongai，1000 θ金属）：
+       *   机器人产出 ×1.2 → ×1.5（folk.robotMult 读数，替代写死的 ROBOT_MULT=1.2）；
+       *   且机器人按**人口口径**产信仰（用户拍 Q3「进人口基项」：economy.faithRate 的
+       *   人口基项 +robotPop，升级门控——没买升级前机器人仍不影响信仰）。 */
+      unlockDesc: '工坊升级「强人工智能」（消耗 1000 θ金属）：机器人产出 ×1.2 → ×1.5，且机器人按人口口径产出信仰。' },
+
+    { id: 'gravity_sling', name: '引力弹弓', icon: 'assets/tech-icons/era-10/era10-gravity-sling.png', era: 10, cost: 9000000, branch: 'live', key: false, reqs: ['interlog'], layer: 20,
+      /* 尤里卡 = 完成市政「太阳系后勤保障」（civic，ERA9 已实装，现成类型）。 */
+      cond: { t: 'civic', id: 'solar_logistics' },
+      eff: {},
+      /* 解锁 = 奇观「朱庇特质量加速站」（WONDERS.wonder_jupitor_mas.need 双写）：
+       *   建造 20 强工质火箭引擎 + 100 θ金属自适应薄膜；运行耗 20 热液能/秒（hydroAlloc，
+       *   最低优先级，断流只停耗）；生物材料研究所产出 ×2（wonder.wonderBiomatlabOut
+       *   新读数接 economy.thetaOut，与纳米技术的 biomatlabOut 乘区独立相乘）。 */
+      unlockDesc: '奇观「朱庇特质量加速站」（消耗 20 强工质火箭引擎 + 100 θ金属自适应薄膜）：每秒耗 20 热液能，生物材料研究所产出 +100%。' },
+
+    { id: 'near_star_orbit', name: '近恒星轨道建设', icon: 'assets/tech-icons/era-10/era10-near-star-orbit.png', era: 10, cost: 10000000, branch: 'live', key: false, reqs: ['adiabatic'], layer: 21,
+      /* 尤里卡 = 戴森球进度 40%（dysonPct，ERA10 新 cond，双达标取小口径）。 */
+      cond: { t: 'dysonPct', n: 40 },
+      /* 解锁 = 建筑「太阳星环」（BUILDINGS.solar_ring.requiredTech 双写，解锁权两处同写）。 */
+      eff: { unlockBuild: ['solar_ring'] },
+      unlockDesc: '建筑「太阳星环」（消耗 300 θ金属 + 20 封闭藻仓）：每秒产 0.05 θ金属/级，人口上限 +1/级。' },
+
+    { id: 'vector_ctrl', name: '空间矢量控制', icon: 'assets/tech-icons/era-10/era10-vector-ctrl.png', era: 10, cost: 10500000, branch: 'know', key: false, reqs: ['adiabatic', 'strong_ai'], layer: 21,
+      /* 尤里卡 = 戴森球进度 20%（dysonPct，新 cond）。 */
+      cond: { t: 'dysonPct', n: 20 },
+      /* 效果 = 发射场制造节律 −2s（launchCycle 加法键：tech.mul 默认表/ADD/LABEL 三处已同步）。
+       *   节律 = max(1, CFG.LAUNCH_CYCLE(10) + T.launchCycle)，太阳帆与节点同吃。 */
+      eff: { launchCycle: -2 },
+      unlockDesc: '发射场制造时间减少 2 秒（太阳帆与戴森球节点的产出节律 10 秒 → 8 秒）。' },
+
+    { id: 'heir_of_stars', name: '继承繁星之人', icon: 'assets/tech-icons/era-10/era10-heir-of-stars.png', era: 10, cost: 11000000, branch: 'know', key: false, reqs: [], layer: 21,
+      /* 孤儿节点（用户表前置为空）：ERA10 揭示即可研究，无断链依赖。
+       * 尤里卡 = 累计星屑点超过 70（gathered/stardust；freshRun 把 meta.stardustEarned seed 进
+       *   s.got.stardust，跨周目累计，现成类型）。 */
+      cond: { t: 'gathered', r: 'stardust', n: 70 },
+      eff: {},
+      /* 解锁1 = 本轮回星屑点 +100%（prestige.doBreak 星屑段 ×2，与先民遗产 +20% 同侧串联）。
+       * 解锁2 = 工坊工艺效率 +x%，x = 星屑点累计数（workshop.craftRatio 动态读
+       *   s.got.stardust/100——动态值进不了静态 eff 表，必须写读数，这是最易漏接的一类）。 */
+      unlockDesc: '本轮回星屑点 +100%；工坊工艺效率 +x%，x 为星屑点累计数（跨周目累积）。' },
+
+    { id: 'unified_field', name: '大统一方程', icon: 'assets/tech-icons/era-10/era10-unified-field.png', era: 10, cost: 15000000, branch: 'know', key: false, reqs: ['near_star_orbit', 'vector_ctrl'], layer: 22,
+      /* 尤里卡 = 戴森球进度 80%（dysonPct，新 cond）。 */
+      cond: { t: 'dysonPct', n: 80 },
+      eff: {},
+      /* 效果 = 除科技/市政/信仰外的全产加成，量与旧日信仰相同：
+       *   unifiedMul = 1 + 0.005×floor(log10(科技点+市政点)+1e-9)，与 prestige.legacy 的
+       *   oldFaithAllProductionBonus（0.005×faithTier）逐字同式（已核 prestige.js:62/71）。
+       *   ⚠️ 走 globalMulX 逐行接，**不折进 globalMul**——科技/市政产出行确实吃 globalMul，
+       *      折进去会误推它们自己（用户表明文排除）。tick 与 rates 必须同式（单位铁律）。 */
+      unlockDesc: '按当前科技点 + 市政点给予全产加成（与旧日信仰同式：每高一个数量级 +0.5%），作用于除科技、市政、信仰之外的全部产出。' }
   ];
 
   var BRANCHES = [

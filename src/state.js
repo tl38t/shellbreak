@@ -6,6 +6,20 @@
   'use strict';
   var SB = root.SB || (root.SB = {});
   var CFG = SB.CFG;
+  var metaLoadProblem = null;
+  var runLoadProblem = null;
+
+  function preserveRawSave(key, raw) {
+    if (!raw) return;
+    var ls = null;
+    try { ls = root.localStorage; } catch (e) { return; }
+    if (!ls) return;
+    var backupKey = key === CFG.SAVE_KEY ? CFG.SAVE_BACKUP_KEY : CFG.RUN_BACKUP_KEY;
+    try {
+      /* 只创建一次救援副本，之后绝不让一次失败的恢复/导入覆盖那份旧副本。 */
+      if (ls.getItem(backupKey) === null) ls.setItem(backupKey, raw);
+    } catch (e) { /* quota/权限受限时仍保留原主档 */ }
+  }
 
   function emptyMeta() {
     /* religionSeen：是否建立过宗教（解锁「轮回」系统）。一旦置真，永久保留（跨周目），
@@ -17,11 +31,11 @@
      *   memorialWonders          已入藏独特奇观 id 表（每座 +1% 科技/市政获取；观光点=其计数）
      *   oldArtworkEarnedTotal    旧日艺术品累计获得总数（固定市政点/秒，递减曲线）
      *   oldTideStelesEarnedTotal 旧日潮纹碑石累计获得总数（固定科技点/秒，递减曲线） */
-    return { tide: 0, spent: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null,
+    return { tide: 0, spent: 0, tideEarnedTotal: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null,
       religionSeen: false, shopUnlocked: false,
       autoResearch: { tech: false, civic: false },
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
-      challenges: { completed: { cold: false, small: false, science: 0, abyss: 0 } },
+      challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0 } },
       /* 「看广告 +1 轮回点」每日次数计数（跨周目保留，但按本地日期重置）。
        * date 为本地日期串（YYYY-M-D），与 todayKey() 同源；跨天或旧档无此键 ⇒ 视为重置。
        * count 为当日已看次数，达 AD.REBIRTH_DAILY_MAX（10）即封顶。 */
@@ -31,7 +45,9 @@
       seenVersion: '',
       /* ERA7（2026-10-17 · spec §7）：星屑跨周目局外资源。只在周目结算时累加（prestige.doBreak），
        *   与轮回点同侧；freshRun 时 seed 进 s.got.stardust 供超古代科技 eureka 读。 */
-      stardust: 0 };
+      stardust: 0, stardustEarned: 0,
+      starPerks: { starInfinite: 0, starSmelt: 0, starFolk: 0, earlyAutoBuild: 0,
+        starLaunchSpeed: 0, starDysonCost: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0 } };
   }
   function emptyPerks() {
     /* 轮回商店增益的运行时累加表。键必须与 config.PERKS 各商品的 apply 键一致；
@@ -48,7 +64,10 @@
       govRoutine: 0,
       /* 轮回商店「自动点击」系列：autoClick = 每秒自动点击次数（0/1/2/3，三档叠加），
        * autoEvent = 点击事件自动拾取（0/1）。键与 config.PERKS 的 apply 键一致。 */
-      autoClick: 0, autoEvent: 0 };
+      autoClick: 0, autoEvent: 0,
+      /* 星屑商店运行态增益；等级从 meta.starPerks 派生。 */
+      starInfinite: 0, starSmelt: 0, starFolk: 0, earlyAutoBuild: 0,
+      starLaunchSpeed: 0, starDysonCost: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0 };
   }
 
   /* 从跨周目商店账本（meta.perks）重建本局运行时增益表：每个已购等级的 apply 值 × 等级，
@@ -61,18 +80,25 @@
     var out = { perk: emptyPerks(), kelp: 0, coral: 0, science: 0, applied: false };
     var m = null;
     try { if (SB.game && SB.game.meta) m = SB.game.meta(); } catch (e) { m = null; }
-    if (!m || !m.perks) return out;
+    if (!m) return out;
     out.applied = true;
     var PL = SB.PERKS || [], i;
     for (i = 0; i < PL.length; i++) {
       var p = PL[i];
-      var lv = m.perks[p.id] || 0;
+      var lv = (m.perks && m.perks[p.id]) || 0;
       if (!lv) continue;
       var a = p.apply || {};
       for (var k in a) out.perk[k] = (out.perk[k] || 0) + a[k] * lv;
       if (p.id === 'food') out.kelp += 200 * lv;
       if (p.id === 'coral') out.coral += 150 * lv;
       if (p.id === 'scienceStart') out.science += 100 * lv;
+    }
+    var SPL = SB.STAR_PERKS || [];
+    for (i = 0; i < SPL.length; i++) {
+      var sp = SPL[i], slv = (m.starPerks && m.starPerks[sp.id]) || 0;
+      if (!slv) continue;
+      var sa = sp.apply || {};
+      for (var sk in sa) out.perk[sk] = (out.perk[sk] || 0) + sa[sk] * slv;
     }
     return out;
   }
@@ -92,8 +118,7 @@
     }
     var thin = perk.thin || 0;
     var iceShell = Math.round(SB.CFG.ICE_SHELL * Math.pow(0.9, thin));
-    /* ERA7（2026-10-17 · spec §7）：星屑跨周目局外资源，freshRun 时把 meta 存量 seed 进 got.stardust，
-     *   供超古代科技 eureka t:'gathered' 直接读（§2）。meta 取不到则按 0 处理（新档 / e2e 沙箱）。 */
+    /* 星屑跨周目局外资源：freshRun 把累计结算发放量 seed 进 got.stardust；余额兑换不改变尤里卡进度。 */
     var _meta = null;
     try { if (SB.game && SB.game.meta) _meta = SB.game.meta(); } catch (e) { _meta = null; }
     return {
@@ -146,13 +171,15 @@
          *   （与上面那条同源事故）。got 台账不记工艺制品，故不进 got（见 stoneBeam 那条口径）。 */
         artwork: 0, tidalRecord: 0, resonantDrill: 0,
         /* ERA6（2026-10 实装）：钛金板件 / 星空探索 / 封闭藻仓。seed 只防 addRes 漏键染 NaN
-         *   （与上面那条同源事故）。钛金板件有 CAP_BASE 上限；starExplore 有专用阶段上限；
-         *   sealbin 无 CAP_BASE 键 ⇒ capOf 恒 Infinity（工艺制品，与石梁同口径）。 */
+         *   （与上面那条同源事故）。钛金板件与封闭藻仓都是 craft ⇒ 无仓储上限；
+         *   starExplore 是进度资源，有专用阶段上限。θ生物金属是普通有限仓储资源（CAP_BASE=200）。 */
         tiplate: 0, starExplore: 0, sealbin: 0,
-        /* ERA7（2026-10-17 · spec §2）：燃料/铀/火箭引擎/星屑。铀有 CAP_BASE 键（200），
-         *   燃料 20000、火箭引擎 50；星屑无上限键（跨周目局外，同 science 口径）。
+        /* ERA7（2026-10-17 · spec §2）：燃料/铀/火箭引擎/星屑。铀有 CAP_BASE 键（200）；
+         *   火箭燃料与引擎都是 craft，无仓储上限；星屑是跨周目局外资源。
          *   stardust 波次4 起由 meta 存档 seed 进来（freshRun(false) 时保持 0）。 */
-        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: 0, thetaMetal: 0, thinafilm: 0 },
+        uranium: 0, rocketFuel: 0, rocketEngine: 0, strongProp: 0,
+        /* got.stardust 记结算实际发放累计值；商店兑换不增加该尤里卡台账。 */
+        stardust: 0, thetaMetal: 0, thinafilm: 0 },
       /* lvl 的键必须与 SB.BUILDINGS 的 id 一一对应（quarry 已随「采石场改职业」移除）。
        * ⚠️ 漏一个键 = 一次 NaN 事故：`undefined * 0.12` 经 addRes 的 Math.min
        * 污染资源池，再顺着 lvlSum 污染破壳系数。与「加职业漏加表」「存档缺键」同类。 */
@@ -215,7 +242,24 @@
         /* ERA8（2026-10-18 · spec §4）：生物材料研究所 / 瑞亚星矿井 / 泰坦星气云采集站。
          *   漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）；
          *   thetaFlow 读 lvl.biomatlab 也依赖本 seed（undefined > 0 恒 false 是侥幸不是保障）。 */
-        biomatlab: 0, rheamine: 0, titancloud: 0 },
+        biomatlab: 0, rheamine: 0, titancloud: 0, robotbay: 0,
+        /* ERA9（光帆纪 · 本次实装）：马尔斯工造中心（火星在地制造，space 区）/ 欧罗巴冰面发射场（母星 core 区）。
+         * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
+         * europa_launch 虽在母星（core 区），但发射台每 10s 向星图推进太阳帆（s.sunSails 累加器），
+         * 故另需 sunSails / sunSailProc 运行态种子（见下方 geek 段旁）。 */
+        mars_workshop: 0, europa_launch: 0,
+        /* ERA9（2026-10-20 市政《神们自己》解锁建筑）：黑色方碑（信仰产出 ×1.2）。
+         * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。 */
+        black_monolith: 0,
+        /* ERA10（戴森纪 · 2026-10-20）：太阳星环（space 区，近恒星轨道建设解锁）。
+         * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
+         * ⚠️ e2e「每座建筑都在状态表的 lvl 里」当场抓到这条漏写——这正是那条断言存在的理由。 */
+        solar_ring: 0,
+        /* ERA10 市政（2026-10-20 · 用户 ERA10 市政规格）：泰拉/瑞亚星轨道发射场（space 区，公共工程局解锁）
+         * + 虚境祭坛（faith 区，虚境探索解锁）。三条漏键都会让读档静默丢等级 / costOf 读 undefined。
+         * ⚠️ void_altar 是本作第一座带 maxLvl 的建筑，等级上限由建筑条目上的 maxLvl 决定，
+         *    状态表这边只存等级、不存上限（上限改了老档要跟着生效，不能烤进存档）。 */
+        terra_launch: 0, rhea_launch: 0, void_altar: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * SB.UNIT.kelp` 变成
@@ -237,6 +281,10 @@
        *    职业表必须与 SB.JOBS 一一对应，同步删这一键即可；老档多出的 `jobs.craft`
        *    由 migrateRun 的 fixTable 按 ref 键遍历自动丢弃。 */
       jobs: { gather: 0, coralwright: 0, quarrier: 0, miner: 0, scholar: 0, scribe: 0, merchant: 0 },
+      /* ERA8（2026-10-19 · B7 机器人机制）：机器人分配表，与 jobs 平行但**不进 s.pop**
+       *   ⇒ 不影响信仰点（faithRate 直读 s.pop）。键 = 职业 id，值 = 该职业的机器人数量；
+       *   仅能担任非书手/学者的岗位（folk.robotJobAllowed）。robotPop = 4 × lvl.robotbay。 */
+      robotJobs: {},
       /* seen = 建筑「曾经露过头」的黑名单（habitat.reveal 写入，UI 判可见用）。
        * 没有它，玩家把库存花到 unlockRatio 阈值以下时，刚冒出来的建筑会当场消失。
        * 与 lvl/jobs 同理：新增字段要同时在 freshRun 与 migrateRun 两边补上。 */
@@ -272,9 +320,11 @@
        *   默认 0 = 全开。运行座数 = max(0, lvl.hydroshop − hydroshopStop)，结算在 economy.hydroAlloc（钢的产出随运行座数缩放）。
        *   热液工坊吃的是**流**（热液能，不进库存），停产不省任何可囤资源，唯一意义是把流让给天穹钻机。 */
       hydroshopStop: 0,
+      /* ERA8：生物材料研究所「开几座」停用数，默认全开；原料消耗、θ产出和热液需求共用此开关。 */
+      biomatlabStop: 0,
       /* ERA7（2026-10-17 · spec §5）：轨道卫星「开几座」（与 furnaceStop / turbineStop 同口径）：
        *   存**停了几座** satelliteStop，默认 0 = 全开。运行座数 = max(0, lvl.satellite − satelliteStop)，
-       *   结算在 economy.starRate（星空产出随运行座数缩放）。卫星不耗料，停产只停星空贡献。
+       *   结算在 economy.starRate（星空产出随运行座数缩放）。卫星每级耗 1 热液能/秒（挂 satelliteStop 开关，与空间站同口径）；停产停耗与星空贡献。
        *   旧档无 satelliteStop 键 ⇒ 0（全开），`|| 0` 兜底，无需迁移。 */
       satelliteStop: 0,
       /* ERA7（2026-10-17 · spec §5）：空间站「开几座」（与 satelliteStop 同口径）：
@@ -336,9 +386,8 @@
         faith: 0, luxury: 0,
         /* ERA6（2026-10 实装）：与 res 那批同口径 seed，防 addRes 漏键染 NaN。 */
         tiplate: 0, starExplore: 0, sealbin: 0,
-        /* ERA7（2026-10-17 · spec §2/§7）：与 res 那批同口径 seed。星屑记的是**结算发放**累计
-         *   （got.stardust = meta seed + 本周目发放），供超古代科技 eureka t:'gathered' 直接读。 */
-        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: (_meta ? (_meta.stardust || 0) : 0), thetaMetal: 0, thinafilm: 0 },
+        /* 星屑尤里卡读累计结算发放量；兑换只改余额，不影响这份台账。 */
+        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: (_meta ? (_meta.stardustEarned || 0) : 0), thetaMetal: 0, thinafilm: 0 },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
        *   civBoost —— 鼓舞条件**达成过**的台账（与技术树的 eurekaMet 同构：
@@ -439,44 +488,85 @@
       /* 存档墙钟：game.snapshot() 写入，离线补算据此算「玩家离开了多久」。
        * 必须放在基础表里，否则 migrateRun 会把它当成未知字段丢掉，离线补算永远为 0。
        * 读取当次会手删（game.boot），不进运行状态。 */
-      _ts: 0
+      _ts: 0,
+      /* ERA9（光帆纪 · 本次实装）：星图太阳帆累加器 + G.E.E.K 运行态种子。
+       *   sunSails     —— 太阳帆总数（**无限**，无上限）；由欧罗巴冰面发射场每运行 10s 推 +1 帆。
+       *                   每帆 +0.05 热液能/秒（进 hydroAlloc 供给侧，不进库存）。
+       *   sunSailProc  —— 发射场推进太阳帆的**累计运行秒数**游标（每 +10s 触发一次 +1 帆）。
+       *   geek         —— G.E.E.K 星球重构机运行态：
+       *                    geekOn        = 自然环境卡手动启动开关（与 skydrillOn 同纪律）；
+       *                    rheaDone / terraDone = 瑞亚 / 泰拉改造完成旗（terraform 尤里卡 / 减消耗管线读它）；
+       *                    costOffset = 覆盖建筑的有效造价等级偏移（Rhea=3 / Terra 叠 +5=8，减消耗落点）；
+       *                    rheaRun / terraRun = 改造进度秒数（自然环境卡 UI 读它）。
+       *   ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底（state-migrate.js 的 geek 深合并），自动带出默认值。 */
+      sunSails: 0, sunSailProc: 0,
+      geek: { geekOn: false, rheaDone: false, terraDone: false, costOffset: 0, rheaRun: 0, terraRun: 0 },
+      /* ERA10（戴森纪 · 2026-10-20 实装）：戴森球子系统状态。
+       *   dysonNodes     —— 戴森球节点总数（发射场节点模式每运行满 1 节律 +1，无限）。
+       *   dysonProc      —— 节点模式累计运行秒数游标（每 +1 节律触发一次 +1 节点）。
+       *   launchMode     —— 发射场制造模式：'sail'（太阳帆，默认）/ 'node'（戴森球节点）；
+       *                     完成《绝热材料》后 UI 才给切换钮（adiabatic 门控在渲染侧）。
+       *   dysonDone      —— 戴森球 100% 达成旗（双达标取小口径达 1）；只置一次。
+       *   dysonPopupSeen —— 通关弹窗已播旗（弹窗只播一次；继续游玩后不再弹）。
+       * ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底自动带出默认值（与 geek 同机制）。 */
+      dysonNodes: 0, dysonProc: 0, launchMode: 'sail',
+      dysonDone: false, dysonPopupSeen: false
     };
   }
 
   // ---- 跨周目持久化 ----
-  function loadMeta() {
-    var m = emptyMeta();
-    try {
-      var rawStr = root.localStorage && root.localStorage.getItem(SB.CFG.SAVE_KEY);
-      if (rawStr) {
-        var parsed = JSON.parse(rawStr);
-        m = Object.assign(m, parsed);
-        if (!m.autoResearch || typeof m.autoResearch !== 'object' || Array.isArray(m.autoResearch)) m.autoResearch = {};
-        m.autoResearch = { tech: m.autoResearch.tech === true, civic: m.autoResearch.civic === true };
-        if (!m.challenges || typeof m.challenges !== 'object') m.challenges = { completed: {} };
-        if (!m.challenges.completed || typeof m.challenges.completed !== 'object') m.challenges.completed = {};
-        var challengeIds = { cold: true, small: true, science: true, abyss: true };
-        for (var challengeId in challengeIds) {
-          var completed = m.challenges.completed[challengeId];
-          if (challengeId === 'cold' || challengeId === 'small') m.challenges.completed[challengeId] = completed === true;
-          else m.challenges.completed[challengeId] = Math.max(0, Math.min(3, completed | 0));
-        }
-        /* 旧档（本更新前）没有 religionSeen / shopUnlocked 字段：
-         * 若已积过跨周目进度（轮回点 / 破层 / 走过 ≥2 周目 / 已购增益），
-         * 视为「早就建立过宗教、也轮回过」，把两轮解锁都补上，
-         * 免得老玩家升级后突然发现轮回商店被锁、攒的点花不出去。
-         * 全新档（无任何进度）保持 false，按新流程从建立宗教开始。
-         * ⚠️ 判据用 `=== undefined` 而非真值：新档 saveMeta 会写出 religionSeen:false，
-         *   那种不算旧档，不该被这里的宽限误伤（新玩家即便 轮回 过一次、只要没建立宗教，
-         *   商店仍按主流程在「首次轮回后」解锁，不走这条宽限）。 */
-        if (parsed.religionSeen === undefined) {
-          var hasProgress = (m.tide > 0) || (m.layers > 0) ||
-            (m.cycle > 1) || (m.perks && Object.keys(m.perks).length > 0);
-          if (hasProgress) { m.religionSeen = true; m.shopUnlocked = true; }
-        }
-      }
-    } catch (e) { /* 存档损坏就当新档，不打断启动 */ }
+  function normalizeMeta(parsed) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('跨周目存档格式无效');
+    if (!Object.keys(parsed).length) throw new Error('跨周目存档为空');
+    var m = Object.assign(emptyMeta(), parsed);
+    if (!m.perks || typeof m.perks !== 'object' || Array.isArray(m.perks)) m.perks = {};
+    if (!(typeof m.tideEarnedTotal === 'number' && isFinite(m.tideEarnedTotal)))
+      m.tideEarnedTotal = Math.max(0, (Number(m.tide) || 0) + (Number(m.spent) || 0));
+    m.tideEarnedTotal = Math.max(0, m.tideEarnedTotal);
+    if (!(typeof m.stardust === 'number' && isFinite(m.stardust))) m.stardust = 0;
+    m.stardust = Math.max(0, Math.floor(m.stardust));
+    if (!(typeof m.stardustEarned === 'number' && isFinite(m.stardustEarned))) m.stardustEarned = m.stardust;
+    m.stardustEarned = Math.max(0, Math.floor(m.stardustEarned));
+    if (!m.starPerks || typeof m.starPerks !== 'object' || Array.isArray(m.starPerks)) m.starPerks = {};
+    var starPerkDefaults = emptyMeta().starPerks;
+    for (var starPerkId in starPerkDefaults) {
+      var starPerkLevel = m.starPerks[starPerkId];
+      if (!(typeof starPerkLevel === 'number' && isFinite(starPerkLevel))) starPerkLevel = 0;
+      var starPerkMax = Infinity, starDefs = SB.STAR_PERKS || [];
+      for (var spi = 0; spi < starDefs.length; spi++) if (starDefs[spi].id === starPerkId) starPerkMax = starDefs[spi].n || 1;
+      m.starPerks[starPerkId] = Math.min(starPerkMax, Math.max(0, Math.floor(starPerkLevel)));
+    }
+    if (!m.autoResearch || typeof m.autoResearch !== 'object' || Array.isArray(m.autoResearch)) m.autoResearch = {};
+    m.autoResearch = { tech: m.autoResearch.tech === true, civic: m.autoResearch.civic === true };
+    if (!m.challenges || typeof m.challenges !== 'object' || Array.isArray(m.challenges)) m.challenges = { completed: {} };
+    if (!m.challenges.completed || typeof m.challenges.completed !== 'object' || Array.isArray(m.challenges.completed)) m.challenges.completed = {};
+    var challengeIds = { cold: true, small: true, science: true, abyss: true, speedrun: true, drift_terra: true };
+    for (var challengeId in challengeIds) {
+      var completed = m.challenges.completed[challengeId];
+      if (challengeId === 'cold' || challengeId === 'small' || challengeId === 'drift_terra') m.challenges.completed[challengeId] = completed === true;
+      else m.challenges.completed[challengeId] = Math.max(0, Math.min(3, completed | 0));
+    }
+    /* 旧档没有 religionSeen / shopUnlocked，但已有跨周目进度时保留老玩家解锁。 */
+    if (parsed.religionSeen === undefined) {
+      var hasProgress = (m.tide > 0) || (m.layers > 0) ||
+        (m.cycle > 1) || (m.perks && Object.keys(m.perks).length > 0);
+      if (hasProgress) { m.religionSeen = true; m.shopUnlocked = true; }
+    }
     return m;
+  }
+  function loadMeta() {
+    var rawStr = null;
+    try {
+      rawStr = root.localStorage && root.localStorage.getItem(CFG.SAVE_KEY);
+      if (!rawStr) { metaLoadProblem = null; return emptyMeta(); }
+      var m = normalizeMeta(JSON.parse(rawStr));
+      metaLoadProblem = null;
+      return m;
+    } catch (e) {
+      preserveRawSave(CFG.SAVE_KEY, rawStr);
+      metaLoadProblem = { raw: rawStr, message: e && e.message ? e.message : String(e) };
+      return emptyMeta();
+    }
   }
   function saveMeta(meta) {
     try { root.localStorage && root.localStorage.setItem(SB.CFG.SAVE_KEY, JSON.stringify(meta)); } catch (e) {}
@@ -486,11 +576,28 @@
     return SB.stateMigrations.migrateRun(raw, freshRun, emptyPerks);
   }
   function loadRun() {
+    var raw = null;
     try {
-      var raw = root.localStorage && root.localStorage.getItem(SB.CFG.RUN_KEY);
-      return raw ? migrateRun(JSON.parse(raw)) : null;
-    } catch (e) { return null; }
+      raw = root.localStorage && root.localStorage.getItem(CFG.RUN_KEY);
+      if (!raw) { runLoadProblem = null; return null; }
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+          || !parsed.res || typeof parsed.res !== 'object'
+          || !parsed.lvl || typeof parsed.lvl !== 'object'
+          || !parsed.jobs || typeof parsed.jobs !== 'object'
+          || typeof parsed.shell !== 'number' || !isFinite(parsed.shell))
+        throw new Error('本周目存档缺少必要字段');
+      var loaded = migrateRun(parsed);
+      if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) throw new Error('本周目存档迁移结果无效');
+      runLoadProblem = null;
+      return loaded;
+    } catch (e) {
+      preserveRawSave(CFG.RUN_KEY, raw);
+      runLoadProblem = { raw: raw, message: e && e.message ? e.message : String(e) };
+      return null;
+    }
   }
+  function loadProblems() { return { meta: metaLoadProblem, run: runLoadProblem }; }
   function saveRun(run) {
     try {
       if (!root.localStorage || !run || !run.res) return;
@@ -515,8 +622,10 @@
     freshRun: freshRun,
     migrateRun: migrateRun,
     loadMeta: loadMeta,
+    normalizeMeta: normalizeMeta,
     saveMeta: saveMeta,
     loadRun: loadRun,
+    loadProblems: loadProblems,
     saveRun: saveRun,
     clearRun: clearRun
   };

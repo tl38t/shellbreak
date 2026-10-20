@@ -11,6 +11,13 @@
   var coralPactMul = P.coralPactMul, cultureRate = P.cultureRate, faithRate = P.faithRate;
   var foodRate = P.foodRate, foodUse = P.foodUse, fuelRate = P.fuelRate;
   var furnaceBoostMul = P.furnaceBoostMul, gatherMul = P.gatherMul, globalMul = P.globalMul;
+  /* ERA10（2026-10-20）：globalMulX = globalMul × unifiedMul（大统一方程轴）。
+   * 科技/市政/信仰三行**继续用 globalMul**（用户表明文排除）；其余产横行切 _gmx。 */
+  var globalMulX = P.globalMulX;
+  /* ERA10 市政（2026-10-20）：发射场三座合计等级 / 制造节律 / 每级热液耗——全部走 economy 的
+   * 单一落点（rates 同源），绝不在本文件再写一份「求和 + 节律 + 耗流」的公式。 */
+  var launchLvl = P.launchLvl, launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
+  var starDysonCostMul = P.starDysonCostMul;
   var ironFlow = P.ironFlow, isCold = P.isCold, isFull = P.isFull;
   var libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
   var mineTaxMul = P.mineTaxMul, obsSciMul = P.obsSciMul, resUnlocked = P.resUnlocked;
@@ -25,7 +32,7 @@
     var _seasonChanged = seasonTurn(s);
 
     var cold = isCold(s) ? coldSeasonMul(s) : 1;
-    var j = s.jobs;
+    var j = SB.folk.effJobs(s);   // ERA8 B7：合并人类 + 机器人×1.2（剔除 scribe/scholar）
     /* ⚠️【ERA4 天壳观测站的壳厚快照】把本 tick 开场时的冰壳厚度冻住，供 obsSciMul 两侧共用。
      *    为什么必须冻：削壳发生在本函数第 8 步（`SB.shell.tickShell`），
      *    而科技产出在第 4 步就算完了 —— 若不冻，同一秒内「结算用削前、面板用削后」，
@@ -52,6 +59,11 @@
      *   ⚠️ 只有**同参同值**的调用才缓存（globalMul/gatherMul）；toolMul 按职业分四档、
      *   upgSum 按 key 分四档，每个都是唯一参数，缓存只是避免重复遍历，等价。 */
     var _gm = globalMul(s);
+    /* ERA10（2026-10-20）：非科技/市政/信仰产横行共用的大统一方程轴缓存（与 _gm 同口径：
+     * tick 内 s.techs/s.res 不变——科技研究发生在 tick 外的游戏主循环，res.science/civic
+     * 虽在 tick 内增长，但 unifiedMul 只读 log10 档位，一拍内不会跨档 ⇒ 缓存安全）。
+     * ⚠️ 科技行（4b/4c'）与市政行（商人副产）必须继续用 _gm——用户表把这两样排除在外。 */
+    var _gmx = globalMulX(s);
     var _gather = gatherMul(s);
     var _tCW = toolMul(s, 'coralwright');
     var _tQ = toolMul(s, 'quarrier');
@@ -104,25 +116,27 @@
      * ⚠️ tick 与 rates 两处必须同式，否则「面板显示的值和实际进账不同」。 */
     if (j.coralwright > 0) {
       addRes(s, 'coral', j.coralwright * SB.UNIT.coral
-        * _gather * _tCW * _coralFarm * _cp * cold * _gm * SOCIAL.companyMul(s, 'coral') * dt);
+        * _gather * _tCW * _coralFarm * _cp * cold * _gmx * SOCIAL.companyMul(s, 'coral') * dt);
     }
     /* ⚠️ 2026-09-30 ERA4 · 钛：装了深层矿井(upg_deepmine) 后矿工伴生钛。
      *    门读的是 `s.upgrades`（买断升级），不是建筑等级 —— 与 rates.titanium 同一门同一式。 */
     if (j.miner > 0 && s.upgrades && s.upgrades.upg_deepmine) {
-      addRes(s, 'titanium', j.miner * SB.UNIT.titanium * _siltPit * _gather * _tM * cold * _gm * (1 + (_T ? _T.titaniumMul : 0)) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+      addRes(s, 'titanium', j.miner * SB.UNIT.titanium * _siltPit * _gather * _tM * cold * _gmx * (1 + (_T ? _T.titaniumMul : 0)) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
     }
     /* ERA7（2026-10-17 · spec §2）：铀 —— 矿工伴生（0.002/秒/人，暖石 0.05 的 1/25，稀有度对齐）。
      *   门=科技《自动化钻探》（s.techs.autodrill，spec 拍的是科技门，与钛的升级门不同源）。
      *   乘区照钛那行同族：砂矿坑（矿脉设施放大一切伴生产出）+ 采集 + 矿镐 + 季节 + 全产；
      *   ⚠️ 与 rates 的 uranium 行逐字同构，漏一路就是面板撒谎。 */
     if (j.miner > 0 && s.techs && s.techs.autodrill) {
-      addRes(s, 'uranium', j.miner * SB.UNIT.uranium * _siltPit * _gather * _tM * cold * _gm * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+      addRes(s, 'uranium', j.miner * SB.UNIT.uranium * _siltPit * _gather * _tM * cold * _gmx * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
     }
     /* ERA7（2026-10-17 · spec §4）：核热厂每级耗铀 0.02/秒（fissionUranium）。
      *   ⚠️ 直接消耗（不进 hydroAlloc 流）；铀是带上限普通资源，扣到 0 止。
      *   ⚠️ addRes 对负数早退（v <= 0 直接忽略），故此处用直接减法并 Math.max(0,…) 钳底。 */
     if (s.lvl.fissionplant > 0) {
-      s.res.uranium = Math.max(0, (s.res.uranium || 0) - s.lvl.fissionplant * (SB.BLD.fissionUranium || 0) * dt);
+      /* ERA9（2026-10-19 · 核聚变 nuclear_fusion）：铀耗 ×2（读 s.techs.nuclear_fusion 直读，无通用 mul 键）。 */
+      var _nfu = (s.techs && s.techs.nuclear_fusion) ? 2 : 1;
+      s.res.uranium = Math.max(0, (s.res.uranium || 0) - s.lvl.fissionplant * (SB.BLD.fissionUranium || 0) * dt * _nfu);
     }
     /* 采石工产石头、矿工产金属（silt 这个 id）并**伴生暖石**。
      * 矿工是两条 addRes 而不是一条：暖石若淹死在金属那一行里，将来调 SB.UNIT.warmstone
@@ -145,7 +159,7 @@
      *    复用之后语义是「砂矿坑 = 矿脉设施，金属/石头/暖石/钛同源」——2026-10-16 起
      *    所有矿工伴生产出都乘砂矿坑等级（见 _siltPit，与 rates() 的 mineBonus 同源）。 */
       addRes(s, 'stone', j.quarrier * SB.UNIT.stone * _siltPit
-        * _gather * _tQ * cold * _gm * _mt * dt);
+        * _gather * _tQ * cold * _gmx * _mt * dt);
     }
     if (j.miner > 0) {
       var mine = _tM;
@@ -155,9 +169,9 @@
       var fishWarm = 1 + _uWarm;
       var popMul = (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1;
       addRes(s, 'silt', j.miner * SB.UNIT.silt * _siltPit * fishSilt * popMul
-        * _gather * mine * cold * _gm * _mt * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+        * _gather * mine * cold * _gmx * _mt * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
       addRes(s, 'warmstone', j.miner * SB.UNIT.warmstone * _siltPit * fishWarm * popMul
-        * _gather * mine * cold * _gm * (1 + (_T ? _T.warmMul : 0)) * _mt
+        * _gather * mine * cold * _gmx * (1 + (_T ? _T.warmMul : 0)) * _mt
         * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
     }
 
@@ -175,7 +189,7 @@
       s.res.silt -= fc * _e;
       /* ⚠️ 暖石实扣乘 warmEff（refine/specfuel 降耗），与 ironFlow 门控同乘子 ⇒ 面板===结算。 */
       s.res.warmstone -= fc * _e * warmEff(s);
-      addRes(s, 'iron', fc * _gm * (1 + upgSum(s, 'ironBonus')) * _fb
+      addRes(s, 'iron', fc * _gmx * (1 + upgSum(s, 'ironBonus')) * _fb * SB.economy.smeltingOutMul(s)
         * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0)));
     }
 
@@ -189,13 +203,22 @@
     // 2d) ERA8 瑞亚星矿井（星海区在地开采）：每级 石梁/硬化珊瑚/铀 三行，吃 globalMul。
     //     石梁/硬化珊瑚是无上限 craft 资源（capOf 恒 Infinity），addRes 直进不钳。
     //     ⚠️ 与 rates 的 stoneBeam/hardCoral/uranium 三行逐字同构（面板===结算）。
-    //     ERA8 市政（2026-10-18）：星际物流网卡 planetOutMul ×1.3 罩异星建筑三行（装卡才 >1）。
-    var _planetMul = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1);
+    //     ERA8→ERA9 市政（2026-10-18 / 2026-10-19）：星际物流网卡 planetOutMul ×1.3 罩异星建筑三行（装卡才 >1），
+    //       另加 ERA9 行星际快速物流 interlog 的 alienOutMul +20%（与网卡乘区加算，与 rates._planetMulR 同口径）。
+    var _planetMul = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1)
+      * (1 + (_T ? _T.alienOutMul : 0));
     if (s.lvl.rheamine > 0) {
       var _rl = s.lvl.rheamine;
-      addRes(s, 'stoneBeam', _rl * (SB.BLD.rheamineBeam || 0) * _gm * _planetMul * dt);
-      addRes(s, 'hardCoral', _rl * (SB.BLD.rheamineCoral || 0) * _gm * _planetMul * dt);
-      addRes(s, 'uranium', _rl * (SB.BLD.rheamineUranium || 0) * _gm * _planetMul * dt);
+      addRes(s, 'stoneBeam', _rl * (SB.BLD.rheamineBeam || 0) * _gmx * _planetMul * dt);
+      addRes(s, 'hardCoral', _rl * (SB.BLD.rheamineCoral || 0) * _gmx * _planetMul * dt);
+      addRes(s, 'uranium', _rl * (SB.BLD.rheamineUranium || 0) * _gmx * _planetMul * dt);
+    }
+    // 2e) ERA9 马尔斯工造中心（星海区在地制造）：每级 钛金板件/钛，吃 globalMul + 星际物流网（与 rheamine 同口径）。
+    //     计入 lvlSum 异星建筑总等级（techs 已含 mars_workshop）；吃 alienOutMul（行星际快速物流 +20%，rates 侧加算）。
+    if (s.lvl.mars_workshop > 0) {
+      var _ml = s.lvl.mars_workshop;
+      addRes(s, 'tiplate', _ml * (SB.BLD.marsTiplate || 0) * _gmx * _planetMul * dt);
+      addRes(s, 'titanium', _ml * (SB.BLD.marsTitanium || 0) * _gmx * _planetMul * dt);
     }
 
     // 3) 地热（排在祭坛消耗之前，先产后烧）。这一行是唯一原本就乘了 dt 的，
@@ -209,6 +232,70 @@
       + (s.lvl.titancloud || 0) * (SB.BLD.titancloudFuel || 0) * _planetMul
       + (SB.wonder ? SB.wonder.wonderFuelBonus(s) : 0);
     if (_fuelOut > 0) addRes(s, 'fuel', _fuelOut * dt);
+
+    // 2f) ERA9 欧罗巴冰面发射场（母星 core，非异星）：每 s 耗 strongProp 0.1 + thinafilm 0.1（库存）+ hydro 2（flow）。
+    //     正常运行累计满 10s ⇒ 星图 sunSails +1（累加器，无限、无上限）。缺料/断流时计时暂停、不清零（与 G.E.E.K 同口径）。
+    //     hydro 耗流已由 hydroAlloc 统一分配（europaDraw，断流停耗）；此处只判「是否满供」+ 扣库存料 + 累帆进度。
+    /* ── ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁1）三处改口径 ──
+     * ① **模式切换**：完成《绝热材料》后 s.launchMode 可在 'sail'（太阳帆，默认）/ 'node'
+     *    （戴森球节点）间切（UI 在发射场建筑行出切换钮，科技门控两侧同源）。
+     *    节点耗料 = 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板 / 秒 / 级
+     *    （用户表只给了每秒量、没给等级维度，按与帆模式对称取 /级——帆模式 0.1+0.1 也是 /级）。
+     * ② **产出按等级并行**（用户拍「发射场可以修建多个」）：累加器 += dt × _el，
+     *    N 级 = N 份独立计时。修掉 ERA9 原口径「耗料 ×等级、产出不 ×」的漏写
+     *    （那版升级发射场纯浪费料；10 级场 = 10 帆/10s，10000 帆 ≈ 2.8h，单局窗内可达）。
+     * ③ **节律可被科技压**：_cyc = max(1, CFG.LAUNCH_CYCLE + T.launchCycle)，
+     *    《空间矢量控制》−2s ⇒ 10s→8s；帆/节点同吃。钳下限 1 防 0/负节律。 */
+    var _el = launchLvl(s);
+    if (_el > 0) {
+      var _elHydroNeed = _el * launchHydroPer(s);
+      /* 满供判据：hydroAlloc 给到足额 europaRate（最低优先级，剩流够才满）。与 hydroAlloc 同源 ⇒ 面板===结算。 */
+      var _elRunning = (s._hydroFlow && s._hydroFlow.europaRate >= _elHydroNeed - 1e-6);
+      /* 节点模式科技门：没完成《绝热材料》恒按帆模式走（防改档把 launchMode 写坏后凭空产节点）。 */
+      var _nodeMode = (s.launchMode === 'node' && !!(s.techs && s.techs.adiabatic));
+      var _cyc = launchCycleOf(s);
+      var _dysonCostMul = _nodeMode ? starDysonCostMul(s) : 1;
+      var _spNeed = _el * (_nodeMode ? _dysonCostMul : 0.10) * dt, _tfNeed = _el * (_nodeMode ? _dysonCostMul : 0.10) * dt;
+      var _tpNeed = _el * (_nodeMode ? 3 * _dysonCostMul : 0) * dt;
+      if (_elRunning && (s.res.strongProp || 0) >= _spNeed && (s.res.thinafilm || 0) >= _tfNeed
+        && (!_tpNeed || (s.res.tiplate || 0) >= _tpNeed)) {
+        s.res.strongProp -= _spNeed;
+        s.res.thinafilm -= _tfNeed;
+        if (_tpNeed) s.res.tiplate -= _tpNeed;
+        if (_nodeMode) {
+          s.dysonProc = (s.dysonProc || 0) + dt * _el;
+          if (s.dysonProc >= _cyc) {
+            var _nodeInc = Math.floor(s.dysonProc / _cyc);
+            s.dysonProc -= _nodeInc * _cyc;
+            s.dysonNodes = (s.dysonNodes || 0) + _nodeInc;
+          }
+        } else {
+          s.sunSailProc = (s.sunSailProc || 0) + dt * _el;
+          if (s.sunSailProc >= _cyc) {
+            var _sailInc = Math.floor(s.sunSailProc / _cyc);
+            s.sunSailProc -= _sailInc * _cyc;
+            s.sunSails = (s.sunSails || 0) + _sailInc;
+          }
+        }
+        /* ERA10 通关判定：dysonPct（双达标取小）达 1 ⇒ 置 dysonDone（只一次）+ 播通关弹窗。
+         * 弹窗走 SB.ui.render.showDysonComplete（镜像星空槽满槽 showStarComplete 先例，
+         * shell.js:175 同款调用路径）；dysonPopupSeen 防重播——玩家选「继续游玩」后不再弹。 */
+        if (!s.dysonDone && SB.economy && SB.economy.dysonPct && SB.economy.dysonPct(s) >= 1) {
+          s.dysonDone = true;
+          if (!s.dysonPopupSeen) {
+            s.dysonPopupSeen = true;
+            /* ERA10 市政《飞升虚境》（2026-10-20 用户表）：已掌握该市政 ⇒ 走**乱码结局**弹窗，
+             * 否则走普通竣工弹窗。两个弹窗互斥（同一次竣工只该弹一个）。
+             * ⚠️ 判据读 s.civics（已完成市政），不是 s.cards —— 飞升是永久掌握的。
+             * ⚠️ e2e / headless 无 DOM 时 SB.ui.render 不存在，必须走存在判（原代码就是
+             *    `SB.ui && SB.ui.render &&` 三重短路，别在这一行丢掉保护）。 */
+            var _R = (SB.ui && SB.ui.render) ? SB.ui.render : null;
+            if (_R && s.civics && s.civics.ascend_void && _R.showAscendVoid) _R.showAscendVoid(s);
+            else if (_R && _R.showDysonComplete) _R.showDysonComplete(s);
+          }
+        }
+      }
+    }
 
     // 4) 科技
     /* 复用 tick 开头算好的 _T（与 globalMul/gatherMul 同口径的每 tick 缓存），避免重复遍历全表。 */
@@ -277,7 +364,7 @@
     if (cv) {
       /* ⚠️ 市政卡的平坦加成也是「产出」，同样吃灯塔的 +1% —— 与 rates 那两行同式
        *    （那里是 `(cv ? (cv.kelp || 0) : 0)` 各项各自乘）。 */
-      if (cv.kelp) addRes(s, 'kelp', cv.kelp * _gm * dt);
+      if (cv.kelp) addRes(s, 'kelp', cv.kelp * _gmx * dt);
       if (cv.science) s.res.science += cv.science * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm * _lgSciMul * _challengeSciCulture * dt;
     }
 
@@ -334,11 +421,11 @@
        *   科学 +0.05/秒、市政点（culture）+0.05/秒。市政**完成即生效**（这是解锁2，
        *   不是政策卡——没有「装卡」这道闸）。走 globalMul，与学者/书手同待遇。
        *   ⚠️ 放在 4c 块里（商人=0 时这段也是 0，不多算）；直接 +=，与本块 cv 段同款。 */
-      if (s.civics && s.civics.market && s.jobs.merchant) {
+      if (s.civics && s.civics.market && j.merchant) {
         /* ERA5（2026-10-02）：学校每级给商人 +0.5 科技/s（SB.BLD.schoolMerchantSci），
          *   与中世纪集市的 +0.05/商人 同式相加进同一括号（同为「每商人」口径）。 */
-        s.res.science += s.jobs.merchant * ((SB.BLD.marketJobSci || 0) + (s.lvl.school || 0) * (SB.BLD.schoolMerchantSci || 0)) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm * _lgSciMul * _challengeSciCulture * dt;
-        s.res.culture += s.jobs.merchant * (SB.BLD.marketJobCulture || 0) * _gm * _challengeSciCulture * dt;
+        s.res.science += j.merchant * ((SB.BLD.marketJobSci || 0) + (s.lvl.school || 0) * (SB.BLD.schoolMerchantSci || 0)) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm * _lgSciMul * _challengeSciCulture * dt;
+        s.res.culture += j.merchant * (SB.BLD.marketJobCulture || 0) * _gm * _challengeSciCulture * dt;
       }
     }
 
@@ -365,6 +452,7 @@
       if (s.famine >= 60 && s.pop > 1) {
         s.pop--; s.famine = 0; s.famineDeaths++;
         SB.folk.reconcile(s);   // 减员后超额职业位退回闲置池
+        SB.folk.reconcileRobot(s);   // B7：robotbay 降级后机器人超额退回（防御性）
         if (emit) emit('藻食耗尽，有人饿死了。');
       }
     } else s.famine = 0;
@@ -401,6 +489,7 @@
       if (s.pop > 1 && risk > 0 && (SB.rng ? SB.rng() : Math.random()) < risk) {
         s.pop--; s.frostDeaths++;
         SB.folk.reconcile(s);   // 减员后超额职业位退回闲置池
+        SB.folk.reconcileRobot(s);   // B7：robotbay 降级后机器人超额退回（防御性）
         if (emit) emit('冰封期冻死了一名族民。');
       }
     }

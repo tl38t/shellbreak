@@ -185,7 +185,7 @@ html[data-ui-theme="day"] .gov-choice-detail{border-color:#d6e2df}
 @media(max-width:390px){.folk-job-controls .btn{min-width:32px;min-height:36px}}
 
 /* P5：巢穴 / 族民主页面收尾——把「状态、说明、动作」从同一种横排里分出来。 */
-#pane-village .bzone{position:relative;padding-top:2px}
+#pane-village .bzone{position:relative;padding-top:2px;min-width:0;width:100%;box-sizing:border-box;container-type:inline-size}
 #pane-village .bztitle{display:flex;align-items:center;gap:7px;margin-bottom:8px;font-weight:800}
 #pane-village .bztitle .bzcv{display:inline-grid;place-items:center;width:17px;height:17px;border:1px solid color-mix(in srgb,var(--hc) 45%,transparent);border-radius:5px;background:color-mix(in srgb,var(--hc) 10%,transparent);font-size:11px;line-height:1;transition:transform .16s ease}
 #pane-village .bzone.folded .bztitle .bzcv{transform:rotate(-90deg)}
@@ -199,6 +199,11 @@ html[data-ui-theme="day"] .gov-choice-detail{border-color:#d6e2df}
 #pane-village .bzone .row .nm{font-size:12px}
 #pane-village .bzone .row .ds{display:none}
 #pane-village .bzone .row .tag{font-variant-numeric:tabular-nums}
+#pane-village .building-icon-toggle{margin-left:auto;padding:2px 8px;min-height:22px;font-size:10px;letter-spacing:0;line-height:1.2;white-space:nowrap;cursor:pointer}
+#pane-village .bld-main{min-width:0}
+#pane-village .bld-main.has-building-icon{display:grid;grid-template-columns:32px minmax(0,1fr);align-items:center;gap:8px}
+#pane-village .building-icon{display:block;width:32px;height:32px;object-fit:contain;border-radius:6px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.26))}
+#pane-village .bld-copy{min-width:0}
 #pane-village .bzone .row .btn.buy{min-width:116px;border-color:rgba(105,226,223,.26);background:rgba(20,58,86,.84);font-weight:700}
 #pane-village .bzone .row.is-ready .btn.buy{border-color:rgba(111,224,174,.38);background:rgba(26,70,50,.62);color:var(--green)}
 #pane-village .bzone .row .btn.buy:disabled{border-color:rgba(130,157,176,.18);background:rgba(25,37,50,.6);color:var(--dim);opacity:.72}
@@ -400,3 +405,115 @@ html[data-ui-theme="day"] #pane-challenges{--challenge-accent:#287d7b;--challeng
 .challenge-tier-medal i{position:absolute;right:-5px;bottom:-5px;display:grid;min-width:15px;height:15px;padding:0 2px;place-items:center;border:1px solid #c59c61;border-radius:4px;background:#182e3d;color:#f4d89d;font:800 8px/1 Georgia,serif;box-shadow:0 1px 5px rgba(0,0,0,.45)}
 .challenge-tier.done .challenge-tier-medal i{background:#b88b4b;color:#09202a}
 html[data-ui-theme="day"] .challenge-icon,html[data-ui-theme="day"] .challenge-tier-medal{box-shadow:0 2px 9px rgba(39,77,83,.16)}
+
+/* Active trial stays visible across all tabs without rebuilding its clickable control. */
+.challenge-notice{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:9px;margin:0 0 10px;padding:9px 12px;border:1px solid rgba(119,214,208,.28);border-radius:11px;background:linear-gradient(110deg,rgba(20,68,77,.78),rgba(11,34,51,.9));box-shadow:inset 0 1px rgba(220,255,246,.045),0 5px 16px rgba(0,0,0,.12);color:var(--txt)}
+.challenge-notice[hidden]{display:none!important}
+.challenge-notice-mark{display:grid;width:23px;height:23px;place-items:center;border:1px solid rgba(119,214,208,.24);border-radius:7px;background:rgba(119,214,208,.1);color:#8ee2d6;font-size:13px}
+.challenge-notice-copy{min-width:0}
+.challenge-notice-heading{display:flex;align-items:baseline;gap:7px;min-width:0}
+.challenge-notice-heading>span{flex:none;color:#8ee2d6;font-size:8px;font-weight:800;letter-spacing:.45px}
+.challenge-notice-heading strong{overflow:hidden;color:#edf8f5;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+.challenge-notice-detail{display:flex;flex-wrap:wrap;gap:3px 9px;margin-top:3px;color:#a9c0c8;font-size:8px;line-height:1.45}
+.challenge-notice-progress{color:#80d6b8;font-variant-numeric:tabular-nums}
+.challenge-notice-link{display:flex;align-items:center;gap:5px;min-height:27px;padding:4px 8px;border:1px solid rgba(119,214,208,.22);border-radius:7px;background:rgba(119,214,208,.07);color:#a9e8dc;font-size:8px;font-weight:700;white-space:nowrap;cursor:pointer}
+.challenge-notice-link:hover{border-color:rgba(119,214,208,.5);background:rgba(119,214,208,.13)}
+html[data-ui-theme="day"] .challenge-notice{border-color:rgba(40,125,123,.22);background:linear-gradient(110deg,#e5f2ed,#f0f5f2);box-shadow:inset 0 1px #fff,0 4px 13px rgba(38,83,83,.08)}
+html[data-ui-theme="day"] .challenge-notice-mark{border-color:rgba(40,125,123,.2);background:rgba(40,125,123,.08);color:#287d7b}
+html[data-ui-theme="day"] .challenge-notice-heading>span,html[data-ui-theme="day"] .challenge-notice-progress{color:#287d7b}
+html[data-ui-theme="day"] .challenge-notice-heading strong{color:#24454b}
+html[data-ui-theme="day"] .challenge-notice-detail{color:#617b7e}
+html[data-ui-theme="day"] .challenge-notice-link{border-color:rgba(40,125,123,.22);background:rgba(40,125,123,.06);color:#287d7b}
+@media(max-width:430px){.challenge-notice{grid-template-columns:22px minmax(0,1fr) auto;gap:7px;margin-bottom:8px;padding:8px 9px}.challenge-notice-link{min-height:25px;padding:4px 6px;font-size:7px}.challenge-notice-heading{gap:5px}.challenge-notice-heading>span,.challenge-notice-detail{font-size:7px}}
+.challenge-status.failed,.challenge-tier.failed span{border-color:rgba(240,112,112,.35);color:#f08e8e}.challenge-tier.failed{border-color:rgba(240,112,112,.35)}.challenge-active.is-failed{border-color:rgba(240,112,112,.32);background:rgba(92,35,41,.18)}.challenge-active.is-failed .challenge-active-mark{background:rgba(240,112,112,.13);color:#f08e8e}
+
+/* ══ ERA10 市政 · 虚境祭坛血纹（2026-10-20）══════════════════════════════
+ * 用户表：「我希望每升一级按钮上就加一些血纹，最高3级」。
+ *
+ * 【两次踩坑，都记在这里 —— 这是「CSS 写了但看不见」的两个不同病因】
+ * ① 第一版把血纹写在整行的 `::before` 上 —— 被本文件 193 行既有的
+ *    `#pane-village .bzone .row::before`（左侧 3px 区色条，特异性 (1,2,0)）整条覆盖：
+ *    伪元素确实生成、`background` 读出来是 none、截图上零红像素。
+ * ② 第二版换 `::after` + 高特异性，computed style 已经能读到
+ *    `repeating-linear-gradient(...)`、opacity/position 全对，但**截图上仍然零红像素**：
+ *    整行里的 .bld-main / 按钮等子盒各自形成层叠上下文，伪元素（z-index:auto）
+ *    被压在内容下面，只从缝隙透出来 ⇒ 肉眼等同不存在。
+ * ⇒ 最终做法：血纹画在**建造按钮**里（用户原话本来就是「按钮上」）。按钮自身
+ *    position:relative + overflow:hidden，伪元素 inset:0 只在按钮盒内、上面没有别的层；
+ *    整行只加一条极淡的血色内边框（box-shadow 不动内容层，不影响可读性）。
+ *
+ * 纯 CSS，零图片、零 JS、零结算；pointer-events:none 保证不挡点击
+ * （装饰层挡住点击 = 全站静默失联那一类事故，本项目踩过一次）。 */
+
+/* 整行氛围：极淡血色内边框，按等级加深 */
+#pane-village .bld-row.void-altar{position:relative}
+#pane-village .bld-row.void-altar.void-lv-1{box-shadow:inset 0 0 0 1px rgba(190,38,52,.18)}
+#pane-village .bld-row.void-altar.void-lv-2{box-shadow:inset 0 0 0 1px rgba(198,42,56,.30)}
+#pane-village .bld-row.void-altar.void-lv-3{box-shadow:inset 0 0 0 1px rgba(214,48,62,.46),inset 0 0 22px rgba(160,20,36,.14)}
+
+/* 按钮血纹：等级越高条纹越密越亮（lv1 一层 / lv2 两层 / lv3 三层 + 缓慢呼吸） */
+#pane-village .bld-row.void-altar .btn.buy{position:relative;overflow:hidden}
+#pane-village .bld-row.void-altar .btn.buy::after{
+  content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  opacity:0;transition:opacity .35s ease;mix-blend-mode:screen;
+  background:repeating-linear-gradient(104deg,transparent 0 13px,rgba(206,40,56,.55) 13px 16px,transparent 16px 27px);
+}
+#pane-village .bld-row.void-altar.void-lv-1 .btn.buy::after{opacity:.55}
+#pane-village .bld-row.void-altar.void-lv-2 .btn.buy::after{
+  opacity:.78;
+  background:
+    repeating-linear-gradient(104deg,transparent 0 13px,rgba(214,44,60,.6) 13px 16px,transparent 16px 27px),
+    repeating-linear-gradient(66deg,transparent 0 21px,rgba(150,22,38,.45) 21px 24px,transparent 24px 37px);
+}
+#pane-village .bld-row.void-altar.void-lv-3 .btn.buy::after{
+  opacity:.95;
+  background:
+    repeating-linear-gradient(104deg,transparent 0 11px,rgba(226,52,68,.62) 11px 14px,transparent 14px 23px),
+    repeating-linear-gradient(66deg,transparent 0 19px,rgba(168,26,42,.5) 19px 22px,transparent 22px 34px),
+    repeating-linear-gradient(150deg,transparent 0 29px,rgba(130,16,28,.42) 29px 32px,transparent 32px 47px);
+  animation:voidAltarPulse 3.4s ease-in-out infinite;
+}
+@keyframes voidAltarPulse{0%,100%{opacity:.8}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){#pane-village .bld-row.void-altar.void-lv-3 .btn.buy::after{animation:none;opacity:.95}}
+/* 白天主题：浅底上 screen 混合会把血纹冲成粉色，改 multiply 压深 */
+html[data-ui-theme="day"] #pane-village .bld-row.void-altar .btn.buy::after{mix-blend-mode:multiply}
+
+/* ══ ERA10 市政 · 飞升虚境结局弹窗（2026-10-20）═════════════════════════
+ * 用户表：「用乱码来展示」。乱码由 render.voidCorrupt 生成（确定性组合附加符），
+ * 这里只管观感：字距拉开让附加符不互相压叠、标题暗红发光、正文逐行偏冷。
+ * ⚠️ line-height 必须放大到 2.0：组合附加符会向上/向下溢出字框，
+ *    行高不够时上一行的乱码会和下一行糊在一起（实测 1.6 就已经压字）。
+ * ⚠️ 乱码字符集按字体分流（见 render.js voidCorrupt 注释）：汉字走中文字体有字形的怪异符号，
+ *    拉丁才用组合符 —— 汉字叠组合符在中文字体下是 tofu 方块。
+ * ⚠️ 面板自带上限 + 滚动：.modal .box（00-core.css:141）只有 max-width，没有 max-height / overflow，
+ *    而宽屏 .modal 是 flex 居中 —— 内容高于视口时上下两端会被裁掉且滚不到（经典 flex 居中溢出）。
+ *    ⚠️ 但**只在宽屏**加这层：窄屏 ≤650px 已由本文件 349 行的 bottom-sheet
+ *    （max-height:calc(100dvh - 16px) + overflow-y:auto）兜住，再叠一层会变成内外双滚动条。 */
+.void-ascend-panel{max-width:560px;margin:0 auto;padding:6px 2px 2px;text-align:center}
+@media(min-width:651px){
+  .void-ascend-panel{max-height:76vh;overflow-y:auto;overscroll-behavior:contain}
+}
+.void-ascend-panel .void-title{
+  margin:0 0 14px;font-size:26px;line-height:2;letter-spacing:.06em;font-weight:800;
+  color:#e2647a;text-shadow:0 0 14px rgba(190,38,52,.55),0 0 32px rgba(120,14,26,.45);
+}
+.void-ascend-panel .void-line{
+  margin:9px 0;font-size:14px;line-height:2.1;letter-spacing:.03em;color:#c9b8c4;
+}
+.void-ascend-panel .void-garbled{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+  letter-spacing:.16em;color:#8f7b88;
+}
+.void-ascend-panel .void-note{
+  margin:16px 0 4px;font-size:11px;line-height:2.1;color:#7e6f7a;
+}
+.void-ascend-panel .break-controls{margin-top:16px;justify-content:center}
+html[data-ui-theme="day"] .void-ascend-panel .void-title{color:#a8283c;text-shadow:0 0 10px rgba(168,40,60,.22)}
+html[data-ui-theme="day"] .void-ascend-panel .void-line{color:#5c4a52}
+html[data-ui-theme="day"] .void-ascend-panel .void-garbled{color:#7a646d}
+html[data-ui-theme="day"] .void-ascend-panel .void-note{color:#7c6b73}
+@media(max-width:430px){
+  .void-ascend-panel .void-title{font-size:20px}
+  .void-ascend-panel .void-line{font-size:12px;line-height:2}
+  .void-ascend-panel .void-note{font-size:10px}
+}

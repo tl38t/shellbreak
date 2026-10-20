@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+  <defs>
+    <radialGradient id="rivet-head" cx="35%" cy="26%" r="78%">
+      <stop offset="0" stop-color="#eef4f5"/>
+      <stop offset=".28" stop-color="#aebdc2"/>
+      <stop offset=".66" stop-color="#68777d"/>
+      <stop offset="1" stop-color="#273238"/>
+    </radialGradient>
+    <radialGradient id="rivet-core" cx="32%" cy="25%" r="82%">
+      <stop offset="0" stop-color="#9eacb0"/>
+      <stop offset=".55" stop-color="#56646a"/>
+      <stop offset="1" stop-color="#20292d"/>
+    </radialGradient>
+  </defs>
+  <circle cx="10" cy="10.8" r="8.7" fill="#080d10" fill-opacity=".55"/>
+  <circle cx="10" cy="9.5" r="8" fill="#182126" stroke="#d7b647" stroke-width=".8"/>
+  <circle cx="10" cy="9.5" r="6.9" fill="url(#rivet-head)" stroke="#c2cdd0" stroke-opacity=".68" stroke-width=".65"/>
+  <path d="M5.2 6.8a5.7 5.7 0 0 1 8.6-.8" stroke="#fff" stroke-opacity=".62" stroke-width=".75" stroke-linecap="round"/>
+  <circle cx="10" cy="9.8" r="2.65" fill="url(#rivet-core)" stroke="#d1dadd" stroke-opacity=".75" stroke-width=".7"/>
+  <circle cx="9.15" cy="8.95" r=".72" fill="#fff" fill-opacity=".55"/>
+</svg>

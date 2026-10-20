@@ -83,6 +83,42 @@
           ' title="' + (jobLimitReason || ('＋' + stp + '（不足则加全部闲置）')) + '">＋</button>' +
         '</div></div>';
     }
+    /* ERA8（2026-10-19 · B7）：机器人分配段。机器人是独立池，仅能担任非书手/学者的岗位，
+     * 产出 ×1.2，不进 s.pop（不影响信仰）。布局与人类职业行同构，但用 data-robot-job 区分事件。 */
+    var rpop = SB.folk.robotPop(s), ridle = SB.folk.robotIdle(s);
+    if (rpop > 0) {
+      /* ⚠️【根因侧读守卫】s.robotJobs 是 ERA8 B7 新增存档键。在「robotJobs 种子加入前就建了
+       *    robotbay 的本局 / 读旧档」里，运行期这个键是 undefined。freshRun 已种子化，但
+       *   当前内存态不一定有（迁移只在下次读档才补），render 又先于迁移跑 ⇒ 这里若直接
+       *   读 `s.robotJobs[id]` 会抛「Cannot read properties of undefined」⇒ paneFolk 抛错 ⇒
+       *   整页 renderAll 崩掉 ⇒ 族民页所有点击（人类＋/机器人＋/×N 步长）看起来全死。
+       *   与 assignRobot 的 `if (!s.robotJobs) s.robotJobs = {}` 同源：读侧先兜底成空对象，
+       *   迁移（state-migrate.js）再补种子，双闸防这一种「看得见但点了全没反应」的哑崩。 */
+      var rjobs = s.robotJobs || {};
+      h += '<div class="row folk-summary"><div><div class="nm">机器人 <b>' + rpop + '</b>（产出 ×1.2，不占人口/不影响信仰）' +
+        (ridle > 0 ? ' <span class="bad">闲置 ' + ridle + '</span>' : '') + '</div>' +
+        '<div class="ds">机器人仅能担任非书手/学者的岗位。点 ＋ 分配、− 退回。</div></div>';
+      var rstep = SB.ui.render.jobStep();
+      for (var ri = 0; ri < SB.JOBS.length; ri++) {
+        var rj = SB.JOBS[ri];
+        if (!SB.folk.robotJobAllowed(rj.id)) continue;
+        if ((rjobs[rj.id] || 0) <= 0 && !SB.folk.jobUnlocked(s, rj.id)) continue;
+        var rjobLimit = SB.folk.jobLimit(s, rj.id);
+        var ratJobLimit = (rjobs[rj.id] || 0) >= rjobLimit;
+        var rjobLimitReason = SB.folk.jobLimitReason(s, rj.id);
+        h += '<div class="row folk-job-row" data-robot-job-row="' + rj.id + '"><div><div class="nm">' +
+          SB.folk.jobName(s, rj.id) + '（机器人） <b id="rj-' + rj.id + '">' + (rjobs[rj.id] || 0) + '</b>' +
+          (isFinite(rjobLimit) ? ' / ' + rjobLimit : '') + '</div>' +
+          '<div class="ds">' + rj.desc + '</div></div>' +
+          '<div class="folk-job-controls">' +
+          '<button class="btn fc-step" data-step="1" title="点击切换步长：×1 → ×5 → ×10（所有职业共用）">×' + rstep + '</button>' +
+          '<button class="btn" data-robot-job="' + rj.id + '" data-d="-' + rstep + '"' + ((rjobs[rj.id] || 0) <= 0 ? ' disabled' : '') +
+            ' title="−' + rstep + '（不足则全退）">−</button>' +
+          '<button class="btn" data-robot-job="' + rj.id + '" data-d="' + rstep + '"' + (ridle <= 0 || ratJobLimit ? ' disabled' : '') +
+            ' title="' + (rjobLimitReason || ('＋' + rstep + '（不足则加全部闲置机器人）')) + '">＋</button>' +
+          '</div></div>';
+      }
+    }
     /* ⚠️ 硬上限之后开局的**第一步是珊瑚不是藻食**（2026-09-26）：那 1 名族民顶着
      * 人口上限 1，先把藻食堆到 20 以上也生不出人——必须先有礁口巢才有空位。
      * 旧文案只教「攒藻食建菌圃」，玩家照做会发现人口纹丝不动。 */

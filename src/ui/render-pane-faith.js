@@ -23,9 +23,11 @@
     var fr = SB.economy.faithRate(s) || 0;
     var fam = SB.economy.faithAllMul(s);
     var fm = SB.economy.faithMul(s);
-    var rn = (s.religionName || '').trim();
+    /* ERA9 虚境信仰卡：装填后信仰名强制「虚境」并锁死（覆盖玩家自定义名）。 */
+    var rn = (SB.civic && SB.civic.faithDisplayName) ? SB.civic.faithDisplayName(s) : ((s.religionName || '').trim());
+    var rnLocked = !!(SB.civic && SB.civic.faithNameLocked && SB.civic.faithNameLocked(s));
     /* 读数三件同框才叫「一条轴」：存量 / 每秒 / 它换来的全局加成。 */
-    h += '<div class="row"><div><div class="nm">信仰 <b>' + SB.economy.fmtAmt(f) + '</b>' +
+    h += '<div class="row"><div><div class="nm">' + rn + ' <b>' + SB.economy.fmtAmt(f) + '</b>' +
       (fr > 0 ? '<i class="rate up">+' + fr.toFixed(3) + '/s</i>' : '') + '</div>' +
       '<div class="ds">每个族民每秒产 ' + SB.CFG.FAITH_PER_POP + ' 信仰，再乘神庙与政策的乘区' +
       '（现值 ×' + fm.toFixed(2) + '）。信仰不占仓储，也不会被花掉。</div></div></div>';
@@ -36,7 +38,9 @@
       '但<b>不推信仰自己</b>（否则会自激）。</div></div></div>';
     h += '<div class="row"><div><div class="nm">你的信仰</div>' +
       '<div class="ds">' + (rn ? '当前名为「<b>' + rn + '</b>」，' : '尚未命名，') +
-      '名字就写在上面那个框里，改名随时可改、无消耗。它会显示在顶栏的信仰资源格上。</div></div></div>';
+      (rnLocked ? '已由<b>虚境信仰</b>永恒锚定，不可更改。'
+        : '名字就写在上面那个框里，改名随时可改、无消耗。它会显示在顶栏的信仰资源格上。') +
+      '</div></div></div>';
     /* 来源与出口：说清信仰从哪来、通往哪里（轮回系统的门就是「建立宗教」）。 */
     h += '<div class="row"><div><div class="nm">信仰从哪来</div>' +
       '<div class="ds">人口是它唯一的来源（每人 ' + SB.CFG.FAITH_PER_POP + '/s）——' +

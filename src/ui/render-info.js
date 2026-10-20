@@ -18,7 +18,9 @@
     var names = [], i, list = SB.BUILDINGS || [], wonders = SB.wonder ? SB.wonder.list() : [], policies = SB.POLICIES || [];
     if (linkWorkshopTab) names.push({ name: '工坊', id: 'workshop', type: 'workshopTab' });
     for (i = 0; i < list.length; i++) names.push({ name: list[i].name, id: list[i].id, type: 'build' });
-    for (i = 0; i < wonders.length; i++) names.push({ name: wonders[i].name, id: wonders[i].id, type: 'wonder' });
+    for (i = 0; i < wonders.length; i++) names.push({
+      name: SB.wonder.displayName(res(), wonders[i].id), id: wonders[i].id, type: 'wonder'
+    });
     for (i = 0; i < policies.length; i++) names.push({ name: policies[i].name, id: policies[i].id, type: 'policy' });
     names.sort(function (a, b) { return b.name.length - a.name.length; });
     var out = '', cursor = 0;
@@ -239,7 +241,7 @@
       case 'hydroshop':    return '吃金属产钢（产钢量随热液能供给浮动）';
       case 'furnace':      return '解锁 金属 → 精铁（一次性效果，不随等级递增）';
       case 'observatory':  return '科技产出 +x%（x 与冰壳厚度成反比，最高 +' + (B.obsMaxBonus || 0) + '%，与建筑等级无关）';
-      case 'hall':         return '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给所有有上限资源 +50 容量/级';
+      case 'hall':         return '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给纪元三及之前有上限资源 +50 容量/级';
       default:             return b.desc || '';
     }
   }
@@ -262,14 +264,23 @@
     furnace: ['metal', 'warm'],        // 金属 + 暖石 → 精铁
     hydroturbine: ['warm'],            // 暖石 → 热液能
     hydroshop: ['hydro', 'metal'],     // 热液能 + 金属 → 钢
-    spacestation: ['hydro']            // 热液能 → 星空探索（每级 2/s）
+    spacestation: ['hydro'],           // 热液能 → 星空探索（每级 2/s）
+    satellite: ['hydro'],             // 热液能 → 星空探索（每级 1/s）
+    biomatlab: ['kelp', 'iron', 'titanium', 'uranium', 'hydro'] // θ产线原料 + 热液能
   };
-  var CONSUME_LABEL = { metal: '金属', warm: '暖石', hydro: '热液能' };
+  var CONSUME_LABEL = {
+    metal: '金属', warm: '暖石', hydro: '热液能',
+    kelp: '藻食', iron: '精铁', titanium: '钛', uranium: '铀'
+  };
   /* 停产/未建成时的口径说明：不给数字 0，否则玩家会读成「这东西不要料」。 */
   var CONSUME_IDLE = {
     metal: '金属（按转制份数扣，停产时为 0）',
     warm: '暖石（按运转座数扣，停产时为 0）',
-    hydro: '热液能（按等级需求，停产时为 0）'
+    hydro: '热液能（按等级需求，停产时为 0）',
+    kelp: '藻食（按等级需求，缺料时按比例降产）',
+    iron: '精铁（按等级需求，缺料时按比例降产）',
+    titanium: '钛（按等级需求，缺料时按比例降产）',
+    uranium: '铀（按等级需求，缺料时按比例降产）'
   };
   /* 2026-10-17：把「这座建筑吃哪几样」静态表与 IDLE 文案挂到 SB.ui.consumeMeta，
    * 供巢穴页控件行（render-pane-village.js 的 drawTag）与信息卡（buildingConsumeText）
@@ -347,14 +358,16 @@
 
   var WONDER_ART = SB.ui.renderContent.WONDER_ART;
   var WONDER_FLAVOR = SB.ui.renderContent.WONDER_FLAVOR;
-  function wonderArt(w) {
+  function wonderArt(w, s) {
     var src = WONDER_ART[w.id];
-    if (src) return '<div class="wonder-art has-image"><img src="' + src + '" alt="' + w.name + '"></div>';
+    if (src) return '<div class="wonder-art has-image"><img src="' + src + '" alt="' + SB.wonder.displayName(s, w.id) + '"></div>';
     return '<div class="wonder-art placeholder"><span>✦</span><small>奇观视觉稿 · 待补</small></div>';
   }
   function showWonderInfo(id) {
     var s = res(), w = SB.wonder && SB.wonder.byId(id);
     if (!s || !w) return;
+    var wonderName = SB.wonder.displayName(s, id);
+    var wonderDesc = SB.wonder.displayDesc(s, id);
     var done = !!(s.wonders && s.wonders[id]);
     var why = done ? null : SB.workshop.wonderBlocked(s, id);
     var cost = SB.wonder.discountedCost(s, id);
@@ -375,16 +388,16 @@
       ? '<div class="tree-reqs">' + reqs.map(function (x) { return '<span class="tree-req' + (x.indexOf('✓') === 0 ? ' met' : '') + '">' + x + '</span>'; }).join('') + '</div>'
       : '<p>无额外解锁条件</p>';
     var flavor = WONDER_FLAVOR[id] || '这座奇观正在等待一段属于它自己的历史。';
-    var body = wonderArt(w) +
+    var body = wonderArt(w, s) +
       '<div class="tree-cost"><span>建造成本</span><b>' + SB.economy.costTxt(cost) + '</b></div>' +
-      '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(w.desc) + '</p>' +
+      '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(wonderDesc) + '</p>' +
       (done ? SB.ui.renderCommon.happyBonusNote(s, 'wonder', w.id) : '') + '</section>' +
       '<section class="tree-detail-section"><h4>解锁条件</h4>' + reqHtml + '</section>' +
       (why && !/^需要先/.test(why) ? '<section class="tree-detail-section"><h4>资源情况</h4><p>' + why + '</p></section>' : '') +
       '<section class="tree-detail-section wonder-copy"><h4>奇观文案</h4><p>' + flavor + '</p></section>';
     var action = done ? '' : '<button class="btn buy" type="button" data-wonder="' + id + '"' +
       (why ? ' disabled title="' + why + '"' : '') + '>建成　' + SB.economy.costOwnedTxt(s, cost) + '</button>';
-    openInfoCard(w.name, '✦', state, body, action);
+    openInfoCard(wonderName, '✦', state, body, action);
   }
 
   function showPolicyInfo(id) {

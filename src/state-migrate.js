@@ -18,7 +18,9 @@
     if (raw.challenge && typeof raw.challenge === 'object' && SB.challenges && SB.challenges.byId(raw.challenge.id)) {
       var challengeDef = SB.challenges.byId(raw.challenge.id);
       out.challenge = { id: raw.challenge.id,
-        tier: Math.max(0, Math.min(challengeDef.tiers.length - 1, raw.challenge.tier | 0)) };
+        tier: Math.max(0, Math.min(challengeDef.tiers.length - 1, raw.challenge.tier | 0)),
+        startedAt: typeof raw.challenge.startedAt === 'number' && isFinite(raw.challenge.startedAt) && raw.challenge.startedAt > 0
+          ? raw.challenge.startedAt : 0 };
     } else out.challenge = null;
     var repairedResources = [];
     function fixTable(obj, ref, repairKeys) {
@@ -75,6 +77,14 @@
     /* 热液工坊「开几座」迁移（2026-10-07）：与 turbineStop 同口径——无旧档布尔，仅夹到 [0, lv]。 */
     if (!(typeof out.hydroshopStop === 'number' && isFinite(out.hydroshopStop))) out.hydroshopStop = 0;
     out.hydroshopStop = Math.max(0, Math.min(Math.floor(out.hydroshopStop), out.lvl.hydroshop || 0));
+    /* ERA8：生物材料研究所启停数；老档缺省全开，非法 / 超等级值夹回有效区间。 */
+    if (!(typeof out.biomatlabStop === 'number' && isFinite(out.biomatlabStop))) out.biomatlabStop = 0;
+    out.biomatlabStop = Math.max(0, Math.min(Math.floor(out.biomatlabStop), out.lvl.biomatlab || 0));
+    /* ERA8 B7：机器人分配池。老档（本字段加入前就建了 robotbay 的本局 / 读旧档）缺省 {}；
+     * 否则 render-pane-folk 读 s.robotJobs[id] 会抛「Cannot read properties of undefined」⇒
+     * 整页 renderAll 崩掉、族民页所有点击（人类＋/机器人＋/×N 步长）看起来全死。
+     * 与 render-pane-folk 的 `var rjobs = s.robotJobs || {}` 读侧兜底同源：迁移补种子 + 渲染兜底双闸。 */
+    if (!out.robotJobs || typeof out.robotJobs !== 'object') out.robotJobs = {};
     /* ⚠️ 城堡「真升级」老档迁移（2026-10-06）。
      *   背景：`castle` 建筑是 2026-09-30 起的误读实装（把「由议事厅升级而来」做成
      *   need:'hall' 前置 + 一座**独立**建筑），已于本轮从 BUILDINGS 删除。删掉之后
@@ -89,21 +99,6 @@
       out.lvl.castle = 0;
     }
     out.jobs = fixTable(raw.jobs, base.jobs);
-    /* ⚠️ 职业总和必须 ≤ pop（folk 的恒等式）。2026-09-30 之前 `merchant` 漏在 folk.IDS 之外，
-     *    商人不计入 sum ⇒ 可以被**无限雇**，被污染的档里 jobs 总和会远超 pop
-     *    （玩家实测：族民 34、上限 35，却挂着 100 名商人）。folk.IDS 已改为从 JOBS 派生，
-     *    这里负责把**已经污染的老档**收回来，否则 UI 会打出「闲置 −99」这种自相矛盾的读数。
-     * 回收顺序 = **从尾部职业往前**（越新的职业越是超额来源，且商人在贸易落地前近乎无用）——
-     *    这样保住采集者/农民这些人命关天的老职业，而不是照 reconcile「从最大的退」把农民一起切掉。 */
-    var _jids = (SB.JOBS || []).map(function (j) { return j.id; });
-    var _jsum = 0, _ji;
-    for (_ji = 0; _ji < _jids.length; _ji++) _jsum += (out.jobs[_jids[_ji]] || 0);
-    var _jover = _jsum - out.pop;
-    for (_ji = _jids.length - 1; _ji >= 0 && _jover > 0; _ji--) {
-      var _jid = _jids[_ji], _jv = out.jobs[_jid] || 0;
-      var _jcut = Math.min(_jv, _jover);
-      out.jobs[_jid] = _jv - _jcut; _jover -= _jcut;
-    }
     /* 市政台账加固。⚠️ 这里**不能**用上面的 fixTable：那是按 `ref` 的键遍历的，
      *    而 base.civics 是空表 `{}` ⇒ 遍历出空对象 ⇒ **所有已完成的市政被清空**，
      *    症状是「刷新之后市政树重置了，政体却还在」（政体/政策卡是标量、走的是
@@ -273,6 +268,31 @@
       if (typeof v2 !== 'number' || !isFinite(v2)) out[nums[i]] = base[nums[i]];
     }
 
+    /* 人口只能按完整个体计数。旧版「公摊面积」给住房上限 +0.5/级，tick 曾把人口
+     * 直接钳到这个小数上限，老档因此可能存有 136.5 这类 pop / peak；升级时向上取整，
+     * 再遵守当前住房/挑战上限，避免旧存档继续显示小数或越过硬上限。 */
+    out.pop = Math.ceil(Math.max(0, out.pop));
+    out.peak = Math.ceil(Math.max(0, out.peak));
+    if (SB.economy && SB.economy.popCap) out.pop = Math.min(out.pop, SB.economy.popCap(out));
+    out.peak = Math.max(out.peak, out.pop);
+
+    /* 人类职业人数也必须是整数，否则 folk.idle = pop - sum(jobs) 会把旧档中的半个人
+     * 显示成「闲置 22.5」。旧版自动分配曾留下小数岗位；先四舍五入各职业，再按最终人口
+     * 回收超额岗位。仍从尾部职业往前回收，优先保住采集者等早期关键职业。 */
+    var _jids = (SB.JOBS || []).map(function (j) { return j.id; });
+    var _ji, _jid, _jv, _jcut, _jsum = 0, _jover;
+    for (_ji = 0; _ji < _jids.length; _ji++) {
+      _jid = _jids[_ji];
+      out.jobs[_jid] = Math.max(0, Math.round(out.jobs[_jid] || 0));
+      _jsum += out.jobs[_jid];
+    }
+    _jover = _jsum - out.pop;
+    for (_ji = _jids.length - 1; _ji >= 0 && _jover > 0; _ji--) {
+      _jid = _jids[_ji]; _jv = out.jobs[_jid] || 0;
+      _jcut = Math.min(_jv, _jover);
+      out.jobs[_jid] = _jv - _jcut; _jover -= _jcut;
+    }
+
     /* ⚠️⚠️ 壳厚版本迁移（2026-10-07 用户把 ICE_SHELL 从 100000 拍到 500000 时补上）
      * 【为什么必须在这里补，否则改壳厚等于只对新人生效】
      *   上面那段 nums 循环只校验「是不是数字」，**不重算**。而 `game.resumeRun(saved)`
@@ -296,6 +316,18 @@
       out.baseShell = curBase;
       out.shell = Math.round(out.iceShell * keepRatio);
     }
+    /* G.E.E.K 运行态（ERA9）：与 res/lvl 不同，它是「我新代码整对象写」的字段，但为前向兼容
+     * （将来给 geek 加新旗时，旧档只存了老旗会丢失新旗默认值），做一层按 key 的浅合并而非
+     * 整对象覆盖——否则 raw.geek={rheaDone:true} 会把 costOffset 等默认冲没、甚至把 geekOn 弄丢
+     * （开关位丢失 = 玩家重进游戏发现 G.E.E.K 自己停了）。布尔旗严格按布尔收口，三个数值非负有限。 */
+    var rawGeek = (raw.geek && typeof raw.geek === 'object') ? raw.geek : {};
+    var _gb = base.geek || { geekOn: false, rheaDone: false, terraDone: false, costOffset: 0, rheaRun: 0, terraRun: 0 };
+    out.geek = {};
+    for (var _gk in _gb) {
+      if (typeof _gb[_gk] === 'boolean') out.geek[_gk] = (typeof rawGeek[_gk] === 'boolean') ? rawGeek[_gk] : _gb[_gk];
+      else out.geek[_gk] = (typeof rawGeek[_gk] === 'number' && isFinite(rawGeek[_gk]) && rawGeek[_gk] >= 0) ? rawGeek[_gk] : _gb[_gk];
+    }
+
     return out;
   }
 

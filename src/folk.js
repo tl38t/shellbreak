@@ -277,10 +277,96 @@
     }
   }
 
+  /* ── ERA8（2026-10-19 · B7 机器人人口子系统）────────────────────────
+   * 设计（docs/ERA8_TECHS_SPEC_v0.1.md §6）：robotbay 每级提供 4 机器人，仅能担任
+   * 非书手/学者的岗位，产出 ×1.2，不进 s.pop ⇒ 不影响信仰点（faithRate 直读 s.pop）。
+   * 机器人与人**分池**：s.robotJobs 平行于 s.jobs，独立分配、独立计数；
+   * 不增长、不吃口粮、不产信仰，因此不动 sum()/reconcile()/foodRate 那条人类链。
+   * ── ERA10（2026-10-20 · 用户 ERA10 表「强人工智能」）两处改口径 ──
+   * ① 产出倍率从写死 1.2 改为**读数** robotMult(s)：买了工坊升级 upg_strongai（1000θ）
+   *    后 ×1.5。升级跨轮回重置（freshRun 新表）⇒ 重新买即重新生效。
+   * ② 「机器人按人口口径产信仰」不在本文件落地——落点是 economy.faithRate 的人口基项
+   *    （+robotPop，同样读 upg_strongai 门控）。此处注释同步改，别再写「不产信仰」。 */
+  var ROBOT_PER_BAY = 4, ROBOT_MULT_BASE = 1.2, ROBOT_MULT_AI = 1.5;
+  /* 机器人产出倍率：默认 1.2；强人工智能升级后 1.5。
+   * ⚠️ 读 s.upgrades.upg_strongai（买断升级），不读科技 s.techs.strong_ai——
+   *    科技只给升级购买权，「花 1000θ 买」这一动作才是生效条件（用户表原文）。 */
+  function robotMult(s) {
+    return (s && s.upgrades && s.upgrades.upg_strongai) ? ROBOT_MULT_AI : ROBOT_MULT_BASE;
+  }
+  function robotPop(s) { return ROBOT_PER_BAY * (s.lvl.robotbay || 0); }
+  function robotJobAllowed(job) { return job !== 'scribe' && job !== 'scholar'; }
+  function robotAssigned(s) {
+    var rj = s.robotJobs || {}, n = 0, k;
+    for (k in rj) n += (rj[k] || 0);
+    return n;
+  }
+  function robotIdle(s) { return robotPop(s) - robotAssigned(s); }
+  /* 机器人分配：与 assign 同源（双向钳制、守卫解锁、− 方向不卡老档），
+   * 但池子是 robotPop（非 pop）、键是 s.robotJobs、且强制剔除 scribe/scholar。 */
+  function assignRobot(s, job, delta) {
+    if (!robotJobAllowed(job)) return false;
+    /* 机器人也只能做已解锁的职业（与 humans 同判据，避免「机器人先干了没科技的事」）。 */
+    if (!jobUnlocked(s, job)) return false;
+    /* ⚠️ 兜底：robotJobs 是 ERA8 B7 新增的存档键。在「robotJobs 种子加入前就已载入/开局的
+     *    本局」里，运行期这个键是 undefined（迁移只在下次读档才补）。freshRun 已种子化，
+     *    但当前内存态不一定有 ⇒ 直接 `s.robotJobs[job] = ...` 会抛
+     *    「Cannot read properties of undefined」⇒ 点加号静默失效（面板却正常显示机器人人口）。
+     *    这里先确保对象存在，旧存档/未初始化态也能安全上岗。reconcileRobot/effJobs/render
+     *    都走的 `|| {}` 只读分支、不会触发，唯独本函数是唯一下笔写 robotJobs 的地方。 */
+    if (!s.robotJobs) s.robotJobs = {};
+    var n = Math.abs(delta || 0);
+    if (n === 0) return false;
+    if (delta > 0) {
+      n = Math.min(n, robotIdle(s));
+      if (n <= 0) return false;
+      s.robotJobs[job] = (s.robotJobs[job] || 0) + n;
+      return true;
+    }
+    n = Math.min(n, s.robotJobs[job] || 0);
+    if (n <= 0) return false;
+    s.robotJobs[job] -= n;
+    return true;
+  }
+  function reconcileRobot(s) {
+    /* ⚠️ 与 assignRobot 同源的兜底：robotJobs 是 ERA8 B7 新增键，老档/未初始化态可能是 undefined，
+     *   这里先确保对象存在再迭代，否则 `for (k in s.robotJobs)` 直接抛（见 render-pane-folk 同族注释）。 */
+    if (!s.robotJobs) s.robotJobs = {};
+    var over = robotAssigned(s) - robotPop(s);
+    while (over > 0) {
+      var top = null, k;
+      for (k in s.robotJobs) {
+        if ((s.robotJobs[k] || 0) > 0 && (!top || s.robotJobs[k] > s.robotJobs[top])) top = k;
+      }
+      if (!top) break;
+      s.robotJobs[top]--; over--;
+    }
+  }
+  /* 合并后的职业工人数：人类 + 机器人×robotMult(s)（1.2 / 强人工智能升级后 1.5；剔除 scribe/scholar）。
+   * rates/tick 用 effJobs(s) 替代 s.jobs，机器人产出即自动并入各职业，无需逐函数改。 */
+  function effJobs(s) {
+    var r = {}, k;
+    for (k in s.jobs) r[k] = s.jobs[k];
+    var rj = s.robotJobs || {};
+    var _rm = robotMult(s);
+    for (k in rj) {
+      if (robotJobAllowed(k)) r[k] = (r[k] || 0) + _rm * (rj[k] || 0);
+    }
+    var _outputMul = SB.economy && SB.economy.folkOutputMul ? SB.economy.folkOutputMul(s) : 1;
+    if (_outputMul !== 1) for (k in r) r[k] *= _outputMul;
+    return r;
+  }
+
   SB.folk = {
     assign: assign, assignMax: assignMax, assignMin: assignMin, autoAssign: autoAssign, reconcile: reconcile,
     sum: sum, idle: idle, IDS: IDS, jobUnlocked: jobUnlocked,
     jobTechOf: jobTechOf, jobCivicOf: jobCivicOf,
-    jobName: jobName, jobLimit: jobLimit, jobLimitReason: jobLimitReason
+    jobName: jobName, jobLimit: jobLimit, jobLimitReason: jobLimitReason,
+    robotPop: robotPop, robotIdle: robotIdle, robotAssigned: robotAssigned,
+    /* ERA10（2026-10-20）：机器人产出倍率读数导出（回归/e2e 直接断言 1.2 vs 1.5，
+     * 不必绕 effJobs 反推；robotbay  desc 与信仰口径也读它）。 */
+    robotMult: robotMult,
+    robotJobAllowed: robotJobAllowed, assignRobot: assignRobot, reconcileRobot: reconcileRobot,
+    effJobs: effJobs
   };
 })(typeof window !== 'undefined' ? window : globalThis);

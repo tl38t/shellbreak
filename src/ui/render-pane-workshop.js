@@ -262,6 +262,9 @@
       }
       h += '<button class="btn tog" data-aoff="' + c.id + '" title="腾出这个自动槽">停用</button>';
     }
+    if (c.id === 'craft_rocketfuel') {
+      h += '<small class="craftauto-hint" role="note">暖石会被保温法、熔炉和热液汽轮机消耗；自动制造需等暖石满仓。建议选 25% / 50% / 75%，不要选 100%，以保留暖石。</small>';
+    }
     return h + '</div>';
   }
 
@@ -345,11 +348,28 @@
       var label = on ? '已装上'
         : why ? (/^需要先/.test(why) ? '未解锁' : '材料不够 ' + ctxt)
           : '装上 ' + ctxt;
+      /* ERA8（2026-10-19）：工业机器人（upg_indrobot）已装上后补**开关按钮 + 实时耗流**——
+       *   状态字段 s.indRobotOn 与读侧（workshop.js / economy.js）早已接好，但界面无入口，
+       *   玩家买了升级却无法关、热液能白白流。开关走 document 级委托（data-indrobot-toggle），
+       *   与 pane 每 2 秒重画兼容；耗流用 fdraw 与巢穴/星图同源。 */
+      var _rbOn = on && s.indRobotOn !== false;
+      var _ds = u.desc + '（成本 ' + SB.economy.costTxt(cost) + '）';
+      if (u.id === 'upg_indrobot' && on) {
+        _ds += '<br><span class="fdraw">热液能 −' + (SB.UNIT.robotHydro || 1).toFixed(2) + '/秒' +
+          (_rbOn ? '' : '（已关闭）') + '</span>';
+      }
+      var _rowExtra = '';
+      if (u.id === 'upg_indrobot' && on) {
+        _rowExtra = '<button class="btn tog' + (_rbOn ? ' on' : '') + '" data-indrobot-toggle="1" ' +
+          'title="工业机器人开关：关掉 ⇒ 工坊效率加成与热液能消耗一起停。">' +
+          (_rbOn ? '运行中' : '已关闭') + '</button>';
+      }
       h += '<div class="row"' + (on ? ' data-owned="1"' : '') + '>' +
         '<div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="' + u.id + '" aria-haspopup="dialog">' + u.name + '</button>' + (isNewItem('u', u.id) ? ' <span class="tag new">NEW</span>' : '') + (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
-        '<div class="ds">' + u.desc + '（成本 ' + SB.economy.costTxt(cost) + '）</div>' +
+        '<div class="ds">' + _ds + '</div>' +
         '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
-        (on || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button></div>';
+        (on || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button>' +
+        _rowExtra + '</div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
       (hideDone && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';

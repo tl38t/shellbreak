@@ -1,52 +1,26 @@
 /* 天壳 / SHELLBREAK — 从真实源码头 dump 内容清单 JSON。
  *
- * 复用 load-sb.mjs 的 vm 加载通道（与生产同序），把 SB 命名空间里内容清单需要的
- * 数据原样序列化到 sim/_content.json；build.py 再把它转成 xlsx。
+ * 复用 load-sb.mjs 的 loadNoDom()（文件清单与顺序由那一个地方管，与 index.html 同源），
+ * 把 SB 命名空间里内容清单需要的数据原样序列化到 sim/_content.json；build.py 再转成 xlsx。
  * 只 dump 字段，不复制任何数值 —— 源是代码，清单是派生。
+ *
+ * ⚠️ 2026-10-20：本脚本原先自己维护一份 FILES 清单，与 load-sb.mjs 的 NO_DOM 各写一份。
+ *    新增 economy-social.js 后这里没跟着加 ⇒ 每次跑都崩（economy.js 读不到 SOCIAL.happyMul）。
+ *    这正是 load-sb.mjs 注释里警告过的「两份清单顺序分叉」——已改为单一来源，不再各写一份。
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
-import { mulberry32 } from './load-sb.mjs';
+import { loadNoDom, ROOT } from './load-sb.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
-
-const FILES = [
-  'src/config.js',
-  'src/config-content.js',
-  'src/config-buildings.js',
-  'src/techs.js',
-  'src/tech.js',
-  'src/state.js',
-  'src/workshop.js',
-  'src/wonder.js',
-  'src/economy.js',
-  'src/shell.js',
-  'src/habitat.js',
-  'src/folk.js',
-  'src/prestige.js',
-  // civic data 与 civics rules 都需显式加载：导出用前者的内容表、后者的规则接口。
-  'src/civics-data.js',
-  'src/civics.js',
-];
-
-const metaStub = { tide: 0, spent: 0, perks: {}, cycle: 1, layers: 0, techLog: {} };
 const sandbox = {
   console,
   document: { getElementById: () => null, querySelectorAll: () => [], addEventListener() {}, body: { appendChild() {} } },
   localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
   performance: { now: () => 0 },
   setInterval() {}, clearInterval() {},
-  SB: { game: { meta: () => metaStub, showBreakPanel() {} }, rng: mulberry32(20260928) },
 };
-const ctx = vm.createContext(sandbox);
-for (const rel of FILES) {
-  const code = fs.readFileSync(path.join(ROOT, rel), 'utf8');
-  vm.runInContext(code, ctx, { filename: rel });
-}
-const SB = ctx.SB;
+
+const { SB } = loadNoDom(sandbox);
 
 // 序列化：丢函数、防循环引用（同一对象出现两次标 [Circular]，但本作数据定义是平铺列表，正常不会出现）
 const seen = new WeakSet();
@@ -61,7 +35,7 @@ function ser(v) {
   }, 2);
 }
 
-  const D = {
+const D = {
   RESS: SB.RESS,
   TECHS: SB.TECHS,
   BUILDINGS: SB.BUILDINGS,
@@ -76,6 +50,9 @@ function ser(v) {
   ERAS: SB.ERAS,
   BRANCHES: SB.BRANCHES,
   PERKS: SB.PERKS,
+  /* 分区名（config-buildings.js:823）：清单里 zoneLvl 条件要把它写成中文，
+   * 从源码 dump 而不是在 build.py 里再抄一份清单。 */
+  ZONES: SB.BUILD_ZONES,
 };
 
 const out = path.join(ROOT, 'sim', '_content.json');

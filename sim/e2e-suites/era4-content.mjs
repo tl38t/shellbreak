@@ -103,7 +103,7 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
   }));
   check('三项 unlockBuild 都指向真实建筑', missing.length === 0, '查不到=' + missing.join(','));
 
-  /* ④ 钛 / 脚手架 / 钛金板件：钛、钛金板件有上限；脚手架是无上限工艺制品；
+  /* ④ 钛 / 脚手架 / 钛金板件：钛是有上限材料；两种工艺资源无上限；
    *   三者 state 均已 seed（防 addRes 漏键染 NaN）。 */
   const fr4 = SB.state.freshRun(false);
   const notInf = ['scaffold'].filter(r => SB.economy.capOf(fr4, r) !== Infinity);
@@ -111,18 +111,17 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
   check('钛 capOf 有有限上限（不再是 Infinity，CAP_BASE=200 档）',
     SB.economy.capOf(fr4, 'titanium') !== Infinity && SB.economy.capOf(fr4, 'titanium') > 0,
     'capOf=' + SB.economy.capOf(fr4, 'titanium'));
-  check('钛金板件基础仓储上限为 200',
-    SB.RESS.tiplate.kind === 'craft' && SB.CFG.CAP_BASE.tiplate === 200 &&
-      SB.economy.capOf(fr4, 'tiplate') === 200,
+  check('钛金板件作为工艺资源没有仓储上限',
+    SB.RESS.tiplate.kind === 'craft' && SB.CFG.CAP_BASE.tiplate === undefined &&
+      SB.economy.capOf(fr4, 'tiplate') === Infinity,
     'kind=' + SB.RESS.tiplate.kind + ' capOf=' + SB.economy.capOf(fr4, 'tiplate'));
   fr4.techs.lighting = true;
   fr4.lvl.ballast = 10;
   const storedTiplateCap = SB.economy.capOf(fr4, 'tiplate');
   SB.economy.addRes(fr4, 'tiplate', 5000);
   const legacyTiplateStore = SB.state.migrateRun({ lvl: { tiplateStore: 3 } });
-  check('钛金板件受压舱仓容量影响，库存不能超过上限',
-    SB.economy.capOf(fr4, 'tiplate') === storedTiplateCap &&
-      storedTiplateCap > SB.CFG.CAP_BASE.tiplate && fr4.res.tiplate === storedTiplateCap &&
+  check('钛金板件可超过原有仓储数值，压舱仓不再限制工艺资源',
+    SB.economy.capOf(fr4, 'tiplate') === Infinity && storedTiplateCap === Infinity && fr4.res.tiplate === 5000 &&
       !SB.BUILDINGS.some(b => b.id === 'tiplateStore') &&
       legacyTiplateStore.lvl.tiplateStore === undefined,
     'capOf=' + SB.economy.capOf(fr4, 'tiplate') + ' stock=' + fr4.res.tiplate);
@@ -142,7 +141,7 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
   check('合金仓储升级：minipump 解锁、材料科技扣费、非藻食容量 ×1.5',
     alloyWarehouseLocked !== null && alloyWarehouseBlocked === null && alloyWarehouseBought &&
       plateWarehouse.res.tiplate === 0 && plateWarehouse.res.titanium === 0 && plateWarehouse.res.science === 0 &&
-      Math.abs(SB.economy.capOf(plateWarehouse, 'tiplate') / pCapBeforeUpgrade - 1.5) < 1e-9 &&
+      SB.economy.capOf(plateWarehouse, 'tiplate') === Infinity && pCapBeforeUpgrade === Infinity &&
       Math.abs(SB.economy.capOf(plateWarehouse, 'coral') / cCapBeforeUpgrade - 1.5) < 1e-9 &&
       SB.economy.capOf(plateWarehouse, 'kelp') === kCap0,
     'locked=' + alloyWarehouseLocked + ' blocked=' + alloyWarehouseBlocked + ' bought=' + alloyWarehouseBought +
@@ -150,9 +149,9 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
       ' coral=' + SB.economy.capOf(plateWarehouse, 'coral') + ' kelp=' + SB.economy.capOf(plateWarehouse, 'kelp'));
   const monumentStorage = SB.state.freshRun(false);
   monumentStorage.wonders.wonder_tide_stele = true;
-  check('海潮方碑仓储加成包含钛金板件',
-    SB.wonder.matMaxBonus(monumentStorage, 'tiplate') === 200 &&
-      SB.economy.capOf(monumentStorage, 'tiplate') === 400,
+  check('海潮方碑容量加成不作用于无限容量的工艺资源',
+    SB.wonder.matMaxBonus(monumentStorage, 'tiplate') === 0 &&
+      SB.economy.capOf(monumentStorage, 'tiplate') === Infinity,
     'bonus=' + SB.wonder.matMaxBonus(monumentStorage, 'tiplate') +
       ' cap=' + SB.economy.capOf(monumentStorage, 'tiplate'));
   check('钛 / 脚手架已进 res 与 got 台账（缺键会把资源池染成 NaN）',
@@ -216,11 +215,11 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
     geology.techs.abyssgeo = true;
     const warm0 = SB.economy.rates(base).warmstone, warm1 = SB.economy.rates(geology).warmstone;
     const titanium0 = SB.economy.rates(base).titanium, titanium1 = SB.economy.rates(geology).titanium;
-    check('渊海地质学暖石 +300%（×4），并已移除钛加成',
-      SB.tech.byId('abyssgeo').eff.warmMul === 3 &&
+    check('渊海地质学暖石 +100%（×2），并已移除钛加成',
+      SB.tech.byId('abyssgeo').eff.warmMul === 1 &&
       !Object.prototype.hasOwnProperty.call(SB.tech.byId('abyssgeo').eff, 'titaniumMul') &&
-      SB.tech.mul(geology).warmMul === 3 && SB.tech.mul(geology).titaniumMul === 0 &&
-      Math.abs(warm1 / warm0 - 4) < 1e-9 && Math.abs(titanium1 - titanium0) < 1e-9,
+      SB.tech.mul(geology).warmMul === 1 && SB.tech.mul(geology).titaniumMul === 0 &&
+      Math.abs(warm1 / warm0 - 2) < 1e-9 && Math.abs(titanium1 - titanium0) < 1e-9,
       '暖石=' + warm0 + '→' + warm1 + '；钛=' + titanium0 + '→' + titanium1);
   }
   check('三座新建筑已在 lvl 表内（漏键 = 读档静默丢弃）',
@@ -308,6 +307,22 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
   check('高压气泵：汽轮机热液能 +50%（只放大供给侧，flow 模型看供给）',
     Math.abs(hyd1 - hyd0 * 1.5) < 1e-9 && hyd0 > 0,
     'supply ' + hyd0.toFixed(3) + ' → ' + hyd1.toFixed(3));
+
+  const hd = SB.state.freshRun(false);
+  hd.lvl.hydroturbine = 2; hd.lvl.fissionplant = 1; hd.lvl.titancloud = 2;
+  hd.lvl.hydroshop = 1; hd.lvl.spacestation = 1; hd.lvl.biomatlab = 1;
+  hd.res.warmstone = 1e6; hd.wonders = { wonder_presspipe: true };
+  const hdf = SB.economy.hydroAlloc(hd, 1);
+  check('热液能来源拆分与总供给相加一致（汽轮机/热机管道/核热厂/泰坦气云）',
+    Math.abs(hdf.turbineRate - 2) < 1e-9 && Math.abs(hdf.pressRate - 10) < 1e-9 &&
+    Math.abs(hdf.fissionRate - 10) < 1e-9 && Math.abs(hdf.titancloudRate - 12) < 1e-9 &&
+    Math.abs(hdf.turbineRate + hdf.pressRate + hdf.fissionRate + hdf.titancloudRate - hdf.supplyRate) < 1e-9,
+    '来源=' + [hdf.turbineRate, hdf.pressRate, hdf.fissionRate, hdf.titancloudRate].join('/') +
+      ' 总供给=' + hdf.supplyRate);
+  check('热液能去向列出当秒实际分配（工坊/空间站/生物材料研究所）',
+    Math.abs(hdf.shopRate - 1) < 1e-9 && Math.abs(hdf.stationRate - 2) < 1e-9 &&
+    Math.abs(hdf.labRate - 3) < 1e-9 && Math.abs(hdf.left - 28) < 1e-9,
+    '去向=' + [hdf.shopRate, hdf.stationRate, hdf.labRate].join('/') + ' 余流=' + hdf.left);
 
   /* ⚠️ 2026-10-05 flow 模型不变量：热液能 = 电力式瞬态流，**不进库存、不跨 tick 累积**。 */
   {

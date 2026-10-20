@@ -20,6 +20,17 @@
 
   function el(id) { return document.getElementById(id); }
 
+  /* 页面材质只跟随当前周目的纪元，不改存档数据。游戏重载页面时也会由这里从活动局恢复。 */
+  function applyEraSkin(s) {
+    var docRoot = root.document && root.document.documentElement;
+    if (!docRoot || !docRoot.dataset) return;
+    var maxEra = (SB.ERAS && SB.ERAS.length) || 6;
+    var era = Math.floor(Number(s && s.era) || 1);
+    era = Math.max(1, Math.min(maxEra, era));
+    var value = String(era);
+    if (docRoot.dataset.era !== value) docRoot.dataset.era = value;
+  }
+
   /* ── 主页面分区卡片：标题配色 + 可折叠（2026-09-30 用户：各个区域可折叠，参考文明6）──
    * 【为什么折叠态不放在 DOM 上】面板（pane）每 2 秒被 PANE_REFRESH 整块重写 innerHTML；
    *   折叠态若写在「会被重写的节点」上，一重画就没了。所以状态记在模块里的 CARD_FOLDED，
@@ -127,6 +138,32 @@
   function zoneColor(id) { return ZONE_COLOR[id]; }
   loadZoneFold();
 
+  /* 巢穴建筑图标显隐：纯 UI 偏好，跨局持久化，不写入 run 存档。 */
+  var BUILDING_ICONS_SHOWN = true;
+  var BUILDING_ICON_SAVE = 'sb.buildingIcons.v1';
+  function syncBuildingIconToggle() {
+    var n = el('building-icon-toggle');
+    if (!n) return;
+    n.setAttribute('aria-pressed', BUILDING_ICONS_SHOWN ? 'true' : 'false');
+    n.textContent = BUILDING_ICONS_SHOWN ? '图标：显示' : '图标：隐藏';
+    n.title = BUILDING_ICONS_SHOWN ? '点击隐藏建筑图标' : '点击显示建筑图标';
+  }
+  function loadBuildingIconPreference() {
+    try {
+      var raw = root.localStorage && root.localStorage.getItem(BUILDING_ICON_SAVE);
+      if (raw === '0') BUILDING_ICONS_SHOWN = false;
+    } catch (e) { BUILDING_ICONS_SHOWN = true; }
+    syncBuildingIconToggle();
+  }
+  function toggleBuildingIcons() {
+    BUILDING_ICONS_SHOWN = !BUILDING_ICONS_SHOWN;
+    try { if (root.localStorage) root.localStorage.setItem(BUILDING_ICON_SAVE, BUILDING_ICONS_SHOWN ? '1' : '0'); } catch (e) {}
+    syncBuildingIconToggle();
+    return BUILDING_ICONS_SHOWN;
+  }
+  function buildingIconsShown() { return BUILDING_ICONS_SHOWN; }
+  loadBuildingIconPreference();
+
 
   function renderRes() {
     var s = res(), g = el('res');
@@ -138,7 +175,9 @@
       /* ⚠️ 2026-09-28 信仰面板 gate：信仰资源行只在《神学》完成后出现（用户规格
        *    「研究神学之后就开启信仰面板」）。神学前信仰恒为 0 也没地方显示，
        *    硬塞一行只会误导玩家以为已经有信仰系统。gate 读 `s.civics.theology`。 */
-      if (!SB.economy.resUnlocked(s, k)) continue;
+      /* 热液能是逐 tick 分配、不会累积的能流；星空探索是星图进度；星屑属于轮回局外资源。
+       * 前两者分别在自然环境卡与星图展示，星屑在轮回商店展示，不混进本局材料库存网格。 */
+      if (k === 'hydro' || k === 'starExplore' || k === 'stardust' || !SB.economy.resUnlocked(s, k)) continue;
       var isCraft = SB.RESS[k].kind === 'craft';
       var v = s.res[k];
       var cls = 'res' + (k === 'kelp' && v < need ? ' neg' : '');
@@ -193,10 +232,13 @@
             : '') +
           '</i>';
       }
-      /* 信仰行的标签：玩家给信仰起了名 ⇒ 用宗教名代替「信仰」二字（神学解锁后可在 #religionBox 改名）。 */
+      /* 信仰行的标签：玩家给信仰起了名 ⇒ 用宗教名代替「信仰」二字（神学解锁后可在 #religionBox 改名）。
+       * ERA9 虚境信仰卡装填后强制「虚境」并锁死（覆盖玩家自定义名，见 civics.faithDisplayName）。 */
       var rowName = SB.RESS[k].name;
       if (k === 'faith') {
-        var rn = (s.religionName || '').trim();
+        var rn = (SB.civic && SB.civic.faithDisplayName)
+          ? SB.civic.faithDisplayName(s)
+          : ((s.religionName || '').trim());
         if (rn) rowName = rn;
       }
       var row = '<div class="' + cls + '"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
@@ -283,6 +325,118 @@
     if (btn) btn.onclick = hideModal;
   }
 
+  /* ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁2 / 用户拍 Q2）：戴森球通关弹窗。
+   * 镜像星空槽满槽先例（showStarComplete）：复用 #modal 浮层；无 modal 元素时 no-op
+   * （dysonDone 已置位，星图戴森面板仍会显示竣工态，不丢信息）。
+   * 两个出口（用户原话「就和破壳一样，弹窗，可以轮回也可以继攒轮回和星屑」）：
+   *   ① 立即轮回 ⇒ 调 SB.game.askReset()（顶栏重置钮同一条生产路径：确认面板 + 结算
+   *      预览 + prestige.doBreak 分流，轮回点/星屑按现有公式入账）；
+   *   ② 继续游玩 ⇒ 关弹窗接着攒（dysonPopupSeen 已置位，不再重播）。 */
+  function showDysonComplete(s) {
+    var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
+    var sails = (s && s.sunSails) || 0, nodes = (s && s.dysonNodes) || 0;
+    var sailCap = SB.CFG.DYSON_SAIL_CAP || 10000, nodeCap = SB.CFG.DYSON_NODE_CAP || 1000;
+    box.innerHTML = '<div class="dyson-complete-panel">'
+      + '<h2>★ 戴森球竣工</h2>'
+      + '<p>太阳帆 <b>' + sails.toLocaleString() + '</b> / ' + sailCap.toLocaleString()
+      + ' ＋ 戴森球节点 <b>' + nodes.toLocaleString() + '</b> / ' + nodeCap.toLocaleString()
+      + ' —— 双达标达成。</p>'
+      + '<p class="muted">母星戴上了一圈星环，文明的火光第一次以恒星计量。'
+      + '你可以立刻轮回结算（轮回点与星屑按现有公式入账），也可以继续留在这一局，攒取更多的轮回点与星屑。</p>'
+      + '<div class="break-controls">'
+      + '<button class="btn big" type="button" id="dysonBreakNow">立即轮回（结算）</button>'
+      + '<button class="btn" type="button" id="dysonKeepPlaying">继续游玩</button>'
+      + '</div></div>';
+    modal.classList.remove('hidden'); bodyModalClass(true);
+    var b1 = el('dysonBreakNow');
+    if (b1) b1.onclick = function () {
+      hideModal();
+      if (SB.game && SB.game.askReset) SB.game.askReset();
+    };
+    var b2 = el('dysonKeepPlaying');
+    if (b2) b2.onclick = hideModal;
+  }
+
+  /* ══ ERA10 市政《飞升虚境》（2026-10-20 用户规格 · 实装）══════════════
+   * 用户表原文：「没什么效果，就是在戴森球建设完成后触发飞升虚境的特殊结局，
+   *   但是游戏里要用乱码来展示」。用户拍板乱码风格 = **怪异符号叠加**（Zalgo 式）。
+   *
+   * 【为什么用「确定性腐蚀」而不是 Math.random】
+   *   pane 每 2 秒重绘、弹窗也可能被重开；随机腐蚀会让同一段文字每次都不一样
+   *   （画面抖动 + 玩家无法复述 + e2e 无法断言）。这里用「字符码 × 序号」的哈希选层数，
+   *   同一份文案永远腐蚀成同一个样子。
+   *
+   * 【为什么只叠组合变音符、不替换成方块】
+   *   用户选的是「怪异符号叠加」：字仍可辨，但视觉上像被什么从背后侵蚀。
+   *   可读性保留到「能认出这是中文，但读不懂」的程度——这正是这个结局要的观感。
+   *   ⚠️ 只用 U+0300–U+036F 的组合附加符，不引入 RTL/零宽字符：后者会把
+   *      整行排版搞乱（零宽空格会让复制出来的文本不可见地断词）。 */
+  /* 乱码字符集：两套，按「基字属于哪种字体」分流 —— 2026-10-20 headless Chrome 实测结论。
+   * ⚠️ 中文字体（Microsoft YaHei 等）**不含** U+0300–U+036F 组合变音符、也不含 U+20DD–U+20E4
+   *    组合封闭符：叠在汉字上会被渲染成 tofu 方块（□），既不像乱码、又把正文顶得七零八落。
+   *    组合符必须与基字**同一字体**才生效 ⇒ 追加 font-family 回退（Segoe UI Symbol 等）**救不了**，
+   *    实测 A（纯中文）/ B（中文+组合符）/ C（拉丁+组合符）/ F（加回退）四行对照已确认。
+   * ⇒ 拉丁、数字、半角符号走 VOID_MARKS（西文字体有字形，是真叠加，正经 Zalgo）；
+   *    汉字/全角走 VOID_GLYPHS —— 全部经实测在中文字体下有字形：
+   *    方框绘制 U+2501/254B/2550/256C/2573/2591-2593、日文迭代符 U+3005/3006/309D/309E/30FD/30FE、
+   *    半角片假名 U+FF66/FF71/FF80/FF8A/FF9E/FF9F、盲文点阵 U+2801/2803/2809/2819/2839/286B/28FF。
+   *    追加在字后（无法真叠加，但「数据损坏」观感到位，且不依赖组合符）。
+   * 两套都**确定性**（纯 charCode 运算、零 Math.random）：重绘不抖，e2e 可断言。 */
+  var VOID_MARKS = ['\u0338', '\u0336', '\u0334', '\u0308\u0334', '\u0301\u0338', '\u0337\u0338'];
+  var VOID_GLYPHS = ['\u2501', '\u254b', '\u2550', '\u256c', '\u2573', '\u2591', '\u2592', '\u2593',
+    '\u3005', '\u3006', '\u309d', '\u309e', '\u30fd', '\u30fe',
+    '\uff66', '\uff71', '\uff80', '\uff8a', '\uff9e', '\uff9f',
+    '\u2801', '\u2803', '\u2809', '\u2819', '\u2839', '\u286b', '\u28ff'];
+  function voidCorrupt(text, seed) {
+    var out = '', i, ch, cc, h, k, S;
+    for (i = 0; i < text.length; i++) {
+      ch = text.charAt(i);
+      out += ch;
+      cc = ch.charCodeAt(0);
+      if (cc === 32 || cc === 10 || cc === 0x3000) continue;
+      h = (cc * 31 + (seed | 0) * 17 + i * 7) % 100;
+      if (cc < 0x2e80) {
+        /* 拉丁/数字：组合符真叠加（0~3 个） */
+        if (h < 38) out += VOID_MARKS[h % VOID_MARKS.length];
+        else if (h < 66) out += VOID_MARKS[(h + 1) % VOID_MARKS.length] + VOID_MARKS[(h + 3) % VOID_MARKS.length];
+        else if (h < 78) {
+          for (k = 0; k < 3; k++) out += VOID_MARKS[(h + k * 2) % VOID_MARKS.length];
+        }
+      } else {
+        /* 汉字/全角：追加怪异符号（0~2 个），密度略低于拉丁以控制行宽 */
+        S = VOID_GLYPHS;
+        if (h >= 34) {
+          out += S[(cc + seed * 11 + h) % S.length];
+          if (h >= 78) out += S[(cc + h * 3 + seed * 5) % S.length];
+        }
+      }
+    }
+    return out;
+  }
+  function showAscendVoid(s) {
+    var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
+    var C = voidCorrupt;
+    box.innerHTML = '<div class="void-ascend-panel">'
+      + '<h2 class="void-title">' + C('飞升虚境', 3) + '</h2>'
+      + '<p class="void-line">' + C('戴森球的最后一圈光收束了。', 7) + '</p>'
+      + '<p class="void-line">' + C('所有的名字都从语言里剥落。', 11) + '</p>'
+      + '<p class="void-line void-garbled">' + C('Zalgo has come.', 13) + '</p>'
+      + '<p class="void-line">' + C('我们不再是「我们」。', 17) + '</p>'
+      + '<p class="void-note">' + C('（这一局到此为止。你可以轮回结算，也可以留在这里看着它继续。', 19) + '</p>'
+      + '<div class="break-controls">'
+      + '<button class="btn big" type="button" id="voidBreakNow">' + C('轮回', 23) + '</button>'
+      + '<button class="btn" type="button" id="voidKeepPlaying">' + C('继续游玩', 29) + '</button>'
+      + '</div></div>';
+    modal.classList.remove('hidden'); bodyModalClass(true);
+    var b1 = el('voidBreakNow');
+    if (b1) b1.onclick = function () {
+      hideModal();
+      if (SB.game && SB.game.askReset) SB.game.askReset();
+    };
+    var b2 = el('voidKeepPlaying');
+    if (b2) b2.onclick = hideModal;
+  }
+
 
   var researchParts = SB.ui.renderParts.research;
   var paneTech = researchParts.paneTech;
@@ -309,23 +463,43 @@
     challenges: SB.ui.renderParts.paneChallenges,
     company: SB.ui.renderParts.paneCompany, 'star-dome': paneStarDome };
 
-  /* 星穹商店（ERA7 · spec §7）：页签骨架 + 星屑余额显示。
-   * ⚠️ 本 spec 只做骨架——实际商品另开一轮设计（用户未定义），不在本 spec 落地。
-   *   门 = 首个太空建筑建成（s.lvl.satellite>=1）；结算发放逻辑在 prestige.doBreak。 */
+  /* 星穹商店：星屑结算、永久强化和轮回点兑换。 */
   function paneStarDome() {
     var s = res(); if (!s) return '';
     var m = meta();
     var sd = (m && (m.stardust || 0)) || 0;
-    var spaceLvls = ((s.lvl && s.lvl.satellite) || 0) + ((s.lvl && s.lvl.spacestation) || 0);
     var starPct = (SB.CFG.STAR_CAP > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / SB.CFG.STAR_CAP) : 0;
-    var nextGain = Math.floor(spaceLvls * 0.1 * (1 + starPct));
-    return '<div class="cardbody">' +
-      '<div class="kv"><span>星屑余额</span><b>' + sd + '</b></div>' +
-      '<div class="kv"><span>下个周目结算可得</span><b>' + nextGain + '</b></div>' +
-      '<div class="note">星屑是跨周目局外资源，仅在周目结算时发放（不做逐秒滴流）。' +
-        '预计：floor( 太空建筑等级 ' + spaceLvls + ' × 0.1 × (1 + 星空进度 ' + Math.round(starPct * 100) + '%) )。</div>' +
-      '<div class="note warn">星穹商店商品尚未开放（设计中）。</div>' +
+    var dysonPct = SB.economy.dysonPct(s);
+    var facilityLvls = SB.prestige.stardustFacilityLevels(s);
+    var nextGain = SB.prestige.stardustGain(s);
+    var facilityNames = [];
+    for (var fi = 0; fi < SB.BUILDINGS.length; fi++) {
+      var fb = SB.BUILDINGS[fi], fl = (s.lvl && s.lvl[fb.id]) || 0;
+      if (fb.stardustFacility && fl > 0) facilityNames.push(fb.name + ' ' + fl);
+    }
+    var h = '<div class="cardbody">' +
+      '<div class="meta-overview"><div class="meta-balance"><span>星屑余额</span><strong>' + sd + '</strong><small>累计结算获得 ' + ((m && m.stardustEarned) || 0) + '</small></div>' +
+      '<div class="meta-stats"><div><span>下次结算预计</span><b>' + nextGain + ' 星屑</b></div><div><span>太空与异星设施</span><b>' + facilityLvls + ' 级</b></div><div><span>戴森球进度</span><b>' + Math.floor(dysonPct * 100) + '%</b></div></div></div>' +
+      '<div class="note">结算公式：floor(设施等级 × 0.1 × (1 + 星空进度) × (1 + 戴森进度 × 50%) × 已解锁加成)。' +
+      '星间遗迹按设施总等级加成；先民遗产和继承繁星之人也会计入。</div>' +
+      '<div class="note">计入设施：' + (facilityNames.length ? facilityNames.join('、') : '尚无') +
+      '。星空进度 ' + Math.floor(starPct * 100) + '%；戴森球按太阳帆与戴森节点两者较低进度计算。</div>' +
+      '<section class="meta-shop-group"><div class="meta-section-title"><b>星屑强化</b><span>购买后跨周目保留</span></div><div class="meta-shop-grid">';
+    for (var pi = 0; pi < SB.STAR_PERKS.length; pi++) {
+      var p = SB.STAR_PERKS[pi], st = SB.prestige.starPerkState(p.id);
+      h += '<article class="meta-perk-card' + (st.done ? ' is-done' : '') + '"><div class="meta-perk-copy"><div class="nm">' + p.name +
+        ' <span class="tag">' + st.lv + '/' + (isFinite(st.max) ? st.max : '∞') + '</span></div><div class="ds">' + p.desc + '</div></div>' +
+        '<button class="btn buy meta-buy" data-star-perk="' + p.id + '"' + (st.done || !st.afford ? ' disabled' : '') + '>' +
+        (st.done ? '已购满' : st.next + ' 星屑') + '</button></article>';
+    }
+    h += '</div></section>' +
+      '<section class="meta-shop-group"><div class="meta-section-title"><b>轮回点兑换</b><span>双向固定汇率，无手续费</span></div><div class="meta-shop-grid">' +
+      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">10 轮回点 → 1 星屑</div><div class="ds">消耗 10 轮回点，兑换 1 星屑。</div></div><button class="btn buy meta-buy" data-star-exchange="tide-to-stardust"' + ((m.tide || 0) < 10 ? ' disabled' : '') + '>兑换</button></article>' +
+      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">1 星屑 → 10 轮回点</div><div class="ds">消耗 1 星屑，兑换 10 轮回点。</div></div><button class="btn buy meta-buy" data-star-exchange="stardust-to-tide"' + (sd < 1 ? ' disabled' : '') + '>兑换</button></article>' +
+      '</div></section>' +
+      '<div class="note meta-shop-note">星屑由合格轮回结算发放，也可按固定汇率兑换；购买强化与兑换后的余额均跨周目保留。</div>' +
       '</div>';
+    return h;
   }
 
   /* ── pane 重写会换掉里面的元素，于是「活在 DOM 上的滚动位置」归零 ──
@@ -420,7 +594,15 @@
               star: { value: (_smS.res && _smS.res.starExplore) || 0, cap: (SB.CFG && SB.CFG.STAR_CAP) || 0 }
             }, '*');
           }
+          if (SB.ui.renderParts.refreshStarMapBuildings) SB.ui.renderParts.refreshStarMapBuildings(_smS);
+          /* ERA10（2026-10-20）：戴森面板随星图分支一起刷新（独立容器，不碰 iframe 签名）。 */
+          if (SB.ui.renderParts.refreshDysonPanel) SB.ui.renderParts.refreshDysonPanel(_smS);
         }
+      } else if (k === 'folk' && SB.ui.input && SB.ui.input.isFolkControlPointerActive &&
+                 SB.ui.input.isFolkControlPointerActive()) {
+        /* 手机 tap 的 pointerdown 与合成 click 之间保留原按钮节点；定时 renderAll 若在这段窗口
+         * 重建 #pane-folk，就会让浏览器丢掉 click target。动作 click 到达后会立刻恢复正常渲染。 */
+        continue;
       } else if (k === 'faith' || k === 'company' || k === 'village') {
         var body = el('pane-' + k + '-body');
         if (body) body.innerHTML = PANES[k]();
@@ -566,8 +748,53 @@
     if (t) t.textContent = idle > 0 ? '族民（' + idle + '）' : '族民';
   }
 
+  /* 当前挑战提示放在页签与面板之间；子节点保持常驻，只改文本，避免每帧重建按钮吞掉点击。 */
+  function renderChallengeNotice(s) {
+    var notice = el('challengeNotice');
+    if (!notice) return;
+    var active = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
+    var def = active && SB.challenges.byId(active.id);
+    var tier = active && SB.challenges.activeTier(s);
+    if (!active || !def || !tier) { notice.hidden = true; return; }
+
+    var rule = '', progress = '', cap = tier.cap;
+    if (active.id === 'science') {
+      var scribeName = SB.folk.jobName(s, 'scribe');
+      rule = '学者与' + scribeName + '岗位上限 ' + cap;
+      progress = '学者 ' + ((s.jobs && s.jobs.scholar) || 0) + '/' + cap + ' · ' +
+        scribeName + ' ' + ((s.jobs && s.jobs.scribe) || 0) + '/' + cap;
+    } else if (active.id === 'small') {
+      rule = '人口上限 ' + cap;
+      progress = '当前人口 ' + Math.ceil(Number(s.pop) || 0) + '/' + cap;
+    } else if (active.id === 'cold') {
+      rule = '寒流季禁用保温法 · 暖石产出 -30%';
+      progress = SB.challenges.warmHeatingBlocked(s) ? '当前：保温禁用' : '当前：保温可用';
+    } else if (active.id === 'abyss') {
+      rule = '全局产出 -' + Math.round(cap * 100) + '%';
+      progress = (SB.prestige.qualified(s) ? '神学资格 ✓' : '待完成神学') + ' · 剩余壳厚 ' + Math.max(0, Math.round(Number(s.shell) || 0));
+    } else if (active.id === 'speedrun') {
+      var speedTimedOut = SB.challenges.timedOut(s);
+      rule = '限时 ' + SB.challenges.formatClock(cap) + ' · 退出后继续计时';
+      progress = speedTimedOut ? '已超时 · 重开本周目后可重试' :
+        '剩余 ' + SB.challenges.formatClock(SB.challenges.remainingSeconds(s)) + ' · ' +
+        (SB.prestige.qualified(s) ? '神学资格 ✓' : '待完成神学') + ' · 壳厚 ' + Math.max(0, Math.round(Number(s.shell) || 0));
+    } else {
+      rule = def.rule || def.summary || '';
+      progress = '挑战限制持续生效';
+    }
+
+    var titleNode = el('challengeNoticeTitle'), ruleNode = el('challengeNoticeRule'), progressNode = el('challengeNoticeProgress');
+    var title = def.name + ' · ' + tier.label;
+    if (titleNode && titleNode.textContent !== title) titleNode.textContent = title;
+    if (ruleNode && ruleNode.textContent !== rule) ruleNode.textContent = rule;
+    if (progressNode && progressNode.textContent !== progress) progressNode.textContent = progress;
+    notice.hidden = false;
+  }
+
   function renderAll() {
     var s = res();
+    applyEraSkin(s);
+    renderChallengeNotice(s);
     /* 巢穴 tab 名随纪元演进（与卡片标题同一来源，避免 tab 写「巢穴」、面板写「渊海之国」打架）。 */
     var vt = el('villageTabName');
     if (vt && SB.habitat && SB.habitat.habitatName) vt.textContent = SB.habitat.habitatName(s);
@@ -576,14 +803,19 @@
     if (vh && SB.habitat && SB.habitat.habitatName) vh.textContent = SB.habitat.habitatName(s);
     renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar();
     SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderDrill(s);
-    SB.ui.renderParts.renderStar(s); SB.ui.renderParts.renderReligion(s);
+    SB.ui.renderParts.renderGeek(s);
+    SB.ui.renderParts.renderStar(s); SB.ui.renderParts.renderHydro(s); SB.ui.renderParts.renderReligion(s);
     SB.ui.renderParts.renderHabitatName(s);
     renderIdleTag(); renderEvent(s); renderAd(); renderRank();
   }
   function renderTick() {
     var s = res();
+    applyEraSkin(s);
+    renderChallengeNotice(s);
     renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar();
     SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderDrill(s);
+    SB.ui.renderParts.renderGeek(s);
+    SB.ui.renderParts.renderHydro(s);
     renderIdleTag(); renderEvent(s); SB.ui.renderCommon.paintHappy(s);
   }
   /* 看广告加速控件（顶栏速度行）：持久节点 + textContent 更新，避免每帧重建 innerHTML 吞掉点击。
@@ -809,11 +1041,14 @@
     var extra = '';
     if (r.challengePointMul > 1) extra += '<div class="note">轮回挑战永久加成：轮回点获取 +' + Math.round((r.challengePointMul - 1) * 100) + '%</div>';
     if (r.challengeClear) extra += '<div class="note">挑战通关：<b>' + r.challengeClear.name + ' · ' + r.challengeClear.label + '</b>，永久获得 ' + r.challengeClear.reward + '；之后轮回点获取再 +10%。</div>';
+    var challengeFailureNote = r.challengeFailure ? '<div class="note" style="color:var(--red)">挑战未通关：<b>' + r.challengeFailure.name + ' · ' + r.challengeFailure.label + '</b>已超过 ' +
+      SB.challenges.formatClock(r.challengeFailure.limit) + '（本次用时 ' + SB.challenges.formatClock(r.challengeFailure.elapsed) + '），本档奖励未领取。重开本周目后可重试。</div>' : '';
+    if (challengeFailureNote) extra += challengeFailureNote;
     if (r.relicTourism) extra += '<div class="note">新入藏奇观 ' + r.relicTourism + ' 座（每座 +1% 科技/市政获取）</div>';
     if (r.oldArtwork) extra += '<div class="note">转入旧日艺术品 ' + r.oldArtwork + ' 件（固定市政点/秒）</div>';
     if (r.oldTideStele) extra += '<div class="note">转入旧日潮纹碑石 ' + r.oldTideStele + ' 件（固定科技点/秒）</div>';
     var note = r.locked
-      ? '<div class="note" style="color:var(--red)">本局未达《神学》资格门，不发放轮回点、不解锁商店。</div>'
+      ? '<div class="note" style="color:var(--red)">本局未达《神学》资格门，不发放轮回点、不解锁商店。</div>' + challengeFailureNote
       : (res() && !res().breakSettled
         ? '<div class="note">这只是当前预估，留在本局继续发展后，轮回结算会按最新进度重新计算。</div>'
         : (extra || '<div class="note">轮回点 = 1 + floor(发展分 × 系数 × 破壳系数)，发展分 = 2×峰值族民 + 建筑纪元分 + 工坊解锁项；下一局继承轮回点、已购增益与旧日遗产账本。</div>'));
@@ -848,6 +1083,7 @@
     clearBreakAnimation();
     var modal = el('modal');
     modal.classList.add('hidden');
+    modal.classList.remove('offline-summary-modal');
     modal.classList.remove('tree-modal');
     modal.classList.remove('tree-tech');
     modal.classList.remove('tree-civic');
@@ -1136,20 +1372,27 @@
     o = o || {};
     var box = el('modalBox');
     if (!box || !el('modal')) return;   // 无 DOM 环境（如离线验收桩）直接跳过
-    var html = '<h3>' + (o.title || '离线') + '</h3>' + (o.body || '');
+    var modal = el('modal');
+    if (o.summary) modal.classList.add('offline-summary-modal');
+    else modal.classList.remove('offline-summary-modal');
+    var html = o.summary ? (o.body || '') : '<h3>' + (o.title || '离线') + '</h3>' + (o.body || '');
     if (o.showProgress) {
       html += '<div class="prog"><i id="offPr" style="display:block;height:100%;width:0%;' +
         'background:linear-gradient(90deg,#2f9e6e,#5be3a4);border-radius:4px"></i></div>' +
         '<div id="offPct" class="note" style="margin-top:8px;color:var(--dim)"></div>';
     }
     if (o.ok) {
-      html += '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
-        '<button class="big" id="mOk">' + o.ok + '</button></div>';
+      html += o.summary
+        ? '<footer class="offline-report-actions"><button class="big" id="mOk">' + o.ok + '<span aria-hidden="true">→</span></button></footer>'
+        : '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button class="big" id="mOk">' + o.ok + '</button></div>';
     }
     box.innerHTML = html;
-    el('modal').classList.remove('hidden'); bodyModalClass(true);
+    modal.classList.remove('hidden'); bodyModalClass(true);
     var okBtn = el('mOk');
-    if (okBtn) okBtn.onclick = function () { el('modal').classList.add('hidden'); bodyModalClass(false); if (o.onOk) o.onOk(); };
+    if (okBtn) okBtn.onclick = function () {
+      modal.classList.add('hidden'); modal.classList.remove('offline-summary-modal');
+      bodyModalClass(false); if (o.onOk) o.onOk();
+    };
   }
   function setOfflineProgress(p) {
     var pr = el('offPr'), pct = el('offPct');
@@ -1205,6 +1448,12 @@
     /* 星空槽满槽占位结算面板（2026-10-13 镜像破壳）：tickStar 满槽时调它弹面板。
      * 导出是因为 shell.tickStar 通过 SB.ui.render.showStarComplete 调用（与 showBreakPanel 同源）。 */
     showStarComplete: showStarComplete,
+    /* ERA10（2026-10-20）：戴森球通关弹窗。economy-tick 2f 段 dysonPct 达 1 时通过
+     * SB.ui.render.showDysonComplete 调用（与 tickStar→showStarComplete 同款路径）。 */
+    showDysonComplete: showDysonComplete,
+    /* ERA10 市政《飞升虚境》：戴森竣工时若已掌握该市政，走这个乱码结局弹窗（tick 侧分叉调用）。 */
+    showAscendVoid: showAscendVoid,
+    voidCorrupt: voidCorrupt,
     storyPanel: storyPanel, techTabOpen: techTabOpen, syncTabLocks: syncTabLocks,
     initTabs: initTabs, initSpeeds: initSpeeds, techGoEra: techGoEra, scheduleTechJumpTo: scheduleTechJumpTo,
     showOfflineModal: showOfflineModal, setOfflineProgress: setOfflineProgress,
@@ -1216,6 +1465,7 @@
      * 区别只在状态是「落成类」（外层卡片，节点持久）还是「重拼进 HTML」（页内区，会被重画）。 */
     toggleCardFold: toggleCardFold, applyAllFolds: applyAllFolds,
     toggleZoneFold: toggleZoneFold, isZoneFolded: isZoneFolded, zoneColor: zoneColor,
+    toggleBuildingIcons: toggleBuildingIcons, buildingIconsShown: buildingIconsShown,
     setCivicView: setCivicView, toggleGovDetail: toggleGovDetail,
     armCard: armCard, disarmCard: disarmCard, armedCard: getArmedCard,
     cycleJobStep: cycleJobStep, jobStep: getJobStep, paintGrow: paintGrow,

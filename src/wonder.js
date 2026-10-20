@@ -22,6 +22,24 @@
     for (i = 0; i < L.length; i++) if (L[i].id === id) return L[i];
     return null;
   }
+  var THRONE_GOV = {
+    theo_state: { name: '至高圣座', effect: '信仰产出 +10%' },
+    egalitarianism: { name: '太空共同体', effect: '工坊工艺效率 +10%' },
+    federalism: { name: '国际空间站', effect: '科技产出 +10%' }
+  };
+  function displayName(s, id) {
+    var w = byId(id);
+    if (!w) return id;
+    if (id === 'wonder_throne' && s && THRONE_GOV[s.gov]) return THRONE_GOV[s.gov].name;
+    return w.name;
+  }
+  function displayDesc(s, id) {
+    var w = byId(id);
+    if (!w || id !== 'wonder_throne') return w ? w.desc : '';
+    var branch = s && THRONE_GOV[s.gov];
+    if (!branch) return '空间站有效等级 +3（免费、不收差价）；当前政体未提供额外分支加成。';
+    return '空间站有效等级 +3（免费、不收差价）；' + branch.effect + '。';
+  }
   function owned(s) { return (s.wonders && typeof s.wonders === 'object') ? s.wonders : {}; }
 
   /* ③ 奇观给市政点的那一截（**每秒绝对量**，不是乘区）。
@@ -97,7 +115,7 @@
    * ⚠️ 只加给材料，不加石梁 —— 石梁是无上限资源（用户拍），给它加 200 是没有意义的操作。
    * ⚠️ 用**白名单**而不是「石梁之外全加」：以后加新资源时白名单会逼着人决定
    *    「新资源吃不吃这个加成」，黑名单则让人默认漏掉。 */
-  var MAT_MAX_KEYS = { kelp: 1, coral: 1, stone: 1, silt: 1, warmstone: 1, iron: 1, titanium: 1, tiplate: 1 };
+  var MAT_MAX_KEYS = { kelp: 1, coral: 1, stone: 1, silt: 1, warmstone: 1, iron: 1, titanium: 1, thetaMetal: 1 };
   function matMaxBonus(s, k) {
     if (!MAT_MAX_KEYS[k]) return 0;
     var m = 0, i, o = owned(s), L = list();
@@ -270,7 +288,10 @@
     var w = byId(id);
     if (!w || !w.cost) return {};
     var lv = (SB.prestige && SB.prestige.legacy) ? SB.prestige.legacy().wonderBlueprintLevel : 0;
-    var mul = Math.max(0, 1 - 0.05 * lv);
+    /* ERA9 心胜于物卡（wonderBuildSave：0.3）：奇观建造消耗 −30%（装卡才生效）。
+     * 与蓝图折扣（−5%/级）独立相乘，两种减耗不冲突。 */
+    var save = (SB.civic && SB.civic.cardWonderBuildSave) ? SB.civic.cardWonderBuildSave(s) : 0;
+    var mul = Math.max(0, 1 - 0.05 * lv) * Math.max(0, 1 - save);
     var cost = SB.economy && SB.economy.scaffoldAdjustedCost
       ? SB.economy.scaffoldAdjustedCost(s, w.cost) : w.cost;
     var out = {}, k;
@@ -396,9 +417,28 @@
   function fishvrHydroDraw(s) {
     return owned(s).wonder_fishvr ? (SB.CFG.FISHVR_HYDRO || 0) : 0;
   }
+  /* ERA10（2026-10-20 · 用户 ERA10 表「引力弹弓」解锁）：朱庇特质量加速站两个读数。
+   * ① jupitorHydroDraw —— 运转耗 20 热液能/秒（hydroAlloc 的 jupitorDraw 调它，最低优先级）。
+   * ② wonderBiomatlabOut —— 生物材料研究所产出乘区（默认 1；建成 = ×2）。
+   *    ⚠️ 与纳米技术的 biomatlabOut（tech.mul 轴，×1.10）**独立相乘**，不进同一个轴——
+   *       科技轴在 tech.js 的 mul() 默认表里，奇观轴在这里，两条各乘各的（合计 ×2.10）。
+   *    ⚠️ economy.thetaOut 读它；漏接 = 奇观建成纹丝不动（「数据落了没人读」家族）。 */
+  function jupitorHydroDraw(s) {
+    return owned(s).wonder_jupitor_mas ? (SB.CFG.JUPITOR_HYDRO || 0) : 0;
+  }
+  function wonderBiomatlabOut(s) {
+    var m = 1, i, o = owned(s), L = list();
+    for (i = 0; i < L.length; i++) {
+      if (!o[L[i].id]) continue;
+      var e = L[i].effect;
+      if (e && typeof e.biomatlabOut === 'number') m *= 1 + e.biomatlabOut;
+    }
+    return m;
+  }
 
   SB.wonder = {
     list: list, byId: byId, owned: owned, count: count,
+    displayName: displayName, displayDesc: displayDesc,
     wonderCraftRatio: wonderCraftRatio, matMaxBonus: matMaxBonus,
     logisticsCraftRatio: logisticsCraftRatio, nationalLogisticsMul: nationalLogisticsMul,
     civicBonus: civicBonus, globalBonus: globalBonus,
@@ -407,6 +447,8 @@
     cutterSciMul: cutterSciMul, cutterCivicMul: cutterCivicMul,
     happyBonus: happyBonus, tradeSaveMul: tradeSaveMul,
     hydroWonderMul: hydroWonderMul, happyConsumeMul: happyConsumeMul,
+    /* ERA10（2026-10-20）：朱庇特质量加速站两读数（耗流 + biomatlabOut 乘区）。 */
+    jupitorHydroDraw: jupitorHydroDraw, wonderBiomatlabOut: wonderBiomatlabOut,
     skydrillPostBreak: skydrillPostBreak,
     skydrillCivic: skydrillCivic, skydrillHappyOffset: skydrillHappyOffset,
     discountedCost: discountedCost,

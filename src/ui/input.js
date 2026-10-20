@@ -5,17 +5,69 @@
   'use strict';
   var SB = root.SB || (root.SB = {});
   var E = null;
+  var folkControlPointerActive = false;
+  var folkControlPointerGeneration = 0;
 
   function run() { return SB.game.run(); }
   function emit(msg) { SB.game.emit(msg); }
 
+  var FOLK_CONTROL_SELECTOR =
+    '#pane-folk .folk-job-controls button[data-step], ' +
+    '#pane-folk .folk-job-controls button[data-job], ' +
+    '#pane-folk .folk-job-controls button[data-robot-job]';
+
+  /* 族民动作仍走 document 的普通冒泡委托；只匹配三种明确的岗位动作。 */
+  function handleFolkControlClick(e) {
+    var target = e.target || {};
+    var button = target.closest && target.closest(FOLK_CONTROL_SELECTOR);
+    /* 轻量测试 DOM 没实现 closest；真实浏览器会走上面的分支。 */
+    if (!button) {
+      var targetData = target.dataset || {};
+      if (targetData.step || targetData.job || targetData.robotJob) button = target;
+    }
+    if (!button) return false;
+
+    dragMoved = false;
+    folkControlPointerActive = false;
+    folkControlPointerGeneration++;
+    if (button.disabled) return true;
+    var d = button.dataset || {};
+    if (d.step) {
+      SB.ui.render.cycleJobStep();
+      SB.game.markDirty(); SB.game.renderAll();
+      return true;
+    }
+
+    var s = run();
+    if (!s) return true;
+    if (d.job) {
+      if (SB.folk.assign(s, d.job, +d.d)) {
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      SB.game.pumpTech(s, emit);
+      return true;
+    }
+    if (d.robotJob) {
+      if (SB.folk.assignRobot(s, d.robotJob, +d.d)) {
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      SB.game.pumpTech(s, emit);
+    }
+    return true;
+  }
+
   function onClick(e) {
+    var rawTarget = e.target || {};
     /* 拖完松手浏览器还会补一个 click（落在起点元素上），会把「拖动长卷」当成
      * 「点了那个节点」。dragMoved 记着笔，这里吞掉那一次。
-     * ⚠️ 不留残留：onPointerDown 开头会把它清掉，所以即使 click 没来（拖出容器外松手）
-     *    也不会吃掉玩家的下一次真实点击。 */
-    if (dragMoved) { dragMoved = false; return; }
-    var t = e.target || {};
+     * 只吞掉落在科技树滚动区里的合成 click。指针离开滚动区后若浏览器没有合成 click，
+     * 下次真实点击可能先到岗位按钮；不能把全页面下一次 click 一刀切吞掉。 */
+    if (dragMoved) {
+      dragMoved = false;
+      if (rawTarget.closest && rawTarget.closest('.techscroll')) return;
+    }
+    if (handleFolkControlClick(e)) return;
+    var t = rawTarget;
     var d = t.dataset || {};
     var s = run();
     if (!s) return;
@@ -31,6 +83,13 @@
     }
     if (d.govDetail) {
       if (SB.ui.render.toggleGovDetail(d.govDetail)) SB.ui.render.renderPanes();
+      return;
+    }
+
+    /* 巢穴建筑图标显隐是持久化 UI 偏好，不改游戏状态；按钮在静态标题栏，列表重绘立即生效。 */
+    if (d.buildingIconsToggle !== undefined) {
+      SB.ui.render.toggleBuildingIcons();
+      SB.ui.render.renderPanes();
       return;
     }
 
@@ -228,6 +287,21 @@
       }
       return;
     }
+    /* ERA8 生物材料研究所「开几座」：停用座数同时控制四种原料、θ产出与热液能需求。 */
+    if (d.biomatlabInc || d.biomatlabDec) {
+      var _blv = s.lvl.biomatlab || 0;
+      var _bstop = Math.max(0, Math.min(s.biomatlabStop || 0, _blv));
+      _bstop += d.biomatlabDec ? 1 : -1;
+      _bstop = Math.max(0, Math.min(_bstop, _blv));
+      if (_bstop !== (s.biomatlabStop || 0)) {
+        s.biomatlabStop = _bstop;
+        var _brun = _blv - _bstop;
+        SB.game.log('生物材料研究所：开 ' + _brun + '/' + _blv + ' 座' +
+          (_brun === 0 ? '（停产，不再消耗原料与热液能）。' : '。'));
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
     if (d.tech) {
       if (SB.habitat.study(s, d.tech, emit)) { SB.game.markDirty(); SB.game.renderAll(); }
       SB.game.pumpTech(s, emit);   // 关键节点全清 ⇒ 这里就进下一纪元
@@ -298,7 +372,19 @@
       SB.game.pumpTech(s, emit);
       return;
     }
-    var eraTarget = d.era !== undefined ? t : (t.closest && t.closest('[data-era]'));
+    /* ⚠️ 2026-10-20 真 bug（用户「手动采集珊瑚没反应」）：这里原先是裸的
+     *   `t.closest('[data-era]')` —— 任何**祖先**带 data-era 就会被当成点了纪元按钮。
+     *   而「页面材质随纪元」把 `data-era` 写在了 `<html>` 根元素上（render.js applyEraSkin，
+     *   CSS 见 70-era-skins.css 的 :root[data-era]）⇒ 从任何按钮往上找，第一个命中的
+     *   永远是根元素 ⇒ 本分支 return，**排在它后面的所有分支全部变成死代码**：
+     *   采集(gather)、一键最大/最小(jobmax/jobmin)、市政研究(civic)、政策卡装填/卸下(slot/remove)、
+     *   暖石(warm)、天穹钻机/地热(geek)、发射场模式(launchMode)、自动研究、挑战、购增益(perk)……
+     *   症状是「点了完全没反应、日志不报错、控制台零异常」——静默吞点击，最难查的一类。
+     *   修法：判定收到**真正的控件**上（`.erabtn` 只由 render-pane-research.eraNav 产出），
+     *   而不是「祖先里有没有这个属性」。皮肤属性因此可以继续挂在根元素上，两边不再撞名。
+     *   ⚠️ 别再退回宽判定：`[data-era]` 这种「祖先特征」判据，只要哪天有别的模块把同名
+     *      属性挂到 body/html，就会重演同一次全站静默失联。 */
+    var eraTarget = d.era !== undefined ? t : (t.closest && t.closest('.erabtn[data-era]'));
     var eraValue = eraTarget && eraTarget.dataset ? eraTarget.dataset.era : undefined;
     if (eraValue !== undefined) {
       /* 纪元导航按钮：纯视图动作 —— 切详情卡 + 把长卷滚到那一纪元的左边界。
@@ -313,6 +399,23 @@
     }
     if (d.skydrill) {
       toggleSkydrill(SB.game.run());
+      return;
+    }
+    if (d.geek) {
+      toggleGeek(SB.game.run());
+      return;
+    }
+    /* ERA8（2026-10-19）：工业机器人开关。状态字段 s.indRobotOn 与读侧早已接好，
+     * 这里补界面入口。只记账不结算——关掉后加成与耗能一起停，真正生效等下一 tick。 */
+    if (d.indrobotToggle) {
+      toggleIndRobot(SB.game.run());
+      return;
+    }
+    /* ERA10（2026-10-20）：欧罗巴冰面发射场制造模式切换（太阳帆 ⇄ 戴森球节点）。
+     * 闸门 = 建成发射场且完成《绝热材料》（与 render-pane-village 的按钮显示条件同源）。
+     * 只改 s.launchMode 一个字段，结算在 economy-tick 2f 读——切换的下一 tick 生效。 */
+    if (d.launchMode) {
+      toggleLaunchMode(SB.game.run());
       return;
     }
     if (d.companyClose) {
@@ -345,6 +448,19 @@
       }
       return;
     }
+    if (d.starPerk) {
+      if (SB.prestige.buyStarPerk(d.starPerk)) {
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
+    if (d.starExchange) {
+      var exchanged = d.starExchange === 'tide-to-stardust'
+        ? SB.prestige.exchangeTideForStardust()
+        : d.starExchange === 'stardust-to-tide' ? SB.prestige.exchangeStardustForTide() : false;
+      if (exchanged) { SB.game.markDirty(); SB.game.renderAll(); }
+      return;
+    }
     if (d.challengeStart) {
       if (SB.challenges && SB.challenges.prepareStart(d.challengeStart)) return;
       return;
@@ -367,13 +483,6 @@
       SB.game.pumpTech(s, emit);   // 「累计产出」是几条尤里卡的条件
       return;
     }
-    /* 步长胶囊（2026-10-14 方案 B）：×1 → ×5 → ×10 循环，全局记忆。
-     * 步长存在 render 模块（视图状态），重渲染后按钮的 data-d 自动带上新步长。 */
-    if (d.step) {
-      SB.ui.render.cycleJobStep();
-      SB.game.markDirty(); SB.game.renderAll();
-      return;
-    }
     if (d.jobmax) {
       /* 一键最大：把所有闲置族民塞进该职业（受 jobUnlocked 门控）。 */
       if (SB.folk.assignMax(s, d.jobmax)) {
@@ -388,16 +497,6 @@
         SB.game.markDirty(); SB.game.renderAll();
       }
       SB.game.pumpTech(s, emit);
-      return;
-    }
-    if (d.job) {
-      /* 单击 ±步长（步长由 folk.assign 双向钳制：加钳到 idle、减钳到在岗数）。
-       * ⚠️ 2026-10-16 用户：删掉「双击 = 最大/最小」——太容易误触把整职业清零/塞满，
-       *   要大量加减用「×N」胶囊多按几次即可。 */
-      if (SB.folk.assign(s, d.job, +d.d)) {
-        SB.game.markDirty(); SB.game.renderAll();
-      }
-      SB.game.pumpTech(s, emit);   // job 类条件（几个学者 / 几个匠人）
       return;
     }
     /* ---- 市政（2026-09-27）----
@@ -502,6 +601,54 @@
     return true;
   }
 
+  /* ── 星球重构机 G.E.E.K 启动 / 停机（ERA9 · 生态重塑解锁奇观，2026-10-19 实装）──
+   * 闸门 = 奇观已建成（与 renderGeek 的显示条件同源：没建成这按钮不出现在页面上，这里再判一道防直达调用）。
+   * 停摆（缺料）不回拨开关——补料后自动续转。运行态不加幸福度 −1（用户拍板）。 */
+  function toggleGeek(s) {
+    if (!s || !SB.wonder || !SB.wonder.owned(s).wonder_geek) return false;
+    if (!s.geek) s.geek = { geekOn: false };
+    s.geek.geekOn = !s.geek.geekOn;
+    /* 从「停」拨到「开」的瞬间清一下停摆位：下一 tick tickShell 会按真实供需重新落位。 */
+    if (s.geek.geekOn) s.geekStarved = false;
+    SB.game.markDirty(); SB.game.renderAll();
+    SB.game.log(s.geek.geekOn ? '星球重构机 G.E.E.K 启动：改造瑞亚星……' : '星球重构机 G.E.E.K 已停机。');
+    return true;
+  }
+
+  /* ── 工业机器人启动 / 停机（ERA8 · 2026-10-19）──────────────────────
+   * 闸门 = 已装上 upg_indrobot（与 renderUpgradeRows 的按钮显示条件同源：
+   * 没装上这按钮根本不出现在页面上，这里再判一道防直达调用）。
+   * 只记账不结算——关掉 ⇒ 工坊效率加成（workshop.js _robot）与热液能消耗（economy.js robotDraw）
+   * 一起停，真正生效等下一 tick（开关不该有「半个 tick」的效果）。 */
+  function toggleIndRobot(s) {
+    if (!s || !(s.upgrades && s.upgrades.upg_indrobot)) return false;
+    var on = s.indRobotOn !== false;
+    s.indRobotOn = !on;
+    SB.game.markDirty(); SB.game.renderAll();
+    SB.game.log(s.indRobotOn !== false
+      ? '工业机器人已启动：工坊效率 +100%，耗 1 热液能/秒。'
+      : '工业机器人已关闭：效率加成与热液能消耗一起停。');
+    return true;
+  }
+
+  /* ── ERA10（2026-10-20）：欧罗巴冰面发射场制造模式切换 ──────────────
+   * 用户 ERA10 表「绝热材料」解锁1。闸门 = 发射场已建成（lv>0）且完成《绝热材料》
+   * （与 render-pane-village 的 elBtn 显示条件、economy-tick 2f 的 _nodeMode 三处同源）。
+   * 只翻 s.launchMode（'sail' ⇄ 'node'）——耗料/产出/进度全在 tick 读这一个字段。 */
+  function toggleLaunchMode(s) {
+    /* ERA10 市政（2026-10-20）：判据从 s.lvl.europa_launch>0 换成 launchLvl>0——
+     * 泰拉/瑞亚星发射场建好后同一个钮也生效（三座共用 s.launchMode，同一套制造体系）。 */
+    if (!s || !(SB.economy && SB.economy.launchLvl && SB.economy.launchLvl(s) > 0)) return false;
+    if (!(s.techs && s.techs.adiabatic)) return false;
+    var node = s.launchMode === 'node';
+    s.launchMode = node ? 'sail' : 'node';
+    SB.game.markDirty(); SB.game.renderAll();
+    SB.game.log(node
+      ? '发射场已切回太阳帆模式：每级每 ' + (SB.economy.launchCycleOf ? SB.economy.launchCycleOf(s) : 10) + 's 推 1 帆。'
+      : '发射场已切换到戴森球节点模式：每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板。');
+    return true;
+  }
+
   /* ── 长卷横向拖动 ──────────────────────────────────────────────────
    * 长卷是 overflow-x:auto 的横滚容器：手机上手指滑是原生滚动（有惯性、能回弹，
    * 别自己造一个更差的），但**桌面鼠标按住左键是拖不动的**（只有 shift+滚轮能横滚），
@@ -516,10 +663,14 @@
   var dragState = null, dragMoved = false;
 
   function onPointerDown(e) {
+    var t = e.target;
+    folkControlPointerActive = !!(t && t.closest && t.closest('#pane-folk .folk-job-controls button'));
+    /* 每次新指针操作都清掉上次树图拖动标记。触屏不接管拖动，但仍要清标记；
+     * 否则上一次拖出页面且没有合成 click 时，后续触屏点击会被 onClick 当成拖动吞掉。 */
+    dragMoved = false;
+    folkControlPointerGeneration++;
     if (e.pointerType === 'touch') return;              // 触屏交给原生滚动
     if (e.button != null && e.button !== 0) return;     // 只接左键
-    dragMoved = false;                                  // 上一趟可能没等到 click
-    var t = e.target;
     if (!t || !t.closest || !t.closest('.techscroll')) return;
     /* ⚠️ 容器从 closest 拿到就直接用，**不要再按 id 去 document 里取**
      *    （2026-09-27 市政树改成横卷之后踩到：市政 canvas 也带 .techscroll 类，
@@ -547,7 +698,19 @@
     if (e.preventDefault) e.preventDefault();   // 拖过的地方别顺手选上文字
   }
 
-  function onPointerUp() { dragState = null; }
+  function onPointerUp() {
+    dragState = null;
+    /* 若 pointercancel 或浏览器没有合成 click，下一任务也要解除保护。延迟到当前输入序列结束，
+     * 让 pointerup 与 click 之间排队的定时重画仍暂缓替换岗位按钮。 */
+    if (folkControlPointerActive) {
+      var generation = folkControlPointerGeneration;
+      root.setTimeout(function () {
+        if (generation === folkControlPointerGeneration) folkControlPointerActive = false;
+      }, 120);
+    }
+  }
+
+  function isFolkControlPointerActive() { return folkControlPointerActive; }
 
   function onChange(e) {
     var t = e.target || {};
@@ -555,6 +718,8 @@
      * ⚠️ 只写不重建：renderReligion 用 gate 签名节流，改名不触发重画 ⇒ 输入框焦点/内容不动。 */
     if (t.dataset && t.dataset.religion !== undefined) {
       var s = run(); if (!s) return;
+      /* ERA9 虚境信仰卡装填后信仰名锁死（覆盖并锁死），禁写回玩家自定义名。 */
+      if (SB.civic && SB.civic.faithNameLocked && SB.civic.faithNameLocked(s)) return;
       s.religionName = (t.value || '').slice(0, 16);
       SB.game.markDirty();
       SB.game.maybeReligionPopup(s);   // 写入第一个名字 = 建立宗教 ⇒ 播「轮回」弹窗
@@ -583,5 +748,9 @@
   }
 
   SB.ui = SB.ui || {};
-  SB.ui.input = { boot: boot, toggleSkydrill: toggleSkydrill };
+  SB.ui.input = {
+    boot: boot, toggleSkydrill: toggleSkydrill, toggleGeek: toggleGeek, toggleIndRobot: toggleIndRobot,
+    toggleLaunchMode: toggleLaunchMode,
+    isFolkControlPointerActive: isFolkControlPointerActive
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

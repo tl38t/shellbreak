@@ -73,7 +73,7 @@ console.log('\n=== 建筑解锁来源 ===');
   check('分区覆盖全部建筑（无遗漏无重叠）', counted === B.length, '有 zone ' + counted + '/' + B.length);
   const expect = { lighthouse: 'trade', kelpstore: 'trade', ballast: 'trade',
     temple: 'faith', square: 'civic', nest: 'core', kelp: 'food', workshop: 'workshop',
-    library: 'academy' };
+    library: 'academy', biomatlab: 'workshop' };
   const wrong = Object.keys(expect).filter(k => {
     const b = B.find(x => x.id === k); return !b || b.zone !== expect[k];
   });

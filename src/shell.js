@@ -48,6 +48,9 @@
   function tickShell(s, dt, emit, opts) {
     if (s.broken) return 0;
     var cut = 0;
+    /* G.E.E.K 运行态闸门（与天穹钻机同纪律）：已建成且玩家手动启动才跑。 */
+    var geekOn = !!(s.geek && s.geek.geekOn);
+    var geekOwned = !!(SB.wonder && SB.wonder.owned(s).wonder_geek);
 
     // ① 基础削壳：卡在 FLOOR_AT，不越过
     //    判定用的是 <= 语义——壳精确停在 25% 时也必须停手，否则会来回抖动
@@ -89,6 +92,50 @@
       } else if (!s.skydrillStarved) {
         s.skydrillStarved = true;
         if (emit) emit('天穹钻机缺少共振钻头或热液能，停转——补足后自动继续。');
+      }
+    }
+
+    // ③ 星球重构机 G.E.E.K（ERA9 · 生态重塑解锁奇观）：建成后在「自然环境」卡手动启动，
+    //    依次改造瑞亚星（1800s）→ 研究 terraform 后改造泰拉星（3600s）。
+    //    ⚠️ 抄天穹钻机 flow 模型：热液能是「每 tick 瞬态流」，从本 tick 剩流里取 GEEK_HYDRO，不再读 s.res.hydro 库存池。
+    //       剩流由 economy.hydroAlloc 同一 tick 算好的 s._hydroFlow.left 给出（工坊低阶先吃满）。
+    //    ⚠️ 库存耗 kelp/metal/coral 在扣费**之前**判足（扣费先于置位，失败一分不扣），与 skydrill 同纪律；
+    //       任一不足或断流 = 暂停、进度保留（rheaRun/terraRun 累加，绝不回拨 geekOn——补料后下一 tick 自动续转）。
+    //    ⚠️ 唯一效果 = 覆盖建筑造价等级偏移（costOffset，落点 economy.costOf）；无幸福度/市政/产出额外效果（用户拍板不加）。
+    if (geekOn && geekOwned) {
+      var _gkHydro = SB.CFG.GEEK_HYDRO * dt;
+      var _HF2 = s._hydroFlow || (SB.economy ? SB.economy.hydroAlloc(s, dt) : { geekDraw: 0 });
+      var hydroOK = _HF2.geekDraw > 0;
+      var _gkKelp = SB.CFG.GEEK_KELP * dt, _gkMetal = SB.CFG.GEEK_METAL * dt, _gkCoral = SB.CFG.GEEK_CORAL * dt;
+      if (hydroOK && (s.res.kelp || 0) >= _gkKelp && (s.res.metal || 0) >= _gkMetal && (s.res.coral || 0) >= _gkCoral) {
+        s.res.kelp -= _gkKelp; s.res.metal -= _gkMetal; s.res.coral -= _gkCoral;
+        if (!s.geek.rheaDone) {
+          // 阶段一：瑞亚星改造。完成 ⇒ costOffset=3（覆盖建筑升级回到 L3 之前）。
+          s.geek.rheaRun = (s.geek.rheaRun || 0) + dt;
+          var _rheaTime = SB.economy && SB.economy.starTerraformDuration
+            ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_RHEA_SECONDS) : SB.CFG.GEEK_RHEA_SECONDS;
+          if (s.geek.rheaRun >= _rheaTime) {
+            s.geek.rheaDone = true;
+            s.geek.costOffset = 3;
+            if (emit) emit('星球重构机 G.E.E.K 完成瑞亚星改造：人口/速生珊瑚林/矿井/生息区建筑升级花费回到 L3 之前。');
+          }
+        } else if (s.techs.terraform && !s.geek.terraDone) {
+          // 阶段二：泰拉星改造（需先研究 terraform 解锁）。完成 ⇒ costOffset 叠加 +5 = 8（回到 L5 之前）。
+          s.geek.terraRun = (s.geek.terraRun || 0) + dt;
+          var _terraTime = SB.economy && SB.economy.starTerraformDuration
+            ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
+          if (s.geek.terraRun >= _terraTime) {
+            s.geek.terraDone = true;
+            s.geek.costOffset = 8;   // 叠加 Rhea(3)+Terra(5)
+            if (emit) emit('星球重构机 G.E.E.K 完成泰拉星改造：覆盖建筑升级花费回到 L5 之前（叠加后合计 L8）。');
+          }
+        }
+        s.geekStarved = false;
+      } else if (!s.geekStarved) {
+        s.geekStarved = true;
+        var _need = '每 s 需 ' + SB.CFG.GEEK_HYDRO + ' 热液能（剩流）+ ' + SB.CFG.GEEK_KELP + ' 藻食 + ' + SB.CFG.GEEK_METAL +
+          ' 金属 + ' + SB.CFG.GEEK_CORAL + ' 珊瑚';
+        if (emit) emit('星球重构机 G.E.E.K 缺少热液能或材料（' + _need + '），停转——补足后自动继续。');
       }
     }
 

@@ -598,6 +598,10 @@ console.log('\n=== 顶栏读数与自然环境卡 ===');
   check('存量带一位小数（0.1 量级的手动采集不再「点了没反应」）',
     amtOf('kelp') === '18.0' && amtOf('coral') === '10.4',
     '藻食=' + amtOf('kelp') + '　珊瑚=' + amtOf('coral'));
+  check('星空探索与局外星屑不显示在材料资源网格中',
+    !/data-res="starExplore"/.test(R) && !/data-res="stardust"/.test(R) &&
+      R.indexOf('星空探索') < 0 && R.indexOf('星屑') < 0,
+    '星空探索=' + /data-res="starExplore"/.test(R) + ' 星屑=' + /data-res="stardust"/.test(R));
   check('进位正确（9.96 → 10.0，而不是 9.10）',
     SB.economy.fmtAmt(9.96) === '10.0' && SB.economy.fmtAmt(0.04) === '0.0',
     SB.economy.fmtAmt(9.96) + ' / ' + SB.economy.fmtAmt(0.04));

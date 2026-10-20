@@ -95,6 +95,20 @@
     { id: 'autoEvent', name: '自动拾取', cost: 6, desc: '天壳震动等点击事件出现即自动拾取', kind: 'auto', n: 1, apply: { autoEvent: 1 } }
   ];
 
+  /* 星屑商店：存档等级写入 meta.starPerks，实际效果使用 apply 中的运行态键。
+   * 无限项增幅每级让轮回商店无限等级商品的单级效果再 +100%（rank 1 = 2 倍，rank 2 = 3 倍）。 */
+  var STAR_PERKS = [
+    { id: 'starInfinite', name: '轮回共鸣', desc: '轮回商店无限等级商品的每级效果 +100%/级', kind: 'infinite', n: Infinity, cost: 2, costStep: 2, apply: { starInfinite: 1 } },
+    { id: 'starSmelt', name: '星炉淬炼', desc: '精铁、钢与生物材料研究所产出的 θ金属 +5%/级', kind: 'smelt', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starSmelt: 1 } },
+    { id: 'starFolk', name: '繁星劳作', desc: '族民岗位产出 +5%/级', kind: 'folk', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starFolk: 1 } },
+    { id: 'earlyAutoBuild', name: '先行建造协议', desc: '提前开放所有分区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuild: 1 } },
+    { id: 'starLaunchSpeed', name: '星际快速装配', desc: '所有发射器制造周期 −1 秒/级，最多 −3 秒', kind: 'launch', n: 3, costs: [3, 6, 9], apply: { starLaunchSpeed: 1 } },
+    { id: 'starDysonCost', name: '戴森精益制造', desc: '戴森节点制造所需的引擎、薄膜和钛合金板 −5%/级，最多 −50%', kind: 'dyson', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starDysonCost: 1 } },
+    { id: 'starSailHydro', name: '帆阵热液回收', desc: '太阳帆提供的热液能 +5%/级，最多 +50%', kind: 'hydro', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starSailHydro: 1 } },
+    { id: 'starTerraform', name: '行星重构加速', desc: '瑞亚与泰拉改造时间 −5%/级，最多 −50%', kind: 'terraform', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starTerraform: 1 } },
+    { id: 'starExplore', name: '深空观测阵列', desc: '卫星与空间站提供的星空探索 +10%/级，最多 +100%', kind: 'explore', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starExplore: 1 } }
+  ];
+
   /* 职业表。对齐 docs/DESIGN_v0.3.md §4「开局 **1 名族民，职业 = 采集者，资源 = 藻食**」：
    *   「采集者 gatherer | 藻食（手动也能点） | **开局唯一**」
    * 所以本表开局只有 gather 挂着（其余在 UI 里不露头，靠 habitat 的解锁判定），
@@ -271,8 +285,8 @@
      * ⚠️ bonus = 2.00（spec §4 用户拍：上一级钢质 1.00 的 2 倍）
      *    ⇒ 镰线全买 = 1 + 0.8(青铜) + 0.8(铁) + 1.0(钢) + 2.0(θ) = **×5.6**。
      * 【need: 'biomat'】真字段（workshop.blocked 读）；生物材料的尤里卡是「藻食上限 30000」，
-     *    与产线无关，无死锁。cost 用 θ金属（θ 由生物材料研究所产，CAP_BASE 200），
-     *    数量 30/40/50 对齐 θ 是「era8 建筑造价主料」的稀缺定位（三件共 120 θ ≈ 大半仓）。 */
+     *    与产线无关，无死锁。cost 用 θ金属（θ 由生物材料研究所产），
+     *    数量 30/40/50 对齐 θ 是「era8 建筑造价主料」的稀缺定位（三件共 120 θ）。 */
     { id: 'tool_thetaSickle', name: 'θ镰', need: 'biomat', target: ['gather'],
       bonus: 2.00, cost: { thetaMetal: 30 },
       desc: '农民采藻食 +200%（与青铜/铁/钢镰相加合并，四件全买 = ×5.6）' },
@@ -285,6 +299,7 @@
   ];
 
   NS.PERKS = PERKS;
+  NS.STAR_PERKS = STAR_PERKS;
   NS.JOBS = JOBS;
   NS.TOOLS = TOOLS;
 })(typeof window !== 'undefined' ? window : globalThis);
