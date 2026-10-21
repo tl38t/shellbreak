@@ -145,7 +145,7 @@ const cyclePre = metaPre.cycle;
  *     轮回结算分支（选项 B 的资格门 = 本局《神学》真值）。 */
 const sPre = SB.game.run();
 sPre.civics = {}; sPre.lvl.kelp = 3; sPre.res.coral = 500; sPre.pop = 20;
-const rBtn = doc.getElementById('btnReset');
+const rBtn = doc.getElementById('btnBreak');
 check('页脚「重开/轮回」按钮已接线', typeof rBtn.onclick === 'function');
 rBtn.onclick();
 const modalEl = doc.getElementById('modal');
@@ -175,16 +175,32 @@ check('已研究神学：确认框标题为「轮回（结算并发放轮回点�
 doc.getElementById('mOk').onclick();
 check('已研究神学：点击后进入真实轮回结算（doBreak 发放轮回点）',
   SB.game.meta().tide > tideQ, 'tide ' + tideQ + '→' + SB.game.meta().tide.toFixed(2));
-/* 2026-10-07 破壳终章动画（showBreakAnimation）先上，结算面板（含 mNext）要点
- * 「跳过动画」触发 finish() 后才渲染 ⇒ 走真实跳过路径，别直接摸 mNext。 */
-check('破壳终章动画先上（breakContinue 可点）', typeof doc.getElementById('breakContinue').onclick === 'function');
-doc.getElementById('breakContinue').onclick();
-check('已研究神学：跳过动画后结算面板出现且「开始轮回」已接线',
+/* 2026-10-21 口径更新：手动轮回（btnBreak → askResetRun → doBreak）不再播破壳终章动画 ——
+ * cc811b3 拍板（prestige.js doBreak 注释）：动画只属于 shell.onShellZero 的「凿穿」事件，
+ * 手动提前轮回不能伪装成凿穿 ⇒ 这里应直接出结算面板（mNext 已接线）。
+ * 旧断言（2026-10-07「动画先上再点跳过」）编码的是已废弃的旧设计，与生产口径矛盾导致整份
+ * e2e 硬崩在 getElementById('breakContinue').onclick —— 动画本体改由下方定向块单独覆盖。 */
+check('已研究神学：确认后直接出结算面板且「开始轮回」已接线（手动轮回不播动画）',
   typeof doc.getElementById('mNext').onclick === 'function');
 doc.getElementById('mNext').onclick();              // 开始轮回 ⇒ nextCycle ⇒ startRun
 check('已研究神学：轮回后进下一周目（cycle+1、本局清空）',
   SB.game.meta().cycle === cycleQ + 1 && SB.economy.lvlSum(SB.game.run()) === 0,
   'cycle=' + SB.game.meta().cycle);
+
+/* 破壳终章动画定向断言：动画的归属是 shell.onShellZero / 离线补算 finishCatchUp（game.js:956）。
+ * 这里直接驱动真实 showBreakAnimation（不 stub），验证四段分镜 DOM 上屏、「跳过动画」接线、
+ * 以及 finish() → afterAnimation 回调（结算面板在动画后才出现的生产路径）。 */
+{
+  const liveAnim = SB.game.run();
+  const animReport = SB.prestige.breakReport(liveAnim);
+  let afterCalled = false;
+  SB.game.showBreakAnimation(animReport, function () { afterCalled = true; });
+  check('破壳终章动画：分镜 DOM 上屏且「跳过动画」已接线',
+    doc.getElementById('modalBox').innerHTML.indexOf('break-showcase') >= 0 &&
+    typeof doc.getElementById('breakContinue').onclick === 'function');
+  doc.getElementById('breakContinue').onclick();    // finish() ⇒ clearBreakAnimation + afterAnimation
+  check('破壳终章动画：跳过后触发 afterAnimation（进入结算面板路径）', afterCalled === true);
+}
 
 const wBtn = doc.getElementById('btnWipe');
 check('页脚「清空存档」已接线', typeof wBtn.onclick === 'function');

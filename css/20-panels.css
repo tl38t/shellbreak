@@ -146,6 +146,8 @@ input.relname.locked{opacity:.85;border-color:#b13bd6;color:#f3c8ff;background:r
 .hydro-live{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding:3px 7px;border-radius:999px;
   border:1px solid rgba(91,204,214,.2);background:rgba(72,192,205,.08);color:#8bd5dc;font-size:10px;white-space:nowrap}
 .hydro-live i{width:5px;height:5px;border-radius:50%;background:#5dd6cb;box-shadow:0 0 7px #5dd6cb;animation:hydroPulse 1.8s ease-in-out infinite}
+.hydro-live.is-deficit{border-color:color-mix(in srgb,var(--red) 45%,transparent);background:color-mix(in srgb,var(--red) 10%,transparent);color:var(--red)}
+.hydro-live.is-deficit i{background:var(--red);box-shadow:0 0 7px var(--red)}
 @keyframes hydroPulse{50%{opacity:.4;box-shadow:0 0 2px #5dd6cb}}
 .hydro-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
 .hydro-metric{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border:1px solid rgba(112,155,180,.14);
@@ -153,18 +155,34 @@ input.relname.locked{opacity:.85;border-color:#b13bd6;color:#f3c8ff;background:r
 .hydro-metric>span{font-size:10px;color:var(--dim)}
 .hydro-metric>b{display:flex;align-items:baseline;gap:4px;font-size:18px;font-variant-numeric:tabular-nums;line-height:1.2;color:#b9eaf0}
 .hydro-metric>b small{font-size:10px;font-weight:400;color:var(--dim)}
-.hydro-metric-left>b{color:#72dfbd}
+.hydro-metric-balance.is-negative>b{color:var(--red)}
+.hydro-metric-balance.is-positive>b{color:var(--green)}
 .hydro-track{display:flex;height:7px;overflow:hidden;margin-top:10px;border-radius:99px;background:#091522;
   box-shadow:inset 0 0 0 1px rgba(128,171,197,.16)}
 .hydro-track i{display:block;height:100%;transition:width .18s ease}
-.hydro-used-fill{background:linear-gradient(90deg,#318da5,#65d6d0)}
-.hydro-left-fill{background:linear-gradient(90deg,#55c8b0,#9ce5bd)}
+.hydro-supply-fill{background:linear-gradient(90deg,#318da5,#65d6d0)}
+.hydro-deficit-fill{background:linear-gradient(90deg,#d17c46,var(--red))}
 .hydro-routing{display:grid;gap:6px;margin-top:9px;padding-top:8px;border-top:1px solid rgba(112,155,180,.14)}
 .hydro-route{display:grid;grid-template-columns:42px minmax(0,1fr);gap:8px;font-size:10px;line-height:1.5}
 .hydro-route>b{color:#8ed6de;font-weight:600;letter-spacing:.5px}
 .hydro-route>span{color:#b3c5d4;overflow-wrap:anywhere}
+.hydro-shortage{display:grid;gap:3px;margin-top:8px;padding:8px 10px;border:1px solid color-mix(in srgb,var(--red) 44%,transparent);
+  border-radius:7px;background:color-mix(in srgb,var(--red) 9%,var(--panel));font-size:10px;line-height:1.55}
+.hydro-shortage[hidden]{display:none}
+.hydro-shortage>b{color:var(--red);font-size:11px}
+.hydro-shortage>span{color:var(--txt);overflow-wrap:anywhere}
 .hydro-foot{margin-top:6px;color:var(--dim);font-size:9px;line-height:1.4;text-align:right}
 #hydroFlowHint{color:var(--dim)}
+html[data-ui-theme="day"] .hydro-panel{border-color:#aec8c8;
+  background:linear-gradient(115deg,rgba(233,246,242,.96),rgba(246,250,248,.98) 62%,rgba(228,240,237,.96));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
+html[data-ui-theme="day"] .hydro-icon{color:#176e76;background:rgba(43,148,153,.1);border-color:rgba(36,130,137,.25)}
+html[data-ui-theme="day"] .hydro-live{color:#176e76;border-color:rgba(36,130,137,.24);background:rgba(43,148,153,.07)}
+html[data-ui-theme="day"] .hydro-metric{border-color:rgba(63,111,117,.18);background:rgba(220,236,232,.7)}
+html[data-ui-theme="day"] .hydro-metric>b{color:#205b68}
+html[data-ui-theme="day"] .hydro-track{background:#d5e5e2;box-shadow:inset 0 0 0 1px rgba(59,106,115,.18)}
+html[data-ui-theme="day"] .hydro-route>b{color:#286b72}
+html[data-ui-theme="day"] .hydro-route>span{color:#3f5963}
 @media(max-width:430px){.hydro-metrics{gap:5px}.hydro-metric{padding:7px}.hydro-metric>b{font-size:16px}.hydro-route{grid-template-columns:36px minmax(0,1fr)}}
 
 /* ── 点击时间事件横幅（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）──

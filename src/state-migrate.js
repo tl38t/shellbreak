@@ -325,10 +325,13 @@
     }
     /* G.E.E.K 运行态（ERA9）：与 res/lvl 不同，它是「我新代码整对象写」的字段，但为前向兼容
      * （将来给 geek 加新旗时，旧档只存了老旗会丢失新旗默认值），做一层按 key 的浅合并而非
-     * 整对象覆盖——否则 raw.geek={rheaDone:true} 会把 costOffset 等默认冲没、甚至把 geekOn 弄丢
+     * 整对象覆盖——否则 raw.geek={enceladusDone:true} 会把 costOffset 等默认冲没、甚至把 geekOn 弄丢
      * （开关位丢失 = 玩家重进游戏发现 G.E.E.K 自己停了）。布尔旗严格按布尔收口，三个数值非负有限。 */
     var rawGeek = (raw.geek && typeof raw.geek === 'object') ? raw.geek : {};
-    var _gb = base.geek || { geekOn: false, rheaDone: false, terraDone: false, costOffset: 0, rheaRun: 0, terraRun: 0 };
+    /* 旧档兼容：瑞亚星改造曾用 rheaDone/rheaRun，重命名为恩克拉多斯后做一次键迁移（2026-10-21）。 */
+    if (typeof rawGeek.rheaDone === 'boolean') rawGeek.enceladusDone = rawGeek.rheaDone;
+    if (typeof rawGeek.rheaRun === 'number' && isFinite(rawGeek.rheaRun) && rawGeek.rheaRun >= 0) rawGeek.enceladusRun = rawGeek.rheaRun;
+    var _gb = base.geek || { geekOn: false, enceladusDone: false, terraDone: false, costOffset: 0, enceladusRun: 0, terraRun: 0 };
     out.geek = {};
     for (var _gk in _gb) {
       if (typeof _gb[_gk] === 'boolean') out.geek[_gk] = (typeof rawGeek[_gk] === 'boolean') ? rawGeek[_gk] : _gb[_gk];

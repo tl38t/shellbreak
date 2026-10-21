@@ -188,31 +188,31 @@
     }
     box.style.display = '';
     var starved = !!(s.geekStarved && s.geek && s.geek.geekOn);
-    var rheaDone = !!(s.geek && s.geek.rheaDone);
+    var enceladusDone = !!(s.geek && s.geek.enceladusDone);
     var terraDone = !!(s.geek && s.geek.terraDone);
     var terraUnlocked = !!((s.techs && s.techs.terraform) && !terraDone);
     var phaseTxt, prog, total;
-    if (!rheaDone) {
-      phaseTxt = '瑞亚星改造'; prog = s.geek ? s.geek.rheaRun || 0 : 0;
+    if (!enceladusDone) {
+      phaseTxt = '恩克拉多斯星改造'; prog = s.geek ? s.geek.enceladusRun || 0 : 0;
       total = SB.economy && SB.economy.starTerraformDuration
-        ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_RHEA_SECONDS) : SB.CFG.GEEK_RHEA_SECONDS;
+        ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_ENCELADUS_SECONDS) : SB.CFG.GEEK_ENCELADUS_SECONDS;
     } else if (terraUnlocked) {
       phaseTxt = '泰拉星改造'; prog = s.geek ? s.geek.terraRun || 0 : 0;
       total = SB.economy && SB.economy.starTerraformDuration
         ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
     }
-    else { phaseTxt = '瑞亚已完成'; prog = 0; total = 1; }
+    else { phaseTxt = '恩克拉多斯已完成'; prog = 0; total = 1; }
     var pct = total > 0 ? Math.max(0, Math.min(100, Math.floor(100 * prog / total))) : 0;
     /* 剩流诊断（与钻机同口径：hydroAlloc(s,1) 纯函数，各字段已是每秒口径）。 */
     var _HF = (SB.economy && SB.economy.hydroAlloc) ? SB.economy.hydroAlloc(s, 1) : null;
     var _left = _HF ? Math.max(0, _HF.left) : 0;
     var sig = (s.geek && s.geek.geekOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
-      (rheaDone ? 'R' : 'r') + (terraDone ? 'T' : (terraUnlocked ? 't' : '-')) + '|' + pct;
+      (enceladusDone ? 'E' : 'e') + (terraDone ? 'T' : (terraUnlocked ? 't' : '-')) + '|' + pct;
     if (sig !== geekSig) {
       geekSig = sig;
       var ds;
       if (!s.geek || !s.geek.geekOn) {
-        ds = '星球重构机已就绪，尚未启动。点右侧按钮开始' + (rheaDone ? '泰拉星改造' : '瑞亚星改造') +
+        ds = '星球重构机已就绪，尚未启动。点右侧按钮开始' + (enceladusDone ? '泰拉星改造' : '恩克拉多斯星改造') +
           '——运转期间持续吃热液能（' + SB.CFG.GEEK_HYDRO + '/秒，从热液工坊剩流取）+ 藻食(' + SB.CFG.GEEK_KELP +
           '/秒)+金属(' + SB.CFG.GEEK_METAL + '/秒)+珊瑚(' + SB.CFG.GEEK_CORAL + '/秒)。';
       } else if (starved) {
@@ -227,10 +227,10 @@
         }
       } else {
         ds = '运转中：' + phaseTxt + '进度 ' + Math.floor(prog) + '/' + total + 's（' + pct + '%）。' +
-          (rheaDone && !terraUnlocked ? '研究《星球改造》后可启动泰拉星改造。' : '缺料暂停、进度保留，补足自动续。');
+          (enceladusDone && !terraUnlocked ? '研究《星球改造》后可启动泰拉星改造。' : '缺料暂停、进度保留，补足自动续。');
       }
       box.innerHTML = '<div><div class="nm">星球重构机 G.E.E.K ' +
-        (rheaDone ? '<span class="tag ok">瑞亚已完成</span>' : '') +
+        (enceladusDone ? '<span class="tag ok">恩克拉多斯已完成</span>' : '') +
         (terraDone ? '<span class="tag ok">泰拉已完成</span>' : '') + '</div>' +
         '<div class="progbar"><i style="width:' + pct + '%"></i></div>' +
         '<div class="ds">' + ds + '</div></div>' +
@@ -273,7 +273,7 @@
 
   /* ── 热液能流（ERA3+）：能源读数放在自然环境卡底部，脱离材料库存栏。
    * 热液能是瞬时流而不是库存：hydroAlloc(s,1) 与本 tick 的供需分配同源，
-   * 展示总供给、实际分配、剩余流量；不把某一秒的供给快照误读成可囤积数量。
+   * 展示总供给、开启负载的总需求与可正可负的净余量；不把流量快照误读成库存。
    * 容器与子节点只在解锁后创建一次，之后仅更新 textContent / 宽度，避免每帧重建。 */
   var hydroBuilt = false;
   function renderHydro(s) {
@@ -285,35 +285,43 @@
       hydroBuilt = true;
       box.innerHTML = '<section class="hydro-panel">' +
         '<div class="hydro-head"><span class="hydro-icon" aria-hidden="true">≈</span>' +
-        '<div class="hydro-title"><b>热液能流</b><span>即产即用 · 不存入库存</span></div>' +
-        '<span class="hydro-live"><i></i>实时分配</span></div>' +
+        '<div class="hydro-title"><b>热液能流</b><span>即产即用 · 净余量 = 供给 − 需求</span></div>' +
+        '<span class="hydro-live" id="hydroLive"><i></i><span id="hydroLiveLabel">实时分配</span></span></div>' +
         '<div class="hydro-metrics">' +
         '<div class="hydro-metric"><span>总供给</span><b><span id="hydroSupply">0.0</span><small>/秒</small></b></div>' +
-        '<div class="hydro-metric"><span>已分配</span><b><span id="hydroUsed">0.0</span><small>/秒</small></b></div>' +
-        '<div class="hydro-metric hydro-metric-left"><span>剩余流量</span><b><span id="hydroLeft">0.0</span><small>/秒</small></b></div>' +
+        '<div class="hydro-metric"><span>总需求</span><b><span id="hydroDemand">0.0</span><small>/秒</small></b></div>' +
+        '<div class="hydro-metric hydro-metric-balance" id="hydroBalanceMetric"><span>净余量</span><b><span id="hydroBalance">+0.0</span><small>/秒</small></b></div>' +
         '</div>' +
-        '<div class="hydro-track" role="img" aria-label="热液能流分配比例">' +
-        '<i class="hydro-used-fill" id="hydroUsedFill"></i><i class="hydro-left-fill" id="hydroLeftFill"></i></div>' +
+        '<div class="hydro-track" role="img" aria-label="热液能供给覆盖需求比例">' +
+        '<i class="hydro-supply-fill" id="hydroSupplyFill"></i><i class="hydro-deficit-fill" id="hydroDeficitFill"></i></div>' +
         '<div class="hydro-routing">' +
         '<div class="hydro-route"><b>来处</b><span id="hydroSources">暂无供给来源</span></div>' +
         '<div class="hydro-route"><b>去处</b><span id="hydroUses">暂无设备取用</span></div>' +
         '</div>' +
+        '<div class="hydro-shortage" id="hydroShortage" hidden>' +
+        '<b id="hydroShortageTitle"></b><span id="hydroShortageItems"></span></div>' +
         '<div class="hydro-foot"><span id="hydroFlowHint">余流不会累积到下一秒</span></div>' +
         '</section>';
     }
     var flow = SB.economy.hydroAlloc(s, 1);
     var supply = Math.max(0, flow.supplyRate || 0);
-    var left = Math.max(0, Math.min(supply, flow.left || 0));
-    var used = Math.max(0, supply - left);
-    var pctUsed = supply > 0 ? Math.max(0, Math.min(100, used / supply * 100)) : 0;
-    var pctLeft = supply > 0 ? Math.max(0, Math.min(100 - pctUsed, left / supply * 100)) : 0;
-    var supplyEl = el('hydroSupply'), usedEl = el('hydroUsed'), leftEl = el('hydroLeft');
-    var usedFill = el('hydroUsedFill'), leftFill = el('hydroLeftFill');
+    var demand = Math.max(0, flow.demandRate || 0);
+    var balance = isFinite(flow.balanceRate) ? flow.balanceRate : supply - demand;
+    var supplyCover = demand > 0 ? Math.max(0, Math.min(100, supply / demand * 100)) : (supply > 0 ? 100 : 0);
+    var deficitPct = demand > supply && demand > 0 ? Math.max(0, Math.min(100, (demand - supply) / demand * 100)) : 0;
+    var supplyEl = el('hydroSupply'), demandEl = el('hydroDemand'), balanceEl = el('hydroBalance');
+    var supplyFill = el('hydroSupplyFill'), deficitFill = el('hydroDeficitFill');
     if (supplyEl) supplyEl.textContent = supply.toFixed(1);
-    if (usedEl) usedEl.textContent = used.toFixed(1);
-    if (leftEl) leftEl.textContent = left.toFixed(1);
-    if (usedFill) usedFill.style.width = pctUsed.toFixed(2) + '%';
-    if (leftFill) leftFill.style.width = pctLeft.toFixed(2) + '%';
+    if (demandEl) demandEl.textContent = demand.toFixed(1);
+    if (balanceEl) balanceEl.textContent = (balance >= 0 ? '+' : '') + balance.toFixed(1);
+    if (supplyFill) supplyFill.style.width = supplyCover.toFixed(2) + '%';
+    if (deficitFill) deficitFill.style.width = deficitPct.toFixed(2) + '%';
+    var balanceMetric = el('hydroBalanceMetric'), live = el('hydroLive'), liveLabel = el('hydroLiveLabel');
+    var inDeficit = balance < -0.005;
+    if (balanceMetric) balanceMetric.classList.toggle('is-negative', inDeficit);
+    if (balanceMetric) balanceMetric.classList.toggle('is-positive', !inDeficit);
+    if (live) live.classList.toggle('is-deficit', inDeficit);
+    if (liveLabel) liveLabel.textContent = inDeficit ? '供能短缺' : '实时分配';
     var sources = [
       ['热液汽轮机', flow.turbineRate], ['高压热机管道', flow.pressRate],
       ['核热厂', flow.fissionRate], ['泰坦气云采集站', flow.titancloudRate], ['太阳帆', flow.sunSailRate]
@@ -322,7 +330,7 @@
     });
     /* 取用方清单：ERA10（2026-10-20）补齐此前漏列的四路 —— 机器人充能站 / 欧罗巴发射场 /
      *   星球重构机 / 朱庇特质量加速站。它们**本来就在** hydroAlloc 里扣流（所以「已用/余流」总数
-     *   一直是对的），只是这一行清单没列出来 ⇒ 玩家看到「总量少了」，列表里却找不到是谁吃的。 */
+     *   一直是对的），只是这一行清单没列出来 ⇒ 玩家看到供给被分配，清单里却找不到是谁吃的。 */
     var consumers = [
       ['工坊', flow.shopRate], ['天穹钻机', flow.skyRate], ['自动化钻探', flow.drillRate],
       ['空间站', flow.stationRate], ['生物材料研究所', flow.labRate],
@@ -336,7 +344,21 @@
     var sourceLabel = el('hydroSources'), useLabel = el('hydroUses'), hint = el('hydroFlowHint');
     if (sourceLabel) sourceLabel.textContent = sources.length ? sources.join(' · ') : '暂无供给来源';
     if (useLabel) useLabel.textContent = consumers.length ? consumers.join(' · ') : '暂无设备取用';
-    if (hint) hint.textContent = supply > 0 ? '余流不会累积到下一秒' : '当前没有热液能供给';
+    var shortages = [];
+    if (flow.shopNeed > flow.shopRate + 0.005) shortages.push('热液工坊：产钢降载，缺 ' + (flow.shopNeed - flow.shopRate).toFixed(1) + '/秒');
+    if (flow.skyNeed > flow.skyRate + 0.005) shortages.push('天穹钻机：停摆，缺 ' + (flow.skyNeed - flow.skyRate).toFixed(1) + '/秒');
+    if (flow.europaNeed > flow.europaRate + 0.005) shortages.push('发射场（三座合计）：产线暂停，缺 ' + (flow.europaNeed - flow.europaRate).toFixed(1) + '/秒');
+    if (flow.geekNeed > flow.geekRate + 0.005) shortages.push('星球重构机 G.E.E.K：改造暂停，缺 ' + (flow.geekNeed - flow.geekRate).toFixed(1) + '/秒');
+    var shortageBox = el('hydroShortage'), shortageTitle = el('hydroShortageTitle'), shortageItems = el('hydroShortageItems');
+    if (shortageBox) shortageBox.hidden = !inDeficit;
+    if (shortageTitle && inDeficit) shortageTitle.textContent = '热液能缺口 −' + Math.abs(balance).toFixed(1) + '/秒';
+    if (shortageItems && inDeficit) shortageItems.textContent = shortages.length
+      ? shortages.join(' · ')
+      : '当前无满供即停摆设备；其余负载按优先级限流。';
+    if (hint) hint.textContent = inDeficit
+      ? '补足供给后，停摆设备会自动恢复；净余量按总供给 − 总需求计算。'
+      : supply > demand + 0.005 ? '余流 +' + (supply - demand).toFixed(1) + '/秒，不会累积到下一秒'
+        : '供需平衡；热液能不会存入库存';
   }
 
   /* ── 宗教命名框（2026-09-29）────────────────────────────────────

@@ -626,7 +626,7 @@
     /* 从「停」拨到「开」的瞬间清一下停摆位：下一 tick tickShell 会按真实供需重新落位。 */
     if (s.geek.geekOn) s.geekStarved = false;
     SB.game.markDirty(); SB.game.renderAll();
-    SB.game.log(s.geek.geekOn ? '星球重构机 G.E.E.K 启动：改造瑞亚星……' : '星球重构机 G.E.E.K 已停机。');
+    SB.game.log(s.geek.geekOn ? '星球重构机 G.E.E.K 启动：改造恩克拉多斯星……' : '星球重构机 G.E.E.K 已停机。');
     return true;
   }
 

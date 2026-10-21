@@ -260,13 +260,19 @@
      * 调用方可显式 buildAllWonders:false 恢复旧的「只建当前门槛奇观/首座奇观」策略。 */
     var rows = SB.WONDERS || [];
     if (!options || options.buildAllWonders !== false) {
+      /* 可选奇观只有本轮已经买得起时才进入建造/岗位计划。旧逻辑即使奇观还差
+       * 数千份原料，也把整座奇观的成本塞进 needs；于是矿工/采集岗位被远期目标
+       * 抢满，学者和当前可建建筑反而停摆。指定为科技硬门槛的奇观仍在上面保留
+       * 未满足时的筹料行为；市政奇观门槛也在这里优先挑一座当前可负担的奇观。 */
       for (var j = 0; j < rows.length; j++)
-        if (rows[j].id !== 'wonder_skydrill' && wonderEligible(s, rows[j])) return rows[j].id;
+        if (rows[j].id !== 'wonder_skydrill' && wonderEligible(s, rows[j]) &&
+            SB.workshop.wonderBlocked(s, rows[j].id) === null) return rows[j].id;
       var pendingBeforeDrill = rows.some(function (w) {
         return w.id !== 'wonder_skydrill' && !isOwned(s, w.id);
       });
       var drill = SB.workshop.wonderById('wonder_skydrill');
-      if ((!pendingBeforeDrill || shellGateNeedsDrill(s, goal)) && drill && wonderEligible(s, drill)) return drill.id;
+      if ((!pendingBeforeDrill || shellGateNeedsDrill(s, goal)) && drill && wonderEligible(s, drill) &&
+          (shellGateNeedsDrill(s, goal) || SB.workshop.wonderBlocked(s, drill.id) === null)) return drill.id;
       return null;
     }
     if (SB.wonder.count(s) > 0) return null;
@@ -489,7 +495,11 @@
     if (availableBuilding(s, 'library') && s.lvl.library < 6) return 'library';
     if (availableBuilding(s, 'researchlab') && s.lvl.researchlab < 5) return 'researchlab';
     if (availableBuilding(s, 'siltpit') && s.lvl.siltpit < 3) return 'siltpit';
-    return null;
+    /* 主科技暂时只差科研点、而住房/扩仓链又被后续科技锁住时，不能因为没有
+     *「当前门槛建筑」就让 AI 空等。沿用市政总建筑等级使用的同一组合选择器，
+     * 只补一座已解锁且当前买得起的建筑；不绕过科技/市政门槛，也不赊账。
+     * 这能让早期仓储死锁期间继续铺基础设施，并推进总建筑等级类市政。 */
+    return portfolioBuild(s, null);
   }
   function shouldPrioritizeConditionBuild(s, goal, buildId) {
     var cond = goal && goal.cond;
@@ -538,6 +548,35 @@
     if (SB.workshop.craftBlocked(s, c.id) !== null) return false;
     return SB.workshop.craft(s, c.id, wanted, emit) > 0;
   }
+  function overflowCraft(s, plannedCost, emit) {
+    /* 没有当前建筑需求时，工坊不会把满仓原料转成半成品。只处理四条通用建材链，
+     * 且只在某个原料达到仓储上限的 90% 后制作最多 25% 的可造批次；保留大部分
+     * 原料给住房/建造，防止“转制”反过来把当前建筑卡住。 */
+    var outputs = ['stoneBeam', 'hardCoral', 'rope', 'ironBracket'];
+    var best = null, bestDemand = -1, bestPressure = 0;
+    for (var i = 0; i < outputs.length; i++) {
+      var c = recipeByResource(outputs[i]);
+      if (!c || !recipeUnlocked(s, c) || SB.workshop.craftBlocked(s, c.id) !== null) continue;
+      var pressure = 0;
+      for (var input in c.in || {}) {
+        var cap = SB.economy.capOf(s, input), have = s.res[input] || 0;
+        if (isFinite(cap) && cap > 0) pressure = Math.max(pressure, have / cap);
+      }
+      if (pressure < 0.90) continue;
+      var currentDemand = Math.max(0, (plannedCost && plannedCost[outputs[i]] || 0) - (s.res[outputs[i]] || 0));
+      if (currentDemand > bestDemand || (currentDemand === bestDemand && pressure > bestPressure)) {
+        best = c; bestDemand = currentDemand; bestPressure = pressure;
+      }
+    }
+    if (!best) return null;
+    var available = Math.floor(SB.workshop.maxCraftable(s, best));
+    var batches = Math.floor(available * 0.25);
+    if (batches <= 0) return null;
+    var before = s.res[best.res] || 0;
+    var made = SB.workshop.craft(s, best.id, batches, emit);
+    return made > 0 ? { recipe: best.id, resource: best.res, batches: batches, made: made,
+      from: Math.max(0, before), inputPressure: bestPressure } : null;
+  }
   function expandPrimaryNeeds(s, resource, amount, out, seen) {
     var missing = Math.max(0, amount - (s.res[resource] || 0));
     if (missing <= 0) return;
@@ -557,10 +596,18 @@
       if (cost[k] > (s.res[k] || 0)) expandPrimaryNeeds(s, k, cost[k], out, []);
     }
   }
-  function resourceJob(resource) {
+  function resourceJob(resource, s) {
     if (resource === 'coral') return 'coralwright';
     if (resource === 'stone') return 'quarrier';
-    if (['silt', 'iron', 'steel', 'warmstone', 'titanium'].indexOf(resource) >= 0) return 'miner';
+    /* 钢不是矿工直接采出的资源，而是热液工坊的产物。把远期钢需求映射为矿工
+     * 会让 AI 为可选奇观囤钢、即使暖石/精铁仓接近满仓仍占掉大半人口。当前钢件
+     * 目标的暖石供给由下方 minersForWarmstone 精确安排，故这里不再拿钢冒充矿物。 */
+    if (resource === 'steel') {
+      var warmCapForSteel = SB.economy.capOf(s, 'warmstone');
+      if (!isFinite(warmCapForSteel) || (s.res.warmstone || 0) < warmCapForSteel * 0.90) return 'miner';
+      return null;
+    }
+    if (['silt', 'iron', 'warmstone', 'titanium'].indexOf(resource) >= 0) return 'miner';
     if (resource === 'science') return 'scholar';
     if (resource === 'culture') return 'scribe';
     if (resource === 'luxury') return 'merchant';
@@ -662,22 +709,30 @@
     }
     var weights = { coralwright: 0.20, quarrier: 0.10, scholar: 0.20, miner: 0.18, scribe: 0.08, merchant: 0.04 };
     var scienceCost = nextScienceCost(s, goal);
-    if (scienceCost && (s.res.science || 0) < scienceCost) weights.scholar = Math.max(weights.scholar, 0.62);
+    /* nextScienceCost 只返回 Eureka 已满足的可研究节点。若当前关键科技仍差工具、建筑等
+     * Eureka，它会返回 null，学者就只剩 0.20 的默认权重；其他材料岗一多，自动配工会把
+     * 学者四舍五入到 0。接着 AI 既攒不出购买前置所需的科技，也无法推进后续科技。
+     * 此时按当前目标科技的实际折后成本保留科研岗位，Eureka 仍照常由资源/建筑策略处理。 */
+    var goalScienceCost = goal && goal.tech && !s.techs[goal.tech.id] &&
+      SB.tech.researchCost ? SB.tech.researchCost(s, goal.tech) : null;
+    var neededScienceCost = scienceCost == null ? goalScienceCost : scienceCost;
+    if (neededScienceCost && (s.res.science || 0) < neededScienceCost)
+      weights.scholar = Math.max(weights.scholar, 0.90);
     var civicCost = nextCivicCost(s), civicGoal = nextCivicGoal(s), civicBoost = civicGoal && civicGoal.boost;
     if (civicBoost && civicBoost.t === 'pop' && !SB.civic.boostMet(s, civicGoal))
       options = Object.assign({}, options, { targetPopulation: Math.max(options.targetPopulation || 0, civicBoost.n) });
     if (civicCost && (s.res.culture || 0) < civicCost) weights.scribe = Math.max(weights.scribe, 0.52);
     if (civicBoost && civicBoost.t === 'job') weights[civicBoost.j] = Math.max(weights[civicBoost.j] || 0, 0.92);
     if (civicBoost && civicBoost.t === 'gathered') {
-      var boostJob = resourceJob(civicBoost.r);
+      var boostJob = resourceJob(civicBoost.r, s);
       if (boostJob && boostJob !== 'gather') weights[boostJob] = Math.max(weights[boostJob] || 0, 0.92);
     }
     if (civicBoost && civicBoost.t === 'res') {
-      var boostResJob = resourceJob(civicBoost.r);
+      var boostResJob = resourceJob(civicBoost.r, s);
       if (boostResJob && boostResJob !== 'gather') weights[boostResJob] = Math.max(weights[boostResJob] || 0, 0.92);
     }
     if (cond && cond.t === 'res') {
-      var cj = resourceJob(cond.r); if (cj && cj !== 'gather') weights[cj] = 0.68;
+      var cj = resourceJob(cond.r, s); if (cj && cj !== 'gather') weights[cj] = 0.68;
     }
     if (cond && cond.t === 'rate' && cond.r === 'hydroSupply' &&
         (SB.economy.rates(s).hydroSupply || 0) + 1e-9 < cond.n) {
@@ -776,7 +831,7 @@
     }
     /* 主目标资源缺口会抬高对应职业权重；挑战限制仍由 folk.autoAssign 统一钳制。 */
     Object.keys(needs).forEach(function (r) {
-      var j = resourceJob(r);
+      var j = resourceJob(r, s);
       if (!j || j === 'gather') return;
       /* addCostNeeds / expandPrimaryNeeds 已将 needs 写成「还缺多少」，这里不可再扣一次库存。 */
       var cap = SB.economy.capOf(s, r), shortage = needs[r] || 0;
@@ -791,7 +846,7 @@
     addCostNeeds(s, plannedCost, materialNeeds);
     addCostNeeds(s, supportCost, materialNeeds);
     Object.keys(materialNeeds).forEach(function (r) {
-      var j = resourceJob(r);
+      var j = resourceJob(r, s);
       if (j && j !== 'gather' && (materialNeeds[r] || 0) > 0.01) {
         requiredMaterialJobs[j] = true;
         weights[j] = Math.max(weights[j] || 0, 0.90);
@@ -806,7 +861,7 @@
     if (activeZoneCond && nextBuild) {
       addCostNeeds(s, SB.economy.costOf(s, nextBuild), zoneNeeds);
       Object.keys(zoneNeeds).forEach(function (r) {
-        var j = resourceJob(r);
+        var j = resourceJob(r, s);
         if (j && j !== 'gather' && (zoneNeeds[r] || 0) > 0.01) {
           requiredZoneJobs[j] = true;
           weights[j] = Math.max(weights[j] || 0, 0.90);
@@ -851,7 +906,7 @@
     if (housingNeed) {
       var housingCost = SB.economy.costOf(s, housingNeed);
       if (!SB.economy.canAfford(s, housingCost)) for (var hr in housingCost) {
-        var hj = resourceJob(hr);
+        var hj = resourceJob(hr, s);
         if (hj && hj !== 'gather') weights[hj] = Math.max(weights[hj] || 0, 0.90);
       }
     }
@@ -1032,6 +1087,8 @@
       if ((s.res[sr] || 0) < supportCost[sr] && recipeByResource(sr))
         did(ensureCraft(s, sr, supportCost[sr], emit, []));
     }
+    var overflowCraftResult = overflowCraft(s, plannedCost, emit);
+    if (overflowCraftResult) did(true);
     if (supportUpgradeId && SB.workshop.upgradeCanBuy(s, supportUpgradeId))
       did(SB.workshop.upgradeBuy(s, supportUpgradeId, emit));
     if (drillTarget > 0 && (s.res.resonantDrill || 0) < drillTarget)
@@ -1183,6 +1240,7 @@
       }),
       plannedResourceNeeds: Object.assign({}, needs),
       craftDiagnostics: craftDiagnostics,
+      overflowCraft: overflowCraftResult,
       zone: activeZoneCond && activeZoneCond.zone || null,
       zoneNeeds: zoneNeeds,
       housingTarget: housingTarget,
@@ -1199,6 +1257,6 @@
       build: nextBuild || null, wonder: nextWonder || null };
   }
 
-  SB.aiStrategy = { step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
+  SB.aiStrategy = { version: 35, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
     drillStockTarget: drillStockTarget };
 })(typeof window !== 'undefined' ? window : globalThis);

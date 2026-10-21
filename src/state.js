@@ -214,7 +214,7 @@
       lvl: { kelp: 0, kelpstore: 0, weir: 0, warmnest: 0, ballast: 0, nest: 0, coralhouse: 0, hall: 0, siltpit: 0, workshop: 0, furnace: 0, library: 0, institute: 0, square: 0, temple: 0, lighthouse: 0,
         /* ERA3 热液能系统（2026-09-29）：金属精炼解锁的两座建筑。lvl 漏键 = undefined × 数 = NaN，
          *   经 lvlSum / costOf 污染破壳系数；与「加建筑漏 lvl」同类，必须一一对应。 */
-        hydroturbine: 0, hydroshop: 0,
+        hydroturbine: 0, hydroshop: 0, civichall: 0,
         /* ERA3 市政扩展（2026-09-30）：王国潮道（贸易区域）。
          * ⚠️ 2026-10-06：**castle 键已删**。城堡不是独立建筑，而是议事厅买下工坊升级
          *   `upg_castle` 之后的新名字（同一座建筑、同一个 `lvl.hall`）——那座误造的建筑
@@ -259,11 +259,11 @@
          * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
          * ⚠️ e2e「每座建筑都在状态表的 lvl 里」当场抓到这条漏写——这正是那条断言存在的理由。 */
         solar_ring: 0,
-        /* ERA10 市政（2026-10-20 · 用户 ERA10 市政规格）：泰拉/瑞亚星轨道发射场（space 区，公共工程局解锁）
+        /* ERA10 市政（2026-10-20 · 用户 ERA10 市政规格）：泰拉/恩克拉多斯星轨道发射场（space 区，公共工程局解锁）
          * + 虚境祭坛（faith 区，虚境探索解锁）。三条漏键都会让读档静默丢等级 / costOf 读 undefined。
          * ⚠️ void_altar 是本作第一座带 maxLvl 的建筑，等级上限由建筑条目上的 maxLvl 决定，
          *    状态表这边只存等级、不存上限（上限改了老档要跟着生效，不能烤进存档）。 */
-        terra_launch: 0, rhea_launch: 0, void_altar: 0 },
+        terra_launch: 0, enceladus_launch: 0, void_altar: 0 },
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * SB.UNIT.kelp` 变成
@@ -497,12 +497,12 @@
        *   sunSailProc  —— 发射场推进太阳帆的**累计运行秒数**游标（每 +10s 触发一次 +1 帆）。
        *   geek         —— G.E.E.K 星球重构机运行态：
        *                    geekOn        = 自然环境卡手动启动开关（与 skydrillOn 同纪律）；
-       *                    rheaDone / terraDone = 瑞亚 / 泰拉改造完成旗（terraform 尤里卡 / 减消耗管线读它）；
-       *                    costOffset = 覆盖建筑的有效造价等级偏移（Rhea=3 / Terra 叠 +5=8，减消耗落点）；
-       *                    rheaRun / terraRun = 改造进度秒数（自然环境卡 UI 读它）。
+       *                    enceladusDone / terraDone = 恩克拉多斯 / 泰拉改造完成旗（terraform 尤里卡 / 减消耗管线读它）；
+       *                    costOffset = 覆盖建筑的有效造价等级偏移（Enceladus=3 / Terra 叠 +5=8，减消耗落点）；
+       *                    enceladusRun / terraRun = 改造进度秒数（自然环境卡 UI 读它）。
        *   ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底（state-migrate.js 的 geek 深合并），自动带出默认值。 */
       sunSails: 0, sunSailProc: 0,
-      geek: { geekOn: false, rheaDone: false, terraDone: false, costOffset: 0, rheaRun: 0, terraRun: 0 },
+      geek: { geekOn: false, enceladusDone: false, terraDone: false, costOffset: 0, enceladusRun: 0, terraRun: 0 },
       /* ERA10（戴森纪 · 2026-10-20 实装）：戴森球子系统状态。
        *   dysonNodes     —— 戴森球节点总数（发射场节点模式每运行满 1 节律 +1，无限）。
        *   dysonProc      —— 节点模式累计运行秒数游标（每 +1 节律触发一次 +1 节点）。

@@ -12,7 +12,7 @@
     rhea: ['rheamine'],
     titan: ['titancloud'],
     ring: [],
-    enceladus: []
+    enceladus: ['enceladus_launch']
   };
   var BODY_NAMES = { europa: '欧罗巴', rhea: '瑞亚', titan: '泰坦', ring: '土星环', enceladus: '恩克拉多斯' };
 

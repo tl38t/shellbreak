@@ -55,7 +55,7 @@ export function run({ SB, check, noop }) {
   {
     const bs = SB.BUILDINGS || [];
     const byId = id => bs.filter(b => b.id === id)[0] || null;
-    const el = byId('europa_launch'), tl = byId('terra_launch'), rl = byId('rhea_launch'), va = byId('void_altar');
+    const el = byId('europa_launch'), tl = byId('terra_launch'), rl = byId('enceladus_launch'), va = byId('void_altar');
     check('两座异星发射场存在且都带 launchpad 标记（三座共用同一套结算）',
       !!tl && !!rl && !!tl.launchpad && !!rl.launchpad && !!el && !!el.launchpad,
       [el && el.launchpad, tl && tl.launchpad, rl && rl.launchpad].join('/'));
@@ -78,7 +78,7 @@ export function run({ SB, check, noop }) {
     s.lvl.terra_launch = 4; s.lvl.nest = 5;
     const c0 = SB.economy.costOf(s, 'terra_launch').steel;
     const n0 = SB.economy.costOf(s, 'nest').coral;
-    s.geek = { geekOn: false, rheaDone: true, terraDone: true, costOffset: 8, rheaRun: 0, terraRun: 0 };
+    s.geek = { geekOn: false, enceladusDone: true, terraDone: true, costOffset: 8, enceladusRun: 0, terraRun: 0 };
     const c1 = SB.economy.costOf(s, 'terra_launch').steel;
     const n1 = SB.economy.costOf(s, 'nest').coral;
     check('★ 异星发射场造价不吃 G.E.E.K 等级偏移（用户「消耗从 1 级开始」）；对照：nest 会变便宜',
@@ -89,7 +89,7 @@ export function run({ SB, check, noop }) {
   {
     const s = fr();
     check('launchLvl 三座求和（2+3+1=6）',
-      (s.lvl.europa_launch = 2, s.lvl.terra_launch = 3, s.lvl.rhea_launch = 1, SB.economy.launchLvl(s) === 6),
+      (s.lvl.europa_launch = 2, s.lvl.terra_launch = 3, s.lvl.enceladus_launch = 1, SB.economy.launchLvl(s) === 6),
       '合计=' + SB.economy.launchLvl(s));
     const s2 = fr();
     const base = SB.economy.launchCycleOf(s2);
@@ -112,7 +112,7 @@ export function run({ SB, check, noop }) {
   {
     const mk = () => {
       const s = fr();
-      s.lvl.europa_launch = 1; s.lvl.terra_launch = 1; s.lvl.rhea_launch = 1;
+      s.lvl.europa_launch = 1; s.lvl.terra_launch = 1; s.lvl.enceladus_launch = 1;
       s.lvl.hydroturbine = 400; s.res.warmstone = 1e8;
       s.res.strongProp = 1e6; s.res.thinafilm = 1e6; s.res.tiplate = 1e6;
       return s;
@@ -265,11 +265,11 @@ export function run({ SB, check, noop }) {
   /* ---------------- ⑩ 结算账：三座新建筑必须被破壳发展分登记 ---------------- */
   {
     const a = fr(), b = fr();
-    b.lvl.terra_launch = 8; b.lvl.rhea_launch = 8; b.lvl.void_altar = 3;
+    b.lvl.terra_launch = 8; b.lvl.enceladus_launch = 8; b.lvl.void_altar = 3;
     const d = SB.prestige.breakReport(b).buildingScore - SB.prestige.breakReport(a).buildingScore;
     /* 89 × [log2(9) ×2 + log2(4)] —— 一条都不能漏（漏登 = if(!e) continue 静默跳过）。 */
     const want = 89 * (Math.log2(9) * 2 + Math.log2(4));
-    check('★ 泰拉/瑞亚发射场 + 虚境祭坛都进发展分（漏登会被 if(!e) continue 静默跳过）',
+    check('★ 泰拉/恩克拉多斯发射场 + 虚境祭坛都进发展分（漏登会被 if(!e) continue 静默跳过）',
       isFinite(d) && near(d, want, 1e-6),
       'Δ=' + f4(d) + ' 期望=' + f4(want));
   }

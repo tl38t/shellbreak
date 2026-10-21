@@ -344,10 +344,10 @@
         for (_li = 0; _li < c.ids.length; _li++) _ls += (s.lvl[c.ids[_li]] || 0);
         return _ls >= c.n;
       }
-      /* `geekRhea` —— **G.E.E.K 已完成瑞亚星改造**（ERA9 科技《星球改造》的尤里卡前置）。
-       * ⚠️ 读 s.geek.rheaDone（G.E.E.K 运行态落地的瑞亚进度完成旗）；G.E.E.K 运行态本轮未实装，
+      /* `geekEnceladus` —— **G.E.E.K 已完成恩克拉多斯星改造**（ERA9 科技《星球改造》的尤里卡前置）。
+       * ⚠️ 读 s.geek.enceladusDone（G.E.E.K 运行态落地的恩克拉多斯进度完成旗）；G.E.E.K 运行态本轮未实装，
        *    故本条件当前恒 false（占位门控），等运行态落地后自然成立、terraform 随之解锁。 */
-      case 'geekRhea': return !!(s.geek && s.geek.rheaDone);
+      case 'geekEnceladus': return !!(s.geek && s.geek.enceladusDone);
       /* `challenge` —— **挑战已进入（active）= 当前周目正在运行指定挑战**（ERA9 科技《严冬计划》尤里卡）。
        * ⚠️ 用户拍「挑战进入」= entered 语义（已开始，非已完成）：查 SB.challenges.active(s)
        *    的 id 是否匹配，不查 meta.challenges.completed（那是「完成」语义）。
@@ -521,10 +521,10 @@
         var _cd = !!(s.cards && s.cards.indexOf(c.id) >= 0);
         return { txt: (_cd ? '已装备' : '需装备') + '政策卡「' + policyName(c.id) + '」', now: _cd ? 1 : 0, need: 1 };
       }
-      /* geekRhea / challenge 的「还差多少」，与 condMet 同口径。 */
-      case 'geekRhea': {
-        var _gr = !!(s.geek && s.geek.rheaDone);
-        return { txt: _gr ? '星球重构机 已完成瑞亚星改造' : '需 星球重构机 完成瑞亚星改造', now: _gr ? 1 : 0, need: 1 };
+      /* geekEnceladus / challenge 的「还差多少」，与 condMet 同口径。 */
+      case 'geekEnceladus': {
+        var _gr = !!(s.geek && s.geek.enceladusDone);
+        return { txt: _gr ? '星球重构机 已完成恩克拉多斯星改造' : '需 星球重构机 完成恩克拉多斯星改造', now: _gr ? 1 : 0, need: 1 };
       }
       case 'challenge': {
         var _caS = (SB.challenges && SB.challenges.active) ? SB.challenges.active(s) : null;
@@ -979,7 +979,7 @@
       case 'wonderEra': return '建成任意 ' + eraName(c.era) + '奇观';
       case 'lvlSum': return bName(c.ids[0]) + '等建筑合计等级 ' + c.n;
       /* ERA9 新条件类型的纯文案（不碰状态）。 */
-      case 'geekRhea': return '星球重构机 完成瑞亚星改造';
+      case 'geekEnceladus': return '星球重构机 完成恩克拉多斯星改造';
       case 'challenge': {
         var _ctD = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(c.id) : null;
         return '进入挑战「' + (_ctD ? _ctD.name : c.id) + '」';

@@ -430,7 +430,7 @@
   // 单级增量成本。递增系数是建筑自己的 `ratio`（猫国 priceRatio），不是全局常数——
   // 住房 2.5 贵到买不动，产能建筑 1.12 便宜到可以一路铺开，这是两条不同的曲线。
   /* ERA9（2026-10-19 · 用户纠正② / docs/ERA9_TECHS_SPEC §7）：星球重构机 G.E.E.K 完成
-   *   瑞亚/泰拉改造后，给覆盖建筑的有效造价等级往下偏移 `s.geek.costOffset`（Rhea=3 / Terra=5 替换），
+   *   恩克拉多斯/泰拉改造后，给覆盖建筑的有效造价等级往下偏移 `s.geek.costOffset`（Enceladus=3 / Terra=5 替换），
    *   **不是加等级/虚级**。落点只在 costOf 这一处（Math.pow(ratio, effN)），economy 零改动、
    *   面板天然一致（costOf 是造价显示与真实扣费的共用入口）。覆盖清单以「建筑 id」单一事实源登记，
    *   不要另写一份（那是第二份事实来源，必漂）。`hall` 是否计入属待拍，先不列入。
@@ -487,7 +487,7 @@
      *   作用域只限 space 区两座（卫星/空间站），不含奇观与地面建筑。 */
     var scm = (b.zone === 'space') ? spaceCostMul(s) : 1;
     /* ERA9（§7）：覆盖建筑的有效造价等级 = max(0, n − costOffset)。costOffset 来自 G.E.E.K
-     *   改造完成（Rhea=3 / Terra=5）；未改造时恒 0 ⇒ 本行与旧 `Math.pow(b.ratio, n)` 逐字等价。 */
+     *   改造完成（Enceladus=3 / Terra=5）；未改造时恒 0 ⇒ 本行与旧 `Math.pow(b.ratio, n)` 逐字等价。 */
     var _offset = (b && COST_OFFSET_COVERED[b.id]) ? ((s.geek && s.geek.costOffset) || 0) : 0;
     var _effN = Math.max(0, n - _offset);
     /* ERA10 市政（2026-10-20 · 虚境祭坛）：`cost.pop` 是**人口造价**，不是资源。
@@ -952,7 +952,7 @@
   function starDysonCostMul(s) { return Math.max(0.5, 1 - 0.05 * ((s.perk && s.perk.starDysonCost) || 0)); }
   /* 星屑加速只作用在卫星/空间站的探索项，不放大基础探索和其他来源。 */
   function starSpaceExploreMul(s) { return 1 + 0.10 * ((s.perk && s.perk.starExplore) || 0); }
-  /* 瑞亚与泰拉阶段各自按永久等级缩短时长，最高缩短一半。 */
+  /* 恩克拉多斯与泰拉阶段各自按永久等级缩短时长，最高缩短一半。 */
   function starTerraformDuration(s, base) {
     var rank = Math.max(0, Math.min(10, (s.perk && s.perk.starTerraform) || 0));
     return Math.max(0, base || 0) * (1 - 0.05 * rank);
@@ -1202,6 +1202,7 @@
    * 热液工坊 / 天穹钻机当场从这一 tick 的流里取用，取多少用多少，不留库存、不跨 tick 累积。
    * 优先级（用户拍板）：工坊先吃满，天穹钻机之后由自动化钻探取流，再分配给空间站等设备。
    * 纯函数 hydroAlloc 同时驱动 tick（steelFlow 副作用版）与 rates（steelRate 非变异版）⇒ 面板===结算。
+   * 同时返回开启负载的额定需求与供需净额（供给 − 需求，可为负），供界面诊断短缺与停摆。
    * ⚠️ 数值为待标定默认（config SB.UNIT.hydroOut / hydroWarm / hydroShopLvl / steelPerHydro / steelMetal）。 */
   /* 自动化钻探的总加成按开启矿井在全部矿井中的占比折算：
    *   每座矿井自己的钛/铀份额翻倍，等价于总产线乘 (1 + 开启数 / 总数)，上限 ×2。
@@ -1239,21 +1240,23 @@
         bayL = s.lvl.robotbay || 0,
         /* ERA9（2026-10-19）：欧罗巴冰面发射场每级耗 2 热液能/秒（BUILDINGS.europa_launch 的运转耗，
          *   与机器人充能站同档、最低优先级）。断流只停耗（与空间站同口径）。
-         * ERA10 市政（2026-10-20）：改成**三座发射场合计等级**（欧罗巴 + 泰拉 + 瑞亚星轨道发射场），
+         * ERA10 市政（2026-10-20）：改成**三座发射场合计等级**（欧罗巴 + 泰拉 + 恩克拉多斯星轨道发射场），
          *   单位耗流走 launchHydroPer(s)——政策卡《节能减耗》−50% 只在那一个函数里乘一次，
          *   本处/hydroAlloc 之外的 tick·rates 都不许自己再乘（三处同源铁律）。 */
         europaL = launchLvl(s),
         /* ERA9（2026-10-19）：星球重构机 G.E.E.K 运转耗（每 s 耗 40 热液能流）。
          *   与天穹钻机同纪律——只有「已建成且手动启动」才占流；否则面板会谎报它在吃能。 */
         geekOwned = !!(SB.wonder && SB.wonder.owned(s).wonder_geek),
-        geekOn = !!(s.geek && s.geek.geekOn);
+        geekOn = !!(s.geek && s.geek.geekOn),
+        _adCount = autoDrillCount(s);
     /* ⚠️ 提前返回也必须**补齐全部键**（含三个 Rate）：少一个键，读它的人拿到 undefined
      *    而不是 0 —— steelFlow 的 `s.res.hydro = HF.supplyRate` 会把顶栏主数写成 undefined
      *    （解了 metalrefine 但一台汽轮机都没建时就是这样），rates().hydroSupply 同理。
      *    这种缺键不报错、只在面板上变成 NaN/undefined，属于「面板撒谎」家族。 */
-    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && (s.sunSails || 0) <= 0 && !(geekOn && geekOwned))
+    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && !(geekOn && geekOwned))
       return { supply: 0, supplyRate: 0, turbineRate: 0, pressRate: 0, fissionRate: 0, titancloudRate: 0, sunSailRate: 0,
-        shopDraw: 0, shopRate: 0, shopRatio: 0,
+        shopDraw: 0, shopRate: 0, shopRatio: 0, shopNeed: 0,
+        demandRate: 0, balanceRate: 0, skyNeed: 0, europaNeed: 0, geekNeed: 0,
         skyDraw: 0, skyRate: 0, left: 0, starDraw: 0, starRate: 0, drillDraw: 0, drillRate: 0,
         stationDraw: 0, stationRate: 0, satelliteDraw: 0, satelliteRate: 0, labDraw: 0, labRate: 0, robotDraw: 0, robotRate: 0, robotbayDraw: 0, robotbayRate: 0,
         vrDraw: 0, vrRate: 0, europaDraw: 0, europaRate: 0, geekDraw: 0, geekRate: 0,
@@ -1312,10 +1315,13 @@
     /* 天穹钻机（ERA5）：从剩流里取 SKYDRILL_HYDRO/tick，且需共振钻头够（机器态判据见 shell.js）。
      * ⚠️ 2026-10-07 钻机改手动启动：这里也要认 skydrillOn——rates 与 tickShell 同源，
      *    否则钻机停着时顶栏速率行仍显示「钻机在吃热液能」（面板撒谎家族）。 */
-    var skyDraw = 0;
+    var skyDraw = 0, skyNeed = 0;
     if (SB.wonder && SB.wonder.owned(s).wonder_skydrill && s.skydrillOn) {
       var hCost = SB.CFG.SKYDRILL_HYDRO * dt;
-      if ((s.res.resonantDrill || 0) >= hCost && left >= hCost) skyDraw = hCost;
+      if ((s.res.resonantDrill || 0) >= hCost) {
+        skyNeed = hCost;
+        if (left >= hCost) skyDraw = hCost;
+      }
     }
     /* ERA6→太空时代（2026-10-13）：星空探索改为「破壳后被动累积」终局资源，
      *   不再吃热液能（旧的热液能第三级消费者 starDraw 路线已废弃）。
@@ -1324,102 +1330,105 @@
     var starDraw = 0;
     /* ERA7（2026-10-21）：每座已开启矿井耗 0.3 热液能/秒；在工坊、天穹钻机之后取流。
      *   热液能是消耗需求，矿井是否开启以及钛/铀加成由 autoDrillCount 控制。 */
-    var drillDraw = 0;
-    var _adCount = autoDrillCount(s);
+    var drillDraw = 0, drillNeed = 0;
     if (_adCount > 0) {
-      var _adNeed = _adCount * (SB.UNIT.drillHydro || 0.3) * dt;
+      drillNeed = _adCount * (SB.UNIT.drillHydro || 0.3) * dt;
       var _adLeft = Math.max(0, left - skyDraw);
-      drillDraw = Math.min(_adNeed, _adLeft);
+      drillDraw = Math.min(drillNeed, _adLeft);
     }
     /* ERA7（2026-10-17 · spec §5）：空间站运转耗——每级 2 热液能/秒，挂 spacestationStop 开关。
      *   优先级在钻探之后（工坊→天穹钻机→钻探→空间站）；断流时只停耗、星空加成仍在
      *   （starRate 与本处解耦，见那里的注释）。停用座数 = spacestationStop，运行座数 = 等级 − 停用数。 */
-    var stationDraw = 0;
+    var stationDraw = 0, stationNeed = 0;
     var staRun = Math.max(0, staL - (s.spacestationStop || 0));
     if (staRun > 0) {
       /* ERA7（2026-10-17 · spec §4 至高圣座）：空间站有效等级 +stationBonus（throne 免费 +3），
        *   耗流也按有效等级算（与 starRate 同源；免费、不收差价）。 */
       var _stEff = staRun + (SB.wonder ? SB.wonder.stationBonus(s) : 0);
-      var _stNeed = _stEff * (SB.BLD.stationHydro || 0) * dt;
+      stationNeed = _stEff * (SB.BLD.stationHydro || 0) * dt;
       var _stLeft = Math.max(0, left - skyDraw - drillDraw);
-      stationDraw = Math.min(_stNeed, _stLeft);
+      stationDraw = Math.min(stationNeed, _stLeft);
     }
     /* ERA7（2026-10-17 · spec §5 补 · 用户 2026-10-18 纠正：轨道卫星每级耗 1 热液能/秒，
      *   与空间站运转耗同源，挂 satelliteStop「开几座」开关：运行座数 = 等级 − satelliteStop，
      *   停掉的不耗流、也不产星空（starRate 同开关）。优先级与空间站同档
      *   （工坊→钻机→钻探→空间站→卫星→研究所…）。 */
-    var satelliteDraw = 0;
+    var satelliteDraw = 0, satelliteNeed = 0;
     if (satRunL > 0) {
-      var _satNeed = satRunL * (SB.BLD.satelliteHydro || 0) * dt;
+      satelliteNeed = satRunL * (SB.BLD.satelliteHydro || 0) * dt;
       var _satLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw);
-      satelliteDraw = Math.min(_satNeed, _satLeft);
+      satelliteDraw = Math.min(satelliteNeed, _satLeft);
     }
     /* ERA8（2026-10-18 · spec §4）：生物材料研究所每级耗 3 热液能/秒（labDraw），
      *   优先级在空间站之后（工坊→钻机→钻探→空间站→研究所）。
      *   ⚠️ 断流只停耗、θ产出照给——与空间站「断流只停耗、星空加成仍在」同一提议口径；
      *      若要「断电停产」须把 thetaFlow 乘供电率（labDraw/labNeed），另拍。 */
-    var labDraw = 0;
+    var labDraw = 0, labNeed = 0;
     if (labL > 0) {
-      var _lbNeed = labL * (SB.BLD.biomatlabHydro || 0) * dt;
+      labNeed = labL * (SB.BLD.biomatlabHydro || 0) * dt;
       var _lbLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw);
-      labDraw = Math.min(_lbNeed, _lbLeft);
+      labDraw = Math.min(labNeed, _lbLeft);
     }
     /* ERA8（spec §4）：工业机器人（upg_indrobot）耗流，优先级最后；
      *   开关 s.indRobotOn 与加成同一个判据（关掉 ⇒ 加成与耗能一起停，面板===结算）。 */
-    var robotDraw = 0;
+    var robotDraw = 0, robotNeed = 0;
     if (robotL) {
-      var _rbNeed = s.upgrades.upg_indrobot * (SB.UNIT.robotHydro || 0.3) * dt;
+      robotNeed = s.upgrades.upg_indrobot * (SB.UNIT.robotHydro || 0.3) * dt;
       var _rbLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw);
-      robotDraw = Math.min(_rbNeed, _rbLeft);
+      robotDraw = Math.min(robotNeed, _rbLeft);
     }
     /* ERA8（2026-10-19 · B7）：机器人充能站每级耗 8 热液能/秒（robotbayDraw），
      *   优先级在工业机器人之后（…→研究所→机器人→充能站→魔鱼VR）；断流只停耗。
      *   机器人员工本身由 folk.effJobs 并入职业产出（×1.2、剔除 scribe/scholar），此处只算充能站自身运转耗。 */
-    var robotbayDraw = 0;
+    var robotbayDraw = 0, robotbayNeed = 0;
     if (bayL > 0) {
-      var _rbayNeed = bayL * (SB.UNIT.robotbayHydro || 0) * dt;
+      robotbayNeed = bayL * (SB.UNIT.robotbayHydro || 0) * dt;
       var _rbayLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw);
-      robotbayDraw = Math.min(_rbayNeed, _rbayLeft);
+      robotbayDraw = Math.min(robotbayNeed, _rbayLeft);
     }
     /* ERA8 市政奇观（2026-10-18 · 用户市政表 H1=C）：魔鱼世界VR 运转持续耗 5 热液能/秒，
      *   优先级最后（…→研究所→机器人→魔鱼VR）。断流只停耗、幸福 +1 仍在（与空间站同口径，
      *   effect.happyBonus 与流解耦）。 */
-    var vrDraw = 0;
-    var _vrNeed = (SB.wonder && SB.wonder.fishvrHydroDraw ? SB.wonder.fishvrHydroDraw(s) : 0) * dt;
-    if (_vrNeed > 0) {
+    var vrDraw = 0, vrNeed = (SB.wonder && SB.wonder.fishvrHydroDraw ? SB.wonder.fishvrHydroDraw(s) : 0) * dt;
+    if (vrNeed > 0) {
       var _vrLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw - robotbayDraw);
-      vrDraw = Math.min(_vrNeed, _vrLeft);
+      vrDraw = Math.min(vrNeed, _vrLeft);
     }
     /* ERA9（2026-10-19）：欧罗巴冰面发射场运转耗 —— 每级 2 热液能/秒，**最低优先级**
      *   （…→机器人→充能站→魔鱼VR→发射场）。断流只停耗。其**库存耗料**（strongProp/thinafilm）
      *   与**帆进度累加**在 economy-tick.js 同 tick 内结算（同 s._hydroFlow 判据 ⇒ 面板===结算）。 */
-    var europaDraw = 0;
+    var europaDraw = 0, europaNeed = 0;
     if (europaL > 0) {
       /* ERA10 市政：单个发射场的每级耗流走 launchHydroPer（含《节能减耗》乘区），
        * 三座场共用同一单位值（用户拍「制造消耗与欧罗巴相同」）。 */
-      var _euNeed = europaL * launchHydroPer(s) * dt;
+      europaNeed = europaL * launchHydroPer(s) * dt;
       var _euLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw - robotbayDraw - vrDraw);
-      europaDraw = Math.min(_euNeed, _euLeft);
+      /* 发射场需要整额热液能才推进；短缺时停摆并释放未满足的那部分流量给后续用户。 */
+      if (_euLeft >= europaNeed - 1e-9) europaDraw = europaNeed;
     }
     /* ERA9（2026-10-19）：星球重构机 G.E.E.K 运转耗 —— 每 s 耗 40 热液能/秒，**最低优先级**
      *   （…→机器人→充能站→魔鱼VR→发射场→G.E.E.K）。断流只停耗。其**库存耗料**（kelp/metal/coral）
      *   与**改造进度累加**在 shell.tickShell ③段同 tick 内结算（同 s._hydroFlow 判据 ⇒ 面板===结算）。 */
-    var geekDraw = 0;
+    var geekDraw = 0, geekNeed = 0;
     if (geekOn && geekOwned) {
-      var _geekNeed = SB.CFG.GEEK_HYDRO * dt;
+      geekNeed = SB.CFG.GEEK_HYDRO * dt;
       var _geekLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw);
-      geekDraw = Math.min(_geekNeed, _geekLeft);
+      /* G.E.E.K 需要整额热液能才能推进；短缺时停摆并释放流量给后续用户。 */
+      if (_geekLeft >= geekNeed - 1e-9) geekDraw = geekNeed;
     }
     /* ERA10（2026-10-20）：朱庇特质量加速站运转耗 —— 20 热液能/秒（用户表「消耗热液能20」），
      *   **最低优先级**（…→发射场→G.E.E.K→朱庇特）。断流只停耗、biomatlabOut 乘区照给
      *   （与魔鱼VR「断流只停幻境不停幸福加成」同口径；effect 与流解耦）。
      *   读数走 wonder.jupitorHydroDraw（纪律③：奇观效果只从 wonder.js 出，不在此散读 s.wonders）。 */
-    var jupitorDraw = 0;
-    var _jpNeed = (SB.wonder && SB.wonder.jupitorHydroDraw ? SB.wonder.jupitorHydroDraw(s) : 0) * dt;
-    if (_jpNeed > 0) {
+    var jupitorDraw = 0, jupitorNeed = (SB.wonder && SB.wonder.jupitorHydroDraw ? SB.wonder.jupitorHydroDraw(s) : 0) * dt;
+    if (jupitorNeed > 0) {
       var _jpLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw);
-      jupitorDraw = Math.min(_jpNeed, _jpLeft);
+      jupitorDraw = Math.min(jupitorNeed, _jpLeft);
     }
+    var demand = shopDemand + skyNeed + drillNeed + stationNeed + satelliteNeed + labNeed + robotNeed
+      + robotbayNeed + vrNeed + europaNeed + geekNeed + jupitorNeed;
+    var demandRate = dt > 0 ? demand / dt : demand;
+    var supplyRate = dt > 0 ? supply / dt : supply;
     return { supply: supply, supplyRate: dt > 0 ? supply / dt : supply,
       turbineRate: dt > 0 ? turbineSupply / dt : turbineSupply,
       pressRate: dt > 0 ? pressSupply / dt : pressSupply,
@@ -1429,6 +1438,11 @@
       shopDraw: shopDraw, shopRate: dt > 0 ? shopDraw / dt : shopDraw,
       skyDraw: skyDraw, skyRate: dt > 0 ? skyDraw / dt : skyDraw,
       shopRatio: shopDemand > 0 ? shopDraw / shopDemand : (shopL > 0 ? 1 : 0),
+      shopNeed: dt > 0 ? shopDemand / dt : shopDemand,
+      skyNeed: dt > 0 ? skyNeed / dt : skyNeed,
+      europaNeed: dt > 0 ? europaNeed / dt : europaNeed,
+      geekNeed: dt > 0 ? geekNeed / dt : geekNeed,
+      demandRate: demandRate, balanceRate: supplyRate - demandRate,
       left: left - skyDraw - starDraw - drillDraw - stationDraw - satelliteDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw - jupitorDraw,
       starDraw: starDraw, starRate: dt > 0 ? starDraw / dt : starDraw,
       drillDraw: drillDraw, drillRate: dt > 0 ? drillDraw / dt : drillDraw,

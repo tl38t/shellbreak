@@ -127,7 +127,8 @@
     var total = revealedItemCount(s);
     return {
       cnt: '已完成 ' + done + ' / 已揭晓 ' + total,
-      fresh: unseenCount() > 0 && workshopView !== 'upgrades'
+      fresh: unseenCount() > 0 && workshopView !== 'upgrades',
+      avail: !!(SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s)) && workshopView !== 'upgrades'
     };
   }
 
@@ -155,7 +156,7 @@
     var tabs = '<div class="panel-subtabs workshop-subtabs" role="group" aria-label="工坊分区">' +
       '<button type="button" class="subtab' + (workshopView === 'making' ? ' on' : '') +
       '" data-workshop-view="making" aria-pressed="' + (workshopView === 'making') + '">制造</button>' +
-      '<button type="button" class="subtab' + (workshopView === 'upgrades' ? ' on' : '') +
+      '<button type="button" class="subtab' + (workshopView === 'upgrades' ? ' on' : '') + (tm.avail ? ' avail' : '') +
       '" data-workshop-view="upgrades" aria-pressed="' + (workshopView === 'upgrades') + '">升级项' +
       '<span class="subcnt">' + tm.cnt + '</span>' +
       (tm.fresh ? '<span class="subnew" title="有升级项你还没看过">NEW</span>' : '') +

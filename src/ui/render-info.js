@@ -243,9 +243,21 @@
                                  (B.civicHallRatio || 0.50) * 100 * L, 0);
       case 'hydroshop':    return '吃金属产钢（产钢量随热液能供给浮动）';
       case 'furnace':      return '解锁 金属 → 精铁（一次性效果，不随等级递增）';
-      case 'observatory':  return (L > 0 ? '当前' : '建成后可得') + '学者科技产出 +' +
-                                 (SB.economy.observatoryBonusPct ? SB.economy.observatoryBonusPct(s).toFixed(1) : '0.0') +
-                                 '%（本局壳体每削薄 5% 增加 1 个百分点，最高 +' + (B.obsMaxBonus || 0) + '%；观测站等级不叠加）';
+      case 'observatory': {
+        var _ob = (L > 0 ? '当前' : '建成后可得') + '学者科技产出 +' +
+          (SB.economy.observatoryBonusPct ? SB.economy.observatoryBonusPct(s).toFixed(1) : '0.0') +
+          '%（本局壳体每削薄 5% 增加 1 个百分点，最高 +' + (B.obsMaxBonus || 0) + '%；观测站等级不叠加）';
+        /* 星空观测站升级（upg_starscope）额外加成：+40% 科技产出（obsSciBoost）+ 每 tick +1 星空探索
+         * （starExplore，破壳后被动累积）。数值直接走 economy.upgSum 读 UPGRADES 表，与结算同口径，
+         * 不硬编码，避免数值改了文案不跟。纯展示、不进存档、不被 e2e 读值。 */
+        if (s.upgrades && s.upgrades.upg_starscope) {
+          var _boost = SB.economy.upgSum(s, 'obsSciBoost') * 100;
+          var _star = SB.economy.upgSum(s, 'starExplore');
+          _ob += '；星空观测站升级额外 +' + _boost.toFixed(0) + '% 科技产出' +
+            (_star > 0 ? '，每 tick +' + _star.toFixed(0) + ' 星空探索（破壳后累积）' : '');
+        }
+        return _ob;
+      }
       case 'hall':         return '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给纪元三及之前有上限资源 +50 容量/级';
       default:             return b.desc || '';
     }

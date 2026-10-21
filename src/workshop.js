@@ -119,8 +119,8 @@
    * ⚠️ 投入不变、产出乘 (1+ratio) —— 是「100 石头出 1.05 石梁」，
    *    **不是**「95 石头出 1 石梁」。成本端从不打折（见 craft 里的 prices 循环）。 */
   function craftMul(s, c) {
-    /* ERA7（2026-10-17 · spec §4）：可控爆炸工艺（upg_boomcraft）给 craftRatio 乘区 ×1.5（新增乘区，不改基值）。
-     *   boomcraftMul 字段 = 0.5 ⇒ 总输出 ×(1 + 0.5) = ×1.5。与 craftRatio 加法轴**相乘**，
+    /* ERA7（2026-10-17 · spec §4）：可控爆炸工艺（upg_boomcraft）给 craftRatio 乘区 ×1.05（新增乘区，不改基值）。
+     *   boomcraftMul 字段 = 0.05 ⇒ 总输出 ×(1 + 0.05) = ×1.05。与 craftRatio 加法轴**相乘**，
      *   是「整条工艺产出放大」而非「把 0.05 加成再翻 1.5 倍」。 */
     /* ERA8（2026-10-18 · spec §2 laser 解锁2 永久乘区）：workshopEff（激光技术 +50%）乘区，
      *   读 tech.mul(s).workshopEff（默认 1，未研究 = 无效果）——与 boomcraft/throne 同形态独立相乘。
@@ -500,6 +500,22 @@
     if (emit) emit('装上了「' + u.name + '」：' + u.desc + '。');
     return true;
   }
+  /* 升级项页签「有可购买项」红点（2026-10-21 用户）：遍历职业工具 + 工坊升级，
+   * 任一当前可立即买下（canBuy / upgradeCanBuy 为真）即亮。
+   * canBuy / upgradeCanBuy 自身已含全部门禁（非 wip、未拥有、前置科技/市政已满足、材料够），
+   * 故这里不必再判 revealed —— 被前置挡住的项 canBuy 必为 false，不会误亮。
+   * 与科技/市政页签红点同源的「活指示」语义：每次 PANE_REFRESH（render.js:550）重算。 */
+  function hasPurchasable(s) {
+    var i;
+    for (i = 0; i < SB.TOOLS.length; i++) {
+      if (canBuy(s, SB.TOOLS[i].id)) return true;
+    }
+    var U = upgradeRows(), u;
+    for (i = 0; i < U.length; i++) {
+      if (upgradeCanBuy(s, U[i].id)) return true;
+    }
+    return false;
+  }
 
   /* 为什么建不了 —— 奇观。 */
   function wonderById(id) {
@@ -634,7 +650,7 @@
     /* 工艺升级项（第三种形态：一次性装填，存 s.upgrades） */
     upgrades: upgradeRows, upgradeById: upgradeById,
     upgradeCost: upgradeCost, upgradeBlocked: upgradeBlocked, upgradeCanBuy: upgradeCanBuy,
-    upgradeBuy: upgradeBuy,
+    upgradeBuy: upgradeBuy, hasPurchasable: hasPurchasable,
     /* 奇观 */
     wonders: list, wonderById: wonderById,
     wonderBlocked: wonderBlocked, build: buildWonder

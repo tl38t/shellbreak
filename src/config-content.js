@@ -531,15 +531,16 @@
       desc: '把钢产线升级为精炼钢厂：钢产出 +25%（与废钢锻造的 +20% 加法叠加）。' },
 
     /* ── ERA6 工艺升级两项（2026-10 实装）──
-     * 【星空观测站升级】need=壳外建筑（exostruct）。upgradesBuilding='observatory'：
+     * 【星空观测站】need=壳外建筑（exostruct）。upgradesBuilding='observatory'：
      *   天壳观测站就地升级为星空观测站，科技产出 +40%（obsSciBoost，走 obsSciMul），
-     *   并每 tick +1 星空探索（耗 1 热液能，可开关，见 economy.hydroAlloc 的 starDraw 累加）。
+     *   并每 tick +1 星空探索（破壳后被动累积，见 economy.starRate 的 starExplore 项；
+     *   旧的热液能第三级消费者 starDraw 路线已废弃，starDraw 恒 0，不再耗热液能、无可开关）。
      *   cost 为提议值（tiplate 300 + 科技 20 万），待标定。
      * 【温水藻场升级】need=密闭水仓（sealbin）。效果：每级（× 藻场等级）额外 +0.5 科技/秒
      *   （algalfarmSci 走 tick/rates 科学输出同式），不受季节、耗 0.05 热液能（季节/耗能在首版
      *   简化为科学加成，其余维度待补）。cost 为提议值，待标定。 */
-    { id: 'upg_starscope', name: '星空观测站升级', need: 'exostruct', upgradesBuilding: 'observatory',
-      buildingDesc: '天壳观测站→星空观测站：科技产出 +40%、每 tick +1 星空探索（耗 1 热液能，可开关）。',
+    { id: 'upg_starscope', name: '星空观测站', need: 'exostruct', upgradesBuilding: 'observatory',
+      buildingDesc: '天壳观测站→星空观测站：科技产出 +40%、每 tick +1 星空探索（破壳后累积）。',
       obsSciBoost: 0.40, starExplore: true,
       cost: { tiplate: 300, science: 200000 },
       desc: '观测站升级为星空观测站：科技产出 +40%，并开始积累星空探索。' },
@@ -564,12 +565,12 @@
       cost: { tiplate: 500, science: 1000000 },
       buildingDesc: '商队驿站→物流仓库：每级纪元七及之前解锁的有上限材料 +200 容量。',
       desc: '商队驿站升级为物流仓库：每级纪元七及之前解锁的有上限材料 +200 容量。' },
-    /* ERA7（spec §4）：可控爆炸工艺 —— 给 craftRatio 乘区 ×1.5（新增乘区，不改基值）。
-     *   boomcraftMul=0.5 ⇒ 整条工艺产出 ×1.5。cost 科技点 1,000,000 = 《载人航天》自身 cost；材料提议值。 */
+    /* ERA7（spec §4）：可控爆炸工艺 —— 给 craftRatio 乘区 ×1.05（新增乘区，不改基值）。
+     *   boomcraftMul=0.05 ⇒ 整条工艺产出 ×1.05。cost 科技点 1,000,000 = 《载人航天》自身 cost；材料提议值。 */
     { id: 'upg_boomcraft', name: '可控爆炸工艺', need: 'crewed',
       cost: { tiplate: 400, resonantDrill: 200, science: 1000000 },
-      boomcraftMul: 0.5,
-      desc: '工艺制作产出 ×1.5（新增乘区，不影响成本）。' },
+      boomcraftMul: 0.05,
+      desc: '工艺制作产出 ×1.05（新增乘区，不影响成本）。' },
     /* ERA7（spec §4）：复合型工厂 —— +1 自动工艺槽位（workshop.slotCap 同源叠加）。
      *   cost 科技点 2,100,000 = 《复合型工厂》自身 cost；材料提议值。 */
     { id: 'upg_complexf', name: '复合型工厂', need: 'complexf',
@@ -770,8 +771,8 @@
     { id: 'wonder_geek', name: '星球重构机 G.E.E.K', era: 9, need: 'ecological_restoration',
       cost: { thetaMetal: 1000, steel: 4000, iron: 6000, coral: 10000, kelp: 10000 },
       effect: {},
-      desc: '生态重塑的丰碑：建成后于「自然环境」卡启动，依次改造瑞亚星（1800s）与泰拉星（3600s）。' +
-            '完成后人口/速生珊瑚林/矿井/生息区建筑升级花费大幅削减（瑞亚回到 L3 之前、泰拉再叠回 L5 之前）。' },
+      desc: '生态重塑的丰碑：建成后于「自然环境」卡启动，依次改造恩克拉多斯星（1800s）与泰拉星（3600s）。' +
+            '完成后人口/速生珊瑚林/矿井/生息区建筑升级花费大幅削减（恩克拉多斯回到 L3 之前、泰拉再叠回 L5 之前）。' },
 
     /* ── ERA5 市政奇观（2026-10-02 实装 · 渊潜鲛歌/社会科学 解锁）──
      * 【夏'多桑大剧院】needCivic='sharksong'。effect.civic:5 = 每秒 +5 市政点（走 wonder.civicBonus，

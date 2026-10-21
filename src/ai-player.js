@@ -6,9 +6,15 @@
   var SB = root.SB;
   if (!SB || !SB.game || !SB.aiStrategy) return;
   var GAME_SPEED = 30;
-  var panel, timer, lastDecision = 0, started = false, logNode, lastResult = null;
+  /* 主模拟与 AI 共用浏览器主线程。30× 时主循环已经要结算约 300 个 0.1s tick/秒；
+   * 每 400ms 再跑一次完整策略（里面会多次计算 rates）会把主线程挤满，名义 30×
+   * 反而实际不到 1×。策略不需要跟着每个模拟 tick 跑：每秒重规划一次足够及时。 */
+  var AI_TIMER_MS = 250, DECISION_INTERVAL_MS = 1000, PANEL_REFRESH_MS = 2000;
+  var panel, timer, lastDecision = 0, lastPanelRefresh = 0, started = false, logNode, lastResult = null;
   var lastStatusSent = 0, statusPostPending = false, lastError = null;
   var lastRebirth = null;
+  var sampleAt = 0, sampleGameT = 0, sampleScience = 0;
+  var effectiveSpeed = null, actualScienceRate = null;
 
   function el(tag, text) {
     var n = document.createElement(tag);
@@ -80,6 +86,8 @@
   }
   function step() {
     if (!started) return;
+    /* AI 接管期间保持配置速度；手动点速率按钮会改游戏引擎变量，不能只让面板继续显示常量。 */
+    if (SB.game.getSpeed && SB.game.getSpeed() !== GAME_SPEED) SB.game.setSpeed(GAME_SPEED);
     var s = SB.game.run();
     if (!s || s.broken) { pause(); say('本局已结束。'); return; }
     try {
@@ -98,16 +106,32 @@
     });
     return out;
   }
-  function publishStatus(s, force) {
+  function publishStatus(s, force, cachedRates) {
     if (!s || typeof root.fetch !== 'function' || statusPostPending) return;
     var now = Date.now();
     if (!force && now - lastStatusSent < 1000) return;
     lastStatusSent = now;
     var techDone = Object.keys(s.techs || {}).filter(function (key) { return s.techs[key]; }).length;
     var result = lastResult || {};
+    var runtime = SB.game.runtimeStatus ? SB.game.runtimeStatus() : {};
+    var economyRates = cachedRates || SB.economy.rates(s);
+    var effectiveJobs = SB.folk.effJobs(s);
+    var techMultipliers = SB.tech.mul(s);
     var payload = {
       running: started,
-      speed: GAME_SPEED,
+      strategyVersion: SB.aiStrategy.version || null,
+      speed: SB.game.getSpeed ? SB.game.getSpeed() : GAME_SPEED,
+      configuredSpeed: GAME_SPEED,
+      effectiveSpeed: effectiveSpeed,
+      actualScienceRate: actualScienceRate,
+      gameLoopAgeMs: runtime.loopAgeMs,
+      catchupActive: !!runtime.catchupActive,
+      queuedGameSeconds: Number(runtime.queuedGameSeconds) || 0,
+      gameTickMs: Number(runtime.tickMs) || 0,
+      batchTicks: Number(runtime.batchTicks) || 0,
+      batchFastTicks: Number(runtime.batchFastTicks) || 0,
+      batchMs: Number(runtime.batchMs) || 0,
+      batchSimSeconds: Number(runtime.batchSimSeconds) || 0,
       pageHidden: !!document.hidden,
       gameHours: s.t / 3600,
       era: Number(s.era) || 0,
@@ -116,14 +140,23 @@
       techGoal: result.goal || null,
       population: Number(s.pop) || 0,
       populationCap: SB.economy.popCap(s),
+      scienceRate: Number(economyRates.science) || 0,
+      effectiveScholars: Number(effectiveJobs.scholar) || 0,
+      scienceOutputMultiplier: Number(techMultipliers.sci) || 1,
+      globalOutputMultiplier: Number(SB.economy.globalMul(s)) || 0,
+      challengeId: s.challenge && s.challenge.id || null,
       civicGoal: result.civic || null,
       civicCondition: result.civicCondition || null,
       plannedUpgrade: result.plannedUpgrade || null,
       plannedBuild: result.build || null,
+      plannedWonder: result.wonder || null,
       plannedBuildCost: result.buildCost || null,
       plannedBuildMaterials: result.buildMaterials || [],
       plannedResourceNeeds: result.plannedResourceNeeds || {},
       craftDiagnostics: result.craftDiagnostics || {},
+      overflowCraft: result.overflowCraft || null,
+      autoCraftSlotCapacity: SB.workshop.slotCap ? SB.workshop.slotCap(s) : 0,
+      autoCraftSlots: Array.isArray(s.autoSlots) ? s.autoSlots.slice() : [],
       strategyActions: Number(result.actions) || 0,
       materialJobCounts: result.materialJobCounts || [],
       housingTarget: result.housingTarget || 0,
@@ -157,12 +190,26 @@
   function refresh() {
     if (!panel) return;
     var s = SB.game.run(); if (!s) return;
+    var sampleNow = Date.now();
+    if (sampleAt > 0 && sampleNow > sampleAt) {
+      var wallSeconds = (sampleNow - sampleAt) / 1000;
+      effectiveSpeed = (s.t - sampleGameT) / wallSeconds;
+      actualScienceRate = ((s.res.science || 0) - sampleScience) / wallSeconds;
+    }
+    sampleAt = sampleNow; sampleGameT = s.t; sampleScience = s.res.science || 0;
     var stats = document.getElementById('ai-player-stats');
     var scienceRate = SB.economy.rates(s).science;
-    var summary = (started ? '运行中 · ' + GAME_SPEED + '×' : '已暂停') + ' | Era ' + s.era + ' | ' +
+    var engineSpeed = SB.game.getSpeed ? SB.game.getSpeed() : GAME_SPEED;
+    var runtime = SB.game.runtimeStatus ? SB.game.runtimeStatus() : {};
+    var summary = (started ? '运行中 · 引擎 ' + engineSpeed + '×' : '已暂停') + ' | Era ' + s.era + ' | ' +
       (s.t / 3600).toFixed(2) + ' 游戏小时 | 人口 ' + s.pop + '/' + SB.economy.popCap(s) +
+      ' | 实际推进 ' + (effectiveSpeed == null ? '采样中' : effectiveSpeed.toFixed(1) + '×') +
       ' | 科技 ' + Object.keys(s.techs).filter(function (k) { return s.techs[k]; }).length + '/' + SB.TECHS.length +
-      ' | 科研 ' + (s.res.science || 0).toFixed(0) + ' (' + scienceRate.toFixed(2) + '/秒)';
+      ' | 科研 ' + (s.res.science || 0).toFixed(1) + ' (' + scienceRate.toFixed(2) + '/秒，净变 ' +
+      (actualScienceRate == null ? '采样中' : (actualScienceRate >= 0 ? '+' : '') + actualScienceRate.toFixed(2) + '/秒') + ')';
+    summary += '\n页面 ' + (document.hidden ? '后台（浏览器可能节流）' : '前台') +
+      (runtime.catchupActive ? ' · 离线补算中' : '') +
+      ' · 主循环积压 ' + (Number(runtime.queuedGameSeconds) || 0).toFixed(1) + ' 游戏秒';
     if (lastResult) summary += '\n科技目标 ' + (lastResult.goal || '—') + ' · 市政目标 ' +
       (lastResult.civic || '—') + (lastResult.civicCondition ? '(' + lastResult.civicCondition + ')' : '') +
       ' · 计划 ' + (lastResult.plannedUpgrade ? '升级 ' + lastResult.plannedUpgrade :
@@ -175,7 +222,7 @@
       (lastResult.zone ? ' · ' + lastResult.zone + '区 ' + (lastResult.buildMaterials || []).join(',') +
         ' 原料缺口 ' + JSON.stringify(lastResult.zoneNeeds || {}) : '');
     stats.textContent = summary;
-    publishStatus(s);
+    publishStatus(s, false, { science: scienceRate });
   }
   function start() {
     if (!started) {
@@ -185,9 +232,11 @@
     }
     if (!timer) timer = root.setInterval(function () {
       var now = Date.now();
-      if (now - lastDecision > 400) { lastDecision = now; step(); }
-      refresh();
-    }, 100);
+      if (now - lastDecision >= DECISION_INTERVAL_MS) { lastDecision = now; step(); }
+      /* 全量 rates() 会遍历整套经济链；每 100ms 由 UI 再算一遍，和 30× 主模拟争用
+       * 主线程，可能把名义倍速压成近乎停摆。面板/遥测按墙钟 1 秒刷新已足够。 */
+      if (now - lastPanelRefresh >= PANEL_REFRESH_MS) { lastPanelRefresh = now; refresh(); }
+    }, AI_TIMER_MS);
     refresh();
   }
   function pause() {
@@ -201,9 +250,9 @@
     started = true;
     timer = root.setInterval(function () {
       var now = Date.now();
-      if (now - lastDecision > 400) { lastDecision = now; step(); }
-      refresh();
-    }, 100);
+      if (now - lastDecision >= DECISION_INTERVAL_MS) { lastDecision = now; step(); }
+      if (now - lastPanelRefresh >= PANEL_REFRESH_MS) { lastPanelRefresh = now; refresh(); }
+    }, AI_TIMER_MS);
     say('接管当前周目，游戏速度 ' + GAME_SPEED + '×。'); refresh();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

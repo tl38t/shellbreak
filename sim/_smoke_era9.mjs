@@ -125,11 +125,11 @@ sP2.lvl.rheamine = 1;  // 仅 era8
 const repP2 = SB.prestige.breakReport(sP2);
 ok('breakReport：仅 rheamine(era8) ⇒ 34', Math.abs(repP2.buildingScore - 34) < 1e-9, 'buildingScore=' + repP2.buildingScore.toFixed(2));
 ok('挑战 drift_terra 在 DEFINITIONS', SB.challenges && SB.challenges.list && SB.challenges.list().some(d=>d.id==='drift_terra'));
-// geekRhea cond
+// geekEnceladus cond
 const s7 = SB.state.freshRun(false);
-ok('condMet geekRhea：未完成=false', SB.tech.condMet(s7, {t:'geekRhea'}) === false);
-s7.geek.rheaDone = true;
-ok('condMet geekRhea：完成=true', SB.tech.condMet(s7, {t:'geekRhea'}) === true);
+ok('condMet geekEnceladus：未完成=false', SB.tech.condMet(s7, {t:'geekEnceladus'}) === false);
+s7.geek.enceladusDone = true;
+ok('condMet geekEnceladus：完成=true', SB.tech.condMet(s7, {t:'geekEnceladus'}) === true);
 // challenge(entered) cond：entered = 当前周目正在运行该挑战（读 s.challenge，非 meta.completed）
 const s8 = SB.state.freshRun(false);
 s8.broken = false; s8.challenge = { id: 'drift_terra' };
@@ -158,9 +158,9 @@ sG1.wonders.wonder_geek = true;
 const hfG1 = SB.economy.hydroAlloc(sG1, 1);
 ok('G.E.E.K 建成未启动 ⇒ geekDraw=0', hfG1.geekDraw === 0);
 
-/* 4) 建成且启动、资源充足：扣 kelp/metal/coral 各 GEEK_*×dt，累计 rheaRun，满 1800s ⇒ rheaDone + costOffset=3 */
+/* 4) 建成且启动、资源充足：扣 kelp/metal/coral 各 GEEK_*×dt，累计 enceladusRun，满 1800s ⇒ enceladusDone + costOffset=3 */
 const sG2 = SB.state.freshRun(false);
-sG2.wonders.wonder_geek = true; sG2.geek = { geekOn: true, rheaDone:false, terraDone:false, costOffset:0, rheaRun:0, terraRun:0 };
+sG2.wonders.wonder_geek = true; sG2.geek = { geekOn: true, enceladusDone:false, terraDone:false, costOffset:0, enceladusRun:0, terraRun:0 };
 sG2.res.kelp = 1e9; sG2.res.metal = 1e9; sG2.res.coral = 1e9; sG2.res.warmstone = 1e9;
 sG2.lvl.hydroturbine = 50;   // 保证热液能剩流够 40/s
 const kelpBefore = sG2.res.kelp, metalBefore = sG2.res.metal, coralBefore = sG2.res.coral;
@@ -168,27 +168,27 @@ SB.shell.tickShell(sG2, 1, null, {});
 ok('G.E.E.K 运转扣 kelp 500/s', Math.abs((kelpBefore - sG2.res.kelp) - SB.CFG.GEEK_KELP) < 1e-6, 'Δkelp='+(kelpBefore-sG2.res.kelp));
 ok('G.E.E.K 运转扣 metal 100/s', Math.abs((metalBefore - sG2.res.metal) - SB.CFG.GEEK_METAL) < 1e-6, 'Δmetal='+(metalBefore-sG2.res.metal));
 ok('G.E.E.K 运转扣 coral 100/s', Math.abs((coralBefore - sG2.res.coral) - SB.CFG.GEEK_CORAL) < 1e-6, 'Δcoral='+(coralBefore-sG2.res.coral));
-ok('G.E.E.K 累计 rheaRun=1s', Math.abs(sG2.geek.rheaRun - 1) < 1e-9, 'rheaRun='+sG2.geek.rheaRun);
+ok('G.E.E.K 累计 enceladusRun=1s', Math.abs(sG2.geek.enceladusRun - 1) < 1e-9, 'enceladusRun='+sG2.geek.enceladusRun);
 
-/* 5) 跑满 1800s ⇒ rheaDone + costOffset=3 */
+/* 5) 跑满 1800s ⇒ enceladusDone + costOffset=3 */
 const sG3 = SB.state.freshRun(false);
-sG3.wonders.wonder_geek = true; sG3.geek = { geekOn: true, rheaDone:false, terraDone:false, costOffset:0, rheaRun:0, terraRun:0 };
+sG3.wonders.wonder_geek = true; sG3.geek = { geekOn: true, enceladusDone:false, terraDone:false, costOffset:0, enceladusRun:0, terraRun:0 };
 sG3.res.kelp = 1e12; sG3.res.metal = 1e12; sG3.res.coral = 1e12; sG3.res.warmstone = 1e9;
 sG3.lvl.hydroturbine = 50;
 for (let i=0;i<1800;i++) SB.shell.tickShell(sG3, 1, null, {});
-ok('G.E.E.K 跑满 1800s ⇒ rheaDone', sG3.geek.rheaDone === true);
-ok('G.E.E.K rhea 完成 ⇒ costOffset=3', sG3.geek.costOffset === 3, 'costOffset='+sG3.geek.costOffset);
+ok('G.E.E.K 跑满 1800s ⇒ enceladusDone', sG3.geek.enceladusDone === true);
+ok('G.E.E.K enceladus 完成 ⇒ costOffset=3', sG3.geek.costOffset === 3, 'costOffset='+sG3.geek.costOffset);
 /* costOf 减消耗落点：覆盖建筑 n=10 时 effN = max(0,10-3)=7（costOf 返回资源键对象） */
 sG3.lvl.nest = 10;
 const c10 = SB.economy.costOf(sG3, 'nest');
 const c10base = SB.economy.costOf((function(){var z=SB.state.freshRun(false);z.lvl.nest=10;return z;})(), 'nest');
 const k10 = Object.keys(c10)[0];
-ok('costOf：Rhea 后 nest L10 比基准便宜（effN=7<10）', c10[k10] < c10base[k10] && c10[k10] > 0,
-  k10 + ' Rhea后=' + c10[k10].toFixed(2) + ' 基准=' + c10base[k10].toFixed(2));
+ok('costOf：恩克拉多斯后 nest L10 比基准便宜（effN=7<10）', c10[k10] < c10base[k10] && c10[k10] > 0,
+  k10 + ' 恩克拉多斯后=' + c10[k10].toFixed(2) + ' 基准=' + c10base[k10].toFixed(2));
 
 /* 6) 叠加 Terra：研究 terraform 后跑满 3600s ⇒ terraDone + costOffset=8 */
 const sG4 = SB.state.freshRun(false);
-sG4.wonders.wonder_geek = true; sG4.geek = { geekOn: true, rheaDone:true, terraDone:false, costOffset:3, rheaRun:1800, terraRun:0 };
+sG4.wonders.wonder_geek = true; sG4.geek = { geekOn: true, enceladusDone:true, terraDone:false, costOffset:3, enceladusRun:1800, terraRun:0 };
 sG4.techs.terraform = true;
 sG4.res.kelp = 1e12; sG4.res.metal = 1e12; sG4.res.coral = 1e12; sG4.res.warmstone = 1e9;
 sG4.lvl.hydroturbine = 50;
@@ -196,22 +196,22 @@ for (let i=0;i<3600;i++) SB.shell.tickShell(sG4, 1, null, {});
 ok('G.E.E.K 跑满泰拉 3600s ⇒ terraDone', sG4.geek.terraDone === true);
 ok('G.E.E.K Terra 叠加 ⇒ costOffset=8', sG4.geek.costOffset === 8, 'costOffset='+sG4.geek.costOffset);
 
-/* 7) 缺料暂停、进度保留：kelp 不足时一分不扣、rheaRun 不增、不丢 geekOn */
+/* 7) 缺料暂停、进度保留：kelp 不足时一分不扣、enceladusRun 不增、不丢 geekOn */
 const sG5 = SB.state.freshRun(false);
-sG5.wonders.wonder_geek = true; sG5.geek = { geekOn: true, rheaDone:false, terraDone:false, costOffset:0, rheaRun:100, terraRun:0 };
+sG5.wonders.wonder_geek = true; sG5.geek = { geekOn: true, enceladusDone:false, terraDone:false, costOffset:0, enceladusRun:100, terraRun:0 };
 sG5.res.kelp = 0; sG5.res.metal = 1e9; sG5.res.coral = 1e9; sG5.res.warmstone = 1e9;   // kelp 见底
 sG5.lvl.hydroturbine = 50;
 SB.shell.tickShell(sG5, 1, null, {});
 ok('G.E.E.K 缺 kelp ⇒ 不扣任何材料', sG5.res.metal === 1e9 && sG5.res.coral === 1e9 && sG5.res.kelp === 0);
-ok('G.E.E.K 缺料 ⇒ rheaRun 不增', sG5.geek.rheaRun === 100);
+ok('G.E.E.K 缺料 ⇒ enceladusRun 不增', sG5.geek.enceladusRun === 100);
 ok('G.E.E.K 缺料 ⇒ geekStarved 置位', sG5.geekStarved === true);
 ok('G.E.E.K 缺料 ⇒ 不自动停机（geekOn 保留）', sG5.geek.geekOn === true);
 
-/* 8) 迁移：geek 深合并不丢默认 */
-const rawG = { res:{}, lvl:{}, geek:{ rheaDone:true } };
+/* 8) 迁移：geek 深合并不丢默认（含瑞亚→恩克拉多斯旧键迁移） */
+const rawG = { res:{}, lvl:{}, geek:{ enceladusDone:true } };
 const migG = SB.state.migrateRun(rawG);
 ok('迁移：geek 深合并保留 geekOn 默认', migG.geek && migG.geek.geekOn === false);
 ok('迁移：geek 深合并保留 costOffset 默认', migG.geek && migG.geek.costOffset === 0);
-ok('迁移：geek 深合并保留 rheaDone 真值', migG.geek && migG.geek.rheaDone === true);
+ok('迁移：geek 深合并保留 enceladusDone 真值', migG.geek && migG.geek.enceladusDone === true);
 
 process.exit(fail ? 1 : 0);

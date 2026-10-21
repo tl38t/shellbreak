@@ -758,8 +758,8 @@
       cond: { t: 'gathered', r: 'starExplore', n: 30000 },
       eff: {},
       /* 解锁1：工艺「火箭引擎」（craft_rocketengine，need:'crewed'，与 RESS.unlock 双写）。
-       * 解锁2：工坊升级「可控爆炸工艺」（upg_boomcraft，need:'crewed'）：craftRatio 乘区 ×1.5。 */
-      unlockDesc: '解锁工坊配方「火箭引擎」与工坊升级「可控爆炸工艺」（工艺效率 ×1.5）。' },
+       * 解锁2：工坊升级「可控爆炸工艺」（upg_boomcraft，need:'crewed'）：craftRatio 乘区 ×1.05。 */
+      unlockDesc: '解锁工坊配方「火箭引擎」与工坊升级「可控爆炸工艺」（工艺效率 ×1.05）。' },
 
     { id: 'architect', name: '大型架构', icon: 'assets/tech-icons/era-7/era7-architect.png', era: 7, cost: 1000000, branch: 'live', key: false, reqs: ['exostruct'], layer: 12,
       cond: { t: 'zoneLvl', zone: 'trade', n: 100 },
@@ -885,8 +885,8 @@
       cond: { t: 'starPct', n: 50 },
       eff: {},
       /* 解锁1 = 奇观「星球重构机 G.E.E.K」（wonder_geek.need='ecological_restoration'，运行态机制随后单独实装）。
-       * 解锁2 = 完成瑞亚星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前（G.E.E.K 运行态，本轮占位）。 */
-      unlockDesc: '解锁奇观「星球重构机 G.E.E.K」（运行态机制随后单独实装）。完成瑞亚星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前。' },
+       * 解锁2 = 完成恩克拉多斯星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前（G.E.E.K 运行态，本轮占位）。 */
+      unlockDesc: '解锁奇观「星球重构机 G.E.E.K」（运行态机制随后单独实装）。完成恩克拉多斯星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前。' },
 
     { id: 'interplanetary', name: '行星际航行', icon: 'assets/tech-icons/era-9/era9-interplanetary.png?v=2', era: 9, cost: 4000000, branch: 'know', key: false, reqs: ['nanotech', 'protoai'], layer: 17,
       /* 尤里卡 = 累计产火箭引擎 >500（gathered，与 era7 火箭研究同源）。 */
@@ -922,8 +922,8 @@
       /* ⚠️ 2026-10-20 ERA10 实装：key false → **true**。ERA9 原本零 key 节点
        * （eraProgress.done 恒真）⇒ ERAS 加第 10 条后玩家一进 ERA9 就被 advanceEra 瞬跳。
        * terraform 是 ERA9 层顶、且 ERA10 两项 L1（绝热材料/强人工智能）都要它，拿它当门最自然。
-       * 尤里卡 = 完成瑞亚星改造（geekRhea，新 cond；G.E.E.K 运行态随后单独实装，本轮该条件恒 false）。 */
-      cond: { t: 'geekRhea' },
+       * 尤里卡 = 完成恩克拉多斯星改造（geekEnceladus，新 cond；G.E.E.K 运行态随后单独实装，本轮该条件恒 false）。 */
+      cond: { t: 'geekEnceladus' },
       eff: {},
       /* 解锁1 = 可启动泰拉星球改造（需启动 G.E.E.K，随后实装）。
        * 解锁2 = 泰拉改造 1h 完成后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到五级之前（减消耗，替换 Rhea 的 3 级偏移）。 */

@@ -165,7 +165,7 @@
       var mine = _tM;
       /* ERA3 矿场倍率（2026-09-29；暖石值于 2026-10-17 调整）：鱼骨矿井(upg_fishbonemine) 金属 +50%/暖石 +400%，
        *   阿尔巴达热液大学(wonder_albada) 矿场产出 +人口数%。三条独立乘区，与砂矿坑 per-level 相加。 */
-      var fishSilt = 1 + _uSilt + _adLvl;
+      var fishSilt = 1 + _uSilt;
       var fishWarm = 1 + _uWarm;
       var popMul = (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1;
       addRes(s, 'silt', j.miner * SB.UNIT.silt * _siltPit * fishSilt * popMul

@@ -672,6 +672,7 @@
   // ---- 主循环（墙钟驱动）----
   var last = 0;
   var STEP = 0.1;                   // 逻辑步长（秒）。与渲染解耦，保证数值与帧率无关
+  var FAST_SPEED_THRESHOLD = 10;    // 高倍速改走既有离线分段积分器，避免每 0.1 秒重算整套经济
   var OFFLINE_STEP = (SB.CFG && SB.CFG.OFFLINE_STEP != null) ? SB.CFG.OFFLINE_STEP : 2;  // 单一来源：只读 src/config.js 的 CFG.OFFLINE_STEP，避免两套常量漂移
   /* 时间真值有两个：
    *   ① 墙钟（Date.now）→ 用来判断「玩家离开过多久」，补算离线收益；
@@ -690,6 +691,8 @@
   function loop() {
     var now = (root.performance && performance.now) ? performance.now() : Date.now();
     var wall = Date.now();
+    var batchStart = now, batchTicks = 0, batchFastTicks = 0;
+    var batchGameStart = S && S.t;
     if (!last) last = now;
 
     /* 离开过的间隙：后台期间定时器基本不跑，这里在下次回调时才算得出来，
@@ -740,16 +743,38 @@
       if (adWas && S.ad.ms === 0) dirty = true;
     }
     loop.acc = Math.min((loop.acc || 0) + elapsed * speed * adMul(), Math.max(MAX_STEP, SB.CFG.OFFLINE_MIN));
+    var fastOnline = speed >= FAST_SPEED_THRESHOLD && SB.offline && SB.offline.integrateFoodPop;
+    var fastClock = fastOnline ? { tp: loop._tp || 0 } : null;
     /* 补算进行中时暂停实时推进：这段墙钟时间已经在补算里算过了，
      * 再叠加实时 tick 就是重复计时。 */
     while (!loop.job && loop.acc >= STEP && S && !S.broken) {
-      SB.economy.tick(S, STEP, emit);   // 天壳推进在 tick 内完成（基础削壳 + 祭坛削壳）
+      var onlineDt = STEP;
+      if (fastOnline) {
+        /* 30× 在线要求约 300 个完整 economy.tick/秒；浏览器主线程追不上时，
+         * loop.acc 会顶到 60 秒上限并丢掉新增时间。复用离线已在用的事件分段：
+         * 每段至多 OFFLINE_STEP，且在季节、生育、饥荒、保温阈值和 2 秒自动化泵处切开；
+         * 经济资源仍走同一个 tick，食物/人口走与 0.1 秒参考路径对齐的积分器。
+         * 这只在高倍速启用；1×至 9×仍保留逐 0.1 秒精确路径。 */
+        onlineDt = offlineStep(S, fastClock, loop.acc);
+        var onlineT0 = S.t;
+        SB.economy.tick(S, onlineDt, emit, { skipFoodPop: true, skipHappy: true });
+        if (!S.broken) SB.offline.integrateFoodPop(S, onlineDt, { t0: onlineT0 }, emit);
+        batchFastTicks++;
+      } else {
+        SB.economy.tick(S, onlineDt, emit);   // 天壳推进在 tick 内完成（基础削壳 + 祭坛削壳）
+      }
+      batchTicks++;
       /* ERA4（2026-10-01）：换季发放资源。标记在 tick 内由 economy.seasonTurn 置位，
        * 这里在 tick 返回后、状态已自洽处发放——避免在 tick 内 call rates() 触发原生段错误。 */
       if (S._seasonGrantPending) { SB.economy.seasonGrant(S); S._seasonGrantPending = false; }
-      loop.acc -= STEP;
-      loop._tp = (loop._tp || 0) + STEP;
-      if (loop._tp >= TECH_PUMP) { loop._tp = 0; pumpTech(S, emit); pumpCivic(S, emit);
+      loop.acc -= onlineDt;
+      if (fastOnline) fastClock.tp += onlineDt;
+      else loop._tp = (loop._tp || 0) + onlineDt;
+      var pumpDue = fastOnline ? fastClock.tp >= TECH_PUMP - 1e-9 : loop._tp >= TECH_PUMP;
+      if (pumpDue) {
+        if (fastOnline) fastClock.tp = Math.max(0, fastClock.tp - TECH_PUMP);
+        else loop._tp = 0;
+        pumpTech(S, emit); pumpCivic(S, emit);
         /* 轮回商店自动研究：沿用两类节点的标准门禁；只在在线逻辑泵运行，离线不替玩家投入科技/市政点。 */
         if (SB.autoResearch && SB.autoResearch.tick) SB.autoResearch.tick(S, meta, emit);
         maybeReligionPopup(S); maybeCompanyFound(S); maybeTabUnlockPopups(S);
@@ -758,8 +783,14 @@
         if (SB.habitat && SB.habitat.autoTick) SB.habitat.autoTick(S, emit);
         /* 工坊自动制作槽（2026-10-07）：与生息区自动升级同一拍、同一道「只在线」闸门 ——
          * 离线补算不替玩家把原料转成制品（离线只结算产出）。语义见 workshop.autoTick。 */
-        if (SB.workshop && SB.workshop.autoTick) SB.workshop.autoTick(S, emit); }
+        if (SB.workshop && SB.workshop.autoTick) SB.workshop.autoTick(S, emit);
+      }
     }
+    if (fastOnline) loop._tp = fastClock.tp;
+    loop._lastBatchTicks = batchTicks;
+    loop._lastBatchFastTicks = batchFastTicks;
+    loop._lastBatchMs = Math.max(0, ((root.performance && performance.now) ? performance.now() : Date.now()) - batchStart);
+    loop._lastBatchSimSeconds = S && typeof batchGameStart === 'number' ? Math.max(0, S.t - batchGameStart) : 0;
 
     /* 星空槽推进（2026-10-13 镜像破壳：破壳后由文明推力被动累积到 STAR_CAP）。
      * ⚠️ 不能放 economy.tick 里——tick 在 s.broken 时顶部直接早退（1335 行），破壳后那条路径不跑。
@@ -1137,9 +1168,6 @@
       maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志
     }
     document.getElementById('btnBreak').onclick = function () {
-      if (S.shell <= 0 && !S.broken && !S.breakSettled && S.shellOpened) settleBreak();
-    };
-    document.getElementById('btnReset').onclick = function () {
       askResetRun();
     };
     document.getElementById('btnWipe').onclick = function () {
@@ -1243,6 +1271,21 @@
 
   SB.game = {
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
+    getSpeed: function () { return speed; },
+    runtimeStatus: function () {
+      return {
+        speed: speed,
+        loopAgeMs: last > 0 && root.performance && root.performance.now
+          ? Math.max(0, root.performance.now() - last) : null,
+        catchupActive: !!loop.job,
+        queuedGameSeconds: Number(loop.acc) || 0,
+        tickMs: TICK_MS,
+        batchTicks: Number(loop._lastBatchTicks) || 0,
+        batchFastTicks: Number(loop._lastBatchFastTicks) || 0,
+        batchMs: Number(loop._lastBatchMs) || 0,
+        batchSimSeconds: Number(loop._lastBatchSimSeconds) || 0,
+      };
+    },
     adMul: adMul, grantAdBoost: grantAdBoost, toggleAdBoost: toggleAdBoost,
     grantRebirthAd: grantRebirthAd, adRebirthState: adRebirthState, todayKey: todayKey,
     startRun: startRun, nextCycle: nextCycle, stay: stay, recordLaunch: recordLaunch,

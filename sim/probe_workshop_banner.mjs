@@ -1,5 +1,6 @@
-// 验证：工坊顶部横幅改为读 craftMul 全局口径后，确实包含 boomcraft ×1.5，
+// 验证：工坊顶部横幅改为读 craftMul 全局口径后，确实包含 boomcraft 乘区，
 // 且与「无配方专属加成」的配方行 craftMul 逐字相等。
+// ⚠️ 乘数值不硬编码：从 UPGRADES 表现读（2026-10-21 用户拍 1.5→1.05，避免下次标定又改探针）。
 import { loadNoDom } from './load-sb.mjs';
 
 const { SB } = loadNoDom();
@@ -10,9 +11,10 @@ const s = {
   indRobotOn: false,
 };
 
+const boomMul = 1 + (SB.UPGRADES.find(u => u.id === 'upg_boomcraft') || {}).boomcraftMul;
 const r = SB.workshop.craftRatio(s);
 const gmGlobal = SB.workshop.craftMul(s, { id: '__global__' }); // 横幅用的全局口径
-const mulExpected = (1 + r) * 1.5; // 仅 boomcraft 乘区（无王座/激光/机器人/海）
+const mulExpected = (1 + r) * boomMul; // 仅 boomcraft 乘区（无王座/激光/机器人/海）
 
 let fail = 0;
 function chk(name, cond, extra) {
@@ -20,16 +22,16 @@ function chk(name, cond, extra) {
   if (!cond) fail++;
 }
 
-// 1) 全局 craftMul == (1+craftRatio)*1.5 （boomcraft 已含）
-chk('global craftMul == (1+craftRatio)*1.5', Math.abs(gmGlobal - mulExpected) < 1e-9,
+// 1) 全局 craftMul == (1+craftRatio)*boomMul （boomcraft 已含）
+chk('global craftMul == (1+craftRatio)*boomMul(表读 ' + boomMul + ')', Math.abs(gmGlobal - mulExpected) < 1e-9,
   'r=' + r.toFixed(4) + ' gm=' + gmGlobal.toFixed(4) + ' expected=' + mulExpected.toFixed(4));
 
-// 2) boomcraft 确实生效：若没买，gm 应 = (1+r)；买了应 = (1+r)*1.5
+// 2) boomcraft 确实生效：若没买，gm 应 = (1+r)；买了应 = (1+r)*boomMul
 const sNoBoom = JSON.parse(JSON.stringify(s));
 sNoBoom.upgrades = {};
 const gmNoBoom = SB.workshop.craftMul(sNoBoom, { id: '__global__' });
 chk('无 boomcraft 时 gm == (1+r)', Math.abs(gmNoBoom - (1 + r)) < 1e-9, 'gmNoBoom=' + gmNoBoom.toFixed(4));
-chk('买 boomcraft 后 gm 放大 1.5×', Math.abs(gmGlobal / gmNoBoom - 1.5) < 1e-9,
+chk('买 boomcraft 后 gm 放大 ' + boomMul + '×', Math.abs(gmGlobal / gmNoBoom - boomMul) < 1e-9,
   'ratio=' + (gmGlobal / gmNoBoom).toFixed(4));
 
 // 3) 横幅公式与配方行同式：(mul-1)*100

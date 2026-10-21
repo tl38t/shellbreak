@@ -60,7 +60,7 @@ const server = http.createServer((req, res) => {
   fs.readFile(filename, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     if (filename === path.join(root, 'index.html')) {
-      data = Buffer.from(data.toString('utf8').replace('</body>', '<script src="src/ai-player.js?v=7"></script>\n</body>'), 'utf8');
+      data = Buffer.from(data.toString('utf8').replace('</body>', '<script src="src/ai-player.js?v=10"></script>\n</body>'), 'utf8');
     }
     res.writeHead(200, { 'Content-Type': types[path.extname(filename)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
     res.end(data);

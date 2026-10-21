@@ -762,7 +762,7 @@
       desc: '采集泰坦星气云：每级 热液能 +6/秒（不烧暖石）、燃料 +5/秒。1 级 = 1 座。',
       requiredTech: ['gascloud'] },
     /* ── ERA8（2026-10-19 · B7 机器人机制实装 · spec §6）──
-     * 【机器人充能站】工坊区。每级维持 4 机器人人口（folk.robotPop = 4 × lvl）；
+     * 【机器人充能站】礁栖核心（核心区 · 2026-10-21 由工坊区迁入）。每级维持 4 机器人人口（folk.robotPop = 4 × lvl）；
      *   机器人仅能担任非书手/学者的岗位（folk.robotJobAllowed），产出 ×robotMult(s)
      *   （默认 1.2；ERA10 强人工智能升级后 1.5，effJobs 合并、剔除 scribe/scholar）。
      *   ERA10（2026-10-20）：买了升级「强人工智能」后机器人**按人口口径产信仰**
@@ -796,23 +796,23 @@
       requiredTech: ['near_star_orbit'] },
 
     /* ── ERA10 市政（2026-10-20 用户规格 · 实装）──
-     * 【泰拉星轨道发射场 / 瑞亚星轨道发射场】（市政《公共工程局》解锁）
+     * 【泰拉星轨道发射场 / 恩克拉多斯星轨道发射场】（市政《公共工程局》解锁）
      *   用户拍 Q1 = **新建两座独立建筑**，与欧罗巴发射场同功能（各推 1 帆/级/节律）；
      *   用户追加「两个新发射场和欧罗巴原发射场制造消耗设计相同」⇒ 运行耗料**逐字同值**：
      *     帆模式 0.1 强工质引擎 + 0.1 θ薄膜 + 2 热液能 /秒/级；节点模式 1 + 1 + 3。
      *   ⇒ 三座共用 economy 的 launch* 单一落点（launchLvl / launchCycleOf / launchHydroPer），
      *     绝不在 tick 与 rates 各写一份（那正是面板撒谎家族）。
      * 【造价「从 1 级开始」】用户表原文。落地 = **不进 COST_OFFSET_COVERED**
-     *   （G.E.E.K 瑞亚/泰拉改造会给覆盖建筑造价等级 −3/−5，新发射场刻意不吃这份折扣）。
+     *   （G.E.E.K 恩克拉多斯/泰拉改造会给覆盖建筑造价等级 −3/−5，新发射场刻意不吃这份折扣）。
      *   造价为提议值（欧罗巴 steel1000+θ200+火箭50 上浮），待标定。
      * 【解锁走 requiredCivic】解锁权在市政身上（与黑色方碑同一轴），不走科技 eff.unlockBuild。 */
     { id: 'terra_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-10/era10-terra-launch.png', name: '泰拉星轨道发射场', ratio: 1.5,
-      cost: { steel: 1500, thetaMetal: 400, strongProp: 100 },
+      cost: { steel: 1000, thetaMetal: 200, strongProp: 50 },
       desc: '泰拉星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。',
       requiredCivic: 'public_works' },
-    { id: 'rhea_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-10/era10-rhea-launch.png', name: '瑞亚星轨道发射场', ratio: 1.5,
-      cost: { steel: 1200, thetaMetal: 320, strongProp: 80 },
-      desc: '瑞亚星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。',
+    { id: 'enceladus_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-10/era10-enceladus-launch.png', name: '恩克拉多斯星轨道发射场', ratio: 1.5,
+      cost: { steel: 1000, thetaMetal: 200, strongProp: 50 },
+      desc: '恩克拉多斯星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。',
       requiredCivic: 'public_works' },
 
     /* 【虚境祭坛】（市政《虚境探索》解锁）
@@ -889,15 +889,18 @@
     /* ERA8（2026-10-18）：生物材料研究所归工坊区（原料转换产线）；
      *   瑞亚星矿井/泰坦星气云采集站归星海区（在地工业，与卫星/空间站同区 ⇒ 吃 spaceCostMul）。 */
     biomatlab: 'workshop', rheamine: 'space', titancloud: 'space',
-    /* ERA8（2026-10-19 · B7）：机器人充能站归工坊区（机器人产线家族，与工坊/炉/汽轮机同区）。 */
-    robotbay: 'workshop',
+    /* ERA8（2026-10-19 · B7）：机器人充能站原归工坊区（机器人产线家族）；2026-10-21 用户拍板改归
+     *   礁栖核心（核心区）—— 故其等级现计入 coreFaithMul（礁栖核心每级 +10% 信仰）与「我们在此」卡的
+     *   coreSpaceFaithMul（core+space 每级 +10%）两项信仰乘区，且君主制政体下建造 −10%。
+     *   ⚠️ 这些是按 zone 自动派生的副作用，非机器人机制本意；若只想挪 UI 分区不想加信仰需另写排除。 */
+    robotbay: 'core',
     /* ERA9（2026-10-19）：马尔斯工造中心归星海区（异星制造，与 rheamine/titancloud 同区 ⇒ 吃 spaceCostMul）；
      *   欧罗巴冰面发射场归礁栖核心（欧罗巴是母星、不算异星，不进 lvlSum）。 */
     mars_workshop: 'space', europa_launch: 'core',
     /* ERA10（2026-10-20）：太阳星环归星海区（近恒星轨道建筑，与卫星/空间站同区 ⇒ 吃 spaceCostMul）。
      * 两座异星发射场同归星海区（在地工业 → 与 rheamine/titancloud/mars_workshop 同区，同样吃 spaceCostMul）；
      * 虚境祭坛归信仰区（与神庙/黑色方碑同区，纯 UI 分区，不吃 spaceCostMul）。 */
-    solar_ring: 'space', terra_launch: 'space', rhea_launch: 'space', void_altar: 'faith'
+    solar_ring: 'space', terra_launch: 'space', enceladus_launch: 'space', void_altar: 'faith'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';

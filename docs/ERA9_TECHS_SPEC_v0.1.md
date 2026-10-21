@@ -31,11 +31,11 @@
 | 超远距微波加热 | `microwave_heat` | `interplanetary` | `{t:'starPct', n:75}` 星空探索>75% | 2 | **建筑：欧罗巴冰面发射场** `europa_launch`（每 s 耗 0.1 strongProp+0.1 thinafilm+2 hydro；跑 10s→星图 +1 太阳帆） | **星图太阳帆进度：每 1 帆 +0.1 热液能/s** |
 | 大型异星工程 | `alien_eng` | `ecological_restoration` | `{t:'lvlSum', ids:['rheamine','titancloud','mars_workshop'], n:20}` 异星建筑总等级>20 | 2 | **建筑：马尔斯工造中心** `mars_workshop`（造价 160θ金属+10 strongProp；产出 钛 + 钛合金板） | — |
 | 黑历史蓝图 | `blackhistory` | `interplanetary` | `{t:'cycle', n:15}` 轮回次数>15 | 2 | **工艺效率 +120%**（eff `workshopEff:1.2`） | — |
-| 星球改造 | `terraform` | `alien_eng` | `{t:'geekRhea'}`（**新 cond**：完成瑞亚星改造） | 3 | 可启动**泰拉**星球改造（需启动星球重构机 G.E.E.K） | 泰拉 1h → 覆盖建筑**成本回到 L5 之前** |
+| 星球改造 | `terraform` | `alien_eng` | `{t:'geekEnceladus'}`（**新 cond**：完成恩克拉多斯星改造） | 3 | 可启动**泰拉**星球改造（需启动星球重构机 G.E.E.K） | 泰拉 1h → 覆盖建筑**成本回到 L5 之前** |
 | 行星际快速物流 | `interlog` | `microwave_heat` | `{t:'civic', id:'space_politics'}` 完成星际政治市政 | 3 | **异星建筑产出 +20%**（eff `alienOutMul:0.2`，与星际物流网 ×1.3 加算） | — |
 | 严冬计划 | `winter` | `blackhistory` | `{t:'challenge', id:'drift_terra'}`（**新 cond**：进入挑战流浪泰拉） | 3 | 暂时占位 | — |
 
-> `built`/`starPct`/`gathered`/`lvlSum`/`cycle`/`civic` 六种 cond **代码已存在**（tech.js:183-329）。只有 `geekRhea` 与 `challenge`（entered）需要**新增 cond 分支**（见 §6）。
+> `built`/`starPct`/`gathered`/`lvlSum`/`cycle`/`civic` 六种 cond **代码已存在**（tech.js:183-329）。只有 `geekEnceladus` 与 `challenge`（entered）需要**新增 cond 分支**（见 §6）。
 
 ---
 
@@ -78,10 +78,10 @@
 - **解锁**：`ecological_restoration` 的 `unlockWonder:'geek'`（不是 terraform，纠正①）。
 - **造价**：`{thetaMetal:1000, steel:4000, iron:6000, coral:10000, kelp:10000}`（精铁=`iron`，已核对）。
 - **运行态（抄天穹钻机）**：启动后每 s 耗 `hydro 40`（flow，hydroAlloc 加 `geekHydroDraw=40`）+ `kelp 500` + `metal 100` + `coral 100`（库存，扣费先于置位、失败一分不扣）。缺料暂停、进度保留。
-- **进度与 UI**：在**自然环境卡**（render-environment.js）显示进度条 + 文案「瑞亚星星球改造」。瑞亚耗时 = 游戏内 **1800s**（受 10× 加速/离线影响，与天穹钻机同口径）。完成后 `s.geek.rheaDone=true`。
+- **进度与 UI**：在**自然环境卡**（render-environment.js）显示进度条 + 文案「恩克拉多斯星星球改造」。恩克拉多斯耗时 = 游戏内 **1800s**（受 10× 加速/离线影响，与天穹钻机同口径）。完成后 `s.geek.enceladusDone=true`。
 - **第二次改造（泰拉）**：研究 `terraform` 后可在 G.E.E.K 启动泰拉；耗时游戏内 **3600s**（1h）；完成后 `s.geek.terraDone=true`。
 - **两个新 cond**：
-  - `geekRhea`：`s.geek && s.geek.rheaDone`（星球改造的尤里卡）。
+  - `geekEnceladus`：`s.geek && s.geek.enceladusDone`（星球改造的尤里卡）。
   - `challenge`（entered）：见 §8 注。
 
 ---

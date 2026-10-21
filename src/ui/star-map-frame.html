@@ -1618,7 +1618,7 @@ const _smDefs=[
   {id:"jupiter",name:"木星系",type:"jupiter",rx:.60,ry:.46,phase:-.65,speed:.000018,r:13.5,copy:"太阳系第五轨道 · 引力弹弓与朱庇特质量加速站所在的气态巨行星系。"},
   {id:"saturn",name:"萨图恩行星系",type:"saturn",rx:.86,ry:.65,phase:2.55,speed:.000011,r:10.8,copy:"太阳系第六轨道 · 点击进入原有第一阶段的卫星局部星图。"}
 ];
-let _smView="phase1",_smGame={era:1,sunSails:0,dysonNodes:0,dysonPct:0,adiabatic:false,solarRingLevel:0,launchMode:"sail",launchCycle:10,launchpads:{europa:0,terra:0,rhea:0}},_smLastCounts=null,_smDpr=1,_smWidth=0,_smHeight=0,_smHits=[],_smSelected="saturn",_smLaunchQueue=[],_smFlight=null,_smLaunchCursor=0,_smFlightCount=0,_smShellPulseUntil=0;
+let _smView="phase1",_smGame={era:1,sunSails:0,dysonNodes:0,dysonPct:0,adiabatic:false,solarRingLevel:0,launchMode:"sail",launchCycle:10,launchpads:{europa:0,terra:0,enceladus:0}},_smLastCounts=null,_smDpr=1,_smWidth=0,_smHeight=0,_smHits=[],_smSelected="saturn",_smLaunchQueue=[],_smFlight=null,_smLaunchCursor=0,_smFlightCount=0,_smShellPulseUntil=0;
 const _smSystemInfo={
   earth:["地球系",_smDefs[0].copy,["太阳系 · 1 AU","泰拉发射场"]],
   mars:["火星系",_smDefs[1].copy,["太阳系 · 1.52 AU","火星工造"]],
@@ -1708,7 +1708,7 @@ function _smDrawStar(cx,cy,r,spin){
   _smCtx.save();_smCtx.translate(cx,cy);_smCtx.rotate(spin);_smCtx.globalAlpha=.22;_smCtx.strokeStyle="#fff1b5";_smCtx.lineWidth=.8;for(let i=0;i<3;i++){_smCtx.beginPath();_smCtx.ellipse(0,0,r*.35+i*r*.16,r*.1+i*r*.05,0,.2,2.8);_smCtx.stroke();}_smCtx.restore();_smCtx.globalAlpha=1;
 }
 function _smLaunchSites(){
-  const p=_smGame.launchpads||{},all=[{id:"europa",system:"saturn",name:"欧罗巴",x:-5,y:5,level:p.europa||0},{id:"terra",system:"earth",name:"泰拉",x:0,y:-12,level:p.terra||0},{id:"rhea",system:"saturn",name:"瑞亚",x:11,y:9,level:p.rhea||0}];
+  const p=_smGame.launchpads||{},all=[{id:"europa",system:"saturn",name:"欧罗巴",x:-5,y:5,level:p.europa||0},{id:"terra",system:"earth",name:"泰拉",x:0,y:-12,level:p.terra||0},{id:"enceladus",system:"saturn",name:"恩克拉多斯",x:11,y:9,level:p.enceladus||0}];
   return all.filter(site=>site.level>0);
 }
 function _smQueueLaunches(type,delta){

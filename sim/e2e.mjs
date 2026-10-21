@@ -1869,14 +1869,14 @@ check('首次轮回后 meta 页解锁（不再 locked）',
   SB.state.saveMeta(SB.game.meta());
   sBtn.religionName = '';
   SB.game.renderAll();
-  const btn0 = doc.getElementById('btnReset').textContent;
-  check('永久已解锁（seen=true）但**当局**未建立宗教 ⇒ 底栏仍写「重开本周目」',
-    SB.game.meta().religionSeen === true && btn0 === '重开本周目',
+  const btn0 = doc.getElementById('btnBreak').textContent;
+  check('永久已解锁（seen=true）但**当局**未建立宗教 ⇒ 主按钮仍写「凿穿冰壳」',
+    SB.game.meta().religionSeen === true && btn0 === '凿穿冰壳',
     'seen=' + SB.game.meta().religionSeen + ' text=' + btn0);
   sBtn.religionName = '深渊教';
   SB.game.renderAll();
-  const btn1 = doc.getElementById('btnReset').textContent;
-  check('**当局**建立宗教（写入宗教名）⇒ 底栏写「轮回」', btn1 === '轮回', 'text=' + btn1);
+  const btn1 = doc.getElementById('btnBreak').textContent;
+  check('**当局**建立宗教（写入宗教名）⇒ 主按钮仍为「凿穿冰壳」（合并后按钮文案随破壳/戴森维度，不再随宗教）', btn1 === '凿穿冰壳', 'text=' + btn1);
   sBtn.religionName = nameBak;               // 还原，别影响后续断言
   SB.game.meta().religionSeen = seenBak;
   SB.state.saveMeta(SB.game.meta());

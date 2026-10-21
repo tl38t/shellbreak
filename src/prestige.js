@@ -46,9 +46,9 @@
     mars_workshop: 9, europa_launch: 9,
     /* ERA10（2026-10-20）：太阳星环归纪元十。⚠️ 与 W[10] 必须同时登记：
      *   只加 META_ERA ⇒ W[10] 为 undefined ⇒ buildingScore 变 NaN（比跳过更糟）。
-     * ERA10 市政（2026-10-20）：泰拉/瑞亚星轨道发射场 + 虚境祭坛同样归纪元十
+     * ERA10 市政（2026-10-20）：泰拉/恩克拉多斯星轨道发射场 + 虚境祭坛同样归纪元十
      *   （虚境祭坛虽是"无产出"建筑，但它吃 30 人口/级，理应在发展分里算数）。 */
-    solar_ring: 10, terra_launch: 10, rhea_launch: 10, void_altar: 10
+    solar_ring: 10, terra_launch: 10, enceladus_launch: 10, void_altar: 10
   };
 
   /* 调和级数 H(n) = Σ_{k=1..n} 1/k，用于旧日艺术品/碑石的固定速率递减。 */

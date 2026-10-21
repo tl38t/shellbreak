@@ -105,7 +105,7 @@ html[data-ui-theme="day"] .workshop-grid>.row{background:linear-gradient(145deg,
 
 /* P4：复杂页面拆成可切换的二级区块；二级标签固定触控高度，内容区只保留当前任务。 */
 .panel-subtabs{display:flex;gap:6px;padding:9px 14px;border-bottom:1px solid var(--line-soft);background:rgba(8,25,43,.3)}
-.panel-subtabs .subtab{flex:1;min-height:38px;padding:7px 12px;border:1px solid var(--line-soft);border-radius:9px;background:var(--panel2);color:var(--dim);font-size:12px;font-weight:700;cursor:pointer;transition:.16s}
+.panel-subtabs .subtab{flex:1;min-height:38px;padding:7px 12px;border:1px solid var(--line-soft);border-radius:9px;background:var(--panel2);color:var(--dim);font-size:12px;font-weight:700;cursor:pointer;transition:.16s;position:relative;overflow:hidden}
 .panel-subtabs .subtab:hover{color:var(--txt);border-color:var(--line)}
 .panel-subtabs .subtab.on{background:rgba(105,226,223,.12);border-color:rgba(105,226,223,.42);color:var(--cyan);box-shadow:inset 0 -2px var(--cyan)}
 .civic-subtabs .subtab.on{background:rgba(245,205,107,.12);border-color:rgba(245,205,107,.42);color:var(--gold);box-shadow:inset 0 -2px var(--gold)}
@@ -116,6 +116,10 @@ html[data-ui-theme="day"] .workshop-grid>.row{background:linear-gradient(145deg,
 .panel-subtabs .subtab .subcnt{margin-left:5px;font-size:10px;font-weight:600;opacity:.78;white-space:nowrap}
 .panel-subtabs .subtab .subnew{margin-left:5px;padding:1px 5px;border-radius:999px;background:rgba(245,205,107,.16);border:1px solid rgba(245,205,107,.45);color:var(--gold);font-size:8px;font-weight:800;letter-spacing:.6px;vertical-align:middle;white-space:nowrap}
 html[data-ui-theme="day"] .panel-subtabs .subtab .subnew{background:#fdf4dc;color:#8a6414;border-color:rgba(138,100,20,.34)}
+/* 升级项二级标签「可购买」红点（2026-10-21 用户）：与 .tab.avail 同源的红点语义，
+ * 仅落点改在 subtab 左上角内侧；subtab 已 position:relative + overflow:hidden。 */
+.panel-subtabs .subtab.avail::after{content:'';position:absolute;top:3px;left:3px;width:7px;height:7px;border-radius:50%;background:#ec5b6b;box-shadow:0 0 6px rgba(236,91,107,.85);pointer-events:none;z-index:2}
+html[data-ui-theme="day"] .panel-subtabs .subtab.avail::after{background:#d8394b;box-shadow:0 0 5px rgba(216,57,75,.6)}
 .civic-subtab-status,.civic-slot-warning,.civic-slot-empty-flag{display:inline-flex;align-items:center;gap:4px;color:#ff7380;font-size:9px;font-weight:800;white-space:nowrap}
 .civic-subtab-status{margin-left:7px;padding:2px 6px;border:1px solid rgba(236,91,107,.28);border-radius:999px;background:rgba(236,91,107,.10);vertical-align:middle}
 .civic-subtab-status i,.civic-slot-warning i,.civic-slot-empty-flag i{display:inline-block;width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:#ec5b6b;box-shadow:0 0 6px rgba(236,91,107,.7)}

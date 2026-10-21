@@ -534,7 +534,7 @@
      *   太阳系后勤保障 + 虚境信仰 → 虚境探索 → 飞升虚境（终局结局线）。 */
     { id: 'public_works', name: '公共工程局', icon: 'assets/civic-icons/era-10/era10-publicworks.png?v=3', cost: 6000000, era: 10, layer: 1,
       reqs: ['solar_logistics'], boost: { t: 'built', b: 'europa_launch', n: 2 },
-      desc: '解锁建筑「泰拉星轨道发射场」「瑞亚星轨道发射场」：制造节律与耗料与欧罗巴发射场完全相同，造价按 1 级起算（不吃星球改造的等级折扣）。',
+      desc: '解锁建筑「泰拉星轨道发射场」「恩克拉多斯星轨道发射场」：制造节律与耗料与欧罗巴发射场完全相同，造价按 1 级起算（不吃星球改造的等级折扣）。',
       note: '前置：太阳系后勤保障。鼓舞：欧罗巴发射场等级 ≥ 2。' },
     { id: 'supreme_directive', name: '至高指令', icon: 'assets/civic-icons/era-10/era10-supreme.png?v=3', cost: 8000000, era: 10, layer: 2,
       reqs: ['public_works'], boost: { t: 'tech', id: 'adiabatic' },

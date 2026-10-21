@@ -344,7 +344,7 @@
       + '<p class="muted">母星戴上了一圈星环，文明的火光第一次以恒星计量。'
       + '你可以立刻轮回结算（轮回点与星屑按现有公式入账），也可以继续留在这一局，攒取更多的轮回点与星屑。</p>'
       + '<div class="break-controls">'
-      + '<button class="btn big" type="button" id="dysonBreakNow">立即轮回（结算）</button>'
+      + '<button class="btn big" type="button" id="dysonBreakNow">繁星轮回（结算）</button>'
       + '<button class="btn" type="button" id="dysonKeepPlaying">继续游玩</button>'
       + '</div></div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
@@ -613,7 +613,7 @@
               launchpads: {
                 europa: _smLvl.europa_launch || 0,
                 terra: _smLvl.terra_launch || 0,
-                rhea: _smLvl.rhea_launch || 0
+                enceladus: _smLvl.enceladus_launch || 0
               }
             }, '*');
           }
@@ -681,7 +681,8 @@
     var breakPreview = s.shellOpened && s.shell <= 0 && SB.prestige.qualified(s)
       ? SB.prestige.breakReport(s) : null;
     el('btnBreak').disabled = !ready;
-    el('btnBreak').textContent = s.shellOpened && s.shell <= 0 ? '轮回结算' : '凿穿冰壳';
+    el('btnBreak').textContent = s.dysonDone ? '繁星轮回'
+      : (s.shellOpened && s.shell <= 0 ? '破壳轮回' : '凿穿冰壳');
     el('breakHint').textContent = s.shellOpened && s.shell <= 0
       ? breakPreview
         ? '当前轮回预估：' + breakPreview.tidePoints.toFixed(2) + ' 轮回点、' + breakPreview.stardust + ' 星屑；留在本局继续发展可提高预估。'
@@ -689,15 +690,17 @@
       : ready ? '壳已归零——凿下去。'
       : s.shell > 0 ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。'
       : '冰壳停住了：需要建成「天穹钻机」奇观才能凿穿最后一段。';
-    /* 重置按钮文案随「**当局**是否建立宗教」翻转：本局还没建立宗教 ⇒「重开本周目」，
-     * 建立了（玩家给它起了名）⇒「轮回」——2026-09-29 规格。
-     * ⚠️ 2026-10-03 由 `meta().religionSeen` 改成 `SB.prestige.religionEstablished(s)`。
-     *   旧写法读的是**永久**开关，于是「早前某周目建过宗教 / 旧档迁移补发」之后，
-     *   新周目里神学被重置、宗教名也清了，底栏**却已经写「轮回」**（用户报：「这里还没研究
-     *   神学怎么就是轮回了？」）。文案跟当局，机制（发点 / 商店解锁）仍跟永久开关 —— 分工见
-     *   prestige.religionEstablished 的注释，不要在这里再写第二份判据。 */
-    var rb = el('btnReset');
-    if (rb) rb.textContent = SB.prestige.religionEstablished(s) ? '轮回' : '重开本周目';
+    /* 2026-10-21 合并双按钮：原底栏「重开/轮回」(btnReset) 与顶栏「凿穿冰壳/轮回结算」(btnBreak)
+     * 是同一套 askResetRun 确认流程的两个入口，文案随不同维度翻转导致混淆，现合并为唯一按钮 btnBreak，
+     * 文案三态：
+     *   · 未破壳（!shellOpened || shell>0）→「凿穿冰壳」（disabled，纯引导削壳，点不动）
+     *   · 破壳后、未建戴森（shell<=0 && !dysonDone）→「破壳轮回」
+     *   · 已建戴森球（dysonDone）→「繁星轮回」
+     * ⚠️ 宗教维度不再体现在按钮文案：原「底栏随当局是否建宗教翻转 重开本周目/轮回」已移除，
+     *   改由 askResetRun 的 confirmPanel 标题（qual = 本局研究完《神学》？「轮回（结算）？」:「重开本周目？」）
+     *   体现 ——「发点 / 不发点」的语义分流仍在，只是挪到确认弹窗，不在按钮本身。
+     *   （2026-10-03 那次 religionSeen→religionEstablished 的修复，判据已并入 prestige.religionEstablished，
+     *    现在只在 askResetRun 的 qual 里被读，不在此处写第二份。） */
   }
 
   function clock() {
@@ -1391,6 +1394,15 @@
       }
       wt.classList.toggle('avail', wonderOn);
       if (wonderOn) wt.title = '有可建造的奇观';
+    }
+    /* 工坊页签「升级项可购买」红点（2026-10-21 用户）：复用 hasPurchasable（与升级项
+     * 二级标签同源、与结算同式），仅工坊已建成（解锁）时亮。活指示，每次 PANE_REFRESH 重算。 */
+    var wkt = doc.querySelector('.tab[data-tab="workshop"]');
+    if (wkt) {
+      var wkUnlocked = !!(s && s.lvl && s.lvl.workshop > 0);
+      var wkOn = wkUnlocked && SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s);
+      wkt.classList.toggle('avail', wkOn);
+      if (wkOn) wkt.title = (wkt.title ? wkt.title + '；' : '') + '有可购买的升级项';
     }
   }
 
