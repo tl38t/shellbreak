@@ -63,13 +63,63 @@
       configurable: true
     });
     out.lvl = fixTable(raw.lvl, base.lvl);
-    /* 自动化钻探逐矿井启停（2026-10-21）：新档读 autoDrillCount；旧档将旧布尔开关迁成
-     *   全开 / 全关数量，保持已有玩家的设置。总数永远夹在当前砂矿坑等级内。 */
-    var _adTotal = Math.max(0, Math.floor(out.lvl.siltpit || 0));
-    var _adSaved = (typeof raw.autoDrillCount === 'number' && isFinite(raw.autoDrillCount))
-      ? raw.autoDrillCount
-      : ((raw.upgrades && raw.upgrades.upg_autodrill && raw.autoDrillOn !== false) ? _adTotal : 0);
-    out.autoDrillCount = Math.max(0, Math.min(_adTotal, Math.floor(_adSaved)));
+    /* 发射场各自保存帆/节点周期余数。旧版只有共用的 sunSailProc / dysonProc，
+     * 将这份余数迁到首个已建发射场，避免升级后丢失已有进度或复制出多份进度。 */
+    var _launchIds = [], _launchDefs = SB.BUILDINGS || [];
+    for (var _li = 0; _li < _launchDefs.length; _li++)
+      if (_launchDefs[_li].launchpad) _launchIds.push(_launchDefs[_li].id);
+    if (!_launchIds.length) _launchIds = ['europa_launch', 'terra_launch', 'enceladus_launch'];
+    var _legacyLaunchTarget = '';
+    for (var _lt = 0; _lt < _launchIds.length; _lt++) {
+      if ((out.lvl && out.lvl[_launchIds[_lt]]) > 0) { _legacyLaunchTarget = _launchIds[_lt]; break; }
+    }
+    if (!_legacyLaunchTarget) _legacyLaunchTarget = _launchIds[0] || '';
+    var _rawLaunchProcs = raw.launchProcs && typeof raw.launchProcs === 'object' && !Array.isArray(raw.launchProcs)
+      ? raw.launchProcs : null;
+    out.launchProcs = {};
+    for (var _li2 = 0; _li2 < _launchIds.length; _li2++) {
+      var _launchId = _launchIds[_li2], _rawLaunchProc = _rawLaunchProcs && _rawLaunchProcs[_launchId];
+      var _sailProc = _rawLaunchProc && typeof _rawLaunchProc.sail === 'number'
+        && isFinite(_rawLaunchProc.sail) && _rawLaunchProc.sail >= 0
+        ? _rawLaunchProc.sail
+        : (!_rawLaunchProcs && _launchId === _legacyLaunchTarget
+          && typeof raw.sunSailProc === 'number' && isFinite(raw.sunSailProc) ? Math.max(0, raw.sunSailProc) : 0);
+      var _nodeProc = _rawLaunchProc && typeof _rawLaunchProc.node === 'number'
+        && isFinite(_rawLaunchProc.node) && _rawLaunchProc.node >= 0
+        ? _rawLaunchProc.node
+        : (!_rawLaunchProcs && _launchId === _legacyLaunchTarget
+          && typeof raw.dysonProc === 'number' && isFinite(raw.dysonProc) ? Math.max(0, raw.dysonProc) : 0);
+      out.launchProcs[_launchId] = { sail: _sailProc, node: _nodeProc };
+    }
+    /* 发射场按场启停：老档缺少此字段时默认全开；非法值按各场等级夹回范围。 */
+    var _rawLaunchStops = raw.launchStops && typeof raw.launchStops === 'object' && !Array.isArray(raw.launchStops)
+      ? raw.launchStops : {};
+    out.launchStops = {};
+    for (var _lsi = 0; _lsi < _launchIds.length; _lsi++) {
+      var _stopId = _launchIds[_lsi], _stopValue = _rawLaunchStops[_stopId];
+      var _stopTotal = Math.max(0, Math.floor(out.lvl[_stopId] || 0));
+      if (typeof _stopValue !== 'number' || !isFinite(_stopValue)) _stopValue = 0;
+      out.launchStops[_stopId] = Math.max(0, Math.min(_stopTotal, Math.floor(_stopValue)));
+    }
+    /* 砂矿坑启停（2026-10-21）：保存停用数，与巢穴页其它可开关建筑一致。
+     * 将上一版工坊控件保存的 autoDrillCount（运行数）换算为停用数，保留玩家已调好的数量；
+     * 没有这个新字段/旧运行数时默认全开，因为旧 autoDrillOn 只控制自动化加成，不代表矿坑停产。 */
+    var _pitTotal = Math.max(0, Math.floor(out.lvl.siltpit || 0));
+    if (!(typeof raw.siltpitStop === 'number' && isFinite(raw.siltpitStop))) {
+      var _oldActive = (raw.upgrades && raw.upgrades.upg_autodrill
+        && typeof raw.autoDrillCount === 'number' && isFinite(raw.autoDrillCount))
+        ? Math.max(0, Math.min(_pitTotal, Math.floor(raw.autoDrillCount))) : _pitTotal;
+      out.siltpitStop = _pitTotal - _oldActive;
+    }
+    out.siltpitStop = Math.max(0, Math.min(_pitTotal, Math.floor(out.siltpitStop || 0)));
+    /* 工坊启停：新字段保存停用数。旧版工业机器人全局开关为 false 时迁成工坊全停，
+     * 保持停机且不突然增加热液能消耗；旧版开启或尚无该开关时按正常建筑缺省全开。 */
+    var _workshopTotal = Math.max(0, Math.floor(out.lvl.workshop || 0));
+    if (!(typeof raw.workshopStop === 'number' && isFinite(raw.workshopStop))) {
+      out.workshopStop = (raw.upgrades && raw.upgrades.upg_indrobot && raw.indRobotOn === false)
+        ? _workshopTotal : 0;
+    }
+    out.workshopStop = Math.max(0, Math.min(_workshopTotal, Math.floor(out.workshopStop || 0)));
     /* 热泉炉「开几座」迁移（2026-09-30）：旧档只有布尔 `furnaceOn`（见 freshRun 那条注）。
      *   false ⇒ 全部停（停用数 = 当前等级）；true / 缺键 ⇒ 全开（0）。
      *   再夹到 [0, lv]：存了一个比等级还大的停用数时，运行座数会算成负数。

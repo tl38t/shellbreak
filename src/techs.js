@@ -786,7 +786,7 @@
       cond: { t: 'gathered', r: 'uranium', n: 100 },
       eff: { unlockBuild: ['fissionplant'] },
       /* 建筑「核热厂」（BUILDINGS.fissionplant requiredTech 双写）：每级 +10 热液能/秒（不烧暖石的新热液源）、
-       *   −0.02 铀/秒、居民奢侈品消耗 +10%/级（§0-3 用户拍板，负面效果）。 */
+       *   基础 −0.35 铀/秒/级（核聚变后×2）、居民奢侈品消耗 +10%/级（§0-3 用户拍板，负面效果）。 */
       unlockDesc: '解锁建筑「核热厂」：每级 +10 热液能/秒，耗铀，且居民奢侈品消耗 +10%（负面）。' },
 
     { id: 'complexf', name: '复合型工厂', icon: 'assets/tech-icons/era-7/era7-complexf.png', era: 7, cost: 2100000, branch: 'live', key: false, reqs: ['architect'], layer: 13,
@@ -799,7 +799,7 @@
      * spec：docs/ERA8_TECHS_SPEC_v0.1.md v0.3（2026-10-18 用户拍「实装」）。
      * cost 锚点（AI 定待标定）：L14=135万（对齐 spacestation 档）/ L15=300万 / L16=315万、
      *   gascloud 720万（双解锁 capstone：建筑 + 奇观）。
-     * ⚠️ laser 尤里卡 r:'hydroSupply' 而不是 spec 原文的 'hydro'：rates().hydro 是
+     * ⚠️ laser 尤里卡使用 r:'hydroSupply'：rates().hydro 是
      *    **净消耗**（恒 ≤0，工坊/钻机吃流），'hydro' 永远到不了 100 ⇒ 死条件；
      *    「热液能产出 100/秒」的正确口径是 hydroSupply（rateName 有专名的那条先例）。
      * ⚠️ protoai 本波 eff:{}：其唯一解锁「机器人充能站 robotbay」随 B7 机器人机制延后，
@@ -824,17 +824,16 @@
 
     { id: 'laser', name: '激光技术', icon: 'assets/tech-icons/era-8/era8-laser.png', era: 8, cost: 3000000, branch: 'know', key: false, reqs: ['biomat'], layer: 15,
       cond: { t: 'rate', r: 'hydroSupply', n: 100 },
-      /* 解锁2（用户拍②永久乘区）：工坊工艺制作效率 +50%——workshop.craftMul 读 mul().workshopEff。 */
-      eff: { workshopEff: 0.5 },
-      /* 解锁1：工坊升级「激光快速雕版」（upg_laserengrave，单局 −30% 制造消耗，run-scoped）。 */
-      unlockDesc: '解锁工坊升级「激光快速雕版」（本周目制造消耗 −30%，轮回后失效）。工坊工艺制作效率 +50%（永久）。' },
+      /* 激光技术只解锁工坊升级；购买「激光快速雕版」后，潮纹记录产出 +50%。 */
+      eff: {},
+      unlockDesc: '解锁工坊升级「激光快速雕版」（潮纹记录制造产出 +50%）。' },
 
     { id: 'robotics', name: '机器人技术', icon: 'assets/tech-icons/era-8/era8-robotics.png', era: 8, cost: 3000000, branch: 'live', key: false, reqs: ['biomat'], layer: 15,
       cond: { t: 'built', b: 'biomatlab', n: 3 },
       /* 解锁2（用户拍③永久乘区）：人造卫星星空探索 +100%——economy.starRate 卫星项乘 mul().satStar。 */
       eff: { satStar: 1.0 },
       /* 解锁1：工坊升级「工业机器人」（upg_indrobot，效率 ×2、耗热液能、可开关）。 */
-      unlockDesc: '解锁工坊升级「工业机器人」（工坊效率 +100%，可开关，开启时耗 0.3 热液能/秒）。人造卫星星空探索 +100%（永久）。' },
+      unlockDesc: '解锁工坊升级「工业机器人」（每座运行工坊对应的工艺产出份额 +100%，总加成按运行工坊占比计算；每座运行工坊耗 3 热液能/秒）。人造卫星星空探索 +100%（永久）。' },
 
     { id: 'xenoconst', name: '异星建筑工程', icon: 'assets/tech-icons/era-8/era8-xenoconst.png', era: 8, cost: 3000000, branch: 'live', key: false, reqs: ['deepspace'], layer: 15,
       /* 尤里卡 = 新 cond 类型 starPct（星空探索进度 ≥10%，读 res.starExplore/STAR_CAP）。 */
@@ -902,7 +901,7 @@
       /* 解锁1 = 建筑欧罗巴冰面发射场（BUILDINGS.europa_launch.requiredTech 双写）。 */
       eff: { unlockBuild: ['europa_launch'] },
       /* 解锁2 = 星图太阳帆进度：每 1 太阳帆 +0.05 热液能/秒（economy.hydroAlloc 读 s.sunSails）。 */
-      unlockDesc: '建筑：欧罗巴冰面发射场（每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；运行 10s → 星图 +1 太阳帆）。星图每 1 太阳帆 +0.05 热液能/秒。' },
+      unlockDesc: '建筑：欧罗巴冰面发射场（每座独立按制造周期计时，默认 10s；周期完成时按本场等级同时发射太阳帆。太阳帆模式每级每秒耗 0.5 铀 + 0.3 强工质火箭引擎 + 0.3 θ金属自适应薄膜 + 4 热液能）。星图每 1 太阳帆 +0.05 热液能/秒。' },
 
     { id: 'alien_eng', name: '大型异星工程', icon: 'assets/tech-icons/era-9/era9-alien-eng.png?v=2', era: 9, cost: 6000000, branch: 'live', key: false, reqs: ['ecological_restoration'], layer: 18,
       /* 尤里卡 = 异星建筑总等级 >20（lvlSum，含 rheamine/titancloud/mars_workshop）。 */
@@ -914,9 +913,9 @@
     { id: 'blackhistory', name: '黑历史蓝图', icon: 'assets/tech-icons/era-9/era9-blackhistory.png?v=2', era: 9, cost: 5500000, branch: 'know', key: false, reqs: ['interplanetary'], layer: 18,
       /* 尤里卡 = 轮回次数 >15（cycle，与考古学/文明构造同族）。 */
       cond: { t: 'cycle', n: 15 },
-      /* 工艺效率 +120%（workshopEff 加法叠进，与激光技术 +50% 同源）。 */
+      /* 工艺效率 +120%（全局 workshopEff 加法轴；不含激光快速雕版的潮纹记录配方专属 +50%）。 */
       eff: { workshopEff: 1.2 },
-      unlockDesc: '工艺效率 +120%（工坊工艺制作乘区，与激光技术 +50% 加法叠加）。' },
+      unlockDesc: '工艺效率 +120%（折进工坊工艺制作效率基数）。' },
 
     { id: 'terraform', name: '星球改造', icon: 'assets/tech-icons/era-9/era9-terraform.png?v=2', era: 9, cost: 7000000, branch: 'live', key: true, reqs: ['alien_eng'], layer: 19,
       /* ⚠️ 2026-10-20 ERA10 实装：key false → **true**。ERA9 原本零 key 节点
@@ -950,11 +949,11 @@
       cond: { t: 'sunSails', n: 50 },
       eff: {},
       /* 解锁1 = 发射场模式切换（太阳帆 / 戴森球节点，s.launchMode；economy-tick 2f 段读，
-       *   UI 在欧罗巴冰面发射场建筑行加切换钮）。节点耗料 = 1 强工质火箭引擎 + 1 θ金属
-       *   自适应薄膜 + 3 钛合金板 / 秒 / 级（用户表只给了每秒量，按与帆模式对称取 /级）。
+       *   UI 在欧罗巴冰面发射场建筑行加切换钮）。节点每级每秒耗铀 5 + 3 强工质火箭引擎 + 3 θ金属自适应薄膜
+       *   + 30 钛合金板 + 4 热液能；库存材料受星屑节点减耗。
        * 解锁2 = 戴森球终局面板（星图 pane）：太阳帆 10000 + 戴森球节点 1000，进度双达标取小
        *   （用户拍 Q4），20/40/60/80/100 五档背景图，100% 弹通关窗（可轮回或继续攒）。 */
-      unlockDesc: '欧罗巴冰面发射场可切换制造太阳帆或戴森球节点（节点每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板）。星图开启戴森球终局面板：太阳帆 10000 + 戴森球节点 1000 即通关。' },
+      unlockDesc: '欧罗巴冰面发射场可切换制造太阳帆（每级每秒耗铀 0.5、强工质火箭引擎 0.3、θ金属自适应薄膜 0.3、热液能 4）或戴森球节点（每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4；库存材料受星屑减耗）。星图开启戴森球终局面板：太阳帆 10000 + 戴森球节点 1000 即通关。' },
 
     { id: 'strong_ai', name: '强人工智能', icon: 'assets/tech-icons/era-10/era10-strong-ai.png?v=2', era: 10, cost: 8500000, branch: 'know', key: false, reqs: ['terraform'], layer: 20,
       /* 尤里卡 = 机器人充能站等级 ≥10（built，现成类型）。 */

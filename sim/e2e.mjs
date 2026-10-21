@@ -1075,11 +1075,59 @@ console.log('\n=== 纪元三 · economy 接线 ===');
       try { SB.folk.assignRobot(_rbOld, 'gather', 1); } catch (e) { _rbThrew = true; }
       check('B7 老档缺 robotJobs 键：assignRobot 不抛错且自建对象上岗',
         !_rbThrew && !!_rbOld.robotJobs && _rbOld.robotJobs.gather === 1);
+      /* ⚠️ 2026-10-21 回归（用户实测「分配了机器人做农民，藻食不涨，其它职业都涨」）：
+       *   根因 = `foodRate` 直接读 `s.jobs.gather`，**绕过 effJobs** ⇒ 藻食是全表唯一
+       *   漏掉机器人的产线（珊瑚匠/矿工/采石工都走 rates 里的 `j = effJobs(s)`），
+       *   而且 rates 与 tick 共用这个函数 ⇒ **面板和实账一起少算**，光看数字看不出是它。
+       *   下面三条把它钉死；此前 e2e 对「机器人→藻食」零覆盖（改前改后失败集逐字相同），
+       *   所以这个 bug 能一路漏到线上。
+       *   ① 机器人分配到 gather 后，藻食人均边际 == robotMult × 人类人均（真的接上了）
+       *   ② 真实 tick 累计 == 面板 rates 预测（面板===结算，不能只修面板侧）
+       *   ③ 商人侧同族修复：happySupply 与 rates 产能同口径（含机器人） */
+      const _kf = () => {
+        const z = SB.state.freshRun(false);
+        z.lvl.kelp = 0; z.lvl.weir = 0; z.lvl.warmnest = 0;   // 只留职业侧，建筑侧不干扰
+        z.lvl.robotbay = 2; z.jobs.gather = 0; z.res.kelp = 0;
+        return z;
+      };
+      const _kA = _kf(), _kB = _kf(), _kC = _kf();
+      _kB.jobs.gather = 2;
+      SB.folk.assignRobot(_kC, 'gather', 2);
+      const _kBase = SB.economy.rates(_kA).kelp;
+      const _perH = (SB.economy.rates(_kB).kelp - _kBase) / 2;
+      const _perR = (SB.economy.rates(_kC).kelp - _kBase) / 2;
+      check('B7 机器人分配到采集者 ⇒ 藻食产出真的涨（人均 == robotMult × 人类人均）',
+        _perR > 0 && Math.abs(_perR / _perH - SB.folk.robotMult(_kC)) < 1e-9,
+        '人类人均=' + _perH.toFixed(4) + ' 机器人人均=' + _perR.toFixed(4));
+      /* ② 真实累计：pop=3 且 nest=1（上限 3 ⇒ 住满不生不育，foodUse 全程恒定），
+       *    海藻仓抬上限避免 10 秒就撞 cap 被 addRes 夹断（否则差值必然对不上，是夹具假红）。 */
+      const _kTick = _kf();
+      _kTick.pop = 3; _kTick.lvl.nest = 1; _kTick.lvl.kelpstore = 10;
+      SB.folk.assignRobot(_kTick, 'gather', 8);
+      const _kPred = SB.economy.rates(_kTick).kelp, _kBefore = _kTick.res.kelp;
+      for (let _ki = 0; _ki < 10; _ki++) SB.economy.tick(_kTick, 1, null, {});
+      const _kDelta = _kTick.res.kelp - _kBefore;
+      check('B7 藻食真实累计 == 面板预测（机器人采集也进实账，不是只改面板）',
+        Math.abs(_kDelta - _kPred * 10) / (Math.abs(_kPred * 10) + 1e-9) < 0.01,
+        'Δ=' + _kDelta.toFixed(4) + ' vs ' + (_kPred * 10).toFixed(4));
+      /* ③ 商人：happySupply（面板供给）此前也直接读 s.jobs.merchant，与 tick 的 _S、
+       *    rates 的 luxury 产能三处不同源。机器人分配到商人时三方必须同值。 */
+      const _kM = _kf();
+      _kM.civics.trade = true; _kM.pop = 0; _kM.happy = 0;
+      SB.folk.assignRobot(_kM, 'merchant', 2);
+      const _kMRate = SB.economy.rates(_kM).luxury;
+      check('B7 商人机器人：happySupply == rates 产能（面板供给不再漏机器人）',
+        _kMRate > 0 && Math.abs(SB.economy.happySupply(_kM) - _kMRate) < 1e-9,
+        'supply=' + SB.economy.happySupply(_kM).toFixed(6) + ' rates=' + _kMRate.toFixed(6));
     }
     /* ⑥ 永久乘区词表：四个新 eff 键在 mul 默认表有键（漏登记 = 守卫静默吞）。 */
     const _m0 = SB.tech.mul(fr);
-    check('ERA8 eff 词表：workshopEff/satStar/biomatlabOut/biomatlabEff 默认 1',
-      _m0.workshopEff === 1 && _m0.satStar === 1 && _m0.biomatlabOut === 1 && _m0.biomatlabEff === 1);
+    /* ⚠️ 2026-10-21 口径变更（用户拍板）：workshopEff 从「独立乘区（默认 1）」折进
+     *   「工艺制作效率加法轴（默认 0）」——激光 +50% / ERA10 +120% 不再跟 boomcraft/机器人/
+     *   我们的海复利相乘。断言跟着改的是**基数**，不是放宽：加法轴必须从 0 起，
+     *   若又变回 1 就说明有人把它重新接回乘区链（_cr 会凭空多出 ×1）。 */
+    check('ERA8 eff 词表：workshopEff 默认 0（加法轴）/satStar/biomatlabOut/biomatlabEff 默认 1',
+      _m0.workshopEff === 0 && _m0.satStar === 1 && _m0.biomatlabOut === 1 && _m0.biomatlabEff === 1);
     check('瑞亚星矿井产出为原值 50 倍（每级石梁/硬化珊瑚 2.5，铀 0.25）',
       SB.BLD.rheamineBeam === 2.5 && SB.BLD.rheamineCoral === 2.5 && SB.BLD.rheamineUranium === 0.25);
     /* ⑦ 产线接进 rates：θ金属 / 石梁 / 硬化珊瑚键存在且有穷（缺键 = undefined 面板撒谎）。 */
@@ -1087,10 +1135,13 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     check('ERA8 rates 补键：thetaMetal / stoneBeam / hardCoral 有穷',
       isFinite(_rt.thetaMetal) && isFinite(_rt.stoneBeam) && isFinite(_rt.hardCoral),
       'θ=' + _rt.thetaMetal + ' 梁=' + _rt.stoneBeam + ' 硬=' + _rt.hardCoral);
-    /* ⑧ run-scoped：freshRun 种子 runBuffs 空 + 工业机器人开关种子 true。 */
+    /* ⑧ run-scoped：freshRun 种子 runBuffs 空 + 工坊缺省全开。
+     * ⚠️ 2026-10-21 口径变更：工业机器人从「全局布尔开关 s.indRobotOn」重构为
+     *   「按建筑停用数 s.workshopStop（0 = 全开）」——字段本身被删，旧断言读它只会拿到
+     *   undefined。断言改为钉新字段的缺省值，不是迁就现状：0 = 全部工坊运行中。 */
     const _r8 = SB.state.freshRun(false);
-    check('ERA8 runBuffs/indRobotOn 种子', _r8.runBuffs && Object.keys(_r8.runBuffs).length === 0
-      && _r8.indRobotOn === true);
+    check('ERA8 runBuffs/workshopStop 种子', _r8.runBuffs && Object.keys(_r8.runBuffs).length === 0
+      && _r8.workshopStop === 0);
   }
 
   /* ══ ERA8 市政（2026-10-18 用户规格表 · 实装）══════════════════════ */

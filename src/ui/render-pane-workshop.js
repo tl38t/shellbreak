@@ -171,7 +171,7 @@
         '<small>买断后持续生效；每件工具只作用于对应职业。</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
         '<section class="workshop-section"><header class="workshop-section-title"><b>工坊升级</b>' +
         '<small>一次装填，永久生效。</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
-        (hideDone ? '<div class="note">已完成项目当前被隐藏；自动化钻探因需要持续调节而保留。点上方「显示已完成」可显示其余项目。</div>' : '') +
+        (hideDone ? '<div class="note">已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。</div>' : '') +
         '<div class="note">工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。</div>';
     }
     return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>工艺制作</b>' +
@@ -359,8 +359,7 @@
       var why = on ? null : W.upgradeBlocked(s, u.id);
       /* ⚠️ 2026-10-05：与工具同口径 —— ① hideDone 开着时跳过已装上的（先判开关）；
        *   ② 未解锁不显示，已装上的在显示态永远显示。 */
-      /* 自动化钻探装上后仍需调运行矿井数，属于持续控制项，不随 hideDone 隐藏。 */
-      if (hideDone && on && u.id !== 'upg_autodrill') continue;
+      if (hideDone && on) continue;
       if (!itemRevealed(on, why)) continue;
       shown++;
       /* 与工具同口径：灰着还写「装上」会让玩家以为点了会怎样，实际什么都没有。 */
@@ -369,43 +368,13 @@
       var label = on ? '已装上'
         : why ? (/^需要先/.test(why) ? '未解锁' : '材料不够 ' + ctxt)
           : '装上 ' + ctxt;
-      /* ERA8（2026-10-19）：工业机器人（upg_indrobot）已装上后补**开关按钮 + 实时耗流**——
-       *   状态字段 s.indRobotOn 与读侧（workshop.js / economy.js）早已接好，但界面无入口，
-       *   玩家买了升级却无法关、热液能白白流。开关走 document 级委托（data-indrobot-toggle），
-       *   与 pane 每 2 秒重画兼容；耗流用 fdraw 与巢穴/星图同源。 */
-      var _rbOn = on && s.indRobotOn !== false;
-      var _adOn = u.id === 'upg_autodrill' && on ? SB.economy.autoDrillCount(s) : 0;
-      var _adTotal = Math.max(0, Math.floor((s.lvl && s.lvl.siltpit) || 0));
-      var _adPct = _adTotal > 0 ? Math.round(_adOn / _adTotal * 100) : 0;
-      var _adHydro = _adOn * (SB.UNIT.drillHydro || 0.3);
       var _ds = u.desc + '（成本 ' + SB.economy.costTxt(cost) + '）';
-      if (u.id === 'upg_indrobot' && on) {
-        _ds += '<br><span class="fdraw">热液能 −' + (SB.UNIT.robotHydro || 0.3).toFixed(2) + '/秒' +
-          (_rbOn ? '' : '（已关闭）') + '</span>';
-      }
-      if (u.id === 'upg_autodrill' && on) {
-        _ds += '<br>运行矿井 ' + _adOn + ' / ' + _adTotal + ' 座 · 钛/铀产出 +' + _adPct + '%' +
-          '<br><span class="fdraw">热液能需求 −' + _adHydro.toFixed(2) + '/秒</span>';
-      }
-      var _rowExtra = '';
-      if (u.id === 'upg_indrobot' && on) {
-        _rowExtra = '<button class="btn tog' + (_rbOn ? ' on' : '') + '" data-indrobot-toggle="1" ' +
-          'title="工业机器人开关：关掉 ⇒ 工坊效率加成与热液能消耗一起停。">' +
-          (_rbOn ? '运行中' : '已关闭') + '</button>';
-      }
-      if (u.id === 'upg_autodrill' && on) {
-        _rowExtra = '<div class="autodrill-controls">' +
-          '<button type="button" class="btn tog" data-autodrill-step="-1"' + (_adOn <= 0 ? ' disabled' : '') +
-          ' aria-label="关闭一座自动化钻探矿井" title="关闭一座矿井">−</button>' +
-          '<button type="button" class="btn tog" data-autodrill-step="1"' + (_adOn >= _adTotal ? ' disabled' : '') +
-          ' aria-label="开启一座自动化钻探矿井" title="开启一座矿井">＋</button></div>';
-      }
       var _buyBtn = '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
         (on || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button>';
       h += '<div class="row"' + (on ? ' data-owned="1"' : '') + '>' +
         '<div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="' + u.id + '" aria-haspopup="dialog">' + u.name + '</button>' + (isNewItem('u', u.id) ? ' <span class="tag new">NEW</span>' : '') + (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
         '<div class="ds">' + _ds + '</div>' +
-        '<div class="upgrade-actions">' + _buyBtn + _rowExtra + '</div></div>';
+        '<div class="upgrade-actions">' + _buyBtn + '</div></div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
       (hideDone && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';

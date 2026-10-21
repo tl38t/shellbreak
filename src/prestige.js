@@ -160,9 +160,8 @@
     s.broken = true;
     s.shellOpened = true;
     s.breakSettled = true;
-    /* ERA8（2026-10-18 · spec §4 激光快速雕版）：**单局 buff 在破壳结算这一刻清零**。
-     *   「单局」的边界 = 本周目：无论玩家随后选择轮回（freshRun 重建 runBuffs）还是
-     *   留在本局继续（标记已清 ⇒ 效果失效，重新购买升级才再生效），都从结算这一刻起算。 */
+    /* runBuffs（单局 buff，如旧日遗产自动制作标记等）在破壳结算这一刻清零：
+     *   无论随后轮回（freshRun 重建 runBuffs）还是留在本局继续，效果都从结算这一刻起失效。 */
     s.runBuffs = {};
     if (!qualified(s)) {
       r.tidePoints = 0;

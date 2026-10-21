@@ -15,10 +15,13 @@
    * 科技/市政/信仰三行**继续用 globalMul**（用户表明文排除）；其余产横行切 _gmx。 */
   var globalMulX = P.globalMulX;
   var autoDrillOutputMul = P.autoDrillOutputMul;
+  var activeSiltpit = P.activeSiltpit;
   /* ERA10 市政（2026-10-20）：发射场三座合计等级 / 制造节律 / 每级热液耗——全部走 economy 的
    * 单一落点（rates 同源），绝不在本文件再写一份「求和 + 节律 + 耗流」的公式。 */
-  var launchLvl = P.launchLvl, launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
-  var starDysonCostMul = P.starDysonCostMul;
+  var launchBids = P.launchBids, launchRunLvl = P.launchRunLvl, launchActiveLvl = P.launchActiveLvl;
+  var launchProcOf = P.launchProcOf;
+  var setLaunchProc = P.setLaunchProc, launchNodeMode = P.launchNodeMode, launchMaterialPer = P.launchMaterialPer;
+  var launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
   var ironFlow = P.ironFlow, isCold = P.isCold, isFull = P.isFull;
   var libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
   var mineTaxMul = P.mineTaxMul, obsSciMul = P.obsSciMul, resUnlocked = P.resUnlocked;
@@ -95,9 +98,9 @@
     /* ERA5（2026-10-02）：科技乘区在 tick 开头算一次（与 globalMul/gatherMul 同口径的
      *   每 tick 缓存），供下面的暖石/钛产出行读 warmMul / titaniumMul。rates 侧读 Tr（同函数）。 */
     var _T = SB.tech ? SB.tech.mul(s) : null;
-    /* ⚠️ 2026-10-16 用户拍板：砂矿坑建筑等级放大所有矿工/采石工产出（含暖石/钛/未来伴生矿物）。
+    /* ⚠️ 2026-10-16 用户拍板：运行中的砂矿坑放大所有矿工/采石工产出（含暖石/钛/未来伴生矿物）。
      *   与 rates() 的 mineBonus 同源同值；stone/silt/暖石/钛四条产出行都必须乘它。 */
-    var _siltPit = 1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus;
+    var _siltPit = 1 + activeSiltpit(s) * SB.BLD.siltBonus;
     /* 自动化钻探：每座开启矿井只翻倍自身份额，总加成按开启 / 总矿井数折算。 */
     var _adMul = autoDrillOutputMul(s);
 
@@ -130,7 +133,7 @@
     if (j.miner > 0 && s.techs && s.techs.autodrill) {
       addRes(s, 'uranium', j.miner * SB.UNIT.uranium * _siltPit * _gather * _tM * cold * _gmx * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul * dt);
     }
-    /* ERA7（2026-10-17 · spec §4）：核热厂每级耗铀 0.02/秒（fissionUranium）。
+    /* ERA7（2026-10-17 · 2026-10-21 调整）：核热厂每级耗铀 0.35/秒（fissionUranium）。
      *   ⚠️ 直接消耗（不进 hydroAlloc 流）；铀是带上限普通资源，扣到 0 止。
      *   ⚠️ addRes 对负数早退（v <= 0 直接忽略），故此处用直接减法并 Math.max(0,…) 钳底。 */
     if (s.lvl.fissionplant > 0) {
@@ -233,49 +236,48 @@
       + (SB.wonder ? SB.wonder.wonderFuelBonus(s) : 0);
     if (_fuelOut > 0) addRes(s, 'fuel', _fuelOut * dt);
 
-    // 2f) ERA9 欧罗巴冰面发射场（母星 core，非异星）：每 s 耗 strongProp 0.1 + thinafilm 0.1（库存）+ hydro 2（flow）。
-    //     正常运行累计满 10s ⇒ 星图 sunSails +1（累加器，无限、无上限）。缺料/断流时计时暂停、不清零（与 G.E.E.K 同口径）。
-    //     hydro 耗流已由 hydroAlloc 统一分配（europaDraw，断流停耗）；此处只判「是否满供」+ 扣库存料 + 累帆进度。
+    // 2f) 三座发射场的进度各自按周期前进；等级只决定周期完成时发射多少帆/节点。
+    //     所有发射场每运行 1 秒，每级耗铀 0.5、strongProp 0.3、thinafilm 0.3、hydro 4（帆模式）。
+    //     缺料/断流时计时暂停、不清零；hydro 耗流由 hydroAlloc 统一分配。
     /* ── ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁1）三处改口径 ──
      * ① **模式切换**：完成《绝热材料》后 s.launchMode 可在 'sail'（太阳帆，默认）/ 'node'
      *    （戴森球节点）间切（UI 在发射场建筑行出切换钮，科技门控两侧同源）。
-     *    节点耗料 = 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板 / 秒 / 级
-     *    （用户表只给了每秒量、没给等级维度，按与帆模式对称取 /级——帆模式 0.1+0.1 也是 /级）。
-     * ② **产出按等级并行**（用户拍「发射场可以修建多个」）：累加器 += dt × _el，
-     *    N 级 = N 份独立计时。修掉 ERA9 原口径「耗料 ×等级、产出不 ×」的漏写
-     *    （那版升级发射场纯浪费料；10 级场 = 10 帆/10s，10000 帆 ≈ 2.8h，单局窗内可达）。
+     *    节点模式每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4；库存材料受星屑减耗。
+     * ② **每座场独立计时**：该场启用至少一级时余数 += dt，不乘启用等级；周期完成时按本场启用等级发射。
+     *    停用整座场时保留余数并暂停；三座场不共用进度，建筑等级不改变百分比速度。
      * ③ **节律可被科技压**：_cyc = max(1, CFG.LAUNCH_CYCLE + T.launchCycle)，
      *    《空间矢量控制》−2s ⇒ 10s→8s；帆/节点同吃。钳下限 1 防 0/负节律。 */
-    var _el = launchLvl(s);
+    var _el = launchRunLvl(s);
     if (_el > 0) {
       var _elHydroNeed = _el * launchHydroPer(s);
       /* 满供判据：hydroAlloc 给到足额 europaRate（最低优先级，剩流够才满）。与 hydroAlloc 同源 ⇒ 面板===结算。 */
       var _elRunning = (s._hydroFlow && s._hydroFlow.europaRate >= _elHydroNeed - 1e-6);
       /* 节点模式科技门：没完成《绝热材料》恒按帆模式走（防改档把 launchMode 写坏后凭空产节点）。 */
-      var _nodeMode = (s.launchMode === 'node' && !!(s.techs && s.techs.adiabatic));
+      var _nodeMode = launchNodeMode(s);
       var _cyc = launchCycleOf(s);
-      var _dysonCostMul = _nodeMode ? starDysonCostMul(s) : 1;
-      var _spNeed = _el * (_nodeMode ? _dysonCostMul : 0.10) * dt, _tfNeed = _el * (_nodeMode ? _dysonCostMul : 0.10) * dt;
-      var _tpNeed = _el * (_nodeMode ? 3 * _dysonCostMul : 0) * dt;
-      if (_elRunning && (s.res.strongProp || 0) >= _spNeed && (s.res.thinafilm || 0) >= _tfNeed
+      var _elCosts = launchMaterialPer(s);
+      var _uNeed = _el * _elCosts.uranium * dt;
+      var _spNeed = _el * _elCosts.strongProp * dt, _tfNeed = _el * _elCosts.thinafilm * dt;
+      var _tpNeed = _el * _elCosts.tiplate * dt;
+      if (_elRunning && (s.res.uranium || 0) >= _uNeed
+        && (s.res.strongProp || 0) >= _spNeed && (s.res.thinafilm || 0) >= _tfNeed
         && (!_tpNeed || (s.res.tiplate || 0) >= _tpNeed)) {
+        s.res.uranium -= _uNeed;
         s.res.strongProp -= _spNeed;
         s.res.thinafilm -= _tfNeed;
         if (_tpNeed) s.res.tiplate -= _tpNeed;
-        if (_nodeMode) {
-          s.dysonProc = (s.dysonProc || 0) + dt * _el;
-          if (s.dysonProc >= _cyc) {
-            var _nodeInc = Math.floor(s.dysonProc / _cyc);
-            s.dysonProc -= _nodeInc * _cyc;
-            s.dysonNodes = (s.dysonNodes || 0) + _nodeInc;
+        var _launchIds = launchBids();
+        for (var _li = 0; _li < _launchIds.length; _li++) {
+          var _lid = _launchIds[_li], _padLvl = launchActiveLvl(s, _lid);
+          if (!_padLvl) continue;
+          var _padProc = launchProcOf(s, _lid, _nodeMode) + dt;
+          var _padCycles = Math.floor(_padProc / _cyc);
+          if (_padCycles > 0) {
+            _padProc -= _padCycles * _cyc;
+            if (_nodeMode) s.dysonNodes = (s.dysonNodes || 0) + _padCycles * _padLvl;
+            else s.sunSails = (s.sunSails || 0) + _padCycles * _padLvl;
           }
-        } else {
-          s.sunSailProc = (s.sunSailProc || 0) + dt * _el;
-          if (s.sunSailProc >= _cyc) {
-            var _sailInc = Math.floor(s.sunSailProc / _cyc);
-            s.sunSailProc -= _sailInc * _cyc;
-            s.sunSails = (s.sunSails || 0) + _sailInc;
-          }
+          setLaunchProc(s, _lid, _nodeMode, _padProc);
         }
         /* ERA10 通关判定：dysonPct（双达标取小）达 1 ⇒ 置 dysonDone（只一次）+ 播通关弹窗。
          * 弹窗走 SB.ui.render.showDysonComplete（镜像星空槽满槽 showStarComplete 先例，

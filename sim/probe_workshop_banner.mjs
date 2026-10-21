@@ -8,7 +8,9 @@ const s = {
   lvl: { workshop: 1 },
   techs: {}, civics: {}, wonders: {}, got: {}, perk: {},
   upgrades: { upg_boomcraft: true }, // 已购可控爆炸工艺
-  indRobotOn: false,
+  /* 2026-10-21：工业机器人已改为「按建筑停用 workshopStop」模型，旧布尔 indRobotOn 字段被删。
+   * 本 fixture 只想验 boomcraft 乘区 ⇒ 不装 upg_indrobot 即天然无机器人乘区（×1）。 */
+  workshopStop: 0,
 };
 
 const boomMul = 1 + (SB.UPGRADES.find(u => u.id === 'upg_boomcraft') || {}).boomcraftMul;

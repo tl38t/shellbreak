@@ -217,6 +217,47 @@
       }
       return;
     }
+    /* 砂矿坑「开几座」：只改停用数量 s.siltpitStop。矿坑总等级仍保留建造/升级数量，
+     * 运行数 = 等级 − 停用数；矿脉加成、自动化钻探钛/铀加成与热液能消耗都读这一个数。 */
+    if (d.siltpitInc || d.siltpitDec) {
+      var _splv = s.lvl.siltpit || 0;
+      var _spstop = Math.max(0, Math.min(_splv, Math.floor(s.siltpitStop || 0)));
+      _spstop += d.siltpitDec ? 1 : -1;
+      _spstop = Math.max(0, Math.min(_spstop, _splv));
+      if (_spstop !== (s.siltpitStop || 0)) {
+        s.siltpitStop = _spstop;
+        var _sprun = _splv - _spstop;
+        var _spmsg = '砂矿坑：开 ' + _sprun + '/' + _splv + ' 座';
+        if (s.upgrades && s.upgrades.upg_autodrill) {
+          var _sppct = _splv > 0 ? Math.round(_sprun / _splv * 100) : 0;
+          _spmsg += '，自动化钻探钛/铀总产出 +' + _sppct + '%，热液能需求 ' +
+            (_sprun * (SB.UNIT.drillHydro || 0.3)).toFixed(2) + '/秒';
+        }
+        SB.game.log(_spmsg + '。');
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
+    /* 工坊「开几座」：停用数量同时控制工坊自身的基础工艺效率、工业机器人加成与热液能需求。 */
+    if (d.workshopInc || d.workshopDec) {
+      var _wslv = s.lvl.workshop || 0;
+      var _wsstop = Math.max(0, Math.min(_wslv, Math.floor(s.workshopStop || 0)));
+      _wsstop += d.workshopDec ? 1 : -1;
+      _wsstop = Math.max(0, Math.min(_wsstop, _wslv));
+      if (_wsstop !== (s.workshopStop || 0)) {
+        s.workshopStop = _wsstop;
+        var _wsrun = _wslv - _wsstop;
+        var _wsmsg = '工坊：开 ' + _wsrun + '/' + _wslv + ' 座';
+        if (s.upgrades && s.upgrades.upg_indrobot) {
+          var _wspct = _wslv > 0 ? Math.round(_wsrun / _wslv * 100) : 0;
+          _wsmsg += '，工业机器人使工艺总产出 +' + _wspct + '%，热液能需求 ' +
+            (_wsrun * (SB.UNIT.robotHydro || 3)).toFixed(2) + '/秒';
+        }
+        SB.game.log(_wsmsg + '。');
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
     /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：只改**停用数**
      * `s.turbineStop`，结算在 economy.hydroAlloc（供给）/ steelFlow（暖石扣费）读它
      * （运行座数 = 等级 − 停用数）。data-turbine-inc = 开一座（停用数 −1）、
@@ -416,21 +457,31 @@
       toggleGeek(SB.game.run());
       return;
     }
-    /* ERA8（2026-10-19）：工业机器人开关。状态字段 s.indRobotOn 与读侧早已接好，
-     * 这里补界面入口。只记账不结算——关掉后加成与耗能一起停，真正生效等下一 tick。 */
-    if (d.indrobotToggle) {
-      toggleIndRobot(SB.game.run());
-      return;
-    }
-    if (d.autoDrillStep !== undefined) {
-      adjustAutoDrill(s, +d.autoDrillStep);
-      return;
-    }
     /* ERA10（2026-10-20）：欧罗巴冰面发射场制造模式切换（太阳帆 ⇄ 戴森球节点）。
      * 闸门 = 建成发射场且完成《绝热材料》（与 render-pane-village 的按钮显示条件同源）。
      * 只改 s.launchMode 一个字段，结算在 economy-tick 2f 读——切换的下一 tick 生效。 */
     if (d.launchMode) {
       toggleLaunchMode(SB.game.run());
+      return;
+    }
+    /* 三座发射场分别「开几级」：停用数只影响本场耗材、热液能与批次发射量，
+     * 本场周期余数保留；全部停用时本场进度暂停。data-launch-dec 停一级，inc 开一级。 */
+    if (d.launchInc || d.launchDec) {
+      var _launchId = d.launchInc || d.launchDec;
+      var _launchDef = SB.habitat && SB.habitat.buildingById ? SB.habitat.buildingById(_launchId) : null;
+      if (!_launchDef || !_launchDef.launchpad) return;
+      var _launchTotal = Math.max(0, Math.floor((s.lvl && s.lvl[_launchId]) || 0));
+      s.launchStops = s.launchStops || {};
+      var _launchStop = Math.max(0, Math.min(_launchTotal, Math.floor(s.launchStops[_launchId] || 0)));
+      _launchStop += d.launchDec ? 1 : -1;
+      _launchStop = Math.max(0, Math.min(_launchTotal, _launchStop));
+      if (_launchStop !== (s.launchStops[_launchId] || 0)) {
+        s.launchStops[_launchId] = _launchStop;
+        var _launchRun = _launchTotal - _launchStop;
+        SB.game.log(_launchDef.name + '：开 ' + _launchRun + '/' + _launchTotal + ' 级' +
+          (_launchRun === 0 ? '（本场暂停，周期进度保留）。' : '。'));
+        SB.game.markDirty(); SB.game.renderAll();
+      }
       return;
     }
     if (d.companyClose) {
@@ -630,39 +681,6 @@
     return true;
   }
 
-  /* ── 工业机器人启动 / 停机（ERA8 · 2026-10-19）──────────────────────
-   * 闸门 = 已装上 upg_indrobot（与 renderUpgradeRows 的按钮显示条件同源：
-   * 没装上这按钮根本不出现在页面上，这里再判一道防直达调用）。
-   * 只记账不结算——关掉 ⇒ 工坊效率加成（workshop.js _robot）与热液能消耗（economy.js robotDraw）
-   * 一起停，真正生效等下一 tick（开关不该有「半个 tick」的效果）。 */
-  function toggleIndRobot(s) {
-    if (!s || !(s.upgrades && s.upgrades.upg_indrobot)) return false;
-    var on = s.indRobotOn !== false;
-    s.indRobotOn = !on;
-    SB.game.markDirty(); SB.game.renderAll();
-    SB.game.log(s.indRobotOn !== false
-      ? '工业机器人已启动：工坊效率 +100%，耗 0.3 热液能/秒。'
-      : '工业机器人已关闭：效率加成与热液能消耗一起停。');
-    return true;
-  }
-
-  /* ── 自动化钻探逐矿井启停（ERA7 · 2026-10-21）──────────────────────
-   * 工坊升级行用 +/- 调整开启数量；每座矿井贡献自己的钛/铀份额翻倍，
-   * 总产出加成按开启数 / 砂矿坑总等级折算。 */
-  function adjustAutoDrill(s, delta) {
-    if (!s || !(s.upgrades && s.upgrades.upg_autodrill)) return false;
-    var total = Math.max(0, Math.floor((s.lvl && s.lvl.siltpit) || 0));
-    var current = SB.economy.autoDrillCount(s);
-    var next = Math.max(0, Math.min(total, current + (delta < 0 ? -1 : 1)));
-    if (next === current) return false;
-    s.autoDrillCount = next;
-    var pct = total > 0 ? Math.round(next / total * 100) : 0;
-    var hydro = next * (SB.UNIT.drillHydro || 0.3);
-    SB.game.markDirty(); SB.game.renderAll();
-    SB.game.log('自动化钻探：运行矿井 ' + next + ' / ' + total + ' 座，钛与铀产出 +' + pct + '%，热液能需求 ' + hydro.toFixed(2) + '/秒。');
-    return true;
-  }
-
   /* ── ERA10（2026-10-20）：欧罗巴冰面发射场制造模式切换 ──────────────
    * 用户 ERA10 表「绝热材料」解锁1。闸门 = 发射场已建成（lv>0）且完成《绝热材料》
    * （与 render-pane-village 的 elBtn 显示条件、economy-tick 2f 的 _nodeMode 三处同源）。
@@ -676,8 +694,8 @@
     s.launchMode = node ? 'sail' : 'node';
     SB.game.markDirty(); SB.game.renderAll();
     SB.game.log(node
-      ? '发射场已切回太阳帆模式：每级每 ' + (SB.economy.launchCycleOf ? SB.economy.launchCycleOf(s) : 10) + 's 推 1 帆。'
-      : '发射场已切换到戴森球节点模式：每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板。');
+      ? '发射场已切回太阳帆模式：每级每秒耗铀 0.5、强工质火箭引擎 0.3、θ金属自适应薄膜 0.3、热液能 4；每座发射场每 ' + (SB.economy.launchCycleOf ? SB.economy.launchCycleOf(s) : 10) + 's 发射该场等级数量的太阳帆。'
+      : '发射场已切换到戴森球节点模式：每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4；每座发射场每个周期发射该场等级数量的节点。');
     return true;
   }
 
@@ -781,7 +799,11 @@
 
   SB.ui = SB.ui || {};
   SB.ui.input = {
-    boot: boot, toggleSkydrill: toggleSkydrill, toggleGeek: toggleGeek, toggleIndRobot: toggleIndRobot,
+    /* ⚠️ 2026-10-21 修复：导出表里曾残留 toggleIndRobot —— 工业机器人已从「全局开关 indRobotOn」
+     *   重构为「按建筑停用数 workshopStop + industrialRobotOutputMul」（economy.js:1225/1230），
+     *   函数本体已删、导出却还引用 ⇒ IIFE 末尾 ReferenceError ⇒ SB.ui.input 整块没赋上值 ⇒
+     *   main.js:10 `SB.ui.input.boot()` 跟着崩 ⇒ 页面只剩空壳（资源/巢穴面板全空）。 */
+    boot: boot, toggleSkydrill: toggleSkydrill, toggleGeek: toggleGeek,
     toggleLaunchMode: toggleLaunchMode,
     isFolkControlPointerActive: isFolkControlPointerActive
   };

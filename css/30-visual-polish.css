@@ -185,6 +185,14 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
  * 现在固定 176×40 + 内容居中：无论几行、几个资源，所有按钮同一尺寸、整齐成列。
  * 建筑成本最多 2 个资源（见 config-buildings），2 行文字在 40px 内放得下（11px×1.25×2+8≈35.5）。 */
 #pane-village .bzone .row .btn.buy{width:176px;height:40px;display:inline-flex;align-items:center;justify-content:center;text-align:center;margin:0;padding:4px 8px;font-size:11px;white-space:normal;line-height:1.25}
+#pane-village .bzone .row>.buy-actions{display:flex;align-items:stretch;justify-self:end;min-width:0}
+#pane-village .bzone .row .buy-actions>.auto-upgrade-toggle{flex:0 0 44px;width:44px;min-width:44px;height:40px;box-sizing:border-box;margin:0;padding:4px 2px;border-radius:7px 0 0 7px;font-size:10px;line-height:1;white-space:nowrap}
+#pane-village .bzone .row .buy-actions>.auto-upgrade-toggle{background:#63451e;border-color:#d59b45;color:#ffe3ad;box-shadow:inset 0 1px rgba(255,235,190,.16)}
+#pane-village .bzone .row .buy-actions>.auto-upgrade-toggle.on{background:#155b38;border-color:#43bb78;color:#c5f4d6;box-shadow:inset 0 1px rgba(207,255,224,.18),0 0 8px rgba(67,187,120,.2)}
+#pane-village .bzone .row .buy-actions>.auto-upgrade-toggle:hover:not(:disabled){filter:brightness(1.18)}
+#pane-village .bzone .row .buy-actions.has-auto-toggle>.btn.buy{flex:0 0 176px;border-radius:0 7px 7px 0;border-left-width:0}
+html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-toggle{background:#ffedc9;border-color:#c18222;color:#69420e;box-shadow:inset 0 1px rgba(255,255,255,.8)}
+html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-toggle.on{background:#c9efd5;border-color:#378b57;color:#15542e;box-shadow:inset 0 1px rgba(255,255,255,.85),0 0 7px rgba(55,139,87,.16)}
 .building-name{display:inline;padding:0;border:0;border-bottom:1px dotted rgba(105,226,223,.4);border-radius:0;background:none;color:var(--txt);font:inherit;font-weight:700;line-height:inherit;text-align:left;cursor:pointer}
 .building-name:hover{color:var(--cyan);border-bottom-color:var(--cyan)}
 .building-name:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:3px}
@@ -239,24 +247,42 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
   #pane-village .bzone .row .bld-ops,#star-map-buildings .row .bld-ops{grid-column:1;gap:8px}
 }
 @media (min-width:761px){
+  /* 分类视图按单列清单起步；限制行宽，宽屏再扩成双列。 */
+  #pane-village .bzone{max-width:1280px;margin-left:auto;margin-right:auto}
   #pane-village .bzone .bzbody{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:8px;min-width:0;width:100%;box-sizing:border-box}
   #pane-village .bzone .bzbody>.row{min-width:0;box-sizing:border-box;margin-top:0}
 }
-/* Follow the building section's available width, not the viewport: keep PC at two columns,
-   and give each card enough room before the buy button returns to the side. */
-@container (min-width:928px){
-  #pane-village .bzone .bzbody{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:1500px){
+  /* 页面外框原本封顶 1240px；仅放宽断点会让分区容器永远达不到双列宽度。 */
+  .wrap{width:min(1760px,calc(100% - 36px))}
+  #pane-village .bzone{max-width:1760px}
 }
 @container (min-width:928px) and (max-width:1199px){
   #pane-village .bzone .bzbody>.row{grid-template-columns:minmax(0,1fr);align-items:stretch;gap:6px}
-  #pane-village .bzone .bzbody>.row>.btn.buy{grid-column:1;justify-self:end}
+  #pane-village .bzone .bzbody>.row>.buy-actions{grid-column:1;justify-self:end}
   #pane-village .bzone .row .nm,#star-map-buildings .row .nm{grid-template-columns:152px minmax(0,1fr);column-gap:12px}
   #pane-village .bzone .row .bld-label,#star-map-buildings .row .bld-label{width:152px}
 }
+/* 大屏双列按列向下流，卡片保留自然高度，不为同一行的高卡片制造空白。 */
+@container (min-width:1360px){
+  #pane-village .bzone .bzbody{display:block;column-count:2;column-gap:12px}
+  #pane-village .bzone .bzbody>.row{display:inline-grid;width:100%;margin:0 0 8px;break-inside:avoid;vertical-align:top}
+}
 @media (max-width:520px){
   #pane-village .bzone .row{grid-template-columns:minmax(0,1fr) auto;gap:8px}
+  #pane-village .bzone .row .buy-actions{justify-self:end}
   #pane-village .bzone .row .btn.buy{justify-self:end;max-width:136px;min-height:32px}
   .govcard{min-width:min(100%,220px)!important}
 }
 @media (prefers-reduced-motion:reduce){body::before,body::after{animation:none}.res,.btn,.happy-marker{transition:none}}
+
+/* 发射场共用进度：只显示一条，避免三座发射场重复展示同一全局累积值。 */
+#pane-village .launch-progress{display:grid;grid-template-columns:auto minmax(60px,1fr) 34px;align-items:center;gap:7px;margin-top:5px;color:var(--dim);font-size:10px;line-height:1.2;font-variant-numeric:tabular-nums}
+#pane-village .launch-progress-track{height:6px;overflow:hidden;border-radius:999px;background:rgba(111,136,168,.2)}
+#pane-village .launch-progress-track i{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width .12s linear}
+#pane-village .launch-progress>span:last-child{text-align:right;color:var(--cyan)}
+html[data-ui-theme="day"] #pane-village .launch-progress{color:#607777}
+html[data-ui-theme="day"] #pane-village .launch-progress-track{background:rgba(58,91,96,.18)}
+html[data-ui-theme="day"] #pane-village .launch-progress>span:last-child{color:#187b7a}
+@media(prefers-reduced-motion:reduce){#pane-village .launch-progress-track i{transition:none}}
 

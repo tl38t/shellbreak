@@ -246,7 +246,7 @@
     FISHVR_HYDRO: 5,
     /* ERA10（2026-10-20 · 用户 ERA10 表「引力弹弓」）：朱庇特质量加速站每秒耗热液能。
      * ⚠️ 奇观的运行耗流常量一直住在 CFG（对照 FISHVR_HYDRO:5 / SKYDRILL_HYDRO:20 /
-     *    GEEK_HYDRO:40），建筑级耗流才住 UNIT（europaHydro / robotbayHydro）。
+     *    GEEK_HYDRO:40），建筑级耗流才住 UNIT（launchSailHydro / dysonNodeHydro / robotbayHydro）。
      *    本轮曾把这条误写进 SB.UNIT.jupitorHydro 而 wonder.js 读 CFG ⇒ 读不存在的键
      *    恒得 0，奇观建成一滴热液能都不耗（e2e era10-content 已钉住这个读数）。 */
     JUPITOR_HYDRO: 20,
@@ -262,13 +262,16 @@
     SKYDRILL_HAPPY_WONDER: 1,   // 破壳完成后（奇观态）：幸福度 +1
 
     // ---- 星球重构机 G.E.E.K（ERA9 · 生态重塑解锁奇观，2026-10-19 实装）----
-    // 运行态：每 s 吃热液能流（geekHydro，走 hydroAlloc 取剩流）+ 库存 kelp/metal/coral；
+    // 运行态：每 s 吃热液能流（geekHydro，走 hydroAlloc 取剩流）+ 库存 kelp(藻食)/silt(金属)/stone(石头)/coral(珊瑚)；
+    // ⚠️ 资源键对照（2026-10-21 修 bug）：「金属」在 RESS 里的键是 **silt**（config-content.js:41），不是 metal！
+    //   旧代码读 s.res.metal（不存在 → 0）⇒ GEEK 永远判金属不足而**永久停摆**；现已改正读 s.res.silt。
     // 缺料/断流暂停、进度保留（enceladusRun/terraRun 累加，绝不回拨开关）。无幸福度副作用（用户拍板）。
     // 恩克拉多斯 1800s → 覆盖建筑造价等级偏移 +3；泰拉 3600s → 叠加 +5（合计 +8，costOf 单一落点）。
     GEEK_HYDRO: 40,             // 每秒消耗的热液能（flow，hydroAlloc 取剩流）
-    GEEK_KELP: 500,             // 每秒消耗的藻食（库存）
-    GEEK_METAL: 100,            // 每秒消耗的金属（库存）
-    GEEK_CORAL: 100,            // 每秒消耗的珊瑚（库存）
+    GEEK_KELP: 1500,            // 每秒消耗的藻食（库存）——2026-10-21 用户拍：1500
+    GEEK_METAL: 500,            // 每秒消耗的「金属」，键 = silt（非 metal！）——2026-10-21 用户拍：500
+    GEEK_STONE: 500,            // 每秒消耗的石头（库存）——2026-10-21 用户拍：500
+    GEEK_CORAL: 500,            // 每秒消耗的珊瑚（库存）——2026-10-21 用户拍：500
     GEEK_ENCELADUS_SECONDS: 1800,    // 恩克拉多斯星改造耗时（游戏内秒，受 10×/离线影响）
     GEEK_TERRA_SECONDS: 3600,   // 泰拉星改造耗时（游戏内秒）
 

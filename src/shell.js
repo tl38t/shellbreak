@@ -99,16 +99,18 @@
     //    依次改造恩克拉多斯星（1800s）→ 研究 terraform 后改造泰拉星（3600s）。
     //    ⚠️ 抄天穹钻机 flow 模型：热液能是「每 tick 瞬态流」，从本 tick 剩流里取 GEEK_HYDRO，不再读 s.res.hydro 库存池。
     //       剩流由 economy.hydroAlloc 同一 tick 算好的 s._hydroFlow.left 给出（工坊低阶先吃满）。
-    //    ⚠️ 库存耗 kelp/metal/coral 在扣费**之前**判足（扣费先于置位，失败一分不扣），与 skydrill 同纪律；
+    //    ⚠️ 库存耗 kelp(藻食)/silt(金属)/stone(石头)/coral(珊瑚) 在扣费**之前**判足（扣费先于置位，失败一分不扣），与 skydrill 同纪律；
     //       任一不足或断流 = 暂停、进度保留（enceladusRun/terraRun 累加，绝不回拨 geekOn——补料后下一 tick 自动续转）。
     //    ⚠️ 唯一效果 = 覆盖建筑造价等级偏移（costOffset，落点 economy.costOf）；无幸福度/市政/产出额外效果（用户拍板不加）。
     if (geekOn && geekOwned) {
       var _gkHydro = SB.CFG.GEEK_HYDRO * dt;
       var _HF2 = s._hydroFlow || (SB.economy ? SB.economy.hydroAlloc(s, dt) : { geekDraw: 0 });
       var hydroOK = _HF2.geekDraw > 0;
-      var _gkKelp = SB.CFG.GEEK_KELP * dt, _gkMetal = SB.CFG.GEEK_METAL * dt, _gkCoral = SB.CFG.GEEK_CORAL * dt;
-      if (hydroOK && (s.res.kelp || 0) >= _gkKelp && (s.res.metal || 0) >= _gkMetal && (s.res.coral || 0) >= _gkCoral) {
-        s.res.kelp -= _gkKelp; s.res.metal -= _gkMetal; s.res.coral -= _gkCoral;
+      var _gkKelp = SB.CFG.GEEK_KELP * dt, _gkMetal = SB.CFG.GEEK_METAL * dt, _gkStone = SB.CFG.GEEK_STONE * dt, _gkCoral = SB.CFG.GEEK_CORAL * dt;
+      // 两阶段改造都已完成（或等待 terraform 研究）⇒ 没有活儿可干，自动停：不扣料、不走 starvation。
+      var _geekActive = !s.geek.enceladusDone || (s.techs.terraform && !s.geek.terraDone);
+      if (_geekActive && hydroOK && (s.res.kelp || 0) >= _gkKelp && (s.res.silt || 0) >= _gkMetal && (s.res.stone || 0) >= _gkStone && (s.res.coral || 0) >= _gkCoral) {
+        s.res.kelp -= _gkKelp; s.res.silt -= _gkMetal; s.res.stone -= _gkStone; s.res.coral -= _gkCoral;
         if (!s.geek.enceladusDone) {
           // 阶段一：恩克拉多斯星改造。完成 ⇒ costOffset=3（覆盖建筑升级回到 L3 之前）。
           s.geek.enceladusRun = (s.geek.enceladusRun || 0) + dt;
@@ -131,10 +133,10 @@
           }
         }
         s.geekStarved = false;
-      } else if (!s.geekStarved) {
+      } else if (_geekActive && !s.geekStarved) {
         s.geekStarved = true;
         var _need = '每 s 需 ' + SB.CFG.GEEK_HYDRO + ' 热液能（剩流）+ ' + SB.CFG.GEEK_KELP + ' 藻食 + ' + SB.CFG.GEEK_METAL +
-          ' 金属 + ' + SB.CFG.GEEK_CORAL + ' 珊瑚';
+          ' 金属 + ' + SB.CFG.GEEK_STONE + ' 石头 + ' + SB.CFG.GEEK_CORAL + ' 珊瑚';
         if (emit) emit('星球重构机 G.E.E.K 缺少热液能或材料（' + _need + '），停转——补足后自动继续。');
       }
     }

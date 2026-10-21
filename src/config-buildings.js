@@ -216,9 +216,9 @@
      * satelliteScholar：轨道卫星每级学者产出 +25%（tick/rates 学者行乘区）。
      * stationHydro：空间站每级运转耗 2 热液能/秒（hydroAlloc 的 stationDraw，挂 spacestationStop「开几座」开关）。
      * fissionHydro / fissionUranium / fissionLuxAdd：核热厂每级 +10 热液能/秒（不烧暖石的新热液源）、
-     *   −0.02 铀/秒、居民奢侈品消耗 +10%（§0-3 用户拍板的负面效果，走 luxDemandMul 同一括号）。 */
+     *   基础 −0.35 铀/秒、居民奢侈品消耗 +10%（§0-3 用户拍板的负面效果，走 luxDemandMul 同一括号）。 */
     satelliteStar: 5, stationStar: 10, satelliteScholar: 0.25, stationHydro: 2, satelliteHydro: 1,
-    fissionHydro: 10, fissionUranium: 0.02, fissionLuxAdd: 0.10,
+    fissionHydro: 10, fissionUranium: 0.35, fissionLuxAdd: 0.10,
     /* ERA7（spec §4）：物流仓库（upg_logiware）每级给纪元七及之前解锁的有上限材料 +200 容量。 */
     logiwareCap: 200,
     /* ── ERA8（2026-10-18 · spec §3/§4 提议值，AI 定待标定）──
@@ -230,7 +230,7 @@
      *   按用户要求，三项产出均较原值提高 50 倍。
      * titancloudHydro / titancloudFuel：泰坦星气云采集站每级 +6 热液能/秒（hydroAlloc 供给侧，
      *   与核热厂同类不烧暖石）、+5 燃料/秒（tick/rates 燃料行绝对量）。 */
-    biomatlabKelp: 100, biomatlabIron: 4, biomatlabTi: 2, biomatlabU: 0.05,
+    biomatlabKelp: 100, biomatlabIron: 4, biomatlabTi: 2, biomatlabU: 0.35,
     biomatlabOutRate: 0.0625, biomatlabHydro: 3,
     /* ERA10（2026-10-20）：太阳星环每级每秒产 θ金属（用户 ERA10 表「近恒星轨道建设」原值 0.05）。
      * 平产（不吃 biomatlab 开工率/globalMul），economy.solarRingOut 读。 */
@@ -242,7 +242,7 @@
     marsTiplate: 3, marsTitanium: 2,
     /* siltBonus：砂矿坑对**矿工金属产出**的加成（+20%/级）。
      * 2026-09-26 金属归位（对齐猫国）：砂矿坑不再自动产金属，改吃这条——
-     * 1 + lvl.siltpit × siltBonus 乘进矿工的 silt 产出（economy.js 矿工那两行），
+     * 1 + 运行中的砂矿坑数 × siltBonus 乘进矿工的 silt 产出（economy.js 矿工那两行），
      * 数值照抄猫国 mine 的 mineralsRatio 0.2/级。⚠️ 只乘金属、不乘暖石：
      * 暖石是伴生副产品，砂矿坑凭什么给它加成说不通，量级也该留在「取舍」那一档。
      * ⚠️ 2026-10-05 用户拍板：**这个乘区现在同时罩采石工的石头产出**（economy.js
@@ -455,7 +455,7 @@
       desc: '全资源产出 +1%/级，其余资源上限 +120/级',
       requiredTech: ['navigation'] },
     /* ⚠️ 订正（2026-09-29，用户纠正「工坊里有各自升级」）：旧注「工坊现在是空壳」已删——
-     *    工坊的内容 = 每级 +5% 工艺制作效率（下方 craftRatio）+ 工坊页全部商品
+     *    工坊的内容 = 每座运行中 +5% 工艺制作效率（下方 craftRatio）+ 工坊页全部商品
      *    （TOOLS 七件 / CRAFTS 两件 / UPGRADES 两道，见 config 顶部那几张表）。
      *    作废的只是「珊瑚→骨材」那条加工线（2026-09-27 骨材线废），工坊不是空壳。 */
     { id: 'workshop', icon: 'assets/building-icons/era-1/era1-workshop.png', name: '工坊',      ratio: 1.15, cost: {stone: 200, coral: 200},   desc: '加工线入口',
@@ -724,7 +724,7 @@
      * 【轨道卫星】每级星空探索 +5/秒（starRate）+ 学者产出 +25%（学者线乘区）。ratio 1.5 用户拍板。
      * 【空间站】每级星空探索 +10/秒、运转耗 2 热液能/秒（hydroAlloc stationDraw，挂 spacestationStop「开几座」开关）。
      * 【核热厂】归工坊区（热液产线家族）：每级 +10 热液能/秒（不烧暖石，hydroAlloc 供给侧相加）、
-     *   −0.02 铀/秒（tick 直耗）、居民奢侈品消耗 +10%/级（tenementLuxAdd 同构通道，§0-3 负面）。 */
+     *   基础 −0.35 铀/秒（tick 直耗；研究核聚变后×2）、居民奢侈品消耗 +10%/级（tenementLuxAdd 同构通道，§0-3 负面）。 */
     { id: 'satellite', stardustFacility: true, icon: 'assets/building-icons/era-7/era7-satellite.png', name: '轨道卫星', ratio: 1.5, cost: { tiplate: 100, rocketFuel: 100 },
       desc: '星空探索 +5/秒、学者产出 +25%/级。运转耗 1 热液能/秒（可「开几座」）。1 级 = 1 颗。',
       requiredTech: ['rocket'] },
@@ -732,7 +732,10 @@
       desc: '星空探索 +10/秒、运转耗 2 热液能/秒（建筑页可「开几座」）。1 级 = 1 座。',
       requiredTech: ['spacestation'] },
     { id: 'fissionplant', icon: 'assets/building-icons/era-7/era7-fissionplant.png', name: '核热厂', ratio: 1.15, cost: { tiplate: 2000, steel: 400 },
-      desc: '热液能 +10/秒/级（不烧暖石）；耗铀 0.02/秒/级；居民奢侈品消耗 +10%/级（负面）。',
+      /* ⚠️ 2026-10-21（用户拍板）：desc 只写**基础量**，不再带「（核聚变后×2）」这种条件句。
+       *   卡面 / 建筑行的实际数由 SB.ui.buildingDescText 与 render-info 的 fissionplant 分支
+       *   按本局是否已研究 nuclear_fusion 现算（产出 ×5 / 铀耗 ×2，判据与结算同源）。 */
+      desc: '热液能 +10/秒/级（不烧暖石）；耗铀 0.35/秒/级；居民奢侈品消耗 +10%/级（负面）。',
       requiredTech: ['fission'] },
     /* ── ERA7（2026-10 实装 · 竞技体育 解锁）──
      * 【体育场】requiredCivic='athletics'。效果 = 族民奢侈品消耗 -5%/级（economy.luxSaveAll 读 BLD.stadiumLuxSave，
@@ -743,7 +746,7 @@
       requiredCivic: 'athletics' },
 
     /* ── ERA8（2026-10-18 实装 · spec §4）──
-     * 【生物材料研究所】学术区。θ生物金属的唯一产线：每级耗 藻食100/精铁4/钛2/铀0.05（×bldEff
+     * 【生物材料研究所】学术区。θ生物金属的唯一产线：每级耗 藻食100/精铁4/钛2/铀0.35（×bldEff
      *   原料效率）⇒ 产 θ 0.0625（原料最紧者决定开工率，thetaFlow/thetaRate 单一真源）；
      *   每级耗热液能 3/秒（hydroAlloc labDraw，断流只停耗）；纳米技术后 产出×1.1 × 效率×1.3。
      *   ratio 1.15（多级收敛，与核热厂同档）；纳米技术尤里卡门槛仍为「θ 产出 5/秒」。
@@ -753,7 +756,7 @@
      * ⚠️ 三座都在星海区（space）⇒ 建造成本自动吃 spaceCostMul 软上限（costOf 对 zone==='space'），
      *    与轨道卫星/空间站同待遇，无需另接。 */
     { id: 'biomatlab', icon: 'assets/building-icons/era-8/era8-biomatlab.png', name: '生物材料研究所', ratio: 1.15, cost: { titanium: 200, tiplate: 60 },
-      desc: '制造 θ生物金属：每级耗 藻食100/精铁4/钛2/铀0.05 ⇒ 产 θ +0.0625/秒；耗热液能 3/秒（断流只停耗）。',
+      desc: '制造 θ生物金属：每级耗 藻食100/精铁4/钛2/铀0.35 ⇒ 产 θ +0.0625/秒；耗热液能 3/秒（断流只停耗）。',
       requiredTech: ['biomat'] },
     { id: 'rheamine', stardustFacility: true, icon: 'assets/building-icons/era-8/era8-rheamine.png', name: '瑞亚星矿井', ratio: 1.5, cost: { thetaMetal: 60, rocketEngine: 10 },
       desc: '异星在地开采：每级 石梁 +2.5/秒、硬化珊瑚 +2.5/秒、铀 +0.25/秒。1 级 = 1 座。',
@@ -768,9 +771,9 @@
      *   ERA10（2026-10-20）：买了升级「强人工智能」后机器人**按人口口径产信仰**
      *   （economy.faithRate 基项 +robotPop）—— desc 与注释同步改，别再写「不影响信仰点」。
      *   每级耗热液能 8/秒（hydroAlloc robotbayDraw，断流只停耗）。
-     *   ratio 1.15（与核热厂/生物材料研究所同档）；造价 100θ + 800 tiplate（spec §4 B6：200→800 ×4）。
+     *   ratio 3（用户 2026-10-21 标定：每级造价 ×3，升级成本骤增；原 1.15 与核热厂/生物材料研究所同档已弃）；造价 100θ + 800 tiplate（spec §4 B6：200→800 ×4）。
      *   requiredTech='protoai' 与 protoai.unlockBuild 同源（都指向初级人工智能）。 */
-    { id: 'robotbay', icon: 'assets/building-icons/era-8/era8-robotbay.png', name: '机器人充能站', ratio: 1.15, cost: { thetaMetal: 100, tiplate: 800 },
+    { id: 'robotbay', icon: 'assets/building-icons/era-8/era8-robotbay.png', name: '机器人充能站', ratio: 3, cost: { thetaMetal: 100, tiplate: 800 },
       desc: '维持 4 机器人人口/级：仅担任非书手/学者的岗位，产出 +20%。工坊升级「强人工智能」后产出 +50%，且按人口口径产出信仰。耗热液能 8/秒/级。',
       requiredTech: ['protoai'] },
     /* ── ERA9（2026-10-19 实装）──
@@ -782,10 +785,11 @@
       requiredTech: ['alien_eng'] },
     /* 【欧罗巴冰面发射场】母星（欧罗巴）发射设施（用户拍 P6/⑥：欧罗巴是母星、不算异星 ⇒ 不进 lvlSum、归礁栖核心）。
      *   ratio 1.5；造价用户未给，按量级给 steel 1000 + θ金属 200 + 强工质火箭引擎 50（待标定）。
-     *   运行耗料每 s：强工质火箭引擎 0.1 + θ金属自适应薄膜 0.1 + 热液能 2（flow）；正常累计 10s ⇒ 星图太阳帆 +1（累加器）。
+     *   每座场独立按周期计时；周期完成后按本场等级同时发射同等数量的帆/节点，等级不改变进度速度。
+     *   帆模式每 s/级耗：铀 0.5 + 强工质火箭引擎 0.3 + θ金属自适应薄膜 0.3 + 热液能 4（flow）。
      *   requiredTech='microwave_heat' 与微波加热解锁同源；耗料与帆累加逻辑在 economy-tick / hydroAlloc。 */
-    { id: 'europa_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-9/era9-europa-launch.png', name: '欧罗巴冰面发射场', ratio: 1.5, cost: { steel: 1000, thetaMetal: 200, strongProp: 50 },
-      desc: '欧罗巴冰面发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。《绝热材料》完成后可切换制造戴森球节点（每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板，节律相同）。',
+    { id: 'europa_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-9/era9-europa-launch-v2.png', name: '欧罗巴冰面发射场', ratio: 1.5, cost: { steel: 1000, thetaMetal: 200, strongProp: 50 },
+      desc: '每座发射场独立按制造周期计时，周期完成时按本场等级同时发射同等数量太阳帆；等级不改变进度速度。太阳帆模式每级每秒耗铀 0.5 + 强工质火箭引擎 0.3 + θ金属自适应薄膜 0.3 + 热液能 4。《绝热材料》完成后可切换制造戴森球节点（每级每秒耗铀 5 + 强工质火箭引擎 3 + θ金属自适应薄膜 3 + 钛合金板 30 + 热液能 4，周期完成时按本场等级同时发射）。',
       requiredTech: ['microwave_heat'] },
     /* 【太阳星环】ERA10（2026-10-20 实装 · 用户 ERA10 表「近恒星轨道建设」解锁）：近恒星轨道环形结构。
      *   ratio 1.5（与 era9 两座同档）；造价 300 θ金属 + 20 封闭藻仓（sealbin，ERA6 工艺物品，现成 key）。
@@ -797,9 +801,9 @@
 
     /* ── ERA10 市政（2026-10-20 用户规格 · 实装）──
      * 【泰拉星轨道发射场 / 恩克拉多斯星轨道发射场】（市政《公共工程局》解锁）
-     *   用户拍 Q1 = **新建两座独立建筑**，与欧罗巴发射场同功能（各推 1 帆/级/节律）；
-     *   用户追加「两个新发射场和欧罗巴原发射场制造消耗设计相同」⇒ 运行耗料**逐字同值**：
-     *     帆模式 0.1 强工质引擎 + 0.1 θ薄膜 + 2 热液能 /秒/级；节点模式 1 + 1 + 3。
+     *   用户拍 Q1 = **新建两座独立建筑**，与欧罗巴发射场同功能（各自按周期计时，完成时按等级数发射）；
+     *   用户追加「两个新发射场和欧罗巴原发射场制造消耗设计相同」⇒ 三座发射场在同一模式下耗料相同：
+     *     帆模式 0.5 铀 + 0.3 强工质引擎 + 0.3 θ薄膜 + 4 热液能 /秒/级；节点模式 5 铀 + 3 引擎 + 3 薄膜 + 30 钛板 + 4 热液能。
      *   ⇒ 三座共用 economy 的 launch* 单一落点（launchLvl / launchCycleOf / launchHydroPer），
      *     绝不在 tick 与 rates 各写一份（那正是面板撒谎家族）。
      * 【造价「从 1 级开始」】用户表原文。落地 = **不进 COST_OFFSET_COVERED**
@@ -808,11 +812,11 @@
      * 【解锁走 requiredCivic】解锁权在市政身上（与黑色方碑同一轴），不走科技 eff.unlockBuild。 */
     { id: 'terra_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-10/era10-terra-launch.png', name: '泰拉星轨道发射场', ratio: 1.5,
       cost: { steel: 1000, thetaMetal: 200, strongProp: 50 },
-      desc: '泰拉星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。',
+      desc: '每座发射场独立按制造周期计时，周期完成时按本场等级同时发射同等数量太阳帆；等级不改变进度速度。太阳帆模式每级每秒耗铀 0.5 + 强工质火箭引擎 0.3 + θ金属自适应薄膜 0.3 + 热液能 4。造戴森球节点时耗料与节律同欧罗巴发射场，周期完成时按本场等级同时发射。造价按 1 级起算（不吃星球改造的等级折扣）。',
       requiredCivic: 'public_works' },
     { id: 'enceladus_launch', launchpad: true, stardustFacility: true, icon: 'assets/building-icons/era-10/era10-enceladus-launch.png', name: '恩克拉多斯星轨道发射场', ratio: 1.5,
       cost: { steel: 1000, thetaMetal: 200, strongProp: 50 },
-      desc: '恩克拉多斯星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。',
+      desc: '每座发射场独立按制造周期计时，周期完成时按本场等级同时发射同等数量太阳帆；等级不改变进度速度。太阳帆模式每级每秒耗铀 0.5 + 强工质火箭引擎 0.3 + θ金属自适应薄膜 0.3 + 热液能 4。造戴森球节点时耗料与节律同欧罗巴发射场，周期完成时按本场等级同时发射。造价按 1 级起算（不吃星球改造的等级折扣）。',
       requiredCivic: 'public_works' },
 
     /* 【虚境祭坛】（市政《虚境探索》解锁）

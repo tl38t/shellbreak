@@ -195,6 +195,26 @@
     bodyModalClass(true);
   }
 
+  /* 建筑「一行描述」的**单一出口**（卡面 default 兜底 / 巢穴页建筑行 / 星图建筑行）。
+   * 2026-10-21（用户拍板）：描述里**不许出现「如果研究了 X 就是多少」的条件句**——
+   *   凡「科技会改写数值」的建筑，一律读本局实际状态出数。目前只有核热厂属这一类：
+   *   核聚变（s.techs.nuclear_fusion）改两处（产出 ×5 / 铀耗 ×2，判据与结算逐字同源）。
+   * 其余建筑退回静态 `b.desc`（那些 desc 本来就是「每级基础量」，不含条件分支）。
+   * ⚠️ 调用点必须传当前局内状态 `s`；传 null 会按「未研究」出数（= 基础值）。 */
+  function buildingDescText(s, b) {
+    if (!b) return '';
+    if (b.id === 'fissionplant') {
+      var _nfz = !!(s && s.techs && s.techs.nuclear_fusion);
+      var _h = (SB.BLD.fissionHydro || 0) * (_nfz ? 5 : 1);
+      var _u = (SB.BLD.fissionUranium || 0) * (_nfz ? 2 : 1);
+      var _lx = (SB.BLD.fissionLuxAdd || 0) * 100;
+      return '热液能 +' + _h + '/秒/级（不烧暖石）；耗铀 ' + _u.toFixed(2) +
+        '/秒/级；居民奢侈品消耗 +' + _lx.toFixed(0) + '%/级（负面）。' +
+        (_nfz ? '核聚变已研究，上列数已含其加成。' : '');
+    }
+    return b.desc || '';
+  }
+
   /* 建筑信息卡「效果」段：把每座建筑的「每级基础量 × 当前等级 = 当前总量」写清楚，
    * 与住房那一支（人口上限 +X/级（当前 +Y））同构。所有带每级效果的产出 / 容量 / 减耗建筑都走这里；
    * 一次性效果（炉 / 城堡 / 观测站 / 工坊产钢）无「每级」概念，回退到 desc。
@@ -241,6 +261,28 @@
                                  (B.museumCivRatio || 0.20) * 100, (B.museumCivRatio || 0.20) * 100 * L, 0);
       case 'civichall':    return pct('议事厅／城堡市政点产出', (B.civicHallRatio || 0.50) * 100,
                                  (B.civicHallRatio || 0.50) * 100 * L, 0);
+      /* 2026-10-21（用户拍板）：核热厂卡面**按本局实际状态出数**——不再写「（核聚变后×2）」
+       *   这种「如果你研究了会是多少」的条件句，该是多少就是多少。
+       *   核聚变（s.techs.nuclear_fusion）在结算里只改两个量，这里逐字照抄那个判据：
+       *     ① economy.js hydroAlloc：热液能产出 ×5（`_nf`）
+       *     ② economy-tick.js 直扣：铀耗 ×2（`_nfu`）
+       *   两态只有「已研究 / 未研究」，与结算同源 ⇒ 卡面数 = 结算数（面板撒谎家族纪律）。
+       *   ⚠️ 别在这里另写一份「×5/×2」的乘区表：将来若结算改了字面量，这里必须同步改
+       *      （与 rates 的 _fissionUraniumMul 同性质，属「同一乘区三处读数」）。 */
+      case 'fissionplant': {
+        var _nfz = !!(s && s.techs && s.techs.nuclear_fusion);
+        var _fHyd = (B.fissionHydro || 0) * (_nfz ? 5 : 1);
+        var _fUr = (B.fissionUranium || 0) * (_nfz ? 2 : 1);
+        var _fLux = (B.fissionLuxAdd || 0) * 100;
+        /* 手工拼串（不走 add()）：它的模板是「+X/级 + 单位」，对本条会拼成
+         * 「热液能 +10/级/秒」；这里要的是「+10/秒/级」。
+         * 奢侈品那句也没走 pct()：pct 自带「（当前 +Y%）」，再接「（负面）」会套两层括号。 */
+        var _luxPer = Math.round(_fLux * 100) / 100, _luxCur = Math.round(_fLux * L * 100) / 100;
+        return '热液能 +' + _fHyd + '/秒/级（当前 +' + (_fHyd * L) + '/秒，不烧暖石）' +
+          '；耗铀 ' + _fUr.toFixed(2) + '/秒/级（当前 −' + (_fUr * L).toFixed(2) + '/秒）' +
+          '；居民奢侈品消耗 +' + _luxPer + '%/级（当前 +' + _luxCur + '%，负面）' +
+          (_nfz ? '。核聚变已研究，上列数已含其加成。' : '');
+      }
       case 'hydroshop':    return '吃金属产钢（产钢量随热液能供给浮动）';
       case 'furnace':      return '解锁 金属 → 精铁（一次性效果，不随等级递增）';
       case 'observatory': {
@@ -259,7 +301,7 @@
         return _ob;
       }
       case 'hall':         return '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给纪元三及之前有上限资源 +50 容量/级';
-      default:             return b.desc || '';
+      default:             return buildingDescText(s, b);
     }
   }
 
@@ -326,6 +368,9 @@
       '（与结算同式，缺料时会按比例降产）">' + ps.join(' · ') + '</span>';
   }
   SB.ui.drawTag = drawTag;
+  /* 2026-10-21：建筑行描述也提成共享出口（巢穴页 / 星图 / 卡面 default 三处同源），
+   * 免得「条件句描述」在某一处被修好、另一处还写着「核聚变后×2」。 */
+  SB.ui.buildingDescText = buildingDescText;
 
   function buildingConsumeText(s, b, lv) {
     /* ⚠️ 2026-10-17 改口径：三个数一律走 economy.consumeRates（与结算同式的**额定每秒**），

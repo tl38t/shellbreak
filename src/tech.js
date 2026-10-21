@@ -814,7 +814,11 @@
    *    前者进 workshop.craftRatio（工坊造石梁那条线），后者进 economy 的精铁线。
    *    名字都带 craft，是本项目最容易误接的一对。 */
   var ADD = { coef: 1, house: 1, kelpCap: 1, season: 1, craftRatio: 1, warmMul: 1, titaniumMul: 1,
-    scaffoldCostSave: 1, alienOutMul: 1, launchCycle: 1 };
+    scaffoldCostSave: 1, alienOutMul: 1, launchCycle: 1,
+    workshopEff: 1,
+    /* ERA10 的 workshopEff 折进基础加法轴；激光技术不再写此字段，
+     * 激光快速雕版是只作用于潮纹记录的工坊升级（recipeCraft）。默认 0。 */
+  };
   var LABEL = {
     gather: '采集产出', food: '藻食产出', sci: '科技产出', craft: '加工产出',
     fuel: '地热产出', smelt: '金属→精铁',
@@ -838,7 +842,13 @@
     var e = t.eff || {}, out = [], k;
     for (k in e) {
       var nm = LABEL[k] || k, v = e[k];
-      if (k === 'unlockBuild') out.push('解锁建筑 ' + e[k].map(bName).join('、'));
+      if (k === 'recipeCraft') {
+        for (var _rid2 in v) {
+          var _rn = (SB.workshop && SB.workshop.craftById) ? SB.workshop.craftById(_rid2) : null;
+          out.push((_rn ? _rn.name : _rid2) + '制造效率 +' + (Math.round(v[_rid2] * 10000) / 100) + '%');
+        }
+      }
+      else if (k === 'unlockBuild') out.push('解锁建筑 ' + e[k].map(bName).join('、'));
       else if (k === 'unlockJob') out.push('解锁职业 ' + e[k].map(jobName).join('、'));
       else if (k === 'season') out.push('季节减产收窄 ' + Math.round(v * 100) + '%');
       else if (k === 'craftRatio') out.push(nm + ' +' + (Math.round(v * 10000) / 100) + '%');
@@ -1015,7 +1025,7 @@
       farm: 1,
       /* ERA8（2026-10-18 · spec §2/§4）四个新乘区键。⚠️ 默认表与 ADD/LABEL 必须同时改，
        *   漏默认表 ⇒ m[k]===undefined 守卫把研究完的 eff 静默吞掉（构架术那条老教训）。 */
-      workshopEff: 1,       // 激光技术：工坊工艺制作效率（workshop.craftMul 乘区）
+      workshopEff: 0,       // ERA10：全局工坊工艺制作效率（加法轴，折进 craftMul 的 _cr 基数）
       satStar: 1,           // 机器人技术：人造卫星星空探索（economy.starRate 卫星项乘区）
       biomatlabOut: 1,      // 纳米技术：生物材料研究所 θ产出（thetaFlow/thetaRate）
       biomatlabEff: 1,      // 纳米技术：生物材料研究所效率（同上，与 Out 独立相乘）
@@ -1025,13 +1035,19 @@
       /* ERA10（2026-10-20）：launchCycle —— 发射场制造节律（秒）**加法**修正。
        * 《空间矢量控制》eff.launchCycle = −2 ⇒ 节律 10s→8s（帆/节点同吃）。
        * ⚠️ 默认表/ADD/LABEL 三处已同步；漏默认表 ⇒ m[k]===undefined 守卫静默吞 eff。 */
-      launchCycle: 0
+      launchCycle: 0,
+      recipeCraft: {}        // 科技 eff.recipeCraft 聚合：{ recipeId: 加法系数 }，按配方折进 craftMul 的 _cr 基数（与卡片 craftRatioRecipes 同源加法轴）
     };
     for (var i = 0; i < T.length; i++) {
       var t = T[i], e = t.eff;
       if (!e || !s.techs[t.id]) continue;
       for (var k in e) {
         if (m[k] === undefined) continue;          // 未知键：忽略，不偷偷生效
+        if (k === 'recipeCraft') {                 // 嵌套对象：按 recipeId 累加到 m.recipeCraft（与卡片 craftRatioRecipes 同源加法轴）
+          var _rc = e[k];
+          for (var _rid in _rc) m.recipeCraft[_rid] = (m.recipeCraft[_rid] || 0) + _rc[_rid];
+          continue;
+        }
         /* ⚠️ 加区/乘区看 ADD 而不是在这里重抄一份键名 —— 两份名单会走偏（见 ADD 那条注）。
          * ⚠️ 只在**默认表里**补 craftRatio 是不够的：这个 `m[k] === undefined` 的守卫
          *    是「未知键静默忽略」的闸门，漏补默认表 ⇒ 构架术研究完 craftRatio 恒为 0，

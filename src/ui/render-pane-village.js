@@ -5,6 +5,34 @@
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
 
+  function launchProgressPct(s, buildingId) {
+    if (!s || !SB.economy || !SB.economy.launchCycleOf) return 0;
+    var cycle = SB.economy.launchCycleOf(s);
+    if (!(cycle > 0)) return 0;
+    var nodeMode = SB.economy.launchNodeMode ? SB.economy.launchNodeMode(s) : false;
+    var proc = Number(SB.economy.launchProcOf ? SB.economy.launchProcOf(s, buildingId, nodeMode) : 0);
+    if (!isFinite(proc) || proc < 0) proc = 0;
+    return Math.max(0, Math.min(100, Math.floor(((proc % cycle) / cycle) * 100)));
+  }
+
+  /* renderTick 每帧调用；每条只读本发射场计数器，并在整数百分比变化时改两处 DOM，
+   * 不重画建筑列表，也不另开定时器。满发后的计时余数由结算逻辑清零/保留。 */
+  function refreshLaunchProgress(s) {
+    if (typeof document === 'undefined' || !document.querySelectorAll) return;
+    var bars = document.querySelectorAll('[data-launch-progress]');
+    for (var i = 0; i < bars.length; i++) {
+      var bar = bars[i], id = bar.getAttribute('data-launch-progress');
+      var pct = launchProgressPct(s, id), stamp = String(pct);
+      if (bar.getAttribute('data-pct') === stamp) continue;
+      bar.setAttribute('data-pct', stamp);
+      bar.setAttribute('aria-valuenow', stamp);
+      var fill = bar.querySelector('.launch-progress-track i');
+      if (fill) fill.style.width = stamp + '%';
+      var value = bar.querySelector('.launch-progress-value');
+      if (value && value.textContent !== stamp + '%') value.textContent = stamp + '%';
+    }
+  }
+
   function paneVillage() {
     var s = SB.game.run(); let h = '';
     var buildingIconsShown = !!(SB.ui.render && SB.ui.render.buildingIconsShown && SB.ui.render.buildingIconsShown());
@@ -99,7 +127,10 @@
          *   （SB.ui.openIntro / SB.ui.render）。在这里 `var ui` 会把它遮蔽成循环下标，
          *   于是模块末尾 `SB.ui = SB.ui || {}` 读到数字 0 → falsy → 整个命名空间重建为空对象，
          *   页面启动即 `querySelector is not a function`。踩过一次，改名 `_upi`。 */
-        var dispName = b.name, dispDesc = b.desc;
+        /* 2026-10-21（用户拍板）：描述走共享出口 SB.ui.buildingDescText —— 凡「科技改写数值」
+         *   的建筑（当前=核热厂）按本局实际状态出数，不写「如果研究了会是多少」的条件句。 */
+        var dispName = b.name,
+            dispDesc = (SB.ui && SB.ui.buildingDescText) ? SB.ui.buildingDescText(s, b) : b.desc;
         for (var _upi = 0; SB.UPGRADES && _upi < SB.UPGRADES.length; _upi++) {
           var _u = SB.UPGRADES[_upi];
           if (_u.upgradesBuilding === b.id && s.upgrades && s.upgrades[_u.id]) {
@@ -135,11 +166,11 @@
         var autoBtn = '';
         if (SB.habitat.autoZoneUnlocked(s, z.id)) {
           var _au = !!(s.autoUpg && s.autoUpg[b.id]);
-          /* 与暖石开关同一套「启用 / 停用 + 绿 / 灰」（2026-09-30 用户：开/关分不清）——
-           * 同一页里两种开关语言会让人以为它们不是一回事。 */
-          autoBtn = '<button class="btn tog' + (_au ? ' on' : '') + '" data-auto="' + b.id + '"' +
-            ' title="自动建造 / 升级：点击切换启用 / 停用">' +
-            (_au ? '自动·启用' : '自动·停用') + '</button>';
+          /* 和升级按钮并排组成紧凑按钮组；保留独立的 data-auto 点击区。 */
+          autoBtn = '<button type="button" class="btn tog auto-upgrade-toggle' + (_au ? ' on' : '') + '" data-auto="' + b.id + '"' +
+            ' aria-pressed="' + (_au ? 'true' : 'false') + '"' +
+            ' aria-label="自动建造 / 升级' + (_au ? '已启用' : '已停用') + '"' +
+            ' title="自动建造 / 升级' + (_au ? '已启用，点击停用' : '已停用，点击启用') + '">自动</button>';
         }
         /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）：建成（lv>0）后才出现。
          * 炉子是「金属+暖石 → 精铁」的持续消耗口，玩家按原料供给决定开几座。
@@ -156,6 +187,48 @@
             (_frun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* 金属 + 暖石 两样都标（2026-10-17）：原来只标暖石，玩家会以为炉子只烧石头。 */
             SB.ui.drawTag(s, 'furnace') +
+            '</span>';
+        }
+        /* 砂矿坑「开几座」：矿坑本身是可停用建筑，按 furnaceStop 一类的停用数量控制。
+         * 运行矿坑数同时决定矿脉产出加成；装有自动化钻探时，还决定钛/铀加成与热液能需求。 */
+        var siltpitBtn = '';
+        if (b.id === 'siltpit' && lv > 0) {
+          var _spstop = Math.max(0, Math.min(lv, Math.floor(s.siltpitStop || 0)));
+          var _sprun = lv - _spstop;
+          var _spAuto = !!(s.upgrades && s.upgrades.upg_autodrill);
+          var _spExtra = '';
+          if (_spAuto) {
+            var _spPct = lv > 0 ? Math.round(_sprun / lv * 100) : 0;
+            var _spHydro = _sprun * (SB.UNIT.drillHydro || 0.3);
+            _spExtra = '<span class="fdraw" title="自动化钻探按运行矿坑占比增加钛与铀总产出">钛/铀总产出 +' +
+              _spPct + '% · 热液能 −' + _spHydro.toFixed(2) + '/秒</span>';
+          }
+          siltpitBtn = '<span class="furnctl' + (_sprun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-siltpit-dec="1" title="停用一座矿坑"' +
+            (_sprun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _sprun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-siltpit-inc="1" title="启用一座矿坑"' +
+            (_sprun >= lv ? ' disabled' : '') + '>＋</button>' + _spExtra +
+            '</span>';
+        }
+        /* 工坊「开几座」：基础工艺效率、工业机器人加成与耗流都按运行的工坊数量计算。 */
+        var workshopBtn = '';
+        if (b.id === 'workshop' && lv > 0) {
+          var _wsstop = Math.max(0, Math.min(lv, Math.floor(s.workshopStop || 0)));
+          var _wsrun = lv - _wsstop;
+          var _wsExtra = '';
+          if (s.upgrades && s.upgrades.upg_indrobot) {
+            var _wsPct = lv > 0 ? Math.round(_wsrun / lv * 100) : 0;
+            var _wsHydro = _wsrun * (SB.UNIT.robotHydro || 3);
+            _wsExtra = '<span class="fdraw" title="工业机器人按运行工坊占比增加工艺总产出">工艺总产出 +' +
+              _wsPct + '% · 热液能 −' + _wsHydro.toFixed(2) + '/秒</span>';
+          }
+          workshopBtn = '<span class="furnctl' + (_wsrun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-workshop-dec="1" title="停用一座工坊"' +
+            (_wsrun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _wsrun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-workshop-inc="1" title="启用一座工坊"' +
+            (_wsrun >= lv ? ' disabled' : '') + '>＋</button>' + _wsExtra +
             '</span>';
         }
         /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
@@ -244,12 +317,23 @@
          * 点它在「太阳帆 ⇄ 戴森球节点」间切（s.launchMode，state.js seed 默认 'sail'）。
          * 复用 .furnctl 样式；按钮文字 = 当前模式，一点即翻。 */
         var elBtn = '';
+        var launchCtl = '';
+        if (b.launchpad && lv > 0) {
+          var _launchRun = SB.economy && SB.economy.launchActiveLvl
+            ? SB.economy.launchActiveLvl(s, b.id) : lv;
+          launchCtl = '<span class="furnctl' + (_launchRun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-launch-dec="' + b.id + '" title="停用本场一级"' +
+            (_launchRun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _launchRun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-launch-inc="' + b.id + '" title="启用本场一级"' +
+            (_launchRun >= lv ? ' disabled' : '') + '>＋</button></span>';
+        }
         if (b.launchpad && lv > 0 && s.techs && s.techs.adiabatic) {
           var _nodeOn = (s.launchMode === 'node');
           elBtn = '<span class="furnctl' + (_nodeOn ? ' on' : '') + '">' +
             '<button class="fbtn" data-launch-mode="1" title="' +
-            (_nodeOn ? '点击切换到「太阳帆」（每级每 10s 推 1 帆）'
-                     : '点击切换到「戴森球节点」（每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板）') +
+            (_nodeOn ? '点击切换到「太阳帆」（每级每秒耗铀 0.5、火箭引擎 0.3、θ金属薄膜 0.3、热液能 4；周期完成时按本场等级同时发射）'
+                     : '点击切换到「戴森球节点」（每级每秒耗铀 5、火箭引擎 3、θ金属薄膜 3、钛合金板 30、热液能 4；周期完成时按本场等级同时发射）') +
             '">' + (_nodeOn ? '节点' : '太阳帆') + '</button>' +
             '<b class="fnum">制造 ' + (_nodeOn ? '戴森球节点' : '太阳帆') + '</b></span>';
         }
@@ -274,13 +358,23 @@
         if (b.id === 'void_altar') rowState += ' void-altar void-lv-' + lv;
         var buildingIconHTML = buildingIconsShown && b.icon
           ? '<img class="building-icon" src="' + b.icon + '" alt="" aria-hidden="true" width="32" height="32">' : '';
+        var launchProgressHTML = '';
+        if (b.launchpad && lv > 0) {
+          var _lpNodeMode = SB.economy && SB.economy.launchNodeMode ? SB.economy.launchNodeMode(s) : false;
+          var _lpPct = launchProgressPct(s, b.id);
+          launchProgressHTML = '<div class="launch-progress" id="launch-progress-' + b.id + '" data-launch-progress="' + b.id + '" title="本场按制造周期独立推进；停用时保留进度，热液能或原料不足时暂停" role="progressbar" aria-label="' +
+            (_lpNodeMode ? '戴森球节点' : '太阳帆') + '发射进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + _lpPct + '" data-pct="' + _lpPct + '">' +
+            '<span>发射进度</span><div class="launch-progress-track"><i style="width:' + _lpPct + '%"></i></div>' +
+            '<span class="launch-progress-value">' + _lpPct + '%</span></div>';
+        }
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
           '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
-          ' <span class="tag" data-lv="' + b.id + '" title="' + lvTitle + '">等级 ' + lvValueTxt + '</span></span><span class="bld-ops">' + autoBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + elBtn + '</span></div>' +
+          ' <span class="tag" data-lv="' + b.id + '" title="' + lvTitle + '">等级 ' + lvValueTxt + '</span></span><span class="bld-ops">' + siltpitBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + elBtn + '</span></div>' +
+          launchProgressHTML +
           '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div></div>' +
-          '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button></div>';
+          '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + '">' + autoBtn + '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button></div></div>';
         zShown++;
       }
       /* 区标题按区着色（2026-09-30 晚）：--hc 交给 CSS 画左色条 + 同色文字，
@@ -300,4 +394,5 @@
   }
 
   parts.paneVillage = paneVillage;
+  parts.refreshLaunchProgress = refreshLaunchProgress;
 })(typeof window !== 'undefined' ? window : globalThis);

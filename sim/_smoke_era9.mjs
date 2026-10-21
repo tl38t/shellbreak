@@ -62,7 +62,7 @@ s2.lvl.hydroturbine = 20; s2.res.warmstone = 1e6;
 s2.lvl.europa_launch = 1; s2.res.strongProp = 1e6; s2.res.thinafilm = 1e6;
 for (let i=0;i<20;i++) SB.economy.tick(s2, 1);
 const r2 = SB.economy.rates(s2);
-ok('跑满 20s 后 sunSails >= 1', (s2.sunSails||0) >= 1, 'sunSails=' + (s2.sunSails||0) + ' proc=' + (s2.sunSailProc||0).toFixed(2));
+ok('跑满 20s 后 sunSails >= 1', (s2.sunSails||0) >= 1, 'sunSails=' + (s2.sunSails||0) + ' proc=' + (((s2.launchProcs||{}).europa_launch||{}).sail||0).toFixed(2));
 ok('europa 满供时 strongProp 净速率<0', finite(r2.strongProp) && r2.strongProp < 0, 'rate=' + (r2.strongProp||0).toFixed(3));
 ok('europa 满供时 thinafilm 净速率<0', finite(r2.thinafilm) && r2.thinafilm < 0, 'rate=' + (r2.thinafilm||0).toFixed(3));
 // 断流测试：撤掉汽轮机后不应再累帆、不应再扣料

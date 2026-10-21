@@ -178,6 +178,15 @@
    * 【隐藏态】未建成奇观（wonder.need='ecological_restoration' 未满足）——整行不显示。
    * 【阶段转换】瑞亚完成 → 泰拉阶段（需研究 terraform）；两段共用同一启动开关，进度条切换文案。
    * 【无幸福度副作用】运行态不加 −1（用户拍板）。 */
+  /* 倒计时格式化（游戏内剩余秒 → H:MM:SS / MM:SS）。G.E.E.K 改造耗时 1800/3600 游戏秒，
+   * 1× 下与真实秒等价；2× 广告加速下真实等待减半——这里显示的是进度口径的「游戏内剩余时间」。 */
+  function fmtGeekDur(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : pad(m) + ':' + pad(s);
+  }
+
   var geekSig = '';
   function renderGeek(s) {
     var box = el('envGeek'); if (!box) return;
@@ -191,51 +200,84 @@
     var enceladusDone = !!(s.geek && s.geek.enceladusDone);
     var terraDone = !!(s.geek && s.geek.terraDone);
     var terraUnlocked = !!((s.techs && s.techs.terraform) && !terraDone);
-    var phaseTxt, prog, total;
+    var phaseKey, phaseTxt, prog, total;
+    /* ★ 2026-10-21（用户拍）：G.E.E.K 开工要有**进度条 + 倒计时**。
+     *   ⚠️ 根因：原进度条用 class="progbar"，而全站 CSS 只定义了 .prog / .prog i（grep 全仓无 .progbar 规则）
+     *     ⇒ 那条 <i> 没有高度/背景，width 设了也**看不见**——用户实测「没有进度条」。修正 = 改用 .prog。
+     *   倒计时 = 剩余游戏内秒，每帧实时刷（不进签名、不重建 DOM，平滑且避免点击丢）。 */
     if (!enceladusDone) {
-      phaseTxt = '恩克拉多斯星改造'; prog = s.geek ? s.geek.enceladusRun || 0 : 0;
+      phaseKey = 'e'; phaseTxt = '恩克拉多斯星改造';
+      prog = s.geek ? s.geek.enceladusRun || 0 : 0;
       total = SB.economy && SB.economy.starTerraformDuration
         ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_ENCELADUS_SECONDS) : SB.CFG.GEEK_ENCELADUS_SECONDS;
     } else if (terraUnlocked) {
-      phaseTxt = '泰拉星改造'; prog = s.geek ? s.geek.terraRun || 0 : 0;
+      phaseKey = 't'; phaseTxt = '泰拉星改造';
+      prog = s.geek ? s.geek.terraRun || 0 : 0;
       total = SB.economy && SB.economy.starTerraformDuration
         ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
-    }
-    else { phaseTxt = '恩克拉多斯已完成'; prog = 0; total = 1; }
-    var pct = total > 0 ? Math.max(0, Math.min(100, Math.floor(100 * prog / total))) : 0;
-    /* 剩流诊断（与钻机同口径：hydroAlloc(s,1) 纯函数，各字段已是每秒口径）。 */
+    } else { phaseKey = 'E'; phaseTxt = '恩克拉多斯已完成'; prog = 0; total = 1; }
+    var _pct = total > 0 ? Math.max(0, Math.min(100, 100 * prog / total)) : 0;
+    var _pctInt = Math.floor(_pct);
     var _HF = (SB.economy && SB.economy.hydroAlloc) ? SB.economy.hydroAlloc(s, 1) : null;
     var _left = _HF ? Math.max(0, _HF.left) : 0;
+    var _running = !!(s.geek && s.geek.geekOn) && !starved && phaseKey !== 'E';
     var sig = (s.geek && s.geek.geekOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
-      (enceladusDone ? 'E' : 'e') + (terraDone ? 'T' : (terraUnlocked ? 't' : '-')) + '|' + pct;
+      phaseKey + '|' + _pctInt;
     if (sig !== geekSig) {
       geekSig = sig;
       var ds;
       if (!s.geek || !s.geek.geekOn) {
         ds = '星球重构机已就绪，尚未启动。点右侧按钮开始' + (enceladusDone ? '泰拉星改造' : '恩克拉多斯星改造') +
           '——运转期间持续吃热液能（' + SB.CFG.GEEK_HYDRO + '/秒，从热液工坊剩流取）+ 藻食(' + SB.CFG.GEEK_KELP +
-          '/秒)+金属(' + SB.CFG.GEEK_METAL + '/秒)+珊瑚(' + SB.CFG.GEEK_CORAL + '/秒)。';
+          '/秒)+金属(' + SB.CFG.GEEK_METAL + '/秒)+石头(' + SB.CFG.GEEK_STONE + '/秒)+珊瑚(' + SB.CFG.GEEK_CORAL + '/秒)。';
       } else if (starved) {
-        if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP || (s.res.metal || 0) < SB.CFG.GEEK_METAL || (s.res.coral || 0) < SB.CFG.GEEK_CORAL) {
-          ds = '停摆：材料见底（现存 藻食 ' + Math.floor(s.res.kelp || 0) + ' / 金属 ' + Math.floor(s.res.metal || 0) +
-            ' / 珊瑚 ' + Math.floor(s.res.coral || 0) + '，运转每秒耗 ' + SB.CFG.GEEK_KELP + '/' + SB.CFG.GEEK_METAL +
-            '/' + SB.CFG.GEEK_CORAL + '）。补足后自动恢复，无需重启。';
+        if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP || (s.res.silt || 0) < SB.CFG.GEEK_METAL || (s.res.stone || 0) < SB.CFG.GEEK_STONE || (s.res.coral || 0) < SB.CFG.GEEK_CORAL) {
+          ds = '停摆：材料见底（现存 藻食 ' + Math.floor(s.res.kelp || 0) + ' / 金属 ' + Math.floor(s.res.silt || 0) +
+            ' / 石头 ' + Math.floor(s.res.stone || 0) + ' / 珊瑚 ' + Math.floor(s.res.coral || 0) +
+            '，运转每秒耗 ' + SB.CFG.GEEK_KELP + '/' + SB.CFG.GEEK_METAL + '/' + SB.CFG.GEEK_STONE + '/' +
+            SB.CFG.GEEK_CORAL + '）。补足后自动恢复，无需重启。';
         } else {
           ds = '停摆：热液能剩流 ' + _left.toFixed(1) + '/秒，不足 ' + SB.CFG.GEEK_HYDRO + '/秒——汽轮机供 ' +
             (_HF ? _HF.supplyRate.toFixed(1) : '?') + '/秒，热液工坊吃 ' + (_HF ? _HF.shopRate.toFixed(1) : '?') +
             '/秒。升汽轮机或停用热液工坊；补足后自动恢复，无需重启。';
         }
+      } else if (phaseKey === 'E') {
+        ds = '恩克拉多斯星改造已完成。研究《星球改造》后可启动泰拉星改造。';
       } else {
-        ds = '运转中：' + phaseTxt + '进度 ' + Math.floor(prog) + '/' + total + 's（' + pct + '%）。' +
-          (enceladusDone && !terraUnlocked ? '研究《星球改造》后可启动泰拉星改造。' : '缺料暂停、进度保留，补足自动续。');
+        ds = '运转中：' + phaseTxt + '。缺料暂停、进度保留，补足自动续。';
       }
+      var _remTag = _running ? '<span class="tag" id="envGeekRemain"></span>' : '';
       box.innerHTML = '<div><div class="nm">星球重构机 G.E.E.K ' +
         (enceladusDone ? '<span class="tag ok">恩克拉多斯已完成</span>' : '') +
-        (terraDone ? '<span class="tag ok">泰拉已完成</span>' : '') + '</div>' +
-        '<div class="progbar"><i style="width:' + pct + '%"></i></div>' +
-        '<div class="ds">' + ds + '</div></div>' +
+        (terraDone ? '<span class="tag ok">泰拉已完成</span>' : '') + _remTag + '</div>' +
+        '<div class="prog"><i id="envGeekBar" style="width:' + _pct.toFixed(2) + '%"></i></div>' +
+        '<div class="ds" id="envGeekDs">' + ds + '</div></div>' +
         '<button class="btn tog' + ((s.geek && s.geek.geekOn) ? ' on' : '') +
         '" data-geek="1" title="点击启动 / 停机">' + ((s.geek && s.geek.geekOn) ? '已启动' : '已停机') + '</button>';
+    }
+    /* 每帧实时刷新：进度条宽度（Fractional，平滑）+ 倒计时（剩余游戏内秒）。
+     * 不进签名 ⇒ 即使 <1% 的细微推进也看得见，倒计时也不跳格。 */
+    if (_running) {
+      var _bar = el('envGeekBar'); if (_bar) _bar.style.width = _pct.toFixed(2) + '%';
+      var _cd = el('envGeekRemain');
+      if (_cd) _cd.textContent = '倒计时 ' + fmtGeekDur(Math.max(0, total - prog));
+    }
+    /* 每帧实时刷新「停摆原因」文案（材料见底/热液能不足的子因 + 现存数量），
+     * 不进签名 ⇒ 即便仍处 starved（签名不变），子因切换 / 现存数值变化也能即时反映。 */
+    if (starved && phaseKey !== 'E') {
+      var _d = el('envGeekDs');
+      if (_d) {
+        if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP || (s.res.silt || 0) < SB.CFG.GEEK_METAL || (s.res.stone || 0) < SB.CFG.GEEK_STONE || (s.res.coral || 0) < SB.CFG.GEEK_CORAL) {
+          _d.innerHTML = '停摆：材料见底（现存 藻食 ' + Math.floor(s.res.kelp || 0) + ' / 金属 ' + Math.floor(s.res.silt || 0) +
+            ' / 石头 ' + Math.floor(s.res.stone || 0) + ' / 珊瑚 ' + Math.floor(s.res.coral || 0) +
+            '，运转每秒耗 ' + SB.CFG.GEEK_KELP + '/' + SB.CFG.GEEK_METAL + '/' + SB.CFG.GEEK_STONE + '/' +
+            SB.CFG.GEEK_CORAL + '）。补足后自动恢复，无需重启。';
+        } else {
+          _d.innerHTML = '停摆：热液能剩流 ' + _left.toFixed(1) + '/秒，不足 ' + SB.CFG.GEEK_HYDRO + '/秒——汽轮机供 ' +
+            (_HF ? _HF.supplyRate.toFixed(1) : '?') + '/秒，热液工坊吃 ' + (_HF ? _HF.shopRate.toFixed(1) : '?') +
+            '/秒。升汽轮机或停用热液工坊；补足后自动恢复，无需重启。';
+        }
+      }
     }
   }
 

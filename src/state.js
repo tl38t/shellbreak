@@ -249,8 +249,8 @@
         biomatlab: 0, rheamine: 0, titancloud: 0, robotbay: 0,
         /* ERA9（光帆纪 · 本次实装）：马尔斯工造中心（火星在地制造，space 区）/ 欧罗巴冰面发射场（母星 core 区）。
          * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
-         * europa_launch 虽在母星（core 区），但发射台每 10s 向星图推进太阳帆（s.sunSails 累加器），
-         * 故另需 sunSails / sunSailProc 运行态种子（见下方 geek 段旁）。 */
+         * europa_launch 虽在母星（core 区），但发射台向星图推进太阳帆（s.sunSails 累加器），
+         * 故另需 sunSails / launchProcs 运行态种子（见下方 geek 段旁）。 */
         mars_workshop: 0, europa_launch: 0,
         /* ERA9（2026-10-20 市政《神们自己》解锁建筑）：黑色方碑（信仰产出 ×1.2）。
          * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。 */
@@ -427,14 +427,12 @@
        * ⚠️ 顶层字段，由 companies.js 的 SB.companyState(s, res) 读写（含旧档迁移）。 */
       companyState: {},
       companyNames: {},
-      /* ERA7（2026-10-21）：自动化钻探实际开启的矿井数，范围由 state-migrate 按砂矿坑等级钳制。 */
-      autoDrillCount: 0,
-      /* ERA8（2026-10-18）：工坊升级「工业机器人」（upg_indrobot）的可开关状态。 */
-      indRobotOn: true,
-      /* ERA8（2026-10-18 · spec §4）：**单局 buff 标记表**（run-scoped）。
-       *   laserEngrave —— 激光快速雕版（upg_laserengrave）「本周目制造成本 −30%」。
-       *   只由 workshop.upgradeBuy 置位、prestige.doBreak 清除；craftCostMul 只读标记。
-       *   freshRun 全新重建 ⇒ 轮回自然失效，「失效需重买」语义单一事实来源。 */
+      /* 砂矿坑停用数量；缺省 0 表示新建矿坑都运行，迁移时夹在 [0, siltpit 等级]。 */
+      siltpitStop: 0,
+      /* 工坊停用数量；缺省 0 表示新建工坊都运行，和砂矿坑一样在巢穴面板调整。 */
+      workshopStop: 0,
+      /* ERA8（2026-10-18 · spec §4）：**单局 buff 标记表**（run-scoped），如旧日遗产自动制作标记等。
+       *   freshRun 全新重建 ⇒ 轮回自然失效；prestige.doBreak 破壳结算时整体清空。 */
       runBuffs: {},
       /* 政策卡槽**人生第一次**装填过没有。
        * ⚠️ 它不能省：换卡收费若按「槽当前空不空」判，「拔下→再装填」就能无限免费换效果。
@@ -492,26 +490,32 @@
        * 读取当次会手删（game.boot），不进运行状态。 */
       _ts: 0,
       /* ERA9（光帆纪 · 本次实装）：星图太阳帆累加器 + G.E.E.K 运行态种子。
-       *   sunSails     —— 太阳帆总数（**无限**，无上限）；由欧罗巴冰面发射场每运行 10s 推 +1 帆。
+       *   sunSails     —— 太阳帆总数（**无限**，无上限）；各发射场独立按周期发射该场等级数量的太阳帆。
        *                   每帆 +0.05 热液能/秒（进 hydroAlloc 供给侧，不进库存）。
-       *   sunSailProc  —— 发射场推进太阳帆的**累计运行秒数**游标（每 +10s 触发一次 +1 帆）。
        *   geek         —— G.E.E.K 星球重构机运行态：
        *                    geekOn        = 自然环境卡手动启动开关（与 skydrillOn 同纪律）；
        *                    enceladusDone / terraDone = 恩克拉多斯 / 泰拉改造完成旗（terraform 尤里卡 / 减消耗管线读它）；
        *                    costOffset = 覆盖建筑的有效造价等级偏移（Enceladus=3 / Terra 叠 +5=8，减消耗落点）；
        *                    enceladusRun / terraRun = 改造进度秒数（自然环境卡 UI 读它）。
        *   ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底（state-migrate.js 的 geek 深合并），自动带出默认值。 */
-      sunSails: 0, sunSailProc: 0,
+      sunSails: 0,
+      /* 三座发射场的独立周期余数，sail / node 各自保存；等级只决定周期完成时的产出数量。 */
+      launchProcs: {
+        europa_launch: { sail: 0, node: 0 },
+        terra_launch: { sail: 0, node: 0 },
+        enceladus_launch: { sail: 0, node: 0 }
+      },
+      /* 三座发射场各自保存停用等级数；默认 0 = 每座场建成的等级全部运行。 */
+      launchStops: { europa_launch: 0, terra_launch: 0, enceladus_launch: 0 },
       geek: { geekOn: false, enceladusDone: false, terraDone: false, costOffset: 0, enceladusRun: 0, terraRun: 0 },
       /* ERA10（戴森纪 · 2026-10-20 实装）：戴森球子系统状态。
-       *   dysonNodes     —— 戴森球节点总数（发射场节点模式每运行满 1 节律 +1，无限）。
-       *   dysonProc      —— 节点模式累计运行秒数游标（每 +1 节律触发一次 +1 节点）。
+       *   dysonNodes     —— 戴森球节点总数（发射场节点模式每座场每运行满 1 节律，按该场等级发射，无限）。
        *   launchMode     —— 发射场制造模式：'sail'（太阳帆，默认）/ 'node'（戴森球节点）；
        *                     完成《绝热材料》后 UI 才给切换钮（adiabatic 门控在渲染侧）。
        *   dysonDone      —— 戴森球 100% 达成旗（双达标取小口径达 1）；只置一次。
        *   dysonPopupSeen —— 通关弹窗已播旗（弹窗只播一次；继续游玩后不再弹）。
        * ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底自动带出默认值（与 geek 同机制）。 */
-      dysonNodes: 0, dysonProc: 0, launchMode: 'sail',
+      dysonNodes: 0, launchMode: 'sail',
       dysonDone: false, dysonPopupSeen: false
     };
   }

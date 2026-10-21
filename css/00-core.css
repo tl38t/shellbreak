@@ -35,6 +35,34 @@ h1 small{font-size:12px;color:var(--dim);letter-spacing:0}
 /* 奢侈品行「产 X · 耗 Y」：小一号斜体（2026-10-05 用户拍板）——
  * 与 .cap 同字号但真斜体，颜色比 rate 更淡：它是解释性注脚，不是主读数。 */
 .res i.sd{font-style:italic;font-size:10px;color:var(--dim);margin-left:5px;font-variant-numeric:tabular-nums}
+/* ── 手机端 ⓘ 信息按钮（方案 C，2026-10-21 用户「补一个」）───────────────────────
+ * 背景：奢侈品行那句长解释为了卡片等高收进了 `title` ⇒ 桌面 hover 能看到，**手机端没有入口**。
+ * 规则（跨端约定，勿改）：
+ *   · 默认（hover:hover 桌面）→ ⓘ **不显示**，保留 .sd 的原生 title hover；
+ *   · 触控（hover:none）→ ⓘ 显示，点按弹 #hoverInfoLayer（逻辑在 render.js showHoverInfo）。
+ * ⚠️ 门控必须写 `@media (hover:none)`，不能写 `max-width`：平板 + 触屏笔记本是宽屏但无 hover，
+ *    用宽度判断会让它们在「ⓘ 不显示」和「title 也弹不出来」之间两头落空。 */
+.hover-info-btn{display:none}
+@media (hover:none){
+  .hover-info-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    flex:0 0 auto;margin-left:4px;width:15px;height:15px;border-radius:50%;
+    border:1px solid var(--line);color:var(--dim);background:transparent;
+    font-style:normal;font-size:10px;line-height:1;cursor:pointer;user-select:none;
+    vertical-align:middle;
+  }
+  /* 触屏按下瞬时反馈：避免 :hover 粘滞残留高亮（跨端约定） */
+  .hover-info-btn:active{background:var(--panel2);color:var(--cyan);border-color:var(--cyan)}
+}
+/* ⓘ 浮层：底部居中的轻量气泡，多行标题用 pre-line 渲染换行 */
+.hover-info-layer{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  z-index:9999;max-width:88vw;padding:10px 14px;
+  background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;
+  font-size:12px;line-height:1.55;white-space:pre-line;
+  box-shadow:0 6px 20px rgba(0,0,0,.55);
+}
+.hover-info-layer.hidden{display:none}
 /* 工艺资源分区标题（2026-09-30）：与常规资源区分开显示 */
 .restitle{font-size:11px;color:var(--dim);margin:12px 2px 2px;letter-spacing:3px;font-weight:600}
 #res-craft-wrap[hidden]{display:none}

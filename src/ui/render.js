@@ -211,26 +211,48 @@
       }
       /* 奢侈品行的「产 X · 耗 Y」小字（2026-10-05 用户拍板）：净速率会被**需求封顶** ——
        *   供给涨了之后净值停在 min(S,D) 那一档不动，玩家会以为购买项（奢侈品契/马具/马镫…）没生效。
-       *   用小一号斜体把供给与消耗直接摆在净值旁边，一眼看出「净不变=需求封顶」而非加成失效。
-       * ⚠️ 数字走 happyLedger 同一口（与 tick / 幸福度行同源），render 不自己拼第二份账。 */
+       *   用小一号斜体把供给与消耗直接摆出来，一眼看出「净不变=需求封顶」而非加成失效。
+       * ⚠️ 数字走 happyLedger 同一口（与 tick / 幸福度行同源），render 不自己拼第二份账。
+       * ★ 2026-10-21（用户「产xx耗xx放到奢侈品后面去，把卡片调整成一样大的」）三处调整：
+       *   ① 位置挪到**标签正后方**（原先排在净值之后，被挤到第二行）；
+       *   ② 长括号解释（按幸福 X 计 / 已剔市政·奇观·卡的 +Y）收进 `title`：
+       *      正是它把这张卡撑到 **3 行**，而 .grid 是 `align-items:stretch` ⇒ 整行被拉高 30px，
+       *      卡片大小不齐。实测（5 列、卡宽 204.8px）：带长括号行高 101.7，收进 title 后 71.7
+       *      = 普通卡行高，四行全部一致；
+       *   ③ 奢侈品行不再叠一个净值：净 = 产 − 耗 是恒等式（rates.luxury = S − min(S,D)），
+       *      两个分量都摆着了，第三个数字纯冗余，窄屏（≤390px）还会多折一行把卡撑高。
+       *   ④ ②把解释塞进 title ⇒ **只有桌面 hover 能看见，手机端等于整条信息丢了**。
+       *      按用户跨端约定（方案 C）补 ⓘ：CSS 只在 @media (hover:none) 显示 ⓘ，
+       *      点按弹自定义浮层；内容读 ⓘ 自己的 title（与桌面同一份文本，单一落点）。 */
       var luxTxt = '';
+      var tipBtn = '';      /* 手机端 ⓘ（见下 ④）：仅在有 title 解释时才生成 */
+      var hideRate = false;
       if (k === 'luxury' && SB.economy.happyLedger) {
         var LL = SB.economy.happyLedger(s);
         /* ⚠️ 2026-10-06 用户报 bug：「这里的消耗是不是把市政加的这些额外幸福度也算上去了」
          *   —— 是的，那是读数 bug（真结算一直用机制值），已修（economy.happyMech）。
          *   现在把「用于计价的幸福度」也摆出来：有政体/奇观/卡加成时，
-         *   玩家能验「人口 × 每人(mechH) = 耗」，不会以为加成被算成了消耗。 */
-        luxTxt = ' <i class="sd">产 ' + LL.out.toFixed(2) + ' · 耗 ' + LL.burn.toFixed(2) +
-          (Math.abs(LL.bonus) > 1e-9
-            ? (LL.mechH > 0
-              /* mechH ≤ 0 时 c(H) 走保底 BASE，那个负数对玩家没有意义，
-               * 印出来只会让人以为「按 −1 计价」是更省的事（其实单价已是最低）。 */
-              ? '（按幸福 ' + LL.mechH.toFixed(2) + ' 计，已剔市政/奇观/卡的 ' +
-                (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2) + '）'
-              : '（计价已到底线，已剔市政/奇观/卡的 ' +
-                (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2) + '）')
-            : '') +
-          '</i>';
+         *   玩家能验「人口 × 每人(mechH) = 耗」，不会以为加成被算成了消耗。
+         *   ⚠️ 2026-10-21：这段解释改挂 `title`（桌面 hover 可见），数值一字不改。 */
+        var _luxTip = '';
+        if (Math.abs(LL.bonus) > 1e-9) {
+          /* mechH ≤ 0 时 c(H) 走保底 BASE，那个负数对玩家没有意义，
+           * 印出来只会让人以为「按 −1 计价」是更省的事（其实单价已是最低）。 */
+          _luxTip = (LL.mechH > 0
+            ? '按幸福 ' + LL.mechH.toFixed(2) + ' 计，已剔市政/奇观/卡的 ' +
+              (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
+            : '计价已到底线，已剔市政/奇观/卡的 ' +
+              (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2));
+        }
+        luxTxt = '<i class="sd"' + (_luxTip ? ' title="' + _luxTip + '"' : '') + '>产 ' +
+          LL.out.toFixed(2) + ' · 耗 ' + LL.burn.toFixed(2) + '</i>';
+        hideRate = true;
+        /* ④ 手机端 ⓘ：解释文本只挂一次（ⓘ 的 title），点按时由 showHoverInfo 读出弹浮层。
+         * 桌面端 ⓘ 不显示（CSS 门控），.sd 的原生 title hover 照旧 —— 两端同一份文本。 */
+        if (_luxTip) {
+          tipBtn = '<i class="hover-info-btn" title="' +
+            _luxTip.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '">ⓘ</i>';
+        }
       }
       /* 信仰行的标签：玩家给信仰起了名 ⇒ 用宗教名代替「信仰」二字（神学解锁后可在 #religionBox 改名）。
        * ERA9 虚境信仰卡装填后强制「虚境」并锁死（覆盖玩家自定义名，见 civics.faithDisplayName）。 */
@@ -241,8 +263,11 @@
           : ((s.religionName || '').trim());
         if (rn) rowName = rn;
       }
+      /* 标签行顺序（2026-10-21 用户要求）：名称 → 产/耗 → 净值 → 全产加成。
+       * 奢侈品行 hideRate=true ⇒ 不重复净值（净 = 产 − 耗，见上面 ③）。 */
       var row = '<div class="' + cls + '"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
-        SB.economy.fmtAmt(v) + capTxt + '</b><span>' + rowName + rateTxt + luxTxt + faithBonusTxt + '</span></div>';
+        SB.economy.fmtAmt(v) + capTxt + '</b><span>' + rowName + luxTxt + (hideRate ? '' : rateTxt) +
+        faithBonusTxt + tipBtn + '</span></div>';
       if (isCraft) htmlCraft += row; else htmlBase += row;
     }
     g.innerHTML = htmlBase;
@@ -853,6 +878,7 @@
   }
   function renderTick() {
     var s = res();
+    if (SB.ui.renderParts.refreshLaunchProgress) SB.ui.renderParts.refreshLaunchProgress(s);
     applyEraSkin(s);
     renderChallengeNotice(s);
     renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar();
@@ -1506,10 +1532,36 @@
     var m = el('introMask'); if (m) m.classList.add('hidden');
     bodyModalClass(false);
   }
+
+  /* ── 手机端 ⓘ 信息浮层（2026-10-21 用户「补一个」）────────────────────────────
+   * 背景：资源面板奢侈品行把「按幸福 X 计，已剔市政/奇观/卡的 +Y」收进了 `title`
+   *   （为了把卡片压回一行高、让整行卡片等高），结果**手机端完全没有入口看到它**。
+   * 方案 C（用户跨端约定）：
+   *   · 桌面（hover:hover）→ ⓘ 由 CSS 隐藏，保留 .sd 的原生 title hover；
+   *   · 触控（hover:none）→ ⓘ 显示，点按弹自定义浮层，内容读 ⚘ 自己的 title。
+   * ⚠️ 单一落点：文本只写在 ⓘ 的 title 上，浮层直接读它 —— 不复制第二份字符串，
+   *    改文案时不会漏改一处。 */
+  function showHoverInfo(txt) {
+    if (!document.body) return;
+    var layer = el('hoverInfoLayer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'hoverInfoLayer';
+      layer.className = 'hover-info-layer hidden';
+      document.body.appendChild(layer);
+    }
+    layer.textContent = txt || '';      /* textContent：纯文本，绝不 innerHTML 拼接用户输入 */
+    layer.classList.remove('hidden');
+  }
+  SB.ui = SB.ui || {};
+  SB.ui.showHoverInfo = showHoverInfo;  /* 导出：供探针/回归直接验证，不写第二份逻辑 */
   /* Esc 关弹窗（防重复绑定：render.js 只加载一次，这里挂一次即可）。 */
   if (typeof document !== 'undefined' && document.addEventListener) {
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
+        /* ⓘ 浮层最浅 → 先关它，再轮到 intro / 弹窗（与层级顺序一致）。 */
+        var hi0 = el('hoverInfoLayer');
+        if (hi0 && !hi0.classList.contains('hidden')) { hi0.classList.add('hidden'); return; }
         var intro = el('introMask'), modal = el('modal');
         if (intro && !intro.classList.contains('hidden')) closeIntro();
         else if (modal && !modal.classList.contains('hidden') && modal.classList.contains('tree-modal')) hideModal();
@@ -1524,6 +1576,26 @@
         }
       }
     });
+
+    /* ⓘ 点击 → 弹浮层（document 委托：资源面板每帧重画，绑定在节点上会随重画丢失）。
+     * ⚠️ 与 input.js 的 onClick 互不干扰：那个只认 data-* 属性，ⓘ 不带任何 data-*。 */
+    document.addEventListener('click', function (e) {
+      var btn = (e.target && e.target.closest) ? e.target.closest('.hover-info-btn') : null;
+      if (!btn) return;
+      e.preventDefault();
+      showHoverInfo(btn.getAttribute('title') || '');
+    }, false);
+
+    /* 点浮层外 / 点ⓘ之外任意处 → 关闭（ⓘ 本身已在上面处理，这里排除掉避免开完立刻关）。 */
+    document.addEventListener('click', function (e) {
+      var layer = el('hoverInfoLayer');
+      if (!layer || layer.classList.contains('hidden')) return;
+      if (e.target && e.target.closest) {
+        if (e.target.closest('#hoverInfoLayer')) return;
+        if (e.target.closest('.hover-info-btn')) return;
+      }
+      layer.classList.add('hidden');
+    }, false);
   }
 
   SB.ui = SB.ui || {};

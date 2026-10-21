@@ -550,14 +550,14 @@
       desc: '温水藻场：每级（× 藻场等级）额外 +0.5 科技/秒，不受季节、耗 0.05 热液能（首版简化为科学加成）。' },
 
     /* ── ERA7 工艺升级（2026-10-21 调整 · 自动化钻探）──
-     * 【自动化钻探】可设置开启的矿井数；每座开启的矿井给钛、铀对应产线的自身份额 +100%，
+     * 【自动化钻探】在巢穴面板启停砂矿坑；每座运行矿坑给钛、铀对应产线的自身份额 +100%，
      *   总加成按开启数 / 总矿井数折算，最多 +100%，不按矿井数重复叠乘；每座开启矿井耗 0.3 热液能/秒。
-     *   总矿井数取砂矿坑等级；已开启矿井数由 s.autoDrillCount 保存。
+     *   总矿井数取砂矿坑等级；运行数量由巢穴面板的 s.siltpitStop（停用数）计算。
      *   cost 科技点 450,000 = 解锁它的科技自身 cost（§0-4 用户拍板开先例）；
      *   工坊升级 cost 的 science 键由 workshop 通用 for-in 扣费天然支持（无需改 afford/spend）。 */
     { id: 'upg_autodrill', name: '自动化钻探', need: 'autodrill',
       cost: { tiplate: 300, resonantDrill: 300, science: 450000 },
-      desc: '开启矿井的钛与铀产出 +100%；总加成按开启矿井占比计算，最多 +100%。每座开启矿井耗 0.3 热液能/秒。' },
+      desc: '在巢穴面板启停砂矿坑。每座运行矿坑对应的钛与铀产出份额 +100%；总加成按运行矿坑占比计算，最多 +100%。每座运行矿坑耗 0.3 热液能/秒。' },
     /* ERA7（spec §4）：物流仓库 —— 顶替商队驿站（upgradesBuilding），买下后商队驿站更名「物流仓库」。
      *   每级给纪元七及之前解锁的有上限材料 +200 容量（capOf 材料分支，BLD.logiwareCap）。
      *   cost 科技点 1,000,000 = 解锁它的科技《大型架构》自身 cost（§0-4 开先例）；材料为提议值（与另两条 era7 升级同口径，不含脚手架）。 */
@@ -577,23 +577,18 @@
       cost: { tiplate: 800, rocketEngine: 5, science: 2100000 },
       desc: '自动工艺槽位 +1。' },
 
-    /* ── ERA8 工艺升级两项（2026-10-18 实装 · spec §4）──
-     * 【激光快速雕版】need=激光技术（laser）。**单局（per-run）**效果：全部工艺制造成本 −30%
-     *   （×0.7，与雕版术/考古学折扣同一入口 workshop.craftCostMul）。
-     *   实现口径（spec §4 注）：买断置位时同时置 run-scoped 标记 s.runBuffs.laserEngrave = true；
-     *   craftCostMul 只读**标记**不读 s.upgrades；prestige.doBreak（破壳结算）清 runBuffs ⇒
-     *   轮回/破壳后效果失效。s.upgrades 跨轮回本就重置（freshRun 全新表）⇒ 重新买即重新生效，
-     *   「失效需重研」的语义自然成立。cost 为提议值，待标定。
-     * 【工业机器人】need=机器人技术（robotics）。工坊工艺制作效率 +100%（独立乘区 ×2，
-     *   与 boomcraftMul/throneCraftMul 同形态相乘）；开启时耗 0.3 热液能/秒
-     *   （hydroAlloc 的 robotDraw，优先级最后）；可开关 s.indRobotOn（关掉 ⇒ 加成与耗能一起停）。
+    /* ── ERA8 工艺升级 ──
+     * 【激光快速雕版】need=激光技术（laser）。购买后只给潮纹记录配方制造产出 +50%，不打折成本。
+     * 【工业机器人】need=机器人技术（robotics）。巢穴面板按工坊建筑数量启停；每座运行工坊
+     *   对应的工艺产出份额 +100%，总加成按运行工坊占比折算（最多 ×2）；每座耗 3 热液能/秒。
      *   cost 科技点 3,000,000 = 《机器人技术》自身 cost（§0-4 先例）；材料提议值。 */
     { id: 'upg_laserengrave', name: '激光快速雕版', need: 'laser',
+      recipeCraft: { craft_tidal_record: 0.5 },
       cost: { thetaMetal: 120, science: 2000000 },
-      desc: '本周目全部工艺制造成本 −30%（轮回/破壳后失效，重新购买即再次生效）。' },
+      desc: '潮纹记录制造产出 +50%（不降低原料消耗）。' },
     { id: 'upg_indrobot', name: '工业机器人', need: 'robotics',
       cost: { thetaMetal: 200, science: 3000000 },
-      desc: '工坊工艺制作效率 +100%（独立乘区 ×2）；开启时耗 0.3 热液能/秒（可开关）。' },
+      desc: '在巢穴面板启停工坊。每座运行工坊对应的工艺产出份额 +100%，总加成按运行工坊占比计算，最多 +100%；每座运行工坊耗 3 热液能/秒。' },
     /* ── ERA10（2026-10-20 实装 · 用户 ERA10 表「强人工智能」解锁）──
      * 【强人工智能】need=强人工智能（strong_ai）。消耗 1000 θ金属（用户表原值）。
      * 效果两件（用户拍 Q3「进人口基项」）：
@@ -945,12 +940,15 @@
     uranium: 0.002,
     /* ERA7（2026-10-21 用户确认）：自动化钻探每座开启矿井每秒耗热液能。 */
     drillHydro: 0.3,
-    /* ERA8（2026-10-21 用户确认）：工业机器人开启时每秒耗热液能。 */
-    robotHydro: 0.3,
+    /* ERA8（2026-10-21 用户确认）：每座运行工坊的工业机器人每秒耗 3 热液能。 */
+    robotHydro: 3,
     /* ERA8（2026-10-19 · B7）：机器人充能站（robotbay）每级每秒耗热液能（spec §4 列 8）。 */
     robotbayHydro: 8,
-    /* ERA9（2026-10-19）：欧罗巴冰面发射场（europa_launch）每级每秒耗热液能（hydroAlloc 流耗，最低优先级）。 */
-    europaHydro: 2 };
+    /* ERA9：太阳帆/戴森节点模式各自每级每秒消耗；节点库存材料吃星屑减耗，热液能不减。 */
+    launchSailUranium: 0.5, launchSailStrongProp: 0.3, launchSailThinafilm: 0.3,
+    launchSailHydro: 4,
+    dysonNodeUranium: 5, dysonNodeStrongProp: 3, dysonNodeThinafilm: 3, dysonNodeTiplate: 30,
+    dysonNodeHydro: 4 };
   SB.SEASONS = SEASONS;
   SB.RESS = RESS;
   SB.CRAFTS = CRAFTS;

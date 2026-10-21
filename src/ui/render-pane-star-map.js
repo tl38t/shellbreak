@@ -61,7 +61,7 @@
     return '<div class="row bld-row' + (count.level ? ' is-owned' : '') + '"><div>' +
       '<div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + id + '">' + escapeHtml(b.name) +
       '</button> <span class="tag">' + count.level + ' 座</span></span><span class="bld-ops">' + operating + '</span></div>' +
-      '<div class="ds">' + escapeHtml(b.desc) + (!unlocked ? '（尚未解锁）' : '') + '</div></div>' +
+      '<div class="ds">' + escapeHtml((SB.ui && SB.ui.buildingDescText) ? SB.ui.buildingDescText(s, b) : b.desc) + (!unlocked ? '（尚未解锁）' : '') + '</div></div>' +
       '<button class="btn buy" data-build="' + id + '"' + (canBuy ? '' : ' disabled') + '>' + escapeHtml(label) + '</button></div>';
   }
 

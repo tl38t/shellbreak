@@ -134,8 +134,18 @@
    * ⚠️ 若将来给商人加新的乘子，**这里要同步加** —— 又变成两套口径就会面板撒谎。
    *    e2e 有一条断言钉住「happySupply 与 tick 里 luxury 的毛产出相等」。 */
   function happySupply(s) {
-    if (!s || !s.jobs || !s.jobs.merchant) return 0;
-    return s.jobs.merchant * SB.UNIT.luxury
+    /* ⚠️ 2026-10-21：商人数量改读 `effJobs(s).merchant`（人类 + 机器人×robotMult），
+     *    与 tick 的 happyStep `_S`、rates() 的 luxury 产能**三方同口径**——
+     *    否则给商人分配机器人时，面板「供给」和真实产出又是两个数（面板撒谎家族）。
+     *    ⚠️ 顺带补上此前漏乘的 `folkOutputMul`：它本来就该在（tick 的 _S 一直乘着），
+     *       而 effJobs 内部已乘过一次 ⇒ 这里**不能再单独乘**，否则双重放大。
+     *    守卫也要跟着换：只看 `s.jobs.merchant` 的话，机器人独占商人岗时会被判 0。 */
+    if (!s) return 0;
+    var _ej = (SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : null;
+    var _mer = _ej ? (_ej.merchant || 0)
+      : ((s.jobs && s.jobs.merchant ? s.jobs.merchant : 0) * (SB.economy.folkOutputMul ? SB.economy.folkOutputMul(s) : 1));
+    if (!_mer) return 0;
+    return _mer * SB.UNIT.luxury
       * SB.economy.toolMul(s, 'merchant')
       * SB.economy.baseMul(s)
       /* ERA10（2026-10-20）：大统一方程全产轴同样罩奢侈品（与旧日信仰同在 baseMul 轴，

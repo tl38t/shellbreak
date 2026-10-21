@@ -82,8 +82,6 @@ html[data-ui-theme="day"] .qbtn{background:#e4efec;border-color:#9bb9b9;color:#1
 .workshop-grid>.row .ds{grid-area:desc;min-width:0;font-size:10px;line-height:1.5}
 .workshop-grid>.row>.upgrade-actions{grid-area:action;display:flex;flex-direction:column;align-items:stretch;gap:5px;max-width:170px}
 .workshop-grid>.row>.upgrade-actions>.btn{max-width:170px;white-space:normal;line-height:1.35;font-size:10px}
-.autodrill-controls{display:flex;gap:5px}
-.autodrill-controls .btn{flex:1;min-width:36px;min-height:30px;padding:4px 8px;font-size:14px}
 .workshop-grid>.note{grid-column:1/-1;margin:0;padding:8px 10px}
 .workshop-crafts>.row{grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "desc" "actions" "auto";align-items:start;gap:7px}
 .workshop-crafts>.row .craftbtns{grid-area:actions;display:flex;flex-wrap:wrap;gap:5px}
@@ -274,7 +272,8 @@ html[data-ui-theme="day"] #pane-folk .folk-job-row{background:linear-gradient(12
 html[data-ui-theme="day"] #pane-folk .folk-job-controls .fc-step{color:#0f6d7b;background:#e0f2f0;border-color:#9ccfd0}
 @media(max-width:760px){
   #pane-village .bzone .row{grid-template-columns:minmax(0,1fr);gap:9px}
-  #pane-village .bzone .row .btn.buy{justify-self:stretch;width:100%;max-width:none}
+  #pane-village .bzone .row .buy-actions{width:100%;justify-self:stretch}
+  #pane-village .bzone .row .buy-actions>.btn.buy{flex:1 1 auto;justify-self:stretch;width:auto;max-width:none}
   #pane-folk .row{gap:9px;padding:10px}
   #pane-folk .folk-job-row{grid-template-columns:minmax(0,1fr) auto}
 }

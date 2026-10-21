@@ -112,7 +112,7 @@
     { id: 'earlyAutoBuildFaith', name: '信仰区·先行建造', desc: '提前开放信仰区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildFaith: 1 } },
     { id: 'earlyAutoBuildSpace', name: '星海区·先行建造', desc: '提前开放星海区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildSpace: 1 } },
     { id: 'starLaunchSpeed', name: '星际快速装配', desc: '所有发射器制造周期 −1 秒/级，最多 −3 秒', kind: 'launch', n: 3, costs: [3, 6, 9], apply: { starLaunchSpeed: 1 } },
-    { id: 'starDysonCost', name: '戴森精益制造', desc: '戴森节点制造所需的引擎、薄膜和钛合金板 −5%/级，最多 −50%', kind: 'dyson', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starDysonCost: 1 } },
+    { id: 'starDysonCost', name: '戴森精益制造', desc: '戴森节点制造所需的铀、引擎、薄膜和钛合金板 −5%/级，最多 −50%', kind: 'dyson', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starDysonCost: 1 } },
     { id: 'starSailHydro', name: '帆阵热液回收', desc: '太阳帆提供的热液能 +5%/级，最多 +50%', kind: 'hydro', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starSailHydro: 1 } },
     { id: 'starTerraform', name: '行星重构加速', desc: '恩克拉多斯与泰拉改造时间 −5%/级，最多 −50%', kind: 'terraform', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starTerraform: 1 } },
     { id: 'starExplore', name: '深空观测阵列', desc: '卫星与空间站提供的星空探索 +10%/级，最多 +100%', kind: 'explore', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starExplore: 1 } }
