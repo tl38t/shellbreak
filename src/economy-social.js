@@ -209,17 +209,41 @@
    * ⚠️ 初期只藻食/珊瑚两家 ⇒ companyMul 只对 kelp/coral 生效，其余资源恒 1（预留其他行业扩展）。 */
   /* ⚠️ 2026-10-13 改「单独关闭」：等级/关闭态逐家存于 s.companyState[res]，故改为按 res 判定。
    *   旧版用全局 s.companyEpoch 做唯一成立时刻，改成逐家 epoch 后这里必须收 res 参数。 */
+  function companyByRes(res) {
+    if (!SB.COMPANIES) return null;
+    for (var i = 0; i < SB.COMPANIES.length; i++) if (SB.COMPANIES[i].res === res) return SB.COMPANIES[i];
+    return null;
+  }
   function companyTierIndex(s, res) {
     var st = (s && s.companyState && s.companyState[res]) || null;
     if (!st || !st.epoch || !(st.epoch > 0) || st.closed) return -1;
     var elapsed = (s.t || 0) - st.epoch;
-    return SB.companyTierIndex ? SB.companyTierIndex(elapsed) : 0;
+    var c = companyByRes(res);
+    var tiers = (c && c.tiers) ? c.tiers : SB.COMPANY_TIERS;
+    return SB.companyTierIndex ? SB.companyTierIndex(elapsed, tiers) : 0;
   }
   function companyMul(s, res) {
     var idx = companyTierIndex(s, res);
     if (idx < 0) return 1;
-    if (res !== 'kelp' && res !== 'coral') return 1;
-    return 1 + ((SB.COMPANY_TIERS && SB.COMPANY_TIERS[idx] && SB.COMPANY_TIERS[idx].bonus) || 0);
+    var c = companyByRes(res);
+    if (!c || c.craft) return 1;   // craft 型公司走 companyCraftRatio，不进资源产出乘区
+    var tiers = c.tiers || SB.COMPANY_TIERS;
+    return 1 + ((tiers[idx] && tiers[idx].bonus) || 0);
+  }
+  /* 工艺效率公司（companies.js craft:true）的加成：进 workshop.craftRatio 同一条加法乘区。
+   * 与建筑级/科技/奇观/政策卡/升级同档相加，不是相乘。 */
+  function companyCraftRatio(s) {
+    if (!s || !SB.COMPANIES) return 0;
+    var m = 0;
+    for (var i = 0; i < SB.COMPANIES.length; i++) {
+      var c = SB.COMPANIES[i];
+      if (!c.craft) continue;
+      var idx = companyTierIndex(s, c.res);
+      if (idx < 0) continue;
+      var tiers = c.tiers || SB.COMPANY_TIERS;
+      m += (tiers[idx] && tiers[idx].bonus) || 0;
+    }
+    return m;
   }
   /* 公司系统给的奢侈品消耗额外加成：逐家 sum（每家恒 +10%，关掉哪家居然就少哪家）。
    * 旧版全局 0.10，现在只统计「存活且已成立」的公司，匹配「单独关闭」语义。 */
@@ -240,6 +264,7 @@
     happyBurn: happyBurn, happyCostPer: happyCostPer, happySupply: happySupply,
     happyMul: happyMul, happyOf: happyOf, happyTier: happyTier, HAPPY_TIERS: HAPPY_TIERS,
     happyTierList: happyTierList,
-    companyTierIndex: companyTierIndex, companyMul: companyMul, companyLuxMul: companyLuxMul
+    companyTierIndex: companyTierIndex, companyMul: companyMul, companyLuxMul: companyLuxMul,
+    companyCraftRatio: companyCraftRatio
   };
 })(typeof window !== 'undefined' ? window : globalThis);

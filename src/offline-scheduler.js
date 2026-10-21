@@ -132,7 +132,7 @@
    * 与 tick 第 5~7 步逐位对照，在批量 tick 内重放食物/人口的 0.1s 微步：
    *   - kelp 归零后在 0.1s 微步内夹到 0，按固定栅格累计 famine 并触发死亡
    *   - 饥饿死亡：famine 累计达 60（=6s）时 pop-- + folk.reconcile（职业回退）
-   *   - 生育：kelp > GROW_KEEP 且未满时 _grow 累计，达 GROW_NEED 时 pop++
+   *   - 生育：kelp > GROW_KEEP 且未满时 _grow 累计，达当前生育时长时 pop++
    *   - 冻伤：cold<1 时 risk = 1-(1-perStepRisk)^(dt/STEP)，掷骰锚定全局 0.1s 栅格（累计概率，与步长无关）
    *
    * 关键：每个 0.1s 微步都重采样实时状态，外层区间只减少其他经济系统的 tick 调用。
@@ -179,7 +179,8 @@
     // ---- 生育（与 tick 第 6 步同）----
     if (!SB.economy.isFull(s) && s.res.kelp > CFG.GROW_KEEP) {
       s._grow = (s._grow || 0) + mdt;
-      if (s._grow >= CFG.GROW_NEED) { s._grow = 0; s.pop++; if (emit) emit('生育：一名族民降生。', at + mdt); }
+      var growNeed = SB.economy.growthDuration(s);
+      if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit('生育：一名族民降生。', at + mdt); }
     } else {
       s._grow = 0;
     }
@@ -209,7 +210,8 @@
       if (fLeft > 1e-9) b = Math.min(b, fLeft);
     }
     if (!SB.economy.isFull(s) && s.res.kelp > CFG.GROW_KEEP) {
-      b = Math.min(b, CFG.GROW_NEED - (s._grow || 0));      // 距下次生育
+      var growLeft = (SB.economy ? SB.economy.growthDuration(s) : CFG.GROW_NEED) - (s._grow || 0);
+      if (growLeft > 1e-9) b = Math.min(b, growLeft);       // 距下次生育
     }
     return b;
   }

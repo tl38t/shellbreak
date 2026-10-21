@@ -101,7 +101,16 @@
     { id: 'starInfinite', name: '轮回共鸣', desc: '轮回商店无限等级商品的每级效果 +100%/级', kind: 'infinite', n: Infinity, cost: 2, costStep: 2, apply: { starInfinite: 1 } },
     { id: 'starSmelt', name: '星炉淬炼', desc: '精铁、钢与生物材料研究所产出的 θ金属 +5%/级', kind: 'smelt', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starSmelt: 1 } },
     { id: 'starFolk', name: '繁星劳作', desc: '族民岗位产出 +5%/级', kind: 'folk', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starFolk: 1 } },
-    { id: 'earlyAutoBuild', name: '先行建造协议', desc: '提前开放所有分区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuild: 1 } },
+    /* 2026-10-20：原「先行建造协议」（一次性全开所有分区）拆成每区独立项。星海区（space）保留在商店（用户拍板：
+     * 商店含星海区先行建造，但科技/市政里不挂星海区自动建造——space 无正常进程解锁路径，仅商店可开）。 */
+    { id: 'earlyAutoBuildCore', name: '礁栖核心·先行建造', desc: '提前开放礁栖核心的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildCore: 1 } },
+    { id: 'earlyAutoBuildFood', name: '生息区·先行建造', desc: '提前开放生息区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildFood: 1 } },
+    { id: 'earlyAutoBuildWorkshop', name: '工坊区·先行建造', desc: '提前开放工坊区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildWorkshop: 1 } },
+    { id: 'earlyAutoBuildTrade', name: '贸易区域·先行建造', desc: '提前开放贸易区域的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildTrade: 1 } },
+    { id: 'earlyAutoBuildAcademy', name: '学术区·先行建造', desc: '提前开放学术区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildAcademy: 1 } },
+    { id: 'earlyAutoBuildCivic', name: '市政区·先行建造', desc: '提前开放市政区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildCivic: 1 } },
+    { id: 'earlyAutoBuildFaith', name: '信仰区·先行建造', desc: '提前开放信仰区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildFaith: 1 } },
+    { id: 'earlyAutoBuildSpace', name: '星海区·先行建造', desc: '提前开放星海区的自动建造开关（默认关闭）', kind: 'automation', n: 1, cost: 4, apply: { earlyAutoBuildSpace: 1 } },
     { id: 'starLaunchSpeed', name: '星际快速装配', desc: '所有发射器制造周期 −1 秒/级，最多 −3 秒', kind: 'launch', n: 3, costs: [3, 6, 9], apply: { starLaunchSpeed: 1 } },
     { id: 'starDysonCost', name: '戴森精益制造', desc: '戴森节点制造所需的引擎、薄膜和钛合金板 −5%/级，最多 −50%', kind: 'dyson', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starDysonCost: 1 } },
     { id: 'starSailHydro', name: '帆阵热液回收', desc: '太阳帆提供的热液能 +5%/级，最多 +50%', kind: 'hydro', n: 10, costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], apply: { starSailHydro: 1 } },

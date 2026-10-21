@@ -163,7 +163,7 @@
       unlockSection +
       '<section class="tree-detail-section"><h4>前置节点</h4><div class="tree-reqs">' + reqHtml + '</div></section>' +
       (tech && revealed && TECH_FLAVOR[id] ? '<p class="b-flavor">' + TECH_FLAVOR[id] + '</p>' : '') +
-      (!tech && revealed && SB.ui.renderContent.CIVIC_FLAVOR[id] ? '<p class="b-flavor">' + SB.ui.renderContent.CIVIC_FLAVOR[id] + '</p>' : '') +
+      (!tech && revealed && SB.ui.renderContent.CIVIC_FLAVOR[id] ? '<p class="b-flavor' + ({ void_faith: 1, void_explore: 1, ascend_void: 1 }[id] ? ' void-flavor' : '') + '">' + SB.ui.renderContent.CIVIC_FLAVOR[id] + '</p>' : '') +
       '<div class="tree-detail-actions"><button class="btn buy" type="button" data-tree-study="' + (tech ? 'tech' : 'civic') + '" data-' + (tech ? 'tech' : 'civic') + '="' + id + '"' +
       (done || blocked ? ' disabled' : '') + (blocked ? ' title="' + blocked + '"' : '') + '>' + buttonText + '</button>' +
       '<button class="btn tree-back" type="button" data-modal-close="1">返回树图</button></div>';
@@ -178,10 +178,10 @@
     bodyModalClass(true);
   }
 
-  function openInfoCard(title, mark, state, body, actions) {
+  function openInfoCard(title, mark, state, body, actions, markClass) {
     var box = el('modalBox'), modal = el('modal');
     box.classList.add('tree-detail-box');
-    box.innerHTML = '<div class="tree-detail-head"><div class="tree-detail-mark">' + mark +
+    box.innerHTML = '<div class="tree-detail-head"><div class="tree-detail-mark' + (markClass ? ' ' + markClass : '') + '">' + mark +
       '</div><div class="tree-detail-title"><h3 id="treeDetailTitle">' + title + '</h3>' +
       '<span class="tree-detail-state ' + state.cls + '">' + state.text + '</span></div>' +
       '<button class="tree-detail-close" type="button" data-modal-close="1" aria-label="关闭详情">×</button></div>' +
@@ -197,7 +197,7 @@
 
   /* 建筑信息卡「效果」段：把每座建筑的「每级基础量 × 当前等级 = 当前总量」写清楚，
    * 与住房那一支（人口上限 +X/级（当前 +Y））同构。所有带每级效果的产出 / 容量 / 减耗建筑都走这里；
-   * 一次性效果（炉 / 城堡 / 观测站 / 博物馆 / 工坊产钢）无「每级」概念，回退到 desc。
+   * 一次性效果（炉 / 城堡 / 观测站 / 工坊产钢）无「每级」概念，回退到 desc。
    * ⚠️「当前」= 基础每级量 × 当前等级，不含科技 / 奇观 / 政策等外部乘区——
    *   与住房那条保持一致（housePerLevel×lv 也不含 perk 外的乘区），避免面板与结算两套口径。 */
   function buildingEffectText(s, b, lv) {
@@ -230,17 +230,22 @@
       case 'hydroturbine': return add('热液能', U.hydroOut || 0, (U.hydroOut || 0) * L, '/秒', 0);
       case 'coralfarm':    return pct('珊瑚匠产出', B.coralFarmCW * 100, B.coralFarmCW * 100 * L, 0);
       case 'bank':         return pct('商人产出', B.bankLux * 100, B.bankLux * 100 * L, 0);
-      case 'school':       return add('每名商人科技产出', B.schoolMerchantSci, B.schoolMerchantSci * L, '/秒', 1);
+      case 'school':       return add('每名鲛人科技产出', B.schoolMermanSci, B.schoolMermanSci * L, '/秒', 1) + '；' + add('每名鲛人市政产出', B.schoolMermanCivic, B.schoolMermanCivic * L, '/秒', 1);
       case 'theater':      return pct(SB.folk.jobName(s, 'scribe') + '市政点产出', B.theaterCivRatio * 100, B.theaterCivRatio * 100 * L, 0);
       case 'hotforge':     return pct('工艺制作效率', B.hotforgeCraft * 100, B.hotforgeCraft * 100 * L, 0);
       case 'canal':        return pct('居民奢侈品消耗', B.canalLuxSave * 100, B.canalLuxSave * 100 * L, 1, '−') +
                                  '；等级最高不超过灯塔等级';
       case 'caravanserai': return pct('居民奢侈品消耗', B.caravanseraiLuxSave * 100, B.caravanseraiLuxSave * 100 * L, 0, '−') +
                                  '；每季节额外获得「等级 × 1 分钟」产量的任意时产资源';
-      case 'museum':       return SB.folk.jobName(s, 'scribe') + '市政点产出 +20%（建成即生效，不随等级递增）';
+      case 'museum':       return pct(SB.folk.jobName(s, 'scribe') + '市政点产出',
+                                 (B.museumCivRatio || 0.20) * 100, (B.museumCivRatio || 0.20) * 100 * L, 0);
+      case 'civichall':    return pct('议事厅／城堡市政点产出', (B.civicHallRatio || 0.50) * 100,
+                                 (B.civicHallRatio || 0.50) * 100 * L, 0);
       case 'hydroshop':    return '吃金属产钢（产钢量随热液能供给浮动）';
       case 'furnace':      return '解锁 金属 → 精铁（一次性效果，不随等级递增）';
-      case 'observatory':  return '科技产出 +x%（x 与冰壳厚度成反比，最高 +' + (B.obsMaxBonus || 0) + '%，与建筑等级无关）';
+      case 'observatory':  return (L > 0 ? '当前' : '建成后可得') + '学者科技产出 +' +
+                                 (SB.economy.observatoryBonusPct ? SB.economy.observatoryBonusPct(s).toFixed(1) : '0.0') +
+                                 '%（本局壳体每削薄 5% 增加 1 个百分点，最高 +' + (B.obsMaxBonus || 0) + '%；观测站等级不叠加）';
       case 'hall':         return '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给纪元三及之前有上限资源 +50 容量/级';
       default:             return b.desc || '';
     }
@@ -283,9 +288,32 @@
     uranium: '铀（按等级需求，缺料时按比例降产）'
   };
   /* 2026-10-17：把「这座建筑吃哪几样」静态表与 IDLE 文案挂到 SB.ui.consumeMeta，
-   * 供巢穴页控件行（render-pane-village.js 的 drawTag）与信息卡（buildingConsumeText）
-   * 共用同一份事实——避免两处各写一份、改一处漏一处（单一数据源）。 */
+   * 供巢穴页控件行、信息卡与星图建筑管理（SB.ui.drawTag，原 render-pane-village.js 局部函数，
+   * 2026-10-21 提升为共享）共用同一份事实——避免多处各写一份、改一处漏一处（单一数据源）。 */
   SB.ui.consumeMeta = { BUILDING_CONSUME: BUILDING_CONSUME, CONSUME_LABEL: CONSUME_LABEL, CONSUME_IDLE: CONSUME_IDLE };
+
+  /* 2026-10-21：把「建筑运行消耗标注」抽成共享函数 SB.ui.drawTag（原 render-pane-village.js
+   * 局部函数），巢穴页控件行、信息卡、星图建筑管理三处共用同一份口径/格式/tooltip——
+   * 与 consumeMeta 同源，彻底消灭「面板撒谎 / 各写一份」。星图原本硬编码
+   * 「热液能 −1/秒·座」这种脱离真实建筑定义的字面量，现已并入单源。 */
+  function drawTag(sp, id) {
+    var meta = SB.ui && SB.ui.consumeMeta;
+    var cr = (SB.economy && SB.economy.consumeRates) ? SB.economy.consumeRates(sp, id) : null;
+    if (!cr || !meta) return '';
+    var eats = meta.BUILDING_CONSUME[id];
+    if (!eats || !eats.length) return '';
+    var ps = [];
+    for (var k = 0; k < eats.length; k++) {
+      var key = eats[k];
+      ps.push(cr[key] > 0
+        ? meta.CONSUME_LABEL[key] + ' −' + cr[key].toFixed(2) + '/秒'
+        : meta.CONSUME_IDLE[key]);
+    }
+    return '<span class="fdraw" title="满转口径：这几座每秒消耗 ' +
+      ps.map(function (x) { return x.replace(' −', ' ').replace('/秒', ''); }).join('、') +
+      '（与结算同式，缺料时会按比例降产）">' + ps.join(' · ') + '</span>';
+  }
+  SB.ui.drawTag = drawTag;
 
   function buildingConsumeText(s, b, lv) {
     /* ⚠️ 2026-10-17 改口径：三个数一律走 economy.consumeRates（与结算同式的**额定每秒**），
@@ -353,7 +381,10 @@
       SB.economy.costOwnedTxt(s, cost) + '</p></section>' +
       '<section class="tree-detail-section"><h4>建造条件</h4><p>' + reqText + '</p></section>' +
       (BUILDING_FLAVOR[b.id] ? '<p class="b-flavor">' + BUILDING_FLAVOR[b.id] + '</p>' : '');
-    openInfoCard(name, '⌂', state, body, '');
+    var buildingMark = b.icon
+      ? '<img class="tree-detail-icon" src="' + b.icon + '" alt="" aria-hidden="true">'
+      : '⌂';
+    openInfoCard(name, buildingMark, state, body, '', b.icon ? 'has-image' : '');
   }
 
   var WONDER_ART = SB.ui.renderContent.WONDER_ART;

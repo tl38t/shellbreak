@@ -177,6 +177,11 @@
 .tree-detail-section small{display:block;margin-top:5px;color:var(--dim);font-size:10px}
 .b-flavor{margin-top:9px;padding:10px 13px;border:1px solid rgba(111,145,168,.18);border-radius:11px;
   background:rgba(7,19,31,.32);text-align:center;font-style:italic;color:#9fd9c8;font-size:12.5px;line-height:1.8;overflow-wrap:anywhere}
+@font-face{font-family:"Ma Shan Zheng";src:url("../assets/fonts/Ma_Shan_Zheng.woff2?v=1") format("woff2");font-display:block;}
+.b-flavor.void-flavor{margin-top:9px;padding:10px 13px;border:1px solid rgba(209,31,42,.3);border-radius:11px;
+  background:rgba(40,6,9,.34);text-align:center;font-style:normal;color:#d11f2a;font-size:13px;line-height:1.85;overflow-wrap:anywhere;
+  font-family:'Ma Shan Zheng','KaiTi','KaiTi_GB2312','STKaiti','SimSun',serif;letter-spacing:.4px;
+  text-shadow:0 0 6px rgba(209,31,42,.6),0 0 16px rgba(120,0,8,.45)}
 .tree-progress{height:4px;margin-top:9px;overflow:hidden;border-radius:9px;background:#081522}.tree-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#44bdac,#83e0b1)}
 .tree-reqs{display:flex;flex-wrap:wrap;gap:6px}.tree-req{padding:4px 8px;border:1px solid rgba(129,154,172,.19);border-radius:7px;background:rgba(255,255,255,.025);color:#aabac6;font-size:11px}
 .tree-req.met{border-color:rgba(91,210,151,.2);color:#8ad8ad;background:rgba(91,210,151,.06)}

@@ -142,13 +142,15 @@
       q: q, shellFactor: shellFactor,
       baseTidePoints: earned, challengePointMul: pointMul,
       tidePoints: earned * pointMul,
+      /* 星屑预估与最终入账共用同一份结算报告。 */
+      stardust: qualified(s) ? stardustGain(s) : 0,
       relicTourism: 0, oldArtwork: 0, oldTideStele: 0,
       locked: false
     };
   }
 
   /* 执行结算并写入跨周目账本。emit 用于日志。
-   * 未达资格门：tidePoints 归 0、不发任何遗产、不解锁商店（与「普通重开」同口径）。 */
+   * 未达资格门：轮回点与星屑归 0、不发放遗产、不解锁商店（与「普通重开」同口径）。 */
   function doBreak(s, emit, options) {
     options = options || {};
     if (s.breakSettled) return null;
@@ -174,7 +176,9 @@
       if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
       if (SB.state && SB.game.snapshot && SB.game.run && SB.game.run() === s)
         SB.state.saveRun(SB.game.snapshot(s));
-      if (!options.silent) (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
+      /* 动画属于「壳归零」事件，由 shell.onShellZero 唯一触发。
+       * 手动提前重开/轮回只展示结算，不把它伪装成凿穿天壳。 */
+      if (!options.silent) (SB.game.showBreakPanel || SB.game.showBreakAnimation)(r);
       if (emit) emit('本局未达《神学》资格门，不发放轮回点。');
       return r;
     }
@@ -211,7 +215,7 @@
     r.oldTideStele = Math.floor(Math.max(0, (s.res && s.res.tidalRecord) || 0));
     meta.oldTideStelesEarnedTotal = (meta.oldTideStelesEarnedTotal || 0) + r.oldTideStele;
     // ⑥ 星屑：轨道与异星设施等级、星空探索进度和戴森球进度共同决定本轮结算。
-    var _sd = stardustGain(s);
+    var _sd = r.stardust || 0;
     r.stardust = _sd;
     meta.stardust = (meta.stardust || 0) + _sd;
     meta.stardustEarned = (meta.stardustEarned || 0) + _sd;
@@ -225,8 +229,9 @@
       SB.state.saveRun(SB.game.snapshot(s));
     /* ✅ 有效通关（已建神学）⇒ 报最快时间 / 综合发展分 / 奇观 / 轮回数。 */
     if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
-    if (!options.silent) (SB.game.showBreakAnimation || SB.game.showBreakPanel)(r);
-    if (emit) emit('轮回结算完成。获得轮回点 ' + r.tidePoints.toFixed(2) + '。');
+    /* 破壳动画已由 shell.onShellZero 播放；这里可能是未破壳就主动轮回，不能再播放动画。 */
+    if (!options.silent) (SB.game.showBreakPanel || SB.game.showBreakAnimation)(r);
+    if (emit) emit('轮回结算完成。获得轮回点 ' + r.tidePoints.toFixed(2) + '、星屑 ' + _sd + '。');
     return r;
   }
 

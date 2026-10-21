@@ -185,3 +185,13 @@ input[type=checkbox]{accent-color:var(--cyan)}
 .story p{margin:0 0 7px;color:var(--txt);font-size:14px;line-height:1.85}
 .story p:last-child{margin-bottom:0}
 
+/* 省电（2026-10-20 A 项）：切后台/锁屏时 <html> 带 vis-hidden，暂停所有 infinite 动画
+ * （atmosphere-drift / p0-tide / hydroPulse / omenPulse / voidAltarPulse / era-console-* 等）。
+ * 这些动画走 GPU 合成线程，玩家零操作也永不 idle → 手机持续发热掉电。
+ * 暂停后合成线程可降频/进低功耗态。仅暂停 animation（transition 在隐藏态本就无布局，无需管）。 */
+html.vis-hidden *,
+html.vis-hidden *::before,
+html.vis-hidden *::after {
+  animation-play-state: paused !important;
+}
+

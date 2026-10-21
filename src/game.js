@@ -581,6 +581,9 @@
     var any = false;
     for (var i = 0; i < SB.COMPANIES.length; i++) {
       var c = SB.COMPANIES[i];
+      /* 逐家前置（科技/市政）：公司本身需《宏观经济学》(ERA6) 已解锁，req 须 ERA6 以后。
+       * 前置未满足 ⇒ 不自动成立（等玩家研究到该科技/市政，下趟泵再补成立）。 */
+      if (SB.companyReqMet && !SB.companyReqMet(s, c)) continue;
       var st = SB.companyState ? SB.companyState(s, c.res) : null;
       if (!st) continue;
       if (st.closed) continue;                // 玩家已解散 ⇒ 不自动复建，等手动「重建」
@@ -676,11 +679,13 @@
    * 以前只跑「回调次数 × 固定步长」，后台标签页里浏览器把定时器节流到 1 次/秒
    * （Chrome 满 5 分钟进一步降到约 1 次/分），时间就跟着被稀释甚至冻住。 */
   var MAX_STEP = 5;                 // 单次回调最多推进 5 秒逻辑时间，防止切回前台一次算爆
-  var CATCHUP_BUDGET = 90;          // 离线补算每帧的毫秒预算（占空比 = 90 ÷ 主循环间隔100ms = 90%）
+  var CATCHUP_BUDGET = 225;         // 离线补算每帧的毫秒预算（占空比 = 225 ÷ 主循环间隔250ms = 90%，与旧 100ms/90 同比例，补算墙钟耗时不变）
   /* ⚠️ 2026-10-13 50→90（用户拍板「ab一起做」的 A 项）：补算期间整个界面被离线闸门
    *   modal 锁死、无需交互响应，50 当年是保守占位（见 planCatchUp 注的历史：8 时曾 12.5×）。
-   *   90 ⇒ 墙钟 ≈ 纯算量 ÷ 0.9，8h 满档桌面从 ~45s 压到 ~25s（叠加 tech.mul 记忆化后更低）。 */
+   *   90 ⇒ 墙钟 ≈ 纯算量 ÷ 0.9，8h 满档桌面从 ~45s 压到 ~25s（叠加 tech.mul 记忆化后更低）。
+   * ⚠️ 2026-10-20 B 项省电：主循环 100ms→250ms，CATCHUP_BUDGET 同比例 90→225 保住 90% 占空比。 */
   var PANE_REFRESH = 2000;          // 面板（整块重画那种）的刷新周期，毫秒 **墙钟**
+  var TICK_MS = 250;                // 主循环间隔（2026-10-20 B 项省电：10Hz→4Hz）。模拟靠 loop.acc 墙钟累加器驱动，降频不影响推进速度。
 
   function loop() {
     var now = (root.performance && performance.now) ? performance.now() : Date.now();
@@ -807,7 +812,7 @@
    * 8 小时无暖石低库存段时，tick 调用从 288000 次降至约 14400 次（约 20×）；
    * 结果允许小幅近似误差，随机冻伤也按子步累计概率处理。
    * 仍拆成「计划 → 每帧只花 CATCHUP_BUDGET 毫秒 → 做完发一条播报」。
-   * 墙钟耗时 = 纯算量 ÷ 占空比，占空比 = CATCHUP_BUDGET ÷ 主循环间隔(100ms)。
+   * 墙钟耗时 = 纯算量 ÷ 占空比，占空比 = CATCHUP_BUDGET ÷ 主循环间隔(250ms)。
    *   CATCHUP_BUDGET=90 ⇒ 占空比约 90% ⇒ 纯算量摊到约 1.11 倍墙钟。
    * 配合 economy.tick 内聚合缓存（globalMul/gatherMul 等每 tick 只算一次）+
    * tech.mul 按 techVer 记忆化（2026-10-13，省掉每 tick 12 次全表重扫），
@@ -851,7 +856,7 @@
     var pumpLeft = TECH_PUMP - (j.tp || 0);
     if (pumpLeft > 1e-9) dt = Math.min(dt, pumpLeft);
     if (!SB.economy.isFull(s) && s.res.kelp > SB.CFG.GROW_KEEP) {
-      var growLeft = SB.CFG.GROW_NEED - (s._grow || 0);
+      var growLeft = SB.economy.growthDuration(s) - (s._grow || 0);
       if (growLeft > 1e-9) dt = Math.min(dt, growLeft);
     }
     if (s.res.kelp <= 0 && s.pop > 1) {
@@ -908,16 +913,19 @@
   }
   function finishCatchUp(j) {
     loop.job = null;
+    var breakReport = null;
     if (j.s.broken && j.s.shellOpened && !j.s.breakSettled) {
-      /* 破壳就是离线补算的终点：保存待结算状态，剩余离线时间不再推进，
-       * 直接给玩家与在线破壳相同的选择面板（不播动画、不显示普通离线总结）。 */
+      /* 破壳就是离线补算的终点：先保存状态并播放破壳动画，之后再进入离线结算。 */
       SB.state.saveRun(snapshot(j.s));
       renderAll();
-      var report = SB.prestige.breakReport(j.s);
-      if (!SB.prestige.qualified(j.s)) { report.tidePoints = 0; report.locked = true; }
-      SB.ui.render.showBreakPanel(report);
-      return;
+      breakReport = SB.prestige.breakReport(j.s);
+      if (!SB.prestige.qualified(j.s)) { breakReport.tidePoints = 0; breakReport.locked = true; }
     }
+    function showSettlement() { showOfflineSettlement(j, breakReport); }
+    if (breakReport) SB.game.showBreakAnimation(breakReport, showSettlement);
+    else showSettlement();
+  }
+  function showOfflineSettlement(j, breakReport) {
     var lines = [], resourceRows = [], overviewCards = '', incidentRows = '', any = false, rk = RESS_KEYS(), i, k, d;
     for (i = 0; i < rk.length; i++) {
       k = rk[i]; d = j.s.res[k] - j.before[k];
@@ -962,6 +970,8 @@
     }
     var noteRows = '';
     if (j.uncountedSecs > 0) noteRows += '<div class="offline-footnote">超出单次离线上限的 ' + fmtDur(j.uncountedSecs) + ' 未计入本次结算。</div>';
+    var settledSecs = j.breakReached ? Math.max(0, j.secs - j.left) : j.secs;
+    if (j.breakReached && j.left > 0) noteRows += '<div class="offline-footnote">破壳后剩余 ' + fmtDur(j.left) + ' 未继续补算。</div>';
     if (j.adActive) noteRows += '<div class="offline-footnote is-boost">双倍加速在离线期间生效，覆盖时段已按 2× 结算。</div>';
     var resourceContent = resourceRows.length ? resourceRows.join('') :
       '<div class="offline-empty-state">资源几乎没有变化</div>';
@@ -970,7 +980,7 @@
       '<header class="offline-report-hero"><div class="offline-report-emblem" aria-hidden="true"><span>✦</span></div>' +
       '<div class="offline-report-heading"><span class="offline-report-kicker">ABYSSAL LOG · 离线记录</span>' +
       '<h2>离线结算</h2><p>你离开期间，文明仍在持续运转</p></div>' +
-      '<div class="offline-duration-card"><span>离线时长</span><strong>' + fmtDur(j.secs) + '</strong></div></header>' +
+      '<div class="offline-duration-card"><span>离线结算时长</span><strong>' + fmtDur(settledSecs) + '</strong></div></header>' +
       '<div class="offline-report-scroll"><section class="offline-report-section"><div class="offline-section-heading">' +
       '<div><span class="offline-section-kicker">WORLD STATUS</span><h3>世界变化</h3></div>' +
       '<span class="offline-report-badge">' + (any ? '结算完成' : '平稳度过') + '</span></div>' +
@@ -985,13 +995,17 @@
     /* 离线闸门第二阶段：把「补算中」换成结算面板，只有点「继续」才解锁界面
      * （否则玩家边补算边点建造，就会看到材料飞快被灌满）。科研 / 宗教开门弹窗
      * 顺延到关掉本面板之后，否则会被本面板覆盖、玩家看不到。 */
-    SB.ui.render.showOfflineModal({
+    var modalShown = SB.ui.render.showOfflineModal({
       title: '离线结算',
       body: summary,
       summary: true,
       ok: '继续',
-      onOk: function () { maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); }
+      onOk: function () {
+        if (breakReport) SB.ui.render.showBreakPanel(breakReport);
+        else { maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); }
+      }
     });
+    if (modalShown === false && breakReport) SB.ui.render.showBreakPanel(breakReport);
   }
   /* 存档字段取舍：`_` 前缀曾被当成「不落盘」的依据，那是错的——
    * `_grow` 是生育计时（进度条读它，刷新后归零就是漏存），
@@ -1172,9 +1186,14 @@
     function flush() { if (!suppressExitSave && S && !S.broken) SB.state.saveRun(snapshot(S)); }
     if (root.addEventListener) root.addEventListener('pagehide', flush);
     if (document && document.addEventListener) document.addEventListener('visibilitychange', function () {
+      /* A 项省电：切后台/锁屏时给 <html> 打 vis-hidden，CSS 据此暂停所有 infinite 动画
+       * （atmosphere-drift / p0-tide 等），GPU 合成线程随之 idle，不再空转发热。 */
+      if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!document.hidden);
       if (document.hidden) flush();
     });
-    if (root.setInterval) root.setInterval(loop, 100);
+    /* 初始态同步一次（极端情况：页面在 hidden 状态下完成首次渲染）。 */
+    if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!(document && document.hidden));
+    if (root.setInterval) root.setInterval(loop, TICK_MS);
   }
 
   /* ERA10（2026-10-20）：轮回确认流程 —— 顶栏「重置/轮回」钮与戴森球通关弹窗的「立即轮回」钮
@@ -1191,6 +1210,7 @@
     var qual = SB.game.routeReset(S0) === 'break';
     var rep = qual ? SB.prestige.breakReport(S0) : null;
     var gained = rep ? rep.tidePoints : 0;
+    var stardustGained = rep ? rep.stardust : 0;
     /* 旧日遗产入账预览：与 doBreak ②③④⑤ 完全同口径（剩余信仰 / 未入藏奇观 / 完整件数），
      * 只做展示不落账——真正的写入只发生在 onOk 的 doBreak 里，这里不产生第二份真相。 */
     var faithAmt = 0, artN = 0, steleN = 0, newW = 0;
@@ -1207,8 +1227,8 @@
       title: qual ? '轮回（结算并发放轮回点）？' : '重开本周目？',
       body: '<div class="warnbox">当前这局的进度会全部作废：' + t + '。</div>' +
         (qual
-          ? '<div class="note">本次轮回将结算并发放：<b>' + gained.toFixed(2) + ' 轮回点</b>' +
-            '（按峰值族民 + 建筑纪元 + 工坊解锁项 + 破壳进度计算）。</div>' +
+          ? '<div class="note">本次轮回将结算并发放：<b>' + gained.toFixed(2) + ' 轮回点</b>、<b>' + stardustGained + ' 星屑</b>' +
+            '（轮回点按峰值族民、建筑纪元、工坊解锁项与破壳进度计算；星屑按太空设施、星空探索与戴森球进度计算）。</div>' +
             '<div class="note">旧日遗产入账：剩余信仰 <b>' + SB.economy.fmtAmt(faithAmt) + '</b>' +
             '（并入跨周目总量，按数量级给全产加成）；纪念奇观新入藏 <b>' + newW + '</b> 座' +
             '（每座 +1% 科技/市政获取）；旧日艺术品 <b>' + artN + '</b> 件（固定市政点/秒）；' +
@@ -1242,7 +1262,7 @@
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
     installImportedSave: installImportedSave, restoreRawSave: restoreRawSave,
     showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); },
-    showBreakAnimation: function (r) { SB.ui.render.showBreakAnimation(r); },
+    showBreakAnimation: function (r, afterAnimation) { SB.ui.render.showBreakAnimation(r, afterAnimation); },
     submitRankOnBreak: submitRankOnBreak,
     submitRankPeriodic: submitRankPeriodic
   };

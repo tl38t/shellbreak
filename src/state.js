@@ -46,7 +46,9 @@
       /* ERA7（2026-10-17 · spec §7）：星屑跨周目局外资源。只在周目结算时累加（prestige.doBreak），
        *   与轮回点同侧；freshRun 时 seed 进 s.got.stardust 供超古代科技 eureka 读。 */
       stardust: 0, stardustEarned: 0,
-      starPerks: { starInfinite: 0, starSmelt: 0, starFolk: 0, earlyAutoBuild: 0,
+      starPerks: { starInfinite: 0, starSmelt: 0, starFolk: 0,
+        earlyAutoBuildCore: 0, earlyAutoBuildFood: 0, earlyAutoBuildWorkshop: 0, earlyAutoBuildTrade: 0,
+        earlyAutoBuildAcademy: 0, earlyAutoBuildCivic: 0, earlyAutoBuildFaith: 0, earlyAutoBuildSpace: 0,
         starLaunchSpeed: 0, starDysonCost: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0 } };
   }
   function emptyPerks() {
@@ -66,7 +68,9 @@
        * autoEvent = 点击事件自动拾取（0/1）。键与 config.PERKS 的 apply 键一致。 */
       autoClick: 0, autoEvent: 0,
       /* 星屑商店运行态增益；等级从 meta.starPerks 派生。 */
-      starInfinite: 0, starSmelt: 0, starFolk: 0, earlyAutoBuild: 0,
+      starInfinite: 0, starSmelt: 0, starFolk: 0,
+      earlyAutoBuildCore: 0, earlyAutoBuildFood: 0, earlyAutoBuildWorkshop: 0, earlyAutoBuildTrade: 0,
+      earlyAutoBuildAcademy: 0, earlyAutoBuildCivic: 0, earlyAutoBuildFaith: 0, earlyAutoBuildSpace: 0,
       starLaunchSpeed: 0, starDysonCost: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0 };
   }
 
@@ -423,11 +427,9 @@
        * ⚠️ 顶层字段，由 companies.js 的 SB.companyState(s, res) 读写（含旧档迁移）。 */
       companyState: {},
       companyNames: {},
-      /* ERA7（2026-10-17）：工坊升级「自动化钻探」（upg_autodrill）的可开关状态。
-       *   与 furnaceStop / turbineStop 等「开几座」同口径的停用数思路不同——
-       *   自动钻探是升级布尔开关（装了默认开，`!== false` 判据保旧档缺键=开）。 */
-      autoDrillOn: true,
-      /* ERA8（2026-10-18）：工坊升级「工业机器人」（upg_indrobot）的可开关状态（对标 autoDrillOn）。 */
+      /* ERA7（2026-10-21）：自动化钻探实际开启的矿井数，范围由 state-migrate 按砂矿坑等级钳制。 */
+      autoDrillCount: 0,
+      /* ERA8（2026-10-18）：工坊升级「工业机器人」（upg_indrobot）的可开关状态。 */
       indRobotOn: true,
       /* ERA8（2026-10-18 · spec §4）：**单局 buff 标记表**（run-scoped）。
        *   laserEngrave —— 激光快速雕版（upg_laserengrave）「本周目制造成本 −30%」。
@@ -528,6 +530,18 @@
     if (!(typeof m.stardustEarned === 'number' && isFinite(m.stardustEarned))) m.stardustEarned = m.stardust;
     m.stardustEarned = Math.max(0, Math.floor(m.stardustEarned));
     if (!m.starPerks || typeof m.starPerks !== 'object' || Array.isArray(m.starPerks)) m.starPerks = {};
+    /* 2026-10-20 迁移：原「先行建造协议」(earlyAutoBuild) 一次性全开，拆成每区独立项（含 space——
+     * 商店保留星海区先行建造，techs/civics 不挂星海区自动建造）。老存档已购 earlyAutoBuild ⇒ 转成 8 个区的
+     * 对应 starPerk 等级，再删旧键（幂等：删后下次不再触发）。 */
+    if (m.starPerks && m.starPerks.earlyAutoBuild) {
+      var _eabLv = m.starPerks.earlyAutoBuild;
+      var _eabZones = ['core', 'food', 'workshop', 'trade', 'academy', 'civic', 'faith', 'space'];
+      for (var _zi = 0; _zi < _eabZones.length; _zi++) {
+        var _nk = 'earlyAutoBuild' + _eabZones[_zi].charAt(0).toUpperCase() + _eabZones[_zi].slice(1);
+        m.starPerks[_nk] = Math.max(m.starPerks[_nk] || 0, _eabLv);
+      }
+      delete m.starPerks.earlyAutoBuild;
+    }
     var starPerkDefaults = emptyMeta().starPerks;
     for (var starPerkId in starPerkDefaults) {
       var starPerkLevel = m.starPerks[starPerkId];

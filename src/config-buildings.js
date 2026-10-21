@@ -53,10 +53,15 @@
     /* 商人副产（2026-09-30 用户规格 · 市政《中世纪集市》解锁2）：商人同时产出科学与市政点。
      * 「+0.05/s 科学 +0.05/s 市政」是**每名商人**的量，走 globalMul（与学者/书手同待遇）。 */
     marketJobSci: 0.05, marketJobCulture: 0.05,
-    /* ── ERA5 新常数（2026-10-02 实装）──
-     * schoolMerchantSci：学校每级给商人 +0.5 科技/s（标在 BLD 顶层，由 tick/rates 两处同式读）。
+    /* ── ERA5 新常数（2026-10-02 实装，2026-10-21 改效果口径）──
+     * schoolMermanSci / schoolMermanCivic：学校每级给「每名鲛人」+0.1 科技/s 与 +0.1 市政点/s
+     *   （原 schoolMerchantSci 是「每级给商人 +0.5 科技/s」，2026-10-21 改为对全人口 s.pop 生效）。
+     *   ⚠️ 不再门控中世纪集市 / 商人：学校对全体鲛人生效，与职业无关。
+     *   ⚠️ 读点：schoolMermanSci → economy-tick 4c'' + economy-rates.science（两处同式）；
+     *       schoolMermanCivic → economy.cultureRate 内绝对量（与大众传媒 civicPerPop 同口径）。
+     *   ⚠️【均为待标定值，数值等用户拍。】
      * hotforgeCraft：热锻工厂每级 +7% 工艺制作效率（加法乘区，与工坊级/奇观/科技同一条轴）。 */
-    schoolMerchantSci: 0.5, hotforgeCraft: 0.07,
+    schoolMermanSci: 0.1, schoolMermanCivic: 0.1, hotforgeCraft: 0.07,
     /* ── ERA5 市政建筑（2026-10-02 实装）──
      * theaterCivRatio：歌剧院每级给官员（书手）市政点产出 +15%（economy.cultureRate 的 theaterCivicMul 读）。
      * tenementPop：廉租社区每级给人口上限 +10（economy.popCap 读 s.lvl.tenement * 此值）。 */
@@ -70,12 +75,15 @@
      *   原「珊瑚产出 +10%/级」改成了「珊瑚匠产出」，与研究所→学者同构，
      *   走的是**职业专精**那条轴，不是 gatherMul 全局采集轴）。
      * bankLux：建筑「银行」——每级商人产出 +10%（乘在 luxury 供给 S 上）。
-     * obsShellAnchor / obsMaxBonus：建筑「天壳观测站」——科技产出 +x%，
-     *   x = min(obsMaxBonus, obsShellAnchor / 当前冰壳厚度) ⇒ 冰壳 25000 时顶到 +20%。
-     *   ⚠️ 这里的「20」是百分比数值（百分点），不是 ×20 —— 见 economy.obsSciMul 的实现。 */
+     * obsMaxBonus：建筑「天壳观测站」——建成后，学者科技产出随本局削壳进度线性增加，
+     *   每削薄 5% 得 1 个百分点，完全削穿时 +20%；同一周目的观测站等级不再放大这项效果。 */
     coralFarmCW: 0.10,
     bankLux: 0.10,
-    obsShellAnchor: 25000, obsMaxBonus: 20,
+    /* 博物馆每级给书手市政点产出 +20%（civics.museumCivicMul 与详情卡共用）。 */
+    museumCivRatio: 0.20,
+    /* 公民会堂每级给议事厅 / 城堡的基础市政点产出 +50%（economy.cultureRate 与详情卡共用）。 */
+    civicHallRatio: 0.50,
+    obsMaxBonus: 20,
     /* ⚠️ 这里原来还挂着一段讲「−2%/级 + 60% 上限 / 30 级封顶」的注释，2026-09-26 删。
      *   那段描述的是**已被删除的 foodSaveCap**：留着它有两个害处——① 与上面的 0.005
      *   互相矛盾，同一件事两套说法；② 它挂在 kelpCap 上面，暗示省口粮这件事归压舱仓管，
@@ -613,13 +621,20 @@
       desc: '每级减少居民奢侈品消耗 0.3%；等级最高不超过灯塔等级',
       requiredCivic: 'department' },
 
+    /* ── 公民会堂（ERA3 · 2026-10-21）──
+     * 夹在广场与博物馆之间，补强议事厅 / 城堡自身的基础市政点来源。
+     * 独立作用于 coreLvl × HALL_RATE，不放大书手、奇观或其他来源；系数与详情卡共用 BLD.civicHallRatio。
+     * 解锁由已有《行政部门》提供，不增加任何后续市政的前置条件。 */
+    { id: 'civichall', icon: 'assets/building-icons/era-3/era3-civichall.svg', name: '公民会堂', ratio: 1.5, cost: { stone: 500, steel: 20 },
+      desc: '议事厅／城堡市政点产出 +50%/级。',
+      requiredCivic: 'department' },
+
     /* ── ERA4 三座建筑（2026-09-30 用户规格表）──
      * ⚠️【解锁双写】每座都在 techs.js 那一项写了 `eff.unlockBuild`，这里再写一次
      *   `requiredTech`（两边指向同一个科技 id），这是本表既有的双写口径
      *   （hydroturbine/hydroshop 那条已注明，e2e「建筑解锁来源」守着两边一致）。
-     * 【天壳观测站】科技产出 +x%，x = min(20, 25000 / 当前冰壳厚度) —— **+是加成百分比**。
-     *   ⚠️ 冰壳越薄奖励越高、上限 +20%。用冰壳下限 25000 当锚：壳厚 25000 时正好顶到 20。
-     *      ⚠️ 该公式**与天壳观测站等级无关**（等级不放进去）——要改成「每级额外 +」需用户再拍。
+     * 【天壳观测站】建成后，学者科技产出随本局削壳进度线性提高，每削薄 5% 得 +1 个百分点，
+     *   壳体完全削穿时上限 +20%；加成不随观测站等级重复叠加。
      * 【速生珊瑚林】用户 2026-09-30 改口径为「+珊瑚匠产出」⇒ 与研究所→学者同构的
      *   **职业专精建筑**：每级 +10%，乘在珊瑚匠那一行的产出上、与工具乘区独立相乘。
      *   ⚠️ 它不是 gatherMul 那类**全局采集轴**（删礁石平台时禁的是那一类），所以不冲突。
@@ -627,7 +642,7 @@
      * ⚠️【造价】三项的成本都是用户表里定的终值；速生珊瑚林的成本成长 ratio 2.5
      *    （比常规 1.15 陡得多）也是用户指明要的，别顺手改回 1.15。 */
     { id: 'observatory', icon: 'assets/building-icons/era-4/era4-observatory.png', name: '天壳观测站', ratio: 1.15, cost: { steel: 20, stoneBeam: 200 },
-      desc: '每级负责把天壳量清楚：科技产出 +x%，x 与冰壳厚度成反比，最高 +20%',
+      desc: '建成后，学者科技产出随本局削壳进度提高：每削薄 5% +1%，最高 +20%（不随等级叠加）',
       requiredTech: ['shellwatch'] },
     { id: 'coralfarm', icon: 'assets/building-icons/era-4/era4-coralfarm.png', name: '速生珊瑚林', ratio: 2.5, cost: { kelp: 1000 },
       desc: '每级珊瑚匠产出 +10%（职业专精建筑，与工具乘区独立相乘）',
@@ -645,8 +660,8 @@
      *        —— 1 级 = 60 秒，与原口径完全一致 ⇒ 零回归；5 级 = 300 秒。
      *     ② **每级 −1% 居民奢侈品消耗**（BLD.caravanseraiLuxSave）—— 走
      *        `economy.luxSaveAll` 与王国潮道**并列相加**，tick / rates / UI 三处同源。
-     * 【博物馆】由《启蒙运动》解锁（requiredCivic）。效果 = 官员（书手）市政点产出 +20%，
-     *   由 economy.cultureRate 的 museumCivicMul(s) 读（lvl≥1 即 +20%，flat）。
+     * 【博物馆】由《启蒙运动》解锁（requiredCivic）。效果 = 官员（书手）市政点产出 +20%/级，
+     *   由 economy.cultureRate 的 museumCivicMul(s) 读（每级再加 +20%）。
      *   ⚠️ 两座的 cost/ratio 是提议值（用户拍「先这样，后续重做」），未标定。 */
     { id: 'caravanserai', icon: 'assets/building-icons/era-4/era4-caravanserai.png', name: '商队驿站', ratio: 1.15,
       cost: { stone: 200, rope: 100 },
@@ -654,7 +669,7 @@
       requiredCivic: 'explore' },
     { id: 'museum', icon: 'assets/building-icons/era-4/era4-museum.png', name: '博物馆', ratio: 2,
       cost: { stone: 400 },
-      desc: '官员（书手）市政点产出 +20%。',
+      desc: '官员（书手）市政点产出 +20%/级。',
       requiredCivic: 'enlightenment' },
 
     /* ══ ERA9 建筑（2026-10-20 用户规格 · 由《神们自己》解锁）══
@@ -673,13 +688,14 @@
      *   不在建筑表写 craftRatio 死字段（那只会造出无人读取的键）。
      *   ⚠️【cost 为提议值，未拍板】量级对齐 era4 建筑（钢 + 钛高阶料）。
      * 【学校】由「普及教育」解锁（requiredTech，与 techs.js pubedu 的 eff.unlockBuild 双写一致）。
-     *   效果：每级给商人 +0.5 科技/s（BLD.schoolMerchantSci），tick/rates 两处同式读。
+     *   效果：每级给每名鲛人 +0.1 科技/s 与 +0.1 市政点/s（BLD.schoolMermanSci/schoolMermanCivic），
+     *   tick/rates（科技）/cultureRate（市政）三处同式读；不再依赖商人或中世纪集市。
      *   ⚠️【cost 为提议值，未拍板】。 */
     { id: 'hotforge', icon: 'assets/building-icons/era-5/era5-hotforge.png', name: '热锻工厂', ratio: 1.5, cost: { steel: 400, titanium: 150 },
       desc: '工艺制作效率 +7%/级（加法乘区，与工坊级/奇观/科技同一条轴）',
       requiredTech: ['industrialize'] },
     { id: 'school', icon: 'assets/building-icons/era-5/era5-school.png', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 200 },
-      desc: '每级给商人 +0.5 科技/s（由 BLD.schoolMerchantSci 读，tick/rates 两处同式）',
+      desc: '每名鲛人 +0.1 科技/s、+0.1 市政点/s（每级；由 BLD.schoolMermanSci/schoolMermanCivic 读）',
       requiredTech: ['pubedu'] },
 
     /* ── ERA5 两座建筑（2026-10-02 实装 · 渊潜鲛歌/城市化 解锁）──
@@ -849,7 +865,7 @@
     /* 天壳观测站（2026-09-30 ERA4）：归学术区 —— 它的尤里卡要求学术区合计 35 级
      *   （2026-10-06 用户把门槛从 70 下调到 35）。 */
     observatory: 'academy',
-    square: 'civic', temple: 'faith',
+    square: 'civic', civichall: 'civic', temple: 'faith',
     /* 速生珊瑚林（2026-09-30 ERA4）：生息区 —— 它是「种珊瑚」，与藻食那批同区。 */
     coralfarm: 'food',
     /* 银行（2026-09-30 ERA4）：贸易区域 —— 它的尤里卡就要求贸易区合计 100 级。 */

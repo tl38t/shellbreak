@@ -125,6 +125,11 @@
       SB.ui.render.renderPanes();
       return;
     }
+    if (d.wonderHidedone !== undefined && d.wonderHidedone !== null && d.wonderHidedone !== '') {
+      SB.ui.render.toggleWonderHideDone();
+      SB.ui.render.renderPanes();
+      return;
+    }
     if (d.workshopTab !== undefined) {
       SB.ui.render.openWorkshopFromInfo();
       return;
@@ -372,6 +377,12 @@
       SB.game.pumpTech(s, emit);
       return;
     }
+    var civicEraTarget = d.civicEra !== undefined ? t : (t.closest && t.closest('.civic-erabtn[data-civic-era]'));
+    var civicEraValue = civicEraTarget && civicEraTarget.dataset ? civicEraTarget.dataset.civicEra : undefined;
+    if (civicEraValue !== undefined) {
+      if (SB.ui.render.civicGoEra(+civicEraValue)) { SB.game.markDirty(); SB.game.renderAll(); }
+      return;
+    }
     /* ⚠️ 2026-10-20 真 bug（用户「手动采集珊瑚没反应」）：这里原先是裸的
      *   `t.closest('[data-era]')` —— 任何**祖先**带 data-era 就会被当成点了纪元按钮。
      *   而「页面材质随纪元」把 `data-era` 写在了 `<html>` 根元素上（render.js applyEraSkin，
@@ -409,6 +420,10 @@
      * 这里补界面入口。只记账不结算——关掉后加成与耗能一起停，真正生效等下一 tick。 */
     if (d.indrobotToggle) {
       toggleIndRobot(SB.game.run());
+      return;
+    }
+    if (d.autoDrillStep !== undefined) {
+      adjustAutoDrill(s, +d.autoDrillStep);
       return;
     }
     /* ERA10（2026-10-20）：欧罗巴冰面发射场制造模式切换（太阳帆 ⇄ 戴森球节点）。
@@ -626,8 +641,25 @@
     s.indRobotOn = !on;
     SB.game.markDirty(); SB.game.renderAll();
     SB.game.log(s.indRobotOn !== false
-      ? '工业机器人已启动：工坊效率 +100%，耗 1 热液能/秒。'
+      ? '工业机器人已启动：工坊效率 +100%，耗 0.3 热液能/秒。'
       : '工业机器人已关闭：效率加成与热液能消耗一起停。');
+    return true;
+  }
+
+  /* ── 自动化钻探逐矿井启停（ERA7 · 2026-10-21）──────────────────────
+   * 工坊升级行用 +/- 调整开启数量；每座矿井贡献自己的钛/铀份额翻倍，
+   * 总产出加成按开启数 / 砂矿坑总等级折算。 */
+  function adjustAutoDrill(s, delta) {
+    if (!s || !(s.upgrades && s.upgrades.upg_autodrill)) return false;
+    var total = Math.max(0, Math.floor((s.lvl && s.lvl.siltpit) || 0));
+    var current = SB.economy.autoDrillCount(s);
+    var next = Math.max(0, Math.min(total, current + (delta < 0 ? -1 : 1)));
+    if (next === current) return false;
+    s.autoDrillCount = next;
+    var pct = total > 0 ? Math.round(next / total * 100) : 0;
+    var hydro = next * (SB.UNIT.drillHydro || 0.3);
+    SB.game.markDirty(); SB.game.renderAll();
+    SB.game.log('自动化钻探：运行矿井 ' + next + ' / ' + total + ' 座，钛与铀产出 +' + pct + '%，热液能需求 ' + hydro.toFixed(2) + '/秒。');
     return true;
   }
 

@@ -4,6 +4,7 @@
   var SB = root.SB || (root.SB = {});
   function res() { return SB.game.run(); }
   var techViewEra = 0;
+  var civicViewEra = 0, civicEraChosen = false;
   function eraOf(n) {
     var E = SB.ERAS || [];
     for (var i = 0; i < E.length; i++) if (E[i].id === n) return E[i];
@@ -243,6 +244,68 @@
     return h;
   }
 
+  function civicEraStats(s, era) {
+    var C = SB.CIVICS || [], total = 0, completed = 0, revealed = 0;
+    for (var i = 0; i < C.length; i++) {
+      if ((C[i].era || 1) !== era) continue;
+      total++;
+      if (s.civics && s.civics[C[i].id]) completed++;
+      if (SB.civic.isRevealed(s, C[i].id)) revealed++;
+    }
+    return { total: total, completed: completed, revealed: revealed };
+  }
+
+  function civicEraNav(s, gameEra, visibleEra, sel) {
+    var E = SB.ERAS || [], h = '<div class="eranav" id="civicEraNav">';
+    for (var e = 1; e <= E.length; e++) {
+      var er = eraOf(e), st = civicEraStats(s, e), col = eraColor(visibleEra, e);
+      var treeLabel = e < visibleEra ? '树已展开' : e === visibleEra ? '当前展开' : '树未展开';
+      var gateLabel = e <= gameEra ? '科技纪元已抵达' : '尚未到达科技纪元';
+      h += '<button type="button" class="erabtn civic-erabtn' + (e === sel ? ' on' : '') +
+        (e === visibleEra ? ' cur' : '') + '" data-civic-era="' + e + '"' +
+        ' title="' + er.name + '「' + er.motto + '」· ' + treeLabel + ' · ' + gateLabel + ' · 已完成 ' +
+        st.completed + '/' + st.total + ' · 已揭示 ' + st.revealed + '/' + st.total +
+        (e <= visibleEra ? '　点它跳到这一纪元' : '　可查看揭示条件') + '">' +
+        '<span class="g" style="color:' + col + '">' + (er.glyph || '') + '</span>' +
+        '<span class="n" style="color:' + col + '">' + er.name + '</span>' +
+        '<span class="c">' + st.completed + '/' + st.total + '</span></button>';
+    }
+    return h + '</div><div class="note">每完成一个纪元的任意一项市政，就揭露下一个纪元的市政树结构；' +
+      '市政名称与效果仍需满足各自的鼓舞条件才会揭示。</div>';
+  }
+
+  function civicEraDetail(s, gameEra, visibleEra, sel) {
+    var er = eraOf(sel), st = civicEraStats(s, sel), col = eraColor(visibleEra, sel);
+    var treeState = sel < visibleEra ? '树已展开' : sel === visibleEra ? '当前展开' : '树未展开';
+    var h = '<div class="eracard' + (sel === visibleEra ? ' active' : '') + '" id="civicEraDetail"' +
+      ' style="border-left-color:' + col + '">' +
+      '<div class="erahd"><span class="glyph" style="color:' + col + '">' + (er.glyph || '') + '</span>' +
+      '<span class="enm" style="color:' + col + '">' + er.name + '</span>' +
+      '<span class="emotto">' + er.motto + '</span>' +
+      '<span class="estate" style="background:' + (sel === visibleEra ? '#123a52' : '#153048') +
+      ';color:' + col + '">' + treeState + ' · ' + (sel <= gameEra ? '科技纪元已抵达' : '科技纪元未抵达') +
+      ' · 已完成 ' + st.completed + '/' + st.total +
+      ' · 已揭示 ' + st.revealed + '/' + st.total + '</span></div>' +
+      '<div class="edesc">' + er.desc + '</div>';
+    if (sel < visibleEra) {
+      h += '<div class="edesc">这个纪元的市政树已经展开，可以查看其中的节点。</div>';
+    } else if (sel > visibleEra) {
+      var prev = eraOf(sel - 1);
+      h += '<div class="edesc">完成' + prev.name + '任意一项市政后，才会揭露这一纪元的市政树结构。</div>';
+    } else {
+      var next = eraOf(sel + 1), maxEra = (SB.ERAS || []).length;
+      h += '<div class="teaser">本纪元完成 ' + st.completed + ' / ' + st.total + ' 项市政，已揭示 ' +
+        st.revealed + ' 项。' + (sel < maxEra
+          ? '完成本纪元任意一项市政，即揭露' + next.name + '的市政树结构。'
+          : '全部纪元的市政树结构都已揭露。') +
+        '市政名称与效果仍需满足各自的鼓舞条件才会揭示。</div>';
+    }
+    if (sel > gameEra) h += '<div class="edesc">' + (sel <= visibleEra
+      ? '该纪元市政树已揭露，但要等科技纪元推进到' + er.name + '后才能研究其中的市政。'
+      : '即使之后揭露了该纪元市政树，也要等科技纪元推进到' + er.name + '后才能研究其中的市政。') + '</div>';
+    return h + '</div>';
+  }
+
   function paneTech() {
     var s = res();
     /* 门与 tab 的灰读同一份派生值（SB.tech.panelOpen），不在这里另算一次。 */
@@ -280,6 +343,22 @@
     civicView = view;
     return true;
   }
+  function emptyCivicSlotCount(s, C, list) {
+    var slots = list || C.slotList(s), count = 0;
+    for (var i = 0; i < slots.length; i++) {
+      var cardId = s.cards && s.cards[i];
+      if (!cardId || !C.policyById(cardId)) count++;
+    }
+    return count;
+  }
+  function civicNoticeState(s) {
+    var C = SB.civic;
+    if (!s || !C || !C.panelOpen(s)) return { emptySlots: 0, researchable: false };
+    return {
+      emptySlots: emptyCivicSlotCount(s, C),
+      researchable: !!(C.hasResearchable && C.hasResearchable(s))
+    };
+  }
   function toggleGovDetail(id) {
     if (!id) return false;
     govExpanded[id] = !govExpanded[id];
@@ -288,11 +367,16 @@
   function paneCivic() {
     var s = res();
     if (!SB.civic || !SB.civic.panelOpen(s)) return paneCivicLocked();
+    var notice = civicNoticeState(s);
+    var govHint = notice.emptySlots > 0
+      ? '<span class="civic-subtab-status" aria-label="有空政策卡槽"><i aria-hidden="true"></i>有空槽 ' + notice.emptySlots + '</span>' : '';
+    var treeHint = notice.researchable
+      ? '<span class="civic-subtab-status" aria-label="有可研究市政"><i aria-hidden="true"></i>可研究市政</span>' : '';
     var h = '<div class="panel-subtabs civic-subtabs" role="group" aria-label="市政分区">' +
       '<button type="button" class="subtab' + (civicView === 'government' ? ' on' : '') +
-      '" data-civic-view="government" aria-pressed="' + (civicView === 'government') + '">政体</button>' +
+      '" data-civic-view="government" aria-pressed="' + (civicView === 'government') + '">政体' + govHint + '</button>' +
       '<button type="button" class="subtab' + (civicView === 'tree' ? ' on' : '') +
-      '" data-civic-view="tree" aria-pressed="' + (civicView === 'tree') + '">市政树</button></div>';
+      '" data-civic-view="tree" aria-pressed="' + (civicView === 'tree') + '">市政树' + treeHint + '</button></div>';
     return h + (civicView === 'tree'
       ? '<div class="subtab-panel civic-tree-panel">' + civicTree(s) + '</div>'
       : '<div class="subtab-panel civic-government-panel">' + paneCivicGov(s) + paneCivicSlot(s) + '</div>');
@@ -398,7 +482,9 @@
   function paneCivicSlot(s) {
     var C = SB.civic, list = C.slotList(s), i;
     var armedCard = SB.ui.render.armedCard();
-    var h = '<div class="secttl">政策卡槽 <span class="tag">' + list.length + '</span></div>';
+    var emptyCount = emptyCivicSlotCount(s, C, list);
+    var h = '<div class="secttl">政策卡槽 <span class="tag">' + list.length + '</span>' +
+      (emptyCount > 0 ? '<span class="civic-slot-warning"><i aria-hidden="true"></i>空槽 ' + emptyCount + '</span>' : '') + '</div>';
     if (!list.length) {
       h += '<div class="row"><div class="ds">当前政体不提供政策卡槽——换个政体才能装卡。</div></div>';
       return h + pool(s, armedCard);
@@ -419,8 +505,9 @@
       var _rCost = _freeN > 0 ? ('免费（剩 ' + _freeN + ' 次）') : ('收取 ' + C.cardCost(s) + ' 市政点');
       /* ERA9 虚境信仰卡（locked）：永恒锚定、不可卸下——槽里不显示「卸下」按钮，改成锁死提示。 */
       var _locked = !!(filled && filled.locked);
-      h += '<div class="slotbox' + (_canHere ? ' slot-target' : '') + '" id="slotrow-' + i + '" data-slot="' + i + '">' +
-        '<div class="slottt">' + C.slotTypeName(st) + ' <span class="tg">#' + (i + 1) + '</span></div>' +
+      h += '<div class="slotbox' + (_canHere ? ' slot-target' : '') + (!filled ? ' civic-slot-empty' : '') + '" id="slotrow-' + i + '" data-slot="' + i + '">' +
+        '<div class="slottt">' + C.slotTypeName(st) + ' <span class="tg">#' + (i + 1) + '</span>' +
+        (!filled ? '<span class="civic-slot-empty-flag"><i aria-hidden="true"></i>空槽</span>' : '') + '</div>' +
         (filled
           ? '<div class="slotcard' + (_fit ? '' : ' bad') + (_locked ? ' locked-vr' : '') + '">' +
               filled.name + (_locked ? ' <span class="eye" title="虚境信仰 · 永恒锚定">👁</span>' : '') + '</div>' +
@@ -512,25 +599,41 @@
    * 几何来自 SB.civic.layout()，CSS 直接复用 .techscroll / .technode / .tel，
    * 于是两张树在玩家眼里是同一种东西，排布规则也一致（列 = layer，行 = 排版产物）。
    *
-   * ⚠️ 三处刻意与科技树不同：
+   * ⚠️ 两处刻意与科技树不同：
    *   ① 容器 id 是 **civicScroll**，不是 techScroll —— render.js 的 scrollLeft 留存
    *      与 input.js 的拖动都按 id 取容器，共用 id 会两边抢一个元素。
-   *   ② CSS 类名共用，但**滚动位置不共用**（市政现在只有一个纪元、没有纪元跳转按钮，
-   *      不需要 persist/restore 那一套）。
-   *   ③ 节点是三态（已完成 / 已揭示 / 未揭露），比科技的「亮 / 不亮」多一档：
+   *   ② 节点是三态（已完成 / 已揭示 / 未揭露），比科技的「亮 / 不亮」多一档：
    *      未揭露时**藏名字与 desc**，与科技一致；差别在于市政的「鼓舞」是揭示的前置，
    *      所以未揭露态要连鼓舞条件与进度一起摆出来，玩家的下一步动作才是明确的。 */
   function civicTree(s) {
     if (!SB.civic || !SB.civic.layout) return '<div class="note">市政树几何尚未加载。</div>';
     var L = SB.civic.layout(), G = L.geo;
-    var h = '<div class="techscroll tree-civic" id="civicScroll"><div class="techcanvas"' +
-      ' style="width:' + L.w + 'px;height:' + L.h + 'px">';
+    var gameEra = s.era || 1, E = SB.ERAS || [];
+    var visibleEra = SB.civic.visibleEra ? SB.civic.visibleEra(s) : gameEra;
+    var sel = civicEraChosen && civicViewEra >= 1 && civicViewEra <= E.length ? civicViewEra : visibleEra;
+    civicViewEra = sel;
+    var C = SB.CIVICS || [], visible = {};
+    for (var i = 0; i < C.length; i++) visible[C[i].id] = (C[i].era || 1) <= visibleEra;
+    var treeW = G.PADX, treeMaxRow = 0;
+    for (i = 0; i < C.length; i++) {
+      if (!visible[C[i].id]) continue;
+      var visibleCell = L.cells[C[i].id];
+      if (!visibleCell) continue;
+      treeW = Math.max(treeW, visibleCell.x + G.W + G.PADX);
+      treeMaxRow = Math.max(treeMaxRow, visibleCell.row);
+    }
+    var treeH = G.PADY * 2 + treeMaxRow * (G.H + 20) + G.H;
+
+    var h = civicEraNav(s, gameEra, visibleEra, sel) + civicEraDetail(s, gameEra, visibleEra, sel) +
+      '<div class="techscroll tree-civic" id="civicScroll"><div class="techcanvas"' +
+      ' style="width:' + treeW + 'px;height:' + treeH + 'px">';
 
     /* 纪元轨道（只有一条时不画：单纪元的横幅是纯噪音）。 */
     if (L.blocks.length > 1) {
       for (var b = 0; b < L.blocks.length; b++) {
         var blk = L.blocks[b], er = eraOf(blk.era);
-        h += '<div class="tnband" style="left:' + (G.PADX + blk.offset) + 'px;width:' +
+        if (blk.era > visibleEra) continue;
+        h += '<div class="tnband' + (blk.era === visibleEra ? ' on' : '') + '" style="left:' + (G.PADX + blk.offset) + 'px;width:' +
           (blk.cols * L.pitch - G.W) + 'px">' +
           '<span class="tng">' + (er.glyph || '') + '</span>' + er.name +
           '<span class="tnc">' + blk.cols + ' 列</span></div>';
@@ -538,19 +641,19 @@
     }
 
     /* 连线先画，压在节点底下。 */
-    h += '<svg class="techlines" width="' + L.w + '" height="' + L.h + '">';
-    for (var i = 0; i < L.edges.length; i++) {
+    h += '<svg class="techlines" width="' + treeW + '" height="' + treeH + '">';
+    for (i = 0; i < L.edges.length; i++) {
       var e = L.edges[i];
+      if (!visible[e.from] || !visible[e.to]) continue;
       var doneEdge = s.civics[e.from] && s.civics[e.to];
       h += '<path class="tel' + (doneEdge ? ' done' : s.civics[e.from] ? ' open' : '') +
         '" d="' + e.d + '"></path>';
     }
     h += '</svg>';
 
-    var C = SB.CIVICS;
     for (i = 0; i < C.length; i++) {
       var cell = L.cells[C[i].id];
-      if (cell) h += civicNode(s, C[i], cell, G.W, G.H);
+      if (cell && visible[C[i].id]) h += civicNode(s, C[i], cell, G.W, G.H);
     }
     h += '</div></div>';
 
@@ -614,14 +717,24 @@
     return changed || n <= era;
   }
 
+  function civicGoEra(n) {
+    var s = res(), visibleEra = s && SB.civic.visibleEra ? SB.civic.visibleEra(s) : (s && s.era) || 1;
+    if (!(n >= 1 && n <= (SB.ERAS || []).length)) return false;
+    if (n <= visibleEra) SB.ui.render.scheduleCivicJumpTo(SB.civic.eraAnchorX(n));
+    var changed = n !== civicViewEra;
+    civicViewEra = n;
+    civicEraChosen = true;
+    return changed || n <= visibleEra;
+  }
+
   SB.ui = SB.ui || {};
   SB.ui.renderParts = SB.ui.renderParts || {};
   SB.ui.renderParts.research = {
     paneTech: paneTech, paneCivic: paneCivic,
     paneCivicGov: paneCivicGov, paneCivicSlot: paneCivicSlot,
-    setCivicView: setCivicView, toggleGovDetail: toggleGovDetail,
+    setCivicView: setCivicView, civicNoticeState: civicNoticeState, toggleGovDetail: toggleGovDetail,
     armCard: armCard, disarmCard: disarmCard, getArmedCard: getArmedCard,
     cycleJobStep: cycleJobStep, getJobStep: getJobStep,
-    techGoEra: techGoEra
+    techGoEra: techGoEra, civicGoEra: civicGoEra
   };
 })(typeof window !== 'undefined' ? window : globalThis);

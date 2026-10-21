@@ -14,6 +14,7 @@
   /* ERA10（2026-10-20）：globalMulX = globalMul × unifiedMul（大统一方程轴）。
    * 科技/市政/信仰三行**继续用 globalMul**（用户表明文排除）；其余产横行切 _gmx。 */
   var globalMulX = P.globalMulX;
+  var autoDrillOutputMul = P.autoDrillOutputMul;
   /* ERA10 市政（2026-10-20）：发射场三座合计等级 / 制造节律 / 每级热液耗——全部走 economy 的
    * 单一落点（rates 同源），绝不在本文件再写一份「求和 + 节律 + 耗流」的公式。 */
   var launchLvl = P.launchLvl, launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
@@ -71,11 +72,6 @@
     var _tMer = toolMul(s, 'merchant');
     var _uSilt = upgSum(s, 'mineSilt');
     var _uWarm = upgSum(s, 'mineWarm');
-    /* ERA7（2026-10-17 · spec §4）：工坊升级「自动化钻探」——矿井产出每级 +100%（加法叠进
-     *   鱼骨矿井同一括号），每级耗 1 热液能/秒（hydroAlloc 的 drillDraw，与加成同一个开关）。
-     *   ⚠️ 判 s.autoDrillOn !== false：关掉 ⇒ 加成与耗能一起停（upgSum 无开关感知，故显式判）。
-     *   ⚠️ 与 rates 的 silt 行同式，漏一路就是面板撒谎。 */
-    var _adLvl = (s.autoDrillOn !== false && s.upgrades && s.upgrades.upg_autodrill) || 0;
     /* ⚠️ 2026-10-05 新增 6 条 perk 乘区的每 tick 缓存（与 _gm/_gather 同口径：
      *   tick 内 s.perk 不会被改 —— 买 perk 走 prestige.buyPerk，只写 meta.perks 与本局
      *   s.perk，而那发生在 tick 之外的游戏主循环里，故一个 tick 内恒定，可安全缓存）。
@@ -102,6 +98,8 @@
     /* ⚠️ 2026-10-16 用户拍板：砂矿坑建筑等级放大所有矿工/采石工产出（含暖石/钛/未来伴生矿物）。
      *   与 rates() 的 mineBonus 同源同值；stone/silt/暖石/钛四条产出行都必须乘它。 */
     var _siltPit = 1 + (s.lvl.siltpit || 0) * SB.BLD.siltBonus;
+    /* 自动化钻探：每座开启矿井只翻倍自身份额，总加成按开启 / 总矿井数折算。 */
+    var _adMul = autoDrillOutputMul(s);
 
     /* 1) 材料线两条入口。采集者产的是藻食（食物线，见 foodRate），不产材料。
      * 珊瑚 = 猫国 wood，原作 **只有 woodcutter 职业能产、没有产木材的建筑**，
@@ -116,19 +114,21 @@
      * ⚠️ tick 与 rates 两处必须同式，否则「面板显示的值和实际进账不同」。 */
     if (j.coralwright > 0) {
       addRes(s, 'coral', j.coralwright * SB.UNIT.coral
-        * _gather * _tCW * _coralFarm * _cp * cold * _gmx * SOCIAL.companyMul(s, 'coral') * dt);
+        * _gather * _tCW * _coralFarm * _cp * cold * _gmx
+        * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'coral') : 1)
+        * SOCIAL.companyMul(s, 'coral') * dt);
     }
     /* ⚠️ 2026-09-30 ERA4 · 钛：装了深层矿井(upg_deepmine) 后矿工伴生钛。
      *    门读的是 `s.upgrades`（买断升级），不是建筑等级 —— 与 rates.titanium 同一门同一式。 */
     if (j.miner > 0 && s.upgrades && s.upgrades.upg_deepmine) {
-      addRes(s, 'titanium', j.miner * SB.UNIT.titanium * _siltPit * _gather * _tM * cold * _gmx * (1 + (_T ? _T.titaniumMul : 0)) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+      addRes(s, 'titanium', j.miner * SB.UNIT.titanium * _siltPit * _gather * _tM * cold * _gmx * (1 + (_T ? _T.titaniumMul : 0)) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul * dt);
     }
     /* ERA7（2026-10-17 · spec §2）：铀 —— 矿工伴生（0.002/秒/人，暖石 0.05 的 1/25，稀有度对齐）。
      *   门=科技《自动化钻探》（s.techs.autodrill，spec 拍的是科技门，与钛的升级门不同源）。
      *   乘区照钛那行同族：砂矿坑（矿脉设施放大一切伴生产出）+ 采集 + 矿镐 + 季节 + 全产；
      *   ⚠️ 与 rates 的 uranium 行逐字同构，漏一路就是面板撒谎。 */
     if (j.miner > 0 && s.techs && s.techs.autodrill) {
-      addRes(s, 'uranium', j.miner * SB.UNIT.uranium * _siltPit * _gather * _tM * cold * _gmx * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+      addRes(s, 'uranium', j.miner * SB.UNIT.uranium * _siltPit * _gather * _tM * cold * _gmx * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul * dt);
     }
     /* ERA7（2026-10-17 · spec §4）：核热厂每级耗铀 0.02/秒（fissionUranium）。
      *   ⚠️ 直接消耗（不进 hydroAlloc 流）；铀是带上限普通资源，扣到 0 止。
@@ -345,7 +345,7 @@
         /* ERA6：温水藻场升级（upg_warmalgalfarm）解锁后，每级（× 藻场等级）额外 +0.5 科技/s。
          *   ⚠️ 本作无独立「温水藻场」建筑，按「藻场等级」兑现（待标定口径，用户可调）。 */
         + (SB.economy ? SB.economy.upgSum(s, 'algalfarmSci') : 0) * (s.lvl.kelp || 0))
-      * _obs * _cutter * _satScholar * _voySch * (SB.wonder ? SB.wonder.throneSciMul(s) : 1) * (Tt ? Tt.sci : 1) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm
+      * _obs * _cutter * _satScholar * _voySch * (SB.wonder ? SB.wonder.throneSciMul(s) : 1) * (Tt ? Tt.sci : 1) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * (SB.companyMul ? SB.companyMul(s, 'sci') : 1) * _gm
       * _lgSciMul * dt
       + (_lgSci ? _lgSci.oldTideSteleScienceRate : 0) * dt) * _challengeSciCulture;
 
@@ -365,7 +365,7 @@
       /* ⚠️ 市政卡的平坦加成也是「产出」，同样吃灯塔的 +1% —— 与 rates 那两行同式
        *    （那里是 `(cv ? (cv.kelp || 0) : 0)` 各项各自乘）。 */
       if (cv.kelp) addRes(s, 'kelp', cv.kelp * _gmx * dt);
-      if (cv.science) s.res.science += cv.science * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm * _lgSciMul * _challengeSciCulture * dt;
+      if (cv.science) s.res.science += cv.science * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * (SB.companyMul ? SB.companyMul(s, 'sci') : 1) * _gm * _lgSciMul * _challengeSciCulture * dt;
     }
 
     /* 4c) 商人产奢侈品（2026-09-28 用户规格 · 市政《对外贸易》解锁职业商人）。
@@ -422,10 +422,20 @@
        *   不是政策卡——没有「装卡」这道闸）。走 globalMul，与学者/书手同待遇。
        *   ⚠️ 放在 4c 块里（商人=0 时这段也是 0，不多算）；直接 +=，与本块 cv 段同款。 */
       if (s.civics && s.civics.market && j.merchant) {
-        /* ERA5（2026-10-02）：学校每级给商人 +0.5 科技/s（SB.BLD.schoolMerchantSci），
-         *   与中世纪集市的 +0.05/商人 同式相加进同一括号（同为「每商人」口径）。 */
-        s.res.science += j.merchant * ((SB.BLD.marketJobSci || 0) + (s.lvl.school || 0) * (SB.BLD.schoolMerchantSci || 0)) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * _gm * _lgSciMul * _challengeSciCulture * dt;
+        /* ERA5（2026-09-30 · 中世纪集市解锁2）：每名商人 +0.05 科技/s、+0.05 市政点/s，
+         *   走 globalMul 与学者/书手同待遇（与 4c' 主注释一致）。
+         *   ⚠️ 学校加成已于 2026-10-21 从「每商人」改为「每名鲛人」（见下方 4c'' 独立块），此处移除旧耦合。 */
+        s.res.science += j.merchant * (SB.BLD.marketJobSci || 0) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * (SB.companyMul ? SB.companyMul(s, 'sci') : 1) * _gm * _lgSciMul * _challengeSciCulture * dt;
         s.res.culture += j.merchant * (SB.BLD.marketJobCulture || 0) * _gm * _challengeSciCulture * dt;
+      }
+      /* 4c'') 学校（ERA5 · 2026-10-21 改）：每名鲛人 +schoolMermanSci 科技/s（每级），
+       *   与学者/商人同乘区（cardSciOutMul·govSciOutMul·companyMul·globalMul·legacy·challenge）。
+       *   ⚠️ 不再门控「中世纪集市 / 商人>0」——学校对全人口 s.pop 生效，与职业无关。
+       *   ⚠️ 与 rates().science 内的学校项逐字同构（漏一路 = 面板撒谎）。 */
+      if ((s.lvl.school || 0) > 0 && (s.pop || 0) > 0) {
+        s.res.science += (s.pop || 0) * (s.lvl.school || 0) * (SB.BLD.schoolMermanSci || 0)
+          * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1)
+          * (SB.companyMul ? SB.companyMul(s, 'sci') : 1) * _gm * _lgSciMul * _challengeSciCulture * dt;
       }
     }
 
@@ -467,7 +477,7 @@
      *   而且玩家能卡准——先攒满进度条再点建造。归零也让 UI 的「停摆」态名副其实。 */
     if (!isFull(s) && s.res.kelp > SB.CFG.GROW_KEEP) {
       s._grow += dt;
-      var growNeed = SB.challenges ? SB.challenges.growthDuration(s) : SB.CFG.GROW_NEED;
+      var growNeed = SB.economy ? SB.economy.growthDuration(s) : SB.CFG.GROW_NEED;
       if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit('生育：一名族民降生。'); }
     } else s._grow = 0;
     s.peak = Math.max(s.peak, s.pop);

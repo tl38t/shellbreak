@@ -18,6 +18,7 @@ const NO_DOM = [
   'src/config-catalog.js',
   'src/config-content.js',
   'src/config-buildings.js',
+  'src/companies.js',
   'src/techs.js',
   'src/tech.js',
   'src/civics-data.js',

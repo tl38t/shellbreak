@@ -6,6 +6,7 @@
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
   var selectedBody = 'europa';
+  var starMapView = 'phase1';
   var BODY_BUILDINGS = {
     europa: ['satellite', 'spacestation'],
     rhea: ['rheamine'],
@@ -48,15 +49,14 @@
         '<button class="fbtn" data-satellite-dec="1" title="少开一颗"' + (count.running <= 0 ? ' disabled' : '') + '>−</button>' +
         '<b class="fnum">运行 ' + count.running + '/' + count.level + '</b>' +
         '<button class="fbtn" data-satellite-inc="1" title="多开一颗"' + (count.running >= count.level ? ' disabled' : '') + '>＋</button>' +
-        '<span class="fdraw">热液能 −' + ((SB.BLD && SB.BLD.satelliteHydro) || 1) + '/秒·座</span></span>';
+        SB.ui.drawTag(s, 'satellite') + '</span>';
     }
     if (id === 'spacestation' && count.level > 0) {
       operating = '<span class="furnctl' + (count.running ? ' on' : '') + '">' +
         '<button class="fbtn" data-spacestation-dec="1" title="停一座"' + (count.running <= 0 ? ' disabled' : '') + '>−</button>' +
         '<b class="fnum">运行 ' + count.running + '/' + count.level + '</b>' +
         '<button class="fbtn" data-spacestation-inc="1" title="开一座"' + (count.running >= count.level ? ' disabled' : '') + '>＋</button>' +
-        (SB.ui.consumeMeta && SB.ui.consumeMeta.BUILDING_CONSUME[id]
-          ? '<span class="fdraw">热液能 −' + ((SB.BLD && SB.BLD.stationHydro) || 2) + '/秒·座</span>' : '') + '</span>';
+        SB.ui.drawTag(s, id) + '</span>';
     }
     return '<div class="row bld-row' + (count.level ? ' is-owned' : '') + '"><div>' +
       '<div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + id + '">' + escapeHtml(b.name) +
@@ -68,6 +68,8 @@
   function renderSelectedBody(s) {
     var panel = root.document && root.document.getElementById('star-map-buildings');
     if (!panel || !s) return;
+    if (starMapView === 'phase2') { panel.style.display = 'none'; return; }
+    panel.style.display = '';
     var ids = BODY_BUILDINGS[selectedBody] || [];
     var owned = ids.reduce(function (sum, id) { return sum + ((s.lvl && s.lvl[id]) || 0); }, 0);
     var active = ids.reduce(function (sum, id) { return sum + bodyBuildingCounts(s, id).running; }, 0);
@@ -84,7 +86,22 @@
   function onStarMapMessage(event) {
     var iframe = root.document && root.document.querySelector('#pane-star-map iframe.starmap-frame');
     var data = event && event.data;
-    if (!iframe || event.source !== iframe.contentWindow || !data || data.type !== 'sb-star-map-select-body') return;
+    if (!iframe || event.source !== iframe.contentWindow || !data) return;
+    if (data.type === 'sb-star-map-height') {
+      iframe.style.height = Math.max(600, Math.min(1200, Number(data.height) || 780)) + 'px';
+      return;
+    }
+    if (data.type === 'sb-star-map-view') {
+      starMapView = data.view === 'phase2' ? 'phase2' : 'phase1';
+      var dysonPanel = root.document.getElementById('dyson-panel');
+      if (dysonPanel) dysonPanel.style.display = starMapView === 'phase2' ? 'none' : '';
+      if (starMapView === 'phase2') {
+        var panel = root.document.getElementById('star-map-buildings');
+        if (panel) panel.style.display = 'none';
+      } else renderSelectedBody(SB.game && SB.game.run ? SB.game.run() : null);
+      return;
+    }
+    if (data.type !== 'sb-star-map-select-body') return;
     if (!Object.prototype.hasOwnProperty.call(BODY_BUILDINGS, data.body)) return;
     selectedBody = data.body;
     renderSelectedBody(SB.game && SB.game.run ? SB.game.run() : null);
@@ -97,7 +114,7 @@
       return '<div class="note">凿穿天壳后，本周目的星图将在这里解锁。</div>';
     return '<div class="starmap-frame-wrap">' +
       '<iframe class="starmap-frame" sandbox="allow-scripts" ' +
-      'src="src/ui/star-map-frame.html?v=2" title="壳外星图" ' +
+      'src="src/ui/star-map-frame.html?v=3" title="壳外星图" ' +
       'style="width:100%;height:780px;border:0;border-radius:12px;background:#07111d"></iframe></div>' +
       /* ERA10（2026-10-20）：戴森球终局面板容器。⚠️ 只放**空壳**在这里——实时数字
        * （帆数/节点数/进度）由 refreshDysonPanel 单独写，原因见 render.js 的

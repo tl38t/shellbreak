@@ -109,6 +109,10 @@
      *   「数据落了没人读 ⇒ 静默为 0」家族的标准形态：科技完成即生效（非卡非升级）。
      * ⚠️ 无封顶：门 70 星屑 = +70%，meta 几百星屑 = +几百%（用户未要求封顶，待标定）。 */
     if (s.techs && s.techs.heir_of_stars) m += (s.got && s.got.stardust || 0) / 100;
+    /* ⑫ ERA6+ 公司（工艺效率公司，companies.js craft:true）：加成进同一条加法乘区。
+     *   公司由《宏观经济学》解锁、按成立时长升级；与上面十一源相加，不是相乘。
+     *   读数走 SB.companyCraftRatio（economy-social.js，与 companyMul 同源）。 */
+    if (SB.companyCraftRatio) m += SB.companyCraftRatio(s) || 0;
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
@@ -121,7 +125,7 @@
     /* ERA8（2026-10-18 · spec §2 laser 解锁2 永久乘区）：workshopEff（激光技术 +50%）乘区，
      *   读 tech.mul(s).workshopEff（默认 1，未研究 = 无效果）——与 boomcraft/throne 同形态独立相乘。
      *   【工业机器人】upg_indrobot 工坊效率 +100%（独立乘区 ×2），开关 s.indRobotOn：
-     *   关掉 ⇒ 加成与耗能（hydroAlloc robotDraw）一起停，与 autoDrillOn 同一套判据。 */
+     *   关掉 ⇒ 加成与耗能（hydroAlloc robotDraw）一起停。 */
     var _Tm = (SB.tech && SB.tech.mul) ? SB.tech.mul(s) : null;
     var _robot = (s.indRobotOn !== false && s.upgrades && s.upgrades.upg_indrobot) ? 2 : 1;
     /* ⚠️ ERA8 市政（2026-10-18）：虚拟现实卡让加法轴可为负（−1%×人口）。护栏只防**符号反转**
@@ -484,6 +488,8 @@
     for (k in cost) s.res[k] -= cost[k];
     s.upgrades = s.upgrades || {};
     s.upgrades[id] = true;
+    /* ERA7（2026-10-21）：首次装上自动化钻探时默认开启现有全部矿井；之后由工坊逐座调整。 */
+    if (id === 'upg_autodrill') s.autoDrillCount = Math.max(0, Math.floor((s.lvl && s.lvl.siltpit) || 0));
     /* ERA8（2026-10-18 · spec §4 激光快速雕版）：单局效果置位——买断的同一刻把 run-scoped
      *   标记也置上（craftCostMul 只认标记）。清除点在 prestige.doBreak（破壳结算）；
      *   s.upgrades 随 freshRun 全新重建 ⇒ 下一局重新买即重新生效。 */

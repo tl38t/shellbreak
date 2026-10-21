@@ -11,6 +11,7 @@
   var cultureRate = P.cultureRate, faithRate = P.faithRate, foodRate = P.foodRate;
   var foodUse = P.foodUse, fuelRate = P.fuelRate, furnaceBoostMul = P.furnaceBoostMul;
   var gatherMul = P.gatherMul, globalMul = P.globalMul, globalMulX = P.globalMulX, ironFlow = P.ironFlow;
+  var autoDrillOutputMul = P.autoDrillOutputMul;
   var isCold = P.isCold, libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
   var mineTaxMul = P.mineTaxMul, obsSciMul = P.obsSciMul, steelRate = P.steelRate;
   var toolMul = P.toolMul, upgSum = P.upgSum, warmBurningNow = P.warmBurningNow;
@@ -100,7 +101,9 @@
        *    乘在珊瑚匠这一行、与工具乘区**独立相乘** —— 它不是被删掉的 gatherMul 全局轴。 */
       coral:   (j.coralwright || 0) * SB.UNIT.coral
                  * gatherMul(s) * toolMul(s, 'coralwright') * coralFarmMul(s) * coralPactMul(s)
-                 * cold * globalMulX(s) * SOCIAL.companyMul(s, 'coral'),
+                 * cold * globalMulX(s)
+                 * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'coral') : 1)
+                 * SOCIAL.companyMul(s, 'coral'),
       /* 与 tick 同源：金属只来自矿工，且同样吃 siltMul（砂矿坑加成）。tick 那边
        * 把 siltpit 自动产出删了之后，这里若还留着「+ lvl.siltpit × SB.UNIT.silt」，
        * 面板就会凭空多报一份金属——「面板撒谎」家族的标准成因（tick 路 === 面板路）。 */
@@ -108,9 +111,7 @@
        *    每转一份白扣两份原料」。产出那一段与 tick 的 miner 行逐字同式（含 globalMul）。 */
       silt:    (j.miner || 0) * SB.UNIT.silt
                  * mineBonus
-                 * (1 + upgSum(s, 'mineSilt')
-                    /* ERA7：自动化钻探（upg_autodrill）每级 +100%，受 s.autoDrillOn 开关——与 tick 同式。 */
-                    + ((s.autoDrillOn !== false && s.upgrades && s.upgrades.upg_autodrill) || 0))
+                 * (1 + upgSum(s, 'mineSilt'))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
                  * gatherMul(s) * toolMul(s, 'miner') * cold * globalMulX(s) * mineTaxMul(s)
                  * (SB.wonder ? SB.wonder.mineMul(s) : 1) - fc * (Tr ? Tr.bldEff : 1),
@@ -122,6 +123,7 @@
                    * gatherMul(s) * toolMul(s, 'miner') * cold * globalMulX(s)
                    * (SB.wonder ? SB.wonder.mineMul(s) : 1)
                    * (1 + (Tr ? Tr.titaniumMul : 0))
+                   * autoDrillOutputMul(s)
                  : 0)
                  /* ERA9（2026-10-19）：马尔斯工造中心每级 +2 钛/秒（与 tick 的 mars 块逐字同构，含星际物流网乘区）。 */
                  + (s.lvl.mars_workshop || 0) * (SB.BLD.marsTitanium || 0) * globalMulX(s) * _planetMulR
@@ -142,6 +144,7 @@
                  ? (j.miner || 0) * SB.UNIT.uranium * mineBonus
                    * gatherMul(s) * toolMul(s, 'miner') * cold * globalMulX(s)
                    * (SB.wonder ? SB.wonder.mineMul(s) : 1)
+                   * autoDrillOutputMul(s)
                  : 0)
       /* ERA8：瑞亚星矿井每级 +0.25 铀/秒（与 tick 的 rheamine 铀行同式相加；含星际物流网乘区）。 */
                + (s.lvl.rheamine || 0) * (SB.BLD.rheamineUranium || 0) * globalMulX(s) * _planetMulR
@@ -206,7 +209,7 @@
                     + (s.lvl.researchlab || 0) * SB.BLD.researchLabSci
                     /* ERA6：温水藻场升级解锁后，每级（× 藻场等级）额外 +0.5 科技/s（待标定口径）。 */
                     + upgSum(s, 'algalfarmSci') * (s.lvl.kelp || 0))
-                 * obsSciMul(s)                                  /* 天壳观测站：+x%（冰壳反比，上限 20） */
+                 * obsSciMul(s)                                  /* 天壳观测站：建成后按削壳进度提供 0–20% 学者科技加成 */
                  * (SB.wonder ? SB.wonder.cutterSciMul(s) : 1)   /* 天壳切削器：+% = 观测站等级 */
                  /* ERA7（2026-10-17 · spec §5）：轨道卫星每级学者产出 +25%，与 tick 学者行 _satScholar 逐字同构。 */
                  * (1 + (s.lvl.satellite || 0) * (SB.BLD.satelliteScholar || 0))
@@ -217,8 +220,9 @@
                  * (SB.wonder ? SB.wonder.throneSciMul(s) : 1)
                  * (Tr ? Tr.sci : 1) + (cv ? (cv.science || 0) : 0)
                  /* 商人副产（2026-09-30 · 中世纪集市解锁2）：与 tick 4c' 同式，在 globalMul 乘区内。 */
-                 /* ERA5（2026-10-02）：学校每级给商人 +0.5 科技/s（与 tick 4c' 同式相加进同一括号）。 */
-                 + ((s.civics && s.civics.market) ? (j.merchant || 0) * ((SB.BLD.marketJobSci || 0) + (s.lvl.school || 0) * (SB.BLD.schoolMerchantSci || 0)) : 0)
+                 + ((s.civics && s.civics.market) ? (j.merchant || 0) * (SB.BLD.marketJobSci || 0) : 0)
+                 /* 学校（2026-10-21 改）：每名鲛人 +schoolMermanSci 科技/s（每级），与 tick 4c'' 同式，不依赖商人/集市。 */
+                 + ((s.lvl.school || 0) > 0 ? (s.pop || 0) * (s.lvl.school || 0) * (SB.BLD.schoolMermanSci || 0) : 0)
                  ) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * globalMul(s)
                  * (lg ? lg.relicScienceMul * (1 + lg.shopScienceBonus) : 1)
                  + (lg ? lg.oldTideSteleScienceRate : 0)) * (SB.challenges ? SB.challenges.scienceCultureMul(s) : 1),

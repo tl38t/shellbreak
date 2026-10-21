@@ -226,21 +226,21 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
     fr4.lvl.observatory === 0 && fr4.lvl.coralfarm === 0 && fr4.lvl.bank === 0,
     'observatory=' + fr4.lvl.observatory);
 
-  /* ⑤ 天壳观测站：x = min(20, 25000/壳厚)，单位是**百分点**（+20% ⇒ ×1.20）。
+  /* ⑤ 天壳观测站：建成后随本局削壳进度线性增加学者科技产出，完全削穿时 +20%。
    *    期望值由 UNIT.sci 直接算、不依赖任何中间读数 ⇒ 谁改了常数，这条跟着露馅。
    *    ⚠️ 顺带钉住它读的是**快照**：同一秒内 tick 与 rates 必须逐位相等（差 1e-9 都不行）。 */
   const obsFx = (sh) => {
     const z = SB.state.freshRun(false);
-    z.jobs.scholar = 3; z.shell = sh; z._shellSnap = sh;
+    z.jobs.scholar = 3; z.lvl.observatory = 1; z.shell = sh; z._shellSnap = sh;
     return z;
   };
-  const base1 = SB.economy.rates(obsFx(1e15)).science;         // 壳厚极大 ⇒ x→0，乘数 ≈1
-  const r50k = SB.economy.rates(obsFx(50000)).science;         // x = 0.5  ⇒ ×1.005
-  const r500 = SB.economy.rates(obsFx(500)).science;           // x 该是 50，但封顶 20 ⇒ ×1.20
-  check('观测站：壳厚 50000 ⇒ +0.5%（反比取的是百分点，不是倍率）',
-    Math.abs(r50k / base1 - 1.005) < 1e-9, '×' + (r50k / base1).toFixed(6) + '（若当成倍率会是 1.25）');
-  check('观测站上限 +20%：壳厚 500 ⇒ 仍是 ×1.20（封顶真的封住了）',
-    Math.abs(r500 / base1 - 1.2) < 1e-9, '×' + (r500 / base1).toFixed(6));
+  const base1 = SB.economy.rates(obsFx(500000)).science;      // 本局起始壳厚 ⇒ 削薄进度 0%，×1.00
+  const r50k = SB.economy.rates(obsFx(50000)).science;        // 削薄 90% ⇒ +18%，×1.18
+  const r0 = SB.economy.rates(obsFx(0)).science;              // 完全削穿 ⇒ +20%，封顶
+  check('观测站：壳厚 50000（本局初始 500000）⇒ 削薄 90%、学者科技 ×1.18',
+    Math.abs(r50k / base1 - 1.18) < 1e-9, '×' + (r50k / base1).toFixed(6));
+  check('观测站上限 +20%：壳厚 0 ⇒ ×1.20',
+    Math.abs(r0 / base1 - 1.2) < 1e-9, '×' + (r0 / base1).toFixed(6));
   {
     const so = obsFx(80000);
     so.res.science = 0;

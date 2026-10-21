@@ -52,9 +52,10 @@
    * 需求原文：「工坊的升级项，要在这里展示 已完成xx项/共xx项；如果有新升级项玩家
    *          还没看过，还要显示 new」。
    *
-   * 【计数口径（用户拍板）】n = 已买下的工具 + 已装填的升级项（复用 doneCount）；
-   *   m = SB.TOOLS.length + SB.workshop.upgrades().length —— **全量，含还没解锁的**。
-   *   写成「已完成 n / 共 m」而不是光秃秃的 n/m：这个页签里混着「职业工具」和
+   * 【计数口径】n = 已买下的工具 + 已装填的升级项（复用 doneCount）；
+   *   m = 当前已揭示的工具 + 升级项，沿用列表门槛（不含仍被「需要先…」挡住的内容），
+   *   对齐奇观页「已建成 / 已揭晓」的分母语义。
+   *   写成「已完成 n / 已揭晓 m」而不是光秃秃的 n/m：这个页签里混着「职业工具」和
    *   「工坊升级」两段，标清楚才知道分母是什么。
    *
    * 【「看过」存 localStorage 而不是 s】与上面 hideDone 同一条理由，但更强：
@@ -96,6 +97,21 @@
     for (i = 0; i < U.length; i++) K.push('u:' + U[i].id);
     return K;
   }
+  /* 总数与两段列表共用同一揭示门：已拥有内容始终计入；未拥有且 blocked 以「需要先」开头时隐藏。 */
+  function itemRevealed(owned, why) { return !!owned || !(why && /^需要先/.test(why)); }
+  function revealedItemCount(s) {
+    var W = SB.workshop, n = 0, i;
+    for (i = 0; i < SB.TOOLS.length; i++) {
+      var t = SB.TOOLS[i], ownedTool = !!(s.tools && s.tools[t.id]);
+      if (itemRevealed(ownedTool, ownedTool ? null : W.blocked(s, t.id))) n++;
+    }
+    var U = W ? W.upgrades() : [];
+    for (i = 0; i < U.length; i++) {
+      var u = U[i], ownedUpgrade = !!(s.upgrades && s.upgrades[u.id]);
+      if (itemRevealed(ownedUpgrade, ownedUpgrade ? null : W.upgradeBlocked(s, u.id))) n++;
+    }
+    return n;
+  }
   function unseenCount() {
     var S = loadSeen(), K = allItemKeys(), n = 0, i;
     for (i = 0; i < K.length; i++) if (!S[K[i]]) n++;
@@ -108,9 +124,9 @@
    *    这时候还挂个 NEW 就成了「你已经看到了、但还没看到」。 */
   function upgradeTabMeta(s) {
     var done = doneCount(s);
-    var total = SB.TOOLS.length + ((SB.workshop && SB.workshop.upgrades()) || []).length;
+    var total = revealedItemCount(s);
     return {
-      cnt: '已完成 ' + done + ' / 共 ' + total,
+      cnt: '已完成 ' + done + ' / 已揭晓 ' + total,
       fresh: unseenCount() > 0 && workshopView !== 'upgrades'
     };
   }
@@ -128,7 +144,10 @@
    * 对应猫国 `js/jsx/left.jsx.js:494-505` 的那两块：
    *   「升级项」页签 = 买断一次就完事（职业工具 + 工坊升级）
    *   下半「工艺制作」 = 可以反复制造（石梁）
-   * 顶部那一栏「工艺制作效率」是**一个全局数字**，来源是工坊建筑等级 + 奇观，见 workshop.craftRatio。 */
+   * 顶部那一栏「工艺制作效率」是**一个全局数字**，与配方行共用同一条 craftMul 乘区链
+   * （含 boomcraft / 王座 / 激光 / 工业机器人 / 我们的海 等乘区，见 workshop.craftMul），
+   * 与「结算同式、面板===结算」纪律一致；仅不含配方专属加成（火箭引擎 / 物流卡定向），
+   * 故顶部 = 通用基线效率，配方行在其上再叠各自的专属加成。 */
   function paneWorkshop() {
     var s = SB.game.run();
     if (!s || !s.lvl || !(s.lvl.workshop > 0)) return paneWorkshopLocked();
@@ -144,14 +163,14 @@
     /* 已完成数走 doneCount(s) 现算；控件仍使用原 data-hidedone 委托，不改变刷新行为。 */
     var overview = '<div class="workshop-overview"><div class="workshop-efficiency">' +
       '<span class="workshop-mark" aria-hidden="true">⚒</span><div><small>CRAFT · 工坊</small>' +
-      '<strong>工艺制作效率 <b>+' + (SB.workshop.craftRatio(s) * 100).toFixed(0) + '%</b></strong></div>' +
+      '<strong>工艺制作效率 <b>+' + (((SB.workshop.craftMul(s, {id:'__global__'}) || 1) - 1) * 100).toFixed(0) + '%</b></strong></div>' +
       '<div class="workshop-done-toggle">' + hideDoneBtn(s) + '</div></div></div>';
     if (workshopView === 'upgrades') {
       return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>职业工具</b>' +
         '<small>买断后持续生效；每件工具只作用于对应职业。</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
         '<section class="workshop-section"><header class="workshop-section-title"><b>工坊升级</b>' +
         '<small>一次装填，永久生效。</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
-        (hideDone ? '<div class="note">已完成的项目当前被隐藏（' + doneCount(s) + ' 项）——点上方「显示已完成」把它们放回来。</div>' : '') +
+        (hideDone ? '<div class="note">已完成项目当前被隐藏；自动化钻探因需要持续调节而保留。点上方「显示已完成」可显示其余项目。</div>' : '') +
         '<div class="note">工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。</div>';
     }
     return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>工艺制作</b>' +
@@ -303,7 +322,7 @@
        *   判据复用按钮文案已在用的 `/^需要先/` 前缀（未解锁 vs 买不起），不新立一套。
        *   例外：已买下的永远显示（否则玩家看不到自己买过什么）——
        *   ⚠️ 但 hideDone 开着时上面已经把「已买下」过滤掉了，这条例外在隐藏态不生效。 */
-      if (!owned && why && /^需要先/.test(why)) continue;
+      if (!itemRevealed(owned, why)) continue;
       shown++;
       /* 按钮的文案要说清「现在是什么状态」，而不只是「买」——
        * 灰着还写「买」会让玩家以为点了会发生什么，实际什么都没发生。 */
@@ -339,8 +358,9 @@
       var why = on ? null : W.upgradeBlocked(s, u.id);
       /* ⚠️ 2026-10-05：与工具同口径 —— ① hideDone 开着时跳过已装上的（先判开关）；
        *   ② 未解锁不显示，已装上的在显示态永远显示。 */
-      if (hideDone && on) continue;
-      if (!on && why && /^需要先/.test(why)) continue;
+      /* 自动化钻探装上后仍需调运行矿井数，属于持续控制项，不随 hideDone 隐藏。 */
+      if (hideDone && on && u.id !== 'upg_autodrill') continue;
+      if (!itemRevealed(on, why)) continue;
       shown++;
       /* 与工具同口径：灰着还写「装上」会让玩家以为点了会怎样，实际什么都没有。 */
       var cost = W.upgradeCost(s, u.id);
@@ -353,10 +373,18 @@
        *   玩家买了升级却无法关、热液能白白流。开关走 document 级委托（data-indrobot-toggle），
        *   与 pane 每 2 秒重画兼容；耗流用 fdraw 与巢穴/星图同源。 */
       var _rbOn = on && s.indRobotOn !== false;
+      var _adOn = u.id === 'upg_autodrill' && on ? SB.economy.autoDrillCount(s) : 0;
+      var _adTotal = Math.max(0, Math.floor((s.lvl && s.lvl.siltpit) || 0));
+      var _adPct = _adTotal > 0 ? Math.round(_adOn / _adTotal * 100) : 0;
+      var _adHydro = _adOn * (SB.UNIT.drillHydro || 0.3);
       var _ds = u.desc + '（成本 ' + SB.economy.costTxt(cost) + '）';
       if (u.id === 'upg_indrobot' && on) {
-        _ds += '<br><span class="fdraw">热液能 −' + (SB.UNIT.robotHydro || 1).toFixed(2) + '/秒' +
+        _ds += '<br><span class="fdraw">热液能 −' + (SB.UNIT.robotHydro || 0.3).toFixed(2) + '/秒' +
           (_rbOn ? '' : '（已关闭）') + '</span>';
+      }
+      if (u.id === 'upg_autodrill' && on) {
+        _ds += '<br>运行矿井 ' + _adOn + ' / ' + _adTotal + ' 座 · 钛/铀产出 +' + _adPct + '%' +
+          '<br><span class="fdraw">热液能需求 −' + _adHydro.toFixed(2) + '/秒</span>';
       }
       var _rowExtra = '';
       if (u.id === 'upg_indrobot' && on) {
@@ -364,12 +392,19 @@
           'title="工业机器人开关：关掉 ⇒ 工坊效率加成与热液能消耗一起停。">' +
           (_rbOn ? '运行中' : '已关闭') + '</button>';
       }
+      if (u.id === 'upg_autodrill' && on) {
+        _rowExtra = '<div class="autodrill-controls">' +
+          '<button type="button" class="btn tog" data-autodrill-step="-1"' + (_adOn <= 0 ? ' disabled' : '') +
+          ' aria-label="关闭一座自动化钻探矿井" title="关闭一座矿井">−</button>' +
+          '<button type="button" class="btn tog" data-autodrill-step="1"' + (_adOn >= _adTotal ? ' disabled' : '') +
+          ' aria-label="开启一座自动化钻探矿井" title="开启一座矿井">＋</button></div>';
+      }
+      var _buyBtn = '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
+        (on || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button>';
       h += '<div class="row"' + (on ? ' data-owned="1"' : '') + '>' +
         '<div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="' + u.id + '" aria-haspopup="dialog">' + u.name + '</button>' + (isNewItem('u', u.id) ? ' <span class="tag new">NEW</span>' : '') + (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
         '<div class="ds">' + _ds + '</div>' +
-        '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
-        (on || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button>' +
-        _rowExtra + '</div>';
+        '<div class="upgrade-actions">' + _buyBtn + _rowExtra + '</div></div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
       (hideDone && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';

@@ -17,12 +17,10 @@
  *
  * ── 结构上的三条取舍（结构归我定，数值归用户）──
  *
- * · 槽位：酋邦制给 1 个政策卡槽（用户「就降到 1 吧」）。era1 恰好有 2 张卡 ⇒
- *   必须有取舍，换卡收费才不是收了个寂寞（这是《技艺》与《神秘主义》的唯一竞争）。
- * · 树形：三条里《法典》无 cost、无鼓舞，是根；《技艺》《神秘主义》都以它为例
- *   （reqs: ['laws']）——这样「树」才成立，且两条之间玩家可以自己决定顺序。
- *   ⚠️ 《技艺》《神秘主义》之间**没有**互相前置：两条都解锁自己的政策卡，
- *      而卡槽只有 1 个 ⇒ 选哪张是玩家真要做出的取舍。
+ * · 槽位：酋邦制给 1 个政策卡槽（用户「就降到 1 吧」）。Era1 有多张政策卡 ⇒
+ *   必须有取舍，换卡收费才不是收了个寂寞。
+ * · 树形：《法典》无 cost、无鼓舞，是根；《技艺》《神秘主义》《乡镇集会》都以它为前置，
+ *   「珊瑚培育」挂在《技艺》下。新增支线不作为后续市政的前置，避免锁住主树。
  * · 政体：酋邦制（法典自带）+ 独裁/寡头/古典共和（由《政治哲学》解锁，三选一采用）。
  *   换政体机制（统一 1/5 收费、越权拦截、槽位配方）已落地，三种新政体立即生效，无需返工。
  */
@@ -185,11 +183,13 @@
    * 使《神不在此》（×0.5）/《未来主义神学》（×5）在《启蒙运动》退役后无缝上位。
    * ⚠️ 与 MUL_FIELD 的 templeMul（卡《神学》×2）是**两个独立乘区**，economy 里两者相乘。 */
   function templeFaithMul(s) { return cardFieldMul(s, 'templeFaithMul'); }
-  /* 博物馆建筑：官员（书手）市政点产出 +20%（museumCivicMul，flat）。economy.cultureRate 的 scribe 段读。
+  /* 博物馆建筑：官员（书手）市政点产出 +20%/级（museumCivicMul）。economy.cultureRate 的 scribe 段读。
    * ERA6：① 博物学完成后，艺术品效果随轮回 +10%/cycle（落点同为博物馆的市政加成，语义=博物馆即艺术展示口）；
    *   ② 博物馆管理卡装着时 effect.museumMul(2) 让博物馆效果翻倍。两者乘法叠加。 */
   function museumCivicMul(s) {
-    var m = (s.lvl.museum || 0) >= 1 ? 1.20 : 1;
+    var museumLv = (s.lvl && s.lvl.museum) || 0;
+    var museumRatio = (SB.BLD && SB.BLD.museumCivRatio) || 0.20;
+    var m = 1 + museumLv * museumRatio;
     if (s.civics && s.civics.naturalhistory) {
       var _cyc = (SB.game && SB.game.meta) ? (SB.game.meta().cycle || 0) : 0;
       m *= (1 + 0.10 * _cyc);
@@ -283,6 +283,9 @@
    * 统一纪律：只读 s.cards / s.civics / s.wonders，没装/没完成 = 返回基准值，绝不污染产线。 */
   /* 公摊面积卡：人口建筑每级 +0.5 人口上限（popCapPerPopBldg）。economy.popCap 读，乘人口建筑总级。 */
   function popCapPerPopBldg(s) { return cardFieldSum(s, 'popCapPerPopBldg'); }
+  /* 乡镇集会 / 城市供给：人口上限固定加值、人口生育时长乘区。 */
+  function cardPopCapFlat(s) { return cardFieldSum(s, 'popCapFlat'); }
+  function cardPopGrowthTimeMul(s) { return cardFieldMul(s, 'popGrowthTimeMul'); }
   /* 延长工时卡：所有职业产出 ×(jobOutMul)。economy 职业产出行（tick/rates 两路）逐字同构地读。 */
   function cardJobOutMul(s) { return cardFieldMul(s, 'jobOutMul'); }
   /* 太空竞赛卡：太空建筑建造 −(spaceBuildSave)。economy.spaceCostMul 读，乘 (1 − 此值)。 */
@@ -552,8 +555,8 @@
    * 用户 2026-09-27 的口径是「市政树要做成科技树这样」，所以两张树必须长得一样，
    * 几何也照抄同一套算法（连行的分配规则都一致：「同列不许撞行，其余尽量紧凑」）。
    *
-   * ⚠️ 刻意**不共用函数**：科技树那条带纪元横幅与 eraAnchorX（点纪元按钮滚过去），
-   *    市政现在只有一个纪元、也没有跳转按钮。等两边都稳定了再合并。
+   * ⚠️ 刻意**不共用函数**：科技树和市政树各自维护布局与纪元锚点，
+   *    免得一边的节点几何变化牵动另一边；纪元导航的表现保持一致。
    * ⚠️ 但**卡片尺寸借用** `SB.tech.geo` 而不是另立一份：两张树的卡片是同一类东西，
    *    尺寸必须逐像素一致，两份数字迟早对不上，而症状只是「两张树长得不一样高」这种
    *    没人会报的 bug。代价是 layout() 依赖 tech.js 已加载 —— 它确实晚于 tech.js 加载，
@@ -647,6 +650,32 @@
    * 避免因数据从较高层起步而在时代开头留白。 */
   function colOf(t, eraBase, minL) {
     return (eraBase[t.era] || 0) + (t.layer || 1) - (minL[t.era] || 1);
+  }
+
+  function eraAnchorX(era) {
+    var L = layout();
+    for (var i = 0; i < L.blocks.length; i++) {
+      if (L.blocks[i].era === era) return L.blocks[i].offset;
+    }
+    return 0;
+  }
+
+  /* 树形揭示按市政研究推进：完成某纪元任意一项市政，即展开下一纪元的节点骨架。
+   * 这是显示范围，不替代 civic.blocked() 的科技纪元门槛，也不代替 boost 对名称/效果的揭示。 */
+  function visibleEra(s) {
+    var maxEra = (SB.ERAS || []).length || 1, era = 1, hasCompleted;
+    while (era < maxEra) {
+      hasCompleted = false;
+      for (var i = 0; i < CIVICS.length; i++) {
+        if ((CIVICS[i].era || 1) === era && s && s.civics && s.civics[CIVICS[i].id]) {
+          hasCompleted = true;
+          break;
+        }
+      }
+      if (!hasCompleted) break;
+      era++;
+    }
+    return era;
   }
 
   // ── 面板开门 ──────────────────────────────────────────────────────
@@ -1261,7 +1290,7 @@
     panelOpen: panelOpen, panelBlock: panelBlock,
     condMet: condMet, condShort: condShort, boostMet: boostMet, isRevealed: isRevealed,
     pump: pump,
-    layout: layout, geo: geo,
+    layout: layout, geo: geo, eraAnchorX: eraAnchorX, visibleEra: visibleEra,
     /* pitch 按当前 geo 现算（卡片尺寸是借来的，写死在导出对象里会与 geo 脱钩）。 */
     pitch: function () { var G = geo(); return { col: G.W + GEO.COL, row: G.H + GEO.ROW }; },
     reqsMet: reqsMet, blocked: blocked, hasResearchable: hasResearchable, canResearch: canResearch, research: research,
@@ -1306,7 +1335,8 @@
     wonderReligSlots: wonderReligSlots, wonderCivicSlots: wonderCivicSlots,
     /* ERA7（2026-10 实装）：政策卡/市政的动态效果读数出口。 */
     civicPolicySlots: civicPolicySlots, builtWonderCount: builtWonderCount,
-    popCapPerPopBldg: popCapPerPopBldg, cardJobOutMul: cardJobOutMul, cardSpaceBuildSave: cardSpaceBuildSave,
+    popCapPerPopBldg: popCapPerPopBldg, cardPopCapFlat: cardPopCapFlat, cardPopGrowthTimeMul: cardPopGrowthTimeMul,
+    cardJobOutMul: cardJobOutMul, cardSpaceBuildSave: cardSpaceBuildSave,
     cardObsSciMul: cardObsSciMul, stadiumCivic: stadiumCivic,
     wonderCivicGainMul: wonderCivicGainMul, cardWonderLuxSaveMul: cardWonderLuxSaveMul,
     /* ERA6（2026-10-12 实装）效果读数出口。 */

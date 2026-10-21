@@ -443,9 +443,11 @@
   var paneCivic = researchParts.paneCivic;
   var paneCivicGov = researchParts.paneCivicGov;
   var paneCivicSlot = researchParts.paneCivicSlot;
+  var civicNoticeState = researchParts.civicNoticeState;
   var setCivicView = researchParts.setCivicView;
   var toggleGovDetail = researchParts.toggleGovDetail;
   var techGoEra = researchParts.techGoEra;
+  var civicGoEra = researchParts.civicGoEra;
   var armCard = researchParts.armCard;
   var disarmCard = researchParts.disarmCard;
   var getArmedCard = researchParts.getArmedCard;
@@ -529,6 +531,8 @@
    * ⚠️ 两张卷各记各的，**不合并成一个通用函数**：shown 判定各查各的容器，
    *    合并会把「一张藏一张露」的中间态搅在一起（那正是这两个 flag 存在的理由）。 */
   var civicScrollLeft = 0, civicShown = false;
+  var civicJumpTo = null, civicJumpDone = false;
+  function scheduleCivicJumpTo(px) { civicJumpTo = px; }
   /* 纪元导航（render 侧的状态）：
    *   techViewEra —— 详情卡正在讲哪个纪元。0 = 跟随当前纪元（默认）。
    *                 ⚠️ 存 0 而不是存「当前纪元 id」，是为了让「纪元推进了」自动跟着走：
@@ -587,11 +591,30 @@
         if (_smS && (_smS.shellOpened || _smS.breakSettled) && _smS.shell <= 0) {
           var _ifr = node.querySelector('iframe');
           if (_ifr && _ifr.contentWindow) {
+            var _smLvl = _smS.lvl || {};
+            var _smDysonPct = SB.economy && SB.economy.dysonPct ? SB.economy.dysonPct(_smS) : 0;
             _ifr.contentWindow.postMessage({
               type: 'sb-spacecraft',
               list: _smS.spacecraft || [],
               bodies: SB.STAR_MAP_BODIES || [],
-              star: { value: (_smS.res && _smS.res.starExplore) || 0, cap: (SB.CFG && SB.CFG.STAR_CAP) || 0 }
+              star: { value: (_smS.res && _smS.res.starExplore) || 0, cap: (SB.CFG && SB.CFG.STAR_CAP) || 0 },
+              era: _smS.era || 1,
+              sunSails: _smS.sunSails || 0,
+              sunSailCap: (SB.CFG && SB.CFG.DYSON_SAIL_CAP) || 10000,
+              dysonNodes: _smS.dysonNodes || 0,
+              dysonNodeCap: (SB.CFG && SB.CFG.DYSON_NODE_CAP) || 1000,
+              dysonPct: _smDysonPct,
+              adiabatic: !!(_smS.techs && _smS.techs.adiabatic),
+              solarRingLevel: _smLvl.solar_ring || 0,
+              launchMode: _smS.launchMode === 'node' ? 'node' : 'sail',
+              launchCycle: SB.economy && SB.economy.launchCycleOf
+                ? SB.economy.launchCycleOf(_smS)
+                : (SB.CFG && SB.CFG.LAUNCH_CYCLE) || 10,
+              launchpads: {
+                europa: _smLvl.europa_launch || 0,
+                terra: _smLvl.terra_launch || 0,
+                rhea: _smLvl.rhea_launch || 0
+              }
             }, '*');
           }
           if (SB.ui.renderParts.refreshStarMapBuildings) SB.ui.renderParts.refreshStarMapBuildings(_smS);
@@ -623,11 +646,24 @@
        * 不回读的话模块里记住的就是一个到不了的值。 */
       techScrollLeft = box.scrollLeft || 0;
     }
-    /* 市政树「后写」：与 tech 完全同构。 civicScrollLeft 为 0 时不写是安全的——
-     * 0 本来就是容器重画后的自然位置，没有「跳回纪元一」那种必须显式写 0 的场景。 */
+    /* 市政树首次打开时跟随当前已揭露的纪元；导航安排的目标在容器重建后再落地。 */
     civicShown = cShown;
     cbox = el('civicScroll');
-    if (cbox && cShown && civicScrollLeft) {
+    var civicJumped = false;
+    if (cbox && cShown && !civicJumpDone) {
+      civicJumpDone = true;
+      var cs = res();
+      if (cs && SB.civic && SB.civic.eraAnchorX) {
+        var civicTargetEra = SB.civic.visibleEra ? SB.civic.visibleEra(cs) : (cs.era || 1);
+        if (civicTargetEra > 1) civicJumpTo = SB.civic.eraAnchorX(civicTargetEra);
+      }
+    }
+    if (cbox && cShown && civicJumpTo != null) {
+      civicScrollLeft = civicJumpTo;
+      civicJumpTo = null;
+      civicJumped = true;
+    }
+    if (cbox && cShown && (civicJumped || civicScrollLeft)) {
       cbox.scrollLeft = civicScrollLeft;
       civicScrollLeft = cbox.scrollLeft || 0;
     }
@@ -642,10 +678,14 @@
   function renderBreakBtn() {
     var s = res(); if (!s) return;
     var ready = s.shell <= 0 && !s.broken && !s.breakSettled && s.shellOpened;
+    var breakPreview = s.shellOpened && s.shell <= 0 && SB.prestige.qualified(s)
+      ? SB.prestige.breakReport(s) : null;
     el('btnBreak').disabled = !ready;
     el('btnBreak').textContent = s.shellOpened && s.shell <= 0 ? '轮回结算' : '凿穿冰壳';
     el('breakHint').textContent = s.shellOpened && s.shell <= 0
-      ? '当前轮回预估：' + (SB.prestige.qualified(s) ? SB.prestige.breakReport(s).tidePoints.toFixed(2) : '0.00') + ' 点；留在本局继续发展可提高预估。'
+      ? breakPreview
+        ? '当前轮回预估：' + breakPreview.tidePoints.toFixed(2) + ' 轮回点、' + breakPreview.stardust + ' 星屑；留在本局继续发展可提高预估。'
+        : '当前轮回预估：0.00 点；留在本局继续发展可提高预估。'
       : ready ? '壳已归零——凿下去。'
       : s.shell > 0 ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。'
       : '冰壳停住了：需要建成「天穹钻机」奇观才能凿穿最后一段。';
@@ -665,7 +705,7 @@
     el('clock').textContent = '存续 ' + (s.t / 3600).toFixed(2) + ' 小时｜已削壳 ' + Math.max(0, s.baseShell - s.shell).toFixed(0);
   }
 
-  /* 族民 tab 上的生育进度条：直接读 tick 里的 s._grow / GROW_NEED（economy.js 第 6 步），
+  /* 族民 tab 上的生育进度条：直接读 tick 里的 s._grow / economy.growthDuration（第 6 步），
    * 不另立计时器——显示与结算永远同源。
    * 【为什么停摆态是「整条红斜纹」而不是空条】生育条件不满足时 economy.tick 每帧把 _grow 归零，
    * 空条和「真的漏存了」在视觉上完全一样，玩家只能刷新十次来猜。
@@ -695,7 +735,7 @@
     var g = s._grow || 0;
     /* _grow 记的是普通进度（每帧 += dt，见 economy.tick 第 6 步），没有加权，
      * 所以进度条与剩余秒数都直接由 g 算，不再需要按倍率还原。 */
-    var need = SB.challenges ? SB.challenges.growthDuration(s) : CFG.GROW_NEED;
+    var need = SB.economy && SB.economy.growthDuration ? SB.economy.growthDuration(s) : CFG.GROW_NEED;
     return { blocked: false, p: Math.min(1, g / need),
       left: Math.ceil(need - g), txt: '' };
   }
@@ -703,7 +743,7 @@
    * （pane 重建走 renderPanes，只在切页时发生——见 paneFolk 里的注释）。 */
   function paintGrow(s) {
     var st = growState(s), g = s._grow || 0;
-    var need = SB.challenges ? SB.challenges.growthDuration(s) : CFG.GROW_NEED;
+    var need = SB.economy && SB.economy.growthDuration ? SB.economy.growthDuration(s) : CFG.GROW_NEED;
     var p = st.blocked ? 0 : Math.min(1, g / need);
     var nm = el('growNm'), fill = el('growFill'), why = el('growWhy');
     if (nm) nm.innerHTML = st.blocked ? '生育 <span class="bad">停摆</span>'
@@ -713,7 +753,7 @@
       /* 「有空住房才生」在新机制下是**正确**的说法（2026-09-25 那版把硬上限拆了，
        * 于是这句话被删过一次；现在墙回来了，它要回来）。 */
       why.textContent = st.blocked ? st.txt
-        : '需藻食 > ' + CFG.GROW_KEEP + '，每 ' + CFG.GROW_NEED + ' 秒出生一名';
+        : '需藻食 > ' + CFG.GROW_KEEP + '，每 ' + need + ' 秒出生一名';
       why.className = 'ds' + (st.blocked ? ' badtxt' : '');
     }
   }
@@ -954,9 +994,13 @@
 
   /* 破壳终章：结算前播放 4 段分镜。动画只读报告，不修改游戏状态；
    * 结算数据仍由 prestige.breakReport / doBreak 负责，避免动画层产生第二份真相。 */
-  function showBreakAnimation(r) {
+  function showBreakAnimation(r, afterAnimation) {
     var modal = el('modal'), box = el('modalBox');
-    if (!modal || !box || prefersReducedMotion()) { showBreakPanel(r); return; }
+    if (!modal || !box || prefersReducedMotion()) {
+      if (afterAnimation) afterAnimation();
+      else showBreakPanel(r);
+      return;
+    }
     clearBreakAnimation();
     _breakAnimationReport = r;
     box.innerHTML =
@@ -1005,7 +1049,10 @@
     function finish() {
       var report = _breakAnimationReport;
       clearBreakAnimation();
-      if (report) showBreakPanel(report);
+      if (report) {
+        if (afterAnimation) afterAnimation();
+        else showBreakPanel(report);
+      }
     }
     function play() {
       clearBreakAnimation();
@@ -1022,7 +1069,7 @@
   }
 
   /* 轮回结算面板（2026-10-02 重设）：契约与 prestige.breakReport 对齐 ——
-   *   r: { P, popScore, buildingScore, developmentScore, q, shellFactor, tidePoints,
+   *   r: { P, popScore, buildingScore, developmentScore, q, shellFactor, tidePoints, stardust,
    *        relicTourism, oldArtwork, oldTideStele, locked }。
    * ⚠️ 不再有「人口门槛 / POP_GATE / 破层级数」那套旧口径：资格门 = 本局《神学》（由 doBreak 判定，
    *   未达则 r.locked=true、tidePoints=0）。面板只负责把报告渲染出来，判据不在这。 */
@@ -1037,7 +1084,8 @@
       '<div class="kv"><span>工坊解锁项（' + (r.workshopCount || 0) + ' 项 ×' + ((CFG.TIDE && CFG.TIDE.CRAFT_W) || 4) + '）</span><b>' + (r.craftScore || 0).toFixed(1) + '</b></div>' +
       '<div class="kv"><span>总发展分</span><b>' + (r.developmentScore || 0).toFixed(1) + '</b></div>' +
       '<div class="kv"><span>破壳进度</span><b>' + (r.q != null ? (r.q * 100).toFixed(0) : '0') + '%</b></div>' +
-      '<div class="kv" style="border:0;margin-top:8px"><span>' + (res() && res().breakSettled ? '本次获得轮回点' : '当前预估轮回点') + '</span><b style="color:var(--amber);font-size:17px">' + (r.tidePoints || 0).toFixed(2) + '</b></div>';
+      '<div class="kv" style="border:0;margin-top:8px"><span>' + (res() && res().breakSettled ? '本次获得轮回点' : '当前预估轮回点') + '</span><b style="color:var(--amber);font-size:17px">' + (r.tidePoints || 0).toFixed(2) + '</b></div>' +
+      (!r.locked ? '<div class="kv"><span>' + (res() && res().breakSettled ? '本次获得星屑' : '当前预估星屑') + '</span><b style="color:#82ddff;font-size:17px">' + (r.stardust || 0) + '</b></div>' : '');
     var extra = '';
     if (r.challengePointMul > 1) extra += '<div class="note">轮回挑战永久加成：轮回点获取 +' + Math.round((r.challengePointMul - 1) * 100) + '%</div>';
     if (r.challengeClear) extra += '<div class="note">挑战通关：<b>' + r.challengeClear.name + ' · ' + r.challengeClear.label + '</b>，永久获得 ' + r.challengeClear.reward + '；之后轮回点获取再 +10%。</div>';
@@ -1052,8 +1100,9 @@
       : (res() && !res().breakSettled
         ? '<div class="note">这只是当前预估，留在本局继续发展后，轮回结算会按最新进度重新计算。</div>'
         : (extra || '<div class="note">轮回点 = 1 + floor(发展分 × 系数 × 破壳系数)，发展分 = 2×峰值族民 + 建筑纪元分 + 工坊解锁项；下一局继承轮回点、已购增益与旧日遗产账本。</div>'));
+    var shellCracked = !!(res() && res().shell <= 0);
     box.innerHTML =
-      '<h3>冰壳裂开了</h3>' +
+      '<h3>' + (shellCracked ? '冰壳裂开了' : '轮回结算') + '</h3>' +
       rows +
       note +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
@@ -1313,13 +1362,40 @@
     var ct = doc.querySelector('.tab[data-tab="civic"]');
     if (ct) {
       var cop = !!(SB.civic && SB.civic.panelOpen && s && SB.civic.panelOpen(s));
-      var civOn = cop && !!(SB.civic.hasResearchable && SB.civic.hasResearchable(s));
+      var notices = cop && civicNoticeState ? civicNoticeState(s) : { emptySlots: 0, researchable: false };
+      var civOn = cop && (notices.emptySlots > 0 || notices.researchable);
       ct.classList.toggle('avail', civOn);
+      if (cop) {
+        var reasons = [];
+        if (notices.emptySlots > 0) reasons.push('有 ' + notices.emptySlots + ' 个空政策卡槽');
+        if (notices.researchable) reasons.push('有可研究市政');
+        ct.title = reasons.join('；');
+      }
+    }
+    /* 奇观页签「可建造」红点（2026-10-20）：复用 masonry 门（与 syncTabLocks:1259 同源）
+     * + wonderBlocked 门禁（与 render-pane-wonder.js:39 面板「可建造」绿色按钮同源），绝不另立判据。
+     * 仅「已解锁且当前材料足够、可立即建造」才亮（用户拍板语义）；活指示不记 localStorage，
+     * 与科技/市政页签红点一致。syncTabResearchDots 每次 PANE_REFRESH 重算（render.js:547）。 */
+    var wt = doc.querySelector('.tab[data-tab="wonder"]');
+    if (wt) {
+      var s2 = s, wUnlocked = !!(s2 && s2.techs && s2.techs.masonry);
+      var wonderOn = false;
+      if (wUnlocked && SB.workshop && SB.wonder) {
+        var WL = SB.wonder.list(), wi;
+        for (wi = 0; wi < WL.length; wi++) {
+          var wid = WL[wi].id;
+          if (s2.wonders && s2.wonders[wid]) continue;        // 已建成
+          if (SB.workshop.wonderBlocked(s2, wid)) continue;   // 未解锁 / 材料不足
+          wonderOn = true; break;
+        }
+      }
+      wt.classList.toggle('avail', wonderOn);
+      if (wonderOn) wt.title = '有可建造的奇观';
     }
   }
 
 
-  /* 公司页（ERA6 市政《宏观经济学》解锁）：与科技/市政并列。
+    /* 公司页（ERA6 市政《宏观经济学》解锁）：与科技/市政并列。
    * 门 = 拥有《宏观经济学》（与 tab 灰态、公司成立触发同源：s.civics.macroeconomics）。
    * 公司由系统自动成立、名字写存档固定（src/companies.js 按行业分池随机），本页只展示。
    * ⚠️ 2026-10-13 改「单独关闭」：逐家公司独立展示各自的等级 / 升级倒计时 / 关闭 / 重建，
@@ -1371,8 +1447,9 @@
   function showOfflineModal(o) {
     o = o || {};
     var box = el('modalBox');
-    if (!box || !el('modal')) return;   // 无 DOM 环境（如离线验收桩）直接跳过
+    if (!box || !el('modal')) return false;   // 无 DOM 环境（如离线验收桩）直接跳过
     var modal = el('modal');
+    modal.classList.remove('break-modal');
     if (o.summary) modal.classList.add('offline-summary-modal');
     else modal.classList.remove('offline-summary-modal');
     var html = o.summary ? (o.body || '') : '<h3>' + (o.title || '离线') + '</h3>' + (o.body || '');
@@ -1393,6 +1470,7 @@
       modal.classList.add('hidden'); modal.classList.remove('offline-summary-modal');
       bodyModalClass(false); if (o.onOk) o.onOk();
     };
+    return true;
   }
   function setOfflineProgress(p) {
     var pr = el('offPr'), pct = el('offPct');
@@ -1456,6 +1534,7 @@
     voidCorrupt: voidCorrupt,
     storyPanel: storyPanel, techTabOpen: techTabOpen, syncTabLocks: syncTabLocks,
     initTabs: initTabs, initSpeeds: initSpeeds, techGoEra: techGoEra, scheduleTechJumpTo: scheduleTechJumpTo,
+    civicGoEra: civicGoEra, scheduleCivicJumpTo: scheduleCivicJumpTo,
     showOfflineModal: showOfflineModal, setOfflineProgress: setOfflineProgress,
     showTreeDetail: showTreeDetail,
     openAutoBatchDialog: openAutoBatchDialog,
@@ -1482,6 +1561,7 @@
      *   因为「已完成项隐不显示」是渲染时**跳过行**决定的，DOM 上没有可翻的类。
      *   调用方（input.js 委托）负责重画。 */
     toggleHideDone: SB.ui.renderParts.toggleHideDone,
+    toggleWonderHideDone: SB.ui.renderParts.toggleWonderHideDone,
     PANE_KEYS: PANE_KEYS,
     /* ⚠️ 2026-10-05：导出 `paneWonder` 供回归直接断言「未解锁的奇观不显示」。
      *   为什么单独导它而不让 e2e 走 renderPanes：那一路是把 HTML 写进假 DOM 的

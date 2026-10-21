@@ -82,7 +82,8 @@
     return m;
   }
   /* ⑪ 总物流站（wonder_logistics）：王国潮道每级 +1% 工艺制作效率（effect.canalCraft）。
-   *   与市政《城市设计》互锁翻倍待批次 3。读 effect.canalCraft × lvl.canal，与上面各源同加法乘区。 */
+   *   与市政《城市设计》「全国快速物流通道」互锁翻倍：同时拥有该奇观时，本效果 ×2（鲛货两用物流管网）。
+   *   读 effect.canalCraft × lvl.canal，与上面各源同加法乘区。 */
   function logisticsCraftRatio(s) {
     var m = 0, i, o = owned(s), L = list();
     for (i = 0; i < L.length; i++) {
@@ -90,6 +91,7 @@
       var c = (L[i].effect && L[i].effect.canalCraft) || 0;
       if (c) m += c * ((s.lvl && s.lvl.canal) || 0);
     }
+    if (m > 0 && o.wonder_national_logistics) m *= 2;  // 与全国快速物流通道互锁翻倍
     return m;
   }
 

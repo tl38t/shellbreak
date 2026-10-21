@@ -297,7 +297,12 @@
     if (!s) return false;
     /* 星屑商店的一次性先行建造协议：所有分区开关可见，默认仍关闭；
      * 实际建造继续走 build() 的科技、前置与资源校验。 */
-    if (s.perk && s.perk.earlyAutoBuild > 0) return true;
+    /* 2026-10-20：原早期全开项拆成每区独立项（earlyAutoBuild<Zone>）。星海区（space）仅商店可开，
+     * techs/civics 不挂星海区自动建造；perk 键用首字母大写后缀（earlyAutoBuildCore 等）。 */
+    if (s.perk) {
+      var _eab = zone.charAt(0).toUpperCase() + zone.slice(1);
+      if (s.perk['earlyAutoBuild' + _eab] > 0) return true;
+    }
     var C = SB.CIVICS || [];
     for (var i = 0; i < C.length; i++) {
       if (!(s.civics && s.civics[C[i].id]) || !Array.isArray(C[i].autoBuildZones)) continue;

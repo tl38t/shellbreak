@@ -162,7 +162,7 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 #pane-village .bzone .row .nm{display:grid;grid-template-columns:160px minmax(0,1fr);align-items:start;column-gap:16px;line-height:1.45;width:100%}
 #pane-village .bzone .row .bld-label{display:flex;align-items:center;gap:6px;width:160px;min-width:0}
 #pane-village .bzone .row .bld-label .building-name{flex:0 1 auto;max-width:112px;min-width:0;overflow:visible;text-overflow:clip;white-space:nowrap}
-#pane-village .bzone .row .bld-label .tag{flex:0 0 42px;width:42px;margin-left:auto;box-sizing:border-box;text-align:center}
+#pane-village .bzone .row .bld-label .tag{flex:0 0 64px;width:64px;margin-left:auto;box-sizing:border-box;text-align:center;white-space:nowrap}
 #pane-village .bzone .row .bld-ops{display:flex;align-items:center;align-content:center;justify-content:flex-start;gap:8px;flex-wrap:wrap;min-width:0;min-height:26px;width:100%;box-sizing:border-box}
 #pane-village .bzone .row .bld-ops>.btn.tog{width:104px;min-width:104px;margin:0;padding-left:6px;padding-right:6px;text-align:center;white-space:nowrap}
 #pane-village .bzone .row .bld-ops .furnctl{width:232px;min-width:0;max-width:232px;flex:0 1 232px;box-sizing:border-box;flex-wrap:wrap;margin-left:0}

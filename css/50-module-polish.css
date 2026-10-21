@@ -80,7 +80,10 @@ html[data-ui-theme="day"] .qbtn{background:#e4efec;border-color:#9bb9b9;color:#1
 .workshop-grid>.row{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"name action" "desc action";align-items:center;gap:4px 10px;min-width:0;margin:0;padding:10px 11px;border:1px solid var(--line-soft);border-radius:11px;background:linear-gradient(145deg,rgba(16,42,66,.52),rgba(9,28,45,.32));}
 .workshop-grid>.row .nm{grid-area:name;min-width:0;font-size:12px}
 .workshop-grid>.row .ds{grid-area:desc;min-width:0;font-size:10px;line-height:1.5}
-.workshop-grid>.row>.btn{grid-area:action;max-width:170px;white-space:normal;line-height:1.35;font-size:10px}
+.workshop-grid>.row>.upgrade-actions{grid-area:action;display:flex;flex-direction:column;align-items:stretch;gap:5px;max-width:170px}
+.workshop-grid>.row>.upgrade-actions>.btn{max-width:170px;white-space:normal;line-height:1.35;font-size:10px}
+.autodrill-controls{display:flex;gap:5px}
+.autodrill-controls .btn{flex:1;min-width:36px;min-height:30px;padding:4px 8px;font-size:14px}
 .workshop-grid>.note{grid-column:1/-1;margin:0;padding:8px 10px}
 .workshop-crafts>.row{grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "desc" "actions" "auto";align-items:start;gap:7px}
 .workshop-crafts>.row .craftbtns{grid-area:actions;display:flex;flex-wrap:wrap;gap:5px}
@@ -113,6 +116,13 @@ html[data-ui-theme="day"] .workshop-grid>.row{background:linear-gradient(145deg,
 .panel-subtabs .subtab .subcnt{margin-left:5px;font-size:10px;font-weight:600;opacity:.78;white-space:nowrap}
 .panel-subtabs .subtab .subnew{margin-left:5px;padding:1px 5px;border-radius:999px;background:rgba(245,205,107,.16);border:1px solid rgba(245,205,107,.45);color:var(--gold);font-size:8px;font-weight:800;letter-spacing:.6px;vertical-align:middle;white-space:nowrap}
 html[data-ui-theme="day"] .panel-subtabs .subtab .subnew{background:#fdf4dc;color:#8a6414;border-color:rgba(138,100,20,.34)}
+.civic-subtab-status,.civic-slot-warning,.civic-slot-empty-flag{display:inline-flex;align-items:center;gap:4px;color:#ff7380;font-size:9px;font-weight:800;white-space:nowrap}
+.civic-subtab-status{margin-left:7px;padding:2px 6px;border:1px solid rgba(236,91,107,.28);border-radius:999px;background:rgba(236,91,107,.10);vertical-align:middle}
+.civic-subtab-status i,.civic-slot-warning i,.civic-slot-empty-flag i{display:inline-block;width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:#ec5b6b;box-shadow:0 0 6px rgba(236,91,107,.7)}
+.civic-slot-warning{margin-left:2px;padding:2px 7px;border-radius:999px;background:rgba(236,91,107,.10)}
+.civic-slot-empty-flag{float:right}
+html[data-ui-theme="day"] .civic-subtab-status,html[data-ui-theme="day"] .civic-slot-warning{color:#b52c3e;background:#fff0f1;border-color:rgba(181,44,62,.25)}
+html[data-ui-theme="day"] .civic-subtab-status i,html[data-ui-theme="day"] .civic-slot-warning i,html[data-ui-theme="day"] .civic-slot-empty-flag i{background:#d8394b;box-shadow:0 0 5px rgba(216,57,75,.45)}
 /* 行内 NEW：复用「已买下 / 已装填」那套 .tag 标签语言，只把颜色换成金色。 */
 .tag.new{background:rgba(245,205,107,.16);color:var(--gold)}
 html[data-ui-theme="day"] .tag.new{background:#fdf4dc;color:#8a6414}
@@ -126,13 +136,14 @@ html[data-ui-theme="day"] .civic-subtabs .subtab.on{background:#f6edd8;border-co
 .wonder-overview>div:first-child:before{content:"✦";position:absolute;left:0;top:3px;display:grid;place-items:center;width:32px;height:32px;border:1px solid rgba(245,205,107,.35);border-radius:10px;background:rgba(245,205,107,.12);color:var(--gold);font-size:17px}
 .wonder-overview small{color:var(--gold);font-size:9px;font-weight:800;letter-spacing:1.5px}
 .wonder-overview h2{margin:1px 0;font-size:19px}.wonder-overview p{margin:0;color:var(--dim);font-size:10px}
+.wonder-overview-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}.wonder-overview-side .tgl{white-space:nowrap}
 .wonder-count{flex:none;min-width:92px;padding:7px 10px;border:1px solid rgba(245,205,107,.24);border-radius:10px;background:rgba(245,205,107,.07);text-align:center}
 .wonder-count b{display:block;color:var(--gold);font-size:18px;font-variant-numeric:tabular-nums}.wonder-count i{font-style:normal;color:var(--dim);font-size:12px}.wonder-count small{display:block;color:var(--dim);font-size:9px;letter-spacing:0}
 .wonder-intro{margin:0 0 10px;padding:9px 11px;border-left:3px solid var(--gold);border-radius:0 8px 8px 0;background:rgba(245,205,107,.07);color:var(--dim);font-size:10px;line-height:1.55}
 .wonder-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 .wonder-grid>.row{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm status" "desc desc" "action action";align-items:center;gap:5px 8px;min-width:0;margin:0;padding:11px;border:1px solid var(--line-soft);border-radius:12px;background:linear-gradient(145deg,rgba(18,42,63,.72),rgba(10,28,45,.65));transition:transform .16s,border-color .16s,box-shadow .16s}
 .wonder-grid>.row:hover{transform:translateY(-2px);border-color:rgba(245,205,107,.38);box-shadow:0 8px 20px rgba(0,0,0,.14)}
-.wonder-grid>.row .nm{grid-area:nm;min-width:0;font-size:12px}.wonder-grid>.row .ds{grid-area:desc;min-width:0;color:var(--dim);font-size:10px;line-height:1.55}
+.wonder-grid>.row .nm{grid-area:nm;display:flex;align-items:center;gap:9px;min-width:0;font-size:12px}.wonder-grid>.row .wonder-icon{display:block;width:36px;height:36px;flex:none;object-fit:contain;border:1px solid rgba(245,205,107,.22);border-radius:8px;background:rgba(245,205,107,.06);filter:drop-shadow(0 2px 4px rgba(0,0,0,.24))}.wonder-grid>.row .wonder-icon-fallback{display:grid;place-items:center;color:var(--gold);font-size:19px}.wonder-grid>.row .wonder-name-copy{min-width:0}.wonder-grid>.row .wonder-name-line{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.wonder-grid>.row .ds{grid-area:desc;min-width:0;color:var(--dim);font-size:10px;line-height:1.55}
 .wonder-grid>.row .wonder-state{grid-area:status;justify-self:end;padding:2px 7px;border:1px solid rgba(245,205,107,.2);border-radius:99px;color:var(--gold);font-size:9px;white-space:nowrap}
 .wonder-grid>.row .wonder-state.ready{color:var(--green);border-color:rgba(111,224,174,.25);background:rgba(111,224,174,.08)}
 .wonder-grid>.row .wonder-cost{display:block;margin-top:4px;color:var(--gold);font-size:10px;font-weight:650}
@@ -145,7 +156,7 @@ html[data-ui-theme="day"] .wonder-intro{background:#f8f3e7;color:#65797a}
 html[data-ui-theme="day"] .wonder-grid>.row{background:linear-gradient(145deg,#fbfdfb,#f2f5ef);border-color:rgba(154,108,37,.2)}
 html[data-ui-theme="day"] .wonder-grid>.row:hover{border-color:rgba(154,108,37,.46);box-shadow:0 8px 20px rgba(83,70,39,.1)}
 @media(max-width:760px){.wonder-overview{margin:-14px -14px 10px;padding:14px}.wonder-overview p{max-width:250px}.wonder-count{min-width:78px;padding:6px}.wonder-grid{grid-template-columns:minmax(0,1fr)}}
-@media(max-width:390px){.wonder-overview{gap:8px}.wonder-overview>div:first-child{padding-left:37px}.wonder-count{min-width:68px}.wonder-count b{font-size:16px}.wonder-grid>.row{padding:9px}.wonder-grid>.row>.btn{width:100%;min-width:0}}
+@media(max-width:390px){.wonder-overview{gap:8px}.wonder-overview>div:first-child{padding-left:37px}.wonder-count{min-width:68px}.wonder-count b{font-size:16px}.wonder-overview-side .tgl{padding:4px 6px;font-size:9px}.wonder-grid>.row{padding:9px}.wonder-grid>.row>.btn{width:100%;min-width:0}}
 
 /* 政体选择收纳：当前政体独立显示，候选项压成可展开的紧凑行。 */
 .gov-current{margin:0 0 12px;padding:11px 13px;border:1px solid rgba(105,226,223,.3);border-radius:11px;background:linear-gradient(120deg,rgba(105,226,223,.09),rgba(14,34,52,.55))}

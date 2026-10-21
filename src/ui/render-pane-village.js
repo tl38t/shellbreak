@@ -62,23 +62,8 @@
      * ⚠️ 关键行为变更：之前「全 0（停产）就不出行」⇒ 玩家把工坊座数全关（让流给天穹钻机）
      *   时整行没有任何消耗标注，看着像「热液能消耗漏标」。现在改为**始终列出该建筑吃的所有类型**，
      *   满转给数值、停产给「（停产时为 0）」占位——与信息卡口径对齐，消耗类型永远可见。 */
-    function drawTag(sp, id) {
-      var meta = SB.ui && SB.ui.consumeMeta;
-      var cr = (SB.economy && SB.economy.consumeRates) ? SB.economy.consumeRates(sp, id) : null;
-      if (!cr || !meta) return '';
-      var eats = meta.BUILDING_CONSUME[id];
-      if (!eats || !eats.length) return '';
-      var ps = [];
-      for (var k = 0; k < eats.length; k++) {
-        var key = eats[k];
-        ps.push(cr[key] > 0
-          ? meta.CONSUME_LABEL[key] + ' −' + cr[key].toFixed(2) + '/秒'
-          : meta.CONSUME_IDLE[key]);
-      }
-      return '<span class="fdraw" title="满转口径：这几座每秒消耗 ' +
-        ps.map(function (x) { return x.replace(' −', ' ').replace('/秒', ''); }).join('、') +
-        '（与结算同式，缺料时会按比例降产）">' + ps.join(' · ') + '</span>';
-    }
+    /* 2026-10-21：drawTag 已提升为共享 SB.ui.drawTag（render-info.js），巢穴页控件行直接调它，
+     * 与信息卡、星图建筑管理三处同源，不再各写一份。 */
     for (var zi = 0; zi < (SB.BUILD_ZONES || []).length; zi++) {
       var z = SB.BUILD_ZONES[zi];
       var zRows = '';
@@ -170,7 +155,7 @@
             '<button class="fbtn" data-furnace-inc="1" title="多开一座"' +
             (_frun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* 金属 + 暖石 两样都标（2026-10-17）：原来只标暖石，玩家会以为炉子只烧石头。 */
-            drawTag(s, 'furnace') +
+            SB.ui.drawTag(s, 'furnace') +
             '</span>';
         }
         /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
@@ -187,7 +172,7 @@
             '<button class="fbtn" data-turbine-inc="1" title="开一座"' +
             (_trun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* 汽轮机只烧暖石，走同一条 drawTag（口径统一：以后它若多吃一样不用再改这里）。 */
-            drawTag(s, 'hydroturbine') +
+            SB.ui.drawTag(s, 'hydroturbine') +
             '</span>';
         }
         /* 热液工坊「开几座」（2026-10-07，与汽轮机 turbineStop / 热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
@@ -203,7 +188,7 @@
             '<button class="fbtn" data-shop-inc="1" title="开一座"' +
             (_srun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* 工坊原先一个消耗都没标（用户 2026-10-17 截图指出）：它吃 热液能 + 金属 两样。 */
-            drawTag(s, 'hydroshop') +
+            SB.ui.drawTag(s, 'hydroshop') +
             '</span>';
         }
         /* 轨道卫星「开几座」（2026-10-17 · spec §5，与 furnaceStop 同口径）：建成（lv>0）后才出现。
@@ -220,7 +205,7 @@
             (_satrun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* ERA7（2026-10-18 · 用户纠正补）：卫星每级耗 1 热液能/秒，与空间站同口径，
              * 走 drawTag 显示总额（drawTag 读 BUILDING_CONSUME + consumeRates 同式）。 */
-            drawTag(s, 'satellite') +
+            SB.ui.drawTag(s, 'satellite') +
             '</span>';
         }
         /* 空间站「开几座」（2026-10-17 · spec §5，与 satelliteStop 同口径）：建成（lv>0）后才出现。
@@ -236,7 +221,7 @@
             '<b class="fnum">开 ' + _ssrun + '/' + lv + '</b>' +
             '<button class="fbtn" data-spacestation-inc="1" title="开一座"' +
             (_ssrun >= lv ? ' disabled' : '') + '>＋</button>' +
-            drawTag(s, 'spacestation') +
+            SB.ui.drawTag(s, 'spacestation') +
             '</span>';
         }
         /* ERA8 生物材料研究所「开几座」：一并控制四种原料、θ产出和热液能耗。 */
@@ -249,7 +234,7 @@
             '<b class="fnum">开 ' + _blrun + '/' + lv + '</b>' +
             '<button class="fbtn" data-biomatlab-inc="1" title="开一座"' +
             (_blrun >= lv ? ' disabled' : '') + '>＋</button>' +
-            drawTag(s, 'biomatlab') + '</span>';
+            SB.ui.drawTag(s, 'biomatlab') + '</span>';
         }
         /* ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁1）：发射场制造模式切换。
          * ERA10 市政（2026-10-20）：判据从写死 `europa_launch` 改成建筑上的 `launchpad` 标记
@@ -268,14 +253,18 @@
             '">' + (_nodeOn ? '节点' : '太阳帆') + '</button>' +
             '<b class="fnum">制造 ' + (_nodeOn ? '戴森球节点' : '太阳帆') + '</b></span>';
         }
-        // 没有等级上限，所以只显示当前级数，不显示 x/上限
+        // 等级标签显式标注“等级”，避免孤立数字被误认成其他状态。
         // 潮纹馆带「虚级」（大潮纹馆 +3，按效果算、按建筑不算，见 wonder.libBonus）：
-        // 徽章直接写成「1+3」——真实等级在前、虚级在后，一眼看出哪部分是白送的。
+        // 等级直接写成「等级 1+3」——真实等级在前、虚级在后，一眼看出哪部分是白送的。
         // 其它建筑没有虚级通道，照旧只写一个数。
-        var lvTxt = (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0)
+        var lvValueTxt = (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0)
           ? lv + '+' + SB.wonder.libBonus(s) : lv;
         /* ERA10 市政：带等级上限的建筑显示「当前/上限」，让玩家一眼看到还剩几级可建。 */
-        if (b.maxLvl) lvTxt = lv + '/' + b.maxLvl;
+        if (b.maxLvl) lvValueTxt = lv + '/' + b.maxLvl;
+        var lvTitle = b.maxLvl ? '建筑等级（当前/上限）' : '建筑等级';
+        if (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0 && !b.maxLvl) {
+          lvTitle = '含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）';
+        }
         var rowState = 'bld-row' + (lv > 0 ? ' is-owned' : '') + (blocked || canalCap ? ' is-blocked' : '') +
           (!blocked && !canalCap && ok ? ' is-ready' : '');
         /* ERA10 市政（2026-10-20 · 虚境祭坛「每升一级按钮上就加一些血纹」）：
@@ -288,9 +277,7 @@
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
           '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
-          ' <span class="tag" data-lv="' + b.id + '"' +
-          (lvTxt !== String(lv) ? ' title="含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）"' : '') +
-          '>' + lvTxt + '</span></span><span class="bld-ops">' + autoBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + elBtn + '</span></div>' +
+          ' <span class="tag" data-lv="' + b.id + '" title="' + lvTitle + '">等级 ' + lvValueTxt + '</span></span><span class="bld-ops">' + autoBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + elBtn + '</span></div>' +
           '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div></div>' +
           '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button></div>';

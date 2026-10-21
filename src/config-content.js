@@ -548,16 +548,15 @@
       cost: { tiplate: 300, science: 200000 },
       desc: '温水藻场：每级（× 藻场等级）额外 +0.5 科技/秒，不受季节、耗 0.05 热液能（首版简化为科学加成）。' },
 
-    /* ── ERA7 工艺升级（2026-10-17 实装 · spec §4 自动化钻探）──
-     * 【自动化钻探】开关型（对标 upg_starscope 的开关 + 每级耗热液能模式）：
-     *   矿井（金属）产出每级 +100%（加法叠进鱼骨矿井同一括号，tick/rates 两处显式判 s.autoDrillOn
-     *   —— ⚠️ 故意不走 mineSilt 键：upgSum 无开关感知，关掉后加成还生效就成了面板撒谎）；
-     *   每级耗 1 热液能/秒（economy.hydroAlloc 的 drillDraw，优先级最低：工坊→钻机→钻探）。
+    /* ── ERA7 工艺升级（2026-10-21 调整 · 自动化钻探）──
+     * 【自动化钻探】可设置开启的矿井数；每座开启的矿井给钛、铀对应产线的自身份额 +100%，
+     *   总加成按开启数 / 总矿井数折算，最多 +100%，不按矿井数重复叠乘；每座开启矿井耗 0.3 热液能/秒。
+     *   总矿井数取砂矿坑等级；已开启矿井数由 s.autoDrillCount 保存。
      *   cost 科技点 450,000 = 解锁它的科技自身 cost（§0-4 用户拍板开先例）；
      *   工坊升级 cost 的 science 键由 workshop 通用 for-in 扣费天然支持（无需改 afford/spend）。 */
     { id: 'upg_autodrill', name: '自动化钻探', need: 'autodrill',
       cost: { tiplate: 300, resonantDrill: 300, science: 450000 },
-      desc: '矿井产出每级 +100%，每级耗 1 热液能/秒（可开关）。' },
+      desc: '开启矿井的钛与铀产出 +100%；总加成按开启矿井占比计算，最多 +100%。每座开启矿井耗 0.3 热液能/秒。' },
     /* ERA7（spec §4）：物流仓库 —— 顶替商队驿站（upgradesBuilding），买下后商队驿站更名「物流仓库」。
      *   每级给纪元七及之前解锁的有上限材料 +200 容量（capOf 材料分支，BLD.logiwareCap）。
      *   cost 科技点 1,000,000 = 解锁它的科技《大型架构》自身 cost（§0-4 开先例）；材料为提议值（与另两条 era7 升级同口径，不含脚手架）。 */
@@ -585,16 +584,15 @@
      *   轮回/破壳后效果失效。s.upgrades 跨轮回本就重置（freshRun 全新表）⇒ 重新买即重新生效，
      *   「失效需重研」的语义自然成立。cost 为提议值，待标定。
      * 【工业机器人】need=机器人技术（robotics）。工坊工艺制作效率 +100%（独立乘区 ×2，
-     *   与 boomcraftMul/throneCraftMul 同形态相乘）；每级（=装 1 级）耗 1 热液能/秒
-     *   （hydroAlloc 的 robotDraw，优先级最后）；可开关 s.indRobotOn（对标 autoDrillOn：
-     *   关掉 ⇒ 加成与耗能一起停。⚠️ 开关 UI 通道与 autoDrillOn 同状态——读侧已接线，UI 待补）。
+     *   与 boomcraftMul/throneCraftMul 同形态相乘）；开启时耗 0.3 热液能/秒
+     *   （hydroAlloc 的 robotDraw，优先级最后）；可开关 s.indRobotOn（关掉 ⇒ 加成与耗能一起停）。
      *   cost 科技点 3,000,000 = 《机器人技术》自身 cost（§0-4 先例）；材料提议值。 */
     { id: 'upg_laserengrave', name: '激光快速雕版', need: 'laser',
       cost: { thetaMetal: 120, science: 2000000 },
       desc: '本周目全部工艺制造成本 −30%（轮回/破壳后失效，重新购买即再次生效）。' },
     { id: 'upg_indrobot', name: '工业机器人', need: 'robotics',
       cost: { thetaMetal: 200, science: 3000000 },
-      desc: '工坊工艺制作效率 +100%（独立乘区 ×2）；每级耗 1 热液能/秒（可开关）。' },
+      desc: '工坊工艺制作效率 +100%（独立乘区 ×2）；开启时耗 0.3 热液能/秒（可开关）。' },
     /* ── ERA10（2026-10-20 实装 · 用户 ERA10 表「强人工智能」解锁）──
      * 【强人工智能】need=强人工智能（strong_ai）。消耗 1000 θ金属（用户表原值）。
      * 效果两件（用户拍 Q3「进人口基项」）：
@@ -795,12 +793,12 @@
      * 【总物流站】need=现代化交通（modtrans，尤里卡=王国潮道 20 级）。
      *   效果：王国潮道每级 +1% 工艺效率（craftRatio 加法乘区，economy 读 wonder.owned +
      *   lvl.canal 乘 BLD.canalCraft，见 workshop.craftRatio）。
-     *   ⚠️ 与市政《城市设计》「全国快速物流通道」互锁翻倍 —— 那条跨模块互锁属批次 3，
-     *   本版只落基础 +1%/级，互锁待补。cost 为提议值，待标定。 */
+     *   与市政《城市设计》「全国快速物流通道」互锁翻倍：同时拥有该奇观时本效果 ×2（双向，见 wonder.js:logisticsCraftRatio）。
+     *   cost 为提议值，待标定。 */
     { id: 'wonder_logistics', name: '总物流站', era: 6, need: 'modtrans',
       cost: { tiplate: 500, scaffold: 100 },
       effect: { canalCraft: 0.01 },
-      desc: '王国潮道每级 +1% 工艺效率（与市政《城市设计》互锁翻倍待批次 3）。' },
+      desc: '王国潮道每级 +1% 工艺效率（同时拥有全国快速物流通道则翻倍）。' },
     /* 【全国快速物流通道】needCivic=城市设计（urbandesign）。
      *   效果：王国潮道每级 +1% 精铁 / 钢产能（canalCraftIronSteel 加法乘区，economy 读 wonder.nationalLogisticsMul）。
      *   ⚠️ 与总物流站（wonder_logistics）互锁翻倍：同时拥有总物流站时，本效果 ×2（鲛货两用物流管网）。
@@ -929,7 +927,7 @@
    *  warmstone 0.05。奢侈品是「贸易物」，现在没有开销渠道 ⇒ 定高了纯粹是虚空膨胀，
    *  定低了等贸易系统落地要重调。改这一行即可，别去别处找第二次。 */
   var UNIT = { kelp: 2.50, coral: 0.50, silt: 0.09, stone: 0.30, warmstone: 0.05,
-    iron: 0.06, sci: 0.15, culture: 0.15, luxury: 0.05,
+    iron: 0.12, sci: 0.15, culture: 0.15, luxury: 0.05,
     /* ⚠️ ERA3 热液能系统（2026-09-29，待标定默认值，数值等用户拍）：
      *   · hydroOut  热液汽轮机每台每秒产热液能（用户规格「1 台产 1 能」⇒ 1/级/秒）
      *   · hydroWarm 热液汽轮机每台每秒耗暖石（用户规格「能耗 5 暖石/s」⇒ 5/级/秒）
@@ -944,10 +942,10 @@
     /* ERA7（2026-10-17 · spec §2 提议值）：铀 —— 每名矿工每秒 0.002（暖石 0.05 的 1/25，稀有度对齐）。
      *   门=科技 autodrill（tick/rates 两处同式）；调产出只改此处。 */
     uranium: 0.002,
-    /* ERA7（spec §4）：自动化钻探（upg_autodrill）每级每秒耗热液能（提议值）。 */
-    drillHydro: 1,
-    /* ERA8（2026-10-18 · spec §4）：工业机器人（upg_indrobot）每级每秒耗热液能（提议值）。 */
-    robotHydro: 1,
+    /* ERA7（2026-10-21 用户确认）：自动化钻探每座开启矿井每秒耗热液能。 */
+    drillHydro: 0.3,
+    /* ERA8（2026-10-21 用户确认）：工业机器人开启时每秒耗热液能。 */
+    robotHydro: 0.3,
     /* ERA8（2026-10-19 · B7）：机器人充能站（robotbay）每级每秒耗热液能（spec §4 列 8）。 */
     robotbayHydro: 8,
     /* ERA9（2026-10-19）：欧罗巴冰面发射场（europa_launch）每级每秒耗热液能（hydroAlloc 流耗，最低优先级）。 */

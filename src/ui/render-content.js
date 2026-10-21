@@ -184,11 +184,11 @@
       common_destiny: '「人人为我，我为人人。」',
       sacred_path: '「我就是道路、真理、生命；如不借着我，没有人能到父那里去。」',
       solar_logistics: '「法\'赛特，夏\'多桑，我的燃料呢！？」',
-      void_faith: '有什么东西在我们心中觉醒了它在⠃低▒语⠙',
+      void_faith: '有ﾊ什ﾊ么ﾟ东ﾞﾊ西⠁ﾟ在⠉ｦ我⠹⠙们ヾ心中╳觉醒了',
       public_works: '「本地计划建设一条超空间快速通道，不需要地球，所以它将在50个地球年后被拆除。」',
       supreme_directive: '「这是个命令！」',
-      void_explore: '祂在等待我们门后是═░无ﾀ尽〆ｱ的虚境',
-      ascend_void: '我们来了归╳ゞ于ｦ群⠹⠁星〆',
+      void_explore: '祂ゞ在等⠁待我⠉们',
+      ascend_void: '我⡫们ｦ来ゝ了',
       our_sea: '「直抵群星。」',
     },
   };
@@ -210,7 +210,19 @@
     wonder_skydrill: 'assets/wonders/icons-demo-v1/sky-drill.png',
     wonder_olo_wa_cathedral: 'assets/wonders/generated-v2/wonder-olo-wa-cathedral.webp',
     wonder_shadow_theater: 'assets/wonders/generated-v2/wonder-shadow-theater.webp',
-    wonder_congress: 'assets/wonders/generated-v2/wonder-congress.webp'
+    wonder_congress: 'assets/wonders/generated-v2/wonder-congress.webp',
+    /* ERA6–10 补齐：按各自纪元的技术阶段绘制，880² WebP。 */
+    wonder_logistics: 'assets/wonders/generated-v2/wonder-logistics.webp',
+    wonder_national_logistics: 'assets/wonders/generated-v2/wonder-national-logistics.webp',
+    wonder_cradle: 'assets/wonders/generated-v2/wonder-cradle.webp',
+    wonder_throne: 'assets/wonders/generated-v2/wonder-throne.webp?v=2',
+    wonder_bolocillo: 'assets/wonders/generated-v2/wonder-bolocillo.webp',
+    wonder_voyager: 'assets/wonders/generated-v2/wonder-voyager.webp',
+    wonder_saturn: 'assets/wonders/generated-v2/wonder-saturn.webp?v=2',
+    wonder_khalifa: 'assets/wonders/generated-v2/wonder-khalifa.webp?v=2',
+    wonder_fishvr: 'assets/wonders/generated-v2/wonder-fishvr.webp?v=3',
+    wonder_geek: 'assets/wonders/generated-v2/wonder-geek.webp?v=2',
+    wonder_jupitor_mas: 'assets/wonders/generated-v2/wonder-jupitor-mas.webp'
   };
   SB.ui.renderContent.WONDER_FLAVOR = {
     wonder_tide_stele: '第一道潮纹被刻进石碑，也把工匠们共同的尺度留给了后来者。',

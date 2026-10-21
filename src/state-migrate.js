@@ -63,6 +63,13 @@
       configurable: true
     });
     out.lvl = fixTable(raw.lvl, base.lvl);
+    /* 自动化钻探逐矿井启停（2026-10-21）：新档读 autoDrillCount；旧档将旧布尔开关迁成
+     *   全开 / 全关数量，保持已有玩家的设置。总数永远夹在当前砂矿坑等级内。 */
+    var _adTotal = Math.max(0, Math.floor(out.lvl.siltpit || 0));
+    var _adSaved = (typeof raw.autoDrillCount === 'number' && isFinite(raw.autoDrillCount))
+      ? raw.autoDrillCount
+      : ((raw.upgrades && raw.upgrades.upg_autodrill && raw.autoDrillOn !== false) ? _adTotal : 0);
+    out.autoDrillCount = Math.max(0, Math.min(_adTotal, Math.floor(_adSaved)));
     /* 热泉炉「开几座」迁移（2026-09-30）：旧档只有布尔 `furnaceOn`（见 freshRun 那条注）。
      *   false ⇒ 全部停（停用数 = 当前等级）；true / 缺键 ⇒ 全开（0）。
      *   再夹到 [0, lv]：存了一个比等级还大的停用数时，运行座数会算成负数。

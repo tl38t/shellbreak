@@ -10,12 +10,15 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=182" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=189" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
   <div class="atmosphere-scene scene-a"></div>
   <div class="atmosphere-scene scene-b"></div>
+  <div class="era1-bubbles">
+    <i></i><i></i><i></i><i></i><i></i><i></i>
+  </div>
   <div class="atmosphere-vignette"></div>
 </div>
 <div class="wrap" data-page-node-id="R3GyesNvCCnIGdybfi94vw">
@@ -25,9 +28,21 @@
       <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">渊海天壳 <small data-page-node-id="hp4Kyh6NeGNVYnRp4XyHzx">SHELLBREAK · 原始时代 → 破冰重置</small></h1>
       <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自渊海，至天壳</div>
     </div>
-    <div class="theme-switch" role="group" aria-label="界面配色">
-      <button type="button" data-ui-theme-choice="day" aria-pressed="false">☀ 日间</button>
-      <button type="button" data-ui-theme-choice="night" aria-pressed="true">☾ 夜间</button>
+    <div class="header-actions">
+      <div class="theme-switch" role="group" aria-label="界面配色">
+        <button type="button" data-ui-theme-choice="day" aria-pressed="false">☀ 日间</button>
+        <button type="button" data-ui-theme-choice="night" aria-pressed="true">☾ 夜间</button>
+      </div>
+      <details class="ui-settings">
+        <summary aria-label="界面设置">⚙ 设置</summary>
+        <div class="ui-settings-popover" role="group" aria-label="界面效果">
+          <div class="ui-settings-title">界面效果</div>
+          <label class="ui-setting-row">
+            <input type="checkbox" data-ui-effect="deep-bubbles">
+            <span><b>气泡上浮动画</b><small data-bubbles-hint>只在暗流纪偶尔上浮</small></span>
+          </label>
+        </div>
+      </details>
     </div>
   </header>
 
@@ -184,63 +199,63 @@
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
 <script src="src/config.js?v=172"></script>
-<script src="src/config-catalog.js?v=4"></script>
-<script src="src/config-content.js?v=16"></script>
-<script src="src/config-buildings.js?v=21"></script>
+<script src="src/config-catalog.js?v=5"></script>
+<script src="src/config-content.js?v=20"></script>
+<script src="src/config-buildings.js?v=25"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=121"></script>
+<script src="src/techs.js?v=124"></script>
 <script src="src/tech.js?v=113"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=10"></script>
-<script src="src/civics.js?v=122"></script>
+<script src="src/civics-data.js?v=15"></script>
+<script src="src/civics.js?v=126"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
-<script src="src/companies.js?v=4"></script>
+<script src="src/companies.js?v=5"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
-<script src="src/state-migrate.js?v=11"></script>
-<script src="src/state.js?v=140"></script>
-<script src="src/workshop.js?v=108"></script>
-<script src="src/wonder.js?v=107"></script>
-<script src="src/economy-social.js?v=3"></script>
-<script src="src/economy.js?v=170"></script>
-<script src="src/economy-rates.js?v=10"></script>
-<script src="src/economy-tick.js?v=8"></script>
-<script src="src/offline-scheduler.js?v=1"></script>
+<script src="src/state-migrate.js?v=12"></script>
+<script src="src/state.js?v=142"></script>
+<script src="src/workshop.js?v=110"></script>
+<script src="src/wonder.js?v=108"></script>
+<script src="src/economy-social.js?v=4"></script>
+<script src="src/economy.js?v=176"></script>
+<script src="src/economy-rates.js?v=14"></script>
+<script src="src/economy-tick.js?v=12"></script>
+<script src="src/offline-scheduler.js?v=2"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=1"></script>
 <script src="src/shell.js?v=101"></script>
-<script src="src/habitat.js?v=108"></script>
+<script src="src/habitat.js?v=109"></script>
 <script src="src/folk.js?v=106"></script>
-<script src="src/prestige.js?v=118"></script>
+<script src="src/prestige.js?v=119"></script>
 <script src="src/challenges.js?v=6"></script>
 <script src="src/auto-research.js?v=1"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=6"></script>
+<script src="src/ui/render-content.js?v=11"></script>
 <script src="src/ui/render-common.js?v=5"></script>
-<script src="src/ui/render-info.js?v=12"></script>
-<script src="src/ui/render-pane-research.js?v=6"></script>
-<script src="src/ui/render-pane-village.js?v=12"></script>
+<script src="src/ui/render-info.js?v=17"></script>
+<script src="src/ui/render-pane-research.js?v=9"></script>
+<script src="src/ui/render-pane-village.js?v=14"></script>
 <script src="src/ui/render-pane-folk.js?v=4"></script>
 <script src="src/ui/render-pane-meta.js?v=3"></script>
 <script src="src/ui/render-pane-challenges.js?v=6"></script>
 <script src="src/ui/render-pane-company.js?v=1"></script>
 <script src="src/ui/render-pane-faith.js?v=1"></script>
-<script src="src/ui/render-pane-wonder.js?v=2"></script>
-<script src="src/ui/render-pane-star-map.js?v=5"></script>
-<script src="src/ui/render-pane-workshop.js?v=6"></script>
+<script src="src/ui/render-pane-wonder.js?v=3"></script>
+<script src="src/ui/render-pane-star-map.js?v=6"></script>
+<script src="src/ui/render-pane-workshop.js?v=10"></script>
 <script src="src/ui/render-environment.js?v=11"></script>
-<script src="src/ui/render.js?v=206"></script>
-<script src="src/game.js?v=134"></script>
+<script src="src/ui/render.js?v=213"></script>
+<script src="src/game.js?v=138"></script>
 <script src="src/save-transfer.js?v=1"></script>
-<script src="src/ui/input.js?v=142"></script>
-<script src="src/ai-strategy.js?v=4"></script>
-<script src="src/ui/theme.js?v=1"></script>
+<script src="src/ui/input.js?v=146"></script>
+<script src="src/ai-strategy.js?v=32"></script>
+<script src="src/ui/theme.js?v=2"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=1"></script>

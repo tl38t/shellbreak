@@ -22,12 +22,19 @@
     { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 }   // 满 3h
   ];
 
-  /* 行业定义。namePool 为该行业专属名字库（不与其他行业共用，避免撞名）。 */
+  /* 行业定义。namePool 为该行业专属名字库（不与其他行业共用，避免撞名）。
+   * 2026-10-20 扩展字段：
+   *   · tiers：可覆盖通用 SB.COMPANY_TIERS（10/20/30%）的三档加成（用户要的档位不统一）。
+   *   · req：解锁前置（{tech:id} / {civic:id}）。公司本身由《宏观经济学》(ERA6) 解锁，
+   *           req 必须 ERA6 及以后（用户硬约束），否则门早过、等于没门。
+   *   · craft:true：加成进 workshop.craftRatio 加法乘区（非资源产出），由 SB.companyCraftRatio 喂入。
+   *   · outLabel：公司页描述用（替代原先硬编码的 kelp/coral 文案）。 */
   SB.COMPANIES = [
     {
       id: 'algae',
       res: 'kelp',          // 加成资源：藻食
       label: '藻食',
+      outLabel: '藻食产出',
       luxBonus: 0.10,       // 奢侈品消耗额外 +10%（恒，不随级变）
       namePool: [
         '深海藻业', '碧渊工造', '洛瓦藻业', '赛琳藻食', '维拉商行'
@@ -37,23 +44,89 @@
       id: 'coral',
       res: 'coral',         // 加成资源：珊瑚
       label: '珊瑚',
+      outLabel: '珊瑚产出',
       luxBonus: 0.10,
       namePool: [
         '珊瑚商会', '渊海渔坊', '沧溟商行', '卡里昂海产', '瑞文珊瑚'
       ]
-    }
-    /* 以后加行业示例：
-    {
-      id: 'iron', res: 'iron', label: '铁矿',
-      luxBonus: 0.10,
-      namePool: [ '...', '...' ]
     },
-    */
+    /* 2026-10-20 新增四家行业公司（用户拍板）。挂点均在公司时代(ERA6)之后。 */
+    {
+      id: 'craftco',
+      res: 'craft',         // 非资源键，仅作 companyState/名字 的索引键
+      label: '工艺',
+      outLabel: '工艺制作效率',
+      luxBonus: 0.10,
+      craft: true,          // 加成进 craftRatio 加法乘区（SB.companyCraftRatio）
+      req: { tech: 'robotics' },   // ERA8 机器人技术
+      tiers: [
+        { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
+        { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
+        { key: 'national', name: '全国性企业', bonus: 0.40, unlockSec: 10800 }
+      ],
+      namePool: [
+        '精工联合', '匠造实业', '恒锐制造', '熔铸工业', '磐石工坊集团',
+        '锐锋工艺', '千锤联合', '铸元实业', '匠心智造', '铁腕工业'
+      ]
+    },
+    {
+      id: 'steelco',
+      res: 'steel',         // 加成资源：钢
+      label: '钢铁',
+      outLabel: '钢产出',
+      luxBonus: 0.10,
+      req: { tech: 'hotforge_hammer' },  // ERA6 热力锻锤
+      tiers: [
+        { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
+        { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
+        { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 }
+      ],
+      namePool: [
+        '瀚海钢铁', '玄铁冶炼', '锋钢实业', '熔渊钢业', '钢渊集团',
+        '砺锋钢铁', '渊钢联合', '千锻钢业', '玄钢工造', '潮汐钢铁'
+      ]
+    },
+    {
+      id: 'thetaco',
+      res: 'thetaMetal',    // 加成资源：θ生物金属
+      label: 'θ金属',
+      outLabel: 'θ生物金属产出',
+      luxBonus: 0.10,
+      req: { tech: 'biomat' },   // ERA8 生物材料
+      tiers: [
+        { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
+        { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
+        { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 }
+      ],
+      namePool: [
+        '碧渊生物金属', '纳米星材', 'θ基联合', '微构金属', '生材工研',
+        '晶膜实业', '渊纳米科技', '自适应金属', '碧核材料', '星膜工造'
+      ]
+    },
+    {
+      id: 'scico',
+      res: 'sci',           // 加成资源：科技
+      label: '科研',
+      outLabel: '科技产出',
+      luxBonus: 0.10,
+      req: { tech: 'chemistry' },  // ERA6 化学
+      tiers: [
+        { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
+        { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
+        { key: 'national', name: '全国性企业', bonus: 0.40, unlockSec: 10800 }
+      ],
+      namePool: [
+        '启明研究院', '求真科学', '星图学术', '智海研究', '格物联合',
+        '渊知科技', '明理研究院', '探微科学', '知微学术', '寰宇研究'
+      ]
+    }
   ];
 
-  /* 给定公司成立后的游戏内秒数，返回当前等级索引（0/1/2）。 */
-  SB.companyTierIndex = function (elapsedSec) {
-    var tiers = SB.COMPANY_TIERS, i, best = 0;
+  /* 给定公司成立后的游戏内秒数，返回当前等级索引（0/1/2）。
+   * ⚠️ 2026-10-20：支持每家公司自带 tiers（覆盖通用 SB.COMPANY_TIERS），故第二参传 tiers。 */
+  SB.companyTierIndex = function (elapsedSec, tiers) {
+    tiers = tiers || SB.COMPANY_TIERS;
+    var i, best = 0;
     for (i = 0; i < tiers.length; i++) {
       if ((elapsedSec || 0) >= tiers[i].unlockSec) best = i;
     }
@@ -130,6 +203,29 @@
     if (!s.companyNames) s.companyNames = {};
     if (!s.companyNames[res]) s.companyNames[res] = SB.pickCompanyName(res);
     return true;
+  };
+
+  /* 逐家公司解锁前置（科技/市政）。无 req ⇒ 老行为（由 macroeconomics 闸门统一管）。
+   * ⚠️ 前置必须 ERA6 及以后（公司 ERA6 才开），否则门早过等于没门（用户硬约束）。 */
+  SB.companyReqMet = function (s, c) {
+    if (!c || !c.req) return true;
+    if (c.req.tech) return !!(s.techs && s.techs[c.req.tech]);
+    if (c.req.civic) return !!(s.civics && s.civics[c.req.civic]);
+    return true;
+  };
+
+  /* 公司页「未解锁」文案用的前置描述（研究/完成市政名）。找不到名就退化成 id。 */
+  SB.companyReqText = function (c) {
+    if (!c || !c.req) return '解锁前置';
+    if (c.req.tech) {
+      var t = (SB.TECHS || []).filter(function (x) { return x.id === c.req.tech; })[0];
+      return t ? ('研究「' + t.name + '」') : ('研究 ' + c.req.tech);
+    }
+    if (c.req.civic) {
+      var v = (SB.CIVICS || []).filter(function (x) { return x.id === c.req.civic; })[0];
+      return v ? ('完成市政「' + v.name + '」') : ('完成市政 ' + c.req.civic);
+    }
+    return '解锁前置';
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);
