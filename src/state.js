@@ -32,7 +32,7 @@
      *   oldArtworkEarnedTotal    旧日艺术品累计获得总数（固定市政点/秒，递减曲线）
      *   oldTideStelesEarnedTotal 旧日潮纹碑石累计获得总数（固定科技点/秒，递减曲线） */
     return { tide: 0, spent: 0, tideEarnedTotal: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null,
-      religionSeen: false, shopUnlocked: false,
+      religionSeen: false, shopUnlocked: false, stardustShopUnlocked: false,
       autoResearch: { tech: false, civic: false },
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
       challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0 } },
@@ -71,7 +71,15 @@
       starInfinite: 0, starSmelt: 0, starFolk: 0,
       earlyAutoBuildCore: 0, earlyAutoBuildFood: 0, earlyAutoBuildWorkshop: 0, earlyAutoBuildTrade: 0,
       earlyAutoBuildAcademy: 0, earlyAutoBuildCivic: 0, earlyAutoBuildFaith: 0, earlyAutoBuildSpace: 0,
-      starLaunchSpeed: 0, starDysonCost: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0 };
+      starLaunchSpeed: 0, starDysonCost: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0,
+      /* 2026-10-23 潮汐之树（TIDE_TREE）新增运行态键：键名必须与 config.TIDE_TREE 各节点 apply 键一致。
+       * recipeCraft 是字典（配方 id → 每级效率加成），其余为数值累加/聚合键。
+       * 旧 PERKS 的 retired 键（gather/coef/popcap/coldStore/offline/civicArchive/civicPlan/govRoutine/
+       * tideProof/scienceStart/legacyCraft/sacrament/buildSave/mineTax）保留在表里以兼容零散读数，值恒 0。 */
+      startPop: 0, minerPact: 0, quarryPact: 0, furnaceEff: 0, hydroshopEff: 0, hydroshopBoost: 0,
+      scholarPact: 0, scribePact: 0, workSpeed: 0, coldPenalty: 0, luxDrain: 0, happiness: 0,
+      slotCraft: 0, slotEcon: 0, slotSci: 0, craftLoop: 0, furnaceLoop: 0, hydroLoop: 0,
+      recipeCraft: {} };
   }
 
   /* 从跨周目商店账本（meta.perks）重建本局运行时增益表：每个已购等级的 apply 值 × 等级，
@@ -80,22 +88,32 @@
    *   不依赖上一局残留（上一局的 s.perk 本就由这里派生，重算即幂等）。
    *   中途在商店买增益只写 meta.perks（prestige.buyPerk 不碰当前局 s.perk），
    *   故「购买在下一局开局生效」，与方案文档「freshRun 后继续生效」口径一致。 */
+  /* 从跨周目商店账本（meta.perks）重建本局运行时增益表。每个已购等级的 apply 值按节点语义折进 perk：
+   *   · mode:'max'（如 startPop 三档）→ 取各档 apply 乘积的最高值，不累加；
+   *   · dyn:'loop5'（如 craftLoop）→ 键系数 × 5% × 轮回次数 × 等级（每局重算，故读 m.cycle）；
+   *   · 常规 → 纯加法（a[k] × 等级）；
+   * give 折进 out.give（开局资源 map），recipe 折进 perk.recipeCraft（配方 id → 加成）。
+   * ⚠️ 这是「轮回商店增益每局生效」的唯一落点：freshRun 永远从这里重建 s.perk，幂等。 */
   function derivePerksFromMeta() {
-    var out = { perk: emptyPerks(), kelp: 0, coral: 0, science: 0, applied: false };
+    var out = { perk: emptyPerks(), give: {}, applied: false };
     var m = null;
     try { if (SB.game && SB.game.meta) m = SB.game.meta(); } catch (e) { m = null; }
     if (!m) return out;
     out.applied = true;
-    var PL = SB.PERKS || [], i;
+    var cycle = m.cycle || 0;
+    var PL = SB.TIDE_TREE || [], i;
     for (i = 0; i < PL.length; i++) {
       var p = PL[i];
       var lv = (m.perks && m.perks[p.id]) || 0;
       if (!lv) continue;
       var a = p.apply || {};
-      for (var k in a) out.perk[k] = (out.perk[k] || 0) + a[k] * lv;
-      if (p.id === 'food') out.kelp += 200 * lv;
-      if (p.id === 'coral') out.coral += 150 * lv;
-      if (p.id === 'scienceStart') out.science += 100 * lv;
+      for (var k in a) {
+        if (p.mode === 'max') out.perk[k] = Math.max(out.perk[k] || 0, a[k] * lv);
+        else if (p.dyn === 'loop5') out.perk[k] = (out.perk[k] || 0) + a[k] * 0.05 * cycle * lv;
+        else out.perk[k] = (out.perk[k] || 0) + a[k] * lv;
+      }
+      if (p.give) { for (var g in p.give) out.give[g] = (out.give[g] || 0) + p.give[g] * lv; }
+      if (p.recipe) out.perk.recipeCraft[p.recipe] = (out.perk.recipeCraft[p.recipe] || 0) + (p.rmul || 0.1) * lv;
     }
     var SPL = SB.STAR_PERKS || [];
     for (i = 0; i < SPL.length; i++) {
@@ -159,7 +177,10 @@
        *    注同源漏洞键 ⇒ NaN（商人产它、addRes 收它）。它的特别之处是**有产出
        *    没有开销**：tick 里那条 `addRes(s,'luxury',...)` 现在每帧都跑，漏了这一键
        *    会在开局几秒内就把 s.res 整个染成 NaN——比石梁那次更慢、更难发现。 */
-      res: { kelp: d.kelp, coral: d.coral, stone: 0, silt: 0, warmstone: 0, iron: 0, science: d.science, fuel: 0, culture: 0,
+      /* ⚠️ 开局馈赠（先人孑遗系 give 节点）从 derivePerksFromMeta 的 give map 注入：
+       *   startKelp→kelp / startCoral→coral / startStone→stone / startMetal→silt /
+       *   startScience→science / startCivic→culture，各 +200 × 等级。 */
+      res: { kelp: d.give.kelp || 0, coral: d.give.coral || 0, stone: d.give.stone || 0, silt: d.give.silt || 0, warmstone: 0, iron: 0, science: d.give.science || 0, fuel: 0, culture: d.give.culture || 0,
         stoneBeam: 0, ironBracket: 0, rope: 0, hardCoral: 0, luxury: 0, faith: 0,
         /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件。三者均无 CAP_BASE 上限键
          *   ⇒ capOf 自动 Infinity（钢无上限抄猫国）。这里只 seed 初始台账，防止 addRes 漏键染 NaN。
@@ -247,7 +268,7 @@
          *   漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）；
          *   thetaFlow 读 lvl.biomatlab 也依赖本 seed（undefined > 0 恒 false 是侥幸不是保障）。 */
         biomatlab: 0, rheamine: 0, titancloud: 0, robotbay: 0,
-        /* ERA9（光帆纪 · 本次实装）：马尔斯工造中心（火星在地制造，space 区）/ 欧罗巴冰面发射场（母星 core 区）。
+        /* ERA9（寻光纪 · 本次实装）：马尔斯工造中心（火星在地制造，space 区）/ 欧罗巴冰面发射场（母星 core 区）。
          * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
          * europa_launch 虽在母星（core 区），但发射台向星图推进太阳帆（s.sunSails 累加器），
          * 故另需 sunSails / launchProcs 运行态种子（见下方 geek 段旁）。 */
@@ -255,7 +276,7 @@
         /* ERA9（2026-10-20 市政《神们自己》解锁建筑）：黑色方碑（信仰产出 ×1.2）。
          * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。 */
         black_monolith: 0,
-        /* ERA10（戴森纪 · 2026-10-20）：太阳星环（space 区，近恒星轨道建设解锁）。
+        /* ERA10（驭星纪 · 2026-10-20）：太阳星环（space 区，近恒星轨道建设解锁）。
          * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
          * ⚠️ e2e「每座建筑都在状态表的 lvl 里」当场抓到这条漏写——这正是那条断言存在的理由。 */
         solar_ring: 0,
@@ -450,8 +471,8 @@
        *      「产出 + 消费决策」，与离线闸门（先算完才能操作）的口径冲突。 */
       autoUpg: {},
       /* 工坊自动制作槽：**数组，逐槽**，元素为 null（空槽）或
-       *   `{ id: 'craft_stonebeam', pct: 0.25 }`（有上限原料：满仓转制比例）/
-       *   `{ id: 'craft_scaffold', batch: 80 }`（全无上限原料：库存达到批次数后造这一批）。
+       *   `{ id: 'craft_stonebeam', pct: 0.25 }`（全部原料有上限：满仓转制比例）/
+       *   `{ id: 'craft_scaffold', batch: 80 }`（含无上限原料：库存达到批次数后造这一批）。
        *   ⚠️ 用数组而不是 `{craftId: pct}` 映射：槽是**有位置**的资源（槽数由升级项与
        *     轮回商店决定，"第几槽"本身就是玩家看得到的东西），映射表表达不了「槽位已满」。
        *   ⚠️ 长度**不预填**到上限：槽数是派生的（slotCap 现算），预填会让「买了 perk 之后
@@ -489,7 +510,7 @@
        * 必须放在基础表里，否则 migrateRun 会把它当成未知字段丢掉，离线补算永远为 0。
        * 读取当次会手删（game.boot），不进运行状态。 */
       _ts: 0,
-      /* ERA9（光帆纪 · 本次实装）：星图太阳帆累加器 + G.E.E.K 运行态种子。
+      /* ERA9（寻光纪 · 本次实装）：星图太阳帆累加器 + G.E.E.K 运行态种子。
        *   sunSails     —— 太阳帆总数（**无限**，无上限）；各发射场独立按周期发射该场等级数量的太阳帆。
        *                   每帆 +0.05 热液能/秒（进 hydroAlloc 供给侧，不进库存）。
        *   geek         —— G.E.E.K 星球重构机运行态：
@@ -508,15 +529,16 @@
       /* 三座发射场各自保存停用等级数；默认 0 = 每座场建成的等级全部运行。 */
       launchStops: { europa_launch: 0, terra_launch: 0, enceladus_launch: 0 },
       geek: { geekOn: false, enceladusDone: false, terraDone: false, costOffset: 0, enceladusRun: 0, terraRun: 0 },
-      /* ERA10（戴森纪 · 2026-10-20 实装）：戴森球子系统状态。
+      /* ERA10（驭星纪 · 2026-10-20 实装）：戴森球子系统状态。
        *   dysonNodes     —— 戴森球节点总数（发射场节点模式每座场每运行满 1 节律，按该场等级发射，无限）。
        *   launchMode     —— 发射场制造模式：'sail'（太阳帆，默认）/ 'node'（戴森球节点）；
        *                     完成《绝热材料》后 UI 才给切换钮（adiabatic 门控在渲染侧）。
        *   dysonDone      —— 戴森球 100% 达成旗（双达标取小口径达 1）；只置一次。
        *   dysonPopupSeen —— 通关弹窗已播旗（弹窗只播一次；继续游玩后不再弹）。
+       *   dysonPopupPending —— 离线补算期间达成竣工、待结算窗关闭后再播的挂起旗（见下）。
        * ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底自动带出默认值（与 geek 同机制）。 */
       dysonNodes: 0, launchMode: 'sail',
-      dysonDone: false, dysonPopupSeen: false
+      dysonDone: false, dysonPopupSeen: false, dysonPopupPending: false
     };
   }
 
@@ -533,6 +555,8 @@
     m.stardust = Math.max(0, Math.floor(m.stardust));
     if (!(typeof m.stardustEarned === 'number' && isFinite(m.stardustEarned))) m.stardustEarned = m.stardust;
     m.stardustEarned = Math.max(0, Math.floor(m.stardustEarned));
+    /* 星屑商店在首座轨道卫星建成时永久解锁，跨周目保留；旧档若已有星屑资产/天赋，视为曾解锁。 */
+    m.stardustShopUnlocked = m.stardustShopUnlocked === true || m.stardust > 0 || m.stardustEarned > 0;
     if (!m.starPerks || typeof m.starPerks !== 'object' || Array.isArray(m.starPerks)) m.starPerks = {};
     /* 2026-10-20 迁移：原「先行建造协议」(earlyAutoBuild) 一次性全开，拆成每区独立项（含 space——
      * 商店保留星海区先行建造，techs/civics 不挂星海区自动建造）。老存档已购 earlyAutoBuild ⇒ 转成 8 个区的
@@ -554,6 +578,12 @@
       for (var spi = 0; spi < starDefs.length; spi++) if (starDefs[spi].id === starPerkId) starPerkMax = starDefs[spi].n || 1;
       m.starPerks[starPerkId] = Math.min(starPerkMax, Math.max(0, Math.floor(starPerkLevel)));
     }
+    if (!m.stardustShopUnlocked) {
+      for (var starPerkId2 in m.starPerks) if (m.starPerks[starPerkId2] > 0) {
+        m.stardustShopUnlocked = true;
+        break;
+      }
+    }
     if (!m.autoResearch || typeof m.autoResearch !== 'object' || Array.isArray(m.autoResearch)) m.autoResearch = {};
     m.autoResearch = { tech: m.autoResearch.tech === true, civic: m.autoResearch.civic === true };
     if (!m.challenges || typeof m.challenges !== 'object' || Array.isArray(m.challenges)) m.challenges = { completed: {} };
@@ -572,12 +602,73 @@
     }
     return m;
   }
+  /* 2026-10-23 潮汐之树：旧 PERKS 账本（meta.perks 旧 id）迁移到新 TIDE_TREE 节点等级。
+   * 已迁移（无旧 id）⇒ 幂等跳过；旧档无此键 ⇒ 不动。映射口径（见每日日志 / docs/JUDGMENTS）：
+   *   · 同键保留：housePlan / autoStudy / autoCivic / autoEvent / shellSurvey / wonderBlueprint /
+   *     coralPact / algaeCrop / furnaceBoost / craftQuota / luxuryPact / matStore（链 + 尾）
+   *   · mineTax → 拆 minerPact + quarryPact（两链都给，等价旧「矿脉税契」同时管三线）
+   *   · popcap → startPop（max 三档，取最高 +min(L,3)）
+   *   · autoClicker1/2/3 → autoClick（n:3，档数相加）
+   *   · scienceStart → startScience（开局科技）· d1/d2/d3（thin）→ thinShell（薄壳）
+   *   · autoCraft1/2/3 → 新 autoCraft1/2/3（各 n:1）· autoCraft 链同键保留语义
+   *   · 退役（丢弃）：g1/g2/g3 / c1/c2 / coldStore / offline / civicArchive / civicPlan /
+   *     govRoutine / tideProof / legacyCraft / sacrament / buildSave / food / coral
+   * 链映射（旧 +1/级、新各节点 +2 单位、尾 +1/级）：L≥1→节点1，L≥3→节点2，L≥5→节点3，尾=max(0,L-6)。 */
+  function migratePerks(meta) {
+    if (!meta || !meta.perks || typeof meta.perks !== 'object') return;
+    var old = meta.perks;
+    var OLD = ['food','coral','g1','g2','g3','c1','c2','d1','d2','d3','popcap','housePlan',
+      'coldStore','offline','matStore','autoCraft1','autoCraft2','autoCraft3','legacyCraft',
+      'wonderBlueprint','shellSurvey','civicArchive','civicPlan','govRoutine','tideProof',
+      'scienceStart','autoStudy','autoCivic','coralPact','mineTax','algaeCrop','furnaceBoost',
+      'sacrament','craftQuota','luxuryPact','buildSave','autoClicker1','autoClicker2','autoClicker3','autoEvent'];
+    for (var oi = 0; oi < OLD.length; oi++) if (old[OLD[oi]] !== undefined) break;
+    if (oi >= OLD.length) return; // 已迁移，幂等
+    var nv = {}, lvOf = function (id) { return (old[id] || 0); };
+    function chain(n1, n2, n3, tail, levels) {
+      if (levels >= 1) nv[n1] = 1;
+      if (levels >= 3) nv[n2] = 1;
+      if (levels >= 5) nv[n3] = 1;
+      var t = levels - 6; if (t > 0) nv[tail] = t;
+    }
+    if (lvOf('housePlan') > 0) nv.housePlan = 1;
+    if (lvOf('autoStudy') > 0) nv.autoStudy = 1;
+    if (lvOf('autoCivic') > 0) nv.autoCivic = 1;
+    if (lvOf('autoEvent') > 0) nv.autoEvent = 1;
+    if (lvOf('shellSurvey') >= 1) nv.shellSurvey1 = 1;
+    if (lvOf('shellSurvey') >= 2) nv.shellSurvey2 = 1;
+    if (lvOf('shellSurvey') >= 3) nv.shellSurvey3 = 1;
+    if (lvOf('wonderBlueprint') >= 1) nv.wonderBlueprint1 = 1;
+    if (lvOf('wonderBlueprint') >= 3) nv.wonderBlueprint2 = 1;
+    chain('coralPact1','coralPact2','coralPact3','coralPactTail', lvOf('coralPact'));
+    chain('algaeCrop1','algaeCrop2','algaeCrop3','algaeCropTail', lvOf('algaeCrop'));
+    chain('furnaceBoost1','furnaceBoost2','furnaceBoost3','furnaceBoostTail', lvOf('furnaceBoost'));
+    chain('craftQuota1','craftQuota2','craftQuota3','craftQuotaTail', lvOf('craftQuota'));
+    chain('luxuryPact1','luxuryPact2','luxuryPact3','luxuryPactTail', lvOf('luxuryPact'));
+    chain('matStore1','matStore2','matStore3','matStoreTail', lvOf('matStore'));
+    chain('minerPact1','minerPact2','minerPact3','minerPactTail', lvOf('mineTax'));
+    chain('quarryPact1','quarryPact2','quarryPact3','quarryPactTail', lvOf('mineTax'));
+    if (lvOf('popcap') >= 1) nv.startPop1 = 1;
+    if (lvOf('popcap') >= 2) nv.startPop2 = 1;
+    if (lvOf('popcap') >= 3) nv.startPop3 = 1;
+    var ac = (lvOf('autoClicker1') > 0 ? 1 : 0) + (lvOf('autoClicker2') > 0 ? 1 : 0) + (lvOf('autoClicker3') > 0 ? 1 : 0);
+    if (ac > 0) nv.autoClick = Math.min(3, ac);
+    if (lvOf('scienceStart') > 0) nv.startScience = 1;
+    if (lvOf('d1') + lvOf('d2') + lvOf('d3') > 0) nv.thinShell = 1;
+    if (lvOf('autoCraft1') > 0) nv.autoCraft1 = 1;
+    if (lvOf('autoCraft2') > 0) nv.autoCraft2 = 1;
+    if (lvOf('autoCraft3') > 0) nv.autoCraft3 = 1;
+    /* 退役项（food/coral/g1/g2/g3/c1/c2/coldStore/offline/civicArchive/civicPlan/govRoutine/
+       tideProof/legacyCraft/sacrament/buildSave）直接丢弃，不进 nv。 */
+    meta.perks = nv;
+  }
   function loadMeta() {
     var rawStr = null;
     try {
       rawStr = root.localStorage && root.localStorage.getItem(CFG.SAVE_KEY);
       if (!rawStr) { metaLoadProblem = null; return emptyMeta(); }
       var m = normalizeMeta(JSON.parse(rawStr));
+      migratePerks(m);
       metaLoadProblem = null;
       return m;
     } catch (e) {

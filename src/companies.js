@@ -5,26 +5,29 @@
  * 设计要点（用户拍板）：
  *  · 与科技/市政并列的独立标签；拥有市政「宏观经济学」后自动成立，玩家无手动操作。
  *  · 每家公司绑定一个**行业**（加成一种资源）。初期两家：藻食(kelp) / 珊瑚(coral)。
- *  · 公司成立后的游戏内时长决定其等级（乡镇→地方→全国），产出加成随之提升；
+ *  · 公司成立后的游戏内时长决定其等级（乡镇→地方→全国→星球命脉→寰宇巨企），产出加成随之提升；
  *    奢侈品消耗恒 +10%，不随等级变。
  *  · 公司名从**本行业专属名字池**随机抽取，写进存档后固定不刷新。
  *
  * 以后加行业：往 SB.COMPANIES 里再加一项即可（id/res/label/luxBonus/namePool）。
- * 三级成长是**全行业通用**的，要统一调就改 SB.COMPANY_TIERS。
+ * 通用行业的等级成长是**全行业通用**的，要统一调就改 SB.COMPANY_TIERS。
  * ─────────────────────────────────────────────────────────────────────────── */
 (function (root) {
   var SB = root.SB || (root.SB = {});
 
-  /* 三级成长：按公司成立后的游戏内秒数解锁。bonus 是对绑定资源的产出加成。 */
+  /* 五级成长：按公司成立后的游戏内时长解锁；后两级还受 ERA8/ERA9 市政门槛约束。
+   * bonus 是对绑定资源的产出加成；解锁时间从各公司成立时起算。 */
   SB.COMPANY_TIERS = [
     { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
     { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },   // 满 1h
-    { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 }   // 满 3h
+    { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 }, // 满 3h
+    { key: 'planetary', name: '星球命脉', bonus: 0.50, unlockSec: 21600, unlockCivic: 'globalization' }, // 满 6h + 全球化
+    { key: 'cosmic', name: '寰宇巨企', bonus: 0.70, unlockSec: 43200, unlockCivic: 'solar_logistics' } // 满 12h + 太阳系后勤保障
   ];
 
   /* 行业定义。namePool 为该行业专属名字库（不与其他行业共用，避免撞名）。
    * 2026-10-20 扩展字段：
-   *   · tiers：可覆盖通用 SB.COMPANY_TIERS（10/20/30%）的三档加成（用户要的档位不统一）。
+   *   · tiers：可覆盖通用 SB.COMPANY_TIERS 的行业加成（工艺/科研公司的全国性企业为 +40%）。
    *   · req：解锁前置（{tech:id} / {civic:id}）。公司本身由《宏观经济学》(ERA6) 解锁，
    *           req 必须 ERA6 及以后（用户硬约束），否则门早过、等于没门。
    *   · craft:true：加成进 workshop.craftRatio 加法乘区（非资源产出），由 SB.companyCraftRatio 喂入。
@@ -62,7 +65,9 @@
       tiers: [
         { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
         { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
-        { key: 'national', name: '全国性企业', bonus: 0.40, unlockSec: 10800 }
+        { key: 'national', name: '全国性企业', bonus: 0.40, unlockSec: 10800 },
+        { key: 'planetary', name: '星球命脉', bonus: 0.60, unlockSec: 21600, unlockCivic: 'globalization' },
+        { key: 'cosmic', name: '寰宇巨企', bonus: 0.80, unlockSec: 43200, unlockCivic: 'solar_logistics' }
       ],
       namePool: [
         '精工联合', '匠造实业', '恒锐制造', '熔铸工业', '磐石工坊集团',
@@ -79,7 +84,9 @@
       tiers: [
         { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
         { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
-        { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 }
+        { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 },
+        { key: 'planetary', name: '星球命脉', bonus: 0.50, unlockSec: 21600, unlockCivic: 'globalization' },
+        { key: 'cosmic', name: '寰宇巨企', bonus: 0.70, unlockSec: 43200, unlockCivic: 'solar_logistics' }
       ],
       namePool: [
         '瀚海钢铁', '玄铁冶炼', '锋钢实业', '熔渊钢业', '钢渊集团',
@@ -96,7 +103,9 @@
       tiers: [
         { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
         { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
-        { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 }
+        { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 },
+        { key: 'planetary', name: '星球命脉', bonus: 0.50, unlockSec: 21600, unlockCivic: 'globalization' },
+        { key: 'cosmic', name: '寰宇巨企', bonus: 0.70, unlockSec: 43200, unlockCivic: 'solar_logistics' }
       ],
       namePool: [
         '碧渊生物金属', '纳米星材', 'θ基联合', '微构金属', '生材工研',
@@ -113,7 +122,9 @@
       tiers: [
         { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
         { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
-        { key: 'national', name: '全国性企业', bonus: 0.40, unlockSec: 10800 }
+        { key: 'national', name: '全国性企业', bonus: 0.40, unlockSec: 10800 },
+        { key: 'planetary', name: '星球命脉', bonus: 0.60, unlockSec: 21600, unlockCivic: 'globalization' },
+        { key: 'cosmic', name: '寰宇巨企', bonus: 0.80, unlockSec: 43200, unlockCivic: 'solar_logistics' }
       ],
       namePool: [
         '启明研究院', '求真科学', '星图学术', '智海研究', '格物联合',
@@ -122,15 +133,26 @@
     }
   ];
 
-  /* 给定公司成立后的游戏内秒数，返回当前等级索引（0/1/2）。
-   * ⚠️ 2026-10-20：支持每家公司自带 tiers（覆盖通用 SB.COMPANY_TIERS），故第二参传 tiers。 */
-  SB.companyTierIndex = function (elapsedSec, tiers) {
+  /* 给定公司成立后的游戏内秒数和存档市政，返回当前可用等级索引。
+   * 自定义 tiers 覆盖通用档位；tier.unlockCivic 负责 ERA8/ERA9 的全局晋级门槛。 */
+  SB.companyTierIndex = function (elapsedSec, tiers, s) {
     tiers = tiers || SB.COMPANY_TIERS;
     var i, best = 0;
     for (i = 0; i < tiers.length; i++) {
-      if ((elapsedSec || 0) >= tiers[i].unlockSec) best = i;
+      var tier = tiers[i];
+      if ((elapsedSec || 0) < tier.unlockSec) break;
+      if (tier.unlockCivic && !(s && s.civics && s.civics[tier.unlockCivic])) break;
+      best = i;
     }
     return best;
+  };
+
+  /* 公司页显示等级晋升所需的市政名称；未知 ID 退回原始键，便于发现数据断链。 */
+  SB.companyTierUnlockName = function (tier) {
+    if (!tier || !tier.unlockCivic) return '';
+    var civics = SB.CIVICS || [], i;
+    for (i = 0; i < civics.length; i++) if (civics[i].id === tier.unlockCivic) return civics[i].name;
+    return tier.unlockCivic;
   };
 
   /* 给每个行业抽一个名字（各自从自己的池里随机），返回 { res: name }。

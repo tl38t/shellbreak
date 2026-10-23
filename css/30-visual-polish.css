@@ -159,10 +159,10 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 #pane-village .bzone .row .bld-main{display:grid;grid-template-columns:32px minmax(0,1fr);align-items:center;gap:8px;width:100%;box-sizing:border-box}
 #pane-village .bzone .row .bld-main:not(.has-building-icon)::before{content:"";display:block;width:32px;height:32px;visibility:hidden}
 #pane-village .bzone .row .bld-copy{min-width:0;width:100%}
-#pane-village .bzone .row .nm{display:grid;grid-template-columns:160px minmax(0,1fr);align-items:start;column-gap:16px;line-height:1.45;width:100%}
-#pane-village .bzone .row .bld-label{display:flex;align-items:center;gap:6px;width:160px;min-width:0}
-#pane-village .bzone .row .bld-label .building-name{flex:0 1 auto;max-width:112px;min-width:0;overflow:visible;text-overflow:clip;white-space:nowrap}
-#pane-village .bzone .row .bld-label .tag{flex:0 0 64px;width:64px;margin-left:auto;box-sizing:border-box;text-align:center;white-space:nowrap}
+#pane-village .bzone .row .nm{display:grid;grid-template-columns:220px minmax(0,1fr);align-items:center;column-gap:16px;line-height:1.45;width:100%}
+#pane-village .bzone .row .bld-label{display:grid;grid-template-columns:minmax(0,1fr) 64px;align-items:center;align-self:stretch;column-gap:8px;width:220px;min-width:0}
+#pane-village .bzone .row .bld-label .building-name{display:block;width:100%;max-width:none;min-width:0;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pane-village .bzone .row .bld-label .tag{width:64px;margin:0;box-sizing:border-box;text-align:center;white-space:nowrap}
 #pane-village .bzone .row .bld-ops{display:flex;align-items:center;align-content:center;justify-content:flex-start;gap:8px;flex-wrap:wrap;min-width:0;min-height:26px;width:100%;box-sizing:border-box}
 #pane-village .bzone .row .bld-ops>.btn.tog{width:104px;min-width:104px;margin:0;padding-left:6px;padding-right:6px;text-align:center;white-space:nowrap}
 #pane-village .bzone .row .bld-ops .furnctl{width:232px;min-width:0;max-width:232px;flex:0 1 232px;box-sizing:border-box;flex-wrap:wrap;margin-left:0}
@@ -260,13 +260,15 @@ html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-t
 @container (min-width:928px) and (max-width:1199px){
   #pane-village .bzone .bzbody>.row{grid-template-columns:minmax(0,1fr);align-items:stretch;gap:6px}
   #pane-village .bzone .bzbody>.row>.buy-actions{grid-column:1;justify-self:end}
-  #pane-village .bzone .row .nm,#star-map-buildings .row .nm{grid-template-columns:152px minmax(0,1fr);column-gap:12px}
-  #pane-village .bzone .row .bld-label,#star-map-buildings .row .bld-label{width:152px}
+  #pane-village .bzone .row .nm{grid-template-columns:220px minmax(0,1fr);column-gap:12px}
+  #pane-village .bzone .row .bld-label{width:220px}
+  #star-map-buildings .row .nm{grid-template-columns:152px minmax(0,1fr);column-gap:12px}
+  #star-map-buildings .row .bld-label{width:152px}
 }
 /* 大屏双列按列向下流，卡片保留自然高度，不为同一行的高卡片制造空白。 */
 @container (min-width:1360px){
   #pane-village .bzone .bzbody{display:block;column-count:2;column-gap:12px}
-  #pane-village .bzone .bzbody>.row{display:inline-grid;width:100%;margin:0 0 8px;break-inside:avoid;vertical-align:top}
+  #pane-village .bzone .bzbody>.row{display:inline-grid;width:100%;min-width:0;min-height:70px;box-sizing:border-box;margin:0 0 8px;break-inside:avoid;vertical-align:top}
 }
 @media (max-width:520px){
   #pane-village .bzone .row{grid-template-columns:minmax(0,1fr) auto;gap:8px}
@@ -277,12 +279,24 @@ html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-t
 @media (prefers-reduced-motion:reduce){body::before,body::after{animation:none}.res,.btn,.happy-marker{transition:none}}
 
 /* 发射场共用进度：只显示一条，避免三座发射场重复展示同一全局累积值。 */
-#pane-village .launch-progress{display:grid;grid-template-columns:auto minmax(60px,1fr) 34px;align-items:center;gap:7px;margin-top:5px;color:var(--dim);font-size:10px;line-height:1.2;font-variant-numeric:tabular-nums}
+#pane-village .launch-progress{display:grid;grid-template-columns:auto minmax(100px,.65fr) 34px minmax(0,1fr);align-items:center;gap:7px;margin-top:5px;color:var(--dim);font-size:10px;line-height:1.2;font-variant-numeric:tabular-nums}
+
+/* 有运行座数和资源消耗的建筑：缩小座数按钮；消耗文字完整换行，并统一预留两行高度。 */
+#pane-village .bzone .row .bld-ops:has(.fdraw) .furnctl{width:min(100%,620px);max-width:100%;flex:0 1 620px;flex-wrap:wrap;gap:4px 6px;margin:0}
+#pane-village .bzone .row .bld-ops:has(.fdraw) .fbtn{flex:0 0 18px;width:18px;height:18px;line-height:1;padding:0;border-radius:4px;font-size:12px}
+#pane-village .bzone .row .bld-ops:has(.fdraw) .fnum{flex:0 0 48px;min-width:48px;font-size:10px}
+#pane-village .bzone .row .bld-ops:has(.fdraw) .fdraw{display:block;flex:0 1 100%;width:100%;max-width:100%;min-width:0;min-height:2.5em;box-sizing:border-box;margin:0;font-size:9px;line-height:1.25;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
+/* 发射模式名称是短横向标签，不继承 −/＋ 步进按钮的窄宽度，避免“太阳帆”竖排。 */
+#pane-village .bzone .row .bld-ops .furnctl.launch-count{flex:0 0 auto;width:auto;min-width:0;max-width:none;gap:6px;margin:0}
+#pane-village .bzone .row .bld-ops .furnctl.launch-mode{flex:0 0 auto;width:auto;min-width:0;max-width:none;flex-wrap:nowrap;gap:6px;margin:0}
+#pane-village .bzone .row .bld-ops .furnctl.launch-mode .launch-mode-toggle{flex:0 0 auto;width:auto;min-width:56px;height:22px;padding:0 7px;white-space:nowrap;font-size:10px}
+#pane-village .bzone .row .bld-ops .furnctl.launch-mode .launch-mode-label{width:auto;min-width:0;white-space:nowrap;font-size:10px}
 #pane-village .launch-progress-track{height:6px;overflow:hidden;border-radius:999px;background:rgba(111,136,168,.2)}
 #pane-village .launch-progress-track i{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width .12s linear}
-#pane-village .launch-progress>span:last-child{text-align:right;color:var(--cyan)}
+#pane-village .launch-progress-value{text-align:right;color:var(--cyan)}
+#pane-village .launch-consumption{min-width:0;color:var(--dim);font-size:9px;line-height:1.2;white-space:normal;overflow-wrap:anywhere}
 html[data-ui-theme="day"] #pane-village .launch-progress{color:#607777}
 html[data-ui-theme="day"] #pane-village .launch-progress-track{background:rgba(58,91,96,.18)}
-html[data-ui-theme="day"] #pane-village .launch-progress>span:last-child{color:#187b7a}
+html[data-ui-theme="day"] #pane-village .launch-progress-value{color:#187b7a}
 @media(prefers-reduced-motion:reduce){#pane-village .launch-progress-track i{transition:none}}
 

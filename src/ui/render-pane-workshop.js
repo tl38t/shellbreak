@@ -248,7 +248,7 @@
   }
 
   /* ── 自动制作槽控件 ────────────────────────────────────────────────
-   * 有限原料：满仓后按 25/50/75/100% 转制；全无限原料：库存够玩家填写的批次数时制造。
+   * 全部原料有上限时走满仓档；含任一无上限原料时沿用批次档。
    * ⚠️ 数字输入框放在独立弹窗，不放在 pane 内：本 pane 每 2 秒整块重画，输入会丢焦点/丢值。
    * ⚠️ 没解锁自动工坊时**整行不画**（不是画成灰按钮）：那升级项还没装，
    *    槽数就是 0，画一堆点不动的按钮等于预告一个玩家拿不到的功能。
@@ -257,30 +257,43 @@
     var cap = SB.workshop.slotCap(s);
     if (cap <= 0) return '';
     var pct = SB.workshop.slotPct(s, c.id);
-    var finite = SB.workshop.hasFiniteInput(s, c);
+    var batchRequired = SB.workshop.hasUnboundedInput(s, c);
     var batch = SB.workshop.slotBatch(s, c.id);
-    var assigned = SB.workshop.slotIndexOf(s, c.id) >= 0;
-    var on = finite ? pct > 0 : assigned;
+    var idx = SB.workshop.slotIndexOf(s, c.id);
+    var assigned = idx >= 0;
+    var batchMode = assigned && batchRequired;
+    var limitedInputs = [], unlimitedInputs = [], inputId;
+    for (inputId in c.in) {
+      var inputCap = SB.economy.capOf(s, inputId);
+      var inputName = (SB.RESS[inputId] && SB.RESS[inputId].name) || inputId;
+      (isFinite(inputCap) ? limitedInputs : unlimitedInputs).push(inputName);
+    }
+    var mixedInputs = limitedInputs.length > 0 && unlimitedInputs.length > 0;
+    var on = assigned;
     var h = '<div class="craftauto"><span class="asl">自动</span>';
     if (!on) {
       var full = !assigned && ((s.autoSlots && s.autoSlots.length) || 0) >= cap;
-      h += '<button class="btn tog" data-aslot="' + c.id + '" ' + (finite ? 'data-apct="0.5"' : 'data-abatch="' + ((SB.CFG.AUTO && SB.CFG.AUTO.BATCH_DEFAULT) || 80) + '"') +
+      h += '<button class="btn tog" data-aslot="' + c.id + '" ' + (batchRequired ? 'data-abatch="' + batch + '"' : 'data-apct="0.5"') +
         (full ? ' disabled title="自动槽已用完（' + cap + '/' + cap + '）"' : '') + '>' +
         (full ? '槽位已满' : '＋自动') + '</button>';
     } else {
-      if (finite) {
+      if (!batchRequired) {
         var P = SB.workshop.pcts(), i;
         for (i = 0; i < P.length; i++) {
           var p = P[i];
-          h += '<button class="btn tog' + (p === pct ? ' on' : '') + '" data-aslot="' + c.id + '"' +
-            ' data-apct="' + p + '" title="本配方含有仓储上限原料；任一原料满仓后，转制当时可造量的 ' + (p * 100) + '%">' +
+          h += '<button class="btn tog' + (!batchMode && p === pct ? ' on' : '') + '" data-aslot="' + c.id + '"' +
+            ' data-apct="' + p + '" title="任一有上限原料满仓后，转制当时可造量的 ' + (p * 100) + '%">' +
             (p * 100) + '%</button>';
         }
-      } else {
-        h += '<button class="btn tog on" data-abatch-edit="' + c.id + '"' +
-          ' title="点击填写自动制造批次数">批次 ' + batch + ' 次 · 点击填写次数</button>';
+      }
+      if (batchRequired) {
+        h += '<button class="btn tog' + (batchMode ? ' on' : '') + '" data-abatch-edit="' + c.id + '"' +
+          ' title="库存够造一整批时自动制造；多出的材料保留">批次 ' + batch + ' 次 · 点击填写次数</button>';
       }
       h += '<button class="btn tog" data-aoff="' + c.id + '" title="腾出这个自动槽">停用</button>';
+    }
+    if (mixedInputs) {
+      h += '<small class="craftauto-hint" role="note">本配方含有上限原料（' + limitedInputs.join('、') + '）和无上限原料（' + unlimitedInputs.join('、') + '），因此沿用批次自动制造：所有原料够一批时制造。</small>';
     }
     if (c.id === 'craft_rocketfuel') {
       h += '<small class="craftauto-hint" role="note">暖石会被保温法、熔炉和热液汽轮机消耗；自动制造需等暖石满仓。建议选 25% / 50% / 75%，不要选 100%，以保留暖石。</small>';
@@ -297,8 +310,8 @@
     }
     var used = (s.autoSlots && s.autoSlots.length) || 0;
     return '<div class="note">自动制作槽 <b>' + used + '/' + cap + '</b>：' +
-      '含仓储上限原料（如钛）的配方：任一原料满仓后按 25 / 50 / 75 / 100% 转制；' +
-      '全部原料无上限的配方：点击批次数填写数量，库存够造该数量时自动造一整批，多出的库存保留。</div>';
+      '全部原料有上限的配方：任一原料满仓后按 25 / 50 / 75 / 100% 转制；' +
+      '含无上限原料的配方：沿用批次自动制造，库存够造指定数量时造一整批，多出的材料保留。</div>';
   }
 
   function paneWorkshopLocked() {

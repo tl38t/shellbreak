@@ -29,7 +29,7 @@
    * 仅 defaultUnlockable / 仅 unlockRatio 的建筑归纪元 1。 */
   /* ERA6–10 星海/新建筑回填（2026-10-19 · docs/ERA9_TECHS_SPEC §9；ERA10 2026-10-20 续）：
    *   旧档 W 只到 5、META_ERA 只到 era5，
-   *   导致 era6+ 建筑（科研所/太空建筑/异星建筑/光帆纪建筑）在破壳结算 buildingScore 里被 `if(!e) continue` 静默跳过。
+   *   导致 era6+ 建筑（科研所/太空建筑/异星建筑/寻光纪建筑）在破壳结算 buildingScore 里被 `if(!e) continue` 静默跳过。
    *   W 续 Fibonacci（1/2/3/5/8/13/21/34/55/89）；META_ERA 按建筑真实纪元回填（researchlab 属 era6，此前漏登；
    *   太阳星环属 era10，2026-10-20 补登——**漏登记 = 玩家花钱建满一座新建筑，发展分一分不涨，且不报错**）。
    *   ⚠️ 具体权重数值属标定范畴（建议值，待用户另拍），但「这些建筑必须登记」是结构性硬要求。 */
@@ -78,11 +78,11 @@
       oldTideSteleScienceRate: 0.15 * harmonic(finiteOr(m.oldTideStelesEarnedTotal, 0)),
       oldFaithAllProductionBonus: 0.005 * faithTier,
       shopCivicBonus: 0.10 * (p.civicArchive || 0) * starPerkBoost,   // 星屑轮回共鸣放大每级效果
-      shopScienceBonus: 0.10 * (p.tideProof || 0) * starPerkBoost,
-      coldStoreLevel: p.coldStore || 0,
-      matStoreLevel: finiteOr(p.matStore, 0),
-      shellSurveyLevel: p.shellSurvey || 0,
-      wonderBlueprintLevel: p.wonderBlueprint || 0
+      shopScienceBonus: 0.10 * (p.tideProof || 0) * starPerkBoost
+      /* ⚠️ 2026-10-23 潮汐之树：coldStoreLevel / matStoreLevel / shellSurveyLevel / wonderBlueprintLevel
+       *   四个旧档已迁移进 s.perk（coldPenalty / matStore / shellSurvey / wonderBlueprint），
+       *   改由结算侧直接读 s.perk（见 economy.js coldSeasonMul/capOf、shell.js、ai-strategy.js、wonder.js），
+       *   此处不再产出这四个字段，避免「永远为 0 的谎言口」。 */
     };
   }
 
@@ -240,7 +240,8 @@
 
   function perkLevel(id) { return (SB.game.meta().perks || {})[id] || 0; }
   function perkDef(id) {
-    for (var i = 0; i < SB.PERKS.length; i++) if (SB.PERKS[i].id === id) return SB.PERKS[i];
+    var T = SB.TIDE_TREE || [];
+    for (var i = 0; i < T.length; i++) if (T[i].id === id) return T[i];
     return null;
   }
   function perkNextCost(p, lv) {
@@ -250,12 +251,21 @@
        * ⚠️ 这同时治好了 g2/g3 只写 1 个价（costs:[6]/[12] 但 n:3）时
        *    第 2/3 级取价回退 p.cost=undefined ⇒ 购买把 tide 减成 NaN 的隐患：
        *    单元素数组按平价续费，不再掉进 undefined。 */
+      /* ⚠️ 2026-10-23 潮汐之树：尾节点（craftQuotaTail 等）数组耗尽且带 scale 时，
+       *    从末级价起按 scale 几何外推（向下取整），不再掉回等差。 */
+      if (p.scale) {
+        var base = p.costs[p.costs.length - 1];
+        return Math.floor(base * Math.pow(p.scale, lv - p.costs.length + 1));
+      }
       if (p.costs.length >= 2) {
         var step = p.costs[p.costs.length - 1] - p.costs[p.costs.length - 2];
         return p.costs[p.costs.length - 1] + step * (lv - p.costs.length + 1);
       }
       if (p.costs.length === 1) return p.costs[0];
     }
+    /* 几何涨价尾节点（cost + scale + n:Infinity，无 costs 数组）：
+     * 买第 (lv+1) 级价 = floor(cost × scale^lv)。lv=0 ⇒ 首级价 = cost。 */
+    if (p.scale) return Math.floor(p.cost * Math.pow(p.scale, lv));
     return p.cost;
   }
   function perkLocked(p) { return !!p.nest && perkLevel(p.nest) <= 0; }
@@ -288,6 +298,9 @@
     if (s.civics && s.civics.ancestor_heritage) mul *= 1.2;
     if (s.civics && s.civics.star_ruins) mul *= 1 + 0.01 * levels;
     if (s.techs && s.techs.heir_of_stars) mul *= 2;
+    /* ERA2-7 扩卡（2026-10-22）：质量效应卡（breakStardustMul 1.15）本轮回星屑获取 ×1.15。
+     * 结算 / 预览同源（breakReport 也调 stardustGain）。 */
+    if (SB.civic && SB.civic.cardBreakStardustMul) mul *= SB.civic.cardBreakStardustMul(s);
     return Math.floor(levels * 0.1 * mul);
   }
   function starPerkDef(id) {
@@ -348,14 +361,28 @@
     applyPerk(SB.game.run(), st.perk);
     return true;
   }
+  /* 把单个已购节点的效果落到当前运行态 s.perk / s.res。
+   * ⚠️ 三处差异于旧 PERKS：
+   *   · apply 键带 mode:'max'（如 startPop 三档互斥）⇒ 取最高档，不累加；
+   *   · apply 键带 dyn:'loop5'（如 craftLoop）⇒ 效果 = 键系数 × 5% × 轮回次数 × 等级，
+   *     每局 freshRun 从 meta 重算，故这里按「当前 meta.cycle」即时折一份（跨周目幂等）；
+   *   · give（开局资源）/ recipe（配方折进 s.perk.recipeCraft）按节点字段即时到账。
+   * 注意：常规节点仍是纯加法累加（每次购买 +a[k]），与 derivePerksFromMeta 口径一致。 */
   function applyPerk(s, p) {
     if (!s) return;
-    var a = p.apply || {};
     if (!s.perk) s.perk = SB.state.emptyPerks();
-    for (var k in a) s.perk[k] = (s.perk[k] || 0) + a[k];
-    // 起始资源类立即到账；薄壳类在下一周目 freshRun 时通过 perk.thin 生效
-    if (p.id === 'food') s.res.kelp += 200;
-    if (p.id === 'coral') s.res.coral += 150;
+    var a = p.apply || {};
+    var cycle = (SB.game && SB.game.meta && SB.game.meta().cycle) || 0;
+    for (var k in a) {
+      if (p.mode === 'max') s.perk[k] = Math.max(s.perk[k] || 0, a[k]);
+      else if (p.dyn === 'loop5') s.perk[k] = (s.perk[k] || 0) + a[k] * 0.05 * cycle;
+      else s.perk[k] = (s.perk[k] || 0) + a[k];
+    }
+    if (p.give) { for (var g in p.give) if (s.res[g] !== undefined) s.res[g] += p.give[g]; }
+    if (p.recipe) {
+      if (!s.perk.recipeCraft) s.perk.recipeCraft = {};
+      s.perk.recipeCraft[p.recipe] = (s.perk.recipeCraft[p.recipe] || 0) + (p.rmul || 0.1);
+    }
   }
 
   /* 自动研究购买后默认关闭，由玩家在轮回商店单独切换；开关跨周目保留。 */

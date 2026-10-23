@@ -5,6 +5,30 @@
   'use strict';
   var SB = root.SB || (root.SB = {});
   var warmstoneTargetCache = { state: null, rate: null, season: null, until: -Infinity, miners: 0 };
+  var VOID_ENDING_RUN_KEY = 'shellbreak.ai.void-ending-run';
+
+  function markVoidEndingRun() {
+    try {
+      if (root.localStorage) root.localStorage.setItem(VOID_ENDING_RUN_KEY, '1');
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /* 所有已实装挑战结束后，普通周目就是唯一的虚境终局局。
+   * 不把待实装的「流浪泰拉」占位计入完成门槛。 */
+  function isVoidEndingRun(s) {
+    if (!s || s.challenge) return false;
+    try {
+      if (root.localStorage && root.localStorage.getItem(VOID_ENDING_RUN_KEY) === '1') return true;
+    } catch (e) {}
+    if (!SB.challenges || !SB.challenges.tierDone || !SB.game || !SB.game.meta) return false;
+    var meta = SB.game.meta();
+    return SB.challenges.tierDone('cold', meta) >= 1 &&
+      SB.challenges.tierDone('small', meta) >= 1 &&
+      SB.challenges.tierDone('science', meta) >= 3 &&
+      SB.challenges.tierDone('abyss', meta) >= 3 &&
+      SB.challenges.tierDone('speedrun', meta) >= 3;
+  }
 
   function isOwned(s, id) { return !!(s && s.wonders && s.wonders[id]); }
   function availableBuilding(s, id) {
@@ -21,6 +45,212 @@
   }
   function freeBuilding(s, id) {
     return availableBuilding(s, id) && SB.economy.canAfford(s, SB.economy.costOf(s, id));
+  }
+  function thetaProductionPlan(s, targetRate) {
+    if (!s || !SB.economy || !SB.economy.rates || !SB.economy.thetaInputRates) return null;
+    var levels = Math.max(0, Number(s.lvl && s.lvl.biomatlab) || 0);
+    var active = Math.max(0, levels - Math.max(0, Number(s.biomatlabStop) || 0));
+    var rates = SB.economy.rates(s), inputs = SB.economy.thetaInputRates(s);
+    var techMul = SB.tech && SB.tech.mul ? SB.tech.mul(s) : null;
+    var buildEff = Math.max(0.01, Number(techMul && techMul.bldEff) || 1);
+    var rawPerLab = {
+      kelp: (SB.BLD.biomatlabKelp || 0) * buildEff,
+      iron: (SB.BLD.biomatlabIron || 0) * buildEff,
+      titanium: (SB.BLD.biomatlabTi || 0) * buildEff,
+      uranium: (SB.BLD.biomatlabU || 0) * buildEff
+    };
+    var supported = Infinity, limiting = null, supply = {}, resourceCaps = {};
+    Object.keys(rawPerLab).forEach(function (resource) {
+      var gross = Math.max(0, (Number(rates[resource]) || 0) + (Number(inputs[resource]) || 0));
+      supply[resource] = gross;
+      var cap = rawPerLab[resource] > 0 ? Math.floor(gross / rawPerLab[resource] * 0.90) : Infinity;
+      resourceCaps[resource] = cap;
+      if (cap < supported) { supported = cap; limiting = resource; }
+    });
+    var labHydro = Math.max(0, Number(SB.BLD.biomatlabHydro) || 0);
+    if (labHydro > 0) {
+      var hydroSupply = Math.max(0, Number(rates.hydroSupply) || 0);
+      var hydroDemand = Math.max(0, -(Number(rates.hydro) || 0));
+      var otherHydroDemand = Math.max(0, hydroDemand - active * labHydro);
+      var hydroCap = Math.floor(Math.max(0, hydroSupply - otherHydroDemand) / labHydro * 0.90);
+      resourceCaps.hydro = hydroCap;
+      if (hydroCap < supported) { supported = hydroCap; limiting = 'hydro'; }
+    }
+    if (!isFinite(supported)) supported = levels;
+    supported = Math.max(0, Math.floor(supported));
+
+    /* 探测一座满原料研究所的真实产率。用状态副本和纯 rates API，不改玩家资源；
+     * 这样能区分「还缺研究所等级」与「原料产能根本撑不起更多研究所」。 */
+    var probe = Object.assign({}, s);
+    probe.lvl = Object.assign({}, s.lvl || {});
+    probe.res = Object.assign({}, s.res || {});
+    probe.lvl.biomatlab = Math.max(1, levels);
+    probe.lvl.solar_ring = 0;
+    probe.biomatlabStop = probe.lvl.biomatlab - 1;
+    Object.keys(rawPerLab).forEach(function (resource) { probe.res[resource] = 1e12; });
+    var perLabOutput = Math.max(0, Number(SB.economy.thetaRate(probe)) || 0);
+    var requestedRate = Math.max(0, Number(targetRate) || 0);
+    var targetLabs = requestedRate > 0 && perLabOutput > 0
+      ? Math.max(1, Math.ceil(requestedRate / perLabOutput)) : levels;
+    /* 原料扩产按阶段推进，而不是立刻为最终目标占满人口。之前钛矿工和藻食采集者
+     * 都按 targetLabs（本局约 43 座）保岗；但精铁当时只够 14 座，52 名矿工和
+     * 大批采集者因此挤掉采石工/珊瑚匠，压舱仓与住房材料长期攒不齐。每次只为
+     * 当前可持续产能再多留 15%（至少 2 座）的原料余量；瓶颈提升后下一轮自动上调。 */
+    var rampBaseLabs = Math.min(targetLabs, Math.max(active, supported));
+    var stagedTargetLabs = Math.min(targetLabs, rampBaseLabs < targetLabs
+      ? rampBaseLabs + Math.max(2, Math.ceil(rampBaseLabs * 0.15))
+      : targetLabs);
+    return { active: active, levels: levels, supportedLabs: supported, targetLabs: targetLabs,
+      stagedTargetLabs: stagedTargetLabs, limiting: limiting, perLabOutput: perLabOutput,
+      supply: supply, resourceCaps: resourceCaps,
+      inputPerLab: rawPerLab };
+  }
+  function craftInputPerOutput(s, resource, inputResource) {
+    var recipe = recipeByResource(resource);
+    if (!recipe || !recipeUnlocked(s, recipe) || !SB.workshop ||
+        !SB.workshop.craftMul || !SB.workshop.craftCostMul) return 0;
+    var output = Math.max(1e-9, (Number(recipe.out) || 0) * SB.workshop.craftMul(s, recipe));
+    return Math.max(0, Number(recipe.in && recipe.in[inputResource]) || 0) *
+      Math.max(0, Number(SB.workshop.craftCostMul(s, recipe)) || 0) / output;
+  }
+  function dysonCraftTarget(s, resource, target, dysonPlan) {
+    /* 节点原料制作与马尔斯工造中心升级争用 θ 金属。先预留下一等级造价，
+     * 否则薄膜自动补库会把刚攒到的 θ 全做成薄膜，工造中心永远差最后一笔。 */
+    if (!s || resource !== 'thinafilm' || !dysonPlan || dysonPlan.mode !== 'node' ||
+        !(dysonPlan.tiplateRateRequired > dysonPlan.tiplateRateAvailable + 1e-9) ||
+        !availableBuilding(s, 'mars_workshop')) return target;
+    var recipe = recipeByResource(resource), buildCost = SB.economy.costOf(s, 'mars_workshop');
+    if (!recipe || !recipe.in || !(recipe.in.thetaMetal > 0) ||
+        !SB.workshop.craftMul || !SB.workshop.craftCostMul) return target;
+    var reserve = Math.max(0, Number(buildCost && buildCost.thetaMetal) || 0);
+    var costPerBatch = recipe.in.thetaMetal * SB.workshop.craftCostMul(s, recipe);
+    var surplus = Math.max(0, (Number(s.res && s.res.thetaMetal) || 0) - reserve);
+    var batches = costPerBatch > 0 ? Math.floor(surplus / costPerBatch) : 0;
+    var safeOutput = batches * recipe.out * SB.workshop.craftMul(s, recipe);
+    return Math.min(target, (Number(s.res && s.res[resource]) || 0) + safeOutput);
+  }
+  function thetaIronMiningPlan(s, plan) {
+    if (!s || !plan || !plan.inputPerLab || !(plan.inputPerLab.iron > 0)) return null;
+    var staged = Math.max(0, Number(plan.stagedTargetLabs) || 0);
+    var targetRate = staged * plan.inputPerLab.iron / 0.90;
+    var supply = Math.max(0, Number(plan.supply && plan.supply.iron) || 0);
+    var miners = Math.max(0, Number(s.jobs && s.jobs.miner) || 0);
+    var probe = Object.assign({}, s);
+    probe.jobs = Object.assign({}, s.jobs || {});
+    probe.jobs.miner = miners + 1;
+    var probeRates = SB.economy.rates(probe), probeInputs = SB.economy.thetaInputRates(probe);
+    var marginal = Math.max(0,
+      (Number(probeRates.iron) || 0) + (Number(probeInputs.iron) || 0) - supply);
+    var extra = marginal > 1e-9 ? Math.ceil(Math.max(0, targetRate - supply) / marginal) : 0;
+    return { targetRate: targetRate, supply: supply, marginalPerMiner: marginal,
+      currentMiners: miners, targetMiners: miners + extra, needed: targetRate > supply + 1e-9 };
+  }
+  function thetaSourceBuilding(s, plan) {
+    if (!plan || !plan.limiting) return null;
+    var id = plan.limiting === 'iron' ? 'furnace' :
+      plan.limiting === 'titanium' ? 'siltpit' :
+      plan.limiting === 'uranium' ? 'rheamine' :
+      /* 藻食是θ研究所的大宗耗材。喷口导流堤每级放大全部藻食产出，
+       * 远比在高等级后继续买单块 +0.45/秒的藻场有效；有余力时先升导流堤，
+       * 若它暂不可建再回退到藻场。 */
+      plan.limiting === 'kelp' ?
+        (availableBuilding(s, 'weir') ? 'weir' : 'kelp') :
+      plan.limiting === 'hydro' ? 'hydroturbine' : null;
+    /* 精铁从矿工产出的矿砂冶炼。矿工达到深层矿井职业上限时，继续堆热泉炉
+     * 只会把满仓矿砂和炉子成本推过仓储上限；先升矿坑增加矿砂产率/岗位上限。 */
+    if (plan.limiting === 'iron' && SB.folk && SB.folk.jobLimit &&
+        availableBuilding(s, 'siltpit')) {
+      var ironPlan = thetaIronMiningPlan(s, plan);
+      if (ironPlan && ironPlan.targetMiners > SB.folk.jobLimit(s, 'miner') + 1e-9)
+        return 'siltpit';
+    }
+    return id && availableBuilding(s, id) ? id : null;
+  }
+  function thetaConditionTarget(s, cond) {
+    if (!s || !cond) return 0;
+    if (cond.t === 'res' && cond.r === 'thetaMetal') return Math.max(0, Number(cond.n) || 0);
+    var cost = null;
+    if (cond.t === 'built' && cond.b) cost = SB.economy.costOf(s, cond.b);
+    else if (cond.t === 'upgrade' && cond.id) {
+      var upgrade = SB.workshop.upgradeById(cond.id);
+      cost = upgrade && upgrade.cost;
+    }
+    return Math.max(0, Number(cost && cost.thetaMetal) || 0);
+  }
+  function thetaKelpGatherPlan(s, plan, baseGather, minerTarget) {
+    var stagedLabs = plan && (Number(plan.stagedTargetLabs) || Number(plan.targetLabs)) || 0;
+    if (!s || !plan || !plan.inputPerLab || !(plan.inputPerLab.kelp > 0) ||
+        !(stagedLabs > 0) || (Number(plan.resourceCaps && plan.resourceCaps.kelp) || 0) >= stagedLabs)
+      return null;
+    /* rate 门槛要看可持续的净余料。把口粮扣除后的藻食产能用于研究所输入；
+     * 每名采藻者的边际量直接从正式 rates API 差分取得，涵盖科技、工具、季节与政体。 */
+    var targetSupply = stagedLabs * plan.inputPerLab.kelp / 0.90;
+    var currentSupply = Math.max(0, Number(plan.supply && plan.supply.kelp) || 0);
+    if (currentSupply + 1e-9 >= targetSupply) return null;
+    var probe = Object.assign({}, s);
+    probe.jobs = Object.assign({}, s.jobs || {});
+    probe.jobs.gather = (Number(probe.jobs.gather) || 0) + 1;
+    var probeRates = SB.economy.rates(probe), probeInputs = SB.economy.thetaInputRates(probe);
+    var baseRates = SB.economy.rates(s), baseInputs = SB.economy.thetaInputRates(s);
+    var marginal = (Number(probeRates.kelp) || 0) + (Number(probeInputs.kelp) || 0) -
+      (Number(baseRates.kelp) || 0) - (Number(baseInputs.kelp) || 0);
+    if (!(marginal > 1e-9)) return null;
+    /* currentSupply 已经包含现有采集者的产出，所以缺口必须加到当前人数上，
+     * 不能加到 foodNeed（它只表示维持口粮所需人数）。旧算法把 41 名采集者的
+     * 产量计进 currentSupply 后，又从 foodNeed=5 起算目标，结果报 target=37，
+     * AI 便永远不会把采集者加到能供应 θ 研究所的数量。 */
+    var currentGather = Math.max(Number(baseGather) || 0, Number(s.jobs && s.jobs.gather) || 0);
+    var workersForOtherJobs = Math.max(12, (Number(minerTarget) || 0) + 12);
+    var maxGather = Math.max(currentGather, (Number(s.pop) || 0) - workersForOtherJobs);
+    var needed = Math.ceil((targetSupply - currentSupply) / marginal);
+    return { target: Math.max(currentGather, Math.min(maxGather,
+      currentGather + needed)), targetSupply: targetSupply,
+      currentSupply: currentSupply, marginalPerGather: marginal, maxGather: maxGather };
+  }
+  function titaniumMiningPlan(s, thetaPlan) {
+    if (!s || !thetaPlan || !(thetaPlan.inputPerLab && thetaPlan.inputPerLab.titanium > 0)) return null;
+    var rampLabs = Number(thetaPlan.stagedTargetLabs) || Number(thetaPlan.targetLabs) || 0;
+    var targetRate = Math.max(0, rampLabs) * thetaPlan.inputPerLab.titanium;
+    var supply = Math.max(0, Number(thetaPlan.supply && thetaPlan.supply.titanium) || 0);
+    var miners = Math.max(0, Number(s.jobs && s.jobs.miner) || 0);
+    var probe = Object.assign({}, s);
+    probe.jobs = Object.assign({}, s.jobs || {});
+    probe.jobs.miner = miners + 1;
+    var probeRates = SB.economy.rates(probe), probeInputs = SB.economy.thetaInputRates(probe);
+    var marginal = Math.max(0, (Number(probeRates.titanium) || 0) + (Number(probeInputs.titanium) || 0) - supply);
+    var extra = marginal > 1e-9 ? Math.ceil(Math.max(0, targetRate - supply) / marginal) : 0;
+    return { targetRate: targetRate, supply: supply, marginalPerMiner: marginal,
+      currentMiners: miners, targetMiners: miners + extra,
+      needed: targetRate > supply + 1e-9 };
+  }
+  function titaniumMiningTools(s, plan) {
+    if (!plan || !plan.needed || !SB.workshop || !SB.workshop.tools) return [];
+    return (SB.workshop.tools() || []).filter(function (tool) {
+      return tool && !tool.wip && tool.target && tool.target.indexOf('miner') >= 0 &&
+        !(s.tools && s.tools[tool.id]) && (!tool.need || s.techs && s.techs[tool.need]);
+    }).sort(function (a, b) { return (Number(b.bonus) || 0) - (Number(a.bonus) || 0); });
+  }
+  function titaniumMiningUpgrade(s, plan, missingTools) {
+    if (!plan || !plan.needed || missingTools && missingTools.length) return null;
+    var upgrade = SB.workshop.upgradeById('upg_autodrill');
+    if (!upgrade || s.upgrades && s.upgrades[upgrade.id] ||
+        !(s.techs && s.techs[upgrade.need])) return null;
+    return upgrade.id;
+  }
+  function ironThetaSupportUpgrade(s, plan) {
+    /* θ 的精铁门槛有两条正式工坊增产线：废钢锻造直接提高精铁 +20%，
+     * 鱼骨矿井提高矿工金属 +50%。旧策略只换矿物章程卡，却从不检查/安装这两项，
+     * 因此高纪元仍长期停在基础冶炼产率。先拿直接增产的废钢锻造，再补上游矿脉。 */
+    if (!plan || plan.limiting !== 'iron') return null;
+    var ids = ['upg_wasteforge', 'upg_fishbonemine'];
+    for (var i = 0; i < ids.length; i++) {
+      var upgrade = SB.workshop.upgradeById(ids[i]);
+      if (!upgrade || (s.upgrades && s.upgrades[upgrade.id]) ||
+          (upgrade.need && !(s.techs && s.techs[upgrade.need])) ||
+          (upgrade.needCivic && !(s.civics && s.civics[upgrade.needCivic]))) continue;
+      return upgrade.id;
+    }
+    return null;
   }
   function priorityBuildingUpgrade(s) {
     /* 城堡就是 upg_castle 后的统治核心 hall。议价减耗未到真实软上限前，
@@ -39,6 +269,13 @@
       if ((s.lvl && s.lvl[ids[i]] || 0) > 0 && freeBuilding(s, ids[i])) return ids[i];
     return null;
   }
+  function totalGovernmentSlots(gov) {
+    var slots = gov && gov.slots, total = 0, key;
+    if (!slots) return 0;
+    for (key in slots) if (Object.prototype.hasOwnProperty.call(slots, key))
+      total += Number(slots[key]) || 0;
+    return total;
+  }
   function firstMissingPrereq(s, id, seen) {
     var t = SB.tech.byId(id), reqs = t && t.reqs || [];
     seen = seen || [];
@@ -48,6 +285,32 @@
       if (!s.techs[reqs[i]]) return firstMissingPrereq(s, reqs[i], seen) || reqs[i];
     }
     return id;
+  }
+  function deferredCycleStardustTech(s, tech) {
+    var cond = tech && tech.cond;
+    /* 星屑只在正式轮回结算时入账；玩家选择留在破壳后的本局时，超古代科技等
+     * 独立叶节点没有本局生产来源。它们没有下游前置，不应挡住太空建筑与戴森链。 */
+    if (cond && cond.t === 'gathered' && cond.r === 'stardust' &&
+        (Number(s.got && s.got.stardust) || 0) < (Number(cond.n) || 0)) return true;
+    /* 黑历史蓝图只要求更高周目数，唯一后继「严冬计划」也是挑战占位科技；
+     * 当前周目已明确选择留在壳外时，不为这条可选支线重开。 */
+    if (tech && tech.id === 'blackhistory' && cond && cond.t === 'cycle') {
+      var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
+      if (!meta || (Number(meta.cycle) || 0) < (Number(cond.n) || 0)) return true;
+    }
+    return false;
+  }
+  function deferredNoResetTechOrPrereq(s, tech) {
+    if (!tech) return false;
+    if (deferredCycleStardustTech(s, tech)) return true;
+    /* 「严冬计划」的尤里卡要求进入尚未实装的「流浪泰拉」挑战。普通虚境终局局
+     * 明确不再跑挑战；把它留作当前科研目标会让状态看起来卡在一个不可达门槛，
+     * 因此只在这条普通终局路线跳过这个占位科技，继续可完成的 Era10 科技。 */
+    if (isVoidEndingRun(s) && tech.id === 'winter' && tech.cond &&
+        tech.cond.t === 'challenge' && tech.cond.id === 'drift_terra') return true;
+    var missingId = firstMissingPrereq(s, tech.id);
+    var missing = missingId && SB.tech.byId(missingId);
+    return !!(missing && missing.id !== tech.id && deferredCycleStardustTech(s, missing));
   }
   function wonderTechPrereq(s, key) {
     var cond = key && key.cond;
@@ -63,13 +326,16 @@
   }
   function researchGoal(s) {
     var keys = SB.tech.keysOf(s.era) || [], key = null;
-    for (var i = 0; i < keys.length; i++) if (!s.techs[keys[i].id]) { key = keys[i]; break; }
+    for (var i = 0; i < keys.length; i++)
+      if (!s.techs[keys[i].id] && !deferredNoResetTechOrPrereq(s, keys[i])) { key = keys[i]; break; }
     /* 关键节点全清会推进纪元，但不少普通科技仍是后续系统的前置（导航→数学→教育等）。
      * 关键节点完成后，继续按科技表顺序补齐当前已开放时代的普通科技，不把它们误当成可忽略项。 */
     if (!key) {
       var all = SB.TECHS || [];
       for (var j = 0; j < all.length; j++) {
-        if (all[j].era <= s.era && !s.techs[all[j].id]) { key = all[j]; break; }
+        if (all[j].era <= s.era && !s.techs[all[j].id] && !deferredNoResetTechOrPrereq(s, all[j])) {
+          key = all[j]; break;
+        }
       }
     }
     var id = key && firstMissingPrereq(s, key.id), tech = id && SB.tech.byId(id);
@@ -141,7 +407,21 @@
     }
     return any && allBlocked;
   }
-  function storageBuild(s) {
+  function capacityBlockedResource(s, cost) {
+    for (var resource in cost || {}) {
+      var cap = SB.economy.capOf(s, resource);
+      if (isFinite(cap) && cost[resource] > cap + 1e-9) return resource;
+    }
+    return null;
+  }
+  function storageBuild(s, resource) {
+    /* 藻食仓与压舱仓各管一条独立容量线。若藻场下一级越过藻食上限，
+     * 继续堆压舱仓不会增加 kelp 容量，只会把 AI 锁进昂贵的梁材/硬化珊瑚链。 */
+    if (resource === 'kelp') {
+      if (availableBuilding(s, 'kelpstore')) return 'kelpstore';
+      if (s.upgrades && s.upgrades.upg_castle && availableBuilding(s, 'hall')) return 'hall';
+      return null;
+    }
     /* 压舱仓每级直接给 +120 材料容量，优先用它解住房/建造门槛；只有尚无压舱仓入口时，
      * 才继续升级城堡核心扩容。核心减耗仍会随议事厅升级自然获得。 */
     if (availableBuilding(s, 'ballast')) return 'ballast';
@@ -150,8 +430,10 @@
     if (s.upgrades && s.upgrades.upg_castle && availableBuilding(s, 'hall')) return 'hall';
     return null;
   }
-  function storageUpgrade(s) {
-    var ids = ['upg_ballast_1', 'upg_ballast_2', 'upg_alloy_warehouse'];
+  function storageUpgrade(s, resource) {
+    var ids = resource === 'kelp'
+      ? ['upg_kelpstore_1', 'upg_kelpstore_2']
+      : ['upg_ballast_1', 'upg_ballast_2', 'upg_alloy_warehouse'];
     for (var i = 0; i < ids.length; i++) {
       var u = SB.workshop.upgradeById(ids[i]);
       if (!u || s.upgrades && s.upgrades[ids[i]]) continue;
@@ -179,10 +461,35 @@
     return !isOwned(s, w.id) && w.era <= s.era &&
       (!w.need || s.techs[w.need]) && (!w.needCivic || s.civics && s.civics[w.needCivic]);
   }
+  function civicNeedsWonder(s, civicGoal) {
+    var boost = civicGoal && civicGoal.boost;
+    if (!boost || ['anyWonders', 'wonders', 'wonderEra'].indexOf(boost.t) < 0 || SB.civic.boostMet(s, civicGoal)) return false;
+    if (boost.t === 'wonderEra') return (SB.WONDERS || []).some(function (wonder) {
+      return wonder && wonder.era === boost.era && wonderEligible(s, wonder);
+    });
+    return (boost.ids || []).some(function (id) {
+      var wonder = SB.workshop.wonderById(id);
+      return wonder && wonderEligible(s, wonder);
+    });
+  }
   function shellGateNeedsDrill(s, goal) {
     var cond = goal && goal.cond;
     return !!(cond && cond.t === 'shell' && SB.shell && SB.shell.brokenRatio &&
       SB.shell.brokenRatio(s) + 1e-9 < cond.n);
+  }
+  function shellNeedsDrill(s, goal) {
+    if (shellGateNeedsDrill(s, goal)) return true;
+    if (!s || s.broken || !(Number(s.shell) > 0) || !(s.techs && s.techs.shellgeo) ||
+        !SB.economy || !SB.economy.rOf) return false;
+    /* 基础削壳会停在 25%。此时钻机是继续本周目的唯一正式路径，不能等未来纪元
+     * 的奇观；那些奇观有的本身就要先破壳，若算作钻机前置会形成永久死锁。 */
+    return SB.economy.rOf(s) <= SB.CFG.FLOOR_AT + 1e-9;
+  }
+  function geekGateNeedsWonder(s, goal) {
+    var cond = goal && goal.cond;
+    return !!(cond && cond.t === 'geekEnceladus' &&
+      !(s.geek && s.geek.enceladusDone) &&
+      !(SB.wonder && SB.wonder.owned(s).wonder_geek));
   }
   function goalCost(s, goal) {
     var cond = goal && goal.cond;
@@ -257,25 +564,62 @@
       until: (s.t || 0) + 2, miners: target };
     return target;
   }
-  function chooseWonder(s, goal, options) {
+  function chooseWonder(s, goal, options, civicGoal) {
     var ids = goal && goal.cond && goal.cond.t === 'wonders' ? goal.cond.ids || [] : [];
+    /* 《星球改造》的尤里卡必须由 G.E.E.K 完成恩克拉多斯改造；此前该条件只显示
+     * “等资源”，可选奇观又会被住房目标压过，AI 永远不建、不启动 G.E.E.K。把这座
+     * 奇观明确作为当前科技的硬前置，让现有工艺材料计划与正式奇观 API 接手。 */
+    if (geekGateNeedsWonder(s, goal)) {
+      var geekWonder = SB.workshop.wonderById('wonder_geek');
+      if (geekWonder && wonderEligible(s, geekWonder)) return geekWonder.id;
+    }
     for (var i = 0; i < ids.length; i++) {
       var required = SB.workshop.wonderById(ids[i]);
       if (required && wonderEligible(s, required)) return required.id;
     }
     var wonderUnlocksCivic = (SB.CIVICS || []).some(function (c) {
-      return !s.civics[c.id] && c.boost && c.boost.t === 'wonder' &&
+      return !s.civics[c.id] && c.boost && ['wonder', 'anyWonders', 'wonders', 'wonderEra'].indexOf(c.boost.t) >= 0 &&
         (c.reqs || []).every(function (id) { return !!s.civics[id]; });
     });
     /* 可选奇观不能抢占刚需住房：尤其寒流禁火需要保留 50 人的冻伤缓冲，
      * 小国寡民则由人口上限自然钳住目标。若已解锁的待研究市政明确要求奇观，
      * 先补这座关键奇观，避免住房扩张反过来堵住《神学》等通关前置。 */
     if (!wonderUnlocksCivic && SB.economy.popCap(s) < houseCapacityTarget(s, goal, options)) return null;
+    /* 市政「任意一座奇观」及「这几座奇观都要建」也是硬门槛。之前只看科技的 wonders 条件，
+     * 所以星球村/全球化等市政虽然已经成为当前目标，AI 却把所需奇观当可选项；
+     * 原料还没齐时连建造计划和岗位都不排，顺带错过奇观带来的铁/钢产能加成。 */
+    var civicWonderBoost = civicGoal && civicGoal.boost;
+    if (civicWonderBoost && ['anyWonders', 'wonders', 'wonderEra'].indexOf(civicWonderBoost.t) >= 0 &&
+        !SB.civic.boostMet(s, civicGoal)) {
+      var civicWonderCandidates = (SB.WONDERS || []).filter(function (wonder) {
+        if (!wonder || !wonderEligible(s, wonder)) return false;
+        if (civicWonderBoost.t === 'wonderEra') return wonder.era === civicWonderBoost.era;
+        return (civicWonderBoost.ids || []).indexOf(wonder.id) >= 0;
+      }).map(function (wonder) {
+        var cost = wonder.cost || {}, score = 0, ready = SB.workshop.wonderBlocked(s, wonder.id) === null;
+        for (var resource in cost) {
+          var have = Number(s.res && s.res[resource]) || 0;
+          var cap = SB.economy.capOf(s, resource);
+          var scale = isFinite(cap) && cap > 0 ? cap : Math.max(1, Number(cost[resource]) || 1);
+          score += Math.max(0, (Number(cost[resource]) || 0) - have) / scale;
+        }
+        return { wonder: wonder, ready: ready, score: score };
+      }).sort(function (a, b) {
+        if (a.ready !== b.ready) return a.ready ? -1 : 1;
+        return a.score - b.score;
+      });
+      if (civicWonderCandidates.length) return civicWonderCandidates[0].wonder.id;
+    }
     /* 可复用 bot 默认补齐所有可建奇观。天穹钻机通常排最后；但若当前关键科技
      * 明确要求壳层 100% 破除，且剩余奇观被破壳后的科技锁住，就必须先启动钻机打通时代门，
      * 玩家选择留在本局后 bot 再回来补齐剩余奇观。
      * 调用方可显式 buildAllWonders:false 恢复旧的「只建当前门槛奇观/首座奇观」策略。 */
     var rows = SB.WONDERS || [];
+    var drill = SB.workshop.wonderById('wonder_skydrill');
+    var drillIsCritical = shellNeedsDrill(s, goal);
+    /* 钻机是 25% 壳层停点后的必经路径；即使缺脚手架/共振钻头，也必须先把它
+     * 选作筹料目标。若仍用 wonderBlocked 过滤，缺料时目标会变回 null，形成死锁。 */
+    if (drillIsCritical && drill && wonderEligible(s, drill)) return drill.id;
     if (!options || options.buildAllWonders !== false) {
       /* 可选奇观只有本轮已经买得起时才进入建造/岗位计划。旧逻辑即使奇观还差
        * 数千份原料，也把整座奇观的成本塞进 needs；于是矿工/采集岗位被远期目标
@@ -285,10 +629,9 @@
         if (rows[j].id !== 'wonder_skydrill' && wonderEligible(s, rows[j]) &&
             SB.workshop.wonderBlocked(s, rows[j].id) === null) return rows[j].id;
       var pendingBeforeDrill = rows.some(function (w) {
-        return w.id !== 'wonder_skydrill' && !isOwned(s, w.id);
+        return w.id !== 'wonder_skydrill' && wonderEligible(s, w) && !isOwned(s, w.id);
       });
-      var drill = SB.workshop.wonderById('wonder_skydrill');
-      if ((!pendingBeforeDrill || shellGateNeedsDrill(s, goal)) && drill && wonderEligible(s, drill) &&
+      if ((!pendingBeforeDrill || drillIsCritical) && drill && wonderEligible(s, drill) &&
           (shellGateNeedsDrill(s, goal) || SB.workshop.wonderBlocked(s, drill.id) === null)) return drill.id;
       return null;
     }
@@ -322,7 +665,7 @@
   }
   function drillStockTarget(s) {
     if (!s || !s.techs || !s.techs.shellgeo || s.broken) return 0;
-    var shellRate = SB.CFG.SKYDRILL_RATE * (1 + 0.05 * ((SB.prestige.legacy() || {}).shellSurveyLevel || 0));
+    var shellRate = SB.CFG.SKYDRILL_RATE * (1 + 0.05 * ((s.perk && s.perk.shellSurvey) || 0));
     /* 基础削壳会先把壳推到 25% 下限；钻机要凿的是下限以内的整段，
      * 不是「当前壳厚超过下限的部分」。用 min 保证在下限处仍按最后 25% 备料。 */
     var drillShell = Math.min(Math.max(0, s.shell || 0),
@@ -366,45 +709,129 @@
     for (var i = 0; i < ids.length; i++) if (availableBuilding(s, ids[i])) return ids[i];
     return null;
   }
-  function dysonProductionPlan(s) {
+  function dysonProductionPlan(s, options) {
     if (!s || s.dysonDone || !s.shellOpened || !(s.techs && s.techs.microwave_heat) ||
         !SB.economy || !SB.economy.launchRunLvl || !SB.economy.launchMaterialPer) return null;
     var active = SB.economy.launchRunLvl(s);
     if (active <= 0) return null; // 尊重玩家手动停用的发射场
-    var per = SB.economy.launchMaterialPer(s), targets = {}, bufferSeconds = 20;
+    var per = SB.economy.launchMaterialPer(s), targets = {};
+    var bufferSeconds = Number(options && options.dysonBufferSeconds);
+    if (!isFinite(bufferSeconds) || bufferSeconds <= 0) bufferSeconds = 90;
+    bufferSeconds = Math.max(1, Math.min(180, bufferSeconds));
     ['uranium', 'strongProp', 'thinafilm', 'tiplate'].forEach(function (resource) {
       var flow = Math.max(0, Number(per && per[resource]) || 0) * active;
       if (flow > 0) targets[resource] = (Number(s.res && s.res[resource]) || 0) + flow * bufferSeconds;
     });
+    var rates = SB.economy.rates(s);
+    var thetaPerStrongProp = craftInputPerOutput(s, 'strongProp', 'thetaMetal');
+    var fuelPerStrongProp = craftInputPerOutput(s, 'strongProp', 'rocketFuel');
+    var warmstonePerRocketFuel = craftInputPerOutput(s, 'rocketFuel', 'warmstone');
+    var thetaPerFilm = craftInputPerOutput(s, 'thinafilm', 'thetaMetal');
+    var thetaRateRequired = active * ((Number(per.strongProp) || 0) * thetaPerStrongProp +
+      (Number(per.thinafilm) || 0) * thetaPerFilm);
+    var warmstoneRateRequired = active * (Number(per.strongProp) || 0) *
+      fuelPerStrongProp * warmstonePerRocketFuel;
+    var turbineBurn = SB.economy.warmDraw
+      ? SB.economy.warmDraw(s, 'hydroturbine') : 0;
+    var tiplateRateRequired = active * (Number(per.tiplate) || 0);
+    var tiplateProbe = Object.assign({}, s);
+    tiplateProbe.lvl = Object.assign({}, s.lvl || {});
+    tiplateProbe.launchStops = Object.assign({}, s.launchStops || {});
+    (SB.economy.launchBids ? SB.economy.launchBids() : []).forEach(function (id) {
+      tiplateProbe.launchStops[id] = Number(tiplateProbe.lvl[id]) || 0;
+    });
+    var tiplateRateAvailable = Math.max(0, Number(SB.economy.rates(tiplateProbe).tiplate) || 0);
     return { mode: SB.economy.launchNodeMode && SB.economy.launchNodeMode(s) ? 'node' : 'sail',
-      activeLevels: active, bufferSeconds: bufferSeconds, targets: targets };
+      activeLevels: active, bufferSeconds: bufferSeconds, targets: targets,
+      thetaRateRequired: thetaRateRequired, thetaRateAvailable: Math.max(0, Number(rates.thetaMetal) || 0),
+      warmstoneRateRequired: warmstoneRateRequired,
+      warmstoneRateAvailable: Math.max(0, Number(rates.warmstone) || 0),
+      warmstoneFixedBurn: turbineBurn,
+      tiplateRateRequired: tiplateRateRequired, tiplateRateAvailable: tiplateRateAvailable };
   }
-  function chooseBuild(s, goal, options, civicGoal) {
+  function chooseBuild(s, goal, options, civicGoal, dysonPlan) {
     var cond = goal.cond, targetCap = houseCapacityTarget(s, goal, options), id, rows, i;
-    /* 工坊与议事厅是后续制作/市政的系统入口。避免先把有限材料全投给其他建筑，
-     * 结果到了石梁、硬化珊瑚或市政门槛时才发现生产设施从未建起来。 */
-    if (availableBuilding(s, 'workshop') && !s.lvl.workshop) return 'workshop';
+    /* 议事厅/城堡是本局核心建筑，未建时必须先于工坊和普通扩建落地；
+     * 建成后再由 priorityBuildingUpgrade() 把城堡升级推到减费软上限。 */
     if (availableBuilding(s, 'hall') && !s.lvl.hall) return 'hall';
+    /* 工坊是后续制作的系统入口；议事厅已建后优先补工坊，避免工艺链缺位。 */
+    if (availableBuilding(s, 'workshop') && !s.lvl.workshop) return 'workshop';
     /* 《绝热材料》的尤里卡就是太阳帆数量。不能等通用「新建筑」回退队列碰巧轮到
      * 发射场；先建第一座欧罗巴/已解锁发射场，策略才能合法地产帆并开启戴森科技。 */
     var firstDysonPad = dysonLaunchTarget(s, goal);
     if (firstDysonPad) return firstDysonPad;
     var priorityUpgrade = priorityBuildingUpgrade(s);
     if (priorityUpgrade) return priorityUpgrade;
-    /* ERA8 的气云采集尤里卡要求连续建造瑞亚星矿井；矿井却消耗 θ 金属，
-     * 而 θ 金属不是工坊配方，必须先建生物材料研究所生产。只在当前科技硬门槛
-     * 正等着这类建筑、且库存不够时抢先建研究所；否则此前的通用配方补料逻辑
-     * 无法处理这条“建筑产资源→再建目标建筑”的生产链，AI 会永远等 θ 金属。 */
-    if (cond && cond.t === 'built' && cond.b && availableBuilding(s, 'biomatlab')) {
-      var conditionBuildCost = SB.economy.costOf(s, cond.b);
-      if ((conditionBuildCost.thetaMetal || 0) > (s.res.thetaMetal || 0) + 1e-9 &&
-          availableBuilding(s, 'biomatlab')) return 'biomatlab';
+    /* 节点模式的钛板消耗远高于太阳帆。缺钛板时先扩马尔斯工造中心，
+     * 不要等 θ 产率完全追上最终值后才开始补这条独立产线。 */
+    if (dysonPlan && dysonPlan.mode === 'node' &&
+        dysonPlan.tiplateRateRequired > dysonPlan.tiplateRateAvailable + 1e-9 &&
+        availableBuilding(s, 'mars_workshop')) {
+      if (freeBuilding(s, 'mars_workshop')) return 'mars_workshop';
+      var marsCost = SB.economy.costOf(s, 'mars_workshop');
+      if ((s.res.thetaMetal || 0) < (marsCost.thetaMetal || 0)) {
+        var thetaSupplyPlan = thetaProductionPlan(s, dysonPlan.thetaRateRequired);
+        var thetaSupplier = thetaSourceBuilding(s, thetaSupplyPlan);
+        if (thetaSupplier) return thetaSupplier;
+        if (thetaSupplyPlan && availableBuilding(s, 'biomatlab') &&
+            (s.lvl.biomatlab || 0) < thetaSupplyPlan.stagedTargetLabs) return 'biomatlab';
+      }
+      return 'mars_workshop';
     }
-    /* 纳米技术的 θ金属速率门槛必须主动扩建生物材料研究所；只分配矿工不会产生 θ，
-     * 旧策略会落入「目标已识别、生产建筑却一直没有建」的空转。 */
-    if (cond && cond.t === 'rate' && cond.r === 'thetaMetal' &&
-        (SB.economy.rates(s).thetaMetal || 0) + 1e-9 < cond.n && availableBuilding(s, 'biomatlab'))
-      return 'biomatlab';
+    /* 市政的 lvlSum 鼓舞同样是硬建造目标。此前只有科技 lvlSum 有建造分支，
+     * 《星际政治》停在异星建筑 4/5 时会继续死磕 θ 产率，错过下一座瑞亚星矿井：
+     * 它既补齐市政门槛，也直接增加石梁、硬化珊瑚和铀，正好缓解扩仓→热泉炉扩产链。
+     * 目标只差几级时优先当前可建项；星际政治特意先选瑞亚矿井，因为它提供这条
+     * 生产链需要的结构材料，泰坦气云站则只补热液能和燃料。 */
+    var civicBuildCond = civicGoal && civicGoal.boost;
+    if (civicBuildCond && civicBuildCond.t === 'lvlSum' &&
+        !SB.civic.boostMet(s, civicGoal)) {
+      var civicBuildIds = (civicBuildCond.ids || []).filter(function (buildingId) {
+        return availableBuilding(s, buildingId);
+      });
+      if (civicBuildIds.length) {
+        var preferredCivicBuild = civicGoal.id === 'space_politics' &&
+          civicBuildIds.indexOf('rheamine') >= 0 ? 'rheamine' : null;
+        if (preferredCivicBuild) return preferredCivicBuild;
+        var civicBuildRows = civicBuildIds.map(function (buildingId) {
+          var cost = SB.economy.costOf(s, buildingId), score = 0;
+          for (var resource in cost) {
+            var cap = SB.economy.capOf(s, resource);
+            var scale = isFinite(cap) && cap > 0 ? cap : Math.max(1000, cost[resource]);
+            score += cost[resource] / scale + Math.max(0,
+              cost[resource] - (s.res[resource] || 0)) / scale;
+          }
+          return { id: buildingId, score: score };
+        }).sort(function (a, b) { return a.score - b.score; });
+        var affordableCivicBuild = civicBuildRows.filter(function (row) {
+          return freeBuilding(s, row.id);
+        });
+        return (affordableCivicBuild[0] || civicBuildRows[0]).id;
+      }
+    }
+    /* 与科技 built 尤里卡同构，市政建造鼓舞也必须映射到正式建筑 API。
+     * 否则市政面板已经明确显示“神庙 19/30”，chooseBuild 仍只围着 θ 原料扩产，
+     * 市政永远不会完成，也会挡住后续更强的生产政策。 */
+    if (civicBuildCond && civicBuildCond.t === 'built' && civicBuildCond.b &&
+        (s.lvl[civicBuildCond.b] || 0) < civicBuildCond.n) {
+      var civicRequiredBuilding = SB.habitat.buildingById(civicBuildCond.b);
+      if (civicRequiredBuilding && SB.habitat.unlocked(s, civicRequiredBuilding) &&
+          SB.habitat.needMet(s, civicRequiredBuilding)) return civicBuildCond.b;
+    }
+    /* θ 金属是建筑原料，不能只在“θ产率”科技目标下才扩产。
+     * 例如《强人工智能》要求机器人充能站 10 级，后两级的 θ 成本已远超当前产线；
+     * 旧分支只看 built 尤里卡，虽会显示机器人充能站目标，却没有给 θ 的上游扩产/配工。
+     * 对任何当前硬目标的 θ 缺口都按实际限产原料扩产：藻食优先升导流堤，随后会自然
+     * 转到热泉炉、砂矿坑或瑞亚星矿井补新的瓶颈；不再盲目只堆研究所等级。 */
+    var thetaConditionNeed = thetaConditionTarget(s, cond) > (s.res.thetaMetal || 0) + 1e-9;
+    var thetaRateNeed = cond && cond.t === 'rate' && cond.r === 'thetaMetal' &&
+      (SB.economy.rates(s).thetaMetal || 0) + 1e-9 < cond.n;
+    if (thetaConditionNeed || thetaRateNeed) {
+      var thetaPlan = thetaProductionPlan(s, thetaRateNeed ? cond.n : 0);
+      var thetaSource = thetaSourceBuilding(s, thetaPlan);
+      if (thetaPlan && thetaPlan.supportedLabs < thetaPlan.targetLabs && thetaSource) return thetaSource;
+      if (availableBuilding(s, 'biomatlab')) return 'biomatlab';
+    }
     /* 科技和市政可以同时有未满足的硬门槛。此前先处理科技尤里卡（例如热液能产率），
      * 会让后面的市政区分支一直拿不到建造机会：面板显示市政目标 2/30，实际却每轮
      * 继续筹建汽轮机，市政区等级完全不涨。市政区鼓舞未完成时优先建一座当前可建的
@@ -452,18 +879,49 @@
       var requiredBuilding = SB.habitat.buildingById(cond.b);
       if (requiredBuilding && SB.habitat.unlocked(s, requiredBuilding) && SB.habitat.needMet(s, requiredBuilding)) return cond.b;
     }
+    /* ERA9「大型异星工程」的尤里卡是若干异星建筑等级总和；此前只有市政 total
+     * 条件有建造分支，科技 lvlSum 会被识别却不主动建目标矿井，Mars 工造中心也就
+     * 永远解锁不了。按正式建筑 API 逐步补目标列表中当前可建的等级。 */
+    if (cond && cond.t === 'lvlSum' && !SB.tech.condMet(s, cond)) {
+      var levelSumCandidates = (cond.ids || []).filter(function (buildingId) {
+        return availableBuilding(s, buildingId);
+      }).map(function (buildingId) {
+        var cost = SB.economy.costOf(s, buildingId), score = 0;
+        for (var resource in cost) {
+          var cap = SB.economy.capOf(s, resource);
+          var scale = isFinite(cap) && cap > 0 ? cap : Math.max(1000, cost[resource]);
+          score += cost[resource] / scale + Math.max(0, cost[resource] - (s.res[resource] || 0)) / scale;
+        }
+        return { id: buildingId, score: score };
+      }).sort(function (a, b) { return a.score - b.score; });
+      var affordableLevelSum = levelSumCandidates.filter(function (row) { return freeBuilding(s, row.id); });
+      if (affordableLevelSum.length) return affordableLevelSum[0].id;
+      if (levelSumCandidates.length) return levelSumCandidates[0].id;
+    }
     if (cond && cond.t === 'upgrade') {
       var requiredUpgrade = SB.workshop.upgradeById(cond.id);
       if (requiredUpgrade && requiredUpgrade.upgradesBuilding && !s.lvl[requiredUpgrade.upgradesBuilding] &&
           availableBuilding(s, requiredUpgrade.upgradesBuilding)) return requiredUpgrade.upgradesBuilding;
+    }
+    /* 戴森发射场是持续耗料设施。连续需求必须反推 θ 产线，且节点模式钛金板件
+     * 必须由马尔斯工造中心补产；只等库存降到短阈值会让发射场反复断料空转。 */
+    if (dysonPlan) {
+      if (dysonPlan.thetaRateRequired > dysonPlan.thetaRateAvailable + 1e-9) {
+        var dysonThetaPlan = thetaProductionPlan(s, dysonPlan.thetaRateRequired);
+        var dysonThetaSource = thetaSourceBuilding(s, dysonThetaPlan);
+        if (dysonThetaPlan && dysonThetaPlan.supportedLabs < dysonThetaPlan.targetLabs && dysonThetaSource)
+          return dysonThetaSource;
+        if (dysonThetaPlan && availableBuilding(s, 'biomatlab') &&
+            (s.lvl.biomatlab || 0) < dysonThetaPlan.stagedTargetLabs) return 'biomatlab';
+      }
     }
     /* 高阶升级/奇观会消耗大量钢制零件。按当前目标扩充汽轮机与热液工坊配套，
      * 避免只靠单台产线慢慢攒；10 级上限也与「工业化」的 10/s 尤里卡目标同源。 */
     var partTarget = goalCost(s, goal).steelPart || 0;
     /* 选建普通奇观时也要筹热液产线：仅看当前科技尤里卡会漏掉可选奇观的钢制零件成本，
      * 结果 bot 有目标、也在派矿工，却没有汽轮机/工坊把钢转出来。 */
-    var plannedWonderId = shouldPrioritizeConditionBuild(s, goal, null)
-      ? null : chooseWonder(s, goal, options);
+    var plannedWonderId = shouldPrioritizeConditionBuild(s, goal, null, civicGoal)
+      ? null : chooseWonder(s, goal, options, civicGoal);
     var plannedWonder = plannedWonderId && SB.workshop.wonderById(plannedWonderId);
     if (plannedWonder) partTarget = Math.max(partTarget, plannedWonder.cost && plannedWonder.cost.steelPart || 0);
     var upgradeForWonder = wonderPrereqUpgrade(s, goal);
@@ -479,6 +937,10 @@
       if (availableBuilding(s, 'hydroturbine') && (s.lvl.hydroturbine || 0) < hydroTarget) return 'hydroturbine';
       if (availableBuilding(s, 'hydroshop') && (s.lvl.hydroshop || 0) < hydroTarget) return 'hydroshop';
     }
+    /* 首巢已可负担时先扩出最低住房，避免低人口/受挑战减产时被藻场扩张
+     * 独占建造队列：口粮库存上不去、人口不增长，下一座藻场也始终造不起。 */
+    if (availableBuilding(s, 'nest') && !(s.lvl.nest || 0) &&
+        SB.economy.popCap(s) < targetCap && freeBuilding(s, 'nest')) return 'nest';
     /* 开门基础科技页必须先铺到第 5 座藻场；若把住房扩张排在它之前，
      * 开局人口会一直挤在首座巢里，学者职业无法解锁，科技产出永远为 0。 */
     if (availableBuilding(s, 'kelp') && s.lvl.kelp < 5) return 'kelp';
@@ -590,11 +1052,15 @@
      * 这能让早期仓储死锁期间继续铺基础设施，并推进总建筑等级类市政。 */
     return portfolioBuild(s, null);
   }
-  function shouldPrioritizeConditionBuild(s, goal, buildId) {
+  function shouldPrioritizeConditionBuild(s, goal, buildId, civicGoal) {
     var cond = goal && goal.cond;
     /* 壳层科技的 shell:1 尤里卡必须靠已研究的天穹钻机奇观继续削壳；
      * 它虽不是 wonders 条件，仍是这条硬门槛的必需建造，不能被通用过滤器当作可选项丢弃。 */
-    if (shellGateNeedsDrill(s, goal)) return false;
+    if (shellNeedsDrill(s, goal)) return false;
+    if (geekGateNeedsWonder(s, goal)) return false;
+    /* 当前市政要求的奇观也是硬目标；即使科技正在追产率，也要并行筹这座奇观的材料，
+     * 例如总物流站/全国快速物流通道能提高工艺与精铁产出，帮助打通 θ 产线。 */
+    if (civicNeedsWonder(s, civicGoal)) return false;
     /* 关键科技当前尤里卡未满足时，暂停可选奇观投入。否则奇观会反复消耗
      * 石头制作石梁，抢走研究区/住房等硬门槛所需的建材，让关键科技永远停在原地。
      * 显式要求奇观的门槛仍由 chooseWonder 正常推进。 */
@@ -660,6 +1126,19 @@
     if (!best) return null;
     var available = Math.floor(SB.workshop.maxCraftable(s, best));
     var batches = Math.floor(available * 0.25);
+    /* 满仓转制不能吞掉当前硬目标预留的原料。例：汽轮机还差 44,820 石头、
+     * 石头仓上限 45,336 时，旧逻辑因石头压力超过 90% 转制 113 批石梁，
+     * 一次吃掉约 11,300 石头，刚要造出的汽轮机又被自己转制卡住。只允许
+     * 使用超过 plannedCost 的部分，并沿用正式配方成本倍率计算可转整数批次。 */
+    var costMul = SB.workshop.craftCostMul ? SB.workshop.craftCostMul(s, best) : 1;
+    for (var input in best.in || {}) {
+      var reserve = Math.max(0, Number(plannedCost && plannedCost[input]) || 0);
+      var inputPerBatch = (Number(best.in[input]) || 0) * costMul;
+      if (reserve > 0 && inputPerBatch > 0) {
+        var surplus = Math.max(0, (Number(s.res[input]) || 0) - reserve);
+        batches = Math.min(batches, Math.floor((surplus + 1e-9) / inputPerBatch));
+      }
+    }
     if (batches <= 0) return null;
     var before = s.res[best.res] || 0;
     var made = SB.workshop.craft(s, best.id, batches, emit);
@@ -741,6 +1220,10 @@
        * 让队列继续规划可解锁深空科技的《太空竞赛》等后续市政。 */
       if (c.boost && c.boost.t === 'gathered' && c.boost.r === 'stardust' &&
           !SB.civic.boostMet(s, c)) continue;
+      /* 当前目标是留在本周目建成戴森球。轮回次数门槛此时无法推进，不能让
+       * 《神们自己》一类支线挡住其它可完成的市政及其生产政策；戴森竣工前只把
+       * 这类市政延后，不结算轮回、不改周目。 */
+      if (c.boost && c.boost.t === 'cycle' && !s.dysonDone) continue;
       /* 节点未揭示时也要追它自己的鼓舞：否则像「累计奢侈品产出」这种显形门槛
        * 永远不会被 bot 主动推进，后继市政与政策卡就会一起卡住。 */
       if (!c.boost || SB.civic.boostMet(s, c)) continue;
@@ -757,6 +1240,19 @@
     if (!s || s.broken || !SB || !SB.game || !SB.tech) return { changed: false, goal: null };
     var emit = options.emit || SB.game.emit, changed = false, actions = 0;
     function did(ok) { if (ok) { changed = true; actions++; } return !!ok; }
+    function manualGatherTo(resource, target, maxClicks) {
+      var click = Number(SB.GATHER && SB.GATHER[resource]) || 0;
+      if (!(click > 0) || !SB.economy || !SB.economy.addRes) return 0;
+      var count = 0;
+      while ((Number(s.res && s.res[resource]) || 0) + 1e-9 < target && count < maxClicks) {
+        var before = Number(s.res && s.res[resource]) || 0;
+        SB.economy.addRes(s, resource, click);
+        var after = Number(s.res && s.res[resource]) || 0;
+        if (after <= before + 1e-9) break;
+        changed = true; actions++; count++;
+      }
+      return count;
+    }
     /* 保温法是玩家开的生存策略开关，不会因为暖石充足自动启用。
      * 热能科技已解锁且当前挑战允许时，AI 像玩家一样常开：只在减产季烧 1/s，
      * 可同时顶回口粮减产并免除冰封冻伤；暖石不足时游戏自己的门控会暂停燃烧。 */
@@ -765,6 +1261,15 @@
       s.warmOn = true; changed = true; actions++;
     }
     var goal = researchGoal(s), cond = goal.cond;
+    var dysonPlan = dysonProductionPlan(s, options);
+    var thetaRateNeed = !!(cond && cond.t === 'rate' && cond.r === 'thetaMetal' &&
+      (SB.economy.rates(s).thetaMetal || 0) + 1e-9 < cond.n);
+    var thetaStockNeed = thetaConditionTarget(s, cond) > (s.res.thetaMetal || 0) + 1e-9;
+    var dysonThetaNeed = !!(dysonPlan &&
+      dysonPlan.thetaRateRequired > dysonPlan.thetaRateAvailable + 1e-9);
+    var thetaProductionPriority = thetaRateNeed || thetaStockNeed || dysonThetaNeed;
+    var thetaPriorityRate = Math.max(thetaRateNeed ? Number(cond.n) || 0 : 0,
+      dysonPlan ? Number(dysonPlan.thetaRateRequired) || 0 : 0);
     /* 神学完成后，建立宗教是玩家需在信仰页输入名称的正式动作；不自动命名会让
      * 《归正会》的 religion 鼓舞与轮回系统长期停在空名门槛。用同一局状态字段和
      * 游戏回调模拟一次正常命名，名称可在 UI 中随时修改且不消耗资源。 */
@@ -773,15 +1278,45 @@
       if (SB.game.maybeReligionPopup) SB.game.maybeReligionPopup(s);
       changed = true; actions++;
     }
-    /* 真开局的两次手动采集：等价于点游戏内采集按钮，不注入免费资源。 */
+    var thetaPlan = (Number(s.lvl && s.lvl.biomatlab) || 0) > 0
+      ? thetaProductionPlan(s, thetaPriorityRate) : null;
+    var titaniumPlan = titaniumMiningPlan(s, thetaPlan);
+    var thetaIronPlan = thetaIronMiningPlan(s, thetaPlan);
+    var dysonWarmstoneTargetMiners = dysonPlan
+      ? minersForWarmstone(s, dysonPlan.warmstoneRateRequired + dysonPlan.warmstoneFixedBurn) : 0;
+    var dysonMinerTarget = Math.max(
+      Number(titaniumPlan && titaniumPlan.targetMiners) || 0,
+      Number(thetaIronPlan && thetaIronPlan.targetMiners) || 0,
+      Number(dysonWarmstoneTargetMiners) || 0);
+    var titaniumToolTargets = titaniumMiningTools(s, titaniumPlan);
+    if (thetaPlan && thetaPlan.levels > 0) {
+      /* 只让原料/热液能能持续供养的研究所开工；停下的等级保留在库里，
+       * 原料产能扩上来后会自动恢复。此前 20 座研究所同时运行，48 精铁/秒的
+       * 需求压过热泉炉约 7.45/秒的供给，精铁归零，θ速率也随之归零。 */
+      var thetaActiveTarget = Math.min(thetaPlan.levels, thetaPlan.supportedLabs, thetaPlan.targetLabs);
+      var thetaStopTarget = thetaPlan.levels - thetaActiveTarget;
+      if ((Number(s.biomatlabStop) || 0) !== thetaStopTarget) {
+        s.biomatlabStop = thetaStopTarget;
+        changed = true; actions++;
+      }
+    }
+    /* 开局手动采集：等价于点游戏内采集按钮，不注入免费资源。 */
     if (!(s.lvl.nest || 0)) {
       var nestCost = SB.economy.costOf(s, 'nest').coral || 0;
-      for (var g = 0; g < 5 && (s.res.coral || 0) < nestCost; g++) did(SB.economy.addRes(s, 'coral', SB.GATHER.coral));
+      manualGatherTo('coral', nestCost, 5);
     }
-    if (s.challenge && s.challenge.id === 'abyss' && !s.lvl.kelp) {
+    /* 深渊的全产出惩罚会让首座藻场 + 唯一采集者无法形成藻食盈余。
+     * 旧逻辑只在 kelp=0 时手动采到首座藻场成本；建成后若存量又被口粮吃空，
+     * 下一座藻场永远造不起，人口也无法增长来提供第二个采集岗位。按正常采集动作
+     * 补到当前藻场下一级成本，最多 25 次，不绕过成本/库存上限。 */
+    if (s.challenge && s.challenge.id === 'abyss' && (s.lvl.kelp || 0) < 5) {
       var kelpCost = SB.economy.costOf(s, 'kelp').kelp || 0;
-      for (var kg = 0; kg < 25 && (s.res.kelp || 0) < kelpCost; kg++) did(SB.economy.addRes(s, 'kelp', SB.GATHER.kelp));
+      manualGatherTo('kelp', kelpCost, 25);
     }
+    /* 有限资源库存尤里卡若没有已分配的生产岗位，按玩家的采集按钮补资源，
+     * 避免 1 人开局时被 foodNeed 占满岗位后永远停在“库存 N / N”门槛。 */
+    if (cond && cond.t === 'res' && cond.r && Number(cond.n) > (Number(s.res && s.res[cond.r]) || 0))
+      manualGatherTo(cond.r, Number(cond.n), 5);
     var cold = SB.economy.isCold(s), gatherNow = s.jobs.gather || 0;
     /* 用真实 foodRate 暂时算出「建筑底产」与「每名采集者边际产量」，这样会自然包含
      * 季节、政策、公司、挑战产出惩罚等乘区，不在 bot 里维护一份近似版经济公式。 */
@@ -801,6 +1336,27 @@
       else if (foodStock < foodCap * 0.25) foodNeed = Math.max(foodNeed, Math.ceil(s.pop * 0.40));
       else if (foodStock < foodCap * 0.50) foodNeed = Math.max(foodNeed, Math.ceil(s.pop * 0.25));
       foodNeed = Math.min(foodNeed, s.pop > 1 ? s.pop - 1 : s.pop);
+    }
+    var thetaKelpPlan = thetaProductionPriority
+      ? thetaKelpGatherPlan(s, thetaPlan, foodNeed,
+        dysonMinerTarget) : null;
+    if (thetaKelpPlan) foodNeed = Math.max(foodNeed, thetaKelpPlan.target);
+    if (dysonPlan && dysonMinerTarget > 0) {
+      /* 原料岗位需要的人数随当前可持续 θ 台阶增长；为生产链留出有限住房余量，
+       * 否则 220/220 满人口时即使算出更多矿工目标也没有可用工人。 */
+      var dysonPopulationTarget = Math.min(800, Math.ceil(dysonMinerTarget +
+        Math.max(foodNeed, Number(thetaKelpPlan && thetaKelpPlan.target) || 0) + 30));
+      if (dysonPopulationTarget > SB.economy.popCap(s))
+        options = Object.assign({}, options, { targetPopulation: Math.max(
+          Number(options.targetPopulation) || 0, dysonPopulationTarget) });
+    }
+    /* θ 的产出尤里卡需要持续扩展岗位，而满住房会让 AI 永远没有新工人。
+     * 先把人口目标抬到一个有限的 180 人运营里程碑，给采集者/矿工留下编制；
+     * 到达后停止追人口，避免无止境扩房。挑战人口硬上限仍由 houseCapacityTarget 钳制。 */
+    if (thetaProductionPriority && s.pop >= SB.economy.popCap(s) - 1) {
+      options = Object.assign({}, options, {
+        targetPopulation: Math.max(Number(options.targetPopulation) || 0, Math.min(180, Math.max(s.pop, 180)))
+      });
     }
     var weights = { coralwright: 0.20, quarrier: 0.10, scholar: 0.20, miner: 0.18, scribe: 0.08, merchant: 0.04 };
     var scienceCost = nextScienceCost(s, goal);
@@ -829,20 +1385,26 @@
     if (cond && cond.t === 'res') {
       var cj = resourceJob(cond.r, s); if (cj && cj !== 'gather') weights[cj] = 0.68;
     }
+    var hydroRateMinerTarget = 0;
     if (cond && cond.t === 'rate' && cond.r === 'hydroSupply' &&
         (SB.economy.rates(s).hydroSupply || 0) + 1e-9 < cond.n) {
       var requiredTurbines = hydroTurbineTarget(s, cond.n).required;
+      hydroRateMinerTarget = minersForWarmstone(s,
+        requiredTurbines * (SB.UNIT.hydroWarm || 5) *
+        (SB.economy.warmEff ? SB.economy.warmEff(s) : 1) * 1.15);
       if (hydroSupportCap(s) < requiredTurbines) weights.miner = Math.max(weights.miner || 0, 0.85);
     }
     if (cond && cond.t === 'job') weights[cond.j] = 0.72;
-    var nextBuild = chooseBuild(s, goal, options, civicGoal);
-    var nextWonder = chooseWonder(s, goal, options);
+    var nextBuild = chooseBuild(s, goal, options, civicGoal, dysonPlan);
+    var nextWonder = chooseWonder(s, goal, options, civicGoal);
     var preferredUpgradeId = priorityBuildingUpgrade(s);
     if (preferredUpgradeId && nextBuild === preferredUpgradeId) nextWonder = null;
     /* 未满足的硬性科技条件优先于可选奇观：否则奇观队列会抢走建造动作，
      * bot 明明识别出要补汽轮机，却一直停在同一尤里卡门槛。 */
-    if (shouldPrioritizeConditionBuild(s, goal, nextBuild)) nextWonder = null;
-    var supportUpgradeId = wonderPrereqUpgrade(s, goal) || conditionSupportUpgrade(s, goal);
+    if (shouldPrioritizeConditionBuild(s, goal, nextBuild, civicGoal)) nextWonder = null;
+    var supportUpgradeId = wonderPrereqUpgrade(s, goal) ||
+      titaniumMiningUpgrade(s, titaniumPlan, titaniumToolTargets) ||
+      ironThetaSupportUpgrade(s, thetaPlan) || conditionSupportUpgrade(s, goal);
     var civicUpgradeId = civicBoost && civicBoost.t === 'upgrade' && !SB.civic.boostMet(s, civicGoal)
       ? civicBoost.id : null;
     var civicUpgradeDef = civicUpgradeId && SB.workshop.upgradeById(civicUpgradeId);
@@ -860,7 +1422,9 @@
           '/' + (isFinite(cap) ? cap.toFixed(1) : '∞');
       }).join(',');
     });
-    var buildCapacityBlocked = !!(nextBuild && costExceedsCapacity(s, SB.economy.costOf(s, nextBuild)));
+    var blockedBuildCost = nextBuild && SB.economy.costOf(s, nextBuild);
+    var buildCapacityBlocked = !!(nextBuild && costExceedsCapacity(s, blockedBuildCost));
+    var capacityResource = buildCapacityBlocked ? capacityBlockedResource(s, blockedBuildCost) : null;
     var capacityFallbackFor = buildCapacityBlocked ? nextBuild : null;
     var capacityFallbackCost = capacityFallbackFor ? SB.economy.costOf(s, capacityFallbackFor) : null;
     var castleUpgradePriority = !!((s.lvl.workshop || 0) > 0 && s.techs && s.techs.castle &&
@@ -868,7 +1432,7 @@
     var capacityUpgrade = castleUpgradePriority || ((housingCapacityBlocked || buildCapacityBlocked) &&
       s.techs && s.techs.castle && !(s.upgrades && s.upgrades.upg_castle));
     var storageCapacityUpgrade = !capacityUpgrade && (housingCapacityBlocked || buildCapacityBlocked)
-      ? storageUpgrade(s) : null;
+      ? storageUpgrade(s, capacityResource) : null;
     /* 材料工艺链已解锁时，优先买仓储扩容升级；它通常比逐级堆议事厅更快提升容量。
      * 若配方链仍被科技/市政锁住，再走直接建仓路径，避免升级计划无料可做而空转。 */
     if (storageCapacityUpgrade && !storageUpgradeMaterialsUnlocked(s, storageCapacityUpgrade))
@@ -885,7 +1449,7 @@
     else if (buildCapacityBlocked) {
       /* 尤里卡建筑自身也可能贵过当前仓储上限。用扩容建筑解锁下一档造价；若压舱仓
        * 的工艺成本也越过容量，再由已装城堡的议事厅提供一段扩容。 */
-      var storageFallback = storageBuild(s);
+      var storageFallback = storageBuild(s, capacityResource);
       if (storageFallback) nextBuild = storageFallback;
     }
     var capUpgradeDef = capacityUpgrade ? SB.workshop.upgradeById('upg_castle') : null;
@@ -893,12 +1457,17 @@
       storageCapacityUpgrade ? storageCapacityUpgrade.cost || {} :
       nextWonder ? (SB.workshop.wonderById(nextWonder).cost || {}) :
       nextBuild ? SB.economy.costOf(s, nextBuild) : {});
-    var dysonPlan = dysonProductionPlan(s);
     if (supportUpgradeId) {
       var supportUpgrade = SB.workshop.upgradeById(supportUpgradeId);
       for (var suk in supportUpgrade && supportUpgrade.cost || {})
         plannedCost[suk] = (plannedCost[suk] || 0) + supportUpgrade.cost[suk];
     }
+    /* 钛不是只能靠空等矿工慢慢挖：矿工镐有职业加成，自动化钻探又能把运行矿坑的
+     * 钛/铀产出翻倍。把已解锁的采矿工具和这项工坊升级纳入同一条原料预案，
+     * 缺钛时自动准备它们，而不是继续只扩藻场。 */
+    titaniumToolTargets.forEach(function (tool) {
+      for (var ttk in tool.cost || {}) plannedCost[ttk] = (plannedCost[ttk] || 0) + tool.cost[ttk];
+    });
     var supportCost = nextWonder && nextBuild ? SB.economy.costOf(s, nextBuild) : {};
     if (!capacityUpgrade && cond && cond.t === 'upgrade') {
       var targetUpgrade = SB.workshop.upgradeById(cond.id);
@@ -923,6 +1492,7 @@
      *「累计火箭引擎 0/10」：配方已解锁，AI 却没有任何建设需求来触发它。 */
     var gatheredCraftTarget = null;
     var gatheredCraftStatus = null;
+    var conditionCraftTarget = null;
     var gatheredCond = goal && goal.cond;
     if (gatheredCond && gatheredCond.t === 'gathered') {
       var gatheredResource = gatheredCond.r;
@@ -944,15 +1514,30 @@
       expandPrimaryNeeds(s, resource, dysonPlan.targets[resource], needs, []);
     });
     addCostNeeds(s, supportCost, needs);
-    if (cond && cond.t === 'res') needs[cond.r] = Math.max(needs[cond.r] || 0,
-      Math.max(0, cond.n - (s.res[cond.r] || 0)));
+    if (cond && cond.t === 'res') {
+      var conditionShortage = Math.max(0, (Number(cond.n) || 0) - (Number(s.res && s.res[cond.r]) || 0));
+      var conditionRecipe = conditionShortage > 0 ? recipeByResource(cond.r) : null;
+      /* 库存型尤里卡若要求工艺品（例如《刻纹腐蚀术》要 1000 潮纹记录），
+       * 不能只把成品名写进 needs：resourceJob 不认识工艺品，AI 就会永远不造。
+       * 解锁配方时按目标库存递归排出原料岗位并正式制造；配方未解锁时仍保留
+       * 原有库存缺口，诊断会在 craftDiagnostics 标出配方门槛。 */
+      if (conditionRecipe && recipeUnlocked(s, conditionRecipe)) {
+        conditionCraftTarget = { resource: cond.r, target: Number(cond.n) || 0,
+          condition: Number(cond.n) || 0, recipe: conditionRecipe.id };
+        expandPrimaryNeeds(s, cond.r, conditionCraftTarget.target, needs, []);
+      } else {
+        needs[cond.r] = Math.max(needs[cond.r] || 0, conditionShortage);
+        if (conditionRecipe) conditionCraftTarget = { resource: cond.r,
+          target: Number(cond.n) || 0, condition: Number(cond.n) || 0, recipe: conditionRecipe.id };
+      }
+    }
     /* 天穹钻机耗材按剩余壳厚计算：建造需要 20 个，运行需要 DRILL/s × 预计运行秒数。
      * 天穹钻机是奇观队列最后一座；其余奇观建完前不提前囤钻头，避免抢占钢制零件、绳等共用原料。 */
     var drillTarget = drillStockTarget(s);
     var allPreDrillWondersBuilt = (SB.WONDERS || []).every(function (w) {
-      return w.id === 'wonder_skydrill' || isOwned(s, w.id);
+      return w.id === 'wonder_skydrill' || !wonderEligible(s, w) || isOwned(s, w.id);
     });
-    if (!allPreDrillWondersBuilt && !shellGateNeedsDrill(s, goal)) drillTarget = 0;
+    if (!allPreDrillWondersBuilt && !shellNeedsDrill(s, goal)) drillTarget = 0;
     if (drillTarget > 0) {
       expandPrimaryNeeds(s, 'resonantDrill', drillTarget, needs, []);
     }
@@ -972,6 +1557,19 @@
     var requiredMaterialJobs = {}, materialNeeds = {};
     addCostNeeds(s, plannedCost, materialNeeds);
     addCostNeeds(s, supportCost, materialNeeds);
+    /* 资源型尤里卡也是一笔当前硬目标，不能只调整权重。
+     * autoAssign 只填闲置人口，不会把现有学者转成采石工；例如「石工」要求
+     * 石头 100，人口 2 时一个采集者加一个学者会永久挤掉唯一采石岗位。 */
+    var conditionResourceJob = null;
+    if (cond && cond.t === 'res' && cond.r &&
+        (Number(s.res && s.res[cond.r]) || 0) + 1e-9 < (Number(cond.n) || 0)) {
+      var conditionJob = resourceJob(cond.r, s);
+      if (conditionJob && conditionJob !== 'gather' && SB.folk.jobUnlocked(s, conditionJob)) {
+        conditionResourceJob = conditionJob;
+        requiredMaterialJobs[conditionJob] = true;
+        weights[conditionJob] = Math.max(weights[conditionJob] || 0, 1.5);
+      }
+    }
     Object.keys(materialNeeds).forEach(function (r) {
       var j = resourceJob(r, s);
       if (j && j !== 'gather' && (materialNeeds[r] || 0) > 0.01) {
@@ -1037,12 +1635,20 @@
         if (hj && hj !== 'gather') weights[hj] = Math.max(weights[hj] || 0, 0.90);
       }
     }
-    /* 扩仓建筑的成本是石梁/硬化珊瑚；持续攒仓料时必须保证原始石头与珊瑚优先，
-     * 否则可选市政的 scribe 比例会抢走采石工，仓储建筑永远差最后几批工艺品。 */
+    /* 扩仓建筑只给当前确实短缺的工艺链留岗位。此前不看库存就同时把采石工和珊瑚匠
+     * 拉到高权重；当石梁已经够、只缺硬化珊瑚时，采石工仍占约 30 个岗位，挤掉矿工，
+     * 让钛/金属供给一起掉下来。递归核算这座压舱仓的实际缺料，再只保留对应生产岗位。 */
     if (nextBuild === 'ballast') {
-      weights.quarrier = Math.max(weights.quarrier || 0, 0.90);
-      weights.coralwright = Math.max(weights.coralwright || 0, 0.90);
-      weights.scribe = Math.min(weights.scribe || 0, 0.12);
+      var ballastNeeds = {};
+      addCostNeeds(s, SB.economy.costOf(s, 'ballast'), ballastNeeds);
+      if ((ballastNeeds.stone || 0) > 0.01)
+        weights.quarrier = Math.max(weights.quarrier || 0, 0.90);
+      if ((ballastNeeds.coral || 0) > 0.01)
+        /* 高等级压舱仓依赖大量硬化珊瑚。把“有缺口”从轻微权重提高到奇观材料同档，
+         * 让当前扩仓目标实际拿到珊瑚匠；异星矿井升级会并行增加硬化珊瑚直产。 */
+        weights.coralwright = Math.max(weights.coralwright || 0, 4.0);
+      if (Object.keys(ballastNeeds).some(function (resource) { return ballastNeeds[resource] > 0.01; }))
+        weights.scribe = Math.min(weights.scribe || 0, 0.12);
     }
     /* 钢工具尤里卡要一次买齐三件，但汽轮机需要暖石流、汽轮机/工坊本身又吃大量石头。
      * 只为“缺钢”长期拉满矿工会把采石工挤成 0，结果有暖石却永远造不起生产线。
@@ -1128,6 +1734,30 @@
         ? 1.5 * otherWeight / (availableWorkers - 1.5) : 1;
       weights[job] = Math.max(weights[job] || 0, minimumWeight);
     });
+    var titaniumTargetMiners = 0;
+    if (titaniumPlan && titaniumPlan.needed && SB.folk.jobUnlocked(s, 'miner')) {
+      /* 保留最低的其他生产岗位，剩余人力按实际每名矿工的钛边际产率反推矿工目标。
+       * 这样不用猜一个固定矿工比例；矿镐、自动化钻探或季节倍率变化后会自动重算。 */
+      var minerReserve = Math.min(8, Math.max(0, availableWorkers - 1));
+      var maxMiningWorkers = Math.max(0, availableWorkers - minerReserve);
+      titaniumTargetMiners = Math.min(titaniumPlan.targetMiners,
+        SB.folk.jobLimit ? SB.folk.jobLimit(s, 'miner') : maxMiningWorkers, maxMiningWorkers);
+    }
+    var productionMinerTarget = Math.min(Math.max(titaniumTargetMiners,
+      Number(thetaIronPlan && thetaIronPlan.targetMiners) || 0,
+      Number(dysonWarmstoneTargetMiners) || 0,
+      Number(hydroRateMinerTarget) || 0),
+      SB.folk.jobLimit ? SB.folk.jobLimit(s, 'miner') : availableWorkers);
+    if (productionMinerTarget > (s.jobs.miner || 0)) {
+      var otherMiningWeight = 0;
+      for (var mi = 0; mi < allJobs.length; mi++) if (allJobs[mi] !== 'gather' && allJobs[mi] !== 'miner' &&
+          SB.folk.jobUnlocked(s, allJobs[mi])) otherMiningWeight += weights[allJobs[mi]] || 0;
+      if (otherMiningWeight > 0 && productionMinerTarget < availableWorkers) {
+        var productionMinerWeight = productionMinerTarget * otherMiningWeight /
+          (availableWorkers - productionMinerTarget);
+        weights.miner = Math.max(weights.miner || 0, productionMinerWeight);
+      }
+    }
     var jobsBefore = JSON.stringify(s.jobs);
     var assignWeights = cold ? Object.assign({}, weights, {
       miner: Math.max(weights.miner || 0, 0.25)
@@ -1145,6 +1775,178 @@
       assignment.gather = oldGather + 1;
       SB.folk.autoAssign(s, assignment);
       if ((s.jobs.gather || 0) <= oldGather) break;
+    }
+    /* 自动配工按比例取整，且口粮校准会再次重分配剩余岗位；在满人口时，
+     * θ 的关键矿工/采集者目标会被珊瑚匠等比例岗位挤掉。按正式 assign API
+     * 把目标岗位补齐，同时给当前建筑原料、科研和采石各留最低人手。 */
+    if (thetaProductionPriority && thetaPlan &&
+        (thetaPlan.supportedLabs < thetaPlan.targetLabs || productionMinerTarget > (s.jobs.miner || 0))) {
+      /* autoAssign 和口粮安全校准会改变 jobs.gather/miner。前面的 thetaKelpPlan 是按
+       * 重分配前的岗位算的；在满人口时这可能只把采集者提升到旧目标，尽管实际供给仍
+       * 远不足以供养目标研究所。用重分配后的真实 rates 再算一次缺口。 */
+      var assignedThetaPlan = thetaProductionPlan(s, thetaPriorityRate);
+      var assignedTitaniumPlan = titaniumMiningPlan(s, assignedThetaPlan);
+      var assignedKelpPlan = thetaKelpGatherPlan(s, assignedThetaPlan, foodNeed,
+        assignedTitaniumPlan && assignedTitaniumPlan.needed ? assignedTitaniumPlan.targetMiners : 0);
+      if (assignedKelpPlan) thetaKelpPlan = assignedKelpPlan;
+      var floors = {
+        coralwright: needs.coral > 0 ? 12 : 2,
+        quarrier: (needs.stone > 0 || needs.stoneBeam > 0) ? 2 : 1,
+        scholar: 8,
+        scribe: civicCost && (s.res.culture || 0) < civicCost ? 2 : 1,
+        merchant: civicBoost && civicBoost.t === 'job' && civicBoost.j === 'merchant' ? 1 : 0
+      };
+      var productionJobTargets = {};
+      /* 当前阻塞点是高等级压舱仓的梁材/硬珊瑚成本。矿工优先补暖石后，
+       * autoAssign 会把采石工挤到 2 人，仓储材料就永远凑不齐；为这笔正在
+       * 建造的扩仓成本明确保留两条原料岗位，后续自动配工不能再把它们抽空。 */
+      if (nextBuild === 'ballast') {
+        var activeBallastNeeds = {};
+        addCostNeeds(s, SB.economy.costOf(s, 'ballast'), activeBallastNeeds);
+        var workerPoolForBallast = Math.max(1, s.pop - foodNeed);
+        if ((activeBallastNeeds.stone || 0) > 0.01 || (activeBallastNeeds.stoneBeam || 0) > 0.01)
+          productionJobTargets.quarrier = Math.max(4, Math.ceil(workerPoolForBallast * 0.15));
+        if ((activeBallastNeeds.coral || 0) > 0.01 || (activeBallastNeeds.hardCoral || 0) > 0.01)
+          productionJobTargets.coralwright = Math.max(12, Math.ceil(workerPoolForBallast * 0.20));
+        Object.keys(productionJobTargets).forEach(function (job) {
+          floors[job] = Math.max(Number(floors[job]) || 0, productionJobTargets[job]);
+        });
+      }
+      Object.keys(floors).forEach(function (job) {
+        floors[job] = Math.min(Number(s.jobs[job]) || 0, floors[job]);
+      });
+      Object.keys(productionJobTargets).forEach(function (job) {
+        floors[job] = Math.max(Number(floors[job]) || 0, productionJobTargets[job]);
+      });
+      var reserveWorkers = Object.keys(floors).reduce(function (sum, job) { return sum + floors[job]; }, 0);
+      var assignedIronPlan = thetaIronMiningPlan(s, assignedThetaPlan);
+      var currentTitaniumTarget = assignedTitaniumPlan && assignedTitaniumPlan.needed
+        ? assignedTitaniumPlan.targetMiners : titaniumTargetMiners;
+      var currentMinerTarget = Math.max(currentTitaniumTarget,
+        Number(assignedIronPlan && assignedIronPlan.targetMiners) || 0,
+        Number(dysonWarmstoneTargetMiners) || 0);
+      var minerGoal = Math.min(currentMinerTarget, Math.max(0, s.pop - reserveWorkers));
+      var gatherCapacity = Math.max(0, s.pop - reserveWorkers - minerGoal);
+      var gatherGoal = Math.min(thetaKelpPlan ? thetaKelpPlan.target : (s.jobs.gather || 0), gatherCapacity);
+      var donors = ['merchant', 'scribe', 'quarrier', 'coralwright', 'scholar'];
+      function topUpJob(job, target) {
+        var guard = 0;
+        while ((Number(s.jobs[job]) || 0) < target && guard++ < s.pop) {
+          var moved = false;
+          for (var di = 0; di < donors.length; di++) {
+            var donor = donors[di];
+            if (donor === job || (Number(s.jobs[donor]) || 0) <= (floors[donor] || 0)) continue;
+            if (SB.folk.assign(s, donor, -1) && SB.folk.assign(s, job, 1)) {
+              changed = true; actions++; moved = true; break;
+            }
+          }
+          if (!moved) break;
+        }
+      }
+      topUpJob('miner', minerGoal);
+      topUpJob('gather', gatherGoal);
+      Object.keys(productionJobTargets).forEach(function (job) {
+        topUpJob(job, productionJobTargets[job]);
+      });
+      /* 岗位调整后重新核算供给，并立即启用新增原料能支撑的研究所。 */
+      var finalThetaPlan = thetaProductionPlan(s, thetaPriorityRate);
+      if (finalThetaPlan) {
+        var finalActiveLabs = Math.min(finalThetaPlan.levels, finalThetaPlan.supportedLabs,
+          finalThetaPlan.targetLabs);
+        var finalThetaStop = finalThetaPlan.levels - finalActiveLabs;
+        if ((Number(s.biomatlabStop) || 0) !== finalThetaStop) {
+          s.biomatlabStop = finalThetaStop;
+          changed = true; actions++;
+          finalThetaPlan = thetaProductionPlan(s, thetaPriorityRate);
+        }
+        thetaPlan = finalThetaPlan;
+        var finalTitaniumPlan = titaniumMiningPlan(s, thetaPlan);
+        thetaKelpPlan = thetaKelpGatherPlan(s, thetaPlan, foodNeed,
+          finalTitaniumPlan && finalTitaniumPlan.needed ? finalTitaniumPlan.targetMiners : 0);
+      }
+    }
+    /* 为当前硬门槛/建造原料保底调配已经在岗的人。
+     * 比例配工在低人口时会把唯一空闲职业四舍五入给学者，而且不会重排旧岗位；
+     * 因此缺石、缺珊瑚时，策略目标虽正确，生产职业仍可能连续数小时为 0。保留
+     * 口粮岗位，先满足尤里卡资源，再依次满足当前建造和区域建造原料岗位。 */
+    if (!thetaProductionPriority) {
+      var priorityMaterialJobs = [];
+      function addPriorityJob(job) {
+        if (job && job !== 'gather' && priorityMaterialJobs.indexOf(job) < 0 &&
+            SB.folk.jobUnlocked(s, job)) priorityMaterialJobs.push(job);
+      }
+      addPriorityJob(conditionResourceJob);
+      Object.keys(requiredMaterialJobs).forEach(addPriorityJob);
+      Object.keys(requiredZoneJobs).forEach(addPriorityJob);
+      var specialistSlots = Math.max(0, s.pop - Math.max(foodNeed, Number(s.jobs.gather) || 0));
+      var priorityTargets = priorityMaterialJobs.slice(0, specialistSlots);
+      var priorityDonors = ['merchant', 'scribe', 'scholar', 'coralwright', 'quarrier', 'miner'];
+      for (var pj = 0; pj < priorityTargets.length; pj++) {
+        var targetJob = priorityTargets[pj];
+        if ((Number(s.jobs[targetJob]) || 0) > 0) continue;
+        var targetLimit = SB.folk.jobLimit ? SB.folk.jobLimit(s, targetJob) : Infinity;
+        if ((Number(s.jobs[targetJob]) || 0) >= targetLimit) continue;
+        for (var pd = 0; pd < priorityDonors.length; pd++) {
+          var donorJob = priorityDonors[pd];
+          if (donorJob === targetJob || (Number(s.jobs[donorJob]) || 0) <= 0) continue;
+          /* 有明确欠款的科研/市政产出时，尽量不拆唯一对应岗位；硬资源尤里卡仍优先。 */
+          if (donorJob === 'scribe' && civicCost && (Number(s.res.culture) || 0) < civicCost &&
+              (Number(s.jobs.scribe) || 0) <= 1) continue;
+          if (donorJob === 'scholar' && neededScienceCost && (Number(s.res.science) || 0) < neededScienceCost &&
+              (Number(s.jobs.scholar) || 0) <= 1) continue;
+          if (SB.folk.assign(s, donorJob, -1)) {
+            if (SB.folk.assign(s, targetJob, 1)) {
+              changed = true; actions++;
+            } else {
+              SB.folk.assign(s, donorJob, 1);
+            }
+            break;
+          }
+        }
+      }
+      /* 热液能尤里卡看的是瞬时总供给。仅提高矿工权重会被当前采石/学术岗位挤掉，
+       * 尤其在满人口时矿工可能从几十人跌到个位数，汽轮机随之停机，科技目标数小时不动。
+       * 按目标汽轮机数和实际暖石消耗反推矿工人数，再通过正式岗位 API 从非口粮岗位
+       * 调人；给正在筹备的汽轮机保留至少一名采石工/珊瑚匠，并保留科研、市政最低岗位。 */
+      if (cond && cond.t === 'rate' && cond.r === 'hydroSupply' &&
+          (SB.economy.rates(s).hydroSupply || 0) + 1e-9 < cond.n &&
+          SB.folk.jobUnlocked(s, 'miner')) {
+        var hydroGoal = hydroTurbineTarget(s, cond.n);
+        var hydroWarmPerTurbine = (SB.UNIT.hydroWarm || 5) *
+          (SB.economy.warmEff ? SB.economy.warmEff(s) : 1);
+        var hydroMinerTarget = minersForWarmstone(s,
+          hydroGoal.required * hydroWarmPerTurbine * 1.15);
+        var hydroBuildCost = nextBuild === 'hydroturbine'
+          ? SB.economy.costOf(s, 'hydroturbine') : null;
+        var hydroNeedsStone = !!(hydroBuildCost &&
+          (Number(s.res.stone) || 0) + 1e-9 < (Number(hydroBuildCost.stone) || 0));
+        var hydroNeedsCoral = !!(hydroBuildCost &&
+          (Number(s.res.hardCoral) || 0) + 1e-9 < (Number(hydroBuildCost.hardCoral) || 0));
+        var hydroFloors = {
+          merchant: civicBoost && civicBoost.t === 'job' && civicBoost.j === 'merchant' ? 1 : 0,
+          scribe: civicCost && (Number(s.res.culture) || 0) < civicCost ? 1 : 0,
+          scholar: neededScienceCost && (Number(s.res.science) || 0) < neededScienceCost ? 1 : 0,
+          coralwright: hydroNeedsCoral ? 1 : 0,
+          quarrier: hydroNeedsStone ? 1 : 0
+        };
+        var hydroWorkerCeiling = Math.max(0,
+          s.pop - Math.max(foodNeed, Number(s.jobs.gather) || 0));
+        var hydroMinerLimit = SB.folk.jobLimit ? SB.folk.jobLimit(s, 'miner') : Infinity;
+        hydroMinerTarget = Math.min(hydroMinerTarget, hydroWorkerCeiling, hydroMinerLimit);
+        var hydroDonors = ['merchant', 'scribe', 'scholar', 'coralwright', 'quarrier'];
+        var hydroMoveGuard = 0;
+        while ((Number(s.jobs.miner) || 0) < hydroMinerTarget && hydroMoveGuard++ < s.pop) {
+          var hydroMoved = false;
+          for (var hd = 0; hd < hydroDonors.length; hd++) {
+            var hydroDonor = hydroDonors[hd];
+            if ((Number(s.jobs[hydroDonor]) || 0) <= (hydroFloors[hydroDonor] || 0)) continue;
+            if (SB.folk.assign(s, hydroDonor, -1) && SB.folk.assign(s, 'miner', 1)) {
+              changed = true; actions++; hydroMoved = true; break;
+            }
+          }
+          if (!hydroMoved) break;
+        }
+      }
     }
     if (JSON.stringify(s.jobs) !== jobsBefore) { changed = true; actions++; }
     /* 现有汽轮机若超过暖石的可持续净产量就停一部分；热液工坊也不能运行得多过
@@ -1178,11 +1980,31 @@
       }
     }
     var runningTurbines = Math.min(s.lvl.hydroturbine || 0, sustainableTurbines);
-    var runningShops = Math.min(s.lvl.hydroshop || 0, runningTurbines);
     var turbineStop = Math.max(0, (s.lvl.hydroturbine || 0) - runningTurbines);
-    var hydroshopStop = Math.max(0, (s.lvl.hydroshop || 0) - runningShops);
-    if ((s.turbineStop || 0) !== turbineStop || (s.hydroshopStop || 0) !== hydroshopStop) {
+    if ((s.turbineStop || 0) !== turbineStop) {
       s.turbineStop = turbineStop;
+      changed = true; actions++;
+    }
+    var runningShops = Math.min(s.lvl.hydroshop || 0, runningTurbines);
+    var hydroPriority = null;
+    /* 破壳的硬门槛是钻机持续拿到 20/s 热液能。原先所有热液工坊先吃满，
+     * 即使钻机因此只剩 15.5/s，AI 也只会升级研究所，导致关键科技永远卡在 75%。
+     * 钻机启动且未破壳时，先给它保留额定流量，再用剩余供给开工坊；这只会暂时
+     * 降低钢产量，壳破后下一步自动恢复工坊，不动存档、不注入资源。 */
+    if (s.skydrillOn && !s.broken && SB.wonder && SB.wonder.owned(s).wonder_skydrill) {
+      var drillFlow = SB.economy.hydroAlloc(s, 1);
+      var drillNeed = Math.max(0, Number(SB.CFG.SKYDRILL_HYDRO) || 0);
+      var shopPerLevel = Math.max(0.001, Number(SB.UNIT && SB.UNIT.hydroShopLvl) || 1);
+      var shopsAfterDrill = Math.floor(Math.max(0,
+        Number(drillFlow.supplyRate || 0) - drillNeed + 1e-9) / shopPerLevel);
+      var plannedShops = Math.min(runningShops, shopsAfterDrill);
+      hydroPriority = { target: 'skydrill', supplyRate: Number(drillFlow.supplyRate) || 0,
+        requiredRate: drillNeed, shopsOpen: plannedShops, shopsTotal: Number(s.lvl.hydroshop) || 0 };
+      runningShops = plannedShops;
+    }
+    
+    var hydroshopStop = Math.max(0, (s.lvl.hydroshop || 0) - runningShops);
+    if ((s.hydroshopStop || 0) !== hydroshopStop) {
       s.hydroshopStop = hydroshopStop;
       changed = true; actions++;
     }
@@ -1198,6 +2020,24 @@
     }
     /* 递归补齐当前建设目标所需的工艺料；建材需求不足时，底层原料仍由职业正常生产。 */
     var craftDiagnostics = {};
+    if (conditionCraftTarget) {
+      var conditionCraftRecipe = recipeByResource(conditionCraftTarget.resource);
+      var conditionBeforeCraft = Number(s.res && s.res[conditionCraftTarget.resource]) || 0;
+      var conditionCraftUnlocked = !!(conditionCraftRecipe && recipeUnlocked(s, conditionCraftRecipe));
+      var conditionCraftBlocked = conditionCraftRecipe
+        ? SB.workshop.craftBlocked(s, conditionCraftRecipe.id) : '没有对应配方';
+      var conditionCraftAvailable = conditionCraftRecipe
+        ? SB.workshop.maxCraftable(s, conditionCraftRecipe) : 0;
+      var conditionCraftMade = conditionCraftUnlocked
+        ? ensureCraft(s, conditionCraftTarget.resource, conditionCraftTarget.target, emit, []) : false;
+      craftDiagnostics[conditionCraftTarget.resource] = {
+        have: conditionBeforeCraft, target: conditionCraftTarget.target,
+        unlocked: conditionCraftUnlocked, blocked: conditionCraftBlocked,
+        availableBatches: conditionCraftAvailable,
+        made: Math.max(0, (Number(s.res && s.res[conditionCraftTarget.resource]) || 0) - conditionBeforeCraft)
+      };
+      did(conditionCraftMade);
+    }
     for (var nr in plannedCost) {
       var plannedRecipe = recipeByResource(nr);
       if ((s.res[nr] || 0) < plannedCost[nr] && plannedRecipe) {
@@ -1214,6 +2054,11 @@
         did(craftDidRun);
       }
     }
+    /* 缺钛时按正式工坊购买 API 买齐已解锁的矿工镐；每件工具只购买一次，
+     * 加成叠加到矿工职业，不会注入资源或绕过配方/科技门槛。 */
+    titaniumToolTargets.forEach(function (tool) {
+      if (SB.workshop.canBuy(s, tool.id)) did(SB.workshop.buy(s, tool.id, emit));
+    });
     if (gatheredCraftTarget && (s.res[gatheredCraftTarget.resource] || 0) < gatheredCraftTarget.target) {
       var gatheredCraftRecipe = recipeByResource(gatheredCraftTarget.resource);
       var gatheredCraftBefore = s.res[gatheredCraftTarget.resource] || 0;
@@ -1232,8 +2077,20 @@
     }
     if (dysonPlan) Object.keys(dysonPlan.targets).forEach(function (resource) {
       var recipe = recipeByResource(resource);
-      if (recipe && (s.res[resource] || 0) < dysonPlan.targets[resource])
-        did(ensureCraft(s, resource, dysonPlan.targets[resource], emit, []));
+      var target = dysonCraftTarget(s, resource, dysonPlan.targets[resource], dysonPlan);
+      if (recipe && (s.res[resource] || 0) < target) {
+        var beforeDysonCraft = Number(s.res && s.res[resource]) || 0;
+        var dysonCraftUnlocked = recipeUnlocked(s, recipe);
+        var dysonCraftBlocked = SB.workshop.craftBlocked(s, recipe.id);
+        var dysonCraftBatches = SB.workshop.maxCraftable(s, recipe);
+        var dysonCraftMade = ensureCraft(s, resource, target, emit, []);
+        craftDiagnostics[resource] = { have: beforeDysonCraft, target: target,
+          requestedTarget: dysonPlan.targets[resource],
+          unlocked: dysonCraftUnlocked, blocked: dysonCraftBlocked,
+          availableBatches: dysonCraftBatches,
+          made: Math.max(0, (Number(s.res && s.res[resource]) || 0) - beforeDysonCraft) };
+        did(dysonCraftMade);
+      }
     });
     for (var sr in supportCost) {
       if ((s.res[sr] || 0) < supportCost[sr] && recipeByResource(sr))
@@ -1246,7 +2103,7 @@
     if (drillTarget > 0 && (s.res.resonantDrill || 0) < drillTarget)
       did(ensureCraft(s, 'resonantDrill', drillTarget, emit, []));
     /* 按计划建设；最多 2 个动作，避免单帧连续消费刚产出的资源。 */
-    var firstBuildInPass = null, buildCraftDiagnostics = {};
+    var firstBuildInPass = null, buildCraftDiagnostics = {}, wonderCraftDiagnostics = {};
     for (var b = 0; b < 2; b++) {
       if (capacityUpgrade) {
         if (!SB.workshop.upgradeCanBuy(s, 'upg_castle')) break;
@@ -1259,7 +2116,7 @@
         did(SB.workshop.upgradeBuy(s, storageCapacityUpgrade.id, emit));
         break;
       }
-      nextBuild = chooseBuild(s, goal, options, civicGoal);
+      nextBuild = chooseBuild(s, goal, options, civicGoal, dysonPlan);
       /* chooseBuild() is recomputed inside the action loop. The preflight above may
        * already have replaced an unaffordable goal building with a storage building,
        * but this second selection used to discard that fallback. At high turbine
@@ -1268,11 +2125,14 @@
        * would make the turbine affordable. Re-apply the capacity fallback at the
        * point of construction, after every action. */
       if (nextBuild && costExceedsCapacity(s, SB.economy.costOf(s, nextBuild))) {
+        var loopBuildCost = SB.economy.costOf(s, nextBuild);
+        var loopCapacityResource = capacityBlockedResource(s, loopBuildCost);
+        capacityResource = loopCapacityResource;
         if (!capacityFallbackFor) {
           capacityFallbackFor = nextBuild;
-          capacityFallbackCost = SB.economy.costOf(s, nextBuild);
+          capacityFallbackCost = loopBuildCost;
         }
-        var loopStorageFallback = storageBuild(s);
+        var loopStorageFallback = storageBuild(s, loopCapacityResource);
         if (loopStorageFallback) nextBuild = loopStorageFallback;
       }
       /* 主科技建筑有时被指数造价卡住（例如高等级汽轮机的硬化珊瑚）。
@@ -1313,10 +2173,39 @@
           did(buildCraftDidRun);
         }
       }
-      nextWonder = chooseWonder(s, goal, options);
+      nextWonder = chooseWonder(s, goal, options, civicGoal);
       var loopPriorityUpgradeId = priorityBuildingUpgrade(s);
       if (loopPriorityUpgradeId && nextBuild === loopPriorityUpgradeId) nextWonder = null;
-      if (shouldPrioritizeConditionBuild(s, goal, nextBuild)) nextWonder = null;
+      if (shouldPrioritizeConditionBuild(s, goal, nextBuild, civicGoal)) nextWonder = null;
+      /* 奇观目标会在本轮动作前重新选择；此时它可能刚刚变成硬门槛（例如《天穹钻机》
+       * 是壳层科技 100% 的唯一后续）。前面的 plannedCost/needs 是按更早的候选集计算，
+       * 有时仍为空，导致计划栏写着奇观、实际却只做满仓溢出配方并一直停在「等资源」。
+       * 在正式建造门前按当前奇观的折后成本再补一次工艺料，仍走 ensureCraft/craft 正式配方；
+       * 如果配方或原料真被锁住，把原因暴露到状态里，避免静默空转。 */
+      if (nextWonder) {
+        var loopWonder = SB.workshop.wonderById(nextWonder);
+        var loopWonderCost = SB.wonder && SB.wonder.discountedCost
+          ? SB.wonder.discountedCost(s, nextWonder) : (loopWonder && loopWonder.cost || {});
+        var craftedWonderMaterial = false;
+        for (var wc in loopWonderCost || {}) {
+          if ((s.res[wc] || 0) + 1e-9 >= loopWonderCost[wc]) continue;
+          var wonderRecipe = recipeByResource(wc);
+          if (!wonderRecipe) continue;
+          var beforeWonderCraft = Number(s.res && s.res[wc]) || 0;
+          var wonderCraftBlocked = SB.workshop.craftBlocked(s, wonderRecipe.id);
+          var wonderCraftAvailable = SB.workshop.maxCraftable(s, wonderRecipe);
+          var wonderCraftDidRun = recipeUnlocked(s, wonderRecipe)
+            ? ensureCraft(s, wc, loopWonderCost[wc], emit, []) : false;
+          wonderCraftDiagnostics[wc] = {
+            wonder: nextWonder, have: beforeWonderCraft, target: loopWonderCost[wc],
+            recipe: wonderRecipe.id, unlocked: recipeUnlocked(s, wonderRecipe),
+            blocked: wonderCraftBlocked, availableBatches: wonderCraftAvailable,
+            made: Math.max(0, (Number(s.res && s.res[wc]) || 0) - beforeWonderCraft)
+          };
+          if (did(wonderCraftDidRun)) craftedWonderMaterial = true;
+        }
+        if (craftedWonderMaterial) continue;
+      }
       if (nextWonder && SB.workshop.wonderBlocked(s, nextWonder) === null) {
         if (!did(SB.workshop.build(s, nextWonder, emit))) break;
         continue;
@@ -1359,6 +2248,14 @@
       if (civic && did(SB.civic.research(s, civic.id, emit))) SB.game.pumpCivic(s, emit);
       if (s.gov) {
         var storagePressure = housingCapacityBlocked || buildCapacityBlocked, installedPriorityCard = false;
+        /* 虚境之路的次序门槛：完成「虚境信仰」即拿到锁定卡「轮回之终末」，而
+         * 「虚境探索」要到 Era10 才进入市政队列。若只等 nextCivicBoost()，Era9 不会
+         * 预装这张卡；通用装卡又只填空槽，满槽时就会一直漏掉这个终局必需前置。
+         * 现在在 void_faith 完成后立即通过正式 setCard API 装入，允许替换普通卡。 */
+        if (s.civics && s.civics.void_faith && s.cards &&
+            s.cards.indexOf('card_cycle_terminus') < 0 &&
+            SB.civic.canSetCard(s, 'card_cycle_terminus'))
+          installedPriorityCard = did(SB.civic.setCard(s, 'card_cycle_terminus', emit));
         /* 2026-10-18：card_logistics 此前 retiredBy 方向写反（出生即退役）bot 永远装不上；
          *   修正后按链升级到 ERA8 洲际物流 ×5（canSetCard 自带退役判定，旧卡完成后自动跳下一张）。 */
         var storageCards = ['card_market', 'card_logistics', 'card_interlog'];
@@ -1369,7 +2266,7 @@
         var storagePolicyEquipped = storageGoalActive && s.cards && storageCards.some(function (id) {
           return s.cards.indexOf(id) >= 0;
         });
-        if (storagePressure && !storagePolicyEquipped) {
+        if (!installedPriorityCard && storagePressure && !storagePolicyEquipped) {
           for (var sci = 0; sci < storageCards.length; sci++) {
             if (SB.civic.canSetCard(s, storageCards[sci])) {
               installedPriorityCard = did(SB.civic.setCard(s, storageCards[sci], emit));
@@ -1387,6 +2284,63 @@
           installedPriorityCard = did(SB.civic.setCard(s, priorityCard, emit));
         var policies = SB.POLICIES || [];
         var policySlots = SB.civic.slotList(s);
+        var thetaBoostCardId = null;
+        var thetaKelpCardId = null;
+        /* 农奴制会按现有深海鱼牧场等级放大藻场产量。θ研究所的藻食短缺时，
+         * 这是直接的同局增产手段；原来的通用筛卡器只识别静态效果字段，因而漏掉
+         * 了依赖 serfKelpMul() 的这张动态卡。需要换卡时只让出政治经济学槽，且
+         * 先留足市政点，避免挤掉仓储、精铁、钢或工艺生产卡。 */
+        if (thetaProductionPriority && thetaPlan && thetaPlan.limiting === 'kelp' &&
+            thetaPlan.supportedLabs < thetaPlan.targetLabs && s.cards) {
+          if (s.cards.indexOf('card_serfdom') >= 0) thetaKelpCardId = 'card_serfdom';
+          else if (!installedPriorityCard && !storagePolicyEquipped &&
+              SB.civic.canSetCard(s, 'card_serfdom')) {
+            var serfdomSlot = -1;
+            for (var sk = 0; sk < policySlots.length; sk++) if (!s.cards[sk] &&
+                SB.civic.cardFits(SB.civic.policyById('card_serfdom'), policySlots[sk].type)) {
+              serfdomSlot = sk; break;
+            }
+            var nextCivicForKelp = nextCivicCost(s);
+            var cultureForKelp = Math.max(0, Number(s.res && s.res.culture) || 0);
+            if (serfdomSlot < 0 && (!nextCivicForKelp ||
+                cultureForKelp >= Math.max(100000, nextCivicForKelp * 5))) {
+              var politicalSlot = s.cards.indexOf('card_political_econ');
+              if (politicalSlot >= 0 && SB.civic.cardFits(SB.civic.policyById('card_serfdom'),
+                  policySlots[politicalSlot] && policySlots[politicalSlot].type))
+                serfdomSlot = politicalSlot;
+            }
+            if (serfdomSlot >= 0 && did(SB.civic.setCard(s, 'card_serfdom', emit, serfdomSlot))) {
+              thetaKelpCardId = 'card_serfdom';
+              installedPriorityCard = true;
+            }
+          }
+        }
+        /* θ产率尤里卡低于目标时，优先安装直接提高 θ 金属成品率的「血肉苦弱」(+30%)，
+         * 不必等铁矿恰好成为当前最窄原料。它提高每座研究所的成品率，减少达到 5/s 所需的
+         * 研究所与四种原料总量；若政策槽已满，只允许替换较弱的「矿物章程」，不挤仓储卡。 */
+        if (thetaProductionPriority && thetaPlan && s.cards) {
+          var ironBoostCards = ['card_flesh_weak', 'card_mineral_charter'];
+          for (var ib = 0; ib < ironBoostCards.length; ib++) {
+            var ironCardId = ironBoostCards[ib];
+            if (s.cards.indexOf(ironCardId) >= 0) { thetaBoostCardId = ironCardId; break; }
+            if (installedPriorityCard || !SB.civic.canSetCard(s, ironCardId)) continue;
+            var ironCard = SB.civic.policyById(ironCardId), ironSlot = -1;
+            for (var ips = 0; ironCard && ips < policySlots.length; ips++) {
+              if (!s.cards[ips] && SB.civic.cardFits(ironCard, policySlots[ips].type)) { ironSlot = ips; break; }
+            }
+            if (ironSlot < 0 && ironCardId === 'card_flesh_weak') {
+              var mineralSlot = s.cards.indexOf('card_mineral_charter');
+              if (mineralSlot >= 0 && ironCard &&
+                  SB.civic.cardFits(ironCard, policySlots[mineralSlot] && policySlots[mineralSlot].type))
+                ironSlot = mineralSlot;
+            }
+            if (ironSlot >= 0 && did(SB.civic.setCard(s, ironCardId, emit, ironSlot))) {
+              thetaBoostCardId = ironCardId;
+              installedPriorityCard = true;
+              break;
+            }
+          }
+        }
         /* 通用卡只填空槽，不在槽位已满时反复替换；同时跳过已装备的卡，避免逐帧覆盖。 */
         if (!installedPriorityCard) for (var pi = 0; pi < policies.length; pi++) {
           var p = policies[pi], effectful = Object.keys(p).some(function (k) {
@@ -1406,14 +2360,24 @@
        * 就继续换到已解锁且满足门槛的政体。以前只检查“三槽”，导致 3 槽政体被视为完成，
        * 却永远不切换到教权国/平等主义/联邦制，市政与其后的太空竞赛、深空科技因此卡死。 */
       var currentGov = SB.civic.govById(s.gov);
-      var currentGovWildSlots = currentGov && currentGov.slots ? Number(currentGov.slots.wild) || 0 : 0;
+      /* 有些市政的鼓舞要求采用指定政体。只检查政体槽数会让 AI 永远停在
+       * “缺星海合作社/星际联邦”的鼓舞，相关政策卡（含精铁/θ +30%）就不会解锁。 */
+      if (civicBoost && civicBoost.t === 'govId' && civicBoost.id &&
+          s.gov !== civicBoost.id && SB.civic.govOwned(s, civicBoost.id) &&
+          SB.civic.canSetGov(s, civicBoost.id)) {
+        if (did(SB.civic.setGov(s, civicBoost.id, emit)))
+          currentGov = SB.civic.govById(s.gov);
+      }
+      /* govWildSlots 的正式判定按所有政策槽总数计数，不是只数 wild 槽；Era6 的 7 槽政体
+       * 实际是 4 wild + 其余专用槽。只比较 slots.wild 会让 AI 永远找不到任何 7 槽政体。 */
+      var currentGovSlots = totalGovernmentSlots(currentGov);
       var desiredGovWildSlots = 3;
       if (civicBoost && civicBoost.t === 'govWildSlots' && !SB.civic.boostMet(s, civicGoal))
         desiredGovWildSlots = Math.max(desiredGovWildSlots, Number(civicBoost.n) || 0);
-      if (currentGovWildSlots < desiredGovWildSlots) {
+      if (currentGovSlots < desiredGovWildSlots) {
         var govs = SB.GOVS || [];
         for (var gi = 0; gi < govs.length; gi++) {
-          if ((govs[gi].slots && govs[gi].slots.wild >= desiredGovWildSlots) && SB.civic.govOwned(s, govs[gi].id) &&
+          if (totalGovernmentSlots(govs[gi]) >= desiredGovWildSlots && SB.civic.govOwned(s, govs[gi].id) &&
               SB.civic.canSetGov(s, govs[gi].id)) {
             if (did(SB.civic.setGov(s, govs[gi].id, emit))) break;
           }
@@ -1423,8 +2387,48 @@
     SB.game.pumpTech(s, emit); SB.game.pumpCivic(s, emit);
     if (s.wonders && s.wonders.wonder_skydrill && !s.broken && !s.skydrillOn && SB.ui && SB.ui.input && SB.ui.input.toggleSkydrill)
       did(SB.ui.input.toggleSkydrill(s));
+    /* G.E.E.K 需要一次明确启动操作；建成后自动调用同一 UI 正式切换 API，
+     * 只在当前科技正等恩克拉多斯尤里卡时启动，不改写地形改造进度或跨周目状态。 */
+    if (s.wonders && s.wonders.wonder_geek && !(s.geek && s.geek.geekOn) &&
+        goal && goal.cond && goal.cond.t === 'geekEnceladus' &&
+        !(s.geek && s.geek.enceladusDone) && SB.ui && SB.ui.input && SB.ui.input.toggleGeek)
+      did(SB.ui.input.toggleGeek(s));
     if (changed && SB.game.markDirty) SB.game.markDirty();
     return { changed: changed, actions: actions, goal: goal.id || null, condition: cond && cond.t || null,
+      thetaProduction: thetaPlan,
+      thetaDemandActive: thetaProductionPriority,
+      thetaBoostCard: thetaBoostCardId,
+      thetaKelpCard: thetaKelpCardId,
+      ironStorageUpgrades: ['upg_ballast_1', 'upg_ballast_2', 'upg_alloy_warehouse'].map(function (upgradeId) {
+        var upgrade = SB.workshop.upgradeById(upgradeId);
+        return upgrade ? {
+          id: upgradeId, name: upgrade.name,
+          installed: !!(s.upgrades && s.upgrades[upgradeId]),
+          unlocked: !upgrade.need || !!(s.techs && s.techs[upgrade.need]),
+          canBuy: SB.workshop.upgradeCanBuy ? !!SB.workshop.upgradeCanBuy(s, upgradeId) : false
+        } : null;
+      }).filter(Boolean),
+      thetaKelpGather: thetaKelpPlan ? Object.assign({}, thetaKelpPlan, {
+        assigned: Number(s.jobs && s.jobs.gather) || 0
+      }) : null,
+      titaniumMining: titaniumPlan ? Object.assign({}, titaniumPlan, {
+        assignedMiners: Number(s.jobs && s.jobs.miner) || 0,
+        plannedMiners: titaniumPlan.needed ? titaniumTargetMiners : titaniumPlan.currentMiners,
+        deepmineInstalled: !!(s.upgrades && s.upgrades.upg_deepmine),
+        mineLevels: Number(s.lvl && s.lvl.siltpit) || 0,
+        activeMineLevels: SB.economy.activeSiltpit ? SB.economy.activeSiltpit(s) : Number(s.lvl && s.lvl.siltpit) || 0,
+        miningMultiplier: SB.economy.toolMul ? SB.economy.toolMul(s, 'miner') : 1,
+        autodrill: !!(s.upgrades && s.upgrades.upg_autodrill),
+        autodrillTech: !!(s.techs && s.techs.autodrill),
+        tools: (SB.workshop.tools() || []).filter(function (tool) {
+          return tool.target && tool.target.indexOf('miner') >= 0 && s.tools && s.tools[tool.id];
+        }).map(function (tool) { return tool.id; }),
+        plannedTools: titaniumToolTargets.filter(function (tool) { return !(s.tools && s.tools[tool.id]); })
+          .map(function (tool) { return tool.id; }),
+        plannedUpgrade: supportUpgradeId === 'upg_autodrill' ? supportUpgradeId : null,
+        upgradeBlock: supportUpgradeId === 'upg_autodrill' && SB.workshop.upgradeBlocked
+          ? SB.workshop.upgradeBlocked(s, 'upg_autodrill') : null
+      }) : null,
       civic: civicGoal && civicGoal.id || null, civicCondition: civicBoost && civicBoost.t || null,
       zoneJobs: Object.keys(requiredZoneJobs), zoneJobCounts: Object.keys(requiredZoneJobs).map(function (job) {
         return job + ':' + (s.jobs[job] || 0);
@@ -1433,16 +2437,27 @@
         return job + ':' + (s.jobs[job] || 0);
       }),
       plannedResourceNeeds: Object.assign({}, needs),
+      hydroPriority: hydroPriority,
       dysonPlan: dysonPlan ? { mode: dysonPlan.mode, activeLevels: dysonPlan.activeLevels,
-        targets: Object.assign({}, dysonPlan.targets) } : null,
+        bufferSeconds: dysonPlan.bufferSeconds, targets: Object.assign({}, dysonPlan.targets),
+        thetaRateRequired: dysonPlan.thetaRateRequired, thetaRateAvailable: dysonPlan.thetaRateAvailable,
+        warmstoneRateRequired: dysonPlan.warmstoneRateRequired,
+        warmstoneRateAvailable: dysonPlan.warmstoneRateAvailable,
+        tiplateRateRequired: dysonPlan.tiplateRateRequired,
+        tiplateRateAvailable: dysonPlan.tiplateRateAvailable,
+        warmstoneTargetMiners: dysonWarmstoneTargetMiners,
+        thetaIronTargetMiners: Number(thetaIronPlan && thetaIronPlan.targetMiners) || 0,
+        thetaTargetLabs: Number(thetaPlan && thetaPlan.targetLabs) || 0,
+        thetaSupportedLabs: Number(thetaPlan && thetaPlan.supportedLabs) || 0 } : null,
       craftDiagnostics: craftDiagnostics,
-      buildCraftDiagnostics: buildCraftDiagnostics,
+      buildCraftDiagnostics: buildCraftDiagnostics, wonderCraftDiagnostics: wonderCraftDiagnostics,
       gatheredCraft: gatheredCraftStatus,
       overflowCraft: overflowCraftResult,
       zone: activeZoneCond && activeZoneCond.zone || null,
       zoneNeeds: zoneNeeds,
       housingTarget: housingTarget,
       housingCapacityBlocked: housingCapacityBlocked,
+      capacityBlockedResource: capacityResource,
       housingChecks: housingChecks,
       plannedBuildingUpgrade: nextBuild && (s.lvl[nextBuild] || 0) > 0 ? nextBuild : null,
       castleDiscount: SB.economy.hallDiscount ? SB.economy.hallDiscount(s) : null,
@@ -1463,6 +2478,8 @@
       build: nextBuild || null, wonder: nextWonder || null };
   }
 
-  SB.aiStrategy = { version: 47, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
+  SB.aiStrategy = { version: 91, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
+    markVoidEndingRun: markVoidEndingRun,
+    isVoidEndingRun: isVoidEndingRun,
     drillStockTarget: drillStockTarget };
 })(typeof window !== 'undefined' ? window : globalThis);

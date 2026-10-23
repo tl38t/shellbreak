@@ -582,12 +582,12 @@ console.log('\n=== 开局解锁链 ===');
       badCapProbe.res.coral === 1, 'coral=' + badCapProbe.res.coral);
 
     const metaProbe = SB.game.meta();
-    const oldMatStore = metaProbe.perks.matStore;
-    metaProbe.perks.matStore = {};
+    const oldMatStore = metaProbe.perks.matStore1;
+    metaProbe.perks.matStore1 = {};
     const capProbe = SB.state.freshRun(false);
     capProbe.lvl.ballast = 10;
     const repairedCap = SB.economy.capOf(capProbe, 'coral');
-    metaProbe.perks.matStore = oldMatStore;
+    metaProbe.perks.matStore1 = oldMatStore;
     check('异常的跨周目仓储数据不会让所有材料上限变 NaN',
       isFinite(repairedCap) && repairedCap >= SB.CFG.CAP_BASE.coral + 10 * SB.BLD.ballastCap,
       'coral cap=' + repairedCap);
@@ -960,7 +960,7 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     check('至高圣座随政体显示专属名称、效果，且匹配实际加成分支', ok);
   }
 
-  /* ══ ERA8 探星纪（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）══ */
+  /* ══ ERA8 探索纪（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）══ */
   {
     /* ① θ生物金属：普通有限库存资源，基础上限 200 / 解锁门=科技 biomat。 */
     check('ERA8 θ金属：RESS 登记为普通资源 + 解锁门 biomat',
@@ -1673,7 +1673,7 @@ while (frame < MAX_FRAMES) {
 
 runCivics({ SB, check, noop, doc, g, fs, path, ROOT });
 
-/* 纪元十 · 戴森纪（2026-10-20）：7 科技 / 太阳星环 / 发射场双模式 / 戴森终局 / 朱庇特 / 大统一轴。
+/* 纪元十 · 驭星纪（2026-10-20）：7 科技 / 太阳星环 / 发射场双模式 / 戴森终局 / 朱庇特 / 大统一轴。
  * ⚠️ 必须传 fs/path/ROOT：这个 suite 会把 13 个占位资产的**磁盘存在性**一起钉住
  *    （图标与五档背景图是「数据落了没人读」最容易漏的一环 —— 路径写错只表现为空图，不报错）。 */
 runEra10Content({ SB, check, noop, fs, path, ROOT });
@@ -1732,27 +1732,26 @@ SB.state.saveMeta(SB.game.meta());
 SB.game.renderAll();
 tabOn('meta');
 const metaMarkup = doc.getElementById('pane-meta').innerHTML;
-check('轮回商店有余额摘要与 10 组语义分区（2026-10-16 由「三桶」重整）',
+check('轮回商店有余额摘要与 8 子树天赋树（2026-10-23 潮汐之树，替代旧「三桶」10 区）',
   metaMarkup.includes('meta-overview') && metaMarkup.includes('meta-legacy-grid') &&
-  metaMarkup.includes('meta-shop-group') &&
-  ['开局馈赠', '破壳攻坚', '人口与储备', '采集与产出', '建造减耗',
-   '自动化', '科研', '市政治理', '信仰', '奇观营造'].every(t => metaMarkup.includes(t)));
-check('轮回商店每项商品仍对应唯一购买按钮',
-  SB.PERKS.every(p => (metaMarkup.match(new RegExp('data-perk="' + p.id + '"', 'g')) || []).length === 1));
+  ['先人孑遗', '安得广厦', '铁血工造', '金石为开', '唯食与犁', '百炼成钢', '政经往来', '远见之人']
+    .every(t => metaMarkup.includes(t)));
+check('轮回商店每项天赋节点仍对应唯一购买按钮',
+  SB.TIDE_TREE.every(p => (metaMarkup.match(new RegExp('data-perk="' + p.id + '"', 'g')) || []).length === 1));
 const s3 = SB.game.run();
 SB.game.meta().tide = 30;                       // 给够点数，验证扣款与到账
 const kelpBefore = s3.res.kelp;
-fire({ dataset: { perk: 'food' } });            // 前朝藻席：+200 藻食，2 点
+fire({ dataset: { perk: 'startKelp' } });       // 前朝藻席：+200 藻食，2 点（remnant 子树 startKelp）
 check('可购买起始资源类增益', s3.res.kelp >= kelpBefore + 200, '藻食 ' + kelpBefore.toFixed(0) + ' → ' + s3.res.kelp.toFixed(0));
 check('购买后扣除轮回点', SB.game.meta().tide < 30, '剩余 ' + SB.game.meta().tide.toFixed(2));
-check('已购增益写入跨周目记录', SB.game.meta().perks.food === 1);
+check('已购增益写入跨周目记录', SB.game.meta().perks.startKelp === 1);
 
-fire({ dataset: { perk: 'g1' } });              // 异族鳍肢：采集 +10%
-check('可购买产出效率类增益并累计层数', (s3.perk.gather || 0) > 0, 'gather=' + s3.perk.gather);
+fire({ dataset: { perk: 'coralPact1' } });      // 珊瑚契 I：珊瑚匠系 +10%
+check('可购买产出效率类增益并累计层数', (s3.perk.coralPact || 0) > 0, 'coralPact=' + s3.perk.coralPact);
 
 SB.game.meta().tide = 0;
-fire({ dataset: { perk: 'coral' } });           // 没钱了
-check('轮回点不足时无法购买', (SB.game.meta().perks.coral || 0) === 0);
+fire({ dataset: { perk: 'startCoral' } });      // 没钱了
+check('轮回点不足时无法购买', (SB.game.meta().perks.startCoral || 0) === 0);
 
 /* ---------------- 产出 perk 拍板（2026-10-05 晚）：9 条 +10%/级、不设上限 ----------------
  * 断言四件事：
@@ -1760,47 +1759,63 @@ check('轮回点不足时无法购买', (SB.game.meta().perks.coral || 0) === 0)
  *   ② 结算系数 10%/级：5 个导出乘区 + 祭祀唱诗（faithRate 积分口径）+ 工坊定额（craftRatio 加法池）；
  *   ③ 购价等差外推：数组 20 级耗尽后按末级步长继续（coralPact 第 21 级 = 42）；
  *   ④ 外推顺带治 g2 单元素数组的 undefined 取价（平价续费）。 */
-console.log('\n=== 产出 perk +10%/级无上限（2026-10-05 拍板）===');
-check('9 条产出 perk 全部 n:Infinity（不设上限）',
-  ['coralPact', 'luxuryPact', 'algaeCrop', 'civicArchive', 'tideProof',
-    'sacrament', 'mineTax', 'craftQuota', 'furnaceBoost']
-    .every(id => SB.prestige.perkDef(id).n === Infinity));
-check('结算系数 = 10%/级（5 个导出乘区）',
+console.log('\n=== 潮汐之树 perk 结算（2026-10-23 实装，替代旧 PERKS）===');
+/* ① 尾节点全部 n:Infinity（无上限通汇）；基础链节点 n:1（单级靠 nest 串成链）。 */
+check('尾节点全部 n:Infinity（无上限通汇）',
+  ['coralPactTail','minerPactTail','quarryPactTail','furnaceBoostTail','craftQuotaTail',
+   'algaeCropTail','matStoreTail','luxuryPactTail']
+    .every(id => { const d = SB.prestige.perkDef(id); return !!d && d.n === Infinity; }));
+check('基础链节点为单级（每节点 n:1 或默认单级，靠 nest 串成链）',
+  ['coralPact1','minerPact1','quarryPact1','furnaceBoost1','craftQuota1','algaeCrop1','matStore1','luxuryPact1']
+    .every(id => { const st = SB.prestige.perkState(id); return !!st && st.max === 1; }));
+/* ② 结算系数：分系 +10%/级（矿/石/珊瑚/藻/学者/书手/奢侈）；炉火/热液 +20%/级；热坊 +10%/级。 */
+check('结算系数 = 10%/级（分系乘区：矿工/采石/珊瑚/藻食/学者/书手/奢侈）',
+  SB.economy.minerPactMul({ perk: { minerPact: 3 } }) === 1.3 &&
+  SB.economy.quarryPactMul({ perk: { quarryPact: 3 } }) === 1.3 &&
   SB.economy.coralPactMul({ perk: { coralPact: 3 } }) === 1.3 &&
-  SB.economy.mineTaxMul({ perk: { mineTax: 3 } }) === 1.3 &&
   SB.economy.algaeCropMul({ perk: { algaeCrop: 3 } }) === 1.3 &&
-  SB.economy.furnaceBoostMul({ perk: { furnaceBoost: 3 } }) === 1.3 &&
+  SB.economy.scholarPactMul({ perk: { scholarPact: 3 } }) === 1.3 &&
+  SB.economy.scribePactMul({ perk: { scribePact: 3 } }) === 1.3 &&
   SB.economy.luxuryPactMul({ perk: { luxuryPact: 3 } }) === 1.3);
+check('炉心/热液效率 = 20%/级、热坊产出 = 10%/级',
+  SB.economy.furnaceEffMul({ perk: { furnaceEff: 3 } }) === 1.6 &&
+  SB.economy.hydroshopEffMul({ perk: { hydroshopEff: 3 } }) === 1.6 &&
+  SB.economy.hydroshopBoostMul({ perk: { hydroshopBoost: 3 } }) === 1.3);
+/* ③ 尾节点几何购价（scale:1.5 向下取整）：coralPactTail costs:[10] ⇒ 10/15/22…；基础链 nest 门控。 */
 {
+  const m = SB.game.meta();
+  m.perks.coralPactTail = 0; const t0 = SB.prestige.perkState('coralPactTail');
+  m.perks.coralPactTail = 1; const t1 = SB.prestige.perkState('coralPactTail');
+  m.perks.coralPactTail = 2; const t2 = SB.prestige.perkState('coralPactTail');
+  check('尾节点几何购价（scale:1.5 向下取整）：coralPactTail 第1/2/3级 = 10/15/22',
+    t0.next === 10 && t1.next === 15 && t2.next === 22,
+    'lv0=' + t0.next + ' lv1=' + t1.next + ' lv2=' + t2.next);
+  delete m.perks.coralPactTail;
+  const stChild = SB.prestige.perkState('furnaceBoost2');
+  check('链式前置门控：未购 furnaceBoost1 时 furnaceBoost2 为 locked',
+    stChild.locked === true, 'locked=' + stChild.locked);
+}
+/* ④ 工坊定额：craftQuota 基础 3 链 = +30% 工艺产出（craftRatio 加法轴 +0.3）；祭祀唱诗 10 级 ⇒ faithRate ×2.0。 */
+{
+  const cA = SB.state.freshRun(false), cB = SB.state.freshRun(false);
+  cA.perk.craftQuota = 3;   // 等价于买满 craftQuota1+2+3（每级 +10%）
+  const dA = SB.workshop.craftRatio(cA), dB = SB.workshop.craftRatio(cB);
+  check('工坊定额 3 级 ⇒ craftRatio 加法轴 +0.3（+10%/级）',
+    Math.abs((dA - dB) - 0.3) < 1e-9, 'Δ=' + (dA - dB).toFixed(4));
   const fA = SB.state.freshRun(false), fB = SB.state.freshRun(false);
   fA.civics.theology = true; fA.pop = 100; fA.perk.sacrament = 10;
   fB.civics.theology = true; fB.pop = 100;
   const rA = SB.economy.faithRate(fA), rB = SB.economy.faithRate(fB);
-  check('祭祀唱诗 10 级 ⇒ faithRate ×2.0（+10%/级）',
+  check('祭祀唱诗 10 级 ⇒ faithRate ×2.0（+10%/级，旧键 s.perk.sacrament 仍兼容）',
     rB > 0 && Math.abs(rA - rB * 2) < 1e-9, 'base=' + rB.toFixed(4) + ' 10级=' + rA.toFixed(4));
-  const cA = SB.state.freshRun(false), cB = SB.state.freshRun(false);
-  cA.perk.craftQuota = 10;
-  const dA = SB.workshop.craftRatio(cA), dB = SB.workshop.craftRatio(cB);
-  check('工坊定额 10 级 ⇒ craftRatio 加法池 +1.0（+10%/级）',
-    Math.abs((dA - dB) - 1.0) < 1e-9, 'Δ=' + (dA - dB).toFixed(4));
+}
+/* ⑤ 旧典编纂/潮纹校勘（已退休，无对应潮汐之树节点）：legacy() 仍按旧档 key 兼容读取，迁移不丢加成。 */
+{
   const m = SB.game.meta();
-  m.perks.coralPact = 20;
-  let st = SB.prestige.perkState('coralPact');
-  check('购价等差外推：第 21 级 = 42（2 步进），且不显示已满级',
-    st.next === 42 && st.done === false && st.max === Infinity,
-    'next=' + st.next + ' done=' + st.done);
-  m.perks.coralPact = 25;
-  st = SB.prestige.perkState('coralPact');
-  check('购价等差外推：第 26 级 = 52', st.next === 52, 'next=' + st.next);
-  m.perks.g2 = 1;
-  st = SB.prestige.perkState('g2');
-  check('单元素价目数组按平价续费（g2 第 2 级 = 6，不再 undefined）',
-    st.next === 6, 'next=' + st.next);
-  delete m.perks.coralPact; delete m.perks.g2;   // 还原，不污染后续存档断言
   const lg = SB.prestige.legacy(m);
   m.perks.civicArchive = 3; m.perks.tideProof = 2;
   const lg2 = SB.prestige.legacy(m);
-  check('旧典编纂/潮纹校勘 = 10%/级（shopCivic/shopScienceBonus）',
+  check('旧典编纂/潮纹校勘 = 10%/级（shopCivic/shopScienceBonus，旧档兼容）',
     Math.abs(lg2.shopCivicBonus - 0.3) < 1e-9 &&
     Math.abs(lg2.shopScienceBonus - 0.2) < 1e-9,
     'civic=' + lg2.shopCivicBonus + ' science=' + lg2.shopScienceBonus);
@@ -2018,10 +2033,11 @@ console.log('\n=== ERA4 市政 ===');
     cBy('enlightenment').boost.t === 'built' && cBy('enlightenment').boost.b === 'observatory' &&
     cBy('historiography').boost.t === 'wonder' && cBy('historiography').boost.n === 6);
   const gBy = id => SB.GOVS.find(g => g.id === id);
-  check('两个新政体：商人共和国 5 全能槽 + 省耗 0.7；神权政体 3+1 槽',
-    gBy('merchant_republic') && gBy('merchant_republic').slots.wild === 5 &&
+  const slotTotal = g => { let n = 0; for (const k in g.slots) n += g.slots[k]; return n; };
+  check('两个新政体：商人共和国 5 槽(wild3+prod1+grow1) + 省耗 0.7；神权政体 5 槽(wild3+relig2)',
+    gBy('merchant_republic') && (function () { const s = gBy('merchant_republic').slots; return slotTotal(gBy('merchant_republic')) === 5 && s.wild === 3 && s.prod === 1 && s.grow === 1; })() &&
     gBy('merchant_republic').happyConsumeMul === 0.7 &&
-    gBy('theocracy') && gBy('theocracy').slots.wild === 3 && gBy('theocracy').slots.relig === 1);
+    gBy('theocracy') && (function () { const s = gBy('theocracy').slots; return slotTotal(gBy('theocracy')) === 5 && s.wild === 3 && s.relig === 2; })());
   const pBy = id => SB.POLICIES.find(p => p.id === id);
   check('四张新政策卡都在表里且「历史记录」被启蒙运动退役',
     ['card_triangular', 'card_divine_right', 'card_mercantilism', 'card_enlightenment']

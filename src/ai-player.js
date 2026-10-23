@@ -82,7 +82,8 @@
   }
   /* 轮回点不能只投人口上限：轮回后按本局瓶颈配置一篮子增益，并把可买余额用完。
    * 基础组合（无既有等级时恰好 50 点）：住房规划 20、奇观蓝图满级 20、珊瑚礁契 2 级 6、
-   * 寒潮储备 1 级 2、科技/市政产出各 1 级共 2。余款再投珊瑚、工坊、科技、市政、矿脉与省料。
+   * 寒潮储备 1 级 2、科技/市政产出各 1 级共 2。节点终局复盘发现精铁是长期限速原料，
+   * 因此余款优先补矿脉税契（精铁原料、金属、暖石）和炉心增压（精铁熔炼），再考虑省料。
    * buyPerk 走正式商店 API 并写入 meta；永久等级保留到后续周目，运行态效果也即时应用。 */
   function investTidePoints(s, reason) {
     if (!s || !SB.prestige || !SB.prestige.perkState || !SB.prestige.buyPerk) return null;
@@ -94,20 +95,32 @@
       var guard = 0, st;
       while (guard++ < 100) {
         st = SB.prestige.perkState(id);
-        if (!st || st.done || st.lv >= target || st.locked || !st.afford) break;
+        if (!st) return;
+        if (st.done || st.lv >= target) return;
+        /* 潮汐之树（2026-10-23）：链式节点（coralPact1→2→3→Tail 等）母节点未购时子节点 locked。
+         * buyTo 不直接买子节点，而是先递归补齐 nest 前置（链中节点 n:1，买到 L1 即解锁子节点）。 */
+        if (st.locked) {
+          if (st.perk && st.perk.nest) { buyTo(st.perk.nest, 1); continue; }
+          return;
+        }
+        if (!st.afford) return;
         var price = Number(st.next) || 0;
-        if (!(price > 0) || !SB.prestige.buyPerk(id)) break;
+        if (!(price > 0) || !SB.prestige.buyPerk(id)) return;
         purchases.push({ id: id, level: st.lv + 1, cost: price });
       }
     }
+    /* 潮汐之树（2026-10-23）：旧 PERKS 单键已拆分为 8 子树链式节点；按「等效旧档收益」重指向新节点
+     *   （买到链末 = 旧满级收益）：生息规划 20、遗址图样满级(wbp1+2) 20、珊瑚契 2 级(coralPact1+2) 7、
+     *   御寒之智(coldPenalty) 10。旧 tideProof/civicArchive（商店科/市政产出）在潮汐之树中无对应节点，已剔除。 */
     [
-      ['housePlan', 1], ['wonderBlueprint', 4], ['coralPact', 2],
-      ['coldStore', 1], ['tideProof', 1], ['civicArchive', 1],
+      ['housePlan', 1], ['wonderBlueprint2', 1], ['coralPact2', 1],
+      ['coldPenalty', 1],
     ].forEach(function (item) { buyTo(item[0], item[1]); });
-    /* 已买过基础组合或余额较大时，继续买有直接收益的等级；只要还有可负担项就继续。 */
+    /* 余款优先补矿脉税契（精铁原料/金属/暖石：minerPact3 + quarryPact3）和炉心增压（精铁熔炼 furnaceBoost3），
+     *   再补工坊定额（craftQuota2）与珊瑚通汇（coralPactTail，无上限）。 */
     var fallback = [
-      ['coralPact', 5], ['craftQuota', 2], ['tideProof', 3],
-      ['civicArchive', 3], ['mineTax', 1], ['buildSave', 3],
+      ['coralPactTail', 2], ['craftQuota2', 1],
+      ['minerPact3', 1], ['quarryPact3', 1], ['furnaceBoost3', 1],
     ];
     var changed = true, passes = 0;
     while (changed && passes++ < 100) {
@@ -131,6 +144,68 @@
       if (SB.game.renderAll) SB.game.renderAll();
     }
     return lastInvestment;
+  }
+  function nextChallengeId() {
+    if (!SB.challenges || !SB.challenges.canStart) return null;
+    var order = ['cold', 'small', 'science', 'abyss', 'speedrun'];
+    var s = SB.game.run(), meta = SB.game.meta();
+    for (var i = 0; i < order.length; i++)
+      if (SB.challenges.canStart(order[i], s, meta)) return order[i];
+    return null;
+  }
+  function allImplementedChallengesDone(meta) {
+    if (!SB.challenges || !SB.challenges.tierDone) return false;
+    return SB.challenges.tierDone('cold', meta) >= 1 &&
+      SB.challenges.tierDone('small', meta) >= 1 &&
+      SB.challenges.tierDone('science', meta) >= 3 &&
+      SB.challenges.tierDone('abyss', meta) >= 3 &&
+      SB.challenges.tierDone('speedrun', meta) >= 3;
+  }
+  function continueAfterChallengeBreak(s, report) {
+    if (!s || !s.challenge || !s.breakSettled) return false;
+    var meta = SB.game.meta(), challenge = SB.challenges.byId(s.challenge.id);
+    var completed = SB.challenges.tierDone(s.challenge.id, meta) > (s.challenge.tier | 0);
+    if (!completed) {
+      pause();
+      var failure = report && report.challengeFailure;
+      say(failure
+        ? '挑战未通过：' + failure.name + ' · ' + failure.label + '；已停在结算页，检查限制后可重试。'
+        : '本次破壳没有登记挑战奖励；AI 已暂停，保留结算页供检查。');
+      return true;
+    }
+    say('挑战通关：' + challenge.name + ' · ' +
+      (challenge.tiers[s.challenge.tier | 0].label || '完成挑战') + '。');
+    investTidePoints(s, '挑战通关后');
+    var nextId = nextChallengeId();
+    if (nextId && SB.challenges.begin(nextId)) {
+      say('按挑战顺序开始下一项：' + SB.challenges.byId(nextId).name + '。');
+      return true;
+    }
+    /* 全部已实装挑战奖励均已正式登记后，只启动一次普通周目作为虚境终局局。
+     * nextCycle 复用游戏自己的周目 API；普通局无 challenge 标记，戴森竣工后由
+     * 现有终点守卫暂停，因此不会继续轮回或重复播放结局。 */
+    if (allImplementedChallengesDone(meta) && SB.game.nextCycle) {
+      var cycleBeforeFinal = Number(meta.cycle) || 0;
+      SB.game.nextCycle();
+      var finalRun = SB.game.run();
+      var cycleAfterFinal = Number(SB.game.meta().cycle) || 0;
+      if (finalRun && !finalRun.challenge && cycleAfterFinal === cycleBeforeFinal + 1) {
+        lastRebirth = { state: 'post-challenge-void-ending', cycle: cycleAfterFinal,
+          hours: 0, points: 0 };
+        say('所有已实装挑战均已正式结算；启动唯一一次普通终局周目，目标为「飞升虚境」。');
+        return true;
+      }
+    }
+    pause();
+    say('所有已实装挑战已完成，但无法安全启动虚境终局周目；AI 已停在结算页。');
+    return true;
+  }
+  function settleChallengeAtShell(s) {
+    if (!s || !s.challenge || !s.broken || !s.shellOpened || Number(s.shell) > 0 || s.breakSettled ||
+        !SB.game.settleBreak) return false;
+    var report = SB.game.settleBreak();
+    if (!report) return false;
+    return continueAfterChallengeBreak(SB.game.run(), report);
   }
   /* 轮回前把两种可转入遗产账本的工艺品尽可能制完。
    * 仅走正式 workshop.craft，仍受历史哲学、材料、成本折扣与工坊效率规则约束。
@@ -216,7 +291,10 @@
         !SB.economy || !SB.economy.launchLvl || SB.economy.launchLvl(s) <= 0 ||
         !SB.ui || !SB.ui.input || !SB.ui.input.toggleLaunchMode) return false;
     var sailCap = Number(SB.CFG.DYSON_SAIL_CAP) || 10000;
-    var desired = (Number(s.sunSails) || 0) >= sailCap ? 'node' : 'sail';
+    var voidRun = SB.aiStrategy.isVoidEndingRun && SB.aiStrategy.isVoidEndingRun(s);
+    var voidCivicReady = !!(s.civics && s.civics.ascend_void);
+    var desired = (Number(s.sunSails) || 0) >= sailCap && (!voidRun || voidCivicReady)
+      ? 'node' : 'sail';
     var current = s.launchMode === 'node' ? 'node' : 'sail';
     if (current === desired) return false;
     if (!SB.ui.input.toggleLaunchMode(s)) return false;
@@ -234,6 +312,33 @@
     if (s.dysonDone) {
       pause(); say('戴森球已竣工，AI 停在终点；保留本周目和竣工记录。'); return;
     }
+    /* 用户明确改为跳过剩余挑战、跑一局普通虚境结局。挑战局不能沿用；
+     * 用正式 nextCycle API 只退出这一次，保留 meta/永久进度，新局不带 challenge。
+     * 普通局没有任何自动开启挑战的路径，因此不会再次进入挑战序列。 */
+    if (s.challenge) {
+      var cycleBeforeNormal = Number(SB.game.meta() && SB.game.meta().cycle) || 0;
+      if (SB.game.nextCycle) SB.game.nextCycle();
+      var normalRun = SB.game.run();
+      var cycleAfterNormal = Number(SB.game.meta() && SB.game.meta().cycle) || 0;
+      if (normalRun && !normalRun.challenge && cycleAfterNormal === cycleBeforeNormal + 1) {
+        if (SB.aiStrategy.markVoidEndingRun) SB.aiStrategy.markVoidEndingRun();
+        lastRebirth = { state: 'normal-void-ending-run', cycle: cycleAfterNormal,
+          hours: 0, points: 0 };
+        say('按用户指示退出挑战（不登记奖励），通过正式周目 API 开始普通虚境终局局。');
+      } else {
+        pause();
+        say('未能通过正式周目 API 退出挑战；AI 已暂停，保留当前存档供检查。');
+      }
+      return;
+    }
+    /* 挑战的通关口径是「神学 + 破壳」正式结算。普通终局选择留在本局，
+     * 会让 challenge 永远不登记奖励；挑战局到壳外时必须复用官方 settleBreak，
+     * 成功后再由 challenge API 开下一项。 */
+    if (s.challenge && s.broken && s.shellOpened && Number(s.shell) <= 0) {
+      if (!s.breakSettled) {
+        if (settleChallengeAtShell(s)) return;
+      } else if (continueAfterChallengeBreak(s, null)) return;
+    }
     /* 破壳弹窗的「探索壳外的星空」正式动作是 SB.game.stay()。
      * 以前遇到 s.broken 就直接暂停，模拟冻结在破壳选择上；现在自动选择留在本局，
      * 不结算轮回、不新建周目，继续同一存档的星空和戴森阶段。 */
@@ -248,7 +353,13 @@
     try {
       if (tryAutoRebirth(s)) return;
       chooseLaunchMode(s);
-      var result = SB.aiStrategy.step(s);
+      var measuredSpeed = Number(effectiveSpeed);
+      if (!isFinite(measuredSpeed) || measuredSpeed <= 0)
+        measuredSpeed = Number(SB.game.getSpeed ? SB.game.getSpeed() : GAME_SPEED) || GAME_SPEED;
+      /* 页面每秒决策一次；30×时 45 秒游戏库存仅覆盖 1.5 次决策，后台调度稍有抖动
+       * 就会断料停发。按 3 个决策周期备料，并至少保留 90 游戏秒缓冲。 */
+      var dysonBufferSeconds = Math.max(90, Math.min(180, measuredSpeed * 3));
+      var result = SB.aiStrategy.step(s, { dysonBufferSeconds: dysonBufferSeconds });
       lastResult = result;
       lastError = null;
       if (result.changed) SB.game.renderAll();
@@ -271,8 +382,16 @@
     var result = lastResult || {};
     var runtime = SB.game.runtimeStatus ? SB.game.runtimeStatus() : {};
     var economyRates = cachedRates || SB.economy.rates(s);
+    var thetaInputRates = SB.economy.thetaInputRates ? SB.economy.thetaInputRates(s) : {};
+    var miningTools = (SB.workshop.tools ? SB.workshop.tools() : []).filter(function (tool) {
+      return tool.target && tool.target.indexOf('miner') >= 0;
+    });
     var targetTech = result.goal && SB.tech.byId ? SB.tech.byId(result.goal) : null;
     var targetCondition = targetTech && targetTech.cond || null;
+    var skydrillDef = SB.workshop && SB.workshop.wonderById
+      ? SB.workshop.wonderById('wonder_skydrill') : null;
+    var skydrillCost = SB.wonder && SB.wonder.discountedCost
+      ? SB.wonder.discountedCost(s, 'wonder_skydrill') : (skydrillDef && skydrillDef.cost || {});
     var targetConditionProgress = null;
     if (targetCondition) {
       if (targetCondition.t === 'rate') {
@@ -290,9 +409,49 @@
     var turbineLevel = Number(s.lvl && s.lvl.hydroturbine) || 0;
     var turbineStop = Math.max(0, Number(s.turbineStop) || 0);
     var storageCaps = {};
-    ['stone', 'hardCoral', 'warmstone', 'stoneBeam'].forEach(function (resource) {
+    ['stone', 'hardCoral', 'warmstone', 'stoneBeam', 'silt', 'iron'].forEach(function (resource) {
       storageCaps[resource] = SB.economy.capOf(s, resource);
     });
+    var ironInputRate = Math.max(0, Number(thetaInputRates.iron) || 0);
+    var nationalIronBonus = SB.wonder && SB.wonder.nationalLogisticsMul
+      ? Number(SB.wonder.nationalLogisticsMul(s)) || 0 : 0;
+    var storageUpgradeOptions = ['upg_ballast_1', 'upg_ballast_2', 'upg_alloy_warehouse'].map(function (id) {
+      var upgrade = SB.workshop.upgradeById(id);
+      return upgrade ? {
+        id: id,
+        installed: !!(s.upgrades && s.upgrades[id]),
+        unlocked: !upgrade.need || !!(s.techs && s.techs[upgrade.need]),
+        canBuy: SB.workshop.upgradeCanBuy ? !!SB.workshop.upgradeCanBuy(s, id) : false,
+        blocked: SB.workshop.upgradeBlocked ? SB.workshop.upgradeBlocked(s, id) : null
+      } : null;
+    }).filter(Boolean);
+    var ironProduction = {
+      grossRate: Math.max(0, (Number(economyRates.iron) || 0) + ironInputRate),
+      netRate: Number(economyRates.iron) || 0,
+      thetaDemand: ironInputRate,
+      furnaceLevels: Number(s.lvl && s.lvl.furnace) || 0,
+      activeFurnaces: Math.max(0, (Number(s.lvl && s.lvl.furnace) || 0) - (Number(s.furnaceStop) || 0)),
+      furnaceBoostLevel: Number(s.perk && s.perk.furnaceBoost) || 0,
+      smeltMultiplier: Number(techMultipliers && techMultipliers.smelt) || 1,
+      cardMultiplier: SB.civic && SB.civic.cardResOutMul ? Number(SB.civic.cardResOutMul(s, 'iron')) || 1 : 1,
+      nationalLogisticsBonus: nationalIronBonus,
+      cards: Array.isArray(s.cards) ? s.cards.slice() : [],
+      logisticsWonder: !!(SB.wonder && SB.wonder.owned && SB.wonder.owned(s).wonder_logistics),
+      silt: Number(s.res && s.res.silt) || 0,
+      siltCap: SB.economy.capOf(s, 'silt'),
+      storageUpgrades: storageUpgradeOptions,
+      yieldUpgrades: ['upg_wasteforge', 'upg_fishbonemine'].map(function (id) {
+        var upgrade = SB.workshop.upgradeById(id);
+        return upgrade ? {
+          id: id,
+          installed: !!(s.upgrades && s.upgrades[id]),
+          unlocked: (!upgrade.need || !!(s.techs && s.techs[upgrade.need])) &&
+            (!upgrade.needCivic || !!(s.civics && s.civics[upgrade.needCivic])),
+          canBuy: !!(SB.workshop.upgradeCanBuy && SB.workshop.upgradeCanBuy(s, id)),
+          blocked: SB.workshop.upgradeBlocked ? SB.workshop.upgradeBlocked(s, id) : null
+        } : null;
+      }).filter(Boolean)
+    };
     var plannedBuildCaps = {};
     Object.keys(result.buildCost || {}).forEach(function (resource) {
       plannedBuildCaps[resource] = {
@@ -329,7 +488,24 @@
       scienceRate: Number(economyRates.science) || 0,
       stoneRate: Number(economyRates.stone) || 0,
       warmstoneRate: Number(economyRates.warmstone) || 0,
+      titaniumRate: Number(economyRates.titanium) || 0,
+      titaniumSupplyRate: Math.max(0, (Number(economyRates.titanium) || 0) + (Number(thetaInputRates.titanium) || 0)),
+      /* thetaInputRates() 返回正值表示正在消耗；不能取负，否则状态页永远显示 0。 */
+      titaniumDemandRate: Math.max(0, Number(thetaInputRates.titanium) || 0),
+      titaniumMining: Object.assign({}, result.titaniumMining || {}, {
+        deepmineInstalled: !!(s.upgrades && s.upgrades.upg_deepmine),
+        autodrillTech: !!(s.techs && s.techs.autodrill),
+        autodrillInstalled: !!(s.upgrades && s.upgrades.upg_autodrill),
+        siltpitLevels: Number(s.lvl && s.lvl.siltpit) || 0,
+        activeSiltpits: SB.economy.activeSiltpit ? SB.economy.activeSiltpit(s) : Number(s.lvl && s.lvl.siltpit) || 0,
+        minerJobs: Number(s.jobs && s.jobs.miner) || 0,
+        toolMultiplier: SB.economy.toolMul ? SB.economy.toolMul(s, 'miner') : 1,
+        ownedMiningTools: miningTools.filter(function (tool) { return !!(s.tools && s.tools[tool.id]); }).map(function (tool) { return tool.id; })
+      }),
       hydroSupplyRate: Number(economyRates.hydroSupply) || 0,
+      hydroPriority: result.hydroPriority || null,
+      skydrillOn: !!s.skydrillOn,
+      skydrillStarved: !!s.skydrillStarved,
       turbineLevel: turbineLevel,
       turbineStop: turbineStop,
       activeTurbines: Math.max(0, turbineLevel - turbineStop),
@@ -339,9 +515,22 @@
       scienceOutputMultiplier: Number(techMultipliers.sci) || 1,
       globalOutputMultiplier: Number(SB.economy.globalMul(s)) || 0,
       challengeId: s.challenge && s.challenge.id || null,
+      challengeTier: s.challenge ? (Number(s.challenge.tier) || 0) : null,
+      postChallengeVoidRun: SB.aiStrategy.isVoidEndingRun ? SB.aiStrategy.isVoidEndingRun(s) : false,
+      voidFaithCompleted: !!(s.civics && s.civics.void_faith),
+      voidExploreCompleted: !!(s.civics && s.civics.void_explore),
+      ascendVoidCompleted: !!(s.civics && s.civics.ascend_void),
+      voidAltarLevel: Number(s.lvl && s.lvl.void_altar) || 0,
       civicGoal: result.civic || null,
       civicCondition: result.civicCondition || null,
       civicConditionProgress: civicConditionProgress,
+      thetaProduction: result.thetaProduction || null,
+      thetaDemandActive: !!result.thetaDemandActive,
+      thetaBoostCard: result.thetaBoostCard || null,
+      thetaKelpCard: result.thetaKelpCard || null,
+      ironStorageUpgrades: result.ironStorageUpgrades || [],
+      ironProduction: ironProduction,
+      thetaKelpGather: result.thetaKelpGather || null,
       plannedUpgrade: result.plannedUpgrade || null,
       plannedBuildingUpgrade: result.plannedBuildingUpgrade || null,
       castleDiscount: result.castleDiscount,
@@ -355,11 +544,27 @@
       plannedBuildCost: result.buildCost || null,
       plannedBuildCaps: plannedBuildCaps,
       buildCapacityBlocked: !!result.buildCapacityBlocked,
+      capacityBlockedResource: result.capacityBlockedResource || null,
       plannedBuildMaterials: result.buildMaterials || [],
       plannedResourceNeeds: result.plannedResourceNeeds || {},
       dysonPlan: result.dysonPlan || null,
       craftDiagnostics: result.craftDiagnostics || {},
       buildCraftDiagnostics: result.buildCraftDiagnostics || {},
+      wonderCraftDiagnostics: result.wonderCraftDiagnostics || {},
+      skydrillGate: {
+        selected: result.wonder === 'wonder_skydrill',
+        owned: !!(s.wonders && s.wonders.wonder_skydrill),
+        tech: !!(s.techs && s.techs.skydrill),
+        scaffoldTech: !!(s.techs && s.techs.physics),
+        ropeTech: !!(s.techs && s.techs.scaffoldT),
+        cost: skydrillCost,
+        blocked: SB.workshop && SB.workshop.wonderBlocked
+          ? SB.workshop.wonderBlocked(s, 'wonder_skydrill') : null,
+        scaffoldCraftBlocked: SB.workshop && SB.workshop.craftBlocked
+          ? SB.workshop.craftBlocked(s, 'craft_scaffold') : null,
+        ropeCraftBlocked: SB.workshop && SB.workshop.craftBlocked
+          ? SB.workshop.craftBlocked(s, 'craft_rope') : null
+      },
       gatheredCraft: result.gatheredCraft || null,
       overflowCraft: result.overflowCraft || null,
       autoCraftSlotCapacity: SB.workshop.slotCap ? SB.workshop.slotCap(s) : 0,
@@ -388,7 +593,7 @@
       launchMode: s.launchMode === 'node' ? 'node' : 'sail',
       launchpadLevel: SB.economy.launchLvl ? SB.economy.launchLvl(s) : 0,
       tidePoints: Number(SB.game.meta().tide) || 0,
-      popcapPerkLevel: Number((SB.game.meta().perks || {}).popcap) || 0,
+      popcapPerkLevel: Number((s.perk && s.perk.startPop) || 0),
       metaPerks: numericMap(SB.game.meta().perks),
       lastInvestment: lastInvestment,
       legacyPrep: lastRebirth && lastRebirth.legacy ? lastRebirth.legacy : legacyPrep,
@@ -440,6 +645,12 @@
       Math.floor(Number(s.sunSails) || 0) + '/10000 帆，' +
       Math.floor(Number(s.dysonNodes) || 0) + '/1000 节点) · 发射模式 ' +
       (s.launchMode === 'node' ? '节点' : '太阳帆');
+    if (lastResult && lastResult.hydroPriority) {
+      summary += '\n热液优先天穹钻机 ' + Number(lastResult.hydroPriority.supplyRate || 0).toFixed(1) + '/' +
+        Number(lastResult.hydroPriority.requiredRate || 0).toFixed(1) + '/秒 · 工坊开 ' +
+        Number(lastResult.hydroPriority.shopsOpen || 0).toFixed(0) + '/' +
+        Number(lastResult.hydroPriority.shopsTotal || 0).toFixed(0);
+    }
     if (lastResult && lastResult.dysonPlan) {
       summary += ' · 发射场 ' + lastResult.dysonPlan.activeLevels + ' 级运行';
       var dysonNeeds = Object.keys(lastResult.dysonPlan.targets || {}).map(function (resource) {
@@ -447,6 +658,18 @@
           Number(lastResult.dysonPlan.targets[resource]).toFixed(0);
       });
       if (dysonNeeds.length) summary += '\n戴森材料储备 ' + dysonNeeds.join(' · ');
+      summary += '\n戴森供料/需求 θ ' +
+        Number(lastResult.dysonPlan.thetaRateAvailable || 0).toFixed(1) + '/' +
+        Number(lastResult.dysonPlan.thetaRateRequired || 0).toFixed(1) + '/秒 · 暖石 ' +
+        Number(lastResult.dysonPlan.warmstoneRateAvailable || 0).toFixed(0) + '/' +
+        Number(lastResult.dysonPlan.warmstoneRateRequired || 0).toFixed(0) + '/秒 · 钛板 ' +
+        Number(lastResult.dysonPlan.tiplateRateAvailable || 0).toFixed(1) + '/' +
+        Number(lastResult.dysonPlan.tiplateRateRequired || 0).toFixed(1) + '/秒';
+      summary += ' · θ矿工目标 ' +
+        Number(lastResult.dysonPlan.thetaIronTargetMiners || 0).toFixed(0) +
+        ' · 暖石矿工目标 ' + Number(lastResult.dysonPlan.warmstoneTargetMiners || 0).toFixed(0) +
+        ' · θ研究所 ' + Number(lastResult.dysonPlan.thetaSupportedLabs || 0).toFixed(0) + '/' +
+        Number(lastResult.dysonPlan.thetaTargetLabs || 0).toFixed(0);
     }
     if (lastResult) summary += '\n科技目标 ' + (lastResult.goal || '—') + ' · 市政目标 ' +
       (lastResult.civic || '—') + (lastResult.civicCondition ? '(' + lastResult.civicCondition + ')' : '') +
@@ -463,6 +686,12 @@
         ? '\n住房门槛 ' + lastResult.housingChecks.join(' · ') : '') +
       (lastResult.zone ? ' · ' + lastResult.zone + '区 ' + (lastResult.buildMaterials || []).join(',') +
         ' 原料缺口 ' + JSON.stringify(lastResult.zoneNeeds || {}) : '') +
+      (lastResult.wonder ? ' · 奇观计划 ' + lastResult.wonder : '') +
+      (SB.aiStrategy.isVoidEndingRun && SB.aiStrategy.isVoidEndingRun(s)
+        ? ' · 虚境终局：信仰 ' + (s.civics && s.civics.void_faith ? '✓' : '待解锁') +
+          ' / 探索 ' + (s.civics && s.civics.void_explore ? '✓' : '待解锁') +
+          ' / 飞升 ' + (s.civics && s.civics.ascend_void ? '✓' : '待解锁') +
+          ' / 祭坛 ' + (s.lvl && s.lvl.void_altar || 0) + '/3；飞升前保持太阳帆模式' : '') +
       (lastResult.castleDiscount != null && lastResult.castleDiscountSoftCap != null
         ? '\n议事厅（城堡）等级 ' + (s.lvl.hall || 0) + ' · 城堡科技 ' +
           (s.techs && s.techs.castle ? '已解锁' : '未解锁') + ' · 城堡升级 ' +
@@ -475,6 +704,66 @@
         ? economyRates[goalCond.r] : null;
       summary += '\n科技门槛 ' + lastResult.goalConditionText +
         (goalProgress == null ? '' : ' · 当前 ' + goalProgress.toFixed(2) + '/秒');
+    }
+    if (lastResult && lastResult.thetaProduction) {
+      var tp = lastResult.thetaProduction;
+      summary += '\nθ产线 ' + tp.active + '/' + tp.levels + ' 座运行，原料可供 ' +
+        tp.supportedLabs + ' 座，阶段原料目标 ' + (tp.stagedTargetLabs || tp.targetLabs) +
+        '/' + tp.targetLabs + ' 座' +
+        (tp.limiting ? ' · 当前瓶颈 ' + ({ iron: '精铁', titanium: '钛', uranium: '铀', kelp: '藻食', hydro: '热液能' }[tp.limiting] || tp.limiting) : '') +
+        (lastResult.thetaDemandActive ? ' · 当前目标缺 θ，扩产上游优先' : '');
+      if (lastResult.thetaBoostCard) summary += ' · 增产政策 ' +
+        ({ card_flesh_weak: '血肉苦弱（精铁/θ +30%）', card_mineral_charter: '矿物章程（精铁 +15%）' }[lastResult.thetaBoostCard] || lastResult.thetaBoostCard);
+      else if (lastResult.thetaKelpCard) summary += ' · 增产政策 农奴制（藻场随鱼牧场等级增产）';
+      if (tp.limiting === 'iron') {
+        var ironGross = Math.max(0, (Number(economyRates.iron) || 0) +
+          (Number(SB.economy.thetaInputRates(s).iron) || 0));
+        var nationalIronBonus = SB.wonder && SB.wonder.nationalLogisticsMul
+          ? Number(SB.wonder.nationalLogisticsMul(s)) || 0 : 0;
+        var storageUpgradeText = (lastResult.ironStorageUpgrades || []).map(function (upgrade) {
+          return upgrade.installed ? upgrade.name + '已装' : upgrade.unlocked
+            ? upgrade.name + (upgrade.canBuy ? '可买' : '筹料中') : upgrade.name + '未解锁';
+        }).join('、');
+        var ironYieldUpgradeText = ['upg_wasteforge', 'upg_fishbonemine'].map(function (id) {
+          var upgrade = SB.workshop.upgradeById(id);
+          if (!upgrade) return id + '不可用';
+          if (s.upgrades && s.upgrades[id]) return id + '已装';
+          var unlocked = (!upgrade.need || s.techs && s.techs[upgrade.need]) &&
+            (!upgrade.needCivic || s.civics && s.civics[upgrade.needCivic]);
+          return id + (unlocked ? (SB.workshop.upgradeCanBuy(s, id) ? '可买' : '筹料中') : '未解锁');
+        }).join('、');
+        summary += '\n精铁链：热泉炉 ' + Math.max(0, (s.lvl.furnace || 0) - (s.furnaceStop || 0)) + '/' +
+          (s.lvl.furnace || 0) + ' · 毛产 ' + ironGross.toFixed(2) + '/秒，θ消耗 ' +
+          (Number(SB.economy.thetaInputRates(s).iron) || 0).toFixed(2) + '/秒 · 金属库存 ' +
+          (Number(s.res.silt) || 0).toFixed(0) + '/' + Number(SB.economy.capOf(s, 'silt')).toFixed(0) +
+          ' · 物流铁产加成 +' + (nationalIronBonus * 100).toFixed(0) + '%' +
+          ' · 增产升级 ' + ironYieldUpgradeText +
+          (storageUpgradeText ? ' · 仓储升级 ' + storageUpgradeText : '');
+      }
+    }
+    if (lastResult && lastResult.thetaKelpGather) {
+      var kg = lastResult.thetaKelpGather;
+      summary += '\nθ原料增产：采集者 ' + (kg.assigned || 0) + '/' + (kg.target || 0) +
+        ' · 藻食净供给 ' + (Number(kg.currentSupply) || 0).toFixed(1) + '/' +
+        (Number(kg.targetSupply) || 0).toFixed(1) + '/秒 · 每名采集者 +' +
+        (Number(kg.marginalPerGather) || 0).toFixed(1) + '/秒';
+    }
+    if (lastResult && lastResult.titaniumMining) {
+      var tm = lastResult.titaniumMining;
+      var miningToolNames = { tool_pick: '青铜镐', tool_ironPick: '铁镐', tool_steelPick: '钢镐', tool_thetaPick: 'θ镐' };
+      var ownedMiningNames = (tm.tools || []).map(function (id) { return miningToolNames[id] || id; });
+      var plannedMiningNames = (tm.plannedTools || []).map(function (id) { return miningToolNames[id] || id; });
+      var titaniumPlanText = tm.needed
+        ? '钛供给 ' + (Number(tm.supply) || 0).toFixed(1) + '/' + (Number(tm.targetRate) || 0).toFixed(1) + '/秒 · 矿工 ' +
+          (tm.assignedMiners || 0) + '/' + (tm.plannedMiners || 0)
+        : '钛供给充足 ' + (Number(tm.supply) || 0).toFixed(1) + '/' + (Number(tm.targetRate) || 0).toFixed(1) + '/秒 · 矿工 ' +
+          (tm.assignedMiners || 0);
+      summary += '\n钛增产：深层矿井 ' + (tm.deepmineInstalled ? '已装' : '未装') + ' · 砂矿坑 ' +
+        (tm.activeMineLevels || 0) + '/' + (tm.mineLevels || 0) + ' · ' + titaniumPlanText + ' · 镐效 ×' +
+        (Number(tm.miningMultiplier) || 1).toFixed(2) + ' · 自动化钻探 ' +
+        (tm.autodrill ? '已装' : tm.autodrillTech ? '已解锁、待装' : '科技未解锁') +
+        (ownedMiningNames.length ? ' · 已有 ' + ownedMiningNames.join('、') : '') +
+        (plannedMiningNames.length ? ' · 待购 ' + plannedMiningNames.join('、') : '');
     }
     if (lastResult && lastResult.gatheredCraft) {
       var gc = lastResult.gatheredCraft;
@@ -501,16 +790,48 @@
     if (lastResult && lastResult.capacityFallbackFor) {
       var fallbackId = lastResult.capacityFallbackFor;
       var fallbackCost = lastResult.capacityFallbackCost || {};
+      var blockedResourceName = ({ kelp: '藻食', coral: '珊瑚', stone: '石头', iron: '精铁',
+        titanium: '钛', uranium: '铀', warmstone: '暖石' }[lastResult.capacityBlockedResource] ||
+        lastResult.capacityBlockedResource || '材料');
+      var capacityUpgradeNames = { upg_kelpstore_1: '藻食库扩容 I', upg_kelpstore_2: '藻食库扩容 II',
+        upg_ballast_1: '压舱库扩容 I', upg_ballast_2: '压舱库扩容 II', upg_alloy_warehouse: '合金仓扩容' };
+      var capacityBuildNames = { kelpstore: '海藻仓', ballast: '压舱仓', hall: '议事厅（城堡）' };
+      var capacityAction = capacityUpgradeNames[lastResult.plannedUpgrade] ||
+        capacityBuildNames[lastResult.build] || lastResult.build || '扩容设施';
       var fallbackSummary = Object.keys(fallbackCost).map(function (resource) {
         var cap = SB.economy.capOf(s, resource);
         return resource + ' ' + (s.res[resource] || 0).toFixed(0) + '/' +
           (isFinite(cap) ? cap.toFixed(0) : '∞') + ' (目标 ' + fallbackCost[resource].toFixed(0) + ')';
       }).join(' · ');
-      summary += '\n仓储瓶颈：' + fallbackId + ' 超过材料上限，当前改建压舱仓' +
+      summary += '\n仓储瓶颈：' + fallbackId + ' 超过材料上限（' + blockedResourceName + '），当前扩容目标 ' + capacityAction +
         (fallbackSummary ? ' · ' + fallbackSummary : '');
     }
     stats.textContent = summary;
     publishStatus(s, false, economyRates);
+  }
+  function safeRefresh() {
+    try { refresh(); }
+    catch (e) {
+      lastError = '面板刷新异常：' + (e && e.message ? e.message : String(e));
+      say(lastError);
+      try { publishStatus(SB.game.run(), true); } catch (ignored) {}
+    }
+  }
+  function timerTick() {
+    var now = Date.now();
+    if (now - lastDecision >= DECISION_INTERVAL_MS) {
+      lastDecision = now;
+      try { step(); }
+      catch (e) {
+        lastError = 'AI 决策异常：' + (e && e.message ? e.message : String(e));
+        say(lastError);
+      }
+    }
+    /* 即使策略或诊断面板抛错，也让另一部分继续执行并上报错误，避免整块遥测冻结。 */
+    if (now - lastPanelRefresh >= PANEL_REFRESH_MS) {
+      lastPanelRefresh = now;
+      safeRefresh();
+    }
   }
   function start() {
     if (!started) {
@@ -519,32 +840,25 @@
       var b = document.querySelector('.spd[data-spd="' + GAME_SPEED + '"]'); if (b) b.classList.add('on');
       say('AI 正在通过共用策略和正式游戏 API 操作这一局。');
     }
-    if (!timer) timer = root.setInterval(function () {
-      var now = Date.now();
-      if (now - lastDecision >= DECISION_INTERVAL_MS) { lastDecision = now; step(); }
-      /* 全量 rates() 会遍历整套经济链；每 100ms 由 UI 再算一遍，和 30× 主模拟争用
-       * 主线程，可能把名义倍速压成近乎停摆。面板/遥测按墙钟 1 秒刷新已足够。 */
-      if (now - lastPanelRefresh >= PANEL_REFRESH_MS) { lastPanelRefresh = now; refresh(); }
-    }, AI_TIMER_MS);
-    refresh();
+    if (!timer) timer = root.setInterval(timerTick, AI_TIMER_MS);
+    safeRefresh();
   }
   function pause() {
     started = false;
     if (timer) { root.clearInterval(timer); timer = null; }
-    refresh(); publishStatus(SB.game.run(), true); say('AI 已暂停；游戏仍按当前速度运行。');
+    safeRefresh(); publishStatus(SB.game.run(), true); say('AI 已暂停；游戏仍按当前速度运行。');
   }
   function boot() {
     initPanel(); SB.game.setSpeed(GAME_SPEED);
     var speedBtn = document.querySelector('.spd[data-spd="' + GAME_SPEED + '"]'); if (speedBtn) speedBtn.classList.add('on');
     started = true;
     investTidePoints(SB.game.run(), '页面启动');
-    timer = root.setInterval(function () {
-      var now = Date.now();
-      if (now - lastDecision >= DECISION_INTERVAL_MS) { lastDecision = now; step(); }
-      if (now - lastPanelRefresh >= PANEL_REFRESH_MS) { lastPanelRefresh = now; refresh(); }
-    }, AI_TIMER_MS);
-    say('接管当前周目，游戏速度 ' + GAME_SPEED + '×。'); refresh();
+    timer = root.setInterval(timerTick, AI_TIMER_MS);
+    say('接管当前周目，游戏速度 ' + GAME_SPEED + '×。'); safeRefresh();
   }
+  /* 主游戏循环只用这个只读信号判断：AI 活跃且标签页被浏览器节流时，
+   * 继续按 30×在线推进，暂停 AI 后则仍使用常规离线结算。 */
+  SB.aiPlayer = { isRunning: function () { return started; } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else root.setTimeout(boot, 0);
 })(typeof window !== 'undefined' ? window : globalThis);

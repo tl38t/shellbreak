@@ -49,7 +49,7 @@ const D = {
   POLICIES: SB.POLICIES,
   ERAS: SB.ERAS,
   BRANCHES: SB.BRANCHES,
-  PERKS: SB.PERKS,
+  TIDE_TREE: SB.TIDE_TREE,
   /* 分区名（config-buildings.js:823）：清单里 zoneLvl 条件要把它写成中文，
    * 从源码 dump 而不是在 build.py 里再抄一份清单。 */
   ZONES: SB.BUILD_ZONES,

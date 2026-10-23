@@ -225,7 +225,7 @@
         var _bOk = isFinite(_sl.batch) && Math.floor(_sl.batch) === _sl.batch && _sl.batch >= 1 && _sl.batch <= _BMAX;
         if (!_pOk && !_bOk) continue;
         var _cleanSlot = { id: _sl.id };
-        if (_pOk) _cleanSlot.pct = _sl.pct;   // 旧档 pct 槽仍兼容；无上限配方运行时默认批次 80
+        if (_pOk) _cleanSlot.pct = _sl.pct;   // 旧档 pct 槽仍兼容；含无上限原料的旧档改按默认批次运行
         if (_bOk) _cleanSlot.batch = _sl.batch;
         out.autoSlots.push(_cleanSlot);
       }

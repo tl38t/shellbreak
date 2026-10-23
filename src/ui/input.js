@@ -379,8 +379,8 @@
       SB.ui.render.openAutoBatchDialog(batchEdit.dataset.abatchEdit);
       return;
     }
-    /* 工坊自动制作槽：`data-aslot` = 占槽 / 改档，`data-abatch` 是无上限原料的批次数，
-     * `data-apct` 是有上限原料的满仓转制比例，`data-aoff` = 腾出槽。
+    /* 工坊自动制作槽：`data-aslot` = 占槽 / 选满仓档，`data-abatch` = 含无上限原料配方的批次数，
+     * `data-apct` = 全部原料有上限时的满仓转制比例，`data-aoff` = 腾出槽。
      * ⚠️ 这里只**翻状态**（setSlot / setSlotBatch / clearSlot），真正制造在 game.js 在线泵的
      *    workshop.autoTick —— 与本文件里 data-auto（生息区自动升级）同一条分工。
      * ⚠️ 新增无上限配方时使用默认批次；后续修改走独立数字弹窗，不在被定时重画的 pane 内输入。 */

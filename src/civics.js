@@ -165,15 +165,24 @@
   /* 重商主义卡 / 跨国经济卡：银行的商人产出加成（bankMerchantMul 字段）。2026-10 ERA7：改为通用逐槽相乘，
    * 使《跨国经济》（card_transnational，×4）在《重商主义》退役后无缝上位（同一字段、互斥装填）。 */
   function bankMerchantMul(s) { return cardFieldMul(s, 'bankMerchantMul'); }
-  /* 天赋神权卡：礁栖核心所有建筑每级 +10% 信仰产出（coreFaithMul 存的是每级比率）。
-   * 乘在 faithRate 整段上，coreLevels = 礁栖核心分区建筑合计等级。 */
+  /* 礁栖核心建筑每级 +N% 信仰产出（coreFaithMul 存的是每级比率）。
+   * 乘在 faithRate 整段上，coreLevels = 礁栖核心分区建筑合计等级。
+   * ⚠️ 2026-10-22 泛化：原硬编码只认 card_divine_right（天赋神权 0.10/级）。
+   *   现扫所有装着的政策卡、累加其 coreFaithMul 字段（与 cardFieldMul 同口径），
+   *   使《修道院》(0.05/级，ERA2-7 扩卡) 可与《天赋神权》(0.10/级) 叠加。
+   *   没装任何带该字段的卡 ⇒ ratio=0 ⇒ 返回 1，原 card_divine_right 行为完全保留。 */
   function coreFaithMul(s) {
-    if (!cardSlotted(s, 'card_divine_right')) return 1;
-    var cd = policyById('card_divine_right');
-    var ratio = (cd && typeof cd.coreFaithMul === 'number') ? cd.coreFaithMul : 0;
+    if (!SB.BUILDINGS) return 1;
     var lv = 0, _i;
-    if (SB.BUILDINGS) for (_i = 0; _i < SB.BUILDINGS.length; _i++)
+    for (_i = 0; _i < SB.BUILDINGS.length; _i++)
       if (SB.BUILDINGS[_i].zone === 'core') lv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
+    var ratio = 0, arr = (s && s.cards) || [], _j, cd;
+    for (_j = 0; _j < arr.length; _j++) {
+      if (!arr[_j]) continue;
+      cd = policyById(arr[_j]);
+      if (cd && typeof cd.coreFaithMul === 'number') ratio += cd.coreFaithMul;
+    }
+    if (ratio === 0) return 1;
     return 1 + lv * ratio;
   }
   /* 大学（研究所）科技乘区（universityMul 字段）。2026-10 ERA7：改为通用逐槽相乘，
@@ -397,6 +406,29 @@
   }
   /* 心胜于物卡：奇观建造消耗减免求和（wonderBuildSave）。wonder.discountedCost 读 (1 − 此值)。 */
   function cardWonderBuildSave(s) { return cardFieldSum(s, 'wonderBuildSave'); }
+  /* ERA2-7 扩卡（2026-10-22 实装）：奇观建造消耗按纪元闸门的减免（wonderBuildSaveEra）。
+   * 征夫发役（cap 3）/ 王室特许（cap 5）各自带 wonderBuildSaveEra + wonderEraCap，
+   * 仅对该 cap 覆盖的纪元内奇观生效；多张卡减耗相加。wonder.discountedCost 读。 */
+  function cardWonderBuildSaveEra(s, era) {
+    var sum = 0, arr = (s && s.cards) || [], i, cd;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && typeof cd.wonderBuildSaveEra === 'number'
+          && (cd.wonderEraCap == null || era <= cd.wonderEraCap)) sum += cd.wonderBuildSaveEra;
+    }
+    return sum;
+  }
+  /* 庄园制卡（foodOutMul 1.20）：食物产出乘区。economy.foodRate 末行乘（tick/rates 同源）。 */
+  function cardFoodOutMul(s) { return cardFieldMul(s, 'foodOutMul'); }
+  /* 公司税卡（companyBonusMul 1.30）：公司产出加成与奢侈消耗加成统一 ×此值。economy-social.companyMul / companyLuxMul 读。 */
+  function cardCompanyBonusMul(s) { return cardFieldMul(s, 'companyBonusMul'); }
+  /* 质量效应卡（breakStardustMul 1.15）：轮回星屑结算乘区。prestige.stardustGain 读（结算/预览同源）。 */
+  function cardBreakStardustMul(s) { return cardFieldMul(s, 'breakStardustMul'); }
+  /* 启蒙沙龙卡（sciToCivic 0.15）：科技产出的该比例转为市政点。
+   * ⚠️ 这是「转化率」不是「乘区」——没装卡必须 = 0（不能像 cardFieldMul 那样空卡返回 1）。
+   *   否则不装沙龙卡也会每 tick 把 100% 科技转市政点（严重 gameplay bug）。故走 cardFieldSum（空卡=0）。 */
+  function cardSciToCivic(s) { return cardFieldSum(s, 'sciToCivic'); }
   /* 轮回之终末卡：信仰全产加成翻倍（faithAllProdDouble）。economy.baseMul 旧日信仰段 ×2（装卡才生效）。 */
   function cardFaithAllProdDouble(s) {
     return (cardSlotted(s, 'card_cycle_terminus')) ? 2 : 1;
@@ -1318,6 +1350,8 @@
     civicFarsightStarMul: civicFarsightStarMul, cardPlanetOutMul: cardPlanetOutMul,
     govAllOutMul: govAllOutMul, govFaithMul: govFaithMul, govOldFaithMul: govOldFaithMul,
     cardResOutMul: cardResOutMul, cardPopFaithMul: cardPopFaithMul, cardWonderBuildSave: cardWonderBuildSave,
+    cardWonderBuildSaveEra: cardWonderBuildSaveEra, cardFoodOutMul: cardFoodOutMul,
+    cardCompanyBonusMul: cardCompanyBonusMul, cardBreakStardustMul: cardBreakStardustMul, cardSciToCivic: cardSciToCivic,
     cardFaithAllProdDouble: cardFaithAllProdDouble, cardCraftRatioRecipes: cardCraftRatioRecipes, buildingFaithMul: buildingFaithMul,
     /* ERA10 市政（2026-10-20）：五条新卡读数。economy.launchCycleOf / launchHydroPer / faithRate、
      *   economy-social.happyBurn、workshop.craftMul 各读其一（各自单一落点）。 */

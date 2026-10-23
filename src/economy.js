@@ -63,8 +63,10 @@
   /* 冰封期资源产出倍率 = 基础 COLD_SEASON_MUL + 0.02 × 寒潮储备等级（轮回商店）。
    * ⚠️ 与方案文档 L248 的「基础 0.25」不一致：现有代码基底是 0.6，保留以免静默改平衡，待用户拍板。 */
   function coldSeasonMul(s) {
-    var lg = SB.prestige ? SB.prestige.legacy() : null;
-    var add = lg ? 0.02 * lg.coldStoreLevel : 0;
+    /* 潮汐之树（2026-10-23）：寒冬续航节点（coldPenalty）替代旧「冰窖」(coldStore)；
+     *   读 s.perk.coldPenalty（每级 −2% 寒冬惩罚，与旧 coldStoreLevel 同口径）。
+     *   旧 legacy().coldStoreLevel 已随迁移剥离，改读 s.perk。 */
+    var add = 0.02 * ((s.perk && s.perk.coldPenalty) || 0);
     return SB.CFG.COLD_SEASON_MUL + add;
   }
   /* 人口上限 = 两档住房之和。照猫国：容量 100% 在建筑身上（hut/logHouse/mansion），
@@ -89,9 +91,9 @@
    *   人口回到建筑身上。
    * ⚠️ 壳骨（纪元三）的 eff.house 目前**仍是空效果**（popCap 不读 tech.mul），
    *   按用户「一个一个解决」的节奏留到纪元三那轮处理，别在这里顺手接线。 */
-  /* ERA5（2026-10-02）：轮回商店「广厦之基」给的人口上限永久加成从 s.perk.popcap 出。
-   * 加在末尾、用 `|| 0` 兜空 —— s.perk 在 freshRun 总被 emptyPerks 初始化（已含 popcap:0），
-   * 这里再兜一层是为了老档/桩环境里 s.perk 万一是 undefined 也不炸 NaN。 */
+  /* 潮汐之树（2026-10-23）：人口上限永久加成改由 startPop 链（startPop1/2/3，max 三档）出，
+   *   替代旧「广厦之基」(popcap)。s.perk.startPop = max 三档贡献（满购 =3）。
+   * 加在末尾、用 `|| 0` 兜空 —— s.perk 在 freshRun 总被 emptyPerks 初始化（已含 startPop:0）。 */
   function popCap(s) {
     var p = s.perk || {};
     var popBuildLev = (s.lvl.nest || 0) + (s.lvl.coralhouse || 0) + (s.lvl.tenement || 0);
@@ -102,7 +104,7 @@
       /* ERA10（2026-10-20）：太阳星环每级 +1 人口上限（用户 ERA10 表「近恒星轨道建设」解锁2）。
        * 与住房三件同轴相加（不是乘区）——「+1 人口上限」字面就是加 1。 */
       + (s.lvl.solar_ring || 0)
-      + (p.popcap || 0)
+      + (p.startPop || 0)
       + (p.housePlan || 0) * popBuildLev
       + (SB.civic && SB.civic.popCapPerPopBldg ? SB.civic.popCapPerPopBldg(s) * popBuildLev : 0)  // ERA7 公摊面积卡：人口建筑每级 +0.5 上限
       + (SB.civic && SB.civic.cardPopCapFlat ? SB.civic.cardPopCapFlat(s) : 0); // 人口政策卡：固定上限加值
@@ -120,7 +122,11 @@
   function growthDuration(s) {
     var base = SB.challenges ? SB.challenges.growthDuration(s) : CFG.GROW_NEED;
     var cardMul = SB.civic && SB.civic.cardPopGrowthTimeMul ? SB.civic.cardPopGrowthTimeMul(s) : 1;
-    return base * cardMul;
+    /* 潮汐之树（2026-10-23）：勤耕节点（workSpeed1/2，族民生产时间 −10%/−20%）缩短生育间隔，
+     * 与政策卡 popGrowthTimeMul 同口径（都是乘在 base 上的时间系数，<1 即更快）。s.perk.workSpeed 累计百分比。 */
+    var workSpeedMul = 1 - ((s && s.perk && s.perk.workSpeed) || 0);
+    if (!(workSpeedMul > 0)) workSpeedMul = 0;
+    return base * cardMul * workSpeedMul;
   }
   function lvlSum(s) {
     var n = 0; for (var k in s.lvl) n += s.lvl[k]; return n;
@@ -199,8 +205,10 @@
     /* 轮回商店「材料总仓」：所有有上限的普通资源容量 ×(1 + 0.05 × 等级)（20 级 ⇒ +100%）。
      * ⚠️ 只作用于 CAP_BASE 有明确定义上限的资源（kelp / 各材料），不碰科技/市政/信仰/奢侈/
      *    无上限工艺品；与建筑仓储升级相乘（规格 L349）。 */
-    var lgS = SB.prestige ? SB.prestige.legacy() : null;
-    var matMul = lgS ? (1 + 0.05 * lgS.matStoreLevel) : 1;
+    /* 潮汐之树（2026-10-23）：材料总仓节点（matStore1/2/3 + 无限尾）替代旧「材料总仓」(matStore, n:20)；
+     *   直接读 s.perk.matStore（累积值，每级 +0.05 容量乘区，与旧 matStoreLevel 同口径）。
+     *   旧 legacy().matStoreLevel 已随迁移剥离。 */
+    var matMul = 1 + 0.05 * ((s.perk && s.perk.matStore) || 0);
     if (!(typeof matMul === 'number' && isFinite(matMul) && matMul > 0)) matMul = 1;
     if (k === 'kelp') {
       /* ⚠️ 扩容升级是**乘法**，整套仓储线里只有它这一条是乘法 —— 见下面的 matCap。 */
@@ -731,8 +739,23 @@
   /* 矿脉税契：石头 + 金属 + 暖石各 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.silt/stone/warmstone + tick 对应三行。
    * ⚠️ 一项管三线（与砂矿坑 siltBonus 同样形状），但**不碰钛**：钛是 2026-09-30 才开的新线，
    *    塞进「矿脉税契」会让老玩家以为买了就该涨钛，实际口径要等标定再说。 */
-  function mineTaxMul(s) { return (1 + 0.10 * (s.perk.mineTax || 0) * infinitePerkMul(s))
-    * (SB.civic ? SB.civic.govMinePerPop(s) : 1); }   // ERA6 平等主义：每名鲛人 +0.1% 矿井产出
+  /* 2026-10-23 潮汐之树：旧「矿脉税契」（mineTax，一键管三线）拆成矿工系 + 采石系两条独立轴：
+   *   · minerPact（矿工系：金属 silt + 暖石 warmstone，+10%/级）
+   *   · quarryPact（采石系：石头 stone，+10%/级）
+   *   ERA6 平等主义（每名鲛人 +0.1% 矿井产出）两条轴都叠加。tick / rates 共享本批函数 ⇒ 面板===结算。 */
+  function minerPactMul(s) { return (1 + 0.10 * (s.perk.minerPact || 0) * infinitePerkMul(s))
+    * (SB.civic ? SB.civic.govMinePerPop(s) : 1); }
+  function quarryPactMul(s) { return (1 + 0.10 * (s.perk.quarryPact || 0) * infinitePerkMul(s))
+    * (SB.civic ? SB.civic.govMinePerPop(s) : 1); }
+  /* 热泉炉（精铁）效率 / 热液工坊（钢）效率：+20%/级（系数 0.20）。
+   * 落点 = ironFlow 的产出段（tick/rates 同式）× furnaceEffMul；钢产线（steelFlow/steelRate）× hydroshopEffMul。 */
+  function furnaceEffMul(s) { return 1 + 0.20 * (s.perk.furnaceEff || 0) * infinitePerkMul(s); }
+  function hydroshopEffMul(s) { return 1 + 0.20 * (s.perk.hydroshopEff || 0) * infinitePerkMul(s); }
+  /* 热液工坊（钢）产出：+10%/级（与 furnaceBoost 同系数）。落点 = steelFlow/steelRate 产出段。 */
+  function hydroshopBoostMul(s) { return 1 + 0.10 * (s.perk.hydroshopBoost || 0) * infinitePerkMul(s); }
+  /* 学者系 / 书手系产出：+10%/级。落点 = 学者行（tick/rates 同式）× scholarPactMul；书手行（cultureRate）× scribePactMul。 */
+  function scholarPactMul(s) { return 1 + 0.10 * (s.perk.scholarPact || 0) * infinitePerkMul(s); }
+  function scribePactMul(s) { return 1 + 0.10 * (s.perk.scribePact || 0) * infinitePerkMul(s); }
   /* 潮田轮作：采集者藻食 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.kelp 的**职业侧**（farmMul 之后）。
    * ⚠️ 藻场（建筑侧）**不吃**这一条：farmMul 本来就只放大职业侧，注释已写明
    *    「只放大采集者（职业侧），不碰建筑侧的藻场」—— 本 perk 与它同定义域。 */
@@ -1098,7 +1121,44 @@
      * 现在生育受「口粮 + 住满」两道门管，见第 6 步与 economy.isFull。 */
     return (byBuild + byJob) * SOCIAL.companyMul(s, 'kelp') * (cold || 1)
       * (1 + (s.lvl.weir || 0) * SB.BLD.foodWeir)                // 增旋钮：两条来源一起放大
-      * globalMulX(s);                                         // 全资源乘区（灯塔/信仰/奇观/政体/大统一方程；与 rates 同式）
+      * globalMulX(s)                                          // 全资源乘区（灯塔/信仰/奇观/政体/大统一方程；与 rates 同式）
+      * ((SB.civic && SB.civic.cardFoodOutMul) ? SB.civic.cardFoodOutMul(s) : 1);  // ERA2-7：庄园制卡 ×1.20（乘区，tick/rates 同源）
+  }
+  /* ERA2-7 扩卡（2026-10-22 实装）：科技产出（每秒，未乘挑战乘区），与 rates().science 的「基项」完全同构。
+   * 落点：启蒙沙龙卡把 15% 科技产出转为市政点——tick 与 rates 都读本函数，保证面板===结算。
+   * ⚠️ 此函数只返回 scholar + 市政卡 cv.science + 商人副产 + 学校 + 旧日潮纹碑石 那份「每秒基项」，
+   *    不含挑战乘区（challenge）；挑战乘区由调用方（tick 的 _challengeSciCulture / rates 的 scienceCultureMul）补乘。 */
+  function sciOut(s) {
+    var lg = SB.prestige ? SB.prestige.legacy() : null;
+    var j = (SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : { scholar: 0, merchant: 0 };
+    var cv = (SB.civic && SB.civic.flow) ? SB.civic.flow(s) : null;
+    var Tr = (SB.tech && SB.tech.mul) ? SB.tech.mul(s) : null;
+    var lgMul = lg ? lg.relicScienceMul * (1 + lg.shopScienceBonus) : 1;
+    var scholar = (j.scholar || 0) * SB.UNIT.sci
+      * (1 + libraryLevel(s) * SB.BLD.sciRatio
+           * ((SB.civic && SB.civic.libraryMul) ? SB.civic.libraryMul(s) : 1)
+        + (s.lvl.institute || 0) * (SB.BLD.instituteSci + upgSum(s, 'instituteSci'))
+           * ((SB.civic && SB.civic.universityMul) ? SB.civic.universityMul(s) : 1)
+        + upgSum(s, 'pressSci')
+        + (s.lvl.researchlab || 0) * SB.BLD.researchLabSci
+        + upgSum(s, 'algalfarmSci') * (s.lvl.kelp || 0))
+      * obsSciMul(s)
+      * ((SB.wonder) ? SB.wonder.cutterSciMul(s) : 1)
+      * (1 + (s.lvl.satellite || 0) * (SB.BLD.satelliteScholar || 0))
+      * ((SB.wonder) ? SB.wonder.voyagerScholarMul(s) : 1)
+      * ((SB.wonder && SB.wonder.khalifaScholarMul) ? SB.wonder.khalifaScholarMul(s) : 1)
+      * ((SB.wonder) ? SB.wonder.throneSciMul(s) : 1)
+      * (Tr ? Tr.sci : 1)
+      + (cv ? (cv.science || 0) : 0)
+      + ((s.civics && s.civics.market) ? (j.merchant || 0) * (SB.BLD.marketJobSci || 0) : 0)
+      + ((s.lvl.school || 0) > 0 ? (s.pop || 0) * (s.lvl.school || 0) * (SB.BLD.schoolMermanSci || 0) : 0);
+    var withMul = scholar
+      * ((SB.civic && SB.civic.cardSciOutMul) ? SB.civic.cardSciOutMul(s) : 1)
+      * ((SB.civic && SB.civic.govSciOutMul) ? SB.civic.govSciOutMul(s) : 1)
+      * ((SB.companyMul) ? SB.companyMul(s, 'sci') : 1)   // 与 tick 4a 同源（科技公司的科技加成）
+      * globalMul(s)
+      * lgMul;
+    return withMul + (lg ? lg.oldTideSteleScienceRate : 0);
   }
   /* 地热产出：热泉井 × 匠人 × 环境系数 × 点火术， **再减去全城维护**。
    *
@@ -1635,7 +1695,7 @@
       /* ERA9 血肉苦弱卡（resOutMul.steel=1.3）：钢产出 +30%（装卡才生效）。 */
       * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'steel') : 1)
       * (SB.companyMul ? SB.companyMul(s, 'steel') : 1)
-      * smeltingOutMul(s);
+      * hydroshopEffMul(s) * hydroshopBoostMul(s) * smeltingOutMul(s);
     addRes(s, 'steel', out);
     return out;
   }
@@ -1658,7 +1718,7 @@
       /* ERA9 血肉苦弱卡（resOutMul.steel=1.3）：钢产出 +30%（装卡才生效）。 */
       * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'steel') : 1)
       * (SB.companyMul ? SB.companyMul(s, 'steel') : 1)
-      * smeltingOutMul(s);
+      * hydroshopEffMul(s) * hydroshopBoostMul(s) * smeltingOutMul(s);
     /* ERA8：补 labDraw（生物材料研究所）/ robotDraw（工业机器人）/ robotbayDraw（机器人充能站）三个新耗流方——
      *   漏加 = 顶栏热液能净消耗少算几路（面板撒谎家族）。
      *   ERA10（2026-10-20）：再补 jupitorDraw（朱庇特质量加速站 20/s）——同一个坑，第三次踩到：
@@ -1783,7 +1843,7 @@
     /* ERA5（2026-10-02）：歌剧院建筑给书手 +15%/级（theaterCivicMul，只裹书手那一截）；
      *   热能优先卡把市政产出 −50%（cardCivicOutMul，整段乘，含议事厅/奇观的量）。 */
     var sqMulBase = ((s.jobs.scribe || 0) * folkOutputMul(s) * SB.UNIT.culture * sqMul
-      * (1 + upgSum(s, 'pressCul')) * scribeCiv
+      * (1 + upgSum(s, 'pressCul')) * scribeCiv * scribePactMul(s)
       + coreLvl(s) * SB.CFG.CIVIC.HALL_RATE
         * (1 + (s.lvl.civichall || 0) * (SB.BLD.civicHallRatio || 0))
       + wonderBonus) * globalMul(s)
@@ -1915,7 +1975,9 @@
     var _gb = (SB.civic ? SB.civic.govHappyBonus(s) : 0)
       + (SB.wonder ? SB.wonder.happyBonus(s) : 0)
       + (SB.civic ? SB.civic.cardHappyOffset(s) : 0)
-      + (SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0);
+      + (SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0)
+      /* 潮汐之树（2026-10-23）：安乐之治（happiness）每级 +1 幸福度基线，与政体/奇观偏移同口径。 */
+      + ((s && s.perk && s.perk.happiness) || 0);
     var _tMer = toolMul(s, 'merchant');
     var _uLux = upgSum(s, 'luxuryMul');
     var _lp = luxuryPactMul(s);
@@ -1969,7 +2031,10 @@
     fuelRate: fuelRate, furnaceBoostMul: furnaceBoostMul, gatherMul: gatherMul,
     smeltingOutMul: smeltingOutMul, folkOutputMul: folkOutputMul, infinitePerkMul: infinitePerkMul,
     globalMul: globalMul, ironFlow: ironFlow, isCold: isCold, isFull: isFull,
-    libraryLevel: libraryLevel, luxuryPactMul: luxuryPactMul, mineTaxMul: mineTaxMul,
+    libraryLevel: libraryLevel, luxuryPactMul: luxuryPactMul,
+    minerPactMul: minerPactMul, quarryPactMul: quarryPactMul, furnaceEffMul: furnaceEffMul,
+    hydroshopEffMul: hydroshopEffMul, hydroshopBoostMul: hydroshopBoostMul,
+    scholarPactMul: scholarPactMul, scribePactMul: scribePactMul,
     observatoryBonusPct: observatoryBonusPct, obsSciMul: obsSciMul, resUnlocked: resUnlocked, seasonTurn: seasonTurn,
     steelFlow: steelFlow, steelRate: steelRate, toolMul: toolMul, upgSum: upgSum,
     warmBurningNow: warmBurningNow, warmCap: warmCap, warmEff: warmEff, warmRelief: warmRelief,
@@ -1987,7 +2052,9 @@
     launchMaterialPer: launchMaterialPer, launchCycleOf: launchCycleOf, launchHydroPer: launchHydroPer,
     starDysonCostMul: starDysonCostMul, starTerraformDuration: starTerraformDuration,
     activeSiltpit: activeSiltpit, autoDrillCount: autoDrillCount, autoDrillOutputMul: autoDrillOutputMul,
-    activeWorkshops: activeWorkshops, industrialRobotOutputMul: industrialRobotOutputMul
+    activeWorkshops: activeWorkshops, industrialRobotOutputMul: industrialRobotOutputMul,
+    /* ERA2-7 扩卡（2026-10-22）：科技产出读数（启蒙沙龙卡把 15% 科技转市政点，tick/rates 同源）。 */
+    sciOut: sciOut
   };
   SB.economy = {
     fmt: fmt, fmtAmt: fmtAmt,
@@ -2139,7 +2206,10 @@
      *   但「乘区真的生效了吗」只能从模块表面直接读数来验 —— 不导出时回归 650/650 全绿，
      *   却**没有一条断言碰过它们**，等于新 perk 上线时裸奔（判据：新增乘区必须可从表面取证）。
      *   都是纯函数（只读 s.perk），渲染路径可安全调用。 */
-    coralPactMul: coralPactMul, mineTaxMul: mineTaxMul, algaeCropMul: algaeCropMul,
+    coralPactMul: coralPactMul, algaeCropMul: algaeCropMul,
+    minerPactMul: minerPactMul, quarryPactMul: quarryPactMul, furnaceEffMul: furnaceEffMul,
+    hydroshopEffMul: hydroshopEffMul, hydroshopBoostMul: hydroshopBoostMul,
+    scholarPactMul: scholarPactMul, scribePactMul: scribePactMul,
     furnaceBoostMul: furnaceBoostMul, luxuryPactMul: luxuryPactMul,
     smeltingOutMul: smeltingOutMul, folkOutputMul: folkOutputMul, infinitePerkMul: infinitePerkMul,
     /* ⚠️ ERA6 公司系统（2026-10 实装）：公司产出加成 / 奢侈品消耗加成两读数。

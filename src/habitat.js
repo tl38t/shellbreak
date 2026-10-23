@@ -239,6 +239,8 @@
      *    真正扣人只此一处，走 consumePop（按职业占比缩水，不碰人口上限）。 */
     if (typeof c.pop === 'number' && c.pop > 0) consumePop(s, c.pop);
     s.lvl[id]++;
+    /* 首座轨道卫星是星屑商店的永久解锁条件；周目重开后不再因本局卫星等级归零而重新上锁。 */
+    if (id === 'satellite' && SB.game && SB.game.unlockStardustShop) SB.game.unlockStardustShop();
     /* ⚠️ 这里**没有**「建城堡时把议事厅等级并过去」的转移逻辑——那是被撤回的误读。
    *   城堡 = 议事厅买下工坊升级 `upg_castle` 之后的新名字（render 改显示名），
    *   两者是同一座建筑、同一个 lvl.hall，不存在两座之间的等级搬运。 */

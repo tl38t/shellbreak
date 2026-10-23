@@ -19,7 +19,7 @@ ok('ERA9 科技 era 字段=9', era9ids.every(id => byId[id] && byId[id].era === 
 ok('核聚变 eff 直读（无通用 mul 键）', !(byId.nuclear_fusion.eff && Object.keys(byId.nuclear_fusion.eff).length));
 ok('行星际快速物流 alienOutMul=0.2', byId.interlog.eff && byId.interlog.eff.alienOutMul === 0.2);
 /* G.E.E.K 奇观配置本轮未建（用户要求最后单独做），故 ecological_restoration 的 unlockWonder 暂未登记（eff 空）。
- * 此处仅验证科技存在且归属光帆纪；unlockWonder 待 G.E.E.K 落地后再接。 */
+ * 此处仅验证科技存在且归属寻光纪；unlockWonder 待 G.E.E.K 落地后再接。 */
 ok('生态重塑 归属纪元九（G.E.E.K 奇观待最后实装）', byId.ecological_restoration && byId.ecological_restoration.era === 9);
 ok('超远距微波加热 unlockBuild=europa_launch', byId.microwave_heat.eff && (byId.microwave_heat.eff.unlockBuild||[]).indexOf('europa_launch')>=0);
 ok('大型异星工程 unlockBuild=mars_workshop', byId.alien_eng.eff && (byId.alien_eng.eff.unlockBuild||[]).indexOf('mars_workshop')>=0);

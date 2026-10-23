@@ -143,6 +143,9 @@
         (SB.civic && SB.civic.cardCraftRatioRecipes ? SB.civic.cardCraftRatioRecipes(s, c.id) : 0)
       + (_Tm && _Tm.recipeCraft ? (_Tm.recipeCraft[c.id] || 0) : 0)
       + upgradeRecipeCraft(s, c.id)
+      /* 潮汐之树（2026-10-23）：配方巧工节点（stoneBeam/hardcoral/scaffold/ironbracket/steelpart/
+       *   tidalRecord/vibrodrill 等）按 recipeCraft 加法轴给指定配方工艺效率加成；与科技 / 政策卡同源累加。 */
+      + (s.perk && s.perk.recipeCraft && s.perk.recipeCraft[c.id] ? s.perk.recipeCraft[c.id] : 0)
     ) : 0);
     /* workshopEff（ERA10）折进基数：1 + 加法轴(craftRatio) + 配方卡/科技(_recipeCraft) + 科技(workshopEff)。 */
     var _cr = Math.max(0, 1 + craftRatio(s) + _recipeCraft + (_Tm ? (_Tm.workshopEff || 0) : 0));
@@ -275,15 +278,15 @@
    * 两个来源：**工坊升级项「自动工坊」自带 1 个**（装了就有，见 SB.UPGRADES.upg_autoshop），
    * 轮回商店 `autoCraft1/2/3` 每级 +1（写进 s.perk.autoCraft）。上限 SB.CFG.AUTO.SLOT_MAX。
    *
-   * 【槽按原料是否有上限选择触发方式】
-   *   有上限原料：任一原料满仓后，转制当时可造份数的 25 / 50 / 75 / 100%。
-   *   全部原料无上限：玩家填写批次数；够造一批才动手，造完保留多余库存。
+   * 【槽触发方式】
+   *   配方全部原料都有上限：原料达到「容量 × 所选档位」（100% = 满仓）后，转制当时可造份数的对应比例。
+   *   配方只要含无上限原料：沿用批次档；库存够造指定批次数才动手，造完保留多余库存。
    * ⚠️ 为什么不是「够一份就造」：那是把玩家的建材直接吃掉（石头刚够 100 就被转成石梁，
    *    想建的房子永远差那点料）。「满了才造」只在**本来就要浪费**的那一刻动手，
    *    玩家不需要再设一道预留线——这就是用户选阈值而不是固定份数的原因。
    * ⚠️ 无上限原料（capOf = Infinity：钢、各工艺制品）**不参与「满」判定**：
    *    它永远不会溢出，拿它当触发条件 ⇒ 那种配方的槽永远不动。
-   *    全部原料都无上限时不再等不存在的「满仓」，而是等到玩家填写的批次数。
+   *    混合配方也必须走批次档，否则拿无限材料判断「满」会永远等不到。
    * ⚠️ 调用点只在**在线**泵（game.js 的 TECH_PUMP 周期，与 habitat.autoTick 并列）：
    *    离线补算只结算产出、不替玩家花资源（离线闸门同一精神）。
    * ⚠️ 一档百分比 = 造**当时可造量**的这一比例，不是「造到 25% 仓位」——
@@ -301,6 +304,11 @@
     var n = 0;
     if (s.upgrades && s.upgrades.upg_autoshop) n += (SB.CFG.AUTO && SB.CFG.AUTO.SLOT_BASE) || 1;
     n += (s.perk && s.perk.autoCraft) || 0;
+    /* 潮汐之树（2026-10-23）：三系槽位节点（slotCraft / slotEcon / slotSci，各 cost:50）各 +1 自动制作槽，
+     *   与 autoCraft / 热锻锤 / 复合型工厂同源叠加。 */
+    n += (s.perk && s.perk.slotCraft) || 0;
+    n += (s.perk && s.perk.slotEcon) || 0;
+    n += (s.perk && s.perk.slotSci) || 0;
     /* ERA6（2026-10 实装）：热力锻锤（hotforge_hammer）每级 +1 自动制作槽（与 upg_autoshop 同源叠加）。 */
     if (s.techs && s.techs.hotforge_hammer) n += 1;
     /* ERA7（2026-10-17 · spec §4）：复合型工厂（upg_complexf）+1 自动工艺槽位（与热锻锤同源叠加）。 */
@@ -330,16 +338,43 @@
     return false;
   }
 
+  function hasUnboundedInput(s, c) {
+    if (!c || !c.in) return true;
+    for (var k in c.in) {
+      var cap = SB.economy ? SB.economy.capOf(s, k) : Infinity;
+      if (!isFinite(cap)) return true;
+    }
+    return false;
+  }
+
   function defaultBatch() { return (SB.CFG.AUTO && SB.CFG.AUTO.BATCH_DEFAULT) || 80; }
   function maxBatch() { return (SB.CFG.AUTO && SB.CFG.AUTO.BATCH_MAX) || 9007199254740991; }
+  function defaultBatchFor(s, id) {
+    var batch = defaultBatch(), c = craftById(id);
+    if (!c || !hasFiniteInput(s, c)) return batch;
+    var cm = craftCostMul(s, c), maxAtCap = Infinity, k;
+    for (k in c.in) {
+      var cap = SB.economy ? SB.economy.capOf(s, k) : Infinity;
+      if (!isFinite(cap)) continue;
+      var per = c.in[k] * cm;
+      if (per > 0) maxAtCap = Math.min(maxAtCap, Math.floor(cap / per));
+    }
+    if (isFinite(maxAtCap)) batch = Math.min(batch, maxAtCap);
+    return Math.max(1, Math.floor(batch));
+  }
   function slotBatch(s, id) {
     var i = slotIndexOf(s, id);
     if (i >= 0) {
       var saved = s.autoSlots[i].batch;
       if (isFinite(saved) && Math.floor(saved) === saved && saved >= 1 && saved <= maxBatch()) return saved;
     }
-    /* 旧档的无上限配方只存 pct；切换到批次语义后默认 80 次，可由玩家填写调整。 */
-    return defaultBatch();
+    /* 默认批次数不超过配方的有限原料仓库容量，避免初始批次数永远造不起。 */
+    return defaultBatchFor(s, id);
+  }
+
+  function slotUsesBatch(sl) {
+    return !!(sl && isFinite(sl.batch) && Math.floor(sl.batch) === sl.batch
+      && sl.batch >= 1 && sl.batch <= maxBatch());
   }
 
   /* 分配 / 改档。返回真 = 真的坐进了槽；返回假 = 槽位不够（UI 该显示「槽位已满」）。
@@ -348,7 +383,7 @@
    *    存档里被人手改出一个 0.9 的档位时，宁可不动也别按着怪值造。 */
   function setSlot(s, id, pct) {
     var c = craftById(id);
-    if (!s || !c || !hasFiniteInput(s, c)) return false;
+    if (!s || !c || hasUnboundedInput(s, c)) return false;
     var ok = false, P = pcts(), i;
     for (i = 0; i < P.length; i++) if (P[i] === pct) ok = true;
     if (!ok) return false;
@@ -362,7 +397,7 @@
 
   function setSlotBatch(s, id, batch) {
     var c = craftById(id);
-    if (!s || !c || hasFiniteInput(s, c)) return false;
+    if (!s || !c || !hasUnboundedInput(s, c)) return false;
     if (!isFinite(batch) || Math.floor(batch) !== batch || batch < 1 || batch > maxBatch()) return false;
     var idx = slotIndexOf(s, id);
     if (idx >= 0) { s.autoSlots[idx].batch = batch; delete s.autoSlots[idx].pct; return true; }
@@ -380,14 +415,23 @@
     return true;
   }
 
-  /* 自动制造触发判据：有限原料等任一原料满仓；全无限原料等库存够玩家填写的批次数。 */
-  function autoReady(s, c) {
-    if (!hasFiniteInput(s, c)) return Math.floor(maxCraftable(s, c)) >= slotBatch(s, c.id);
+  /* 自动制造触发判据：含无上限原料的配方（钢/工艺制品/科技/文化）等库存够一整批；
+   * 全有限配方（只吃有上限原料：石头/珊瑚/铁/藻食/钛/暖石/θ金属）按所选**百分比档位**触发 ——
+   * 原料达到「容量 × 档位」即动手，100% = 旧行为（满仓才造）。
+   * ⚠️ 档位同时是第一类配方的「触发门槛」与「转制比例」：选 25% = 暖石攒到 25% 容量就转，
+   *    不再死等满仓（2026-10-22 用户拍板「降低触发门槛」+「保持与其它满仓档配方一致」）。
+   * ⚠️ 触发门槛取 max(容量×档位, 造一份所需) 下界，避免「到了 25% 却不够一份」的空触发
+   *    （例：绳 one-batch=100 藻食，cap 200，25%×200=50 < 100 ⇒ 取 100，到了一份就转）。 */
+  function autoReady(s, c, sl) {
+    if (hasUnboundedInput(s, c))
+      return Math.floor(maxCraftable(s, c)) >= (slotUsesBatch(sl) ? sl.batch : slotBatch(s, c.id));
+    var pct = (sl && sl.pct > 0) ? sl.pct : 1;   // 档位：默认/100% 保持旧「满仓才造」语义
     var k;
     for (k in c.in) {
       var cap = SB.economy ? SB.economy.capOf(s, k) : Infinity;
       if (!isFinite(cap)) continue;          // 无上限原料不参与「满」判定
-      if (((s.res && s.res[k]) || 0) >= cap) return true;
+      var need = Math.max(cap * pct, (c.in[k] || 0) * craftCostMul(s, c));  // 百分比门槛，但不低于造一份
+      if (((s.res && s.res[k]) || 0) >= need) return true;
     }
     return false;
   }
@@ -406,18 +450,18 @@
       if (!sl || !sl.id) continue;
       var c = craftById(sl.id);
       if (!c) continue;
-      if (!autoReady(s, c)) continue;
+      if (!autoReady(s, c, sl)) continue;
       var all = maxCraftable(s, c);
       if (!(all > 0)) continue;
       var amt;
-      if (hasFiniteInput(s, c)) {
+      if (!hasUnboundedInput(s, c)) {
         /* ⚠️ `Math.max(1, …)`：满仓时可造量通常远大于 1，但边缘情况（刚够 1 份就满仓）
          *    25% 档会算出 floor(0.25)=0 ⇒ 这个槽永远不动。 */
         if (!(sl.pct > 0)) continue;
         amt = Math.max(1, Math.floor(all * sl.pct));
       } else {
-        /* 无上限原料没有满仓时刻：达到玩家填写的批次数才造固定一批，多出的原料留给后续用途。 */
-        amt = Math.min(Math.floor(all), slotBatch(s, c.id));
+        /* 含无上限原料的配方沿用批次档；库存够造整批时再制造。 */
+        amt = Math.min(Math.floor(all), slotUsesBatch(sl) ? sl.batch : slotBatch(s, c.id));
       }
       var got = craft(s, sl.id, amt, null);
       if (got > 0) made += got;
@@ -656,7 +700,8 @@
     craft: craft, steps: CRAFT_STEPS,
     /* 自动制作槽（2026-10-07）：槽数 / 占槽 / 改档 / 释放 / 满仓判定 / 泵 */
     slotMax: slotMax, pcts: pcts, slotCap: slotCap, slotPct: slotPct,
-    slotBatch: slotBatch, hasFiniteInput: hasFiniteInput, slotIndexOf: slotIndexOf,
+    slotBatch: slotBatch, slotUsesBatch: slotUsesBatch, hasFiniteInput: hasFiniteInput,
+    hasUnboundedInput: hasUnboundedInput, slotIndexOf: slotIndexOf,
     setSlot: setSlot, setSlotBatch: setSlotBatch, clearSlot: clearSlot, autoReady: autoReady, autoTick: autoTick,
     /* 工艺升级项（第三种形态：一次性装填，存 s.upgrades） */
     upgrades: upgradeRows, upgradeById: upgradeById,

@@ -14,85 +14,117 @@
    *      / cost（单级价）/ costs（分级独立价数组，价目表 3/6/12 即各单级价、不累计）/ nest（前置 perk id）。
    * ⚠️ 数值为接入真实结算前的首轮报价，待实跑校准；标定只改 cost/costs/apply，结构不动。
    * ⚠️ apply 键必须与 state.emptyPerks 的键一致（economy 按这些键读数）。 */
-  var PERKS = [
-    /* ── 开局便利 ── */
-    { id: 'food',  name: '前朝藻席',   cost: 1,  desc: '每局开局 +200 藻食',          kind: 'start' },
-    { id: 'coral', name: '沉船残骸',   cost: 2,  desc: '每局开局 +150 珊瑚',          kind: 'start' },
-    /* ── 重复操作自动化：采集 ── */
-    { id: 'g1', name: '异族鳍肢', costs: [3, 6, 12], desc: '采集产出 +10%/级', kind: 'gather', n: 3, apply: { gather: 1 } },
-    { id: 'g2', name: '深鳃',     costs: [6],      desc: '采集产出再 +10%',   kind: 'gather', n: 3, apply: { gather: 1 }, nest: 'g1' },
-    { id: 'g3', name: '流线体形', costs: [12],     desc: '采集产出再 +10%',   kind: 'gather', n: 3, apply: { gather: 1 }, nest: 'g2' },
-    /* ── 重复操作自动化：破壳 ── */
-    { id: 'c1', name: '祖先之热', costs: [3, 7],    desc: '破壳系数 +0.20/级',     kind: 'break', n: 2, apply: { coef: 1 } },
-    { id: 'c2', name: '脉息',     costs: [7],       desc: '破壳系数再 +0.20',   kind: 'break', n: 2, apply: { coef: 1 }, nest: 'c1' },
-    { id: 'd1', name: '薄壳一代', costs: [4, 9, 18], desc: '冰壳厚度 −10%/级',    kind: 'break', n: 3, apply: { thin: 1 } },
-    { id: 'd2', name: '裂脉',     costs: [9],        desc: '冰壳再薄 10%',       kind: 'break', n: 3, apply: { thin: 1 }, nest: 'd1' },
-    { id: 'd3', name: '内生热泉', costs: [18],       desc: '冰壳再薄 10%',       kind: 'break', n: 3, apply: { thin: 1 }, nest: 'd2' },
-    /* ── 重复操作自动化：人口与住房 ── */
-    { id: 'popcap', name: '广厦之基', costs: [2, 4, 6], desc: '永久人口上限 +1/级（最多 3 级）', kind: 'pop', n: 3, apply: { popcap: 1 } },
-    { id: 'housePlan', name: '生息建筑规划', cost: 20, desc: '所有人口建筑每级各 +1 人口上限（买断）', kind: 'pop', n: 1, apply: { housePlan: 1 } },
-    { id: 'coldStore', name: '寒潮储备', costs: [2, 4, 8, 12], desc: '寒季资源产出倍率 +0.02/级（最多 4 级）', kind: 'pop', n: 4, apply: { coldStore: 1 } },
-    { id: 'offline', name: '离潮计时', costs: [2, 4, 8, 12], desc: '单次离线上限 +25%/级（最多 4 级）', kind: 'pop', n: 4, apply: { offline: 1 } },
-    { id: 'matStore', name: '材料总仓', costs: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80], desc: '所有普通资源容量 +5%/级（最多 20 级）', kind: 'pop', n: 20, apply: { matStore: 1 } },
-    /* ── 重复操作自动化：模板与自动制作 ── */
-    /* ⚠️ 2026-10-07：`s.perk.autoCraft` 此前是**零读端死字段**（买了扣轮回点、等级真涨、
-     *   但没有任何代码读它 ⇒ 不报错、也不生效）。现在由 workshop.slotCap 读它，
-     *   语义 = **额外**自动制作槽（自动工坊升级自带第 1 个）。槽数上限 CFG.AUTO.SLOT_MAX。 */
-    { id: 'autoCraft1', name: '自动制作槽 I', cost: 6, desc: '自动制作槽 +1（自动工坊已自带 1 个）', kind: 'auto', n: 3, apply: { autoCraft: 1 } },
-    { id: 'autoCraft2', name: '自动制作槽 II', cost: 12, desc: '自动制作槽再 +1（累计 +2）', kind: 'auto', n: 3, apply: { autoCraft: 1 }, nest: 'autoCraft1' },
-    { id: 'autoCraft3', name: '自动制作槽 III', cost: 24, desc: '自动制作槽再 +1（累计 +3）', kind: 'auto', n: 3, apply: { autoCraft: 1 }, nest: 'autoCraft2' },
-    { id: 'legacyCraft', name: '轮回前遗产制作', cost: 8, desc: '解锁轮回结算前自动制作艺术品与潮纹记录（买断）', kind: 'auto', n: 1, apply: { legacyCraft: 1 } },
-    /* ── 奇观、破壳与分区自动建造 ── */
-    { id: 'wonderBlueprint', name: '遗址施工图 I', costs: [2, 4, 6, 8], desc: '所有奇观建造成本 −5%/级（最多 −20%）', kind: 'wonder', n: 4, apply: { wonderBlueprint: 1 } },
-    { id: 'shellSurvey', name: '破界测绘 I', costs: [3, 6, 9], desc: '天穹钻机每单位功率削壳量 +5%/级（最多 +15%）', kind: 'break', n: 3, apply: { shellSurvey: 1 } },
-    /* ── 市政与政策 ── */
-    { id: 'civicArchive', name: '旧典编纂 I', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '市政点获取 +10%/级（不设上限）', kind: 'civic', n: Infinity, apply: { civicArchive: 1 } },
-    { id: 'civicPlan', name: '政令档案 I', costs: [2, 4, 6], desc: '保存 1/2/3 份政体与政策卡方案', kind: 'civic', n: 3, apply: { civicPlan: 1 } },
-    { id: 'govRoutine', name: '议事惯例 I', costs: [1, 2, 3, 4, 5], desc: '换政策卡/政体费用 −10%/级（最多 −50%）', kind: 'civic', n: 5, apply: { govRoutine: 1 } },
-    /* ── 科研 ── */
-    { id: 'tideProof', name: '潮纹校勘 I', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '科技点获取 +10%/级（不设上限）', kind: 'science', n: Infinity, apply: { tideProof: 1 } },
-    { id: 'scienceStart', name: '旧学开篇 I', costs: [2, 4, 6], desc: '每局初始科技点 +100/级（取最高档，最多 +300）', kind: 'science', n: 3, apply: { scienceStart: 100 } },
-    { id: 'autoStudy', name: '旧学自动研究', cost: 6, desc: '解锁科技自动研究器（买断，默认关闭）', kind: 'auto', n: 1, apply: { autoStudy: 1 } },
-    { id: 'autoCivic', name: '市政自动研究', cost: 6, desc: '解锁市政自动研究器（买断，默认关闭）', kind: 'auto', n: 1, apply: { autoCivic: 1 } },
-    /* ── 资源线专项乘区（2026-10-05 用户拍板：1~5 全做 + 补奢侈品线）──
-     *  ⚠️【为什么每条线一个独立键，而不是全塞 gatherMul】
-     *    gatherMul 是「通用采集」轴（珊瑚/石头/金属/暖石），farmMul 是藻食轴 ——
-     *    两条已经分开了。而采集者(farm) 与 g1-g3 走的是 gatherMul，**根本没覆盖藻食**，
-     *    所以下面 3/4 两条（藻食、精铁）不是重复建设，是补两个真实缺口。
-     *  ⚠️【每条线的读数落点】全部读 `s.perk.<key>`，是**纯加法系数**，
-     *    结算侧一律写成 `* (1 + 0.xx * (s.perk.<key> || 0))`：
-     *      · 珊瑚   → rates.coral + tick 珊瑚匠行（独立于 gatherMul，可叠加）
-     *      · 采矿   → rates.silt/stone/warmstone + tick 对应三行（同一条 perk 管三线）
-     *      · 藻食   → rates.kelp(职业侧) —— farmMul 只放大职业，藻场走建筑侧不受影响
-     *      · 精铁   → rates.iron/steel + tick steelFlow（地热线重设前收益有限，但结构先通）
-     *      · 信仰   → faithRate 内（与神庙乘区 faithMul **并列相乘**，不吃 globalMul 反自指）
-     *      · 工坊   → craftRatio 内（只做效率，与工坊建筑/科技/升级的 craftRatio 同一个加法池）
-     *      · 奢侈   → luxury 供给 S 侧（tick 4c + rates.luxury 两处，漏一路=面板撒谎）
-     *  ⚠️ 2026-10-05 晚用户拍板：本段 9 条全部改为 **+10%/级、不设等级上限**（n:Infinity）。
-   *    价目沿用各自现有等差曲线：数组内照读，数组耗尽后由 prestige.perkNextCost 等差外推
-   *    （珊瑚/奢侈 +2/级、矿脉/工坊 +3/级、炉心 +4/级、藻食/旧典/校勘/祭祀 +1/级）。 */
-    { id: 'coralPact', name: '珊瑚礁契', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '珊瑚产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { coralPact: 1 } },
-    { id: 'mineTax', name: '矿脉税契', costs: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60], desc: '石头 + 金属 + 暖石产出各 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { mineTax: 1 } },
-    { id: 'algaeCrop', name: '潮田轮作', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '采集者藻食产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { algaeCrop: 1 } },
-    { id: 'furnaceBoost', name: '炉心增压', costs: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80], desc: '精铁产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { furnaceBoost: 1 } },
-    { id: 'sacrament', name: '祭祀唱诗', costs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], desc: '信仰产出 +10%/级（不设上限）', kind: 'faith', n: Infinity, apply: { sacrament: 1 } },
-    { id: 'craftQuota', name: '工坊定额', costs: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60], desc: '工坊制作产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { craftQuota: 1 } },
-    { id: 'luxuryPact', name: '奢侈品契', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '奢侈品产出 +10%/级（不设上限）', kind: 'gather', n: Infinity, apply: { luxuryPact: 1 } },
-    /* ⚠️ 建造消耗减耗 perk（用户拍板「-1%/级建造消耗」）：
-     *  【为什么不复用 hallMul / invertBuildSave 的键】那三个是**建筑给的**减耗，
-     *  而这一项是**轮回商店给**的，来源不同就该独立相乘（与 costOf 里
-     *  「议事厅 × 君主制 × 大交易所 × 倒置搭建」同一条乘区纪律：来源之间互不踩定义域）。
-     *  【落点】economy.costOf 收口那一行 `o[k] = ... * isb * hsb`，加一个 `bsb`——
-     *  只改 costOf 一处 ⇒ 面板显示的造价与真实扣的天然同源（与另外三条减耗同源）。 */
-    { id: 'buildSave', name: '匠作省料', costs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], desc: '所有建筑消耗 −1%/级（最多 −20%）', kind: 'build', n: 20, apply: { buildSave: 1 } },
-    /* ── 重复操作自动化：点击（2026-10-06 新增）──
-     *   自动采集（藻食+珊瑚）分三档，每档 apply {autoClick:1} ⇒ 三档叠加后 s.perk.autoClick = 档数 = 次/秒；
-     *   自动拾取点击事件 = 复刻手动点 #omen 横幅的 claim（src/events.js），出现即领。
-     *   ⚠️ 价目为接入真实结算前的首轮报价，待实跑校准；标定只改 cost，结构不动。 */
-    { id: 'autoClicker1', name: '自动采集 I', cost: 4, desc: '藻食+珊瑚 自动点击 1 次/秒', kind: 'auto', n: 1, apply: { autoClick: 1 } },
-    { id: 'autoClicker2', name: '自动采集 II', cost: 8, desc: '自动点击 2 次/秒（需先购 I）', kind: 'auto', n: 1, apply: { autoClick: 1 }, nest: 'autoClicker1' },
-    { id: 'autoClicker3', name: '自动采集 III', cost: 16, desc: '自动点击 3 次/秒（需先购 II）', kind: 'auto', n: 1, apply: { autoClick: 1 }, nest: 'autoClicker2' },
-    { id: 'autoEvent', name: '自动拾取', cost: 6, desc: '天壳震动等点击事件出现即自动拾取', kind: 'auto', n: 1, apply: { autoEvent: 1 } }
+  var TIDE_TREE = [
+    /* 潮汐之树（2026-10-23 实装）：用 轮回点 购买的跨周目分层树，整树替换旧 PERKS。
+     * 字段：id / name / desc / subtree（8 子树：remnant 先人孑遗 / shelter 安得广厦 /
+     *   forge 铁血工造 / mineral 金石为开 / food 唯食与犁 / steel 百炼成钢 /
+     *   politics 政经往来 / vision 远见之人）/ layer（1~5 层）/ cost（首级价）/
+     *   costs（分级独立价数组，价目表即各单级价、不累计，等差外推）/ scale（无上限尾节点
+     *   几何涨价：末级价 × scale^(k-1) 向下取整）/ n（最大等级，默认 1，Infinity=无上限）/
+     *   apply（写入 s.perk 的累加键，纯加法系数）/ mode:'max'（聚合取最高档而非累加，
+     *   用于 人口上限 互斥档位）/ give（每局开局资源 grants，键=资源键）/ recipe（配方 id，
+     *   折进 s.perk.recipeCraft，rmul=每级加成）/ dyn:'loop5'（效果=5%×轮回次数×等级，
+     *   每轮回 freshRun 重算、无上限）/ nest（前置节点 id）。
+     * ⚠️ 成本为首轮报价，待实跑校准；标定只改 cost/costs/scale，结构不动。
+     * ⚠️ apply 键必须与 state.emptyPerks 的键一致（economy 按这些键读数）。 */
+    /* ── 先人孑遗 ── */
+    { id: 'startKelp', name: '先祖藻仓', subtree: 'remnant', layer: 1, cost: 1, give: { kelp: 200 }, desc: '每局开局 +200 藻食' },
+    { id: 'autoClick', name: '潮手自动', subtree: 'remnant', layer: 1, n: 3, costs: [1, 3, 5], apply: { autoClick: 1 }, desc: '自动点击藻食+珊瑚（1/2/3 次·秒，仅取最高档）' },
+    { id: 'startCoral', name: '先祖珊瑚', subtree: 'remnant', layer: 2, cost: 1, give: { coral: 200 }, desc: '每局开局 +200 珊瑚' },
+    { id: 'startStone', name: '先祖石料', subtree: 'remnant', layer: 2, cost: 1, give: { stone: 200 }, desc: '每局开局 +200 石料' },
+    { id: 'startMetal', name: '先祖金属', subtree: 'remnant', layer: 2, cost: 1, give: { silt: 200 }, desc: '每局开局 +200 金属' },
+    { id: 'startScience', name: '先祖科技', subtree: 'remnant', layer: 3, cost: 2, give: { science: 200 }, desc: '每局开局 +200 科技' },
+    { id: 'startCivic', name: '先祖市政', subtree: 'remnant', layer: 3, cost: 2, give: { culture: 200 }, desc: '每局开局 +200 市政' },
+    { id: 'autoEvent', name: '潮讯自拾', subtree: 'remnant', layer: 4, cost: 30, apply: { autoEvent: 1 }, desc: '天壳震动等点击事件出现即自动拾取' },
+    /* ── 安得广厦 ── */
+    { id: 'startPop1', name: '繁衍生息 I', subtree: 'shelter', layer: 1, cost: 2, apply: { startPop: 1 }, mode: 'max', desc: '开局人口上限 +1（与同系高阶互斥，仅取最高 +3）' },
+    { id: 'matStore1', name: '总仓奠基', subtree: 'shelter', layer: 1, cost: 4, apply: { matStore: 2 }, desc: '所有普通资源容量 +10%' },
+    { id: 'startPop2', name: '繁衍生息 II', subtree: 'shelter', layer: 2, cost: 4, apply: { startPop: 2 }, mode: 'max', nest: 'startPop1', desc: '开局人口上限 +2（与同系互斥，仅取最高）' },
+    { id: 'wonderBlueprint1', name: '遗址图样 I', subtree: 'shelter', layer: 2, cost: 5, apply: { wonderBlueprint: 2 }, desc: '奇观建造成本 −10%' },
+    { id: 'matStore2', name: '总仓扩建 I', subtree: 'shelter', layer: 2, cost: 8, apply: { matStore: 2 }, nest: 'matStore1', desc: '资源容量再 +10%' },
+    { id: 'startPop3', name: '繁衍生息 III', subtree: 'shelter', layer: 3, cost: 6, apply: { startPop: 3 }, mode: 'max', nest: 'startPop2', desc: '开局人口上限 +3（与同系互斥，仅取最高）' },
+    { id: 'wonderBlueprint2', name: '遗址图样 II', subtree: 'shelter', layer: 3, cost: 15, apply: { wonderBlueprint: 2 }, nest: 'wonderBlueprint1', desc: '奇观建造成本再 −10%（共 −20%）' },
+    { id: 'matStore3', name: '总仓扩建 II', subtree: 'shelter', layer: 3, cost: 12, apply: { matStore: 2 }, nest: 'matStore2', desc: '资源容量再 +10%' },
+    { id: 'housePlan', name: '生息规划', subtree: 'shelter', layer: 4, cost: 20, apply: { housePlan: 1 }, desc: '巢/石屋/廉租 每级各 +1 人口上限' },
+    { id: 'matStoreTail', name: '仓储通汇', subtree: 'shelter', layer: 4, cost: 16, scale: 1.5, n: Infinity, apply: { matStore: 1 }, nest: 'matStore3', desc: '资源容量再 +5%/级（无上限，每级 ×1.5 向下取整）' },
+    /* ── 铁血工造 ── */
+    { id: 'craftQuota1', name: '工坊定额 I', subtree: 'forge', layer: 1, cost: 2, apply: { craftQuota: 1 }, desc: '工坊制作产出 +10%' },
+    { id: 'craftQuota2', name: '工坊定额 II', subtree: 'forge', layer: 2, cost: 4, apply: { craftQuota: 1 }, nest: 'craftQuota1', desc: '工坊制作产出再 +10%' },
+    { id: 'autoCraft1', name: '自动工坊 I', subtree: 'forge', layer: 2, cost: 10, apply: { autoCraft: 1 }, desc: '额外 +1 自动制作槽' },
+    { id: 'craftQuota3', name: '工坊定额 III', subtree: 'forge', layer: 3, cost: 8, apply: { craftQuota: 1 }, nest: 'craftQuota2', desc: '工坊制作产出再 +10%' },
+    { id: 'autoCraft2', name: '自动工坊 II', subtree: 'forge', layer: 3, cost: 15, apply: { autoCraft: 1 }, nest: 'autoCraft1', desc: '额外 +1 自动制作槽（累计 +2）' },
+    { id: 'craftQuotaTail', name: '工坊通汇', subtree: 'forge', layer: 4, cost: 10, scale: 1.5, n: Infinity, apply: { craftQuota: 0.5 }, nest: 'craftQuota3', desc: '工坊制作产出再 +5%/级（无上限，每级 ×1.5）' },
+    { id: 'craftLoop', name: '轮回工巧', subtree: 'forge', layer: 4, cost: 15, dyn: 'loop5', apply: { craftLoop: 1 }, desc: '工坊制作产出 +5%×轮回次数（每轮回重算，无上限）' },
+    { id: 'autoCraft3', name: '自动工坊 III', subtree: 'forge', layer: 4, cost: 20, apply: { autoCraft: 1 }, nest: 'autoCraft2', desc: '额外 +1 自动制作槽（累计 +3）' },
+    /* ── 金石为开 ── */
+    { id: 'minerPact1', name: '矿工契约 I', subtree: 'mineral', layer: 1, cost: 2, apply: { minerPact: 1 }, desc: '矿工系（泥沙+暖石）产出 +10%' },
+    { id: 'quarryPact1', name: '采石契约 I', subtree: 'mineral', layer: 1, cost: 2, apply: { quarryPact: 1 }, desc: '采石工系（石料）产出 +10%' },
+    { id: 'minerPact2', name: '矿工契约 II', subtree: 'mineral', layer: 2, cost: 5, apply: { minerPact: 1 }, nest: 'minerPact1', desc: '矿工系产出再 +10%' },
+    { id: 'furnaceEff1', name: '炉心调谐 I', subtree: 'mineral', layer: 2, cost: 5, apply: { furnaceEff: 1 }, desc: '热泉炉（精铁）效率 +20%' },
+    { id: 'quarryPact2', name: '采石契约 II', subtree: 'mineral', layer: 2, cost: 5, apply: { quarryPact: 1 }, nest: 'quarryPact1', desc: '采石工系产出再 +10%' },
+    { id: 'minerPact3', name: '矿工契约 III', subtree: 'mineral', layer: 3, cost: 8, apply: { minerPact: 1 }, nest: 'minerPact2', desc: '矿工系产出再 +10%' },
+    { id: 'hydroshopEff1', name: '热液调谐 I', subtree: 'mineral', layer: 3, cost: 10, apply: { hydroshopEff: 1 }, desc: '热液工坊（钢）效率 +20%' },
+    { id: 'quarryPact3', name: '采石契约 III', subtree: 'mineral', layer: 3, cost: 8, apply: { quarryPact: 1 }, nest: 'quarryPact2', desc: '采石工系产出再 +10%' },
+    { id: 'stoneBeam', name: '石梁巧工', subtree: 'mineral', layer: 3, cost: 8, recipe: 'craft_stonebeam', rmul: 0.30, desc: '石梁工艺效率 +30%' },
+    { id: 'minerPactTail', name: '矿工通汇', subtree: 'mineral', layer: 4, cost: 10, scale: 1.5, n: Infinity, apply: { minerPact: 0.5 }, nest: 'minerPact3', desc: '矿工系产出再 +5%/级（无上限，每级 ×1.5）' },
+    { id: 'furnaceHydroLoop', name: '轮回炉火', subtree: 'mineral', layer: 4, cost: 15, dyn: 'loop5', apply: { furnaceLoop: 1, hydroLoop: 1 }, desc: '热泉炉/热液工坊效率 +5%×轮回次数（每轮回重算）' },
+    { id: 'quarryPactTail', name: '采石通汇', subtree: 'mineral', layer: 4, cost: 10, scale: 1.5, n: Infinity, apply: { quarryPact: 0.5 }, nest: 'quarryPact3', desc: '采石工系产出再 +5%/级（无上限，每级 ×1.5）' },
+    /* ── 唯食与犁 ── */
+    { id: 'algaeCrop1', name: '潮田 I', subtree: 'food', layer: 1, cost: 2, apply: { algaeCrop: 1 }, desc: '采集者藻食产出 +10%' },
+    { id: 'coralPact1', name: '珊瑚契 I', subtree: 'food', layer: 1, cost: 2, apply: { coralPact: 1 }, desc: '珊瑚匠系产出 +10%' },
+    { id: 'algaeCrop2', name: '潮田 II', subtree: 'food', layer: 2, cost: 5, apply: { algaeCrop: 1 }, nest: 'algaeCrop1', desc: '采集者藻食产出再 +10%' },
+    { id: 'workSpeed1', name: '勤耕 I', subtree: 'food', layer: 2, cost: 1, apply: { workSpeed: 0.10 }, desc: '族民生产时间 −10%' },
+    { id: 'coralPact2', name: '珊瑚契 II', subtree: 'food', layer: 2, cost: 5, apply: { coralPact: 1 }, nest: 'coralPact1', desc: '珊瑚匠系产出再 +10%' },
+    { id: 'hardcoral', name: '硬珊巧工', subtree: 'food', layer: 2, cost: 8, recipe: 'craft_hardcoral', rmul: 0.30, desc: '硬化珊瑚工艺效率 +30%' },
+    { id: 'algaeCrop3', name: '潮田 III', subtree: 'food', layer: 3, cost: 8, apply: { algaeCrop: 1 }, nest: 'algaeCrop2', desc: '采集者藻食产出再 +10%' },
+    { id: 'workSpeed2', name: '勤耕 II', subtree: 'food', layer: 3, cost: 2, apply: { workSpeed: 0.20 }, nest: 'workSpeed1', desc: '族民生产时间再 −20%（共 −30%）' },
+    { id: 'coralPact3', name: '珊瑚契 III', subtree: 'food', layer: 3, cost: 8, apply: { coralPact: 1 }, nest: 'coralPact2', desc: '珊瑚匠系产出再 +10%' },
+    { id: 'scaffold', name: '脚手架巧工', subtree: 'food', layer: 3, cost: 25, recipe: 'craft_scaffold', rmul: 0.30, desc: '脚手架工艺效率 +30%' },
+    { id: 'algaeCropTail', name: '潮田通汇', subtree: 'food', layer: 4, cost: 10, scale: 1.5, n: Infinity, apply: { algaeCrop: 0.5 }, nest: 'algaeCrop3', desc: '采集者藻食产出再 +5%/级（无上限，每级 ×1.5）' },
+    { id: 'coldPenalty', name: '御寒之智', subtree: 'food', layer: 4, cost: 10, apply: { coldPenalty: 1 }, desc: '寒潮季减产效果 −50%' },
+    { id: 'coralPactTail', name: '珊瑚通汇', subtree: 'food', layer: 4, cost: 10, scale: 1.5, n: Infinity, apply: { coralPact: 0.5 }, nest: 'coralPact3', desc: '珊瑚匠系产出再 +5%/级（无上限，每级 ×1.5）' },
+    /* ── 百炼成钢 ── */
+    { id: 'furnaceBoost1', name: '炉压 I', subtree: 'steel', layer: 1, cost: 6, apply: { furnaceBoost: 1 }, desc: '热泉炉（精铁）产出 +10%' },
+    { id: 'hydroshopBoost1', name: '热坊 I', subtree: 'steel', layer: 1, cost: 10, apply: { hydroshopBoost: 1 }, desc: '热液工坊（钢）产出 +10%' },
+    { id: 'furnaceBoost2', name: '炉压 II', subtree: 'steel', layer: 2, cost: 12, apply: { furnaceBoost: 1 }, nest: 'furnaceBoost1', desc: '热泉炉产出再 +10%' },
+    { id: 'ironbracket', name: '铁支架巧工', subtree: 'steel', layer: 2, cost: 15, recipe: 'craft_ironbracket', rmul: 0.30, desc: '铁制支架工艺效率 +30%' },
+    { id: 'hydroshopBoost2', name: '热坊 II', subtree: 'steel', layer: 2, cost: 15, apply: { hydroshopBoost: 1 }, nest: 'hydroshopBoost1', desc: '热液工坊产出再 +10%' },
+    { id: 'furnaceBoost3', name: '炉压 III', subtree: 'steel', layer: 3, cost: 18, apply: { furnaceBoost: 1 }, nest: 'furnaceBoost2', desc: '热泉炉产出再 +10%' },
+    { id: 'steelpart', name: '钢零件巧工', subtree: 'steel', layer: 3, cost: 25, recipe: 'craft_steelpart', rmul: 0.30, desc: '钢制零件工艺效率 +30%' },
+    { id: 'hydroshopBoost3', name: '热坊 III', subtree: 'steel', layer: 3, cost: 20, apply: { hydroshopBoost: 1 }, nest: 'hydroshopBoost2', desc: '热液工坊产出再 +10%' },
+    { id: 'furnaceBoostTail', name: '炉压通汇', subtree: 'steel', layer: 4, cost: 20, scale: 1.5, n: Infinity, apply: { furnaceBoost: 0.5 }, nest: 'furnaceBoost3', desc: '热泉炉产出再 +5%/级（无上限，每级 ×1.5）' },
+    { id: 'slotCraft', name: '工造之位', subtree: 'steel', layer: 4, cost: 50, apply: { slotCraft: 1 }, desc: '任意政体额外 +1 工造槽' },
+    { id: 'hydroshopBoostTail', name: '热坊通汇', subtree: 'steel', layer: 4, cost: 25, scale: 1.5, n: Infinity, apply: { hydroshopBoost: 0.5 }, nest: 'hydroshopBoost3', desc: '热液工坊产出再 +5%/级（无上限，每级 ×1.5）' },
+    /* ── 政经往来 ── */
+    { id: 'luxuryPact1', name: '商契 I', subtree: 'politics', layer: 1, cost: 2, apply: { luxuryPact: 1 }, desc: '商人系产出 +10%' },
+    { id: 'scribePact1', name: '书契 I', subtree: 'politics', layer: 1, cost: 3, apply: { scribePact: 1 }, desc: '书手系产出 +10%' },
+    { id: 'luxuryPact2', name: '商契 II', subtree: 'politics', layer: 2, cost: 5, apply: { luxuryPact: 1 }, nest: 'luxuryPact1', desc: '商人系产出再 +10%' },
+    { id: 'luxDrain1', name: '节流 I', subtree: 'politics', layer: 2, cost: 5, apply: { luxDrain: 1 }, desc: '族民奢侈品消耗 −5%' },
+    { id: 'scribePact2', name: '书契 II', subtree: 'politics', layer: 2, cost: 6, apply: { scribePact: 1 }, nest: 'scribePact1', desc: '书手系产出再 +10%' },
+    { id: 'artwork1', name: '艺巧 I', subtree: 'politics', layer: 2, cost: 5, recipe: 'craft_artwork', rmul: 0.10, desc: '艺术品工艺效率 +10%' },
+    { id: 'luxuryPact3', name: '商契 III', subtree: 'politics', layer: 3, cost: 8, apply: { luxuryPact: 1 }, nest: 'luxuryPact2', desc: '商人系产出再 +10%' },
+    { id: 'luxDrain2', name: '节流 II', subtree: 'politics', layer: 3, cost: 10, apply: { luxDrain: 1 }, nest: 'luxDrain1', desc: '族民奢侈品消耗再 −5%（共 −10%）' },
+    { id: 'scribePact3', name: '书契 III', subtree: 'politics', layer: 3, cost: 9, apply: { scribePact: 1 }, nest: 'scribePact2', desc: '书手系产出再 +10%' },
+    { id: 'artwork2', name: '艺巧 II', subtree: 'politics', layer: 3, cost: 10, recipe: 'craft_artwork', rmul: 0.10, nest: 'artwork1', desc: '艺术品工艺效率再 +10%（共 +20%）' },
+    { id: 'luxuryPactTail', name: '商通汇', subtree: 'politics', layer: 4, cost: 10, scale: 1.5, n: Infinity, apply: { luxuryPact: 0.5 }, nest: 'luxuryPact3', desc: '商人系产出再 +5%/级（无上限，每级 ×1.5）' },
+    { id: 'happiness', name: '安乐之治', subtree: 'politics', layer: 4, cost: 20, apply: { happiness: 1 }, desc: '幸福度 +1' },
+    { id: 'scribePactTail', name: '书通汇', subtree: 'politics', layer: 4, cost: 12, scale: 1.5, n: Infinity, apply: { scribePact: 0.5 }, nest: 'scribePact3', desc: '书手系产出再 +5%/级（无上限，每级 ×1.5）' },
+    { id: 'autoCivic', name: '市政自转', subtree: 'politics', layer: 4, cost: 20, apply: { autoCivic: 1 }, desc: '解锁市政自动研究器（默认关闭）' },
+    { id: 'slotEcon', name: '经济之位', subtree: 'politics', layer: 5, cost: 50, apply: { slotEcon: 1 }, desc: '任意政体额外 +1 经济槽' },
+    /* ── 远见之人 ── */
+    { id: 'scholarPact1', name: '学契 I', subtree: 'vision', layer: 1, cost: 3, apply: { scholarPact: 1 }, desc: '学者系产出 +10%' },
+    { id: 'shellSurvey1', name: '钻机测绘 I', subtree: 'vision', layer: 1, cost: 6, apply: { shellSurvey: 4 }, desc: '天穹钻机效率 +20%' },
+    { id: 'scholarPact2', name: '学契 II', subtree: 'vision', layer: 2, cost: 6, apply: { scholarPact: 1 }, nest: 'scholarPact1', desc: '学者系产出再 +10%' },
+    { id: 'tidalRecord1', name: '潮纹巧工 I', subtree: 'vision', layer: 2, cost: 5, recipe: 'craft_tidal_record', rmul: 0.10, desc: '潮纹石板工艺效率 +10%' },
+    { id: 'shellSurvey2', name: '钻机测绘 II', subtree: 'vision', layer: 2, cost: 12, apply: { shellSurvey: 4 }, nest: 'shellSurvey1', desc: '天穹钻机效率再 +20%' },
+    { id: 'scholarPact3', name: '学契 III', subtree: 'vision', layer: 3, cost: 9, apply: { scholarPact: 1 }, nest: 'scholarPact2', desc: '学者系产出再 +10%' },
+    { id: 'tidalRecord2', name: '潮纹巧工 II', subtree: 'vision', layer: 3, cost: 10, recipe: 'craft_tidal_record', rmul: 0.10, nest: 'tidalRecord1', desc: '潮纹石板工艺效率再 +10%（共 +20%）' },
+    { id: 'shellSurvey3', name: '钻机测绘 III', subtree: 'vision', layer: 3, cost: 18, apply: { shellSurvey: 4 }, nest: 'shellSurvey2', desc: '天穹钻机效率再 +20%' },
+    { id: 'thinShell', name: '薄壳之智', subtree: 'vision', layer: 3, cost: 15, apply: { thin: 2 }, desc: '天壳厚度 −20%' },
+    { id: 'scholarPactTail', name: '学通汇', subtree: 'vision', layer: 4, cost: 12, scale: 1.5, n: Infinity, apply: { scholarPact: 0.5 }, nest: 'scholarPact3', desc: '学者系产出再 +5%/级（无上限，每级 ×1.5）' },
+    { id: 'autoStudy', name: '科技自转', subtree: 'vision', layer: 4, cost: 20, apply: { autoStudy: 1 }, desc: '解锁科技自动研究器（默认关闭）' },
+    { id: 'vibrodrill', name: '钻头巧工', subtree: 'vision', layer: 4, cost: 20, recipe: 'craft_drill', rmul: 0.30, desc: '震动钻头工艺效率 +30%' },
+    { id: 'slotSci', name: '科技之位', subtree: 'vision', layer: 5, cost: 50, apply: { slotSci: 1 }, desc: '任意政体额外 +1 科技槽' }
   ];
 
   /* 星屑商店：存档等级写入 meta.starPerks，实际效果使用 apply 中的运行态键。
@@ -307,7 +339,7 @@
       desc: '采石工采石头、矿工采金属并伴生暖石，三项各 +200%（不影响珊瑚）' }
   ];
 
-  NS.PERKS = PERKS;
+  NS.TIDE_TREE = TIDE_TREE;
   NS.STAR_PERKS = STAR_PERKS;
   NS.JOBS = JOBS;
   NS.TOOLS = TOOLS;

@@ -88,11 +88,11 @@ console.log('\n=== 科技树形状 ===');
    *    ⚠️ 口径：**链深度 = layer + 1** —— rocket→crewed 那条线（layer 11/12）深度差 1
    *       （基线最深 14 = layer 13 的 spacestation/complexf）。同差保留 ⇒ 最深 17。
    *       深度仍由 approved 的 reqs 链推出，不是迁就现状。 */
-  /* ⑦ ERA9（光帆纪 · 2026-10-19 实装 · spec docs/ERA9_TECHS_SPEC_v0.1.md v0.2）在 ERA8
+  /* ⑦ ERA9（寻光纪 · 2026-10-19 实装 · spec docs/ERA9_TECHS_SPEC_v0.1.md v0.2）在 ERA8
    *    之上的三叠层：microwave_heat/alien_eng/blackhistory(d=19) → terraform/interlog/winter(d=20)。
    *    深度由 approved 的 reqs 链推出（terraform←alien_eng←ecological_restoration←…），
    *    不是迁就现状；d=20 是纪元九正常加深上限 ⇒ 边界抬到 20。 */
-  /* ⑧ ERA10（戴森纪 · 2026-10-20 实装 · 用户 ERA10 表）在 ERA9 之上再叠三层：
+  /* ⑧ ERA10（驭星纪 · 2026-10-20 实装 · 用户 ERA10 表）在 ERA9 之上再叠三层：
    *    L1 绝热材料/强人工智能/引力弹弓(d=21) → L2 近恒星轨道/空间矢量/继承繁星(d=22)
    *    → L3 大统一方程(d=23)。深度同样由 approved 的 reqs 链推出（不是迁就现状）⇒ 边界抬到 23。
    *    ⚠️ 这条不是「上限」，是「当前设计应该有多深」的账：下一次加纪元照此格式续写，

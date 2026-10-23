@@ -14,12 +14,14 @@
   var autoDrillOutputMul = P.autoDrillOutputMul;
   var activeSiltpit = P.activeSiltpit;
   var isCold = P.isCold, libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
-  var mineTaxMul = P.mineTaxMul, obsSciMul = P.obsSciMul, steelRate = P.steelRate;
+  var minerPactMul = P.minerPactMul, quarryPactMul = P.quarryPactMul, furnaceEffMul = P.furnaceEffMul, scholarPactMul = P.scholarPactMul, obsSciMul = P.obsSciMul, steelRate = P.steelRate;
   var toolMul = P.toolMul, upgSum = P.upgSum, warmBurningNow = P.warmBurningNow;
   var warmEff = P.warmEff;
   /* ERA10 市政（2026-10-20）：发射场读数与 tick 同源（三座合计等级 / 节律 / 每级耗流）。 */
   var launchRunLvl = P.launchRunLvl, launchNodeMode = P.launchNodeMode, launchMaterialPer = P.launchMaterialPer;
   var launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
+  /* ERA2-7 扩卡（2026-10-22）：科技产出读数（启蒙沙龙卡把 15% 科技转市政点，与 tick 同源）。 */
+  var sciOut = P.sciOut;
 
   function rates(s) {
     var lg = SB.prestige ? SB.prestige.legacy() : null;
@@ -143,7 +145,7 @@
                  * mineBonus
                  * (1 + upgSum(s, 'mineSilt'))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
-                 * gatherMul(s) * toolMul(s, 'miner') * cold * globalMulX(s) * mineTaxMul(s)
+                 * gatherMul(s) * toolMul(s, 'miner') * cold * globalMulX(s) * minerPactMul(s)
                  * (SB.wonder ? SB.wonder.mineMul(s) : 1) - fc * (Tr ? Tr.bldEff : 1) - _gkSiltRate,
       /* ⚠️ 2026-09-30 ERA4 · 钛（深层矿井 upg_deepmine 上线后才有产出）：
        *    与上面 silt/warmstone 同源同式（同一批 gatherMul・toolMul(miner)・cold・globalMul），
@@ -192,7 +194,7 @@
        *    面板路漏掉这个乘区就是「面板撒谎」，见上面 silt 那条的同源警告。 */
       stone:   (j.quarrier || 0) * SB.UNIT.stone
                  * mineBonus
-                 * gatherMul(s) * toolMul(s, 'quarrier') * cold * globalMul(s) * mineTaxMul(s) - _gkStoneRate,
+                 * gatherMul(s) * toolMul(s, 'quarrier') * cold * globalMul(s) * quarryPactMul(s) - _gkStoneRate,
       /* 暖石的净速率要减掉**开关正在烧的**那一份：不减的话面板上写着暖石在涨，
        * 玩家开着他以为只是在攒，实际有一路正在往火里扔。
        * 判据直接取 warmBurningNow（与 tick 里的 warmRelief 同源），不在这里重写条件，
@@ -205,7 +207,7 @@
                  * (1 + upgSum(s, 'mineWarm'))
                  * ((s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1)
                  * gatherMul(s) * toolMul(s, 'miner') * cold
-                 * globalMulX(s) * (1 + (Tr ? Tr.warmMul : 0)) * mineTaxMul(s)
+                 * globalMulX(s) * (1 + (Tr ? Tr.warmMul : 0)) * minerPactMul(s)
                  * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)
                  * (SB.wonder ? SB.wonder.mineMul(s) : 1)
                  - (warmBurningNow(s) ? SB.CFG.WARM_RATE : 0) - fc * ((Tr ? Tr.bldEff : 1)) * warmEff(s)
@@ -213,7 +215,7 @@
       /* ⚠️ `iron` 记的是**消耗掉的原料份数**，不是产出的精铁量 —— 沿用原有口径。
        *    铁是「一进一出」的中间资源，净额可能比看起来还负（这里没有把金属那一侧的
        *    消耗减掉，与改造之前一致）。改这一行前先读铁器产出那段的量纲注。 */
-      iron:    fc * globalMulX(s) * (1 + upgSum(s, 'ironBonus')) * furnaceBoostMul(s) * P.smeltingOutMul(s)
+      iron:    fc * globalMulX(s) * (1 + upgSum(s, 'ironBonus')) * furnaceBoostMul(s) * furnaceEffMul(s) * P.smeltingOutMul(s)
         * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0))
         - _thetaIn.iron,
       /* ERA3 热液能系统（2026-10-05 flow 模型）：steelRate 非变异版，与 tick 的 steelFlow 同式（dt=1）。
@@ -253,7 +255,7 @@
                  + ((s.civics && s.civics.market) ? (j.merchant || 0) * (SB.BLD.marketJobSci || 0) : 0)
                  /* 学校（2026-10-21 改）：每名鲛人 +schoolMermanSci 科技/s（每级），与 tick 4c'' 同式，不依赖商人/集市。 */
                  + ((s.lvl.school || 0) > 0 ? (s.pop || 0) * (s.lvl.school || 0) * (SB.BLD.schoolMermanSci || 0) : 0)
-                 ) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * globalMul(s)
+                 ) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * ((SB.companyMul) ? SB.companyMul(s, 'sci') : 1) * scholarPactMul(s) * globalMul(s)
                  * (lg ? lg.relicScienceMul * (1 + lg.shopScienceBonus) : 1)
                  + (lg ? lg.oldTideSteleScienceRate : 0)) * (SB.challenges ? SB.challenges.scienceCultureMul(s) : 1),
       /* ERA8：泰坦星气云采集站每级 +5/秒 + 萨图恩 effect.fuelBonus（与 tick 的 _fuelOut 逐字同构，含星际物流网乘区）。 */
@@ -268,8 +270,11 @@
       /* ⚠️ 与 tick 同源：同一个 cultureRate 函数（书手 + 议事厅）。
        *    别在这里另写 `j.scribe * SB.UNIT.culture`——那两份算式会各自演化。
        *    商人副产（中世纪集市解锁2）同样补进面板路，与 tick 4c' 同式。 */
-      culture: (cultureRate(s) +
+      /* ⚠️ 启蒙沙龙卡（sciToCivic 0.15）：科技产出的 15% 转为市政点，计入累计市政产出（意识形态门槛）。
+       *   与 tick 同源——都用 P.sciOut(s) × 挑战乘区，保证面板===结算。 */
+      culture: ((cultureRate(s) +
                ((s.civics && s.civics.market) ? (j.merchant || 0) * (SB.BLD.marketJobCulture || 0) * globalMul(s) : 0))
+               + ((SB.civic && SB.civic.cardSciToCivic) ? SB.civic.cardSciToCivic(s) : 0) * sciOut(s))
                * (SB.challenges ? SB.challenges.scienceCultureMul(s) : 1),
       /* ⚠️ 2026-10-05 补漏（用户报「信仰怎么不体现每秒出率」· bug 不是标定）：
        *   faithRate 一直存在于 tick（`addRes(s,'faith',faithRate(s)*dt)`），

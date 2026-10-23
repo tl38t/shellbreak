@@ -29,7 +29,10 @@
     return ((SB.civic ? SB.civic.govHappyBonus(s) : 0)
       + (SB.wonder ? SB.wonder.happyBonus(s) : 0)
       + (SB.civic ? SB.civic.cardHappyOffset(s) : 0)
-      + (SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0)) || 0;
+      + (SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0)
+      /* 潮汐之树（2026-10-23）：安乐之治（happiness）每级 +1 幸福度基线，与政体/奇观偏移同口径
+       *   （进 _gb 基线、被 happyMech 剥除，详见 economy.js happyStep）。 */
+      + ((s && s.perk && s.perk.happiness) || 0)) || 0;
   }
   /* 用于**计价**的幸福度 = s.happy − 加成。可以为负（加成大于当前幸福度时），
    *   happyCost 对 H≤0 走保底 0.005，与 tick 的 `_Hmech` 同一套分支，天然对齐。 */
@@ -61,7 +64,10 @@
      *   旅游观光卡每座已建奇观 −3%（civic.cardWonderLuxSaveMul）。两者均为居民侧减耗，并列相加。 */
     var stadium = Math.min(0.75, (_lv.stadium || 0) * (SB.BLD.stadiumLuxSave || 0));
     var tourism = (SB.civic ? SB.civic.cardWonderLuxSaveMul(s) : 0);
-    return Math.min(1, canal + car + stadium + tourism);
+    /* 潮汐之树（2026-10-23）：节流节点（luxDrain1/2）替代「居民侧减耗」来源，每级 −5% 奢侈品消耗，
+     *   与潮道/驿站/体育场/旅游同属居民侧减耗，并列相加（见 config-catalog.js luxDrain 节点）。 */
+    var drain = ((s && s.perk && s.perk.luxDrain) || 0) * 0.05;
+    return Math.min(1, canal + car + stadium + tourism + drain);
   }
   /* 廉租社区每级 +5% 居民奢侈品**消耗**（2026-10-13 新增；与 luxSaveAll 减耗反号）。
    * 【为什么是加项不是减项】王国潮道/商队驿站是「省耗」（乘 (1 − Σ)），廉租社区是
@@ -214,7 +220,7 @@
 
   /* ── ERA6 公司系统（宏观经济学解锁的「公司」标签，2026-10-12）──
    * 设计：拥有市政「宏观经济学」后自动成立两家公司（藻食→kelp / 珊瑚→coral），玩家无手动操作。
-   *   公司成立后的**游戏内时长**（s.t − s.companyState[res].epoch，逐家独立）决定等级（乡镇→地方→全国），产出加成随之提升；
+   *   公司成立后的**游戏内时长**（s.t − s.companyState[res].epoch，逐家独立）决定等级（乡镇→地方→全国→星球命脉→寰宇巨企），后两级另受市政解锁；
    *   奢侈品消耗恒 +10%（不随级变）。名字池见 src/companies.js（按行业分池，加行业=加一项）。
    * ⚠️ 初期只藻食/珊瑚两家 ⇒ companyMul 只对 kelp/coral 生效，其余资源恒 1（预留其他行业扩展）。 */
   /* ⚠️ 2026-10-13 改「单独关闭」：等级/关闭态逐家存于 s.companyState[res]，故改为按 res 判定。
@@ -230,7 +236,7 @@
     var elapsed = (s.t || 0) - st.epoch;
     var c = companyByRes(res);
     var tiers = (c && c.tiers) ? c.tiers : SB.COMPANY_TIERS;
-    return SB.companyTierIndex ? SB.companyTierIndex(elapsed, tiers) : 0;
+    return SB.companyTierIndex ? SB.companyTierIndex(elapsed, tiers, s) : 0;
   }
   function companyMul(s, res) {
     var idx = companyTierIndex(s, res);
@@ -238,7 +244,8 @@
     var c = companyByRes(res);
     if (!c || c.craft) return 1;   // craft 型公司走 companyCraftRatio，不进资源产出乘区
     var tiers = c.tiers || SB.COMPANY_TIERS;
-    return 1 + ((tiers[idx] && tiers[idx].bonus) || 0);
+    /* ERA2-7 扩卡（2026-10-22）：公司税卡（companyBonusMul 1.30）把公司产出加成 ×1.3。 */
+    return 1 + ((tiers[idx] && tiers[idx].bonus) || 0) * ((SB.civic && SB.civic.cardCompanyBonusMul) ? SB.civic.cardCompanyBonusMul(s) : 1);
   }
   /* 工艺效率公司（companies.js craft:true）的加成：进 workshop.craftRatio 同一条加法乘区。
    * 与建筑级/科技/奇观/政策卡/升级同档相加，不是相乘。 */
@@ -263,7 +270,8 @@
     for (var i = 0; i < SB.COMPANIES.length; i++) {
       var c = SB.COMPANIES[i];
       var st = s.companyState && s.companyState[c.res];
-      if (st && st.epoch > 0 && !st.closed) total += (c.luxBonus || 0);
+      /* ERA2-7 扩卡（2026-10-22）：公司税卡（companyBonusMul 1.30）把公司奢侈消耗加成 ×1.3。 */
+      if (st && st.epoch > 0 && !st.closed) total += (c.luxBonus || 0) * ((SB.civic && SB.civic.cardCompanyBonusMul) ? SB.civic.cardCompanyBonusMul(s) : 1);
     }
     return total;
   }

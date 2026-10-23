@@ -146,21 +146,24 @@
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
 <script src="src/civics-data.js?v=4"></script>
 <script src="src/civics.js?v=103"></script>
-<script src="src/state.js?v=113"></script>
-<script src="src/workshop.js?v=112"></script>
-<script src="src/wonder.js?v=98"></script>
-<script src="src/economy.js?v=129"></script>
+<script src="src/state.js?v=114"></script>
+<script src="src/workshop.js?v=114"></script>
+<script src="src/wonder.js?v=99"></script>
+<script src="src/economy.js?v=130"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=1"></script>
-<script src="src/shell.js?v=97"></script>
+<script src="src/shell.js?v=98"></script>
 <script src="src/habitat.js?v=100"></script>
 <script src="src/folk.js?v=97"></script>
-<script src="src/prestige.js?v=109"></script>
-<script src="src/ui/render.js?v=217"></script>
+<script src="src/prestige.js?v=110"></script>
+<!-- 轮回商店天赋树渲染（与 index.html 同源）：必须早于 render.js（renderParts 在 render.js 之前注册）。 -->
+<script src="src/ui/render-talent-tree.js?v=1"></script>
+<script src="src/ui/render-pane-meta.js?v=6"></script>
+<script src="src/ui/render.js?v=218"></script>
 <script src="src/game.js?v=109"></script>
-<script src="src/ui/input.js?v=109"></script>
+<script src="src/ui/input.js?v=110"></script>
 <script src="src/ui/theme.js?v=1"></script>
 <script src="src/ui/background.js?v=2"></script>
 <script src="src/main.js?v=95"></script>

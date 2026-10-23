@@ -1,4 +1,4 @@
-/* e2e suite: 纪元十 · 戴森纪 · 市政（ERA10 CIVICS）数据 / 接线 / UI 契约。
+/* e2e suite: 纪元十 · 驭星纪 · 市政（ERA10 CIVICS）数据 / 接线 / UI 契约。
  * 2026-10-20 用户 ERA10 市政表实装（授权「实装吧」）后固化。
  *
  * ⚠️ 这一族几乎全部是「改别的系统」：三座发射场共用一套节律与耗流、政策卡改发射场节律与
@@ -16,7 +16,7 @@
 
 export function run({ SB, check, noop }) {} */
 export function run({ SB, check, noop }) {
-  console.log('\n=== 纪元十 · 戴森纪 · 市政 ===');
+  console.log('\n=== 纪元十 · 驭星纪 · 市政 ===');
   const fr = () => SB.state.freshRun(false);
   const f4 = v => (typeof v === 'number' ? (Math.abs(v) < 1e-9 ? '0' : v.toFixed(4)) : String(v));
   const near = (a, b, eps) => Math.abs(a - b) < (eps === undefined ? 1e-9 : eps);

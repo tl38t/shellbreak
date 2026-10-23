@@ -17,8 +17,32 @@
 
   function run() { return S; }
   function state() { return meta; }
+  /* 首座轨道卫星后，星屑商店作为跨周目入口永久开放；不依赖当前周目还保有卫星。 */
+  function stardustShopUnlocked() {
+    if (meta && meta.stardustShopUnlocked) return true;
+    if (S && S.lvl && S.lvl.satellite >= 1) {
+      meta.stardustShopUnlocked = true;
+      SB.state.saveMeta(meta);
+      return true;
+    }
+    return false;
+  }
+  function unlockStardustShop() {
+    if (meta && !meta.stardustShopUnlocked) {
+      meta.stardustShopUnlocked = true;
+      SB.state.saveMeta(meta);
+      dirty = true;
+    }
+    return !!(meta && meta.stardustShopUnlocked);
+  }
   function getTab() { return tab; }
   function setTab(k) {
+    /* 旧版 / 外部入口仍可能请求 star-dome；导向轮回商店内的星屑二级页签。 */
+    if (k === 'star-dome') {
+      if (!stardustShopUnlocked()) return;
+      if (SB.ui.render && SB.ui.render.setMetaShopView) SB.ui.render.setMetaShopView('stardust');
+      k = 'meta';
+    }
     /* 科技面板的门（SB.tech.panelOpen 读结绳的尤里卡条件，见 tech.js）。
      * 这里与 render 的 tab onclick 是两道闸，同一件事写两遍是刻意的：
      * setTab 是公开 API，弹窗回调之类不经过 tab 的事件委托也能调到它。 */
@@ -29,15 +53,14 @@
     /* 奇观页的门是「研究过石工」那项科技（用户要的「第一个就让石工解锁」）。
      * ⚠️ 与上面两道闸同理：就算页签已经因为灰态切换被点亮，直达路径也进不去。 */
     if (k === 'wonder' && S && !(S.techs && S.techs.masonry)) return;
-    /* 轮回商店（meta 页）的门：首次轮回后才开。与科技/奇观同两道闸写法，
-     * 直达路径（弹窗/测试）走 setTab 也进不去。 */
-    if (k === 'meta' && !meta.shopUnlocked) return;
+    /* 局外商店页（meta 页）：首次合格轮回开放轮回点商店，首座卫星永久开放星屑商店。
+     * 直达路径也必须经过同一门；挑战入口仍另行要求真实轮回解锁。 */
+    if (k === 'meta' && !meta.shopUnlocked && !stardustShopUnlocked()) return;
     if (k === 'challenges' && !meta.shopUnlocked) return;
     /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
     if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;
-    if (k === 'star-dome' && S && !(S.lvl && S.lvl.satellite >= 1)) return;
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
@@ -128,6 +151,8 @@
   function clearLog() { logLines = []; var n = document.getElementById('log'); if (n) n.innerHTML = ''; }
 
   function startRun(options) {
+    /* 旧版本中尚未写入永久解锁旗的存档，也在离开已建卫星的周目时补记。 */
+    if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
     meta.cycle++;
     /* 轮回商店只在「第一次真正的轮回」后解锁——即【建立宗教】（religionSeen）之后的那次
      * 破冰结算 doBreak。未建立宗教时玩家只能「重开本周目」（普通重置，cycle 同样 +1），
@@ -152,6 +177,8 @@
   // 继续未完成的上一周目（刷新页面时）
   function resumeRun(saved) {
     S = saved;
+    /* 兼容更新前已经建成卫星但尚未记永久解锁旗的存档。 */
+    if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
     /* 未结算的破壳是一个待玩家选择的持久状态；刷新后必须仍停在结算界面。
      * 已结算的旧档则沿用原行为，恢复为可继续发展的破壳后周目。 */
     if (S.shellOpened && !(S.broken && !S.breakSettled)) S.broken = false;
@@ -695,11 +722,20 @@
     var batchGameStart = S && S.t;
     if (!last) last = now;
 
+    /* 浏览器会把后台标签页的 interval 降到每分钟一次。AI 正在运行时，这段间隔
+     * 仍应按当前游戏倍速结算；否则页面一隐藏就被误当成普通离线，回到 1×并弹出
+     * 离线结算遮罩。只认浏览器内 AI 的运行状态，不改变暂停 AI 时的离线规则。 */
+    var aiRunning = !!(SB.aiPlayer && SB.aiPlayer.isRunning && SB.aiPlayer.isRunning());
+    var hiddenAI = !!(document && document.hidden && aiRunning);
+    var resumedHiddenAI = !!(!document.hidden && loop._lastAiHidden && aiRunning);
+    var acceleratedBackgroundAI = hiddenAI || resumedHiddenAI;
+    loop._lastAiHidden = hiddenAI;
+
     /* 离开过的间隙：后台期间定时器基本不跑，这里在下次回调时才算得出来，
      * 于是「离线补算」和「切回前台补算」是同一条路径。 */
     if (S && !S.broken && loop._lastWall) {
       var gap = (wall - loop._lastWall) / 1000;
-      if (gap >= SB.CFG.OFFLINE_MIN && !loop.job) planCatchUp(S, gap);
+      if (gap >= SB.CFG.OFFLINE_MIN && !loop.job && !acceleratedBackgroundAI) planCatchUp(S, gap);
     }
     if (loop.job) drainCatchUp(CATCHUP_BUDGET);
     loop._lastWall = wall;
@@ -729,7 +765,8 @@
       if (wall - loop._rankWall >= RANK_PERIOD) { loop._rankWall = wall; submitRankPeriodic(); }
     }
 
-    var elapsed = Math.min(MAX_STEP, (now - last) / 1000);
+    var rawElapsed = Math.max(0, (now - last) / 1000);
+    var elapsed = Math.min(acceleratedBackgroundAI ? SB.CFG.OFFLINE_MIN : MAX_STEP, rawElapsed);
     last = now;
     /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
      * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。 */
@@ -742,7 +779,11 @@
       S.ad.ms = Math.max(0, S.ad.ms - elapsed * 1000);
       if (adWas && S.ad.ms === 0) dirty = true;
     }
-    loop.acc = Math.min((loop.acc || 0) + elapsed * speed * adMul(), Math.max(MAX_STEP, SB.CFG.OFFLINE_MIN));
+    var frameGameSeconds = elapsed * speed * adMul();
+    var backlogCap = acceleratedBackgroundAI
+      ? Math.max(SB.CFG.OFFLINE_MIN, frameGameSeconds)
+      : Math.max(MAX_STEP, SB.CFG.OFFLINE_MIN);
+    loop.acc = Math.min((loop.acc || 0) + frameGameSeconds, backlogCap);
     var fastOnline = speed >= FAST_SPEED_THRESHOLD && SB.offline && SB.offline.integrateFoodPop;
     var fastClock = fastOnline ? { tp: loop._tp || 0 } : null;
     /* 补算进行中时暂停实时推进：这段墙钟时间已经在补算里算过了，
@@ -956,6 +997,19 @@
     if (breakReport) SB.game.showBreakAnimation(breakReport, showSettlement);
     else showSettlement();
   }
+  function fireDysonPending(j) {
+    /* 离线补算期间达成的戴森竣工：结算窗关闭后再播胜利窗，避免被共用 #modal 的离线结算覆盖。
+     * 见 economy-tick.js dysonDone 块 deferBreakUI 分支（离线只挂 dysonPopupPending，不置 seen）。
+     * 破壳与竣工在同一段离线补算里互斥（破壳即终止补算），故不与 breakReport 叠加。 */
+    if (!j || !j.s || !j.s.dysonPopupPending) return;
+    var s = j.s;
+    s.dysonPopupSeen = true;
+    s.dysonPopupPending = false;
+    var R = (SB.ui && SB.ui.render) ? SB.ui.render : null;
+    if (!R) return;
+    if (s.civics && s.civics.ascend_void && R.showAscendVoid) R.showAscendVoid(s);
+    else if (R.showDysonComplete) R.showDysonComplete(s);
+  }
   function showOfflineSettlement(j, breakReport) {
     var lines = [], resourceRows = [], overviewCards = '', incidentRows = '', any = false, rk = RESS_KEYS(), i, k, d;
     for (i = 0; i < rk.length; i++) {
@@ -1033,10 +1087,11 @@
       ok: '继续',
       onOk: function () {
         if (breakReport) SB.ui.render.showBreakPanel(breakReport);
-        else { maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); }
+        else { maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); fireDysonPending(j); }
       }
     });
     if (modalShown === false && breakReport) SB.ui.render.showBreakPanel(breakReport);
+    else if (modalShown === false && j.s.dysonPopupPending) fireDysonPending(j);
   }
   /* 存档字段取舍：`_` 前缀曾被当成「不落盘」的依据，那是错的——
    * `_grow` 是生育计时（进度条读它，刷新后归零就是漏存），
@@ -1168,7 +1223,11 @@
       maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志
     }
     document.getElementById('btnBreak').onclick = function () {
-      askResetRun();
+      var S0 = SB.game.run();
+      /* 已结算但留在本局（breakSettled=true，选过「探索壳外的星空」或刷新过）的局：直接重开结算面板
+       * （mNext=开始轮回/重开本周目）。否则 askResetRun→doBreak 会因 breakSettled 提前返回而什么都不做，死局。 */
+      if (S0 && S0.breakSettled) SB.ui.render.showBreakPanel(SB.prestige.breakReport(S0));
+      else askResetRun();
     };
     document.getElementById('btnWipe').onclick = function () {
       SB.ui.render.confirmPanel({
@@ -1265,12 +1324,20 @@
           : '<div class="note">（未研究《神学》）此次仅重开本周目：不结算、不发放轮回点、不入账旧日遗产。</div>' +
             '<div class="note">已持有的跨周目资产继续保留。周目计数会 +1。</div>'),
       ok: qual ? '轮回' : '重开',
-      onOk: function () { if (qual) SB.prestige.doBreak(S0, emit); else SB.game.resetRun(); }
+      onOk: function () {
+        if (!S0) return;
+        /* 已结算但留在本局（breakSettled=true：选过「探索壳外的星空」/ 刷新过 / 戴森竣工窗入口）的局：
+         * 结算早在首次破壳时已成并入账，此处若再调 doBreak 会被 breakSettled 提前返回而什么都不做（死局）。
+         * 直接走真正的周期切换 nextCycle（clearRun + startRun）。 */
+        if (S0.breakSettled) { SB.game.nextCycle(); return; }
+        if (qual) SB.prestige.doBreak(S0, emit); else SB.game.resetRun();
+      }
     });
   }
 
   SB.game = {
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
+    stardustShopUnlocked: stardustShopUnlocked, unlockStardustShop: unlockStardustShop,
     getSpeed: function () { return speed; },
     runtimeStatus: function () {
       return {

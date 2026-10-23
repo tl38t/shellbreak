@@ -237,19 +237,19 @@
         return true;
       }
       /* `gov` —— **启用指定槽位档的政体**（2026-09-29 ERA3 城堡尤里卡）。
-       * ⚠️ 比的是政体槽位数（slots.wild），排除酋邦制 tribe 的 1 槽；
-       *   三槽政体 = autocracy / oligarchy / classical_republic（civics.js GOVS）。 */
+       * ⚠️ 比的是政体**总槽数**（2026-10-22 政体槽位按职能分化后，wild 槽不再等于总槽数；
+       *   autocracy/oligarchy/classical_republic 仍为 3 总槽、theo_state/egal/federal 仍为 7 总槽）。 */
       case 'gov': {
         var _g = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
-        return !!(s.gov && _g && _g.slots && (_g.slots.wild || 0) >= (c.wild || 3));
+        var _gt = 0; if (_g && _g.slots) for (var _gk in _g.slots) _gt += _g.slots[_gk];
+        return !!(s.gov && _g && _gt >= (c.wild || 3));
       }
       /* `govWildSlots` —— **启用任意 N 槽政体**（ERA7 市政《现代思潮》《竞技体育》的 boost 条件）。
-       * ⚠️ 与 `gov`（写死「≥3 槽」的三槽政体判定、condText 硬编码「启用三槽政体」）不是一回事：
-       *    这里 N 是参数（现代思潮/竞技体育要的是 7 槽教权国/平等主义/联邦制），复用 gov+wild 会把
-       *    文案印成「三槽政体」造成误导，故独立成带参数的类型。判定口径与 gov 同：比 slots.wild。 */
+       * ⚠️ 与 `gov` 同口径：比**总槽数**（2026-10-22 槽位分化后 wild 槽数不再等于总槽数）。 */
       case 'govWildSlots': {
         var _gw = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
-        return !!(s.gov && _gw && _gw.slots && (_gw.slots.wild || 0) >= (c.n || 7));
+        var _gwt = 0; if (_gw && _gw.slots) for (var _gwk in _gw.slots) _gwt += _gw.slots[_gwk];
+        return !!(s.gov && _gw && _gwt >= (c.n || 7));
       }
       /* `govId` —— **采用某条特定政体**（ERA9 市政《繁荣一统》《共同命运》《神圣之路》的鼓舞
        *   「使用政体：星际联邦 / 星海共同体 / 寰宇教会」）。与 `gov`/`govWildSlots`（只比槽位数）不是一回事：
@@ -429,13 +429,14 @@
       }
       case 'gov': {
         var _g2 = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
-        var _ok = !!(s.gov && _g2 && _g2.slots && (_g2.slots.wild || 0) >= (c.wild || 3));
+        var _gt2 = 0; if (_g2 && _g2.slots) for (var _gk2 in _g2.slots) _gt2 += _g2.slots[_gk2];
+        var _ok = !!(s.gov && _g2 && _gt2 >= (c.wild || 3));
         return { txt: _ok ? '已启用三槽政体' : '需启用三槽政体（独裁/寡头/古典共和）', now: _ok ? 1 : 0, need: 1 };
       }
       /* govWildSlots / anyWonders 的「还差多少」，与 condMet 同口径。 */
       case 'govWildSlots': {
         var _gw2 = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
-        var _cur = (s.gov && _gw2 && _gw2.slots) ? (_gw2.slots.wild || 0) : 0;
+        var _cur = 0; if (_gw2 && _gw2.slots) for (var _gwk2 in _gw2.slots) _cur += _gw2.slots[_gwk2];
         var _need = c.n || 7;
         return { txt: _cur >= _need ? '已启用 ' + _need + ' 槽政体' : '需启用 ' + _need + ' 槽政体（教权国/平等主义/联邦制）', now: _cur, need: _need };
       }

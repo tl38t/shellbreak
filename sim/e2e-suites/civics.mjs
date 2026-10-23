@@ -923,21 +923,29 @@ console.log('\n=== 市政 ===');
   g3.civics = { laws: 1, craft: 1, mystic: 1, drama: 1, records: 1, theology: 1, political: 1 };
   g3.gov = 'autocracy'; g3.cards = []; g3.res.culture = 9999;
   check('独裁统治给 3 个槽', SB.civic.slots(g3) === 3);
-  check('可同时装 3 张卡（填满 3 槽）',
-    SB.civic.setCard(g3, 'card_mystic', noop) &&
-    SB.civic.setCard(g3, 'card_drama', noop) &&
-    SB.civic.setCard(g3, 'card_records', noop) &&
+  check('可同时装 3 张卡（填满 3 槽：工造/经济/科研 各落其槽）',
+    SB.civic.setCard(g3, 'card_craft', noop) &&        // prod → 槽1
+    SB.civic.setCard(g3, 'card_drama', noop) &&         // grow → 槽0(万能)
+    SB.civic.setCard(g3, 'card_mystic', noop) &&        // sci → 槽2
     g3.cards.filter(Boolean).length === 3, 'cards=' + JSON.stringify(g3.cards));
-  check('flow 逐槽聚合：3 槽里神秘主义贡献 science +0.3',
+  check('flow 逐槽聚合：科研槽里神秘主义贡献 science +0.3',
     Math.abs(SB.civic.flow(g3).science - 0.3) < 1e-9, 'science=' + SB.civic.flow(g3).science);
-  check('乘区逐槽相乘：广场×2 与图书馆×2 各自生效',
-    SB.civic.squareMul(g3) === 2 && SB.civic.libraryMul(g3) === 2,
-    'squareMul=' + SB.civic.squareMul(g3) + ' libraryMul=' + SB.civic.libraryMul(g3));
+  /* 乘区逐槽相乘（广场×2 / 图书馆×2）走 MUL_FIELD，按已装卡聚合、与槽类型无关：
+   * 独立态装 drama(squareMul:2) + records(libraryMul:2)，证两个乘区各自生效。 */
+  {
+    const gm = SB.state.freshRun(false);
+    gm.gov = 'autocracy'; gm.cards = []; gm.res.culture = 9999;
+    gm.civics = { laws: 1, drama: 1, records: 1, craft: 1 };
+    SB.civic.setCard(gm, 'card_drama', noop); SB.civic.setCard(gm, 'card_records', noop);
+    check('乘区逐槽相乘：广场×2 与图书馆×2 各自生效（按装卡聚合，与槽类型无关）',
+      SB.civic.squareMul(gm) === 2 && SB.civic.libraryMul(gm) === 2,
+      'squareMul=' + SB.civic.squareMul(gm) + ' libraryMul=' + SB.civic.libraryMul(gm));
+  }
   /* 2026-10-07 用户拍板：槽上不再有「拔下」按钮——满槽装填 = 直接覆盖第一张对口已装卡。 */
   check('满槽再装填 ⇒ 直接覆盖第 0 号槽（装填即覆盖，无卸除入口）',
     SB.civic.setCard(g3, 'card_theology', noop) &&
     g3.cards[0] === 'card_theology' &&
-    g3.cards[1] === 'card_drama' && g3.cards[2] === 'card_records',
+    g3.cards[1] === 'card_craft' && g3.cards[2] === 'card_mystic',
     'cards=' + JSON.stringify(g3.cards));
   /* 换政体截断溢出槽：独裁(3) → 酋邦制(1) 只保留第 0 号槽。 */
   SB.civic.setGov(g3, 'tribe', noop);
@@ -949,9 +957,10 @@ console.log('\n=== 市政 ===');
   g4.civics = { laws: 1, political: 1, mystic: 1, records: 1 };
   g4.gov = 'autocracy'; g4.res.culture = 9999;
   SB.civic.setCard(g4, 'card_mystic', noop); SB.civic.setCard(g4, 'card_records', noop);
+  // typed 槽下：mystic(sci) 落科研槽2、records(sci) 落万能槽0；拔下槽0 只清槽0，槽2 不动
   check('逐槽拔下只清指定槽，其余槽不动',
     SB.civic.removeCard(g4, 0, noop) &&
-    g4.cards[0] === null && g4.cards[1] === 'card_records',
+    g4.cards[0] === null && g4.cards[2] === 'card_mystic',
     'cards=' + JSON.stringify(g4.cards));
 
   /* 类型不匹配必须能被解释出来 —— 按钮灰着却不说话，玩家只会觉得坏了。 */
@@ -1052,7 +1061,7 @@ console.log('\n=== 市政 ===');
   }
 
   /* ② 政策卡「按类型选槽」：宗教卡必须进宗教槽，绝不挤占万能槽（用户实测「宗教槽空着、卡塞进万能槽」）。
-   * 神权政体带 3 万能 + 1 宗教槽；自动装填宗教卡应落在宗教槽位，万能槽保持空。 */
+   * 神权政体带 3 万能 + 2 宗教槽；自动装填宗教卡应落在宗教槽位，万能槽保持空。 */
   {
     const rs = SB.state.freshRun(false);
     rs.lvl.hall = 1; rs.gov = 'theocracy'; rs.civics.reformed = 1; rs.res.culture = 9999;
@@ -1117,11 +1126,11 @@ console.log('\n=== 市政 ===');
   {
     const cs = SB.state.freshRun(false);
     cs.lvl.hall = 1; cs.gov = 'autocracy'; cs.res = cs.res || {}; cs.res.culture = 0; // 故意 0 点
-    ['drama', 'theology', 'market'].forEach(k => cs.civics[k] = 1);
-    const a = SB.civic.setCard(cs, 'card_drama', noop, 0);
-    const b = SB.civic.setCard(cs, 'card_theology', noop, 1);
-    const c = SB.civic.setCard(cs, 'card_market', noop, 2);
-    const allIn = a && b && c && cs.cards[0] === 'card_drama' && cs.cards[1] === 'card_theology' && cs.cards[2] === 'card_market';
+    ['drama', 'craft', 'mystic'].forEach(k => cs.civics[k] = 1);
+    const a = SB.civic.setCard(cs, 'card_drama', noop, 0);   // 经济卡 → 万能槽0
+    const b = SB.civic.setCard(cs, 'card_craft', noop, 1);   // 工造卡 → 工造槽1
+    const c = SB.civic.setCard(cs, 'card_mystic', noop, 2);  // 科研卡 → 科研槽2
+    const allIn = a && b && c && cs.cards[0] === 'card_drama' && cs.cards[1] === 'card_craft' && cs.cards[2] === 'card_mystic';
     // 装填全程 0 点已验证免费；再给足点数验证「卸下」走独立扣点路径（与安装互不污染）
     cs.res.culture = 1e9;
     const before = cs.res.culture;
@@ -1182,10 +1191,12 @@ console.log('\n=== 市政 ===');
     check('ERA6：城市设计解锁奇观 全国快速物流通道（needCivic=urbandesign, canalCraftIronSteel=0.01）',
       !!SB.WONDERS.find(w => w.id === 'wonder_national_logistics' && w.needCivic === 'urbandesign' &&
         w.effect && w.effect.canalCraftIronSteel === 0.01));
-    /* 政体形状：7 万能槽 + 效果字段 */
+    /* 政体形状：7 个槽（按职能分化，不再全万能）+ 效果字段 */
     const gBy = id => SB.GOVS.find(g => g.id === id);
-    check('ERA6：三新政府均给 7 万能槽',
-      ['theo_state','egalitarianism','federalism'].every(id => { const g = gBy(id); return g && g.slots && g.slots.wild === 7; }));
+    const slotTotal = g => { let n = 0; for (const k in g.slots) n += g.slots[k]; return n; };
+    check('ERA6：三新政府均给 7 个槽（职能分化：教权国=4万能+2宗教+1经济；平等主义=4万能+2工造+1科研；联邦制=4万能+1工造+1科研+1经济）',
+      ['theo_state','egalitarianism','federalism'].every(id => { const g = gBy(id); return g && g.slots && slotTotal(g) === 7; }),
+      ['theo_state','egalitarianism','federalism'].map(id => id + JSON.stringify(gBy(id).slots)).join(' '));
     check('ERA6：教权国 faithPerBuilding=1；平等主义 三 perPop=0.001；联邦制 civic/sci ×1.1、食物 −0.10',
       gBy('theo_state').faithPerBuilding === 1 &&
       gBy('egalitarianism').craftPerPop === 0.001 && gBy('egalitarianism').hydroPerPop === 0.001 && gBy('egalitarianism').minePerPop === 0.001 &&
@@ -1469,20 +1480,30 @@ console.log('\n=== 市政 ===');
       W.setSlot(sa, 'craft_hardcoral', 0.5) === true,
       'slots=' + sa.autoSlots.length);
 
-    /* ── 阈值语义：没满不动手，满了才造 ── */
+    /* ── 阈值语义：pct 即触发门槛（容量×pct），100% = 旧「满仓才造」 ──
+     * 2026-10-22 改动：满仓档配方从「死等满仓」改为「原料达容量×档位即动手」，
+     * 让玩家选的 25/50/75/100% 真正控制触发时机（此前只控制转制比例）。 */
     const sb = SB.state.freshRun(false);
     sb.lvl.workshop = 1; sb.upgrades = { upg_autoshop: true };
     W.setSlot(sb, 'craft_stonebeam', 0.25);
-    const capStone = SB.economy.capOf(sb, 'stone');
-    /* 差一点没满：石头 = 上限 − 1（可造 ≥1 份，但没满 ⇒ 不许碰玩家的建材） */
-    sb.res.stone = capStone - 1;
+    const capStone = SB.economy.capOf(sb, 'stone');   // 400
+    const oneBatch = 100;   // 一份石梁 = 100 石头；25% 门槛 = max(400×0.25, 100) = 100
+    /* 低于 25% 门槛（99 < 100）：不动手，不抢玩家攒的建材 */
+    sb.res.stone = oneBatch - 1;
     const beamBefore = sb.res.stoneBeam, stoneBefore = sb.res.stone;
     W.autoTick(sb, null);
-    check('自动槽：原料**没满** ⇒ 一动不动（不抢玩家正在攒的建材）',
+    check('自动槽：原料低于 25% 门槛(99) ⇒ 一动不动（不抢玩家攒的建材）',
       sb.res.stoneBeam === beamBefore && sb.res.stone === stoneBefore,
       'stone=' + sb.res.stone + '/' + capStone + ' beam=' + sb.res.stoneBeam);
 
-    /* 满了：造可造量的 25%（至少 1 份） */
+    /* 到了 25% 门槛（100）：动手造 ≥1 份（不再死等满仓） */
+    sb.res.stone = oneBatch;
+    const madeT = W.autoTick(sb, null);
+    check('自动槽：原料达 25% 门槛(100) ⇒ 按档位转制（至少 1 份）',
+      madeT > 0 && Math.abs(sb.res.stone) < 1e-9,
+      'stone=' + sb.res.stone + ' made=' + madeT);
+
+    /* 满仓(400)：造可造量 25%（至少 1 份） */
     sb.res.stone = capStone;
     const all = W.maxCraftable(sb, W.craftById('craft_stonebeam'));
     const want = Math.max(1, Math.floor(all * 0.25));

@@ -1,4 +1,4 @@
-/* e2e suite: 纪元十 · 戴森纪（ERA10）数据 / 接线 / 终局面板。
+/* e2e suite: 纪元十 · 驭星纪（ERA10）数据 / 接线 / 终局面板。
  * 2026-10-20 用户 ERA10 表实装（授权「实装吧」）后固化。
  * ⚠️ 这一族的共同背景：ERA10 的 7 项科技**几乎全部是「改别的系统」**——发射场换模式、
  *    机器人倍率换读数、信仰基项加项、全产加一条轴、星屑乘区、发射场节律。数据落了没人读
@@ -8,7 +8,7 @@
  *    必须连带说明「谁拍的板」（例如节律 10→8 属用户表原值，不可随手调）。 */
 
 export function run({ SB, check, noop, fs, path, ROOT }) {
-  console.log('\n=== 纪元十 · 戴森纪 ===');
+  console.log('\n=== 纪元十 · 驭星纪 ===');
   const fr = () => SB.state.freshRun(false);
   const near = (a, b, eps) => Math.abs(a - b) < (eps === undefined ? 1e-9 : eps);
   const f3 = v => (typeof v === 'number' ? (Math.abs(v) < 1e-9 ? '0' : v.toFixed(4)) : String(v));
@@ -17,8 +17,8 @@ export function run({ SB, check, noop, fs, path, ROOT }) {
   {
     const E = SB.ERAS || [];
     const e10 = E.filter(e => e.id === 10)[0];
-    check('ERAS 末位是纪元十《戴森纪》（以星为盾）',
-      !!e10 && e10.name === '戴森纪' && e10.motto === '以星为盾' && !!e10.desc,
+    check('ERAS 末位是纪元十《驭星纪》（以星为盾）',
+      !!e10 && e10.name === '驭星纪' && e10.motto === '以星为盾' && !!e10.desc,
       e10 ? e10.name + '/' + e10.motto : '缺失');
     check('纪元十不是最后一个之外的新坑：ERAS 长度 = 10（advanceEra 的 p.era>=E.length 兜底靠它）',
       E.length === 10, '长度=' + E.length);

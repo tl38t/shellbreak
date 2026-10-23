@@ -46,6 +46,7 @@
   /* 一个 tick 的天壳推进。dt 为秒。
    * 返回本次实际削掉的壳量，供渲染层显示「正在以 X 点/秒 推进」。 */
   function tickShell(s, dt, emit, opts) {
+    if (s.shell < 0) s.shell = 0;   // 修复破壳后钻机凿出的历史负壳（显示漂移，如 -235602）
     if (s.broken) return 0;
     var cut = 0;
     /* G.E.E.K 运行态闸门（与天穹钻机同纪律）：已建成且玩家手动启动才跑。 */
@@ -71,7 +72,7 @@
     //       等价于「从 25% 继续削到 0」，语义一致且更鲁棒（即便将来有人早建也能用）。
     //    ⚠️ 资源见底自动停摆（补足后下一 tick 自动继续）；停摆是**运行态的暂停**，
     //       不回拨 skydrillOn——补料后不用玩家再点一次。
-    if (s.skydrillOn && SB.wonder && SB.wonder.owned(s).wonder_skydrill) {
+    if (s.skydrillOn && SB.wonder && SB.wonder.owned(s).wonder_skydrill && s.shell > 0) {
       var dCost = SB.CFG.SKYDRILL_DRILL * dt;
       var hCost = SB.CFG.SKYDRILL_HYDRO * dt;
       // 热液能侧：hydroAlloc 已是「本 tick 流分配」唯一权威（含钻机吃剩流的那一份），
@@ -81,8 +82,9 @@
       if ((s.res.resonantDrill || 0) >= dCost && hydroOK) {
         s.res.resonantDrill -= dCost;
         // 流不进库存：扣共振钻头即可，热液能已从本 tick 流中被钻机这一份占走（HF.left 已计入）。
-        var _lg = SB.prestige ? SB.prestige.legacy() : null;
-        var _ss = _lg ? (1 + 0.05 * _lg.shellSurveyLevel) : 1;
+        /* 潮汐之树（2026-10-23）：壳面测绘节点（shellSurvey1/2/3）替代旧 shellSurvey；
+         *   直接读 s.perk.shellSurvey（每级 +5% 削壳速率，与旧 shellSurveyLevel 同口径）。 */
+        var _ss = 1 + 0.05 * ((s.perk && s.perk.shellSurvey) || 0);
         var sWant = SB.CFG.SKYDRILL_RATE * _ss * dt;
         s.shell -= sWant;
         cut += sWant;

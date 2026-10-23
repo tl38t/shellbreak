@@ -289,11 +289,16 @@
   function discountedCost(s, id) {
     var w = byId(id);
     if (!w || !w.cost) return {};
-    var lv = (SB.prestige && SB.prestige.legacy) ? SB.prestige.legacy().wonderBlueprintLevel : 0;
+    /* 潮汐之树（2026-10-23）：遗址施工图节点（wonderBlueprint1/2）替代旧 wonderBlueprint；
+     *   直接读 s.perk.wonderBlueprint（累积值，每点 −5% 奇观造价，与旧 wonderBlueprintLevel 同口径）。 */
+    var lv = (s && s.perk && s.perk.wonderBlueprint) || 0;
     /* ERA9 心胜于物卡（wonderBuildSave：0.3）：奇观建造消耗 −30%（装卡才生效）。
      * 与蓝图折扣（−5%/级）独立相乘，两种减耗不冲突。 */
     var save = (SB.civic && SB.civic.cardWonderBuildSave) ? SB.civic.cardWonderBuildSave(s) : 0;
-    var mul = Math.max(0, 1 - 0.05 * lv) * Math.max(0, 1 - save);
+    /* ERA2-7 扩卡（2026-10-22）：按纪元闸门的奇观减耗（征夫发役 cap3 / 王室特许 cap5，各 −20%）。
+     * 仅对该 cap 覆盖纪元内的奇观生效，与 cardWonderBuildSave 相加后统一进 (1 − save)。 */
+    var saveEra = (SB.civic && SB.civic.cardWonderBuildSaveEra) ? SB.civic.cardWonderBuildSaveEra(s, w.era) : 0;
+    var mul = Math.max(0, 1 - 0.05 * lv) * Math.max(0, 1 - save - saveEra);
     var cost = SB.economy && SB.economy.scaffoldAdjustedCost
       ? SB.economy.scaffoldAdjustedCost(s, w.cost) : w.cost;
     var out = {}, k;

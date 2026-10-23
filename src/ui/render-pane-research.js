@@ -419,7 +419,7 @@
       if (on) {
         current = '<div class="gov-current" id="govrow-' + v.id + '">' +
           '<div class="gov-current-label">当前政体 <span class="tag ok">生效中</span></div>' +
-          '<div class="gov-current-main"><strong>' + ((SB.civic && SB.civic.govTitleName) ? SB.civic.govTitleName(s) : v.name) + '</strong><span>' + v.desc + '</span></div>' +
+          '<div class="gov-current-main"><strong>' + ((SB.civic && SB.civic.govTitleName) ? SB.civic.govTitleName(s) : v.name) + '</strong><span>' + v.desc + '</span>' + (v.flavor ? '<p class="b-flavor">' + v.flavor + '</p>' : '') + '</div>' +
           '<div class="gov-current-meta"><span class="govslots">' + recipeText(v) + '</span>' +
           /* 幸福度偏移只在采用中成立，不在未采用的预览卡上暗示为常驻效果。 */
           SB.ui.renderCommon.happyBonusNote(s, 'gov') + '</div></div>';
@@ -431,13 +431,13 @@
         '<div class="gov-choice-main"><button type="button" class="inline-info-link gov-choice-name"' +
         ' data-gov-detail="' + v.id + '" aria-expanded="' + expanded + '" aria-controls="govdetail-' + v.id + '">' +
         v.name + '<span class="gov-choice-chevron" aria-hidden="true">⌄</span></button>' +
-        '<div class="gov-choice-preview">' + v.desc + '</div>' +
+        '<div class="gov-choice-preview">' + v.desc + (v.flavor ? '<p class="b-flavor">' + v.flavor + '</p>' : '') + '</div>' +
         '<div class="gov-choice-slots">' + recipeText(v) + '</div></div>' +
         '<button class="btn buy gov-adopt" data-gov="' + v.id + '"' + (why ? ' disabled' : '') +
         ' title="' + (why || (firstFree ? '该政体首次采用免费' : '采用此政体')) + '">' +
         (firstFree ? '首次免费' : '采用') + '</button>' +
         (expanded ? '<div class="gov-choice-detail" id="govdetail-' + v.id + '"><b>完整效果</b><p>' + v.desc +
-          '</p><span>政策卡槽：' + recipeText(v) + '</span>' + (why ? '<small>' + why + '</small>' : '') + '</div>' : '') +
+          '</p>' + (v.flavor ? '<p class="b-flavor">' + v.flavor + '</p>' : '') + '<span>政策卡槽：' + recipeText(v) + '</span>' + (why ? '<small>' + why + '</small>' : '') + '</div>' : '') +
         '</div>';
     }
     h += current || '';
@@ -580,6 +580,7 @@
           '<div class="policy-card-desc">' + q.desc +
           (on ? '' : fits ? '' : '<br><span class="policy-card-warning">⚠ 与当前槽型不对口：需要 ' + C.slotTypeName(groupType) + '</span>') +
           '</div>' +
+          (q.flavor ? '<div class="policy-card-flavor">' + q.flavor + '</div>' : '') +
           '<button class="btn' + (on || why ? '' : ' buy') + '" data-card="' + q.id + '"' +
           /* ⚠️ 2026-10-14 修：只有「硬拦」才禁用按钮——没解锁 / 槽型不对；
            *   「缺市政点」是软拦，必须放行点卡 arm，否则两步选槽对买不起的卡

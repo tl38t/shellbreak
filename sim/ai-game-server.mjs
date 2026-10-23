@@ -17,11 +17,17 @@ const server = http.createServer((req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'GET') {
       const ageMs = latestAiStatus ? Date.now() - latestAiStatus.receivedAt : null;
+      /* 后台标签页的浏览器定时器会降到约一分钟一拍。5 秒门槛会把健康的隐藏页
+       * 误报成离线；按最近一次上报的可见性留足一个后台周期，并把 running 状态
+       * 单独保留在 payload 中，避免把“页面心跳”与“AI 正在决策”混成一个判断。 */
+      const staleAfterMs = latestAiStatus?.pageHidden ? 90_000 : 15_000;
+      const stale = ageMs === null || ageMs > staleAfterMs;
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({
-        online: ageMs !== null && ageMs <= 5000,
-        stale: ageMs === null || ageMs > 5000,
+        online: !stale,
+        stale,
         ageMs,
+        staleAfterMs,
         status: latestAiStatus,
       }));
       return;
@@ -60,7 +66,7 @@ const server = http.createServer((req, res) => {
   fs.readFile(filename, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     if (filename === path.join(root, 'index.html')) {
-      data = Buffer.from(data.toString('utf8').replace('</body>', '<script src="src/ai-player.js?v=12"></script>\n</body>'), 'utf8');
+      data = Buffer.from(data.toString('utf8').replace('</body>', '<script src="src/ai-player.js?v=18"></script>\n</body>'), 'utf8');
     }
     res.writeHead(200, { 'Content-Type': types[path.extname(filename)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
     res.end(data);

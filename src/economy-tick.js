@@ -24,7 +24,7 @@
   var launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
   var ironFlow = P.ironFlow, isCold = P.isCold, isFull = P.isFull;
   var libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
-  var mineTaxMul = P.mineTaxMul, obsSciMul = P.obsSciMul, resUnlocked = P.resUnlocked;
+  var minerPactMul = P.minerPactMul, quarryPactMul = P.quarryPactMul, furnaceEffMul = P.furnaceEffMul, scholarPactMul = P.scholarPactMul, obsSciMul = P.obsSciMul, resUnlocked = P.resUnlocked;
   var seasonTurn = P.seasonTurn, steelFlow = P.steelFlow, toolMul = P.toolMul;
   var upgSum = P.upgSum, warmCap = P.warmCap, warmEff = P.warmEff, warmRelief = P.warmRelief;
 
@@ -75,15 +75,18 @@
     var _tMer = toolMul(s, 'merchant');
     var _uSilt = upgSum(s, 'mineSilt');
     var _uWarm = upgSum(s, 'mineWarm');
-    /* ⚠️ 2026-10-05 新增 6 条 perk 乘区的每 tick 缓存（与 _gm/_gather 同口径：
+    /* ⚠️ 2026-10-05 新增 perk 乘区的每 tick 缓存（与 _gm/_gather 同口径：
      *   tick 内 s.perk 不会被改 —— 买 perk 走 prestige.buyPerk，只写 meta.perks 与本局
      *   s.perk，而那发生在 tick 之外的游戏主循环里，故一个 tick 内恒定，可安全缓存）。
-     * ⚠️ 别把这些改成惰性求值：`mineTaxMul(s)` 会被矿工那两行各调一次，
-     *    不缓存等于每 tick 多跑 3 遍 —— 虽然纯函数不产生副作用，但与本段既有纪律不一致。 */
+     * ⚠️ 别把这些改成惰性求值：minerPactMul/quarryPactMul 会被矿工/采石工那几行各调一次，
+     *    不缓存等于每 tick 多跑几遍 —— 虽然纯函数不产生副作用，但与本段既有纪律不一致。 */
     var _cp = coralPactMul(s);
-    var _mt = mineTaxMul(s);
+    var _mp = minerPactMul(s);
+    var _qp = quarryPactMul(s);
     var _ac = algaeCropMul(s);
     var _fb = furnaceBoostMul(s);
+    var _fe = furnaceEffMul(s);
+    var _sp = scholarPactMul(s);
     var _lp = luxuryPactMul(s);
     var _uInst = upgSum(s, 'instituteSci');
     var _uLux = upgSum(s, 'luxuryMul');
@@ -162,7 +165,7 @@
      *    复用之后语义是「砂矿坑 = 矿脉设施，金属/石头/暖石/钛同源」——2026-10-16 起
      *    所有矿工伴生产出都乘砂矿坑等级（见 _siltPit，与 rates() 的 mineBonus 同源）。 */
       addRes(s, 'stone', j.quarrier * SB.UNIT.stone * _siltPit
-        * _gather * _tQ * cold * _gmx * _mt * dt);
+        * _gather * _tQ * cold * _gmx * _qp * dt);
     }
     if (j.miner > 0) {
       var mine = _tM;
@@ -172,9 +175,9 @@
       var fishWarm = 1 + _uWarm;
       var popMul = (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1;
       addRes(s, 'silt', j.miner * SB.UNIT.silt * _siltPit * fishSilt * popMul
-        * _gather * mine * cold * _gmx * _mt * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+        * _gather * mine * cold * _gmx * _mp * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
       addRes(s, 'warmstone', j.miner * SB.UNIT.warmstone * _siltPit * fishWarm * popMul
-        * _gather * mine * cold * _gmx * (1 + (_T ? _T.warmMul : 0)) * _mt
+        * _gather * mine * cold * _gmx * (1 + (_T ? _T.warmMul : 0)) * _mp
         * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
     }
 
@@ -192,7 +195,7 @@
       s.res.silt -= fc * _e;
       /* ⚠️ 暖石实扣乘 warmEff（refine/specfuel 降耗），与 ironFlow 门控同乘子 ⇒ 面板===结算。 */
       s.res.warmstone -= fc * _e * warmEff(s);
-      addRes(s, 'iron', fc * _gmx * (1 + upgSum(s, 'ironBonus')) * _fb * SB.economy.smeltingOutMul(s)
+      addRes(s, 'iron', fc * _gmx * (1 + upgSum(s, 'ironBonus')) * _fb * _fe * SB.economy.smeltingOutMul(s)
         * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0)));
     }
 
@@ -285,15 +288,22 @@
         if (!s.dysonDone && SB.economy && SB.economy.dysonPct && SB.economy.dysonPct(s) >= 1) {
           s.dysonDone = true;
           if (!s.dysonPopupSeen) {
-            s.dysonPopupSeen = true;
             /* ERA10 市政《飞升虚境》（2026-10-20 用户表）：已掌握该市政 ⇒ 走**乱码结局**弹窗，
              * 否则走普通竣工弹窗。两个弹窗互斥（同一次竣工只该弹一个）。
              * ⚠️ 判据读 s.civics（已完成市政），不是 s.cards —— 飞升是永久掌握的。
              * ⚠️ e2e / headless 无 DOM 时 SB.ui.render 不存在，必须走存在判（原代码就是
              *    `SB.ui && SB.ui.render &&` 三重短路，别在这一行丢掉保护）。 */
             var _R = (SB.ui && SB.ui.render) ? SB.ui.render : null;
-            if (_R && s.civics && s.civics.ascend_void && _R.showAscendVoid) _R.showAscendVoid(s);
-            else if (_R && _R.showDysonComplete) _R.showDysonComplete(s);
+            if (opts && opts.deferBreakUI) {
+              /* 离线补算内联弹窗会被紧接着的「离线结算」窗（共用 #modal）覆盖，
+               * 且 dysonPopupSeen 一旦置位就永不重播 ⇒ 离线时只挂 pending 旗，
+               * 结算窗关闭后再播（game.js fireDysonPending），与破壳 UI 同款延迟处理。 */
+              s.dysonPopupPending = true;
+            } else if (_R) {
+              s.dysonPopupSeen = true;
+              if (s.civics && s.civics.ascend_void && _R.showAscendVoid) _R.showAscendVoid(s);
+              else if (_R.showDysonComplete) _R.showDysonComplete(s);
+            }
           }
         }
       }
@@ -347,9 +357,23 @@
         /* ERA6：温水藻场升级（upg_warmalgalfarm）解锁后，每级（× 藻场等级）额外 +0.5 科技/s。
          *   ⚠️ 本作无独立「温水藻场」建筑，按「藻场等级」兑现（待标定口径，用户可调）。 */
         + (SB.economy ? SB.economy.upgSum(s, 'algalfarmSci') : 0) * (s.lvl.kelp || 0))
-      * _obs * _cutter * _satScholar * _voySch * (SB.wonder ? SB.wonder.throneSciMul(s) : 1) * (Tt ? Tt.sci : 1) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * (SB.companyMul ? SB.companyMul(s, 'sci') : 1) * _gm
+      * _obs * _cutter * _satScholar * _voySch * (SB.wonder ? SB.wonder.throneSciMul(s) : 1) * (Tt ? Tt.sci : 1) * (SB.civic ? SB.civic.cardSciOutMul(s) : 1) * (SB.civic ? SB.civic.govSciOutMul(s) : 1) * (SB.companyMul ? SB.companyMul(s, 'sci') : 1) * _sp * _gm
       * _lgSciMul * dt
       + (_lgSci ? _lgSci.oldTideSteleScienceRate : 0) * dt) * _challengeSciCulture;
+
+    /* 启蒙沙龙卡（sciToCivic 0.15）：科技产出的 15% 转为市政点，且计入累计市政产出（意识形态门槛）。
+     * 与 rates().culture 同源——都用 SB.economyInternals.sciOut(s) × 挑战乘区，保证面板===结算。
+     * ⚠️ 这是**附加**产出：科技本身不减少，只是额外把 15% 科技量转成市政点（含 lifetimeCulture）。 */
+    {
+      var _salonFrac = (SB.civic && SB.civic.cardSciToCivic) ? SB.civic.cardSciToCivic(s) : 0;
+      if (_salonFrac > 0) {
+        var _salonAmt = P.sciOut(s) * _challengeSciCulture * dt;
+        if (_salonAmt > 0) {
+          s.res.culture = (s.res.culture || 0) + _salonAmt;
+          s.lifetimeCulture = (s.lifetimeCulture || 0) + _salonAmt;
+        }
+      }
+    }
 
     /* 4b) 市政点的两条来源（书手 + 议事厅）与市政卡/政体的平坦加成。
      * 【为什么平坦加成走 SB.civic.flow 而不是塞进 tick 里】它们来源是玩家在市政页上的

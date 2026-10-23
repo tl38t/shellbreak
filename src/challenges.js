@@ -40,7 +40,7 @@
         { label: '8 小时档', cap: 8 * 60 * 60 },
         { label: '4 小时档', cap: 4 * 60 * 60 }
       ] },
-    /* ERA9（光帆纪 · 本次实装占位）：流浪泰拉（drift_terra）。
+    /* ERA9（寻光纪 · 本次实装占位）：流浪泰拉（drift_terra）。
      * ⚠️ 当前**纯占位**：无规则、无奖励、单档，仅用于承接 ERA9 科技《严冬计划》的尤里卡
      *   cond `{ t: 'challenge', id: 'drift_terra' }`（entered 语义 = 进入本挑战即可解锁严冬计划）。
      *   G.E.E.K 运行态 + 流浪泰拉挑战的真实规则/奖励留待最后单独实装；在此之前进入它只触发
@@ -168,7 +168,7 @@
       SB.prestige.doBreak(s, SB.game.emit, { silent: true, challengeStart: true });
     SB.game.startRun({ challenge: { id: id, tier: tier } });
     SB.game.setTab('challenges');
-    SB.game.log('轮回挑战开始：' + d.name + ' · ' + d.tiers[tier].label + '。');
+    SB.game.log('挑战开始：' + d.name + ' · ' + d.tiers[tier].label + '。');
     SB.game.renderAll();
     return true;
   }

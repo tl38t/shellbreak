@@ -9,7 +9,7 @@
     var s = SB.game.run(), m = SB.game.meta(), api = SB.challenges;
     var list = api.list(), total = api.completedCount(m), active = api.active(s);
     var h = '<section class="challenge-overview"><div class="challenge-overview-title">' +
-      '<span class="challenge-kicker">PRESTIGE TRIALS</span><h2>轮回挑战</h2>' +
+      '<span class="challenge-kicker">PRESTIGE TRIALS</span><h2>挑战与成就</h2>' +
       '<p>开启挑战会结算当前周目并立即开始新周目。完成《神学》资格并凿穿天壳，才算挑战通关。</p></div>' +
       '<div class="challenge-overview-stats"><div><small>挑战通关</small><b>' + total + '</b></div>' +
       '<div><small>轮回点获取</small><b>+' + (total * 10) + '%</b></div></div></section>';

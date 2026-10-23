@@ -223,7 +223,7 @@
      *   火箭引擎同样无仓储上限。
      * 【星屑 stardust】跨周目局外资源：结算发放并可在星穹商店兑换，不做逐秒产出
      *   ⇒ 无 UNIT 键、无 tick/rates 行；故意不给 CAP_BASE 键（同 science/culture 口径 ⇒ capOf 恒 Infinity）。
-     *   显示门=首个太空建筑建成（satellite 由波次3实装，门先挂上不阻塞）。 */
+     *   星屑商店门=首座轨道卫星建成，并写入跨周目永久解锁旗。 */
     rocketFuel:   { name: '燃料', short: '燃', kind: 'craft', unlock: { tech: 'refine' } },
     rocketEngine: { name: '火箭引擎', short: '引', kind: 'craft', unlock: { tech: 'crewed' } },
     stardust:     { name: '星屑', short: '尘', unlock: { build: 'satellite' } }

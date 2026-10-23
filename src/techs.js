@@ -92,28 +92,28 @@
       desc: '潮汐的机械能被抓在手里：地热、转速、把整座礁当成一台机器。' },
     { id: 5, name: '破壳纪', motto: '工业化', color: '#F2C14E', glyph: '五',
       desc: '造得出天穹钻机这样的奇迹装置，凿穿最后 ' + 25 + '% 壳厚是这一纪元的全部内容。' },
-    { id: 6, name: '天外纪', motto: '出壳', color: '#9B7BFF', glyph: '六',
+    { id: 6, name: '初生纪', motto: '出壳', color: '#9B7BFF', glyph: '六',
       desc: '壳已破。钛金板件让工坊第一次造出「壳外」才用得上的东西：研究实验室、星空观测站、总物流站。' },
     /* ERA7（2026-10-17 实装 · spec docs/ERA7_TECHS_SPEC_v0.1.md）：名称/口号/配色为提议值，待用户拍。
      * 关键节点 = 火箭研究（rocket）——研成即推进入本纪元；本纪元终局无 key，靠星空探索/星图线收尾。 */
-    { id: 7, name: '观星纪', motto: '离开摇篮', color: '#FF8ED4', glyph: '七',
+    { id: 7, name: '繁星纪', motto: '离开摇篮', color: '#FF8ED4', glyph: '七',
       desc: '燃料把第一枚火箭送出海面。卫星、空间站与核火点亮夜空——摇篮之外，还有整片星海。' },
     /* ERA8（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）。关键节点 = 生物材料（biomat）。
-     * 颜色深空蓝紫（与观星纪粉区分）；glyph 八；口号「星海为家」。 */
-    { id: 8, name: '探星纪', motto: '星海为家', color: '#6E5BD6', glyph: '八',
+     * 颜色深空蓝紫（与繁星纪粉区分）；glyph 八；口号「星海为家」。 */
+    { id: 8, name: '探索纪', motto: '星海为家', color: '#6E5BD6', glyph: '八',
       desc: '深空力学推开星门，生物材料改写生命形态，星海区第一次有了「在地」的工业。' },
     /* ERA9（2026-10-19 实装）：名称/口号/配色为提议值。颜色太阳金，与 era8 深紫、era7 粉拉开。
      * ⚠️ 2026-10-20 ERA10 实装后本纪元**不再是终局**：层顶「星球改造」已改 key:true
      *    （ERA9 原本零 key ⇒ eraProgress.done 恒真，加 ERA10 会令玩家进 ERA9 后瞬跳）。
      *    星球改造本就是绝热材料/强人工智能的前置，拿它当门不挡任何正常路线。 */
-    { id: 9, name: '光帆纪', motto: '以光为帆', color: '#FFC857', glyph: '九',
+    { id: 9, name: '寻光纪', motto: '以光为帆', color: '#FFC857', glyph: '九',
       desc: '恒星工程纪——太阳帆航线连接聚落、能源与轨道农业，文明的尺度第一次以光年计。' },
     /* ERA10（2026-10-20 实装 · 用户 ERA10 科技表）：名称/口号/配色为提议值，待用户拍。
      * 关键节点 = 星球改造（terraform，ERA9 层顶，见上注）——研成即推进入本纪元。
      * 纪元内部三层无 key：L1 绝热材料/强人工智能/引力弹弓 → L2 近恒星轨道建设/空间矢量控制/
      * 继承繁星之人（孤儿）→ L3 大统一方程；终局靠戴森球进度（双达标取小）收尾。
      * 颜色星环青 #4FD1C9，与 ERA9 金 / ERA8 紫 / ERA7 粉拉开。 */
-    { id: 10, name: '戴森纪', motto: '以星为盾', color: '#4FD1C9', glyph: '十',
+    { id: 10, name: '驭星纪', motto: '以星为盾', color: '#4FD1C9', glyph: '十',
       desc: '太阳帆铺成轨道环，戴森球的影子第一次落在母星上——文明的尺度开始以恒星计。' }
   ];
 
@@ -737,7 +737,7 @@
       eff: { unlockBuild: ['satellite'] },
       /* 关键节点（本纪元门）。解锁1：科研区自动建造（habitat.TECH_AUTO_ZONES.rocket → academy）。
        * 解锁2：太空建筑「轨道卫星」（BUILDINGS.satellite requiredTech 双写）。
-       * 首个太空建筑建成 ⇒ 激活 meta 星屑累计 + 星穹商店（波次4）。 */
+       * 首座轨道卫星建成 ⇒ 永久解锁星屑商店（跨周目保留）。 */
       unlockDesc: '解锁科研区自动建造与太空建筑「轨道卫星」。' },
 
     { id: 'autodrill', name: '自动化钻探', icon: 'assets/tech-icons/era-7/era7-autodrill.png', era: 7, cost: 450000, branch: 'live', key: false, reqs: ['exostruct'], layer: 11,
@@ -814,7 +814,7 @@
       unlockDesc: '解锁奇观「旅行者1号」：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为 +25/秒且学者产出 +10%。' },
 
     { id: 'biomat', name: '生物材料', icon: 'assets/tech-icons/era-8/era8-biomat.png', era: 8, cost: 1350000, branch: 'live', key: true, reqs: ['spacestation'], layer: 14,
-      /* 本纪元关键节点：研成即推进探星纪。尤里卡 = 新 cond 类型 cap（藻食**上限** 30000，
+      /* 本纪元关键节点：研成即推进探索纪。尤里卡 = 新 cond 类型 cap（藻食**上限** 30000，
        *   tech.js condMet/condShort/condText 三处已登记）。 */
       cond: { t: 'cap', r: 'kelp', n: 30000 },
       eff: { unlockBuild: ['biomatlab'] },

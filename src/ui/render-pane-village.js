@@ -321,7 +321,7 @@
         if (b.launchpad && lv > 0) {
           var _launchRun = SB.economy && SB.economy.launchActiveLvl
             ? SB.economy.launchActiveLvl(s, b.id) : lv;
-          launchCtl = '<span class="furnctl' + (_launchRun > 0 ? ' on' : '') + '">' +
+          launchCtl = '<span class="furnctl launch-count' + (_launchRun > 0 ? ' on' : '') + '">' +
             '<button class="fbtn" data-launch-dec="' + b.id + '" title="停用本场一级"' +
             (_launchRun <= 0 ? ' disabled' : '') + '>−</button>' +
             '<b class="fnum">开 ' + _launchRun + '/' + lv + '</b>' +
@@ -330,12 +330,12 @@
         }
         if (b.launchpad && lv > 0 && s.techs && s.techs.adiabatic) {
           var _nodeOn = (s.launchMode === 'node');
-          elBtn = '<span class="furnctl' + (_nodeOn ? ' on' : '') + '">' +
-            '<button class="fbtn" data-launch-mode="1" title="' +
+          elBtn = '<span class="furnctl launch-mode' + (_nodeOn ? ' on' : '') + '">' +
+            '<button class="fbtn launch-mode-toggle" data-launch-mode="1" title="' +
             (_nodeOn ? '点击切换到「太阳帆」（每级每秒耗铀 0.5、火箭引擎 0.3、θ金属薄膜 0.3、热液能 4；周期完成时按本场等级同时发射）'
                      : '点击切换到「戴森球节点」（每级每秒耗铀 5、火箭引擎 3、θ金属薄膜 3、钛合金板 30、热液能 4；周期完成时按本场等级同时发射）') +
             '">' + (_nodeOn ? '节点' : '太阳帆') + '</button>' +
-            '<b class="fnum">制造 ' + (_nodeOn ? '戴森球节点' : '太阳帆') + '</b></span>';
+            '<b class="fnum launch-mode-label">制造 ' + (_nodeOn ? '戴森球节点' : '太阳帆') + '</b></span>';
         }
         // 等级标签显式标注“等级”，避免孤立数字被误认成其他状态。
         // 潮纹馆带「虚级」（大潮纹馆 +3，按效果算、按建筑不算，见 wonder.libBonus）：
@@ -362,10 +362,29 @@
         if (b.launchpad && lv > 0) {
           var _lpNodeMode = SB.economy && SB.economy.launchNodeMode ? SB.economy.launchNodeMode(s) : false;
           var _lpPct = launchProgressPct(s, b.id);
+          var _lpCosts = SB.economy && SB.economy.launchMaterialPer ? SB.economy.launchMaterialPer(s) : {};
+          var _lpHydroPer = SB.economy && SB.economy.launchHydroPer ? SB.economy.launchHydroPer(s) : 4;
+          var _lpCostRows = [
+            { key: 'uranium', short: '铀', full: '铀', per: _lpCosts.uranium || 0 },
+            { key: 'strongProp', short: '引擎', full: '强工质火箭引擎', per: _lpCosts.strongProp || 0 },
+            { key: 'thinafilm', short: 'θ薄膜', full: 'θ金属自适应薄膜', per: _lpCosts.thinafilm || 0 },
+            { key: 'tiplate', short: '钛板', full: '钛合金板', per: _lpCosts.tiplate || 0 },
+            { key: 'hydro', short: '热液能', full: '热液能', per: _lpHydroPer }
+          ];
+          var _lpCostShort = [], _lpCostFull = [];
+          for (var _lpc = 0; _lpc < _lpCostRows.length; _lpc++) {
+            var _lpCost = _lpCostRows[_lpc];
+            if (_lpCost.per <= 0) continue;
+            var _lpTotal = _lpCost.per * _launchRun;
+            _lpCostShort.push(_lpCost.short + ' −' + _lpTotal.toFixed(2) + '/秒');
+            _lpCostFull.push(_lpCost.full + ' −' + _lpTotal.toFixed(2) + '/秒');
+          }
+          var _lpCostTitle = '本场当前启用等级的额定每秒需求；缺料或热液能不足时制造暂停：' + _lpCostFull.join(' · ');
+          var _lpCostHTML = '<span class="launch-consumption" title="' + _lpCostTitle + '">' + _lpCostShort.join(' · ') + '</span>';
           launchProgressHTML = '<div class="launch-progress" id="launch-progress-' + b.id + '" data-launch-progress="' + b.id + '" title="本场按制造周期独立推进；停用时保留进度，热液能或原料不足时暂停" role="progressbar" aria-label="' +
             (_lpNodeMode ? '戴森球节点' : '太阳帆') + '发射进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + _lpPct + '" data-pct="' + _lpPct + '">' +
             '<span>发射进度</span><div class="launch-progress-track"><i style="width:' + _lpPct + '%"></i></div>' +
-            '<span class="launch-progress-value">' + _lpPct + '%</span></div>';
+            '<span class="launch-progress-value">' + _lpPct + '%</span>' + _lpCostHTML + '</div>';
         }
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
