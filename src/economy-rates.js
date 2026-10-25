@@ -72,11 +72,11 @@
     /* ERA8 市政（2026-10-18）：星际物流网卡 planetOutMul ×1.3 罩异星建筑（瑞亚/泰坦）各行，装卡才 >1。
      *   必须在 return 对象**之前**声明（对象字面量里不能写 var——上一次落点就是踩了这个）。 */
     var _planetMulR = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1)
-      * (1 + (Tr ? Tr.alienOutMul : 0));   // ERA9 行星际快速物流：异星建筑产出 +20%（与星际物流网卡 ×1.3 加算）
+      * (1 + (Tr ? Tr.alienOutMul : 0)) * P.starAlienOutputMul(s);   // ERA9 行星际快速物流：异星建筑产出 +20%（与星际物流网卡 ×1.3 加算）
     /* ERA9：发射场库存耗料净速率（uranium/strongProp/thinafilm/tiplate），与 tick 2f 同判据
      *   （hydro 满供 + 库存够才扣）。_sr.europaRate 即 hydroAlloc 的 europaRate（dt=1），与 tick 同源。
      * ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」）：节点模式（launchMode='node' 且已完成
-     *   《绝热材料》）节点耗料按铀 5 + 强工质引擎 3 + θ薄膜 3 + 钛合金板 30 /秒/级（节点减耗加成后）；
+     *   《绝热材料》）节点耗料按铀 5 + 强工质引擎 3 + θ薄膜 3 + 钛合金板 30 /秒/级（星屑树不再减少节点材料消耗）；
      *   每座场独立走周期，完成时按该场启用等级发射；总帆/节点速率为「启用等级总和 ÷ 节律」。
      *   ⚠️ 本段必须与 tick 2f 逐字同构：模式门（科技门）、各类耗料量、满供判据（含 tiplate）、
      *      节律（CFG.LAUNCH_CYCLE + Tr.launchCycle，矢量控制 −2s）。漏一路就是面板撒谎。 */
@@ -232,7 +232,7 @@
       /* ⚠️ 与上面 tick 里那一行**逐字同构**（含 institute 那一项、以及大图书馆
        *    libraryLevel / 政策卡 libraryMul 那两处）——
        *    面板路与结算路漏掉任何一路，玩家都会看到「写着 +50%、进账没变」。 */
-      science: (((j.scholar || 0) * SB.UNIT.sci
+      science: (((j.scholar || 0) * SB.UNIT.sci * P.starOrbitalJobMul(s)
                  * (1 + libraryLevel(s) * SB.BLD.sciRatio * (SB.civic ? SB.civic.libraryMul(s) : 1)
                     + (s.lvl.institute || 0) * (SB.BLD.instituteSci + upgSum(s, 'instituteSci')) * (SB.civic ? SB.civic.universityMul(s) : 1)
                     /* 2026-09-30 ERA4：雕版印刷机给学者 +30%（pressSci），与图书馆/研究所同一括号相加。 */

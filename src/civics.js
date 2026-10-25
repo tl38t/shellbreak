@@ -404,6 +404,22 @@
     }
     return m;
   }
+  /* 总动员令（card_mobilization）：每点闲置鲛人 +1% 破壳系数（乘区，乘在 breakCoef 整段上）。
+   * 2026-10-24 用户拍「接线到破壳系数」：`shellSpeedPerIdle` 原是一条只有定义、没有消费者的挂起通道
+   *   （civics-data.js 旧注写「等机器态落地再接线」），现由 shell.breakCoef 读本函数 —— 这是该字段的
+   *   **唯一落点**，别在别处再乘一次。闲置口径 = folk.idle(s)（= pop − 各职业人数，人类；不含机器人）。
+   * ⚠️ 本卡带 retiredBy='far_sight'，退役时由 research 顺手从 s.cards 拔下 ⇒ 退役后本函数自然回 1。 */
+  function cardBreakCoefMul(s) {
+    var m = 1, arr = (s && s.cards) || [], i, cd;
+    var idle = (SB.folk && SB.folk.idle) ? SB.folk.idle(s) : 0;
+    if (!(idle > 0)) return 1;
+    for (i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      cd = policyById(arr[i]);
+      if (cd && typeof cd.shellSpeedPerIdle === 'number') m *= 1 + cd.shellSpeedPerIdle * idle;
+    }
+    return m;
+  }
   /* 心胜于物卡：奇观建造消耗减免求和（wonderBuildSave）。wonder.discountedCost 读 (1 − 此值)。 */
   function cardWonderBuildSave(s) { return cardFieldSum(s, 'wonderBuildSave'); }
   /* ERA2-7 扩卡（2026-10-22 实装）：奇观建造消耗按纪元闸门的减免（wonderBuildSaveEra）。
@@ -463,12 +479,17 @@
     }
     return add;
   }
-  /* 黑色方碑建筑：建成即全局信仰产出 ×(1 + globalFaithMul)。economy.faithRate 读（乘整段）。 */
+  /* 黑色方碑建筑：每级全局信仰产出 ×faithMulPerLvl（economy.faithRate 读，乘整段）。
+   * ⚠️ 2026-10-24 用户拍板：由「建成即 ×1.2（一次性、等级不叠加）」改为「每级 ×1.05」。
+   *    lvl=0 时 Math.pow(x, 0) === 1 ⇒ 未建成天然不生效，不需要 `> 0` 特判。 */
   function buildingFaithMul(s) {
-    var m = 1;
+    var m = 1, lv;
     if (SB.BUILDINGS) for (var _bi2 = 0; _bi2 < SB.BUILDINGS.length; _bi2++) {
       var _b2 = SB.BUILDINGS[_bi2];
-      if (_b2 && typeof _b2.globalFaithMul === 'number' && (s.lvl && s.lvl[_b2.id] > 0)) m *= 1 + _b2.globalFaithMul;
+      if (_b2 && typeof _b2.faithMulPerLvl === 'number') {
+        lv = (s.lvl && s.lvl[_b2.id]) || 0;
+        m *= Math.pow(_b2.faithMulPerLvl, lv);
+      }
     }
     return m;
   }
@@ -620,13 +641,17 @@
       xOffset += span * COL_PITCH + (maxL[e + 1] ? (G.ERAPAD || 30) : 0);
     }
 
-    /* 行分配：按 (全局列, 声明序) 扫一遍，每列从 0 找第一个空行。
+    /* 行分配：按 (全局列, layoutOrder, id) 稳定排序，每列从 0 找第一个空行。
+     * layoutOrder 只用于同列分支的视觉次序（例如让两条终局市政分别对齐各自前置），
+     * 未指定时仍按 id 排，保持其它节点的位置稳定。
      * ⇒ 法典独占第 0 列第 0 行，技艺与神秘主义同在第 1 列、一上一下，互不撞行。 */
     var used = {}, order = [], cells = {};
     for (i = 0; i < C.length; i++) order.push(C[i]);
     order.sort(function (a, b) {
       var ca = colOf(a, eraBase, minL), cb = colOf(b, eraBase, minL);
-      return ca - cb || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+      var ao = a.layoutOrder == null ? 0 : a.layoutOrder;
+      var bo = b.layoutOrder == null ? 0 : b.layoutOrder;
+      return ca - cb || ao - bo || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     });
     for (i = 0; i < order.length; i++) {
       t = order[i];
@@ -824,6 +849,11 @@
     var c = byId(id);
     s.res.culture -= c.cost;
     s.civics[id] = 1;
+    /* 2026-10-24 成就「市政大成」（docs/ACHV_DESIGN_v0.3.md §四·8）：单周目全表完成。
+     * 判定收在 achv.checkCivicAll（数全表，不维护第二本计数器），这里只转发。
+     * ⚠️ 只数 CIVICS 表（69）——GOVS/POLICIES 是市政的配套分支/政策卡，不计入。 */
+    if (SB.achv && SB.achv.checkCivicAll && SB.game && SB.game.meta)
+      SB.achv.checkCivicAll(s, SB.game.meta());
     if (emit) emit('市政完成：' + c.name + '（' + c.desc + '）');
     /* 2026-10-14：每完成一个市政，给 1 次**免费卸下机会**（可累积、无上限）。
      * 动机：让玩家有节奏地调整政策卡，不被「卸下收费」门槛卡死。
@@ -1350,6 +1380,7 @@
     civicFarsightStarMul: civicFarsightStarMul, cardPlanetOutMul: cardPlanetOutMul,
     govAllOutMul: govAllOutMul, govFaithMul: govFaithMul, govOldFaithMul: govOldFaithMul,
     cardResOutMul: cardResOutMul, cardPopFaithMul: cardPopFaithMul, cardWonderBuildSave: cardWonderBuildSave,
+    cardBreakCoefMul: cardBreakCoefMul,
     cardWonderBuildSaveEra: cardWonderBuildSaveEra, cardFoodOutMul: cardFoodOutMul,
     cardCompanyBonusMul: cardCompanyBonusMul, cardBreakStardustMul: cardBreakStardustMul, cardSciToCivic: cardSciToCivic,
     cardFaithAllProdDouble: cardFaithAllProdDouble, cardCraftRatioRecipes: cardCraftRatioRecipes, buildingFaithMul: buildingFaithMul,

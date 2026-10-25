@@ -212,7 +212,7 @@
     //     ERA8→ERA9 市政（2026-10-18 / 2026-10-19）：星际物流网卡 planetOutMul ×1.3 罩异星建筑三行（装卡才 >1），
     //       另加 ERA9 行星际快速物流 interlog 的 alienOutMul +20%（与网卡乘区加算，与 rates._planetMulR 同口径）。
     var _planetMul = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1)
-      * (1 + (_T ? _T.alienOutMul : 0));
+      * (1 + (_T ? _T.alienOutMul : 0)) * SB.economyInternals.starAlienOutputMul(s);
     if (s.lvl.rheamine > 0) {
       var _rl = s.lvl.rheamine;
       addRes(s, 'stoneBeam', _rl * (SB.BLD.rheamineBeam || 0) * _gmx * _planetMul * dt);
@@ -245,7 +245,7 @@
     /* ── ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁1）三处改口径 ──
      * ① **模式切换**：完成《绝热材料》后 s.launchMode 可在 'sail'（太阳帆，默认）/ 'node'
      *    （戴森球节点）间切（UI 在发射场建筑行出切换钮，科技门控两侧同源）。
-     *    节点模式每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4；库存材料受星屑减耗。
+     *    节点模式每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4；材料不受星屑减耗。
      * ② **每座场独立计时**：该场启用至少一级时余数 += dt，不乘启用等级；周期完成时按本场启用等级发射。
      *    停用整座场时保留余数并暂停；三座场不共用进度，建筑等级不改变百分比速度。
      * ③ **节律可被科技压**：_cyc = max(1, CFG.LAUNCH_CYCLE + T.launchCycle)，
@@ -287,6 +287,15 @@
          * shell.js:175 同款调用路径）；dysonPopupSeen 防重播——玩家选「继续游玩」后不再弹。 */
         if (!s.dysonDone && SB.economy && SB.economy.dysonPct && SB.economy.dysonPct(s) >= 1) {
           s.dysonDone = true;
+          /* 2026-10-24 双结局成就（docs/ACHV_DESIGN_v0.3.md §四·3）：与本块两个互斥弹窗
+           * 同判据——已掌握《飞升虚境》⇒「虚境飞升」（乱码结局线），否则 ⇒「控星之人」。
+           * 判据读 s.civics（永久掌握），不是 s.cards。同一玩家可两周目各拿一条
+           * （各周目重新学该市政即可）。解锁挂在 dysonDone 置位处而非弹窗处：
+           * 离线挂起 / 弹窗已看过都不影响成就到账。 */
+          if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta) {
+            if (s.civics && s.civics.ascend_void) SB.achv.unlockOnce('voidEnd', SB.game.meta());
+            else SB.achv.unlockOnce('dysonEnd', SB.game.meta());
+          }
           if (!s.dysonPopupSeen) {
             /* ERA10 市政《飞升虚境》（2026-10-20 用户表）：已掌握该市政 ⇒ 走**乱码结局**弹窗，
              * 否则走普通竣工弹窗。两个弹窗互斥（同一次竣工只该弹一个）。
@@ -305,6 +314,15 @@
               else if (_R.showDysonComplete) _R.showDysonComplete(s);
             }
           }
+        }
+        /* 2026-10-24 成就「半程星环」（docs/ACHV_DESIGN_v0.3.md §四·7）：进度 50% 即发，
+         * 不等竣工。seen 旗让重复 tick 零成本（进度只涨不跌，旗只是省得每拍重算）。
+         * ⚠️ 位置在本 running 块内：sunSails/dysonNodes 全库只有上面发射循环一个增长点
+         *   （economy.js:939 dysonPct 只读这两个量），进度暂停时不会跨过阈值而不被发现。 */
+        if (!s.halfDysonSeen && SB.economy && SB.economy.dysonPct && SB.economy.dysonPct(s) >= 0.5) {
+          s.halfDysonSeen = true;
+          if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta)
+            SB.achv.unlockOnce('halfDyson', SB.game.meta());
         }
       }
     }
@@ -348,7 +366,7 @@
      * ERA8 市政奇观：哈'利法宇宙望远镜满档学者 ×1.10（khalifaScholarMul，与旅行者独立叠加）。 */
     var _voySch = (SB.wonder ? SB.wonder.voyagerScholarMul(s) : 1)
       * (SB.wonder && SB.wonder.khalifaScholarMul ? SB.wonder.khalifaScholarMul(s) : 1);
-    s.res.science += (j.scholar * SB.UNIT.sci
+    s.res.science += (j.scholar * SB.UNIT.sci * P.starOrbitalJobMul(s)
       * (1 + libraryLevel(s) * SB.BLD.sciRatio * (SB.civic ? SB.civic.libraryMul(s) : 1)
         + (s.lvl.institute || 0) * (SB.BLD.instituteSci + _uInst) * (SB.civic ? SB.civic.universityMul(s) : 1)
         + _uPress

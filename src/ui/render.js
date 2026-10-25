@@ -14,7 +14,7 @@
 
   /* 页签 / 面板键顺序（也是 renderPanes 的遍历顺序）。faith 紧挨 civic：
    *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'challenges'];
+  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'challenges', 'achievements'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
@@ -52,6 +52,12 @@
     workshop: { name: '工坊',     color: '#f0a45c' },
     wonder:   { name: '奇观',     color: '#ffd166' },
     'star-map': { name: '星图',   color: '#87a7ff' },
+    /* 2026-10-24：挑战与成就拆成两个页签（用户要求）。两个键都补中文名——
+     * 此前 challenges 走的是下面 CARD_META 查找失败的 fallback（name = key），
+     * 标题条一直显示英文「challenges」，本次顺手正过来。
+     * ⚠️ company 同样是 fallback（显示英文「company」），不在本次范围，未动。 */
+    challenges: { name: '挑战',     color: '#f0a45c' },
+    achievements: { name: '成就',   color: '#d7bd80' },
     meta:     { name: '轮回商店', color: '#9fb4ff' }
   };
   /* ── 巢穴页内的建筑分区标题配色（2026-09-30 晚，用户：「这里的文字颜色也改了，就是生息区这些」）──
@@ -180,7 +186,7 @@
       if (k === 'hydro' || k === 'starExplore' || k === 'stardust' || !SB.economy.resUnlocked(s, k)) continue;
       var isCraft = SB.RESS[k].kind === 'craft';
       var v = s.res[k];
-      var cls = 'res' + (k === 'kelp' && v < need ? ' neg' : '');
+      var cls = 'res' + (k === 'luxury' ? ' luxury' : '') + (k === 'kelp' && v < need ? ' neg' : '');
       /* 上限写进格子：只有有限上限的资源才显示 /N（科技、地热是 Infinity，不显示）。
        * 满了标红——那一刻起继续产出是在白流，玩家得知道该去造压舱仓或花掉。
        * ⚠️ 存量与上限是**两种精度**：存量走 fmtAmt（固定一位小数，因为珊瑚 0.1/次、
@@ -245,7 +251,8 @@
               (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2));
         }
         luxTxt = '<i class="sd"' + (_luxTip ? ' title="' + _luxTip + '"' : '') + '>产 ' +
-          LL.out.toFixed(2) + ' · 耗 ' + LL.burn.toFixed(2) + '</i>';
+          '<span class="lux-out">' + LL.out.toFixed(2) + '</span> · 耗 ' +
+          '<span class="lux-burn">' + LL.burn.toFixed(2) + '</span></i>';
         hideRate = true;
         /* ④ 手机端 ⓘ：解释文本只挂一次（ⓘ 的 title），点按时由 showHoverInfo 读出弹浮层。
          * 桌面端 ⓘ 不显示（CSS 门控），.sd 的原生 title hover 照旧 —— 两端同一份文本。 */
@@ -265,9 +272,10 @@
       }
       /* 标签行顺序（2026-10-21 用户要求）：名称 → 产/耗 → 净值 → 全产加成。
        * 奢侈品行 hideRate=true ⇒ 不重复净值（净 = 产 − 耗，见上面 ③）。 */
-      var row = '<div class="' + cls + '"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
-        SB.economy.fmtAmt(v) + capTxt + '</b><span>' + rowName + luxTxt + (hideRate ? '' : rateTxt) +
-        faithBonusTxt + tipBtn + '</span></div>';
+      var resourceIcon = '<img class="res-icon" src="assets/resource-icons/' + k + '.png?v=2" alt="" aria-hidden="true" width="48" height="48" decoding="async">';
+      var row = '<div class="' + cls + '">' + resourceIcon + '<div class="res-content"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
+        SB.economy.fmtAmt(v) + capTxt + '</b><span class="res-details"><span class="res-label"><span class="res-name">' + rowName + '</span></span>' + luxTxt + (hideRate ? '' : rateTxt) +
+        faithBonusTxt + tipBtn + '</span></div></div>';
       if (isCraft) htmlCraft += row; else htmlBase += row;
     }
     g.innerHTML = htmlBase;
@@ -291,20 +299,58 @@
   function renderShell() {
     var s = res(); if (!s) return;
     var f = el('shellFill'), txt = el('shellTxt'), hint = el('shellHint');
-    /* 破壳后：破壳槽 → 星空槽（太空时代终局资源，2026-10-13 镜像破壳）。
-     * 复用同一条 shellbar（#shellFill/#shellTxt/#shellHint），内容换成星空累积进度。 */
+    /* 破壳后：同一条 shellbar 先显示星空探索进度；完成《绝热材料》启动戴森球工程后，
+     * 这里直接切换为工程进度与帆/节点计数。 */
     if (s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled)) {
+      if (s.techs && s.techs.adiabatic) {
+        var dysonCapSails = SB.CFG.DYSON_SAIL_CAP || 10000;
+        var dysonCapNodes = SB.CFG.DYSON_NODE_CAP || 1000;
+        var dysonRatio = SB.economy && SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0;
+        var dysonPercent = Math.max(0, Math.min(100, dysonRatio * 100));
+        var currentSails = Math.max(0, Number(s.sunSails) || 0);
+        var currentNodes = Math.max(0, Number(s.dysonNodes) || 0);
+        var stagePosition = s.dysonDone ? 5 : dysonPercent / 20;
+        var currentStage = Math.min(5, Math.floor(dysonPercent / 20) + 1);
+        if (s.dysonDone) currentStage = 5;
+        var stageTrack = el('shellDysonStages');
+        if (stageTrack) {
+          if (s.dysonDone) stageTrack.classList.add('is-finished');
+          else stageTrack.classList.remove('is-finished');
+          var stageCells = stageTrack.children || [];
+          for (var si = 0; si < stageCells.length; si++) {
+            var cell = stageCells[si];
+            var cellProgress = Math.max(0, Math.min(1, stagePosition - si));
+            var cellClass = 'dyson-stage' + (cellProgress >= 1 ? ' is-complete' : '') +
+              (stagePosition >= si && stagePosition < si + 1 && !s.dysonDone ? ' is-current' : '');
+            if (cell.className !== cellClass) cell.className = cellClass;
+            var cellFill = cell.firstElementChild || (cell.children && cell.children[0]);
+            if (cellFill) cellFill.style.width = (cellProgress * 100) + '%';
+          }
+        }
+        f.style.width = dysonPercent + '%';
+        f.className = 'shellfill dyson';
+        if (f.parentNode) f.parentNode.classList.add('dyson-progress');
+        var dysonLbl = el('shellLbl');
+        if (dysonLbl) dysonLbl.innerHTML = '<img class="special-resource-icon" src="assets/building-icons/era-10/era10-solar-ring-v2.png" alt="" aria-hidden="true" width="20" height="20"><span>戴森球工程进度</span>';
+        txt.innerHTML = (s.dysonDone ? '★ 戴森球已竣工' : '戴森球工程 ' + dysonPercent.toFixed(2) + '%') +
+          ' <span class="dyson-stage-badge">阶段 ' + currentStage + ' / 5</span>' +
+          ' <span class="cap">（太阳帆 ' + currentSails.toLocaleString() + ' / ' + dysonCapSails.toLocaleString() +
+          ' ＋ 戴森球节点 ' + currentNodes.toLocaleString() + ' / ' + dysonCapNodes.toLocaleString() + '）</span>';
+        hint.textContent = '五阶段各代表总工程的 20%；进度取太阳帆与戴森球节点中较慢的一项，两项都达标后工程竣工。';
+        return;
+      }
       var cap = SB.CFG.STAR_CAP || 0;
       var cur = s.res.starExplore || 0;
       var p = cap > 0 ? (cur / cap) * 100 : 0;
       f.style.width = Math.max(0, Math.min(100, p)) + '%';
       f.className = 'shellfill';
+      if (f.parentNode) f.parentNode.classList.remove('dyson-progress');
       /* 卡片标题跟着翻转（2026-10-13 截图验证发现：条改了、标题还挂「天壳 · 冰封层厚度」）。 */
       var lbl = el('shellLbl');
-      if (lbl) lbl.textContent = '星空 · 深空探索进度';
+      if (lbl) lbl.innerHTML = '<img class="special-resource-icon" src="assets/resource-icons/starExplore.png?v=2" alt="" aria-hidden="true" width="20" height="20"><span>星空 · 深空探索进度</span>';
       if (s.starComplete) {
         txt.innerHTML = '★ 太空时代达成 <span class="cap">（' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '）</span>';
-        hint.textContent = '星空槽已填满。太空时代完成——后续终局内容待接入。';
+        hint.textContent = '星空探索已达上限；研究《绝热材料》后，戴森球工程进度会接替这里。';
       } else {
         txt.innerHTML = '星空槽 ' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '（' + p.toFixed(2) + '%）';
         hint.textContent = '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积，满槽即太空时代达成。'
@@ -318,6 +364,7 @@
     var p2 = SB.economy.rOf(s) * 100;
     f.style.width = Math.max(0, p2) + '%';
     f.className = 'shellfill' + (SB.economy.isCold(s) ? ' cold' : '');
+    if (f.parentNode) f.parentNode.classList.remove('dyson-progress');
     txt.innerHTML =
       Math.round(s.shell) + ' / ' + s.iceShell + '（' + p2.toFixed(1) + '%）' +
       (SB.economy.isCold(s) ? ' <span class="coldbadge">· 本季冰封</span>' : '');
@@ -342,7 +389,7 @@
     box.innerHTML = '<div class="star-complete-panel">'
       + '<h2>★ 太空时代达成</h2>'
       + '<p>星空槽已填满（' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '）。</p>'
-      + '<p class="muted">你的文明已越过天壳，望向群星。终局奖励与后续内容将在后续版本接入。</p>'
+      + '<p class="muted">你的文明已越过天壳，望向群星。终局奖励与后续内容将在后续更新中开放。</p>'
       + '<div class="break-controls"><button class="btn big" type="button" id="starCompleteClose">继续</button></div>'
       + '</div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
@@ -375,6 +422,12 @@
       + '<button class="btn" type="button" id="dysonKeepPlaying">继续游玩</button>'
       + '</div></div>';
     modal.classList.remove('break-modal');
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    modal.classList.remove('void-ending-modal');
+    modal.classList.remove('void-civic-modal');
+    box.classList.remove('tree-detail-box');
     modal.classList.remove('hidden'); bodyModalClass(true);
     var b1 = el('dysonBreakNow');
     if (b1) b1.onclick = function () {
@@ -455,6 +508,12 @@
       + '<button class="btn" type="button" id="voidKeepPlaying">' + C('继续游玩', 29) + '</button>'
       + '</div></div>';
     modal.classList.remove('break-modal');
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    modal.classList.remove('void-civic-modal');
+    box.classList.remove('tree-detail-box');
+    modal.classList.add('void-ending-modal');
     modal.classList.remove('hidden'); bodyModalClass(true);
     var b1 = el('voidBreakNow');
     if (b1) b1.onclick = function () {
@@ -543,7 +602,10 @@
     modal.classList.remove('tree-modal');
     modal.classList.remove('tree-tech');
     modal.classList.remove('tree-civic');
+    modal.classList.remove('void-civic-modal');
     box.classList.remove('tree-detail-box');
+    if (ascendVoid) modal.classList.add('void-ending-modal');
+    else modal.classList.remove('void-ending-modal');
     modal.classList.add('break-modal');
     modal.classList.remove('hidden');
     bodyModalClass(true);
@@ -581,10 +643,10 @@
   var paneTech = researchParts.paneTech;
   var paneCivic = researchParts.paneCivic;
   var paneCivicGov = researchParts.paneCivicGov;
+  var paneGovPicker = researchParts.paneGovPicker;
   var paneCivicSlot = researchParts.paneCivicSlot;
   var civicNoticeState = researchParts.civicNoticeState;
   var setCivicView = researchParts.setCivicView;
-  var toggleGovDetail = researchParts.toggleGovDetail;
   var techGoEra = researchParts.techGoEra;
   var civicGoEra = researchParts.civicGoEra;
   var armCard = researchParts.armCard;
@@ -603,6 +665,9 @@
     faith: SB.ui.renderParts.paneFaith, workshop: SB.ui.renderParts.paneWorkshop, wonder: SB.ui.renderParts.paneWonder,
     'star-map': SB.ui.renderParts.paneStarMap, meta: paneMetaHub,
     challenges: SB.ui.renderParts.paneChallenges,
+    /* 2026-10-24：成就独立页签。与 challenges 同一个渲染部件文件、同一道门
+     * （meta.shopUnlocked = 首次轮回），只是从页尾拆成了独立 pane。 */
+    achievements: SB.ui.renderParts.paneAchievements,
     company: SB.ui.renderParts.paneCompany };
 
   function stardustShopOpen() {
@@ -642,6 +707,56 @@
     return h;
   }
 
+  var STAR_TREE_ICON_BY_KEY = {
+    civilization: 'assets/tech-icons/era-10/era10-heir-of-stars.png',
+    enterprise: 'assets/company-icons/craftco.png',
+    industry: 'assets/building-icons/era-10/era10-solar-ring-v2.png',
+    frontier: 'assets/resource-icons/starExplore.png',
+    automation: 'assets/tech-icons/era-8/era8-robotics.png'
+  };
+  var STAR_PERK_ICON_BY_ID = {
+    starFolk1: 'assets/tech-icons/era-1/era1-cultivation.png',
+    starInfinite: 'assets/resource-icons/stardust.png',
+    starModuleHousing: 'assets/building-icons/era-5/era5-tenement.png',
+    starFoldableStructure: 'assets/building-icons/era-8/era8-robotbay.png',
+    starCompanyMaturity1: 'assets/company-icons/craftco.png',
+    starCompanyResearchSynergy: 'assets/company-icons/scico.png',
+    starSmelt1: 'assets/resource-icons/thetaMetal.png',
+    starLaunchSpeed1: 'assets/building-icons/era-9/era9-europa-launch-v2.png',
+    starNuclearHydro1: 'assets/building-icons/era-7/era7-fissionplant.png',
+    starSailHydro1: 'assets/resource-icons/starExplore.png',
+    starSolarRing1: 'assets/building-icons/era-10/era10-solar-ring-v2.png',
+    starRingRocketEngineCraft: 'assets/resource-icons/rocketEngine.png',
+    starRingThetaFilmCraft: 'assets/resource-icons/thinafilm.png',
+    starRingStrongPropellantCraft: 'assets/resource-icons/strongProp.png',
+    starExplore1: 'assets/resource-icons/starExplore.png',
+    starExploreScholar1: 'assets/building-icons/era-7/era7-spacestation.png',
+    starAlienOutput1: 'assets/building-icons/era-9/era9-mars-workshop.png',
+    starTerraform1: 'assets/tech-icons/era-9/era9-terraform.png',
+    earlyAutoBuildCore: 'assets/building-icons/era-1/era1-nest.png',
+    earlyAutoBuildFood: 'assets/building-icons/era-1/era1-kelp.png',
+    earlyAutoBuildWorkshop: 'assets/building-icons/era-1/era1-workshop.png',
+    earlyAutoBuildTrade: 'assets/building-icons/era-4/era4-caravanserai.png',
+    earlyAutoBuildAcademy: 'assets/building-icons/era-5/era5-school.png',
+    earlyAutoBuildCivic: 'assets/building-icons/era-3/era3-civichall.svg',
+    earlyAutoBuildFaith: 'assets/building-icons/era-2/era2-temple.png',
+    earlyAutoBuildSpace: 'assets/building-icons/era-7/era7-satellite.png'
+  };
+  function starPerkIconSrc(perk) {
+    if (STAR_PERK_ICON_BY_ID[perk.id]) return STAR_PERK_ICON_BY_ID[perk.id];
+    if (/^starFolk/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starFolk1;
+    if (/^starCompanyMaturity/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starCompanyMaturity1;
+    if (/^starSmelt/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starSmelt1;
+    if (/^starNuclearHydro/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starNuclearHydro1;
+    if (/^starSailHydro/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starSailHydro1;
+    if (/^starSolarRing/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starSolarRing1;
+    if (/^starExplore[123]$/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starExplore1;
+    if (/^starExploreScholar/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starExploreScholar1;
+    if (/^starAlienOutput/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starAlienOutput1;
+    if (/^starTerraform/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starTerraform1;
+    return '';
+  }
+
   /* 星穹商店：星屑结算、永久强化和轮回点兑换。 */
   function paneStarDome() {
     var s = res(); if (!s) return '';
@@ -657,9 +772,10 @@
       if (fb.stardustFacility && fl > 0) facilityNames.push(fb.name + ' ' + fl);
     }
     var starTrees = [
-      { key: 'civilization', icon: '✦', accent: '#b2a5ff', title: '文明共鸣', subtitle: '放大轮回遗产与岗位', ids: ['starInfinite', 'starFolk'] },
-      { key: 'industry', icon: '⚙', accent: '#70d0d9', title: '星际工业', subtitle: '淬炼金属，提升戴森工程', ids: ['starSmelt', 'starLaunchSpeed', 'starDysonCost', 'starSailHydro'] },
-      { key: 'frontier', icon: '◎', accent: '#83d9ba', title: '星域拓展', subtitle: '重构行星，观测深空', ids: ['starTerraform', 'starExplore'] },
+      { key: 'civilization', icon: '✦', accent: '#b2a5ff', title: '文明共鸣', subtitle: '强化族民、住房与轮回遗产', ids: ['starFolk1', 'starFolk2', 'starFolk3', 'starInfinite', 'starModuleHousing', 'starFoldableStructure'] },
+      { key: 'enterprise', icon: '⌂', accent: '#d9b878', title: '寰宇巨企', subtitle: '加速企业成长，协同科研产出', ids: ['starCompanyMaturity1', 'starCompanyMaturity2', 'starCompanyMaturity3', 'starCompanyResearchSynergy'] },
+      { key: 'industry', icon: '⚙', accent: '#70d0d9', title: '星际工业', subtitle: '提升星炉、核电、发射与星环制造', ids: ['starSmelt1', 'starSmelt2', 'starSmelt3', 'starLaunchSpeed1', 'starNuclearHydro1', 'starNuclearHydro2', 'starNuclearHydro3', 'starSailHydro1', 'starSailHydro2', 'starSolarRing1', 'starSolarRing2', 'starSolarRing3', 'starRingRocketEngineCraft', 'starRingThetaFilmCraft', 'starRingStrongPropellantCraft'] },
+      { key: 'frontier', icon: '◎', accent: '#83d9ba', title: '星域拓展', subtitle: '观测深空、联通轨道与异星工业', ids: ['starExplore1', 'starExplore2', 'starExplore3', 'starExploreScholar1', 'starExploreScholar2', 'starAlienOutput1', 'starAlienOutput2', 'starAlienOutput3', 'starTerraform1', 'starTerraform2'] },
       { key: 'automation', icon: '◈', accent: '#dfb879', title: '先行建造协议', subtitle: '提前启动各区自动建造', ids: ['earlyAutoBuildCore', 'earlyAutoBuildFood', 'earlyAutoBuildWorkshop', 'earlyAutoBuildTrade', 'earlyAutoBuildAcademy', 'earlyAutoBuildCivic', 'earlyAutoBuildFaith', 'earlyAutoBuildSpace'] }
     ];
     var litStarNodes = 0, starLevels = 0, totalStarNodes = SB.STAR_PERKS.length;
@@ -669,16 +785,20 @@
       starLevels += ownedStar.lv;
     }
     var h = '<div class="cardbody">' +
-      '<div class="meta-overview"><div class="meta-balance"><span>星屑余额</span><strong>' + sd + '</strong><small>累计结算获得 ' + ((m && m.stardustEarned) || 0) + '</small></div>' +
+      '<div class="meta-overview"><div class="meta-balance"><span class="meta-balance-label"><img class="special-resource-icon" src="assets/resource-icons/stardust.png?v=2" alt="" aria-hidden="true" width="20" height="20">星屑余额</span><strong>' + sd + '</strong><small>累计结算获得 ' + ((m && m.stardustEarned) || 0) + '</small></div>' +
       '<div class="meta-stats"><div><span>下次结算预计</span><b>' + nextGain + ' 星屑</b></div><div><span>太空与异星设施</span><b>' + facilityLvls + ' 级</b></div><div><span>戴森球进度</span><b>' + Math.floor(dysonPct * 100) + '%</b></div></div></div>' +
       '<details class="star-yield-details"><summary>星屑结算档案 <span>星空进度 ' + Math.floor(starPct * 100) + '% · 计入设施 ' +
       (facilityNames.length ? facilityNames.join('、') : '尚无') + '</span></summary><p>预计值 = floor(设施等级 × 0.1 × (1 + 星空进度) × ' +
       '(1 + 戴森进度 × 50%) × 已解锁加成)。戴森球按太阳帆与戴森节点两者较低进度计算；星间遗迹、先民遗产、继承繁星之人也会计入。</p></details>' +
       '<section class="meta-tree-intro star-tree-intro"><div><span class="meta-tree-kicker">STARDUST LEGACY · 局外成长</span>' +
-      '<h2>星屑天赋树</h2><p>点亮星脉，永久强化后续周目；目前各项天赋均可独立投资。</p></div>' +
+      '<h2>星之至宝</h2><p>沿前置星脉逐层点亮，永久强化后续周目；根节点可独立投资。</p></div>' +
       '<div class="meta-tree-progress"><span>已点亮节点</span><b>' + litStarNodes + '<i> / ' + totalStarNodes + '</i></b>' +
       '<div class="meta-tree-progress-track"><i style="width:' + (totalStarNodes ? litStarNodes / totalStarNodes * 100 : 0) + '%"></i></div>' +
       '<small>累计强化 ' + starLevels + ' 阶</small></div></section><div class="star-tree-grid">';
+    function starPerkName(id) {
+      for (var ni = 0; ni < SB.STAR_PERKS.length; ni++) if (SB.STAR_PERKS[ni].id === id) return SB.STAR_PERKS[ni].name;
+      return id;
+    }
     for (var ti = 0; ti < starTrees.length; ti++) {
       var tree = starTrees[ti], starItems = [];
       for (var pi = 0; pi < SB.STAR_PERKS.length; pi++) {
@@ -690,19 +810,24 @@
       var starNodes = [];
       for (var si2 = 0; si2 < starItems.length; si2++) {
         var sp = starItems[si2], ss = SB.prestige.starPerkState(sp.id);
-        var starState = ss.done ? 'is-done' : ss.afford ? 'is-ready' : 'is-growing';
+        var starPrerequisites = ss.prerequisites || [];
+        var starState = ss.done ? 'is-done' : ss.locked ? 'is-locked' : ss.afford ? 'is-ready' : 'is-growing';
         starNodes.push({
-          id: sp.id, name: sp.name, desc: sp.desc, rank: ss.lv,
+          id: sp.id, name: sp.name, desc: sp.desc, layer: sp.layer,
+          nests: starPrerequisites, nest: starPrerequisites[0] || '',
+          nestName: starPrerequisites.map(starPerkName).join('、'), rank: ss.lv,
           rankText: ss.lv + '/' + (isFinite(ss.max) ? ss.max : '∞'),
-          status: ss.done ? '已达上限' : ss.afford ? '可点亮' : '积攒星屑',
+          status: ss.done ? '已达上限' : ss.locked ? '等待前置' : ss.afford ? '可点亮' : '积攒星屑',
           cost: ss.done ? '已满级' : '✧ ' + ss.next + ' 星屑',
-          state: starState, disabled: ss.done || !ss.afford,
-          glyph: tree.icon, attr: 'data-star-perk="' + sp.id + '"', title: sp.name
+          state: starState, disabled: ss.done || ss.locked || !ss.afford,
+          glyph: tree.icon, iconSrc: starPerkIconSrc(sp), attr: 'data-star-perk="' + sp.id + '"', title: sp.name
         });
       }
       h += SB.ui.talentTreeMarkup({
         className: 'star-talent-tree star-tree-' + tree.key,
-        title: tree.title, subtitle: tree.subtitle, icon: tree.icon, accent: tree.accent, nodes: starNodes
+        scrollKey: 'star-' + tree.key,
+        title: tree.title, subtitle: tree.subtitle, icon: tree.icon, iconSrc: STAR_TREE_ICON_BY_KEY[tree.key],
+        accent: tree.accent, layout: 'layered', nodes: starNodes
       });
     }
     h += '</div><section class="meta-shop-group star-exchange-group"><div class="meta-section-title"><b>星屑炼金</b><span>双向固定汇率，无手续费</span></div><div class="meta-shop-grid">' +
@@ -743,6 +868,39 @@
   var civicScrollLeft = 0, civicShown = false;
   var civicJumpTo = null, civicJumpDone = false;
   function scheduleCivicJumpTo(px) { civicJumpTo = px; }
+
+  /* 轮回/星屑天赋树（都在 pane-meta 之内，每棵一个 `.talent-map-scroll`）同一个病、同一副药：
+   * PANE_REFRESH 每 2 秒把 pane-meta 整块重写一次 ⇒ 每棵树的横向滚动容器被换成新元素
+   * ⇒ scrollLeft 归零 ⇒ 玩家拖到半路被定期拽回最左。与 tech/civic 卷同构：重画前按
+   * 稳定键（treeMarkup 输出的 data-talent-scroll：`meta-<组键>` / `star-<树键>`，由各树
+   * 稳定派生、不随内容变化）把各树位置记进模块（跨页签切换也活），重画后写回。
+   * ⚠️ 隐藏态（pane-meta 带 .hidden）读数恒为 0，不能当成玩家位置 ⇒ 只信可见态。
+   * ⚠️ e2e 假 DOM 的 mkEl 没有 querySelectorAll（见 sim/e2e.mjs:76），必须 typeof 判存在再调，
+   *    否则 boot 期 renderPanes 直接抛错、整份 e2e 在第 ~200 行断掉（与本次改动无关，极易误判回退）。 */
+  var talentScroll = Object.create(null);
+  function snapshotTalentScroll() {
+    var node = el('pane-meta');
+    if (!node || (node.classList && node.classList.contains && node.classList.contains('hidden'))) return;
+    if (typeof node.querySelectorAll !== 'function') return;
+    var scrolls = node.querySelectorAll('.talent-map-scroll');
+    for (var i = 0; i < scrolls.length; i++) {
+      var key = scrolls[i].getAttribute && scrolls[i].getAttribute('data-talent-scroll');
+      if (key) talentScroll[key] = scrolls[i].scrollLeft || 0;
+    }
+  }
+  function restoreTalentScroll() {
+    var node = el('pane-meta');
+    if (!node || (node.classList && node.classList.contains && node.classList.contains('hidden'))) return;
+    if (typeof node.querySelectorAll !== 'function') return;
+    var scrolls = node.querySelectorAll('.talent-map-scroll');
+    for (var i = 0; i < scrolls.length; i++) {
+      var key = scrolls[i].getAttribute && scrolls[i].getAttribute('data-talent-scroll');
+      if (key && talentScroll[key] != null) {
+        scrolls[i].scrollLeft = talentScroll[key];
+        talentScroll[key] = scrolls[i].scrollLeft || 0;
+      }
+    }
+  }
   /* 纪元导航（render 侧的状态）：
    *   techViewEra —— 详情卡正在讲哪个纪元。0 = 跟随当前纪元（默认）。
    *                 ⚠️ 存 0 而不是存「当前纪元 id」，是为了让「纪元推进了」自动跟着走：
@@ -780,6 +938,9 @@
     var cShown = !cNode || !cNode.classList || !cNode.classList.contains('hidden');
     var cbox = el('civicScroll');
     if (cbox && cShown && civicShown) civicScrollLeft = cbox.scrollLeft || 0;
+
+    /* 天赋树卷：先按可见态快照各树横向位置（详见上方注释）。 */
+    snapshotTalentScroll();
 
     for (var k in PANES) {
       var node = el('pane-' + k);
@@ -828,8 +989,6 @@
             }, '*');
           }
           if (SB.ui.renderParts.refreshStarMapBuildings) SB.ui.renderParts.refreshStarMapBuildings(_smS);
-          /* ERA10（2026-10-20）：戴森面板随星图分支一起刷新（独立容器，不碰 iframe 签名）。 */
-          if (SB.ui.renderParts.refreshDysonPanel) SB.ui.renderParts.refreshDysonPanel(_smS);
         }
       } else if (k === 'folk' && SB.ui.input && SB.ui.input.isFolkControlPointerActive &&
                  SB.ui.input.isFolkControlPointerActive()) {
@@ -877,6 +1036,8 @@
       cbox.scrollLeft = civicScrollLeft;
       civicScrollLeft = cbox.scrollLeft || 0;
     }
+    /* 天赋树卷：重写之后把各树横向位置写回（详见上方注释）。 */
+    restoreTalentScroll();
   }
 
   /* 点纪元按钮：切详情卡 + （已抵达的纪元）把长卷滚到它的左边界。
@@ -1152,6 +1313,43 @@
       };
     }
   }
+  /* 政体选择器：当前政体摘要留在市政页，候选项通过独立弹窗选择。 */
+  function openGovPicker() {
+    var box = el('modalBox'), modal = el('modal'), s = res();
+    if (!box || !modal || !s || !paneGovPicker) return;
+    var current = null;
+    for (var i = 0; i < (SB.GOVS || []).length; i++) {
+      if (SB.GOVS[i].id === s.gov) current = SB.GOVS[i];
+    }
+    var currentName = current
+      ? ((SB.civic && SB.civic.govTitleName) ? SB.civic.govTitleName(s) : current.name)
+      : '无';
+    box.innerHTML =
+      '<div class="gov-picker-modal-head"><div><span>文明制度</span><h2 id="gov-picker-title">更换政体</h2>' +
+        '<p>当前：' + currentName + ' · 各政体效果与采纳条件如下</p></div>' +
+        '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭政体选择">×</button></div>' +
+      '<div class="gov-picker-modal-content">' + paneGovPicker(s) + '</div>' +
+      '<div class="gov-picker-modal-foot"><span>政体效果、卡槽与更换费用均显示在卡片中。</span>' +
+        '<button type="button" class="btn" data-modal-close="1">取消</button></div>';
+    modal.classList.remove('break-modal');
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    modal.classList.remove('offline-summary-modal');
+    modal.classList.remove('void-ending-modal');
+    modal.classList.remove('void-civic-modal');
+    modal.classList.remove('story-modal');
+    modal.classList.add('gov-picker-modal');
+    box.classList.remove('tree-detail-box');
+    box.classList.remove('story-box');
+    if (box.setAttribute) {
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-labelledby', 'gov-picker-title');
+    }
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+  }
   /* 更新日志面板（2026-10-11）：点页脚「更新日志」按钮打开，列出 CFG.CHANGELOG（最新在前）。
    * 复用 #modal 遮罩 + data-modal-close 关闭通道（与排行榜选择面板同款）。 */
   function openChangelog() {
@@ -1359,9 +1557,17 @@
     modal.classList.remove('tree-tech');
     modal.classList.remove('tree-civic');
     modal.classList.remove('break-modal');
+    modal.classList.remove('void-ending-modal');
+    modal.classList.remove('void-civic-modal');
     modal.classList.remove('story-modal');
+    modal.classList.remove('gov-picker-modal');
     el('modalBox').classList.remove('tree-detail-box');
     el('modalBox').classList.remove('story-box');
+    if (el('modalBox').removeAttribute) {
+      el('modalBox').removeAttribute('role');
+      el('modalBox').removeAttribute('aria-modal');
+      el('modalBox').removeAttribute('aria-labelledby');
+    }
     bodyModalClass(false);
   }
 
@@ -1535,7 +1741,15 @@
     if (ch) {
       var chopen = !!(meta() && meta().shopUnlocked);
       ch.classList.toggle('locked', !chopen);
-      ch.title = chopen ? '' : '首次轮回后开启挑战与成就';
+      ch.title = chopen ? '' : '首次轮回后开启挑战';
+    }
+    /* 成就页签（2026-10-24 从「挑战与成就」拆出）：门与挑战页**同一个**
+     * （meta.shopUnlocked = 首次轮回），不另立判据——两个页签本就是一门两页。 */
+    var ac = document.querySelector('.tab[data-tab="achievements"]');
+    if (ac) {
+      var acopen = !!(meta() && meta().shopUnlocked);
+      ac.classList.toggle('locked', !acopen);
+      ac.title = acopen ? '' : '首次轮回后开启成就';
     }
     /* 信仰页的灰态：**第五个独立门槛** —— 神学（与资源行 / 产出线的 gate 同源：
      *   resUnlocked(s,'faith') ⇔ s.civics.theology），不在这里另立一份判据。 */
@@ -1634,6 +1848,8 @@
           if (node.dataset.tab === 'workshop' && !workshopTabOpen()) return;
           if (node.dataset.tab === 'meta' && !meta().shopUnlocked && !stardustShopOpen()) return;
           if (node.dataset.tab === 'challenges' && !meta().shopUnlocked) return;
+          /* 成就页签与挑战同门（meta.shopUnlocked）——与 setTab 里那道是同一件事写两遍。 */
+          if (node.dataset.tab === 'achievements' && !meta().shopUnlocked) return;
           /* 信仰页的门 = 神学（与 setTab 里那道是同一件事写两遍，理由同科技/市政）。
            * 走 resUnlocked 而不是直接读 s.civics.theology：门只有一处定义。 */
           if (node.dataset.tab === 'faith' &&
@@ -1747,7 +1963,8 @@
         if (hi0 && !hi0.classList.contains('hidden')) { hi0.classList.add('hidden'); return; }
         var intro = el('introMask'), modal = el('modal');
         if (intro && !intro.classList.contains('hidden')) closeIntro();
-        else if (modal && !modal.classList.contains('hidden') && modal.classList.contains('tree-modal')) hideModal();
+        else if (modal && !modal.classList.contains('hidden') &&
+                 (modal.classList.contains('tree-modal') || modal.classList.contains('gov-picker-modal'))) hideModal();
       } else if (e.key === 'Enter' || e.key === ' ') {
         var infoLink = e.target && e.target.closest ? e.target.closest('.inline-info-link') : null;
         if (infoLink) {
@@ -1813,7 +2030,8 @@
     toggleCardFold: toggleCardFold, applyAllFolds: applyAllFolds,
     toggleZoneFold: toggleZoneFold, isZoneFolded: isZoneFolded, zoneColor: zoneColor,
     toggleBuildingIcons: toggleBuildingIcons, buildingIconsShown: buildingIconsShown,
-    setCivicView: setCivicView, toggleGovDetail: toggleGovDetail,
+    setCivicView: setCivicView,
+    openGovPicker: openGovPicker,
     armCard: armCard, disarmCard: disarmCard, armedCard: getArmedCard,
     cycleJobStep: cycleJobStep, jobStep: getJobStep, paintGrow: paintGrow,
     setWorkshopView: SB.ui.renderParts.setWorkshopView,
@@ -1851,6 +2069,11 @@
      *   st.next 是否是数字而不是 undefined（那类「undefined 点」的上屏事故就钉在它上面）。 */
     paneMeta: SB.ui.renderParts.paneMeta,
     paneChallenges: SB.ui.renderParts.paneChallenges,
+    /* ⚠️ 2026-10-24：导出 `paneAchievements`（成就墙独立页签）供回归直接断言
+     * 「挑战页不再含成就墙、成就页含三区」——与 paneWonder 同一手法：
+     * 只导出同一个渲染函数（render-pane-challenges.js 的 paneAchvWall 包装），
+     * 不另写一份过滤逻辑。 */
+    paneAchievements: SB.ui.renderParts.paneAchievements,
     /* ⚠️ 2026-10-05：同理导出工坊三段的渲染函数，回归要直接验「未解锁不显示」。
      *   （走 renderPanes 那条路取不到属性：假 DOM 的 innerHTML 不回填 children。） */
     paneToolRows: SB.ui.renderParts.paneToolRows, paneCraftRows: SB.ui.renderParts.paneCraftRows, paneUpgradeRows: SB.ui.renderParts.paneUpgradeRows,

@@ -147,6 +147,12 @@
     var box = el('modalBox'), modal = el('modal');
     box.classList.add('tree-detail-box');
     var detailIcon = SB.ui.renderCommon.treeIconHTML(item, revealed, 'tree-detail-icon');
+    var civicFlavor = !tech && revealed ? SB.ui.renderContent.CIVIC_FLAVOR[id] : '';
+    var voidCivics = { void_faith: 101, void_explore: 107, ascend_void: 113 };
+    var voidCivic = Object.prototype.hasOwnProperty.call(voidCivics, id);
+    if (voidCivic && civicFlavor && SB.ui.render && typeof SB.ui.render.voidCorrupt === 'function') {
+      civicFlavor = SB.ui.render.voidCorrupt(civicFlavor, voidCivics[id], 1);
+    }
     box.innerHTML =
       '<div class="tree-detail-head"><div class="tree-detail-mark' + (detailIcon ? ' has-image' : '') + '">' + (detailIcon || (item.key ? '✦' : tech ? '⌘' : '§')) +
       '</div><div class="tree-detail-title"><h3 id="treeDetailTitle">' + title + (item.key && revealed ? ' <span class="tree-key">关键节点</span>' : '') +
@@ -163,7 +169,7 @@
       unlockSection +
       '<section class="tree-detail-section"><h4>前置节点</h4><div class="tree-reqs">' + reqHtml + '</div></section>' +
       (tech && revealed && TECH_FLAVOR[id] ? '<p class="b-flavor">' + TECH_FLAVOR[id] + '</p>' : '') +
-      (!tech && revealed && SB.ui.renderContent.CIVIC_FLAVOR[id] ? '<p class="b-flavor' + ({ void_faith: 1, void_explore: 1, ascend_void: 1 }[id] ? ' void-flavor' : '') + '">' + SB.ui.renderContent.CIVIC_FLAVOR[id] + '</p>' : '') +
+      (civicFlavor ? '<p class="b-flavor' + (voidCivic ? ' void-flavor' : '') + '">' + civicFlavor + '</p>' : '') +
       '<div class="tree-detail-actions"><button class="btn buy" type="button" data-tree-study="' + (tech ? 'tech' : 'civic') + '" data-' + (tech ? 'tech' : 'civic') + '="' + id + '"' +
       (done || blocked ? ' disabled' : '') + (blocked ? ' title="' + blocked + '"' : '') + '>' + buttonText + '</button>' +
       '<button class="btn tree-back" type="button" data-modal-close="1">返回树图</button></div>';
@@ -174,6 +180,9 @@
     modal.classList.remove('tree-tech');
     modal.classList.remove('tree-civic');
     modal.classList.add(tech ? 'tree-tech' : 'tree-civic');
+    modal.classList.remove('void-civic-modal');
+    modal.classList.remove('void-ending-modal');
+    if (voidCivic) modal.classList.add('void-civic-modal');
     modal.classList.remove('hidden');
     bodyModalClass(true);
   }
@@ -191,6 +200,8 @@
     box.setAttribute('aria-modal', 'true');
     box.setAttribute('aria-labelledby', 'treeDetailTitle');
     modal.classList.add('tree-modal');
+    modal.classList.remove('void-civic-modal');
+    modal.classList.remove('void-ending-modal');
     modal.classList.remove('hidden');
     bodyModalClass(true);
   }
@@ -205,12 +216,24 @@
     if (!b) return '';
     if (b.id === 'fissionplant') {
       var _nfz = !!(s && s.techs && s.techs.nuclear_fusion);
-      var _h = (SB.BLD.fissionHydro || 0) * (_nfz ? 5 : 1);
+      var _h = (SB.BLD.fissionHydro || 0) * (_nfz ? 5 : 1) * (SB.economy.starNuclearHydroMul ? SB.economy.starNuclearHydroMul(s || { perk: {} }) : 1);
       var _u = (SB.BLD.fissionUranium || 0) * (_nfz ? 2 : 1);
       var _lx = (SB.BLD.fissionLuxAdd || 0) * 100;
       return '热液能 +' + _h + '/秒/级（不烧暖石）；耗铀 ' + _u.toFixed(2) +
         '/秒/级；居民奢侈品消耗 +' + _lx.toFixed(0) + '%/级（负面）。' +
         (_nfz ? '核聚变已研究，上列数已含其加成。' : '');
+    }
+    if (b.id === 'researchlab') {
+      var _researchPct = (SB.BLD.researchLabSci || 0) * 100;
+      return '科技产出 +' + _researchPct.toFixed(1) + '%/级；研究科技消耗 −' +
+        (((SB.BLD.researchLabSave || 0) * 100).toFixed(0)) + '%/级。';
+    }
+    if (b.id === 'robotbay') {
+      var _foldable = (s && s.perk && s.perk.starFoldableStructure) || 0;
+      var _robotsPerBay = 4 + _foldable;
+      var _robotBayHydro = (SB.UNIT.robotbayHydro || 0) + 2 * _foldable;
+      return '维持 ' + _robotsPerBay + ' 机器人人口/级：仅担任非书手/学者岗位，产出 +20%。工坊升级「强人工智能」后产出 +50%，且按人口数量产出信仰。耗热液能 ' +
+        _robotBayHydro + '/秒/级（含星之至宝加成）。';
     }
     return b.desc || '';
   }
@@ -246,7 +269,7 @@
       case 'square':       return pct('市政点产出（仅' + SB.folk.jobName(s, 'scribe') + '）', B.squareCivRatio * 100, B.squareCivRatio * 100 * L, 0) +
                                  '；装《戏剧与诗歌》后翻倍';
       case 'temple':       return pct('信仰产出', B.templeFaithRatio * 100, B.templeFaithRatio * 100 * L, 0) +
-                                 '；宗教系统落地后生效';
+                                 '；装《神学》后翻倍';
       case 'hydroturbine': return add('热液能', U.hydroOut || 0, (U.hydroOut || 0) * L, '/秒', 0);
       case 'coralfarm':    return pct('珊瑚匠产出', B.coralFarmCW * 100, B.coralFarmCW * 100 * L, 0);
       case 'bank':         return pct('商人产出', B.bankLux * 100, B.bankLux * 100 * L, 0);
@@ -363,7 +386,7 @@
         ? meta.CONSUME_LABEL[key] + ' −' + cr[key].toFixed(2) + '/秒'
         : meta.CONSUME_IDLE[key]);
     }
-    return '<span class="fdraw" title="满转口径：这几座每秒消耗 ' +
+    return '<span class="fdraw" title="满负荷运转时：这几座每秒消耗 ' +
       ps.map(function (x) { return x.replace(' −', ' ').replace('/秒', ''); }).join('、') +
       '（与结算同式，缺料时会按比例降产）">' + ps.join(' · ') + '</span>';
   }
@@ -385,7 +408,7 @@
       var k = order[i];
       parts.push(cr[k] > 0 ? CONSUME_LABEL[k] + ' −' + cr[k].toFixed(2) + '/秒' : CONSUME_IDLE[k]);
     }
-    return parts.join('；') + '（满转口径：按当前开着的座数折算，缺料按比例降产）';
+    return parts.join('；') + '（满负荷运转：按当前开着的座数折算，缺料按比例降产）';
   }
 
   // 展示文案由 render-content.js 提供，集中维护且不进入存档。
@@ -410,6 +433,7 @@
       ? { cls: 'locked', text: '前置条件未满足' }
       : { cls: lv ? 'done' : 'ready', text: lv ? '已建造 · 等级 ' + lv : '可建造' };
     var housePlan = (s.perk && s.perk.housePlan) || 0;
+    var moduleHousing = (s.perk && s.perk.starModuleHousing) || 0;
     var housePerLevel = id === 'nest' ? SB.BLD.house
       : id === 'coralhouse' ? SB.BLD.house2
         : id === 'tenement' ? SB.BLD.tenementPop : 0;
@@ -417,6 +441,7 @@
     if (housePerLevel) {
       effectText = '人口上限 +' + housePerLevel + '/级（当前 +' + (housePerLevel * lv) + '）';
       if (housePlan) effectText += ' · 生息建筑规划额外 +' + housePlan + '/级（当前 +' + (housePlan * lv) + '）';
+      if (id === 'tenement' && moduleHousing) effectText += ' · 模块住房额外 +' + moduleHousing + '/级（当前 +' + (moduleHousing * lv) + '）';
       if (id === 'nest') effectText += '。住满后不再生育。';
       if (id === 'tenement') effectText += '；每级额外 +' + ((SB.BLD.tenementLuxAdd || 0) * 100).toFixed(0) + '% 居民奢侈品消耗（当前 +' + ((SB.BLD.tenementLuxAdd || 0) * lv * 100).toFixed(0) + '%）。';
     } else {
@@ -431,13 +456,21 @@
     var consumeSection = consumeText
       ? '<section class="tree-detail-section"><h4>运行消耗</h4><p>' + linkInfoNames(consumeText) + '</p></section>'
       : '';
+    var maxed = b.maxLvl && lv >= b.maxLvl;
+    var nextLevelSection = maxed
+      ? '<section class="tree-detail-section"><h4>等级上限</h4><p>已达最高等级（' + lv + '/' + b.maxLvl + '）</p></section>'
+      : '<section class="tree-detail-section"><h4>下一次建造 / 升级</h4><p>' + SB.economy.costOwnedTxt(s, cost) + '</p></section>';
+    var buildingFlavor = BUILDING_FLAVOR[b.id] || '';
+    var voidBuilding = b.id === 'void_altar';
+    if (voidBuilding && buildingFlavor && SB.ui.render && typeof SB.ui.render.voidCorrupt === 'function') {
+      buildingFlavor = SB.ui.render.voidCorrupt(buildingFlavor, 137, 1);
+    }
     var body = '<div class="tree-cost"><span>当前等级</span><b>' + lv + '</b></div>' +
       '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(effectText) + '</p></section>' +
       consumeSection +
-      '<section class="tree-detail-section"><h4>下一次建造 / 升级</h4><p>' +
-      SB.economy.costOwnedTxt(s, cost) + '</p></section>' +
+      nextLevelSection +
       '<section class="tree-detail-section"><h4>建造条件</h4><p>' + reqText + '</p></section>' +
-      (BUILDING_FLAVOR[b.id] ? '<p class="b-flavor">' + BUILDING_FLAVOR[b.id] + '</p>' : '');
+      (buildingFlavor ? '<p class="b-flavor' + (voidBuilding ? ' void-flavor' : '') + '">' + buildingFlavor + '</p>' : '');
     var buildingMark = b.icon
       ? '<img class="tree-detail-icon" src="' + b.icon + '" alt="" aria-hidden="true">'
       : '⌂';
@@ -449,7 +482,7 @@
   function wonderArt(w, s) {
     var src = WONDER_ART[w.id];
     if (src) return '<div class="wonder-art has-image"><img src="' + src + '" alt="' + SB.wonder.displayName(s, w.id) + '"></div>';
-    return '<div class="wonder-art placeholder"><span>✦</span><small>奇观视觉稿 · 待补</small></div>';
+    return '<div class="wonder-art placeholder"><span>✦</span></div>';
   }
   function showWonderInfo(id) {
     var s = res(), w = SB.wonder && SB.wonder.byId(id);

@@ -597,7 +597,7 @@
      *      （没买升级前机器人仍不进信仰基项，robotbay 原 desc「不影响信仰点」随之改口径）。 */
     { id: 'upg_strongai', name: '强人工智能', need: 'strong_ai',
       cost: { thetaMetal: 1000 },
-      desc: '机器人产出 ×1.2 → ×1.5，且机器人按人口口径产出信仰（消耗 1000 θ金属）。' }
+      desc: '机器人产出 ×1.2 → ×1.5，且机器人按人口数量产出信仰（消耗 1000 θ金属）。' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
@@ -863,7 +863,7 @@
     { id: 'wonder_fishvr', name: '魔鱼世界VR', era: 8, needCivic: 'virtual_reality',
       cost: { thinafilm: 10 },
       effect: { happyBonus: 1 },
-      desc: '全域沉浸幻境：幸福度 +1；运转持续消耗热液能 5/秒（断流只停幻境不停幸福加成，与空间站同口径）。' },
+      desc: '全域沉浸幻境：幸福度 +1；运转持续消耗热液能 5/秒（断流只停幻境，幸福加成照旧，与空间站规则一致）。' },
 
     /* ── ERA10（2026-10-20 实装 · 用户 ERA10 表「引力弹弓」解锁）──
      * 【朱庇特质量加速站】need=引力弹弓（gravity_sling）。建造 20 强工质火箭引擎 + 100 θ金属自适应薄膜（用户表原值）。
@@ -944,7 +944,7 @@
     robotHydro: 3,
     /* ERA8（2026-10-19 · B7）：机器人充能站（robotbay）每级每秒耗热液能（spec §4 列 8）。 */
     robotbayHydro: 8,
-    /* ERA9：太阳帆/戴森节点模式各自每级每秒消耗；节点库存材料吃星屑减耗，热液能不减。 */
+    /* ERA9：太阳帆/戴森节点模式各自每级每秒消耗；节点库存材料不吃星屑树减耗，热液能不减。 */
     launchSailUranium: 0.5, launchSailStrongProp: 0.3, launchSailThinafilm: 0.3,
     launchSailHydro: 4,
     dysonNodeUranium: 5, dysonNodeStrongProp: 3, dysonNodeThinafilm: 3, dysonNodeTiplate: 30,

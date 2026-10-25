@@ -7,6 +7,10 @@
   var BUBBLES_KEY = 'shellbreak.deepBubbles';
   var choices = ['day', 'night'];
 
+  var RES_KEY = 'shellbreak.uiResolution';
+  var RES_OPTIONS = ['auto', '720p', '1080p', '1440p', '2K'];
+  var DESIGN_WIDTH = { '720p': 1280, '1080p': 1920, '1440p': 2560, '2K': 2048 };
+
   function prefersReducedMotion() {
     return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
@@ -53,6 +57,47 @@
     }
   }
 
+  function currentResolution() {
+    try {
+      var v = root.localStorage.getItem(RES_KEY);
+      if (RES_OPTIONS.indexOf(v) >= 0) return v;
+    } catch (e) {}
+    return 'auto';
+  }
+
+  /* 游戏整体分辨率：桌面（fine pointer）且横屏时，把 .wrap 锁定到所选档位的设计宽度，
+   * 再用 CSS zoom 等比缩放进视口宽度（contain-by-width）；竖屏/触摸/auto 下恢复自然响应式布局
+   * （max-width:1080px 居中）。zoom 不创建包含块、不困住 position:fixed 的弹窗/常驻卡，且保留页面滚动。 */
+  function applyResolution(res, persist) {
+    res = RES_OPTIONS.indexOf(res) >= 0 ? res : 'auto';
+    var wrap = root.document.querySelector ? root.document.querySelector('.wrap') : null;
+    if (!wrap) {
+      if (persist) { try { root.localStorage.setItem(RES_KEY, res); } catch (e) {} }
+      return;
+    }
+    var mq = root.matchMedia || function () { return { matches: false }; };
+    var isTouch = mq('(pointer: coarse)').matches;
+    var isLandscape = mq('(orientation: landscape)').matches;
+    var useFixed = res !== 'auto' && !isTouch && isLandscape;
+    if (!useFixed) {
+      wrap.style.width = '';
+      wrap.style.maxWidth = '';
+      wrap.style.zoom = '';
+      root.document.documentElement.dataset.uiResolution = 'auto';
+    } else {
+      var w = DESIGN_WIDTH[res] || 1920;
+      var scale = root.innerWidth / w;
+      if (!(scale <= 2.5)) scale = 2.5;
+      wrap.style.width = w + 'px';
+      wrap.style.maxWidth = 'none';
+      wrap.style.zoom = String(scale);
+      root.document.documentElement.dataset.uiResolution = res;
+    }
+    if (persist) {
+      try { root.localStorage.setItem(RES_KEY, res); } catch (e) {}
+    }
+  }
+
   function boot() {
     var docRoot = root.document.documentElement;
     /* e2e 的轻量假 DOM 没有 documentElement；生产浏览器始终有，缺失时安静跳过。 */
@@ -76,6 +121,21 @@
     } else if (motionQuery && motionQuery.addListener) {
       motionQuery.addListener(function () { applyBubbles(savedBubblesPreference(), false); });
     }
+
+    // ---- 游戏分辨率（桌面/横屏固定渲染宽度，contain 缩放进视口；移动端/竖屏始终自适应） ----
+    var res0 = currentResolution();
+    applyResolution(res0, false);
+    var resSelect = root.document.querySelector('[data-ui-resolution]');
+    if (resSelect) resSelect.value = res0;
+    root.document.addEventListener('change', function (event) {
+      var t = event.target && event.target.closest ? event.target.closest('[data-ui-resolution]') : null;
+      if (t) applyResolution(t.value, true);
+    });
+    function recomputeResolution() { applyResolution(currentResolution(), false); }
+    root.addEventListener('resize', recomputeResolution);
+    var orientQuery = root.matchMedia ? root.matchMedia('(orientation: landscape)') : null;
+    if (orientQuery && orientQuery.addEventListener) orientQuery.addEventListener('change', recomputeResolution);
+    else if (orientQuery && orientQuery.addListener) orientQuery.addListener(recomputeResolution);
   }
 
   if (root.document) boot();

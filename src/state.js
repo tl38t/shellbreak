@@ -46,10 +46,22 @@
       /* ERA7（2026-10-17 · spec §7）：星屑跨周目局外资源。只在周目结算时累加（prestige.doBreak），
        *   与轮回点同侧；freshRun 时 seed 进 s.got.stardust 供超古代科技 eureka 读。 */
       stardust: 0, stardustEarned: 0,
-      starPerks: { starInfinite: 0, starSmelt: 0, starFolk: 0,
+      /* 2026-10-24 成就系统（设计稿 docs/ACHV_DESIGN_v0.3.md）四个跨周目键：
+       *   achv             本地成就账本——游戏内成就墙唯一真源，条件达成即记，与平台 ID 是否回填无关；
+       *   achievements     平台账本——只有 unlock() 真向 tap 发出请求才写（未回填不假装成功，老玩家宽限补发）；
+       *   rebirths         合格轮回计数——只在 prestige.doBreak 合格分支 +1（软重置/神学前重置/留在本局都不计）；
+       *   buildingLvlTotal 轻车熟路跨周目累计账本（建筑 id → 累计购买等级），startRun 合并本周目 buildingLvlRun 增量。
+       * ⚠️ 老档无这些键 ⇒ normalizeMeta 的 Object.assign(emptyMeta(), parsed) 自动补默认值，零迁移代码。 */
+      achv: {}, achievements: {}, rebirths: 0, buildingLvlTotal: {},
+      starPerks: { starFolk1: 0, starFolk2: 0, starFolk3: 0, starInfinite: 0, starModuleHousing: 0, starFoldableStructure: 0,
+        starCompanyMaturity1: 0, starCompanyMaturity2: 0, starCompanyMaturity3: 0, starCompanyResearchSynergy: 0,
+        starSmelt1: 0, starSmelt2: 0, starSmelt3: 0, starLaunchSpeed1: 0, starNuclearHydro1: 0, starNuclearHydro2: 0, starNuclearHydro3: 0,
+        starSailHydro1: 0, starSailHydro2: 0, starSolarRing1: 0, starSolarRing2: 0, starSolarRing3: 0,
+        starRingRocketEngineCraft: 0, starRingThetaFilmCraft: 0, starRingStrongPropellantCraft: 0,
+        starExplore1: 0, starExplore2: 0, starExplore3: 0, starExploreScholar1: 0, starExploreScholar2: 0,
+        starAlienOutput1: 0, starAlienOutput2: 0, starAlienOutput3: 0, starTerraform1: 0, starTerraform2: 0,
         earlyAutoBuildCore: 0, earlyAutoBuildFood: 0, earlyAutoBuildWorkshop: 0, earlyAutoBuildTrade: 0,
-        earlyAutoBuildAcademy: 0, earlyAutoBuildCivic: 0, earlyAutoBuildFaith: 0, earlyAutoBuildSpace: 0,
-        starLaunchSpeed: 0, starDysonCost: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0 } };
+        earlyAutoBuildAcademy: 0, earlyAutoBuildCivic: 0, earlyAutoBuildFaith: 0, earlyAutoBuildSpace: 0 }, starPerksVersion: 0 };
   }
   function emptyPerks() {
     /* 轮回商店增益的运行时累加表。键必须与 config.PERKS 各商品的 apply 键一致；
@@ -67,11 +79,12 @@
       /* 轮回商店「自动点击」系列：autoClick = 每秒自动点击次数（0/1/2/3，三档叠加），
        * autoEvent = 点击事件自动拾取（0/1）。键与 config.PERKS 的 apply 键一致。 */
       autoClick: 0, autoEvent: 0,
-      /* 星屑商店运行态增益；等级从 meta.starPerks 派生。 */
-      starInfinite: 0, starSmelt: 0, starFolk: 0,
+      /* 星屑商店运行态加成。星脉等级由 meta.starPerks 派生。 */
+      starInfinite: 0, starSmelt: 0, starFolk: 0, starLaunchSpeed: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0,
+      starModuleHousing: 0, starFoldableStructure: 0, starCompanyMaturity: 0, starCompanyResearchSynergy: 0,
+      starNuclearHydro: 0, starSolarRing: 0, starExploreScholar: 0, starAlienOutput: 0,
       earlyAutoBuildCore: 0, earlyAutoBuildFood: 0, earlyAutoBuildWorkshop: 0, earlyAutoBuildTrade: 0,
       earlyAutoBuildAcademy: 0, earlyAutoBuildCivic: 0, earlyAutoBuildFaith: 0, earlyAutoBuildSpace: 0,
-      starLaunchSpeed: 0, starDysonCost: 0, starSailHydro: 0, starTerraform: 0, starExplore: 0,
       /* 2026-10-23 潮汐之树（TIDE_TREE）新增运行态键：键名必须与 config.TIDE_TREE 各节点 apply 键一致。
        * recipeCraft 是字典（配方 id → 每级效率加成），其余为数值累加/聚合键。
        * 旧 PERKS 的 retired 键（gather/coef/popcap/coldStore/offline/civicArchive/civicPlan/govRoutine/
@@ -102,18 +115,20 @@
     out.applied = true;
     var cycle = m.cycle || 0;
     var PL = SB.TIDE_TREE || [], i;
+    var starInfiniteBoost = 1 + Math.max(0, Math.floor(Number(m.starPerks && m.starPerks.starInfinite) || 0));
     for (i = 0; i < PL.length; i++) {
       var p = PL[i];
       var lv = (m.perks && m.perks[p.id]) || 0;
       if (!lv) continue;
+      var effectScale = p.n === Infinity ? starInfiniteBoost : 1;
       var a = p.apply || {};
       for (var k in a) {
-        if (p.mode === 'max') out.perk[k] = Math.max(out.perk[k] || 0, a[k] * lv);
-        else if (p.dyn === 'loop5') out.perk[k] = (out.perk[k] || 0) + a[k] * 0.05 * cycle * lv;
-        else out.perk[k] = (out.perk[k] || 0) + a[k] * lv;
+        if (p.mode === 'max') out.perk[k] = Math.max(out.perk[k] || 0, a[k] * lv * effectScale);
+        else if (p.dyn === 'loop5') out.perk[k] = (out.perk[k] || 0) + a[k] * 0.05 * cycle * lv * effectScale;
+        else out.perk[k] = (out.perk[k] || 0) + a[k] * lv * effectScale;
       }
       if (p.give) { for (var g in p.give) out.give[g] = (out.give[g] || 0) + p.give[g] * lv; }
-      if (p.recipe) out.perk.recipeCraft[p.recipe] = (out.perk.recipeCraft[p.recipe] || 0) + (p.rmul || 0.1) * lv;
+      if (p.recipe) out.perk.recipeCraft[p.recipe] = (out.perk.recipeCraft[p.recipe] || 0) + (p.rmul || 0.1) * lv * effectScale;
     }
     var SPL = SB.STAR_PERKS || [];
     for (i = 0; i < SPL.length; i++) {
@@ -121,6 +136,7 @@
       if (!slv) continue;
       var sa = sp.apply || {};
       for (var sk in sa) out.perk[sk] = (out.perk[sk] || 0) + sa[sk] * slv;
+      if (sp.recipe) out.perk.recipeCraft[sp.recipe] = (out.perk.recipeCraft[sp.recipe] || 0) + (sp.rmul || 0.1) * slv;
     }
     return out;
   }
@@ -273,7 +289,7 @@
          * europa_launch 虽在母星（core 区），但发射台向星图推进太阳帆（s.sunSails 累加器），
          * 故另需 sunSails / launchProcs 运行态种子（见下方 geek 段旁）。 */
         mars_workshop: 0, europa_launch: 0,
-        /* ERA9（2026-10-20 市政《神们自己》解锁建筑）：黑色方碑（信仰产出 ×1.2）。
+        /* ERA9（2026-10-20 市政《神们自己》解锁建筑）：黑色方碑（2026-10-24 起改为每级信仰产出 ×1.05）。
          * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。 */
         black_monolith: 0,
         /* ERA10（驭星纪 · 2026-10-20）：太阳星环（space 区，近恒星轨道建设解锁）。
@@ -285,6 +301,12 @@
          * ⚠️ void_altar 是本作第一座带 maxLvl 的建筑，等级上限由建筑条目上的 maxLvl 决定，
          *    状态表这边只存等级、不存上限（上限改了老档要跟着生效，不能烤进存档）。 */
         terra_launch: 0, enceladus_launch: 0, void_altar: 0 },
+      /* 2026-10-24 成就系统（轻车熟路记账）：本周目各建筑已购买等级的增量账本。
+       * 写入点唯一 = habitat.build 的 s.lvl[id]++（手动/自动建造/AI bot 全走它）；
+       * startRun 时并入 meta.buildingLvlTotal 跨周目累计，故本表**不**跨周目保留。
+       * 不逐建筑 seed：读时 `buildingLvlRun[id] || 0`，缺键即 0（与 lvl 表相反——
+       * 那是 costOf 会读的消费表，漏键成 NaN；这本是纯累计账，漏键只是没攒过）。 */
+      buildingLvlRun: {},
       // 职业全 0（猫国 jobs[] 全部 value:0，开局没人被分配职业），人口靠闲置池分配
       /* 职业表必须与 SB.JOBS 一一对应，少一个键就是一次 NaN 事故：
        * 缺 gather 时 economy 里 `s.jobs.gather * SB.UNIT.kelp` 变成
@@ -395,6 +417,10 @@
       faithPopup: false,
       workshopPopup: false,
       wonderPopup: false,
+      /* 星图/公司页解锁叙事旗（2026-10-24）：⚠️ 必须登记在 freshRun——
+       * state-migrate.js 读档白名单只保留 base 里已有的键，不登记 = 刷新即丢 = 弹窗每次重播。 */
+      starMapPopup: false,
+      companyPopup: false,
       era: 1,
       eureka: {},
       eurekaMet: {},
@@ -570,6 +596,49 @@
       }
       delete m.starPerks.earlyAutoBuild;
     }
+    /* 2026-10-24 星之至宝树改版：旧阶级映射到新版对应节点；超出新版等级上限的已购阶级退还星屑。 */
+    if (!(typeof m.starPerksVersion === 'number' && isFinite(m.starPerksVersion))) m.starPerksVersion = 0;
+    if (m.starPerksVersion < 3) {
+      var oldStar = m.starPerks || {}, oldCosts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+      function migrateStarSeries(oldId, newIds) {
+        var oldLv = Math.max(0, Math.floor(Number(oldStar[oldId]) || 0));
+        if (!oldLv) { delete oldStar[oldId]; return; }
+        var newLv = Math.min(oldLv, newIds.length), i;
+        for (i = 0; i < newLv; i++) oldStar[newIds[i]] = Math.max(oldStar[newIds[i]] || 0, 1);
+        for (i = newIds.length; i < oldLv; i++) m.stardust += oldCosts[i] || 0;
+        delete oldStar[oldId];
+      }
+      migrateStarSeries('starSmelt', ['starSmelt1', 'starSmelt2', 'starSmelt3']);
+      migrateStarSeries('starFolk', ['starFolk1', 'starFolk2', 'starFolk3']);
+      migrateStarSeries('starExplore', ['starExplore1', 'starExplore2', 'starExplore3']);
+      migrateStarSeries('starTerraform', ['starTerraform1', 'starTerraform2']);
+      migrateStarSeries('starSailHydro', ['starSailHydro1', 'starSailHydro2']);
+      migrateStarSeries('starResearchLab', ['starResearchLab1', 'starResearchLab2', 'starResearchLab3', 'starResearchLab4', 'starResearchLab5', 'starResearchLab6', 'starResearchLab7', 'starResearchLab8', 'starResearchLab9', 'starResearchLab10']);
+      var oldLaunchLv = Math.max(0, Math.floor(Number(oldStar.starLaunchSpeed) || 0));
+      if (oldLaunchLv) oldStar.starLaunchSpeed1 = Math.max(oldStar.starLaunchSpeed1 || 0, 1);
+      for (var launchRefund = 1; launchRefund < oldLaunchLv; launchRefund++) m.stardust += [3, 6, 9][launchRefund] || 0;
+      delete oldStar.starLaunchSpeed;
+      var oldDysonLv = Math.max(0, Math.min(10, Math.floor(Number(oldStar.starDysonCost) || 0)));
+      for (var sdRefund = 1; sdRefund <= oldDysonLv; sdRefund++) m.stardust += sdRefund;
+      delete oldStar.starDysonCost;
+      m.starPerksVersion = 3;
+    }
+    /* 2026-10-24 移除科研所增幅节点：返还其历史投入，清理旧版单节点与新版拆分节点。 */
+    if (m.starPerksVersion < 4) {
+      var retiredStarLabRanks = [
+        ['starResearchLab1', 1], ['starResearchLab2', 2], ['starResearchLab3', 3], ['starResearchLab4', 4], ['starResearchLab5', 5],
+        ['starResearchLab6', 6], ['starResearchLab7', 7], ['starResearchLab8', 8], ['starResearchLab9', 9], ['starResearchLab10', 10]
+      ];
+      var retiredStarLabLv = Math.max(0, Math.min(10, Math.floor(Number(m.starPerks.starResearchLab) || 0)));
+      for (var sri = 1; sri <= retiredStarLabLv; sri++) m.stardust += sri;
+      for (var srj = 0; srj < retiredStarLabRanks.length; srj++) {
+        var retiredRank = Math.max(0, Math.min(1, Math.floor(Number(m.starPerks[retiredStarLabRanks[srj][0]]) || 0)));
+        if (retiredRank) m.stardust += retiredStarLabRanks[srj][1];
+        delete m.starPerks[retiredStarLabRanks[srj][0]];
+      }
+      delete m.starPerks.starResearchLab;
+      m.starPerksVersion = 4;
+    }
     var starPerkDefaults = emptyMeta().starPerks;
     for (var starPerkId in starPerkDefaults) {
       var starPerkLevel = m.starPerks[starPerkId];
@@ -593,6 +662,20 @@
       var completed = m.challenges.completed[challengeId];
       if (challengeId === 'cold' || challengeId === 'small' || challengeId === 'drift_terra') m.challenges.completed[challengeId] = completed === true;
       else m.challenges.completed[challengeId] = Math.max(0, Math.min(3, completed | 0));
+    }
+    /* 2026-10-24 成就系统四键守卫（docs/ACHV_DESIGN_v0.3.md）：
+     * achv = 本地账本（key→true），achievements = 平台账本，两本都只做「是对象」的兜底，
+     * 不做值清洗——脏值（非 true）在 unlockOnce 侧按 falsy 处理，改这里反而会把
+     * 「平台发了但本地漏记」的脏状态静默抹平。rebirths / buildingLvlTotal 做强清洗。 */
+    if (!m.achv || typeof m.achv !== 'object' || Array.isArray(m.achv)) m.achv = {};
+    if (!m.achievements || typeof m.achievements !== 'object' || Array.isArray(m.achievements)) m.achievements = {};
+    if (!(typeof m.rebirths === 'number' && isFinite(m.rebirths))) m.rebirths = 0;
+    m.rebirths = Math.max(0, Math.floor(m.rebirths));
+    if (!m.buildingLvlTotal || typeof m.buildingLvlTotal !== 'object' || Array.isArray(m.buildingLvlTotal)) m.buildingLvlTotal = {};
+    for (var _bltId in m.buildingLvlTotal) {
+      var _bltVal = m.buildingLvlTotal[_bltId];
+      if (!(typeof _bltVal === 'number' && isFinite(_bltVal)) || _bltVal < 0) delete m.buildingLvlTotal[_bltId];
+      else m.buildingLvlTotal[_bltId] = Math.floor(_bltVal);
     }
     /* 旧档没有 religionSeen / shopUnlocked，但已有跨周目进度时保留老玩家解锁。 */
     if (parsed.religionSeen === undefined) {

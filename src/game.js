@@ -57,6 +57,9 @@
      * 直达路径也必须经过同一门；挑战入口仍另行要求真实轮回解锁。 */
     if (k === 'meta' && !meta.shopUnlocked && !stardustShopUnlocked()) return;
     if (k === 'challenges' && !meta.shopUnlocked) return;
+    /* 成就页签（2026-10-24 从「挑战与成就」拆出）：与挑战**同一道门**
+     * （首次轮回开放），直达路径（弹窗/测试）也必须过它。 */
+    if (k === 'achievements' && !meta.shopUnlocked) return;
     /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
@@ -161,6 +164,17 @@
      * 旧档（已有跨周目进度）由 loadMeta 迁移补双解锁。 */
     var prev = S;
     S = SB.state.freshRun(true);
+    /* 2026-10-24 轻车熟路记账（docs/ACHV_DESIGN_v0.3.md §四·1）：离开本周目前，把本周目
+     * 各建筑已购等级增量并入跨周目账本。唯一写入漏斗 = habitat.build 的 s.lvl[id]++，
+     * 故这里只合并增量、不碰 lvl 本体；startRun 是周目切换唯一入口（nextCycle /
+     * resetRun / 挑战开始三条路都过它），合并不会漏也不会重。 */
+    if (prev && prev.buildingLvlRun) {
+      var _blt = meta.buildingLvlTotal || (meta.buildingLvlTotal = {});
+      for (var _blk in prev.buildingLvlRun) {
+        var _blv = prev.buildingLvlRun[_blk];
+        if (typeof _blv === 'number' && _blv > 0) _blt[_blk] = (_blt[_blk] || 0) + _blv;
+      }
+    }
     if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now() };
     if (prev && prev.perk) S.perk = Object.assign(SB.state.emptyPerks(), prev.perk);
     SB.state.saveMeta(meta);
@@ -179,6 +193,26 @@
     S = saved;
     /* 兼容更新前已经建成卫星但尚未记永久解锁旗的存档。 */
     if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
+    /* 2026-10-24 老档补偿（docs/ACHV_DESIGN_v0.3.md §四·1，事项 3 用户拍「要」）：
+     * 功能上线前的存档，S.lvl 里的等级从未计入 meta.buildingLvlTotal。首次续档时按
+     * 当前周目等级给每座建筑兜底一笔（此前周目的等级早已转化为轮回点与旧日遗产，不追溯）。
+     * 幂等二闸（都在才 seed，缺一即跳过）：
+     *   ① !meta.bldLvlSeeded——旗随 meta 持久化，刷新/二次续档不重复 seed；
+     *   ② buildingLvlRun 为空——新代码跑过的存档该表非空（§四·1 唯一漏斗在记增量），
+     *      非空说明这笔等级早已/即将由 startRun 合并计入，不能再按 lvl 兜底（防双计）。
+     * ⚠️ 只有 _t 非空才覆盖：新玩家第 2+ 周目（lvl 全 0）续档时 _t 为空，
+     *    若无条件覆盖会把上周目已合并进账本的等级抹成 0（数据丢失）。 */
+    if (S && S.lvl && meta && !meta.bldLvlSeeded &&
+        (!S.buildingLvlRun || Object.keys(S.buildingLvlRun).length === 0)) {
+      var _t = {};
+      for (var _bid in S.lvl) if (S.lvl[_bid] > 0) _t[_bid] = S.lvl[_bid];
+      if (Object.keys(_t).length) {
+        meta.buildingLvlTotal = _t;
+        log('检测到早期存档：已将现有建筑等级登记入成就进度（共 ' + Object.keys(_t).length + ' 座）。');
+      }
+      meta.bldLvlSeeded = true;
+      SB.state.saveMeta(meta);
+    }
     /* 未结算的破壳是一个待玩家选择的持久状态；刷新后必须仍停在结算界面。
      * 已结算的旧档则沿用原行为，恢复为可继续发展的破壳后周目。 */
     if (S.shellOpened && !(S.broken && !S.breakSettled)) S.broken = false;
@@ -504,11 +538,53 @@
     });
   }
 
+  /* 星图页开门叙事（2026-10-24 用户补：此前星图虽拆出页签 + 门，却无解锁弹窗）。
+   * 门 = syncTabLocks 里 star-map 的同一判据（壳已破、壳归 0）；一次性旗标存 run，
+   * 离线/读档靠 maybeTabUnlockPopups 的兜底补播。 */
+  function maybeStarMapPopup(s) {
+    if (!s || s.starMapPopup) return;
+    if (!((s.shellOpened || s.breakSettled) && s.shell <= 0)) return;
+    s.starMapPopup = true;
+    markDirty();
+    queueStory({
+      kind: 'star-map', icon: '✦', title: '星图页解锁',
+      lines: [
+        '自鲛人首次抬头望向头顶的天壳，已经过去了不知多少岁月。',
+        '但在今天，他们首次望见了冰层后闪熠的群星。'
+      ],
+      unlockTitle: '星图系统已开放',
+      unlockCopy: '现在可以查看欧罗巴、土星，以及本周目已经发射的卫星和空间站。',
+      ok: '进入星图页',
+      onOk: function () { if (S === s) setTab('star-map'); }
+    });
+  }
+
+  /* 公司页开门叙事（2026-10-24 用户补：maybeCompanyFound 只管成立公司、从不弹窗）。
+   * 门 = 拥有《宏观经济学》（与 syncTabLocks / companyReqMet 同源）。 */
+  function maybeCompanyPopup(s) {
+    if (!s || s.companyPopup) return;
+    if (!(s.civics && s.civics.macroeconomics)) return;
+    s.companyPopup = true;
+    markDirty();
+    queueStory({
+      kind: 'company', icon: '🏢', title: '公司页解锁',
+      lines: [
+        '我们吃生物合成的鱼卵，吃在实验室里生长的海藻，该死，连光合作用都被注册了！'
+      ],
+      unlockTitle: '公司系统已开放',
+      unlockCopy: '系统自动成立藻食与珊瑚两家公司，随成立时间成长，提供对应资源产出加成。',
+      ok: '进入公司页',
+      onOk: function () { if (S === s) setTab('company'); }
+    });
+  }
+
   function maybeTabUnlockPopups(s) {
     maybeCivicPopup(s);
     maybeFaithPopup(s);
     maybeWorkshopPopup(s);
     maybeWonderPopup(s);
+    maybeStarMapPopup(s);
+    maybeCompanyPopup(s);
   }
 
   /* 宗教弹窗（用户 2026-09-29）：建立宗教（神学完成）那一刻播一次叙事弹窗，
@@ -524,6 +600,9 @@
     if (!s || !(s.religionName && s.religionName.trim())) return;
     if (meta.religionSeen) return;
     meta.religionSeen = true;
+    /* 2026-10-24 成就「立教」（docs/ACHV_DESIGN_v0.3.md §四·6）：与 religionSeen 首真同点位，
+     * 与「最快立教」榜同一判据。记账先于弹窗（同本条注上方纪律）。 */
+    if (SB.achv) SB.achv.unlockOnce('religion', meta);
     SB.state.saveMeta(meta);
     markDirty();
     queueStory({
@@ -701,6 +780,10 @@
   var STEP = 0.1;                   // 逻辑步长（秒）。与渲染解耦，保证数值与帧率无关
   var FAST_SPEED_THRESHOLD = 10;    // 高倍速改走既有离线分段积分器，避免每 0.1 秒重算整套经济
   var OFFLINE_STEP = (SB.CFG && SB.CFG.OFFLINE_STEP != null) ? SB.CFG.OFFLINE_STEP : 2;  // 单一来源：只读 src/config.js 的 CFG.OFFLINE_STEP，避免两套常量漂移
+  /* 2026-10-24 分级离线（用户拍板）：离开多久以内算「短暂」⇒ 静默补算（不弹闸门 / 结算）。
+   * 单一来源同 OFFLINE_STEP：只读 src/config.js 的 CFG.OFFLINE_SETTLE_MIN；
+   * e2e 沙箱里 SB.CFG 可能未注入全，兜底 1800 与 config 保持一字不差。 */
+  var OFFLINE_SETTLE_MIN = (SB.CFG && SB.CFG.OFFLINE_SETTLE_MIN != null) ? SB.CFG.OFFLINE_SETTLE_MIN : 1800;
   /* 时间真值有两个：
    *   ① 墙钟（Date.now）→ 用来判断「玩家离开过多久」，补算离线收益；
    *   ② 帧钟（performance.now）→ 用来决定这一帧推进多少逻辑时间。
@@ -735,7 +818,12 @@
      * 于是「离线补算」和「切回前台补算」是同一条路径。 */
     if (S && !S.broken && loop._lastWall) {
       var gap = (wall - loop._lastWall) / 1000;
-      if (gap >= SB.CFG.OFFLINE_MIN && !loop.job && !acceleratedBackgroundAI) planCatchUp(S, gap);
+      /* 2026-10-24 分级离线：gap ≥ OFFLINE_MIN 都要补算（挂机收益一分不少），
+       * 但 gap < OFFLINE_SETTLE_MIN（30min，用户拍板）时静默补算——
+       * 回个消息、切窗几分钟不该被「离线结算三连」糊脸。 */
+      if (gap >= SB.CFG.OFFLINE_MIN && !loop.job && !acceleratedBackgroundAI) {
+        planCatchUp(S, gap, gap < OFFLINE_SETTLE_MIN);
+      }
     }
     if (loop.job) drainCatchUp(CATCHUP_BUDGET);
     loop._lastWall = wall;
@@ -889,7 +977,7 @@
    * 配合 economy.tick 内聚合缓存（globalMul/gatherMul 等每 tick 只算一次）+
    * tech.mul 按 techVer 记忆化（2026-10-13，省掉每 tick 12 次全表重扫），
    * 当前调用量及与 0.1 秒基准的差异由 sim/offline-fastforward.mjs 对照。 */
-  function planCatchUp(s, gap) {
+  function planCatchUp(s, gap, silent) {
     var cap = offlineCap(s);
     var secs = Math.max(0, Math.min(gap, cap));   // 真实离线秒（已封顶）
     if (secs <= 0) return;
@@ -900,8 +988,19 @@
       s: s, left: secs, total: secs, secs: secs, cap: cap, adActive: adActive,
       uncountedSecs: Math.max(0, gap - secs),
       before: before, bPop: s.pop, bShell: s.shell,
-      bFam: s.famineDeaths, bFrost: s.frostDeaths
+      bFam: s.famineDeaths, bFrost: s.frostDeaths,
+      silent: !!silent
     };
+    /* 2026-10-24 分级离线（用户拍板 30min）：短暂离开走静默补算——不锁界面、不弹闸门。
+     * gap < OFFLINE_SETTLE_MIN 时补算量只有几百毫秒（30min 游戏秒封顶，一帧无感），
+     * 玩家回来直接接着玩；日志留一行备查，结算报告也不弹（短暂离开不需要汇报）。
+     * ⚠️ 破壳 / 戴森这类终局事件照弹（finishCatchUp 的 breakReport 分支不读 silent）——
+     *    那是里程碑时刻，不是「离开汇报」。 */
+    if (loop.job.silent) {
+      log('离开 ' + fmtDur(secs) + '，正在后台补算…' + (adActive ? '（双倍加速覆盖时段按 2×）' : ''));
+      if (secs < gap) log('补算有上限（' + fmtDur(cap) + '），剩余 ' + fmtDur(gap - secs) + ' 不计。');
+      return;
+    }
     /* 离线闸门：补算期间锁住整个界面（#modal 全屏遮罩挡点击），不给确认按钮，
      * 强制等算完（用户 2026-09-29：「离线回来先算完才能操作」）。 */
     SB.ui.render.showOfflineModal({
@@ -980,7 +1079,7 @@
       }
       j.left = Math.max(0, j.left - realDone);
     }
-    if (j.total) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);
+    if (j.total && !j.silent) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);   // 静默补算没有闸门 modal 可报，跳过进度条
     if (j.left <= 0 || j.breakReached) finishCatchUp(j);
   }
   function finishCatchUp(j) {
@@ -993,9 +1092,26 @@
       breakReport = SB.prestige.breakReport(j.s);
       if (!SB.prestige.qualified(j.s)) { breakReport.tidePoints = 0; breakReport.locked = true; }
     }
+    /* 2026-10-24 分级离线：静默补算且无终局事件 ⇒ 不弹结算报告，日志一行交代完事。
+     * 有 breakReport（离开期间破壳）时不走这里——破壳动画 + 结算窗照弹，见下。 */
+    if (j.silent && !breakReport) { silentCatchUpSummary(j); return; }
     function showSettlement() { showOfflineSettlement(j, breakReport); }
     if (breakReport) SB.game.showBreakAnimation(breakReport, showSettlement);
     else showSettlement();
+  }
+  /* 静默补算的一句话交代：时长 + 超上限未计入 + 人口 / 饿死 / 冻死异动。
+   * 资源明细不进日志——想要明细看面板即可，短暂离开不配一份小作文。
+   * 收尾与非静默结算的 onOk 对齐：科研 / 宗教 / 解锁播报与戴森终局在补算期间是挂起状态
+   * （drainCatchUp 里 pumpTech/pumpCivic 传 emit=null、dysonPopupPending 只挂旗），
+   * 静默模式没有遮罩会盖它们，补算完立即补播，不等下一趟泵自愈。 */
+  function silentCatchUpSummary(j) {
+    var s = j.s, txt = '后台补算完成（离开 ' + fmtDur(j.secs) + '）';
+    if (j.uncountedSecs > 0) txt += '，另有 ' + fmtDur(j.uncountedSecs) + ' 超出补算上限未计入';
+    if (s.pop !== j.bPop) txt += ' · 族民 ' + j.bPop + '→' + s.pop;
+    if (s.famineDeaths > j.bFam) txt += ' · 饿死 ' + (s.famineDeaths - j.bFam) + ' 人';
+    if (s.frostDeaths > j.bFrost) txt += ' · 冻死 ' + (s.frostDeaths - j.bFrost) + ' 人';
+    log(txt + '。');
+    maybeSciencePopup(s); maybeReligionPopup(s); maybeTabUnlockPopups(s); markDirty(); fireDysonPending(j);
   }
   function fireDysonPending(j) {
     /* 离线补算期间达成的戴森竣工：结算窗关闭后再播胜利窗，避免被共用 #modal 的离线结算覆盖。
@@ -1209,6 +1325,11 @@
     } else {
       startRun();
     }
+    /* 2026-10-24 成就系统（docs/ACHV_DESIGN_v0.3.md §六）：boot 宽限补发——老玩家跨周目
+     * 账本里已达成、但本地成就账本漏记的条件（religionSeen / memorialWonders /
+     * buildingLvlTotal 全表）在这里统一复判补记。只补本地账（成就墙真源），平台侧由
+     * unlockOnce 的「ID 未回填不请求」兜底自然跳过，不产生任何线上请求。 */
+    if (SB.achv && SB.achv.syncMeta) SB.achv.syncMeta(meta);
     SB.ui.render.initTabs();
     SB.ui.render.initSpeeds();
     var pendingBreak = !!(S && S.broken && S.shellOpened && !S.breakSettled);

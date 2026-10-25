@@ -239,6 +239,20 @@
      *    真正扣人只此一处，走 consumePop（按职业占比缩水，不碰人口上限）。 */
     if (typeof c.pop === 'number' && c.pop > 0) consumePop(s, c.pop);
     s.lvl[id]++;
+    /* 2026-10-24 轻车熟路记账（docs/ACHV_DESIGN_v0.3.md §四·1）：本函数是全库唯一
+     * 真实购买漏斗——手动建造（input.js）、区域自动建造泵（autoTick）、AI bot
+     * （ai-strategy）全部走这里，故增量只此一处写。搭现有 5 秒 saveRun 节流落盘，
+     * 不新增每购买一次的 meta 写盘。累计（跨周目账本 + 本周目增量）达 100 当周目
+     * 即解锁，不等周目结算。 */
+    s.buildingLvlRun = s.buildingLvlRun || {};
+    s.buildingLvlRun[id] = (s.buildingLvlRun[id] || 0) + 1;
+    if (SB.achv && SB.achv.unlockOnce) {
+      var _m = (SB.game && SB.game.meta && SB.game.meta()) || null;
+      if (_m) {
+        var _tot = ((_m.buildingLvlTotal && _m.buildingLvlTotal[id]) || 0) + s.buildingLvlRun[id];
+        if (_tot >= 100) SB.achv.unlockOnce('bld_' + id, _m);
+      }
+    }
     /* 首座轨道卫星是星屑商店的永久解锁条件；周目重开后不再因本局卫星等级归零而重新上锁。 */
     if (id === 'satellite' && SB.game && SB.game.unlockStardustShop) SB.game.unlockStardustShop();
     /* ⚠️ 这里**没有**「建城堡时把议事厅等级并过去」的转移逻辑——那是被撤回的误读。
@@ -272,6 +286,9 @@
       var netCost = t.cost * (1 - disc);
       if (!SB.economy.enough(s.res.science, netCost)) return false;
       s.res.science -= netCost; s.techs[id] = true; s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
+      /* 2026-10-24「科技大成」：tech.js 未加载的降级路径同样转发（判定在 achv.checkTechAll）。 */
+      if (SB.achv && SB.achv.checkTechAll && SB.game && SB.game.meta)
+        SB.achv.checkTechAll(s, SB.game.meta());
       if (emit) emit('研究完成：' + t.name);
       return true;
     }

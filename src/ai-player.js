@@ -97,10 +97,14 @@
         st = SB.prestige.perkState(id);
         if (!st) return;
         if (st.done || st.lv >= target) return;
-        /* 潮汐之树（2026-10-23）：链式节点（coralPact1→2→3→Tail 等）母节点未购时子节点 locked。
-         * buyTo 不直接买子节点，而是先递归补齐 nest 前置（链中节点 n:1，买到 L1 即解锁子节点）。 */
+        /* 潮汐之树（2026-10-24）：买锁定节点前，递归补齐全部前置节点；
+         * 多前置关系按 AND 处理，链式节点则买到 L1 后解锁后继。 */
         if (st.locked) {
-          if (st.perk && st.perk.nest) { buyTo(st.perk.nest, 1); continue; }
+          var prereqs = st.prerequisites || (st.perk && st.perk.nest ? [st.perk.nest] : []);
+          if (prereqs.length) {
+            for (var pi = 0; pi < prereqs.length; pi++) buyTo(prereqs[pi], 1);
+            continue;
+          }
           return;
         }
         if (!st.afford) return;

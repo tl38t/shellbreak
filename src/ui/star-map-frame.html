@@ -1328,24 +1328,14 @@ html>body{padding:0}</style>
 #star-map-mock .sm-system-shortcuts{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 0}
 #star-map-mock .sm-system-shortcuts button{border:1px solid #30465c;border-radius:7px;background:#102031;color:#c0d2e2;padding:6px 10px;font:11px system-ui,sans-serif;cursor:pointer}
 #star-map-mock .sm-system-shortcuts button:hover,#star-map-mock .sm-system-shortcuts button[aria-pressed=true]{border-color:#c4a569;color:#f0d99f;background:#302a20}
-#star-map-mock .sm-dyson{margin-top:11px;padding:12px 14px;border:1px solid #344a51;border-radius:11px;background:linear-gradient(110deg,#101e27,#14231f);color:#d5e3df}
-#star-map-mock .sm-dyson-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:600}
-#star-map-mock .sm-dyson-pct{color:#a9dfc4;font-variant-numeric:tabular-nums}
-#star-map-mock .sm-dyson-track{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:9px 0 7px}
-#star-map-mock .sm-dyson-track i{height:6px;border-radius:6px;background:#314149}
-#star-map-mock .sm-dyson-track i.active{background:linear-gradient(90deg,#9e8750,#e5d097);box-shadow:0 0 8px #d7c08155}
-#star-map-mock .sm-dyson-counts{color:#91a6b5;font-size:10px;line-height:1.6}
-#star-map-mock .sm-dyson-counts b{color:#cce7d4;font-variant-numeric:tabular-nums}
-#star-map-mock .sm-phase-foot{margin-top:9px;color:#71859a;font-size:10px;line-height:1.5}
-@media(max-width:700px){#star-map-mock .sm-overview-map{height:390px}#star-map-mock .sm-dyson{padding:10px 11px}}
+@media(max-width:700px){#star-map-mock .sm-overview-map{height:390px}}
 </style>
-<div class="sm-head"><div><div class="sm-eyebrow">SHELLBREAK · STAR MAP</div><h2 id="sm-main-title">壳外星空</h2></div><div class="sm-cycle" id="sm-era-title">萨图恩行星系</div></div>
+<div class="sm-head"><div><div class="sm-eyebrow">自海渊至群星 · 星图</div><h2 id="sm-main-title">壳外星空</h2></div><div class="sm-cycle" id="sm-era-title">萨图恩行星系</div></div>
 <nav class="sm-nav" id="sm-breadcrumb" aria-label="星图层级" hidden><button type="button" id="sm-crumb-overview">太阳系</button><span>/</span><button type="button" id="sm-crumb-saturn" class="active">萨图恩行星系</button></nav>
 <section id="sm-phase2" hidden>
 <div class="sm-map sm-overview-map"><canvas id="sm-system-canvas" aria-label="太阳系恒星轨道图；点击萨图恩行星系进入第一阶段星图"></canvas><div class="sm-map-note">轨道间距经过视觉压缩 · 点击萨图恩进入第一阶段</div></div>
 <div class="sm-detail"><div><h3 id="sm-overview-title">太阳系</h3><p id="sm-overview-copy">太阳是中心恒星。四个行星系节点沿轨道运行；点击萨图恩行星系进入原有局部星图。</p></div><div class="sm-chips" id="sm-overview-chips"><span class="sm-chip">中心恒星 · 太阳</span><span class="sm-chip">四个节点</span></div></div>
 <div class="sm-system-shortcuts" aria-label="行星系导航"><button type="button" data-system="earth">地球系</button><button type="button" data-system="mars">火星系</button><button type="button" data-system="jupiter">木星系</button><button type="button" data-system="saturn">萨图恩系 · 进入第一阶段</button></div>
-<div class="sm-dyson" id="sm-dyson"><div class="sm-dyson-head"><span>戴森球 · 五阶段恒星包裹工程</span><span class="sm-dyson-pct" id="sm-dyson-pct">未解锁</span></div><div class="sm-dyson-track" id="sm-dyson-track" aria-label="戴森球阶段进度"><i></i><i></i><i></i><i></i><i></i></div><div class="sm-dyson-counts">太阳帆 <b id="sm-sails-count">0 / 10,000</b>　·　戴森节点 <b id="sm-nodes-count">0 / 1,000</b></div></div>
 <div class="sm-star"><span class="sm-star-label">星空探索</span><div class="sm-star-track"><div class="sm-star-fill" id="sm-star-fill-phase2"></div></div><span class="sm-star-num" id="sm-star-num-phase2">0 / 0</span></div>
 <div class="sm-phase-foot">太阳帆才会在太阳周边形成光点阵列；建成泰拉发射场后，第二阶段的发射光点从泰拉出发。戴森节点由发射场直接送入球壳。戴森进度按帆与节点两项中较低比例计算，第四、第五阶段增加纬线。</div>
 </section>
@@ -1748,13 +1738,6 @@ function _smDrawOverview(now){
   for(const site of _smLaunchSites()){const def=_smDefs.find(d=>d.id===site.system),p=_smPos(def,now,cx,cy,base),x=p.x+site.x,y=p.y+site.y;_smCtx.save();_smCtx.translate(x,y);_smCtx.rotate(Math.PI/4);_smCtx.fillStyle="#e6c27b";_smCtx.shadowColor="#e6c27b";_smCtx.shadowBlur=6;_smCtx.fillRect(-3,-3,6,6);_smCtx.restore();_smCtx.font="8px system-ui,sans-serif";_smCtx.textAlign="left";_smCtx.lineWidth=3;_smCtx.strokeStyle="#07111df2";_smCtx.strokeText(site.name,x+6,y-5);_smCtx.fillStyle="#f0d99f";_smCtx.fillText(site.name,x+6,y-5);}
   _smCtx.font="10px system-ui,sans-serif";_smCtx.textAlign="center";_smCtx.lineWidth=3;_smCtx.strokeStyle="#07111df2";_smCtx.strokeText("太阳",cx,cy+sunR+14);_smCtx.fillStyle="#e5d6b5";_smCtx.fillText("太阳",cx,cy+sunR+14);_smDrawFlight(now,cx,cy,base,sunR);
 }
-function _smUpdateDyson(){
-  const unlocked=!!_smGame.adiabatic,pct=unlocked?Math.max(0,Math.min(1,_smGame.dysonPct||0)):0,stage=Math.min(5,Math.floor(pct*5+1e-7));
-  document.getElementById("sm-dyson-pct").textContent=unlocked?(pct>=1?"已竣工":(pct*100).toFixed(1)+"%"):(Number(_smGame.era)>=10?"等待绝热材料":"ERA 10 开放");
-  document.getElementById("sm-sails-count").textContent=(_smGame.sunSails||0).toLocaleString()+" / "+(_smGame.sunSailCap||10000).toLocaleString();
-  document.getElementById("sm-nodes-count").textContent=(_smGame.dysonNodes||0).toLocaleString()+" / "+(_smGame.dysonNodeCap||1000).toLocaleString();
-  document.querySelectorAll("#sm-dyson-track i").forEach((seg,i)=>seg.classList.toggle("active",i<stage));
-}
 function _smApplyGameData(d){
   const prev=_smLastCounts,wasReady=_smGame.era>=9;
   _smGame={era:Number(d.era)||1,sunSails:Math.max(0,Number(d.sunSails)||0),sunSailCap:Math.max(1,Number(d.sunSailCap)||10000),dysonNodes:Math.max(0,Number(d.dysonNodes)||0),dysonNodeCap:Math.max(1,Number(d.dysonNodeCap)||1000),dysonPct:Math.max(0,Math.min(1,Number(d.dysonPct)||0)),adiabatic:!!d.adiabatic,solarRingLevel:Math.max(0,Number(d.solarRingLevel)||0),launchMode:d.launchMode==="node"?"node":"sail",launchCycle:Math.max(1,Number(d.launchCycle)||10),launchpads:d.launchpads||{}};
@@ -1762,7 +1745,7 @@ function _smApplyGameData(d){
     _smQueueLaunches("sail",_smGame.sunSails-prev.sails);
     _smQueueLaunches("node",_smGame.dysonNodes-prev.nodes);
   }
-  _smLastCounts={sails:_smGame.sunSails,nodes:_smGame.dysonNodes};_smUpdateDyson();
+  _smLastCounts={sails:_smGame.sunSails,nodes:_smGame.dysonNodes};
   if(_smGame.era>=9&&!wasReady)_smSetView("phase2");
   else if(_smGame.era>=9&&_smLastCounts&&prev===null)_smSetView("phase2");
   document.getElementById("sm-era-title").textContent=_smView==="phase2"?"ERA "+_smGame.era+" · 太阳系":"萨图恩行星系";

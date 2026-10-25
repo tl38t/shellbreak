@@ -315,7 +315,7 @@
          * 它们是同一套制造体系，分开切只会让玩家以为是两套规则）。
          * 建成（lv>0）且完成《绝热材料》后才出钮（科技门与 economy-tick 2f 的 _nodeMode 同源）。
          * 点它在「太阳帆 ⇄ 戴森球节点」间切（s.launchMode，state.js seed 默认 'sail'）。
-         * 复用 .furnctl 样式；按钮文字 = 当前模式，一点即翻。 */
+         * 复用 .furnctl 样式；按钮写当前制造品，并用 ⇄ 提示可切换。 */
         var elBtn = '';
         var launchCtl = '';
         if (b.launchpad && lv > 0) {
@@ -334,8 +334,8 @@
             '<button class="fbtn launch-mode-toggle" data-launch-mode="1" title="' +
             (_nodeOn ? '点击切换到「太阳帆」（每级每秒耗铀 0.5、火箭引擎 0.3、θ金属薄膜 0.3、热液能 4；周期完成时按本场等级同时发射）'
                      : '点击切换到「戴森球节点」（每级每秒耗铀 5、火箭引擎 3、θ金属薄膜 3、钛合金板 30、热液能 4；周期完成时按本场等级同时发射）') +
-            '">' + (_nodeOn ? '节点' : '太阳帆') + '</button>' +
-            '<b class="fnum launch-mode-label">制造 ' + (_nodeOn ? '戴森球节点' : '太阳帆') + '</b></span>';
+            '"><span class="launch-mode-text">' + (_nodeOn ? '制造节点' : '制造太阳帆') + '</span>' +
+            '<span class="launch-mode-swap" aria-hidden="true">⇄</span></button></span>';
         }
         // 等级标签显式标注“等级”，避免孤立数字被误认成其他状态。
         // 潮纹馆带「虚级」（大潮纹馆 +3，按效果算、按建筑不算，见 wonder.libBonus）：
@@ -356,6 +356,7 @@
          * `60-star-map.css` 之外另开一块在 `40-atmosphere-theme.css`? 不——血纹放
          * `50-module-polish.css` 的祭坛段，纯伪元素，不引图片、不影响点击热区。 */
         if (b.id === 'void_altar') rowState += ' void-altar void-lv-' + lv;
+        if (b.id === 'black_monolith') rowState += ' faith-monolith';
         var buildingIconHTML = buildingIconsShown && b.icon
           ? '<img class="building-icon" src="' + b.icon + '" alt="" aria-hidden="true" width="32" height="32">' : '';
         var launchProgressHTML = '';
@@ -381,16 +382,17 @@
           }
           var _lpCostTitle = '本场当前启用等级的额定每秒需求；缺料或热液能不足时制造暂停：' + _lpCostFull.join(' · ');
           var _lpCostHTML = '<span class="launch-consumption" title="' + _lpCostTitle + '">' + _lpCostShort.join(' · ') + '</span>';
-          launchProgressHTML = '<div class="launch-progress" id="launch-progress-' + b.id + '" data-launch-progress="' + b.id + '" title="本场按制造周期独立推进；停用时保留进度，热液能或原料不足时暂停" role="progressbar" aria-label="' +
+          launchProgressHTML = '<div class="launch-progress" id="launch-progress-' + b.id + '" data-launch-progress="' + b.id + '" title="本场按制造周期独立推进；停用时保留进度。' + _lpCostTitle + '" role="progressbar" aria-label="' +
             (_lpNodeMode ? '戴森球节点' : '太阳帆') + '发射进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + _lpPct + '" data-pct="' + _lpPct + '">' +
-            '<span>发射进度</span><div class="launch-progress-track"><i style="width:' + _lpPct + '%"></i></div>' +
+            '<span class="launch-progress-label">发射</span><div class="launch-progress-track"><i style="width:' + _lpPct + '%"></i></div>' +
             '<span class="launch-progress-value">' + _lpPct + '%</span>' + _lpCostHTML + '</div>';
         }
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
           '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
-          ' <span class="tag" data-lv="' + b.id + '" title="' + lvTitle + '">等级 ' + lvValueTxt + '</span></span><span class="bld-ops">' + siltpitBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + elBtn + '</span></div>' +
-          launchProgressHTML +
+          ' <span class="tag" data-lv="' + b.id + '" title="' + lvTitle + '">等级 ' + lvValueTxt + '</span>' +
+          (elBtn ? '<span class="launch-mode-anchor">' + elBtn + '</span>' : '') +
+          '</span><span class="bld-ops">' + siltpitBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
           '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div></div>' +
           '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + '">' + autoBtn + '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button></div></div>';

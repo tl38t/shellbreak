@@ -294,7 +294,7 @@
   function robotMult(s) {
     return (s && s.upgrades && s.upgrades.upg_strongai) ? ROBOT_MULT_AI : ROBOT_MULT_BASE;
   }
-  function robotPop(s) { return ROBOT_PER_BAY * (s.lvl.robotbay || 0); }
+  function robotPop(s) { return (ROBOT_PER_BAY + ((s.perk && s.perk.starFoldableStructure) || 0)) * (s.lvl.robotbay || 0); }
   function robotJobAllowed(job) { return job !== 'scribe' && job !== 'scholar'; }
   function robotAssigned(s) {
     var rj = s.robotJobs || {}, n = 0, k;

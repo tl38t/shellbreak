@@ -234,6 +234,8 @@
     var st = (s && s.companyState && s.companyState[res]) || null;
     if (!st || !st.epoch || !(st.epoch > 0) || st.closed) return -1;
     var elapsed = (s.t || 0) - st.epoch;
+    var expansion = Math.max(0, Math.min(0.9, (s.perk && s.perk.starCompanyMaturity) || 0));
+    if (expansion > 0) elapsed /= (1 - expansion);
     var c = companyByRes(res);
     var tiers = (c && c.tiers) ? c.tiers : SB.COMPANY_TIERS;
     return SB.companyTierIndex ? SB.companyTierIndex(elapsed, tiers, s) : 0;
@@ -246,6 +248,16 @@
     var tiers = c.tiers || SB.COMPANY_TIERS;
     /* ERA2-7 扩卡（2026-10-22）：公司税卡（companyBonusMul 1.30）把公司产出加成 ×1.3。 */
     return 1 + ((tiers[idx] && tiers[idx].bonus) || 0) * ((SB.civic && SB.civic.cardCompanyBonusMul) ? SB.civic.cardCompanyBonusMul(s) : 1);
+  }
+  /* 产学协同：每家活跃公司的当前等级分别给所有科技提供折扣，逐家公司相加。 */
+  function companyTechCostSave(s) {
+    if (!s || !(s.perk && s.perk.starCompanyResearchSynergy) || !SB.COMPANIES) return 0;
+    var perTier = [0.01, 0.015, 0.02, 0.025, 0.03], total = 0;
+    for (var i = 0; i < SB.COMPANIES.length; i++) {
+      var idx = companyTierIndex(s, SB.COMPANIES[i].res);
+      if (idx >= 0) total += perTier[idx] || 0;
+    }
+    return total;
   }
   /* 工艺效率公司（companies.js craft:true）的加成：进 workshop.craftRatio 同一条加法乘区。
    * 与建筑级/科技/奇观/政策卡/升级同档相加，不是相乘。 */
@@ -283,6 +295,6 @@
     happyMul: happyMul, happyOf: happyOf, happyTier: happyTier, HAPPY_TIERS: HAPPY_TIERS,
     happyTierList: happyTierList,
     companyTierIndex: companyTierIndex, companyMul: companyMul, companyLuxMul: companyLuxMul,
-    companyCraftRatio: companyCraftRatio
+    companyCraftRatio: companyCraftRatio, companyTechCostSave: companyTechCostSave
   };
 })(typeof window !== 'undefined' ? window : globalThis);

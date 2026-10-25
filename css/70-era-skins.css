@@ -389,6 +389,25 @@ html[data-era="9"] .shellfill { background:linear-gradient(90deg,#4d9b70,#a8d48c
 html[data-era="10"] .shellfill { background: linear-gradient(90deg,#78bc9d,#e7c66e,#fff0b0); box-shadow: 0 0 12px rgba(231,213,138,.2); }
 html[data-era="10"] .shellwrap { height: 16px; border-radius: 3px; background: repeating-linear-gradient(90deg,rgba(240,217,139,.2) 0 1px,transparent 1px 8px),var(--panel2); }
 html[data-era="10"] .shellfill { border-radius: 2px; }
+html[data-era="10"] .shellwrap.dyson-progress { border-color: rgba(79,209,201,.45); background: #092326; box-shadow: inset 0 0 8px rgba(24,102,96,.32),0 0 11px rgba(48,168,154,.1); }
+html[data-era="10"] .shellwrap.dyson-progress #shellFill { display: none; }
+html[data-era="10"] .dyson-stages { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 3px; padding: 2px; }
+html[data-era="10"] .shellwrap:not(.dyson-progress) .dyson-stages { display: none; }
+html[data-era="10"] .dyson-stage { position: relative; min-width: 0; overflow: hidden; border: 1px solid rgba(83,171,162,.28); border-radius: 2px; background: linear-gradient(180deg,rgba(24,66,65,.78),rgba(11,41,42,.92)); box-shadow: inset 0 1px rgba(181,247,231,.08); }
+html[data-era="10"] .dyson-stage-fill { position: absolute; inset: 0 auto 0 0; display: block; width: 0; overflow: hidden; border-radius: inherit; background: linear-gradient(180deg,#42b9a9,#247f77); box-shadow: inset 0 1px rgba(205,255,243,.24); transition: width .45s cubic-bezier(.2,.7,.25,1); }
+html[data-era="10"] .dyson-stage.is-complete { border-color: rgba(103,229,209,.7); box-shadow: inset 0 1px rgba(225,255,248,.24),0 0 7px rgba(62,199,182,.17); }
+html[data-era="10"] .dyson-stage.is-complete .dyson-stage-fill { width: 100%; background: linear-gradient(180deg,#65e2ce,#278d82); }
+html[data-era="10"] .dyson-stage.is-current .dyson-stage-fill { background: linear-gradient(180deg,#6ce5d2,#31a99a); box-shadow: inset 0 1px rgba(237,255,249,.42),0 0 8px rgba(80,220,199,.4); }
+html[data-era="10"] .dyson-stage.is-current .dyson-stage-fill::after { content: ""; position: absolute; inset: -20% auto -20% 0; width: 42%; background: linear-gradient(90deg,transparent,rgba(231,255,249,.72),transparent); transform: translateX(-150%); animation: dyson-phase-glint 3.6s ease-in-out infinite; }
+html[data-era="10"] .dyson-stages.is-finished .dyson-stage.is-complete { animation: dyson-finish-glow 1.15s ease-out 1; }
+.shellbar #shellTxt .dyson-stage-badge { display: inline-block; margin: 0 3px; padding: 1px 6px; border: 1px solid rgba(79,209,201,.32); border-radius: 999px; background: rgba(47,143,134,.12); color: #83e7d8; font-size: 10px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
+@keyframes dyson-phase-glint { 0%,38% { opacity: 0; transform: translateX(-150%); } 48% { opacity: .9; } 72%,100% { opacity: 0; transform: translateX(340%); } }
+@keyframes dyson-finish-glow { 0% { filter: brightness(1); } 36% { filter: brightness(1.8); } 100% { filter: brightness(1); } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-era="10"] .dyson-stage-fill { transition: none; }
+  html[data-era="10"] .dyson-stage.is-current .dyson-stage-fill::after,
+  html[data-era="10"] .dyson-stages.is-finished .dyson-stage.is-complete { animation: none; }
+}
 
 /* Daylight keeps each era's identity but switches its accent text to ink-dark hues. */
 html[data-ui-theme="day"][data-era="1"] { --era-accent:#176b60; --era-accent-soft:#4d7067; --era-line:rgba(23,107,96,.4); --era-edge:rgba(23,107,96,.22); --era-wash:rgba(23,107,96,.085); --era-glow:rgba(23,107,96,.1); --era-button-hi:#347568; --era-button-lo:#24564f; }

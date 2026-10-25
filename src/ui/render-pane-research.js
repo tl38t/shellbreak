@@ -337,7 +337,6 @@
    * ⚠️ 面板未开门时整页不渲染（与 paneTechLocked 同一手法），页面签上才不会
    *    出现「一个空壳页」。 */
   var civicView = 'government';
-  var govExpanded = {};
   function setCivicView(view) {
     if (view !== 'government' && view !== 'tree') return false;
     civicView = view;
@@ -358,11 +357,6 @@
       emptySlots: emptyCivicSlotCount(s, C),
       researchable: !!(C.hasResearchable && C.hasResearchable(s))
     };
-  }
-  function toggleGovDetail(id) {
-    if (!id) return false;
-    govExpanded[id] = !govExpanded[id];
-    return true;
   }
   function paneCivic() {
     var s = res();
@@ -393,6 +387,27 @@
       '建起来之后这里会给出：政体、政策卡槽，以及三条市政。</div>';
   }
 
+  /* 政体符号：统一的线性徽记，用几何关系表达权力结构，不依赖 emoji 字体。 */
+  var GOV_SYMBOL_ART = {
+    tribe: '<circle cx="16" cy="16" r="3"/><circle cx="16" cy="5.5" r="2"/><circle cx="6.7" cy="22" r="2"/><circle cx="25.3" cy="22" r="2"/><path d="m14.4 7.2-6.1 12.9m9.4-12.9 6.1 12.9M9 23h14"/>',
+    autocracy: '<path d="M16 4v24M16 5 7 12m9-7 9 7M7 12h18M10 12v9m6-9v9m6-9v9M7 23h18M5 27h22"/>',
+    oligarchy: '<circle cx="16" cy="16" r="3.2"/><circle cx="8" cy="9" r="2.2"/><circle cx="24" cy="9" r="2.2"/><circle cx="8" cy="23" r="2.2"/><circle cx="24" cy="23" r="2.2"/><path d="m10 10.5 3.7 3.7m4.6 0 3.7-3.7m-12 11 3.7-3.7m4.6 0 3.7 3.7"/>',
+    classical_republic: '<path d="M5 12q11-10 22 0M7 13h18M9 14v9m7-9v9m7-9v9M6 24h20M8 27h16"/>',
+    monarchy: '<path d="m5 10 5 5 6-9 6 9 5-5-2 13H7L5 10Z"/><path d="M8 26h16M10 18h12"/><circle cx="16" cy="11" r="1.3"/>',
+    merchant_republic: '<circle cx="16" cy="16" r="11"/><path d="M8 13h12l-2.5-2.5M24 19H12l2.5 2.5M7 16h2m14 0h2"/>',
+    theocracy: '<circle cx="16" cy="8" r="4"/><path d="M16 12v14m-7-5h14M11 26h10M8 8h2m12 0h2"/>',
+    theo_state: '<path d="M16 4 18.4 11.6 26 14l-7.6 2.4L16 24l-2.4-7.6L6 14l7.6-2.4L16 4Z"/><path d="M8 26h16M11 23v3m10-3v3"/>',
+    egalitarianism: '<path d="M7 8h18M7 16h18M7 24h18"/><circle cx="5" cy="8" r="1"/><circle cx="5" cy="16" r="1"/><circle cx="5" cy="24" r="1"/>',
+    federalism: '<path d="m16 7 7 4v9l-7 4-7-4v-9l7-4Z"/><circle cx="16" cy="16" r="2.3"/><path d="M16 7V4M23 11l3-2M23 20l3 2M9 20l-3 2M9 11 6 9M16 24v4"/>',
+    interstellar_federation: '<ellipse cx="16" cy="16" rx="12" ry="5.5" transform="rotate(-28 16 16)"/><ellipse cx="16" cy="16" rx="12" ry="5.5" transform="rotate(48 16 16)"/><path d="m16 10 1.7 4.3L22 16l-4.3 1.7L16 22l-1.7-4.3L10 16l4.3-1.7L16 10Z"/>',
+    star_sea_coop: '<circle cx="16" cy="16" r="3"/><circle cx="16" cy="5.5" r="2"/><circle cx="25" cy="11" r="2"/><circle cx="22" cy="22.5" r="2"/><circle cx="10" cy="22.5" r="2"/><circle cx="7" cy="11" r="2"/><path d="m16 8 7.2 2.2 1 7.3-5.8 5.7h-7.8l-5.8-5.7 1-7.3L16 8Z"/>',
+    universal_church: '<circle cx="16" cy="16" r="3"/><circle cx="16" cy="16" r="8"/><path d="M16 3v3m0 20v3M3 16h3m20 0h3M6.8 6.8 9 9m14 14 2.2 2.2m0-18.4L23 9M9 23l-2.2 2.2"/>'
+  };
+  function govSymbol(id, extraClass) {
+    return '<span class="gov-symbol gov-symbol-' + id + (extraClass ? ' ' + extraClass : '') + '" aria-hidden="true">' +
+      '<svg viewBox="0 0 32 32" focusable="false">' + (GOV_SYMBOL_ART[id] || GOV_SYMBOL_ART.tribe) + '</svg></span>';
+  }
+
   /* 政体（Civ6 式）：政体是「一份被动 + 一份槽位配方」，不是一条标签。
    * ⚠️ 三条信息必须同框才叫政体：被动（这政体自己给了什么）、槽位配方（我能摆几张什么卡）、
    *    及第 0 号槽空不空。Civ6 的政体选择之所以有分量，全在这三样拼在一起。 */
@@ -412,37 +427,51 @@
       h += '<div class="row"><div class="ds">政体系统尚未开启——研究《法典》开启酋邦制。</div></div>';
       return h;
     }
-    var current = null, options = '';
-    for (var j = 0; j < owned.length; j++) {
-      var v = owned[j], on = s.gov === v.id;
-      var why = on ? null : C.govBlocked(s, v.id);
-      if (on) {
-        current = '<div class="gov-current" id="govrow-' + v.id + '">' +
-          '<div class="gov-current-label">当前政体 <span class="tag ok">生效中</span></div>' +
-          '<div class="gov-current-main"><strong>' + ((SB.civic && SB.civic.govTitleName) ? SB.civic.govTitleName(s) : v.name) + '</strong><span>' + v.desc + '</span>' + (v.flavor ? '<p class="b-flavor">' + v.flavor + '</p>' : '') + '</div>' +
-          '<div class="gov-current-meta"><span class="govslots">' + recipeText(v) + '</span>' +
-          /* 幸福度偏移只在采用中成立，不在未采用的预览卡上暗示为常驻效果。 */
-          SB.ui.renderCommon.happyBonusNote(s, 'gov') + '</div></div>';
-        continue;
-      }
-      var expanded = !!govExpanded[v.id];
-      var firstFree = C.govFirstAdoptionFree(s, v.id);
-      options += '<div class="gov-choice' + (expanded ? ' expanded' : '') + '" id="govrow-' + v.id + '">' +
-        '<div class="gov-choice-main"><button type="button" class="inline-info-link gov-choice-name"' +
-        ' data-gov-detail="' + v.id + '" aria-expanded="' + expanded + '" aria-controls="govdetail-' + v.id + '">' +
-        v.name + '<span class="gov-choice-chevron" aria-hidden="true">⌄</span></button>' +
-        '<div class="gov-choice-preview">' + v.desc + (v.flavor ? '<p class="b-flavor">' + v.flavor + '</p>' : '') + '</div>' +
-        '<div class="gov-choice-slots">' + recipeText(v) + '</div></div>' +
-        '<button class="btn buy gov-adopt" data-gov="' + v.id + '"' + (why ? ' disabled' : '') +
-        ' title="' + (why || (firstFree ? '该政体首次采用免费' : '采用此政体')) + '">' +
-        (firstFree ? '首次免费' : '采用') + '</button>' +
-        (expanded ? '<div class="gov-choice-detail" id="govdetail-' + v.id + '"><b>完整效果</b><p>' + v.desc +
-          '</p>' + (v.flavor ? '<p class="b-flavor">' + v.flavor + '</p>' : '') + '<span>政策卡槽：' + recipeText(v) + '</span>' + (why ? '<small>' + why + '</small>' : '') + '</div>' : '') +
-        '</div>';
+    var currentGov = null;
+    for (var ci = 0; ci < owned.length; ci++) if (owned[ci].id === s.gov) currentGov = owned[ci];
+    if (!currentGov) {
+      return h + '<div class="row gov-current-missing"><div class="ds">当前没有生效的政体。</div>' +
+        '<button type="button" class="btn buy" data-gov-picker-open>选择政体</button></div>';
     }
-    h += current || '';
-    if (options) h += '<div class="gov-options-heading"><b>可选政体</b><span>' + (owned.length - (current ? 1 : 0)) + ' 项</span></div>' +
-      '<div class="gov-choice-grid">' + options + '</div>';
+    var currentTitle = C.govTitleName ? C.govTitleName(s) : currentGov.name;
+    return h + '<article class="gov-picker-card gov-current-card is-expanded is-current">' +
+      '<div class="gov-picker-detail">' +
+        '<div class="gov-current-identity">' + govSymbol(currentGov.id, 'gov-symbol-current') + '<div class="gov-current-copy">' +
+          '<div class="gov-expanded-kicker">当前政体 <i class="is-current">生效中</i></div>' +
+          '<h3 class="gov-expanded-title">' + currentTitle + '</h3></div></div>' +
+        '<p class="gov-picker-desc">' + currentGov.desc + '</p>' +
+        (currentGov.flavor ? '<p class="gov-picker-flavor b-flavor">' + currentGov.flavor + '</p>' : '') +
+        '<div class="gov-picker-slots"><span>政策卡槽</span><strong>' + recipeText(currentGov) + '</strong></div>' +
+        '<div class="gov-picker-footer"><span>当前政体正在生效' + SB.ui.renderCommon.happyBonusNote(s, 'gov') + '</span>' +
+          '<button type="button" class="btn buy" data-gov-picker-open>更换政体</button></div>' +
+      '</div></article>';
+  }
+
+  /* 政体选择器仅由 render.js 装入弹窗；主页面始终保留当前政体摘要。 */
+  function paneGovPicker(s) {
+    var C = SB.civic, owned = [];
+    for (var i = 0; i < SB.GOVS.length; i++) if (C.govOwned(s, SB.GOVS[i].id)) owned.push(SB.GOVS[i]);
+    if (!owned.length) return '<div class="gov-picker-empty">尚未解锁可选政体。</div>';
+    var options = '';
+    for (var k = 0; k < owned.length; k++) {
+      var v = owned[k], on = s.gov === v.id;
+      var firstFree = !on && C.govFirstAdoptionFree(s, v.id);
+      var why = on ? null : C.govBlocked(s, v.id);
+      var tileState = on ? '当前' : (firstFree ? '首次免费' : (why ? '条件不足' : '可采纳'));
+      var statusClass = on ? 'is-current' : (why ? 'is-blocked' : (firstFree ? 'is-free' : 'is-ready'));
+      var adoptionCost = C.govCost(s);
+      options += '<article class="gov-picker-card gov-option-card' + (on ? ' is-current' : '') + '">' +
+        '<header class="gov-option-head">' + govSymbol(v.id) + '<h3>' + v.name + '</h3><i class="' + statusClass + '">' + tileState + '</i></header>' +
+        '<p class="gov-option-desc">' + v.desc + '</p>' +
+        (v.flavor ? '<p class="gov-option-flavor b-flavor">' + v.flavor + '</p>' : '') +
+        '<div class="gov-option-slots"><span>政策卡槽</span><strong>' + recipeText(v) + '</strong></div>' +
+        '<footer class="gov-option-footer"><span>' + (on ? '当前政体正在生效' : (firstFree ? '首次采用免费' : ('更换费用：' + adoptionCost + ' 市政点'))) +
+          (why ? '<small>' + why + '</small>' : '') + '</span>' +
+          '<button type="button" class="btn buy gov-adopt" data-gov="' + v.id + '"' + ((on || why) ? ' disabled' : '') +
+          '>' + (on ? '当前生效' : (why ? '条件不足' : (firstFree ? '免费采纳' : '采纳政体'))) + '</button></footer>' +
+        '</article>';
+    }
+    var h = '<div class="gov-picker-list">' + options + '</div>';
     /* 每个政体各自首次采用免费；重采用收费规则也要明示。 */
     if (C.topCost(s) > 0) {
       h += '<div class="note">每个政体首次采用免费一次；之后更换需 ' + C.govCost(s) +
@@ -483,18 +512,37 @@
     var C = SB.civic, list = C.slotList(s), i;
     var armedCard = SB.ui.render.armedCard();
     var emptyCount = emptyCivicSlotCount(s, C, list);
-    var h = '<div class="secttl">政策卡槽 <span class="tag">' + list.length + '</span>' +
+    var h = '<div class="secttl civic-policy-heading">政策卡槽 <span class="tag">' + list.length + '</span>' +
       (emptyCount > 0 ? '<span class="civic-slot-warning"><i aria-hidden="true"></i>空槽 ' + emptyCount + '</span>' : '') + '</div>';
     if (!list.length) {
       h += '<div class="row"><div class="ds">当前政体不提供政策卡槽——换个政体才能装卡。</div></div>';
       return h + pool(s, armedCard);
     }
     h += '<div class="policy-slot-grid">';
+    var slotGlyphs = { wild: '◇', prod: '⚙', sci: '✦', grow: '♧', relig: '☼' };
     for (i = 0; i < list.length; i++) {
       var st = list[i].type, filled = (s.cards && s.cards[i]) ? C.policyById(s.cards[i]) : null;
+      var _terminusSlot = !!(filled && filled.id === 'card_cycle_terminus');
+      var slotGlyph = slotGlyphs[st] || '▣';
       /* 2026-10-13：点卡选位两步法——armedCard 命中且本槽对口时高亮成 slot-target，提示「点这里装」。 */
       var _armed = armedCard && C.policyById(armedCard);
-      var _canHere = _armed && C.cardFits(_armed, st);
+      var _locked = !!(filled && filled.locked);
+      var _alreadySlotted = !!(armedCard && s.cards && s.cards.indexOf(armedCard) >= 0);
+      var _canHere = !!(_armed && C.cardFits(_armed, st) && !_locked && !_alreadySlotted);
+      /* 「轮回之终末」装入后不可解除：不再渲染成插槽，直接以虚境圣物面板占据原位置。 */
+      if (_terminusSlot) {
+        h += '<article class="terminus-relic-card" aria-label="轮回之终末，虚境永恒锚定">' +
+          '<div class="terminus-relic-kicker"><span>虚境信仰</span><b><i aria-hidden="true"></i>永恒锚定</b></div>' +
+          '<div class="terminus-relic-main">' +
+            '<div class="terminus-relic-sigil" aria-hidden="true"><span>✦</span></div>' +
+            '<div class="terminus-relic-copy"><strong>' + filled.name + '</strong>' +
+              '<span class="terminus-relic-effect">信仰全产加成 <b>×2</b></span></div>' +
+          '</div>' +
+          '<div class="terminus-relic-desc">信仰更名为「虚境」 · 此契约已与文明共生</div>' +
+          '<div class="terminus-relic-seal"><span>∞</span> 永久生效 · 不可卸下</div>' +
+        '</article>';
+        continue;
+      }
       /* 逐槽：第 i 槽装的是 s.cards[i]。2026-10-07 曾拍板「不给拔下按钮，装新卡直接覆盖」，
        * 但玩家明确要能卸下（否则空槽/换思路无从下手，且说明文案已写「卸下收费」却没有入口）。
        * 故对「已装卡」的槽补一个「卸下」按钮（data-remove=i），空槽不显示。
@@ -504,23 +552,26 @@
       var _freeN = s.cardFreeRemoves || 0;
       var _rCost = _freeN > 0 ? ('免费（剩 ' + _freeN + ' 次）') : ('收取 ' + C.cardCost(s) + ' 市政点');
       /* ERA9 虚境信仰卡（locked）：永恒锚定、不可卸下——槽里不显示「卸下」按钮，改成锁死提示。 */
-      var _locked = !!(filled && filled.locked);
-      h += '<div class="slotbox' + (_canHere ? ' slot-target' : '') + (!filled ? ' civic-slot-empty' : '') + '" id="slotrow-' + i + '" data-slot="' + i + '">' +
-        '<div class="slottt">' + C.slotTypeName(st) + ' <span class="tg">#' + (i + 1) + '</span>' +
-        (!filled ? '<span class="civic-slot-empty-flag"><i aria-hidden="true"></i>空槽</span>' : '') + '</div>' +
+      h += '<div class="slotbox slot-type-' + st + (_canHere ? ' slot-target' : '') + (!filled ? ' civic-slot-empty' : '') + '" id="slotrow-' + i + '" data-slot="' + i + '">' +
+        '<div class="slottt"><i class="slot-type-glyph" aria-hidden="true">' + slotGlyph + '</i>' +
+        '<span class="slot-type-name">' + C.slotTypeName(st) + '</span><span class="tg">#' + (i + 1) + '</span>' +
+        (_canHere ? '<span class="slot-target-flag">' + (filled ? '可替换' : '可插入') + '</span>' :
+          !filled ? '<span class="civic-slot-empty-flag"><i aria-hidden="true"></i>空槽</span>' : '') + '</div>' +
         (filled
           ? '<div class="slotcard' + (_fit ? '' : ' bad') + (_locked ? ' locked-vr' : '') + '">' +
-              filled.name + (_locked ? ' <span class="eye" title="虚境信仰 · 永恒锚定">👁</span>' : '') + '</div>' +
+              '<i class="slot-module-mark" aria-hidden="true">▰</i><span class="slot-module-name">' + filled.name + '</span>' +
+              (_locked ? ' <span class="eye" title="虚境信仰 · 永恒锚定">👁</span>' : '') + '</div>' +
             '<div class="slotsub' + (_fit ? '' : ' bad') + '">' +
               (_fit ? (filled.effectText ? C.effectText(filled.effect) : filled.desc)
                     : '与这个槽不对口，装填新卡可覆盖') +
             '</div>' +
             (_locked
               ? '<div class="locknote" title="虚境信仰已永恒锚定，不可卸下">🔒 永恒锚定 · 不可卸下</div>'
-              : '<button class="btn danger" data-remove="' + i + '" ' +
+              : '<button class="btn danger slot-eject" data-remove="' + i + '" ' +
                 'title="卸下此政策卡（' + _rCost + '）">卸下</button>')
-          : '<div class="slotcard empty">空置</div>' +
-            '<div class="slotsub">点击装填</div>') +
+          : '<div class="slotcard empty"><span class="slot-empty-glyph" aria-hidden="true">＋</span>' +
+            '<span>' + (_canHere ? '点击插入' : '等待装入') + '</span></div>' +
+            '<div class="slotsub">' + (_canHere ? '已选政策卡 · 点击此槽安装' : '选择兼容政策卡后插入') + '</div>') +
         '</div>';
     }
     h += '</div>';
@@ -569,6 +620,11 @@
         var fits = C.cardFits(q, C.currentSlotType(s));
         /* ERA9 虚境信仰卡（q.locked）：紫红色卡面 + 眼睛图标，池里标「永恒卡」，装填后仍不可卸下。 */
         var _qlocked = !!q.locked;
+        var qFlavor = q.flavor || '';
+        var voidCard = q.id === 'card_cycle_terminus';
+        if (voidCard && qFlavor && SB.ui.render && typeof SB.ui.render.voidCorrupt === 'function') {
+          qFlavor = SB.ui.render.voidCorrupt(qFlavor, 127, 1);
+        }
         h += '<article class="policy-card policy-card-' + groupType + (on ? ' is-installed' : '') +
           (_qlocked ? ' is-locked-vr' : '') +
           (armedCard === q.id ? ' is-armed' : '') + '">' +
@@ -580,7 +636,7 @@
           '<div class="policy-card-desc">' + q.desc +
           (on ? '' : fits ? '' : '<br><span class="policy-card-warning">⚠ 与当前槽型不对口：需要 ' + C.slotTypeName(groupType) + '</span>') +
           '</div>' +
-          (q.flavor ? '<div class="policy-card-flavor">' + q.flavor + '</div>' : '') +
+          (qFlavor ? '<div class="policy-card-flavor' + (voidCard ? ' void-flavor' : '') + '">' + qFlavor + '</div>' : '') +
           '<button class="btn' + (on || why ? '' : ' buy') + '" data-card="' + q.id + '"' +
           /* ⚠️ 2026-10-14 修：只有「硬拦」才禁用按钮——没解锁 / 槽型不对；
            *   「缺市政点」是软拦，必须放行点卡 arm，否则两步选槽对买不起的卡
@@ -641,13 +697,15 @@
       }
     }
 
-    /* 连线先画，压在节点底下。 */
+    /* 连线先画，压在节点底下。虚境终局线单独着色，仍沿用同一张市政树。 */
+    var voidPathIds = { void_faith: 1, void_explore: 1, ascend_void: 1 };
     h += '<svg class="techlines" width="' + treeW + '" height="' + treeH + '">';
     for (i = 0; i < L.edges.length; i++) {
       var e = L.edges[i];
       if (!visible[e.from] || !visible[e.to]) continue;
       var doneEdge = s.civics[e.from] && s.civics[e.to];
       h += '<path class="tel' + (doneEdge ? ' done' : s.civics[e.from] ? ' open' : '') +
+        (voidPathIds[e.from] || voidPathIds[e.to] ? ' void-path-edge' : '') +
         '" d="' + e.d + '"></path>';
     }
     h += '</svg>';
@@ -689,7 +747,8 @@
     var boostPct = boost && boost.need > 0
       ? Math.max(0, Math.min(100, boost.now / boost.need * 100)) : 0;
     var status = done ? '已完成' : !rev ? '未揭示' : why ? '暂不可研究' : '可研究';
-    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + ' tree-node';
+    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + ' tree-node' +
+      (/^(void_faith|void_explore|ascend_void)$/.test(c.id) ? ' void-path-node' : '');
     var h = '<button type="button" class="' + cls + '" id="civicrow-' + c.id + '"' +
       ' data-node="' + c.id + '" data-x="' + cell.x + '" data-y="' + cell.y + '"' +
       ' data-layer="' + cell.layer + '"' +
@@ -732,8 +791,8 @@
   SB.ui.renderParts = SB.ui.renderParts || {};
   SB.ui.renderParts.research = {
     paneTech: paneTech, paneCivic: paneCivic,
-    paneCivicGov: paneCivicGov, paneCivicSlot: paneCivicSlot,
-    setCivicView: setCivicView, civicNoticeState: civicNoticeState, toggleGovDetail: toggleGovDetail,
+    paneCivicGov: paneCivicGov, paneGovPicker: paneGovPicker, paneCivicSlot: paneCivicSlot,
+    setCivicView: setCivicView, civicNoticeState: civicNoticeState,
     armCard: armCard, disarmCard: disarmCard, getArmedCard: getArmedCard,
     cycleJobStep: cycleJobStep, getJobStep: getJobStep,
     techGoEra: techGoEra, civicGoEra: civicGoEra

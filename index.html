@@ -3,14 +3,14 @@
 <head data-page-node-id="SHpRYBRRIDcP8Bx75nsUrT">
 <meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
-<title>渊海天壳 · SHELLBREAK</title>
+<title>自海渊至群星：深海文明建设</title>
 <script>
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=217" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=244" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -23,10 +23,10 @@
 </div>
 <div class="wrap" data-page-node-id="R3GyesNvCCnIGdybfi94vw">
   <header class="brandline" data-page-node-id="BrandLineP0">
-    <div class="brandmark" aria-hidden="true"></div>
+    <img class="brandmark" src="assets/brand/logo-shell-sun.jpg" alt="" aria-hidden="true">
     <div>
-      <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">渊海天壳 <small data-page-node-id="hp4Kyh6NeGNVYnRp4XyHzx">SHELLBREAK · 原始时代 → 破冰重置</small></h1>
-      <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自渊海，至天壳</div>
+      <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">自海渊至群星</h1>
+      <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自无光的渊海，眺望闪熠星河</div>
     </div>
     <div class="header-actions">
       <div class="theme-switch" role="group" aria-label="界面配色">
@@ -41,6 +41,22 @@
             <input type="checkbox" data-ui-effect="deep-bubbles">
             <span><b>气泡上浮动画</b><small data-bubbles-hint>只在暗流纪偶尔上浮</small></span>
           </label>
+          <div class="ui-settings-title">显示</div>
+          <label class="ui-setting-row ui-setting-row--select">
+            <span><b>游戏分辨率</b><small>仅桌面/横屏生效；移动端始终自适应。较低档位可减轻 GPU 负担与发热。</small></span>
+            <select data-ui-resolution class="ui-resolution-select">
+              <option value="auto">自适应（默认）</option>
+              <option value="720p">720p（1280×720）</option>
+              <option value="1080p">1080p（1920×1080）</option>
+              <option value="1440p">1440p（2560×1440）</option>
+              <option value="2K">2K（2048×1080）</option>
+            </select>
+          </label>
+          <div class="ui-settings-title">存档</div>
+          <div class="ui-settings-actions">
+            <button type="button" class="ui-setting-btn" id="btnSettingsSaveManager">存档管理</button>
+            <button type="button" class="ui-setting-btn ui-setting-btn--danger" id="btnSettingsWipe">清空存档</button>
+          </div>
         </div>
       </details>
     </div>
@@ -77,7 +93,7 @@
       <span id="shellLbl" data-page-node-id="bc4bEQ2I69f1zi5HW9nok7">天壳 · 冰封层厚度</span>
       <span id="shellTxt" data-page-node-id="IVUYeiy2RdxuRqCHPwPrny"></span>
     </div>
-    <div class="shellwrap" data-page-node-id="WyCg3jiyRbnXHXsZ0AMT8P"><div class="shellfill" id="shellFill" style="width:100%" data-page-node-id="M0LEEsFsp1Glfe5fCUzIMn"></div></div>
+    <div class="shellwrap" data-page-node-id="WyCg3jiyRbnXHXsZ0AMT8P"><div class="shellfill" id="shellFill" style="width:100%" data-page-node-id="M0LEEsFsp1Glfe5fCUzIMn"></div><div class="dyson-stages" id="shellDysonStages" aria-hidden="true"><span class="dyson-stage"><i class="dyson-stage-fill"></i></span><span class="dyson-stage"><i class="dyson-stage-fill"></i></span><span class="dyson-stage"><i class="dyson-stage-fill"></i></span><span class="dyson-stage"><i class="dyson-stage-fill"></i></span><span class="dyson-stage"><i class="dyson-stage-fill"></i></span></div></div>
     <div class="note" id="shellHint" data-page-node-id="LSdy9fhV1CRs5Ah36ogATZ"></div>
     <!-- 天穹钻机启动行（2026-10-07）：钻机改为手动启动后，按钮挂在天壳条正下方（读壳的地方就是用钻机的地方）。
          ⚠️ 与 #envWarm 同一套纪律：持久容器 + renderDrill 状态签名节流——签名不变一个 DOM 节点都不动，
@@ -122,7 +138,9 @@
     <!-- 公司页签（ERA6 市政《宏观经济学》解锁）：与科技/市政并列，门 = 拥有《宏观经济学》。 -->
     <div class="tab locked" id="tab-company" data-tab="company" title="研究「宏观经济学」后开启" data-page-node-id="CmpTab01Company">公司<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('company')" title="这是什么？">?</button></div>
     <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl">轮回商店<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？">?</button></div>
-    <div class="tab locked" data-tab="challenges" title="首次轮回后开启挑战与成就">挑战与成就</div>
+    <div class="tab locked" data-tab="challenges" title="首次轮回后开启挑战">挑战<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('challenges')" title="这是什么？">?</button></div>
+    <!-- 成就独立页签（2026-10-24 用户要求）：门与挑战同为首次轮回。 -->
+    <div class="tab locked" data-tab="achievements" title="首次轮回后开启成就">成就<button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('achievements')" title="这是什么？">?</button></div>
   </div>
 
   <section class="challenge-notice" id="challengeNotice" hidden aria-label="当前挑战">
@@ -163,6 +181,8 @@
   </div>
   <div class="card hidden" id="pane-meta" data-page-node-id="OsoF8zzJJXG46B5FmuHcwv"></div>
   <div class="card hidden" id="pane-challenges"></div>
+  <!-- 成就墙页（2026-10-24）：与挑战页拆成两个页签，门同为首次轮回。 -->
+  <div class="card hidden" id="pane-achievements"></div>
 
   <div class="card" data-page-node-id="v486295fD7Ww5xIRjRWFIF">
     <div class="foot" data-page-node-id="Mup8CMe6kDpRa78GiFXAQ6">
@@ -193,69 +213,69 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=176"></script>
-<script src="src/config-catalog.js?v=8"></script>
-<script src="src/config-content.js?v=30"></script>
-<script src="src/config-buildings.js?v=36"></script>
+<script src="src/config.js?v=177"></script>
+<script src="src/config-catalog.js?v=11"></script>
+<script src="src/config-content.js?v=31"></script>
+<script src="src/config-buildings.js?v=39"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=134"></script>
-<script src="src/tech.js?v=117"></script>
+<script src="src/techs.js?v=135"></script>
+<script src="src/tech.js?v=118"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=21"></script>
-<script src="src/civics.js?v=128"></script>
+<script src="src/civics-data.js?v=26"></script>
+<script src="src/civics.js?v=131"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/state-migrate.js?v=17"></script>
-<script src="src/state.js?v=149"></script>
+<script src="src/state.js?v=151"></script>
 <script src="src/workshop.js?v=120"></script>
 <script src="src/wonder.js?v=110"></script>
 <script src="src/economy-social.js?v=8"></script>
-<script src="src/economy.js?v=187"></script>
+<script src="src/economy.js?v=188"></script>
 <script src="src/economy-rates.js?v=24"></script>
-<script src="src/economy-tick.js?v=21"></script>
+<script src="src/economy-tick.js?v=22"></script>
 <script src="src/offline-scheduler.js?v=2"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=1"></script>
-<script src="src/shell.js?v=106"></script>
-<script src="src/habitat.js?v=109"></script>
+<script src="src/shell.js?v=108"></script>
+<script src="src/habitat.js?v=110"></script>
 <script src="src/folk.js?v=106"></script>
-<script src="src/prestige.js?v=122"></script>
+<script src="src/prestige.js?v=126"></script>
 <script src="src/challenges.js?v=7"></script>
 <script src="src/auto-research.js?v=1"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=12"></script>
+<script src="src/ui/render-content.js?v=14"></script>
 <script src="src/ui/render-common.js?v=5"></script>
-<script src="src/ui/render-info.js?v=19"></script>
-<script src="src/ui/render-pane-research.js?v=11"></script>
-<script src="src/ui/render-pane-village.js?v=26"></script>
-<script src="src/ui/render-pane-folk.js?v=4"></script>
-<script src="src/ui/render-talent-tree.js?v=1"></script>
-<script src="src/ui/render-pane-meta.js?v=6"></script>
-<script src="src/ui/render-pane-challenges.js?v=7"></script>
-<script src="src/ui/render-pane-company.js?v=3"></script>
-<script src="src/ui/render-pane-faith.js?v=1"></script>
+<script src="src/ui/render-info.js?v=22"></script>
+<script src="src/ui/render-pane-research.js?v=26"></script>
+<script src="src/ui/render-pane-village.js?v=27"></script>
+<script src="src/ui/render-pane-folk.js?v=5"></script>
+<script src="src/ui/render-talent-tree.js?v=5"></script>
+<script src="src/ui/render-pane-meta.js?v=10"></script>
+<script src="src/ui/render-pane-challenges.js?v=10"></script>
+<script src="src/ui/render-pane-company.js?v=4"></script>
+<script src="src/ui/render-pane-faith.js?v=2"></script>
 <script src="src/ui/render-pane-wonder.js?v=3"></script>
 <script src="src/ui/render-pane-star-map.js?v=8"></script>
-<script src="src/ui/render-pane-workshop.js?v=14"></script>
-<script src="src/ui/render-environment.js?v=15"></script>
-<script src="src/ui/render.js?v=227"></script>
-<script src="src/game.js?v=144"></script>
+<script src="src/ui/render-pane-workshop.js?v=15"></script>
+<script src="src/ui/render-environment.js?v=17"></script>
+<script src="src/ui/render.js?v=244"></script>
+<script src="src/game.js?v=146"></script>
 <script src="src/save-transfer.js?v=1"></script>
-<script src="src/ui/input.js?v=156"></script>
+<script src="src/ui/input.js?v=164"></script>
 <script src="src/ai-strategy.js?v=73"></script>
-<script src="src/ui/theme.js?v=2"></script>
+<script src="src/ui/theme.js?v=3"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=1"></script>
-<script src="src/achv.js?v=1"></script>
+<script src="src/achv.js?v=2"></script>
 <script src="src/main.js?v=98"></script>
 </body>
 </html>

@@ -47,7 +47,7 @@
     /* ERA10（2026-10-20）：太阳星环归纪元十。⚠️ 与 W[10] 必须同时登记：
      *   只加 META_ERA ⇒ W[10] 为 undefined ⇒ buildingScore 变 NaN（比跳过更糟）。
      * ERA10 市政（2026-10-20）：泰拉/恩克拉多斯星轨道发射场 + 虚境祭坛同样归纪元十
-     *   （虚境祭坛虽是"无产出"建筑，但它吃 30 人口/级，理应在发展分里算数）。 */
+     *   （虚境祭坛虽是"无产出"建筑，但有人口阶梯造价，理应在发展分里算数）。 */
     solar_ring: 10, terra_launch: 10, enceladus_launch: 10, void_altar: 10
   };
 
@@ -187,6 +187,11 @@
     if (s.civics && s.civics.civilization) r.tidePoints *= 1.2;
     meta.tide += r.tidePoints;
     meta.tideEarnedTotal = (meta.tideEarnedTotal || 0) + r.tidePoints;
+    /* 2026-10-24 成就「十次轮回」（docs/ACHV_DESIGN_v0.3.md §四·4，事项 4 用户拍「只算轮回」）：
+     * rebirths 是合格轮回的**新计数器**（软重置 / 神学前重置 / 未过资格门全不计，
+     * 与 meta.cycle 的「周目」语义故意分开——cycle 对软重置也 +1）。
+     * ⚠️ 老档无此键 ⇒ 从 0 起算，不追溯（历史轮回次数无法从 cycle 反推，见设计稿 §四·4）。 */
+    meta.rebirths = (meta.rebirths || 0) + 1;
     /* 挑战必须完成《神学》资格并真正凿穿天壳；普通结算/重开不兑现挑战奖励。 */
     if (s.shell <= 0 && SB.challenges) {
       var challengeOutcome = SB.challenges.resolveRun(s, meta);
@@ -268,7 +273,21 @@
     if (p.scale) return Math.floor(p.cost * Math.pow(p.scale, lv));
     return p.cost;
   }
-  function perkLocked(p) { return !!p.nest && perkLevel(p.nest) <= 0; }
+  function perkPrerequisites(p) {
+    if (!p) return [];
+    var raw = p.nests !== undefined ? p.nests : p.nest;
+    if (!raw) return [];
+    var list = Array.isArray(raw) ? raw : [raw], out = [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && out.indexOf(list[i]) < 0) out.push(list[i]);
+    }
+    return out;
+  }
+  function perkLocked(p) {
+    var required = perkPrerequisites(p);
+    for (var i = 0; i < required.length; i++) if (perkLevel(required[i]) <= 0) return true;
+    return false;
+  }
   function perkState(id) {
     var p = perkDef(id);
     if (!p) return null;
@@ -277,6 +296,7 @@
     var next = perkNextCost(p, lv);
     return {
       perk: p, lv: lv, max: max, next: next,
+      prerequisites: perkPrerequisites(p),
       done: lv >= max,
       locked: perkLocked(p),
       afford: meta.tide >= next
@@ -314,22 +334,44 @@
     var meta = SB.game.meta();
     var levels = meta.starPerks || {};
     var lv = levels[id] || 0;
+    var prereqRaw = p.nests !== undefined ? p.nests : p.nest;
+    var prerequisites = !prereqRaw ? [] : (Array.isArray(prereqRaw) ? prereqRaw.slice() : [prereqRaw]);
+    var locked = false;
+    for (var pi = 0; pi < prerequisites.length; pi++) {
+      if (prerequisites[pi] && !(levels[prerequisites[pi]] > 0)) { locked = true; break; }
+    }
+    if (lv > 0) locked = false; // 已拥有节点的旧档可继续使用；迁移后不强制追溯新前置。
     var next = p.costs ? p.costs[lv] : (p.cost || 0) + (p.costStep || 0) * lv;
     return { perk: p, lv: lv, max: p.n || 1, next: next,
+      prerequisites: prerequisites, locked: locked,
       done: lv >= (p.n || 1), afford: (meta.stardust || 0) >= next };
   }
   function buyStarPerk(id) {
     var st = starPerkState(id);
-    if (!st || st.done || !isFinite(st.next) || !st.afford) return false;
+    if (!st || st.done || st.locked || !isFinite(st.next) || !st.afford) return false;
     var meta = SB.game.meta();
     if (!meta.starPerks || typeof meta.starPerks !== 'object') meta.starPerks = {};
     meta.stardust -= st.next;
     meta.starPerks[id] = st.lv + 1;
     var s = SB.game.run();
-    if (s && s.perk) {
-      var a = st.perk.apply || {};
-      for (var k in a) s.perk[k] = (s.perk[k] || 0) + a[k];
+    if (s && s.perk && id === 'starInfinite') {
+      /* 每购一级轮回共鸣，给当前已购的每一级无限潮汐节点追加 100% 效果。 */
+      var tideNodes = SB.TIDE_TREE || [], tideLevels = meta.perks || {}, cycle = meta.cycle || 0;
+      for (var ti = 0; ti < tideNodes.length; ti++) {
+        var tideNode = tideNodes[ti], tideLv = Math.max(0, Math.floor(Number(tideLevels[tideNode.id]) || 0));
+        if (tideNode.n !== Infinity || tideLv <= 0) continue;
+        var tideApply = tideNode.apply || {};
+        for (var tk in tideApply) {
+          var extra = tideNode.dyn === 'loop5' ? tideApply[tk] * 0.05 * cycle * tideLv : tideApply[tk] * tideLv;
+          s.perk[tk] = (s.perk[tk] || 0) + extra;
+        }
+        if (tideNode.recipe) {
+          if (!s.perk.recipeCraft) s.perk.recipeCraft = {};
+          s.perk.recipeCraft[tideNode.recipe] = (s.perk.recipeCraft[tideNode.recipe] || 0) + (tideNode.rmul || 0.1) * tideLv;
+        }
+      }
     }
+    if (s && s.perk) applyPerk(s, st.perk);
     SB.state.saveMeta(meta);
     return true;
   }
@@ -373,15 +415,19 @@
     if (!s.perk) s.perk = SB.state.emptyPerks();
     var a = p.apply || {};
     var cycle = (SB.game && SB.game.meta && SB.game.meta().cycle) || 0;
+    var effectScale = 1;
+    if (p.subtree && p.n === Infinity && SB.game && SB.game.meta) {
+      effectScale += Math.max(0, Math.floor(Number(SB.game.meta().starPerks && SB.game.meta().starPerks.starInfinite) || 0));
+    }
     for (var k in a) {
       if (p.mode === 'max') s.perk[k] = Math.max(s.perk[k] || 0, a[k]);
-      else if (p.dyn === 'loop5') s.perk[k] = (s.perk[k] || 0) + a[k] * 0.05 * cycle;
-      else s.perk[k] = (s.perk[k] || 0) + a[k];
+      else if (p.dyn === 'loop5') s.perk[k] = (s.perk[k] || 0) + a[k] * 0.05 * cycle * effectScale;
+      else s.perk[k] = (s.perk[k] || 0) + a[k] * effectScale;
     }
     if (p.give) { for (var g in p.give) if (s.res[g] !== undefined) s.res[g] += p.give[g]; }
     if (p.recipe) {
       if (!s.perk.recipeCraft) s.perk.recipeCraft = {};
-      s.perk.recipeCraft[p.recipe] = (s.perk.recipeCraft[p.recipe] || 0) + (p.rmul || 0.1);
+      s.perk.recipeCraft[p.recipe] = (s.perk.recipeCraft[p.recipe] || 0) + (p.rmul || 0.1) * effectScale;
     }
   }
 
@@ -416,6 +462,7 @@
     perkState: perkState,
     perkLevel: perkLevel,
     perkDef: perkDef,
+    perkPrerequisites: perkPrerequisites,
     perkLocked: perkLocked,
     buyPerk: buyPerk,
     stardustFacilityLevels: stardustFacilityLevels,

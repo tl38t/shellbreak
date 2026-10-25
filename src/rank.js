@@ -1,4 +1,4 @@
-/* 渊海天壳 / SHELLBREAK — TapTap 排行榜封装
+/* 自海渊至群星：深海文明建设 — TapTap 排行榜封装
  *
  * 环境内置全局对象 `tap`（TapTap 运行时自带，无需引入 SDK）。
  * 关键 API：tap.getLeaderboardManager() → 实例；

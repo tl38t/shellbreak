@@ -569,14 +569,14 @@
      *   解锁权写在市政身上（用户规格「《神学》研究完成……解锁……建筑神庙」）。
      *   但注意这里读的是 `s.civics`（**已完成**）而不是 `civShown`（已揭示）——
      *   揭示只开门、完成才给东西，这两者不能混（habitat.unlocked 那条守卫就是它）。
-     * ⚠️【它当前完全不产生信仰】见 BLD.templeFaithRatio 那条注：信仰此刻没有基础产出，
-     *   神庙是纯乘区 ⇒ 乘 0 还是 0。玩家会看到一座「建着玩」的建筑，这是宗教未设计的
-     *   暂时状态，不是接线漏了。宗教系统落地 = 在 economy.faithRate 里补基础产出那一项。
+     * ⚠️【信仰基础产出**已接通**（2026-10-24 校，旧结论作废）】：economy.faithRate 在完成《神学》后
+     *   base = 人口 × CFG.FAITH_PER_POP(0.02)（economy.js:1925），再把 faithMul（神庙这段 ×10%/级）乘上去。
+     *   故原文案「宗教系统落地后生效」已过期并删除；尚未做的只是「给信仰命名」那层宗教皮（cond `religion`）。
      * ⚠️ 2026-09-28 用户改价：珊瑚 250 → `{stone 150, silt 50}`。
      *    与广场同一个路子，但拆得更开：石头是**采石工那条线**的货、金属是**矿工那条线**的，
      *    ⇒ 建一座神庙要同时拉动两条采集线，而不是纯珊瑚。 */
     { id: 'temple', icon: 'assets/building-icons/era-2/era2-temple.png', name: '神庙', ratio: 1.15, cost: {stone: 150, silt: 50},
-      desc: '信仰产出 ×10%/级（宗教系统落地后生效；装政策卡「神学」后翻倍）',
+      desc: '信仰产出 ×10%/级（装政策卡「神学」后翻倍）',
       requiredCivic: 'theology' },
     /* ⚠️ 热泉井（geyser）**已按用户 2026-09-28 指令整体删除**——「这些都等着重新设计」。
      *    【它一拆，两条线同时断；重设时这两处必须一起重做，只补一处等于没补】
@@ -673,13 +673,18 @@
       requiredCivic: 'enlightenment' },
 
     /* ══ ERA9 建筑（2026-10-20 用户规格 · 由《神们自己》解锁）══
-     * 黑色方碑：消耗 1000 石梁，每级造价 ×1.5（ratio:1.5）；建成即全局信仰产出 ×1.2
-     * （globalFaithMul:0.2，economy.faithRate 经 civics.buildingFaithMul 读，乘整段）。
+     * 黑色方碑：消耗 1000 石梁，每级造价 ×1.5（ratio:1.5）。
+     * ⚠️ 2026-10-24 用户拍板改效果：原「建成即全局信仰产出 ×1.2（一次性，等级不叠加）」
+     *    改为「**每级** ×1.05」（faithMulPerLvl:1.05）。
+     *    读数：economy.faithRate 经 civics.buildingFaithMul 读，Math.pow(1.05, lvl)，乘整段。
+     *    曲线：1.05^14 = 1.9799（未到 ×2）｜1.05^15 = 2.0789（首次越过 ×2）⇒ 软上限 ×2 需 15 级。
+     *    ⚠️【对冲关系】收益 1.05^n 指数增长 vs 造价 1.5^(n-1) 指数增长，后者快得多
+     *       ⇒ 等级越高边际越亏（15 级单级造价 291,929 石梁，累计 873,788 石梁）。
      * 无 zone（不参与分区/人口/产能统计），纯信仰增益建筑。解锁走 requiredCivic（神们自己）。 */
-    { id: 'black_monolith', icon: 'assets/building-icons/era-9/era9-black-monolith.png', name: '黑色方碑', ratio: 1.5,
+    { id: 'black_monolith', icon: 'assets/building-icons/era-9/era9-black-monolith-v2.png', name: '黑色方碑', ratio: 1.5,
       cost: { stoneBeam: 1000 },
-      globalFaithMul: 0.2,
-      desc: '建成即全局信仰产出 ×1.2（消耗 1000 石梁，每级造价 ×1.5）。',
+      faithMulPerLvl: 1.05,
+      desc: '每级使全局信仰产出 ×1.05（消耗 1000 石梁，每级造价 ×1.5）。',
       requiredCivic: 'gods_themselves' },
 
     /* ── ERA5 两座建筑（2026-10-02 实装）──
@@ -774,7 +779,7 @@
      *   ratio 3（用户 2026-10-21 标定：每级造价 ×3，升级成本骤增；原 1.15 与核热厂/生物材料研究所同档已弃）；造价 100θ + 800 tiplate（spec §4 B6：200→800 ×4）。
      *   requiredTech='protoai' 与 protoai.unlockBuild 同源（都指向初级人工智能）。 */
     { id: 'robotbay', icon: 'assets/building-icons/era-8/era8-robotbay.png', name: '机器人充能站', ratio: 3, cost: { thetaMetal: 100, tiplate: 800 },
-      desc: '维持 4 机器人人口/级：仅担任非书手/学者的岗位，产出 +20%。工坊升级「强人工智能」后产出 +50%，且按人口口径产出信仰。耗热液能 8/秒/级。',
+      desc: '维持 4 机器人人口/级：仅担任非书手/学者的岗位，产出 +20%。工坊升级「强人工智能」后产出 +50%，且按人口数量产出信仰。耗热液能 8/秒/级。',
       requiredTech: ['protoai'] },
     /* ── ERA9（2026-10-19 实装）──
      * 【马尔斯工造中心】星海区（用户拍 P5：马尔斯算异星，与 rheamine/titancloud 同区 ⇒ 吃 spaceCostMul）。
@@ -795,7 +800,7 @@
      *   ratio 1.5（与 era9 两座同档）；造价 300 θ金属 + 20 封闭藻仓（sealbin，ERA6 工艺物品，现成 key）。
      *   每级 +0.05 θ金属/秒（economy.thetaOut 新项，与 biomatlab 线**独立相加**）、人口上限 +1/级（economy.popCap）。
      *   requiredTech='near_star_orbit' 与科技侧 eff.unlockBuild 双写（解锁权两处同源，e2e 三断言口径）。 */
-    { id: 'solar_ring', stardustFacility: true, icon: 'assets/building-icons/era-10/era10-solar-ring.png', name: '太阳星环', ratio: 1.5, cost: { thetaMetal: 300, sealbin: 20 },
+    { id: 'solar_ring', stardustFacility: true, icon: 'assets/building-icons/era-10/era10-solar-ring-v2.png', name: '太阳星环', ratio: 1.5, cost: { thetaMetal: 300, sealbin: 20 },
       desc: '近恒星轨道环：每秒产 0.05 θ金属/级；人口上限 +1/级。',
       requiredTech: ['near_star_orbit'] },
 
@@ -820,16 +825,16 @@
       requiredCivic: 'public_works' },
 
     /* 【虚境祭坛】（市政《虚境探索》解锁）
-     *   用户规格：消耗 30 人口、成本成长 1.5、最高 3 级、每升一级按钮上叠一层血纹。
+     *   人口成本按目标等级固定阶梯：建造 1 级=30、升级至 2 级=75、升级至 3 级=200；最高 3 级。
      *   ⚠️ `cost.pop` 是**人口造价**，不是资源：economy.costOf 跳过它、canAfford 特判 s.pop、
      *      pay 不扣（扣人口走 habitat.consumePop，按用户拍板「扣当前人口，按当前职业分配比例扣」）。
      *   ⚠️ `maxLvl` 是全仓第一条等级上限：habitat.build / autoTick / 卡片 UI 三处都要认它，
      *      漏自动建造那一处 = 挂一晚自动买到 99 级。
      *   ⚠️ 无产出（用户未给效果）：它是《飞升虚境》的鼓舞门槛 + 血纹视觉。
      *   血纹纯 UI（render-pane-village 读 lvl 拼类名，CSS 画层），不进结算。 */
-    { id: 'void_altar', icon: 'assets/building-icons/era-10/era10-void-altar.png', name: '虚境祭坛', ratio: 1.5,
-      cost: { pop: 30 }, maxLvl: 3,
-      desc: '以族民为祭：每建一级消耗 30 人口（按当前职业分配比例扣减），最高 3 级。三级俱成，虚境的门为你打开。',
+    { id: 'void_altar', icon: 'assets/building-icons/era-10/era10-void-altar-v2.png', name: '虚境祭坛', ratio: 1.5,
+      cost: { pop: 30 }, popCostByLevel: [30, 75, 200], maxLvl: 3,
+      desc: '以族民为祭：建造 1 级消耗 30 人口，升至 2 级消耗 75，升至 3 级消耗 200（按当前职业分配比例扣减）。三级俱成，虚境的门为你打开。',
       requiredCivic: 'void_explore' }
   ];
 
@@ -869,7 +874,7 @@
     /* 天壳观测站（2026-09-30 ERA4）：归学术区 —— 它的尤里卡要求学术区合计 35 级
      *   （2026-10-06 用户把门槛从 70 下调到 35）。 */
     observatory: 'academy',
-    square: 'civic', civichall: 'civic', temple: 'faith',
+    square: 'civic', civichall: 'civic', temple: 'faith', black_monolith: 'faith',
     /* 速生珊瑚林（2026-09-30 ERA4）：生息区 —— 它是「种珊瑚」，与藻食那批同区。 */
     coralfarm: 'food',
     /* 银行（2026-09-30 ERA4）：贸易区域 —— 它的尤里卡就要求贸易区合计 100 级。 */

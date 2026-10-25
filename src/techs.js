@@ -647,7 +647,7 @@
       reqs: ['abyssgeo', 'shellgeo'], layer: 7,
       cond: { t: 'wonders', ids: ['wonder_shellcutter', 'wonder_presspipe'] },
       eff: {},
-      unlockDesc: '解锁奇观「天穹钻机」；当前版本的机器运行逻辑尚未实装。' },
+      unlockDesc: '解锁奇观「天穹钻机」。' },
 
     /* ═════════ 纪元六 · 太空（10 项 · layer 8/9/10） ═════════
      * 出壳之后的工业线。layer 全局 8/9/10（skydrill 是 L7，本纪元整体 +7）。
@@ -883,9 +883,11 @@
       /* 尤里卡 = 星空探索进度 >50%（starPct，与异星建筑工程同口径）。 */
       cond: { t: 'starPct', n: 50 },
       eff: {},
-      /* 解锁1 = 奇观「星球重构机 G.E.E.K」（wonder_geek.need='ecological_restoration'，运行态机制随后单独实装）。
-       * 解锁2 = 完成恩克拉多斯星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前（G.E.E.K 运行态，本轮占位）。 */
-      unlockDesc: '解锁奇观「星球重构机 G.E.E.K」（运行态机制随后单独实装）。完成恩克拉多斯星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前。' },
+      /* 解锁1 = 奇观「星球重构机 G.E.E.K」（wonder_geek.need='ecological_restoration'）。
+       * 解锁2 = 完成恩克拉多斯星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前。
+       * ⚠️ 2026-10-24 校：原文案写「运行态机制随后单独实装」，实际 shell.js 早有 geekOn/enceladusDone/terraDone
+       *    （见 shell.js:54/101-113），属**过期文案**——已删该括号，勿再写回。 */
+      unlockDesc: '解锁奇观「星球重构机 G.E.E.K」。完成恩克拉多斯星改造后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到三级之前。' },
 
     { id: 'interplanetary', name: '行星际航行', icon: 'assets/tech-icons/era-9/era9-interplanetary.png?v=2', era: 9, cost: 4000000, branch: 'know', key: false, reqs: ['nanotech', 'protoai'], layer: 17,
       /* 尤里卡 = 累计产火箭引擎 >500（gathered，与 era7 火箭研究同源）。 */
@@ -924,9 +926,10 @@
        * 尤里卡 = 完成恩克拉多斯星改造（geekEnceladus，新 cond；G.E.E.K 运行态随后单独实装，本轮该条件恒 false）。 */
       cond: { t: 'geekEnceladus' },
       eff: {},
-      /* 解锁1 = 可启动泰拉星球改造（需启动 G.E.E.K，随后实装）。
-       * 解锁2 = 泰拉改造 1h 完成后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到五级之前（减消耗，替换 Rhea 的 3 级偏移）。 */
-      unlockDesc: '可启动泰拉星球改造（需启动星球重构机 G.E.E.K，运行态随后实装）。泰拉改造 1h 完成后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到五级之前。' },
+      /* 解锁1 = 可启动泰拉星球改造（需先启动 G.E.E.K）。
+       * 解锁2 = 泰拉改造 1h 完成后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到五级之前（减消耗，替换 Rhea 的 3 级偏移）。
+       * ⚠️ 2026-10-24 校：原文案「运行态随后实装」已过期（shell.js:101-113 已实现 terraDone），勿再写回。 */
+      unlockDesc: '可启动泰拉星球改造（需先启动星球重构机 G.E.E.K）。泰拉改造 1h 完成后，人口/速生珊瑚林/矿井/生息区建筑升级消耗回到五级之前。' },
 
     { id: 'interlog', name: '行星际快速物流', icon: 'assets/tech-icons/era-9/era9-interlog.png?v=2', era: 9, cost: 6500000, branch: 'live', key: false, reqs: ['microwave_heat'], layer: 19,
       /* 尤里卡 = 完成星际政治市政（civic，与 era8 星际政治同口径）。 */
@@ -950,10 +953,10 @@
       eff: {},
       /* 解锁1 = 发射场模式切换（太阳帆 / 戴森球节点，s.launchMode；economy-tick 2f 段读，
        *   UI 在欧罗巴冰面发射场建筑行加切换钮）。节点每级每秒耗铀 5 + 3 强工质火箭引擎 + 3 θ金属自适应薄膜
-       *   + 30 钛合金板 + 4 热液能；库存材料受星屑节点减耗。
+       *   + 30 钛合金板 + 4 热液能。
        * 解锁2 = 戴森球终局面板（星图 pane）：太阳帆 10000 + 戴森球节点 1000，进度双达标取小
        *   （用户拍 Q4），20/40/60/80/100 五档背景图，100% 弹通关窗（可轮回或继续攒）。 */
-      unlockDesc: '欧罗巴冰面发射场可切换制造太阳帆（每级每秒耗铀 0.5、强工质火箭引擎 0.3、θ金属自适应薄膜 0.3、热液能 4）或戴森球节点（每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4；库存材料受星屑减耗）。星图开启戴森球终局面板：太阳帆 10000 + 戴森球节点 1000 即通关。' },
+      unlockDesc: '欧罗巴冰面发射场可切换制造太阳帆（每级每秒耗铀 0.5、强工质火箭引擎 0.3、θ金属自适应薄膜 0.3、热液能 4）或戴森球节点（每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4）。星图开启戴森球终局面板：太阳帆 10000 + 戴森球节点 1000 即通关。' },
 
     { id: 'strong_ai', name: '强人工智能', icon: 'assets/tech-icons/era-10/era10-strong-ai.png?v=2', era: 10, cost: 8500000, branch: 'know', key: false, reqs: ['terraform'], layer: 20,
       /* 尤里卡 = 机器人充能站等级 ≥10（built，现成类型）。 */
@@ -963,7 +966,7 @@
        *   机器人产出 ×1.2 → ×1.5（folk.robotMult 读数，替代写死的 ROBOT_MULT=1.2）；
        *   且机器人按**人口口径**产信仰（用户拍 Q3「进人口基项」：economy.faithRate 的
        *   人口基项 +robotPop，升级门控——没买升级前机器人仍不影响信仰）。 */
-      unlockDesc: '工坊升级「强人工智能」（消耗 1000 θ金属）：机器人产出 ×1.2 → ×1.5，且机器人按人口口径产出信仰。' },
+      unlockDesc: '工坊升级「强人工智能」（消耗 1000 θ金属）：机器人产出 ×1.2 → ×1.5，且机器人按人口数量产出信仰。' },
 
     { id: 'gravity_sling', name: '引力弹弓', icon: 'assets/tech-icons/era-10/era10-gravity-sling.png?v=2', era: 10, cost: 9000000, branch: 'live', key: false, reqs: ['interlog'], layer: 20,
       /* 尤里卡 = 完成市政「太阳系后勤保障」（civic，ERA9 已实装，现成类型）。 */

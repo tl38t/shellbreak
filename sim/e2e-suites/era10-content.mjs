@@ -362,7 +362,7 @@ export function run({ SB, check, noop, fs, path, ROOT }) {
   if (fs && path && ROOT) {
     const techIcons = ['adiabatic', 'strong-ai', 'gravity-sling', 'near-star-orbit', 'vector-ctrl', 'heir-of-stars', 'unified-field']
       .map(n => 'assets/tech-icons/era-10/era10-' + n + '.png');
-    const bldIcon = 'assets/building-icons/era-10/era10-solar-ring.png';
+    const bldIcon = 'assets/building-icons/era-10/era10-solar-ring-v2.png';
     const stages = [20, 40, 60, 80, 100].map(n => 'assets/dyson/stage-' + n + '.png');
     const missing = [], tiny = [];
     techIcons.concat([bldIcon], stages).forEach(rel => {

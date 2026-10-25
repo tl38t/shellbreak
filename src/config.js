@@ -121,10 +121,10 @@
   // SPACE_ID 每个应用不同，由 MCP `check_ads_status` / `get_ad_integration_guide` 取回。
   // 空串时**不发奖**（控件也隐藏），只有 URL 显式带 ?adtest 才走 dev 直接发放的兜底。
   AD: {
-    // 天壳（app_id 963517）竖屏激励视频位。
-    // 取证：MCP 缓存 %TEMP%/taptap-mcp/cache/3f0144e6c451/app.json 的
+    // 自海渊至群星：深海文明建设（app_id 996563）竖屏激励视频位。
+    // 取证：MCP `check_ads_status` 对 996563 返回
     //   ad_config = { status:1, landscape_space_id:"1054323", portrait_space_id:"1054324" }
-    // 平台按应用的游戏方向自动匹配，天壳 screen_orientation=1（竖屏）⇒ 取竖屏位 1054324。
+    // 平台按应用的游戏方向自动匹配，本作 screen_orientation=0（竖屏）⇒ 取竖屏位 1054324。
     SPACE_ID: '1054324',
     BOOST_MIN: 30,           // 每次看完加多少分钟
     BOOST_CAP_MIN: 360,      // 累计上限（6 小时），防一次刷满无限囤
@@ -193,7 +193,73 @@
     small: 'SHELLBREAK_SMALL',                   // 小国寡民 — 单次挑战通关
     science: 'SHELLBREAK_SCIENCE',               // 忽视科文 — 三档全通
     abyss: 'SHELLBREAK_ABYSS',                   // 深渊重压 — 三档全通
-    firstRebirth: 'SHELLBREAK_FIRST_REBIRTH'     // 首次轮回 — 首次合格破壳结算
+    firstRebirth: 'SHELLBREAK_FIRST_REBIRTH',     // 首次轮回 — 首次合格破壳结算
+
+    /* ---- 2026-10-24 成就扩充（设计稿 docs/ACHV_DESIGN_v0.3.md）：+57 条 ----
+     * ⛔ 全部占位 '0'：TapTap 后台建成后逐条回填真 ID（MCP 无建成就工具）。
+     *    未回填期间 unlockOnce 只记本地账本（meta.achv，成就墙真源），不发平台请求。
+     *    名称/简介来源《assets/achievements/成就文案_v0.1.md》（待评审）；
+     *    展示文案在 src/achv.js DEFS_BASE（改键名两处同改）。 */
+    /* —— 通用 12 条 —— */
+    shellBreak: '0',          // 首次破壳（占位）
+    dysonEnd: '0',            // 控星之人（占位）
+    voidEnd: '0',             // 虚境飞升（占位）
+    speedrun: '0',            // 逐光竞速（占位）
+    starComplete: '0',        // 太空时代（占位）
+    religion: '0',            // 立教（占位）
+    rebirth10: '0',           // 十次轮回（占位）
+    relic10: '0',             // 旧日遗珍（占位）
+    relic25: '0',             // 遗珍全集（占位）
+    techAll: '0',             // 科技大成（占位）
+    civicAll: '0',            // 市政大成（占位）
+    halfDyson: '0',           // 半程星环（占位）
+    /* —— 轻车熟路 45 条（bld_* 从 SB.BUILDINGS 派生，键与建筑 id 一一对应）——
+     * 口径：该建筑跨周目累计购买等级 ≥100（唯一购买漏斗 habitat.build 的 s.lvl[id]++）。 */
+    bld_kelp: '0',            // 深海藻场：轻车熟路
+    bld_nest: '0',            // 礁口巢：轻车熟路
+    bld_coralhouse: '0',      // 石屋：轻车熟路
+    bld_siltpit: '0',         // 砂矿坑：轻车熟路
+    bld_hall: '0',            // 议事厅：轻车熟路
+    bld_weir: '0',            // 喷口导流堤：轻车熟路
+    bld_warmnest: '0',        // 深海鱼牧场：轻车熟路
+    bld_kelpstore: '0',       // 海藻仓：轻车熟路
+    bld_ballast: '0',         // 压舱仓：轻车熟路
+    bld_lighthouse: '0',      // 灯塔：轻车熟路
+    bld_workshop: '0',        // 工坊：轻车熟路
+    bld_furnace: '0',         // 热泉炉：轻车熟路
+    bld_library: '0',         // 潮纹馆：轻车熟路
+    bld_institute: '0',       // 研究所：轻车熟路
+    bld_square: '0',          // 广场：轻车熟路
+    bld_temple: '0',          // 神庙：轻车熟路
+    bld_hydroturbine: '0',    // 热液汽轮机：轻车熟路
+    bld_hydroshop: '0',       // 热液工坊：轻车熟路
+    bld_canal: '0',           // 王国潮道：轻车熟路
+    bld_civichall: '0',       // 公民会堂：轻车熟路
+    bld_observatory: '0',     // 天壳观测站：轻车熟路
+    bld_coralfarm: '0',       // 速生珊瑚林：轻车熟路
+    bld_bank: '0',            // 银行：轻车熟路
+    bld_caravanserai: '0',    // 商队驿站：轻车熟路
+    bld_museum: '0',          // 博物馆：轻车熟路
+    bld_black_monolith: '0',  // 黑色方碑：轻车熟路
+    bld_hotforge: '0',        // 热锻工厂：轻车熟路
+    bld_school: '0',          // 学校：轻车熟路
+    bld_theater: '0',         // 歌剧院：轻车熟路
+    bld_tenement: '0',        // 廉租社区：轻车熟路
+    bld_researchlab: '0',     // 科研所：轻车熟路
+    bld_satellite: '0',       // 轨道卫星：轻车熟路
+    bld_spacestation: '0',    // 空间站：轻车熟路
+    bld_fissionplant: '0',    // 核热厂：轻车熟路
+    bld_stadium: '0',         // 体育场：轻车熟路
+    bld_biomatlab: '0',       // 生物材料研究所：轻车熟路
+    bld_rheamine: '0',        // 瑞亚星矿井：轻车熟路
+    bld_titancloud: '0',      // 泰坦星气云采集站：轻车熟路
+    bld_robotbay: '0',        // 机器人充能站：轻车熟路
+    bld_mars_workshop: '0',   // 马尔斯工造中心：轻车熟路
+    bld_europa_launch: '0',   // 欧罗巴冰面发射场：轻车熟路
+    bld_solar_ring: '0',      // 太阳星环：轻车熟路
+    bld_terra_launch: '0',    // 泰拉星轨道发射场：轻车熟路
+    bld_enceladus_launch: '0',// 恩克拉多斯星轨道发射场：轻车熟路
+    bld_void_altar: '0',      // 虚境祭坛：轻车熟路
   },
 
   // ---- 纪元 ----
@@ -375,6 +441,12 @@
      * ⚠️ 这两个数是**保守占位值**，不是标定结果：离线收益到底该给多少属于经济时长债，
      * 与 BURN / 地热产能 / 时长窗那批一起最后统一算。改动前勿当成既定设计。 */
     OFFLINE_MIN: 60,              // 间隙小于 1 分钟不补算，免得刷新一下就补一大截
+    /* 2026-10-24 分级离线（用户拍板 30min）：gap ≥ OFFLINE_MIN 一律补算（挂机收益一秒不丢），
+     * 但只有 ≥ 本值才值得弹「离线闸门 + 结算报告」；更短的离开（回消息 / 切窗 / 锁屏一小会儿）
+     * 走静默补算——不锁界面、不弹报告，日志留一行。
+     * ⚠️ 这是 UX 门槛不是经济常数：不影响任何产出速率与 8-14h 时长窗核算，
+     *    别和上面两个「保守占位值」混为一谈。 */
+    OFFLINE_SETTLE_MIN: 1800,     // 离开 30 分钟以内算「短暂」，静默补算不弹离线结算
     OFFLINE_CAP: 8 * 3600,        // 单次补算上限 8 小时（超出部分按 0 计）
     OFFLINE_PERK_STEP: 0.25,      // 轮回商店「离潮计时」每级给单次离线上限 +25%（ perk.offline 由商店购买）
     OFFLINE_STEP: 2,              // 离线分段快进最大步长（逻辑秒）。单一来源：game.js / 离线调度器均只读此处，避免两套常量漂移

@@ -13,6 +13,7 @@
 
     for (var i = 0; i < SB.COMPANIES.length; i++) {
       var c = SB.COMPANIES[i];
+      var companyIcon = '<img class="company-icon" src="assets/company-icons/' + c.id + '.png" alt="" aria-hidden="true" width="36" height="36" loading="lazy" decoding="async">';
       /* 名字查 res 优先、id 兜底：新档按 res 键，旧档按 id 键。 */
       var nm = (s.companyNames && (s.companyNames[c.res] || s.companyNames[c.id])) || '（未命名）';
       var st = (SB.companyState ? SB.companyState(s, c.res) : null);
@@ -31,7 +32,7 @@
         var action = '<button type="button" class="btn warn company-action" data-company-close="' + c.res + '" aria-label="关闭 ' + nm + '">关闭公司</button>';
 
         h += '<article class="company-card is-active" data-company-res="' + c.res + '">' +
-          '<header class="company-card-head"><div class="company-identity">' +
+          '<header class="company-card-head"><div class="company-identity">' + companyIcon +
             '<strong class="company-name">' + nm + '</strong>' +
             '<span class="tag company-sector">' + (c.label || c.res) + '</span>' +
             '<span class="tag ok company-tier">' + (tier ? tier.name : '乡镇企业') + '</span>' +
@@ -67,7 +68,7 @@
         h += '</article>';
       } else if (st && st.closed) {
         h += '<article class="company-card is-closed" data-company-res="' + c.res + '">' +
-          '<header class="company-card-head"><div class="company-identity">' +
+          '<header class="company-card-head"><div class="company-identity">' + companyIcon +
             '<strong class="company-name">' + nm + '</strong>' +
             '<span class="tag company-sector">' + (c.label || c.res) + '</span>' +
             '<span class="tag off company-status">已解散</span>' +
@@ -78,7 +79,7 @@
       } else if (!reqMet) {
         var reqTxt = SB.companyReqText ? SB.companyReqText(c) : '解锁前置';
         h += '<article class="company-card is-locked" data-company-res="' + c.res + '">' +
-          '<header class="company-card-head"><div class="company-identity">' +
+          '<header class="company-card-head"><div class="company-identity">' + companyIcon +
             '<strong class="company-name">' + nm + '</strong>' +
             '<span class="tag company-sector">' + (c.label || c.res) + '</span>' +
             '<span class="tag off company-status">待解锁</span>' +

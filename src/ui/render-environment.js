@@ -7,6 +7,18 @@
   var CFG = SB.CFG;
   function el(id) { return root.document.getElementById(id); }
 
+  /* ── 奇观机器横幅小图标（2026-10-23 用户拍：自然环境卡里两台奇观机器挂奇观图标）──
+   * 图源**单点复用** render-content.js 的 WONDER_ART（奇观页 36×36 同一张表）——
+   * 在这里再写一份路径就是「同一张路径表抄两遍」，改一处忘另一处必漂。
+   * 尺寸缩到 22px 适配横幅行高；图缺失时回退 ✦ 字符（与奇观页 fallback 同形态）。
+   * 纯展示、无事件：两条横幅的按钮都在 .nm 之外的兄弟节点，不受每帧签名重建影响。 */
+  function envWonderIcon(id) {
+    var art = SB.ui.renderContent && SB.ui.renderContent.WONDER_ART && SB.ui.renderContent.WONDER_ART[id];
+    return art
+      ? '<img class="env-wonder-icon" src="' + art + '" alt="" aria-hidden="true" width="22" height="22" loading="lazy" decoding="async">'
+      : '<span class="env-wonder-icon env-wonder-icon-fallback" aria-hidden="true">✦</span>';
+  }
+
   /* ── 自然环境：天壳（上面那条 shellbar）+ 海底火山（这里这行）─────────────
    * 【为什么这两件事归到一张卡】用户 2026-09-26 指出：海底火山是**读天候的**，
    *   和天壳是同一类东西，摆在「巢穴」页那堆建造动作里没有归属感。
@@ -125,7 +137,7 @@
         drillSig = postBreakSig;
         var civicBonus = SB.wonder.skydrillCivic(s);
         var happyBonus = SB.wonder.skydrillHappyOffset(s);
-        box.innerHTML = '<div><div class="nm">天穹钻机 <span class="tag ok">破壳后奇观效果</span></div>' +
+        box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + '天穹钻机 <span class="tag ok">破壳后奇观效果</span></div>' +
           '<div class="ds">市政点 +' + civicBonus + '/秒；幸福度 ' + (happyBonus >= 0 ? '+' : '') +
           happyBonus + '。此处显示的是破壳后的常驻效果。</div></div>';
       }
@@ -163,7 +175,7 @@
       } else {
         ds = '运转中：钻头以 ' + SB.CFG.SKYDRILL_RATE + ' 点/秒削壳（轮回「壳层勘探」可再加成），吃完停摆、补足自动续。';
       }
-      box.innerHTML = '<div><div class="nm">天穹钻机 <span class="tag" id="envDrillCt">0</span></div>' +
+      box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + '天穹钻机 <span class="tag" id="envDrillCt">0</span></div>' +
         '<div class="ds">' + ds + '</div></div>' +
         '<button class="btn tog' + (s.skydrillOn ? ' on' : '') +
         '" data-skydrill="1" title="点击启动 / 停机">' + (s.skydrillOn ? '已启动' : '已停机') + '</button>';
@@ -247,7 +259,7 @@
         ds = '运转中：' + phaseTxt + '。缺料暂停、进度保留，补足自动续。';
       }
       var _remTag = _running ? '<span class="tag" id="envGeekRemain"></span>' : '';
-      box.innerHTML = '<div><div class="nm">星球重构机 G.E.E.K ' +
+      box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_geek') + '星球重构机 G.E.E.K ' +
         (enceladusDone ? '<span class="tag ok">恩克拉多斯已完成</span>' : '') +
         (terraDone ? '<span class="tag ok">泰拉已完成</span>' : '') + _remTag + '</div>' +
         '<div class="prog"><i id="envGeekBar" style="width:' + _pct.toFixed(2) + '%"></i></div>' +
@@ -326,7 +338,7 @@
     if (!hydroBuilt) {
       hydroBuilt = true;
       box.innerHTML = '<section class="hydro-panel">' +
-        '<div class="hydro-head"><span class="hydro-icon" aria-hidden="true">≈</span>' +
+        '<div class="hydro-head"><span class="hydro-icon" aria-hidden="true"><img src="assets/resource-icons/hydro.png?v=2" alt="" width="30" height="30"></span>' +
         '<div class="hydro-title"><b>热液能流</b><span>即产即用 · 净余量 = 供给 − 需求</span></div>' +
         '<span class="hydro-live" id="hydroLive"><i></i><span id="hydroLiveLabel">实时分配</span></span></div>' +
         '<div class="hydro-metrics">' +

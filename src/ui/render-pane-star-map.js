@@ -93,8 +93,6 @@
     }
     if (data.type === 'sb-star-map-view') {
       starMapView = data.view === 'phase2' ? 'phase2' : 'phase1';
-      var dysonPanel = root.document.getElementById('dyson-panel');
-      if (dysonPanel) dysonPanel.style.display = starMapView === 'phase2' ? 'none' : '';
       if (starMapView === 'phase2') {
         var panel = root.document.getElementById('star-map-buildings');
         if (panel) panel.style.display = 'none';
@@ -114,49 +112,11 @@
       return '<div class="note">凿穿天壳后，本周目的星图将在这里解锁。</div>';
     return '<div class="starmap-frame-wrap">' +
       '<iframe class="starmap-frame" sandbox="allow-scripts" ' +
-      'src="src/ui/star-map-frame.html?v=3" title="壳外星图" ' +
+      'src="src/ui/star-map-frame.html?v=5" title="壳外星图" ' +
       'style="width:100%;height:780px;border:0;border-radius:12px;background:#07111d"></iframe></div>' +
-      /* ERA10（2026-10-20）：戴森球终局面板容器。⚠️ 只放**空壳**在这里——实时数字
-       * （帆数/节点数/进度）由 refreshDysonPanel 单独写，原因见 render.js 的
-       * lastStarMapHTML 签名：pane HTML 里嵌实时值会让 iframe 每 2 秒被重载。 */
-      '<div id="dyson-panel" class="dyson-panel"></div>' +
       '<div id="star-map-buildings" class="star-map-buildings"></div>';
-  }
-
-  /* ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁2）：戴森球终局面板内容。
-   * 门 = 完成《绝热材料》（与发射场模式切换钮同源）；没完成 ⇒ 容器清空。
-   * 进度 = economy.dysonPct（**双达标取小**，用户拍 Q4）：min(帆/10000, 节点/1000)。
-   * 五档背景图 20/40/60/80/100（assets/dyson/stage-*.png，占位资产，见 gen 脚本注释）。 */
-  function renderDysonPanel(s) {
-    var panel = root.document && root.document.getElementById('dyson-panel');
-    if (!panel) return;
-    if (!s || !(s.techs && s.techs.adiabatic)) { panel.innerHTML = ''; panel.className = 'dyson-panel'; return; }
-    var pct = (SB.economy && SB.economy.dysonPct) ? SB.economy.dysonPct(s) : 0;
-    var pc = Math.max(0, Math.min(1, pct)) * 100;
-    var stage = 0;
-    if (s.dysonDone || pc >= 100) stage = 100;
-    else if (pc >= 80) stage = 80;
-    else if (pc >= 60) stage = 60;
-    else if (pc >= 40) stage = 40;
-    else if (pc >= 20) stage = 20;
-    var sailCap = SB.CFG.DYSON_SAIL_CAP || 10000, nodeCap = SB.CFG.DYSON_NODE_CAP || 1000;
-    var sails = s.sunSails || 0, nodes = s.dysonNodes || 0;
-    var bg = stage > 0 ? "assets/dyson/stage-" + stage + ".png" : '';
-    panel.className = 'dyson-panel dyson-stage-' + stage + (s.dysonDone ? ' is-done' : '');
-    panel.style.backgroundImage = bg ? "url('" + bg + "')" : '';
-    panel.innerHTML =
-      '<div class="cardhd" style="--hc:#4FD1C9"><span>戴森球 · 终局工程</span>' +
-      '<span class="hcsub">' + (s.dysonDone ? '★ 已竣工' : pc.toFixed(2) + '%') + '</span></div>' +
-      '<div class="dyson-bar"><div class="dyson-fill" style="width:' + pc.toFixed(2) + '%"></div></div>' +
-      '<div class="dyson-counts">太阳帆 <b>' + sails.toLocaleString() + '</b> / ' + sailCap.toLocaleString() +
-      ' ＋ 戴森球节点 <b>' + nodes.toLocaleString() + '</b> / ' + nodeCap.toLocaleString() + ' 即可完成</div>' +
-      '<div class="ds">进度取两项中<b>较慢</b>的一侧（双达标取小）：帆与节点都到位才算通关。' +
-      '发射场在《绝热材料》完成后可切换制造太阳帆或戴森球节点；达到 100% 即戴森球竣工。</div>';
   }
 
   parts.paneStarMap = paneStarMap;
   parts.refreshStarMapBuildings = renderSelectedBody;
-  /* ERA10（2026-10-20）：戴森面板独立刷新入口（render.js 的星图分支与 star-map
-   * 消息回调都调它——progress 变化不重写 pane HTML，iframe 不被重载）。 */
-  parts.refreshDysonPanel = renderDysonPanel;
 })(typeof window !== 'undefined' ? window : globalThis);

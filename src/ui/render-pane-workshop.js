@@ -220,9 +220,10 @@
       if (why && /^需要先/.test(why)) continue;
       shown++;
       var mul = SB.workshop.craftMul(s, c);
+      var productIcon = c.res ? '<img class="craft-icon" src="assets/resource-icons/' + c.res + '.png?v=2" alt="" aria-hidden="true" width="36" height="36" decoding="async">' : '';
       var cost = [], k;
       for (k in c.in) cost.push(SB.RESS[k].name + ' ' + c.in[k]);
-      h += '<div class="row"><div class="nm"><button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + c.name + '</button></div>' +
+      h += '<div class="row"><div class="nm">' + productIcon + '<button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + c.name + '</button></div>' +
         '<div class="ds">每次：' + cost.join(' + ') +
         ' ⇒ <b>' + SB.economy.fmtAmt(c.out * mul) + '</b>' +
         '（效率 +' + ((mul - 1) * 100).toFixed(0) + '%）</div>';

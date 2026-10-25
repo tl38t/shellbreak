@@ -493,7 +493,7 @@
     { id: 'gods_themselves', name: '神们自己', icon: 'assets/civic-icons/era-9/era9-godsthemselves.png?v=3', cost: 2400000, era: 9, layer: 1,
       reqs: ['space_politics'], boost: { t: 'cycle', n: 15 },
       building: 'black_monolith',
-      desc: '解锁建筑「黑色方碑」（消耗 1000 石梁，每级造价 ×1.5，建成即全局信仰产出 ×1.2）。',
+      desc: '解锁建筑「黑色方碑」（消耗 1000 石梁，每级造价 ×1.5，每级使全局信仰产出 ×1.05）。',
       note: '前置：星际政治。鼓舞：轮回次数超过 15。' },
     { id: 'prosperity_unity', name: '繁荣一统', icon: 'assets/civic-icons/era-9/era9-prosperity.png?v=3', cost: 3000000, era: 9, layer: 2,
       reqs: ['distributed_sov'], boost: { t: 'govId', id: 'interstellar_federation' },
@@ -519,7 +519,10 @@
       reqs: ['gods_themselves'], boost: { t: 'built', b: 'black_monolith', n: 3 },
       card: 'card_cycle_terminus',
       desc: '解锁政策卡「轮回之终末」（信仰全产加成翻倍、不可卸下、信仰更名「虚境」并锁死）。',
-      note: '前置：神们自己。鼓舞：黑色方碑等级超过 3。' },
+      /* ⚠️ 2026-10-24 修文案/代码口径不符：原文案写「等级**超过** 3」，但 condMet 的
+       *    `built` 判定是 `lvl >= n`（tech.js:183）⇒ **3 级即达成**，写成「超过」会让人白建一级。
+       *    写法对齐兄弟条目《繁星信仰》（「神庙等级 ≥ 30」），统一用 ≥ 而不是中文数字。 */
+      note: '前置：神们自己。鼓舞：黑色方碑等级 ≥ 3。' },
 
     /* ══ ERA10 市政（2026-10-20 用户规格 · 实装）══════════════════════
      * 【cost 为提议值，待标定】对齐 era10 科技（800万~1500万）与 era9 市政（200万~400万）之间：
@@ -542,14 +545,14 @@
       desc: '解锁政策卡「至高指令」（发射场制造时间 −2s，取代「星际探索热潮」）；政策卡「节能减耗」（发射场热液能消耗 −50%、居民幸福度消耗 +50%）。',
       note: '前置：公共工程局。鼓舞：完成科技「绝热材料」。' },
     { id: 'void_explore', name: '虚境探索', icon: 'assets/civic-icons/era-10/era10-voidexplore.png?v=3', cost: 8000000, era: 10, layer: 2,
-      reqs: ['solar_logistics', 'void_faith'], boost: { t: 'card', id: 'card_cycle_terminus', flavor: '我们都做了什么（乱码）'},
-      desc: '解锁建筑「虚境祭坛」：每级消耗 30 人口（按当前职业分配比例扣减），最高 3 级。',
+      reqs: ['solar_logistics', 'void_faith'], boost: { t: 'card', id: 'card_cycle_terminus', flavor: '我们都做了什么'},
+      desc: '解锁建筑「虚境祭坛」：建造 1 级消耗 30 人口，升至 2 级消耗 75，升至 3 级消耗 200（按当前职业分配比例扣减）。',
       note: '前置：太阳系后勤保障、虚境信仰。鼓舞：已装备政策卡「轮回之终末」。' },
-    { id: 'ascend_void', name: '飞升虚境', icon: 'assets/civic-icons/era-10/era10-ascend.png?v=3', cost: 10000000, era: 10, layer: 3,
+    { id: 'ascend_void', name: '飞升虚境', icon: 'assets/civic-icons/era-10/era10-ascend.png?v=3', cost: 10000000, era: 10, layer: 3, layoutOrder: 1,
       reqs: ['void_explore'], boost: { t: 'built', b: 'void_altar', n: 3 },
       desc: '本身没有产出。戴森球建设完成后，文明将迎来「飞升虚境」的结局——到那时，语言已不足以承载你们的名字。',
       note: '前置：虚境探索。鼓舞：虚境祭坛达到 3 级。' },
-    { id: 'our_sea', name: '我们的海', icon: 'assets/civic-icons/era-10/era10-oursea.png?v=3', cost: 10000000, era: 10, layer: 3,
+    { id: 'our_sea', name: '我们的海', icon: 'assets/civic-icons/era-10/era10-oursea.png?v=3', cost: 10000000, era: 10, layer: 3, layoutOrder: 0,
       reqs: ['supreme_directive'], boost: { t: 'dysonPct', n: 60 },
       card: 'card_our_sea',
       desc: '解锁政策卡「我们的海」：信仰与科研产出 −30%，工坊效率翻倍（乘区 ×2）。',
@@ -817,13 +820,14 @@
       civicOutMul: 0.5, sciOutMul: 0.5, hydroSupplyMul: 2,
       desc: '市政与科技产出 −50%，热液能（蒸汽）供给 +100%。', flavor: '可是，这一切都值得吗？'},
     { id: 'card_mobilization', type: 'wild', name: '总动员令', civic: 'mobilization', effect: {},
-      /* ERA8（2026-10-18）：被《星际探索热潮》卡取代后退役（效果通道 shellSpeedPerIdle 本就挂起，
-       *   天穹钻机机器态未实装——退役不损失任何现役效果）。 */
+      /* ERA8（2026-10-18）：被《星际探索热潮》卡取代后退役（退役时由 research 顺手从 s.cards 拔下）。 */
       retiredBy: 'far_sight',
-      /* 闲置鲛人每提供 1% 破壳速度（shellSpeedPerIdle）。⚠️ 天穹钻机机器态（wonder_skydrill 的运转速度）
-       *   尚未实装，此效果通道暂挂起——字段预留、不接读数函数，等机器态落地再接线。 */
+      /* 闲置鲛人每提供 1% 破壳系数（shellSpeedPerIdle）。
+       * ⚠️ 2026-10-24 用户拍「接线到破壳系数」：该字段**已接通** —— 唯一消费者是 civics.cardBreakCoefMul
+       *   （被 shell.breakCoef 当整段乘区读）。别再当它「挂起通道」，也别在别处重复乘一次。
+       *   闲置口径 = folk.idle(s) = pop − 各职业在岗人数（人类，不含机器人）。 */
       shellSpeedPerIdle: 0.01,
-      desc: '每点闲置鲛人提供 1% 破壳速度（待天穹钻机机器态实装后生效）。', flavor: '循此苦旅……'},
+      desc: '每点闲置鲛人 +1% 破壳系数（破壳速度随之提升）。', flavor: '循此苦旅……'},
 
     /* ── ERA6 政策卡（2026-10-12 用户规格）──
      * 字段沿用既有通道：civicPerPop / luxConsumeMul（大众传媒卡）、museumMul（博物馆管理卡）、craftRatio（国家凝聚力卡）。 */
@@ -968,7 +972,7 @@
       desc: '人口信仰产出 −50%、科技产出 ×3.5（取代「神不在此」）。', flavor: '星之海洋：初次启航'},
     { id: 'card_cycle_terminus', name: '轮回之终末', civic: 'void_faith', type: 'wild', effect: {},
       faithAllProdDouble: true, locked: true,
-      desc: '信仰的全产加成翻倍；不可卸下；完成后信仰更名「虚境」并锁死（要给玩家提示）。', flavor: '我们都做了什么（乱码）'},
+      desc: '信仰的全产加成翻倍；不可卸下；完成后信仰更名「虚境」并锁死。', flavor: '我们都做了什么'},
 
     /* ── ERA10 政策卡（2026-10-20 用户规格 · 实装）──
      * 字段通道：

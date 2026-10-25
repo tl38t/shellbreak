@@ -69,6 +69,15 @@
     if (handleFolkControlClick(e)) return;
     var t = rawTarget;
     var d = t.dataset || {};
+    var metaTreeJump = t.closest && t.closest('[data-meta-tree-jump]');
+    if (!metaTreeJump && d.metaTreeJump) metaTreeJump = t;
+    if (metaTreeJump) {
+      if (e.preventDefault) e.preventDefault();
+      var treeKey = (metaTreeJump.dataset || {}).metaTreeJump;
+      var treeTarget = treeKey && root.document && root.document.getElementById('meta-tree-' + treeKey);
+      if (treeTarget && treeTarget.scrollIntoView) treeTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     var s = run();
     if (!s) return;
 
@@ -81,11 +90,12 @@
       if (SB.ui.render.setWorkshopView(d.workshopView)) SB.ui.render.renderPanes();
       return;
     }
-    if (d.govDetail) {
-      if (SB.ui.render.toggleGovDetail(d.govDetail)) SB.ui.render.renderPanes();
+    var govPickerOpen = t.closest && t.closest('[data-gov-picker-open]');
+    if (!govPickerOpen && d.govPickerOpen !== undefined) govPickerOpen = t;
+    if (govPickerOpen) {
+      SB.ui.render.openGovPicker();
       return;
     }
-
     /* 巢穴建筑图标显隐是持久化 UI 偏好，不改游戏状态；按钮在静态标题栏，列表重绘立即生效。 */
     if (d.buildingIconsToggle !== undefined) {
       SB.ui.render.toggleBuildingIcons();
@@ -109,6 +119,15 @@
      *    render.js 在重画时从 ZONE_FOLDED 重新拼出（落类会被冲掉）。 */
     if (d.zfold !== undefined && d.zfold !== null && d.zfold !== '') {
       SB.ui.render.toggleZoneFold(d.zfold);
+      return;
+    }
+    /* 成就墙「轻车熟路」分区折叠（2026-10-24 · docs/ACHV_DESIGN_v0.3.md）：
+     * 与上面两个折叠分支同族——纯视图动作，状态在 render-pane-challenges 模块里
+     * （ACHV_FOLD + 持久化），**不碰游戏状态**。但分区内容是否铺开是渲染时决定的
+     * （与 hidedone 同款），所以必须补一次 renderPanes 才能立刻看到效果。 */
+    if (d.achvFold !== undefined && d.achvFold !== null && d.achvFold !== '') {
+      if (SB.ui.renderParts && SB.ui.renderParts.toggleAchvFold) SB.ui.renderParts.toggleAchvFold(d.achvFold);
+      SB.ui.render.renderPanes();
       return;
     }
     /* 工坊「隐藏已完成」（2026-10-05 用户「工坊要能隐藏显示已经完成项目」）：
@@ -154,7 +173,8 @@
       SB.ui.render.hideModal();
       return;
     }
-    if (t.id === 'modal' && t.classList && t.classList.contains('tree-modal')) {
+    if (t.id === 'modal' && t.classList &&
+        (t.classList.contains('tree-modal') || t.classList.contains('gov-picker-modal'))) {
       SB.ui.render.hideModal();
       return;
     }
@@ -460,7 +480,10 @@
     /* ERA10（2026-10-20）：欧罗巴冰面发射场制造模式切换（太阳帆 ⇄ 戴森球节点）。
      * 闸门 = 建成发射场且完成《绝热材料》（与 render-pane-village 的按钮显示条件同源）。
      * 只改 s.launchMode 一个字段，结算在 economy-tick 2f 读——切换的下一 tick 生效。 */
-    if (d.launchMode) {
+    /* 模式按钮内含文字/交换图标 span；从子元素点击时要沿 DOM 找回委托按钮。 */
+    var launchModeButton = d.launchMode !== undefined
+      ? t : (t.closest && t.closest('button[data-launch-mode]'));
+    if (launchModeButton) {
       toggleLaunchMode(SB.game.run());
       return;
     }
@@ -508,14 +531,25 @@
       }
       return;
     }
-    if (d.perk) {
-      if (SB.prestige.buyPerk(d.perk)) {
+    /* 天赋节点（轮回树 data-perk / 星空树 data-star-perk，2026-10-24 修）。
+     * 【症状】节点明明显示「可以点亮」、金色边框，点下去**毫无反应**（不报错、不扣点）。
+     * 【根因】talentTreeMarkup 把 data-perk 挂在 `<button class="talent-node-button">` 上，
+     *   而按钮内部叠着两层 `<span>`：`.talent-node-glyph`（CSS `width:100%;height:100%`，
+     *   把整块图标盖满）与 `.talent-node-rank`（右上角角标）。玩家**实际点到的是 span**，
+     *   于是上面 `var d = t.dataset`（t 就是 e.target）里根本没有 perk 键 ⇒ 整条 if 链
+     *   没有一处命中，静默落到函数末尾。
+     * 【为什么之前没抓到】e2e 只断言 `data-perk="id"` 出现在 HTML 里，**从不模拟点击**。
+     * 【修法】与同文件 [data-era] / [data-slot] 一样，从 target 往上 closest 回按钮；
+     *   ⚠️ 别退回直读 dataset —— 那是这条 bug 的原形状。
+     *   轻量测试 DOM 没实现 closest，故此处分两支（与 22-25 行同一写法）。 */
+    var perkBtn = (d.perk !== undefined || d.starPerk !== undefined)
+      ? t
+      : (t.closest ? t.closest('[data-perk],[data-star-perk]') : null);
+    if (perkBtn && perkBtn.dataset) {
+      var perkId = perkBtn.dataset.perk, starPerkId = perkBtn.dataset.starPerk;
+      if (perkId !== undefined && SB.prestige.buyPerk(perkId)) {
         SB.game.markDirty(); SB.game.renderAll();
-      }
-      return;
-    }
-    if (d.starPerk) {
-      if (SB.prestige.buyStarPerk(d.starPerk)) {
+      } else if (starPerkId !== undefined && SB.prestige.buyStarPerk(starPerkId)) {
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -620,13 +654,17 @@
       SB.game.renderAll();
       return;
     }
-    if (d.gov) {
-      if (SB.civic.setGov(s, d.gov, emit)) {
+    var govAction = t.closest && t.closest('[data-gov]');
+    if (!govAction && d.gov) govAction = t;
+    if (govAction) {
+      var govId = (govAction.dataset || {}).gov;
+      if (SB.civic.setGov(s, govId, emit)) {
+        SB.ui.render.hideModal();
         SB.game.markDirty(); SB.game.renderAll();
       } else {
         /* 2026-10-14：换政体失败（没解锁 / 市政点不够）时给一句理由，
          * 否则按钮静默无反应，玩家以为「政体没法改」却不知是差市政点。 */
-        var _gw = SB.civic.govBlocked(s, d.gov);
+        var _gw = SB.civic.govBlocked(s, govId);
         if (_gw) SB.game.log('政体没法换：' + _gw);
       }
       SB.game.pumpCivic(s, emit);
@@ -684,7 +722,7 @@
   /* ── ERA10（2026-10-20）：欧罗巴冰面发射场制造模式切换 ──────────────
    * 用户 ERA10 表「绝热材料」解锁1。闸门 = 发射场已建成（lv>0）且完成《绝热材料》
    * （与 render-pane-village 的 elBtn 显示条件、economy-tick 2f 的 _nodeMode 三处同源）。
-   * 只翻 s.launchMode（'sail' ⇄ 'node'）——耗料/产出/进度全在 tick 读这一个字段。 */
+   * 翻转 s.launchMode，并清零三座发射场两种模式的周期余数，避免切换后接续旧进度。 */
   function toggleLaunchMode(s) {
     /* ERA10 市政（2026-10-20）：判据从 s.lvl.europa_launch>0 换成 launchLvl>0——
      * 泰拉/瑞亚星发射场建好后同一个钮也生效（三座共用 s.launchMode，同一套制造体系）。 */
@@ -692,6 +730,7 @@
     if (!(s.techs && s.techs.adiabatic)) return false;
     var node = s.launchMode === 'node';
     s.launchMode = node ? 'sail' : 'node';
+    if (SB.economy.resetLaunchProcs) SB.economy.resetLaunchProcs(s);
     SB.game.markDirty(); SB.game.renderAll();
     SB.game.log(node
       ? '发射场已切回太阳帆模式：每级每秒耗铀 0.5、强工质火箭引擎 0.3、θ金属自适应薄膜 0.3、热液能 4；每座发射场每 ' + (SB.economy.launchCycleOf ? SB.economy.launchCycleOf(s) : 10) + 's 发射该场等级数量的太阳帆。'

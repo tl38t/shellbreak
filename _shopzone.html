@@ -3,7 +3,7 @@
 <head data-page-node-id="SHpRYBRRIDcP8Bx75nsUrT">
 <meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
-<title>渊海天壳 · SHELLBREAK</title>
+<title>自海渊至群星：深海文明建设</title>
 <script>
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
@@ -20,10 +20,10 @@
 </div>
 <div class="wrap" data-page-node-id="R3GyesNvCCnIGdybfi94vw">
   <header class="brandline" data-page-node-id="BrandLineP0">
-    <div class="brandmark" aria-hidden="true"></div>
+    <img class="brandmark" src="assets/brand/logo-shell-sun.jpg" alt="" aria-hidden="true">
     <div>
-      <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">渊海天壳 <small data-page-node-id="hp4Kyh6NeGNVYnRp4XyHzx">SHELLBREAK · 原始时代 → 破冰重置</small></h1>
-      <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自渊海，至天壳</div>
+      <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">自海渊至群星</h1>
+      <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自无光的渊海，眺望闪熠星河</div>
     </div>
     <div class="theme-switch" role="group" aria-label="界面配色">
       <button type="button" data-ui-theme-choice="day" aria-pressed="false">☀ 日间</button>
@@ -135,6 +135,7 @@
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
 <script src="src/config.js?v=128"></script>
+<script src="src/config-catalog.js?v=11"></script>
 <script src="src/config-content.js?v=8"></script>
 <script src="src/config-buildings.js?v=7"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
@@ -146,7 +147,7 @@
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
 <script src="src/civics-data.js?v=4"></script>
 <script src="src/civics.js?v=103"></script>
-<script src="src/state.js?v=114"></script>
+<script src="src/state.js?v=115"></script>
 <script src="src/workshop.js?v=114"></script>
 <script src="src/wonder.js?v=99"></script>
 <script src="src/economy.js?v=130"></script>
@@ -157,13 +158,13 @@
 <script src="src/shell.js?v=98"></script>
 <script src="src/habitat.js?v=100"></script>
 <script src="src/folk.js?v=97"></script>
-<script src="src/prestige.js?v=110"></script>
+<script src="src/prestige.js?v=112"></script>
 <!-- 轮回商店天赋树渲染（与 index.html 同源）：必须早于 render.js（renderParts 在 render.js 之前注册）。 -->
-<script src="src/ui/render-talent-tree.js?v=1"></script>
-<script src="src/ui/render-pane-meta.js?v=6"></script>
-<script src="src/ui/render.js?v=218"></script>
-<script src="src/game.js?v=109"></script>
-<script src="src/ui/input.js?v=110"></script>
+<script src="src/ui/render-talent-tree.js?v=5"></script>
+<script src="src/ui/render-pane-meta.js?v=10"></script>
+<script src="src/ui/render.js?v=222"></script>
+<script src="src/game.js?v=110"></script>
+<script src="src/ui/input.js?v=112"></script>
 <script src="src/ui/theme.js?v=1"></script>
 <script src="src/ui/background.js?v=2"></script>
 <script src="src/main.js?v=95"></script>

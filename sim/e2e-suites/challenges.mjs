@@ -26,6 +26,21 @@ export function run({ SB, check, noop }) {
       pane.includes('data-challenge-start="science"') && pane.includes('data-challenge-start="abyss"') &&
       pane.includes('第一档') && pane.includes('第二档'),
       '已完成单次挑战无重开按钮');
+    /* 2026-10-24：成就墙从挑战页尾拆到独立页签（paneAchievements）。
+     * 两侧都要钉：挑战页**不再**含墙（否则拆分静默失效），成就页含三区结构。 */
+    const paneAchv = SB.ui.render.paneAchievements();
+    check('成就墙已拆到独立页签：挑战页不含 achv-wall，成就页含',
+      !pane.includes('achv-wall') && !pane.includes('成就墙') &&
+      paneAchv.indexOf('achv-wall') !== -1 && paneAchv.indexOf('成就墙') !== -1,
+      '挑战页含墙=' + pane.includes('achv-wall') + ' 成就页含墙=' + (paneAchv.indexOf('achv-wall') !== -1));
+    check('成就页含轻车熟路分区与旧成就组',
+      paneAchv.indexOf('挑战与轮回') !== -1 && paneAchv.indexOf('文明里程碑') !== -1 &&
+      paneAchv.indexOf('data-achv-zone=') !== -1 && paneAchv.indexOf('data-achv-fold=') !== -1 &&
+      /* ⚠️ 只钉下界 17（5 旧 + 12 新，无条件露出）：跑到本 suite 时主流程已产出真实
+       * 建筑进度，「有进度就展开」会让分区条目多出来（实测 49），钉死 17 会误红。
+       * 计数正则锚在类名结束（" 或空格）：见下方注释的两种错法。 */
+      (paneAchv.match(/class="achv-item[" ]/g) || []).length >= 17,
+      '露出条目数=' + ((paneAchv.match(/class="achv-item[" ]/g) || []).length));
     meta.challenges = empty();
     s.challenge = { id: 'cold', tier: 0 };
     s.t = 2 * SB.CFG.SEASON_TICKS;

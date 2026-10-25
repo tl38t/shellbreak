@@ -140,11 +140,15 @@ function makeDoc() {
       let out = [];
       if (sel === '.tab') {
         /* ⚠️ 2026-09-27 补 civic：这张表是**第三份硬编码的职业/页签清单**
-         *    （第一份 config.JOBS、第二份 folk.IDS、这里是页签）。漏一个的后果
+         *    （第一份 config.JOBS、第二份 folk.IDS，这里是页签）。漏一个的后果
          *    与那两份一样：市政页的灰态没人翻，测试永远停在「页签还是 locked」。
          *    ⚠️ 真要根治，应该从 index.html 里的 .tab 解析出来——但那要引入 HTML 解析，
-         *        收益不抵成本。留在这里的代价是：**改 index.html 的页签要记得改这行**。 */
-        out = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'company', 'meta'].map((t, i) => {
+         *        收益不抵成本。留在这里的代价是：**改 index.html 的页签要记得改这行**。
+         *    ⚠️ 2026-10-24 补 challenges / star-map / achievements：前两个是历史欠账
+         *        （表里从来没有，于是「挑战页 locked 断言」一写就崩：querySelector
+         *        返回 null，不是测试失败而是整个 e2e 断掉）；achievements 是本次
+         *        从「挑战与成就」拆出的新页签。三个都补上，表与 index.html 对齐。 */
+        out = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'company', 'meta', 'challenges', 'star-map', 'achievements'].map((t, i) => {
           const e = mkEl('tab-' + t); e.dataset.tab = t; e._tab = i; return e;
         });
       } else if (sel === '.spd') {
@@ -1888,6 +1892,12 @@ SB.state.saveMeta(SB.game.meta());
 SB.game.startRun();
 check('未建立宗教、即使进到第二周目，shopUnlocked 仍为 false（不能进轮回商店）', SB.game.meta().shopUnlocked === false);
 check('未建立宗教时 meta 页仍 locked', doc.querySelector('.tab[data-tab="meta"]').classList.contains('locked'));
+/* 2026-10-24 挑战与成就拆成两个页签：门与 meta 页同源（首次轮回），一门两页。 */
+check('未首次轮回时挑战/成就页签均 locked',
+  doc.querySelector('.tab[data-tab="challenges"]').classList.contains('locked') &&
+  doc.querySelector('.tab[data-tab="achievements"]').classList.contains('locked'));
+check('未首次轮回时 setTab(achievements) 翻不过去（与挑战同门）',
+  (SB.game.setTab('achievements'), SB.game.getTab() !== 'achievements'), 'tab=' + SB.game.getTab());
 // 2) 写入宗教名 → 弹窗台词 + 永久解锁 religionSeen
 var sR2 = SB.game.run();
 sR2.religionName = '深渊教';
@@ -1908,6 +1918,13 @@ SB.game.startRun();
 check('后续轮回后 shopUnlocked 仍为 true', SB.game.meta().shopUnlocked === true);
 check('首次轮回后 meta 页解锁（不再 locked）',
   !doc.querySelector('.tab[data-tab="meta"]').classList.contains('locked'));
+check('首次轮回后挑战/成就页签均解锁',
+  !doc.querySelector('.tab[data-tab="challenges"]').classList.contains('locked') &&
+  !doc.querySelector('.tab[data-tab="achievements"]').classList.contains('locked'));
+check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再 hidden）',
+  (SB.game.setTab('achievements'), SB.game.getTab() === 'achievements') &&
+  !doc.getElementById('pane-achievements').classList.contains('hidden'),
+  'tab=' + SB.game.getTab());
 
 /* 5b) 【2026-10-05 拍板】重开按钮的结算分流：本局研究完《神学》⇒ 走真正轮回结算（doBreak），
  *      未研究 ⇒ 仅纯重开（resetRun），不结算、不发点。

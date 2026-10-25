@@ -27,7 +27,7 @@
     var rn = (SB.civic && SB.civic.faithDisplayName) ? SB.civic.faithDisplayName(s) : ((s.religionName || '').trim());
     var rnLocked = !!(SB.civic && SB.civic.faithNameLocked && SB.civic.faithNameLocked(s));
     /* 读数三件同框才叫「一条轴」：存量 / 每秒 / 它换来的全局加成。 */
-    h += '<div class="row"><div><div class="nm">' + rn + ' <b>' + SB.economy.fmtAmt(f) + '</b>' +
+    h += '<div class="row faith-resource-row' + (rnLocked ? ' is-void-anchored' : '') + '"><div><div class="nm">' + rn + ' <b>' + SB.economy.fmtAmt(f) + '</b>' +
       (fr > 0 ? '<i class="rate up">+' + fr.toFixed(3) + '/s</i>' : '') + '</div>' +
       '<div class="ds">每个族民每秒产 ' + SB.CFG.FAITH_PER_POP + ' 信仰，再乘神庙与政策的乘区' +
       '（现值 ×' + fm.toFixed(2) + '）。信仰不占仓储，也不会被花掉。</div></div></div>';
@@ -36,7 +36,8 @@
       '<div class="ds">按信仰<b>存量</b>的对数刻度给：10 → +1%、100 → +2%、1000 → +3%……' +
       '每高一个数量级多 1%。这条加成推的是珊瑚 / 石头 / 藻食等全部资源，' +
       '但<b>不推信仰自己</b>（否则会自激）。</div></div></div>';
-    h += '<div class="row"><div><div class="nm">你的信仰</div>' +
+    h += '<div class="row faith-state-row' + (rnLocked ? ' is-void-anchored' : '') + '"><div><div class="nm">你的信仰' +
+      (rnLocked ? ' <span class="faith-void-seal">◈ 虚境锚定</span>' : '') + '</div>' +
       '<div class="ds">' + (rn ? '当前名为「<b>' + rn + '</b>」，' : '尚未命名，') +
       (rnLocked ? '已由<b>虚境信仰</b>永恒锚定，不可更改。'
         : '名字就写在上面那个框里，改名随时可改、无消耗。它会显示在顶栏的信仰资源格上。') +

@@ -48,6 +48,7 @@
      *   ⇒ 露头天然只进不退，不需要额外的记忆位。
      * 【为什么带 `s.jobs[j.id] > 0`】防御老档：若某人卡在未解锁职业上（早期版本的档），
      *   行必须留下来，否则那个人从界面上凭空消失、玩家只能在闲置池里看到总数对不上。 */
+    h += '<div class="folk-job-grid">';
     for (var i = 0; i < SB.JOBS.length; i++) {
       var j = SB.JOBS[i];
       /* ⚠️ `|| 0` 不是可省的小节：它是**根因侧的第二道闸**。2026-09-28 加商人时，
@@ -83,6 +84,7 @@
           ' title="' + (jobLimitReason || ('＋' + stp + '（不足则加全部闲置）')) + '">＋</button>' +
         '</div></div>';
     }
+    h += '</div>';
     /* ERA8（2026-10-19 · B7）：机器人分配段。机器人是独立池，仅能担任非书手/学者的岗位，
      * 产出 ×1.2，不进 s.pop（不影响信仰）。布局与人类职业行同构，但用 data-robot-job 区分事件。 */
     var rpop = SB.folk.robotPop(s), ridle = SB.folk.robotIdle(s);
@@ -95,9 +97,11 @@
        *   与 assignRobot 的 `if (!s.robotJobs) s.robotJobs = {}` 同源：读侧先兜底成空对象，
        *   迁移（state-migrate.js）再补种子，双闸防这一种「看得见但点了全没反应」的哑崩。 */
       var rjobs = s.robotJobs || {};
-      h += '<div class="row folk-summary"><div><div class="nm">机器人 <b>' + rpop + '</b>（产出 ×1.2，不占人口/不影响信仰）' +
-        (ridle > 0 ? ' <span class="bad">闲置 ' + ridle + '</span>' : '') + '</div>' +
-        '<div class="ds">机器人仅能担任非书手/学者的岗位。点 ＋ 分配、− 退回。</div></div>';
+      h += '<div class="row folk-summary"><div><div class="nm">机器人 <b>' + rpop + '</b>（产出 ×1.2，不占人口/不影响信仰）</div>' +
+        '<div class="ds">机器人仅能担任非书手/学者的岗位。</div></div></div>';
+      h += '<div class="row folk-idle"><div><div class="nm">闲置机器人 <b>' + ridle + '</b></div>' +
+        '<div class="ds">未分配的机器人。点岗位行的 ＋ 分配、− 退回闲置。</div></div></div>';
+      h += '<div class="folk-job-grid">';
       var rstep = SB.ui.render.jobStep();
       for (var ri = 0; ri < SB.JOBS.length; ri++) {
         var rj = SB.JOBS[ri];
@@ -118,6 +122,7 @@
             ' title="' + (rjobLimitReason || ('＋' + rstep + '（不足则加全部闲置机器人）')) + '">＋</button>' +
           '</div></div>';
       }
+      h += '</div>';
     }
     /* ⚠️ 硬上限之后开局的**第一步是珊瑚不是藻食**（2026-09-26）：那 1 名族民顶着
      * 人口上限 1，先把藻食堆到 20 以上也生不出人——必须先有礁口巢才有空位。

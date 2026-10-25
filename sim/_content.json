@@ -1576,10 +1576,8 @@
         "r": "hydroSupply",
         "n": 100
       },
-      "eff": {
-        "workshopEff": 0.5
-      },
-      "unlockDesc": "解锁工坊升级「激光快速雕版」（本周目制造消耗 −30%，轮回后失效）。工坊工艺制作效率 +50%（永久）。"
+      "eff": {},
+      "unlockDesc": "解锁工坊升级「激光快速雕版」（潮纹记录制造产出 +50%）。"
     },
     {
       "id": "robotics",
@@ -1601,7 +1599,7 @@
       "eff": {
         "satStar": 1
       },
-      "unlockDesc": "解锁工坊升级「工业机器人」（工坊效率 +100%，可开关，开启时耗 0.3 热液能/秒）。人造卫星星空探索 +100%（永久）。"
+      "unlockDesc": "解锁工坊升级「工业机器人」（每座运行工坊对应的工艺产出份额 +100%，总加成按运行工坊占比计算；每座运行工坊耗 3 热液能/秒）。人造卫星星空探索 +100%（永久）。"
     },
     {
       "id": "xenoconst",
@@ -1797,7 +1795,7 @@
           "europa_launch"
         ]
       },
-      "unlockDesc": "建筑：欧罗巴冰面发射场（每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；运行 10s → 星图 +1 太阳帆）。星图每 1 太阳帆 +0.05 热液能/秒。"
+      "unlockDesc": "建筑：欧罗巴冰面发射场（每座独立按制造周期计时，默认 10s；周期完成时按本场等级同时发射太阳帆。太阳帆模式每级每秒耗 0.5 铀 + 0.3 强工质火箭引擎 + 0.3 θ金属自适应薄膜 + 4 热液能）。星图每 1 太阳帆 +0.05 热液能/秒。"
     },
     {
       "id": "alien_eng",
@@ -1846,7 +1844,7 @@
       "eff": {
         "workshopEff": 1.2
       },
-      "unlockDesc": "工艺效率 +120%（工坊工艺制作乘区，与激光技术 +50% 加法叠加）。"
+      "unlockDesc": "工艺效率 +120%（折进工坊工艺制作效率基数）。"
     },
     {
       "id": "terraform",
@@ -1923,7 +1921,7 @@
         "n": 50
       },
       "eff": {},
-      "unlockDesc": "欧罗巴冰面发射场可切换制造太阳帆或戴森球节点（节点每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板）。星图开启戴森球终局面板：太阳帆 10000 + 戴森球节点 1000 即通关。"
+      "unlockDesc": "欧罗巴冰面发射场可切换制造太阳帆（每级每秒耗铀 0.5、强工质火箭引擎 0.3、θ金属自适应薄膜 0.3、热液能 4）或戴森球节点（每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4；库存材料受星屑减耗）。星图开启戴森球终局面板：太阳帆 10000 + 戴森球节点 1000 即通关。"
     },
     {
       "id": "strong_ai",
@@ -2404,14 +2402,14 @@
     },
     {
       "id": "black_monolith",
-      "icon": "assets/building-icons/era-9/era9-black-monolith.png",
+      "icon": "assets/building-icons/era-9/era9-black-monolith-v2.png",
       "name": "黑色方碑",
       "ratio": 1.5,
       "cost": {
         "stoneBeam": 1000
       },
-      "globalFaithMul": 0.2,
-      "desc": "建成即全局信仰产出 ×1.2（消耗 1000 石梁，每级造价 ×1.5）。",
+      "faithMulPerLvl": 1.05,
+      "desc": "每级使全局信仰产出 ×1.05（消耗 1000 石梁，每级造价 ×1.5）。",
       "requiredCivic": "gods_themselves",
       "zone": "core"
     },
@@ -2525,7 +2523,7 @@
         "tiplate": 2000,
         "steel": 400
       },
-      "desc": "热液能 +10/秒/级（不烧暖石）；耗铀 0.02/秒/级；居民奢侈品消耗 +10%/级（负面）。",
+      "desc": "热液能 +10/秒/级（不烧暖石）；耗铀 0.35/秒/级；居民奢侈品消耗 +10%/级（负面）。",
       "requiredTech": [
         "fission"
       ],
@@ -2552,7 +2550,7 @@
         "titanium": 200,
         "tiplate": 60
       },
-      "desc": "制造 θ生物金属：每级耗 藻食100/精铁4/钛2/铀0.05 ⇒ 产 θ +0.0625/秒；耗热液能 3/秒（断流只停耗）。",
+      "desc": "制造 θ生物金属：每级耗 藻食100/精铁4/钛2/铀0.35 ⇒ 产 θ +0.0625/秒；耗热液能 3/秒（断流只停耗）。",
       "requiredTech": [
         "biomat"
       ],
@@ -2594,7 +2592,7 @@
       "id": "robotbay",
       "icon": "assets/building-icons/era-8/era8-robotbay.png",
       "name": "机器人充能站",
-      "ratio": 1.15,
+      "ratio": 3,
       "cost": {
         "thetaMetal": 100,
         "tiplate": 800
@@ -2625,7 +2623,7 @@
       "id": "europa_launch",
       "launchpad": true,
       "stardustFacility": true,
-      "icon": "assets/building-icons/era-9/era9-europa-launch.png",
+      "icon": "assets/building-icons/era-9/era9-europa-launch-v2.png",
       "name": "欧罗巴冰面发射场",
       "ratio": 1.5,
       "cost": {
@@ -2633,7 +2631,7 @@
         "thetaMetal": 200,
         "strongProp": 50
       },
-      "desc": "欧罗巴冰面发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。《绝热材料》完成后可切换制造戴森球节点（每秒耗 1 强工质火箭引擎 + 1 θ金属自适应薄膜 + 3 钛合金板，节律相同）。",
+      "desc": "每座发射场独立按制造周期计时，周期完成时按本场等级同时发射同等数量太阳帆；等级不改变进度速度。太阳帆模式每级每秒耗铀 0.5 + 强工质火箭引擎 0.3 + θ金属自适应薄膜 0.3 + 热液能 4。《绝热材料》完成后可切换制造戴森球节点（每级每秒耗铀 5 + 强工质火箭引擎 3 + θ金属自适应薄膜 3 + 钛合金板 30 + 热液能 4，周期完成时按本场等级同时发射）。",
       "requiredTech": [
         "microwave_heat"
       ],
@@ -2642,7 +2640,7 @@
     {
       "id": "solar_ring",
       "stardustFacility": true,
-      "icon": "assets/building-icons/era-10/era10-solar-ring.png",
+      "icon": "assets/building-icons/era-10/era10-solar-ring-v2.png",
       "name": "太阳星环",
       "ratio": 1.5,
       "cost": {
@@ -2667,7 +2665,7 @@
         "thetaMetal": 200,
         "strongProp": 50
       },
-      "desc": "泰拉星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。",
+      "desc": "每座发射场独立按制造周期计时，周期完成时按本场等级同时发射同等数量太阳帆；等级不改变进度速度。太阳帆模式每级每秒耗铀 0.5 + 强工质火箭引擎 0.3 + θ金属自适应薄膜 0.3 + 热液能 4。造戴森球节点时耗料与节律同欧罗巴发射场，周期完成时按本场等级同时发射。造价按 1 级起算（不吃星球改造的等级折扣）。",
       "requiredCivic": "public_works",
       "zone": "space"
     },
@@ -2683,13 +2681,13 @@
         "thetaMetal": 200,
         "strongProp": 50
       },
-      "desc": "恩克拉多斯星轨道发射场：每 s 耗 0.1 强工质火箭引擎 + 0.1 θ金属自适应薄膜 + 2 热液能；每级独立计时，正常运行满 10s 各推进 1 太阳帆。造戴森球节点时耗料与节律同欧罗巴发射场。造价按 1 级起算（不吃星球改造的等级折扣）。",
+      "desc": "每座发射场独立按制造周期计时，周期完成时按本场等级同时发射同等数量太阳帆；等级不改变进度速度。太阳帆模式每级每秒耗铀 0.5 + 强工质火箭引擎 0.3 + θ金属自适应薄膜 0.3 + 热液能 4。造戴森球节点时耗料与节律同欧罗巴发射场，周期完成时按本场等级同时发射。造价按 1 级起算（不吃星球改造的等级折扣）。",
       "requiredCivic": "public_works",
       "zone": "space"
     },
     {
       "id": "void_altar",
-      "icon": "assets/building-icons/era-10/era10-void-altar.png",
+      "icon": "assets/building-icons/era-10/era10-void-altar-v2.png",
       "name": "虚境祭坛",
       "ratio": 1.5,
       "cost": {
@@ -3152,7 +3150,7 @@
         "resonantDrill": 300,
         "science": 450000
       },
-      "desc": "开启矿井的钛与铀产出 +100%；总加成按开启矿井占比计算，最多 +100%。每座开启矿井耗 0.3 热液能/秒。"
+      "desc": "在巢穴面板启停砂矿坑。每座运行矿坑对应的钛与铀产出份额 +100%；总加成按运行矿坑占比计算，最多 +100%。每座运行矿坑耗 0.3 热液能/秒。"
     },
     {
       "id": "upg_logiware",
@@ -3194,11 +3192,14 @@
       "id": "upg_laserengrave",
       "name": "激光快速雕版",
       "need": "laser",
+      "recipeCraft": {
+        "craft_tidal_record": 0.5
+      },
       "cost": {
         "thetaMetal": 120,
         "science": 2000000
       },
-      "desc": "本周目全部工艺制造成本 −30%（轮回/破壳后失效，重新购买即再次生效）。"
+      "desc": "潮纹记录制造产出 +50%（不降低原料消耗）。"
     },
     {
       "id": "upg_indrobot",
@@ -3208,7 +3209,7 @@
         "thetaMetal": 200,
         "science": 3000000
       },
-      "desc": "工坊工艺制作效率 +100%（独立乘区 ×2）；开启时耗 0.3 热液能/秒（可开关）。"
+      "desc": "在巢穴面板启停工坊。每座运行工坊对应的工艺产出份额 +100%，总加成按运行工坊占比计算，最多 +100%；每座运行工坊耗 3 热液能/秒。"
     },
     {
       "id": "upg_strongai",
@@ -3957,7 +3958,7 @@
       },
       "card": "card_sovereign",
       "wonder": "wonder_stt_abbey",
-      "desc": "解锁政策卡「王权神授」，以及奇观「圣泰坦尼克修道院」；开放信仰区建筑自动建造/升级（逐建筑开关）。",
+      "desc": "解锁政策卡「王权神授」「修道院」，以及奇观「圣泰坦尼克修道院」；开放信仰区建筑自动建造/升级（逐建筑开关）。",
       "note": "鼓舞：累计信仰产出达 10000。"
     },
     {
@@ -4874,7 +4875,7 @@
         "n": 15
       },
       "building": "black_monolith",
-      "desc": "解锁建筑「黑色方碑」（消耗 1000 石梁，每级造价 ×1.5，建成即全局信仰产出 ×1.2）。",
+      "desc": "解锁建筑「黑色方碑」（消耗 1000 石梁，每级造价 ×1.5，每级使全局信仰产出 ×1.05）。",
       "note": "前置：星际政治。鼓舞：轮回次数超过 15。"
     },
     {
@@ -4968,7 +4969,7 @@
       },
       "card": "card_cycle_terminus",
       "desc": "解锁政策卡「轮回之终末」（信仰全产加成翻倍、不可卸下、信仰更名「虚境」并锁死）。",
-      "note": "前置：神们自己。鼓舞：黑色方碑等级超过 3。"
+      "note": "前置：神们自己。鼓舞：黑色方碑等级 ≥ 3。"
     },
     {
       "id": "public_works",
@@ -5019,7 +5020,8 @@
       ],
       "boost": {
         "t": "card",
-        "id": "card_cycle_terminus"
+        "id": "card_cycle_terminus",
+        "flavor": "我们都做了什么（乱码）"
       },
       "desc": "解锁建筑「虚境祭坛」：每级消耗 30 人口（按当前职业分配比例扣减），最高 3 级。",
       "note": "前置：太阳系后勤保障、虚境信仰。鼓舞：已装备政策卡「轮回之终末」。"
@@ -5071,135 +5073,173 @@
       "effect": {
         "kelp": 5
       },
-      "desc": "藻食产出 +5/秒。"
+      "desc": "藻食产出 +5/秒。",
+      "flavor": "Waaaaaaaaagh!"
     },
     {
       "id": "autocracy",
       "name": "独裁统治",
       "slots": {
-        "wild": 3
+        "wild": 1,
+        "prod": 1,
+        "sci": 1
       },
       "effect": {},
       "craftRatio": 0.1,
-      "desc": "工艺制作效率 +10%（石梁等工坊产物）。"
+      "desc": "工艺制作效率 +10%（石梁等工坊产物）。",
+      "flavor": "也有你吗，布鲁图？！"
     },
     {
       "id": "oligarchy",
       "name": "寡头统治",
       "slots": {
-        "wild": 3
+        "wild": 1,
+        "prod": 1,
+        "grow": 1
       },
       "effect": {},
       "luxuryMul": 1.2,
-      "desc": "奢侈品产出 +20%（商人贸易供给）。"
+      "desc": "奢侈品产出 +20%（商人贸易供给）。",
+      "flavor": "有500仙人，乘大铁船至临高…"
     },
     {
       "id": "classical_republic",
       "name": "古典共和",
       "slots": {
-        "wild": 3
+        "wild": 1,
+        "grow": 1,
+        "sci": 1
       },
       "effect": {},
       "happyBonus": 1,
-      "desc": "幸福度 +1（常驻，提高全产乘区档位）。"
+      "desc": "幸福度 +1（常驻，提高全产乘区档位）。",
+      "flavor": "指卢比孔河为誓。"
     },
     {
       "id": "monarchy",
       "name": "君主制",
       "slots": {
-        "wild": 5
+        "wild": 3,
+        "prod": 1,
+        "sci": 1
       },
       "effect": {},
       "buildSave": 0.1,
-      "desc": "5 个政策卡槽；礁栖核心建筑建造消耗 −10%。"
+      "desc": "5 个政策卡槽；礁栖核心建筑建造消耗 −10%。",
+      "flavor": "朕即国家。"
     },
     {
       "id": "merchant_republic",
       "name": "商人共和国",
       "slots": {
-        "wild": 5
+        "wild": 3,
+        "prod": 1,
+        "grow": 1
       },
       "effect": {},
       "happyConsumeMul": 0.7,
-      "desc": "5 个万能政策卡槽；幸福度消耗 −30%。"
+      "desc": "5 个万能政策卡槽；幸福度消耗 −30%。",
+      "flavor": "有七省，无联合。"
     },
     {
       "id": "theocracy",
       "name": "神权政体",
       "slots": {
         "wild": 3,
-        "relig": 1
+        "relig": 2
       },
       "effect": {},
       "faithPerAcademy": 1,
       "faithPerCivic": 0.5,
-      "desc": "3 万能槽 + 1 宗教槽；每级学术区建筑 +1 faith、每级市政区建筑 +0.5 信仰。"
+      "desc": "3 万能槽 + 1 宗教槽；每级学术区建筑 +1 faith、每级市政区建筑 +0.5 信仰。",
+      "flavor": "愿你的国降临…"
     },
     {
       "id": "theo_state",
       "name": "教权国",
       "slots": {
-        "wild": 7
+        "wild": 4,
+        "relig": 2,
+        "grow": 1
       },
       "effect": {},
       "faithPerBuilding": 1,
-      "desc": "7 个政策卡槽；所有建筑每级 +1 信仰/秒。"
+      "desc": "7 个政策卡槽；所有建筑每级 +1 信仰/秒。",
+      "flavor": "朕~乃~天~父~"
     },
     {
       "id": "egalitarianism",
       "name": "平等主义",
       "slots": {
-        "wild": 7
+        "wild": 4,
+        "prod": 2,
+        "sci": 1
       },
       "effect": {},
       "craftPerPop": 0.001,
       "hydroPerPop": 0.001,
       "minePerPop": 0.001,
-      "desc": "7 个政策卡槽；每名鲛人 +0.1% 工坊效率 / +0.1% 热液能产出 / +0.1% 矿井产出。"
+      "desc": "7 个政策卡槽；每名鲛人 +0.1% 工坊效率 / +0.1% 热液能产出 / +0.1% 矿井产出。",
+      "flavor": "打破枷锁。"
     },
     {
       "id": "federalism",
       "name": "联邦制",
       "slots": {
-        "wild": 7
+        "wild": 4,
+        "prod": 1,
+        "sci": 1,
+        "grow": 1
       },
       "effect": {},
       "civicOutMul": 1.1,
       "sciOutMul": 1.1,
       "mermanFoodMul": 0.1,
-      "desc": "7 个政策卡槽；科技与市政产出 +10%，鲛人食物消耗 −10%。"
+      "desc": "7 个政策卡槽；科技与市政产出 +10%，鲛人食物消耗 −10%。",
+      "flavor": "无代表，不纳税。"
     },
     {
       "id": "interstellar_federation",
       "name": "星际联邦",
       "slots": {
-        "wild": 9
+        "wild": 6,
+        "prod": 1,
+        "sci": 1,
+        "grow": 1
       },
       "effect": {},
       "allOutMul": 1.1,
       "happyBonus": 1,
-      "desc": "9 个政策卡槽；全产 +10%，幸福度 +1。"
+      "desc": "9 个政策卡槽；全产 +10%，幸福度 +1。",
+      "flavor": "星海一言堂。"
     },
     {
       "id": "star_sea_coop",
       "name": "星海合作社",
       "slots": {
-        "wild": 9
+        "wild": 6,
+        "prod": 1,
+        "sci": 1,
+        "grow": 1
       },
       "effect": {},
       "craftRatio": 1,
-      "desc": "9 个政策卡槽；工艺效率 +100%。"
+      "desc": "9 个政策卡槽；工艺效率 +100%。",
+      "flavor": "火星为何如此赤红？"
     },
     {
       "id": "universal_church",
       "name": "寰宇教会",
       "slots": {
-        "wild": 9
+        "wild": 6,
+        "relig": 2,
+        "grow": 1
       },
       "effect": {},
       "faithMul": 1.5,
       "oldFaithMul": 1.5,
-      "desc": "9 个政策卡槽；信仰与旧日信仰产出加成 ×1.5。"
+      "desc": "9 个政策卡槽；信仰与旧日信仰产出加成 ×1.5。",
+      "flavor": "……如同行在天上。"
     }
   ],
   "POLICIES": [
@@ -5211,7 +5251,8 @@
       "effect": {},
       "craftRatio": 0.2,
       "retiredBy": "guild",
-      "desc": "工坊效率 +20%（工艺制作产出，装在卡槽里才生效）。"
+      "desc": "工坊效率 +20%（工艺制作产出，装在卡槽里才生效）。",
+      "flavor": "迈向文明的一步。"
     },
     {
       "id": "card_mystic",
@@ -5222,7 +5263,8 @@
         "science": 0.3
       },
       "retiredBy": "sacred_path",
-      "desc": "科技产出 +0.3/秒。"
+      "desc": "科技产出 +0.3/秒。",
+      "flavor": "大地、洋流、热泉，听我号令。"
     },
     {
       "id": "card_town_meeting",
@@ -5233,7 +5275,8 @@
       "retiredBy": "city_supply",
       "popCapFlat": 3,
       "popGrowthTimeMul": 0.5,
-      "desc": "人口上限 +3，人口生产时间 −50%。完成「城市供给」后由该卡取代。"
+      "desc": "人口上限 +3，人口生产时间 −50%。完成「城市供给」后由该卡取代。",
+      "flavor": "天下熙熙皆为利来。"
     },
     {
       "id": "card_coral_cultivation",
@@ -5244,27 +5287,30 @@
       "resOutMul": {
         "coral": 1.15
       },
-      "desc": "珊瑚产出 +15%。"
+      "desc": "珊瑚产出 +15%。",
+      "flavor": "珊瑚在适宜的环境会生长得更快。"
     },
     {
       "id": "card_drama",
       "name": "戏剧与诗歌",
       "civic": "drama",
-      "type": "sci",
+      "type": "grow",
       "effect": {},
       "squareMul": 2,
       "retiredBy": "rationing",
-      "desc": "广场的市政点乘区 ×2（即「广场效果 +100%」）。完成《工业化配给》后由「政治经济学」取代而退役。"
+      "desc": "广场的市政点乘区 ×2（即「广场效果 +100%」）。完成《工业化配给》后由「政治经济学」取代而退役。",
+      "flavor": "这是一个问题。"
     },
     {
       "id": "card_theology",
       "name": "神学",
       "civic": "theology",
-      "type": "sci",
+      "type": "relig",
       "effect": {},
       "templeMul": 2,
       "retiredBy": "planet_village",
-      "desc": "神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。"
+      "desc": "神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。",
+      "flavor": "教宗无谬？"
     },
     {
       "id": "card_records",
@@ -5274,32 +5320,48 @@
       "effect": {},
       "libraryMul": 2,
       "retiredBy": "enlightenment",
-      "desc": "潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。"
+      "desc": "潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。",
+      "flavor": "历史如镜。"
     },
     {
       "id": "card_sovereign",
+      "type": "relig",
       "name": "王权神授",
       "civic": "sovereign",
       "effect": {},
       "retiredBy": "reformed",
-      "desc": "城堡每级增加 10% 信仰产出（装在卡槽里才生效）。完成《归正会》后被「天赋神权」取代而退役。"
+      "desc": "城堡每级增加 10% 信仰产出（装在卡槽里才生效）。完成《归正会》后被「天赋神权」取代而退役。",
+      "flavor": "绝罚！"
+    },
+    {
+      "id": "card_monastery",
+      "name": "修道院",
+      "civic": "sovereign",
+      "type": "relig",
+      "effect": {},
+      "popFaithMul": 1.5,
+      "desc": "人口产出信仰 +50%（装在卡槽里才生效）。",
+      "flavor": "美人鱼修女，不喜欢吗？"
     },
     {
       "id": "card_serfdom",
+      "type": "grow",
       "name": "农奴制",
       "civic": "feudalism",
       "effect": {},
-      "desc": "每级牧场给藻场效果 +1%，每级藻场给牧场效果 +1%（互乘，装在卡槽里才生效）。"
+      "desc": "每级牧场给藻场效果 +1%，每级藻场给牧场效果 +1%（互乘，装在卡槽里才生效）。",
+      "flavor": "二十蒲式耳的麦粒……"
     },
     {
       "id": "card_market",
       "name": "中世纪集市",
       "civic": "market",
-      "type": "sci",
+      "type": "prod",
       "effect": {},
       "storeMul": 2,
       "retiredBy": "urbanization",
-      "desc": "仓储区所有建筑的仓储 +100%（即海藻仓/压舱仓/灯塔的容量贡献翻倍）。"
+      "desc": "仓储区所有建筑的仓储 +100%（即海藻仓/压舱仓/灯塔的容量贡献翻倍）。",
+      "flavor": "苹果、麦酒与乳酪。"
     },
     {
       "id": "card_guild",
@@ -5309,7 +5371,8 @@
       "effect": {},
       "craftRatio": 0.4,
       "retiredBy": "ideology",
-      "desc": "工坊效率 +40%（取代「技艺」；研究完成后技艺卡退役）。"
+      "desc": "工坊效率 +40%（取代「技艺」；研究完成后技艺卡退役）。",
+      "flavor": "你不能逮捕盗贼行会……"
     },
     {
       "id": "card_steel_guild",
@@ -5320,16 +5383,18 @@
       "resOutMul": {
         "steel": 1.15
       },
-      "desc": "钢产出 +15%。"
+      "desc": "钢产出 +15%。",
+      "flavor": "批判的武器与武器的批判。"
     },
     {
       "id": "card_triangular",
       "name": "三角贸易",
       "civic": "explore",
-      "type": "prod",
+      "type": "grow",
       "effect": {},
       "canalMul": 2,
-      "desc": "王国潮道（运河）效果额外 +100%（居民奢侈品消耗减免翻倍）。"
+      "desc": "王国潮道（运河）效果额外 +100%（居民奢侈品消耗减免翻倍）。",
+      "flavor": "黑奴与黑美人鱼。"
     },
     {
       "id": "card_mineral_charter",
@@ -5340,7 +5405,8 @@
       "resOutMul": {
         "iron": 1.15
       },
-      "desc": "精铁产出 +15%。"
+      "desc": "精铁产出 +15%。",
+      "flavor": "Drum  links,zwei,drei"
     },
     {
       "id": "card_divine_right",
@@ -5350,17 +5416,19 @@
       "effect": {},
       "retiredBy": "cosmic_indifference",
       "coreFaithMul": 0.1,
-      "desc": "礁栖核心所有建筑每级 +10% 信仰产出（替代「王权神授」）。"
+      "desc": "礁栖核心所有建筑每级 +10% 信仰产出（替代「王权神授」）。",
+      "flavor": "主与我们同在。"
     },
     {
       "id": "card_mercantilism",
       "name": "重商主义",
       "civic": "mercantilism",
-      "type": "prod",
+      "type": "grow",
       "effect": {},
       "retiredBy": "planet_village",
       "bankMerchantMul": 2,
-      "desc": "银行的商人产出加成 +100%。"
+      "desc": "银行的商人产出加成 +100%。",
+      "flavor": "魁奈是个外行！"
     },
     {
       "id": "card_enlightenment",
@@ -5372,7 +5440,8 @@
       "libraryMul": 2,
       "universityMul": 2,
       "templeFaithMul": 0.5,
-      "desc": "潮纹馆、大学的科技加成 +100%，神庙信仰加成 −50%（替代「历史记录」）。"
+      "desc": "潮纹馆、大学的科技加成 +100%，神庙信仰加成 −50%（替代「历史记录」）。",
+      "flavor": "伏尔泰是个外行！"
     },
     {
       "id": "card_rationing",
@@ -5383,18 +5452,20 @@
       "retiredBy": "common_destiny",
       "happyOffset": -1,
       "craftRatio": 0.4,
-      "desc": "幸福度 −1；工坊（工艺制作）效率 +40%。"
+      "desc": "幸福度 −1；工坊（工艺制作）效率 +40%。",
+      "flavor": "绳床，一夜仅需一便士。"
     },
     {
       "id": "card_political_econ",
       "name": "政治经济学",
       "civic": "rationing",
-      "type": "sci",
+      "type": "grow",
       "effect": {},
       "retiredBy": "prosperity_unity",
       "squareMul": 2.5,
       "theaterMul": 2.5,
-      "desc": "广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5（取代「戏剧与诗歌」）。"
+      "desc": "广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5（取代「戏剧与诗歌」）。",
+      "flavor": "可能性之兽。"
     },
     {
       "id": "card_logistics",
@@ -5404,7 +5475,8 @@
       "effect": {},
       "retiredBy": "globalization",
       "storeMul": 3,
-      "desc": "仓储区建筑容量 ×3（取代「中世纪集市」）。"
+      "desc": "仓储区建筑容量 ×3（取代「中世纪集市」）。",
+      "flavor": "国家的血管与神经。"
     },
     {
       "id": "card_city_supply",
@@ -5414,55 +5486,63 @@
       "effect": {},
       "popCapFlat": 5,
       "popGrowthTimeMul": 0.5,
-      "desc": "人口上限 +5，人口生产时间 −50%（取代「乡镇集会」）。"
+      "desc": "人口上限 +5，人口生产时间 −50%（取代「乡镇集会」）。",
+      "flavor": "天下攘攘皆为利往。"
     },
     {
       "id": "card_heat_priority",
+      "type": "prod",
       "name": "热能优先",
       "civic": "mobilization",
       "effect": {},
       "civicOutMul": 0.5,
       "sciOutMul": 0.5,
       "hydroSupplyMul": 2,
-      "desc": "市政与科技产出 −50%，热液能（蒸汽）供给 +100%。"
+      "desc": "市政与科技产出 −50%，热液能（蒸汽）供给 +100%。",
+      "flavor": "可是，这一切都值得吗？"
     },
     {
       "id": "card_mobilization",
+      "type": "wild",
       "name": "总动员令",
       "civic": "mobilization",
       "effect": {},
       "retiredBy": "far_sight",
       "shellSpeedPerIdle": 0.01,
-      "desc": "每点闲置鲛人提供 1% 破壳速度（待天穹钻机机器态实装后生效）。"
+      "desc": "每点闲置鲛人提供 1% 破壳速度（待天穹钻机机器态实装后生效）。",
+      "flavor": "循此苦旅……"
     },
     {
       "id": "card_massmedia",
       "name": "大众传媒",
       "civic": "massmedia",
-      "type": "prod",
+      "type": "grow",
       "effect": {},
       "retiredBy": "social_network",
       "civicPerPop": 0.5,
       "luxConsumeMul": 0.5,
-      "desc": "每名鲛人 +0.5 市政点/秒；但奢侈品消耗 +50%。"
+      "desc": "每名鲛人 +0.5 市政点/秒；但奢侈品消耗 +50%。",
+      "flavor": "号外！号外！"
     },
     {
       "id": "card_museum",
       "name": "博物馆管理",
       "civic": "naturalhistory",
-      "type": "prod",
+      "type": "wild",
       "effect": {},
       "museumMul": 2,
-      "desc": "博物馆效果翻倍（书手市政点 +40% 而非 +20%）；艺术品效果随轮回额外放大。"
+      "desc": "博物馆效果翻倍（书手市政点 +40% 而非 +20%）；艺术品效果随轮回额外放大。",
+      "flavor": "博物馆奇妙夜。"
     },
     {
       "id": "card_national_solidarity",
       "name": "国家凝聚力",
       "civic": "ideology",
-      "type": "prod",
+      "type": "wild",
       "effect": {},
       "craftRatio": 0.8,
-      "desc": "工坊效率 +80%（取代「职业行会」的 +40%）。"
+      "desc": "工坊效率 +80%（取代「职业行会」的 +40%）。",
+      "flavor": "他们的土地，他们的血。"
     },
     {
       "id": "card_public_share",
@@ -5472,7 +5552,8 @@
       "effect": {},
       "popCapPerPopBldg": 0.5,
       "luxConsumeMul": 2,
-      "desc": "所有人口建筑（巢/珊瑚屋/廉租社区）每级 +0.5 人口上限；奢侈品消耗 +100%。取下卡时超额人口消失。"
+      "desc": "所有人口建筑（巢/珊瑚屋/廉租社区）每级 +0.5 人口上限；奢侈品消耗 +100%。取下卡时超额人口消失。",
+      "flavor": "狮子山精神。"
     },
     {
       "id": "card_overtime",
@@ -5482,16 +5563,18 @@
       "effect": {},
       "jobOutMul": 1.3,
       "luxConsumeMul": 1.3,
-      "desc": "所有职业产出 +30%；奢侈品消耗 +30%。"
+      "desc": "所有职业产出 +30%；奢侈品消耗 +30%。",
+      "flavor": "今日目标："
     },
     {
       "id": "card_live_comp",
       "name": "直播竞技",
       "civic": "athletics",
-      "type": "sci",
+      "type": "grow",
       "effect": {},
       "liveCompCivic": 1,
-      "desc": "体育场额外产出 = 人口数 × 体育场等级 的市政点/秒（需建造体育场且装填本卡）。"
+      "desc": "体育场额外产出 = 人口数 × 体育场等级 的市政点/秒（需建造体育场且装填本卡）。",
+      "flavor": "他不是一个人在战斗！"
     },
     {
       "id": "card_tourism",
@@ -5500,17 +5583,19 @@
       "type": "grow",
       "effect": {},
       "wonderLuxSave": 0.03,
-      "desc": "每座已建奇观额外 -3% 奢侈品消耗（叠加）。"
+      "desc": "每座已建奇观额外 -3% 奢侈品消耗（叠加）。",
+      "flavor": "前职业：皇帝。"
     },
     {
       "id": "card_space_race",
       "name": "太空竞赛",
       "civic": "space_race",
-      "type": "prod",
+      "type": "sci",
       "effect": {},
       "spaceBuildSave": 0.2,
       "civicOutMul": 0.8,
-      "desc": "太空建筑建造 -20%；市政产出 -20%。"
+      "desc": "太空建筑建造 -20%；市政产出 -20%。",
+      "flavor": "光荣的引路人"
     },
     {
       "id": "card_no_god_here",
@@ -5523,26 +5608,29 @@
       "universityMul": 3,
       "templeFaithMul": 0.5,
       "obsSciMul": 1.5,
-      "desc": "替代「启蒙运动」：潮纹馆科技 ×3、研究所科技 ×3、神庙信仰 −50%、星空观测站产出 ×1.5。"
+      "desc": "替代「启蒙运动」：潮纹馆科技 ×3、研究所科技 ×3、神庙信仰 −50%、星空观测站产出 ×1.5。",
+      "flavor": "我没有看到上帝、天堂或者其他什么玩意。"
     },
     {
       "id": "card_transnational",
       "name": "跨国经济",
       "civic": "planet_village",
-      "type": "prod",
+      "type": "grow",
       "effect": {},
       "bankMerchantMul": 4,
-      "desc": "替代「重商主义」：银行的商人产出加成 ×4。"
+      "desc": "替代「重商主义」：银行的商人产出加成 ×4。",
+      "flavor": "货出去，钱进来。"
     },
     {
       "id": "card_future_theology",
       "name": "未来主义神学",
       "civic": "planet_village",
-      "type": "sci",
+      "type": "relig",
       "effect": {},
       "templeFaithMul": 5,
       "sciOutMul": 0.7,
-      "desc": "替代「神学」：神庙信仰 ×5、科技产出 −30%。"
+      "desc": "替代「神学」：神庙信仰 ×5、科技产出 −30%。",
+      "flavor": "第一因：宇宙大爆炸。"
     },
     {
       "id": "card_star_broadcast",
@@ -5551,7 +5639,8 @@
       "type": "relig",
       "effect": {},
       "faithSatMul": 0.05,
-      "desc": "每颗轨道卫星使信仰产出 +5%（随卫星升级变强）。"
+      "desc": "每颗轨道卫星使信仰产出 +5%（随卫星升级变强）。",
+      "flavor": "……太阳升……"
     },
     {
       "id": "card_interlog",
@@ -5560,7 +5649,8 @@
       "type": "prod",
       "effect": {},
       "storeMul": 5,
-      "desc": "仓储区建筑容量 ×5（取代「基础物流建设」）。"
+      "desc": "仓储区建筑容量 ×5（取代「基础物流建设」）。",
+      "flavor": "They took our job!"
     },
     {
       "id": "card_we_are_here",
@@ -5569,27 +5659,30 @@
       "type": "relig",
       "effect": {},
       "coreSpaceFaithMul": 0.1,
-      "desc": "礁栖核心、星海区所有建筑每级 +10% 信仰产出（取代「天赋神权」）。"
+      "desc": "礁栖核心、星海区所有建筑每级 +10% 信仰产出（取代「天赋神权」）。",
+      "flavor": "好牌多抓。"
     },
     {
       "id": "card_social_network",
       "name": "社交网络",
       "civic": "social_network",
-      "type": "prod",
+      "type": "grow",
       "effect": {},
       "civicPerPop": 3,
       "luxConsumeMul": 0.8,
-      "desc": "每名鲛人 +3 市政点/秒；但奢侈品消耗 +80%（取代「大众传媒」）。"
+      "desc": "每名鲛人 +3 市政点/秒；但奢侈品消耗 +80%（取代「大众传媒」）。",
+      "flavor": "点赞哦亲。"
     },
     {
       "id": "card_vr",
       "name": "虚拟现实",
       "civic": "virtual_reality",
-      "type": "grow",
+      "type": "prod",
       "effect": {},
       "craftRatioPerPop": 1,
       "luxConsumeMul": -0.6,
-      "desc": "工坊效率 −1%×人口数（加算）；奢侈品消耗 −60%（加算）。"
+      "desc": "工坊效率 −1%×人口数（加算）；奢侈品消耗 −60%（加算）。",
+      "flavor": "腐朽于摇篮。"
     },
     {
       "id": "card_space_net",
@@ -5598,78 +5691,86 @@
       "type": "prod",
       "effect": {},
       "planetOutMul": 1.3,
-      "desc": "异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +30%。"
+      "desc": "异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +30%。",
+      "flavor": "川陀,450亿人口."
     },
     {
       "id": "card_fever",
       "name": "星际探索热潮",
       "civic": "far_sight",
-      "type": "grow",
+      "type": "sci",
       "effect": {},
       "starPerPop": 1,
       "retiredBy": "supreme_directive",
-      "desc": "星空探索速率 +x%，x = 人口数（%）（替代「总动员令」）。"
+      "desc": "星空探索速率 +x%，x = 人口数（%）（替代「总动员令」）。",
+      "flavor": "翠绿的，翠绿的青草。"
     },
     {
       "id": "card_alien_abundance",
       "name": "上上善道",
       "civic": "prosperity_unity",
-      "type": "prod",
+      "type": "wild",
       "effect": {},
       "planetOutMul": 1.4,
-      "desc": "异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +40%。"
+      "desc": "异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +40%。",
+      "flavor": "For the GREATER GOOD!"
     },
     {
       "id": "card_federal_privy",
       "name": "联邦枢密院",
       "civic": "prosperity_unity",
-      "type": "sci",
+      "type": "wild",
       "effect": {},
       "squareMul": 4,
       "theaterMul": 4,
-      "desc": "广场的市政点乘区 ×4、歌剧院的官员市政点乘区 ×4（取代「政治经济学」）。"
+      "desc": "广场的市政点乘区 ×4、歌剧院的官员市政点乘区 ×4（取代「政治经济学」）。",
+      "flavor": "ORDER!"
     },
     {
       "id": "card_flesh_weak",
       "name": "血肉苦弱",
       "civic": "common_destiny",
-      "type": "prod",
+      "type": "wild",
       "effect": {},
       "resOutMul": {
         "iron": 1.3,
         "steel": 1.3,
         "thetaMetal": 1.3
       },
-      "desc": "精铁、钢、θ金属产出 +30%。"
+      "desc": "精铁、钢、θ金属产出 +30%。",
+      "flavor": "机械飞升。"
     },
     {
       "id": "card_egal_work",
       "name": "各员一层奋力努力",
       "civic": "common_destiny",
-      "type": "prod",
+      "type": "wild",
       "effect": {},
       "craftRatio": 1.4,
       "happyOffset": -2,
-      "desc": "工艺效率 +140%、幸福度 −2（取代「工业化配给」）。"
+      "desc": "工艺效率 +140%、幸福度 −2（取代「工业化配给」）。",
+      "flavor": "滴答、滴答、滴答。"
     },
     {
       "id": "card_mind_over_matter",
       "name": "心胜于物",
       "civic": "sacred_path",
-      "type": "prod",
+      "type": "wild",
       "effect": {},
       "wonderBuildSave": 0.3,
-      "desc": "奇观建造消耗 −30%。"
+      "desc": "奇观建造消耗 −30%。",
+      "flavor": "我在此。"
     },
     {
       "id": "card_transcendence",
       "name": "超凡入圣",
       "civic": "sacred_path",
-      "type": "sci",
+      "type": "wild",
       "effect": {
         "science": 300
       },
-      "desc": "科技产出 +300/秒（取代「神秘主义」）。"
+      "desc": "科技产出 +300/秒（取代「神秘主义」）。",
+      "flavor": "愿你也在此。"
     },
     {
       "id": "card_interstellar_logi",
@@ -5681,7 +5782,8 @@
         "craft_rocketengine": 1,
         "craft_strongprop": 1
       },
-      "desc": "火箭引擎、强工质火箭引擎的工艺制作效率 +100%。"
+      "desc": "火箭引擎、强工质火箭引擎的工艺制作效率 +100%。",
+      "flavor": "冷酷的方程式。"
     },
     {
       "id": "card_brilliant_star_map",
@@ -5691,17 +5793,19 @@
       "effect": {},
       "popFaithMul": 0.5,
       "sciOutMul": 3.5,
-      "desc": "人口信仰产出 −50%、科技产出 ×3.5（取代「神不在此」）。"
+      "desc": "人口信仰产出 −50%、科技产出 ×3.5（取代「神不在此」）。",
+      "flavor": "星之海洋：初次启航"
     },
     {
       "id": "card_cycle_terminus",
       "name": "轮回之终末",
       "civic": "void_faith",
-      "type": "relig",
+      "type": "wild",
       "effect": {},
       "faithAllProdDouble": true,
       "locked": true,
-      "desc": "信仰的全产加成翻倍；不可卸下；完成后信仰更名「虚境」并锁死（要给玩家提示）。"
+      "desc": "信仰的全产加成翻倍；不可卸下；完成后信仰更名「虚境」并锁死。",
+      "flavor": "我们都做了什么（乱码）"
     },
     {
       "id": "card_supreme_directive",
@@ -5710,7 +5814,8 @@
       "type": "prod",
       "effect": {},
       "launchCycle": -2,
-      "desc": "发射场制造节律 −2 秒（与《空间矢量控制》的 −2s 相加，10s → 6s）；取代「星际探索热潮」。"
+      "desc": "发射场制造节律 −2 秒（与《空间矢量控制》的 −2s 相加，10s → 6s）；取代「星际探索热潮」。",
+      "flavor": "DAS WAR EIN BEFEHL!"
     },
     {
       "id": "card_saving",
@@ -5720,18 +5825,97 @@
       "effect": {},
       "launchHydroMul": 0.5,
       "happyConsumeMul": 1.5,
-      "desc": "发射场热液能消耗 −50%；居民幸福度消耗 +50%。"
+      "desc": "发射场热液能消耗 −50%；居民幸福度消耗 +50%。",
+      "flavor": "不惜一切代价。"
     },
     {
       "id": "card_our_sea",
       "name": "我们的海",
       "civic": "our_sea",
-      "type": "prod",
+      "type": "wild",
       "effect": {},
       "sciOutMul": 0.7,
       "faithOutMul": 0.7,
       "craftMul": 2,
-      "desc": "信仰、科研产出 −30%；工坊效率翻倍（乘区 ×2）。"
+      "desc": "信仰、科研产出 −30%；工坊效率翻倍（乘区 ×2）。",
+      "flavor": "…直抵群星。"
+    },
+    {
+      "id": "card_corvee",
+      "name": "征夫发役",
+      "civic": "craft",
+      "retiredBy": "guild",
+      "wonderBuildSaveEra": 0.2,
+      "wonderEraCap": 3,
+      "desc": "纪元 1–3 奇观建造消耗 −20%。完成《职业行会》后由「王室特许」取代而退役。",
+      "flavor": "消耗建造者一次使用次数，为奇观建造提供20%进度。"
+    },
+    {
+      "id": "card_royal_charter",
+      "name": "王室特许",
+      "civic": "guild",
+      "wonderBuildSaveEra": 0.2,
+      "wonderEraCap": 5,
+      "desc": "纪元 1–5 奇观建造消耗 −20%（取代「征夫发役」）。",
+      "flavor": "消耗一位大工程师，提供215产能。"
+    },
+    {
+      "id": "card_five_year",
+      "name": "五年计划",
+      "civic": "rationing",
+      "type": "prod",
+      "resOutMul": {
+        "iron": 1.3,
+        "steel": 1.3
+      },
+      "desc": "精铁、钢产出 +30%。",
+      "flavor": "不依靠外国资本而实现工业化，就是赢了第一局。"
+    },
+    {
+      "id": "card_manorialism",
+      "name": "庄园制",
+      "civic": "feudalism",
+      "type": "grow",
+      "foodOutMul": 1.2,
+      "desc": "食物产出 ×1.20。",
+      "flavor": "我们抓住了狼的耳朵，既不能抓住它，也不能安全地放开它。正义在天平的一端，自保在另一端"
+    },
+    {
+      "id": "card_salon",
+      "name": "启蒙沙龙",
+      "civic": "enlightenment",
+      "type": "sci",
+      "sciToCivic": 0.15,
+      "desc": "科技产出的 15% 转为市政点（计入累计市政产出）。",
+      "flavor": "一种非宫廷的、基于理性与口才而非血统的社交秩序。"
+    },
+    {
+      "id": "card_corp_tax",
+      "name": "公司税",
+      "civic": "macroeconomics",
+      "type": "grow",
+      "companyBonusMul": 1.3,
+      "desc": "公司产出加成与奢侈消耗加成 ×1.3。",
+      "flavor": "每个毛孔都滴着血和肮脏的东西。"
+    },
+    {
+      "id": "card_archaeology",
+      "name": "考古发掘",
+      "civic": "archaeology",
+      "craftRatioRecipes": {
+        "craft_artwork": 0.25,
+        "craft_tidal_record": 0.25
+      },
+      "desc": "艺术品、潮纹记录的制作效率 +25%。",
+      "flavor": "我们的过去？谁的过去？"
+    },
+    {
+      "id": "card_mass_effect",
+      "name": "质量效应",
+      "civic": "ancestor_heritage",
+      "breakStardustMul": 1.15,
+      "desc": "本轮回星屑获取 ×1.15（破壳结算时计入）。",
+      "flavor": "红，蓝，还是绿？"
     }
   ],
   "ERAS": [
@@ -5836,736 +6020,1063 @@
       "desc": "科技 · 效率 · 解锁"
     }
   ],
-  "PERKS": [
+  "TIDE_TREE": [
     {
-      "id": "food",
-      "name": "前朝藻席",
+      "id": "startKelp",
+      "name": "先祖藻仓",
+      "subtree": "remnant",
+      "layer": 1,
       "cost": 1,
-      "desc": "每局开局 +200 藻食",
-      "kind": "start"
-    },
-    {
-      "id": "coral",
-      "name": "沉船残骸",
-      "cost": 2,
-      "desc": "每局开局 +150 珊瑚",
-      "kind": "start"
-    },
-    {
-      "id": "g1",
-      "name": "异族鳍肢",
-      "costs": [
-        3,
-        6,
-        12
-      ],
-      "desc": "采集产出 +10%/级",
-      "kind": "gather",
-      "n": 3,
-      "apply": {
-        "gather": 1
-      }
-    },
-    {
-      "id": "g2",
-      "name": "深鳃",
-      "costs": [
-        6
-      ],
-      "desc": "采集产出再 +10%",
-      "kind": "gather",
-      "n": 3,
-      "apply": {
-        "gather": 1
+      "give": {
+        "kelp": 200
       },
-      "nest": "g1"
+      "desc": "每局开局 +200 藻食"
     },
     {
-      "id": "g3",
-      "name": "流线体形",
-      "costs": [
-        12
-      ],
-      "desc": "采集产出再 +10%",
-      "kind": "gather",
+      "id": "autoClick",
+      "name": "潮手自动",
+      "subtree": "remnant",
+      "layer": 1,
       "n": 3,
-      "apply": {
-        "gather": 1
-      },
-      "nest": "g2"
-    },
-    {
-      "id": "c1",
-      "name": "祖先之热",
-      "costs": [
-        3,
-        7
-      ],
-      "desc": "破壳系数 +0.20/级",
-      "kind": "break",
-      "n": 2,
-      "apply": {
-        "coef": 1
-      }
-    },
-    {
-      "id": "c2",
-      "name": "脉息",
-      "costs": [
-        7
-      ],
-      "desc": "破壳系数再 +0.20",
-      "kind": "break",
-      "n": 2,
-      "apply": {
-        "coef": 1
-      },
-      "nest": "c1"
-    },
-    {
-      "id": "d1",
-      "name": "薄壳一代",
-      "costs": [
-        4,
-        9,
-        18
-      ],
-      "desc": "冰壳厚度 −10%/级",
-      "kind": "break",
-      "n": 3,
-      "apply": {
-        "thin": 1
-      }
-    },
-    {
-      "id": "d2",
-      "name": "裂脉",
-      "costs": [
-        9
-      ],
-      "desc": "冰壳再薄 10%",
-      "kind": "break",
-      "n": 3,
-      "apply": {
-        "thin": 1
-      },
-      "nest": "d1"
-    },
-    {
-      "id": "d3",
-      "name": "内生热泉",
-      "costs": [
-        18
-      ],
-      "desc": "冰壳再薄 10%",
-      "kind": "break",
-      "n": 3,
-      "apply": {
-        "thin": 1
-      },
-      "nest": "d2"
-    },
-    {
-      "id": "popcap",
-      "name": "广厦之基",
-      "costs": [
-        2,
-        4,
-        6
-      ],
-      "desc": "永久人口上限 +1/级（最多 3 级）",
-      "kind": "pop",
-      "n": 3,
-      "apply": {
-        "popcap": 1
-      }
-    },
-    {
-      "id": "housePlan",
-      "name": "生息建筑规划",
-      "cost": 20,
-      "desc": "所有人口建筑每级各 +1 人口上限（买断）",
-      "kind": "pop",
-      "n": 1,
-      "apply": {
-        "housePlan": 1
-      }
-    },
-    {
-      "id": "coldStore",
-      "name": "寒潮储备",
-      "costs": [
-        2,
-        4,
-        8,
-        12
-      ],
-      "desc": "寒季资源产出倍率 +0.02/级（最多 4 级）",
-      "kind": "pop",
-      "n": 4,
-      "apply": {
-        "coldStore": 1
-      }
-    },
-    {
-      "id": "offline",
-      "name": "离潮计时",
-      "costs": [
-        2,
-        4,
-        8,
-        12
-      ],
-      "desc": "单次离线上限 +25%/级（最多 4 级）",
-      "kind": "pop",
-      "n": 4,
-      "apply": {
-        "offline": 1
-      }
-    },
-    {
-      "id": "matStore",
-      "name": "材料总仓",
-      "costs": [
-        4,
-        8,
-        12,
-        16,
-        20,
-        24,
-        28,
-        32,
-        36,
-        40,
-        44,
-        48,
-        52,
-        56,
-        60,
-        64,
-        68,
-        72,
-        76,
-        80
-      ],
-      "desc": "所有普通资源容量 +5%/级（最多 20 级）",
-      "kind": "pop",
-      "n": 20,
-      "apply": {
-        "matStore": 1
-      }
-    },
-    {
-      "id": "autoCraft1",
-      "name": "自动制作槽 I",
-      "cost": 6,
-      "desc": "自动制作槽 +1（自动工坊已自带 1 个）",
-      "kind": "auto",
-      "n": 3,
-      "apply": {
-        "autoCraft": 1
-      }
-    },
-    {
-      "id": "autoCraft2",
-      "name": "自动制作槽 II",
-      "cost": 12,
-      "desc": "自动制作槽再 +1（累计 +2）",
-      "kind": "auto",
-      "n": 3,
-      "apply": {
-        "autoCraft": 1
-      },
-      "nest": "autoCraft1"
-    },
-    {
-      "id": "autoCraft3",
-      "name": "自动制作槽 III",
-      "cost": 24,
-      "desc": "自动制作槽再 +1（累计 +3）",
-      "kind": "auto",
-      "n": 3,
-      "apply": {
-        "autoCraft": 1
-      },
-      "nest": "autoCraft2"
-    },
-    {
-      "id": "legacyCraft",
-      "name": "轮回前遗产制作",
-      "cost": 8,
-      "desc": "解锁轮回结算前自动制作艺术品与潮纹记录（买断）",
-      "kind": "auto",
-      "n": 1,
-      "apply": {
-        "legacyCraft": 1
-      }
-    },
-    {
-      "id": "wonderBlueprint",
-      "name": "遗址施工图 I",
-      "costs": [
-        2,
-        4,
-        6,
-        8
-      ],
-      "desc": "所有奇观建造成本 −5%/级（最多 −20%）",
-      "kind": "wonder",
-      "n": 4,
-      "apply": {
-        "wonderBlueprint": 1
-      }
-    },
-    {
-      "id": "shellSurvey",
-      "name": "破界测绘 I",
-      "costs": [
-        3,
-        6,
-        9
-      ],
-      "desc": "天穹钻机每单位功率削壳量 +5%/级（最多 +15%）",
-      "kind": "break",
-      "n": 3,
-      "apply": {
-        "shellSurvey": 1
-      }
-    },
-    {
-      "id": "civicArchive",
-      "name": "旧典编纂 I",
       "costs": [
         1,
-        2,
         3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20
-      ],
-      "desc": "市政点获取 +10%/级（不设上限）",
-      "kind": "civic",
-      "n": null,
-      "apply": {
-        "civicArchive": 1
-      }
-    },
-    {
-      "id": "civicPlan",
-      "name": "政令档案 I",
-      "costs": [
-        2,
-        4,
-        6
-      ],
-      "desc": "保存 1/2/3 份政体与政策卡方案",
-      "kind": "civic",
-      "n": 3,
-      "apply": {
-        "civicPlan": 1
-      }
-    },
-    {
-      "id": "govRoutine",
-      "name": "议事惯例 I",
-      "costs": [
-        1,
-        2,
-        3,
-        4,
         5
       ],
-      "desc": "换政策卡/政体费用 −10%/级（最多 −50%）",
-      "kind": "civic",
-      "n": 5,
-      "apply": {
-        "govRoutine": 1
-      }
-    },
-    {
-      "id": "tideProof",
-      "name": "潮纹校勘 I",
-      "costs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20
-      ],
-      "desc": "科技点获取 +10%/级（不设上限）",
-      "kind": "science",
-      "n": null,
-      "apply": {
-        "tideProof": 1
-      }
-    },
-    {
-      "id": "scienceStart",
-      "name": "旧学开篇 I",
-      "costs": [
-        2,
-        4,
-        6
-      ],
-      "desc": "每局初始科技点 +100/级（取最高档，最多 +300）",
-      "kind": "science",
-      "n": 3,
-      "apply": {
-        "scienceStart": 100
-      }
-    },
-    {
-      "id": "autoStudy",
-      "name": "旧学自动研究",
-      "cost": 6,
-      "desc": "解锁科技自动研究器（买断，默认关闭）",
-      "kind": "auto",
-      "n": 1,
-      "apply": {
-        "autoStudy": 1
-      }
-    },
-    {
-      "id": "autoCivic",
-      "name": "市政自动研究",
-      "cost": 6,
-      "desc": "解锁市政自动研究器（买断，默认关闭）",
-      "kind": "auto",
-      "n": 1,
-      "apply": {
-        "autoCivic": 1
-      }
-    },
-    {
-      "id": "coralPact",
-      "name": "珊瑚礁契",
-      "costs": [
-        2,
-        4,
-        6,
-        8,
-        10,
-        12,
-        14,
-        16,
-        18,
-        20,
-        22,
-        24,
-        26,
-        28,
-        30,
-        32,
-        34,
-        36,
-        38,
-        40
-      ],
-      "desc": "珊瑚产出 +10%/级（不设上限）",
-      "kind": "gather",
-      "n": null,
-      "apply": {
-        "coralPact": 1
-      }
-    },
-    {
-      "id": "mineTax",
-      "name": "矿脉税契",
-      "costs": [
-        3,
-        6,
-        9,
-        12,
-        15,
-        18,
-        21,
-        24,
-        27,
-        30,
-        33,
-        36,
-        39,
-        42,
-        45,
-        48,
-        51,
-        54,
-        57,
-        60
-      ],
-      "desc": "石头 + 金属 + 暖石产出各 +10%/级（不设上限）",
-      "kind": "gather",
-      "n": null,
-      "apply": {
-        "mineTax": 1
-      }
-    },
-    {
-      "id": "algaeCrop",
-      "name": "潮田轮作",
-      "costs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20
-      ],
-      "desc": "采集者藻食产出 +10%/级（不设上限）",
-      "kind": "gather",
-      "n": null,
-      "apply": {
-        "algaeCrop": 1
-      }
-    },
-    {
-      "id": "furnaceBoost",
-      "name": "炉心增压",
-      "costs": [
-        4,
-        8,
-        12,
-        16,
-        20,
-        24,
-        28,
-        32,
-        36,
-        40,
-        44,
-        48,
-        52,
-        56,
-        60,
-        64,
-        68,
-        72,
-        76,
-        80
-      ],
-      "desc": "精铁产出 +10%/级（不设上限）",
-      "kind": "gather",
-      "n": null,
-      "apply": {
-        "furnaceBoost": 1
-      }
-    },
-    {
-      "id": "sacrament",
-      "name": "祭祀唱诗",
-      "costs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20
-      ],
-      "desc": "信仰产出 +10%/级（不设上限）",
-      "kind": "faith",
-      "n": null,
-      "apply": {
-        "sacrament": 1
-      }
-    },
-    {
-      "id": "craftQuota",
-      "name": "工坊定额",
-      "costs": [
-        3,
-        6,
-        9,
-        12,
-        15,
-        18,
-        21,
-        24,
-        27,
-        30,
-        33,
-        36,
-        39,
-        42,
-        45,
-        48,
-        51,
-        54,
-        57,
-        60
-      ],
-      "desc": "工坊制作产出 +10%/级（不设上限）",
-      "kind": "gather",
-      "n": null,
-      "apply": {
-        "craftQuota": 1
-      }
-    },
-    {
-      "id": "luxuryPact",
-      "name": "奢侈品契",
-      "costs": [
-        2,
-        4,
-        6,
-        8,
-        10,
-        12,
-        14,
-        16,
-        18,
-        20,
-        22,
-        24,
-        26,
-        28,
-        30,
-        32,
-        34,
-        36,
-        38,
-        40
-      ],
-      "desc": "奢侈品产出 +10%/级（不设上限）",
-      "kind": "gather",
-      "n": null,
-      "apply": {
-        "luxuryPact": 1
-      }
-    },
-    {
-      "id": "buildSave",
-      "name": "匠作省料",
-      "costs": [
-        2,
-        4,
-        6,
-        8,
-        10,
-        12,
-        14,
-        16,
-        18,
-        20,
-        22,
-        24,
-        26,
-        28,
-        30,
-        32,
-        34,
-        36,
-        38,
-        40
-      ],
-      "desc": "所有建筑消耗 −1%/级（最多 −20%）",
-      "kind": "build",
-      "n": 20,
-      "apply": {
-        "buildSave": 1
-      }
-    },
-    {
-      "id": "autoClicker1",
-      "name": "自动采集 I",
-      "cost": 4,
-      "desc": "藻食+珊瑚 自动点击 1 次/秒",
-      "kind": "auto",
-      "n": 1,
-      "apply": {
-        "autoClick": 1
-      }
-    },
-    {
-      "id": "autoClicker2",
-      "name": "自动采集 II",
-      "cost": 8,
-      "desc": "自动点击 2 次/秒（需先购 I）",
-      "kind": "auto",
-      "n": 1,
       "apply": {
         "autoClick": 1
       },
-      "nest": "autoClicker1"
+      "desc": "自动点击藻食+珊瑚（1/2/3 次·秒，仅取最高档）"
     },
     {
-      "id": "autoClicker3",
-      "name": "自动采集 III",
-      "cost": 16,
-      "desc": "自动点击 3 次/秒（需先购 II）",
-      "kind": "auto",
-      "n": 1,
-      "apply": {
-        "autoClick": 1
+      "id": "startCoral",
+      "name": "先祖珊瑚",
+      "subtree": "remnant",
+      "layer": 2,
+      "cost": 1,
+      "give": {
+        "coral": 200
       },
-      "nest": "autoClicker2"
+      "desc": "每局开局 +200 珊瑚"
+    },
+    {
+      "id": "startStone",
+      "name": "先祖石料",
+      "subtree": "remnant",
+      "layer": 2,
+      "cost": 1,
+      "give": {
+        "stone": 200
+      },
+      "desc": "每局开局 +200 石料"
+    },
+    {
+      "id": "startMetal",
+      "name": "先祖金属",
+      "subtree": "remnant",
+      "layer": 2,
+      "cost": 1,
+      "give": {
+        "silt": 200
+      },
+      "desc": "每局开局 +200 金属"
+    },
+    {
+      "id": "startScience",
+      "name": "先祖科技",
+      "subtree": "remnant",
+      "layer": 3,
+      "cost": 2,
+      "give": {
+        "science": 200
+      },
+      "desc": "每局开局 +200 科技"
+    },
+    {
+      "id": "startCivic",
+      "name": "先祖市政",
+      "subtree": "remnant",
+      "layer": 3,
+      "cost": 2,
+      "give": {
+        "culture": 200
+      },
+      "desc": "每局开局 +200 市政"
     },
     {
       "id": "autoEvent",
-      "name": "自动拾取",
-      "cost": 6,
-      "desc": "天壳震动等点击事件出现即自动拾取",
-      "kind": "auto",
-      "n": 1,
+      "name": "潮讯自拾",
+      "subtree": "remnant",
+      "layer": 4,
+      "cost": 30,
       "apply": {
         "autoEvent": 1
-      }
+      },
+      "desc": "天壳震动等点击事件出现即自动拾取"
+    },
+    {
+      "id": "startPop1",
+      "name": "繁衍生息 I",
+      "subtree": "shelter",
+      "layer": 1,
+      "cost": 2,
+      "apply": {
+        "startPop": 1
+      },
+      "mode": "max",
+      "desc": "开局人口上限 +1（与同系高阶互斥，仅取最高 +3）"
+    },
+    {
+      "id": "matStore1",
+      "name": "总仓奠基",
+      "subtree": "shelter",
+      "layer": 1,
+      "cost": 4,
+      "apply": {
+        "matStore": 2
+      },
+      "desc": "所有普通资源容量 +10%"
+    },
+    {
+      "id": "startPop2",
+      "name": "繁衍生息 II",
+      "subtree": "shelter",
+      "layer": 2,
+      "cost": 4,
+      "apply": {
+        "startPop": 2
+      },
+      "mode": "max",
+      "nest": "startPop1",
+      "desc": "开局人口上限 +2（与同系互斥，仅取最高）"
+    },
+    {
+      "id": "wonderBlueprint1",
+      "name": "遗址图样 I",
+      "subtree": "shelter",
+      "layer": 2,
+      "cost": 5,
+      "apply": {
+        "wonderBlueprint": 2
+      },
+      "desc": "奇观建造成本 −10%"
+    },
+    {
+      "id": "matStore2",
+      "name": "总仓扩建 I",
+      "subtree": "shelter",
+      "layer": 2,
+      "cost": 8,
+      "apply": {
+        "matStore": 2
+      },
+      "nest": "matStore1",
+      "desc": "资源容量再 +10%"
+    },
+    {
+      "id": "startPop3",
+      "name": "繁衍生息 III",
+      "subtree": "shelter",
+      "layer": 3,
+      "cost": 6,
+      "apply": {
+        "startPop": 3
+      },
+      "mode": "max",
+      "nest": "startPop2",
+      "desc": "开局人口上限 +3（与同系互斥，仅取最高）"
+    },
+    {
+      "id": "wonderBlueprint2",
+      "name": "遗址图样 II",
+      "subtree": "shelter",
+      "layer": 3,
+      "cost": 15,
+      "apply": {
+        "wonderBlueprint": 2
+      },
+      "nest": "wonderBlueprint1",
+      "desc": "奇观建造成本再 −10%（共 −20%）"
+    },
+    {
+      "id": "matStore3",
+      "name": "总仓扩建 II",
+      "subtree": "shelter",
+      "layer": 3,
+      "cost": 12,
+      "apply": {
+        "matStore": 2
+      },
+      "nest": "matStore2",
+      "desc": "资源容量再 +10%"
+    },
+    {
+      "id": "housePlan",
+      "name": "生息规划",
+      "subtree": "shelter",
+      "layer": 4,
+      "cost": 20,
+      "apply": {
+        "housePlan": 1
+      },
+      "desc": "巢/石屋/廉租 每级各 +1 人口上限"
+    },
+    {
+      "id": "matStoreTail",
+      "name": "仓储通汇",
+      "subtree": "shelter",
+      "layer": 4,
+      "cost": 16,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "matStore": 1
+      },
+      "nest": "matStore3",
+      "desc": "资源容量再 +5%/级（无上限，每级 ×1.5 向下取整）"
+    },
+    {
+      "id": "craftQuota1",
+      "name": "工坊定额 I",
+      "subtree": "forge",
+      "layer": 1,
+      "cost": 2,
+      "apply": {
+        "craftQuota": 1
+      },
+      "desc": "工坊制作产出 +10%"
+    },
+    {
+      "id": "craftQuota2",
+      "name": "工坊定额 II",
+      "subtree": "forge",
+      "layer": 2,
+      "cost": 4,
+      "apply": {
+        "craftQuota": 1
+      },
+      "nest": "craftQuota1",
+      "desc": "工坊制作产出再 +10%"
+    },
+    {
+      "id": "autoCraft1",
+      "name": "自动工坊 I",
+      "subtree": "forge",
+      "layer": 2,
+      "cost": 10,
+      "apply": {
+        "autoCraft": 1
+      },
+      "desc": "额外 +1 自动制作槽"
+    },
+    {
+      "id": "craftQuota3",
+      "name": "工坊定额 III",
+      "subtree": "forge",
+      "layer": 3,
+      "cost": 8,
+      "apply": {
+        "craftQuota": 1
+      },
+      "nest": "craftQuota2",
+      "desc": "工坊制作产出再 +10%"
+    },
+    {
+      "id": "autoCraft2",
+      "name": "自动工坊 II",
+      "subtree": "forge",
+      "layer": 3,
+      "cost": 15,
+      "apply": {
+        "autoCraft": 1
+      },
+      "nest": "autoCraft1",
+      "desc": "额外 +1 自动制作槽（累计 +2）"
+    },
+    {
+      "id": "craftQuotaTail",
+      "name": "工坊通汇",
+      "subtree": "forge",
+      "layer": 4,
+      "cost": 10,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "craftQuota": 0.5
+      },
+      "nest": "craftQuota3",
+      "desc": "工坊制作产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "craftLoop",
+      "name": "轮回工巧",
+      "subtree": "forge",
+      "layer": 4,
+      "cost": 15,
+      "dyn": "loop5",
+      "apply": {
+        "craftLoop": 1
+      },
+      "desc": "工坊制作产出 +5%×轮回次数（每轮回重算，无上限）"
+    },
+    {
+      "id": "autoCraft3",
+      "name": "自动工坊 III",
+      "subtree": "forge",
+      "layer": 4,
+      "cost": 20,
+      "apply": {
+        "autoCraft": 1
+      },
+      "nest": "autoCraft2",
+      "desc": "额外 +1 自动制作槽（累计 +3）"
+    },
+    {
+      "id": "minerPact1",
+      "name": "矿工契约 I",
+      "subtree": "mineral",
+      "layer": 1,
+      "cost": 2,
+      "apply": {
+        "minerPact": 1
+      },
+      "desc": "矿工系（泥沙+暖石）产出 +10%"
+    },
+    {
+      "id": "quarryPact1",
+      "name": "采石契约 I",
+      "subtree": "mineral",
+      "layer": 1,
+      "cost": 2,
+      "apply": {
+        "quarryPact": 1
+      },
+      "desc": "采石工系（石料）产出 +10%"
+    },
+    {
+      "id": "minerPact2",
+      "name": "矿工契约 II",
+      "subtree": "mineral",
+      "layer": 2,
+      "cost": 5,
+      "apply": {
+        "minerPact": 1
+      },
+      "nest": "minerPact1",
+      "desc": "矿工系产出再 +10%"
+    },
+    {
+      "id": "furnaceEff1",
+      "name": "炉心调谐 I",
+      "subtree": "mineral",
+      "layer": 2,
+      "cost": 5,
+      "apply": {
+        "furnaceEff": 1
+      },
+      "desc": "热泉炉（精铁）效率 +20%"
+    },
+    {
+      "id": "quarryPact2",
+      "name": "采石契约 II",
+      "subtree": "mineral",
+      "layer": 2,
+      "cost": 5,
+      "apply": {
+        "quarryPact": 1
+      },
+      "nest": "quarryPact1",
+      "desc": "采石工系产出再 +10%"
+    },
+    {
+      "id": "minerPact3",
+      "name": "矿工契约 III",
+      "subtree": "mineral",
+      "layer": 3,
+      "cost": 8,
+      "apply": {
+        "minerPact": 1
+      },
+      "nest": "minerPact2",
+      "desc": "矿工系产出再 +10%"
+    },
+    {
+      "id": "hydroshopEff1",
+      "name": "热液调谐 I",
+      "subtree": "mineral",
+      "layer": 3,
+      "cost": 10,
+      "apply": {
+        "hydroshopEff": 1
+      },
+      "desc": "热液工坊（钢）效率 +20%"
+    },
+    {
+      "id": "quarryPact3",
+      "name": "采石契约 III",
+      "subtree": "mineral",
+      "layer": 3,
+      "cost": 8,
+      "apply": {
+        "quarryPact": 1
+      },
+      "nest": "quarryPact2",
+      "desc": "采石工系产出再 +10%"
+    },
+    {
+      "id": "stoneBeam",
+      "name": "石梁巧工",
+      "subtree": "mineral",
+      "layer": 3,
+      "cost": 8,
+      "recipe": "craft_stonebeam",
+      "rmul": 0.3,
+      "desc": "石梁工艺效率 +30%"
+    },
+    {
+      "id": "minerPactTail",
+      "name": "矿工通汇",
+      "subtree": "mineral",
+      "layer": 4,
+      "cost": 10,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "minerPact": 0.5
+      },
+      "nest": "minerPact3",
+      "desc": "矿工系产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "furnaceHydroLoop",
+      "name": "轮回炉火",
+      "subtree": "mineral",
+      "layer": 4,
+      "cost": 15,
+      "dyn": "loop5",
+      "apply": {
+        "furnaceLoop": 1,
+        "hydroLoop": 1
+      },
+      "desc": "热泉炉/热液工坊效率 +5%×轮回次数（每轮回重算）"
+    },
+    {
+      "id": "quarryPactTail",
+      "name": "采石通汇",
+      "subtree": "mineral",
+      "layer": 4,
+      "cost": 10,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "quarryPact": 0.5
+      },
+      "nest": "quarryPact3",
+      "desc": "采石工系产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "algaeCrop1",
+      "name": "潮田 I",
+      "subtree": "food",
+      "layer": 1,
+      "cost": 2,
+      "apply": {
+        "algaeCrop": 1
+      },
+      "desc": "采集者藻食产出 +10%"
+    },
+    {
+      "id": "coralPact1",
+      "name": "珊瑚契 I",
+      "subtree": "food",
+      "layer": 1,
+      "cost": 2,
+      "apply": {
+        "coralPact": 1
+      },
+      "desc": "珊瑚匠系产出 +10%"
+    },
+    {
+      "id": "algaeCrop2",
+      "name": "潮田 II",
+      "subtree": "food",
+      "layer": 2,
+      "cost": 5,
+      "apply": {
+        "algaeCrop": 1
+      },
+      "nest": "algaeCrop1",
+      "desc": "采集者藻食产出再 +10%"
+    },
+    {
+      "id": "workSpeed1",
+      "name": "勤耕 I",
+      "subtree": "food",
+      "layer": 2,
+      "cost": 1,
+      "apply": {
+        "workSpeed": 0.1
+      },
+      "desc": "族民生产时间 −10%"
+    },
+    {
+      "id": "coralPact2",
+      "name": "珊瑚契 II",
+      "subtree": "food",
+      "layer": 2,
+      "cost": 5,
+      "apply": {
+        "coralPact": 1
+      },
+      "nest": "coralPact1",
+      "desc": "珊瑚匠系产出再 +10%"
+    },
+    {
+      "id": "hardcoral",
+      "name": "硬珊巧工",
+      "subtree": "food",
+      "layer": 2,
+      "cost": 8,
+      "recipe": "craft_hardcoral",
+      "rmul": 0.3,
+      "desc": "硬化珊瑚工艺效率 +30%"
+    },
+    {
+      "id": "algaeCrop3",
+      "name": "潮田 III",
+      "subtree": "food",
+      "layer": 3,
+      "cost": 8,
+      "apply": {
+        "algaeCrop": 1
+      },
+      "nest": "algaeCrop2",
+      "desc": "采集者藻食产出再 +10%"
+    },
+    {
+      "id": "workSpeed2",
+      "name": "勤耕 II",
+      "subtree": "food",
+      "layer": 3,
+      "cost": 2,
+      "apply": {
+        "workSpeed": 0.2
+      },
+      "nest": "workSpeed1",
+      "desc": "族民生产时间再 −20%（共 −30%）"
+    },
+    {
+      "id": "coralPact3",
+      "name": "珊瑚契 III",
+      "subtree": "food",
+      "layer": 3,
+      "cost": 8,
+      "apply": {
+        "coralPact": 1
+      },
+      "nest": "coralPact2",
+      "desc": "珊瑚匠系产出再 +10%"
+    },
+    {
+      "id": "scaffold",
+      "name": "脚手架巧工",
+      "subtree": "food",
+      "layer": 3,
+      "cost": 25,
+      "recipe": "craft_scaffold",
+      "rmul": 0.3,
+      "desc": "脚手架工艺效率 +30%"
+    },
+    {
+      "id": "algaeCropTail",
+      "name": "潮田通汇",
+      "subtree": "food",
+      "layer": 4,
+      "cost": 10,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "algaeCrop": 0.5
+      },
+      "nest": "algaeCrop3",
+      "desc": "采集者藻食产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "coldPenalty",
+      "name": "御寒之智",
+      "subtree": "food",
+      "layer": 4,
+      "cost": 10,
+      "apply": {
+        "coldPenalty": 1
+      },
+      "desc": "寒潮季减产效果 −50%"
+    },
+    {
+      "id": "coralPactTail",
+      "name": "珊瑚通汇",
+      "subtree": "food",
+      "layer": 4,
+      "cost": 10,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "coralPact": 0.5
+      },
+      "nest": "coralPact3",
+      "desc": "珊瑚匠系产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "furnaceBoost1",
+      "name": "炉压 I",
+      "subtree": "steel",
+      "layer": 1,
+      "cost": 6,
+      "apply": {
+        "furnaceBoost": 1
+      },
+      "desc": "热泉炉（精铁）产出 +10%"
+    },
+    {
+      "id": "hydroshopBoost1",
+      "name": "热坊 I",
+      "subtree": "steel",
+      "layer": 1,
+      "cost": 10,
+      "apply": {
+        "hydroshopBoost": 1
+      },
+      "desc": "热液工坊（钢）产出 +10%"
+    },
+    {
+      "id": "furnaceBoost2",
+      "name": "炉压 II",
+      "subtree": "steel",
+      "layer": 2,
+      "cost": 12,
+      "apply": {
+        "furnaceBoost": 1
+      },
+      "nest": "furnaceBoost1",
+      "desc": "热泉炉产出再 +10%"
+    },
+    {
+      "id": "ironbracket",
+      "name": "铁支架巧工",
+      "subtree": "steel",
+      "layer": 2,
+      "cost": 15,
+      "recipe": "craft_ironbracket",
+      "rmul": 0.3,
+      "desc": "铁制支架工艺效率 +30%"
+    },
+    {
+      "id": "hydroshopBoost2",
+      "name": "热坊 II",
+      "subtree": "steel",
+      "layer": 2,
+      "cost": 15,
+      "apply": {
+        "hydroshopBoost": 1
+      },
+      "nest": "hydroshopBoost1",
+      "desc": "热液工坊产出再 +10%"
+    },
+    {
+      "id": "furnaceBoost3",
+      "name": "炉压 III",
+      "subtree": "steel",
+      "layer": 3,
+      "cost": 18,
+      "apply": {
+        "furnaceBoost": 1
+      },
+      "nest": "furnaceBoost2",
+      "desc": "热泉炉产出再 +10%"
+    },
+    {
+      "id": "steelpart",
+      "name": "钢零件巧工",
+      "subtree": "steel",
+      "layer": 3,
+      "cost": 25,
+      "recipe": "craft_steelpart",
+      "rmul": 0.3,
+      "desc": "钢制零件工艺效率 +30%"
+    },
+    {
+      "id": "hydroshopBoost3",
+      "name": "热坊 III",
+      "subtree": "steel",
+      "layer": 3,
+      "cost": 20,
+      "apply": {
+        "hydroshopBoost": 1
+      },
+      "nest": "hydroshopBoost2",
+      "desc": "热液工坊产出再 +10%"
+    },
+    {
+      "id": "furnaceBoostTail",
+      "name": "炉压通汇",
+      "subtree": "steel",
+      "layer": 4,
+      "cost": 20,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "furnaceBoost": 0.5
+      },
+      "nest": "furnaceBoost3",
+      "desc": "热泉炉产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "slotCraft",
+      "name": "工造之位",
+      "subtree": "steel",
+      "layer": 4,
+      "cost": 50,
+      "apply": {
+        "slotCraft": 1
+      },
+      "desc": "任意政体额外 +1 工造槽"
+    },
+    {
+      "id": "hydroshopBoostTail",
+      "name": "热坊通汇",
+      "subtree": "steel",
+      "layer": 4,
+      "cost": 25,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "hydroshopBoost": 0.5
+      },
+      "nest": "hydroshopBoost3",
+      "desc": "热液工坊产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "luxuryPact1",
+      "name": "商契 I",
+      "subtree": "politics",
+      "layer": 1,
+      "cost": 2,
+      "apply": {
+        "luxuryPact": 1
+      },
+      "desc": "商人系产出 +10%"
+    },
+    {
+      "id": "scribePact1",
+      "name": "书契 I",
+      "subtree": "politics",
+      "layer": 1,
+      "cost": 3,
+      "apply": {
+        "scribePact": 1
+      },
+      "desc": "书手系产出 +10%"
+    },
+    {
+      "id": "luxuryPact2",
+      "name": "商契 II",
+      "subtree": "politics",
+      "layer": 2,
+      "cost": 5,
+      "apply": {
+        "luxuryPact": 1
+      },
+      "nest": "luxuryPact1",
+      "desc": "商人系产出再 +10%"
+    },
+    {
+      "id": "luxDrain1",
+      "name": "节流 I",
+      "subtree": "politics",
+      "layer": 2,
+      "cost": 5,
+      "apply": {
+        "luxDrain": 1
+      },
+      "desc": "族民奢侈品消耗 −5%"
+    },
+    {
+      "id": "scribePact2",
+      "name": "书契 II",
+      "subtree": "politics",
+      "layer": 2,
+      "cost": 6,
+      "apply": {
+        "scribePact": 1
+      },
+      "nest": "scribePact1",
+      "desc": "书手系产出再 +10%"
+    },
+    {
+      "id": "artwork1",
+      "name": "艺巧 I",
+      "subtree": "politics",
+      "layer": 2,
+      "cost": 5,
+      "recipe": "craft_artwork",
+      "rmul": 0.1,
+      "desc": "艺术品工艺效率 +10%"
+    },
+    {
+      "id": "luxuryPact3",
+      "name": "商契 III",
+      "subtree": "politics",
+      "layer": 3,
+      "cost": 8,
+      "apply": {
+        "luxuryPact": 1
+      },
+      "nest": "luxuryPact2",
+      "desc": "商人系产出再 +10%"
+    },
+    {
+      "id": "luxDrain2",
+      "name": "节流 II",
+      "subtree": "politics",
+      "layer": 3,
+      "cost": 10,
+      "apply": {
+        "luxDrain": 1
+      },
+      "nest": "luxDrain1",
+      "desc": "族民奢侈品消耗再 −5%（共 −10%）"
+    },
+    {
+      "id": "scribePact3",
+      "name": "书契 III",
+      "subtree": "politics",
+      "layer": 3,
+      "cost": 9,
+      "apply": {
+        "scribePact": 1
+      },
+      "nest": "scribePact2",
+      "desc": "书手系产出再 +10%"
+    },
+    {
+      "id": "artwork2",
+      "name": "艺巧 II",
+      "subtree": "politics",
+      "layer": 3,
+      "cost": 10,
+      "recipe": "craft_artwork",
+      "rmul": 0.1,
+      "nest": "artwork1",
+      "desc": "艺术品工艺效率再 +10%（共 +20%）"
+    },
+    {
+      "id": "luxuryPactTail",
+      "name": "商通汇",
+      "subtree": "politics",
+      "layer": 4,
+      "cost": 10,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "luxuryPact": 0.5
+      },
+      "nest": "luxuryPact3",
+      "desc": "商人系产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "happiness",
+      "name": "安乐之治",
+      "subtree": "politics",
+      "layer": 4,
+      "cost": 20,
+      "apply": {
+        "happiness": 1
+      },
+      "desc": "幸福度 +1"
+    },
+    {
+      "id": "scribePactTail",
+      "name": "书通汇",
+      "subtree": "politics",
+      "layer": 4,
+      "cost": 12,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "scribePact": 0.5
+      },
+      "nest": "scribePact3",
+      "desc": "书手系产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "autoCivic",
+      "name": "市政自转",
+      "subtree": "politics",
+      "layer": 4,
+      "cost": 20,
+      "apply": {
+        "autoCivic": 1
+      },
+      "desc": "解锁市政自动研究器（默认关闭）"
+    },
+    {
+      "id": "slotEcon",
+      "name": "经济之位",
+      "subtree": "politics",
+      "layer": 5,
+      "cost": 50,
+      "apply": {
+        "slotEcon": 1
+      },
+      "desc": "任意政体额外 +1 经济槽"
+    },
+    {
+      "id": "scholarPact1",
+      "name": "学契 I",
+      "subtree": "vision",
+      "layer": 1,
+      "cost": 3,
+      "apply": {
+        "scholarPact": 1
+      },
+      "desc": "学者系产出 +10%"
+    },
+    {
+      "id": "shellSurvey1",
+      "name": "钻机测绘 I",
+      "subtree": "vision",
+      "layer": 1,
+      "cost": 6,
+      "apply": {
+        "shellSurvey": 4
+      },
+      "desc": "天穹钻机效率 +20%"
+    },
+    {
+      "id": "scholarPact2",
+      "name": "学契 II",
+      "subtree": "vision",
+      "layer": 2,
+      "cost": 6,
+      "apply": {
+        "scholarPact": 1
+      },
+      "nest": "scholarPact1",
+      "desc": "学者系产出再 +10%"
+    },
+    {
+      "id": "tidalRecord1",
+      "name": "潮纹巧工 I",
+      "subtree": "vision",
+      "layer": 2,
+      "cost": 5,
+      "recipe": "craft_tidal_record",
+      "rmul": 0.1,
+      "desc": "潮纹石板工艺效率 +10%"
+    },
+    {
+      "id": "shellSurvey2",
+      "name": "钻机测绘 II",
+      "subtree": "vision",
+      "layer": 2,
+      "cost": 12,
+      "apply": {
+        "shellSurvey": 4
+      },
+      "nest": "shellSurvey1",
+      "desc": "天穹钻机效率再 +20%"
+    },
+    {
+      "id": "scholarPact3",
+      "name": "学契 III",
+      "subtree": "vision",
+      "layer": 3,
+      "cost": 9,
+      "apply": {
+        "scholarPact": 1
+      },
+      "nest": "scholarPact2",
+      "desc": "学者系产出再 +10%"
+    },
+    {
+      "id": "tidalRecord2",
+      "name": "潮纹巧工 II",
+      "subtree": "vision",
+      "layer": 3,
+      "cost": 10,
+      "recipe": "craft_tidal_record",
+      "rmul": 0.1,
+      "nest": "tidalRecord1",
+      "desc": "潮纹石板工艺效率再 +10%（共 +20%）"
+    },
+    {
+      "id": "shellSurvey3",
+      "name": "钻机测绘 III",
+      "subtree": "vision",
+      "layer": 3,
+      "cost": 18,
+      "apply": {
+        "shellSurvey": 4
+      },
+      "nest": "shellSurvey2",
+      "desc": "天穹钻机效率再 +20%"
+    },
+    {
+      "id": "thinShell",
+      "name": "薄壳之智",
+      "subtree": "vision",
+      "layer": 3,
+      "cost": 15,
+      "apply": {
+        "thin": 2
+      },
+      "desc": "天壳厚度 −20%"
+    },
+    {
+      "id": "scholarPactTail",
+      "name": "学通汇",
+      "subtree": "vision",
+      "layer": 4,
+      "cost": 12,
+      "scale": 1.5,
+      "n": null,
+      "apply": {
+        "scholarPact": 0.5
+      },
+      "nest": "scholarPact3",
+      "desc": "学者系产出再 +5%/级（无上限，每级 ×1.5）"
+    },
+    {
+      "id": "autoStudy",
+      "name": "科技自转",
+      "subtree": "vision",
+      "layer": 4,
+      "cost": 20,
+      "apply": {
+        "autoStudy": 1
+      },
+      "desc": "解锁科技自动研究器（默认关闭）"
+    },
+    {
+      "id": "vibrodrill",
+      "name": "钻头巧工",
+      "subtree": "vision",
+      "layer": 4,
+      "cost": 20,
+      "recipe": "craft_drill",
+      "rmul": 0.3,
+      "desc": "震动钻头工艺效率 +30%"
+    },
+    {
+      "id": "slotSci",
+      "name": "科技之位",
+      "subtree": "vision",
+      "layer": 5,
+      "cost": 50,
+      "apply": {
+        "slotSci": 1
+      },
+      "desc": "任意政体额外 +1 科技槽"
     }
   ],
   "ZONES": [

@@ -97,8 +97,7 @@
      *   ⚠️ 别误读成 `T.craft`（那是加工产出/精铁那条线，与本条互不干涉）。
      *   ⚠️ 这条只管**工艺制作产出**（craftMul → 产出那截），投入/成本端从不打折
      *   （见 craft 里的 prices 循环与 craftMul 上方注）。 */
-    m += 0.10 * (s.perk && s.perk.craftQuota ? s.perk.craftQuota : 0)
-      * (SB.economy && SB.economy.infinitePerkMul ? SB.economy.infinitePerkMul(s) : 1);
+    m += 0.10 * (s.perk && s.perk.craftQuota ? s.perk.craftQuota : 0);
     /* ⑨ 总物流站（ERA6 · wonder_logistics）：王国潮道每级 +1% 工艺制作效率（effect.canalCraft × lvl.canal）。
      *   与市政《城市设计》互锁翻倍待批次 3。效果只从 SB.wonder.logisticsCraftRatio 进，将来加奇观不用改这里。 */
     if (SB.wonder && SB.wonder.logisticsCraftRatio) m += SB.wonder.logisticsCraftRatio(s) || 0;

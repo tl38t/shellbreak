@@ -75,7 +75,7 @@ assert '壳厚版本迁移' in smbody, '包内 state-migrate.js 缺壳厚迁移�
 # 广告位必须已回填（2026-10-07 用户开通后由 MCP 取回 1054324）
 # ⚠️ 空串≠占位：ad.js 在无 ID 时不发奖且隐藏控件 ⇒ 打成空串 = 包里没有广告功能，
 #   而玩家在真机上完全看不出来（按钮就没了，不是报错）。
-assert "SPACE_ID: '1054324'" in body, '包内 config.js 的 AD.SPACE_ID 未回填（天壳竖屏位1054324），先同步源码'
+assert "SPACE_ID: '1054324'" in body, '包内 config.js 的 AD.SPACE_ID 未回填（自海渊至群星竖屏位1054324），先同步源码'
 # dev 兜底口必须是 `adtest` 整词；写成 ad(test)? 会让 ?ad 也命中 = 白送加速
 adjs = os.path.join(SRC, 'src', 'ad.js')
 with open(adjs, encoding='utf-8') as f:

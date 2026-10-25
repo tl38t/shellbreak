@@ -50,7 +50,7 @@
   }
   function validateBundle(value) {
     if (!value || value.format !== FORMAT || value.version !== FORMAT_VERSION)
-      throw new Error('这不是受支持的天壳存档文件或存档码。');
+      throw new Error('这不是受支持的游戏存档文件或存档码。');
     if (value.recovery) {
       if (!value.raw || typeof value.raw !== 'object'
           || !(value.raw.meta === null || typeof value.raw.meta === 'string')
@@ -335,7 +335,7 @@
     try { objects = cloudObjects(); } catch (e) { setStatus(e.message || String(e), true); return; }
     setBusy(true); setStatus('正在查找 TapTap 云存档…');
     findOurArchive(objects.cloud).then(function (archive) {
-      if (!archive) throw new Error('云端没有找到天壳存档；先在 TapTap 小游戏里上传一次即可创建。');
+      if (!archive) throw new Error('云端没有找到游戏存档；先在 TapTap 小游戏里上传一次即可创建。');
       if (!archive.uuid || !archive.fileId) throw new Error('云存档列表缺少 uuid 或 fileId，无法下载。');
       pendingCloudArchive = { archive: archive, objects: objects };
       setBusy(false);
@@ -381,6 +381,20 @@
   function boot() {
     var button = document.getElementById('btnSaveManager');
     if (button) button.onclick = openPanel;
+    var settingsManager = document.getElementById('btnSettingsSaveManager');
+    if (settingsManager) settingsManager.onclick = openPanel;
+    var settingsWipe = document.getElementById('btnSettingsWipe');
+    if (settingsWipe) settingsWipe.onclick = function () {
+      SB.ui.render.confirmPanel({
+        title: '清空存档？',
+        body: '<div class="warnbox">这会删掉<b>全部跨周目进度</b>：轮回点、破层层级、已购增益、科技记录，以及当前这局的一切。</div>' +
+              '<div class="note">页面会回到第 1 周目的全新状态。此操作不可撤销。</div>',
+        danger: true,
+        requireCheck: '我明白这会抹掉全部轮回点与破层层级，且无法撤销',
+        ok: '清空存档',
+        onOk: function () { SB.game.wipeSave(); }
+      });
+    };
   }
 
   SB.saveTransfer = { boot: boot, open: openPanel, showLoadProblem: showLoadProblem,

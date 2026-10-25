@@ -772,8 +772,9 @@
   function researchCost(s, t) {
     var disc = ((s.lvl && s.lvl.researchlab) || 0) * ((SB.BLD && SB.BLD.researchLabSave) || 0);
     if (!(typeof disc === 'number' && isFinite(disc))) disc = 0;
+    if (SB.economySocial && SB.economySocial.companyTechCostSave) disc += SB.economySocial.companyTechCostSave(s);
     var cap = (SB.BLD && SB.BLD.researchLabSaveMax) || 0;
-    if (disc > cap) disc = cap;
+    disc = Math.min(cap, Math.max(0, disc));
     return t.cost * (1 - disc);
   }
 
@@ -784,6 +785,10 @@
     s.res.science -= researchCost(s, t);
     s.techs[id] = true;
     s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
+    /* 2026-10-24 成就「科技大成」（docs/ACHV_DESIGN_v0.3.md §四·8）：单周目全表掌握。
+     * 判定收在 achv.checkTechAll（数全表，不维护第二本计数器），这里只转发。 */
+    if (SB.achv && SB.achv.checkTechAll && SB.game && SB.game.meta)
+      SB.achv.checkTechAll(s, SB.game.meta());
     if (emit) {
       var summary = effectText(t);
       if (summary === '（无直接效果）') summary = t.effectDesc || '无直接数值加成';

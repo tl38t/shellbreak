@@ -32,6 +32,9 @@
       + C.TECH * techCount(s)
       + C.PERK * (s.perk.coef || 0);
     if (SB.economy.isCold(s)) c *= C.COLD;   // 越冷越拼命
+    /* 政策卡「总动员令」（2026-10-24 用户拍「接线到破壳系数」）：每点闲置鲛人 +1%，乘区乘在整段上
+     *   （与 COLD 同层：先加各来源项，再乘）。读数单一落点 = civics.cardBreakCoefMul（没装卡 = 1）。 */
+    if (SB.civic && SB.civic.cardBreakCoefMul) c *= SB.civic.cardBreakCoefMul(s);
     return c;
   }
 
@@ -153,6 +156,12 @@
      * shellOpened 保持为真，文明可继续发展，之后再次按最新状态结算。 */
     s.shellOpened = true;
     s.broken = true;
+    /* 2026-10-24 成就「首次破壳」（docs/ACHV_DESIGN_v0.3.md §四·2）：本函数是壳真正
+     * 归 0 的唯一事件（基础削壳卡到 25% 停手，最后一段只能靠天穹钻机凿穿）。
+     * 与 firstRebirth（首次合格轮回结算）口径互不覆盖：资格玩家不破壳直接轮回
+     * 也拿得到后者；破壳后选「留在本局」不发轮回点也照发本条。一次性，
+     * 离线补算期同样置位（unlockOnce 不是 UI，不受 deferBreakUI 影响）。 */
+    if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta) SB.achv.unlockOnce('shellBreak', SB.game.meta());
     var report = SB.prestige.breakReport(s);
     if (!SB.prestige.qualified(s)) { report.tidePoints = 0; report.locked = true; }
     /* 离线补算期间由结算器统一接管弹窗：不要让动画先弹出、又被离线总结覆盖。 */
@@ -179,6 +188,8 @@
     if (s.got) s.got.starExplore = (s.got.starExplore || 0) + (next - cur);
     if (cap > 0 && next >= cap) {
       s.starComplete = true;
+      /* 2026-10-24 成就「太空时代」（docs/ACHV_DESIGN_v0.3.md §四·5）：星空槽满槽唯一事件。 */
+      if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta) SB.achv.unlockOnce('starComplete', SB.game.meta());
       if (emit) emit('星空槽已填满——太空时代达成。');
       if (SB.ui && SB.ui.render && SB.ui.render.showStarComplete) SB.ui.render.showStarComplete(s);
     }
