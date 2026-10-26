@@ -355,7 +355,19 @@ html[data-ui-theme="day"] .ui-setting-row small { color:#61777c; }
 html[data-ui-theme="day"] .era1-bubbles i { border-color:rgba(39,139,144,.28); box-shadow:0 0 7px rgba(37,143,143,.12); }
 @media (max-width:760px) {
   .brandline { flex-wrap:wrap; }
-  .header-actions { margin-left:auto; }
+  /* ⚠️ 2026-10-26 用户报「手机端页面能左右滑动」根因就在这里（390px 实测，headless Chrome 探针）：
+   *    .brandline 虽然允许换行，但 .header-actions 是 `nowrap` 的 flex 容器，
+   *    它被 flex-shrink 压到 182px（内容 min-content 需要 245 = 主题切换 182 + 间距 + 设置齿轮 56），
+   *    于是齿轮被挤出容器右缘 → details.ui-settings right=431（视口 375）→
+   *    documentElement.scrollWidth 431 > clientWidth 375 ⇒ 整页可横向拖动（body 的
+   *    overflow-x:hidden 挡不住 documentElement 的滚动宽度）。
+   * 【为什么是 flex-wrap 而不是给 html 加 overflow-x:hidden】那条只是把超出的 56px 裁掉，
+   *    设置齿轮会残成半截露在屏幕外（自己变成「看不见的按钮」），症状被藏起来、入口却废了。
+   *    这里让齿轮自己在容器内换到第二行（justify-content:flex-end 保持右对齐），
+   *    375px 下实测 scrollWidth 回落到 375，齿轮与弹出层（x 87..367）都在屏内。
+   * ⚠️ 阈值 760 沿用块内既有值：溢出实际发生在 <485px，但规则只在需要换行时才生效，
+   *    700px 等宽度下 actions 本来就装得下（245），不会改变桌面/平板布局。 */
+  .header-actions { margin-left:auto; flex-wrap:wrap; justify-content:flex-end; }
 }
 @media (prefers-reduced-motion:reduce) {
   .era1-bubbles { display:none !important; }

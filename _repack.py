@@ -11,7 +11,7 @@ import shutil
 import zipfile
 
 SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
-OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc16.zip'
+OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc17.zip'
 TOP = 'shellbreak'
 
 # ---------- 打包前：自动同步源码 → 包目录 ----------
