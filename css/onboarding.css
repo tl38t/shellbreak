@@ -1,0 +1,132 @@
+/* 天壳 / SHELLBREAK — 新手引导（B 档：欢迎层 + 走查高亮 + 标签 + 跳过确认）
+ * 依赖变量：--bg --panel --panel2 --line --txt --dim --cyan --red（见 00-core.css :root）。
+ * 设计纪律：移动端（390px + 触屏）零 hover 依赖；✕ 常显可点；高亮环 / 标签浮于游戏之上。 */
+
+/* 全屏浮层容器：不拦截游戏点击（pointer-events:none），只有需要交互的子元素单独打开。 */
+.ob-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  pointer-events: none;
+}
+
+/* 高亮环：绝对定位覆盖目标，呼吸光晕。 */
+.ob-spot {
+  position: fixed;
+  display: none;
+  border: 2px solid var(--cyan, #4dd8e6);
+  border-radius: 12px;
+  box-shadow: 0 0 0 4px rgba(77, 216, 230, .22), 0 0 20px rgba(77, 216, 230, .55);
+  pointer-events: none;
+  animation: obpulse 1.5s ease-in-out infinite;
+}
+@keyframes obpulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(77, 216, 230, .18), 0 0 14px rgba(77, 216, 230, .45); }
+  50%      { box-shadow: 0 0 0 7px rgba(77, 216, 230, .30), 0 0 26px rgba(77, 216, 230, .70); }
+}
+
+/* 引导标签气泡：贴近高亮目标，常显 ✕（触屏可点，无 hover 依赖）。 */
+.ob-tip {
+  position: fixed;
+  display: none;
+  max-width: 260px;
+  box-sizing: border-box;
+  padding: 9px 30px 9px 11px;
+  background: var(--panel, #0d1727);
+  color: var(--txt, #cfe3f7);
+  border: 1px solid var(--cyan, #4dd8e6);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+.ob-tip-txt { display: block; }
+.ob-tip-x {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--dim, #6f88a8);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;       /* 只有 ✕ 拦截点击 */
+}
+.ob-tip-x:hover { color: var(--red, #ff5f6d); }   /* 桌面增强；触屏无此态也不影响使用 */
+
+/* 欢迎层：整屏居中卡片。背景幕布 pointer-events:none（非阻塞，玩家仍可点身后游戏），
+ * 仅卡片本身可交互。 */
+.ob-welcome {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+  z-index: 100001;
+}
+.ob-welcome-card {
+  pointer-events: auto;
+  max-width: 560px;
+  max-height: 84vh;
+  overflow: hidden;               /* 改由 .ob-welcome-bd 内滚：标题与 CTA 恒在卡内可见（2026-10-25 手机端适配） */
+  box-sizing: border-box;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel, #0d1727);
+  border: 1px solid var(--line, #1d3352);
+  border-radius: 14px;
+  color: var(--txt, #cfe3f7);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, .55);
+}
+.ob-welcome-hd {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--cyan, #4dd8e6);
+  flex: none;
+}
+.ob-welcome-bd {
+  overflow-y: auto;               /* 正文超长时只滚这一段；min-height:0 允许 flex 子项收缩 */
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+}
+/* 手机 overlay 滚动条平时不可见 ⇒ 给一条细滚动条当「下面还有内容」的可见线索 */
+.ob-welcome-bd::-webkit-scrollbar { width: 5px; }
+.ob-welcome-bd::-webkit-scrollbar-thumb { background: #1f3a52; border-radius: 3px; }
+.ob-welcome-bd p { margin: 0 0 8px; line-height: 1.65; }
+.ob-howto-h {
+  display: block;
+  margin: 8px 0 4px;
+  color: var(--cyan, #4dd8e6);
+  font-weight: 600;
+}
+.ob-howto ul { margin: 0 0 8px; padding-left: 18px; }
+.ob-howto li { margin: 0 0 5px; line-height: 1.55; }
+.ob-note { color: var(--dim, #6f88a8); font-size: 12.5px; }
+.ob-cta { font-weight: 600; }
+.ob-welcome-ft { text-align: right; margin-top: 14px; flex: none; }
+
+/* 移动端（窄屏 / 触屏）：标签放宽，避免溢出；✕ 加大命中区；欢迎卡收紧内边距与行距，
+ * CTA 按钮加大触达面积（2026-10-25 手机端适配）。 */
+@media (max-width: 520px) {
+  .ob-tip { max-width: 78vw; }
+  .ob-tip-x { width: 24px; height: 24px; font-size: 18px; }
+  .ob-welcome { padding: 10px; }
+  .ob-welcome-card { padding: 14px; max-height: 86vh; max-height: 86dvh; border-radius: 12px; }
+  .ob-welcome-hd { font-size: 16px; margin-bottom: 8px; }
+  .ob-welcome-bd p { margin: 0 0 6px; line-height: 1.55; }
+  .ob-howto-h { margin: 6px 0 3px; }
+  .ob-howto ul { padding-left: 16px; }
+  .ob-howto li { margin: 0 0 4px; line-height: 1.5; }
+  .ob-note { font-size: 12px; }
+  .ob-welcome-ft { margin-top: 8px; }
+  .ob-welcome-ft .btn { padding: 9px 20px; font-size: 14px; }
+}

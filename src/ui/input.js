@@ -828,6 +828,11 @@
   function boot() {
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
+    /* iOS Safari 的 :active 只在 document 上存在 touchstart 监听时才会在触屏按下时生效；
+     * 主文档此前一个 touchstart 监听都没有 ⇒ 全部 .btn 的按压反馈（含纪元皮肤下沉）在
+     * iOS 上整条失效——这就是「手机端点击没反馈」的根因之一。空函数 + passive：
+     * 零开销、不拦截滚动、不影响点击（2026-10-25）。 */
+    document.addEventListener('touchstart', function () {}, { passive: true });
     /* 拖动：pointerup / pointercancel 只是收尾，pointermove 必须也挂在 document 上 ——
      * 玩家常把指针拖出容器再松手，只听容器的就收不到结尾，dragMoved 会卡在 true。 */
     document.addEventListener('pointerdown', onPointerDown);

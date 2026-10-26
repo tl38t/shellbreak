@@ -218,6 +218,20 @@ const doc = sandbox.document;
 const g = (id) => doc.getElementById(id)._html || '';
 const step = sandbox._intervals[0];
 
+/* 新手引导（docs/ONBOARDING_DESIGN_v0.1.md §2.7）：加载即挂载、默认开启、
+ * 且 start/tick 在假 DOM 下必须零抛错（内部全防御，复杂选择器返回 null、无 getBoundingClientRect）。 */
+check('新手引导模块已挂载', !!SB.onboarding);
+check('新手引导默认开启(isEnabled)', !!(SB.onboarding && SB.onboarding.isEnabled && SB.onboarding.isEnabled() === true));
+try {
+  if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(SB.game.run());
+  if (SB.onboarding && SB.onboarding.tick) SB.onboarding.tick(SB.game.run());
+  check('新手引导 start/tick 在无干预下不抛错', true);
+} catch (e) {
+  check('新手引导 start/tick 在无干预下不抛错', false, String((e && e.stack) || e));
+}
+/* 清理欢迎层，避免残留浮层干扰后续点击类套件（欢迎层本身 pointer-events:none，求稳仍摘掉）。 */
+try { if (SB.onboarding && SB.onboarding.hideAll) SB.onboarding.hideAll(); } catch (e) {}
+
 // 快速单测离线分段器，避免每次调它都跑后面的整局点击模拟。
 if (process.argv.includes('--offline-only')) {
   runOfflineFastForward({ SB, check, sandbox });
@@ -507,11 +521,27 @@ console.log('\n=== 开局解锁链 ===');
     SB.ui.render.renderPanes();
   }
 
-  // ironWill（猫国：无猫不饿死）：pop 1 时菌毯耗尽也不减员
+  /* ironWill（猫国：无猫不饿死）× 首名族民免口粮（2026-10-25 用户拍板）：
+   * pop=1 免口粮 ⇒ 菌毯耗尽也**连饿都不饿**（famine 恒 0，比旧口径的「饿而不死」更强）；
+   * 饿死链路本身用 pop=2 验证：超额人口照常累计 famine，达 60 且 pop>1 减员一名，
+   * 减到 1 后落进免口粮线，famine 归零、不再减员。 */
   s.res.kelp = 0; s.famine = 0;
   frames(700);   // 70 秒逻辑时间 > famine 60 秒阈值
-  check('pop 1 饿死保护（ironWill）', s.pop === 1 && s.famine > 0, 'pop=' + s.pop + ' famine=' + s.famine);
+  check('pop 1 免口粮：菌毯耗尽也不挨饿（ironWill 强化版）',
+    s.pop === 1 && s.famine === 0, 'pop=' + s.pop + ' famine=' + s.famine);
   s.famine = 0;
+  {
+    const _p0 = s.pop, _fd0 = s.famineDeaths, _n0 = s.lvl.nest;
+    /* ⚠️ 先抬人口上限再设 pop=2：无巢穴时 cap=1，tick 第 6 步会把超额人口直接钳回 1
+     * （「超额人口消失」收口），根本走不到饥荒——那是钳制在拦，不是免口粮在拦。 */
+    s.lvl.nest = 1;
+    s.pop = 2; s.res.kelp = 0; s.famine = 0;
+    frames(700);
+    check('pop 2 菌毯耗尽：饿死一人后止于免口粮线（famineDeaths+1, pop 回 1）',
+      s.pop === 1 && s.famineDeaths === _fd0 + 1 && s.famine === 0,
+      'pop=' + s.pop + ' famineDeaths=' + s.famineDeaths + '/' + _fd0 + ' famine=' + s.famine);
+    s.pop = _p0; s.famineDeaths = _fd0; s.famine = 0; s.lvl.nest = _n0;
+  }
 
   // 渲染层必须跟解锁判定一致：未露头的建筑整行不出现（照猫国）
   const pane0 = g('pane-village-body');
@@ -677,8 +707,12 @@ console.log('\n=== 开局解锁链 ===');
       'kelp=' + t3.lvl.kelp + ' panelOpen=' + SB.tech.panelOpen(t3));
     t3.lvl.kelp = need;
     SB.tech.pump(t3, noop);
-    check('第 ' + need + ' 座藻场：科研面板开门，结绳揭示即掌握',
-      SB.tech.panelOpen(t3) && t3.techs.writing === true && SB.tech.isRevealed(t3, 'writing'));
+    check('第 ' + need + ' 座藻场：科研面板开门，结绳揭示且 0 成本可手动研究（不自动掌握）',
+      SB.tech.panelOpen(t3) && !t3.techs.writing && SB.tech.isRevealed(t3, 'writing') && SB.tech.canStudy(t3, 'writing'),
+      'panelOpen=' + SB.tech.panelOpen(t3) + ' writing=' + !!t3.techs.writing + ' studyable=' + SB.tech.canStudy(t3, 'writing'));
+    check('结绳 0 成本仍需手动点研究（点了才掌握、解锁学者）',
+      (SB.tech.study(t3, 'writing', noop), t3.techs.writing === true),
+      'writing=' + !!t3.techs.writing + ' science=' + t3.res.science);
     check('开门不折算研究进度（只揭示，不送科技）', t3.res.science === 0, 'science=' + t3.res.science);
     /* ⚠️ 这里原先断言过「开门不点亮全树」。假设对、版本错：
      *    进新纪元时 revealEra 会**故意**把 `t.era < era` 的节点一并摊开（allBefore），
@@ -1123,6 +1157,19 @@ console.log('\n=== 纪元三 · economy 接线 ===');
       check('B7 商人机器人：happySupply == rates 产能（面板供给不再漏机器人）',
         _kMRate > 0 && Math.abs(SB.economy.happySupply(_kM) - _kMRate) < 1e-9,
         'supply=' + SB.economy.happySupply(_kM).toFixed(6) + ' rates=' + _kMRate.toFixed(6));
+    }
+    /* ⑤⺥ 2026-10-25 用户拍板：首名族民免口粮（foodUse 计费人口 = pop − 1）。
+     *    目的 = 开局 pop=1 且藻场未建时不饿死；rates 与 tick 同读 foodUse，天然同源。
+     *    钉三档：pop=1 恒 0 / pop=3 = 2×FOOD_PER / pop=0 不为负。 */
+    {
+      const _fu1 = SB.state.freshRun(false); _fu1.pop = 1;
+      const _fu3 = SB.state.freshRun(false); _fu3.pop = 3; _fu3.lvl.warmnest = 0;
+      const _fu0 = SB.state.freshRun(false); _fu0.pop = 0;
+      check('首名族民免口粮：pop=1 foodUse==0 / pop=3 ==2×FOOD_PER / pop=0 ==0',
+        SB.economy.foodUse(_fu1) === 0
+        && Math.abs(SB.economy.foodUse(_fu3) - 2 * SB.CFG.FOOD_PER) < 1e-9
+        && SB.economy.foodUse(_fu0) === 0,
+        'pop1=' + SB.economy.foodUse(_fu1) + ' pop3=' + SB.economy.foodUse(_fu3) + ' pop0=' + SB.economy.foodUse(_fu0));
     }
     /* ⑥ 永久乘区词表：四个新 eff 键在 mul 默认表有键（漏登记 = 守卫静默吞）。 */
     const _m0 = SB.tech.mul(fr);
@@ -2013,6 +2060,48 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
   SB.ui.render.toggleZoneFold('core');   // 翻回原状，别把状态漏给后面的断言
   sVc.lvl = lvBak; sVc.seen = seenBak;
   SB.game.markDirty(); SB.ui.render.renderPanes();
+}
+
+/* 砂矿坑 / 工坊「开 X/X」开关：必须拥有对应工艺升级才渲染（2026-10-26 修复）。
+ * 设计文案 config-content.js:560/591 把开关定义为《自动化钻探》/《工业机器人》的效果；
+ * 未研究时不该出现——否则前期玩家看到「停了没好处、还白扣产出」的开关（基础加成零成本纯正收益）。
+ * 这里钉**渲染层**：lv>0 让整行上屏（render-pane-village.js:110），再看 data-*-inc 有无。
+ * ⚠️ 别改成测 predicate：坏掉的正是「没人把升级门接进模板」。 */
+{
+  const sSp = SB.game.run();
+  const lvBak = Object.assign({}, sSp.lvl);
+  const upBak = Object.assign({}, sSp.upgrades || {});
+  sSp.lvl.siltpit = 2; sSp.lvl.workshop = 2;      // 与真实建成态一致（lv>0 才渲染整行）
+  sSp.upgrades = Object.assign({}, upBak);
+  delete sSp.upgrades.upg_autodrill; delete sSp.upgrades.upg_indrobot;
+  SB.game.markDirty(); SB.ui.render.renderPanes();
+  const hOff = doc.getElementById('pane-village-body').innerHTML;
+  const offSp = hOff.indexOf('data-siltpit-inc') < 0;
+  const offWs = hOff.indexOf('data-workshop-inc') < 0;
+  sSp.upgrades.upg_autodrill = true; sSp.upgrades.upg_indrobot = true;
+  SB.game.markDirty(); SB.ui.render.renderPanes();
+  const hOn = doc.getElementById('pane-village-body').innerHTML;
+  check('砂矿坑「开 X/X」开关需自动化钻探才渲染（无=不出现 / 有=出现）',
+    offSp && hOn.indexOf('data-siltpit-inc') >= 0,
+    '无升级仍出现=' + !offSp + ' 有升级未出现=' + (hOn.indexOf('data-siltpit-inc') < 0));
+  check('工坊「开 X/X」开关需工业机器人才渲染（无=不出现 / 有=出现）',
+    offWs && hOn.indexOf('data-workshop-inc') >= 0,
+    '无升级仍出现=' + !offWs + ' 有升级未出现=' + (hOn.indexOf('data-workshop-inc') < 0));
+  sSp.lvl = lvBak; sSp.upgrades = upBak;
+  SB.game.markDirty(); SB.ui.render.renderPanes();
+}
+
+/* 迁移：无对应升级时把停用数清零（2026-10-26）。旧 UI 允许无升级也停用，
+ * 开关隐藏后这批存档会「被停产却无法恢复」；有升级则必须原样保留玩家选择。 */
+{
+  const migOff = SB.state.migrateRun({ lvl: { siltpit: 3, workshop: 4 }, siltpitStop: 3, workshopStop: 4, res: {} });
+  check('迁移：无自动化钻探 ⇒ 砂矿坑停用数清零', migOff.siltpitStop === 0, '=' + migOff.siltpitStop);
+  check('迁移：无工业机器人 ⇒ 工坊停用数清零', migOff.workshopStop === 0, '=' + migOff.workshopStop);
+  const migOn = SB.state.migrateRun({ lvl: { siltpit: 3, workshop: 4 }, siltpitStop: 2, workshopStop: 3,
+    upgrades: { upg_autodrill: true, upg_indrobot: true }, res: {} });
+  check('迁移：已有对应升级 ⇒ 保留玩家停用数（不清零）',
+    migOn.siltpitStop === 2 && migOn.workshopStop === 3,
+    'pit=' + migOn.siltpitStop + ' ws=' + migOn.workshopStop);
 }
 
 /* ---------------- 科研面板开门（纪元一的开场，UI 三道闸）----------------

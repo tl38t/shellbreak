@@ -81,14 +81,15 @@ adjs = os.path.join(SRC, 'src', 'ad.js')
 with open(adjs, encoding='utf-8') as f:
     abody = f.read()
 assert 'adtest\\b(?!=)' in abody, '包内 ad.js 的 devMode 判定被改宽了（应为 adtest 整词 + (?!=)），先同步源码'
-# 排行榜 6 个 ID 必须已回填（2026-10-10 建 5 个 + 2026-10-13 加星空探索榜 ewv1...）
+# 排行榜 9 个 ID 必须已回填（2026-10-26 于现行主体 996563 全部重建；
+#   旧 963517 的 7 个 ID 已作废——996563 上 list_leaderboards 曾返回 0 条）
 # ⚠️ 同广告位坑：rank.js 无 ID 时不提交且入口隐藏 ⇒ 空串包 = 榜功能静默消失。
-LB_IDS = ('vl1ankteasrn2ba0g3', '2obin1zkh91ss7lyac', 'v6y5wvn3daf1a9i7es',
-          'ljn2b6ppris2alrlji', 'dhkg9zq7in4m37vpos', 'ewv1anvdnpxk28ruen',
-          '8zfssfmdmc64u27iyx')
+LB_IDS = ('wk8s9lkm23g2eihkz8', 'zgq97kctyiqffhcr9p', 'riikrs1jp5m6a1nyjy',
+          'ew5xr8ex1y75ndd9kd', 'dl64gq9ao80hvnn5j8', '3o19a9rpfhm8bnbe94',
+          'peq757lhctr3dqzx8j', 'bvn169c2u30f2xhmqj', '6bi4710gm6oswyed0m')
 missing = [i for i in LB_IDS if i not in body]
 assert not missing, f'包内 config.js 的 RANK.LB 缺榜 ID: {missing}，先同步源码'
-print('打包前置检查: OK (500000 + cache-buster + 无手动倍速 + 广告按钮 + 壳厚迁移 + 广告位1054324 + dev口收紧 + 排行榜7ID)')
+print('打包前置检查: OK (500000 + cache-buster + 无手动倍速 + 广告按钮 + 壳厚迁移 + 广告位1054324 + dev口收紧 + 排行榜9ID)')
 
 # ---------- 打包 ----------
 n = 0

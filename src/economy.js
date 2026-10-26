@@ -1102,7 +1102,9 @@
      * 乘在 foodSave 那一截上（封顶 100% 的 Math.min 照旧在外面兜底）。 */
     var serf = (SB.civic && SB.civic.serfWarmMul) ? SB.civic.serfWarmMul(s) : 1;
     var save = Math.min(1, (s.lvl.warmnest || 0) * SB.BLD.foodSave * serf);
-    return s.pop * SB.CFG.FOOD_PER * (1 - save)
+    /* 2026-10-25 用户拍板：首名族民免口粮——开局 pop=1 且藻场未建时不饿死，
+     * 计费人口 = pop − 1（s.pop 由生育 s.pop++ 整数递增，Math.max 防 0/1）。 */
+    return Math.max(0, s.pop - 1) * SB.CFG.FOOD_PER * (1 - save)
       * (1 - (SB.civic ? SB.civic.govMermanFoodMul(s) : 0));   // ERA6 联邦制：鲛人食物消耗 −10%
   }
   /* 藻食产出。逐句照抄猫国 game.js:3666 calcResourcePerTick("catnip") 的语句顺序——

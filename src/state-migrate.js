@@ -112,6 +112,10 @@
       out.siltpitStop = _pitTotal - _oldActive;
     }
     out.siltpitStop = Math.max(0, Math.min(_pitTotal, Math.floor(out.siltpitStop || 0)));
+    /* 2026-10-26：未研究《自动化钻探》时巢穴面板不渲染砂矿坑开关（render-pane-village.js
+     *   同判据）。旧 UI 允许无升级也停用；开关隐藏后这批存档会「被停产却无法恢复」——
+     *   基础矿脉加成持续被扣、玩家既看不到入口也解不开。故无升级一律清零。 */
+    if (!(out.upgrades && out.upgrades.upg_autodrill)) out.siltpitStop = 0;
     /* 工坊启停：新字段保存停用数。旧版工业机器人全局开关为 false 时迁成工坊全停，
      * 保持停机且不突然增加热液能消耗；旧版开启或尚无该开关时按正常建筑缺省全开。 */
     var _workshopTotal = Math.max(0, Math.floor(out.lvl.workshop || 0));
@@ -120,6 +124,9 @@
         ? _workshopTotal : 0;
     }
     out.workshopStop = Math.max(0, Math.min(_workshopTotal, Math.floor(out.workshopStop || 0)));
+    /* 2026-10-26：未研究《工业机器人》时巢穴面板不渲染工坊开关（同砂矿坑口径）。
+     *   旧 UI 下已停用的工坊数量清零，避免开关消失后工艺效率被永久扣减且无法恢复。 */
+    if (!(out.upgrades && out.upgrades.upg_indrobot)) out.workshopStop = 0;
     /* 热泉炉「开几座」迁移（2026-09-30）：旧档只有布尔 `furnaceOn`（见 freshRun 那条注）。
      *   false ⇒ 全部停（停用数 = 当前等级）；true / 缺键 ⇒ 全开（0）。
      *   再夹到 [0, lv]：存了一个比等级还大的停用数时，运行座数会算成负数。
@@ -276,10 +283,16 @@
      * 新档原样保留。本轮回有效，轮回 doBreak 后由 state.js 重置为 ''。 */
     out.habitatName = (typeof raw.habitatName === 'string') ? raw.habitatName : '';
     /* 老档没有「科技面板开门」这个机制，玩家的科技页一直是开着的。
-     * 于是这里直接记账为「弹窗已播」，不回去播一次结绳叙事——
+     * 于是这里把**缺字段的老档**记账为「弹窗已播」，不回去播一次结绳叙事——
      * 那句话的语境是「第一次知道有今天和明天」，对玩了几小时的老档是废话。
-     * ⚠️ 面板开不开仍然由 tech.panelOpen 派生（读结绳的 cond），这里不存那个状态。 */
-    out.techPopup = true;
+     * ⚠️ 面板开不开仍然由 tech.panelOpen 派生（读结绳的 cond），这里不存那个状态。
+     * ⚠️ 必须与下面 civic/faith/workshop/wonder 四个旗同口径：仅当 raw 里**缺**
+     *    这个字段（= 真正的老档）才强制 true；现代存档已经正常持久化过 techPopup，
+     *    必须保留它自己的值——否则任何一次读档都会把 techPopup 锁成 true，
+     *    新玩家重载后永远看不到科技介绍弹窗（实测症状：本地 developed 档
+     *    techPopup=true 且 panelOpen=true 却不弹，根因在此）。 */
+    if (!Object.prototype.hasOwnProperty.call(raw, 'techPopup'))
+      out.techPopup = true;
     /* 其余页签的叙事弹窗也是新加的：老档若已经跨过对应门槛，就视为已经见过，
      * 不把一段「首次发现」的文案倒灌给已经玩过的存档。新档 / 新代码产生的字段
      * 已经在 base 里存在，只有字段缺失时才走这里的兼容判定。 */

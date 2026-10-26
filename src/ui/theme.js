@@ -105,6 +105,21 @@
     var initial = docRoot.dataset.uiTheme || 'night';
     apply(initial, false);
     applyBubbles(savedBubblesPreference(), false);
+
+    // ---- 新手引导开关（与 uiResolution 同模式：localStorage 'shellbreak.onboarding'，默认开） ----
+    var obToggle = root.document.querySelector('[data-onboarding-toggle]');
+    if (obToggle) {
+      var obStored = root.localStorage && root.localStorage.getItem('shellbreak.onboarding');
+      obToggle.checked = (obStored !== '0');
+      root.document.addEventListener('change', function (event) {
+        var t = event.target && event.target.closest
+          ? event.target.closest('[data-onboarding-toggle]') : null;
+        if (!t) return;
+        var on = t.checked;
+        try { if (root.localStorage) root.localStorage.setItem('shellbreak.onboarding', on ? '1' : '0'); } catch (e) {}
+        if (SB.onboarding && SB.onboarding.setEnabled) SB.onboarding.setEnabled(on);
+      });
+    }
     root.document.addEventListener('click', function (event) {
       var button = event.target && event.target.closest
         ? event.target.closest('[data-ui-theme-choice]') : null;

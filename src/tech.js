@@ -727,7 +727,7 @@
   /* 能否研究。四条门禁缺一不可：已揭示 / 本纪元内 / 尤里卡达成过 / 前置已掌握。 */
   function canStudy(s, id) {
     var t = byId(id);
-    if (!t || !t.cost) return false;
+    if (!t) return false;
     if (s.techs[id] || !isRevealed(s, id)) return false;
     if (t.era > (s.era || 1)) return false;      // 纪元闸门：不能跳纪元偷研究
     /* 尤里卡门禁（2026-09-26 用户拍板「灰掉，必须先达成尤里卡」）。

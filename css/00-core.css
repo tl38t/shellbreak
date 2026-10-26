@@ -125,6 +125,11 @@ body.modal-open .tabs{pointer-events:none}
 .btn{background:#123a52;border:1px solid #1d5a7d;color:var(--cyan);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px}
 @media (hover:hover){ .btn:hover:not(:disabled){background:#17496a} }
 .btn:active:not(:disabled){background:#0f3d59}
+/* 触屏按压即时反馈（2026-10-25）：桌面有 hover 兜底，手机端没有。:active 的背景差
+   （#123a52→#0f3d59）肉眼几乎不可见；位移会被 30-visual 的 translateY(0) 与纪元皮肤
+   的渐变底压掉。filter 不在任何 transition 列表（瞬时生效）、也没被更高优先级的
+   :active 规则占用 ⇒ 触屏下用亮度闪变做按压态最稳（媒体查询限定触屏，不影响桌面）。 */
+@media (hover:none){ .btn:not(:disabled):active{filter:brightness(1.4)} }
 .btn:disabled{opacity:1;cursor:not-allowed;color:#9eb2bd;background:#1b2c3b;border-color:#3a5263}
 .technode.lock .btn:disabled{opacity:1;color:#9eb2bd;background:#1b2c3b;border-color:#3a5263}
 .btn.buy{margin-left:auto}
@@ -174,16 +179,8 @@ input[type=checkbox]{accent-color:var(--cyan)}
 .modal-x{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);font-size:16px;line-height:1;cursor:pointer;flex:none}
 .modal-x:hover{color:var(--cyan);border-color:var(--cyan)}
 .rank-list{display:flex;flex-direction:column;gap:8px}
-/* 更新日志面板（2026-10-11）：复用 .modal .box，仅定义内部排版 */
-.chg-list{max-height:62vh;overflow-y:auto;display:flex;flex-direction:column;gap:15px;margin:2px 0 14px}
-.chg-entry{border-left:2px solid rgba(105,226,223,.4);padding:1px 0 1px 12px}
-.chg-hd{display:flex;align-items:baseline;gap:8px}
-.chg-ver{font-weight:750;color:var(--cyan);font-size:14px}
-.chg-date{color:var(--dim);font-size:12px}
-.chg-title{color:var(--gold);font-size:13px;margin:3px 0 4px}
-.chg-items{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
-.chg-items li{font-size:13px;line-height:1.5;color:inherit}
-.chg-empty{color:var(--dim);font-size:13px;padding:8px 0}
+/* 弹窗底行右对齐（原更新日志面板遗留的通用排版类，现仅政体命名弹窗在用；
+ * 更新日志面板已于 2026-10-25 整体移除，类名沿用避免动 i18n 基线字面量） */
 .chg-foot{display:flex;justify-content:flex-end}
 .rank-open{width:100%;text-align:left;padding:12px 14px;font-size:14px}
 .rank-open:hover{border-color:var(--cyan);color:var(--cyan)}

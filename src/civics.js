@@ -849,6 +849,9 @@
     var c = byId(id);
     s.res.culture -= c.cost;
     s.civics[id] = 1;
+    /* 2026-10-26 排行榜「最快虚境飞升」：research 已防重采（s.civics[id] 已置位即 return），
+     * 天然只报一次；仅在采用 ascend_void 那一刻提交墙钟秒（与 firstFaith 同口径）。 */
+    if (id === 'ascend_void' && SB.rank) SB.rank.submitRun([{ key: 'void', value: s.wallT }]);
     /* 2026-10-24 成就「市政大成」（docs/ACHV_DESIGN_v0.3.md §四·8）：单周目全表完成。
      * 判定收在 achv.checkCivicAll（数全表，不维护第二本计数器），这里只转发。
      * ⚠️ 只数 CIVICS 表（69）——GOVS/POLICIES 是市政的配套分支/政策卡，不计入。 */

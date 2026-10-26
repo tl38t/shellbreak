@@ -192,7 +192,10 @@
         /* 砂矿坑「开几座」：矿坑本身是可停用建筑，按 furnaceStop 一类的停用数量控制。
          * 运行矿坑数同时决定矿脉产出加成；装有自动化钻探时，还决定钛/铀加成与热液能需求。 */
         var siltpitBtn = '';
-        if (b.id === 'siltpit' && lv > 0) {
+        /* 2026-10-26 修复：开关是《自动化钻探》(upg_autodrill) 的效果（config-content.js:560
+         *   「在巢穴面板启停砂矿坑」），未研究时不该出现——否则前期玩家停了矿坑只有亏
+         *   （基础矿脉加成零成本纯正收益），与热泉炉「建出来就有」的口径不同。 */
+        if (b.id === 'siltpit' && lv > 0 && s.upgrades && s.upgrades.upg_autodrill) {
           var _spstop = Math.max(0, Math.min(lv, Math.floor(s.siltpitStop || 0)));
           var _sprun = lv - _spstop;
           var _spAuto = !!(s.upgrades && s.upgrades.upg_autodrill);
@@ -213,7 +216,9 @@
         }
         /* 工坊「开几座」：基础工艺效率、工业机器人加成与耗流都按运行的工坊数量计算。 */
         var workshopBtn = '';
-        if (b.id === 'workshop' && lv > 0) {
+        /* 2026-10-26 修复：开关是《工业机器人》(upg_indrobot) 的效果（config-content.js:591
+         *   「在巢穴面板启停工坊」），未研究时不渲染——理由同砂矿坑（停用前零成本纯亏）。 */
+        if (b.id === 'workshop' && lv > 0 && s.upgrades && s.upgrades.upg_indrobot) {
           var _wsstop = Math.max(0, Math.min(lv, Math.floor(s.workshopStop || 0)));
           var _wsrun = lv - _wsstop;
           var _wsExtra = '';

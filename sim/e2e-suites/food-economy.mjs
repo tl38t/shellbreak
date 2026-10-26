@@ -349,6 +349,9 @@ console.log('\n=== 食物双源 ===');
       x.lvl.hall = 0; x.lvl.siltpit = 0; x.lvl.nest = 0; x.lvl.coralhouse = 0;
       x.lvl.lighthouse = 0; x.lvl.kelpstore = 0; x.lvl.workshop = 0; x.lvl.furnace = 0;
       x.lvl.library = 0; x.lvl.institute = 0; x.lvl.square = 0; x.lvl.temple = 0;
+      /* kelpstore=2：抬藻食上限到 10200。2026-10-25 首名族民免口粮后 r0=2.5（原 0.5），
+       * 5 级发放 750 会撞 CAP_BASE 200 被截断——本断言验「线性接线」不是验截断，别让夹具替它挨。 */
+      x.lvl.kelpstore = 2;
       x.lvl.caravanserai = lv;
       x.res.kelp = 0;
       const r0 = SB.economy.rates(x).kelp;

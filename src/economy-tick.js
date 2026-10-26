@@ -287,6 +287,9 @@
          * shell.js:175 同款调用路径）；dysonPopupSeen 防重播——玩家选「继续游玩」后不再弹。 */
         if (!s.dysonDone && SB.economy && SB.economy.dysonPct && SB.economy.dysonPct(s) >= 1) {
           s.dysonDone = true;
+          /* 2026-10-26 排行榜「最快建立戴森球」：dysonDone 一次性守卫天然只报一次。
+           * 离线挂起 / 弹窗已看不影响上榜（与 dysonEnd 成就同落点）。 */
+          if (SB.rank) SB.rank.submitRun([{ key: 'dyson', value: s.wallT }]);
           /* 2026-10-24 双结局成就（docs/ACHV_DESIGN_v0.3.md §四·3）：与本块两个互斥弹窗
            * 同判据——已掌握《飞升虚境》⇒「虚境飞升」（乱码结局线），否则 ⇒「控星之人」。
            * 判据读 s.civics（永久掌握），不是 s.cards。同一玩家可两周目各拿一条

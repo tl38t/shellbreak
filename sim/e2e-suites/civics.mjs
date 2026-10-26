@@ -757,15 +757,15 @@ console.log('\n=== 市政 ===');
   gi.lvl.hall = 2; gi.jobs.scribe = 2;
   SB.economy.tick(gi, 1, noop);
   /* ⚠️ 藻食那条是**净**的： tick 先 addRes(+5)，同一趟再减口粮消耗。
-   *    pop=1 时正好吃掉 FOOD_PER（2026-09-30 自 0.30 放大到 1.50，2026-10-05 用户拍板再调到 2.00），
-   *    所以落点是 5 − FOOD_PER 而不是 5。
-   *    写成 5 就说明你没读 economy.tick 的顺序，会把「扣口粮」这条误判成 bug。 */
+   *    口粮消耗直接读 SB.economy.foodUse(gi)（2026-10-25 用户拍板「首名族民免口粮」后，
+   *    pop=1 时 foodUse=0，落点=5；写成 5−FOOD_PER×pop 是旧口径）。
+   *    写死数字就说明你没读 economy.tick 的顺序，会把「扣口粮」这条误判成 bug。 */
   check('tick 结出市政点、藻食 +5 净、科技 +0.3 三份',
     Math.abs(gi.res.culture - (2 * SB.UNIT.culture + 2 * SB.CFG.CIVIC.HALL_RATE)) < 1e-9 &&
     Math.abs(gi.res.science - 0.3) < 1e-9 &&
-    Math.abs(gi.res.kelp - (5 - SB.CFG.FOOD_PER * gi.pop)) < 1e-9,
+    Math.abs(gi.res.kelp - (5 - SB.economy.foodUse(gi))) < 1e-9,
     'culture=' + gi.res.culture.toFixed(3) + ' science=' + gi.res.science.toFixed(3) +
-    ' kelp=' + gi.res.kelp.toFixed(3) + '（5 − 口粮 ' + (SB.CFG.FOOD_PER * gi.pop) + '）');
+    ' kelp=' + gi.res.kelp.toFixed(3) + '（5 − 口粮 ' + SB.economy.foodUse(gi) + '）');
   check('同样的三份也出现在 rates 上（面板不撒谎）',
     Math.abs((SB.economy.rates(gi).kelp + SB.economy.foodUse(gi)) - 5) < 1e-9 &&
     Math.abs(SB.economy.rates(gi).science - 0.3) < 1e-9);
@@ -1012,36 +1012,49 @@ console.log('\n=== 市政 ===');
     st.lvl.hall = 1;                 // 议会厅建成 ⇒ 市政页开门（civics.panelOpen）
     // 不置 civics.laws ⇒ 法典未完成 ⇒ 任何政体都不 owned
     const locked = SB.ui.render.paneCivicGov(st);
-    const lockedIds = ['tribe', 'autocracy', 'oligarchy', 'classical_republic',
-      'monarchy', 'merchant_republic', 'theocracy'];
-    const anyRow = lockedIds.some(id => locked.indexOf('govrow-' + id) >= 0);
-    const tagUnlocked = '<span class="tag">未解锁</span>';   // 旧渲染对每张锁卡打的灰标
     check('政体面板：全未解锁时不渲染任何政体卡（含酋邦制）',
-      !anyRow && locked.indexOf(tagUnlocked) < 0 &&
-      locked.indexOf('政体系统尚未开启') >= 0,
-      '含任何行=' + anyRow + ' 含未解锁标=' + (locked.indexOf(tagUnlocked) >= 0));
+      locked.indexOf('政体系统尚未开启') >= 0 &&
+      locked.indexOf('gov-picker-card') < 0 &&
+      locked.indexOf('gov-symbol-tribe') < 0,
+      '含未开启指引=' + (locked.indexOf('政体系统尚未开启') >= 0) +
+      ' 含任何卡=' + (locked.indexOf('gov-picker-card') >= 0));
     st.civics.laws = 1;              // 研究《法典》⇒ 自带酋邦制（e2e:2323）
+    /* gov 默认 null（state.freshRun）⇒ 主面板走「当前没有生效的政体」分支：
+     * 只给一个选择入口，绝不把未解锁的政体提前剧透成灰卡。 */
+    const noGov = SB.ui.render.paneCivicGov(st);
+    check('政体面板：完成《法典》后尚未选政体 ⇒ 只给选择入口，不露任何候选',
+      noGov.indexOf('gov-current-missing') >= 0 &&
+      noGov.indexOf('data-gov-picker-open') >= 0 &&
+      noGov.indexOf('gov-symbol-autocracy') < 0 &&
+      noGov.indexOf('gov-symbol-oligarchy') < 0,
+      '缺省分支=' + (noGov.indexOf('gov-current-missing') >= 0));
+    st.gov = 'tribe';
     const oneOwned = SB.ui.render.paneCivicGov(st);
-    check('政体面板：完成《法典》后只渲染酋邦制，其余仍不露脸',
-      oneOwned.indexOf('govrow-tribe') >= 0 &&
+    check('政体面板：已采纳酋邦制后只渲染当前政体卡，其余仍不露脸',
+      oneOwned.indexOf('gov-current-card') >= 0 &&
+      oneOwned.indexOf('gov-symbol-tribe') >= 0 &&
       ['autocracy', 'oligarchy', 'classical_republic',
         'monarchy', 'merchant_republic', 'theocracy'].every(
-        id => oneOwned.indexOf('govrow-' + id) < 0) &&
-      oneOwned.indexOf(tagUnlocked) < 0,
-      'tribe行=' + (oneOwned.indexOf('govrow-tribe') >= 0));
+        id => oneOwned.indexOf('gov-symbol-' + id) < 0),
+      'tribe卡=' + (oneOwned.indexOf('gov-symbol-tribe') >= 0));
     st.civics.political = 1;
-    const withChoices = SB.ui.render.paneCivicGov(st);
-    SB.ui.render.toggleGovDetail('autocracy');
-    const expandedChoice = SB.ui.render.paneCivicGov(st);
-    check('候选政体名称可展开完整效果，采用按钮仍独立可用',
-      /data-gov-detail="autocracy" aria-expanded="true"/.test(expandedChoice) &&
-      /id="govdetail-autocracy"/.test(expandedChoice) &&
-      /data-gov="autocracy"/.test(expandedChoice) &&
-      /首次免费/.test(expandedChoice) &&
-      /gov-choice-grid/.test(withChoices),
-      '展开=' + /id="govdetail-autocracy"/.test(expandedChoice) +
-      ' 采用按钮=' + /data-gov="autocracy"/.test(expandedChoice));
-    SB.ui.render.toggleGovDetail('autocracy');
+    /* 候选政体在**选择器弹窗**里渲染：政体面板重构后，主面板只保留当前政体摘要，
+     * 候选卡搬进 openGovPicker 的弹窗，正文由导出的 paneGovPicker 出 HTML。
+     * ⚠️ 旧断言测的是已废弃的行式 govrow-* + toggleGovDetail 展开；那套被整体替换后
+     *    e2e 在此硬崩（`toggleGovDetail is not a function`），后面所有断言都跑不到。
+     *    现按真实 UI 重写，**语义不变**：完整效果与采纳按钮同框、且可独立点。 */
+    const picker = SB.ui.render.paneGovPicker(st);
+    check('候选政体卡完整展示效果，采用按钮与信息同框且独立可用',
+      /gov-option-card/.test(picker) &&
+      /data-gov="autocracy"/.test(picker) &&
+      /gov-option-desc/.test(picker) &&        // 完整效果①：被动描述
+      /gov-option-slots/.test(picker) &&       // 完整效果②：政策卡槽配方
+      /首次免费/.test(picker) &&               // 首次采用免费的标
+      /gov-adopt/.test(picker),
+      '候选卡=' + /gov-option-card/.test(picker) +
+      ' 采纳按钮=' + /data-gov="autocracy"/.test(picker) +
+      ' 卡槽=' + /gov-option-slots/.test(picker) +
+      ' 首次免费=' + /首次免费/.test(picker));
   }
 
   /* ── 2026-10-13 用户反馈四项回归（面板===结算 / 选槽 / 工民分配 / 暖石读数）──

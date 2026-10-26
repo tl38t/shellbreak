@@ -1350,29 +1350,6 @@
     modal.classList.remove('hidden');
     bodyModalClass(true);
   }
-  /* 更新日志面板（2026-10-11）：点页脚「更新日志」按钮打开，列出 CFG.CHANGELOG（最新在前）。
-   * 复用 #modal 遮罩 + data-modal-close 关闭通道（与排行榜选择面板同款）。 */
-  function openChangelog() {
-    var box = el('modalBox'), modal = el('modal');
-    if (!box || !modal) return;
-    var log = (SB.CFG && SB.CFG.CHANGELOG) || [];
-    var body = log.map(function (e) {
-      var items = (e.items || []).map(function (it) { return '<li>' + it + '</li>'; }).join('');
-      return '<div class="chg-entry">' +
-        '<div class="chg-hd"><span class="chg-ver">v' + (e.v || '?') + '</span>' +
-        (e.date ? '<span class="chg-date">' + e.date + '</span>' : '') + '</div>' +
-        (e.title ? '<div class="chg-title">' + e.title + '</div>' : '') +
-        '<ul class="chg-items">' + items + '</ul></div>';
-    }).join('');
-    if (!body) body = '<div class="chg-empty">暂无更新记录。</div>';
-    box.innerHTML =
-      '<div class="modal-hd"><b>更新日志</b>' +
-      '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
-      '<div class="chg-list">' + body + '</div>' +
-      '<div class="chg-foot"><button type="button" class="btn" data-modal-close="1">知道了</button></div>';
-    modal.classList.remove('hidden');
-    bodyModalClass(true);
-  }
   /* 点击时间事件横幅（#omen）：顶部常驻卡，活动事件出现时显示、点上拾取。
    * ⚠️ 沿用 envWarm 那套签名节流：只在活动事件 id 变化时才重写标题/文案/按钮文字，
    *    倒计时走独立 span 的 textContent 每帧刷——否则每帧重建 innerHTML 会让那一次点击被吞。 */
@@ -2040,7 +2017,6 @@
     showWonderInfo: showWonderInfo,
     showPolicyInfo: showPolicyInfo,
     openRankChooser: openRankChooser,
-    openChangelog: openChangelog,
     showWorkshopInfo: showWorkshopInfo,
     /* ⚠️ 2026-10-05：工坊「隐藏已完成」开关的切入口。
      *   ⚠️ 切完**必须触发一次整块重画**才生效（不像 zone 折叠能直接翻节点上的类）——
@@ -2058,6 +2034,13 @@
     /* ⚠️ 2026-10-05：导出 `paneCivicGov` 供回归直接断言「未解锁的政体不显示」。
      *   与 paneWonder 同一手法：它只过滤渲染、不写第二份逻辑，门只有一处（govOwned）。 */
     paneCivicGov: paneCivicGov,
+    /* ⚠️ 2026-10-26：导出 `paneGovPicker` 供回归断言「候选政体卡含完整效果 + 采纳按钮」。
+     *   为什么必须单独导：候选卡住在 openGovPicker 的弹窗里，走 openGovPicker 那条路
+     *   是把 HTML 写进假 DOM 的 innerHTML，桩元素不回填 children ⇒ 取不到 `data-gov`。
+     *   与 paneGovPicker 同手法：导出的是**同一个渲染函数**，不是另写一份过滤逻辑。
+     *   （旧断言测的是已废弃的行式 govrow-* + toggleGovDetail，那套在政体面板重构中被
+     *     整体替换，导致 e2e 在 civics.mjs 硬崩、后续断言全跑不到。） */
+    paneGovPicker: paneGovPicker,
     /* ⚠️ 2026-10-14：导出 `paneCivicSlot` 供回归直接断言「已装槽含 data-remove 卸下按钮」。
      *   与 paneCivicGov 同一手法：只导出同一个渲染函数，不另写逻辑。 */
     paneCivicSlot: paneCivicSlot,

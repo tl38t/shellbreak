@@ -139,13 +139,14 @@
      * 顺序是刻意的：建成第 5 座深海藻场 ⇒ 弹叙事窗 ⇒ 科技页翻开 ⇒ 结绳已在树上（已掌握）⇒ 往下铺。
      * 【为什么 cost 还是 0】它不花科技。科技是研究资源，若「学者职业」自己要花科技去换，
      * 整棵树开局死锁。canStudy 对 cost 为 0 的项直接返回 false，所以它由 discover() 的
-     * free 分支「揭示即掌握」完成，不走研究按钮。
+     * 0 科研点但必须手动点研究（不再揭示即掌握）：面板开门条件就是它的尤里卡条件
+     * （建成第 5 座深海藻场），揭示了玩家仍需点一下才掌握、解锁学者职业。
      * 【为什么不是开局 default】面板在开门前根本不显示，cond 写 default 会让
      * 「开门」这件事变成纯 UI 开关，与树上那条 built kelp n=5 说两套话。 */
-    { id: 'writing',    name: '结绳',   icon: 'assets/tech-icons/era-1/era1-rope-knots.png', era: 1, cost: 0,   branch: 'know', free: true, key: false, reqs: [], layer: 1,
+    { id: 'writing',    name: '结绳',   icon: 'assets/tech-icons/era-1/era1-rope-knots.png', era: 1, cost: 0,   branch: 'know', free: false, key: false, reqs: [], layer: 1,
       cond: { t: 'built', b: 'kelp', n: 5 },
       eff: { unlockJob: ['scholar'] },
-      note: '免费项，且是科技面板的开门节点：建成第 5 座深海藻场即掌握。层一。' },
+      note: '0 科研点但需手动研究：建成第 5 座深海藻场即揭示并开放研究，玩家点一下才掌握、解锁学者。层一开门节点。' },
 
     /* ── 层二 · 下手 ──
      * 四项同时可点：玩家在同一刻第一次有「往哪边走」的选择。

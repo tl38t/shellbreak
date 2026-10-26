@@ -64,9 +64,20 @@ drainStoryModals();
   check('关窗后 body.modal-open 已摘除（tab 恢复可点，不残留）',
     doc.body.classList.contains('modal-open') === false);
   const paneT = g('pane-tech'), at = paneT.indexOf('id="techrow-writing"');
-  check('科技页展开在结绳那一项上，且它是已掌握态',
-    at !== -1 && /已掌握/.test(paneT.slice(at, at + 400)),
-    at === -1 ? '找不到 #techrow-writing' : JSON.stringify(paneT.slice(at, at + 60)));
+  /* 2026-10-25 设计变更：结绳由 `free:true`（揭示即掌握）改为 `free:false`（0 科研点但
+   * 要玩家手动点研究），canStudy 同步去掉 `!t.cost` 拦截。所以第 5 座藻场落成后它
+   * **已揭示、可点研究，但尚未掌握** —— 断言跟着从「已掌握」改成「可研究」态。
+   * ⚠️ 截取到该节点自己的 `</button>` 为止，不用固定字符窗口：techNode 的 button 头
+   *    （class/id/data-* + 图标 HTML）长度随图标实现变化，窗口写死必有一天取不到状态
+   *    span，报出「无状态」这种假红。
+   * ⚠️ 必须精确匹配 `tree-node-status">可研究<`：裸 /可研究/ 会把「暂不可研究」一起命中，
+   *    那样即使它其实被门禁挡住、这条也照样绿（假的绿比红更危险）。 */
+  const segT = at === -1 ? '' : paneT.slice(at, paneT.indexOf('</button>', at) + 9);
+  check('科技页展开在结绳那一项上，且它已揭示、待玩家手动研究',
+    at !== -1 && /data-lit="1"/.test(segT) && /tree-node-status">可研究</.test(segT),
+    at === -1 ? '找不到 #techrow-writing'
+      : '状态=' + JSON.stringify((segT.match(/tree-node-status">[^<]*</) || ['无状态'])[0]) +
+        ' lit=' + /data-lit="1"/.test(segT));
   check('开门后 tab 解除灰态且可以正常翻页',
     SB.ui.render.techTabOpen() === true && (SB.game.setTab('tech'), SB.game.getTab() === 'tech'));
 }

@@ -271,7 +271,7 @@
     renderAll();
     if (S) SB.state.saveRun(snapshot(S));
     /* 破壳待处理时启动会优先展示结算选择，推迟的首次解锁提示在玩家选择留在本局后补播。 */
-    if (S) { maybeSciencePopup(S); maybeReligionPopup(S); maybeTabUnlockPopups(S); maybeChangelogPopup(); }
+    if (S) { maybeSciencePopup(S); maybeReligionPopup(S); maybeTabUnlockPopups(S); }
   }
 
   /* 玩家主动选择轮回时才结算当前最新发展分；留在本局不会调用此入口。 */
@@ -494,17 +494,6 @@
     });
   }
 
-  /* 更新日志自动弹窗（2026-10-11）：meta.seenVersion 与 CFG.VERSION 不一致 ⇒ 这是该版本首次进入，
-   * 弹一次更新内容，并把 seenVersion 记成当前版本（存 meta，跨周目保留，软重置不重复弹）。
-   * 全新安装（seenVersion 空）也会弹一次——顺带充当「欢迎 / 本次更新」说明。 */
-  function maybeChangelogPopup() {
-    if (!meta || !SB.CFG || !SB.CFG.VERSION) return;
-    if (meta.seenVersion === SB.CFG.VERSION) return;
-    if (SB.ui && SB.ui.render && SB.ui.render.openChangelog) SB.ui.render.openChangelog();
-    meta.seenVersion = SB.CFG.VERSION;
-    SB.state.saveMeta(meta);
-  }
-
   function maybeWorkshopPopup(s) {
     if (!s || s.workshopPopup || !(s.lvl && s.lvl.workshop > 0)) return;
     s.workshopPopup = true;
@@ -634,7 +623,7 @@
   /* 命名政体（ERA6 · 神恩与威权 / 层级理论 / 权责对等）：采用这三个新政体之一且尚未起名时，
    *   弹窗让玩家给政体起名（显示名 = 玩家名 + 后缀：教权国 / 联盟 / 联邦；城堡随之更名）。
    * ⚠️ 无 DOM 环境（e2e 沙箱）直接 return —— 不写 govName、不报错，命名是纯 UI 行为。
-   * ⚠️ 复用 #modal / #modalBox 遮罩 + data-modal-close 关闭通道（与排行榜 / 更新日志面板同款）。 */
+   * ⚠️ 复用 #modal / #modalBox 遮罩 + data-modal-close 关闭通道（与排行榜选择面板同款）。 */
   var pendingGovName = null;
   function maybeGovNamingPopup(s, govId) {
     if (!s || (s.govName && s.govName.trim())) return;
@@ -730,7 +719,7 @@
      * 入口 4→5 项仍 ≤ submitScores 单次 5 条上限（破壳上报走另一条 5 条专用路径）。 */
     var td = Math.floor(m.tideEarnedTotal || 0);
     if (td > (rankLast.tide || 0)) entries.push({ key: 'tide', value: td });
-    var star = Math.floor((S.res.starExplore || 0));
+    var star = Math.floor((m.stardustEarned || 0));
     if (star > (rankLast.star || 0)) entries.push({ key: 'star', value: star });
     if (!entries.length) return;
     for (var i = 0; i < entries.length; i++) rankLast[entries[i].key] = entries[i].value;
@@ -757,7 +746,7 @@
     /* 这三个不依赖「有效通关」：建成即算，锁不锁都有意义。 */
     entries.push({ key: 'wonder', value: countWonders(s) });
     entries.push({ key: 'cycle', value: (m.cycle || 0) + 1 });
-    entries.push({ key: 'star', value: s.res.starExplore });   // 星空探索峰值（破壳时该局已结束，取最终累计；calcType:best 自动取历史最大）
+    entries.push({ key: 'star', value: Math.floor((m.stardustEarned || 0)) });   // 最多星屑：累计获得量（与「最多轮回点」用 tideEarnedTotal 同口径）；calcType:best 自动取历史最大
     /* 最多轮回点：累计获得量单独记账，兑出再兑回不改变总获得数。占满第 5 条配额。 */
     entries.push({ key: 'tide', value: Math.floor(m.tideEarnedTotal || 0) });
     /* 记入定期上报的去重表：破壳刚发过的高值，5 分钟后的定期拍就不会重发同值。 */
@@ -945,6 +934,9 @@
         loop._lastPane = now; dirty = true;
       }
       if (dirty) renderAll(); else SB.ui.render.renderTick();
+      /* 新手引导走查：每帧（或每 2 秒 pane 刷新）评估推进条件并重定位高亮。
+       * 无 DOM / 未激活时内部早退，不影响正常循环与 e2e。 */
+      if (SB.onboarding && SB.onboarding.tick) SB.onboarding.tick(S);
       /* 自动采集点击（轮回商店 autoClick，N 次/真实秒）：只在线（!loop.job），用帧钟 elapsed 累计，
        * 不随倍速放大——倍速只加快世界、不加快自动点击节奏。 */
       if (!loop.job && SB.autoplay && SB.autoplay.autoClick) SB.autoplay.autoClick(S, elapsed, emit);
@@ -1341,7 +1333,7 @@
       maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
       maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
       maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
-      maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志
+      if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);  // 首局新手引导（门控内部：设置关/已播过则早退）
     }
     document.getElementById('btnBreak').onclick = function () {
       var S0 = SB.game.run();
@@ -1384,10 +1376,6 @@
     var btnRank = document.getElementById('btnRank');
     if (btnRank) btnRank.onclick = function () {
       if (SB.ui && SB.ui.render && SB.ui.render.openRankChooser) SB.ui.render.openRankChooser();
-    };
-    var btnChangelog = document.getElementById('btnChangelog');
-    if (btnChangelog) btnChangelog.onclick = function () {
-      if (SB.ui && SB.ui.render && SB.ui.render.openChangelog) SB.ui.render.openChangelog();
     };
     /* 关标签页 / 刷新前立刻落盘：有 5 秒节流在，玩家在这一窗口里刷新就会丢最后几秒，
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */

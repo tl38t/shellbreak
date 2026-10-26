@@ -195,7 +195,7 @@
 .wonder-art.placeholder small{color:var(--dim);font-size:10px;letter-spacing:1px}
 .wonder-copy{border-color:rgba(245,205,107,.24);background:linear-gradient(145deg,rgba(245,205,107,.08),rgba(7,19,31,.24))}
 .wonder-copy h4{color:var(--gold)}
-.wonder-copy p{line-height:1.8}
+.wonder-copy p{line-height:1.8;white-space:pre-line}
 .inline-info-link{display:inline;padding:0;border:0;border-radius:0;background:none;color:#83ded8;font:inherit;font-weight:750;
   line-height:inherit;text-decoration:underline;text-decoration-color:rgba(131,222,216,.72);text-decoration-thickness:1px;
   text-underline-offset:3px;cursor:pointer}

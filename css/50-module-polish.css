@@ -463,11 +463,42 @@ html[data-ui-theme="day"] .meta-buy:disabled{
   border-color:#b7c9c6;
 }
 
+/* 日间模式：关键科技徽标与掌握/可研究状态提高对比度。 */
+html[data-ui-theme="day"] .tree-tech .technode.tree-node .tntag,
+html[data-ui-theme="day"] .tree-civic .technode.tree-node .tntag{
+  padding:1px 5px;border:1px solid #8b641d;border-radius:4px;background:#765313;color:#fff4d3;
+  font-size:9px;font-weight:800;line-height:1.35;box-shadow:0 1px 2px rgba(67,47,12,.18)
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.done,
+html[data-ui-theme="day"] .tree-civic .technode.tree-node.done{
+  border-color:#82b895;background:linear-gradient(145deg,#e8f4e9,#f5faf5 80%)
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.open,
+html[data-ui-theme="day"] .tree-civic .technode.tree-node.open{
+  background:linear-gradient(145deg,#e5f2f8,#f4f9fa 80%)
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.done .tree-node-status,
+html[data-ui-theme="day"] .tree-civic .technode.tree-node.done .tree-node-status{
+  padding:2px 6px;border:1px solid #b7d7bf;border-radius:999px;background:#e1f1e5;color:#245e37;font-weight:750
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.open .tree-node-status,
+html[data-ui-theme="day"] .tree-civic .technode.tree-node.open .tree-node-status{
+  padding:2px 6px;border:1px solid #acd0dc;border-radius:999px;background:#e0f0f5;color:#14556b;font-weight:750
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.done .tree-state-dot,
+html[data-ui-theme="day"] .tree-civic .technode.tree-node.done .tree-state-dot{
+  background:#258247;box-shadow:0 0 0 3px #d4ebda
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.open .tree-state-dot,
+html[data-ui-theme="day"] .tree-civic .technode.tree-node.open .tree-state-dot{
+  border-radius:1px;background:#117a98;box-shadow:0 0 0 3px #d2eaf0;transform:rotate(45deg)
+}
+
 @media(max-width:650px){
   .modal:not(.tree-modal):not(.break-modal){align-items:flex-end;padding:0}
-  .modal:not(.tree-modal):not(.break-modal) .box{width:100%;max-height:calc(100dvh - 16px);overflow-y:auto;border-radius:16px 16px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+  .modal:not(.tree-modal):not(.break-modal) .box{box-sizing:border-box;width:100%;max-height:calc(100dvh - 16px);overflow-y:auto;border-radius:16px 16px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
   .intro-mask{align-items:flex-end;padding:0}
-  .intro-pop{width:100%;max-height:calc(100dvh - 16px);overflow-y:auto;border-radius:16px 16px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+  .intro-pop{box-sizing:border-box;width:100%;max-height:calc(100dvh - 16px);overflow-y:auto;border-radius:16px 16px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
 }
 @media(max-width:430px){
   .wrap{width:calc(100% - 16px)}
@@ -823,6 +854,25 @@ html[data-ui-theme="day"] .policy-card.is-locked-vr{border-color:#8e63b5;backgro
 html[data-ui-theme="day"] .policy-card.is-locked-vr .policy-card-name{color:#563475}
 html[data-ui-theme="day"] .policy-card.is-locked-vr .policy-card-desc{color:#604d70}
 html[data-ui-theme="day"] .policy-card-flavor.void-flavor{background:rgba(129,73,170,.08);color:#684780}
+
+/* 日间模式的政策卡：改用浅卡面与深色文字，分类色也压深以保证对比度。 */
+html[data-ui-theme="day"] .policy-group{--policy-accent:#456e82;--policy-border:#bac9c8;--policy-wash:rgba(69,110,130,.09)}
+html[data-ui-theme="day"] .policy-group-prod{--policy-accent:#956517;--policy-border:#d4c39f;--policy-wash:rgba(178,131,46,.1)}
+html[data-ui-theme="day"] .policy-group-sci{--policy-accent:#356f98;--policy-border:#b1c8d5;--policy-wash:rgba(63,126,166,.1)}
+html[data-ui-theme="day"] .policy-group-grow{--policy-accent:#a24e70;--policy-border:#d7b8c2;--policy-wash:rgba(170,83,117,.09)}
+html[data-ui-theme="day"] .policy-group-relig{--policy-accent:#70549b;--policy-border:#c7bad9;--policy-wash:rgba(121,91,164,.09)}
+html[data-ui-theme="day"] .policy-group-wild{--policy-accent:#34784b;--policy-border:#b2cdb9;--policy-wash:rgba(65,132,83,.09)}
+html[data-ui-theme="day"] .policy-card{border-color:var(--policy-border);background:linear-gradient(155deg,color-mix(in srgb,var(--policy-accent) 7%,#fff),#f5f8f6 74%);box-shadow:inset 0 1px #fff,0 4px 12px rgba(45,70,70,.1)}
+html[data-ui-theme="day"] .policy-card.is-installed{border-color:var(--policy-accent)}
+html[data-ui-theme="day"] .policy-card-name{color:#263d45}
+html[data-ui-theme="day"] .policy-card-desc{color:#435a62}
+html[data-ui-theme="day"] .policy-card-flavor{border-left-color:#9a7131;background:#f3efe5;color:#4c6068}
+html[data-ui-theme="day"] .policy-card-warning{color:#895710}
+html[data-ui-theme="day"] .policy-card .tag.twild{background:#e1f0e5;color:#28683e;border-color:#bdd6c4}
+html[data-ui-theme="day"] .policy-card .tag.tprod{background:#f5ecd9;color:#825817;border-color:#dfc99e}
+html[data-ui-theme="day"] .policy-card .tag.tsci{background:#e3eff5;color:#315f7e;border-color:#bed1dc}
+html[data-ui-theme="day"] .policy-card .tag.tgrow{background:#f6e8ed;color:#8b425e;border-color:#ddc0ca}
+html[data-ui-theme="day"] .policy-card .tag.trelig{background:#eee9f5;color:#624888;border-color:#d0c2e0}
 
 .achv-item.is-void-ending{border-color:rgba(167,139,250,.32);background:linear-gradient(135deg,rgba(75,46,107,.15),rgba(3,15,26,.2))}
 .achv-item.is-void-ending .achv-item-icon{border-color:rgba(191,142,243,.42);box-shadow:0 0 12px rgba(148,94,199,.15)}
