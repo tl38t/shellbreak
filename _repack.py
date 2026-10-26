@@ -11,7 +11,7 @@ import shutil
 import zipfile
 
 SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
-OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-test-rc15.zip'
+OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc16.zip'
 TOP = 'shellbreak'
 
 # ---------- 打包前：自动同步源码 → 包目录 ----------
@@ -42,17 +42,19 @@ _sync_tree(os.path.join(REPO, 'css'), os.path.join(SRC, 'css'))
 _sync_tree(os.path.join(REPO, 'src'), os.path.join(SRC, 'src'))
 print('已自动同步 index.html / css / src -> 包目录')
 
-# 科技树节点直接引用这些运行时图片；只同步 tech-icons，避免把本地商店素材等开发文件带进上传包。
-tech_icon_src = os.path.join(REPO, 'assets', 'tech-icons')
-tech_icon_dst = os.path.join(SRC, 'assets', 'tech-icons')
-_sync_tree(tech_icon_src, tech_icon_dst)
-print('已自动同步 assets/tech-icons -> 包目录')
-
-# 市政树节点同样直接引用这些运行时图片；只同步 civic-icons，不把本地商店素材等开发文件带进上传包。
-civic_icon_src = os.path.join(REPO, 'assets', 'civic-icons')
-civic_icon_dst = os.path.join(SRC, 'assets', 'civic-icons')
-_sync_tree(civic_icon_src, civic_icon_dst)
-print('已自动同步 assets/civic-icons -> 包目录')
+# ---------- 运行时素材 ----------
+# ⚠️ 2026-10-26 修复（严重的静默缺图）：原脚本只同步 tech-icons / civic-icons 两个子树，
+#   导致包内 assets 只有 4 个目录（backgrounds/tech-icons/civic-icons/wonders），
+#   而实际被引用的还有 fonts（标题字体 Ma_Shan_Zheng）、building-icons（69 处）、
+#   resource-icons（34 处）、achievements（22 处）、ui-era、talent-icons、challenges、
+#   company-icons、brand、dyson —— 线上是 404 缺图，而封包断言只查 config.js 文本、
+#   完全查不出来。改为按白名单遍历，**排除 assets/store（66M 本地商店素材，不上传）**。
+ASSET_DIRS = ['achievements', 'backgrounds', 'brand', 'building-icons', 'challenges',
+              'civic-icons', 'company-icons', 'dyson', 'fonts', 'resource-icons',
+              'talent-icons', 'tech-icons', 'ui-era', 'wonders']
+for _d in ASSET_DIRS:
+    _sync_tree(os.path.join(REPO, 'assets', _d), os.path.join(SRC, 'assets', _d))
+print('已自动同步 assets/ 的 %d 个子树 -> 包目录（store 本地素材除外）' % len(ASSET_DIRS))
 
 # ---------- 打包前：确认包内源码已是新壳厚 ----------
 cfg = os.path.join(SRC, 'src', 'config.js')
@@ -90,6 +92,17 @@ LB_IDS = ('wk8s9lkm23g2eihkz8', 'zgq97kctyiqffhcr9p', 'riikrs1jp5m6a1nyjy',
 missing = [i for i in LB_IDS if i not in body]
 assert not missing, f'包内 config.js 的 RANK.LB 缺榜 ID: {missing}，先同步源码'
 print('打包前置检查: OK (500000 + cache-buster + 无手动倍速 + 广告按钮 + 壳厚迁移 + 广告位1054324 + dev口收紧 + 排行榜9ID)')
+
+# 包内素材必须齐全（2026-10-26 补：rc15 及之前只同步两个 icons 子树，
+# 线上缺 fonts / building-icons / resource-icons / achievements 等 ⇒ 静默 404 缺图）
+_missing_assets = []
+for _d in ASSET_DIRS:
+    _p = os.path.join(SRC, 'assets', _d)
+    if not os.path.isdir(_p) or not os.listdir(_p):
+        _missing_assets.append(_d)
+assert not _missing_assets, f'包内 assets 缺目录或为空: {_missing_assets}，先同步素材'
+assert os.path.isfile(os.path.join(SRC, 'assets', 'fonts', 'Ma_Shan_Zheng.woff2')), '包内缺标题字体 Ma_Shan_Zheng.woff2'
+print('素材检查: OK (%d 个子树齐全 + 标题字体在位)' % len(ASSET_DIRS))
 
 # ---------- 打包 ----------
 n = 0
