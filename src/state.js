@@ -791,19 +791,58 @@
     }
   }
   function loadProblems() { return { meta: metaLoadProblem, run: runLoadProblem }; }
+  /* 存档写盘健康度（2026-10-27，玩家报「存档没了」）。
+   * 原先 saveRun 把「坏值跳过」和「setItem 抛错」全都静默吞掉（`catch (e) {}`）——
+   * 玩家玩几小时、刷新后回到几小时前，而界面上没有任何异常可看，只能报「存档没了」。
+   * 这里只**记录**，不改变「坏值不许覆盖好档」那条判据（那条是对的，见下面注释）。
+   * 消费方：save-transfer 的存档面板（「上次保存：X 前」，失败标红）。
+   * ⚠️ 三个计数各自独立：ok = 真写上盘；skip = 有坏值被拦住（这局存档已停更）；
+   *    fail = setItem 抛错（配额满 / 隐私模式 / 容器限制）。skip 与 fail 都意味着
+   *    「浏览器里的进度比存档新」，玩家一刷新就回退。 */
+  var saveHealth = { lastOkAt: 0, lastFailAt: 0, lastSkipAt: 0,
+    lastError: '', lastSkipKey: '', okCount: 0, skipCount: 0, failCount: 0,
+    /* ⚠️ 为什么不靠时间戳比较判断「当前是否异常」：skip 与 ok 常常落在**同一毫秒**
+     *   （节流保存紧接着一次坏值），`lastSkipAt > lastOkAt` 会漏判。
+     *   这两个计数在每次**成功写盘**时清零，语义 = 「距上次成功之后又坏了几次」。 */
+    skipAfterOk: 0, failAfterOk: 0 };
+  function saveStatus() {
+    return { lastOkAt: saveHealth.lastOkAt, lastFailAt: saveHealth.lastFailAt,
+      lastSkipAt: saveHealth.lastSkipAt, lastError: saveHealth.lastError,
+      lastSkipKey: saveHealth.lastSkipKey, okCount: saveHealth.okCount,
+      skipCount: saveHealth.skipCount, failCount: saveHealth.failCount,
+      skipAfterOk: saveHealth.skipAfterOk, failAfterOk: saveHealth.failAfterOk };
+  }
   function saveRun(run) {
     try {
-      if (!root.localStorage || !run || !run.res) return;
+      if (!root.localStorage || !run || !run.res) return false;
       /* 存档是最后一道防线：JSON.stringify(NaN) 会静默写成 null，
        * 下一次刷新时迁移层只能把它当成坏值回落为 0。不要让一帧坏状态覆盖
        * 上一份可用存档；运行态的 addRes 守卫负责修复，之后下一次合法快照再落盘。 */
       var key, value;
       for (key in (SB.RESS || {})) {
         value = run.res[key];
-        if (!(typeof value === 'number' && isFinite(value))) return;
+        if (!(typeof value === 'number' && isFinite(value))) {
+          saveHealth.lastSkipAt = Date.now();
+          saveHealth.lastSkipKey = key;
+          saveHealth.skipCount++;
+          saveHealth.skipAfterOk++;
+          return false;
+        }
       }
       root.localStorage.setItem(SB.CFG.RUN_KEY, JSON.stringify(run));
-    } catch (e) {}
+      saveHealth.lastOkAt = Date.now();
+      saveHealth.okCount++;
+      saveHealth.skipAfterOk = 0;
+      saveHealth.failAfterOk = 0;
+      return true;
+    } catch (e) {
+      saveHealth.lastFailAt = Date.now();
+      saveHealth.lastError = (e && (e.name || e.code) ? String(e.name || e.code) + ': ' : '')
+        + (e && e.message ? e.message : String(e));
+      saveHealth.failCount++;
+      saveHealth.failAfterOk++;
+      return false;
+    }
   }
   function clearRun() {
     try { root.localStorage && root.localStorage.removeItem(SB.CFG.RUN_KEY); } catch (e) {}
@@ -820,6 +859,9 @@
     loadRun: loadRun,
     loadProblems: loadProblems,
     saveRun: saveRun,
+    /* 存档健康度读数（2026-10-27）：{ lastOkAt, lastFailAt, lastSkipAt, lastError,
+     *   lastSkipKey, okCount, skipCount, failCount }。只读快照，UI 用它显状态。 */
+    saveStatus: saveStatus,
     clearRun: clearRun
   };
 })(typeof window !== 'undefined' ? window : globalThis);

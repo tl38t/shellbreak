@@ -262,9 +262,21 @@
        *    ⚠️ 用**白名单**而不是「除 stoneBeam 之外全加」：将来加新资源时，
        *        白名单会逼着人决定「新资源吃不吃这个加成」，黑名单则让人默认漏掉。 */
       + matBonus
+      + (resourceStorageEra(k) <= 7 && s.upgrades && s.upgrades.upg_logiware
       /* ERA7（2026-10-17 · spec §4）：物流仓库（upg_logiware，顶替商队驿站）每级给纪元七及之前解锁的有上限材料 +200 容量。
-       *   ⚠️ 与 matBonus（海潮方碑，一次性 +200）同源相加：都是「材料容量加法轴」，互不踩定义域。 */
-      + (resourceStorageEra(k) <= 7 ? ((s.upgrades && s.upgrades.upg_logiware) || 0) * (SB.BLD.logiwareCap || 0) : 0);
+       *   ⚠️ 与 matBonus（海潮方碑，一次性 +200）同源相加：都是「材料容量加法轴」，互不踩定义域。
+       * ⚠️⚠️【2026-10-27 修 bug：这里原先把**布尔**当数量用】
+       *   原文是 `((s.upgrades && s.upgrades.upg_logiware) || 0) * logiwareCap`，
+       *   而 `s.upgrades[id]` 只会有两种状态 —— `true`（workshop.js:553 `s.upgrades[id] = true`）
+       *   或 undefined ⇒ `true * 200 = 200`，**永远 200，商队驿站等级根本没读**。
+       *   症状：desc 写「每级 +200」，玩家把商队驿站升到 10 级，容量只 +200（少 1800），
+       *   报「物流仓库/基础物流不生效」。从 v0.1.6 实装起从未对过。
+       *   ⇒ 等级必须从**建筑**读，与 `castleCapBonus`（布尔当开关 + `coreLvl(s)` 取等级）完全同构。
+       * 【为什么 e2e 一直绿】夹具 `e2e.mjs` 原先写 `upgrades.upg_logiware = 2`（当数字用），
+       *   而生产路径只写 `true` ⇒ 测的是玩家永远到不了的状态（假绿）。
+       *   判据：凡 `s.upgrades.<id>` 都只能当「在不在」用；任何把它做乘法/加减的写法都是错的。 */
+          ? ((s.lvl && s.lvl.caravanserai) || 0) * (SB.BLD.logiwareCap || 0)
+          : 0);
     if (!(typeof matCap === 'number' && isFinite(matCap) && matCap >= 0)) matCap = base;
     var matCastle = castleCapBonus(s, k);
     if (!(typeof matCastle === 'number' && isFinite(matCastle) && matCastle >= 0)) matCastle = 0;

@@ -663,7 +663,14 @@
      * 【博物馆】由《启蒙运动》解锁（requiredCivic）。效果 = 官员（书手）市政点产出 +20%/级，
      *   由 economy.cultureRate 的 museumCivicMul(s) 读（每级再加 +20%）。
      *   ⚠️ 两座的 cost/ratio 是提议值（用户拍「先这样，后续重做」），未标定。 */
-    { id: 'caravanserai', icon: 'assets/building-icons/era-4/era4-caravanserai.png', name: '商队驿站', ratio: 1.15,
+    /* ⚠️ 2026-10-27 用户拍板：造价曲线 ratio 1.15 → **1.5**。
+     *   起因是「物流仓库」(upg_logiware) 的 +200/级 修复（原来把布尔当数量用，恒 +200）。
+     *   修好后每级真的给 200 材料容量，1.15 的线性造价压不住，故抬到 1.5。
+     *   ⚠️ ratio 是**建筑级**参数，costOf 只有 `Math.pow(b.ratio, effN)` 一处（economy.js:521），
+     *      没有「升级后单独一条曲线」⇒ 这条同时作用于**未升级的商队驿站**（ERA4 起），不只物流仓库。
+     *   造价（base stone 200 / rope 100，未含各全局折扣）：1 级 200｜5 级 1012｜10 级 7688｜
+     *      累计到 10 级 22666 石（旧 1.15 时为 704 / 4060）。 */
+    { id: 'caravanserai', icon: 'assets/building-icons/era-4/era4-caravanserai.png', name: '商队驿站', ratio: 1.5,
       cost: { stone: 200, rope: 100 },
       desc: '每季节判定一次：获得任意时产资源「等级 × 1 分钟」产量；每级另减 1% 居民奢侈品消耗。',
       requiredCivic: 'explore' },

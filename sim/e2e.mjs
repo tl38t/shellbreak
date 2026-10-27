@@ -1023,10 +1023,30 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     check('ERA6 合金仓储只扩到 ERA6 资源，不影响 ERA7 铀',
       SB.economy.capOf(_storageEra, 'titanium') === 300 && SB.economy.capOf(_storageEra, 'uranium') === 200,
       '钛=' + SB.economy.capOf(_storageEra, 'titanium') + ' 铀=' + SB.economy.capOf(_storageEra, 'uranium'));
-    _storageEra.upgrades.upg_logiware = 2;
+    /* ⚠️⚠️ 2026-10-27 修：原夹具写 `_storageEra.upgrades.upg_logiware = 2`（把布尔表当等级用），
+     *   而生产安装路径 workshop.js:553 只写 `s.upgrades[id] = true` ⇒ 这条断言测的是
+     *   **玩家永远到不了的状态**（假绿），掩盖了「+200/级 恒为 +200」的真 bug（v0.1.6 起）。
+     *   现按真实语义：装没装看 s.upgrades（布尔），几级看 s.lvl.caravanserai（建筑等级）。 */
+    _storageEra.upgrades.upg_logiware = true;
+    _storageEra.lvl.caravanserai = 2;
     check('ERA7 物流仓库可扩充铀，但不会提前扩充 ERA8 θ金属',
       SB.economy.capOf(_storageEra, 'uranium') === 600 && SB.economy.capOf(_storageEra, 'thetaMetal') === 200,
       '铀=' + SB.economy.capOf(_storageEra, 'uranium') + ' θ=' + SB.economy.capOf(_storageEra, 'thetaMetal'));
+    /* 新增（2026-10-27）：钉死「每级 +200」真的按**建筑等级**走 ——
+     *   防再退回把 s.upgrades 的布尔值当数量（那种写法下 1 级与 5 级恒等，这条会红）。 */
+    {
+      const _lg1 = SB.state.freshRun(false);
+      _lg1.upgrades.upg_logiware = true; _lg1.lvl.caravanserai = 1;
+      const _lg5 = SB.state.freshRun(false);
+      _lg5.upgrades.upg_logiware = true; _lg5.lvl.caravanserai = 5;
+      const _lg0 = SB.state.freshRun(false);
+      _lg0.lvl.caravanserai = 5;   // 有建筑但没买升级
+      check('物流仓库 +200/级 随商队驿站等级线性增长（1级 400 / 5级 1200），没买升级则不加',
+        SB.economy.capOf(_lg1, 'uranium') === 400 && SB.economy.capOf(_lg5, 'uranium') === 1200
+        && SB.economy.capOf(_lg0, 'uranium') === 200,
+        '1级=' + SB.economy.capOf(_lg1, 'uranium') + ' 5级=' + SB.economy.capOf(_lg5, 'uranium')
+        + ' 未升级=' + SB.economy.capOf(_lg0, 'uranium'));
+    }
     const thetaStorage = SB.state.freshRun(false);
     SB.economy.addRes(thetaStorage, 'thetaMetal', 1000);
     check('θ生物金属作为普通资源受 200 基础仓储上限约束', thetaStorage.res.thetaMetal === 200,

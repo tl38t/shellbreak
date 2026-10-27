@@ -62,7 +62,13 @@ html[data-ui-theme="day"] .story-unlock small{color:#5d7278}
    .tab 已 position:relative + overflow:hidden，红点落左上角内侧，不与「?」按钮及文字冲突。 */
 .tab.avail::after{content:'';position:absolute;top:3px;left:3px;width:7px;height:7px;border-radius:50%;background:#ec5b6b;box-shadow:0 0 6px rgba(236,91,107,.85);pointer-events:none;z-index:2}
 html[data-ui-theme="day"] .tab.avail::after{background:#d8394b;box-shadow:0 0 5px rgba(216,57,75,.6)}
-.qbtn{width:20px;height:20px;flex:none;border-radius:50%;font-size:11px;font-weight:750;line-height:1}
+/* ⚠️ 2026-10-27 用户报「那个问号太大了」：20×20 / 11px / 750 → **16×16 / 10px / 700**。
+ *   本轮之前的三处定义依次覆盖：00-core 16×16 · 10px → 30-visual-polish 17×17 →
+ *   本文件这次「模块打磨」放到了 20×20 · 11px · 750，比页签文字（13px）还抢眼。
+ *   现落回 00-core 的原始档位；**不能靠删掉这条来还原**——删了最终生效的是
+ *   30-visual-polish 的 17px，不是 16px（@import 顺序 00 → 30 → 50）。
+ *   尺寸 16px 是历史已验证的可点档位（触屏上页签本身也可点，问号是辅助入口）。 */
+.qbtn{width:16px;height:16px;flex:none;border-radius:50%;font-size:10px;font-weight:700;line-height:1}
 html[data-ui-theme="day"] .tab.on{box-shadow:inset 0 0 0 1px rgba(20,127,135,.06),inset 0 -2px #167b83}
 html[data-ui-theme="day"] .qbtn{background:#e4efec;border-color:#9bb9b9;color:#176d75}
 

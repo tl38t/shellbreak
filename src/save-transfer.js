@@ -155,6 +155,11 @@
         '<p id="saveManagerStatus" class="save-manager-status" role="status">' +
           (cloudOK ? 'TapTap 云存档已就绪。' : '云存档只在 TapTap 小游戏运行环境可用；当前浏览器仍可导出/导入文件和存档码。') +
         '</p>' +
+        /* 存档健康度（2026-10-27）：常显「上次保存 / 云端备份」，写盘被拦或失败就标红。
+         * 原先这些失败全被吞掉，玩家唯一的感受就是「存档没了」。 */
+        '<p id="saveManagerHealth" class="save-manager-status save-manager-health' +
+          (saveHealthBad() ? ' error' : '') + '">' +
+          escapeHtml(saveHealthText()) + '</p>' +
       '</div>';
     modal.classList.remove('hidden');
     document.body.classList.add('modal-open');
@@ -303,18 +308,28 @@
       return matches[0] || null;
     });
   }
-  function uploadCloud() {
+  /* 云存档推送核心（2026-10-27）：手动上传与自动备份**共用这一份**。
+   * 只有 `silent` 决定要不要动面板状态 —— 自动备份失败绝不能弹提示打扰玩家。
+   * ⚠️ 冷却 key 是共享的（平台按账号限流，不是按按钮），所以自动备份成功后
+   *    玩家紧接着手动点「上传」会被挡 60 秒，那是**正确**的（TapTap 确实拒）。 */
+  function pushCloud(silent) {
     var objects, bundle, filePath;
-    try { objects = cloudObjects(); bundle = currentBundle(); filePath = objects.base + '/' + CLOUD_FILE; }
-    catch (e) { setStatus(e.message || String(e), true); return; }
+    try {
+      objects = cloudObjects(); bundle = currentBundle(); filePath = objects.base + '/' + CLOUD_FILE;
+    } catch (e) {
+      if (!silent) setStatus(e.message || String(e), true);
+      return Promise.reject(e);
+    }
     var now = Date.now(), ls = localStore(), savedAt = 0;
     try { savedAt = Number(ls && ls.getItem(CLOUD_COOLDOWN_KEY)) || 0; } catch (e) {}
     savedAt = Math.max(savedAt, lastUploadAt);
     if (now - savedAt < 60000) {
-      setStatus('TapTap 限制每分钟最多上传一次，请约 ' + Math.ceil((60000 - (now - savedAt)) / 1000) + ' 秒后重试。', true); return;
+      var wait = 'TapTap 限制每分钟最多上传一次，请约 ' + Math.ceil((60000 - (now - savedAt)) / 1000) + ' 秒后重试。';
+      if (!silent) setStatus(wait, true);
+      return Promise.reject(new Error(wait));
     }
-    setBusy(true); setStatus('正在写入 TapTap 本地文件并检查云端存档…');
-    callApi(objects.fs, 'writeFile', { filePath: filePath, data: JSON.stringify(bundle), encoding: 'utf8' })
+    if (!silent) { setBusy(true); setStatus('正在写入 TapTap 本地文件并检查云端存档…'); }
+    return callApi(objects.fs, 'writeFile', { filePath: filePath, data: JSON.stringify(bundle), encoding: 'utf8' })
       .then(function () { return findOurArchive(objects.cloud); })
       .then(function (archive) {
         var current = Date.now(); lastUploadAt = current;
@@ -325,10 +340,86 @@
         var options = { archiveMetaData: metadata, archiveFilePath: filePath };
         if (archive && archive.uuid) options.archiveUUID = archive.uuid;
         return callApi(objects.cloud, archive ? 'updateArchive' : 'createArchive', options);
-      })
-      .then(function () { setStatus('TapTap 云存档上传成功。'); })
-      .catch(function (e) { setStatus('云存档上传失败：' + errorText(e), true); })
-      .then(function () { setBusy(false); });
+      });
+  }
+  function uploadCloud() {
+    pushCloud(false).then(function () {
+      setBusy(false); setStatus('TapTap 云存档上传成功。');
+    }, function (e) {
+      setBusy(false); setStatus('云存档上传失败：' + errorText(e), true);
+    });
+  }
+
+  /* 自动云备份（2026-10-27，玩家报「存档没了」的根治项）。
+   * 原先云存档**纯手动**：玩家不点按钮，云端永远是空的 ⇒ 本地一丢就救不回来。
+   * 这里每 30 秒检查一次，满足条件就静默推一份上去。
+   * 触发条件（全部满足）：
+   *   ① TapTap 小游戏环境（cloudAvailable）—— 浏览器/回归环境直接跳过；
+   *   ② 距上次尝试 ≥ AUTO_GAP_MS（5 分钟；平台限流是每分钟 1 次，放宽到 5 分钟够安全）；
+   *   ③ 游戏内时间往前进过整分钟（进度没变就不重复传，省调用也省玩家流量）。 */
+  var AUTO_GAP_MS = 5 * 60 * 1000;
+  var autoState = { lastTryAt: 0, lastOkAt: 0, lastError: '', failCount: 0, lastMark: -1 };
+  function autoCloudPump() {
+    if (busy) return;                        // 手动操作进行中，让路
+    if (!cloudAvailable()) return;           // 非 TapTap 环境：静默跳过，不报错
+    var s = null;
+    try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) { return; }
+    /* 破壳未结算时状态是过渡态，传上去价值低、还可能与结算后的档打架 —— 跳过。 */
+    if (!s || s.broken) return;
+    var now = Date.now();
+    if (now - autoState.lastTryAt < AUTO_GAP_MS) return;
+    var mark = Math.floor((s.t || 0) / 60);
+    if (mark === autoState.lastMark && autoState.lastOkAt) return;
+    autoState.lastTryAt = now;
+    pushCloud(true).then(function () {
+      autoState.lastOkAt = Date.now(); autoState.lastMark = mark;
+      autoState.lastError = ''; autoState.failCount = 0;
+    }, function (e) {
+      autoState.lastError = errorText(e); autoState.failCount++;
+    });
+  }
+  function autoCloudStatus() {
+    return { lastOkAt: autoState.lastOkAt, lastError: autoState.lastError, failCount: autoState.failCount };
+  }
+  function agoText(ms) {
+    if (!ms) return '尚未';
+    var d = Date.now() - Number(ms);
+    if (!isFinite(d) || d < 0) d = 0;
+    var sec = Math.floor(d / 1000);
+    if (sec < 60) return sec + ' 秒前';
+    if (sec < 3600) return Math.floor(sec / 60) + ' 分钟前';
+    if (sec < 86400) return Math.floor(sec / 3600) + ' 小时前';
+    return Math.floor(sec / 86400) + ' 天前';
+  }
+  /* 健康度是否处于「异常」态（写盘被拦或失败都比最后一次成功更晚）。
+   * 面板据此加 .error 标红；不作任何自动修复 —— 只让玩家看得见。 */
+  function saveHealthBad() {
+    var st = (SB.state && SB.state.saveStatus) ? SB.state.saveStatus() : null;
+    if (!st) return false;
+    return (st.skipAfterOk || 0) > 0 || (st.failAfterOk || 0) > 0;
+  }
+  /* 存档健康度一行文案（面板底部常显）：
+   * ok = 上次成功写盘时间；skip/fail 都意味着「浏览器里的进度比存档新」。 */
+  function saveHealthText() {
+    var st = (SB.state && SB.state.saveStatus) ? SB.state.saveStatus() : null;
+    if (!st) return '';
+    var parts = ['上次保存：' + agoText(st.lastOkAt)];
+    var bad = false, why = '';
+    /* ⚠️ 用「距上次成功之后的坏次数」判定，不用时间戳比较 —— 两者常落在同一毫秒。 */
+    if ((st.failAfterOk || 0) > 0) {
+      bad = true;
+      why = '存档写入失败：' + (st.lastError || '未知原因') + '（连续 ' + st.failAfterOk + ' 次）';
+    } else if ((st.skipAfterOk || 0) > 0) {
+      bad = true;
+      why = '存档写入被拦下（' + (st.lastSkipKey || '未知字段') + ' 数值异常），这局进度没有存上';
+    }
+    if (bad) parts.push('⚠ ' + why);
+    var au = autoCloudStatus();
+    if (cloudAvailable()) {
+      parts.push('云端备份：' + agoText(au.lastOkAt));
+      if (au.lastError) parts.push('（上次云备份失败：' + au.lastError + '）');
+    }
+    return parts.join(' · ');
   }
   function downloadCloud() {
     var objects;
@@ -383,6 +474,9 @@
     if (button) button.onclick = openPanel;
     var settingsManager = document.getElementById('btnSettingsSaveManager');
     if (settingsManager) settingsManager.onclick = openPanel;
+    /* 自动云备份（2026-10-27）：**只在 TapTap 小游戏环境装定时器**。
+     * 普通浏览器与 e2e 沙箱一律不装 —— 装了 node 沙箱进程不肯退出，回归会挂住。 */
+    if (cloudAvailable() && root.setInterval) root.setInterval(autoCloudPump, 30000);
     var settingsWipe = document.getElementById('btnSettingsWipe');
     if (settingsWipe) settingsWipe.onclick = function () {
       SB.ui.render.confirmPanel({
@@ -398,5 +492,8 @@
   }
 
   SB.saveTransfer = { boot: boot, open: openPanel, showLoadProblem: showLoadProblem,
-    currentBundle: currentBundle, validateBundle: validateBundle };
+    currentBundle: currentBundle, validateBundle: validateBundle,
+    /* 2026-10-27 新增：自动云备份与存档健康度（供 UI 与回归直接读/驱动）。 */
+    autoCloudPump: autoCloudPump, autoCloudStatus: autoCloudStatus,
+    saveHealthText: saveHealthText, pushCloud: pushCloud };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -8,6 +8,10 @@
 #saveCodeBox{box-sizing:border-box;width:100%;resize:vertical;min-height:92px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
 .save-manager-status{min-height:20px;margin:10px 0 0;color:var(--cyan);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
 .save-manager-status.error{color:var(--red)}
+/* 存档健康度（2026-10-27）：常显「上次保存 / 云端备份」。比上面那行更小更暗，
+   一旦写盘被拦或失败就加 .error 标红——这是「存档静默停更」唯一的可见出口。 */
+.save-manager-health{min-height:16px;margin:6px 0 0;color:var(--dim);font-size:11px;line-height:1.5}
+.save-manager-health.error{color:var(--red)}
 .save-manager-warning{padding:12px;border:1px solid rgba(251,191,36,.36);border-radius:10px;background:rgba(251,191,36,.08);color:var(--text);font-size:13px;line-height:1.7}
 @media(max-width:600px){
   #saveManagerPanel{max-height:62vh}

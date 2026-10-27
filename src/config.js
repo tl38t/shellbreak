@@ -21,7 +21,7 @@
      *   - 升版时 bump index.html 里 config.js 的 ?v=。
      * ⚠️ 更新日志系统已于 2026-10-25 整体移除（用户拍板「把所有的更新日志删掉」）：
      *   CFG.CHANGELOG、版本首入自动弹窗、页脚「更新日志」按钮与面板均已删除。 */
-    VERSION: 'v0.1.9',
+    VERSION: 'v0.1.10',
     // ---- ERA9 星海终局常量 ----
     /* SUNSAIL_HYDRO：太阳帆（星图累加器，s.sunSails，无限）每帆每秒供给的热液能（用户 2026-10-19 确认：0.1→0.05）。
      *   进 hydro 供给侧，与核热厂/泰坦气云并联相加（economy.hydroAlloc sunSailSupply）。 */
