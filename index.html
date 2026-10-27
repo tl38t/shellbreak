@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=254" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=256" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -199,12 +199,16 @@
         <span class="ad-remain" id="adRebirthRemain" data-page-node-id="AdRebirthRemain01">今日 0/10</span>
       </span>
       <button class="btn" id="btnRank" data-page-node-id="RankBtn01View" title="查看 TapTap 排行榜（共 9 个榜单：通关用时 / 发展 / 奇观 / 轮回 / 星屑 / 轮回点 / 戴森球 / 虚境）">排行榜</button>
+      <button class="btn" id="btnChangelog" data-page-node-id="ChgLog01View" title="查看游戏更新日志（本次及历史更新内容）">更新日志</button>
       <button class="btn" id="btnSaveManager" title="导出、导入或同步存档">存档管理</button>
       <button class="btn danger" id="btnWipe" data-page-node-id="WipeBtn01Danger">清空存档</button>
       <span id="clock" style="margin-left:auto;color:var(--dim);font-size:12px" data-page-node-id="1A5pLAjiAdlCtbmGV6OJtE"></span>
     </div>
     <div class="foot" data-page-node-id="ZNV0CXzr3oW6dMIZCrEVYF">
       <button class="big" id="btnBreak" disabled data-page-node-id="sc3WiBhKuDYmDEddAM85xY">凿穿冰壳</button>
+      <!-- 破壳前的「轮回 / 重开本周目」出口（2026-10-27）：2026-10-21 合并双按钮时被 btnBreak 的 disabled 吞掉，
+           导致「研究完神学但没凿穿」的局无路可走。默认隐藏，由 renderBreakBtn 按状态显示。 -->
+      <button class="btn" id="btnCycle" hidden title="结算本局并发放轮回点（不必凿穿天壳）">轮回</button>
       <span id="breakHint" style="font-size:12px;color:var(--dim)" data-page-node-id="d8HcLfglHR68VzJOqVA6LG"></span>
     </div>
     <div class="log" id="log" data-page-node-id="IX7irOvtve8VlhblV4gx2P"></div>
@@ -217,7 +221,7 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=178"></script>
+<script src="src/config.js?v=180"></script>
 <script src="src/config-catalog.js?v=11"></script>
 <script src="src/config-content.js?v=31"></script>
 <script src="src/config-buildings.js?v=40"></script>
@@ -236,7 +240,7 @@
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/save-storage.js?v=1"></script>
 <script src="src/state-migrate.js?v=18"></script>
-<script src="src/state.js?v=153"></script>
+<script src="src/state.js?v=154"></script>
 <script src="src/workshop.js?v=120"></script>
 <script src="src/wonder.js?v=110"></script>
 <script src="src/economy-social.js?v=8"></script>
@@ -251,7 +255,7 @@
 <script src="src/shell.js?v=108"></script>
 <script src="src/habitat.js?v=110"></script>
 <script src="src/folk.js?v=106"></script>
-<script src="src/prestige.js?v=126"></script>
+<script src="src/prestige.js?v=127"></script>
 <script src="src/challenges.js?v=7"></script>
 <script src="src/auto-research.js?v=1"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
@@ -271,9 +275,9 @@
 <script src="src/ui/render-pane-star-map.js?v=8"></script>
 <script src="src/ui/render-pane-workshop.js?v=15"></script>
 <script src="src/ui/render-environment.js?v=17"></script>
-<script src="src/ui/render.js?v=246"></script>
+<script src="src/ui/render.js?v=250"></script>
 <script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=148"></script>
+<script src="src/game.js?v=150"></script>
 <script src="src/save-transfer.js?v=2"></script>
 <script src="src/ui/input.js?v=166"></script>
 <script src="src/ai-strategy.js?v=73"></script>
@@ -283,5 +287,7 @@
 <script src="src/rank.js?v=1"></script>
 <script src="src/achv.js?v=2"></script>
 <script src="src/main.js?v=98"></script>
+<!-- 现场诊断浮层（2026-10-27）：连点标题 5 次开启，或 URL 带 ?diag。默认零风险、不进任何正常路径。 -->
+<script src="src/ui/diag.js?v=2"></script>
 </body>
 </html>

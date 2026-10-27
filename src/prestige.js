@@ -156,9 +156,17 @@
     if (s.breakSettled) return null;
     var meta = SB.game.meta();
     var r = breakReport(s);
+    /* ⚠️ 2026-10-27：**先快照「壳有没有真的归零」，再动任何状态**。
+     * 用户 2026-10-27 拍板的六态里，「研究完《神学》就能轮回、不必等凿穿」是合法路径
+     * （主控区 #btnCycle 走的就是这里）。这条路进本函数时壳还在（shell>0）——此时绝不能把
+     * shellOpened 置真：submitRankOnBreak 靠它区分「真通关」与「提前轮回」，一旦置真，
+     * 一局几分钟就能往「最快通关」榜提交记录，榜会被刷掉。
+     * 正常破壳走 shell.onShellZero，那里已先把 shell 置 0，故本判据对它恒真。 */
+    var wasOpened = !!(s.shell <= 0);
+    r.wasOpened = wasOpened;
     /* 破壳结算只允许进入一次；否则主循环在 shell<=0 时会每 100ms 重播结算/动画。 */
     s.broken = true;
-    s.shellOpened = true;
+    if (wasOpened) s.shellOpened = true;
     s.breakSettled = true;
     /* runBuffs（单局 buff，如旧日遗产自动制作标记等）在破壳结算这一刻清零：
      *   无论随后轮回（freshRun 重建 runBuffs）还是留在本局继续，效果都从结算这一刻起失效。 */

@@ -57,16 +57,23 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
       Math.abs(e4mul.smelt - 1.25) < 1e-9 && Math.abs(e4mul.steelMul - 1.30) < 1e-9 && Math.abs(e4mul.bldEff - 0.60) < 1e-9,
       'smelt=' + e4mul.smelt + ' steelMul=' + e4mul.steelMul + ' bldEff=' + e4mul.bldEff);
   }
-  /* 更新日志整体移除（2026-10-25 用户拍板「把所有的更新日志删掉」）：
-   * VERSION 保留；CFG.CHANGELOG / 自动弹窗 / 页脚按钮 / meta.seenVersion 均不应再存在。 */
+  /* 更新日志（2026-10-27 用户要求恢复；2026-10-25 曾拍板整体删除，故上一版这里是反向断言）：
+   * 恢复后回到正向 —— VERSION 非空、CHANGELOG 至少一条且条目结构完整、新档 seenVersion 默认空
+   * （空 = 与当前版本不等 ⇒ 首次进入会弹）。 */
   {
     check('CFG.VERSION 已设且非空', !!(SB.CFG && SB.CFG.VERSION), 'VERSION=' + (SB.CFG && SB.CFG.VERSION));
-    check('CFG.CHANGELOG 已整体移除',
-      !!(SB.CFG && SB.CFG.CHANGELOG === undefined),
-      'CHANGELOG=' + JSON.stringify(SB.CFG ? SB.CFG.CHANGELOG : 'CFG缺失'));
-    check('新档 meta 不再有 seenVersion',
-      SB.state.emptyMeta().seenVersion === undefined,
-      'seenVersion=' + JSON.stringify(SB.state.emptyMeta().seenVersion));
+    check('CFG.CHANGELOG 已设且至少一条记录',
+      !!(SB.CFG && Array.isArray(SB.CFG.CHANGELOG) && SB.CFG.CHANGELOG.length > 0),
+      '条数=' + ((SB.CFG && SB.CFG.CHANGELOG) ? SB.CFG.CHANGELOG.length : 0));
+    check('CHANGELOG 每条都有版本名与非空条目',
+      !!(SB.CFG && Array.isArray(SB.CFG.CHANGELOG) && SB.CFG.CHANGELOG.every(function (e) {
+        return !!(e && e.v && Array.isArray(e.items) && e.items.length > 0);
+      })),
+      JSON.stringify((SB.CFG && SB.CFG.CHANGELOG) || []));
+    check('新档 meta.seenVersion 默认空（首次进入会弹）',
+      SB.state.emptyMeta().seenVersion === '', 'seenVersion=' + JSON.stringify(SB.state.emptyMeta().seenVersion));
+    check('更新日志面板已导出（SB.ui.render.openChangelog）',
+      typeof (SB.ui && SB.ui.render && SB.ui.render.openChangelog) === 'function');
   }
   /* 🚨 门槛下调的**可达性**正向证据：35 级学术区 = 图书馆(15) + 研究所(10) + 潮纹馆…
    *   用「刚好卡在门槛上下」验判定真的看这个数，而不是碰巧在别的状态也通过。 */

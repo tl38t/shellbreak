@@ -28,7 +28,20 @@
 html{background:var(--bg)}
 body{
   min-height:100vh;
+  /* 2026-10-27：ios 16 上 `100vh` 是「最大视口高度」，滚动到底触发的视口收缩会让 body 高度来回变、
+     scrollTop 被反复钳位。dvh 跟随实测视口，老浏览器忽略本条退回 vh。 */
+  min-height:100dvh;
+  /* ⚠️⚠️ 2026-10-27 真机定位：这两行曾让 iOS 出现「滚到底自动弹回」。
+   * `overflow-x:hidden` 按 CSS 规范会把 `overflow-y` 算成 `auto` ⇒ **body 自己变成滚动容器**。
+   * Android Chrome 会把这个 overflow 传播到视口（单一滚动宿主，没事）；**iOS WebKit 不传播** ⇒
+   * 页面上同时存在 `documentElement` 和 `body` 两个滚动宿主。
+   * 症状：小幅滚动两边还同步，**一次跨到底就分家**，浏览器把位置同步回 body 那一侧，
+   * 表现为「滚到最底 → 3 秒后 scrollY 自己退回一千多像素、而页面总高和滚动上限都没变」。
+   * 真机自测数据（iOS 16 / 390×844）：弹回 1880px / 297px / 297px，上限始终不变。
+   * `overflow-x:clip` 仍然裁剪横向溢出，但**不创建滚动容器**（`overflow-y` 保持 visible）。
+   * 写成两条是渐进增强：老浏览器忽略 clip、退回 hidden 的旧行为，不会更差。 */
   overflow-x:hidden;
+  overflow-x:clip;
   background:
     radial-gradient(900px 520px at 82% -12%,rgba(72,190,205,.11),transparent 70%),
     radial-gradient(760px 500px at 7% 104%,rgba(28,108,139,.16),transparent 72%),

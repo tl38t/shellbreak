@@ -944,6 +944,30 @@
     /* 天赋树卷：先按可见态快照各树横向位置（详见上方注释）。 */
     snapshotTalentScroll();
 
+    /* ⚠️ 2026-10-27 真机定位（iOS 16 / 390×844）：整块 innerHTML 替换会让页面总高在**中间态**
+     *   瞬间变小（旧节点已移除、新节点未插入），此刻处于页面底部的 scrollTop 会被立刻钳死；
+     *   新节点插回后总高恢复，但 scrollTop 不会自己回来。
+     *   自测包实测：滚到底 1962（上限 2059）→ 3 秒后 1059，弹回 903px；同一时刻
+     *   village 的 docH 在 700ms 内变了 9px，而其余 pane 全稳。
+     *   页面中部完全不受影响（①静止 1000、②连续滚动全绿），**只有贴底才中招**——这与
+     *   客户「滚到最底会弹回去」完全一致。
+     *   所以在重写前后各取一次滚动位置：同一次同步任务内如果没有玩家操作，scrollY 变了就
+     *   只可能是被钳，直接写回即可。 */
+    var _se = document.scrollingElement || document.documentElement;
+    var _sy = _se ? _se.scrollTop : 0;
+
+    /* ⚠️ 2026-10-27 真机定位（iOS 16）：**重绘前先放掉 button 的焦点**。
+     *   客户原话：「族民大部分时候正常，往下太多的话会回到农民在最上面的位置」——
+     *   不是随机回弹，是精确对准某个元素。机制：iOS 上点过的 <button> 会保持 focus，
+     *   而 #pane-folk 是**整卡重写**（连卡片标题一起换），按钮节点被销毁后 WebKit 会把
+     *   滚动位置拉回焦点元素最后所在处；滚得浅时那一行还在视口内，看不出；滚深了就被拽回去。
+     *   只放掉 BUTTON：input/textarea 的焦点绝不能动 —— 信仰/聚落命名框每敲一个字都要跨重绘保焦点。
+     *   （blur 不带参数 = 不移交焦点，不会触发额外的滚动。） */
+    var _ae = document.activeElement;
+    if (_ae && _ae.tagName === 'BUTTON' && root.document && root.document.body !== _ae && _ae.blur) {
+      try { _ae.blur(); } catch (e) {}
+    }
+
     for (var k in PANES) {
       var node = el('pane-' + k);
       if (!node) continue;
@@ -1004,6 +1028,11 @@
         node.innerHTML = cardHeadHTML(k) + PANES[k]();
       }
     }
+    /* 重写结束：把被中间态钳掉的滚动位置写回（见循环前那段注释）。 */
+    if (_se) {
+      var _now = _se.scrollTop;
+      if (typeof _now === 'number' && isFinite(_now) && Math.abs(_now - _sy) > 1) _se.scrollTop = _sy;
+    }
     SB.ui.renderCommon.paintHappy(res());
     techShown = shown;
     box = el('techScroll');
@@ -1050,36 +1079,61 @@
    *    位置得重落一次（他可能自己滑到别处去了）。 */
   function renderBreakBtn() {
     var s = res(); if (!s) return;
-    /* 2026-10-21 合并双按钮时误删了原底栏 btnReset（breakSettled 态下唯一的轮回出口）。
-     * 现改为：只要已破壳进太空（shellOpened && shell<=0），按钮就保持可点，含「已结算但留在本局」
-     * (breakSettled=true，玩家选过「探索壳外的星空」或刷新过) 的局——否则该态无任何可点入口，死局。
-     * 戴森通关玩家必中：dysonDone 必在 shellOpened 之后，而 shellOpened 由 doBreak 置位时必带 breakSettled=true。 */
-    var ready = s.shell <= 0 && !s.broken && s.shellOpened;
-    var breakPreview = s.shellOpened && s.shell <= 0 && SB.prestige.qualified(s)
-      ? SB.prestige.breakReport(s) : null;
-    el('btnBreak').disabled = !ready;
-    el('btnBreak').textContent = s.dysonDone ? '繁星轮回'
-      : (s.shellOpened && s.shell <= 0 ? '破壳轮回' : '凿穿冰壳');
-    el('breakHint').textContent = (s.shellOpened && s.shell <= 0 && s.breakSettled)
+    /* ── 六态轮回（2026-10-27 用户拍板，优先级由上到下）──
+     *   ⑥ 飞升虚境：civics.ascend_void && dysonDone —— 点它先播终局动画、再出结算面板
+     *   ⑤ 驭星轮回：dysonDone
+     *   ④ 繁星轮回：已破壳 + 发射过轨道卫星（s.lvl.satellite > 0）
+     *   ③ 破壳轮回：已破壳、还没发卫星
+     *   ② 轮回：    研究完《神学》、壳还没凿穿 —— 走 #btnCycle，照发轮回点
+     *   ① 重开本周目：连《神学》都没有 —— 同样走 #btnCycle，不发点、周目 +1
+     * 【为什么拆成两个按钮】2026-10-21 把原底栏 btnReset 并进 btnBreak 时，新按钮继承了
+     *   btnBreak 的 disabled（壳必须归零），于是 ② 和 ① 这两种「本来随时可达」的状态
+     *   彻底没有入口，只剩「清空存档」（会连轮回点一起抹）。这里按语义一分为二：
+     *   #btnBreak 只管凿壳与破壳后的各档轮回，#btnCycle 只管破壳前的轮回/重开，互斥显示，
+     *   同一个动作不会出现两个入口。 */
+    var opened = !!(s.shellOpened && s.shell <= 0);
+    var qual = !!(SB.prestige && SB.prestige.qualified && SB.prestige.qualified(s));
+    var hasSat = !!((s.lvl && s.lvl.satellite) > 0);
+    var mode = opened
+      ? (s.dysonDone
+          ? ((s.civics && s.civics.ascend_void) ? 'void' : 'dyson')
+          : (hasSat ? 'star' : 'broken'))
+      : (qual ? 'cycle' : 'restart');
+    var LABEL = {
+      'void': '飞升虚境', dyson: '驭星轮回', star: '繁星轮回',
+      broken: '破壳轮回', cycle: '轮回', restart: '重开本周目'
+    };
+
+    var btn = el('btnBreak'), cyc = el('btnCycle');
+    if (btn) {
+      /* ⚠️ disabled 只看「壳有没有归零」，**不要带 `!s.broken`**。
+       * 原判据是 `shell<=0 && !broken && shellOpened`，但 shell.onShellZero 在壳归零那一刻
+       * 就把 broken 置真了 —— 于是破壳后按钮永远灰着，「破壳轮回 / 繁星轮回 / 驭星轮回 /
+       * 飞升虚境」四档全点不动，玩家反而在真正需要轮回时失去了入口（与原注释
+       * 「只要已破壳进太空，按钮就保持可点」直接矛盾）。这里按注释的本意收窄到壳归零。
+       * breakSettled（已结算但留在本局）同样落在这条判据里，仍然可点，死局不复现。 */
+      btn.disabled = !(s.shell <= 0 && s.shellOpened);
+      btn.textContent = opened ? LABEL[mode] : '凿穿冰壳';
+    }
+    if (cyc) {
+      cyc.hidden = opened;                 // 破壳后交给 btnBreak，不重复给入口
+      cyc.textContent = qual ? '轮回' : '重开本周目';
+      cyc.title = qual
+        ? '结算本局并发放轮回点（不必凿穿天壳）'
+        : '未研究《神学》：只重开本周目，不发放轮回点';
+    }
+
+    var breakPreview = opened && qual ? SB.prestige.breakReport(s) : null;
+    if (el('breakHint')) el('breakHint').textContent = (opened && s.breakSettled)
       ? '本局已结算，点此按钮开始轮回（或重开本周目）。'
-      : (s.shellOpened && s.shell <= 0
+      : (opened
         ? breakPreview
           ? '当前轮回预估：' + breakPreview.tidePoints.toFixed(2) + ' 轮回点、' + breakPreview.stardust + ' 星屑；留在本局继续发展可提高预估。'
           : '当前轮回预估：0.00 点；留在本局继续发展可提高预估。'
-        : ready ? '壳已归零——凿下去。'
-        : s.shell > 0 ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。'
-        : '冰壳停住了：需要建成「天穹钻机」奇观才能凿穿最后一段。');
-    /* 2026-10-21 合并双按钮：原底栏「重开/轮回」(btnReset) 与顶栏「凿穿冰壳/轮回结算」(btnBreak)
-     * 是同一套 askResetRun 确认流程的两个入口，文案随不同维度翻转导致混淆，现合并为唯一按钮 btnBreak，
-     * 文案三态：
-     *   · 未破壳（!shellOpened || shell>0）→「凿穿冰壳」（disabled，纯引导削壳，点不动）
-     *   · 破壳后、未建戴森（shell<=0 && !dysonDone）→「破壳轮回」
-     *   · 已建戴森球（dysonDone）→「繁星轮回」
-     * ⚠️ 宗教维度不再体现在按钮文案：原「底栏随当局是否建宗教翻转 重开本周目/轮回」已移除，
-     *   改由 askResetRun 的 confirmPanel 标题（qual = 本局研究完《神学》？「轮回（结算）？」:「重开本周目？」）
-     *   体现 ——「发点 / 不发点」的语义分流仍在，只是挪到确认弹窗，不在按钮本身。
-     *   （2026-10-03 那次 religionSeen→religionEstablished 的修复，判据已并入 prestige.religionEstablished，
-     *    现在只在 askResetRun 的 qual 里被读，不在此处写第二份。） */
+        : s.shell > 0
+          ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。' +
+            (qual ? '（也可直接点右侧「轮回」结算本局）' : '')
+          : '冰壳停住了：需要建成「天穹钻机」奇观才能凿穿最后一段。');
   }
 
   function clock() {
@@ -1314,6 +1368,45 @@
         if (SB.rank && SB.rank.open) SB.rank.open(k);
       };
     }
+  }
+  /* 更新日志面板（2026-10-27 恢复；原实现 2026-10-25 被整体删除）：点页脚「更新日志」按钮，
+   * 或新版本首次进入时自动弹出。列出 CFG.CHANGELOG（最新在前），复用 #modal 遮罩 +
+   * data-modal-close 关闭通道（与排行榜 / 政体选择面板同款，不另写遮罩）。
+   * ⚠️ 版本名直接输出 e.v 原样，**不要再拼 'v' 前缀**——旧实现写 `'v' + e.v`，而数据里 e.v
+   *   本就是 'v0.1.8'，实际渲染出 'vv0.1.8'；现在版本名是 'Ver1.0.1'，同理不能拼。 */
+  function openChangelog() {
+    var box = el('modalBox'), modal = el('modal');
+    if (!box || !modal) return;
+    var log = (SB.CFG && SB.CFG.CHANGELOG) || [];
+    var body = log.map(function (e) {
+      var items = (e.items || []).map(function (it) { return '<li>' + it + '</li>'; }).join('');
+      return '<div class="chg-entry">' +
+        '<div class="chg-hd"><span class="chg-ver">' + (e.v || '?') + '</span>' +
+        (e.date ? '<span class="chg-date">' + e.date + '</span>' : '') + '</div>' +
+        (e.title ? '<div class="chg-title">' + e.title + '</div>' : '') +
+        '<ul class="chg-items">' + items + '</ul></div>';
+    }).join('');
+    if (!body) body = '<div class="chg-empty">暂无更新记录。</div>';
+    box.innerHTML =
+      '<div class="modal-hd"><b>更新日志</b>' +
+      '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<div class="chg-list">' + body + '</div>' +
+      '<div class="chg-foot"><button type="button" class="btn" data-modal-close="1">知道了</button></div>';
+    modal.classList.remove('break-modal');
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    modal.classList.remove('offline-summary-modal');
+    modal.classList.remove('void-ending-modal');
+    modal.classList.remove('void-civic-modal');
+    modal.classList.remove('story-modal');
+    /* ⚠️ 必须清掉 gov-picker-modal：政体/政策选择器会给 #modal 加这个类（宽版排版 + 滚动约束），
+     *   残留会让更新日志面板套上别人的皮肤。 */
+    modal.classList.remove('gov-picker-modal');
+    box.classList.remove('tree-detail-box');
+    box.classList.remove('story-box');
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
   }
   /* 政体选择器：当前政体摘要留在市政页，候选项通过独立弹窗选择。 */
   function openGovPicker() {
@@ -2100,6 +2193,7 @@
     showWonderInfo: showWonderInfo,
     showPolicyInfo: showPolicyInfo,
     openRankChooser: openRankChooser,
+    openChangelog: openChangelog,
     showWorkshopInfo: showWorkshopInfo,
     /* ⚠️ 2026-10-05：工坊「隐藏已完成」开关的切入口。
      *   ⚠️ 切完**必须触发一次整块重画**才生效（不像 zone 折叠能直接翻节点上的类）——

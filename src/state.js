@@ -44,6 +44,11 @@
        * date 为本地日期串（YYYY-M-D），与 todayKey() 同源；跨天或旧档无此键 ⇒ 视为重置。
        * count 为当日已看次数，达 AD.REBIRTH_DAILY_MAX（10）即封顶。 */
       adRebirth: { date: '', count: 0 },
+      /* 更新日志（2026-10-27 恢复）：上次看过弹窗的版本号。空串 / 缺键 = 从未看过 ⇒ 首次进入会弹。
+       * 存 meta（跨周目保留），软重置不触发重复弹；清空存档会归零 ⇒ 重装后还会弹一次。
+       * ⚠️ 老存档无此键 ⇒ normalizeMeta 的 Object.assign(emptyMeta(), parsed) 补成 ''，
+       *   于是装上新版后第一次进入必弹一次，这正是「更新说明」应有的行为。 */
+      seenVersion: '',
       /* ERA7（2026-10-17 · spec §7）：星屑跨周目局外资源。只在周目结算时累加（prestige.doBreak），
        *   与轮回点同侧；freshRun 时 seed 进 s.got.stardust 供超古代科技 eureka 读。 */
       stardust: 0, stardustEarned: 0,

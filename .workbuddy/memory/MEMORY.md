@@ -20,7 +20,7 @@
 - ⚠️ **改游戏代码前必须用户明确同意**：含新增/改纪元·科技·市政·奇观·建筑·资源（techs/civics/config.js）。设计阶段只出方案，用户拍「实装」才落代码。
 - ⚠️ **改全局量/上限类常数前先想存档迁移**：`game.resumeRun()` 无条件用存档，`migrateRun` 只校验不重算 ⇒ 改配置对老存档无效。e2e 对迁移零断言，须自带定向探针。
 - ⚠️ **发布类动作（commit/push/上传/建榜/封包传）一律等用户当次明说**；报 bug ≠ 授权发布。
-- **版本号约定**：`v0.MAJOR.MINOR`，每次发版 +0.0.1，每自然日最多升一档。⚠️ 升版**三步**（`CFG.CHANGELOG` 已 2026-10-25 整体删除）：①`CFG.VERSION` ②`index.html` 的 `?v=` bump（**改过的 js/CSS 模块也要各自 bump**，`main.css` 的 `@import` 版本号别漏）③重跑 `_repack.py`。
+- **版本号约定（2026-10-27 变更）**：对外版本名改用 **`Ver1.0.1`** 口径（原 `v0.MAJOR.MINOR` 约定废止），三处必须同口径：`CFG.VERSION` / TapTap 版本描述 / README。⚠️ 升版**四步**：①`CFG.VERSION` ②`CFG.CHANGELOG` 头部插一条（**更新日志 2026-10-27 已恢复**，面板读这张表）③`index.html` 的 `?v=` bump（**改过的 js/CSS 模块也要各自 bump**，`main.css` 的 `@import` 版本号别漏）④重跑 `_repack.py`。
 - 数值只改 `src/config.js`；UI/DOM 与断言坑见 skill `shellbreak-from-prototype` §四·五；vm 沙箱五坑见 §二·七。
 
 ## 二、当前未决（开工先看，仅留未关闭项）

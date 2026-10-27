@@ -179,9 +179,21 @@ input[type=checkbox]{accent-color:var(--cyan)}
 .modal-x{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);font-size:16px;line-height:1;cursor:pointer;flex:none}
 .modal-x:hover{color:var(--cyan);border-color:var(--cyan)}
 .rank-list{display:flex;flex-direction:column;gap:8px}
-/* 弹窗底行右对齐（原更新日志面板遗留的通用排版类，现仅政体命名弹窗在用；
- * 更新日志面板已于 2026-10-25 整体移除，类名沿用避免动 i18n 基线字面量） */
-.chg-foot{display:flex;justify-content:flex-end}
+/* —— 更新日志面板（2026-10-27 恢复；2026-10-25 曾整体删除）——
+ * 复用 .modal/.box + .modal-hd/.modal-x，这里只定义列表排版。
+ * 条目多时面板**内部滚动**（max-height:60vh），不用把整页顶高；
+ * 全部走主题变量，日/夜两套自动跟随，无需各写一份。 */
+.chg-list{display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow-y:auto;padding-right:2px}
+.chg-entry{padding:10px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}
+.chg-hd{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.chg-ver{color:var(--cyan);font-weight:700;font-size:13px;letter-spacing:.4px}
+.chg-date{color:var(--dim);font-size:11px}
+.chg-title{color:var(--txt);font-size:13px;margin-bottom:6px}
+.chg-items{margin:0;padding-left:18px;color:var(--txt);font-size:12.5px;line-height:1.75}
+.chg-items li{margin:2px 0}
+.chg-empty{color:var(--dim);font-size:13px;padding:12px 0}
+/* 弹窗底行右对齐（政体命名弹窗与更新日志面板共用） */
+.chg-foot{display:flex;justify-content:flex-end;margin-top:12px}
 .rank-open{width:100%;text-align:left;padding:12px 14px;font-size:14px}
 .rank-open:hover{border-color:var(--cyan);color:var(--cyan)}
 

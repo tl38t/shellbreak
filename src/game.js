@@ -274,7 +274,7 @@
     renderAll();
     if (S) SB.state.saveRun(snapshot(S));
     /* 破壳待处理时启动会优先展示结算选择，推迟的首次解锁提示在玩家选择留在本局后补播。 */
-    if (S) { maybeSciencePopup(S); maybeReligionPopup(S); maybeTabUnlockPopups(S); }
+    if (S) { maybeSciencePopup(S); maybeReligionPopup(S); maybeTabUnlockPopups(S); maybeChangelogPopup(); }
   }
 
   /* 玩家主动选择轮回时才结算当前最新发展分；留在本局不会调用此入口。 */
@@ -411,6 +411,12 @@
       if (done) done();
       storyQueueBusy = false;
       openNextStory();
+      /* 队列排空后补弹挂起的更新日志（见 maybeChangelogPopup 的挂起说明）。
+       * openNextStory 若又起了下一张，storyQueueBusy 会重新变真，这里判空即可。 */
+      if (pendingChangelog && !storyQueueBusy && !storyQueue.length) {
+        pendingChangelog = false;
+        maybeChangelogPopup();
+      }
     };
     SB.ui.render.storyPanel(o);
   }
@@ -495,6 +501,25 @@
       ok: '进入信仰页',
       onOk: function () { if (S === s) setTab('faith'); }
     });
+  }
+
+  /* 更新日志自动弹窗（2026-10-27 恢复；原实现 2026-10-11 立、2026-10-25 随更新日志系统整体删除）：
+   * meta.seenVersion 与 CFG.VERSION 不一致 ⇒ 这是该版本首次进入，弹一次更新内容，
+   * 并把 seenVersion 记成当前版本（存 meta，跨周目保留，软重置不重复弹）。
+   * 全新安装 / 老存档（seenVersion 为空或缺失）也会弹一次——顺带充当「欢迎 / 本次更新」说明。
+   * ⚠️ 用 === 全等比较，不做版本号大小解析：版本名格式已由 v0.MAJOR.MINOR 改为 Ver1.0.1，
+   *   解析比较会跟着格式变，全等「名字变了就弹」最稳。
+   * ⚠️ 叙事卡队列忙碌时**不许直接开**：两套东西都写 #modal/#modalBox，覆盖会让当前叙事卡的
+   *   onOk 永远不被调用 ⇒ storyQueueBusy 卡在 true、后续队列永久放不出来。这里改为挂起
+   *   pendingChangelog，由 openNextStory 的收尾补弹（队列排空后才出现，不抢玩家正在读的卡）。 */
+  var pendingChangelog = false;
+  function maybeChangelogPopup() {
+    if (!meta || !SB.CFG || !SB.CFG.VERSION) return;
+    if (meta.seenVersion === SB.CFG.VERSION) return;
+    if (storyQueueBusy || storyQueue.length) { pendingChangelog = true; return; }
+    if (SB.ui && SB.ui.render && SB.ui.render.openChangelog) SB.ui.render.openChangelog();
+    meta.seenVersion = SB.CFG.VERSION;
+    SB.state.saveMeta(meta);
   }
 
   function maybeWorkshopPopup(s) {
@@ -741,7 +766,11 @@
   function submitRankOnBreak(s, report) {
     if (!SB.rank || !report) return;
     var m = SB.game.meta ? SB.game.meta() : {};
-    var valid = !report.locked;   // locked =未建神学，被排除了
+    /* 2026-10-27：这条注释一直写「只认『凿穿 + 已建神学』」，但判据此前只做了「已建神学」。
+     * 于是「研究完神学就提前轮回」（六态里的合法路径，壳可能还剩几十万）也会提交 fastest，
+     * 「最快通关」榜能被几分钟一局的提前轮回刷掉。report.wasOpened 由 prestige.doBreak
+     * 在改状态**之前**快照（= 当时 shell<=0），正常破壳恒真、提前轮回恒假。 */
+    var valid = !report.locked && report.wasOpened === true;
     var entries = [];
     if (valid) {
       entries.push({ key: 'fastest', value: s.wallT });
@@ -1382,15 +1411,32 @@
       maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
       maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
       maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
+      maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志（队列忙则挂起，见函数内注释）
       if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);  // 首局新手引导（门控内部：设置关/已播过则早退）
     }
-    document.getElementById('btnBreak').onclick = function () {
+    var _btnBreak = document.getElementById('btnBreak');
+    if (_btnBreak) _btnBreak.onclick = function () {
       var S0 = SB.game.run();
+      if (!S0) return;
+      /* 飞升虚境：重播终局演出（4 帧序列 → 虚境面板 →「轮回」按钮再走 askResetRun）。
+       * 用户 2026-10-27 拍板「飞升虚境也是触发飞升虚境动画，然后结算」——这条链
+       * showAscendVoid 内部本来就完整，这里只负责把玩家从主控区重新送进去：
+       * 否则他在 dysonDone 那一刻点过「继续游玩」之后，就再也没有入口回看终局。 */
+      if (S0.dysonDone && S0.civics && S0.civics.ascend_void && SB.ui.render.showAscendVoid) {
+        SB.ui.render.showAscendVoid(S0);
+        return;
+      }
       /* 已结算但留在本局（breakSettled=true，选过「探索壳外的星空」或刷新过）的局：直接重开结算面板
        * （mNext=开始轮回/重开本周目）。否则 askResetRun→doBreak 会因 breakSettled 提前返回而什么都不做，死局。 */
-      if (S0 && S0.breakSettled) SB.ui.render.showBreakPanel(SB.prestige.breakReport(S0));
+      if (S0.breakSettled) SB.ui.render.showBreakPanel(SB.prestige.breakReport(S0));
       else askResetRun();
     };
+    /* 未破壳时的「轮回 / 重开本周目」出口（2026-10-27 补回 2026-10-21 合并双按钮时丢掉的那一半）。
+     * 原底栏 btnReset 是**随时可点**的，合并进 btnBreak 后继承了它的 disabled（壳必须归零），
+     * 于是「研究完《神学》但还没凿穿」的局没有任何轮回入口，只剩「清空存档」（连 meta 一起抹）。
+     * 这里走同一个 askResetRun：qual（= 本局研究完《神学》）决定发不发轮回点，不写第二份判据。 */
+    var _btnCycle = document.getElementById('btnCycle');
+    if (_btnCycle) _btnCycle.onclick = function () { askResetRun(); };
     document.getElementById('btnWipe').onclick = function () {
       SB.ui.render.confirmPanel({
         title: '清空存档？',
@@ -1425,6 +1471,11 @@
     var btnRank = document.getElementById('btnRank');
     if (btnRank) btnRank.onclick = function () {
       if (SB.ui && SB.ui.render && SB.ui.render.openRankChooser) SB.ui.render.openRankChooser();
+    };
+    /* 页脚「更新日志」（2026-10-27 恢复）：玩家随时可以回看历史更新，不只靠首入自动弹。 */
+    var btnChangelog = document.getElementById('btnChangelog');
+    if (btnChangelog) btnChangelog.onclick = function () {
+      if (SB.ui && SB.ui.render && SB.ui.render.openChangelog) SB.ui.render.openChangelog();
     };
     /* 关标签页 / 刷新前立刻落盘：有 5 秒节流在，玩家在这一窗口里刷新就会丢最后几秒，
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */
