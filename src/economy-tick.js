@@ -531,7 +531,19 @@
     /* ERA7（2026-10 实装）：政策卡《公摊面积》取下时其 +0.5/人口建筑 的加成消失 ⇒ 人口上限可能跌破当前人口。
      * 此处把人口钳回上限（「超额人口消失」）——isFull 只停生育、不主动减员，拆卡不会自动掉人，故在此收口。
      * ⚠️ popCap 定义在 economy.js（SB.economy.popCap），本模块不自带 ⇒ 走 SB.economy 单一真源。 */
-    if (s.pop > (SB.economy ? SB.economy.popCap(s) : Infinity)) s.pop = (SB.economy ? SB.economy.popCap(s) : s.pop);
+    if (s.pop > (SB.economy ? SB.economy.popCap(s) : Infinity)) {
+      var _capNow = SB.economy ? SB.economy.popCap(s) : s.pop;
+      var _lostPop = s.pop - _capNow;
+      s.pop = _capNow;
+      /* ⚠️ 2026-10-27 用户报：「+3 人口政策卡（《乡镇集会》）产满人口之后再卸下来，
+       *   闲置会变 −3，但是实际是 0」。根因就是这里：**只钳 pop、不收回岗位** ⇒
+       *   idle = pop − sum(jobs) 变负。岗位回收走 folk.trimJobsToPop，
+       *   顺序与存档迁移同一口径（从尾部职业往前，保住采集者）。 */
+      if (SB.folk && SB.folk.trimJobsToPop) {
+        SB.folk.trimJobsToPop(s);
+        if (emit && _lostPop > 0) emit('人口上限下降：' + _lostPop + ' 名族民离开（超出上限）。');
+      }
+    }
 
     // 7) 冻伤（仅冰封期）
     if (cold < 1) {

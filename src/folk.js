@@ -104,6 +104,28 @@
     return n;
   }
   function idle(s) { return s.pop - sum(s); }
+  /* 人口跌破在岗总数时，把岗位按职业表**从尾部**收回来（2026-10-27）。
+   * 【为什么必须收】`idle = pop − sum(jobs)`。卸掉《乡镇集会》(popCapFlat +3) 或拆掉住房后，
+   *   economy-tick 会把 pop 钳回人口上限，但岗位数原样不动 ⇒ idle 变成 **负数**：
+   *   面板打出「闲置 −3」，而玩家眼里根本没有闲置的人（人还在岗上，是人口被砍了）；
+   *   更糟的是那个负数还能点「−」退岗，退出来的数直接算出负数人头。
+   * 【为什么从尾部】与 state-migrate.js 迁移时的回收顺序**同一口径**（从最新职业往前退，
+   *   优先保住采集者/农民这些早期关键职业）。两处若各写一套顺序，会出现
+   *   「读档修一次、运行期修一次，两次修出不同结果」——那种不一致极难复现。 */
+  function trimJobsToPop(s) {
+    if (!s || !s.jobs) return 0;
+    var over = sum(s) - Math.max(0, s.pop || 0);
+    if (over <= 0) return 0;
+    var cut = 0;
+    for (var i = IDS.length - 1; i >= 0 && over > 0; i--) {
+      var v = Math.max(0, s.jobs[IDS[i]] || 0);
+      var take = Math.min(v, over);
+      s.jobs[IDS[i]] = v - take;
+      over -= take;
+      cut += take;
+    }
+    return cut;
+  }
   function jobLimit(s, job) {
     return SB.challenges && SB.challenges.jobLimit ? SB.challenges.jobLimit(s, job) : Infinity;
   }
@@ -360,6 +382,7 @@
   SB.folk = {
     assign: assign, assignMax: assignMax, assignMin: assignMin, autoAssign: autoAssign, reconcile: reconcile,
     sum: sum, idle: idle, IDS: IDS, jobUnlocked: jobUnlocked,
+    trimJobsToPop: trimJobsToPop,
     jobTechOf: jobTechOf, jobCivicOf: jobCivicOf,
     jobName: jobName, jobLimit: jobLimit, jobLimitReason: jobLimitReason,
     robotPop: robotPop, robotIdle: robotIdle, robotAssigned: robotAssigned,
