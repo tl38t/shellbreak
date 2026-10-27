@@ -224,9 +224,12 @@
       var _perw = (SB.BLD.foodSave || 0) * 100;                 // 0.5
       var _serfw = (SB.civic && SB.civic.serfWarmMul) ? SB.civic.serfWarmMul(s) : 1;
       var _curw = Math.min(100, _lvw * _perw * _serfw);
+      /* ⚠️ 不写「可无限叠加 / 最多减到 0」（2026-10-27 用户追问后撤掉）：
+       * 数学上没显式护栏，但造价 1.15^N 指数涨 + 藻食仓储有上限 ⇒ 实测封顶
+       * −22.5%（海藻仓 10 级）～ −31.5%（仓 120 级）。写「无限」是误导。 */
       var _tw = '每级让族民的口粮消耗 −' + _perw.toFixed(1) + '%' +
-        '（10 级 −' + (_perw * 10).toFixed(0) + '%、20 级 −' + (_perw * 20).toFixed(0) + '%），' +
-        '可无限叠加，最多减到 0。';
+        '（10 级 −' + (_perw * 10).toFixed(0) + '%、20 级 −' + (_perw * 20).toFixed(0) + '%）。' +
+        '造价每级 ×1.15，能叠到几级取决于藻食仓储上限。';
       if (_lvw > 0) {
         _tw += '当前 ' + _lvw + ' 级 = −' + _curw.toFixed(1) + '%' +
           (_serfw > 1 ? '（含农奴制加成）' : '') + '。';
