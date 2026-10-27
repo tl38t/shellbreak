@@ -585,6 +585,63 @@
     return h + pool(s, armedCard);
   }
 
+  /* 点槽直接选卡（2026-10-27 用户要求）：点一个政策槽 → 弹出「能装进这个槽的卡」，
+   * 点卡片即装上，免掉「先在池子里找卡、再回头点槽」两步法的心智负担。
+   * ⚠️ 两步法**完整保留**：已经 armedCard 时点槽仍然直接装（老习惯与回归断言都靠它），
+   *    只有「没选中任何卡」时点槽才走这个弹窗。
+   * 候选口径与 pool() 一致：cardOwned（已解锁）+ cardFits（槽型对口）；
+   * 再排除「已装在别的槽里」的卡 —— setCard 本来也会拒，但列表里不该摆出会失败的假选项。 */
+  function panePolicyPicker(s, slotIdx) {
+    var C = SB.civic, list = C.slotList(s);
+    if (!list || !(slotIdx >= 0) || slotIdx >= list.length) return '<div class="note">这个槽位不存在。</div>';
+    var st = list[slotIdx].type;
+    var cur = (s.cards && s.cards[slotIdx]) ? s.cards[slotIdx] : null;
+    var curCard = cur ? C.policyById(cur) : null;
+    var h = '';
+    if (curCard) {
+      h += '<div class="policy-picker-current"><span>当前已装：<b>' + curCard.name + '</b></span>' +
+        (curCard.locked
+          ? '<span class="locknote" title="虚境信仰已永恒锚定，不可卸下">🔒 永恒锚定 · 不可卸下</span>'
+          : '<button type="button" class="btn danger slot-eject" data-remove="' + slotIdx + '">卸下</button>') +
+        '</div>';
+    }
+    var cand = [], i, p;
+    for (i = 0; i < SB.POLICIES.length; i++) {
+      p = SB.POLICIES[i];
+      if (!C.cardOwned(s, p.id)) continue;                     // 没解锁的不列（与池子同口径）
+      if (!C.cardFits(p, st)) continue;                        // 槽型不对口
+      if (cur && p.id === cur) continue;                       // 就是当前这张
+      if (s.cards && s.cards.indexOf(p.id) >= 0) continue;     // 已装在别的槽
+      cand.push(p);
+    }
+    if (!cand.length) {
+      h += '<div class="note">没有可装进这个槽的政策卡。去市政树解锁对应类型的卡；' +
+        '若卡都装在别的槽里了，先把那个槽卸下来。</div>';
+      return h;
+    }
+    h += '<div class="policy-card-grid policy-picker-grid">';
+    for (i = 0; i < cand.length; i++) {
+      p = cand[i];
+      var why = C.cardBlocked(s, p.id);
+      /* 缺市政点是**软拦**：按钮照旧可点，setCard 会据实拒绝并说明（与 pool 同口径，
+       * 禁用按钮会让买不起的卡彻底点不动）。 */
+      var hard = why && why.indexOf('市政点') === -1;
+      var gt = p.type || 'wild';
+      h += '<article class="policy-card policy-card-' + gt + '">' +
+        '<div class="policy-card-top"><span class="tag t' + gt + '">' + C.slotTypeName(gt) + '</span></div>' +
+        '<div class="policy-card-name">' + p.name + '</div>' +
+        '<div class="policy-card-desc">' + p.desc + '</div>' +
+        (p.flavor ? '<div class="policy-card-flavor">' + p.flavor + '</div>' : '') +
+        '<button type="button" class="btn' + (hard ? '' : ' buy') + '" data-card-pick="' + p.id + '" ' +
+        'data-slot-pick="' + slotIdx + '"' + (hard ? ' disabled' : '') +
+        ' title="' + (why || '装进这个槽') + '">' + (hard ? '条件不足' : '装进这个槽') + '</button>' +
+        '</article>';
+    }
+    h += '</div>';
+    h += '<div class="note">装填永远免费；卸下通常收取 ' + C.cardCost(s) + ' 市政点。</div>';
+    return h;
+  }
+
   /* 政策卡库：**只显示已解锁的卡**（完成对应市政才出现），未解锁的不再列出。
    * 用户 2026-09-30：没解锁就不要显示。
    * ⚠️ 代价：玩家失去「我还差哪条市政能拿到下一张卡」的预览——这正是要的克制。
@@ -792,6 +849,8 @@
   SB.ui.renderParts.research = {
     paneTech: paneTech, paneCivic: paneCivic,
     paneCivicGov: paneCivicGov, paneGovPicker: paneGovPicker, paneCivicSlot: paneCivicSlot,
+    /* 2026-10-27：点槽直接选卡（`panePolicyPicker(s, slotIdx)`）。 */
+    panePolicyPicker: panePolicyPicker,
     setCivicView: setCivicView, civicNoticeState: civicNoticeState,
     armCard: armCard, disarmCard: disarmCard, getArmedCard: getArmedCard,
     cycleJobStep: cycleJobStep, getJobStep: getJobStep,

@@ -644,6 +644,8 @@
   var paneCivic = researchParts.paneCivic;
   var paneCivicGov = researchParts.paneCivicGov;
   var paneGovPicker = researchParts.paneGovPicker;
+  /* 2026-10-27 点槽直接选卡：候选卡列表由 research 侧渲染，弹窗外壳在下面 openPolicyPicker。 */
+  var panePolicyPicker = researchParts.panePolicyPicker;
   var paneCivicSlot = researchParts.paneCivicSlot;
   var civicNoticeState = researchParts.civicNoticeState;
   var setCivicView = researchParts.setCivicView;
@@ -1350,6 +1352,87 @@
     modal.classList.remove('hidden');
     bodyModalClass(true);
   }
+  /* 点政策槽 → 直接弹「能装进这个槽的卡」（2026-10-27 用户要求）。
+   * 外壳与 openGovPicker 完全同构（同一个 #modal/#modalBox、同一套 gov-picker-modal 样式），
+   * 只把内容换成卡片列表 —— 不为它另写一套弹窗样式，改配色时不用记两个地方。
+   * ⚠️ 两步法仍然可用：input 侧只有「没 armedCard」时才调这里，选了卡再点槽照旧直接装。 */
+  function openPolicyPicker(slotIdx) {
+    var box = el('modalBox'), modal = el('modal'), s = res();
+    if (!box || !modal || !s || !panePolicyPicker) return;
+    var list = (SB.civic && SB.civic.slotList) ? SB.civic.slotList(s) : [];
+    var st = (list[slotIdx] || {}).type;
+    var typeName = (st && SB.civic && SB.civic.slotTypeName) ? SB.civic.slotTypeName(st) : '政策卡';
+    box.innerHTML =
+      '<div class="gov-picker-modal-head"><div><span>政策卡</span>' +
+        '<h2>第 ' + (slotIdx + 1) + ' 槽 · ' + typeName + '</h2>' +
+        '<p>下面是能装进这个槽、且你已经解锁的政策卡。点一张直接装上。</p></div>' +
+        '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<div class="gov-picker-modal-content">' + panePolicyPicker(s, slotIdx) + '</div>' +
+      '<div class="gov-picker-modal-foot"><span>直接关掉即可，槽里的卡不会变。</span>' +
+        '<button type="button" class="btn" data-modal-close="1">取消</button></div>';
+    modal.classList.remove('break-modal');
+    modal.classList.remove('tree-modal');
+    modal.classList.remove('tree-tech');
+    modal.classList.remove('tree-civic');
+    modal.classList.remove('offline-summary-modal');
+    modal.classList.remove('void-ending-modal');
+    modal.classList.remove('void-civic-modal');
+    modal.classList.remove('story-modal');
+    modal.classList.add('gov-picker-modal');
+    box.classList.remove('tree-detail-box');
+    box.classList.remove('story-box');
+    if (box.setAttribute) {
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+    }
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+    function emit(msg) { if (SB.game && SB.game.log) SB.game.log(msg); }
+    function afterChange() {
+      hideModal();
+      if (SB.ui.render && SB.ui.render.disarmCard) SB.ui.render.disarmCard();
+      if (SB.game && SB.game.markDirty) SB.game.markDirty();
+      if (SB.game && SB.game.renderAll) SB.game.renderAll();
+      if (SB.game && SB.game.pumpCivic) { try { SB.game.pumpCivic(res(), emit); } catch (e) {} }
+    }
+    /* 点卡片 = 直接装进这个槽 */
+    var picks = box.querySelectorAll('[data-card-pick]'), pi;
+    for (pi = 0; pi < picks.length; pi++) {
+      picks[pi].onclick = (function (btn) {
+        return function () {
+          var id = btn.getAttribute('data-card-pick');
+          var idx = +btn.getAttribute('data-slot-pick');
+          var st2 = res();
+          if (SB.civic.setCard(st2, id, emit, idx)) { afterChange(); return; }
+          /* ⚠️ 失败必须**在弹窗里**说清原因：只写页面日志的话，玩家点了一下没反应、
+           *    弹窗还开着，完全不知道是缺市政点还是卡不对口（日志在页面最底部）。 */
+          var why = (SB.civic.cardBlocked && SB.civic.cardBlocked(st2, id))
+            || '这张卡装不进这个槽（类型不对，或它已经装在别的槽里）。';
+          var tip = box.querySelector('.policy-picker-error');
+          if (!tip) {
+            tip = document.createElement('div');
+            tip.className = 'policy-picker-error';
+            var content = box.querySelector('.gov-picker-modal-content');
+            if (content && content.parentNode) content.parentNode.insertBefore(tip, content);
+            else box.appendChild(tip);
+          }
+          tip.textContent = '装不上：' + why;
+          emit('装不上：' + why);
+        };
+      })(picks[pi]);
+    }
+    /* 已装卡的槽：弹窗顶部也能直接卸下（不必先关弹窗回面板再点） */
+    var rms = box.querySelectorAll('[data-remove]'), ri;
+    for (ri = 0; ri < rms.length; ri++) {
+      rms[ri].onclick = (function (btn) {
+        return function () {
+          var idx = +btn.getAttribute('data-remove');
+          if (SB.civic.removeCard(res(), idx, emit)) afterChange();
+          else emit('卸下失败：这个槽是空的。');
+        };
+      })(rms[ri]);
+    }
+  }
   /* 点击时间事件横幅（#omen）：顶部常驻卡，活动事件出现时显示、点上拾取。
    * ⚠️ 沿用 envWarm 那套签名节流：只在活动事件 id 变化时才重写标题/文案/按钮文字，
    *    倒计时走独立 span 的 textContent 每帧刷——否则每帧重建 innerHTML 会让那一次点击被吞。 */
@@ -2041,6 +2124,10 @@
      *   （旧断言测的是已废弃的行式 govrow-* + toggleGovDetail，那套在政体面板重构中被
      *     整体替换，导致 e2e 在 civics.mjs 硬崩、后续断言全跑不到。） */
     paneGovPicker: paneGovPicker,
+    /* 2026-10-27：点槽直接选卡。两侧都导出——`panePolicyPicker(s, i)` 出候选卡列表
+     * （回归用它断言「只列槽型对口的已解锁卡」），`openPolicyPicker(i)` 出弹窗外壳。 */
+    panePolicyPicker: panePolicyPicker,
+    openPolicyPicker: openPolicyPicker,
     /* ⚠️ 2026-10-14：导出 `paneCivicSlot` 供回归直接断言「已装槽含 data-remove 卸下按钮」。
      *   与 paneCivicGov 同一手法：只导出同一个渲染函数，不另写逻辑。 */
     paneCivicSlot: paneCivicSlot,

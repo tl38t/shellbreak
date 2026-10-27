@@ -251,7 +251,10 @@
   function wipeSave() {
     SB.ui.render.hideModal();
     SB.state.clearRun();
-    try { root.localStorage && root.localStorage.removeItem(SB.CFG.SAVE_KEY); } catch (e) {}
+    /* 2026-10-27：三处一起清（localStorage + tap.setStorage + tapfile）。
+     * 原先只 removeItem(SAVE_KEY)，备份里那份还在 ⇒ 下次启动会把旧档读回来、清档无效。 */
+    if (SB.state.clearMeta) SB.state.clearMeta();
+    else { try { root.localStorage && root.localStorage.removeItem(SB.CFG.SAVE_KEY); } catch (e) {} }
     meta = SB.state.emptyMeta();
     meta.cycle = 1;
     SB.state.saveMeta(meta);
@@ -1292,12 +1295,17 @@
     return true;
   }
 
-  function boot() {
+  /* boot 拆两段（2026-10-27，多后端存档）：decideRun() 只负责「本局从哪来」，
+   * bootUi() 负责其余全部。拆开是因为 localStorage 读不到时要去 tap.setStorage /
+   * tapfile 异步兜底，而 boot 本身是同步的 —— 只能把「决定」做成可重入的小函数，
+   * 异步回来再调一次。⚠️ 别把 bootUi 的内容内联回 decide：那会导致异步回来时
+   * 重复绑定 btnBreak.onclick / 重复 setInterval(loop)（双倍 tick）。 */
+  function decideRun() {
     var saved = SB.state.loadRun();
     var loadProblems = SB.state.loadProblems();
     if (loadProblems.meta || loadProblems.run) {
       if (SB.saveTransfer && SB.saveTransfer.showLoadProblem) SB.saveTransfer.showLoadProblem(loadProblems);
-      return; /* 解析失败时绝不 startRun/saveMeta 覆盖原始数据。 */
+      return 'blocked';   /* 解析失败时绝不 startRun/saveMeta 覆盖原始数据。 */
     }
     if (saved && (!saved.broken || saved.shellOpened || saved.breakSettled) && saved.shell !== undefined) {
       /* 启动时的离线补算：存档里记了墙钟时间戳 _ts（snapshot 写入），
@@ -1309,14 +1317,55 @@
       delete saved._ts;
       if (typeof ts === 'number' && ts > 0) loop._lastWall = ts;
       resumeRun(saved);
-    } else if (saved) {
+      return 'resumed';
+    }
+    if (saved) {
       var invalidRun = { message: '本周目状态不完整，未自动创建新周目。', raw: null };
       if (SB.saveTransfer && SB.saveTransfer.showLoadProblem)
         SB.saveTransfer.showLoadProblem({ meta: null, run: invalidRun });
-      return;
-    } else {
+      return 'blocked';
+    }
+    return 'empty';   /* localStorage 里没有任何档 —— 但先别急着开新档，见 boot */
+  }
+  function boot() {
+    var r = decideRun();
+    if (r === 'blocked') return;
+    if (r === 'empty') {
+      /* ★★ 2026-10-27 核心修复：**不再立刻开新档**。
+       * 原先这里直接 startRun()，而 startRun 末尾立刻 saveRun ⇒ 只要 localStorage
+       * 被容器清过一次，那份可能完好躺在 tap.setStorage / tapfile://usr 里的旧档
+       * 就被新档永久覆盖，玩家看到的是「退出之后存档没了」。
+       * 现在先异步问遍另外两处；确实都没有，才认定这是真·新玩家。
+       * ⚠️ 浏览器 / node 沙箱里 envAvailable() 为假 ⇒ 走下面同步分支，行为与改造前一致。 */
+      if (SB.store && SB.store.envAvailable && SB.store.envAvailable() && SB.state.recoverAsync) {
+        try { log('未读到浏览器存档，正在检查本机备份…'); } catch (e) {}
+        SB.state.recoverAsync(function (hit) {
+          if (hit) {
+            var r2 = decideRun();
+            if (r2 === 'blocked') return;
+            if (r2 === 'resumed') {
+              try { log('已从本机备份恢复存档（来源：' + hit + '）。'); } catch (e) {}
+              /* ⚠️ 必须**重新读一遍 meta**：模块变量 meta 是脚本加载那一刻读的（本文件第 11 行），
+               * 那时 localStorage 还是空的（否则根本走不到这个分支）—— 不重载等于把刚恢复的
+               * 跨周目进度又丢一次；更不能 saveMeta(旧 meta) 反写回去覆盖掉刚恢复的备份。 */
+              try { meta = SB.state.loadMeta(); } catch (e) {}
+              bootUi();
+              return;
+            }
+          }
+          /* 三处都没有 = 真·新玩家；这是唯一允许开新档的分支。 */
+          startRun();
+          bootUi();
+        });
+        return;
+      }
       startRun();
     }
+    bootUi();
+  }
+  /* boot 的第二段：从「S 已就绪」到「主循环起来」的全部 UI 接线。
+   * 只在 decideRun/boot 里各调一次，不重复调用（见上面那条重复 setInterval 的警告）。 */
+  function bootUi() {
     /* 2026-10-24 成就系统（docs/ACHV_DESIGN_v0.3.md §六）：boot 宽限补发——老玩家跨周目
      * 账本里已达成、但本地成就账本漏记的条件（religionSeen / memorialWonders /
      * buildingLvlTotal 全表）在这里统一复判补记。只补本地账（成就墙真源），平台侧由

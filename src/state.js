@@ -749,7 +749,8 @@
   function loadMeta() {
     var rawStr = null;
     try {
-      rawStr = root.localStorage && root.localStorage.getItem(CFG.SAVE_KEY);
+      rawStr = SB.store ? SB.store.readLocal(CFG.SAVE_KEY)
+        : (root.localStorage && root.localStorage.getItem(CFG.SAVE_KEY));
       if (!rawStr) { metaLoadProblem = null; return emptyMeta(); }
       var m = normalizeMeta(JSON.parse(rawStr));
       migratePerks(m);
@@ -762,7 +763,14 @@
     }
   }
   function saveMeta(meta) {
-    try { root.localStorage && root.localStorage.setItem(SB.CFG.SAVE_KEY, JSON.stringify(meta)); } catch (e) {}
+    try {
+      var txt = JSON.stringify(meta);
+      if (SB.store) {
+        SB.store.writeLocal(SB.CFG.SAVE_KEY, txt);
+        /* 异步镜像到 tap.setStorage / tapfile（不 await，见 save-storage.js 的策略说明）。 */
+        SB.store.mirrorWrite(SB.CFG.SAVE_KEY, txt);
+      } else if (root.localStorage) root.localStorage.setItem(SB.CFG.SAVE_KEY, txt);
+    } catch (e) {}
   }
   /* 迁移算法拆在 state-migrate.js；freshRun / emptyPerks 通过参数注入，避免重复维护默认模板。 */
   function migrateRun(raw) {
@@ -771,7 +779,8 @@
   function loadRun() {
     var raw = null;
     try {
-      raw = root.localStorage && root.localStorage.getItem(CFG.RUN_KEY);
+      raw = SB.store ? SB.store.readLocal(CFG.RUN_KEY)
+        : (root.localStorage && root.localStorage.getItem(CFG.RUN_KEY));
       if (!raw) { runLoadProblem = null; return null; }
       var parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
@@ -814,7 +823,7 @@
   }
   function saveRun(run) {
     try {
-      if (!root.localStorage || !run || !run.res) return false;
+      if (!run || !run.res) return false;
       /* 存档是最后一道防线：JSON.stringify(NaN) 会静默写成 null，
        * 下一次刷新时迁移层只能把它当成坏值回落为 0。不要让一帧坏状态覆盖
        * 上一份可用存档；运行态的 addRes 守卫负责修复，之后下一次合法快照再落盘。 */
@@ -829,7 +838,22 @@
           return false;
         }
       }
-      root.localStorage.setItem(SB.CFG.RUN_KEY, JSON.stringify(run));
+      var txt = JSON.stringify(run);
+      /* 主通道：localStorage（同步 —— 存档是每 5 秒的热路径，绝不等异步）。
+       * ⚠️ 2026-10-27：失败不再静默，走下面统一的 fail 记账（原先 catch(e){} 全吞）。 */
+      var ok = SB.store ? SB.store.writeLocal(SB.CFG.RUN_KEY, txt)
+        : !!(root.localStorage && (root.localStorage.setItem(SB.CFG.RUN_KEY, txt), true));
+      if (!ok) {
+        saveHealth.lastFailAt = Date.now();
+        saveHealth.lastError = (SB.store && SB.store.status && SB.store.status().lastError)
+          || '浏览器本地存储不可用';
+        saveHealth.failCount++;
+        saveHealth.failAfterOk++;
+        return false;
+      }
+      /* 异步镜像到 tap.setStorage + tapfile://usr —— **不 await**，失败只记状态。
+       * 这两条才是 TapTap 官方承诺持久的通道（localStorage 在小游戏容器里没有承诺）。 */
+      if (SB.store) SB.store.mirrorWrite(SB.CFG.RUN_KEY, txt);
       saveHealth.lastOkAt = Date.now();
       saveHealth.okCount++;
       saveHealth.skipAfterOk = 0;
@@ -845,7 +869,46 @@
     }
   }
   function clearRun() {
-    try { root.localStorage && root.localStorage.removeItem(SB.CFG.RUN_KEY); } catch (e) {}
+    if (SB.store) {
+      SB.store.removeLocal(SB.CFG.RUN_KEY);
+      /* ⚠️ 必须同时清 ②③（tap.setStorage / tapfile）：只清 localStorage 的话，
+       * 玩家点「清空存档」后下次启动会从备份把旧档读回来 —— 清档形同虚设。 */
+      SB.store.mirrorRemove(SB.CFG.RUN_KEY);
+    } else {
+      try { root.localStorage && root.localStorage.removeItem(SB.CFG.RUN_KEY); } catch (e) {}
+    }
+  }
+  /* 清跨周目档（meta）：与 clearRun 同理，三处一起清。 */
+  function clearMeta() {
+    if (SB.store) {
+      SB.store.removeLocal(CFG.SAVE_KEY);
+      SB.store.mirrorRemove(CFG.SAVE_KEY);
+    } else {
+      try { root.localStorage && root.localStorage.removeItem(CFG.SAVE_KEY); } catch (e) {}
+    }
+  }
+  /* 异步兜底恢复（2026-10-27）：localStorage 读不到时，去 tap.setStorage / tapfile 找备份。
+   * 找到就把原文**回填 localStorage**（下次启动回到快路径），然后回调告知来源。
+   * ⚠️ 找不回来自成一份也不删备份 —— 由 game.boot 决定「等玩家确认」还是「开新档」；
+   *    这里只负责搬运，不做「要不要开新档」的判断。
+   * ⚠️ 浏览器 / node 沙箱里 envAvailable() 为假 ⇒ readBackupAsync 立刻回 null，
+   *    回调同步路径不受影响（boot 会照旧 startRun）。 */
+  function recoverAsync(cb) {
+    if (!SB.store || !SB.store.readBackupAsync) { cb(null); return; }
+    var jobs = [];
+    jobs.push(SB.store.readBackupAsync(CFG.RUN_KEY).then(function (hit) {
+      if (hit && hit.raw) { SB.store.writeLocal(CFG.RUN_KEY, hit.raw); return 'run:' + hit.source; }
+      return null;
+    }).catch(function () { return null; }));
+    jobs.push(SB.store.readBackupAsync(CFG.SAVE_KEY).then(function (hit) {
+      if (hit && hit.raw) { SB.store.writeLocal(CFG.SAVE_KEY, hit.raw); return 'meta:' + hit.source; }
+      return null;
+    }).catch(function () { return null; }));
+    Promise.all(jobs).then(function (r) {
+      var got = [];
+      for (var i = 0; i < r.length; i++) if (r[i]) got.push(r[i]);
+      cb(got.length ? got.join(',') : null);
+    }, function () { cb(null); });
   }
 
   SB.state = {
@@ -862,6 +925,10 @@
     /* 存档健康度读数（2026-10-27）：{ lastOkAt, lastFailAt, lastSkipAt, lastError,
      *   lastSkipKey, okCount, skipCount, failCount }。只读快照，UI 用它显状态。 */
     saveStatus: saveStatus,
-    clearRun: clearRun
+    clearRun: clearRun,
+    /* 2026-10-27 多后端存档：clearMeta 三处一起清；recoverAsync 从 tap.setStorage /
+     * tapfile 兜底取回并回填 localStorage（boot 用它决定「要不要开新档」）。 */
+    clearMeta: clearMeta,
+    recoverAsync: recoverAsync
   };
 })(typeof window !== 'undefined' ? window : globalThis);

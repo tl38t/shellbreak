@@ -640,7 +640,11 @@
           SB.game.log('这张卡装不进这个槽（类型不对、越界，或已装在别的槽里）。');
         }
       } else {
-        SB.game.log('先点池里一张政策卡选中它，再点这里安装。');
+        /* 2026-10-27 用户要求：**没选中卡时点槽** → 直接弹出「能装进这个槽的卡」，
+         * 点一张卡片立刻装上，省掉「先在池子里翻卡再回头点槽」那一步。
+         * 两步法完全保留：已 armedCard 时走上面那条直接装（老习惯与回归断言都靠它）。 */
+        if (SB.ui.render && SB.ui.render.openPolicyPicker) SB.ui.render.openPolicyPicker(+slotBox.dataset.slot);
+        else SB.game.log('先点池里一张政策卡选中它，再点这里安装。');
       }
       SB.game.pumpCivic(s, emit);
       return;

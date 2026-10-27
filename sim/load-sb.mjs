@@ -23,6 +23,7 @@ const NO_DOM = [
   'src/tech.js',
   'src/civics-data.js',
   'src/civics.js',
+  'src/save-storage.js',
   'src/state-migrate.js',
   'src/state.js',
   /* workshop 排在 state 之后、economy 之前 —— **必须与 index.html 的 <script> 顺序逐字一致**。

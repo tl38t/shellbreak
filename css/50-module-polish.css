@@ -1086,3 +1086,18 @@ html[data-ui-theme="day"] .gov-option-slots{background:rgba(222,237,231,.42);bor
   .gov-option-footer .gov-adopt{min-height:40px}
   .gov-picker-modal-head h2{font-size:19px}
 }
+
+/* ── 点槽直接选卡（2026-10-27）────────────────────────────────────────────
+   弹窗外壳直接复用 .gov-picker-*（同一套 #modal / 同款 head-content-foot），
+   这里只补两块**内容**样式：① 顶部「当前已装 + 卸下」条；② 装不上时的红字提示。
+   ⚠️ 不为它另写一套弹窗皮肤 —— 换配色时只改 gov-picker 一处。 */
+.policy-picker-current{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:0 0 12px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
+  background:rgba(20,45,66,.45);color:var(--text);font-size:12.5px;line-height:1.5}
+.policy-picker-current b{color:var(--cyan);font-weight:700}
+.policy-picker-current .slot-eject{flex:none;min-height:32px;padding:0 12px}
+.policy-picker-error{margin:0 0 12px;padding:9px 11px;border:1px solid rgba(236,91,107,.5);
+  border-radius:9px;background:rgba(236,91,107,.12);color:#ffb3bb;font-size:12.5px;line-height:1.55}
+html[data-ui-theme="day"] .policy-picker-current{background:#eef5f2;border-color:#c3d6d3;color:#1d3a3d}
+html[data-ui-theme="day"] .policy-picker-current b{color:#12666e}
+html[data-ui-theme="day"] .policy-picker-error{background:#fdecee;border-color:#e5a9b2;color:#a8323f}
