@@ -58,7 +58,13 @@
      *   宽窄不一。尺寸统一写进 CSS（见 50-module-polish）。 */
     h += '<div class="row gather-row"><div><div class="nm">手动采集</div>' +
       '<div class="ds">开局 1 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢' +
-      '（人口上限 1 → 3），再攒 15 藻食建深海菌圃让口粮跟上。</div></div>' +
+      '（人口上限 1 → 3），再攒 15 藻食建深海菌圃让口粮跟上。' +
+      /* 2026-10-27 用户：「是不是应该说明藻食低于 20 人口就不会增长」——
+       * 这条规则原先只写在族民页的生育那一行，而玩家绝大多数时间待在巢穴页，
+       * 于是出现「建完菌圃以为就会生人、结果人数纹丝不动」的困惑。
+       * ⚠️ 门槛读 CFG.GROW_KEEP，不写死 20（改常数时文案自动跟）。 */
+      '<b>人口要涨得同时满足两条：住房没住满，且藻食高于 ' + SB.CFG.GROW_KEEP +
+      '（低于此值会一直停摆）。</b></div></div>' +
       '<div class="gather-btns">' +
       '<button class="btn buy" data-gather="kelp">采藻食 +' + GA.kelp + '</button>' +
       '<button class="btn buy" data-gather="coral">采珊瑚 +' + GA.coral + '</button>' +

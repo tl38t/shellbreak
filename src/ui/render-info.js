@@ -214,6 +214,26 @@
    * ⚠️ 调用点必须传当前局内状态 `s`；传 null 会按「未研究」出数（= 基础值）。 */
   function buildingDescText(s, b) {
     if (!b) return '';
+    /* 2026-10-27 用户「深海鱼牧场的效果没说清楚」：静态 desc 只能说基准值，
+     * 而这条效果实际被三样东西改过（等级、农奴制、封顶），玩家看着「−0.5%/级」
+     * 算不出自己现在到底省了多少。这里按本局真实状态出数。
+     * ⚠️ 算式与 economy.foodUse 逐字同构：save = min(1, lvl × foodSave × serfWarmMul)。
+     *    两处口径一旦分叉，就会出现「面板说省了 3%、实际结算按 2.5%」这种静默错。 */
+    if (b.id === 'warmnest') {
+      var _lvw = (s && s.lvl && s.lvl.warmnest) || 0;
+      var _perw = (SB.BLD.foodSave || 0) * 100;                 // 0.5
+      var _serfw = (SB.civic && SB.civic.serfWarmMul) ? SB.civic.serfWarmMul(s) : 1;
+      var _curw = Math.min(100, _lvw * _perw * _serfw);
+      var _tw = '每级让族民的口粮消耗 −' + _perw.toFixed(1) + '%' +
+        '（10 级 −' + (_perw * 10).toFixed(0) + '%、20 级 −' + (_perw * 20).toFixed(0) + '%），' +
+        '可无限叠加，最多减到 0。';
+      if (_lvw > 0) {
+        _tw += '当前 ' + _lvw + ' 级 = −' + _curw.toFixed(1) + '%' +
+          (_serfw > 1 ? '（含农奴制加成）' : '') + '。';
+      }
+      _tw += '首名族民本来就不吃口粮。';
+      return _tw;
+    }
     if (b.id === 'fissionplant') {
       var _nfz = !!(s && s.techs && s.techs.nuclear_fusion);
       var _h = (SB.BLD.fissionHydro || 0) * (_nfz ? 5 : 1) * (SB.economy.starNuclearHydroMul ? SB.economy.starNuclearHydroMul(s || { perk: {} }) : 1);
@@ -256,7 +276,7 @@
     switch (id) {
       case 'kelp':         return add('自动产藻食', B.food, B.food * L, '/秒', 2) + '；吃季节减产';
       case 'weir':         return pct('藻食产出', B.foodWeir * 100, B.foodWeir * 100 * L);
-      case 'warmnest':     return pct('族口粮', B.foodSave * 100, B.foodSave * 100 * L, 1, '−');
+      case 'warmnest':     return pct('族民口粮消耗', B.foodSave * 100, B.foodSave * 100 * L, 1, '−');
       case 'kelpstore':    return add('藻食上限', B.kelpCap, B.kelpCap * L, '', 0);
       case 'ballast':      return add('其余资源上限', B.ballastCap, B.ballastCap * L, '', 0);
       case 'lighthouse':   return pct('全资源产出', B.lighthouseProd * 100, B.lighthouseProd * 100 * L, 0) +
