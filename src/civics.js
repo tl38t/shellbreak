@@ -780,18 +780,28 @@
   function pump(s, emit) {
     if (!s || !s.civShown) return 0;
     var n = 0;
+    /* ⚠️⚠️ 2026-10-27 修复（玩家报「研究神学之后揭露这个归正会找不到」）：
+     *   病根是**播报与渲染两套口径**：pump 遍历全部市政，`boostMet` 一成立就写 `civShown`
+     *   并 `emit('市政已揭示：…')`；而 civicTree 只渲染 `era <= visibleEra` 的节点。
+     *   《归正会》是 ERA4、鼓舞 = `religion`（读 `s.religionName`，见 tech.js:278），
+     *   玩家研究完神学就会建宗教 ⇒ 鼓舞早早达成 ⇒ 播报「已揭示：归正会」，
+     *   而 visibleEra 还停在 3 ⇒ **树里根本不渲染它，播报了却找不到**。
+     * 【修法：揭示照旧，只把「播报」限制在节点已经渲染的纪元内】
+     *   ⚠️ 不要改成「未展开纪元就不揭示」—— 那会打断既有约定（e2e 有多条
+     *   「鼓舞达成即揭示」的断言），而且 `blocked()` 靠 civShown 区分
+     *   「尚未揭示」与「纪元未到」，提前揭示才能给出更准确的原因。
+     *   所以：civShown 照写（揭示语义不变），只有 `emit` 加纪元闸。
+     *   玩家推进到该纪元时节点会直接可见，无需补播报（也不该重复播报）。 */
+    var _visEra = visibleEra(s);
     for (var i = 0; i < CIVICS.length; i++) {
       var c = CIVICS[i];
-      /* 鼓舞达成即揭示，不按纪元卡（研究侧仍由 blocked() 的纪元闸锁住，
-       * 避免「未来纪元市政提前露名却点不动」的割裂）。原 era 闸在此处会令
-       * era≠1 的市政永不写 civShown，与 condShort 实时算的进度条不同源 ⇒ 矛盾。 */
       if (!s.civBoost) s.civBoost = {};
       if (c.boost && !s.civBoost[c.id] && condMet(s, c.boost)) s.civBoost[c.id] = 1;
       if (s.civShown[c.id]) continue;
       if (!(s.civics[c.id] || boostMet(s, c))) continue;   // ⚠️ 收市政对象，见 boostMet 那条注
       s.civShown[c.id] = 1;
       n++;
-      if (emit) emit('市政已揭示：' + c.name + '（' + c.desc + '）');
+      if (emit && (c.era || 1) <= _visEra) emit('市政已揭示：' + c.name + '（' + c.desc + '）');
     }
     return n;
   }
