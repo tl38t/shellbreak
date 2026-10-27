@@ -214,29 +214,12 @@
    * ⚠️ 调用点必须传当前局内状态 `s`；传 null 会按「未研究」出数（= 基础值）。 */
   function buildingDescText(s, b) {
     if (!b) return '';
-    /* 2026-10-27 用户「深海鱼牧场的效果没说清楚」：静态 desc 只能说基准值，
-     * 而这条效果实际被三样东西改过（等级、农奴制、封顶），玩家看着「−0.5%/级」
-     * 算不出自己现在到底省了多少。这里按本局真实状态出数。
-     * ⚠️ 算式与 economy.foodUse 逐字同构：save = min(1, lvl × foodSave × serfWarmMul)。
-     *    两处口径一旦分叉，就会出现「面板说省了 3%、实际结算按 2.5%」这种静默错。 */
-    if (b.id === 'warmnest') {
-      var _lvw = (s && s.lvl && s.lvl.warmnest) || 0;
-      var _perw = (SB.BLD.foodSave || 0) * 100;                 // 0.5
-      var _serfw = (SB.civic && SB.civic.serfWarmMul) ? SB.civic.serfWarmMul(s) : 1;
-      var _curw = Math.min(100, _lvw * _perw * _serfw);
-      /* ⚠️ 不写「可无限叠加 / 最多减到 0」（2026-10-27 用户追问后撤掉）：
-       * 数学上没显式护栏，但造价 1.15^N 指数涨 + 藻食仓储有上限 ⇒ 实测封顶
-       * −22.5%（海藻仓 10 级）～ −31.5%（仓 120 级）。写「无限」是误导。 */
-      var _tw = '每级让族民的口粮消耗 −' + _perw.toFixed(1) + '%' +
-        '（10 级 −' + (_perw * 10).toFixed(0) + '%、20 级 −' + (_perw * 20).toFixed(0) + '%）。' +
-        '造价每级 ×1.15，能叠到几级取决于藻食仓储上限。';
-      if (_lvw > 0) {
-        _tw += '当前 ' + _lvw + ' 级 = −' + _curw.toFixed(1) + '%' +
-          (_serfw > 1 ? '（含农奴制加成）' : '') + '。';
-      }
-      _tw += '首名族民本来就不吃口粮。';
-      return _tw;
-    }
+    /* ⚠️ 2026-10-27 这里曾有一段 warmnest 的动态出数（按等级算「当前 N 级 = −X%」），
+     *   用户当天先要「说清楚」、看完又说「0.5% 之后的全部删掉」⇒ 已整体撤掉，
+     *   现在 warmnest 直接回退到 config 里那句最短的 desc。
+     *   要看当前实际减免，信息卡的「效果」段仍按统一格式给（buildingEffectText 的
+     *   case 'warmnest' →「族民口粮消耗 −0.5%/级（当前 −2.5%）」），那里是**所有建筑通用**
+     *   的「每级 / 当前」结构，不是这条建筑专属的冗长解释，所以保留。 */
     if (b.id === 'fissionplant') {
       var _nfz = !!(s && s.techs && s.techs.nuclear_fusion);
       var _h = (SB.BLD.fissionHydro || 0) * (_nfz ? 5 : 1) * (SB.economy.starNuclearHydroMul ? SB.economy.starNuclearHydroMul(s || { perk: {} }) : 1);
