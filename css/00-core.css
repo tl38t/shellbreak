@@ -194,6 +194,16 @@ input[type=checkbox]{accent-color:var(--cyan)}
 .chg-empty{color:var(--dim);font-size:13px;padding:12px 0}
 /* 弹窗底行右对齐（政体命名弹窗与更新日志面板共用） */
 .chg-foot{display:flex;justify-content:flex-end;margin-top:12px}
+/* —— 更新日志红点（2026-10-28 用户拍板：自动弹窗改成红点提示）——
+ * 只给页脚「更新日志」按钮加右上角小圆点，`has-new` 由 game.js 的 syncChangelogDot 切换。
+ * ⚠️ 用绝对定位放在按钮**边缘外**（top/right 负值）而不是内嵌，否则会压住「更新日志」四个字；
+ *   按钮本身没有 overflow:hidden，角标不会被裁掉（改按钮 padding/border 不影响它）。
+ * ⚠️ pointer-events:none：红点是提示不是按钮，绝不替按钮吃点击（触屏尤其容易点偏）。
+ * ⚠️ 颜色不跟主题变量走：#e0533d 在日间亮底与夜间深底上都够醒目，而 --amber 在浅色主题里
+ *   会和按钮底色糊在一起。外圈用低透明度暗影代替描边，两种底色下都不显脏。 */
+.btn.has-new{position:relative}
+.btn.has-new::after{content:'';position:absolute;top:-3px;right:-3px;width:8px;height:8px;
+  border-radius:50%;background:#e0533d;box-shadow:0 0 3px rgba(0,0,0,.45);pointer-events:none}
 .rank-open{width:100%;text-align:left;padding:12px 14px;font-size:14px}
 .rank-open:hover{border-color:var(--cyan);color:var(--cyan)}
 

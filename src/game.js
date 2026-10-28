@@ -177,6 +177,9 @@
     }
     if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now() };
     if (prev && prev.perk) S.perk = Object.assign(SB.state.emptyPerks(), prev.perk);
+    /* 自动点击开关跨周目继承（2026-10-28 用户拍）：freshRun 给的是 true，必须用 meta 偏好盖上，
+     * 否则「暂停」在破壳后会被静默重置成开。 */
+    applyAutoClickPref(S);
     SB.state.saveMeta(meta);
     clearLog();
     log('第 ' + meta.cycle + ' 周目开始。冰封壳厚度 ' + S.iceShell + '。');
@@ -217,6 +220,16 @@
      * 已结算的旧档则沿用原行为，恢复为可继续发展的破壳后周目。 */
     if (S.shellOpened && !(S.broken && !S.breakSettled)) S.broken = false;
     if (!S.perk) S.perk = SB.state.emptyPerks();
+    /* 自动点击开关跨周目继承（2026-10-28）：
+     *   ① 一次性认领 —— meta 里**没有**这个键（= 玩家从未拨过开关，属于「先装开关、后装继承」
+     *      的档）而本局存档里有布尔值 ⇒ 认领存档里的值。不认领就会把玩家已设的「暂停」抹成开。
+     *   ② 之后 meta 是唯一来源，续档一律按偏好覆盖本局（两边本应相同；不同只可能来自
+     *      改过配置的旧档，此时以玩家最后拨过的偏好为准）。 */
+    if (meta.autoClickOn === undefined && typeof S.autoClickOn === 'boolean') {
+      meta.autoClickOn = S.autoClickOn;
+      SB.state.saveMeta(meta);
+    }
+    applyAutoClickPref(S);
     meta.cycle = Math.max(1, meta.cycle);
     dirty = true;
     if (S._repairedResources && S._repairedResources.length) {
@@ -259,12 +272,16 @@
     meta.cycle = 1;
     SB.state.saveMeta(meta);
     S = SB.state.freshRun(false);
+    applyAutoClickPref(S);   // meta 已重置 ⇒ 偏好归「开」，这里只是让本局与之一致
     clearLog();
     log('存档已清空，回到第 1 周目。轮回点与破层层级一并抹去。');
     dirty = true;
     renderAll();
     if (tab === 'star-map') setTab('village');
     SB.state.saveRun(snapshot(S));
+    /* meta 被重置 ⇒ seenVersion 归空 = 逻辑上「未读」。同步一次让红点与状态一致
+     * （本会话若已读过更新日志，changelogSigned 仍会把它压住，不会反向点亮）。 */
+    syncChangelogDot();
   }
 
   function stay() {
@@ -273,8 +290,10 @@
     dirty = true;
     renderAll();
     if (S) SB.state.saveRun(snapshot(S));
-    /* 破壳待处理时启动会优先展示结算选择，推迟的首次解锁提示在玩家选择留在本局后补播。 */
-    if (S) { maybeSciencePopup(S); maybeReligionPopup(S); maybeTabUnlockPopups(S); maybeChangelogPopup(); }
+    /* 破壳待处理时启动会优先展示结算选择，推迟的首次解锁提示在玩家选择留在本局后补播。
+     * 更新日志不参与这个队列了（2026-10-28）：红点由 bootUi 统一同步，这里只补一次保证
+     * 「破壳局 → 留下 → 页脚可见」这条路红点也是准的。 */
+    if (S) { maybeSciencePopup(S); maybeReligionPopup(S); maybeTabUnlockPopups(S); syncChangelogDot(); }
   }
 
   /* 玩家主动选择轮回时才结算当前最新发展分；留在本局不会调用此入口。 */
@@ -349,8 +368,96 @@
   }
 
   function render() { if (dirty) { dirty = false; SB.ui.render.renderAll(); } }
-  function renderAll() { dirty = false; SB.ui.render.renderAll(); }
+  function renderAll() { dirty = false; SB.ui.render.renderAll(); syncAutoClickSetting(); }
   function markDirty() { dirty = true; }
+
+  /* ══ 设置栏「自动点击」开关（2026-10-28 用户要求）════════════════════════════
+   * 【为什么需要】自动点击以前只有「买没买」一个维度：买了就永久每秒采 1~3 次，
+   *   玩家想暂停（例如就想手点、或想让藻食别涨太快挤掉别的条件）没有任何入口。
+   * 【为什么不是 localStorage 偏好】它决定本局每帧要不要执行采集，
+   *   必须跟着存档走 —— 换设备 / 云存档恢复后行为得一致（主题、分辨率那类才属于浏览器偏好）。
+   * 【两层：s.autoClickOn + meta.autoClickOn】2026-10-28 用户拍「跨周目继承状态」。
+   *   s.autoClickOn    = 本局实际行为（autoplay 只认这个，e2e 也只钉这个）；
+   *   meta.autoClickOn = 跨周目偏好（startRun 播种进新局；玩家拨开关时两边同写）。
+   *   ⇒ 拨成「暂停」后破壳开新周目仍是暂停。破壳不是新安装，玩家刚表达的意图不该被重置。
+   *   迁移：meta 里没这个键（= 从未拨过）且当前存档有布尔值 ⇒ 一次性认领存档里的值，
+   *   这样「先装了开关、后装了继承」的档不会把玩家已设的暂停抹成开。
+   * 【默认值】`s.autoClickOn === false` 才算关，缺字段 = 开。老存档因此零迁移、
+   *   行为与改动前完全一致（`migrateRun` 只校验不重算，别指望它补字段，见 JUDGMENTS 五点）。
+   * 【为什么 UI 增量更新】开关本身就在这个面板里：整块重写 innerHTML 会把玩家正在点的
+   *   那个 checkbox 换掉 ⇒ 这一下点击丢失（与 envWarm / renderAd 同一条纪律）。
+   *   syncAutoClickSetting 只写 checked / disabled / textContent / class，从不重建节点。
+   */
+  function autoClickRate(s) { return (s && s.perk && s.perk.autoClick) || 0; }
+  function autoClickOwned(s) { return autoClickRate(s) > 0; }
+  /* 对外唯一判据：真的在自动采集吗（拥有 + 没被玩家关掉）。 */
+  function autoClickEnabled(s) { return autoClickOwned(s) && !(s && s.autoClickOn === false); }
+  /* 跨周目偏好：meta 里没键 = 开（缺字段一律按开，与 s 侧同一条口径）。 */
+  function autoClickPref() { return !(meta && meta.autoClickOn === false); }
+  /* 把偏好播种进本局（startRun / resumeRun / wipeSave 三处唯一入口都过它）。
+   * ⚠️ 只动 s.autoClickOn，不清 autoClickAcc：开关边界由玩家那次拨动负责（见 bindAutoClickSetting）。 */
+  function applyAutoClickPref(s) { if (s) s.autoClickOn = autoClickPref(); return s; }
+  /* 玩家拨开关：两处同写。meta 侧落盘 ⇒ 下次开新周目仍是他选的那个状态。 */
+  function setAutoClickPref(on) {
+    if (!meta) return;
+    meta.autoClickOn = !!on;
+    SB.state.saveMeta(meta);
+  }
+  /* 轮回商店开没开 —— 与 setTab('meta') 那道门同源，否则会出现
+   * 「提示点这里去买」但点了没反应（新手期商店还没开放的阶段正是如此）。 */
+  function shopOpen() { return !!(meta && meta.shopUnlocked); }
+
+  function syncAutoClickSetting() {
+    if (!document) return;
+    var box = document.getElementById('autoClickToggle');
+    if (!box) return;
+    var s = S, rate = autoClickRate(s), owned = autoClickOwned(s), on = autoClickEnabled(s);
+    box.disabled = !owned;
+    box.checked = on;
+    var row = document.getElementById('autoClickRow');
+    if (row) row.classList.toggle('is-locked', !owned);
+    var hint = document.getElementById('autoClickHint');
+    if (hint) {
+      var next = !owned
+        ? (shopOpen()
+          ? '未拥有 —— 到「轮回商店 · 先人孑遗」购买「潮讯自拾」（点此行直达）'
+          : '未拥有 —— 首次破壳后商店开放，届时在「轮回商店 · 先人孑遗」购买「潮讯自拾」')
+        : (on
+          ? '已拥有「潮讯自拾」· 每秒 ' + rate + ' 次，不受游戏倍速影响'
+          /* 暂停态特意点明「跨周目保留」：破壳后新周目仍是关，否则玩家会以为买的东西丢了。 */
+          : '已暂停：不再自动采集，手动点「手动采集」照旧可用（跨周目保留）');
+      if (hint.textContent !== next) hint.textContent = next;
+    }
+  }
+
+  function bindAutoClickSetting() {
+    if (!document) return;
+    var box = document.getElementById('autoClickToggle');
+    if (box) box.onchange = function () {
+      if (!autoClickOwned(S)) { syncAutoClickSetting(); return; }   // 理论上 disabled，兜一层
+      S.autoClickOn = !!box.checked;
+      setAutoClickPref(S.autoClickOn);   // 跨周目偏好同步落盘（meta），新周目继承这个值
+      /* 预算清零：关掉再打开时不该把停用期间攒下的「欠账」一次补掉
+       * （acc 是按 dt×rate 累积的，停用期间不再累加，这里清零只为让开关边界干净）。 */
+      S.autoClickAcc = 0;
+      dirty = true; renderAll();
+      log(S.autoClickOn ? '自动点击已开启。' : '自动点击已暂停（手动采集照旧）。');
+    };
+    var row = document.getElementById('autoClickRow');
+    if (row) row.addEventListener('click', function () {
+      /* 未拥有时整行是个「广告位」：点一下直接送到轮回商店，并收起设置浮层。
+       * ⚠️ 已拥有时**不要**在这里做任何事 —— 否则点 checkbox 会被这里抢走（事件冒泡）。 */
+      if (autoClickOwned(S)) return;
+      var det = document.querySelector('.ui-settings');
+      if (!shopOpen()) {
+        log('「潮讯自拾」在「轮回商店 · 先人孑遗」；首次破壳后商店才会开放。');
+        return;
+      }
+      if (det && det.open) det.open = false;
+      setTab('meta');
+      log('已跳到轮回商店：在「先人孑遗」里购买「潮讯自拾」即可自动点击。');
+    });
+  }
 
   function emit(msg) { log(msg); markDirty(); }
 
@@ -411,12 +518,6 @@
       if (done) done();
       storyQueueBusy = false;
       openNextStory();
-      /* 队列排空后补弹挂起的更新日志（见 maybeChangelogPopup 的挂起说明）。
-       * openNextStory 若又起了下一张，storyQueueBusy 会重新变真，这里判空即可。 */
-      if (pendingChangelog && !storyQueueBusy && !storyQueue.length) {
-        pendingChangelog = false;
-        maybeChangelogPopup();
-      }
     };
     SB.ui.render.storyPanel(o);
   }
@@ -503,21 +604,41 @@
     });
   }
 
-  /* 更新日志自动弹窗（2026-10-27 恢复；原实现 2026-10-11 立、2026-10-25 随更新日志系统整体删除）：
-   * meta.seenVersion 与 CFG.VERSION 不一致 ⇒ 这是该版本首次进入，弹一次更新内容，
-   * 并把 seenVersion 记成当前版本（存 meta，跨周目保留，软重置不重复弹）。
-   * 全新安装 / 老存档（seenVersion 为空或缺失）也会弹一次——顺带充当「欢迎 / 本次更新」说明。
-   * ⚠️ 用 === 全等比较，不做版本号大小解析：版本名格式已由 v0.MAJOR.MINOR 改为 Ver1.0.1，
-   *   解析比较会跟着格式变，全等「名字变了就弹」最稳。
-   * ⚠️ 叙事卡队列忙碌时**不许直接开**：两套东西都写 #modal/#modalBox，覆盖会让当前叙事卡的
-   *   onOk 永远不被调用 ⇒ storyQueueBusy 卡在 true、后续队列永久放不出来。这里改为挂起
-   *   pendingChangelog，由 openNextStory 的收尾补弹（队列排空后才出现，不抢玩家正在读的卡）。 */
-  var pendingChangelog = false;
-  function maybeChangelogPopup() {
+  /* ══ 更新日志提示（2026-10-28 用户拍板：**不再自动弹窗**，改成红点）════════════════
+   * 【形态】meta.seenVersion ≠ CFG.VERSION ⇒ 页脚「更新日志」按钮右上角亮一个红点
+   *   （class `.btn.has-new`，样式在 css/00-core.css）。玩家自己点开面板 → 记 seenVersion、
+   *   熄红点。「更新日志」按钮本身随时可点，不因为已读就消失。
+   * 【为什么不再弹】自动弹窗（2026-10-11 立 / 2026-10-25 删 / 2026-10-27 恢复）会在启动
+   *   那一刻抢焦点，与「iOS 玩家卡在更新日志点不动」的事故纠缠难分；红点零打扰、不遮挡、
+   *   不参与 #modal 竞争，信息也不丢。
+   * ⚠️ 用 === 全等比较，不做版本号大小解析：版本名口径已由 v0.MAJOR.MINOR 改为 Ver1.0.x，
+   *   解析比较会跟着格式变，全等「名字变了就亮」最稳。
+   * ⚠️ 红点**不写 meta**：只有玩家真的点开面板才算「已读」。不点开就没看过，不该算读过
+   *   （旧实现是弹完立刻记，玩家秒关窗也算读，正是这套逻辑让「没读到」变成「永远看不到」）。
+   * ⚠️ **刻意不依赖存储判断「本会话是否已读」**：seenVersion 写在 localStorage（meta），
+   *   而小游戏容器可能「写进去、重载后读不回来」⇒ 每轮启动都判「该版本首次进入」。所以
+   *   额外的 `changelogSigned` 是内存态兜底：本会话点开过就一定熄灯，不等存储生效。
+   * ⚠️ 红点与解锁叙事/新手引导**互不影响**：那两项仍是启动自动弹（玩家明确要求恢复），
+   *   红点是纯视觉角标、不抢焦点、不进 #modal 队列，两者各走各的。 */
+  var changelogSigned = false;   // 本会话是否已读（内存态，防存储回读失败导致红点复活）
+  function hasUnreadChangelog() {
+    if (changelogSigned) return false;
+    if (!meta || !SB.CFG || !SB.CFG.VERSION) return false;
+    return meta.seenVersion !== SB.CFG.VERSION;
+  }
+  /* 红点开关：只切 class，样式全在 CSS 里。每次现取 DOM，不缓存引用 ——
+   *   bootUi 之前 pump 也可能补跑（页脚节点是静态的，但引用没必要跨模块持有）。 */
+  function syncChangelogDot() {
+    var btn = document.getElementById('btnChangelog');
+    if (!btn || !btn.classList) return;
+    btn.classList.toggle('has-new', hasUnreadChangelog());
+  }
+  /* 玩家真的打开了面板：此刻才算「已读」。 */
+  function markChangelogSeen() {
+    changelogSigned = true;
+    syncChangelogDot();
     if (!meta || !SB.CFG || !SB.CFG.VERSION) return;
     if (meta.seenVersion === SB.CFG.VERSION) return;
-    if (storyQueueBusy || storyQueue.length) { pendingChangelog = true; return; }
-    if (SB.ui && SB.ui.render && SB.ui.render.openChangelog) SB.ui.render.openChangelog();
     meta.seenVersion = SB.CFG.VERSION;
     SB.state.saveMeta(meta);
   }
@@ -1285,8 +1406,75 @@
       } catch (rollbackError) {}
       throw new Error('导入写入失败，已尝试恢复当前存档：' + (writeError.message || writeError));
     }
+    /* ⚠️⚠️ 2026-10-28 P0：**写完必须读回校验**。
+     *   小游戏容器对 localStorage 没有任何持久承诺（官方只对 tapfile://usr 承诺），
+     *   可能出现「setItem 不抛错、但读回来不是刚写的」甚至「重载后整块丢失」。
+     *   旧代码写完就 location.reload()，于是导入变成「看起来成功 → 重载后进度没变」，
+     *   而调用方（尤其云端救援）会一遍遍重试 ⇒ 重载环。
+     *   读回不一致就当场中止、把旧值放回去，**绝不 reload**，把真相告诉玩家。 */
+    var backMeta = null, backRun = null;
+    try {
+      backMeta = root.localStorage.getItem(CFG.SAVE_KEY);
+      backRun = root.localStorage.getItem(CFG.RUN_KEY);
+    } catch (readBackError) { backMeta = null; backRun = null; }
+    if (backMeta !== serializedMeta || backRun !== serializedRun) {
+      try {
+        if (oldMetaRaw === null) root.localStorage.removeItem(CFG.SAVE_KEY);
+        else root.localStorage.setItem(CFG.SAVE_KEY, oldMetaRaw);
+        if (oldRunRaw === null) root.localStorage.removeItem(CFG.RUN_KEY);
+        else root.localStorage.setItem(CFG.RUN_KEY, oldRunRaw);
+      } catch (rollbackError2) {}
+      throw new Error('本机存储不可靠：写入后读回的内容不一致，导入已中止（原存档未改动）。');
+    }
     suppressExitSave = true;
     root.location.reload();
+    return true;
+  }
+
+  /* 就地接管一份外部存档（2026-10-28 P0，云端救援专用）。
+   * 【为什么不再走 installImportedSave】那条路的末尾是 `location.reload()`，是**全应用唯一
+   *   的自动重载点**。云救援一旦命中就 reload ⇒ 若容器对 localStorage 没有持久承诺
+   *   （setItem 不报错、重载后读不回来，正是「退出就没存档」的根因），启动就变成
+   *   「本机空 → 拉云端 → 写盘 → 重载 → 还是空 → 再拉云端 → …」的**无限重载环**；
+   *   而 `meta.seenVersion`（更新日志已读标记）与救援节流键都存在同一个地方 ⇒ 每圈都判
+   *   「该版本首次进入」⇒ 每圈重弹更新日志、每次点击都被重载打断。玩家报的
+   *   「会再弹一次更新日志但是又不掉、什么都点不动、重启也一样」正是这个环的外在表现。
+   * 【本函数的口径】写盘只是**尽力而为**（成功则下次启动直接 resumed），真正的状态直接
+   *   进内存 ⇒「本次会话能不能玩」与「存储持不持久」彻底解耦，环在物理上无法形成。
+   * ⚠️ 与 startRun 的区别：**不**动 `meta.cycle`（那会平白多算一个周目），也**不**做
+   *   startRun 的「建筑等级并入跨周目账本」—— 这是「接管已有的局」，不是「开新局」。
+   * ⚠️ 故意**不**设 `loop._lastWall`：恢复路径不该顺手给玩家补一笔离线结算（可能为负），
+   *   等同「刚上线」。`_ts` 一并删掉，避免残留在下次快照里。 */
+  function adoptBundle(bundle) {
+    if (!bundle || bundle.format !== 'shellbreak-save' || bundle.version !== 1 || !bundle.save) {
+      throw new Error('云存档格式或版本不受支持。');
+    }
+    var rawRun = bundle.save.run;
+    if (!rawRun || typeof rawRun !== 'object' || Array.isArray(rawRun)
+        || !rawRun.res || typeof rawRun.res !== 'object'
+        || !rawRun.lvl || typeof rawRun.lvl !== 'object'
+        || !rawRun.jobs || typeof rawRun.jobs !== 'object'
+        || typeof rawRun.shell !== 'number' || !isFinite(rawRun.shell))
+      throw new Error('云存档缺少必要数据。');
+    var inMeta = SB.state.normalizeMeta(bundle.save.meta);
+    var oldMeta = meta, inRun;
+    try { meta = inMeta; inRun = SB.state.migrateRun(rawRun); }
+    finally { meta = oldMeta; }
+    if (!inRun || typeof inRun !== 'object') throw new Error('云存档迁移失败。');
+    delete inRun._ts;
+    try {
+      if (SB.store && SB.store.writeLocal) {
+        var mTxt = JSON.stringify(inMeta), rTxt = JSON.stringify(inRun);
+        SB.store.writeLocal(CFG.SAVE_KEY, mTxt);
+        SB.store.writeLocal(CFG.RUN_KEY, rTxt);
+        if (SB.store.mirrorWrite) {
+          SB.store.mirrorWrite(CFG.SAVE_KEY, mTxt);
+          SB.store.mirrorWrite(CFG.RUN_KEY, rTxt);
+        }
+      }
+    } catch (e) {}
+    meta = inMeta;
+    resumeRun(inRun);      /* 内部会 renderAll；随后调用方接 bootUi */
     return true;
   }
 
@@ -1368,41 +1556,88 @@
        * ⚠️ 浏览器 / node 沙箱里 envAvailable() 为假 ⇒ 走下面同步分支，行为与改造前一致。 */
       if (SB.store && SB.store.envAvailable && SB.store.envAvailable() && SB.state.recoverAsync) {
         try { log('未读到浏览器存档，正在检查本机备份…'); } catch (e) {}
+        /* ⚠️⚠️ 2026-10-28 P0：异步恢复必须有**硬超时**，而且超时要**逐段推进**而不是直接放弃。
+         *   事故：玩家报「从存档码导入后卡在更新日志，什么都点不动，重启也一样」。
+         *   旧写法只靠回调推进 boot：`recoverAsync` 或云端救援任一环**不回调**
+         *   （容器 API 静默挂起、返回非预期结构、Promise 永不 settle），boot 就永久停住，
+         *   `S` 恒为 null ⇒ 那时候连「关闭弹窗」都点不动（见 input.js 的闸门注释）。
+         *   ⚠️ 超时**不能**直接 startRun：那样会把「本机备份挂住但云端有好档」的玩家
+         *     直接判成新玩家、用新档把云端覆盖掉。所以分两段：
+         *       recoverAsync(8s) → 超时转云端(12s) → 云端也超时才开新档。
+         *   任一段成功都立刻 proceeded=true，后面的段不再跑（三条出口严格互斥）。 */
+        var proceeded = false;
+        var bootTimer = null;
+        function stopTimer() { if (bootTimer) { try { root.clearTimeout(bootTimer); } catch (e) {} bootTimer = null; } }
+        function arm(ms, fn) {
+          stopTimer();
+          bootTimer = root.setTimeout(function () { bootTimer = null; if (!proceeded) fn(); }, ms);
+        }
+        /* 出口 A：三处本机 + 云端都没有 ⇒ 真·新玩家，唯一允许开新档的分支。 */
+        function finishNew(why) {
+          if (proceeded) return;
+          proceeded = true; stopTimer();
+          if (why) { try { log(why); } catch (e) {} }
+          startRun();
+          bootUi();
+        }
+        /* 出口 B：拿到了一份可用的档（本机备份恢复 / 云端接管）⇒ 直接进 UI，**不重载**。 */
+        function finishResumed(why) {
+          if (proceeded) return;
+          proceeded = true; stopTimer();
+          if (why) { try { log(why); } catch (e) {} }
+          bootUi();
+        }
+        /* 第二段：问一次 TapTap 云存档。
+         * ★★ 2026-10-28 第四路 —— 本机三层（localStorage / tap.setStorage / tapfile://usr）
+         *   是**同生共死**的：清缓存、换设备、容器重建会让三处一起消失。云端那份自动备份
+         *   （每 5 分钟）是唯一跨设备还活着的档。
+         * ⚠️⚠️ 2026-10-28 P0 改口径：命中后**不再**调 installImportedSave（它末尾
+         *   `location.reload()`）。reload 是重载环的唯一发动机 —— 在「localStorage 写进去
+         *   读不回来」的容器里会变成「空→拉云端→写→重载→还是空」的无限环，每圈重弹更新日志。
+         *   现在改成 game.adoptBundle 就地接管：写盘尽力而为、状态直接进内存，
+         *   本次会话必定能玩，环物理上无法形成。 */
+        function toCloud() {
+          if (proceeded) return;
+          if (SB.saveTransfer && SB.saveTransfer.restoreFromCloudIfAny) {
+            try { log('本机备份也没有，正在检查 TapTap 云存档…'); } catch (e) {}
+            /* 云端自身有 8 秒内部超时；这里给 12 秒外层兜底（含解码/校验耗时）。 */
+            arm(12000, function () { finishNew('云端检查超时，先按新开局处理。'); });
+            SB.saveTransfer.restoreFromCloudIfAny(function (cloud) {
+              if (proceeded) return;
+              if (cloud && cloud.bundle) {
+                try {
+                  adoptBundle(cloud.bundle);
+                  finishResumed('已从 TapTap 云存档恢复进度：' +
+                    ((S && S.t) ? (S.t / 3600).toFixed(2) : '0') + ' 小时。');
+                  return;
+                } catch (e) {
+                  try { log('云存档无法载入：' + (e && e.message ? e.message : e)); } catch (e2) {}
+                }
+              } else if (cloud && cloud.error) {
+                try { log('云存档恢复失败：' + cloud.error); } catch (e) {}
+              }
+              finishNew('云端也没有可用存档，按新开局处理。');
+            });
+            return;
+          }
+          finishNew();
+        }
+        arm(8000, function () { toCloud(); });
         SB.state.recoverAsync(function (hit) {
+          if (proceeded) return;
           if (hit) {
             var r2 = decideRun();
-            if (r2 === 'blocked') return;
+            if (r2 === 'blocked') { proceeded = true; stopTimer(); return; }
             if (r2 === 'resumed') {
-              try { log('已从本机备份恢复存档（来源：' + hit + '）。'); } catch (e) {}
               /* ⚠️ 必须**重新读一遍 meta**：模块变量 meta 是脚本加载那一刻读的（本文件第 11 行），
                * 那时 localStorage 还是空的（否则根本走不到这个分支）—— 不重载等于把刚恢复的
                * 跨周目进度又丢一次；更不能 saveMeta(旧 meta) 反写回去覆盖掉刚恢复的备份。 */
               try { meta = SB.state.loadMeta(); } catch (e) {}
-              bootUi();
+              finishResumed('已从本机备份恢复存档（来源：' + hit + '）。');
               return;
             }
           }
-          /* ★★ 2026-10-28 第四路：本机三处都没有 ⇒ 问一次 TapTap 云存档。
-           *   本机三层（localStorage / tap.setStorage / tapfile://usr）是**同生共死**的：
-           *   清缓存、换设备、容器重建会让三处一起消失。云端那份自动备份（每 5 分钟）
-           *   是唯一跨设备还活着的档 —— 之前启动从不查它，三处空就直接开新档，
-           *   而新档 30 秒后又被自动备份推上云、把旧档顶掉 = 玩家眼里「存档没了」。
-           *   ⚠️ 命中时 restoreFromCloudIfAny 内部走 installImportedSave（含 reload），
-           *      reload 后 localStorage 已有档 ⇒ decideRun 返回 resumed，不会回到这里；
-           *      所以下面的 startRun 只在「云端也没有 / 8 秒超时 / 恢复失败」时才会执行。 */
-          if (SB.saveTransfer && SB.saveTransfer.restoreFromCloudIfAny) {
-            try { log('本机备份也没有，正在检查 TapTap 云存档…'); } catch (e) {}
-            SB.saveTransfer.restoreFromCloudIfAny(function (cloud) {
-              if (cloud && cloud.source === 'cloud') return;   // 已交给 reload，不再往下走
-              if (cloud && cloud.error) { try { log('云存档恢复失败：' + cloud.error); } catch (e) {} }
-              startRun();
-              bootUi();
-            });
-            return;
-          }
-          /* 三处本机 + 云端都没有 = 真·新玩家；这是唯一允许开新档的分支。 */
-          startRun();
-          bootUi();
+          toCloud();
         });
         return;
       }
@@ -1426,11 +1661,17 @@
       if (!SB.prestige.qualified(S)) { report.tidePoints = 0; report.locked = true; }
       SB.ui.render.showBreakPanel(report);
     } else {
+      /* 启动自动弹窗（2026-10-28 恢复原样）：解锁叙事×3 + 新手引导层。
+       * ⚠️ 只弹「启动时该弹的那些」，各功能自己的入口（页签、设置里的更新日志按钮）
+       *   一律保留；`pendingBreak`（破壳结算）是必须玩家选择的存档节点，不在此列。
+       * ⚠️ 顺序不能换：解锁叙事先于引导层 —— 引导的步骤文案按「页签已解锁」写。 */
       maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
       maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
       maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
-      maybeChangelogPopup();   // 更新后首次进入：自动弹更新日志（队列忙则挂起，见函数内注释）
       if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);  // 首局新手引导（门控内部：设置关/已播过则早退）
+      /* 更新日志红点（2026-10-28 起取代自动弹窗）：纯视觉角标，不抢焦点、不遮挡、
+       * 不参与 #modal 竞争。必须排在叙事/引导之后 —— 它们会开 #modal 并清点页脚状态。 */
+      syncChangelogDot();
     }
     var _btnBreak = document.getElementById('btnBreak');
     if (_btnBreak) _btnBreak.onclick = function () {
@@ -1490,11 +1731,19 @@
     if (btnRank) btnRank.onclick = function () {
       if (SB.ui && SB.ui.render && SB.ui.render.openRankChooser) SB.ui.render.openRankChooser();
     };
-    /* 页脚「更新日志」（2026-10-27 恢复）：玩家随时可以回看历史更新，不只靠首入自动弹。 */
+    /* 页脚「更新日志」（2026-10-27 恢复 / 2026-10-28 改为红点驱动）：玩家随时可以回看，
+     * 不再是「首入自动弹」。点开的这一刻才记已读并熄红点（见 markChangelogSeen）。 */
     var btnChangelog = document.getElementById('btnChangelog');
     if (btnChangelog) btnChangelog.onclick = function () {
-      if (SB.ui && SB.ui.render && SB.ui.render.openChangelog) SB.ui.render.openChangelog();
+      if (!(SB.ui && SB.ui.render && SB.ui.render.openChangelog)) return;
+      SB.ui.render.openChangelog();
+      markChangelogSeen();
     };
+    /* ⚙ 设置 → 自动点击开关（2026-10-28）：绑定 + 首帧同步。
+     * 之后每次 renderAll（2 秒一次 / 任意置脏）都会再同步一次 —— 购买 perks 后
+     * 那个 disabled 的 checkbox 就是这么自动解禁的，不需要买家自己去通知 UI。 */
+    bindAutoClickSetting();
+    syncAutoClickSetting();
     /* 关标签页 / 刷新前立刻落盘：有 5 秒节流在，玩家在这一窗口里刷新就会丢最后几秒，
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */
     function flush() { if (!suppressExitSave && S && !S.broken) SB.state.saveRun(snapshot(S)); }
@@ -1598,6 +1847,9 @@
     maybeGovNamingPopup: maybeGovNamingPopup, confirmGovName: confirmGovName,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
     installImportedSave: installImportedSave, restoreRawSave: restoreRawSave,
+    /* 2026-10-28 P0：云端救援的就地接管入口（不 reload）。导出供 e2e 直接钉住
+     * 「接管后 S/meta 正确、且没有触发 reload」。 */
+    adoptBundle: adoptBundle,
     showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); },
     showBreakAnimation: function (r, afterAnimation) { SB.ui.render.showBreakAnimation(r, afterAnimation); },
     submitRankOnBreak: submitRankOnBreak,

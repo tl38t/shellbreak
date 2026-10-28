@@ -306,7 +306,11 @@
         var D = (s.pop || 0) * SOCIAL.happyCost(SOCIAL.happyMech(s))
           * SOCIAL.luxDemandMul(s)
           * (SB.civic ? SB.civic.govHappyConsumeMul(s) : 1)
-          * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1);
+          * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1)
+          /* ⚠️ 2026-10-28 补乘：《节能减耗》card_saving 的 happyConsumeMul ×1.5 原先只活在
+           *   economy-social.happyBurn 里，本行与 economy.js 的 _D 都漏了 ⇒ 面板撒谎。
+           *   三处（本行 / economy.js _D / economy-social.happyBurn）必须同乘这一个乘区。 */
+          * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1);
         return S - Math.min(S, D);
       })()
     };

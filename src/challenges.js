@@ -46,7 +46,7 @@
      *   G.E.E.K 运行态 + 流浪泰拉挑战的真实规则/奖励留待最后单独实装；在此之前进入它只触发
      *   标准挑战流程（结算当前周目并重开），不施加任何限制、不给任何永久奖励（reward 占位文案）。
      * ⚠️ kind 用「单次挑战」、tiers 单档，与 cold/small 同构，避免 resolveRun 走三档分支报错。 */
-    { id: 'drift_terra', name: '流浪泰拉', icon: '🪐', badge: 'assets/challenges/challenge-drift_terra.png', kind: '单次挑战',
+    { id: 'drift_terra', name: '流浪泰拉', icon: '🪐', badge: 'assets/challenges/challenge-drift_terra-v2.jpg', kind: '单次挑战',
       summary: '（占位）泰拉脱离轨道流浪，严冬将至。', rule: '（待实装）',
       reward: '（待实装）', tiers: [{ label: '进入挑战', cap: null }] }
   ];

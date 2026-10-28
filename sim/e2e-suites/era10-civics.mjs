@@ -171,9 +171,46 @@ export function run({ SB, check, noop }) {
   {
     const A = fr(), B = fr();
     A.pop = 50; B.pop = 50; B.cards = ['card_saving'];
-    check('★ 居民幸福度消耗 ×1.5（happyBurn 共用函数，rates 与 tick 同源）',
+    check('★ 居民幸福度消耗 ×1.5（面板读数链 happyBurn）',
       near(SB.economy.happyBurn(B) / SB.economy.happyBurn(A), 1.5, 1e-9),
       f4(SB.economy.happyBurn(A)) + '→' + f4(SB.economy.happyBurn(B)));
+
+    /* ⚠️⚠️ 2026-10-28 补：上面那条**只测了面板那一路**（happyBurn），tick 的 _D 与 rates 的 D
+     *   从没进过判据 ⇒ 这张卡 2026-10-20 实装后 8 天里，tick/rates 一直漏乘 ×1.5 而 e2e 全绿：
+     *   玩家装卡后面板写「居民幸福度消耗 +50%」，真实扣费一点没多（面板撒谎家族）。
+     *   与 2026-10-06 漏乘 luxSaveAll 那次同形（当时是「夹具恰好没建潮道」）——
+     *   两次都不是判据写错了，是**判据只覆盖了一条读取路径**。
+     *   ⇒ 下面改成**读账本结果反解 D**，不读任何中间变量：
+     *     · tick：跑一秒后 `res.luxury` 的净增 = S − min(S,D)。商人拉到 200 让 S ≫ D
+     *       （min 不截断）⇒ 两次同夹具相减把 S 消掉：netGain_A − netGain_B = D_B − D_A。
+     *       漏乘时 D_B == D_A ⇒ 差为 0，必红。
+     *     · rates：`happySupply − rates.luxury` 就是它的 D（happySupply 与 tick 的 _S 同源，
+     *       由 ui-accessibility 那条「happySupply == tick 毛产出」断言钉着）。 */
+    const DT = 1, L0 = 1000;
+    const mk = () => {
+      const s = fr(); s.pop = 50; s.happy = 0; s.jobs.merchant = 200; s.res.luxury = L0; return s;
+    };
+    const tA = mk(), tB = mk(); tB.cards = ['card_saving'];
+    SB.economy.happyStep(tA, DT);
+    SB.economy.happyStep(tB, DT);
+    const gainA = tA.res.luxury - L0;      // = S − D_A
+    const gainB = tB.res.luxury - L0;      // = S − D_B
+    const dA = SB.economy.happyBurn(tA);   // 面板给的 D_A（无卡）
+    check('★ tick 的 _D 真的乘了 ×1.5（读奢侈品账本反解：netGain_A − netGain_B = 0.5·D_A）',
+      near(gainA - gainB, 0.5 * dA, 1e-9),
+      '净增差=' + (gainA - gainB).toFixed(10) + ' 期望=0.5×' + f4(dA) + '=' + (0.5 * dA).toFixed(10));
+    check('★ tick 的 _D 与面板 happyBurn 同源（S − netGain = happyBurn，装卡前后都成立）',
+      near(SB.economy.happySupply(tA) - gainA, SB.economy.happyBurn(tA), 1e-9) &&
+      near(SB.economy.happySupply(tB) - gainB, SB.economy.happyBurn(tB), 1e-9),
+      '无卡 D_tick=' + f4(SB.economy.happySupply(tA) - gainA) + ' burn=' + f4(SB.economy.happyBurn(tA)) +
+      ' | 装卡 D_tick=' + f4(SB.economy.happySupply(tB) - gainB) + ' burn=' + f4(SB.economy.happyBurn(tB)));
+    const rA = mk(), rB = mk(); rB.cards = ['card_saving'];
+    check('★ rates 的 D 也乘了 ×1.5（happySupply − rates.luxury 装卡前后各自对上 happyBurn）',
+      near(SB.economy.happySupply(rA) - SB.economy.rates(rA).luxury, SB.economy.happyBurn(rA), 1e-9) &&
+      near(SB.economy.happySupply(rB) - SB.economy.rates(rB).luxury, SB.economy.happyBurn(rB), 1e-9),
+      '无卡 D_rates=' + f4(SB.economy.happySupply(rA) - SB.economy.rates(rA).luxury) +
+      ' 装卡 D_rates=' + f4(SB.economy.happySupply(rB) - SB.economy.rates(rB).luxury) +
+      ' burn(装卡)=' + f4(SB.economy.happyBurn(rB)));
   }
 
   /* ---------------- ⑦ 虚境祭坛：人口造价 / 职业等比缩 / 等级上限 ---------------- */

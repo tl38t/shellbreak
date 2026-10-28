@@ -463,7 +463,9 @@
   /* 我们的海卡（faithOutMul 0.7）：信仰产出乘区（economy.faithRate 整段乘）。 */
   function cardFaithOutMul(s) { return cardFieldMul(s, 'faithOutMul'); }
   /* 节能减耗卡（happyConsumeMul 1.5）：居民幸福度消耗乘区。
-   *   落点 economy-social.happyBurn（与政体/奇观两条减免乘区同链相乘，互不抵消）。 */
+   * ⚠️ 落点**三处**：economy-social.happyBurn（面板读数）、economy.js happyStep 的 `_D`（tick +
+   *   离线结算）、economy-rates.js 的 `D`（顶栏净速率）。三处各自手写同式、**不共用函数**
+   *   —— 2026-10-28 前只有 happyBurn 乘了这一个乘区，另两处漏乘，面板与实扣差 ×1.5。 */
   function cardHappyConsumeMul(s) { return cardFieldMul(s, 'happyConsumeMul'); }
   /* 我们的海卡（craftMul 2）：工坊效率**乘区 ×2**（用户 2026-10-20 拍「乘区」）。
    *   落点 workshop.craftMul 的乘区链（与 boomcraft / 工业机器人同形态），

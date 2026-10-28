@@ -3,13 +3,13 @@
  * 仅负责按原有层叠顺序加载模块；具体样式分布在同目录的分层文件中。
  * 修改任意模块后，请同步更新下方版本号和 HTML 的 main.css 版本号。
  */
-@import url("./00-core.css?v=138");
+@import url("./00-core.css?v=139");
 @import url("./10-tech-tree.css?v=138");
 @import url("./20-panels.css?v=139");
 @import url("./30-visual-polish.css?v=165");
-@import url("./40-atmosphere-theme.css?v=141");
-@import url("./50-module-polish.css?v=186");
+@import url("./40-atmosphere-theme.css?v=143");
+@import url("./50-module-polish.css?v=189");
 @import url("./60-star-map.css?v=1");
 @import url("./70-era-skins.css?v=13");
 @import url("./80-save-manager.css?v=3");
-@import url("./onboarding.css?v=1");
+@import url("./onboarding.css?v=2");

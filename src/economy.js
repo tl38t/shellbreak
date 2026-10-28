@@ -528,10 +528,21 @@
     } else if (b.cost && typeof b.cost.pop === 'number' && b.cost.pop > 0) {
       o.pop = b.cost.pop;
     }
+    /* ⚠️ 轻车熟路首建免费（2026-10-28 用户拍板，判据在 SB.habitat.freeFirstBuild）：
+     *   `n === 0`（本局还没建过）且该建筑的「轻车熟路」成就已达成 ⇒ 资源项乘 0。
+     *   【为什么落在这里】costOf 是「面板显示」与「真实扣费」的**唯一共用入口**（本文件反复
+     *   强调的那条纪律）：改动若放在 habitat.build，会出现「按钮显示原价、实扣归零」或
+     *   反过来的两套账；放这里则显示与扣费天然同源。
+     *   ⚠️ 只乘资源项，**`pop` 不乘**（虚境祭坛）：人口不是材料，免人口等于白送族民，
+     *      与「养祭坛要花活人」的设定直接冲突；pop 在循环之前已写进 o，这里本来就碰不到它。
+     *   ⚠️ 保留 0 值键、不 delete：canAfford/pay 对 0 无副作用，而保留键位能让调试时看见
+     *      「这一级本该花哪些资源」，也让 costOwnedTxt 的跳过逻辑与平常一致。 */
+    var _freeMul = (b && n === 0 && SB.habitat && SB.habitat.freeFirstBuild &&
+      SB.habitat.freeFirstBuild(s, b.id)) ? 0 : 1;
     for (var k in b.cost) {
       if (k === 'pop') continue;
       o[k] = b.cost[k] * Math.pow(b.ratio, _effN) * hm * gm * wm * isb * hsb * bsb
-        * scm * (k === 'scaffold' ? sc : 1);
+        * scm * (k === 'scaffold' ? sc : 1) * _freeMul;
     }
     return o;
   }
@@ -582,6 +593,24 @@
       out.push(SB.RESS[k].name + ' ' + have + '/' + fmtAmt(c[k]));
     }
     return out.join(' ');
+  }
+  /* 「建造 / 升级」按钮上的成本文案**唯一出口**（2026-10-28 轻车熟路首建免费）：
+   *   · 免费态下资源项已被 costOf 乘 0，而 costOwnedTxt 对 0 值一律 `continue` ⇒ 直接返回
+   *     空串，按钮上就剩「建造 」两个字（玩家只会读成坏了）。这里改成直说「免费」。
+   *   · 人口造价**不免**（见 costOf 那段：祭坛吃活人），所以免费态仍把人口要求标出来 ——
+   *     否则按钮写着免费、点了却因人口不够静默失败。
+   *   · 其余情况逐字转发 costOwnedTxt（不复制公式，只做包装）。
+   * ⚠️ 判据统一取 SB.habitat.freeFirstBuild：与 costOf 的乘 0、build() 的 `free` 快照同源。
+   *   三个调用点（巢穴页、星图页、建筑详情卡）都调它，别各写一份 —— 上一轮三个面板
+   *   各自判 cost 之所以出过「两套账」，根因就是同一条判据存了三份。 */
+  function buildCostTxt(s, id, c) {
+    if (!s || !id) return '';
+    var cc = c || costOf(s, id);
+    if (SB.habitat && SB.habitat.freeFirstBuild && SB.habitat.freeFirstBuild(s, id)) {
+      return '免费' + ((typeof cc.pop === 'number' && cc.pop > 0)
+        ? '（仍需人口 ' + fmtAmt(cc.pop) + '）' : '');
+    }
+    return costOwnedTxt(s, cc);
   }
   /* 资源够不够的**唯一**判据。所有「能不能建 / 学 / 解锁」的比较都必须走它，
    * 不许再裸写 `s.res[k] >= cost`。
@@ -2029,9 +2058,20 @@
       * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1)
       * (SB.civic ? SB.civic.cardJobOutMul(s) : 1);   // ERA7 延长工时卡：商人产出 +30%（与面板 happySupply 同式，面板===结算）
     var _Hmech = (s.happy || 0) - _gb;
+    /* ⚠️⚠️ 2026-10-28 修「三处同源被漏两路」：《节能减耗》card_saving 的 happyConsumeMul ×1.5
+     *   原先**只**乘在 SOCIAL.happyBurn（面板读数链）里，tick 的 _D 与 rates 的 D 都没乘
+     *   ⇒ 装卡后面板显示消耗 ×1.5、真实扣费纹丝不动（方向对玩家有利，所以没人报、
+     *   e2e 也没抓到）。offline-scheduler.js:159 直接复用本函数推进离线结算，
+     *   所以修这一行同时覆盖 tick 与离线两条时间轴。
+     *   【e2e 为什么漏抓】era10-civics 那条断言只比 `happyBurn(B)/happyBurn(A) == 1.5`，
+     *   **只测了面板那一路**，tick / rates 从没进过判据 —— 与 2026-10-06 漏乘 luxSaveAll
+     *   那次同形（当时是「夹具恰好没建潮道」）。教训升级：口径对齐的断言不是「比一次比值」，
+     *   而是「三条读取路径逐条与面板对齐」，否则永远测不出漏的那条。 */
     var _D = (s.pop || 0) * SOCIAL.happyCost(_Hmech) * SOCIAL.luxDemandMul(s)
       * (SB.civic ? SB.civic.govHappyConsumeMul(s) : 1)
-      * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1);
+      * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1)
+      /* ERA10 市政《节能减耗》：居民侧幸福度消耗 ×1.5（与政体/奇观同一条乘区链，相乘不抵消）。 */
+      * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1);
     addRes(s, 'luxury', _S * dt);
     s.res.luxury -= Math.min(_S, _D) * dt;
     s.happy = resUnlocked(s, 'luxury')
@@ -2114,7 +2154,8 @@
      *   导出是为了 e2e 与 UI 能直接断言这个读数，不必把口径抄四遍。 */
     coreLvl: coreLvl, hallDiscount: hallDiscount, hallDiscountLimit: hallDiscountLimit,
     costOf: costOf, scaffoldAdjustedCost: scaffoldAdjustedCost,
-    costTxt: costTxt, costOwnedTxt: costOwnedTxt, canAfford: canAfford, pay: pay,
+    costTxt: costTxt, costOwnedTxt: costOwnedTxt, buildCostTxt: buildCostTxt,
+    canAfford: canAfford, pay: pay,
     /* farmMul / gatherMul 成对导出（2026-09-27 工坊工具）：工具就是插在这两条乘区上的，
      * 回归必须能直接读乘区本身 —— 读 foodRate 会被 byBuild 那一份稀释，测不出精确的 ×1.8。 */
     farmMul: farmMul, gatherMul: gatherMul,

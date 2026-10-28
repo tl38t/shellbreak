@@ -648,10 +648,14 @@
    *   判「新玩家」开新档。玩家看到的就是「退出之后存档没了」。
    * 【调用时机】只在 game.boot 判定「本机三处都没有」之后（真·最后一根稻草），
    *   正常读档路径永不触发，所以对老玩家零开销、零延迟。
-   * 【为什么借 installImportedSave】它自带「先备份旧值 → 写入 → reload」，与手动导入走同一条
-   *   已验证路径；reload 后 localStorage 已有档，decideRun 返回 resumed，不会再进这个分支。
-   * ⚠️ 必须带 8 秒超时：云端不响应时不能让玩家卡在启动。超时即按新玩家处理。
-   * ⚠️ 60 秒内只试一次：万一写入后被容器拦住没 reload，也不会变成每次启动都拉云端。 */
+   * 【为什么**不**再借 installImportedSave】2026-10-28 前的实现复用它，而它末尾是
+   *   `location.reload()` —— 那是全应用唯一的自动重载点，也是「无限重载环」的唯一发动机
+   *   （详见本函数 then 分支的注释）。现在它只把 bundle 交回 game.adoptBundle 就地接管。
+   * ⚠️ 必须带 8 秒超时：云端不响应时不能让玩家卡在启动。game.boot 另有 8 秒兜底，
+   *   两层超时保证 boot 一定往前走。
+   * ⚠️ 60 秒内只试一次：万一写入后被容器拦住，也不会变成每次启动都拉云端。
+   *   ⚠️⚠️ 这个节流键存在 localStorage，而 localStorage 在容器里可能不持久 ⇒ 环里它
+   *     也失效。真正的保险是「不再 reload」：只拉一次、只接管到内存，不重载就不会成环。 */
   var CLOUD_TRY_KEY = 'shellbreak.cloud-recover-at.v1';
   function restoreFromCloudIfAny(cb) {
     var finished = false;
@@ -681,9 +685,14 @@
         ? fileResult.data : textFromBytes(new Uint8Array(fileResult.data));
       var bundle = validateBundle(JSON.parse(text));
       root.clearTimeout(timer);
-      try { SB.game.installImportedSave(bundle); }
-      catch (e) { done({ error: errorText(e) }); return; }
-      done({ source: 'cloud' });
+      /* ⚠️⚠️ 2026-10-28 P0：这里**绝不**再调 installImportedSave —— 它末尾是
+       *   `location.reload()`，而那是全应用唯一的自动重载点。
+       *   在「localStorage 写进去读不回来」的容器里（正是「退出就没存档」的根因），
+       *   它会把启动变成「本机空 → 拉云端 → 写盘 → 重载 → 还是空 → 再拉云端 → …」的
+       *   无限重载环；而 meta.seenVersion（更新日志已读）与救援节流键都存在同一个地方
+       *   ⇒ 每圈都判「该版本首次进入」⇒ 每圈重弹更新日志、每次点击都被重载打断。
+       *   现在只负责「把档交出去」，落盘与接管由 game.adoptBundle 就地完成（不重载）。 */
+      done({ source: 'cloud', bundle: bundle });
     }).catch(function (e) {
       root.clearTimeout(timer);
       done(null);

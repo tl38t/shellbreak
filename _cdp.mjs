@@ -26,6 +26,9 @@ export async function connect(opts) {
 
   let buf = Buffer.alloc(0);
   const waiters = new Map();
+  /* 事件帧（无 id、只有 method）原先被直接丢弃，探针拿不到控制台报错 / 未捕获异常。
+   * 这里补一个最小订阅通道：on(method, fn)。只做增量，不影响原有 send/evaluate。 */
+  const listeners = new Map();
   let id = 0;
   sock.on('data', c => {
     buf = Buffer.concat([buf, c]);
@@ -39,7 +42,15 @@ export async function connect(opts) {
       if (buf.length < off + len) break;
       const pay = buf.slice(off, off + len);
       buf = buf.slice(off + len);
-      if (op === 1) { let msg; try { msg = JSON.parse(pay.toString()); } catch (e) { continue; } const w = waiters.get(msg.id); if (w) { waiters.delete(msg.id); w(msg); } }
+      if (op === 1) {
+        let msg; try { msg = JSON.parse(pay.toString()); } catch (e) { continue; }
+        const w = waiters.get(msg.id);
+        if (w) { waiters.delete(msg.id); w(msg); continue; }
+        if (msg.method) {
+          const fns = listeners.get(msg.method);
+          if (fns) for (const fn of fns) { try { fn(msg.params || {}); } catch (e) {} }
+        }
+      }
     }
   });
 
@@ -71,5 +82,10 @@ export async function connect(opts) {
     return ro ? ro.value : undefined;
   }
 
-  return { send, evaluate, close: () => sock.end() };
+  function on(method, fn) {
+    if (!listeners.has(method)) listeners.set(method, []);
+    listeners.get(method).push(fn);
+  }
+
+  return { send, evaluate, on, close: () => sock.end() };
 }

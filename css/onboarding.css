@@ -130,3 +130,18 @@
   .ob-welcome-ft { margin-top: 8px; }
   .ob-welcome-ft .btn { padding: 9px 20px; font-size: 14px; }
 }
+
+/* ⚠️⚠️ 2026-10-28 P0：**弹窗打开期间，引导层整体让位**。
+ * 事故：`.ob-welcome` 是 z-index:100001，而 `#modal` 只有 50；`.ob-welcome-card` 又是
+ *   `pointer-events:auto` ⇒ 引导欢迎卡**盖在更新日志弹窗上面**，把「×」和「知道了」
+ *   的点击全部吃掉（CDP 实测：× 中心 `elementFromPoint` 命中的是 `DIV.ob-welcome-bd`，
+ *   而不是 `BUTTON.modal-x`）。玩家看到的是「弹窗看得见、点不动、关不掉」。
+ * 修法选择：**不动 z-index**（引导层数值高是刻意为了压住游戏界面，改它会连带影响
+ *   spotlight 高亮环与分步提示的可见性，容易出视觉回归），改为弹窗期间直接隐藏。
+ *   关掉弹窗后 `body.modal-open` 被移除（hideModal → bodyModalClass(false)），
+ *   引导层自然恢复，两套流程互不吞并。
+ * ⚠️ 用 `display:none` 而不是 `pointer-events:none`：后者只挡鼠标，卡片仍可见会与弹窗
+ *   重叠成一个视觉乱局。 */
+body.modal-open .ob-layer,
+body.modal-open .ob-welcome,
+body.modal-open .ob-tip { display: none !important; }

@@ -536,6 +536,17 @@
        * 独立 RNG 之外、事件系统唯一需要落进状态表的字段——因为它要改 economy.globalMul 这条产出主轴。 */
       eventAllUntil: 0,
       autoClickAcc: 0,            // 自动点击的帧钟累计预算（真实秒 × 次/秒），见 src/autoplay.js
+      /* 自动点击开关（2026-10-28，⚙ 设置 → 自动）。**本局实际行为**，不是浏览器偏好：
+       * 它决定本局每帧要不要执行采集，换设备/云存档恢复后行为必须一致。
+       * ⚠️ 两层模型（2026-10-28 用户拍「跨周目继承」）：
+       *    s.autoClickOn    = 本局行为 —— autoplay.autoClick 只认它；
+       *    meta.autoClickOn = 跨周目偏好 —— startRun 播种进新局，玩家拨开关时两边同写。
+       *    这里给 true 只是「没有任何来源时的兜底」，正常路径由 game.startRun / resumeRun 覆盖。
+       * ⚠️ 判据是 `=== false`（见 autoplay.autoClick）：老存档没有这个字段 ⇒ 视为「开」，
+       *    不需要 migrateRun 迁移（迁移只校验不重算，别指望它补默认值）。
+       *    meta 侧刻意**不进 emptyMeta**：只有「玩家真的拨过开关」才会出现这个键，
+       *    resumeRun 才能靠它区分「从未设置」与「显式设为开」来给老档做一次性认领。 */
+      autoClickOn: true,
       _grow: 0,
       _cutBase: 0,   // 累计：基础削壳削掉的点数
       /* 存档墙钟：game.snapshot() 写入，离线补算据此算「玩家离开了多久」。

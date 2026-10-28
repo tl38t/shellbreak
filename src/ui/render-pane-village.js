@@ -53,10 +53,25 @@
      * 这次是常数取错），玩家点一下发现和按钮上写的不一样。同源了之后
      * e2e 那条「读数与常数同源」断言才真的在守什么东西。 */
     var GA = SB.GATHER || { kelp: 1, coral: 1 };
+    /* 自动点击角标（2026-10-28 用户：「只是提示正在自动点击」）。
+     * 自动点击现在是**静默**的——不重画面板、只加资源（见 src/autoplay.js 的 ⑤），
+     * 于是玩家唯一能感知它在跑的地方就是这一枚角标。读 s.perk.autoClick（0/1/2/3 = 次/秒），
+     * 与 state.rebuildPerks 里 autoClicker1/2/3 三档叠加的口径同源，不自己数商品。
+     * ⚠️ 刻意不加 animation / 呼吸灯：玩家报的问题就是「一直闪」，再给个动效等于换个方式闪。
+     * ★ 2026-10-28 补：设置里可以暂停（s.autoClickOn === false）⇒ 角标改成「已暂停」灰态。
+     *   若暂停时角标直接消失，玩家会以为 perks 丢了（买了东西却什么都没显示）。 */
+    var _acRate = (s.perk && s.perk.autoClick) || 0;
+    var _acOn = _acRate > 0 && !(s.autoClickOn === false);
+    var _acTag = _acRate <= 0 ? ''
+      : (_acOn
+        ? '<span class="auto-click-tag" title="轮回商店「潮讯自拾」：自动替你点这两个按钮，' +
+          '不随游戏倍速放大。可在 ⚙ 设置 → 自动 里暂停">自动点击中 · ' + _acRate + ' 次/秒</span>'
+        : '<span class="auto-click-tag is-off" title="已在 ⚙ 设置 → 自动 里暂停；' +
+          '手动点这两个按钮不受影响">自动点击已暂停</span>');
     /* ⚠️ 2026-10-16 用户「这里也统一一下」：两个采集按钮包进 .gather-btns，行加 .gather-row ——
      *   旧状两钮是 .row 的裸 flex 子项、无宽度约束，被文本列挤成逐字竖排，且「+1 / +0.1」
      *   宽窄不一。尺寸统一写进 CSS（见 50-module-polish）。 */
-    h += '<div class="row gather-row"><div><div class="nm">手动采集</div>' +
+    h += '<div class="row gather-row"><div><div class="nm">手动采集' + _acTag + '</div>' +
       '<div class="ds">开局 1 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢' +
       '（人口上限 1 → 3），再攒 15 藻食建深海菌圃让口粮跟上。' +
       /* 2026-10-27 用户：「是不是应该说明藻食低于 20 人口就不会增长」——
@@ -157,7 +172,10 @@
          * 「这一级要多少」，用词跟着等级走比一律写「建造」更答得上话。
          * 前置没满足时只说「需 XX」——那时按钮点不动，成本不是当下该看的信息。 */
         var label = blocked ? '需 ' + (SB.habitat.buildingById(b.need) || {}).name
-          : (lv > 0 ? '升级 ' : '建造 ') + SB.economy.costOwnedTxt(s, c);
+          : (lv > 0 ? '升级 ' : '建造 ') + SB.economy.buildCostTxt(s, b.id, c);
+        /* 轻车熟路首建免费（2026-10-28）：costOf 已把资源项乘 0，buildCostTxt 会输出「免费」。
+         *   优先级：blocked / canalCap / maxReached 都在它上面 —— 那三个是「点不动」，
+         *   免费只表示「不用花钱」，不能让一个点不动的按钮看起来可以点。 */
         /* 王国潮道的跨建筑钳制与 build()/lockReason() 同一条判定——不判它按钮会
          * 「亮着但点了没反应」（build 内部静默 return false）。 */
         var canalCap = b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);

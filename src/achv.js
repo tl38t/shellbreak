@@ -80,14 +80,19 @@
   /* 45 条「<建筑名>：轻车熟路」从 SB.BUILDINGS 自动派生——新增建筑自动获得成就槽位，
    * ID 未回填则自动跳过（idOf 防线），不必改本文件。
    * ⚠️ config-buildings.js 先于本文件加载（index.html 顺序控制），SB.BUILDINGS 在此可用；
-   *    派生结果缓存，_reset 时清（测试重建用）。 */
+   *    派生结果缓存，_reset 时清（测试重建用）。
+   * ⚠️ `desc` 里那句「达成后每个轮回首次建造免材料」不是装饰（2026-10-28 用户要求
+   *    「在成就页面说明」）：它是**唯一会把这条福利讲给玩家听的地方**——首建免费在游戏里
+   *    只表现为按钮变成「免费」，不解释成因，玩家会当成显示 bug。改福利口径时两处一起改
+   *    （判据在 SB.habitat.freeFirstBuild）。 */
   function allDefs() {
     if (derivedCache) return derivedCache;
     var out = DEFS_BASE.slice();
     var B = SB.BUILDINGS || [];
     for (var i = 0; i < B.length; i++) {
-      out.push({ key: 'bld_' + B[i].id, name: B[i].name + '：轻车熟路', bld: B[i].id, zone: B[i].zone, icon: B[i].icon,
-        desc: '把' + B[i].name + '的等级累计建到 100 级（跨周目合计）。' });
+      out.push({ key: 'bld_' + B[i].id, name: B[i].name + '：轻车熟路', bld: B[i].id, bldName: B[i].name,
+        zone: B[i].zone, icon: B[i].icon,
+        desc: '把' + B[i].name + '的等级累计建到 100 级（跨周目合计）。达成后，每个轮回首次建造这座建筑不花材料。' });
     }
     derivedCache = out;
     return out;

@@ -980,8 +980,10 @@
      *     落点 economy.launchCycleOf —— tick 与 rates 共用一个函数，不各写一份）；
      *   launchHydroMul（节能减耗，发射场每级热液能耗乘区，落点 economy.launchHydroPer，
      *     三处读取（tick/rates/hydroAlloc）同源）；
-     *   happyConsumeMul（节能减耗，居民幸福度消耗乘区，economy-social.happyBurn 读——
-     *     ⚠️ 与政体 govHappyConsumeMul / 奇观 happyConsumeMul 同一乘区链，相乘不冲突）；
+     *   happyConsumeMul（节能减耗，居民幸福度消耗乘区，**三处同乘**：economy-social.happyBurn
+     *     / economy.js happyStep 的 _D / economy-rates.js 的 D——
+     *     ⚠️ 与政体 govHappyConsumeMul / 奇观 happyConsumeMul 同一乘区链，相乘不冲突；
+     *     ⚠️ 2026-10-28 前只落 happyBurn，tick/rates 漏乘 ⇒ 面板显示 +50% 而实扣不变，已修）；
      *   sciOutMul（我们的海 −30%，现成 cardFieldMul 通道）；
      *   faithOutMul（我们的海 −30%，新字段，economy.faithRate 整段乘区）；
      *   craftMul（我们的海，工坊效率**乘区 ×2**，落点 workshop.craftMul 乘区链——

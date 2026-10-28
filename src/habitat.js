@@ -218,6 +218,33 @@
     return take;
   }
 
+  /* ══ 轻车熟路 → 本局首建免费（2026-10-28 用户拍板，采用「首建造价归零」而非「白送 1 级」）══
+   * 【规则】某建筑的「<建筑名>：轻车熟路」成就已达成（累计建造 100 级）⇒ 之后每个周目里
+   *   该建筑**第一次建造**的造价归零（资源项），玩家仍需自己点一下。
+   * 【为什么不做「白送 1 级」】用户问的风险我全列过，最凶的两条都是「等级先出现」造成的：
+   *   ① `s.lvl.x > 0` 是全仓「已建成」契约 —— 白送会让 game.js:23 的 `s.lvl.satellite >= 1`
+   *      直接永久解锁星屑商店（免 tiplate 100 + rocketFuel 100，还跨周目），
+   *      让 maybeWorkshopPopup（`s.lvl.workshop > 0`）每轮回弹一次工坊解锁叙事，
+   *      还会破坏 canal ≤ lighthouse 的跨建筑钳制（白送 canal 1 级而灯塔 0 级）；
+   *   ② 一票「吃料机器」（汽轮机/热泉炉/核热厂/发射场）默认「等级−停用数」即运转，
+   *      白送 1 级 = 无人操作时直接开始吃料。
+   *   「首建免费」走的是**完全相同的 build() 通道**：等级只在玩家真点之后才出现，
+   *   于是 maxLvl / need / canal 钳制 / 人口造价 / 记账 / reveal / 星图同步全部照旧生效，
+   *   上面那一整串连锁自动消失 —— 这就是选它当「风险最小」的全部理由。
+   * 【为什么判据只看 `lvl === 0`】freshRun 的 lvl 是空表 ⇒ 新周目天然重置，不需要额外
+   *   「本局是否已用过」旗标；建完一级后 lvl ≥ 1 ⇒ 后续各级自动回到原价（天然幂等）。
+   * 【成就账本读哪个】必须读 `meta.achv`（本地账本，无 SDK 也会记），不能读
+   *   `meta.achievements`（平台账本，没网/没回填 ID 时是空的）—— 读错的后果是「成就墙亮了
+   *   但福利不发」，玩家完全无法理解。 */
+  function freeFirstBuild(s, id) {
+    if (!s || !id || !s.lvl) return false;
+    /* 只对「本局还没建过」生效。这一步同时是幂等闸：建过就不再免。 */
+    if ((s.lvl[id] || 0) > 0) return false;
+    var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    if (!m || !m.achv) return false;
+    return !!m.achv['bld_' + id];
+  }
+
   function build(s, id, emit) {
     var b = buildingById(id);
     if (!b || !unlocked(s, b)) return false;
@@ -228,6 +255,9 @@
      * ⚠️ 上限读建筑条目（不烤进存档）⇒ 将来调高上限对老档立即生效。 */
     if (b.maxLvl && (s.lvl[id] || 0) >= b.maxLvl) return false;
     var c = SB.economy.costOf(s, id);
+    /* 轻车熟路首建免费（见 freeFirstBuild）：必须在 `s.lvl[id]++` **之前**取快照——
+     * 加级之后 lvl>0，判据自己就变成 false 了，事后无法反推。文案靠它区分。 */
+    var free = freeFirstBuild(s, id);
     if (!SB.economy.canAfford(s, c)) return false;
     /* 王国潮道（2026-09-30 · 市政《行政部门》解锁2）：等级 ≤ 灯塔等级（规格原文）。
      * 这是全仓第一条**跨建筑**等级钳制——灯塔 0 级时潮道一座都建不起来。
@@ -264,7 +294,8 @@
     if ((id === 'satellite' || id === 'spacestation') && SB.game && SB.game.syncSpacecraft) SB.game.syncSpacecraft(s);
     // 建造不再直接削壳：壳厚只由「系数驱动的持续削壳」表达，
     // 建造的贡献体现在 lvlSum 推高破壳系数上。这样玩家看得到因果，而不是看到一次跳变。
-    if (emit) emit('建成 ' + b.name + ' ×' + s.lvl[id] + '，破壳系数 ' + SB.shell.breakCoef(s).toFixed(2));
+    if (emit) emit((free ? '「轻车熟路」免费建成 ' : '建成 ') + b.name + ' ×' + s.lvl[id] +
+      '，破壳系数 ' + SB.shell.breakCoef(s).toFixed(2));
     return true;
   }
 
@@ -348,6 +379,9 @@
     /* retired（2026-10-06）：render 的可见性判定要用它滤掉已退役建筑的常驻行，
      *   与 unlocked() 里的那一判同源（同一个函数）。 */
     retired: retired,
+    /* freeFirstBuild（2026-10-28）：轻车熟路首建免费的**唯一判据**。economy.costOf 用它把
+     *   资源项乘 0，render 用它把按钮文案换成「免费」—— 两处都读这一个函数，不各写一份。 */
+    freeFirstBuild: freeFirstBuild,
     autoZoneUnlocked: autoZoneUnlocked, autoTick: autoTick, habitatName: habitatName
   };
 })(typeof window !== 'undefined' ? window : globalThis);

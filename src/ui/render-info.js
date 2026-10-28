@@ -463,9 +463,17 @@
       ? '<section class="tree-detail-section"><h4>运行消耗</h4><p>' + linkInfoNames(consumeText) + '</p></section>'
       : '';
     var maxed = b.maxLvl && lv >= b.maxLvl;
+    /* 轻车熟路首建免费（2026-10-28）：costOwnedTxt 对 0 值全部跳过 ⇒ 免费态这一节会是空白，
+     *   玩家看不出是「不要钱」还是「渲染坏了」。这里换成一句能解释因果的话。
+     *   ⚠️ 判据与 costOf / build 同一个函数（SB.habitat.freeFirstBuild），不另写一份。 */
+    var freeBuild = !maxed && lv === 0 && !blocked && !canalCap &&
+      SB.habitat.freeFirstBuild && SB.habitat.freeFirstBuild(s, id);
     var nextLevelSection = maxed
       ? '<section class="tree-detail-section"><h4>等级上限</h4><p>已达最高等级（' + lv + '/' + b.maxLvl + '）</p></section>'
-      : '<section class="tree-detail-section"><h4>下一次建造 / 升级</h4><p>' + SB.economy.costOwnedTxt(s, cost) + '</p></section>';
+      : '<section class="tree-detail-section"><h4>下一次建造 / 升级</h4><p>' +
+        (freeBuild ? '材料全免 —— 你已达成「' + b.name + '：轻车熟路」，每个轮回首次建造这座建筑不花材料'
+          + ((typeof cost.pop === 'number' && cost.pop > 0) ? '（人口要求照常：仍需 ' + cost.pop + ' 人）。' : '。')
+          : SB.economy.buildCostTxt(s, id, cost)) + '</p></section>';
     var buildingFlavor = BUILDING_FLAVOR[b.id] || '';
     var voidBuilding = b.id === 'void_altar';
     if (voidBuilding && buildingFlavor && SB.ui.render && typeof SB.ui.render.voidCorrupt === 'function') {

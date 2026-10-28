@@ -157,7 +157,11 @@
     for (i = 0; i < defs.length; i++) if (m.achv && m.achv[defs[i].key]) earned++;
     var h = '<section class="achv-wall"><header class="achv-wall-head">' +
       '<div><span class="achv-kicker">ACHIEVEMENTS</span><h2>成就墙</h2>' +
-      '<p>共 ' + defs.length + ' 项，跨周目保留。「轻车熟路」按建筑分区折叠，进度为跨周目累计等级。</p></div>' +
+      '<p>共 ' + defs.length + ' 项，跨周目保留。「轻车熟路」按建筑分区折叠，进度为跨周目累计等级。</p>' +
+      /* 2026-10-28（用户要求）：把「首建免费」这条福利明写在页面上。
+       * ⚠️ 游戏里它只表现为建造按钮变成「免费」，不解释成因 ⇒ 玩家会当成显示 bug；
+       *    这里是**唯一讲清因果的地方**，改福利口径（SB.habitat.freeFirstBuild）时同步改这句。 */
+      '<p class="achv-rule">「轻车熟路」成就达成后，该建筑在<b>每个轮回</b>首次建造<b>不花材料</b>。</p></div>' +
       '<div class="achv-wall-count"><small>已获得</small><b>' + earned + ' / ' + defs.length + '</b></div></header>';
 
     /* 通用两组：旧 5 条（挑战与轮回）+ 新 12 条（文明里程碑）。DEFS_BASE 顺序即此顺序。 */

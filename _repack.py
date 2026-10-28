@@ -11,7 +11,7 @@ import shutil
 import zipfile
 
 SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
-OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc26-v1.0.2.zip'
+OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc29-v1.0.3.zip'
 TOP = 'shellbreak'
 
 # ---------- 打包前：自动同步源码 → 包目录 ----------
@@ -92,6 +92,78 @@ LB_IDS = ('wk8s9lkm23g2eihkz8', 'zgq97kctyiqffhcr9p', 'riikrs1jp5m6a1nyjy',
 missing = [i for i in LB_IDS if i not in body]
 assert not missing, f'包内 config.js 的 RANK.LB 缺榜 ID: {missing}，先同步源码'
 print('打包前置检查: OK (500000 + cache-buster + 无手动倍速 + 广告按钮 + 壳厚迁移 + 广告位1054324 + dev口收紧 + 排行榜9ID)')
+
+# ---------- 打包前置检查 ②：Ver1.0.3 的四条 P0 修复必须真的在包里 ----------
+# ⚠️ 2026-10-07 教训的同类：包目录是**拷贝**，只改仓库不改包 = 打出一份没修的版本，
+#   而玩家侧表现与修复前一模一样（会再被当成"没修好"）。这四条都是本版的核心修复，
+#   少任何一条这个包就等于白打，故逐条断言，宁可打不出来也不要打出假的。
+def _read(rel):
+    with open(os.path.join(SRC, rel), encoding='utf-8') as f:
+        return f.read()
+
+_gm = _read('src/game.js')
+# ① 云端救援就地接管（存在即说明没回退到 installImportedSave + reload）
+assert 'function adoptBundle(bundle)' in _gm, '包内 game.js 缺 adoptBundle（云端救援仍会 reload）'
+# ② 分段超时：三条出口必须都在，且 proceeded 互斥旗在
+assert 'var proceeded = false;' in _gm and 'function finishResumed(' in _gm, '包内 game.js 缺 boot 分段超时出口'
+assert "arm(8000, function () { toCloud(); });" in _gm, '包内 game.js 缺 recoverAsync 段超时'
+assert "arm(12000, function () { finishNew(" in _gm, '包内 game.js 缺云端段超时'
+# ③ 写入后读回校验（本机存储不可靠时当场中止，而不是 reload 成重载环）
+assert '本机存储不可靠：写入后读回的内容不一致' in _gm, '包内 game.js 缺导入写后读回校验'
+# ④ 更新日志本会话内存去重（2026-10-28 起改红点驱动，旗名 changelogShown → changelogSigned）
+assert 'var changelogSigned = false;' in _gm, '包内 game.js 缺更新日志会话去重'
+
+_inp = _read('src/ui/input.js')
+# ⑤ 逃生分支必须排在 `var s = run(); if (!s) return;` 之前 —— 顺序错了等于没修。
+# ⚠️ 按**行号**比较，不按字符偏移：源码是 CRLF，写 `'a;\n  b;'` 这种跨行子串永远找不到，
+#   而且注释里也有同名片段（第 81 行的纪律注释），子串匹配会命中错的那一处。
+_il = _inp.split('\n')
+_esc_line = next((i for i, ln in enumerate(_il) if ln.strip().startswith('if (d.modalClose !== undefined)')), -1)
+_gate_line = next((i for i, ln in enumerate(_il)
+                   if ln.strip() == 'var s = run();'
+                   and i + 1 < len(_il) and _il[i + 1].strip() == 'if (!s) return;'), -1)
+assert _esc_line > 0 and _gate_line > 0, \
+    f'包内 input.js 找不到关弹窗分支或 S 判空闸门（esc_line={_esc_line}, gate_line={_gate_line}）'
+assert _esc_line < _gate_line, \
+    f'包内 input.js 的关弹窗分支又被挪到 S 判空之后了（esc_line={_esc_line} 应小于 gate_line={_gate_line}）'
+
+_ob = _read('css/onboarding.css')
+# ⑥ 弹窗期间压住引导层（它是 pointer-events:auto + z-index:100001，会吃掉所有点击）
+assert 'body.modal-open .ob-welcome' in _ob, '包内 onboarding.css 缺「弹窗期间隐藏引导层」规则'
+
+# ⑦ Ver1.0.4-test 那三个测试开关（静默启动 / 触摸水波纹 / 按下即关）必须**不在**包里。
+#   2026-10-28 用户拍板：新手引导与解锁叙事恢复启动自动弹，测试开关整段摘除（不是置 false）。
+#   ⚠️ 这条反过来锁：一旦有人把测试代码带回来，打包当场失败，不会漏发出去。
+assert 'installTouchPing' not in _gm, '包内 game.js 仍残留触摸诊断层 installTouchPing（测试开关未摘净）'
+assert 'TEST_QUIET_BOOT' not in _gm, '包内 game.js 仍残留 TEST_QUIET_BOOT 判定（启动弹窗被静默了）'
+assert 'onClosePointerDown' not in _inp, '包内 input.js 仍残留「按下即关」通路 onClosePointerDown'
+# 反向护栏：解锁叙事 + 新手引导的自动弹必须真的在 bootUi 里（摘开关别把功能一起摘了）
+assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _gm, \
+    '包内 game.js 的新手引导自动弹没接回去'
+assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
+
+_cfg = _read('src/config.js')
+assert "VERSION: 'Ver1.0.3'" in _cfg, '包内 config.js 版本号不是 Ver1.0.3'
+assert "v: 'Ver1.0.3'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.3 条目'
+
+# ---------- 打包前置检查 ③：正式包不许带任何 -test 痕迹 ----------
+# ⚠️ 2026-10-28 教训：测试包（Ver1.0.4-test）是用来给 iOS 玩家做二分实验的，开关会把自动弹窗
+#   和新手引导全关掉、还挂一个诊断浮层。既然已拍板摘除，就用「版本名 / 更新日志 / 开关」三处
+#   同时不含 `-test` 与 `TEST_` 来锁死，任何一处漏网都打不出包。
+#   取行用 startswith('VERSION:')：注释里也有 "VERSION =" 之类的字样，裸 in 会命中错的行。
+_vline = [ln for ln in _cfg.split('\n') if ln.strip().startswith('VERSION:')][0]
+assert '-test' not in _vline, '包内 config.js 版本名仍带 -test：%s' % _vline.strip()
+assert 'TEST_QUIET_BOOT:' not in _cfg and 'TEST_TOUCH_PING:' not in _cfg \
+    and 'TEST_CLOSE_ON_POINTERDOWN:' not in _cfg, '包内 config.js 仍残留 TEST_* 开关定义'
+assert "-test'" not in _cfg, '包内 config.js 的 CHANGELOG 仍残留 -test 版本条目'
+print('正式版洁净度: OK (版本名无 -test / 无 TEST_* 开关 / 无 test 日志条目 / 引导与叙事自动弹在位)')
+# ⑧ 节能减耗三处同源：tick / rates 都必须乘 cardHappyConsumeMul
+_base = _read('src/economy.js')
+_rates = _read('src/economy-rates.js')
+assert _base.count('cardHappyConsumeMul') >= 2, '包内 economy.js 的节能减耗乘区缺失（tick 侧）'
+assert 'cardHappyConsumeMul' in _rates, '包内 economy-rates.js 的节能减耗乘区缺失（面板侧）'
+print('P0 修复入包检查: OK (adoptBundle + 分段超时×2 + 写后读回 + 日志去重 + 逃生分支顺序 + 引导层压制 + 版本号/日志 + 节能减耗三落点)')
+
 
 # 包内素材必须齐全（2026-10-26 补：rc15 及之前只同步两个 icons 子树，
 # 线上缺 fonts / building-icons / resource-icons / achievements 等 ⇒ 静默 404 缺图）

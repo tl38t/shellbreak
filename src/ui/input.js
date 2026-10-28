@@ -78,6 +78,30 @@
       if (treeTarget && treeTarget.scrollIntoView) treeTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
+    /* ⚠️⚠️ 2026-10-28 P0：**逃生分支必须排在 `var s = run(); if (!s) return;` 之前**。
+     *   事故：玩家报「从存档码导入后卡在更新日志，什么都点不动，重启也一样」。
+     *   根因链：S 只在 `decideRun()` 判定 resumed/empty **成功**后才被赋值；一旦判定
+     *   `blocked`（meta/run 解析失败、`migrateRun` 抛错、导入档非法、三处本机全空且
+     *   救援没接上），`boot()` 直接 return，S 恒为 null。
+     *   而旧代码把「关闭弹窗」「点弹窗外关闭」放在 S 判空**之后** ⇒ 这时点「知道了」
+     *   走进 onClick 就被静默 return 掉 —— 弹窗永远关不掉；更糟的是
+     *   `showLoadProblem()` 那个面板上的「导出原始存档救援包」也是同一道闸门后的按钮，
+     *   **唯一能自救的出口一起被锁死**，玩家只能卸载。
+     *   ⇒ 纪律：凡是「不读游戏状态就能执行的纯界面动作」（关弹窗、关面板、折叠、切视图）
+     *     一律排在这里；后面新增分支时也不许把它们再挪回去。 */
+    if (d.modalClose !== undefined) {
+      SB.ui.render.hideModal();
+      return;
+    }
+    /* 点弹窗外的遮罩关闭：只对树图 / 政体选择器开放（破壳结算、离线总结、终局演出
+     * 都**不许**点外面就关 —— 那是需要玩家明确选择的)。这条策略与搬动前完全一致，
+     * 只换了位置，没改语义。 */
+    if (t.id === 'modal' && t.classList &&
+        (t.classList.contains('tree-modal') || t.classList.contains('gov-picker-modal'))) {
+      SB.ui.render.hideModal();
+      return;
+    }
+
     var s = run();
     if (!s) return;
 
@@ -169,15 +193,8 @@
       SB.ui.render.showWorkshopInfo(d.infoItem, d.infoId);
       return;
     }
-    if (d.modalClose !== undefined) {
-      SB.ui.render.hideModal();
-      return;
-    }
-    if (t.id === 'modal' && t.classList &&
-        (t.classList.contains('tree-modal') || t.classList.contains('gov-picker-modal'))) {
-      SB.ui.render.hideModal();
-      return;
-    }
+    /* ⚠️ `d.modalClose` 与「点遮罩关闭」两分支已上提到 S 判空之前（2026-10-28 P0），
+     *   这里不要再放一份 —— 重复虽无害，但会让人误以为闸门后面还有一条逃生路。 */
 
     /* 科技树 / 市政树节点只做入口，内容和研究操作在 Civ6 式详情卡中。 */
     var treeNode = t.closest && t.closest('[data-tree-node]');
@@ -843,6 +860,10 @@
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
     document.addEventListener('pointercancel', onPointerUp);
+    /* 关闭类按钮走普通 click → onClick 的 `d.modalClose` 分支（已上提到 S 判空之前，
+     * 见第 81 行纪律注释）。2026-10-28 测试包曾在这里加过 `TEST_CLOSE_ON_POINTERDOWN`
+     * 的「按下即关」捕获监听，随测试开关一并摘除：一是没有真机证据表明 iOS 真的丢 click，
+     * 二是「按下就关」在玩家手指按偏又拖走时会误关面板。 */
   }
 
   SB.ui = SB.ui || {};

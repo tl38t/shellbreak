@@ -336,6 +336,14 @@ html[data-era="1"][data-deep-bubbles="on"] .era1-bubbles { display:block; }
 .ui-setting-row b { color:var(--txt); font-size:12px; }
 .ui-setting-row small { color:var(--dim); font-size:10px; line-height:1.45; }
 .ui-setting-row--select { align-items:center; cursor:default; margin-top:4px; }
+/* 自动点击未解锁态（2026-10-28）：input 已 disabled，整行变成「去轮回商店」的入口。
+ * 标题压暗表示不可操作，提示用暖色（下划线）引导视线 —— 这条提示本身就是给 perks 打的广告位。 */
+.ui-setting-row.is-locked b { color:var(--dim); }
+.ui-setting-row.is-locked small { color:#e0aa54; text-decoration:underline; text-underline-offset:2px; }
+/* 未解锁时那个 checkbox 是 disabled 态，浏览器默认填充色在深底上看着像「已勾上」——
+ * 去掉颜色只留灰框，一眼就知道不可操作（截图核验时发现的，别删）。 */
+.ui-setting-row.is-locked input { opacity:.45; filter:grayscale(1); }
+html[data-ui-theme="day"] .ui-setting-row.is-locked small { color:#96650f; }
 .ui-resolution-select { flex:none; max-width:100%; margin-left:auto; font:inherit; font-size:11px; color:var(--txt); background:var(--panel2); border:1px solid var(--line-soft); border-radius:7px; padding:3px 6px; }
 .ui-settings-actions { display:grid; grid-template-columns:1fr; gap:7px; margin-top:2px; }
 .ui-setting-btn { width:100%; min-height:38px; padding:7px 10px; border:1px solid var(--line-soft); border-radius:9px; background:var(--panel2); color:var(--txt); font:inherit; font-size:12px; line-height:1.3; cursor:pointer; text-align:left; transition:background .15s,border-color .15s; }

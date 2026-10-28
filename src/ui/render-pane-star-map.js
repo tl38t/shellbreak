@@ -38,7 +38,9 @@
     var blocked = !SB.habitat.needMet(s, b);
     var cost = SB.economy.costOf(s, id);
     var canBuy = unlocked && !blocked && SB.economy.canAfford(s, cost);
-    var label = !unlocked ? '尚未解锁' : (blocked ? '需先建成' : (count.level > 0 ? '升级 ' : '建造 ') + SB.economy.costOwnedTxt(s, cost));
+    /* 成本文案走 SB.economy.buildCostTxt（2026-10-28 轻车熟路首建免费）：与巢穴页同源，
+     *   否则卫星/空间站这两行会退化成「建造 」空尾巴。 */
+    var label = !unlocked ? '尚未解锁' : (blocked ? '需先建成' : (count.level > 0 ? '升级 ' : '建造 ') + SB.economy.buildCostTxt(s, id, cost));
     if (blocked) {
       var need = SB.habitat.buildingById(b.need);
       label = '需先建成' + (need ? need.name : '前置建筑');
