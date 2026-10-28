@@ -5,9 +5,14 @@
 .save-manager-actions .btn{min-height:40px;white-space:normal;line-height:1.35}
 .save-manager-actions .btn:disabled{opacity:.48;cursor:not-allowed}
 .save-manager-label{display:block;margin:4px 0 6px;color:var(--text);font-size:13px;font-weight:700}
-#saveCodeBox{box-sizing:border-box;width:100%;resize:vertical;min-height:92px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+/* 2026-10-29：诊断文本框与存档码框共用一套皮肤 —— 只写 #saveCodeBox 时新框会掉回
+ * 浏览器默认样式（浅底黑字），在深色面板里像一块贴错的白纸。 */
+#saveCodeBox,#saveDiagBox{box-sizing:border-box;width:100%;resize:vertical;min-height:92px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+#saveDiagBox{min-height:132px;color:var(--dim,var(--text))}
 .save-manager-status{min-height:20px;margin:10px 0 0;color:var(--cyan);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
 .save-manager-status.error{color:var(--red)}
+/* 诊断一行（2026-10-29）：比状态行更弱，避免和「上次保存」抢注意力。 */
+.save-manager-diag{color:var(--dim,var(--text));opacity:.82;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
 /* 存档健康度（2026-10-27）：常显「上次保存 / 云端备份」。比上面那行更小更暗，
    一旦写盘被拦或失败就加 .error 标红——这是「存档静默停更」唯一的可见出口。 */
 .save-manager-health{min-height:16px;margin:6px 0 0;color:var(--dim);font-size:11px;line-height:1.5}

@@ -389,6 +389,9 @@
         var buildingIconHTML = buildingIconsShown && b.icon
           ? '<img class="building-icon" src="' + b.icon + '" alt="" aria-hidden="true" width="32" height="32">' : '';
         var launchProgressHTML = '';
+        /* 缺料徽标（2026-10-28）：只在 b.launchpad 分支里被赋值，其余建筑恒为空串。
+         * 声明在此处是因为它要拼进下面**名称行**的字符串里。 */
+        var _lpLackHTML = '';
         if (b.launchpad && lv > 0) {
           var _lpNodeMode = SB.economy && SB.economy.launchNodeMode ? SB.economy.launchNodeMode(s) : false;
           var _lpPct = launchProgressPct(s, b.id);
@@ -409,7 +412,35 @@
             _lpCostShort.push(_lpCost.short + ' −' + _lpTotal.toFixed(2) + '/秒');
             _lpCostFull.push(_lpCost.full + ' −' + _lpTotal.toFixed(2) + '/秒');
           }
+          /* ── 缺料 / 断流状态徽标（2026-10-28）──────────────────────────
+           * 【为什么需要】三座发射场缺料时进度条就是不走，而「为什么」原本只写在
+           *   `.launch-consumption` 的 title 里 —— 手机端没有 hover，等于永远看不见。
+           *   与热泉炉那一批同一个病（JUDGMENTS 五点二十六），只是落点不同。
+           * 【判据不在这里算】全部来自 `economy.launchStatus`（与 rates 的 `_elRunR`、
+           *   tick 2f 的 && 链三处同源）。渲染层只负责把 lack 键翻成中文短名。
+           * 【正常时一个字符都不加】避免制造噪声。
+           * ⚠️ 徽标放在**操作列 .bld-ops**（flex），不是名称行 .bld-label ——
+           *   后者是 `grid-template-columns: minmax(0,1fr) 64px` 两列网格，塞第三个子元素
+           *   会占掉「第二行第一列」并被 1fr **拉成整条横幅**，同时把「制造太阳帆」按钮
+           *   挤到右列（实测截图就是这样，难看且会跳位）。操作列是 flex，按内容宽度排，
+           *   而且紧邻 −/＋ 与进度条，语义上更近。
+           * ⚠️ 也不要塞进 .launch-progress：那个在 >900px 是 `position:absolute; bottom:-14px`，
+           *   多一行会让它**向上**长高、压住本行文字。
+           * ⚠️ 必须在本段之前算好，因为下面的 title 要带着它一起拼。 */
+          var _lpLackName = '';
+          var _lpSt = (SB.economy && SB.economy.launchStatus) ? SB.economy.launchStatus(s, b.id) : null;
+          if (_lpSt && _lpSt.lack) {
+            for (var _lpl = 0; _lpl < _lpCostRows.length; _lpl++) {
+              if (_lpCostRows[_lpl].key === _lpSt.lack) { _lpLackName = _lpCostRows[_lpl].short; break; }
+            }
+            if (_lpLackName) {
+              /* 发射场是**全有或全无**的门（够则满速、不够则整场停），所以恒为 is-stop；
+               * 不给「开工 N%」——那是比例型建筑（工坊/研究所）的说法，用在这里就是撒谎。 */
+              _lpLackHTML = '<b class="lack-tag is-stop">缺' + _lpLackName + ' · 暂停</b>';
+            }
+          }
           var _lpCostTitle = '本场当前启用等级的额定每秒需求；缺料或热液能不足时制造暂停：' + _lpCostFull.join(' · ');
+          if (_lpLackName) _lpCostTitle += '。当前状态：缺' + _lpLackName + '，本场已暂停，补足后自动继续';
           var _lpCostHTML = '<span class="launch-consumption" title="' + _lpCostTitle + '">' + _lpCostShort.join(' · ') + '</span>';
           launchProgressHTML = '<div class="launch-progress" id="launch-progress-' + b.id + '" data-launch-progress="' + b.id + '" title="本场按制造周期独立推进；停用时保留进度。' + _lpCostTitle + '" role="progressbar" aria-label="' +
             (_lpNodeMode ? '戴森球节点' : '太阳帆') + '发射进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + _lpPct + '" data-pct="' + _lpPct + '">' +
@@ -421,7 +452,7 @@
           '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
           ' <span class="tag" data-lv="' + b.id + '" title="' + lvTitle + '">等级 ' + lvValueTxt + '</span>' +
           (elBtn ? '<span class="launch-mode-anchor">' + elBtn + '</span>' : '') +
-          '</span><span class="bld-ops">' + siltpitBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
+          '</span><span class="bld-ops">' + _lpLackHTML + siltpitBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
           '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div></div>' +
           '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + '">' + autoBtn + '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button></div></div>';

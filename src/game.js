@@ -264,6 +264,10 @@
   function wipeSave() {
     SB.ui.render.hideModal();
     SB.state.clearRun();
+    /* 2026-10-29：尸检副本也要一起清。它是自动留的、玩家不知道它的存在，
+     * 清档后还留着会让面板显示一份「幽灵旧档」。诊断记录（diag）**不清** —— 它不含
+     * 任何进度内容，而清档之后恰恰是最需要它的时候（能证明这次清档发生在什么时候）。 */
+    if (SB.store && SB.store.emergencyClear) SB.store.emergencyClear();
     /* 2026-10-27：三处一起清（localStorage + tap.setStorage + tapfile）。
      * 原先只 removeItem(SAVE_KEY)，备份里那份还在 ⇒ 下次启动会把旧档读回来、清档无效。 */
     if (SB.state.clearMeta) SB.state.clearMeta();
@@ -1545,7 +1549,15 @@
     return 'empty';   /* localStorage 里没有任何档 —— 但先别急着开新档，见 boot */
   }
   function boot() {
+    /* 诊断记录（2026-10-29）：读上一次会话留下的那份，并把「启动次数 +1」记下来。
+     * ⚠️ 必须在 decideRun 之前读 —— 它同时是「这台设备玩过」的唯一证据（存档可能被清）。 */
+    if (SB.store && SB.store.diagLoad) {
+      try { SB.store.diagLoad(); SB.store.diagBump('boots', 1, false); } catch (e) {}
+    }
     var r = decideRun();
+    if (SB.store && SB.store.diagSet) {
+      try { SB.store.diagSet({ boot: r, bootAt: Date.now() }, false); } catch (e) {}
+    }
     if (r === 'blocked') return;
     if (r === 'empty') {
       /* ★★ 2026-10-27 核心修复：**不再立刻开新档**。
@@ -1554,7 +1566,17 @@
        * 就被新档永久覆盖，玩家看到的是「退出之后存档没了」。
        * 现在先异步问遍另外两处；确实都没有，才认定这是真·新玩家。
        * ⚠️ 浏览器 / node 沙箱里 envAvailable() 为假 ⇒ 走下面同步分支，行为与改造前一致。 */
-      if (SB.store && SB.store.envAvailable && SB.store.envAvailable() && SB.state.recoverAsync) {
+      /* ★★ 2026-10-29 P0-1：这道门原先只看 `tap.getStorage`，是个错误。
+       *   ② tap.setStorage 确实需要它，但 ③ 用户目录文件只需要 getFileSystemManager，
+       *   ④ 云存档只需要 getCloudSaveManager。三者来自不同模块，完全可能出现
+       *   「文件系统给了、getStorage 没给」的组合 —— 那种容器里 ③ 备份一直在写、
+       *   云备份一直在跑，但启动永远不读，每次都判新玩家并把唯一的好档覆盖掉。
+       *   现在门锁改成「任一可用即进」，进不去只有一种情况：三者全无（纯浏览器 / 沙箱）。 */
+      var rescueGate = !!(SB.store && SB.state.recoverAsync) && !!(
+        (SB.store.envAvailable && SB.store.envAvailable())
+        || (SB.store.fsAvailable && SB.store.fsAvailable())
+        || (SB.saveTransfer && SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable()));
+      if (rescueGate) {
         try { log('未读到浏览器存档，正在检查本机备份…'); } catch (e) {}
         /* ⚠️⚠️ 2026-10-28 P0：异步恢复必须有**硬超时**，而且超时要**逐段推进**而不是直接放弃。
          *   事故：玩家报「从存档码导入后卡在更新日志，什么都点不动，重启也一样」。
@@ -1577,14 +1599,32 @@
           if (proceeded) return;
           proceeded = true; stopTimer();
           if (why) { try { log(why); } catch (e) {} }
-          startRun();
-          bootUi();
+          if (SB.store && SB.store.diagSet) SB.store.diagSet({ boot: 'new', bootAt: Date.now() }, true);
+          /* ★★ 2026-10-29 尸检副本：开新档**之前**先把 ②③ 里那份旧档原样抄一份。
+           *   过去最痛的不是「没有备份」，而是备份被新档**覆盖**：startRun 末尾立刻
+           *   saveRun ⇒ 镜像一写，唯一的好档当场销毁。抄一份之后，即便覆盖照旧发生，
+           *   玩家还能在存档面板把原文导出给我们救回来。
+           *   ⚠️ 内部 1.5 秒硬超时，绝不让 boot 卡住（10-28「点不动、重启也一样」就是卡死）。
+           *   ⚠️ 它读备份**不经过**上面那道门 —— 那道门正是 P0-1 的 bug 所在。 */
+          var go = function (pres) {
+            if (pres) {
+              try { log('已保留一份旧档副本（' + pres.bytes + ' 字节，来源 ' + pres.source + '），可在存档面板导出。'); } catch (e) {}
+            }
+            startRun();
+            bootUi();
+          };
+          if (SB.store && SB.store.preserveEmergency) {
+            SB.store.preserveEmergency(CFG.RUN_KEY, CFG.SAVE_KEY, go);
+            return;
+          }
+          go(null);
         }
         /* 出口 B：拿到了一份可用的档（本机备份恢复 / 云端接管）⇒ 直接进 UI，**不重载**。 */
         function finishResumed(why) {
           if (proceeded) return;
           proceeded = true; stopTimer();
           if (why) { try { log(why); } catch (e) {} }
+          if (SB.store && SB.store.diagSet) SB.store.diagSet({ boot: 'resumed', bootAt: Date.now() }, true);
           bootUi();
         }
         /* 第二段：问一次 TapTap 云存档。
@@ -1641,7 +1681,14 @@
         });
         return;
       }
+      /* 走到这里 = 本机三处与云端都没有可用通道（纯浏览器 / 沙箱），同步开新档。
+       * ⚠️ 诊断里的启动出口要记 `new` 而不是 decideRun 返回的 `empty` —— `empty` 只代表
+       *   「localStorage 读不到」，而玩家真正经历的是「开了新档」。两者必须分清，否则
+       *   遥测里「本机空但逃过了救援」和「真的新玩家」会长得一模一样。 */
       startRun();
+      if (SB.store && SB.store.diagSet) {
+        try { SB.store.diagSet({ boot: 'new-nogate', bootAt: Date.now() }, true); } catch (e) {}
+      }
     }
     bootUi();
   }

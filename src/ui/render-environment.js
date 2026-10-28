@@ -152,7 +152,11 @@
      *    否则「补足了但文案还报旧数」又是一条面板撒谎。 */
     var _HF = (SB.economy && SB.economy.hydroAlloc) ? SB.economy.hydroAlloc(s, 1) : null;
     var _left = _HF ? Math.max(0, _HF.left) : 0;
+    /* 停摆子因（钻头见底 / 剩流不足）纳入签名：徽标要跟着切，否则会出现
+     * 「补完钻头、徽标还写着缺钻头」的第二种面板撒谎。判据与下面 ds 分支同式。 */
+    var _drillNoBit = starved && (s.res.resonantDrill || 0) < SB.CFG.SKYDRILL_DRILL;
     var sig = (s.skydrillOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
+      (starved ? (_drillNoBit ? 'd' : 'h') : '-') + '|' +
       Math.min(999, Math.floor(_left));
     if (sig !== drillSig) {
       drillSig = sig;
@@ -175,7 +179,9 @@
       } else {
         ds = '运转中：钻头以 ' + SB.CFG.SKYDRILL_RATE + ' 点/秒削壳（轮回「壳层勘探」可再加成），吃完停摆、补足自动续。';
       }
-      box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + '天穹钻机 <span class="tag" id="envDrillCt">0</span></div>' +
+      box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + '天穹钻机' +
+        (starved ? '<b class="lack-tag is-stop">缺' + (_drillNoBit ? '钻头' : '热液能') + ' · 停摆</b>' : '') +
+        ' <span class="tag" id="envDrillCt">0</span></div>' +
         '<div class="ds">' + ds + '</div></div>' +
         '<button class="btn tog' + (s.skydrillOn ? ' on' : '') +
         '" data-skydrill="1" title="点击启动 / 停机">' + (s.skydrillOn ? '已启动' : '已停机') + '</button>';
@@ -233,8 +239,18 @@
     var _HF = (SB.economy && SB.economy.hydroAlloc) ? SB.economy.hydroAlloc(s, 1) : null;
     var _left = _HF ? Math.max(0, _HF.left) : 0;
     var _running = !!(s.geek && s.geek.geekOn) && !starved && phaseKey !== 'E';
+    /* 停摆子因（四样材料见底 / 热液能不足）：与下面 ds 分支**同一条件**，按同一顺序取第一个见底的。
+     * 纳入签名让徽标跟着切，避免「补完这样、徽标还写着这样」。 */
+    var _geekLackName = '';
+    if (starved) {
+      if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP) _geekLackName = '藻食';
+      else if ((s.res.silt || 0) < SB.CFG.GEEK_METAL) _geekLackName = '金属';
+      else if ((s.res.stone || 0) < SB.CFG.GEEK_STONE) _geekLackName = '石头';
+      else if ((s.res.coral || 0) < SB.CFG.GEEK_CORAL) _geekLackName = '珊瑚';
+      else _geekLackName = '热液能';
+    }
     var sig = (s.geek && s.geek.geekOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
-      phaseKey + '|' + _pctInt;
+      _geekLackName + '|' + phaseKey + '|' + _pctInt;
     if (sig !== geekSig) {
       geekSig = sig;
       var ds;
@@ -260,6 +276,7 @@
       }
       var _remTag = _running ? '<span class="tag" id="envGeekRemain"></span>' : '';
       box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_geek') + '星球重构机 G.E.E.K ' +
+        (starved ? '<b class="lack-tag is-stop">缺' + _geekLackName + ' · 停摆</b>' : '') +
         (enceladusDone ? '<span class="tag ok">恩克拉多斯已完成</span>' : '') +
         (terraDone ? '<span class="tag ok">泰拉已完成</span>' : '') + _remTag + '</div>' +
         '<div class="prog"><i id="envGeekBar" style="width:' + _pct.toFixed(2) + '%"></i></div>' +

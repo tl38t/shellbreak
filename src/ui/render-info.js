@@ -392,9 +392,30 @@
         ? meta.CONSUME_LABEL[key] + ' −' + cr[key].toFixed(2) + '/秒'
         : meta.CONSUME_IDLE[key]);
     }
-    return '<span class="fdraw" title="满负荷运转时：这几座每秒消耗 ' +
+    /* 缺料状态（2026-10-28，用户：「热泉炉那种需要原料制造的建筑，缺料要显示」）。
+     * 【为什么必须放在最前面】上面那几个数永远是**额定**值（「这几座开满要烧多少」），
+     *   缺料时它们一个都不变 ⇒ 玩家读到的是「炉子在烧」，实际一点铁都没产。
+     *   把「缺暖石 · 停产」摆在数字左侧，是先给结论再给账。
+     *   判据一律来自 economy.runStatus（单一判据：比例与「缺哪一样」都在引擎侧算好了），
+     *   ⚠️ 这里**不许**再自己比较库存 —— 否则就是「面板撒谎」的第二个式子。 */
+    var lackTxt = '', lackTip = '';
+    var st = (SB.economy && SB.economy.runStatus) ? SB.economy.runStatus(sp, id) : null;
+    if (st) {
+      var lackName = meta.CONSUME_LABEL[st.lack] || st.lack;
+      if (st.ratio <= 0.001) {
+        lackTxt = '<b class="lack-tag is-stop">缺' + lackName + ' · 停产</b>';
+        lackTip = '当前状态：缺' + lackName + '，这几座已停止运转（产出为 0）。';
+      } else {
+        lackTxt = '<b class="lack-tag is-short">缺' + lackName + ' · 开工 ' +
+          Math.round(st.ratio * 100) + '%</b>';
+        lackTip = '当前状态：缺' + lackName + '，只能按 ' + Math.round(st.ratio * 100) +
+          '% 的负荷运转（产出同比例下降）。';
+      }
+    }
+    return '<span class="fdraw" title="' + lackTip +
+      '满负荷运转时：这几座每秒消耗 ' +
       ps.map(function (x) { return x.replace(' −', ' ').replace('/秒', ''); }).join('、') +
-      '（与结算同式，缺料时会按比例降产）">' + ps.join(' · ') + '</span>';
+      '（与结算同式，缺料时会按比例降产）">' + lackTxt + (lackTxt ? ' ' : '') + ps.join(' · ') + '</span>';
   }
   SB.ui.drawTag = drawTag;
   /* 2026-10-21：建筑行描述也提成共享出口（巢穴页 / 星图 / 卡面 default 三处同源），
@@ -414,7 +435,19 @@
       var k = order[i];
       parts.push(cr[k] > 0 ? CONSUME_LABEL[k] + ' −' + cr[k].toFixed(2) + '/秒' : CONSUME_IDLE[k]);
     }
-    return parts.join('；') + '（满负荷运转：按当前开着的座数折算，缺料按比例降产）';
+    /* 缺料实况（2026-10-28）：卡面此前只写「缺料按比例降产」这种**条件句**，玩家点开卡
+     *   仍然不知道现在到底停没停。这里把 runStatus 的**当前**结论直接续在后面，
+     *   与行内角标同源（同一个函数、同一个比例），不会出现「行内说停产、卡面说正常」。
+     *   ⚠️ 正常时一个字都不加 —— 条件句已经解释过规则了，不缺料就别占版面。 */
+    var st = (SB.economy && SB.economy.runStatus) ? SB.economy.runStatus(s, b.id) : null;
+    var stateTxt = '';
+    if (st) {
+      var lackName = CONSUME_LABEL[st.lack] || st.lack;
+      stateTxt = st.ratio <= 0.001
+        ? '。当前状态：缺' + lackName + '，已停产（产出为 0）'
+        : '。当前状态：缺' + lackName + '，只能按 ' + Math.round(st.ratio * 100) + '% 负荷运转';
+    }
+    return parts.join('；') + '（满负荷运转：按当前开着的座数折算，缺料按比例降产）' + stateTxt;
   }
 
   // 展示文案由 render-content.js 提供，集中维护且不进入存档。

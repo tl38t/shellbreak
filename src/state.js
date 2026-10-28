@@ -829,34 +829,119 @@
     /* ⚠️ 为什么不靠时间戳比较判断「当前是否异常」：skip 与 ok 常常落在**同一毫秒**
      *   （节流保存紧接着一次坏值），`lastSkipAt > lastOkAt` 会漏判。
      *   这两个计数在每次**成功写盘**时清零，语义 = 「距上次成功之后又坏了几次」。 */
-    skipAfterOk: 0, failAfterOk: 0 };
+    skipAfterOk: 0, failAfterOk: 0,
+    /* 2026-10-29（P0-3 条件补位）：patchCount = 坏键被「上一次已知好值」补位后**仍然写成**
+     *   的次数。与 skipCount 的区别很重要：
+     *     skip  = 整份拒写 ⇒ 玩家进度停止增长（回退风险）
+     *     patch = 只有那一个资源键的值停在上一份，其余进度照常保存（只是不增长）
+     *   两者的 UI 文案必须分开，否则玩家看到「存档失败」会以为全废了。 */
+    patchCount: 0, lastPatchKey: '' };
   /* 上次把「成功写盘时刻」持久化到 SAVE_AT_KEY 的时间（2026-10-28），用于 30 秒写盘节流。 */
   var lastSaveAtWrite = 0;
+  /* 上一次**成功落盘**时各资源键的值（2026-10-29，P0-3 条件补位）。
+   * ⚠️ 只在这里（写盘成功分支）赋值 ⇒ 一定都是有限数，绝不会把 NaN 存进来。
+   * ⚠️ 它是「已知好值」的唯一来源；本机没有旧档时不需要它（那时补 0 无害）。 */
+  var lastGoodRes = {};
+  /* 读回校验（2026-10-29）：每 12 次成功写盘（≈60 秒）把磁盘上的内容读回来比一次。
+   * 这是**唯一**能区分「写进去了」与「容器假成功」的手段 —— 也是玩家「退出就没存档」
+   * 在代码层面能被证实的唯一方式。 */
+  var saveSeq = 0;
+  /* P0-2：主通道失败时补写镜像的限速（15 秒）。不限速会在配额满时变成每 5 秒
+   * 往 tap.setStorage 推一份 23KB，白烧 IO。 */
+  var lastFailMirrorAt = 0;
+
   function saveStatus() {
     return { lastOkAt: saveHealth.lastOkAt, lastFailAt: saveHealth.lastFailAt,
       lastSkipAt: saveHealth.lastSkipAt, lastError: saveHealth.lastError,
       lastSkipKey: saveHealth.lastSkipKey, okCount: saveHealth.okCount,
       skipCount: saveHealth.skipCount, failCount: saveHealth.failCount,
-      skipAfterOk: saveHealth.skipAfterOk, failAfterOk: saveHealth.failAfterOk };
+      skipAfterOk: saveHealth.skipAfterOk, failAfterOk: saveHealth.failAfterOk,
+      patchCount: saveHealth.patchCount, lastPatchKey: saveHealth.lastPatchKey };
+  }
+  /* 诊断记账的薄封装：SB.store 缺失（纯 node 沙箱，未加载 save-storage）时静默跳过。 */
+  function diagBump(field, n, immediate) {
+    if (SB.store && SB.store.diagBump) SB.store.diagBump(field, n, immediate);
+  }
+  function diagSet(patch, immediate) {
+    if (SB.store && SB.store.diagSet) SB.store.diagSet(patch, immediate);
+  }
+  function hasLocalRun() {
+    try {
+      return !!(SB.store ? SB.store.readLocal(CFG.RUN_KEY)
+        : (root.localStorage && root.localStorage.getItem(CFG.RUN_KEY)));
+    } catch (e) { return true; }   /* 判断不了就按「有旧档」处理，走保守分支 */
+  }
+  /* P0-3 条件补位（2026-10-29）：坏键用「上一次已知好值」填上，其余字段保持最新。
+   * 【为什么不是无条件补 0】那等于悄悄改玩家数值。补 0 只在**本机没有旧档**时允许
+   *   （没有东西可毁）；有旧档时若拿不到已知好值，必须原样拒写 —— 「坏值不许覆盖好档」
+   *   这条判据不变，见 e2e「坏资源快照不会覆盖 localStorage 中的上一份存档」。
+   * 【为什么不是直接放开校验】`JSON.stringify(NaN)` 会写成 `null`，下次迁移层只能当
+   *   坏值回落成 0 —— 那才是真改数据。这里写下去的一定是有限数。 */
+  function patchBadRes(run, badKeys) {
+    var fixed = {}, k, i, touched = false;
+    for (k in run) if (Object.prototype.hasOwnProperty.call(run, k)) fixed[k] = run[k];
+    fixed.res = {};
+    for (k in run.res) if (Object.prototype.hasOwnProperty.call(run.res, k)) fixed.res[k] = run.res[k];
+    var old = hasLocalRun();
+    for (i = 0; i < badKeys.length; i++) {
+      k = badKeys[i];
+      if (typeof lastGoodRes[k] === 'number' && isFinite(lastGoodRes[k])) {
+        fixed.res[k] = lastGoodRes[k]; touched = true;
+      } else if (!old) {
+        fixed.res[k] = 0; touched = true;
+      } else {
+        return null;
+      }
+    }
+    return touched ? fixed : null;
+  }
+  /* 写后读回（每 12 次成功 ≈ 60 秒一次）：只判「磁盘上是不是比刚写的更旧」。
+   * ⚠️ 不做逐字节比较 —— 导入/清档/救援都会合法地改写同一 key，逐字节比会把正常
+   *   操作记成故障。真正的故障信号只有两个：读回为空，或读回的游戏时长明显更旧。 */
+  function verifyLastWrite(writtenT) {
+    if (!SB.store || !SB.store.readLocal) return;
+    var back = SB.store.readLocal(CFG.RUN_KEY);
+    if (back === null || back === undefined) { diagBump('rbEmpty', 1, true); return; }
+    var parsed = null;
+    try { parsed = JSON.parse(back); } catch (e) { parsed = null; }
+    if (!parsed || typeof parsed.t !== 'number') { diagBump('rbMismatch', 1, true); return; }
+    if (typeof writtenT === 'number' && parsed.t < writtenT - 1) { diagBump('rbMismatch', 1, true); return; }
+    diagBump('rbOk', 1, false);
   }
   function saveRun(run) {
     try {
       if (!run || !run.res) return false;
       /* 存档是最后一道防线：JSON.stringify(NaN) 会静默写成 null，
        * 下一次刷新时迁移层只能把它当成坏值回落为 0。不要让一帧坏状态覆盖
-       * 上一份可用存档；运行态的 addRes 守卫负责修复，之后下一次合法快照再落盘。 */
-      var key, value;
+       * 上一份可用存档；运行态的 addRes 守卫负责修复，之后下一次合法快照再落盘。
+       * ⚠️ 2026-10-29：坏值**不再一律整份拒写**（那会让玩家从某一刻起永久停止保存，
+       *   而且界面上只有一行很难被发现的小字）。现在的口径是「有条件补位」：
+       *   · 该键有「上一次已知好值」⇒ 用它填，其余字段写最新的；
+       *   · 本机没有旧档 ⇒ 补 0（无处可毁）；
+       *   · 有旧档但拿不到好值 ⇒ 原样拒写（保持 9-26 那条判据不变）。 */
+      var key, value, badKeys = [];
       for (key in (SB.RESS || {})) {
         value = run.res[key];
-        if (!(typeof value === 'number' && isFinite(value))) {
+        if (!(typeof value === 'number' && isFinite(value))) badKeys.push(key);
+      }
+      var payload = run;
+      if (badKeys.length) {
+        payload = patchBadRes(run, badKeys);
+        if (!payload) {
           saveHealth.lastSkipAt = Date.now();
-          saveHealth.lastSkipKey = key;
+          saveHealth.lastSkipKey = badKeys[0];
           saveHealth.skipCount++;
           saveHealth.skipAfterOk++;
+          diagSet({ skipKey: badKeys[0] }, true);
+          diagBump('skip', 1, true);
           return false;
         }
+        saveHealth.patchCount += badKeys.length;
+        saveHealth.lastPatchKey = badKeys[0];
+        diagSet({ lastPatchKey: badKeys[0], skipKey: badKeys[0] }, false);
+        diagBump('patch', badKeys.length, false);
       }
-      var txt = JSON.stringify(run);
+      var txt = JSON.stringify(payload);
       /* 主通道：localStorage（同步 —— 存档是每 5 秒的热路径，绝不等异步）。
        * ⚠️ 2026-10-27：失败不再静默，走下面统一的 fail 记账（原先 catch(e){} 全吞）。 */
       var ok = SB.store ? SB.store.writeLocal(SB.CFG.RUN_KEY, txt)
@@ -867,15 +952,33 @@
           || '浏览器本地存储不可用';
         saveHealth.failCount++;
         saveHealth.failAfterOk++;
+        /* P0-2（2026-10-29）：主通道失败时**仍然补写镜像**。
+         * 原先这里直接 return ⇒ ②③ 一次都不写，等于「最不可靠的那条挂了，就把
+         * 最可靠的两条也关掉」。限速 15 秒，避免配额满时每 5 秒推一份 23KB。 */
+        if (SB.store && SB.store.mirrorWrite && Date.now() - lastFailMirrorAt > 15000) {
+          lastFailMirrorAt = Date.now();
+          SB.store.mirrorWrite(CFG.RUN_KEY, txt);
+        }
+        diagSet({ err: String(saveHealth.lastError).slice(0, 120) }, true);
+        diagBump('fail', 1, true);
         return false;
       }
       /* 异步镜像到 tap.setStorage + tapfile://usr —— **不 await**，失败只记状态。
        * 这两条才是 TapTap 官方承诺持久的通道（localStorage 在小游戏容器里没有承诺）。 */
-      if (SB.store) SB.store.mirrorWrite(SB.CFG.RUN_KEY, txt);
+      if (SB.store) SB.store.mirrorWrite(CFG.RUN_KEY, txt);
       saveHealth.lastOkAt = Date.now();
       saveHealth.okCount++;
       saveHealth.skipAfterOk = 0;
       saveHealth.failAfterOk = 0;
+      /* 记录「上一次已知好值」：只在这里赋值 ⇒ 一定都是有限数。 */
+      for (key in (SB.RESS || {})) {
+        value = payload.res[key];
+        if (typeof value === 'number' && isFinite(value)) lastGoodRes[key] = value;
+      }
+      diagBump('ok', 1, false);
+      /* 写后读回校验（≈每 60 秒一次）：抓「容器假成功」。 */
+      saveSeq++;
+      if (saveSeq % 12 === 0) verifyLastWrite(typeof payload.t === 'number' ? payload.t : null);
       /* 持久化「上次成功写盘时刻」（2026-10-28）：存档管理面板要用它摆
        * 「本地 xx 前保存 vs 云端 xx 前备份」让玩家自己选哪份。
        * ⚠️ 必须节流：saveRun 是每 5 秒的热路径，每次都多写一个 key 等于把写盘成本翻倍。
@@ -893,6 +996,8 @@
         + (e && e.message ? e.message : String(e));
       saveHealth.failCount++;
       saveHealth.failAfterOk++;
+      diagSet({ err: String(saveHealth.lastError).slice(0, 120) }, true);
+      diagBump('fail', 1, true);
       return false;
     }
   }

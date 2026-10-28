@@ -172,6 +172,182 @@
     return Promise.all(jobs).then(function () { return true; });
   }
 
+  /* ── ④ 诊断记录（2026-10-29）──────────────────────────────────────
+   * 【为什么单独一条 key】诊断必须比存档活得久。它不进 SAVE_KEY / RUN_KEY，
+   *   `loadRun` / `migrateRun` 从不读它 ⇒ **对老存档零影响**（不参与校验、不参与迁移、
+   *   不参与任何数值计算）。体积约 400~700 字节，三处各写一份，代价可忽略。
+   * 【为什么不复用 state.js 的 saveHealth】那份是**内存**计数，重启即归零。玩家报
+   *   「存档没了」时我们去问他，重启过的那台机器上什么证据都不剩 —— 这正是过去几轮
+   *   只能靠猜的原因。这里把它持久化，并额外记下**四个能力探针**与**启动出口**。
+   * 【会话内节流】默认 20 秒一次；`immediate=true` 的重要事件（启动出口 / 丢档 /
+   *   拒写 / 读回不一致）立刻落盘 —— 那些恰好是我们最需要的那几条。
+   * ⚠️ 写入**绝不经过** state.saveRun 的 33 键校验：那条校验要拦的是坏存档，
+   *   而诊断本身必须能在「存档写不进去」的时候写进去，否则观测不到故障。
+   */
+  var DIAG_KEY = 'shellbreak.diag.v1';
+  var EMERG_KEY = 'shellbreak.emergency.v1';
+  var DIAG_MIN_GAP = 20000;
+  var diagCache = null;
+  var diagLastWrite = 0;
+
+  function verOf() { return (SB.CFG && SB.CFG.VERSION) || ''; }
+  /* 云存档能力探针：优先用 save-transfer 的真实现（避免两份判据分叉），
+   * 它还没加载时退回同构的鸭子判定（与 save-transfer.js 的 cloudAvailable 逐字一致）。 */
+  function cloudProbe() {
+    if (SB.saveTransfer && typeof SB.saveTransfer.cloudAvailable === 'function')
+      return !!SB.saveTransfer.cloudAvailable();
+    return !!(root.tap && typeof root.tap.getCloudSaveManager === 'function'
+      && typeof root.tap.getFileSystemManager === 'function'
+      && root.tap.env && root.tap.env.USER_DATA_PATH);
+  }
+  /* 四个能力位，形如 `ls1ts1fs0cl1`。这是 P0-1 的直接证据：
+   * 只要看到 `ts0` 而 `fs1`，就说明「有备份但旧启动链读不到」。 */
+  function capText() {
+    return 'ls' + (localStore() ? 1 : 0) + 'ts' + (envAvailable() ? 1 : 0)
+      + 'fs' + (fsAvailable() ? 1 : 0) + 'cl' + (cloudProbe() ? 1 : 0);
+  }
+  function diagBlank() {
+    return { schema: 1, ver: verOf(), cap: '', boots: 0, boot: '', bootAt: 0,
+      ok: 0, fail: 0, skip: 0, patch: 0, skipKey: '', lastPatchKey: '',
+      rbOk: 0, rbEmpty: 0, rbMismatch: 0,
+      lost: 0, recover: '', emerg: 0, emergAt: 0, err: '', at: 0 };
+  }
+  function diagGet() {
+    if (!diagCache) diagCache = diagBlank();
+    return diagCache;
+  }
+  /* 同步读 ①（多数情况够用）。读不到就地新建一份**空**记录，但不会覆盖磁盘上的。 */
+  function diagLoad() {
+    var raw = readLocal(DIAG_KEY);
+    if (raw) {
+      try {
+        var o = JSON.parse(raw);
+        if (o && typeof o === 'object' && o.schema === 1) { diagCache = o; return diagCache; }
+      } catch (e) {}
+    }
+    diagCache = diagCache || diagBlank();
+    return diagCache;
+  }
+  /* 异步兜底读（① 为空时）。只用于「这台设备到底玩过没有」这一个判断，
+   * 所以不写回 ①（写回交给上层，避免在这里制造不可控的写入）。 */
+  function diagLoadAsync(cb) {
+    var local = readLocal(DIAG_KEY);
+    if (local) { diagLoad(); cb(diagCache, 'local'); return; }
+    readBackupAsync(DIAG_KEY).then(function (hit) {
+      if (hit && hit.raw) {
+        try {
+          var o = JSON.parse(hit.raw);
+          if (o && o.schema === 1) { diagCache = o; cb(diagCache, hit.source); return; }
+        } catch (e) {}
+      }
+      diagCache = diagCache || diagBlank();
+      cb(diagCache, null);
+    }, function () { diagCache = diagCache || diagBlank(); cb(diagCache, null); });
+  }
+  function diagFlush(force) {
+    var now = Date.now();
+    if (!force && now - diagLastWrite < DIAG_MIN_GAP) return false;
+    var d = diagGet();
+    diagLastWrite = now;
+    d.ver = verOf();
+    d.cap = capText();
+    d.at = now;
+    var txt;
+    try { txt = JSON.stringify(d); } catch (e) { return false; }
+    writeLocal(DIAG_KEY, txt);
+    mirrorWrite(DIAG_KEY, txt);   /* 不 await；②③ 任一成功即算有备份 */
+    return true;
+  }
+  /* merge=true 时对同名数值字段做**累加**（计数用），否则直接覆盖。 */
+  function diagSet(patch, immediate, merge) {
+    var d = diagGet();
+    for (var k in patch) {
+      if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+      if (merge && typeof patch[k] === 'number' && typeof d[k] === 'number') d[k] += patch[k];
+      else d[k] = patch[k];
+    }
+    return diagFlush(!!immediate);
+  }
+  function diagBump(field, n, immediate) {
+    var patch = {}; patch[field] = (typeof n === 'number' ? n : 1);
+    return diagSet(patch, immediate, true);
+  }
+  /* 给人看的一行摘要（云存档 extra 用，必须短：官方 extra 上限 1000 字节）。
+   * ⚠️ 用 `k=v` 而不是省掉等号：这段会显示在存档面板给玩家看，`capls1` 这种拼接
+   *   连我们自己也一眼读不出是哪个字段。 */
+  function diagBrief() {
+    var d = diagGet();
+    return (d.ver || '?') + ' cap=' + (d.cap || '?') + ' boot=' + (d.boot || '?')
+      + ' ok=' + (d.ok || 0) + ' f=' + (d.fail || 0) + ' s=' + (d.skip || 0)
+      + '/' + (d.skipKey || '-') + ' rb=' + (d.rbOk || 0) + '/' + (d.rbEmpty || 0)
+      + '/' + (d.rbMismatch || 0) + ' lost=' + (d.lost || 0) + ' em=' + (d.emerg || 0);
+  }
+  /* 完整多行文本（面板「复制诊断信息」用）。不含任何存档内容。 */
+  function diagText() {
+    var d = diagGet();
+    var t = function (ms) {
+      if (!ms) return '—';
+      try { return new Date(ms).toLocaleString(); } catch (e) { return String(ms); }
+    };
+    return [
+      '天壳 SHELLBREAK 存档诊断',
+      '版本 ' + (d.ver || '?') + '　生成 ' + t(Date.now()),
+      '能力 ' + capText() + '　(ls=localStorage ts=tap.setStorage fs=用户目录文件 cl=云存档)',
+      '启动 本次=' + (d.boot || '?') + '　累计=' + (d.boots || 0) + '　时刻=' + t(d.bootAt),
+      '恢复 最近来源=' + (d.recover || '—') + '　丢档(localStorage空但有备份)=' + (d.lost || 0) + ' 次',
+      '写盘 成功=' + (d.ok || 0) + ' 失败=' + (d.fail || 0) + ' 拒写=' + (d.skip || 0)
+        + ' 补位=' + (d.patch || 0) + '　最近坏键=' + (d.skipKey || '—'),
+      '读回 一致=' + (d.rbOk || 0) + ' 空=' + (d.rbEmpty || 0) + ' 不一致=' + (d.rbMismatch || 0),
+      '尸检 已保留=' + (d.emerg || 0) + ' 次　最近=' + t(d.emergAt),
+      '错误 ' + (d.err || '—')
+    ].join('\n');
+  }
+
+  /* 尸检副本（2026-10-29）：开新档**之前**，把 ②③ 里那份旧档原样抄一份存进 ④。
+   * 【为什么必须有】过去每轮丢档最痛的不是「没备份」，而是「备份被新档覆盖」：
+   *   启动判成新玩家 ⇒ startRun 立刻 saveRun ⇒ 镜像把 ②③ 写成 0.03 小时 ⇒
+   *   唯一的好档当场销毁。抄一份之后，即使后面的覆盖照旧发生，原文也还在。
+   * ⚠️ 三条护栏：① 只留一份（固定 key 滚动覆盖，不按时间堆文件，免得吃满配额）；
+   *   ② 1.5 秒硬超时（容器 API 挂起时绝不能把 boot 卡住 —— 这是 10-28 事故的形状）；
+   *   ③ **永不自动恢复**，只能由玩家在存档面板手动导出。
+   * ⚠️ 读备份走 readBackupAsync，**不经过** game.boot 那道门 —— 那道门正是 P0-1 的 bug。 */
+  function preserveEmergency(runKey, metaKey, cb) {
+    var called = false;
+    function done(r) { if (called) return; called = true; cb(r); }
+    var timer = root.setTimeout ? root.setTimeout(function () { done(null); }, 1500) : null;
+    function stop() { if (timer) { try { root.clearTimeout(timer); } catch (e) {} timer = null; } }
+    Promise.all([readBackupAsync(runKey), readBackupAsync(metaKey)]).then(function (arr) {
+      stop();
+      var runHit = arr[0], metaHit = arr[1];
+      if (!runHit && !metaHit) { done(null); return; }
+      var rec = { schema: 1, at: Date.now(), ver: verOf(),
+        runKey: runKey, metaKey: metaKey,
+        run: runHit ? runHit.raw : null, meta: metaHit ? metaHit.raw : null };
+      var txt;
+      try { txt = JSON.stringify(rec); } catch (e) { st.lastError = '尸检副本序列化失败'; done(null); return; }
+      writeLocal(EMERG_KEY, txt);
+      mirrorWrite(EMERG_KEY, txt);
+      var src = [];
+      if (runHit) src.push('run:' + runHit.source);
+      if (metaHit) src.push('meta:' + metaHit.source);
+      diagSet({ emerg: (diagGet().emerg || 0) + 1, emergAt: rec.at,
+        lost: (diagGet().lost || 0) + 1, recover: src.join(',') }, true);
+      done({ source: src.join(','), at: rec.at, bytes: txt.length });
+    }, function () { stop(); done(null); });
+  }
+  function emergencyLoad() {
+    var raw = readLocal(EMERG_KEY);
+    if (!raw) return null;
+    try {
+      var o = JSON.parse(raw);
+      return (o && o.schema === 1) ? o : null;
+    } catch (e) { return null; }
+  }
+  function emergencyClear() {
+    removeLocal(EMERG_KEY);
+    mirrorRemove(EMERG_KEY);
+  }
+
   /* 异步兜底读：② 优先（同源、快），再 ③。都没有返回 null。
    * ⚠️ 拿不到时**不要在这里开新档** —— 那是调用方（game.boot）的决定，
    *    而且「三处都没有」与「容器把三处都清了」无法区分，必须交给上层策略。 */
@@ -189,20 +365,30 @@
 
   function status() {
     return {
-      env: envAvailable(), fs: fsAvailable(),
+      env: envAvailable(), fs: fsAvailable(), cloud: cloudProbe(),
+      cap: capText(),
       writeOk: st.writeOk, writeFail: st.writeFail, lastError: st.lastError,
       tapOk: st.tapOk, tapFail: st.tapFail, fileOk: st.fileOk, fileFail: st.fileFail,
       lastMirrorAt: st.lastMirrorAt,
-      lastRestoreSource: st.lastRestoreSource, lastRestoreAt: st.lastRestoreAt
+      lastRestoreSource: st.lastRestoreSource, lastRestoreAt: st.lastRestoreAt,
+      emergencyAt: (diagCache && diagCache.emergAt) || 0
     };
   }
 
   SB.store = {
-    envAvailable: envAvailable, fsAvailable: fsAvailable,
+    envAvailable: envAvailable, fsAvailable: fsAvailable, cloudProbe: cloudProbe,
     readLocal: readLocal, writeLocal: writeLocal, removeLocal: removeLocal,
     mirrorWrite: mirrorWrite, mirrorRemove: mirrorRemove,
     readBackupAsync: readBackupAsync,
     readTapStorage: readTapStorage, readFsFile: readFsFile,
+    /* ④ 诊断层（2026-10-29）：独立 key，对存档格式零影响。 */
+    diagLoad: diagLoad, diagLoadAsync: diagLoadAsync, diagGet: diagGet,
+    diagSet: diagSet, diagBump: diagBump, diagFlush: diagFlush,
+    diagBrief: diagBrief, diagText: diagText, capText: capText,
+    /* 尸检副本：只在「本机读不到档」那一刻由 game.boot 调用，永不自动恢复。 */
+    preserveEmergency: preserveEmergency, emergencyLoad: emergencyLoad,
+    emergencyClear: emergencyClear,
+    DIAG_KEY: DIAG_KEY, EMERG_KEY: EMERG_KEY,
     status: status
   };
 })(typeof window !== 'undefined' ? window : globalThis);

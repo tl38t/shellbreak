@@ -638,9 +638,24 @@ console.log('\n=== 开局解锁链 ===');
     const invalidSave = SB.state.freshRun(false);
     invalidSave.res.coral = NaN;
     SB.state.saveRun(invalidSave);
-    check('坏资源快照不会覆盖 localStorage 中的上一份存档',
-      !sandbox.localStorage || sandbox.localStorage.getItem(oldRunKey) === oldRunValue,
-      'invalid snapshot rejected');
+    /* ⚠️ 2026-10-29（P0-3 条件补位）判据变了，断言随之改**强**而不是放宽：
+     *   旧判据 = 「坏值快照 ⇒ 一个字都不许动 localStorage」。它保护的是"别把 NaN 写成 null"，
+     *   但副作用是玩家从某一刻起**永久停止保存**，而界面上只有一行很难被发现的小字。
+     *   新判据 = ① 坏值绝不落盘（NaN / null 都不许出现在存档里）；
+     *            ② 有「上一次已知好值」时用那个值补位，其余字段写最新的；
+     *            ③ 拿不到好值且本机有旧档时仍然整份拒写（见 probe_diag 的 ① 段）。
+     *   所以这里钉的不再是"字符串没变"，而是"落盘内容里那个键一定是有限数" —— 更强。 */
+    const writtenTxt = sandbox.localStorage ? sandbox.localStorage.getItem(oldRunKey) : null;
+    let writtenObj = null;
+    try { writtenObj = writtenTxt ? JSON.parse(writtenTxt) : null; } catch (e) { writtenObj = null; }
+    check('坏资源快照绝不把 NaN 落进存档（要么补位、要么整份拒写）',
+      !writtenTxt || (!!writtenObj && typeof writtenObj.res.coral === 'number'
+        && isFinite(writtenObj.res.coral)),
+      'coral=' + (writtenObj ? String(writtenObj.res.coral) : 'null'));
+    check('补位路径确实走到了（不是被静默跳过）',
+      (SB.state.saveStatus().patchCount || 0) >= 1,
+      'patchCount=' + SB.state.saveStatus().patchCount
+      + ' lastPatchKey=' + SB.state.saveStatus().lastPatchKey);
 
     s.lvl.kelp = bak.lv; s.res.kelp = bak.kelp; s.res.coral = bak.coral;
     if (!bak.lighting) delete s.techs.lighting;

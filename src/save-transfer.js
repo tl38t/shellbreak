@@ -133,6 +133,89 @@
     var buttons = document.querySelectorAll('#saveManagerPanel button[data-save-action]');
     for (var i = 0; i < buttons.length; i++) buttons[i].disabled = busy;
   }
+  /* ── 诊断出口（2026-10-29）──────────────────────────────────────────
+   * 【为什么要有它】玩家报「存档没了」时，我们过去只能靠猜：日志里只有 [rank]，
+   *   重启一次连内存计数都没了。这里把「能力探针 / 启动出口 / 写盘计数 / 读回结果 /
+   *   丢档次数」拼成一段纯文本，玩家一键复制贴给我们，一条反馈就能定性。
+   * ⚠️ 只含布尔位、计数、版本号与错误串，**不含任何存档内容**。 */
+  function diagLine() {
+    if (!(SB.store && SB.store.diagBrief)) return '';
+    try { return '存档诊断：' + SB.store.diagBrief(); } catch (e) { return ''; }
+  }
+  function diagnosticsText() {
+    var parts = [];
+    try { if (SB.store && SB.store.diagText) parts.push(SB.store.diagText()); } catch (e) {}
+    try {
+      var st = SB.state.saveStatus();
+      parts.push('面板 上次保存=' + agoText(st.lastOkAt) + '　拒写=' + (st.skipCount || 0)
+        + ' 失败=' + (st.failCount || 0) + ' 补位=' + (st.patchCount || 0)
+        + '　连续坏=' + (st.skipAfterOk || 0) + '/' + (st.failAfterOk || 0)
+        + (st.lastSkipKey ? '　坏键=' + st.lastSkipKey : '')
+        + (st.lastError ? '　错误=' + st.lastError : ''));
+    } catch (e) {}
+    try {
+      var objects = null;
+      objects = { cloud: cloudAvailable(), local: rawLocal(CFG.RUN_KEY) ? rawLocal(CFG.RUN_KEY).length : 0 };
+      parts.push('云端 ' + (objects.cloud ? '可用' : '不可用') + '　本机存档字节=' + objects.local);
+    } catch (e) {}
+    try {
+      var em = SB.store && SB.store.emergencyLoad ? SB.store.emergencyLoad() : null;
+      parts.push('旧档副本 ' + (em ? ('有（' + dateLabel(em.at) + '）') : '无'));
+    } catch (e) {}
+    parts.push('UA ' + (root.navigator && root.navigator.userAgent
+      ? String(root.navigator.userAgent).slice(0, 140) : '—'));
+    return parts.join('\n');
+  }
+  function copyDiag() {
+    var text = diagnosticsText();
+    var box = document.getElementById('saveDiagBox');
+    if (box) {
+      box.value = text;
+      box.focus();
+      try { box.select(); } catch (e) {}
+      /* ⚠️ select() 会把 textarea 滚到**末尾**，首行（版本 / 能力）就被切掉半行，
+       * 看着像内容坏了。选完再把视口拨回顶部，选中的内容不受影响。 */
+      try { box.scrollTop = 0; } catch (e) {}
+    }
+    var nav = root.navigator;
+    if (nav && nav.clipboard && nav.clipboard.writeText) {
+      nav.clipboard.writeText(text).then(function () {
+        setStatus('诊断信息已复制到剪贴板，直接粘贴发给开发者即可。');
+      }, function () {
+        setStatus('浏览器未授权剪贴板：上面文本框里已生成诊断信息，请手动复制。');
+      });
+    } else {
+      setStatus('上面文本框里已生成诊断信息，请手动复制。');
+    }
+  }
+  /* 尸检副本导出：只在「上次启动读不到存档」时才存在。
+   * ⚠️ 只导出、**永不自动恢复** —— 自动恢复等于让清掉的档自己爬回来。 */
+  function emergencyHTML() {
+    var em = null;
+    try { em = SB.store && SB.store.emergencyLoad ? SB.store.emergencyLoad() : null; } catch (e) {}
+    if (!em) return '';
+    var kb = Math.max(1, Math.round(((em.run || '').length + (em.meta || '').length) / 1024));
+    return '<div class="save-manager-warning">发现一份<b>旧档副本</b>（' + escapeHtml(dateLabel(em.at)) +
+      '，约 ' + kb + ' KB）。它是在上次启动读不到存档时自动留下的，只供导出救援，不会自动恢复。</div>' +
+      '<div class="save-manager-actions">' +
+      '<button type="button" class="btn" data-save-action="export-emergency">导出旧档副本</button>' +
+      '</div>';
+  }
+  function exportEmergency() {
+    var em = null;
+    try { em = SB.store && SB.store.emergencyLoad ? SB.store.emergencyLoad() : null; } catch (e) {}
+    if (!em) { setStatus('没有可导出的旧档副本。', true); return; }
+    try {
+      var raw = { meta: em.meta === undefined ? null : em.meta, run: em.run === undefined ? null : em.run,
+        metaBackup: null, runBackup: null };
+      var bundle = { format: FORMAT, version: FORMAT_VERSION, createdAt: Date.now(),
+        recovery: true, raw: raw, checksum: crc32(JSON.stringify(raw)) };
+      downloadFile('shellbreak-emergency-' + new Date().toISOString().slice(0, 10) + '.json',
+        JSON.stringify(bundle, null, 2));
+      setStatus('旧档副本已导出。把它发给开发者，或从「从文件导入」直接恢复。');
+    } catch (e) { setStatus('导出旧档副本失败：' + (e.message || e), true); }
+  }
+
   function openPanel() {
     var box = document.getElementById('modalBox'), modal = document.getElementById('modal');
     if (!box || !modal) return;
@@ -143,6 +226,8 @@
         '<p class="save-manager-intro">存档文件和存档码都包含当前周目与跨周目进度。导入会先备份本机现有存档，并在确认后重载游戏。</p>' +
         /* 本地 / 云端对比（2026-10-28）：玩家自己决定谁覆盖谁，不弹窗、不打扰。 */
         cloudCompareHTML() +
+        /* 旧档副本（2026-10-29）：只在「上次启动读不到存档」时才出现，没有就返回空串。 */
+        emergencyHTML() +
         '<div class="save-manager-actions">' +
           '<button type="button" class="btn buy" data-save-action="export-file">导出存档文件</button>' +
           '<button type="button" class="btn" data-save-action="export-code">生成并复制存档码</button>' +
@@ -150,9 +235,13 @@
           '<button type="button" class="btn" data-save-action="import-code">从存档码导入</button>' +
           '<button type="button" class="btn" data-save-action="cloud-upload"' + (cloudOK ? '' : ' disabled') + '>上传到 TapTap 云存档</button>' +
           '<button type="button" class="btn" data-save-action="cloud-download"' + (cloudOK ? '' : ' disabled') + '>从 TapTap 云存档恢复</button>' +
+          '<button type="button" class="btn" data-save-action="copy-diag">复制诊断信息</button>' +
         '</div>' +
         '<label class="save-manager-label" for="saveCodeBox">存档码</label>' +
         '<textarea id="saveCodeBox" rows="4" spellcheck="false" placeholder="生成的存档码会显示在这里；也可以粘贴已有存档码"></textarea>' +
+        /* 诊断文本框常驻但为空：点「复制诊断信息」才写入。剪贴板被拒时这里是唯一的手动出口。 */
+        '<label class="save-manager-label" for="saveDiagBox">诊断信息</label>' +
+        '<textarea id="saveDiagBox" rows="5" spellcheck="false" readonly placeholder="点上面的「复制诊断信息」生成；存档出问题时把这段贴给开发者。"></textarea>' +
         '<input type="file" id="saveFileInput" accept=".json,application/json" hidden>' +
         '<p id="saveManagerStatus" class="save-manager-status" role="status">' +
           (cloudOK ? 'TapTap 云存档已就绪。' : '云存档只在 TapTap 小游戏运行环境可用；当前浏览器仍可导出/导入文件和存档码。') +
@@ -162,6 +251,9 @@
         '<p id="saveManagerHealth" class="save-manager-status save-manager-health' +
           (saveHealthBad() ? ' error' : '') + '">' +
           escapeHtml(saveHealthText()) + '</p>' +
+        /* 诊断一行（2026-10-29）：能力位 + 启动出口，一眼能看出「有没有备份被读到」。 */
+        '<p id="saveManagerDiag" class="save-manager-status save-manager-diag">' +
+          escapeHtml(diagLine()) + '</p>' +
       '</div>';
     modal.classList.remove('hidden');
     document.body.classList.add('modal-open');
@@ -189,10 +281,15 @@
     if (action === 'import-code') return importCode(box.value);
     if (action === 'cloud-upload') return uploadCloud();
     if (action === 'cloud-download') return downloadCloud();
+    if (action === 'copy-diag') return copyDiag();
+    if (action === 'export-emergency') return exportEmergency();
   }
   function exportFile() {
     try {
       var bundle = exportBundle();
+      /* 2026-10-29：导出的存档文件顺带带上诊断信息 —— 玩家发文件给我们时，
+       * 不用再教他单独去点「复制诊断信息」，一条文件就是完整证据。 */
+      try { bundle.diagnostics = diagnosticsText(); } catch (e) {}
       downloadFile('shellbreak-save-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(bundle, null, 2));
       setStatus(bundle.recovery ? '游戏读档异常：已导出包含本地原始主档和备份的救援文件。' : '存档文件已导出。建议另存到游戏目录以外的位置。');
     } catch (e) { setStatus(e.message || String(e), true); }
@@ -377,7 +474,12 @@
           /* extra 官方限 1000 字节；带上周目是为了面板能显示「第 N 周目」——
            * 旧档没有 cycle，展示层会自然省略这一段。 */
           extra: JSON.stringify({ format: FORMAT, version: FORMAT_VERSION,
-            cycle: (_meta && _meta.cycle) || 0 }),
+            cycle: (_meta && _meta.cycle) || 0,
+            /* 2026-10-29：诊断摘要随云档走。本机三处（localStorage / tap.setStorage /
+             * tapfile）是同生共死的，云端这条 metadata 是**唯一跨设备**还能带出来的证据：
+             * 玩家换机或重装后，`getArchiveList` 仍能把这段读回来显示在面板上。
+             * ⚠️ 官方 extra 上限 1000 字节，diagBrief 约 90 字符，留足余量。 */
+            d: (SB.store && SB.store.diagBrief) ? String(SB.store.diagBrief()).slice(0, 240) : '' }),
           playtime: Math.max(0, Math.floor((SB.game.run() && SB.game.run().t) || 0)) };
         var options = { archiveMetaData: metadata, archiveFilePath: filePath };
         if (archive && archive.uuid) options.archiveUUID = archive.uuid;
@@ -467,6 +569,11 @@
       why = '存档写入被拦下（' + (st.lastSkipKey || '未知字段') + ' 数值异常），这局进度没有存上';
     }
     if (bad) parts.push('⚠ ' + why);
+    /* 2026-10-29（P0-3）：补位是「部分成功」，不能和上面的整份拒写混为一谈，
+     * 也不能标红 —— 玩家看到红色「存档失败」会以为全废了，实际只有那一个资源没涨。 */
+    if ((st.patchCount || 0) > 0 && !bad) {
+      parts.push('资源 ' + (st.lastPatchKey || '?') + ' 数值异常，已用上次记录值补位（其余进度正常保存）');
+    }
     var au = autoCloudStatus();
     /* ⚠️ 2026-10-28：云端**备份时间**从这里移走了 —— 顶部新增的「本地 / 云端」对比块
      *   用的是云端真实 modifiedTime，而这里是本次会话的内存值（刚启动永远是「尚未」）。
@@ -508,6 +615,9 @@
           playtime: Number(archive.playtime) || 0,
           modifiedTime: Number(archive.modifiedTime) || 0,   /* 官方字段：秒级 */
           cycle: Number(extra.cycle) || 0,                   /* 旧档没有这一项，显示时省略 */
+          /* 2026-10-29：上传时塞进 extra 的诊断摘要（见 pushCloud）。本机三处全空时
+           * （重装 / 换机 / 被清缓存），这是**唯一**还能看到「上次是怎么丢的」的地方。 */
+          diag: String(extra.d || ''),
           size: Number(archive.saveSize) || 0,
           uuid: archive.uuid || ''
         });
@@ -571,6 +681,12 @@
         hint.className = 'cc-hint warn';
       } else {
         hint.textContent = '本地比云端多 ' + playtimeText(-diff) + '（云端那份更旧）';
+        hint.className = 'cc-hint warn';
+      }
+      /* 本机没有本地进度（刚重装 / 换机 / 被清缓存）时，把云档带回的上一会话诊断亮出来：
+       * 这是丢档现场唯一还能自证的线索，也是让玩家能一键复制发给我们。 */
+      if (hint && cloud.diag && !local.savedAt && !local.playtime) {
+        hint.textContent = '云端带回上次诊断：' + cloud.diag;
         hint.className = 'cc-hint warn';
       }
     });
@@ -726,6 +842,8 @@
     /* 2026-10-27 新增：自动云备份与存档健康度（供 UI 与回归直接读/驱动）。 */
     autoCloudPump: autoCloudPump, autoCloudStatus: autoCloudStatus,
     saveHealthText: saveHealthText, pushCloud: pushCloud,
+    /* 2026-10-29 诊断出口（面板「复制诊断信息」/ 导出的存档文件里都会带上）。 */
+    diagnosticsText: diagnosticsText, diagLine: diagLine,
     /* 2026-10-28：启动时云端救援（game.boot 的最后一根稻草）+ 环境探测（供 boot 判断）。 */
     restoreFromCloudIfAny: restoreFromCloudIfAny, cloudAvailable: cloudAvailable };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -11,7 +11,7 @@ import shutil
 import zipfile
 
 SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
-OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc29-v1.0.3.zip'
+OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc30-v1.0.4.zip'
 TOP = 'shellbreak'
 
 # ---------- 打包前：自动同步源码 → 包目录 ----------
@@ -143,8 +143,35 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.3'" in _cfg, '包内 config.js 版本号不是 Ver1.0.3'
-assert "v: 'Ver1.0.3'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.3 条目'
+assert "VERSION: 'Ver1.0.4'" in _cfg, '包内 config.js 版本号不是 Ver1.0.4'
+assert "v: 'Ver1.0.4'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.4 条目'
+
+# ---------- 存档诊断 + 三个 P0（2026-10-29 / Ver1.0.4）----------
+# 这一批全是「玩家报存档没了」的对策，任何一条漏进包里都等于白改，所以逐条钉死。
+_ss = _read('src/save-storage.js')
+_st = _read('src/state.js')
+_stf = _read('src/save-transfer.js')
+assert "shellbreak.diag.v1" in _ss, '包内 save-storage.js 缺独立诊断 key（遥测会再次消失）'
+assert "shellbreak.emergency.v1" in _ss, '包内 save-storage.js 缺尸检副本 key'
+assert 'function preserveEmergency(' in _ss, '包内 save-storage.js 缺 preserveEmergency（旧档会在开新档时被覆盖）'
+assert 'function diagText(' in _ss and 'function diagBrief(' in _ss, '包内 save-storage.js 缺诊断文本出口'
+# P0-1：门锁必须是「任一可用即进」，且仍要能看到三个探针
+_gm2 = _read('src/game.js')
+assert 'var rescueGate' in _gm2, '包内 game.js 缺救援门锁变量'
+assert 'SB.store.fsAvailable && SB.store.fsAvailable()' in _gm2, '包内 game.js 救援门锁没接 fsAvailable（P0-1 未修）'
+assert 'SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable()' in _gm2, \
+    '包内 game.js 救援门锁没接 cloudAvailable（P0-1 未修）'
+assert 'SB.store.preserveEmergency(CFG.RUN_KEY, CFG.SAVE_KEY, go);' in _gm2, \
+    '包内 game.js 开新档前没留尸检副本'
+# P0-2 / P0-3
+assert 'lastFailMirrorAt' in _st, '包内 state.js 缺「主通道失败仍写镜像」的限速状态（P0-2 未修）'
+assert 'function patchBadRes(' in _st, '包内 state.js 缺坏键条件补位（P0-3 未修）'
+assert 'function verifyLastWrite(' in _st, '包内 state.js 缺写后读回校验'
+# 面板出口
+assert 'data-save-action="copy-diag"' in _stf, '包内 save-transfer.js 缺「复制诊断信息」按钮'
+assert 'data-save-action="export-emergency"' in _stf, '包内 save-transfer.js 缺「导出旧档副本」按钮'
+assert 'diagnosticsText: diagnosticsText' in _stf, '包内 save-transfer.js 没导出诊断文本（存档文件里带不上）'
+print('存档诊断入包检查: OK (diag key + 尸检副本 + 门锁解耦 + 补位 + 读回校验 + 两个面板出口)')
 
 # ---------- 打包前置检查 ③：正式包不许带任何 -test 痕迹 ----------
 # ⚠️ 2026-10-28 教训：测试包（Ver1.0.4-test）是用来给 iOS 玩家做二分实验的，开关会把自动弹窗

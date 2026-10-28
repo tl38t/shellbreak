@@ -1380,6 +1380,147 @@
     return out;
   }
 
+  /* 加工型建筑的「开工状态」唯一判据（2026-10-28，用户：「热泉炉那种需要原料制造的建筑，缺料要显示」）。
+   * 【要解决的问题】缺料时炉子/工坊/研究所会静默降产或停摆，但行内消耗标签写的永远是**额定**值
+   *   ⇒ 「开 3/3 · 金属 −0.36/秒 · 暖石 −0.36/秒」在「暖石=0」与「暖石=500」两种情况下**逐字相同**
+   *   （2026-10-28 CDP 实测三场景：暖石=0 / 金属=0 / 两样都够，行内文本完全一致、无任何「缺」字），
+   *   玩家看不出炉子根本没在烧。
+   * 【返回什么】`null` = 正常 / 不适用（UI 什么都不渲染）；否则 `{ ratio, lack }`：
+   *   ratio = 实际 / 额定（1 = 满转，0 = 完全停）；lack = 卡住的那一样原料 key（与 BUILDING_CONSUME 同口径）。
+   *   UI 只按 ratio 决定「停产」还是「开工 N%」，**文案不在这里拼**。
+   * ⚠️ **每个分支都必须复用引擎里那条门控**，绝不在这里重写公式 —— 面板撒谎家族的根因就是
+   *   「同一个量两个式子」。映射：
+   *     热泉炉 furnace       → ironFlow 的 min(rate·dt, 金属/e, 暖石/(e·warmEff))
+   *     热液汽轮机 turbine   → hydroAlloc 的 rW = min(暖石需求, 库存)/需求
+   *     热液工坊 hydroshop   → hydroAlloc.shopRatio × 金属门控 min(1, 金属/需求)
+   *     空间站 / 轨道卫星     → hydroAlloc 的 draw / need
+   *     生物材料研究所       → thetaRatio().ratio（四样原料取最小，真实的降产比例）
+   * 【为什么热泉炉给不出百分比，只报「断/没断」】库存是缓冲：只要金属/暖石还够烧满 1 tick，
+   *   炉子就是**满速**的（ironFlow 用 min 钳的是「这一 tick 能吃多少」，不是产能）。
+   *   硬凑一个「开工 62%」反而是撒谎 ⇒ 库存型只判阈值，比例型（研究所/流）才给百分比。
+   * ⚠️ 玩家自己按 − 停掉的座（furnaceStop / turbineStop / hydroshopStop / biomatlabStop 等）
+   *   **不算缺料**，一律返回 null —— 那是主动停用，报「缺料」会让玩家去查一个不存在的原料问题。 */
+  function runStatus(s, id) {
+    if (!s || !s.lvl || !id) return null;
+    var T = SB.tech ? SB.tech.mul(s) : null;
+    var e = (T && T.bldEff) || 1;
+
+    if (id === 'furnace') {
+      var flv = Math.max(0, s.lvl.furnace || 0);
+      var frun = Math.max(0, flv - Math.max(0, s.furnaceStop || 0));
+      if (frun <= 0) return null;
+      var cold = isCold(s) ? coldSeasonMul(s) : 1;
+      /* 每秒铁产量：与 ironFlow 的 rate 逐字同式（那里再乘 dt）。 */
+      var frate = SB.UNIT.iron * frun * (T ? T.smelt : 1) * cold * (T ? T.craft : 1);
+      if (!(frate > 0)) return null;
+      var needM = frate * e;              // 每秒金属（与 consumeRates 的 out.metal 同式）
+      var needW = frate * e * warmEff(s); // 每秒暖石（与 warmDraw 的 furnace 分支同式）
+      var secM = needM > 0 ? ((s.res.silt || 0) / needM) : Infinity;
+      var secW = needW > 0 ? ((s.res.warmstone || 0) / needW) : Infinity;
+      /* 阈值 1 秒 = 「这一 tick 已经吃不起」。够烧满 1 秒就按满速算（见上面「为什么给不出百分比」）。 */
+      if (Math.min(secM, secW) >= 1) return null;
+      return { ratio: 0, lack: (secM <= secW) ? 'metal' : 'warm' };
+    }
+
+    if (id === 'hydroturbine') {
+      var turL = Math.max(0, (s.lvl.hydroturbine || 0) - Math.max(0, s.turbineStop || 0));
+      if (turL <= 0) return null;
+      /* 与 warmDraw('hydroturbine') 同式；hydroAlloc 的 rW 是同一个比（那里带 dt）。 */
+      var wNeed = turL * (SB.UNIT.hydroWarm || 0) * warmEff(s);
+      if (!(wNeed > 0)) return null;
+      var rW = Math.min(1, (s.res.warmstone || 0) / wNeed);
+      if (rW >= 0.999) return null;
+      return { ratio: rW, lack: 'warm' };
+    }
+
+    if (id === 'hydroshop') {
+      var shopL = Math.max(0, (s.lvl.hydroshop || 0) - Math.max(0, s.hydroshopStop || 0));
+      if (shopL <= 0) return null;
+      var HF = hydroAlloc(s, 1);
+      var rH = HF.shopRatio;                                  // shopDraw / shopDemand
+      /* 金属门控：与 steelFlow 的 canMetal/metalWant 同一个比（那里 dt 口径，比例相同）。 */
+      var metalWant = HF.shopDraw * (SB.UNIT.steelMetal || 0) * e;
+      var rM = metalWant > 0 ? Math.min(1, (s.res.silt || 0) / metalWant) : 1;
+      var rShop = Math.min(rH, rM);
+      if (rShop >= 0.999) return null;
+      return { ratio: rShop, lack: (rM <= rH) ? 'metal' : 'hydro' };
+    }
+
+    if (id === 'spacestation' || id === 'satellite') {
+      var isSta = (id === 'spacestation');
+      var needRate = 0, drawRate = 0;
+      var HF2 = hydroAlloc(s, 1);
+      if (isSta) { needRate = HF2.stationNeedRate || 0; drawRate = HF2.stationRate || 0; }
+      else { needRate = HF2.satelliteNeedRate || 0; drawRate = HF2.satelliteRate || 0; }
+      if (!(needRate > 0)) return null;          // 没开座数 / 没建
+      var rSky = Math.min(1, drawRate / needRate);
+      if (rSky >= 0.999) return null;
+      return { ratio: rSky, lack: 'hydro' };
+    }
+
+    if (id === 'biomatlab') {
+      var q = thetaRatio(s);
+      if (q.lv <= 0) return null;
+      if (q.ratio >= 0.999) return null;
+      /* 哪一样先见底就报哪一样 —— 与 thetaRatio 里那条取 min 的循环同序同式。 */
+      var worstKey = 'kelp', worstVal = Infinity;
+      if (q.nK > 0) { var vK = (s.res.kelp || 0) / q.nK; if (vK < worstVal) { worstVal = vK; worstKey = 'kelp'; } }
+      if (q.nI > 0) { var vI = (s.res.iron || 0) / q.nI; if (vI < worstVal) { worstVal = vI; worstKey = 'iron'; } }
+      if (q.nT > 0) { var vT = (s.res.titanium || 0) / q.nT; if (vT < worstVal) { worstVal = vT; worstKey = 'titanium'; } }
+      if (q.nU > 0) { var vU = (s.res.uranium || 0) / q.nU; if (vU < worstVal) { worstVal = vU; worstKey = 'uranium'; } }
+      return { ratio: q.ratio, lack: worstKey };
+    }
+
+    return null;
+  }
+
+  /* ══ 发射场缺料判据（2026-10-28）════════════════════════════════════════
+   * 【要解决什么】三座发射场缺料/断流时进度条就是不走，而「为什么」只写在
+   *   `.launch-consumption` 的 title 里 —— 手机端没有 hover，等于永远看不见。
+   *   与热泉炉那一批同一个病，只是落点不同（那边在 .fdraw，这边在进度条）。
+   * 【判据必须与 rates 的 `_elRunR` 逐字同构】那边是一条 && 链：
+   *   ① 热液能：`hydroAlloc(s,1).europaRate >= runLvl × launchHydroPer`（**全场共用一个门**，
+   *      不是每座各算 ⇒ 一缺就是三座一起停，所以这里也按全场算）；
+   *   ② 材料：铀 / 强工质火箭引擎 / θ金属自适应薄膜 /（节点模式）钛合金板，
+   *      阈值 `库存 >= 启用等级和 × 每秒单耗`（= dt=1 口径，与 rates 同一个比较）。
+   *   ⚠️ 不要另写公式：tick 2f、rates、这里必须三处同源，否则又是面板撒谎。
+   * 【为什么只报一样】五样同时见底时列五样没人看。按 && 链的顺序取第一个断掉的，
+   *   玩家补完一样徽标自动换成下一样，自洽且不刷屏。
+   * 【玩家自己按 − 停掉的场不算缺料】`launchActiveLvl<=0` ⇒ null（与 runStatus 同纪律），
+   *   否则玩家会去查一个不存在的原料问题。
+   * 返回 null = 正常；否则 { ratio, lack }，lack ∈ hydro|uranium|strongProp|thinafilm|tiplate。 */
+  function launchStatus(s, id) {
+    if (!s || !id) return null;
+    var lv = Math.max(0, Math.floor((s.lvl && s.lvl[id]) || 0));
+    if (lv <= 0) return null;                     // 未建成
+    if (launchActiveLvl(s, id) <= 0) return null;  // 本场被玩家停用
+    var runLvl = launchRunLvl(s);
+    if (runLvl <= 0) return null;                 // 全场都停
+    var HF = hydroAlloc(s, 1);                    // dt=1 ⇒ 各 rate 字段已是每秒口径
+    var hydNeed = runLvl * launchHydroPer(s);
+    var hydHave = HF ? HF.europaRate : 0;
+    if (hydHave < hydNeed - 1e-6) {
+      return { ratio: hydNeed > 0 ? Math.max(0, Math.min(1, hydHave / hydNeed)) : 0, lack: 'hydro' };
+    }
+    var cost = launchMaterialPer(s);
+    var list = [
+      { k: 'uranium', per: cost.uranium || 0 },
+      { k: 'strongProp', per: cost.strongProp || 0 },
+      { k: 'thinafilm', per: cost.thinafilm || 0 },
+      { k: 'tiplate', per: cost.tiplate || 0 }
+    ];
+    for (var i = 0; i < list.length; i++) {
+      var per = list[i].per;
+      if (!(per > 0)) continue;
+      var need = runLvl * per;
+      var have = (s.res && s.res[list[i].k]) || 0;
+      if (have < need) {
+        return { ratio: need > 0 ? Math.max(0, Math.min(1, have / need)) : 0, lack: list[i].k };
+      }
+    }
+    return null;
+  }
+
   function ironFlow(s, cold, dt) {
     var lv = s.lvl.furnace || 0;
     if (!(lv > 0)) return 0;
@@ -1666,6 +1807,12 @@
       drillDraw: drillDraw, drillRate: dt > 0 ? drillDraw / dt : drillDraw,
       stationDraw: stationDraw, stationRate: dt > 0 ? stationDraw / dt : stationDraw,
       satelliteDraw: satelliteDraw, satelliteRate: dt > 0 ? satelliteDraw / dt : satelliteDraw,
+      /* 2026-10-28：把**需求侧**也交出去，供 economy.runStatus 算「实际供能 / 额定需求」。
+       *   此前只导出 draw（已被供给打折的实得量），UI 拿不到分母 ⇒ 只能写「缺料」而报不出比例。
+       *   与 draw 同为 ÷dt 归一后的每秒口径，两者相除就是供给率。 */
+      stationNeedRate: dt > 0 ? stationNeed / dt : stationNeed,
+      satelliteNeedRate: dt > 0 ? satelliteNeed / dt : satelliteNeed,
+      labNeedRate: dt > 0 ? labNeed / dt : labNeed,
       labDraw: labDraw, labRate: dt > 0 ? labDraw / dt : labDraw,
       robotDraw: robotDraw, robotRate: dt > 0 ? robotDraw / dt : robotDraw,
       robotbayDraw: robotbayDraw, robotbayRate: dt > 0 ? robotbayDraw / dt : robotbayDraw,
@@ -2273,6 +2420,16 @@
      *   取代 UI 各拿到 warmDraw 就以为「消耗只有暖石」的半截口径（热泉炉还吃金属、
      *   热液工坊吃热液能+金属）。巢穴页控件行与建筑信息卡共用这一处，绝不允许再分叉。 */
     consumeRates: consumeRates,
+    /* ⚠️ 2026-10-28 导出 runStatus：加工型建筑「缺料停工」的唯一判据（热泉炉/汽轮机/工坊/
+     *   空间站/卫星/研究所）。返回 null = 正常，否则 { ratio, lack } —— UI 只负责拼文案，
+     *   比例与「缺哪一样」全部由引擎这一处给，避免渲染层自己再算一遍（面板撒谎家族）。
+     *   纯读 s（对它内部调用的 hydroAlloc 亦然，那个函数不写 s.res）。 */
+    runStatus: runStatus,
+    /* ⚠️ 2026-10-28 导出 launchStatus：发射场「缺料暂停」的唯一判据（三座共用）。
+     *   与上面 runStatus 同形态（null = 正常，否则 { ratio, lack }），但**不能**并进 runStatus：
+     *   发射场的门是「全场共用一个热液能配额」+ 四种材料，与单建筑吃料不同构。
+     *   与 economy-rates 的 `_elRunR`、economy-tick 2f 的 && 链三处同源。 */
+    launchStatus: launchStatus,
     /* ⚠️ faithRate / faithMul 导出是为了回归取证：乘区本身可读才测得准
      *    （只测 rates.faith 会被「基础产出为 0」恒乘以 0，看不出乘区有没有挂上）。
      *    同理 libraryLevel 导出——虚级是「效果级」，只能直接读才知道有没有接进科技产出。 */

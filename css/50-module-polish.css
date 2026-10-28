@@ -256,6 +256,18 @@ html[data-ui-theme="day"] .gov-picker-slots{background:rgba(222,237,231,.42);bor
 #pane-village .auto-click-tag.is-off{border-color:rgba(140,163,178,.34);background:rgba(30,44,58,.4);color:#9fb0bd;font-weight:600}
 html[data-ui-theme="day"] #pane-village .auto-click-tag{border-color:rgba(18,106,101,.34);background:rgba(210,238,234,.92);color:#0d6a63}
 html[data-ui-theme="day"] #pane-village .auto-click-tag.is-off{border-color:rgba(96,120,128,.3);background:rgba(228,236,236,.95);color:#5d7278}
+/* 缺料状态角标（2026-10-28）：加工型建筑（热泉炉 / 汽轮机 / 热液工坊 / 空间站 / 卫星 / 研究所）
+ * 缺料停工或降产时，贴在「额定消耗」那串数字**左侧**（先给结论再给账）。
+ * 为什么不能只靠改数字：那串数永远是额定值，缺料时一个都不变，玩家只能看到「炉子在烧」。
+ * 两态：is-stop = 已停产（实底暖红，要一眼看见）；is-short = 按比例降产（描边暖黄）。
+ * ⚠️ 颜色写死不跟主题变量（--amber 一类在日间亮底会糊，与红点/自动点击角标同一条教训）；
+ *   日间主题单独覆盖一份，保证在亮底上仍是「警示」而不是糊成一片。
+ * ⚠️ 不吃 hover / 无动画：它是状态灯，不是动效。 */
+.lack-tag{display:inline-block;flex:0 0 auto;margin:0 6px 2px 0;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.2px;line-height:1.6;white-space:nowrap;vertical-align:1px;font-style:normal}
+.lack-tag.is-stop{border:1px solid rgba(232,124,94,.62);background:rgba(118,44,30,.78);color:#ffcdb9}
+.lack-tag.is-short{border:1px solid rgba(226,168,92,.52);background:rgba(96,72,30,.58);color:#ffe2af}
+html[data-ui-theme="day"] .lack-tag.is-stop{border-color:#c05a33;background:#fbe0d4;color:#9c3a19}
+html[data-ui-theme="day"] .lack-tag.is-short{border-color:#c19240;background:#faeed2;color:#7f5a10}
 #pane-village .gather-btns>.btn.buy{margin:0;white-space:nowrap;width:112px;height:36px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
 @media(max-width:760px){
   #pane-village .gather-row{flex-wrap:wrap}
