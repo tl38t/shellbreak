@@ -20,10 +20,14 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.0.1',
+    VERSION: 'Ver1.0.2',
     /* entering：meta.seenVersion 与之不等 ⇒ 该版本首次进入，自动弹一次面板（跨周目保留）。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会弹一次，符合预期。 */
     CHANGELOG: [
+      { v: 'Ver1.0.2', date: '2026-10-28', items: [
+        '修复清缓存、换设备后进度丢失：启动时会自动从 TapTap 云存档恢复。',
+        '存档管理新增「本地 / 云端」进度对比，可以自己选择保留哪一份。'
+      ] },
       { v: 'Ver1.0.1', date: '2026-10-27', items: [
         '新增存档自动云备份。',
         '现在可以直接点击政策槽选择政策卡。',
@@ -491,6 +495,10 @@
     RUN_KEY: 'shellbreak.run.v2',
     SAVE_BACKUP_KEY: 'shellbreak.meta.backup.v1',
     RUN_BACKUP_KEY: 'shellbreak.run.backup.v1',
+    /* 上次成功写盘的时刻（2026-10-28）。存档管理面板要摆「本地 5 分钟前保存 vs 云端 12 分钟前备份」
+     * 让玩家自己选，而 saveHealth.lastOkAt 是内存值、重开游戏就归零 ⇒ 必须持久化一份。
+     * 写入节流 30 秒（saveRun 每 5 秒一次，不能每次都多写一个 key）。 */
+    SAVE_AT_KEY: 'shellbreak.save-at.v1',
   };
 
 

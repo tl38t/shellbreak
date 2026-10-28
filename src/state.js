@@ -819,6 +819,8 @@
      *   （节流保存紧接着一次坏值），`lastSkipAt > lastOkAt` 会漏判。
      *   这两个计数在每次**成功写盘**时清零，语义 = 「距上次成功之后又坏了几次」。 */
     skipAfterOk: 0, failAfterOk: 0 };
+  /* 上次把「成功写盘时刻」持久化到 SAVE_AT_KEY 的时间（2026-10-28），用于 30 秒写盘节流。 */
+  var lastSaveAtWrite = 0;
   function saveStatus() {
     return { lastOkAt: saveHealth.lastOkAt, lastFailAt: saveHealth.lastFailAt,
       lastSkipAt: saveHealth.lastSkipAt, lastError: saveHealth.lastError,
@@ -863,6 +865,16 @@
       saveHealth.okCount++;
       saveHealth.skipAfterOk = 0;
       saveHealth.failAfterOk = 0;
+      /* 持久化「上次成功写盘时刻」（2026-10-28）：存档管理面板要用它摆
+       * 「本地 xx 前保存 vs 云端 xx 前备份」让玩家自己选哪份。
+       * ⚠️ 必须节流：saveRun 是每 5 秒的热路径，每次都多写一个 key 等于把写盘成本翻倍。
+       *    30 秒粒度对「几分钟前」这种展示完全够用。 */
+      if (saveHealth.lastOkAt - lastSaveAtWrite > 30000) {
+        lastSaveAtWrite = saveHealth.lastOkAt;
+        try {
+          if (root.localStorage) root.localStorage.setItem(SB.CFG.SAVE_AT_KEY, String(saveHealth.lastOkAt));
+        } catch (e) {}
+      }
       return true;
     } catch (e) {
       saveHealth.lastFailAt = Date.now();

@@ -389,7 +389,10 @@
     box.innerHTML = '<div class="star-complete-panel">'
       + '<h2>★ 太空时代达成</h2>'
       + '<p>星空槽已填满（' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '）。</p>'
-      + '<p class="muted">你的文明已越过天壳，望向群星。终局奖励与后续内容将在后续更新中开放。</p>'
+      /* 2026-10-28 用户要求删掉「终局奖励与后续内容将在后续更新中开放」这一句：
+       * 后半句把「后续内容」当卖点摆给玩家，等于在终局界面承认内容没做完；
+       * 留着前半句（越过天壳、望向群星）就够收尾，不解释、不承诺。 */
+      + '<p class="muted">你的文明已越过天壳，望向群星。</p>'
       + '<div class="break-controls"><button class="btn big" type="button" id="starCompleteClose">继续</button></div>'
       + '</div>';
     modal.classList.remove('hidden'); bodyModalClass(true);

@@ -50,6 +50,16 @@
     return '<img class="' + cls + '" src="' + t.icon + '" alt="" aria-hidden="true" loading="lazy">';
   }
 
+  /* 幸福度面板上的「?」按钮（2026-10-27 用户要求「幸福度后面弄一个小问号，跟页签那种一样」）。
+   * ⚠️ 复用页签的 openIntro 通道：文案统一挂在 renderContent.INTRO.happy 里，这里只放按钮。
+   *   若把说明文字直接写进面板，就是第二份文案（改一处漏一处），而且每 tick 重绘都要重排。
+   * ⚠️ onclick 里必须 stopPropagation：面板挂在族民页，冒泡会触发卡片的点击逻辑。 */
+  function happyHelpBtnHTML() {
+    return '<button type="button" class="qbtn happy-help"' +
+      ' onclick="event.stopPropagation();SB.ui.openIntro(\'happy\')"' +
+      ' title="幸福度是怎么变化的">?</button>';
+  }
+
   function happyPanelHTML(s) {
     if (!SB.economy.resUnlocked(s, 'luxury') || !SB.economy.happyLedger) return '';
     var L = SB.economy.happyLedger(s);
@@ -83,7 +93,8 @@
       : '再下降 ' + Math.abs(L.toNext).toFixed(2) + ' 将跌至「' + L.tier.nextName + '」';
     return '<section class="happy-panel" id="happyPanel" aria-label="幸福度">' +
       '<div class="happy-head"><div class="happy-reading"><span>幸福度</span> <b id="happyValue">' + L.H.toFixed(2) +
-      '</b><i id="happyTier">' + L.tier.name + '</i></div><span class="happy-effect" id="happyEffect">全产 ×' +
+      '</b><i id="happyTier">' + L.tier.name + '</i>' + happyHelpBtnHTML() +
+      '</div><span class="happy-effect" id="happyEffect">全产 ×' +
       SB.economy.happyMul(s).toFixed(2) + '</span></div>' +
       '<div class="happy-meter" role="meter" aria-label="幸福度等级" aria-valuemin="' + low + '" aria-valuemax="' + high +
       '" aria-valuenow="' + L.H.toFixed(2) + '"><div class="happy-meter-fill"></div>' +

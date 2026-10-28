@@ -1382,7 +1382,25 @@
               return;
             }
           }
-          /* 三处都没有 = 真·新玩家；这是唯一允许开新档的分支。 */
+          /* ★★ 2026-10-28 第四路：本机三处都没有 ⇒ 问一次 TapTap 云存档。
+           *   本机三层（localStorage / tap.setStorage / tapfile://usr）是**同生共死**的：
+           *   清缓存、换设备、容器重建会让三处一起消失。云端那份自动备份（每 5 分钟）
+           *   是唯一跨设备还活着的档 —— 之前启动从不查它，三处空就直接开新档，
+           *   而新档 30 秒后又被自动备份推上云、把旧档顶掉 = 玩家眼里「存档没了」。
+           *   ⚠️ 命中时 restoreFromCloudIfAny 内部走 installImportedSave（含 reload），
+           *      reload 后 localStorage 已有档 ⇒ decideRun 返回 resumed，不会回到这里；
+           *      所以下面的 startRun 只在「云端也没有 / 8 秒超时 / 恢复失败」时才会执行。 */
+          if (SB.saveTransfer && SB.saveTransfer.restoreFromCloudIfAny) {
+            try { log('本机备份也没有，正在检查 TapTap 云存档…'); } catch (e) {}
+            SB.saveTransfer.restoreFromCloudIfAny(function (cloud) {
+              if (cloud && cloud.source === 'cloud') return;   // 已交给 reload，不再往下走
+              if (cloud && cloud.error) { try { log('云存档恢复失败：' + cloud.error); } catch (e) {} }
+              startRun();
+              bootUi();
+            });
+            return;
+          }
+          /* 三处本机 + 云端都没有 = 真·新玩家；这是唯一允许开新档的分支。 */
           startRun();
           bootUi();
         });

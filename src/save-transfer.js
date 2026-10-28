@@ -141,6 +141,8 @@
       '<div class="modal-hd"><b>存档管理</b><button type="button" class="modal-x" id="saveManagerClose" aria-label="关闭">×</button></div>' +
       '<div id="saveManagerPanel">' +
         '<p class="save-manager-intro">存档文件和存档码都包含当前周目与跨周目进度。导入会先备份本机现有存档，并在确认后重载游戏。</p>' +
+        /* 本地 / 云端对比（2026-10-28）：玩家自己决定谁覆盖谁，不弹窗、不打扰。 */
+        cloudCompareHTML() +
         '<div class="save-manager-actions">' +
           '<button type="button" class="btn buy" data-save-action="export-file">导出存档文件</button>' +
           '<button type="button" class="btn" data-save-action="export-code">生成并复制存档码</button>' +
@@ -168,6 +170,8 @@
     box.querySelectorAll('[data-save-action]').forEach(function (button) {
       button.onclick = function () { onAction(button.getAttribute('data-save-action')); };
     });
+    bindCloudCompare();
+    fillCloudCompare();      /* 异步取云端摘要；失败只把那一行降级，不影响面板其它功能 */
   }
   function closePanel() {
     if (SB.ui && SB.ui.render && SB.ui.render.hideModal) SB.ui.render.hideModal();
@@ -304,7 +308,17 @@
   function findOurArchive(cloud) {
     return archiveList(cloud).then(function (list) {
       var matches = list.filter(function (item) { return archiveName(item) === CLOUD_NAME; });
-      matches.sort(function (a, b) { return Number(b.updatedAt || b.modifyTime || b.createdAt || 0) - Number(a.updatedAt || a.modifyTime || a.createdAt || 0); });
+      /* ⚠️ 2026-10-28 对照官方 API 文档修正字段名（CloudSaveManager.getArchiveList →
+       *   ArchiveDetailData）：官方是 `modifiedTime` / `createdTime`（**秒级**）。
+       *   这里原来写的是 updatedAt / modifyTime / createdAt —— 三个都不在官方字段表里，
+       *   于是 Number(undefined||undefined||0) 恒为 0 ⇒ 排序恒等、完全失效。
+       *   单槽时看不出来；P1 做 5 槽轮转时会把「最旧的」当成「最新的」下载下来。
+       *   旧名保留做前向兼容（万一某个基础库版本真是那样拼的）。 */
+      matches.sort(function (a, b) {
+        var ta = Number(a.modifiedTime || a.updatedAt || 0) || Number(a.createdTime || a.createdAt || 0);
+        var tb = Number(b.modifiedTime || b.updatedAt || 0) || Number(b.createdTime || b.createdAt || 0);
+        return tb - ta;
+      });
       return matches[0] || null;
     });
   }
@@ -323,8 +337,12 @@
     var now = Date.now(), ls = localStore(), savedAt = 0;
     try { savedAt = Number(ls && ls.getItem(CLOUD_COOLDOWN_KEY)) || 0; } catch (e) {}
     savedAt = Math.max(savedAt, lastUploadAt);
-    if (now - savedAt < 60000) {
-      var wait = 'TapTap 限制每分钟最多上传一次，请约 ' + Math.ceil((60000 - (now - savedAt)) / 1000) + ' 秒后重试。';
+    /* ⚠️ 2026-10-28 冷却从 60s 放宽到 70s：官方 createArchive 文档写明
+     *   「createArchive 和 updateArchive 限制一分钟一次」，60 秒正好卡在边界上 ——
+     *   玩家在第 60.0 秒点第二次时，平台很可能仍判超频（400001）。
+     *   10 秒余量不影响体感，但能消掉这条边界失败。 */
+    if (now - savedAt < 70000) {
+      var wait = 'TapTap 限制每分钟最多上传一次，请约 ' + Math.ceil((70000 - (now - savedAt)) / 1000) + ' 秒后重试。';
       if (!silent) setStatus(wait, true);
       return Promise.reject(new Error(wait));
     }
@@ -332,10 +350,34 @@
     return callApi(objects.fs, 'writeFile', { filePath: filePath, data: JSON.stringify(bundle), encoding: 'utf8' })
       .then(function () { return findOurArchive(objects.cloud); })
       .then(function (archive) {
+        /* ── 防倒退守卫（2026-10-28 从严）──────────────────────────
+         * 【它防的事故】手机 A 玩到 5 小时（云端 5h）→ 换手机 B（本地还存着 3h 旧档）
+         *   → 启动只读本地、不查云 → 30 秒后自动上传 3h → **云端 5h 被 3h 覆盖**
+         *   → 回手机 A 也变 3h，那份真档永久没了。
+         * 【原判据为什么不够】旧版是「云端 ≥ 600s 且 本地×3 ≤ 云端」，只能挡 10 倍量级；
+         *   3h vs 5h 这种**同量级倒退**实测直接放行（`tmp/_cdp_cloudoverwrite.mjs`：UPLOADED）。
+         * 【现判据】一律不许倒退：云端比本地多 60 秒以上就跳过。
+         *   留 60 秒容忍是因为刚恢复云端档时两边会差几个 tick。
+         * ⚠️ 只拦自动备份（silent）。手动上传是玩家明确意图（他可能真想用这份覆盖云端），放行。 */
+        if (silent && archive) {
+          var _run = SB.game && SB.game.run ? SB.game.run() : null;
+          var _curPlay = Math.max(0, Math.floor((_run && _run.t) || 0));
+          var _cloudPlay = Number(archive.playtime
+            || (archive.archiveMetaData && archive.archiveMetaData.playtime)
+            || (archive.archiveMetadata && archive.archiveMetadata.playtime) || 0) || 0;
+          if (_cloudPlay > _curPlay + 60) {
+            throw new Error('云端进度（' + playtimeText(_cloudPlay) + '）领先本地（' + playtimeText(_curPlay)
+              + '），已跳过自动上传以免用旧档覆盖新档');
+          }
+        }
         var current = Date.now(); lastUploadAt = current;
         try { if (ls) ls.setItem(CLOUD_COOLDOWN_KEY, String(current)); } catch (e) {}
+        var _meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
         var metadata = { name: CLOUD_NAME, summary: 'Shellbreak save · ' + dateLabel(current),
-          extra: JSON.stringify({ format: FORMAT, version: FORMAT_VERSION }),
+          /* extra 官方限 1000 字节；带上周目是为了面板能显示「第 N 周目」——
+           * 旧档没有 cycle，展示层会自然省略这一段。 */
+          extra: JSON.stringify({ format: FORMAT, version: FORMAT_VERSION,
+            cycle: (_meta && _meta.cycle) || 0 }),
           playtime: Math.max(0, Math.floor((SB.game.run() && SB.game.run().t) || 0)) };
         var options = { archiveMetaData: metadata, archiveFilePath: filePath };
         if (archive && archive.uuid) options.archiveUUID = archive.uuid;
@@ -381,6 +423,17 @@
   function autoCloudStatus() {
     return { lastOkAt: autoState.lastOkAt, lastError: autoState.lastError, failCount: autoState.failCount };
   }
+  /* 游戏内时长 → 「3h20m」（2026-10-28）：本地与云端对比要用同一种写法，
+   * 否则玩家得自己把「11980 秒」和「3 小时 19 分」对上号。 */
+  function playtimeText(sec) {
+    var s = Math.max(0, Math.floor(Number(sec) || 0));
+    if (s < 60) return s + '秒';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + '分钟';
+    var h = Math.floor(m / 60), rm = m % 60;
+    /* 整点也补 00m：与云端的「1h30m」并排时不补会显得缺一位。 */
+    return h + 'h' + String(rm).padStart(2, '0') + 'm';
+  }
   function agoText(ms) {
     if (!ms) return '尚未';
     var d = Date.now() - Number(ms);
@@ -415,12 +468,131 @@
     }
     if (bad) parts.push('⚠ ' + why);
     var au = autoCloudStatus();
-    if (cloudAvailable()) {
-      parts.push('云端备份：' + agoText(au.lastOkAt));
-      if (au.lastError) parts.push('（上次云备份失败：' + au.lastError + '）');
-    }
+    /* ⚠️ 2026-10-28：云端**备份时间**从这里移走了 —— 顶部新增的「本地 / 云端」对比块
+     *   用的是云端真实 modifiedTime，而这里是本次会话的内存值（刚启动永远是「尚未」）。
+     *   两处并存会互相打脸（顶部「12 分钟前备份」vs 底部「云端备份：尚未」）。
+     *   这里只留「上次云备份失败」，那是内存态才有的信息，别处拿不到。 */
+    if (cloudAvailable() && au.lastError) parts.push('⚠ 上次云备份失败：' + au.lastError);
     return parts.join(' · ');
   }
+  /* ── 本地 / 云端对比（2026-10-28 用户「按 A 做」）──────────────────────
+   * 【要解决的问题】本地有档时启动**完全不读云**，所以玩家根本不知道云端还有另一份。
+   *   换设备后本地那份可能是旧的，云端才是新的（或反之），但界面上没有任何入口让他判断。
+   * 【方案 A】不弹窗、不打扰：在存档管理面板顶部并排摆「本地 / 云端」的周目·时长·时间，
+   *   不一致时多一行提示，下面两个按钮让玩家自己决定谁覆盖谁。
+   * ⚠️ 全部只读。没有任何一条路径会因为「打开面板」而改写存档。 */
+  function localDigest() {
+    var s = null, m = null;
+    try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) {}
+    try { m = SB.game && SB.game.meta ? SB.game.meta() : null; } catch (e) {}
+    var at = 0;
+    try { at = Number(rawLocal(CFG.SAVE_AT_KEY)) || 0; } catch (e) {}
+    return {
+      playtime: Math.max(0, Math.floor((s && s.t) || 0)),
+      cycle: (m && m.cycle) || 1,
+      savedAt: at
+    };
+  }
+  /* 云端存档摘要。任何失败都 resolve 成 {ok:false}，面板据此降级显示，绝不抛错。 */
+  function cloudDigest() {
+    return new Promise(function (resolve) {
+      if (!cloudAvailable()) return resolve({ ok: false, reason: 'env' });
+      var objects;
+      try { objects = cloudObjects(); } catch (e) { return resolve({ ok: false, reason: 'env' }); }
+      findOurArchive(objects.cloud).then(function (archive) {
+        if (!archive) return resolve({ ok: false, reason: 'none' });
+        var extra = {};
+        try { extra = JSON.parse(archive.extra || '{}') || {}; } catch (e) {}
+        resolve({
+          ok: true,
+          playtime: Number(archive.playtime) || 0,
+          modifiedTime: Number(archive.modifiedTime) || 0,   /* 官方字段：秒级 */
+          cycle: Number(extra.cycle) || 0,                   /* 旧档没有这一项，显示时省略 */
+          size: Number(archive.saveSize) || 0,
+          uuid: archive.uuid || ''
+        });
+      }).catch(function (e) { resolve({ ok: false, reason: errorText(e) }); });
+    });
+  }
+  function digestLine(d, tail) {
+    var parts = [];
+    if (d.cycle) parts.push('第 ' + d.cycle + ' 周目');
+    parts.push(playtimeText(d.playtime));
+    /* 本地是「保存」、云端是「备份」—— 两个动词不能混用，否则玩家会以为自己刚存过云端。 */
+    if (d.at) parts.push(agoText(d.at) + (tail || '保存'));
+    return parts.join(' · ');
+  }
+  function cloudCompareHTML() {
+    var ok = cloudAvailable();
+    return '<div class="cloud-compare" id="cloudCompare">' +
+      '<div class="cc-row"><i class="cc-tag local">本地</i><span class="cc-body" id="ccLocal">—</span></div>' +
+      '<div class="cc-row"><i class="cc-tag cloud">云端</i><span class="cc-body" id="ccCloud">' +
+        (ok ? '读取中…' : '仅 TapTap 小游戏环境可用') + '</span></div>' +
+      '<div class="cc-hint" id="ccHint"></div>' +
+      '<div class="cc-actions">' +
+        '<button type="button" class="btn" id="ccUseLocal"' + (ok ? '' : ' disabled') + '>用本地覆盖云端</button>' +
+        '<button type="button" class="btn" id="ccUseCloud"' + (ok ? '' : ' disabled') + '>用云端覆盖本地</button>' +
+      '</div></div>';
+  }
+  function fillCloudCompare() {
+    var lc = document.getElementById('ccLocal');
+    if (!lc) return;                       /* 面板已关闭 */
+    var local = localDigest();
+    lc.textContent = digestLine({ cycle: local.cycle, playtime: local.playtime, at: local.savedAt });
+    var hint = document.getElementById('ccHint');
+    var btnLocal = document.getElementById('ccUseLocal');
+    var btnCloud = document.getElementById('ccUseCloud');
+    cloudDigest().then(function (cloud) {
+      var node = document.getElementById('ccCloud');
+      if (!node) return;                   /* 异步回来时面板已被关掉 */
+      if (!cloud.ok) {
+        node.textContent = cloud.reason === 'none' ? '还没有云存档' : '读取失败';
+        /* 云端没档时「用本地覆盖云端」仍然有意义 —— 那等于 createArchive 建第一份。
+         * 只有「用云端覆盖本地」必须禁用（没东西可下）。 */
+        if (btnCloud) btnCloud.disabled = true;
+        if (hint) hint.textContent = cloud.reason === 'none'
+          ? '上传一次即可创建云存档，之后每 5 分钟自动备份。' : '';
+        return;
+      }
+      node.textContent = digestLine({
+        cycle: cloud.cycle, playtime: cloud.playtime,
+        at: cloud.modifiedTime ? cloud.modifiedTime * 1000 : 0
+      }, '备份');
+      if (btnLocal) btnLocal.disabled = false;
+      if (btnCloud) btnCloud.disabled = false;
+      if (!hint) return;
+      var diff = cloud.playtime - local.playtime;
+      /* 阈值 60 秒：小于这个数就是同一份档的正常 tick 漂移，提示「不一致」只会让人困惑。 */
+      if (Math.abs(diff) <= 60) {
+        hint.textContent = '两边进度基本一致。';
+        hint.className = 'cc-hint';
+      } else if (diff > 0) {
+        hint.textContent = '云端比本地多 ' + playtimeText(diff) + '（本地这份更旧）';
+        hint.className = 'cc-hint warn';
+      } else {
+        hint.textContent = '本地比云端多 ' + playtimeText(-diff) + '（云端那份更旧）';
+        hint.className = 'cc-hint warn';
+      }
+    });
+  }
+  function bindCloudCompare() {
+    var useLocal = document.getElementById('ccUseLocal');
+    var useCloud = document.getElementById('ccUseCloud');
+    if (useLocal) useLocal.onclick = function () {
+      /* 手动上传走 pushCloud(false)：会绕开「不许倒退」守卫（那是给自动备份的），
+       * 但仍然受 70 秒平台频控约束 —— 被挡时把平台原话交给玩家看。 */
+      setBusy(true); setStatus('正在用本地存档覆盖云端…');
+      pushCloud(false).then(function () {
+        setBusy(false); setStatus('云端已更新为本地进度。');
+        fillCloudCompare();
+      }, function (e) { setBusy(false); setStatus('覆盖失败：' + errorText(e), true); });
+    };
+    if (useCloud) useCloud.onclick = function () {
+      if (busy) return;
+      downloadCloud();                     /* 复用现有确认流程（会先备份本地再覆盖） */
+    };
+  }
+
   function downloadCloud() {
     var objects;
     try { objects = cloudObjects(); } catch (e) { setStatus(e.message || String(e), true); return; }
@@ -469,6 +641,55 @@
       node.classList.add('error');
     }
   }
+  /* ── 启动时的云端救援（2026-10-28）──────────────────────────────────
+   * 【为什么必须有它】本机三层（localStorage / tap.setStorage / tapfile://usr）是**同生共死**的：
+   *   清缓存、换设备、容器重建会让三处同时消失。云端那份自动备份（autoCloudPump 每 5 分钟）
+   *   是唯一跨设备、跨重装还活着的档 —— 但此前启动流程**从不查它**：三处本机都空就直接
+   *   判「新玩家」开新档。玩家看到的就是「退出之后存档没了」。
+   * 【调用时机】只在 game.boot 判定「本机三处都没有」之后（真·最后一根稻草），
+   *   正常读档路径永不触发，所以对老玩家零开销、零延迟。
+   * 【为什么借 installImportedSave】它自带「先备份旧值 → 写入 → reload」，与手动导入走同一条
+   *   已验证路径；reload 后 localStorage 已有档，decideRun 返回 resumed，不会再进这个分支。
+   * ⚠️ 必须带 8 秒超时：云端不响应时不能让玩家卡在启动。超时即按新玩家处理。
+   * ⚠️ 60 秒内只试一次：万一写入后被容器拦住没 reload，也不会变成每次启动都拉云端。 */
+  var CLOUD_TRY_KEY = 'shellbreak.cloud-recover-at.v1';
+  function restoreFromCloudIfAny(cb) {
+    var finished = false;
+    function done(result) { if (finished) return; finished = true; cb(result); }
+    if (!cloudAvailable()) return done(null);
+    var ls = localStore(), now = Date.now();
+    try {
+      var at = Number(ls && ls.getItem(CLOUD_TRY_KEY)) || 0;
+      if (now - at < 60000) return done(null);
+      if (ls) ls.setItem(CLOUD_TRY_KEY, String(now));
+    } catch (e) {}
+    var objects;
+    try { objects = cloudObjects(); } catch (e) { return done(null); }
+    var timer = root.setTimeout(function () { done(null); }, 8000);
+    var tempPath = objects.base + '/shellbreak-cloud-recover.json';
+    findOurArchive(objects.cloud).then(function (archive) {
+      if (!archive || !archive.uuid || !archive.fileId) throw new Error('云端没有存档');
+      return callApi(objects.cloud, 'getArchiveData', {
+        archiveUUID: archive.uuid, archiveFileId: archive.fileId, targetFilePath: tempPath
+      });
+    }).then(function (res) {
+      return callApi(objects.fs, 'readFile', {
+        filePath: (res && res.filePath) || tempPath, encoding: 'utf8'
+      });
+    }).then(function (fileResult) {
+      var text = typeof fileResult.data === 'string'
+        ? fileResult.data : textFromBytes(new Uint8Array(fileResult.data));
+      var bundle = validateBundle(JSON.parse(text));
+      root.clearTimeout(timer);
+      try { SB.game.installImportedSave(bundle); }
+      catch (e) { done({ error: errorText(e) }); return; }
+      done({ source: 'cloud' });
+    }).catch(function (e) {
+      root.clearTimeout(timer);
+      done(null);
+    });
+  }
+
   function boot() {
     var button = document.getElementById('btnSaveManager');
     if (button) button.onclick = openPanel;
@@ -495,5 +716,7 @@
     currentBundle: currentBundle, validateBundle: validateBundle,
     /* 2026-10-27 新增：自动云备份与存档健康度（供 UI 与回归直接读/驱动）。 */
     autoCloudPump: autoCloudPump, autoCloudStatus: autoCloudStatus,
-    saveHealthText: saveHealthText, pushCloud: pushCloud };
+    saveHealthText: saveHealthText, pushCloud: pushCloud,
+    /* 2026-10-28：启动时云端救援（game.boot 的最后一根稻草）+ 环境探测（供 boot 判断）。 */
+    restoreFromCloudIfAny: restoreFromCloudIfAny, cloudAvailable: cloudAvailable };
 })(typeof window !== 'undefined' ? window : globalThis);
