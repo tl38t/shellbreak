@@ -144,8 +144,12 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.4'" in _cfg, '包内 config.js 版本号不是 Ver1.0.4'
-assert "v: 'Ver1.0.4'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.4 条目'
+assert "VERSION: 'Ver1.0.5'" in _cfg, '包内 config.js 版本号不是 Ver1.0.5'
+assert "v: 'Ver1.0.5'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.5 条目'
+# Ver1.0.5 玩家可见 6 条（用户 2026-10-29 21:02 拍板清单）逐条钉死：3 修 + 3 新增。
+for _kw in ['轮回商店里买过的强化', '天穹钻机明明在转', '商人共和国是 5 个卡槽',
+            '立即保存', '顶栏的资源格现在可以点开看明细', '建造追踪']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.5 更新日志缺条目：' + _kw
 
 # ---------- 存档诊断 + 三个 P0（2026-10-29 / Ver1.0.4）----------
 # 这一批全是「玩家报存档没了」的对策，任何一条漏进包里都等于白改，所以逐条钉死。
