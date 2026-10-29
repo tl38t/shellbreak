@@ -596,6 +596,25 @@ console.log('\n=== 工坊：青铜工具 ===');
       fa0 === 0 && fa1 === 0 && !isNaN(fa0) && !isNaN(fa1),
       'fa0=' + fa0 + ' fa1=' + fa1 + '（若为 NaN 说明又有 `s.lvl.x` 少了 || 0 兜底）');
 
+    /* ④ 工艺燃料（rocketFuel）：2026-10-29 用户拍板「燃料 +X/秒 换到右边（工艺资源）去、
+     *    数值就这样不动」。泰坦星气云采集站每级 +5/秒、萨图恩 fuelBonus 30/秒 从此进
+     *    rocketFuel —— 此前它们写进 RESS.fuel（内部名地热），而那条线的显示门挂在已删除的
+     *    热泉井上 ⇒ 资源格永不出现 ⇒ 玩家看到的「燃料 +5/秒」等于没生效。
+     *    ⚠️ 断言要三件一起锁：①速率台账 ②真实 tick 落账 ③**不再**写进 RESS.fuel
+     *       （只锁前两件的话，同时写两边也能绿，而那就是这次要消灭的形态）。 */
+    const fw = SB.state.freshRun(false);
+    fw.lvl.titancloud = 3;
+    fw.res.rocketFuel = 0;
+    fw.res.fuel = 0;
+    const fwRate = SB.economy.rates(fw).rocketFuel || 0;
+    SB.economy.tick(fw, 10);
+    check('工艺燃料：泰坦气云站每级 +5/秒 落进 rocketFuel（10s 应 +150），且不写进 RESS.fuel',
+      Math.abs(fwRate - 15) < 1e-9
+      && Math.abs(fw.res.rocketFuel - 150) < 1e-6
+      && fw.res.fuel === 0,
+      'rate=' + fwRate + '（应 15）；10s 后 rocketFuel=' + fw.res.rocketFuel
+      + '（应 150）、fuel=' + fw.res.fuel + '（应 0）');
+
     /* ② 藻食：rates.kelp 是净额（毛产出 − 口粮消耗），消耗不吃 +1% ⇒
      *    整体比值不会等于 1.01。所以验**毛产出**函数本身必须 ×1.01。 */
     const f0 = SB.economy.foodRate(A, 1), f1 = SB.economy.foodRate(B, 1);

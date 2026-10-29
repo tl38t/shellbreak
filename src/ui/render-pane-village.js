@@ -162,6 +162,12 @@
             dispDesc = _u.buildingDesc || _u.desc;
           }
         }
+        /* ⚠️ 2026-10-29 用户拍板：建筑行**不再追加任何括号补充**。
+         *   这里曾拼过「（当前 −28.3%，上限 60%，再升 1 级只多省 1.32%）」——那是设计语汇，
+         *   一行字塞三个参数，玩家读起来像在看策划案。议事厅/城堡的减耗现况与「再升一级
+         *   多省多少」统一只在信息卡的「效果」段给（render-info 的 case 'hall'），
+         *   列表行只保留 config 的 desc 本身。
+         *   ⇒ 别再往这一行拼数值；要加信息请加到信息卡里去。 */
         var c = SB.economy.costOf(s, b.id);
         var ok = SB.economy.canAfford(s, c);
         var blocked = !SB.habitat.needMet(s, b);
@@ -185,6 +191,23 @@
          * 绝不能留一个「亮着但点了静默 return false」的按钮（与 canalCap 同一纪律）。 */
         var maxReached = !!(b.maxLvl && lv >= b.maxLvl);
         if (maxReached) label = '已达上限 ' + b.maxLvl + ' 级';
+        /* 建造追踪（2026-10-29 · 玩家提议，用户拍板）：只在**这一级买不起**时出现。
+         * 买得起就消失——那时该做的是直接点建造，多一个钮只是噪声。
+         * 按钮是纯视图入口（只写 s.track），结算/成本一律不经过它。
+         * ⚠️ 点击走 document 级委托（input.js 的 d.track 分支）：本面板每 2 秒整块重画，
+         *    挂在按钮上的监听会随第一次重画失效，表现是「点不动但不报错」。
+         * ⚠️ 追踪串带 `@lv`：等级一变（含挂机自动升级、离线补算）track-dock 会自动解除，
+         *    否则挂机会把框永远钉在一个其实早已建成的目标上。 */
+        var trackBtn = '';
+        if (!ok && !blocked && !canalCap && !maxReached) {
+          var _tkey = 'bld:' + b.id + '@' + lv;
+          var _ton = s.track === _tkey;
+          trackBtn = '<button type="button" class="btn track-toggle' + (_ton ? ' on' : '') + '"' +
+            ' data-track="bld:' + b.id + '" aria-pressed="' + (_ton ? 'true' : 'false') + '"' +
+            ' title="' + (_ton ? '已追踪：材料够了会在屏幕角落提示，点提示框可直接跳回来'
+                              : '追踪这个建筑：材料够了在屏幕角落提示你') + '">' +
+            (_ton ? '已追踪' : '追踪') + '</button>';
+        }
         /* 区域建筑自动建造/升级开关：权限由已完成市政的 autoBuildZones 决定，
          * 生息区归封建主义、贸易区域归重商主义；仍复用 s.autoUpg 与 data-auto。 */
         var autoBtn = '';
@@ -455,7 +478,9 @@
           '</span><span class="bld-ops">' + _lpLackHTML + siltpitBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
           '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div></div>' +
-          '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + '">' + autoBtn + '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button></div></div>';
+          '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + (trackBtn ? ' has-track' : '') + '">' + autoBtn +
+          '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button>' +
+          trackBtn + '</div></div>';
         zShown++;
       }
       /* 区标题按区着色（2026-09-30 晚）：--hc 交给 CSS 画左色条 + 同色文字，

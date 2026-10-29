@@ -5,11 +5,12 @@
  */
 @import url("./00-core.css?v=139");
 @import url("./10-tech-tree.css?v=138");
-@import url("./20-panels.css?v=139");
-@import url("./30-visual-polish.css?v=165");
-@import url("./40-atmosphere-theme.css?v=143");
-@import url("./50-module-polish.css?v=192");
+@import url("./20-panels.css?v=140");
+@import url("./30-visual-polish.css?v=166");
+@import url("./40-atmosphere-theme.css?v=144");
+@import url("./50-module-polish.css?v=194");
 @import url("./60-star-map.css?v=1");
 @import url("./70-era-skins.css?v=13");
-@import url("./80-save-manager.css?v=5");
+@import url("./80-save-manager.css?v=6");
+@import url("./90-res-detail.css?v=1");
 @import url("./onboarding.css?v=2");

@@ -227,17 +227,28 @@
       addRes(s, 'titanium', _ml * (SB.BLD.marsTitanium || 0) * _gmx * _planetMul * dt);
     }
 
-    // 3) 地热（排在祭坛消耗之前，先产后烧）。这一行是唯一原本就乘了 dt 的，
+    // 3) 燃料（排在祭坛消耗之前，先产后烧）。这一行是唯一原本就乘了 dt 的，
     //    修单位时保持不动——它现在只是「铁律」的一个 conform 例子。
-    /* ERA8（2026-10-18 · spec §4）：燃料行并入两个新来源——
-     *   泰坦星气云采集站每级 +5/秒（BLD.titancloudFuel）、萨图恩 effect.fuelBonus 30/秒
-     *   （wonder.wonderFuelBonus 出口）。都是绝对量、不依赖匠人职业 ⇒ 门改成 _fuelOut > 0
-     *   （原 `j.craft > 0` 门会让「没雇匠人但建了采集站」的燃料凭空消失）。
-     *   ⚠️ 与 rates().fuel 逐字同构，漏一路就是面板撒谎。 */
-    var _fuelOut = fuelRate(s, cold)
-      + (s.lvl.titancloud || 0) * (SB.BLD.titancloudFuel || 0) * _planetMul
+    /* ⚠️ 2026-10-29 用户拍板「换到右边去，数值就这样不动」：这两个出口的落点从
+     *   `RESS.fuel`（内部名**地热**）改到 `RESS.rocketFuel`（显示名**燃料**，工艺资源）。
+     *   【为什么要换】它们一直是「燃料 +5/秒 / +30/秒」的文案来源，但写进的是 fuel ——
+     *   那条线的显示门挂在**已删除的热泉井**上（`RESS.fuel.unlock={build:'geyser'}`）⇒
+     *   `resUnlocked` 恒 false ⇒ 资源格永不出现；且 fuel 没有任何消耗端、上限只有 300 ⇒
+     *   两个出口产进一个看不见、30 秒就满的池子。玩家视角就是「加了燃料产出但没生效」。
+     *   换成工艺燃料后，同一笔产出落在玩家库存里看得见的那份「燃料」上，并直接给
+     *   火箭引擎（200）/强工质火箭引擎（500）/轨道卫星（100）供料。
+     *   【数值未动】泰坦星气云采集站每级 +5/秒（BLD.titancloudFuel）、萨图恩
+     *   effect.fuelBonus 30/秒（wonder.wonderFuelBonus 出口）——用户明说「数值就这样不动」。
+     *   ⚠️ 这意味着 ERA7-9 的火箭线从「手工堆暖石」变成「靠建筑白拿」，换算当量
+     *      1 燃料 = 100 暖石 ⇒ 泰坦站 3 级 = 1500 暖石/秒。属**标定面**，未改，待用户复核。 */
+    var _fuelOut = (s.lvl.titancloud || 0) * (SB.BLD.titancloudFuel || 0) * _planetMul
       + (SB.wonder ? SB.wonder.wonderFuelBonus(s) : 0);
-    if (_fuelOut > 0) addRes(s, 'fuel', _fuelOut * dt);
+    if (_fuelOut > 0) addRes(s, 'rocketFuel', _fuelOut * dt);
+    /* ⚠️ 地热（`RESS.fuel`）**单独一条，绝不并进上面那行**：fuelRate 属于另一条待重设的线
+     *   （热泉井删掉后它恒 0），将来重设地热线时在这一行接回；并进 rocketFuel 就等于把
+     *   地热偷偷记成工艺燃料。 */
+    var _geoOut = fuelRate(s, cold);
+    if (_geoOut > 0) addRes(s, 'fuel', _geoOut * dt);
 
     // 2f) 三座发射场的进度各自按周期前进；等级只决定周期完成时发射多少帆/节点。
     //     所有发射场每运行 1 秒，每级耗铀 0.5、strongProp 0.3、thinafilm 0.3、hydro 4（帆模式）。

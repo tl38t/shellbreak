@@ -189,6 +189,7 @@
     renderAll();
     if (tab === 'star-map') setTab('village');
     SB.state.saveRun(snapshot(S));   // 新周目必须立刻落盘，否则刷新会丢掉这一局
+    if (SB.saveTransfer && SB.saveTransfer.backupSoon) SB.saveTransfer.backupSoon();
   }
 
   // 继续未完成的上一周目（刷新页面时）
@@ -283,6 +284,7 @@
     renderAll();
     if (tab === 'star-map') setTab('village');
     SB.state.saveRun(snapshot(S));
+    if (SB.store && SB.store.flushNativeSync) SB.store.flushNativeSync();
     /* meta 被重置 ⇒ seenVersion 归空 = 逻辑上「未读」。同步一次让红点与状态一致
      * （本会话若已读过更新日志，changelogSigned 仍会把它压住，不会反向点亮）。 */
     syncChangelogDot();
@@ -794,7 +796,7 @@
         '<div class="chg-foot"><button type="button" class="btn" id="govNameOk">确定</button></div></div>';
     var ok = document.getElementById('govNameOk');
     if (ok) ok.onclick = confirmGovName;
-    modal.classList.remove('tree-modal');
+    if (SB.ui.render.resetModalChrome) SB.ui.render.resetModalChrome();
     modal.classList.remove('hidden');
     if (document.body) document.body.classList.add('modal-open');   // body.modal-open 复用 tab 禁用规则
     var inp = document.getElementById('govNameInput');
@@ -1430,6 +1432,17 @@
       } catch (rollbackError2) {}
       throw new Error('本机存储不可靠：写入后读回的内容不一致，导入已中止（原存档未改动）。');
     }
+    if (SB.store && SB.store.fsAvailable && SB.store.fsAvailable()) {
+      if (!SB.store.writeNativeSaveSync(serializedMeta, serializedRun)) {
+        try {
+          if (oldMetaRaw === null) root.localStorage.removeItem(CFG.SAVE_KEY);
+          else root.localStorage.setItem(CFG.SAVE_KEY, oldMetaRaw);
+          if (oldRunRaw === null) root.localStorage.removeItem(CFG.RUN_KEY);
+          else root.localStorage.setItem(CFG.RUN_KEY, oldRunRaw);
+        } catch (rollbackError3) {}
+        throw new Error('TapTap 原生文件未确认写入，导入已中止。');
+      }
+    }
     suppressExitSave = true;
     root.location.reload();
     return true;
@@ -1475,6 +1488,9 @@
           SB.store.mirrorWrite(CFG.SAVE_KEY, mTxt);
           SB.store.mirrorWrite(CFG.RUN_KEY, rTxt);
         }
+        if (SB.store.writeNativeSaveSync && SB.store.writeNativeSaveSync(mTxt, rTxt)) {
+          /* 云端接管已经同步落入后台快照。 */
+        } else if (SB.store.writeNativeSave) SB.store.writeNativeSave(mTxt, rTxt, true);
       }
     } catch (e) {}
     meta = inMeta;
@@ -1528,6 +1544,30 @@
       if (SB.saveTransfer && SB.saveTransfer.showLoadProblem) SB.saveTransfer.showLoadProblem(loadProblems);
       return 'blocked';   /* 解析失败时绝不 startRun/saveMeta 覆盖原始数据。 */
     }
+    /* ⚠️⚠️ 2026-10-29 P0：**周目在、跨周目不在**时绝不许接着玩。
+     *    `loadMeta()` 读不到 meta 键时是**静默**返回 emptyMeta()（不设 metaLoadProblem，
+     *    那条只给「解析失败」用）⇒ decideRun 照常 resume ⇒ 下一次 saveMeta 就把一份
+     *    空 meta 落盘 ⇒ 轮回点 / 已买强化 / 旧日信仰 / 纪念奇观 / 挑战进度**全部归零**，
+     *    而且 `wroteMeta` 一过就无从恢复。
+     *    真机复现（修这条之前）：删掉 meta 键后重载，meta 键被写成 1561 字节的空档。
+     *    ⇒ 现在挂起在存档面板（那里有「重新检查存档」与两次确认的「开新局」两个出口，
+     *      也有导入存档 / 云端下载，不会把人关死）。 */
+    if (saved) {
+      var metaSrcNow = null;
+      try {
+        metaSrcNow = SB.store ? SB.store.readLocal(CFG.SAVE_KEY)
+          : (root.localStorage && root.localStorage.getItem(CFG.SAVE_KEY));
+      } catch (e) { metaSrcNow = null; }
+      if (!metaSrcNow) {
+        if (SB.store && SB.store.diagSet) {
+          try { SB.store.diagSet({ boot: 'meta-missing', bootAt: Date.now() }, true); } catch (e) {}
+        }
+        if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+          SB.saveTransfer.showRecoveryPending('本机找到了周目存档，但跨周目存档（轮回点 / 已买强化 / 旧日遗产）缺失。'
+            + '为避免把这些成绩清零，已暂停载入 —— 请先「重新检查存档」，或从云端恢复 / 导入你导出的存档文件。');
+        return 'blocked';
+      }
+    }
     if (saved && (!saved.broken || saved.shellOpened || saved.breakSettled) && saved.shell !== undefined) {
       /* 启动时的离线补算：存档里记了墙钟时间戳 _ts（snapshot 写入），
        * 这一次性补完（沿用 economy.tick 同一条路径），随后 _lastWall 对齐到「现在」
@@ -1548,11 +1588,97 @@
     }
     return 'empty';   /* localStorage 里没有任何档 —— 但先别急着开新档，见 boot */
   }
+  function bootTap() {
+    var scan = SB.store.scanSaveCandidates(CFG.RUN_KEY, CFG.SAVE_KEY);
+    scan.then(function (result) {
+      if (result.best) {
+        var best = result.best;
+        /* ⚠️ 2026-10-29：候选档**可以只有周目、没有跨周目**（`save-storage.js` 的
+         *   `parsedPair(meta.raw || null, run.raw || null, ...)` 对 meta 缺失是放行的）。
+         *   原先这里写 `best.metaRaw || JSON.stringify(emptyMeta())` —— 那一句会拿**空 meta
+         *   覆盖存档键**，把轮回点 / 已买节点 / 旧日信仰 / 纪念奇观 / 挑战进度**全部归零**，
+         *   而且 `wroteMeta` 为真后立刻落盘，事后无从恢复。
+         *   ⇒ 现在缺 meta 一律**不接管**、不写盘，挂到恢复界面等玩家手动恢复/导入。 */
+        if (!best.metaRaw) {
+          if (SB.store.diagSet) SB.store.diagSet({ boot: 'meta-missing:' + best.source, bootAt: Date.now() }, true);
+          if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+            SB.saveTransfer.showRecoveryPending('本机找到了周目存档，但跨周目存档（轮回点 / 已买强化 / 旧日遗产）缺失。'
+              + '为避免把这些数据清零，已暂停载入 —— 请在存档管理里从云端恢复或导入备份。');
+          return;
+        }
+        /* 所有本机落点读完后，才选最新有效快照。只在确认选中后回填浏览器缓存。 */
+        var mRaw = best.metaRaw;
+        var wroteMeta = SB.store.writeLocal(CFG.SAVE_KEY, mRaw);
+        var wroteRun = SB.store.writeLocal(CFG.RUN_KEY, best.runRaw);
+        if (wroteMeta && wroteRun && SB.store.readLocal(CFG.RUN_KEY) === best.runRaw
+            && SB.store.readLocal(CFG.SAVE_KEY) === mRaw) {
+          meta = SB.state.loadMeta();
+          var outcome = decideRun();
+          if (outcome === 'resumed') {
+            if (SB.store.diagSet) SB.store.diagSet({ boot: 'resumed:' + best.source, bootAt: Date.now() }, true);
+            bootUi(); return;
+          }
+          if (outcome === 'blocked') return;
+        }
+        try {
+          adoptBundle({ format: 'shellbreak-save', version: 1,
+            save: { meta: JSON.parse(mRaw), run: JSON.parse(best.runRaw) } });
+          if (SB.store.diagSet) SB.store.diagSet({ boot: 'memory:' + best.source, bootAt: Date.now() }, true);
+          bootUi(); return;
+        } catch (e) {
+          if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+            SB.saveTransfer.showRecoveryPending('本机存档存在，但载入失败：' + (e && e.message || e));
+          return;
+        }
+      }
+      if (result.status === 'uncertain') {
+        if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+          SB.saveTransfer.showRecoveryPending('本机存档读取超时、失败或内容不完整。请重试或从云端手动恢复。');
+        return;
+      }
+      /* 本机已确认「三处都没有有效档」，剩下唯一可能的数据来源是云端。
+       * ⚠️ 这里要分清两种「没有云」：
+       *   · 运行时**不提供**云存档能力（cloudAvailable=false）⇒ 云端确定不存在，
+       *     开新局不会丢任何东西。若也走「暂停」，纯文件版容器里的真新玩家会永远
+       *     停在恢复界面（没有任何一条出口），那是把保护做成了死锁。
+       *   · 能力存在但调用失败 / 超时 ⇒ **未知**，一律暂停（见下面 error/timeout 分支）。 */
+      if (!SB.saveTransfer || !SB.saveTransfer.restoreFromCloudIfAny
+          || !(SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable())) {
+        startRun(); bootUi(); return;
+      }
+      SB.saveTransfer.restoreFromCloudIfAny(function (cloud) {
+        if (cloud && cloud.status === 'found' && cloud.bundle) {
+          try { adoptBundle(cloud.bundle); bootUi(); }
+          catch (e) {
+            if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+              SB.saveTransfer.showRecoveryPending('云存档找到但无法载入：' + (e && e.message || e));
+          }
+          return;
+        }
+        /* absent = 云端明确答复「没有存档」；unavailable = 运行时没有这条路。
+         * 两者都足以判定「设备上确实没有旧档」，可以安全开新局。 */
+        if (cloud && (cloud.status === 'absent' || cloud.status === 'unavailable')) {
+          startRun(); bootUi(); return;
+        }
+        if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+          SB.saveTransfer.showRecoveryPending((cloud && cloud.error) || '云存档检查失败；为保护旧档，已暂停开新局。');
+      });
+    }).catch(function (e) {
+      if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+        SB.saveTransfer.showRecoveryPending('本机存档检查失败：' + (e && e.message || e));
+    });
+  }
   function boot() {
     /* 诊断记录（2026-10-29）：读上一次会话留下的那份，并把「启动次数 +1」记下来。
      * ⚠️ 必须在 decideRun 之前读 —— 它同时是「这台设备玩过」的唯一证据（存档可能被清）。 */
     if (SB.store && SB.store.diagLoad) {
       try { SB.store.diagLoad(); SB.store.diagBump('boots', 1, false); } catch (e) {}
+    }
+    if (SB.store && SB.store.scanSaveCandidates &&
+        ((SB.store.envAvailable && SB.store.envAvailable())
+        || (SB.store.fsAvailable && SB.store.fsAvailable())
+        || (SB.saveTransfer && SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable()))) {
+      bootTap(); return;
     }
     var r = decideRun();
     if (SB.store && SB.store.diagSet) {
@@ -1627,6 +1753,12 @@
           if (SB.store && SB.store.diagSet) SB.store.diagSet({ boot: 'resumed', bootAt: Date.now() }, true);
           bootUi();
         }
+        function pauseRecovery(why) {
+          if (proceeded) return;
+          proceeded = true; stopTimer();
+          if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+            SB.saveTransfer.showRecoveryPending(why || '存档检查没有得到确定结果。');
+        }
         /* 第二段：问一次 TapTap 云存档。
          * ★★ 2026-10-28 第四路 —— 本机三层（localStorage / tap.setStorage / tapfile://usr）
          *   是**同生共死**的：清缓存、换设备、容器重建会让三处一起消失。云端那份自动备份
@@ -1641,7 +1773,7 @@
           if (SB.saveTransfer && SB.saveTransfer.restoreFromCloudIfAny) {
             try { log('本机备份也没有，正在检查 TapTap 云存档…'); } catch (e) {}
             /* 云端自身有 8 秒内部超时；这里给 12 秒外层兜底（含解码/校验耗时）。 */
-            arm(12000, function () { finishNew('云端检查超时，先按新开局处理。'); });
+            arm(12000, function () { pauseRecovery('云端检查超时，请重试。'); });
             SB.saveTransfer.restoreFromCloudIfAny(function (cloud) {
               if (proceeded) return;
               if (cloud && cloud.bundle) {
@@ -1656,11 +1788,11 @@
               } else if (cloud && cloud.error) {
                 try { log('云存档恢复失败：' + cloud.error); } catch (e) {}
               }
-              finishNew('云端也没有可用存档，按新开局处理。');
+              pauseRecovery('本机或云端没有得到可确认的空档结果，请重试。');
             });
             return;
           }
-          finishNew();
+          pauseRecovery('云存档接口不可用，请稍后重试。');
         }
         arm(8000, function () { toCloud(); });
         SB.state.recoverAsync(function (hit) {
@@ -1691,6 +1823,16 @@
       }
     }
     bootUi();
+  }
+  /* 恢复暂停期间的唯一逃生出口（2026-10-29）：由存档面板那颗「确认没有旧档，开新局」
+   * 二次确认后调用。**只在一局都没起来时可用** —— S 非空说明已经有一局在跑，
+   * 那时「开新局」等于把内存里的进度抹掉，必须走正常的重置/轮回入口（有确认面板）。
+   * 与 finishNew 的区别：不写诊断出口、不抄尸检副本 —— 玩家已明确表示「本机与云端都没有」。 */
+  function forceFreshBoot() {
+    if (S) return false;
+    startRun();
+    bootUi();
+    return true;
   }
   /* boot 的第二段：从「S 已就绪」到「主循环起来」的全部 UI 接线。
    * 只在 decideRun/boot 里各调一次，不重复调用（见上面那条重复 setInterval 的警告）。 */
@@ -1795,6 +1937,12 @@
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */
     function flush() { if (!suppressExitSave && S && !S.broken) SB.state.saveRun(snapshot(S)); }
     if (root.addEventListener) root.addEventListener('pagehide', flush);
+    if (root.tap && typeof root.tap.onHide === 'function') root.tap.onHide(function () {
+      flush();
+      if (SB.store && SB.store.flushNativeSync && !SB.store.flushNativeSync()) {
+        if (SB.store.diagSet) SB.store.diagSet({ err: '后台原生文件同步保存未确认' }, true);
+      }
+    });
     if (document && document.addEventListener) document.addEventListener('visibilitychange', function () {
       /* A 项省电：切后台/锁屏时给 <html> 打 vis-hidden，CSS 据此暂停所有 infinite 动画
        * （atmosphere-drift / p0-tide 等），GPU 合成线程随之 idle，不再空转发热。 */
@@ -1897,6 +2045,8 @@
     /* 2026-10-28 P0：云端救援的就地接管入口（不 reload）。导出供 e2e 直接钉住
      * 「接管后 S/meta 正确、且没有触发 reload」。 */
     adoptBundle: adoptBundle,
+    /* 2026-10-29：恢复暂停界面的「确认没有旧档，开新局」出口（面板二次确认后调用）。 */
+    forceFreshBoot: forceFreshBoot,
     showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); },
     showBreakAnimation: function (r, afterAnimation) { SB.ui.render.showBreakAnimation(r, afterAnimation); },
     submitRankOnBreak: submitRankOnBreak,

@@ -90,7 +90,13 @@ export function run({ SB, check, noop }) {
 
   const hold = SB.state.freshRun(false);
   hold.era = 4; hold.pop = 49; hold.peak = 49;
-  Object.assign(hold.lvl, { nest: 10, coralhouse: 7, kelp: 28, hall: 20, ballast: 43, workshop: 1 });
+  /* ⚠️ 2026-10-29：`ballast` 43 → 48。这**不是**改断言迁就现状，是夹具要重新落回
+   *   「下一巢造价略高于原珊瑚仓上限、容量卡刚好把它纳入」这个**临界态**：
+   *   议价换成等比递减后，议事厅 20 级折扣 39.4% → 43.5%（所有建筑造价 +7.2%），
+   *   而容量来源是固定的 ⇒ 旧夹具的 1691 点余量被吃掉，反而差 123 点。
+   *   ⚠️ 这条夹具**隐式依赖议事厅折扣水平**：以后调 HALL_SAVE / HALL_DR_BASE 时，
+   *     这里大概率要跟着动，别把它当成「断言挂了」。 */
+  Object.assign(hold.lvl, { nest: 10, coralhouse: 7, kelp: 28, hall: 20, ballast: 48, workshop: 1 });
   Object.assign(hold.upgrades, { upg_castle: true, upg_ballast_1: true, upg_ballast_2: true });
   hold.challenge = { id: 'cold', tier: 0 };
   SB.TECHS.forEach(t => { if (t.era <= 4) hold.techs[t.id] = true; });
@@ -131,6 +137,11 @@ export function run({ SB, check, noop }) {
   const steelTurbines = steel.lvl.hydroturbine - (steel.turbineStop || 0);
   const steelShops = steel.lvl.hydroshop - (steel.hydroshopStop || 0);
   const steelSupport = Math.floor((SB.economy.rates(steel).warmstone + 1e-9) / SB.UNIT.hydroWarm);
+  /* ⚠️ 2026-10-29 **红转绿，原因不纯，别当好消息**：这条以前是红的，改成等比议价曲线
+   *   + 把 `priorityBuildingUpgrade` 的判据从「未到上限」换成「nextGain > 0.5%」之后变绿。
+   *   查过：不是 AI 学会判断暖石约束了，而是它现在把 hall 占成了目标 ⇒ 压根没去扩汽轮机
+   *   ⇒ `steelTurbines <= steelSupport` 顺带成立。若哪天 hall 不可建（材料不够），这条会回红。
+   *   ⇒ 它现在测的是「AI 没盲目扩建」，而**不是**「AI 判断出了暖石约束」。两者别混。 */
   check('钢制零件目标受暖石净产能约束，不盲目扩建/运行汽轮机',
     steelTurbines <= steelSupport && steelShops <= steelTurbines,
     'decision=' + JSON.stringify(steelDecision) + ' warmstone=' + SB.economy.rates(steel).warmstone +

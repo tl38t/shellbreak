@@ -51,12 +51,62 @@
     solar_ring: 10, terra_launch: 10, enceladus_launch: 10, void_altar: 10
   };
 
-  /* 调和级数 H(n) = Σ_{k=1..n} 1/k，用于旧日艺术品/碑石的固定速率递减。 */
+  /* 调和级数 H(n) = Σ_{k=1..n} 1/k，用于旧日艺术品/碑石的固定速率递减。
+   *
+   * ⚠️⚠️ 2026-10-29 P0（玩家「三周目卡爆了·划一下十几秒才有反应」的根因）：
+   *   本函数是 **O(n)**，而 n = meta.oldArtworkEarnedTotal / oldTideStelesEarnedTotal。
+   *   这两个字段是**跨周目累加**的（见 doBreak ⑤：`+= r.oldArtwork`），而 artwork /
+   *   tidalRecord 都是 `kind:'craft'` ⇒ **不设 CAP_BASE ⇒ capOf 恒 Infinity ⇒ 无上限**。
+   *   于是「戴森球那一局」长时间挂机自动制作出来的件数（实测可到数万件）会全部折进 n。
+   *
+   *   致命之处不在 O(n) 本身，而在**调用频次**：legacy() 被 baseMul() → globalMul() →
+   *   每个资源的每次取率都调一次。CDP 实测 **1100~4000 次/秒**（空闲态即如此）。
+   *   n=0 时单次 0.3µs（无感）；n=6 万时单次 2.9ms ⇒ 一秒光 harmonic 就吃掉 546% CPU：
+   *     · 遗产 5,000 件 → 占空比  71.8%（6× 降频，约等于中端手机）
+   *     · 遗产 20,000 件 → 占空比 250.6%，主循环一拍 3.3s
+   *     · 遗产 60,000 件 → 占空比 546.0%，主循环一拍 9.1s，loopAge 10.8s ← 与玩家「十几秒」逐字吻合
+   *   而这两笔遗产**只在轮回结算那一刻写入** ⇒ 症状必然出现在「下一次开新周目」的瞬间，
+   *   与「第一次轮回后做完戴森球，然后开三周目就卡爆」完全同形。
+   *
+   * 【修法】结果放缓存，按「已知的最大 n」增量续算 —— 摊还 O(1)，且**加法顺序与朴素写法
+   *   逐位相同**（永远是从 1 顺着加到 n，只是从上次停下的地方接着加），所以
+   *   harmonic(n) 的返回值与原实现**逐位相等**，任何数值/标定都不受影响。
+   *   ⚠️ 不能只留「上一个 n」一个槽：实际有两个常驻输入（艺术品 + 碑石），
+   *      单槽会在两者之间来回重置，等于没缓存。故留少量条目（升序查找 + 超限丢弃）。 */
+  var _harmMemo = [{ n: 0, sum: 0 }];
+  /* 数值护栏（2026-10-29）：n 超过 1e7 时改用闭式解 —— O(1)，把「异常/脏档把 n 写成天文
+   * 数字」那一次性的 O(n) 首调（实测 1e8 ⇒ 冷启动 1058ms，手机 ≈ 6s）压到纳秒级。
+   * ⚠️ 此分支**绝不写缓存**：近似值一旦成为增量 base，后续精确计算会从近似值接着加，
+   *    结果既不是精确值也不是渐近值，误差被固化且无从察觉。
+   * 精度（Euler–Maclaurin 保留到 1/n² 项，实测相对误差）：1e6 = 5.1e-14 / 1e7 = 1.6e-13 /
+   *   1e8 = 7.1e-14 ⇒ 远低于双精度自身的累积噪声（~1e-13）。
+   * 阈值以上玩家现实不可达（前台挂机约 890 件/小时 ⇒ 1e7 件要一年以上，且离线补算不跑工坊），
+   * 故**所有玩家可及数值逐位不变**；这纯粹是防脏档/防改档的保险。 */
+  var H_GAMMA = 0.5772156649015329, H_EXACT_MAX = 1e7;
   function harmonic(n) {
-    var s = 0;
-    for (var k = 1; k <= n; k++) s += 1 / k;
-    return s;
+    n = Math.floor(n);
+    if (!(n > 0)) return 0;
+    if (n > H_EXACT_MAX) return Math.log(n) + H_GAMMA + 1 / (2 * n) - 1 / (12 * n * n);
+    var i, base = _harmMemo[0];
+    for (i = 0; i < _harmMemo.length; i++) {
+      if (_harmMemo[i].n === n) return _harmMemo[i].sum;
+      if (_harmMemo[i].n < n && _harmMemo[i].n > base.n) base = _harmMemo[i];
+    }
+    var sum = base.sum;
+    for (var k = base.n + 1; k <= n; k++) sum += 1 / k;
+    _harmMemo.push({ n: n, sum: sum });
+    /* 只留最近几条，防止脏存档（每帧变化的大数）把缓存表撑爆。 */
+    if (_harmMemo.length > 6) _harmMemo.splice(1, 1);
+    return sum;
   }
+
+  /* 遗产产出系数：0.15 → **1.5**（2026-10-29 用户拍板 ×10，目的是「第二周目开局更快」）。
+   * 语义锚点（别丢）：CFG 里该值与 UNIT.sci / UNIT.culture 同量纲（0.15）
+   *   ⇒ 0.15 = 「1 件遗产 = 1 个学者」，1.5 = 「1 件 = 10 个学者」。长注见 config.js。
+   * ⚠️ 原先这里是硬编码的 0.15（两处各写一遍）；改成读 CFG 是为了让「数值只改 config.js」
+   *    这条纪律在这一处也成立（它们曾是漏网的例外）。 */
+  var LEGACY_RATE = (CFG && CFG.LEGACY && typeof CFG.LEGACY.RATE_PER_ITEM === 'number')
+    ? CFG.LEGACY.RATE_PER_ITEM : 1.5;
 
   /* 跨周目遗产聚合：供 rates() / globalMul() 读取，不依赖本局状态。
    * 全部从 meta 派生，旧档无字段时按 0 兜底。 */
@@ -74,8 +124,8 @@
       relicCount: relicCount,
       relicCultureMul: 1 + 0.01 * relicCount,
       relicScienceMul: 1 + 0.01 * relicCount,
-      oldArtworkCultureRate: 0.15 * harmonic(finiteOr(m.oldArtworkEarnedTotal, 0)),
-      oldTideSteleScienceRate: 0.15 * harmonic(finiteOr(m.oldTideStelesEarnedTotal, 0)),
+      oldArtworkCultureRate: LEGACY_RATE * harmonic(finiteOr(m.oldArtworkEarnedTotal, 0)),
+      oldTideSteleScienceRate: LEGACY_RATE * harmonic(finiteOr(m.oldTideStelesEarnedTotal, 0)),
       oldFaithAllProductionBonus: 0.005 * faithTier,
       shopCivicBonus: 0.10 * (p.civicArchive || 0) * starPerkBoost,   // 星屑轮回共鸣放大每级效果
       shopScienceBonus: 0.10 * (p.tideProof || 0) * starPerkBoost
@@ -239,6 +289,7 @@
     SB.state.saveMeta(meta);
     if (SB.state && SB.game.snapshot && SB.game.run && SB.game.run() === s)
       SB.state.saveRun(SB.game.snapshot(s));
+    if (SB.saveTransfer && SB.saveTransfer.backupSoon) SB.saveTransfer.backupSoon();
     /* ✅ 有效通关（已建神学）⇒ 报最快时间 / 综合发展分 / 奇观 / 轮回数。 */
     if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
     /* 破壳动画已由 shell.onShellZero 播放；这里可能是未破壳就主动轮回，不能再播放动画。 */

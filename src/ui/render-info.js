@@ -6,6 +6,14 @@
   var SB = root.SB || (root.SB = {});
   function res() { return SB.game.run(); }
   function el(id) { return root.document.getElementById(id); }
+  /* 弹窗外壳归一化（2026-10-29）：本文件的详情卡与树图共用 render.js 的 #modal/#modalBox。
+   * 上一张面板的变体类（尤其 offline-summary-modal 的报表 flex 布局、break-modal 的 padding:0）
+   * 残留会把详情卡一起压塌 —— 判据与清单只有一处，在 render.js 的 resetModalChrome。
+   * 这里只做转发（不另写一份 remove 列表）；render 模块尚未加载时静默跳过。 */
+  function primeModal() {
+    var R = SB.ui && SB.ui.render;
+    if (R && R.resetModalChrome) R.resetModalChrome();
+  }
   function bodyModalClass(on) {
     var b = root.document && root.document.body;
     if (b && b.classList) { if (on) b.classList.add('modal-open'); else b.classList.remove('modal-open'); }
@@ -145,6 +153,7 @@
       ? '研究　' + SB.economy.costOwnedTxt(s, (function () { var c = {}; c[currency] = cost; return c; })())
       : '免费研究';
     var box = el('modalBox'), modal = el('modal');
+    primeModal();
     box.classList.add('tree-detail-box');
     var detailIcon = SB.ui.renderCommon.treeIconHTML(item, revealed, 'tree-detail-icon');
     var civicFlavor = !tech && revealed ? SB.ui.renderContent.CIVIC_FLAVOR[id] : '';
@@ -189,6 +198,7 @@
 
   function openInfoCard(title, mark, state, body, actions, markClass) {
     var box = el('modalBox'), modal = el('modal');
+    primeModal();
     box.classList.add('tree-detail-box');
     box.innerHTML = '<div class="tree-detail-head"><div class="tree-detail-mark' + (markClass ? ' ' + markClass : '') + '">' + mark +
       '</div><div class="tree-detail-title"><h3 id="treeDetailTitle">' + title + '</h3>' +
@@ -329,7 +339,34 @@
         }
         return _ob;
       }
-      case 'hall':         return '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给纪元三及之前有上限资源 +50 容量/级';
+      /* 2026-10-29（用户拍板「改成真边际效益」）：议价曲线换成**等比递减**
+       *   （每级增量 = rate × ρ^(n−1)），从第 1 级起每级都在少省，且**永远差一点**到渐近上限。
+       *   ⚠️ 2026-10-29 之前那句「约 N 级到顶」必须彻底删掉：旧曲线（getLimitedDR）确实有
+       *     25 级/17 级硬到顶，但它的末段是凸的（18~24 级每级增量会回升到 3.16%），写
+       *     「越升越少」会与玩家观察打架。现在两个问题一起解决：全程递减 + 没有假到顶。
+       *   ⚠️ 文案里的每个数都走 SB.economy.hallInfo（与 costOf 同一段公式）——绝不在这里
+       *     复刻 rate/limit/ρ，否则「面板说还能省、结算其实不是」就是下一个撒谎点。
+       *   ⚠️ 2026-10-29 用户二次拍板：**面板上不许出现设计语汇**。
+       *     「渐近上限 60%」「约每 N 级增量减半」「只能逼近不能到达」这类是设计文档的话，
+       *     玩家读不懂也不需要——他要的是「我现在省多少、再升一级还能多省多少」。
+       *     所以这里只留两个玩家能直接验算的数：当前 −X%、下一级 +Y%。
+       *     「越升越少」由这两个数的序列本身体现，不再补任何参数说明。
+       *     rate / limit / ρ / halfLvl 一律不进文案（只活在 hallInfo 的返回值里）。 */
+      case 'hall': {
+        var _hi = (SB.economy.hallInfo ? SB.economy.hallInfo(s) : null);
+        if (!_hi) return '随等级降低所有建筑下一级造价，但越升省得越少；升级为城堡后减得更多，并额外给纪元三及之前有上限资源 +50 容量/级';
+        var _txt;
+        if (_hi.lvl <= 0) {
+          _txt = '建成后每级降低所有建筑下一级造价，第 1 级省 ' + (_hi.nextGain * 100).toFixed(1) +
+            '%，之后越升省得越少';
+        } else if (_hi.nextGain > 0.0002) {
+          _txt = '所有建筑下一级造价 −' + (_hi.discount * 100).toFixed(1) + '%；再升 1 级多省 ' +
+            (_hi.nextGain * 100).toFixed(2) + '%';
+        } else {
+          _txt = '所有建筑下一级造价 −' + (_hi.discount * 100).toFixed(1) + '%，再升级几乎不再降低造价';
+        }
+        return _txt + '；另给纪元三及之前有上限资源 +50 容量/级';
+      }
       default:             return buildingDescText(s, b);
     }
   }

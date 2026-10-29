@@ -11,7 +11,8 @@ import shutil
 import zipfile
 
 SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
-OUT = r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc30-v1.0.4.zip'
+OUT = os.environ.get('SB_TAPTAP_OUT',
+    r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc30-v1.0.4.zip')
 TOP = 'shellbreak'
 
 # ---------- 打包前：自动同步源码 → 包目录 ----------
@@ -107,7 +108,7 @@ assert 'function adoptBundle(bundle)' in _gm, '包内 game.js 缺 adoptBundle（
 # ② 分段超时：三条出口必须都在，且 proceeded 互斥旗在
 assert 'var proceeded = false;' in _gm and 'function finishResumed(' in _gm, '包内 game.js 缺 boot 分段超时出口'
 assert "arm(8000, function () { toCloud(); });" in _gm, '包内 game.js 缺 recoverAsync 段超时'
-assert "arm(12000, function () { finishNew(" in _gm, '包内 game.js 缺云端段超时'
+assert "arm(12000, function () { pauseRecovery(" in _gm, '包内 game.js 云端超时仍会开新档'
 # ③ 写入后读回校验（本机存储不可靠时当场中止，而不是 reload 成重载环）
 assert '本机存储不可靠：写入后读回的内容不一致' in _gm, '包内 game.js 缺导入写后读回校验'
 # ④ 更新日志本会话内存去重（2026-10-28 起改红点驱动，旗名 changelogShown → changelogSigned）
@@ -173,6 +174,62 @@ assert 'data-save-action="export-emergency"' in _stf, '包内 save-transfer.js �
 assert 'diagnosticsText: diagnosticsText' in _stf, '包内 save-transfer.js 没导出诊断文本（存档文件里带不上）'
 print('存档诊断入包检查: OK (diag key + 尸检副本 + 门锁解耦 + 补位 + 读回校验 + 两个面板出口)')
 
+# ---------- 跨周目遗产系数（2026-10-29 标定）----------
+# 用户把旧日艺术品/潮纹碑石的产出系数 0.15 → 1.5（×10，让第二周目开局更快），
+# 并把常数从 prestige.js 挪进 CFG.LEGACY.RATE_PER_ITEM。
+# 断言只钉「结构」，不钉标定值本身（标定会再调，钉死会逼人改断言）：
+#   ★ 常数必须还住在 config.js（否则又变成业务代码里的硬编码魔法数）
+#   ★ prestige.js 必须真的读它，且不许残留 `0.15 * harmonic` 的回退写法
+_cfgjs = _read('src/config.js')
+_pj = _read('src/prestige.js')
+assert 'RATE_PER_ITEM' in _cfgjs and 'LEGACY' in _cfgjs, \
+    '包内 config.js 缺 LEGACY.RATE_PER_ITEM（遗产系数应只住在这里）'
+assert 'CFG.LEGACY.RATE_PER_ITEM' in _pj, '包内 prestige.js 没读 CFG.LEGACY.RATE_PER_ITEM'
+assert '0.15 * harmonic(' not in _pj, \
+    '包内 prestige.js 仍有硬编码 0.15 × harmonic（遗产系数回退成魔法数了）'
+print('遗产系数入包检查: OK (住 config + prestige 在读 + 无 0.15 回退)')
+
+# ---------- TapTap 持久化主链路（2026-10-29）----------
+# 四件事必须同时存在，缺任何一条都会退回「关掉就没了」：
+#   ① 原生完整快照双版本（a/b）+ 后台快照（hide）—— 每份都同时含 meta/run，
+#      否则轮回时 run 与 meta 会来自不同周目；
+#   ② 写队列只保留最新一笔（旧档不可能晚于新档落盘）+ 写后读回比对；
+#   ③ onHide 走同步写入（异步回调在进程被冻/被杀时不会回来）；
+#   ④ 启动扫描分三态：found / uncertain / absent，「不确定」绝不开新局。
+assert 'function scanSaveCandidates(' in _ss, '包内 save-storage.js 缺启动扫描'
+assert "'/shellbreak-save-' + slot" in _ss, '包内原生存档没有双版本+后台快照三个落点'
+assert 'function writeNativeNext(' in _ss and 'nativePending = rec' in _ss, \
+    '包内原生写入没有「失败保留、按 seq 追最新」的队列'
+assert '原生文件写后读回不一致' in _ss, '包内原生写入缺写后读回校验'
+assert 'function flushNativeSync(' in _ss and 'function writeNativeSaveSync(' in _ss, \
+    '包内缺 onHide 用的同步原生存档写入'
+assert 'tap.onHide(' in _gm2, '包内 game.js 没接 tap.onHide（后台保存不触发）'
+assert 'flushNativeSync()' in _gm2, '包内 onHide 没有同步落盘'
+assert "cloud.status === 'absent' || cloud.status === 'unavailable'" in _gm2, \
+    '启动分支把「云端明确没有」也当成了不确定（会死锁新玩家）'
+assert 'function forceFreshBoot(' in _gm2 and 'forceFreshBoot: forceFreshBoot' in _gm2, \
+    '恢复暂停界面缺显式出口或被藏进闭包'
+assert 'function showRecoveryPending(' in _stf, '包内 save-transfer.js 缺恢复暂停界面'
+assert "CLOUD_PREVIOUS = 'shellbreak_previous'" in _stf, '包内云端没有上一版本槽'
+assert '云端存档较新，已停止自动覆盖' in _stf, '包内云端防倒退守卫缺失'
+assert "_saveSeq: 0," in _st, '包内 freshRun 没登记 _saveSeq（读档会被 migrateRun 丢掉）'
+print('TapTap 持久化入包检查: OK (双版本快照 + 写队列 + 读回校验 + onHide 同步 + 三态扫描 + 云端双槽)')
+
+# ---------- 手动「立即保存」（2026-10-29 用户「给玩家一个我保存了的感觉」）----------
+# 三件事必须一起进包，缺一个这个功能就是残的：
+#   ① 两处入口（存档管理面板 + 设置栏）—— 只做一处的话，玩家在另一个界面里找不到；
+#   ② 写后读回**必须比对 _ts** —— 只 JSON.parse 会把「容器假成功、读回的是上一份旧档」
+#      判成保存成功（本版实现时探针 C/D 分支就是这么抓到的），那等于面板撒谎；
+#   ③ saveNow 必须导出 —— 设置栏按钮与 CDP 探针都靠它，藏在闭包里等于没实现。
+assert 'id="btnSettingsSaveNow"' in idx, '包内 index.html 缺设置栏「立即保存」按钮'
+assert 'id="saveNowHint"' in idx, '包内 index.html 缺手动保存的反馈位（点完没结论）'
+assert 'data-save-action="save-now"' in _stf, '包内 save-transfer.js 缺面板「立即保存」按钮'
+assert 'function saveNow(' in _stf, '包内 save-transfer.js 缺 saveNow 实现'
+assert 'Number(back._ts) !== Number(snap._ts)' in _stf, \
+    '包内 saveNow 的写后读回退化成「只 parse 了」（容器假成功会被判成已保存）'
+assert 'saveNow: saveNow' in _stf, '包内 save-transfer.js 没导出 saveNow'
+print('手动保存入包检查: OK (两处入口 + 读回比对 _ts + 已导出)')
+
 # ---------- 打包前置检查 ③：正式包不许带任何 -test 痕迹 ----------
 # ⚠️ 2026-10-28 教训：测试包（Ver1.0.4-test）是用来给 iOS 玩家做二分实验的，开关会把自动弹窗
 #   和新手引导全关掉、还挂一个诊断浮层。既然已拍板摘除，就用「版本名 / 更新日志 / 开关」三处
@@ -189,7 +246,19 @@ _base = _read('src/economy.js')
 _rates = _read('src/economy-rates.js')
 assert _base.count('cardHappyConsumeMul') >= 2, '包内 economy.js 的节能减耗乘区缺失（tick 侧）'
 assert 'cardHappyConsumeMul' in _rates, '包内 economy-rates.js 的节能减耗乘区缺失（面板侧）'
-print('P0 修复入包检查: OK (adoptBundle + 分段超时×2 + 写后读回 + 日志去重 + 逃生分支顺序 + 引导层压制 + 版本号/日志 + 节能减耗三落点)')
+# ⑨ 议价曲线必须是**等比递减**（2026-10-29 用户拍板「改成真边际效益」，上限 60%）。
+#   ① 形状：`lim*(1-ρ^n)` 里的 Math.pow(rho, _n) 必须在
+#   ② 分家：hallMulAt 不许再调 getLimitedDR —— 那条曲线 0.75 次幂末段会回升
+#      （议事厅曾 19 级 +1.55%、24 级 +3.16%），与「越升越少」正好相反
+#   ③ 字段：topLvl 已删除，UI 若还引用会显示 undefined 或假的「N 级到顶」
+assert 'var HALL_SAVE = 0.025;' in _base, '包内议价首级省耗率不是 0.025'
+assert 'var HALL_DR_BASE = 0.60;' in _base, '包内议价渐近上限不是 60%'
+assert 'Math.pow(rho, _n)' in _base, '包内议价不是等比递减公式（可能被改回 DR 曲线）'
+_mul_seg = _base.split('function hallMulAt')[1].split('function hallDiscount')[0]
+assert 'getLimitedDR' not in _mul_seg, '议价又调回 getLimitedDR 了（该曲线末段回升，与「越升越少」相反）'
+for _ui in ('src/ui/render-info.js', 'src/ui/render-pane-village.js'):
+    assert 'topLvl' not in _read(_ui), _ui + ' 仍引用已删除的 hallInfo.topLvl（会渲染出假「到顶」）'
+print('P0 修复入包检查: OK (adoptBundle + 分段超时×2 + 写后读回 + 日志去重 + 逃生分支顺序 + 引导层压制 + 版本号/日志 + 节能减耗三落点 + 议价等比曲线)')
 
 
 # 包内素材必须齐全（2026-10-26 补：rc15 及之前只同步两个 icons 子树，

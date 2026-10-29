@@ -332,3 +332,17 @@ html[data-ui-theme="day"] #pane-village .launch-progress-value{color:#187b7a}
   #pane-village .bzone .row .launch-mode-anchor{position:static;transform:none}
 }
 
+
+/* ── 建造追踪按钮（2026-10-29 · 玩家「一人成罪」提议）────────────────────────
+ * 只在「这一级买不起」时出现，紧贴建造/升级按钮右侧拼成一个按钮组
+ * （宽度 46px，与「自动」那颗 44px 同量级；文案只有「追踪」/「已追踪」两档）。
+ * ⚠️ 圆角必须按「左边那颗是谁」分三档写死：本按钮恒在最右 ⇒ 右圆角永远归它；
+ *    左边是「建造」时（无自动）它要给左圆角，左边是「自动」时（有自动）它不该有圆角。
+ *    混写会出「建造按钮右侧圆角 + 追踪左侧直角」的裂缝，肉眼很显眼。 */
+#pane-village .bzone .row .buy-actions>.track-toggle{flex:0 0 46px;width:46px;min-width:46px;height:40px;box-sizing:border-box;margin:0;padding:4px 2px;border-radius:0 7px 7px 0;border-left-width:0;font-size:10px;line-height:1.15;white-space:nowrap;background:#152a3d;border-color:#33586f;color:#9fc3d8}
+#pane-village .bzone .row .buy-actions.has-track>.btn.buy{border-radius:7px 0 0 7px;border-right-width:0}
+#pane-village .bzone .row .buy-actions.has-track.has-auto-toggle>.btn.buy{border-radius:0}
+#pane-village .bzone .row .buy-actions>.track-toggle:active{filter:brightness(1.2)}
+#pane-village .bzone .row .buy-actions>.track-toggle.on{background:#155b38;border-color:#43bb78;color:#c5f4d6}
+html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.track-toggle{background:#eaf1f6;border-color:#a9c3d4;color:#3d6076}
+html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.track-toggle.on{background:#c9efd5;border-color:#378b57;color:#15542e}

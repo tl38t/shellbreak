@@ -96,7 +96,15 @@
         s.skydrillStarved = false;
       } else if (!s.skydrillStarved) {
         s.skydrillStarved = true;
-        if (emit) emit('天穹钻机缺少共振钻头或热液能，停转——补足后自动继续。');
+        /* 2026-10-29：日志原为「缺共振钻头或热液能」二合一，玩家读不出该补哪条
+         *   （与面板同一个病因）。按两个门的实际结果分流，与 hydroAlloc 的 skyStopWhy 同源。 */
+        if (emit) {
+          var _bitOK = (s.res.resonantDrill || 0) >= dCost;
+          emit(_bitOK
+            ? '天穹钻机缺热液能（工坊吃完后剩流不足 ' + SB.CFG.SKYDRILL_HYDRO + '/秒），停转——补足后自动继续。'
+            : '天穹钻机缺共振钻头（现存 ' + (s.res.resonantDrill || 0).toFixed(1) + '，每秒耗 ' +
+              SB.CFG.SKYDRILL_DRILL + '），停转——去工坊补货后自动继续。');
+        }
       }
     }
 

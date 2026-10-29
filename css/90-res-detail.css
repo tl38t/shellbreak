@@ -1,0 +1,61 @@
+/* 天壳 / SHELLBREAK — 顶栏资源详情面板（2026-10-29）
+ *
+ * 用户口径：「不要是什么/怎么来/去哪这些文案，就单纯给数值」。
+ * 所以这里只有三种排版：两块概览（存量/上限、净值）、分项行（标签 + 数值）、
+ * 乘区芯片（名字 + ×系数）。不写整句解释，不加 hover-only 信息。
+ * 颜色全部走 :root 变量（--txt/--dim/--line/--panel2/--green/--red/--cyan），
+ * 日间/夜间两套主题自动跟随，不新增硬编码色值。
+ */
+
+/* 整格可点的反馈：桌面 hover 描边，触屏按一下给即时回弹（与全站 hover 纪律一致：
+ * 纯装饰性 hover 只对 hover 设备生效，触屏靠 :active）。 */
+.res[data-res-detail]{cursor:pointer;transition:border-color .15s ease,transform .08s ease}
+@media (hover:hover){
+  .res[data-res-detail]:hover{border-color:var(--cyan)}
+}
+.res[data-res-detail]:active{transform:scale(.985)}
+
+.res-detail{font-variant-numeric:tabular-nums}
+.res-detail .modal-hd b{display:flex;align-items:center;gap:8px}
+.res-detail .modal-hd .res-icon{width:24px;height:24px;border-radius:6px}
+
+/* 概览：存量 | 净值 */
+.rd-head{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 4px}
+.rd-cell{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+  display:flex;flex-direction:column;gap:1px;min-width:0}
+.rd-cell span{font-size:11px;color:var(--dim)}
+.rd-cell b{font-size:17px;line-height:1.25;overflow-wrap:anywhere}
+.rd-cell i{font-style:normal;font-size:11px;color:var(--dim)}
+/* 净值的 /s 跟数字同一行（放 i 里换行会变成「+0.55」下一行「/s」，读着断气） */
+.rd-net b i{font-style:normal;font-size:11px;color:var(--dim);margin-left:1px}
+.rd-net.up b{color:var(--green)}
+.rd-net.down b{color:var(--red)}
+.rd-full{margin-left:6px;color:var(--red);font-style:normal}
+
+/* 分区标题 */
+.rd-sec{margin:14px 0 2px;padding-bottom:4px;border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:.1em;color:var(--dim)}
+
+/* 分项行：左名 right 值 */
+.rd-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0}
+.rd-row .rd-l{font-size:13px;color:var(--txt);min-width:0;overflow-wrap:anywhere}
+.rd-row .rd-v{font-size:14px;font-weight:600;white-space:nowrap}
+.rd-row.out .rd-v{color:var(--green)}
+.rd-row.in .rd-v{color:var(--red)}
+
+/* 乘区芯片：只在 |×系数−1| ≥ 1e-9 时出现（×1.00 的恒等乘区一律不印） */
+.rd-fx{display:flex;flex-wrap:wrap;gap:4px 6px;margin:-2px 0 6px}
+.rd-fx i{font-style:normal;font-size:11px;line-height:1.6;color:var(--dim);
+  background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.rd-fx em{font-style:normal;color:var(--cyan);margin-left:3px}
+/* 算式第一格：被乘的基数（只在有非恒等乘区时才出现） */
+.rd-fx i.rd-b{color:var(--txt);opacity:.75;border-style:dashed}
+
+/* 页脚：产 / 耗 / 净 —— 三个数都是分项求和，与顶栏净值同一个来源 */
+.rd-foot{margin-top:12px;padding-top:9px;border-top:1px solid var(--line);
+  font-size:12px;color:var(--dim);text-align:right}
+.rd-empty{padding:16px 0 4px;font-size:12px;color:var(--dim);text-align:center}
+
+/* 窄屏不再把两块概览叠起来（2026-10-29 实测 320px）：两个数都只有 5~6 个字符，
+ * 并排各占一半仍有 130px 余量；叠起来会把「产出/消耗」分项挤到折叠线以下，
+ * 玩家得滚动才能看到这张面板真正要看的东西。 */

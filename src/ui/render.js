@@ -273,7 +273,9 @@
       /* 标签行顺序（2026-10-21 用户要求）：名称 → 产/耗 → 净值 → 全产加成。
        * 奢侈品行 hideRate=true ⇒ 不重复净值（净 = 产 − 耗，见上面 ③）。 */
       var resourceIcon = '<img class="res-icon" src="assets/resource-icons/' + k + '.png?v=2" alt="" aria-hidden="true" width="48" height="48" decoding="async">';
-      var row = '<div class="' + cls + '">' + resourceIcon + '<div class="res-content"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
+      /* data-res-detail：整格可点 ⇒ 弹「存量/上限 + 净值 + 产出消耗分项」面板
+       * （2026-10-29 用户：只给数值）。委托在 input.js，重画不丢监听。 */
+      var row = '<div class="' + cls + '" data-res-detail="' + k + '">' + resourceIcon + '<div class="res-content"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
         SB.economy.fmtAmt(v) + capTxt + '</b><span class="res-details"><span class="res-label"><span class="res-name">' + rowName + '</span></span>' + luxTxt + (hideRate ? '' : rateTxt) +
         faithBonusTxt + tipBtn + '</span></div></div>';
       if (isCraft) htmlCraft += row; else htmlBase += row;
@@ -294,6 +296,97 @@
      *     ③ 饿死 / 冻死 → 破壳结算报告里按增量报（game.js 的结算 lines）；
      *     ④ 冰封期 → 天壳条上的「冰封期」徽标。
      *   留着它的坏处是它同时是**每帧重画的**（季节会变），一个纯读数却挂在顶栏。 */
+  }
+
+  /* ══ 顶栏资源详情（2026-10-29 · 用户：「点最上方的材料，先显示介绍和当前产出是怎么算的」
+   *    → 随后拍板：「不要是什么/怎么来/去哪这些文案，就单纯给数值」）════════════════
+   * 面板只放三样东西：存量/上限、净值、产出与消耗的分项数值。
+   * ⚠️ 数值**全部**来自 economy.ratesParts —— 它和顶栏那个净值是**同一次计算**（同一个
+   *    rates()），所以「分项之和 === 净值」是结构保证。这里不许自己乘任何一个系数：
+   *    一旦在 UI 里重算，就又是「面板撒谎」家族的新入口（玩家看到 +0.4/s，库存却在掉）。
+   * ⚠️ 没有 prose：不写「是什么/怎么来/去哪」，也不给整句话解释。分项标签只是名字
+   *    （矿工、砂矿坑、熔炉耗料），乘区行只是「×1.15」这种数值。 */
+  function rdNum(v) {
+    var a = Math.abs(v);
+    if (!isFinite(v)) return '∞';
+    if (a >= 10000) return Math.round(v).toLocaleString();
+    if (a >= 100) return v.toFixed(1);
+    return v.toFixed(2);
+  }
+  function rdSigned(v) {
+    if (!isFinite(v)) return '∞';
+    return (v > 0 ? '+' : '') + rdNum(v);
+  }
+  function rdMul(f) {
+    var a = Math.abs(f);
+    if (a >= 100) return f.toFixed(0);
+    if (a >= 10) return f.toFixed(1);
+    return f.toFixed(2);
+  }
+  function showResDetail(k) {
+    var s = res(), modal = el('modal'), box = el('modalBox');
+    if (!s || !modal || !box || !SB.RESS[k]) return false;
+    var detail = (SB.economy && SB.economy.ratesParts) ? SB.economy.ratesParts(s) : null;
+    var rate = detail ? (detail.rate[k] || 0) : ((SB.economy.rates(s) || {})[k] || 0);
+    var list = (detail && detail.parts && detail.parts[k]) || [];
+
+    function partRow(p) {
+      var cls = p.v > 0 ? 'out' : 'in';
+      var html = '<div class="rd-row ' + cls + '"><span class="rd-l">' + p.l + '</span><b class="rd-v">' +
+        rdSigned(p.v) + '</b></div>';
+      var chips = '', i;
+      if (p.m && p.m.length) {
+        for (i = 0; i < p.m.length; i++) {
+          var f = p.m[i][1];
+          /* ×1.00 的乘区一律不印：那一屏会全是「×1.00」，真加成反而看不见。
+           * 隐藏它们不改变结论 —— 被藏的都是恒等乘区，分项值本身照旧是全额。 */
+          if (!isFinite(f) || Math.abs(f - 1) < 1e-9) continue;
+          chips += '<i>' + p.m[i][0] + '<em>×' + rdMul(f) + '</em></i>';
+        }
+        /* 基数必须一起印：只给乘区系数、不给起点，玩家没法把右边的数反推回去
+         * （「×1.20 ×1.21 怎么得到 0.79」）。这一格就是算式里那个被乘的底数。 */
+        if (chips) chips = '<i class="rd-b">基数<em>' + rdNum(p.b) + '</em></i>' + chips;
+      }
+      if (chips) html += '<div class="rd-fx">' + chips + '</div>';
+      else if (p.d) html += '<div class="rd-fx"><i>' + p.d + '</i></div>';
+      return html;
+    }
+
+    var outRows = '', inRows = '', sumOut = 0, sumIn = 0, i2;
+    for (i2 = 0; i2 < list.length; i2++) {
+      var p2 = list[i2];
+      if (!isFinite(p2.v) || Math.abs(p2.v) < 1e-9) continue;
+      if (p2.v > 0) { outRows += partRow(p2); sumOut += p2.v; }
+      else { inRows += partRow(p2); sumIn += p2.v; }
+    }
+
+    var cap = SB.economy.capOf(s, k);
+    /* 有上限写「/ 200」，无上限只写「无上限」—— 拼成「/ 无上限」读着是病句。 */
+    var capTxt = isFinite(cap) ? '/ ' + SB.economy.fmt(cap) : '无上限';
+    var v = s.res[k] || 0;
+    var full = isFinite(cap) && cap > 0 && v >= cap;
+    var name = SB.RESS[k].name;
+    var netCls = rate > 1e-9 ? 'up' : (rate < -1e-9 ? 'down' : '');
+
+    box.innerHTML = '<div class="res-detail">'
+      + '<div class="modal-hd"><b><img class="res-icon" src="assets/resource-icons/' + k +
+        '.png?v=2" alt="" aria-hidden="true" width="24" height="24" decoding="async">' + name + '</b>'
+      + '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>'
+      + '<div class="rd-head">'
+      +   '<div class="rd-cell"><span>存量</span><b>' + SB.economy.fmtAmt(v) + '</b><i>' + capTxt +
+            (full ? '<em class="rd-full">满</em>' : '') + '</i></div>'
+      +   '<div class="rd-cell rd-net ' + netCls + '"><span>净值</span><b>' + rdSigned(rate) + '<i>/s</i></b></div>'
+      + '</div>'
+      + (outRows ? '<div class="rd-sec">产出</div>' + outRows : '')
+      + (inRows ? '<div class="rd-sec">消耗</div>' + inRows : '')
+      + (list.length ? '' : '<div class="rd-empty">该资源当前没有任何产出或消耗。</div>')
+      + '<div class="rd-foot"><span>产 ' + rdSigned(sumOut) + ' · 耗 ' + rdSigned(sumIn) +
+        ' · 净 ' + rdSigned(rate) + '</span></div>'
+      + '</div>';
+    resetModalChrome();
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+    return true;
   }
 
   function renderShell() {
@@ -384,6 +477,7 @@
    * 复用现有 #modal 浮层；无 modal 元素时直接 no-op（shellbar 已完成态仍会显示「★ 太空时代达成」）。 */
   function showStarComplete(s) {
     var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
+    resetModalChrome();
     var cap = SB.CFG.STAR_CAP || 0;
     var cur = (s && s.res && s.res.starExplore) || 0;
     box.innerHTML = '<div class="star-complete-panel">'
@@ -411,6 +505,7 @@
 
   function showDysonCompletePanel(s) {
     var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
+    resetModalChrome();
     var sails = (s && s.sunSails) || 0, nodes = (s && s.dysonNodes) || 0;
     var sailCap = SB.CFG.DYSON_SAIL_CAP || 10000, nodeCap = SB.CFG.DYSON_NODE_CAP || 1000;
     box.innerHTML = '<div class="dyson-complete-panel">'
@@ -424,13 +519,6 @@
       + '<button class="btn big" type="button" id="dysonBreakNow">繁星轮回（结算）</button>'
       + '<button class="btn" type="button" id="dysonKeepPlaying">继续游玩</button>'
       + '</div></div>';
-    modal.classList.remove('break-modal');
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    modal.classList.remove('void-ending-modal');
-    modal.classList.remove('void-civic-modal');
-    box.classList.remove('tree-detail-box');
     modal.classList.remove('hidden'); bodyModalClass(true);
     var b1 = el('dysonBreakNow');
     if (b1) b1.onclick = function () {
@@ -498,6 +586,7 @@
 
   function showAscendVoidPanel(s) {
     var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
+    resetModalChrome();
     var C = voidCorrupt;
     box.innerHTML = '<div class="void-ascend-panel">'
       + '<h2 class="void-title">' + C('飞升虚境', 3) + '</h2>'
@@ -510,12 +599,7 @@
       + '<button class="btn big" type="button" id="voidBreakNow">' + C('轮回', 23) + '</button>'
       + '<button class="btn" type="button" id="voidKeepPlaying">' + C('继续游玩', 29) + '</button>'
       + '</div></div>';
-    modal.classList.remove('break-modal');
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    modal.classList.remove('void-civic-modal');
-    box.classList.remove('tree-detail-box');
+    /* 归一化在上面的 resetModalChrome 里做完了（void-civic-modal 等全部清掉），这里只补自己那个。 */
     modal.classList.add('void-ending-modal');
     modal.classList.remove('hidden'); bodyModalClass(true);
     var b1 = el('voidBreakNow');
@@ -602,13 +686,8 @@
         '</div>' +
         '<div class="break-controls"><button class="btn" id="dysonReplay" type="button">↻ 重播</button><button class="btn big" id="dysonContinue" type="button">跳过动画</button></div>' +
       '</section>';
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    modal.classList.remove('void-civic-modal');
-    box.classList.remove('tree-detail-box');
+    resetModalChrome();
     if (ascendVoid) modal.classList.add('void-ending-modal');
-    else modal.classList.remove('void-ending-modal');
     modal.classList.add('break-modal');
     modal.classList.remove('hidden');
     bodyModalClass(true);
@@ -1297,6 +1376,11 @@
     SB.ui.renderParts.renderGeek(s);
     SB.ui.renderParts.renderHydro(s);
     renderIdleTag(); renderEvent(s); SB.ui.renderCommon.paintHappy(s);
+    /* 建造追踪小框（2026-10-29）：常驻节点（index.html 的 #trackDock），
+     * 内部自带 200ms 节流 + 字符串指纹，数字没变不写 DOM —— 逐帧调它等于白调。
+     * ⚠️ 用 `&&` 守卫而不是要求模块必在：e2e 的假 DOM 里这个节点不存在，
+     *    paint 自己会早退；但加载顺序若被改动，这里也不该把整页渲染带崩。 */
+    if (SB.ui.track && SB.ui.track.paint) SB.ui.track.paint(s);
   }
   /* 看广告加速控件（顶栏速度行）：持久节点 + textContent 更新，避免每帧重建 innerHTML 吞掉点击。
    * 余额 / 开关只在这里随 2 秒刷新（renderAll）与拨动时（toggleAdBoost / grantAdBoost 各自 renderAll）更新。 */
@@ -1361,6 +1445,7 @@
       '<div class="modal-hd"><b>排行榜</b>' +
       '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
       '<div class="rank-list">' + rows + '</div>';
+    resetModalChrome();
     modal.classList.remove('hidden');
     bodyModalClass(true);
     var btns = box.querySelectorAll('.rank-open');
@@ -1395,19 +1480,9 @@
       '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
       '<div class="chg-list">' + body + '</div>' +
       '<div class="chg-foot"><button type="button" class="btn" data-modal-close="1">知道了</button></div>';
-    modal.classList.remove('break-modal');
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    modal.classList.remove('offline-summary-modal');
-    modal.classList.remove('void-ending-modal');
-    modal.classList.remove('void-civic-modal');
-    modal.classList.remove('story-modal');
-    /* ⚠️ 必须清掉 gov-picker-modal：政体/政策选择器会给 #modal 加这个类（宽版排版 + 滚动约束），
-     *   残留会让更新日志面板套上别人的皮肤。 */
-    modal.classList.remove('gov-picker-modal');
-    box.classList.remove('tree-detail-box');
-    box.classList.remove('story-box');
+    /* 归一化（含 gov-picker-modal —— 政体/政策选择器会给 #modal 加宽版排版 + 滚动约束，
+     * 残留会让更新日志面板套上别人的皮肤）。见 resetModalChrome 注释。 */
+    resetModalChrome();
     modal.classList.remove('hidden');
     bodyModalClass(true);
   }
@@ -1429,17 +1504,8 @@
       '<div class="gov-picker-modal-content">' + paneGovPicker(s) + '</div>' +
       '<div class="gov-picker-modal-foot"><span>政体效果、卡槽与更换费用均显示在卡片中。</span>' +
         '<button type="button" class="btn" data-modal-close="1">取消</button></div>';
-    modal.classList.remove('break-modal');
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    modal.classList.remove('offline-summary-modal');
-    modal.classList.remove('void-ending-modal');
-    modal.classList.remove('void-civic-modal');
-    modal.classList.remove('story-modal');
+    resetModalChrome();
     modal.classList.add('gov-picker-modal');
-    box.classList.remove('tree-detail-box');
-    box.classList.remove('story-box');
     if (box.setAttribute) {
       box.setAttribute('role', 'dialog');
       box.setAttribute('aria-modal', 'true');
@@ -1466,17 +1532,8 @@
       '<div class="gov-picker-modal-content">' + panePolicyPicker(s, slotIdx) + '</div>' +
       '<div class="gov-picker-modal-foot"><span>直接关掉即可，槽里的卡不会变。</span>' +
         '<button type="button" class="btn" data-modal-close="1">取消</button></div>';
-    modal.classList.remove('break-modal');
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    modal.classList.remove('offline-summary-modal');
-    modal.classList.remove('void-ending-modal');
-    modal.classList.remove('void-civic-modal');
-    modal.classList.remove('story-modal');
+    resetModalChrome();
     modal.classList.add('gov-picker-modal');
-    box.classList.remove('tree-detail-box');
-    box.classList.remove('story-box');
     if (box.setAttribute) {
       box.setAttribute('role', 'dialog');
       box.setAttribute('aria-modal', 'true');
@@ -1598,10 +1655,7 @@
         '</div>' +
         '<div class="break-controls"><button class="btn" id="breakReplay" type="button">↻ 重播</button><button class="btn big" id="breakContinue" type="button">跳过动画</button></div>' +
       '</section>';
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    box.classList.remove('tree-detail-box');
+    resetModalChrome();
     modal.classList.add('break-modal');
     modal.classList.remove('hidden');
     bodyModalClass(true);
@@ -1650,6 +1704,9 @@
    *   未达则 r.locked=true、tidePoints=0）。面板只负责把报告渲染出来，判据不在这。 */
   function showBreakPanel(r) {
     clearBreakAnimation();
+    /* ⚠️ 必须先归一化外壳：离线结算（offline-summary-modal）等类残留会把这张面板压成竖排。
+     *   见 resetModalChrome 的注释（2026-10-29 玩家事故）。 */
+    resetModalChrome();
     var m = meta();
     var box = el('modalBox');
     var rows =
@@ -1703,27 +1760,43 @@
     if (b && b.classList) { if (on) b.classList.add('modal-open'); else b.classList.remove('modal-open'); }
   }
 
+  /* 弹窗外壳归一化（2026-10-29 实装）。
+   * 【#modal / #modalBox 上有一批「变体类」决定排版】offline-summary-modal（报表 flex 布局）、
+   *   break-modal（padding:0 / overflow:hidden）、tree-modal + tree-tech/civic（宽版树图）、
+   *   void-ending-modal、story-modal、gov-picker-modal；box 侧有 tree-detail-box / story-box。
+   * 【为什么必须有这个函数】这些类只能由「当前这张面板」自己加。任何一处只 remove('hidden')
+   *   就上屏，就会整块继承上一张面板的排版 —— 这就是真实事故：离线结算（offline-summary-modal）
+   *   的类残留在 #modal 上，随后弹出的破壳结算面板被套上 flex 报表布局，中文 min-content = 1 字符
+   *   ⇒ 每行塌成一列、从左侧横铺、两个按钮压成 1 字宽（视觉上「没有任何可点项」），玩家看到的是
+   *   「卡在竖排文字界面，点哪都没反应」，且 pendingBreak 每次启动都重弹 ⇒ 重启多少遍都一样。
+   *   取证：tmp/_probe_break_proof.mjs（360×780 前后对照，逐像素同构）。
+   * 【纪律】凡是往 #modal 里写内容的函数，写之前先 resetModalChrome()，再 add 自己的变体类。
+   *   不许再靠「记得删掉哪几个类」——漏删 offline-summary-modal 正是这样发生的。 */
+  var MODAL_VARIANT_CLASSES = ['offline-summary-modal', 'tree-modal', 'tree-tech', 'tree-civic',
+    'break-modal', 'void-ending-modal', 'void-civic-modal', 'story-modal', 'gov-picker-modal'];
+  var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box'];
+  function resetModalChrome() {
+    var modal = el('modal'), box = el('modalBox'), i;
+    if (modal && modal.classList) {
+      for (i = 0; i < MODAL_VARIANT_CLASSES.length; i++) modal.classList.remove(MODAL_VARIANT_CLASSES[i]);
+    }
+    if (box && box.classList) {
+      for (i = 0; i < MODAL_BOX_VARIANT_CLASSES.length; i++) box.classList.remove(MODAL_BOX_VARIANT_CLASSES[i]);
+      /* 用存在性判断而不是直接调：无 DOM 的验收桩未必实现 removeAttribute。 */
+      if (box.removeAttribute) {
+        box.removeAttribute('role');
+        box.removeAttribute('aria-modal');
+        box.removeAttribute('aria-labelledby');
+      }
+    }
+  }
+
   function hideModal() {
     clearBreakAnimation();
     clearDysonAnimation();
     var modal = el('modal');
+    resetModalChrome();
     modal.classList.add('hidden');
-    modal.classList.remove('offline-summary-modal');
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    modal.classList.remove('break-modal');
-    modal.classList.remove('void-ending-modal');
-    modal.classList.remove('void-civic-modal');
-    modal.classList.remove('story-modal');
-    modal.classList.remove('gov-picker-modal');
-    el('modalBox').classList.remove('tree-detail-box');
-    el('modalBox').classList.remove('story-box');
-    if (el('modalBox').removeAttribute) {
-      el('modalBox').removeAttribute('role');
-      el('modalBox').removeAttribute('aria-modal');
-      el('modalBox').removeAttribute('aria-labelledby');
-    }
     bodyModalClass(false);
   }
 
@@ -1757,6 +1830,7 @@
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
       '<button class="btn" id="mCancel">取消</button>' +
       '<button class="btn' + (o.danger ? ' danger' : '') + '" id="mOk">' + (o.ok || '确定') + '</button></div>';
+    resetModalChrome();
     el('modal').classList.remove('hidden'); bodyModalClass(true);
     var okBtn = el('mOk'), chk = el('mChk');
     el('mCancel').onclick = hideModal;
@@ -1785,6 +1859,7 @@
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
       '<button type="button" class="btn" data-modal-close="1">取消</button>' +
       '<button type="button" class="btn buy" id="autoBatchSave">保存</button></div>';
+    resetModalChrome();
     modal.classList.remove('hidden'); bodyModalClass(true);
     var input = el('autoBatchInput'), save = el('autoBatchSave');
     function saveBatch() {
@@ -1821,12 +1896,8 @@
     var kicker = o.kicker || '新系统解锁';
     var unlockTitle = o.unlockTitle || (isTech ? '科技树已开放' : '新的系统已开放');
     var unlockCopy = o.unlockCopy || (isTech ? '现在可以研究科技，并查看每项科技的尤里卡条件。' : '新的内容已经加入你的文明。');
-    modal.classList.remove('tree-modal');
-    modal.classList.remove('tree-tech');
-    modal.classList.remove('tree-civic');
-    modal.classList.remove('break-modal');
+    resetModalChrome();
     modal.classList.add('story-modal');
-    box.classList.remove('tree-detail-box');
     box.classList.add('story-box');
     box.innerHTML =
       '<div class="story-kicker"><span class="story-kicker-icon" aria-hidden="true">' + icon + '</span><span>' + kicker + '</span><i aria-hidden="true"></i></div>' +
@@ -2042,9 +2113,10 @@
     var box = el('modalBox');
     if (!box || !el('modal')) return false;   // 无 DOM 环境（如离线验收桩）直接跳过
     var modal = el('modal');
-    modal.classList.remove('break-modal');
+    /* ⚠️ 归一化后再加自己的类：清掉的 break-modal / tree-modal / story-modal 等都属于上一张面板，
+     *   留着会把离线闸门压成别人的排版。 */
+    resetModalChrome();
     if (o.summary) modal.classList.add('offline-summary-modal');
-    else modal.classList.remove('offline-summary-modal');
     var html = o.summary ? (o.body || '') : '<h3>' + (o.title || '离线') + '</h3>' + (o.body || '');
     if (o.showProgress) {
       html += '<div class="prog"><i id="offPr" style="display:block;height:100%;width:0%;' +
@@ -2060,7 +2132,10 @@
     modal.classList.remove('hidden'); bodyModalClass(true);
     var okBtn = el('mOk');
     if (okBtn) okBtn.onclick = function () {
-      modal.classList.add('hidden'); modal.classList.remove('offline-summary-modal');
+      /* 关掉的同一刻清外壳：onOk 里可能直接弹破壳结算面板（finishCatchUp 那条链），
+       * 面板自己也会归一化一次，这里再清一遍是双保险，成本为零。 */
+      resetModalChrome();
+      modal.classList.add('hidden');
       bodyModalClass(false); if (o.onOk) o.onOk();
     };
     return true;
@@ -2163,7 +2238,14 @@
     /* 破壳槽 → 星空槽翻转（2026-10-13）：导出供回归直接断言 shellbar 文案翻转，
      * 与 paneWonder/paneCivicGov 同手法（只导出同一个渲染函数，不写第二份逻辑）。 */
     renderShell: renderShell,
+    /* 顶栏资源详情面板（2026-10-29）：input.js 的 [data-res-detail] 委托调它。
+     * 只读 economy.ratesParts，不写游戏状态。 */
+    showResDetail: showResDetail,
     showBreakPanel: showBreakPanel, showBreakAnimation: showBreakAnimation, hideModal: hideModal, confirmPanel: confirmPanel,
+    /* 弹窗外壳归一化（2026-10-29）：导出给 render-info.js（树图详情卡）/ game.js（政体命名框）/
+     * save-transfer.js（存档管理）——它们都往同一个 #modal 里写内容，必须先清掉上一张面板的变体类。
+     * 见 resetModalChrome 的注释（离线结算类残留把破壳面板压成竖排那次事故）。 */
+    resetModalChrome: resetModalChrome,
     /* 星空槽满槽占位结算面板（2026-10-13 镜像破壳）：tickStar 满槽时调它弹面板。
      * 导出是因为 shell.tickStar 通过 SB.ui.render.showStarComplete 调用（与 showBreakPanel 同源）。 */
     showStarComplete: showStarComplete,

@@ -5,9 +5,10 @@
   var SB = root.SB || (root.SB = {});
   var CFG = SB.CFG;
   var FORMAT = 'shellbreak-save', FORMAT_VERSION = 1;
-  var CLOUD_NAME = 'shellbreak_main', CLOUD_FILE = 'shellbreak-save-v1.json';
+  var CLOUD_NAME = 'shellbreak_main', CLOUD_PREVIOUS = 'shellbreak_previous';
+  var CLOUD_FILE = 'shellbreak-save-v1.json';
   var CLOUD_COOLDOWN_KEY = 'shellbreak.cloud-upload-at.v1';
-  var lastUploadAt = 0, busy = false, pendingCloudArchive = null;
+  var lastUploadAt = 0, busy = false, uploadInFlight = false, pendingCloudArchive = null;
 
   function localStore() { try { return root.localStorage || null; } catch (e) { return null; } }
   function rawLocal(key) { var ls = localStore(); try { return ls ? ls.getItem(key) : null; } catch (e) { return null; } }
@@ -31,11 +32,19 @@
     return { format: FORMAT, version: FORMAT_VERSION, createdAt: Date.now(), save: save,
       checksum: crc32(JSON.stringify(save)) };
   }
+  function revisionOf(bundle) {
+    if (bundle && bundle.revision) return bundle.revision;
+    return { cycle: Number(bundle && bundle.save && bundle.save.meta && bundle.save.meta.cycle) || 0,
+      seq: Number(SB.store && SB.store.nativeRevision && SB.store.nativeRevision()) || 0,
+      savedAt: Number(bundle && bundle.save && bundle.save.run && bundle.save.run._ts) || Date.now() };
+  }
   function currentBundle() {
     var s = SB.game && SB.game.run ? SB.game.run() : null;
     var m = SB.game && SB.game.meta ? SB.game.meta() : null;
     if (!s || !m) throw new Error('当前存档无法正常载入；可以先导出原始存档救援包。');
-    return bundleForSave({ meta: m, run: SB.game.snapshot(s) });
+    var bundle = bundleForSave({ meta: m, run: SB.game.snapshot(s) });
+    bundle.revision = revisionOf(bundle);
+    return bundle;
   }
   function exportBundle() {
     try { return currentBundle(); }
@@ -133,6 +142,94 @@
     var buttons = document.querySelectorAll('#saveManagerPanel button[data-save-action]');
     for (var i = 0; i < buttons.length; i++) buttons[i].disabled = busy;
   }
+  /* ── 手动「立即保存」（2026-10-29 用户：「和自动保存放一起就行，只是给玩家一个我保存了的感觉」）
+   * 【本质】不是新通道 —— 就是把每 5 秒的自动保存**提前触发一次**。
+   *   不新增 key、不改存档格式、不动 meta ⇒ 对老存档零迁移风险，e2e 也不受影响。
+   * 【为什么要点完还给结论】玩家点「保存」而按钮毫无反应，比没有这个按钮更慌。
+   *   所以三种结局都必须说出来：成功给我们自己的判断、失败给真实原因、坏档直说存不了。
+   * 【为什么写完要读回一次】`saveRun` 返回 true 只代表 `setItem` 没抛异常。
+   *   容器配额策略可以让 setItem 成功但**读不回来**（正是「退出就没存档」的形状）。
+   *   只凭返回值亮「已保存」就是本文档反复禁的「面板撒谎」——宁可报失败，不可假成功。
+   *   代价：一次点击读回 ~7.7KB 字符串并 JSON.parse 一次，可忽略（不是热路径）。
+   * ⚠️ 绝不在这里改 saveHealth —— 那是 state.js 的账，只读不写，否则两处计数分叉。 */
+  function hhmm(ms) {
+    try {
+      var d = new Date(ms);
+      return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    } catch (e) { return ''; }
+  }
+  /* 反馈同时写到「存档管理面板的状态行」和「设置栏那一行小字」，两处都可能触发保存。 */
+  function saveNowFeedback(message, error) {
+    setStatus(message, error);
+    var hint = document.getElementById('saveNowHint');
+    if (hint) {
+      hint.textContent = message;
+      hint.classList.toggle('error', !!error);
+    }
+  }
+  function saveNow() {
+    var s = null;
+    try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) { s = null; }
+    if (!s) { saveNowFeedback('当前没有可保存的进度。', true); return false; }
+    if (s.broken) { saveNowFeedback('当前进度异常（已进入存档保护），无法保存。', true); return false; }
+    var snap = null;
+    try { snap = SB.game.snapshot(s); } catch (e) { snap = null; }
+    if (!snap) { saveNowFeedback('保存失败：无法生成进度快照。', true); return false; }
+    var nativeBefore = (SB.store && SB.store.nativeRevision) ? SB.store.nativeRevision() : 0;
+    var ok = false;
+    try { ok = SB.state.saveRun(snap); } catch (e) { ok = false; }
+    if (SB.store && SB.store.fsAvailable && SB.store.fsAvailable()
+        && SB.store.nativeRevision && SB.store.nativeRevision() > nativeBefore) {
+      saveNowFeedback('正在校验 TapTap 原生存档…');
+      var verified = false;
+      var checkTimer = root.setTimeout(function () {
+        if (!verified) saveNowFeedback('原生存档写入仍未确认，请重试或导出存档文件。', true);
+      }, 3500);
+      SB.store.nativeLastWrite().then(function (fileOk) {
+        verified = true; root.clearTimeout(checkTimer);
+        if (fileOk) saveNowFeedback('已保存到 TapTap 本机文件 · ' + hhmm(Date.now()));
+        else saveNowFeedback('原生存档写入未确认，请重试或导出存档文件。', true);
+      });
+      return true;
+    }
+    if (!ok) {
+      var why = '';
+      try { why = (SB.state.saveStatus() || {}).lastError || ''; } catch (e) {}
+      saveNowFeedback('保存失败：' + (why || '写入被拒绝'), true);
+      return false;
+    }
+    /* 写后读回。⚠️ 2026-10-29 实测踩到的坑：**只 parse 一遍是不够的** ——
+     *   容器「假成功」（setItem 不抛异常、其实没落盘）时，读回来的是**上一份旧档**，
+     *   它当然能 parse 成功，于是面板亮「已保存」，玩家被结结实实骗一次。
+     *   探针 `_cdp_savenow2.mjs` 的 C 分支就是这么抓到「returned:true 但什么都没写」的。
+     *   现在改成比对 `_ts`：saveRun 不重写它（含补位分支 patchBadRes 也是原样拷贝），
+     *   所以「读回的 _ts == 本次快照的 _ts」才等于「这一次真的落盘了」。 */
+    var txtBack = null;
+    try {
+      txtBack = (SB.store && SB.store.readLocal)
+        ? SB.store.readLocal(CFG.RUN_KEY) : rawLocal(CFG.RUN_KEY);
+    } catch (e) { txtBack = null; }
+    var back = null;
+    try { back = txtBack ? JSON.parse(txtBack) : null; } catch (e) { back = null; }
+    if (!back || typeof back !== 'object') {
+      saveNowFeedback('保存失败：写入后读不回来（存储异常）。请立刻导出存档文件。', true);
+      return false;
+    }
+    if (Number(back._ts) !== Number(snap._ts)) {
+      saveNowFeedback('保存失败：写入后读回来的仍是上次的进度。请立刻导出存档文件。', true);
+      return false;
+    }
+    var at = Date.now();
+    saveNowFeedback('已保存 · ' + hhmm(at));
+    /* 底部健康度那行是「上次保存：X 秒前」，手动存完立刻刷新，否则玩家会看到
+     * 「已保存」和「12 分钟前」同屏打架。 */
+    var health = document.getElementById('saveManagerHealth');
+    if (health) {
+      health.textContent = saveHealthText();
+      health.classList.toggle('error', saveHealthBad());
+    }
+    return true;
+  }
   /* ── 诊断出口（2026-10-29）──────────────────────────────────────────
    * 【为什么要有它】玩家报「存档没了」时，我们过去只能靠猜：日志里只有 [rank]，
    *   重启一次连内存计数都没了。这里把「能力探针 / 启动出口 / 写盘计数 / 读回结果 /
@@ -219,6 +316,9 @@
   function openPanel() {
     var box = document.getElementById('modalBox'), modal = document.getElementById('modal');
     if (!box || !modal) return;
+    /* 归一化（2026-10-29）：存档管理与破壳结算/离线结算共用同一个 #modal，
+     * 上一张面板的变体类残留会把它压成别人的排版（见 render.js 的 resetModalChrome）。 */
+    if (SB.ui && SB.ui.render && SB.ui.render.resetModalChrome) SB.ui.render.resetModalChrome();
     var cloudOK = cloudAvailable();
     box.innerHTML =
       '<div class="modal-hd"><b>存档管理</b><button type="button" class="modal-x" id="saveManagerClose" aria-label="关闭">×</button></div>' +
@@ -229,7 +329,11 @@
         /* 旧档副本（2026-10-29）：只在「上次启动读不到存档」时才出现，没有就返回空串。 */
         emergencyHTML() +
         '<div class="save-manager-actions">' +
-          '<button type="button" class="btn buy" data-save-action="export-file">导出存档文件</button>' +
+          /* 2026-10-29 手动保存：独占第一行（CSS 里跨两列），因为它是玩家最想点的那个。
+           * 「导出存档文件」原先是 `.btn.buy`（只是想让它显眼），现在主位让给「立即保存」，
+           * 它退回普通按钮 —— 两个主色按钮并排会互相削弱。 */
+          '<button type="button" class="btn buy save-manager-primary" data-save-action="save-now">立即保存</button>' +
+          '<button type="button" class="btn" data-save-action="export-file">导出存档文件</button>' +
           '<button type="button" class="btn" data-save-action="export-code">生成并复制存档码</button>' +
           '<button type="button" class="btn" data-save-action="import-file">从文件导入</button>' +
           '<button type="button" class="btn" data-save-action="import-code">从存档码导入</button>' +
@@ -275,6 +379,7 @@
   function onAction(action) {
     if (busy) return;
     var box = document.getElementById('saveCodeBox');
+    if (action === 'save-now') return saveNow();
     if (action === 'export-file') return exportFile();
     if (action === 'export-code') return exportCode();
     if (action === 'import-file') { document.getElementById('saveFileInput').click(); return; }
@@ -402,9 +507,11 @@
     return item && (item.name || (item.archiveMetaData && item.archiveMetaData.name)
       || (item.archiveMetadata && item.archiveMetadata.name));
   }
-  function findOurArchive(cloud) {
+  function findOurArchives(cloud) {
     return archiveList(cloud).then(function (list) {
-      var matches = list.filter(function (item) { return archiveName(item) === CLOUD_NAME; });
+      var matches = list.filter(function (item) {
+        return archiveName(item) === CLOUD_NAME || archiveName(item) === CLOUD_PREVIOUS;
+      });
       /* ⚠️ 2026-10-28 对照官方 API 文档修正字段名（CloudSaveManager.getArchiveList →
        *   ArchiveDetailData）：官方是 `modifiedTime` / `createdTime`（**秒级**）。
        *   这里原来写的是 updatedAt / modifyTime / createdAt —— 三个都不在官方字段表里，
@@ -412,18 +519,35 @@
        *   单槽时看不出来；P1 做 5 槽轮转时会把「最旧的」当成「最新的」下载下来。
        *   旧名保留做前向兼容（万一某个基础库版本真是那样拼的）。 */
       matches.sort(function (a, b) {
+        var revA = archiveExtra(a), revB = archiveExtra(b);
+        var cmp = compareRevision(revB, revA);
+        if (cmp) return cmp;
         var ta = Number(a.modifiedTime || a.updatedAt || 0) || Number(a.createdTime || a.createdAt || 0);
         var tb = Number(b.modifiedTime || b.updatedAt || 0) || Number(b.createdTime || b.createdAt || 0);
         return tb - ta;
       });
-      return matches[0] || null;
+      return matches;
     });
+  }
+  function findOurArchive(cloud) {
+    return findOurArchives(cloud).then(function (matches) { return matches[0] || null; });
+  }
+  function archiveExtra(item) {
+    try { return JSON.parse(item.extra || (item.archiveMetaData && item.archiveMetaData.extra)
+      || (item.archiveMetadata && item.archiveMetadata.extra) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+  function compareRevision(a, b) {
+    if (a.cycle && b.cycle && a.cycle !== b.cycle) return a.cycle - b.cycle;
+    if (a.seq && b.seq && a.seq !== b.seq) return a.seq - b.seq;
+    return (a.savedAt || 0) - (b.savedAt || 0);
   }
   /* 云存档推送核心（2026-10-27）：手动上传与自动备份**共用这一份**。
    * 只有 `silent` 决定要不要动面板状态 —— 自动备份失败绝不能弹提示打扰玩家。
    * ⚠️ 冷却 key 是共享的（平台按账号限流，不是按按钮），所以自动备份成功后
    *    玩家紧接着手动点「上传」会被挡 60 秒，那是**正确**的（TapTap 确实拒）。 */
   function pushCloud(silent) {
+    if (uploadInFlight) return Promise.reject(new Error('已有云存档上传正在进行'));
     var objects, bundle, filePath;
     try {
       objects = cloudObjects(); bundle = currentBundle(); filePath = objects.base + '/' + CLOUD_FILE;
@@ -444,9 +568,22 @@
       return Promise.reject(new Error(wait));
     }
     if (!silent) { setBusy(true); setStatus('正在写入 TapTap 本地文件并检查云端存档…'); }
+    uploadInFlight = true;
     return callApi(objects.fs, 'writeFile', { filePath: filePath, data: JSON.stringify(bundle), encoding: 'utf8' })
-      .then(function () { return findOurArchive(objects.cloud); })
-      .then(function (archive) {
+      .then(function () { return archiveList(objects.cloud); })
+      .then(function (all) {
+        var archives = all.filter(function (item) {
+          return archiveName(item) === CLOUD_NAME || archiveName(item) === CLOUD_PREVIOUS;
+        });
+        archives.sort(function (a, b) {
+          var diff = compareRevision(archiveExtra(b), archiveExtra(a));
+          return diff || Number(b.modifiedTime || 0) - Number(a.modifiedTime || 0);
+        });
+        var newest = archives[0] || null;
+        /* 每次只上传一槽：新档写入旧槽，另一槽留下上一版，满足每分钟一次限制。 */
+        var archive = archives.length > 1 ? archives[archives.length - 1] : null;
+        var targetName = archive ? archiveName(archive)
+          : (archives.length ? (archiveName(newest) === CLOUD_NAME ? CLOUD_PREVIOUS : CLOUD_NAME) : CLOUD_NAME);
         /* ── 防倒退守卫（2026-10-28 从严）──────────────────────────
          * 【它防的事故】手机 A 玩到 5 小时（云端 5h）→ 换手机 B（本地还存着 3h 旧档）
          *   → 启动只读本地、不查云 → 30 秒后自动上传 3h → **云端 5h 被 3h 覆盖**
@@ -456,25 +593,25 @@
          * 【现判据】一律不许倒退：云端比本地多 60 秒以上就跳过。
          *   留 60 秒容忍是因为刚恢复云端档时两边会差几个 tick。
          * ⚠️ 只拦自动备份（silent）。手动上传是玩家明确意图（他可能真想用这份覆盖云端），放行。 */
-        if (silent && archive) {
-          var _run = SB.game && SB.game.run ? SB.game.run() : null;
-          var _curPlay = Math.max(0, Math.floor((_run && _run.t) || 0));
-          var _cloudPlay = Number(archive.playtime
-            || (archive.archiveMetaData && archive.archiveMetaData.playtime)
-            || (archive.archiveMetadata && archive.archiveMetadata.playtime) || 0) || 0;
-          if (_cloudPlay > _curPlay + 60) {
-            throw new Error('云端进度（' + playtimeText(_cloudPlay) + '）领先本地（' + playtimeText(_curPlay)
-              + '），已跳过自动上传以免用旧档覆盖新档');
+        if (silent && newest) {
+          var localRevision = revisionOf(bundle), cloudRevision = archiveExtra(newest);
+          var cloudPlay = Number(newest.playtime
+            || (newest.archiveMetaData && newest.archiveMetaData.playtime) || 0) || 0;
+          var localPlay = Math.max(0, Math.floor((bundle.save.run && bundle.save.run.t) || 0));
+          if (compareRevision(cloudRevision, localRevision) > 0
+              || (!cloudRevision.seq && cloudPlay > localPlay + 60)) {
+            throw new Error('云端存档较新，已停止自动覆盖；请在存档管理中选择使用哪一份');
           }
         }
         var current = Date.now(); lastUploadAt = current;
         try { if (ls) ls.setItem(CLOUD_COOLDOWN_KEY, String(current)); } catch (e) {}
         var _meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
-        var metadata = { name: CLOUD_NAME, summary: 'Shellbreak save · ' + dateLabel(current),
+        var revision = revisionOf(bundle);
+        var metadata = { name: targetName, summary: 'Shellbreak save · ' + dateLabel(current),
           /* extra 官方限 1000 字节；带上周目是为了面板能显示「第 N 周目」——
            * 旧档没有 cycle，展示层会自然省略这一段。 */
           extra: JSON.stringify({ format: FORMAT, version: FORMAT_VERSION,
-            cycle: (_meta && _meta.cycle) || 0,
+            cycle: revision.cycle, seq: revision.seq, savedAt: revision.savedAt,
             /* 2026-10-29：诊断摘要随云档走。本机三处（localStorage / tap.setStorage /
              * tapfile）是同生共死的，云端这条 metadata 是**唯一跨设备**还能带出来的证据：
              * 玩家换机或重装后，`getArchiveList` 仍能把这段读回来显示在面板上。
@@ -484,7 +621,8 @@
         var options = { archiveMetaData: metadata, archiveFilePath: filePath };
         if (archive && archive.uuid) options.archiveUUID = archive.uuid;
         return callApi(objects.cloud, archive ? 'updateArchive' : 'createArchive', options);
-      });
+      }).then(function (result) { uploadInFlight = false; return result; },
+        function (error) { uploadInFlight = false; throw error; });
   }
   function uploadCloud() {
     pushCloud(false).then(function () {
@@ -501,10 +639,11 @@
    *   ① TapTap 小游戏环境（cloudAvailable）—— 浏览器/回归环境直接跳过；
    *   ② 距上次尝试 ≥ AUTO_GAP_MS（5 分钟；平台限流是每分钟 1 次，放宽到 5 分钟够安全）；
    *   ③ 游戏内时间往前进过整分钟（进度没变就不重复传，省调用也省玩家流量）。 */
-  var AUTO_GAP_MS = 5 * 60 * 1000;
-  var autoState = { lastTryAt: 0, lastOkAt: 0, lastError: '', failCount: 0, lastMark: -1 };
+  var AUTO_GAP_MS = 75 * 1000;
+  var autoState = { lastTryAt: 0, lastOkAt: 0, lastError: '', failCount: 0,
+    lastMark: '', urgent: false, inFlight: false };
   function autoCloudPump() {
-    if (busy) return;                        // 手动操作进行中，让路
+    if (busy || autoState.inFlight) return;  // 手动操作或上一笔上传进行中
     if (!cloudAvailable()) return;           // 非 TapTap 环境：静默跳过，不报错
     var s = null;
     try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) { return; }
@@ -512,16 +651,22 @@
     if (!s || s.broken) return;
     var now = Date.now();
     if (now - autoState.lastTryAt < AUTO_GAP_MS) return;
-    var mark = Math.floor((s.t || 0) / 60);
-    if (mark === autoState.lastMark && autoState.lastOkAt) return;
+    var m = SB.game && SB.game.meta ? SB.game.meta() : null;
+    var mark = String((m && m.cycle) || 0) + ':'
+      + String((SB.store && SB.store.nativeRevision && SB.store.nativeRevision()) || Math.floor((s.t || 0) / 60));
+    if (!autoState.urgent && mark === autoState.lastMark && autoState.lastOkAt) return;
     autoState.lastTryAt = now;
+    autoState.inFlight = true;
     pushCloud(true).then(function () {
       autoState.lastOkAt = Date.now(); autoState.lastMark = mark;
-      autoState.lastError = ''; autoState.failCount = 0;
+      autoState.lastError = ''; autoState.failCount = 0; autoState.urgent = false;
     }, function (e) {
       autoState.lastError = errorText(e); autoState.failCount++;
+    }).then(function () {
+      autoState.inFlight = false;
     });
   }
+  function backupSoon() { autoState.urgent = true; autoCloudPump(); }
   function autoCloudStatus() {
     return { lastOkAt: autoState.lastOkAt, lastError: autoState.lastError, failCount: autoState.failCount };
   }
@@ -661,7 +806,7 @@
          * 只有「用云端覆盖本地」必须禁用（没东西可下）。 */
         if (btnCloud) btnCloud.disabled = true;
         if (hint) hint.textContent = cloud.reason === 'none'
-          ? '上传一次即可创建云存档，之后每 5 分钟自动备份。' : '';
+          ? '上传一次即可创建云存档，之后约每 75 秒自动备份。' : '';
         return;
       }
       node.textContent = digestLine({
@@ -730,19 +875,12 @@
   }
   function restoreCloud() {
     if (!pendingCloudArchive) return;
-    var pending = pendingCloudArchive; pendingCloudArchive = null;
-    var tempPath = pending.objects.base + '/shellbreak-cloud-download.json';
+    pendingCloudArchive = null;
     setBusy(true);
-    callApi(pending.objects.cloud, 'getArchiveData', {
-      archiveUUID: pending.archive.uuid, archiveFileId: pending.archive.fileId, targetFilePath: tempPath
-    }).then(function (result) {
-      return callApi(pending.objects.fs, 'readFile', { filePath: result.filePath || tempPath, encoding: 'utf8' });
-    }).then(function (fileResult) {
-      var text = typeof fileResult.data === 'string' ? fileResult.data : textFromBytes(new Uint8Array(fileResult.data));
-      var bundle = validateBundle(JSON.parse(text));
-      setBusy(false); confirmImport(bundle, 'TapTap 云存档');
-    }).catch(function (e) {
-      setBusy(false); setStatus('云存档恢复失败：' + errorText(e), true);
+    restoreFromCloudIfAny(function (cloud) {
+      setBusy(false);
+      if (cloud && cloud.status === 'found') confirmImport(cloud.bundle, 'TapTap 云存档');
+      else setStatus('云存档恢复失败：' + ((cloud && cloud.error) || '没有可用的云存档'), true);
     });
   }
   function showLoadProblem(problems) {
@@ -756,6 +894,39 @@
         (list.length ? ' 详情：' + list.join('；') : '');
       node.classList.add('error');
     }
+  }
+  function showRecoveryPending(message) {
+    openPanel();
+    var node = document.getElementById('saveManagerStatus');
+    if (!node) return;
+    node.textContent = '为保护旧档，已暂停开新局。' + message;
+    node.classList.add('error');
+    var retry = document.createElement('button');
+    retry.type = 'button'; retry.className = 'btn';
+    retry.textContent = '重新检查存档';
+    retry.onclick = function () { root.location.reload(); };
+    node.appendChild(retry);
+    /* 逃生出口（2026-10-29）：暂停开新局是为了**不覆盖旧档**，不是要把玩家永久关在
+     *   恢复界面外面 —— 云接口长期抽风的机器上，上面那颗「重新检查」会一直失败。
+     *   这里给一条显式的、要点两次的路：第一次只是把按钮改成确认态，第二次才真开新局。
+     *   ⚠️ 只在「一局都还没起来」时可用（SB.game.forceFreshBoot 自己会拒绝 S 非空）；
+     *     暂停期间本机三处都不会被写，所以此刻开新局覆盖不到任何「我们还没看到的」档。 */
+    var fresh = document.createElement('button');
+    fresh.type = 'button'; fresh.className = 'btn';
+    fresh.textContent = '确认没有旧档，开新局';
+    var armed = false;
+    fresh.onclick = function () {
+      if (!armed) {
+        armed = true;
+        fresh.textContent = '再点一次确认（会以新周目开始，旧档将不再尝试找回）';
+        return;
+      }
+      var started = false;
+      try { started = !!(SB.game && SB.game.forceFreshBoot && SB.game.forceFreshBoot()); } catch (e) { started = false; }
+      if (!started) { fresh.textContent = '开新局失败，请重新启动游戏'; return; }
+      closePanel();
+    };
+    node.appendChild(fresh);
   }
   /* ── 启动时的云端救援（2026-10-28）──────────────────────────────────
    * 【为什么必须有它】本机三层（localStorage / tap.setStorage / tapfile://usr）是**同生共死**的：
@@ -772,35 +943,34 @@
    * ⚠️ 60 秒内只试一次：万一写入后被容器拦住，也不会变成每次启动都拉云端。
    *   ⚠️⚠️ 这个节流键存在 localStorage，而 localStorage 在容器里可能不持久 ⇒ 环里它
    *     也失效。真正的保险是「不再 reload」：只拉一次、只接管到内存，不重载就不会成环。 */
-  var CLOUD_TRY_KEY = 'shellbreak.cloud-recover-at.v1';
   function restoreFromCloudIfAny(cb) {
     var finished = false;
     function done(result) { if (finished) return; finished = true; cb(result); }
-    if (!cloudAvailable()) return done(null);
-    var ls = localStore(), now = Date.now();
-    try {
-      var at = Number(ls && ls.getItem(CLOUD_TRY_KEY)) || 0;
-      if (now - at < 60000) return done(null);
-      if (ls) ls.setItem(CLOUD_TRY_KEY, String(now));
-    } catch (e) {}
+    if (!cloudAvailable()) return done({ status: 'unavailable' });
     var objects;
-    try { objects = cloudObjects(); } catch (e) { return done(null); }
-    var timer = root.setTimeout(function () { done(null); }, 8000);
+    try { objects = cloudObjects(); } catch (e) { return done({ status: 'error', error: errorText(e) }); }
+    var timer = root.setTimeout(function () { done({ status: 'timeout', error: '云端检查超时' }); }, 8000);
     var tempPath = objects.base + '/shellbreak-cloud-recover.json';
-    findOurArchive(objects.cloud).then(function (archive) {
-      if (!archive || !archive.uuid || !archive.fileId) throw new Error('云端没有存档');
-      return callApi(objects.cloud, 'getArchiveData', {
-        archiveUUID: archive.uuid, archiveFileId: archive.fileId, targetFilePath: tempPath
-      });
-    }).then(function (res) {
-      return callApi(objects.fs, 'readFile', {
-        filePath: (res && res.filePath) || tempPath, encoding: 'utf8'
-      });
-    }).then(function (fileResult) {
-      var text = typeof fileResult.data === 'string'
-        ? fileResult.data : textFromBytes(new Uint8Array(fileResult.data));
-      var bundle = validateBundle(JSON.parse(text));
-      root.clearTimeout(timer);
+    findOurArchives(objects.cloud).then(function (archives) {
+      if (!archives.length) { root.clearTimeout(timer); done({ status: 'absent' }); return; }
+      function tryArchive(index) {
+        if (index >= archives.length) throw new Error('云端两份存档均无法校验');
+        var archive = archives[index];
+        if (!archive.uuid || !archive.fileId) return tryArchive(index + 1);
+        return callApi(objects.cloud, 'getArchiveData', {
+          archiveUUID: archive.uuid, archiveFileId: archive.fileId, targetFilePath: tempPath
+        }).then(function (res) {
+          return callApi(objects.fs, 'readFile', {
+            filePath: (res && res.filePath) || tempPath, encoding: 'utf8'
+          });
+        }).then(function (fileResult) {
+          var text = typeof fileResult.data === 'string'
+            ? fileResult.data : textFromBytes(new Uint8Array(fileResult.data));
+          return validateBundle(JSON.parse(text));
+        }).catch(function () { return tryArchive(index + 1); });
+      }
+      return tryArchive(0).then(function (bundle) {
+        root.clearTimeout(timer);
       /* ⚠️⚠️ 2026-10-28 P0：这里**绝不**再调 installImportedSave —— 它末尾是
        *   `location.reload()`，而那是全应用唯一的自动重载点。
        *   在「localStorage 写进去读不回来」的容器里（正是「退出就没存档」的根因），
@@ -808,16 +978,21 @@
        *   无限重载环；而 meta.seenVersion（更新日志已读）与救援节流键都存在同一个地方
        *   ⇒ 每圈都判「该版本首次进入」⇒ 每圈重弹更新日志、每次点击都被重载打断。
        *   现在只负责「把档交出去」，落盘与接管由 game.adoptBundle 就地完成（不重载）。 */
-      done({ source: 'cloud', bundle: bundle });
+        done({ status: 'found', source: 'cloud', bundle: bundle });
+      });
     }).catch(function (e) {
       root.clearTimeout(timer);
-      done(null);
+      done({ status: 'error', error: errorText(e) });
     });
   }
 
   function boot() {
     var button = document.getElementById('btnSaveManager');
     if (button) button.onclick = openPanel;
+    /* 设置栏「立即保存」（2026-10-29）：与存档管理面板里那颗调**同一个函数**。
+     * 设置面板里没有状态行，反馈落到紧跟按钮下面的 #saveNowHint 那行小字。 */
+    var settingsSaveNow = document.getElementById('btnSettingsSaveNow');
+    if (settingsSaveNow) settingsSaveNow.onclick = function () { saveNow(); };
     var settingsManager = document.getElementById('btnSettingsSaveManager');
     if (settingsManager) settingsManager.onclick = openPanel;
     /* 自动云备份（2026-10-27）：**只在 TapTap 小游戏环境装定时器**。
@@ -838,9 +1013,13 @@
   }
 
   SB.saveTransfer = { boot: boot, open: openPanel, showLoadProblem: showLoadProblem,
+    showRecoveryPending: showRecoveryPending,
     currentBundle: currentBundle, validateBundle: validateBundle,
+    /* 2026-10-29：手动「立即保存」（面板按钮 + 设置栏按钮共用；e2e 也直接调它）。 */
+    saveNow: saveNow,
     /* 2026-10-27 新增：自动云备份与存档健康度（供 UI 与回归直接读/驱动）。 */
     autoCloudPump: autoCloudPump, autoCloudStatus: autoCloudStatus,
+    backupSoon: backupSoon,
     saveHealthText: saveHealthText, pushCloud: pushCloud,
     /* 2026-10-29 诊断出口（面板「复制诊断信息」/ 导出的存档文件里都会带上）。 */
     diagnosticsText: diagnosticsText, diagLine: diagLine,

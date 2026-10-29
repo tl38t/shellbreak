@@ -116,6 +116,54 @@ console.log('\n=== 纪元三 · 资源/建筑/升级/奇观 落地 ===');
     um.upg_castle && um.upg_castle.need === 'castle' &&
     um.upg_castle.hallSaveMul === 0.5 && um.upg_castle.castleCap === 50,
     'castle=' + JSON.stringify(um.upg_castle));
+
+  /* ⭐ 议价曲线 = **等比递减**（2026-10-29 用户拍板「改成真边际效益」，上限 60%）。
+   * 这里钉的是**曲线形状**，不是具体数值：rate / 上限属标定，用户随时可能调档；
+   * 而「每级增量等比递减 / 严格单调 / 永不越过上限」是契约，谁把它改回凸曲线（旧
+   * getLimitedDR 的 0.75 次幂末段会回升）这几条必红。
+   * 历史：上一版曾出现「议事厅 19 级 +1.55%、24 级 +3.16%」，与「越升越少」的文案正好相反。 */
+  {
+    const A = SB.state.freshRun(false);          // 议事厅态
+    const Bd = SB.state.freshRun(false);         // 城堡态
+    Bd.upgrades.upg_castle = true;
+    const discAt = (st, n) => { st.lvl.hall = n; return SB.economy.hallDiscount(st); };
+    A.lvl.hall = 0; Bd.lvl.hall = 0;
+    const ia = SB.economy.hallInfo(A), ib = SB.economy.hallInfo(Bd);
+
+    check('议价第 1 级增量 == 首级省耗率（面板 rate 与结算同源）',
+      Math.abs(discAt(A, 1) - ia.rate) < 1e-12,
+      'rate=' + ia.rate + ' 第1级=' + discAt(A, 1));
+
+    check('议价渐近上限：议事厅与城堡同为 60%，城堡不抬上限',
+      Math.abs(ia.limit - 0.60) < 1e-12 && Math.abs(ib.limit - 0.60) < 1e-12,
+      'hall=' + ia.limit + ' castle=' + ib.limit);
+
+    check('城堡 rate = 议事厅 ×1.5（hallSaveMul 0.5 只加快递减、不抬上限）',
+      Math.abs(ib.rate - ia.rate * 1.5) < 1e-12,
+      'rate ' + ia.rate + ' → ' + ib.rate);
+
+    let mono = true, below = true, ratioErr = 0, worst = '';
+    for (let n = 1; n <= 40; n++) {
+      const d0 = discAt(A, n - 1), d1 = discAt(A, n), d2 = discAt(A, n + 1);
+      const gPrev = d1 - d0, gNext = d2 - d1;
+      if (!(d1 > d0)) mono = false;
+      if (!(d1 < ia.limit)) below = false;
+      if (gPrev > 0) {
+        const r = gNext / gPrev;
+        if (Math.abs(r - ia.rho) > ratioErr) {
+          ratioErr = Math.abs(r - ia.rho);
+          worst = 'n=' + n + ' 比值=' + r.toFixed(9);
+        }
+      }
+    }
+    check('议价每级增量严格等比递减（相邻比值恒为 ρ，1~40 级）',
+      ratioErr < 1e-9,
+      '最大偏差=' + ratioErr + (worst ? '（' + worst + '，ρ=' + ia.rho.toFixed(9) + '）' : '') +
+      '；议事厅 1/10/25/40 级=' + [1, 10, 25, 40].map(n => (discAt(A, n) * 100).toFixed(1) + '%').join('/'));
+    check('议价折扣严格单调递增且永不越过上限（1~40 级）',
+      mono && below,
+      '单调=' + mono + ' 恒低于上限=' + below + ' 40级=' + (discAt(A, 40) * 100).toFixed(2) + '%');
+  }
   check('upg_horseshoe: need=horseshoe, luxuryMul=0.5（与马具相乘 +100%）',
     um.upg_horseshoe && um.upg_horseshoe.need === 'horseshoe' && um.upg_horseshoe.luxuryMul === 0.5,
     'horseshoe=' + JSON.stringify(um.upg_horseshoe));

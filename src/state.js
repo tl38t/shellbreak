@@ -553,6 +553,12 @@
        * 必须放在基础表里，否则 migrateRun 会把它当成未知字段丢掉，离线补算永远为 0。
        * 读取当次会手删（game.boot），不进运行状态。 */
       _ts: 0,
+      /* 存档序号（2026-10-29）：TapTap 原生快照的提交顺序，云端防倒退以它为主键
+       * （`t` 是本周目逻辑秒，轮回后归零 ⇒ 拿它比新旧必错）。
+       * ⚠️ 必须登记在这里：migrateRun 是 `for (k in raw) if (k in base)`，不在模板里的
+       *    顶层字段**读档时会被丢掉**（与上面 `_ts` 同一条纪律）。
+       * 由 state.saveRun 每次写盘时刷新（SB.store.nextNativeRevision）。 */
+      _saveSeq: 0,
       /* ERA9（寻光纪 · 本次实装）：星图太阳帆累加器 + G.E.E.K 运行态种子。
        *   sunSails     —— 太阳帆总数（**无限**，无上限）；各发射场独立按周期发射该场等级数量的太阳帆。
        *                   每帆 +0.05 热液能/秒（进 hydroAlloc 供给侧，不进库存）。
@@ -581,7 +587,13 @@
        *   dysonPopupPending —— 离线补算期间达成竣工、待结算窗关闭后再播的挂起旗（见下）。
        * ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底自动带出默认值（与 geek 同机制）。 */
       dysonNodes: 0, launchMode: 'sail',
-      dysonDone: false, dysonPopupSeen: false, dysonPopupPending: false
+      dysonDone: false, dysonPopupSeen: false, dysonPopupPending: false,
+      /* 建造追踪（2026-10-29）：角落小框跟踪的目标，格式 `kind:id[@lv]`
+       * （'bld:workshop@0' / 'wonder:wonder_lighthouse' / 'craft:craft_rope'）。
+       * ⚠️ **必须出现在这张表里**：`state-migrate.migrateRun` 是
+       *    `for (k in raw) if (k in base)` 的白名单，freshRun 里没有的键会在读档时
+       *    被静默丢掉 —— 表现是「每次重启追踪就没了」，且不报任何错（同族坑见 JUDGMENTS 五点）。 */
+      track: ''
     };
   }
 
@@ -702,65 +714,112 @@
     }
     return m;
   }
-  /* 2026-10-23 潮汐之树：旧 PERKS 账本（meta.perks 旧 id）迁移到新 TIDE_TREE 节点等级。
-   * 已迁移（无旧 id）⇒ 幂等跳过；旧档无此键 ⇒ 不动。映射口径（见每日日志 / docs/JUDGMENTS）：
-   *   · 同键保留：housePlan / autoStudy / autoCivic / autoEvent / shellSurvey / wonderBlueprint /
-   *     coralPact / algaeCrop / furnaceBoost / craftQuota / luxuryPact / matStore（链 + 尾）
+  /* ── 潮汐之树迁移（2026-10-23 引入 · 2026-10-29 修正）────────────────────────
+   * 旧 PERKS 账本（meta.perks 旧 id）→ 新 TIDE_TREE 节点等级。映射口径：
+   *   · 同键保留：housePlan / autoStudy / autoCivic / autoEvent / autoCraft1-3
+   *   · shellSurvey → shellSurvey1/2/3 · wonderBlueprint → wonderBlueprint1/2
+   *   · coralPact / algaeCrop / furnaceBoost / craftQuota / luxuryPact / matStore → 链 + 尾
    *   · mineTax → 拆 minerPact + quarryPact（两链都给，等价旧「矿脉税契」同时管三线）
-   *   · popcap → startPop（max 三档，取最高 +min(L,3)）
-   *   · autoClicker1/2/3 → autoClick（n:3，档数相加）
-   *   · scienceStart → startScience（开局科技）· d1/d2/d3（thin）→ thinShell（薄壳）
-   *   · autoCraft1/2/3 → 新 autoCraft1/2/3（各 n:1）· autoCraft 链同键保留语义
+   *   · popcap → startPop1-3 · autoClicker1-3 → autoClick · scienceStart → startScience
+   *   · d1/d2/d3 → thinShell
    *   · 退役（丢弃）：g1/g2/g3 / c1/c2 / coldStore / offline / civicArchive / civicPlan /
    *     govRoutine / tideProof / legacyCraft / sacrament / buildSave / food / coral
-   * 链映射（旧 +1/级、新各节点 +2 单位、尾 +1/级）：L≥1→节点1，L≥3→节点2，L≥5→节点3，尾=max(0,L-6)。 */
+   * 链映射（旧 +1/级、新各节点 +2 单位、尾 +1/级）：L≥1→节点1，L≥3→节点2，L≥5→节点3，尾=max(0,L-6)。
+   *
+   * ⚠️⚠️ 2026-10-29 修的是**幂等哨兵撞名**（P0，线上带病 6 天，判据见 docs/JUDGMENTS.md 五点二十九）：
+   *   原判据是「perks 里出现任意一个旧 id ⇒ 视为未迁移」，而那 40 个旧 id 里有 **7 个同时是
+   *   现行 TIDE_TREE 的节点 id**（autoEvent / housePlan / autoCraft1 / autoCraft2 / autoCraft3 /
+   *   autoStudy / autoCivic）。玩家只要买过任一个 ⇒ **每次启动**都判「未迁移」⇒ `meta.perks = nv`
+   *   整体重算 ⇒ 所有新体系节点（craftQuota1… / minerPact1… / autoClick…）被静默删除，而
+   *   `meta.spent` 一个字都不退 ⇒ 玩家体感是「轮回了点数白花了、买的东西没了」，且**重买会在
+   *   下一次启动再被没收一次**（真机复现：7 节点 → 一次重载 → 只剩 autoCraft1）。
+   * 三条修正（缺一条都不算修好）：
+   *   ① 哨兵只认「迁移后必然消失」的旧 id（= 全量旧 id 减去那 7 个桥接 id）；
+   *   ② 显式版本键 `meta.perksVersion`：写过即视为已迁移，此后永不重跑（哨兵只用于兼容老档）；
+   *   ③ 迁移时**保留存量等级**：`old` 里凡是「现行 TIDE_TREE 节点」的等级取 max 并入 nv
+   *      ⇒ 「再跑一次」天然幂等，买过的新节点不会被吞。
+   * ⚠️ 新增桥接 id（旧新同名）时必须同步加进 LEGACY_BRIDGE_IDS，否则 ① 会重新踩雷。 */
+  var PERKS_VERSION = 1;
+  /* 旧 PERKS 账本 id 全量（含 7 个与现行 TIDE_TREE 重名的桥接 id）。 */
+  var LEGACY_PERK_IDS = ['food','coral','g1','g2','g3','c1','c2','d1','d2','d3','popcap','housePlan',
+    'coldStore','offline','matStore','autoCraft1','autoCraft2','autoCraft3','legacyCraft',
+    'wonderBlueprint','shellSurvey','civicArchive','civicPlan','govRoutine','tideProof',
+    'scienceStart','autoStudy','autoCivic','coralPact','mineTax','algaeCrop','furnaceBoost',
+    'sacrament','craftQuota','luxuryPact','buildSave','autoClicker1','autoClicker2','autoClicker3','autoEvent'];
+  /* ⚠️ 这 7 个 id 迁移后**依然存在**（潮汐之树有同 id 节点）⇒ 绝不能当「未迁移」判据。 */
+  var LEGACY_BRIDGE_IDS = { autoEvent: 1, housePlan: 1, autoCraft1: 1, autoCraft2: 1,
+    autoCraft3: 1, autoStudy: 1, autoCivic: 1 };
   function migratePerks(meta) {
     if (!meta || !meta.perks || typeof meta.perks !== 'object') return;
+    if (Number(meta.perksVersion) >= PERKS_VERSION) return;   // ② 已迁移，永不重跑
     var old = meta.perks;
-    var OLD = ['food','coral','g1','g2','g3','c1','c2','d1','d2','d3','popcap','housePlan',
-      'coldStore','offline','matStore','autoCraft1','autoCraft2','autoCraft3','legacyCraft',
-      'wonderBlueprint','shellSurvey','civicArchive','civicPlan','govRoutine','tideProof',
-      'scienceStart','autoStudy','autoCivic','coralPact','mineTax','algaeCrop','furnaceBoost',
-      'sacrament','craftQuota','luxuryPact','buildSave','autoClicker1','autoClicker2','autoClicker3','autoEvent'];
-    for (var oi = 0; oi < OLD.length; oi++) if (old[OLD[oi]] !== undefined) break;
-    if (oi >= OLD.length) return; // 已迁移，幂等
-    var nv = {}, lvOf = function (id) { return (old[id] || 0); };
+    /* ① 判据只用「迁移后必然消失」的 id：桥接 id 一个都不许进来。 */
+    var needs = false;
+    for (var oi = 0; oi < LEGACY_PERK_IDS.length; oi++) {
+      var lid = LEGACY_PERK_IDS[oi];
+      if (LEGACY_BRIDGE_IDS[lid]) continue;
+      if (old[lid] !== undefined) { needs = true; break; }
+    }
+    var nv = {}, lvOf = function (id) { var v = Number(old[id]); return (isFinite(v) && v > 0) ? v : 0; };
     function chain(n1, n2, n3, tail, levels) {
       if (levels >= 1) nv[n1] = 1;
       if (levels >= 3) nv[n2] = 1;
       if (levels >= 5) nv[n3] = 1;
       var t = levels - 6; if (t > 0) nv[tail] = t;
     }
-    if (lvOf('housePlan') > 0) nv.housePlan = 1;
-    if (lvOf('autoStudy') > 0) nv.autoStudy = 1;
-    if (lvOf('autoCivic') > 0) nv.autoCivic = 1;
-    if (lvOf('autoEvent') > 0) nv.autoEvent = 1;
-    if (lvOf('shellSurvey') >= 1) nv.shellSurvey1 = 1;
-    if (lvOf('shellSurvey') >= 2) nv.shellSurvey2 = 1;
-    if (lvOf('shellSurvey') >= 3) nv.shellSurvey3 = 1;
-    if (lvOf('wonderBlueprint') >= 1) nv.wonderBlueprint1 = 1;
-    if (lvOf('wonderBlueprint') >= 3) nv.wonderBlueprint2 = 1;
-    chain('coralPact1','coralPact2','coralPact3','coralPactTail', lvOf('coralPact'));
-    chain('algaeCrop1','algaeCrop2','algaeCrop3','algaeCropTail', lvOf('algaeCrop'));
-    chain('furnaceBoost1','furnaceBoost2','furnaceBoost3','furnaceBoostTail', lvOf('furnaceBoost'));
-    chain('craftQuota1','craftQuota2','craftQuota3','craftQuotaTail', lvOf('craftQuota'));
-    chain('luxuryPact1','luxuryPact2','luxuryPact3','luxuryPactTail', lvOf('luxuryPact'));
-    chain('matStore1','matStore2','matStore3','matStoreTail', lvOf('matStore'));
-    chain('minerPact1','minerPact2','minerPact3','minerPactTail', lvOf('mineTax'));
-    chain('quarryPact1','quarryPact2','quarryPact3','quarryPactTail', lvOf('mineTax'));
-    if (lvOf('popcap') >= 1) nv.startPop1 = 1;
-    if (lvOf('popcap') >= 2) nv.startPop2 = 1;
-    if (lvOf('popcap') >= 3) nv.startPop3 = 1;
-    var ac = (lvOf('autoClicker1') > 0 ? 1 : 0) + (lvOf('autoClicker2') > 0 ? 1 : 0) + (lvOf('autoClicker3') > 0 ? 1 : 0);
-    if (ac > 0) nv.autoClick = Math.min(3, ac);
-    if (lvOf('scienceStart') > 0) nv.startScience = 1;
-    if (lvOf('d1') + lvOf('d2') + lvOf('d3') > 0) nv.thinShell = 1;
-    if (lvOf('autoCraft1') > 0) nv.autoCraft1 = 1;
-    if (lvOf('autoCraft2') > 0) nv.autoCraft2 = 1;
-    if (lvOf('autoCraft3') > 0) nv.autoCraft3 = 1;
-    /* 退役项（food/coral/g1/g2/g3/c1/c2/coldStore/offline/civicArchive/civicPlan/govRoutine/
-       tideProof/legacyCraft/sacrament/buildSave）直接丢弃，不进 nv。 */
+    if (needs) {
+      if (lvOf('housePlan') > 0) nv.housePlan = 1;
+      if (lvOf('autoStudy') > 0) nv.autoStudy = 1;
+      if (lvOf('autoCivic') > 0) nv.autoCivic = 1;
+      if (lvOf('autoEvent') > 0) nv.autoEvent = 1;
+      if (lvOf('shellSurvey') >= 1) nv.shellSurvey1 = 1;
+      if (lvOf('shellSurvey') >= 2) nv.shellSurvey2 = 1;
+      if (lvOf('shellSurvey') >= 3) nv.shellSurvey3 = 1;
+      if (lvOf('wonderBlueprint') >= 1) nv.wonderBlueprint1 = 1;
+      if (lvOf('wonderBlueprint') >= 3) nv.wonderBlueprint2 = 1;
+      chain('coralPact1','coralPact2','coralPact3','coralPactTail', lvOf('coralPact'));
+      chain('algaeCrop1','algaeCrop2','algaeCrop3','algaeCropTail', lvOf('algaeCrop'));
+      chain('furnaceBoost1','furnaceBoost2','furnaceBoost3','furnaceBoostTail', lvOf('furnaceBoost'));
+      chain('craftQuota1','craftQuota2','craftQuota3','craftQuotaTail', lvOf('craftQuota'));
+      chain('luxuryPact1','luxuryPact2','luxuryPact3','luxuryPactTail', lvOf('luxuryPact'));
+      chain('matStore1','matStore2','matStore3','matStoreTail', lvOf('matStore'));
+      chain('minerPact1','minerPact2','minerPact3','minerPactTail', lvOf('mineTax'));
+      chain('quarryPact1','quarryPact2','quarryPact3','quarryPactTail', lvOf('mineTax'));
+      if (lvOf('popcap') >= 1) nv.startPop1 = 1;
+      if (lvOf('popcap') >= 2) nv.startPop2 = 1;
+      if (lvOf('popcap') >= 3) nv.startPop3 = 1;
+      var ac = (lvOf('autoClicker1') > 0 ? 1 : 0) + (lvOf('autoClicker2') > 0 ? 1 : 0) + (lvOf('autoClicker3') > 0 ? 1 : 0);
+      if (ac > 0) nv.autoClick = Math.min(3, ac);
+      if (lvOf('scienceStart') > 0) nv.startScience = 1;
+      if (lvOf('d1') + lvOf('d2') + lvOf('d3') > 0) nv.thinShell = 1;
+      if (lvOf('autoCraft1') > 0) nv.autoCraft1 = 1;
+      if (lvOf('autoCraft2') > 0) nv.autoCraft2 = 1;
+      if (lvOf('autoCraft3') > 0) nv.autoCraft3 = 1;
+      /* 退役项（food/coral/g1/g2/g3/c1/c2/coldStore/offline/civicArchive/civicPlan/govRoutine/
+         tideProof/legacyCraft/sacrament/buildSave）直接丢弃，不进 nv。 */
+    }
+    /* ③ 保留存量等级：只并「现行 TIDE_TREE 节点」的项。
+     *    桥接 id（autoCraft1…）+ 新体系 id（autoClick / craftQuota1…）由此保住；
+     *    纯旧 id（d1 / popcap / autoClicker1…）与退役项一律丢弃（映射结果已在 nv 里）。 */
+    var nodeIds = null;
+    if (SB.TIDE_TREE && SB.TIDE_TREE.length) {
+      nodeIds = {};
+      for (var ti = 0; ti < SB.TIDE_TREE.length; ti++) nodeIds[SB.TIDE_TREE[ti].id] = 1;
+    }
+    var legacySet = null;
+    if (!nodeIds) {   // 兜底（TIDE_TREE 尚未就绪）：凡不属旧账本的键（= 新体系 id）照留
+      legacySet = {};
+      for (var li = 0; li < LEGACY_PERK_IDS.length; li++) legacySet[LEGACY_PERK_IDS[li]] = 1;
+    }
+    for (var k in old) {
+      if (!Object.prototype.hasOwnProperty.call(old, k)) continue;
+      if (nodeIds ? !nodeIds[k] : !!legacySet[k]) continue;
+      var lv = Number(old[k]);
+      if (!isFinite(lv) || lv <= 0) continue;
+      nv[k] = Math.max(Number(nv[k]) || 0, lv);
+    }
     meta.perks = nv;
+    meta.perksVersion = PERKS_VERSION;   // ② 写完就钉住，下不为例
   }
   function loadMeta() {
     var rawStr = null;
@@ -778,9 +837,11 @@
       return emptyMeta();
     }
   }
+  var nativeMetaText = null;
   function saveMeta(meta) {
     try {
       var txt = JSON.stringify(meta);
+      nativeMetaText = txt;
       if (SB.store) {
         SB.store.writeLocal(SB.CFG.SAVE_KEY, txt);
         /* 异步镜像到 tap.setStorage / tapfile（不 await，见 save-storage.js 的策略说明）。 */
@@ -941,8 +1002,23 @@
         diagSet({ lastPatchKey: badKeys[0], skipKey: badKeys[0] }, false);
         diagBump('patch', badKeys.length, false);
       }
+      if (SB.store && SB.store.fsAvailable && SB.store.fsAvailable()
+          && SB.store.nextNativeRevision) {
+        var numbered = {};
+        for (key in payload) if (Object.prototype.hasOwnProperty.call(payload, key)) numbered[key] = payload[key];
+        numbered._saveSeq = SB.store.nextNativeRevision();
+        payload = numbered;
+      }
       var txt = JSON.stringify(payload);
-      /* 主通道：localStorage（同步 —— 存档是每 5 秒的热路径，绝不等异步）。
+      /* TapTap 原生用户目录是主存档落点。meta/run 作为同一份快照排队写入；
+       * localStorage 失败也继续写，避免最脆弱通道控制持久化结果。 */
+      if (SB.store && SB.store.writeNativeSave) {
+        var liveMeta = SB.game && SB.game.meta ? SB.game.meta() : null;
+        var metaTxt = liveMeta ? JSON.stringify(liveMeta)
+          : (nativeMetaText || SB.store.readLocal(CFG.SAVE_KEY));
+        if (metaTxt) SB.store.writeNativeSave(metaTxt, txt);
+      }
+      /* 同步缓存：网页以此为主；TapTap 的原生完整快照已在上面排队。
        * ⚠️ 2026-10-27：失败不再静默，走下面统一的 fail 记账（原先 catch(e){} 全吞）。 */
       var ok = SB.store ? SB.store.writeLocal(SB.CFG.RUN_KEY, txt)
         : !!(root.localStorage && (root.localStorage.setItem(SB.CFG.RUN_KEY, txt), true));

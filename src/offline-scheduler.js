@@ -73,6 +73,7 @@
     'res.stone':      'res-stone',
     'res.titanium':   'res-titanium',
     'res.fuel':       'res-fuel',
+    'res.rocketFuel': 'res-fuel',
     'res.science':    'res-science',
     'res.culture':    'res-culture',
     'res.faith':      'res-faith',

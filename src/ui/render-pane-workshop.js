@@ -240,6 +240,20 @@
         h += '<button class="btn' + (why ? ' buy' : '') + '" data-craft="' + c.id + '"' +
           ' data-craft-amt="' + amt + '"' + (why ? ' disabled' : '') + '>' + lbl + '</button>';
       }
+      /* 建造追踪（2026-10-29）：材料不足的配方给一个「追踪」。
+       * ⚠️ 配方是**可反复制造**的，所以 craft 类目标**不**在制造成功后自动解除
+       *    （与「建成即解除」的建筑/奇观不同）——玩家要的是「能造了就叫我」，
+       *    造完一批还想继续造，钉着更顺手。
+       * ⚠️ 未解锁的配方在上面的 `continue` 已经整行跳过了，这里 `why` 只剩「材料不足」。
+       * ⚠️ 必须拼进 `.craftbtns` 内部（四颗数量钮那一组）：本行是两列 grid，
+       *    往外插一个节点会掉进隐式列、把卡片挤变形。 */
+      if (why) {
+        var _cton = s.track === 'craft:' + c.id;
+        h += '<button type="button" class="btn track-toggle' + (_cton ? ' on' : '') + '"' +
+          ' data-track="craft:' + c.id + '" aria-pressed="' + (_cton ? 'true' : 'false') + '"' +
+          ' title="' + (_cton ? '已追踪：材料够了会在屏幕角落提示' : '追踪这个配方：材料够了在屏幕角落提示你') + '">' +
+          (_cton ? '已追踪' : '追踪') + '</button>';
+      }
       h += '</div>' + autoSlotCtl(s, c) + '</div>';
     }
     if (!shown) return '<div class="row"><div class="nm">（还没有配方）</div></div>';

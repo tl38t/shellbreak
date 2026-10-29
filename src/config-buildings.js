@@ -367,11 +367,12 @@
      * ⚠️ 实现在 economy.costOf（读 s.lvl.hall），改这里不改那边会静默失效。 */
     /* 同石屋：解锁权双写在「石工」（建筑侧 requiredTech === 科技侧 eff.unlockBuild），无库存门槛。
      * ⚠️ 2026-10-06 城堡「真升级」：**城堡不是另一座建筑，而是这座建筑升级后的名字。**
-     *   买下工坊升级 `upg_castle`（议价减耗 +50% / 每级 +50 容量）后，面板这一行
+     *   买下工坊升级 `upg_castle`（每级省耗 ×1.5 = rate 0.025→0.0375，渐近上限**不变**仍是 60%；
+     *   另加每级 +50 容量）后，面板这一行
      *   从「议事厅」改写成「城堡」——**等级、造价曲线、建造动作全是同一条**，只是名字与
      *   每级效果升级了（render 读 `s.upgrades.upg_castle` 切名，见 ui/render.js）。
      *   ⇒ 不存在「议事厅退役」这回事，也就**不需要** `retiredBy` 字段。 */
-    { id: 'hall', icon: 'assets/building-icons/era-1/era1-hall.png',     name: '议事厅',   ratio: 1.2, cost: {stone: 80, coral: 60}, desc: '随等级降低所有建筑下一级成本；升级为城堡后议价效果 +50%、并额外给纪元三及之前有上限资源 +50 容量/级',
+    { id: 'hall', icon: 'assets/building-icons/era-1/era1-hall.png',     name: '议事厅',   ratio: 1.2, cost: {stone: 80, coral: 60}, desc: '每级降低所有建筑下一级造价，但越升省得越少；升级为城堡后减得更多，并额外给纪元三及之前有上限资源 +50 容量/级',
       requiredTech: ['masonry'] },
 
     /* ---- 食物三旋钮（猫国 pasture / aqueduct / barn 的对应物）----

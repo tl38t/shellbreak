@@ -622,17 +622,19 @@
       desc: '5 个政策卡槽；礁栖核心建筑建造消耗 −10%。' , flavor: '朕即国家。' },
 
     /* ══ ERA4 政体（2026-10-01 用户设计稿）════════
-     * 商人共和国：5 个万能槽（与君主制同数）；幸福度消耗 −30%（happyConsumeMul 0.7，
-     *   economy.happyBurn 读）。效果不走平坦加值/秒，是消耗侧的偏移。
-     * 神权政体：3 万能 + 1 宗教槽（relig 槽型，只吃天赋神权卡）；每级学术区建筑 +1 信仰、
-     *   每级市政区建筑 +0.5 信仰（faithPerAcademy/faithPerCivic，economy.faithRate 读，
-     *   加在基础人口产出之上）。 */
+     * 商人共和国：3 万能 + 1 工造 + 1 民生（共 5 槽；与君主制**同数但配方不同**）。
+     *   ⚠️ 文案曾误写「5 个万能槽」——万能只有 3 个（2026-10-29 玩家报「槽位数量与文本不符」后修正）。
+     *   幸福度消耗 −30%（happyConsumeMul 0.7，economy.happyBurn 读）。效果不走平坦加值/秒，是消耗侧的偏移。
+     * 神权政体：3 万能 + 2 宗教槽（relig 槽型，只吃天赋神权卡；宗座教堂奇观 effect.religSlot 再 +1）；
+     *   每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰（faithPerAcademy/faithPerCivic，
+     *   economy.faithRate 读，加在基础人口产出之上）。
+     *   ⚠️ 文案曾误写「+1 宗教槽」（实际 relig:2，e2e civics.mjs 断言钉的就是 3+2）——2026-10-29 修正。 */
     { id: 'merchant_republic', name: '商人共和国', slots: { wild: 3, prod: 1, grow: 1 }, effect: {},
       happyConsumeMul: 0.7,
-      desc: '5 个万能政策卡槽；幸福度消耗 −30%。' , flavor: '有七省，无联合。' },
+      desc: '5 个政策卡槽（3 万能 + 1 工造 + 1 民生）；幸福度消耗 −30%。' , flavor: '有七省，无联合。' },
     { id: 'theocracy', name: '神权政体', slots: { wild: 3, relig: 2 }, effect: {},
       faithPerAcademy: 1, faithPerCivic: 0.5,
-      desc: '3 万能槽 + 1 宗教槽；每级学术区建筑 +1 faith、每级市政区建筑 +0.5 信仰。' , flavor: '愿你的国降临…' },
+      desc: '3 万能槽 + 2 宗教槽；每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰。' , flavor: '愿你的国降临…' },
 
     /* ══ ERA6 政体（2026-10-12 用户规格 · 由《神恩与威权》《层级理论》《权责对等》各解锁一条）══
      * 三个都是 7 万能槽（e2e 槽数断言已随多卡槽升维放开）。效果非平坦：

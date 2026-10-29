@@ -6,6 +6,12 @@
   var SB = root.SB || (root.SB = {});
   var warmstoneTargetCache = { state: null, rate: null, season: null, until: -Infinity, miners: 0 };
   var VOID_ENDING_RUN_KEY = 'shellbreak.ai.void-ending-run';
+  /* 城堡议价的「边际已尽」门槛：下一级还能多省 ≤ 此值就不再优先升议事厅（见
+   * priorityBuildingUpgrade）。2026-10-29 议价换成等比递减曲线后新增 ——
+   * 旧判据 `discount < limit` 在渐近曲线上恒为真，AI 会永远卡在升议事厅。
+   * 0.5%/级 是等价迁移值（旧曲线城堡约 17 级吃满上限，新曲线约 33 级跌破 0.5%），
+   * 只影响 AI 的先后顺序，不影响任何结算 ⇒ 属待标定参数。 */
+  var CASTLE_MIN_NEXT_GAIN = 0.005;
 
   function markVoidEndingRun() {
     try {
@@ -253,16 +259,21 @@
     return null;
   }
   function priorityBuildingUpgrade(s) {
-    /* 城堡就是 upg_castle 后的统治核心 hall。议价减耗未到真实软上限前，
-     * 城堡升级压过普通扩建；达到后先补齐核心区巢、石屋、砂矿坑和工坊，
-     * 核心区目标暂时都不能升级时，再把灯塔作为区外次优先建筑。 */
+    /* 城堡就是 upg_castle 后的统治核心 hall。议价减耗还有**可观**边际收益时，
+     * 城堡升级压过普通扩建；收益已低时先补齐核心区巢、石屋、砂矿坑和工坊，
+     * 核心区目标暂时都不能升级时，再把灯塔作为区外次优先建筑。
+     * ⚠️ 2026-10-29：旧判据是 `discount < discountLimit`（「未到软上限就继续升城堡」）。
+     *   议价曲线换成**等比递减**后，discount 是渐近的、永远 < limit ⇒ 该条件**恒为真**，
+     *   城堡一装上 AI 就再也不补别的建筑（退化成只会升议事厅）。这是换曲线带出来的真 bug。
+     *   ⇒ 改用「下一级还能多省多少」做门槛：跌破 CASTLE_MIN_NEXT_GAIN 即视为边际已尽。
+     *   ⚠️ 阈值 0.5%/级 是**等价迁移值**（旧曲线城堡约 17 级吃满上限；新曲线约 33 级跌破
+     *   0.5%）。它只决定 AI 先升城堡还是先补建筑，不改变任何结算，属待标定参数。 */
     var castleInstalled = !!(s.upgrades && s.upgrades.upg_castle);
     var hallLevel = (s.lvl && s.lvl.hall) || 0;
-    var discount = SB.economy.hallDiscount ? SB.economy.hallDiscount(s) : 0;
-    var discountLimit = SB.economy.hallDiscountLimit ? SB.economy.hallDiscountLimit(s) : 0.5;
-    /* 议价还没到软上限时，即使下一等级暂时买不起，也继续把 hall 保留为目标；
+    var nextGain = (SB.economy.hallInfo ? SB.economy.hallInfo(s).nextGain : 1);
+    /* 议价还有明显边际收益时，即使下一等级暂时买不起，也继续把 hall 保留为目标；
      * 这样材料岗位/工艺规划会为议事厅攒料，不会因短缺跳去升普通建筑或灯塔。 */
-    if (castleInstalled && hallLevel > 0 && discount + 1e-9 < discountLimit && availableBuilding(s, 'hall'))
+    if (castleInstalled && hallLevel > 0 && nextGain > CASTLE_MIN_NEXT_GAIN && availableBuilding(s, 'hall'))
       return 'hall';
     var ids = ['nest', 'coralhouse', 'siltpit', 'workshop', 'lighthouse'];
     for (var i = 0; i < ids.length; i++)

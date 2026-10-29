@@ -105,6 +105,20 @@
     var s = run();
     if (!s) return;
 
+    /* 顶栏资源格 → 资源详情面板（2026-10-29）：纯读数面板，不改游戏状态。
+     * ⚠️ 从 target 往上 closest 回整格：`.res` 里还有图标/名称/速率几个子节点，
+     *    点在子节点上也必须能开（与 [data-era]/[data-slot] 同一写法）。
+     * ⚠️ 必须排在 `if (!s) return` 之后没问题（它读 rates 要 s），但要排在
+     *    「点弹窗外关闭」那些纯界面动作**之后** —— 面板本身是 modal，点它自己的
+     *    格子不涉及关闭逻辑。 */
+    var resCell = t.closest && t.closest('[data-res-detail]');
+    if (!resCell && d.resDetail !== undefined) resCell = t;
+    if (resCell) {
+      var resKey = (resCell.dataset || {}).resDetail;
+      if (resKey && SB.ui.render.showResDetail) SB.ui.render.showResDetail(resKey);
+      return;
+    }
+
     /* 市政 / 工坊页内的二级标签是纯视图状态；由 render 模块保留跨 2 秒重绘的选择。 */
     if (d.civicView) {
       if (SB.ui.render.setCivicView(d.civicView)) SB.ui.render.renderPanes();
@@ -222,8 +236,24 @@
      * 它们只被玩家动作改变。只靠循环里的 2 秒节流，点完要等一下才揭示，
      * 玩家会以为「点了没反应」。 */
     if (d.build) {
-      if (SB.habitat.build(s, d.build, emit)) { SB.game.markDirty(); SB.game.renderAll(); }
+      if (SB.habitat.build(s, d.build, emit)) {
+        /* 追踪目标一旦建成/升级就立刻解绑（不必等 track-dock 那一帧的 @lv 自动判定，
+         * 否则小框会有最多 200ms 还在显示上一级的数字）。 */
+        if (SB.ui.track && s.track && s.track.indexOf('bld:' + d.build + '@') === 0) SB.ui.track.clear();
+        SB.game.markDirty(); SB.game.renderAll();
+      }
       SB.game.pumpTech(s, emit);
+      return;
+    }
+    /* 建造追踪（2026-10-29 · 玩家提议）：按下按钮只把追踪目标写进 s.track，
+     * 结算逻辑一概不经过这里（小框只是「读数 + 跳转」）。
+     * ⚠️ 必须走 document 级委托：巢穴/工坊/奇观三个面板每 2 秒整块重画，
+     *    挂在按钮上的监听会随第一次重画失效（表现为点不动、且不报错）。
+     * ⚠️ 再点一次 = 取消（track-dock.track 内部做异或），否则玩家没有退出路径。 */
+    if (d.track) {
+      var _tk = String(d.track).split(':');
+      if (SB.ui.track) SB.ui.track.track(_tk[0], _tk.slice(1).join(':'));
+      SB.game.markDirty(); SB.game.renderAll();
       return;
     }
     /* 区域建筑自动建造/升级开关：翻 s.autoUpg[id]。
@@ -449,6 +479,8 @@
     if (d.wonder) {
       var wonderModal = t.closest && t.closest('.tree-modal');
       if (SB.workshop.build(s, d.wonder, emit)) {
+        /* 奇观建成即解绑（与建筑同口径；奇观没有等级概念，所以判据是前缀相等） */
+        if (SB.ui.track && s.track === 'wonder:' + d.wonder) SB.ui.track.clear();
         if (wonderModal) SB.ui.render.hideModal();
         SB.game.markDirty(); SB.game.renderAll();
       }

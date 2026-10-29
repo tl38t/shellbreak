@@ -465,12 +465,13 @@
       instituteSci: 0.5,
       cost: { stone: 100, ironBracket: 50 },
       desc: '研究所升级：学者科技产出 +100%（每级合计 ×100%）。' },
-    /* 城堡：need=城堡(科技)。效果：① 议价减耗（hallSaveMul 0.5，HALL_SAVE 每级 ×1.5、
-     *   软上限固定基础 50%、其它仓库叠加到最高 75%，走 getLimitedDR 边际递减）；
+    /* 城堡：need=城堡(科技)。效果：① 议价减耗（hallSaveMul 0.5 ⇒ 每级省耗率 ×1.5，
+     *   渐近上限仍取基础 60%、其它仓库叠加到最高 75%；2026-10-29 起换**等比递减**曲线，
+     *   不再和容量轴共用 getLimitedDR —— 后者的 0.75 次幂末段会回升，与「越升越少」相反）；
      *   ② 每级议事厅给纪元三及之前有上限资源 +50 容量（castleCap 50），走 getLimitedDR 衰减。
      *   cost 50 石梁 + 50 硬化珊瑚。 */
     { id: 'upg_castle', name: '城堡', need: 'castle', capEra: 3, upgradesBuilding: 'hall',
-      buildingDesc: '随统治核心等级降低所有建筑下一级成本；' +
+      buildingDesc: '每级降低所有建筑下一级造价（越升省得越少）；' +
         '每级给纪元三及之前有上限资源 +50 容量；市政点 +0.05/级/秒。' +
         '装政策卡「王权神授」每级再 +10% 信仰产出',
       hallSaveMul: 0.5, castleCap: 50,

@@ -351,6 +351,12 @@ html[data-ui-theme="day"] .ui-setting-row.is-locked small { color:#96650f; }
 .ui-setting-btn:active { border-color:var(--cyan); background:rgba(255,255,255,.13); }
 .ui-setting-btn--danger { color:var(--red); border-color:rgba(248,113,113,.4); }
 .ui-setting-btn--danger:hover { background:rgba(248,113,113,.12); border-color:rgba(248,113,113,.6); }
+/* 手动保存反馈（2026-10-29）：「立即保存」点完的结论落在这行小字上。
+   平时是「进度每 5 秒自动保存一次」，成功后变「已保存 · 10:05」、失败变红给真实原因。
+   ⚠️ 不写死颜色以外的东西：这条要与 .ui-setting-row small 同档（11px / --dim），
+      否则设置面板里会多出一块比正文还显眼的文字。 */
+.ui-setting-hint { display:block; margin:6px 0 0; font-size:11px; line-height:1.5; color:var(--dim); overflow-wrap:anywhere; }
+.ui-setting-hint.error { color:var(--red); }
 .ui-setting-btn--danger:active { background:rgba(248,113,113,.2); border-color:rgba(248,113,113,.85); }
 /* 触屏无 :hover，summary 开关也需 :active 即时反馈 */
 .ui-settings > summary:active { border-color:var(--line); background:var(--panel2); }

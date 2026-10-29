@@ -147,7 +147,7 @@ ST.preserveEmergency(CFG.RUN_KEY, CFG.SAVE_KEY, function (hit) {
 
 /* ⑥⑦⑧ 三组必须在 ⑤ 的异步回调落定之后再跑（⑤ 会清掉副本、改 diag 计数）。
  * 所以它们的标题与调用全部收进 finish()，顶层只声明函数。 */
-function mirrorOnFail() {
+async function mirrorOnFail() {
   console.log('── ⑥ P0-2：主通道写失败时镜像仍然写 ──');
   const ls2 = makeLS();
   ls2.throwOnSet = true;
@@ -155,6 +155,8 @@ function mirrorOnFail() {
   const before = tap.calls.setStorage;
   const ok = SB.state.saveRun(run({ t: 300 }));
   chk('主通道失败时 saveRun 仍返回 false', ok === false);
+  /* 镜像现在按 key 排队，等此前的写入完成，再断言失败分支的新快照也送达。 */
+  await new Promise(resolve => setTimeout(resolve, 0));
   chk('但镜像写确实发生了', tap.calls.setStorage > before,
     'setStorage ' + before + ' → ' + tap.calls.setStorage);
 }
@@ -193,8 +195,8 @@ function gateCheck() {
     /envAvailable\(\)\s*&&\s*SB\.state\.recoverAsync/.test(seg) === false);
 }
 
-function finish() {
-  mirrorOnFail();
+async function finish() {
+  await mirrorOnFail();
   falseSuccess();
   gateCheck();
   console.log(fail === 0 ? '\nALL PASS' : '\n' + fail + ' FAILED');

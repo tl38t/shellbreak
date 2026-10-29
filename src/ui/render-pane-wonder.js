@@ -60,13 +60,26 @@
         (done ? SB.ui.renderCommon.happyBonusNote(s, 'wonder', w.id) : '') + '</div></div>' +
         '<div class="ds">' + wonderDesc + '<span class="wonder-cost">建造材料：' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) + '</span></div>' +
         (!done ? '<span class="wonder-state ' + (why ? 'waiting' : 'ready') + '">' + (why ? '材料不足' : '可建造') + '</span>' : '') +
+        '<span class="wonder-actions">' +
         '<button class="btn' + (done || why ? '' : ' buy') + '" data-wonder="' + w.id + '"' +
         (done || why ? ' disabled' : '') + ' title="' + (why || '') + '">' +
         (function () {
           var wcost = SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost;
           var wtxt = SB.economy.costOwnedTxt(s, wcost);
           return done ? '已建成' : why ? (/^需要先/.test(why) ? '未解锁' : '建不起 ' + wtxt) : '建成 ' + wtxt;
-        })() + '</button></div>';
+        })() + '</button>' +
+        /* 建造追踪（2026-10-29）：只在「材料不足」时给。未解锁的不给（连材料清单都还看不到），
+         * 已建成的也不给。与巢穴建筑行同一个 s.track 与同一个 data-track 委托。
+         * ⚠️ 外面必须包一层 .wonder-actions：本行是 grid-template-areas 布局，
+         *    直接多插一个节点会掉到隐式行里、把卡片撑成一列。 */
+        ((why && !done) ? (function () {
+          var on = s.track === 'wonder:' + w.id;
+          return '<button type="button" class="btn track-toggle' + (on ? ' on' : '') +
+            '" data-track="wonder:' + w.id + '" aria-pressed="' + (on ? 'true' : 'false') + '"' +
+            ' title="' + (on ? '已追踪：材料够了会在屏幕角落提示' : '追踪这座奇观：材料够了在屏幕角落提示你') + '">' +
+            (on ? '已追踪' : '追踪') + '</button>';
+        })() : '') +
+        '</span></div>';
     }
     /* 一座都还没解锁时给一句说明，别留一个只有表头的空面板。
      *（末座奇观解锁后必然有一座可建，所以这里只在开局那段时间出现。） */

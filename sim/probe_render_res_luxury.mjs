@@ -100,7 +100,7 @@ s.gov = 'classical_republic';
 SB.game.renderAll();
 
 const html = doc.getElementById('res').innerHTML;
-const rowM = html.match(/<div class="res[^"]*"><b data-res="luxury"[^]*?<\/span><\/div>/);
+const rowM = html.match(/<div class="res[^"]*"[^>]*><b data-res="luxury"[^]*?<\/span><\/div>/);
 const row = rowM ? rowM[0] : '';
 console.log('--- 奢侈品行 HTML ---\n' + row + '\n');
 
@@ -109,15 +109,15 @@ if (row.length > 0) {
   const iName = row.indexOf('奢侈品');
   const iOut = row.indexOf('产 ');
   ok('① 产/耗已挪到「奢侈品」之后（顺序：名称 → 产/耗）', iName >= 0 && iOut > iName, 'name@' + iName + ' out@' + iOut);
-  ok('① 产/耗紧跟名称（中间没有夹净值等其它节点）', /奢侈品<i class="sd"/.test(row), row.slice(Math.max(0, iName), iName + 60));
-  ok('① 卡面仍含 产/耗 两个数', /\u4ea7\s[\d.]+/.test(row) && /\u8017\s[\d.]+/.test(row));
+  ok('① 产/耗紧跟名称（中间没有夹净值等其它节点）', /奢侈品<\/span><\/span><i class="sd"/.test(row), row.slice(Math.max(0, iName), iName + 60));
+  ok('① 卡面仍含 产/耗 两个数', /\u4ea7\s<span class="lux-out">[\d.]+/.test(row) && /\u8017\s<span class="lux-burn">[\d.]+/.test(row));
   ok('② 长括号解释不再占卡面行（卡面文字里没有「已剔市政」）', row.replace(/title="[^"]*"/g, '').indexOf('已剔市政') < 0);
   ok('② 那句解释改挂 title（hover 仍可读到）', /title="[^"]*已剔市政[^"]*"/.test(row));
   ok('③ 奢侈品行不再重复净值（卡面没有 i.rate）', !/class="rate/.test(row));
 }
 
 /* ── 其它资源行速率显示不受影响（回归）── */
-const kelpM = html.match(/<div class="res[^"]*"><b data-res="kelp"[^]*?<\/span><\/div>/);
+const kelpM = html.match(/<div class="res[^"]*"[^>]*><b data-res="kelp"[^]*?<\/span><\/div>/);
 const kelpRow = kelpM ? kelpM[0] : '';
 ok('④ 回归：藻食行仍正常显示速率（i.rate 未被误禁）', /class="rate/.test(kelpRow), kelpRow.slice(0, 120));
 
@@ -157,13 +157,13 @@ if (row.length > 0) {
   delete s4.gov; s4.wonders = {};
   SB.game.renderAll();
   const h4 = doc.getElementById('res').innerHTML;
-  const r4m = h4.match(/<div class="res[^"]*"><b data-res="luxury"[^]*?<\/span><\/div>/);
+  const r4m = h4.match(/<div class="res[^"]*"[^>]*><b data-res="luxury"[^]*?<\/span><\/div>/);
   ok('⑤ bonus=0（无解释）时不生成 ⓘ', r4m ? !/hover-info-btn/.test(r4m[0]) : false, r4m ? r4m[0] : 'no row');
 }
 
 /* ── 数值一致性：卡面 产−耗 必须等于 happyLedger.net（同一个账本）── */
 if (row.length > 0) {
-  const mOut = row.match(/\u4ea7\s([\d.]+)/), mBurn = row.match(/\u8017\s([\d.]+)/);
+  const mOut = row.match(/\u4ea7\s<span class="lux-out">([\d.]+)/), mBurn = row.match(/\u8017\s<span class="lux-burn">([\d.]+)/);
   const LL = SB.economy.happyLedger(s);
   const shown = (mOut ? +mOut[1] : NaN) - (mBurn ? +mBurn[1] : NaN);
   ok('数值：卡面「产 − 耗」== happyLedger.net（同一口账本）', Math.abs(shown - LL.net) < 0.011,
@@ -180,7 +180,7 @@ if (row.length > 0) {
   s3.happy = 20;                      // 幸福度足够高 ⇒ happyMech > 0 ⇒ 走「按幸福 … 计」分支
   SB.game.renderAll();
   const h3 = doc.getElementById('res').innerHTML;
-  const r3m = h3.match(/<div class="res[^"]*"><b data-res="luxury"[^]*?<\/span><\/div>/);
+  const r3m = h3.match(/<div class="res[^"]*"[^>]*><b data-res="luxury"[^]*?<\/span><\/div>/);
   const r3 = r3m ? r3m[0] : '';
   ok('title 分支二：幸福度>0 时显示「按幸福 X 计」（且仍不出现在卡面正文里）',
     /title="按幸福 [\d.]+ 计/.test(r3) && r3.replace(/title="[^"]*"/g, '').indexOf('按幸福') < 0,
@@ -196,7 +196,7 @@ if (row.length > 0) {
   s2.wonders = {};
   SB.game.renderAll();
   const h2 = doc.getElementById('res').innerHTML;
-  const r2m = h2.match(/<div class="res[^"]*"><b data-res="luxury"[^]*?<\/span><\/div>/);
+  const r2m = h2.match(/<div class="res[^"]*"[^>]*><b data-res="luxury"[^]*?<\/span><\/div>/);
   const r2 = r2m ? r2m[0] : '';
   ok('bonus=0 时不渲染空 title 属性', r2.length > 0 && !/title=""/.test(r2), r2.slice(0, 120));
 }

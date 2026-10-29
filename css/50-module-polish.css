@@ -1126,3 +1126,55 @@ html[data-ui-theme="day"] .gov-option-slots{background:rgba(222,237,231,.42);bor
 html[data-ui-theme="day"] .policy-picker-current{background:#eef5f2;border-color:#c3d6d3;color:#1d3a3d}
 html[data-ui-theme="day"] .policy-picker-current b{color:#12666e}
 html[data-ui-theme="day"] .policy-picker-error{background:#fdecee;border-color:#e5a9b2;color:#a8323f}
+
+/* ── 建造追踪：常驻小框（2026-10-29）──────────────────────────────────────
+ * 节点在 index.html（#trackDock），逻辑在 src/ui/track-dock.js。
+ * 定位用 left/top 而不是 right/bottom：拖动时按指针位置写绝对值，不需要换算坐标系；
+ * 默认位置（没存过时）由这里的 left/bottom 给，一旦拖动过就由 JS 写 left/top 并清掉 bottom。
+ * z-index 46：压在页面内容与底部事件卡之上，但**低于 modal 的 50** ——
+ *   开弹窗时要被遮住，否则玩家会在结算面板上看到一个小框在底下飘。
+ * touch-action:none 是拖动的必需品：不写它，手指一拖就变成页面滚动。 */
+.track-dock{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:46;display:flex;align-items:flex-start;gap:6px;max-width:min(62vw,240px);padding:8px 10px;border:1px solid #33586f;border-radius:12px;background:rgba(10,24,38,.95);box-shadow:0 6px 18px rgba(0,0,0,.34);color:var(--txt);font-size:11px;line-height:1.35;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.track-dock.hidden{display:none}
+.track-dock.is-dragging{cursor:grabbing;opacity:.92}
+.track-dock .td-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+.track-dock .td-title{font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track-dock .td-cost{display:flex;flex-wrap:wrap;gap:3px;color:var(--dim);font-variant-numeric:tabular-nums}
+.track-dock .td-item.is-short{color:var(--red);font-weight:700}
+.track-dock .td-sep{color:#3b5b73;font-style:normal}
+.track-dock .td-close{flex:none;width:18px;height:18px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dim);font-size:13px;line-height:1;cursor:pointer}
+.track-dock.is-ready{border-color:#43bb78;background:rgba(13,44,31,.96)}
+.track-dock.is-ready .td-title{color:var(--green)}
+.track-dock.is-ready .td-cost{color:#9fe3bd}
+.track-dock.is-ready .td-item.is-short{color:var(--green)}
+html[data-ui-theme="day"] .track-dock{background:rgba(250,253,251,.97);border-color:#a9c3d4;color:#17323f;box-shadow:0 6px 16px rgba(23,50,63,.16)}
+html[data-ui-theme="day"] .track-dock.is-ready{background:#eafaf0;border-color:#378b57}
+html[data-ui-theme="day"] .track-dock.is-ready .td-title{color:#15542e}
+html[data-ui-theme="day"] .track-dock.is-ready .td-cost{color:#2c6e47}
+
+/* 奇观卡：建造 / 追踪两颗按钮包一层 .wonder-actions。
+ * ⚠️ 必须整体占 grid 的 action 区（原来那颗按钮是 `grid-area:action` 的直接子节点），
+ *    直接多插一个兄弟节点会掉进隐式行，把整张卡撑成一列。 */
+.wonder-grid>.row>.wonder-actions{grid-area:action;justify-self:end;display:flex;align-items:stretch;width:100%}
+.wonder-grid>.row>.wonder-actions>.btn{flex:1 1 auto;min-width:0;min-height:32px;padding:5px 8px;font-size:10px;border-radius:7px 0 0 7px;border-right-width:0}
+.wonder-grid>.row>.wonder-actions>.track-toggle{flex:0 0 52px;border-radius:0 7px 7px 0;border-left-width:0;background:#152a3d;border-color:#33586f;color:#9fc3d8}
+.wonder-grid>.row>.wonder-actions>.track-toggle.on{background:#155b38;border-color:#43bb78;color:#c5f4d6}
+html[data-ui-theme="day"] .wonder-grid>.row>.wonder-actions>.track-toggle{background:#eaf1f6;border-color:#a9c3d4;color:#3d6076}
+html[data-ui-theme="day"] .wonder-grid>.row>.wonder-actions>.track-toggle.on{background:#c9efd5;border-color:#378b57;color:#15542e}
+
+/* 工坊配方行：追踪并入 .craftbtns（四颗数量钮那一组），尺寸继承该组规则。 */
+.workshop-crafts>.row .craftbtns .track-toggle{flex:0 0 auto;background:#152a3d;border-color:#33586f;color:#9fc3d8}
+.workshop-crafts>.row .craftbtns .track-toggle.on{background:#155b38;border-color:#43bb78;color:#c5f4d6}
+html[data-ui-theme="day"] .workshop-crafts>.row .craftbtns .track-toggle{background:#eaf1f6;border-color:#a9c3d4;color:#3d6076}
+
+/* 跳转落地高亮（1.4s）：玩家点小框跳过去时必须一眼找到落在哪一行 ——
+ * 列表一屏十几行，只滚不闪等于「跳了但你不知道跳到哪」。
+ * ⚠️ 类由 track-dock.js 的 syncFlash 维持（不是加一次就完）：pane 每 2 秒重画会清掉它。 */
+#pane-village .bzone .row.is-track-flash,
+.wonder-grid>.row.is-track-flash,
+.workshop-crafts>.row.is-track-flash{animation:trackFlash 1.4s ease-out}
+@keyframes trackFlash{
+  0%{box-shadow:inset 0 0 0 2px var(--cyan),0 0 18px rgba(77,216,230,.5)}
+  60%{box-shadow:inset 0 0 0 2px rgba(77,216,230,.45),0 0 10px rgba(77,216,230,.22)}
+  100%{box-shadow:inset 0 0 0 0 rgba(77,216,230,0),0 0 0 rgba(77,216,230,0)}
+}

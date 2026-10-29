@@ -1,31 +1,8 @@
-/* 天壳 / SHELLBREAK — 存档多后端（2026-10-27）
- *
- * 【为什么需要这一层】
- * 玩家一直报「退出之后就没存档了」。查 TapTap 官方一手文档后定性：**是，但不是被沙盒
- * 「影响」，而是我们只用了沙盒唯一不保证的那条通道**：
- *   · 官方云存档文档的路径表里，只有 `tap.env.USER_DATA_PATH`（tapfile://usr）被标
- *     「用户数据目录（**持久化**）」；TEMP_DATA_PATH 标临时、STORE_DATA_PATH 标存储。
- *   · `tap.setStorage` 是**独立于浏览器 localStorage** 的通道，官方承诺「数据将长期保留，
- *     除非用户手动删除或系统因空间不足自动清理」（1MB/key、总 10MB）。
- *   · 而浏览器 localStorage 在小游戏容器里**没有任何持久性承诺**（官方社区文章原话：
- *     「本地存储既不可靠也不跨设备，云存档不是可选项而是必须」）。
- * 我们的存档原先 100% 压在 localStorage 上（state.js 8 处 / game.js 26 处），
- * `tap.setStorage` 一次没用过 ⇒ 容器清缓存 / 版本更新重建 WebView / 空间不足即丢。
- *
- * 【本层的策略：不改同步语义，只加冗余】
- *   写 = 同步写 ① localStorage（保持 state.js 现有同步路径不阻塞主循环）
- *        + 异步镜像 ② tap.setStorage、③ tapfile://usr/shellbreak-<key>.json（fire-and-forget）
- *   读 = 先同步读 ①（绝大多数情况够用）；① 空时由 game.boot 调 readBackupAsync 异步兜底。
- *   ⚠️ **绝不在写路径上 await 异步后端** —— 存档每 5 秒一次，等异步会让主循环抖动。
- *
- * 【三处必须一起清】
- *   clearRun / wipeSave 若只清 ①，玩家点「清空存档」后下次启动会从 ②③ 把旧档读回来 ⇒
- *   「清档不管用」。故本层提供 mirrorRemove，与 mirrorWrite 严格配对。
- *
- * 【环境降级】
- *   浏览器 / node 沙箱里 `tap.getStorage` 不存在 ⇒ envAvailable() 为假 ⇒
- *   所有异步后端退化为空操作，行为与改造前完全一致（e2e 不会因此变红）。
- */
+/* 天壳 / SHELLBREAK — 本机存档后端。
+ * 网页继续使用 localStorage。TapTap 同时写入原生用户目录的双版本完整快照；
+ * 每次快照包含 meta/run、序号和校验值，写入排队并读回验证。旧版的
+ * tap.setStorage 与分键文件保留作迁移来源。启动时各来源并行读取，
+ * 任何读取失败都不能被当成“确认没有存档”。 */
 (function (root) {
   'use strict';
   var SB = root.SB || (root.SB = {});
@@ -147,17 +124,236 @@
       .catch(function () { return null; });
   }
 
+  /* TapTap 主存档：两份轮换文件加一份后台快照。每份同时包含 meta/run，
+   * 避免轮回时分别恢复到不同周目。写队列只保留最新待写快照，上一笔完成后
+   * 才写下一笔；文件读回一致才算提交成功。 */
+  var NATIVE_SEQ_KEY = 'shellbreak.native-seq.v1';
+  var nativeSeq = Number(readLocal(NATIVE_SEQ_KEY)) || 0;
+  var nativePending = null, nativeWriting = false, nativeWaiters = [];
+  var nativeLatest = null, nativeLastPromise = Promise.resolve(false);
+  function nextNativeRevision() {
+    nativeSeq = Math.max(nativeSeq + 1, Date.now() * 1000 + (nativeSeq % 2 ? 0 : 1));
+    writeLocal(NATIVE_SEQ_KEY, String(nativeSeq));
+    return nativeSeq;
+  }
+  function checksum(s) {
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16);
+  }
+  function nativePath(slot) {
+    return fsAvailable() ? root.tap.env.USER_DATA_PATH + '/shellbreak-save-' + slot + '.json' : null;
+  }
+  function nativeRecord(metaRaw, runRaw, forceNew) {
+    var embedded = 0;
+    try { embedded = Number(JSON.parse(runRaw)._saveSeq) || 0; } catch (e) {}
+    var seq = !forceNew && embedded > 0 && Number.isSafeInteger(embedded)
+      ? embedded : nextNativeRevision();
+    nativeSeq = Math.max(nativeSeq, seq);
+    var rec = { schema: 1, seq: seq, savedAt: Date.now(), meta: metaRaw, run: runRaw };
+    rec.checksum = checksum(metaRaw + '\n' + runRaw);
+    return rec;
+  }
+  function validNative(raw) {
+    try {
+      var rec = JSON.parse(raw);
+      if (!rec || rec.schema !== 1 || typeof rec.meta !== 'string' || typeof rec.run !== 'string'
+          || rec.checksum !== checksum(rec.meta + '\n' + rec.run)) return null;
+      return rec;
+    } catch (e) { return null; }
+  }
+  function writeNativeNext() {
+    if (nativeWriting || !nativePending) return;
+    var rec = nativePending; nativePending = null; nativeWriting = true;
+    var slot = rec.seq % 2 ? 'a' : 'b', path = nativePath(slot);
+    var raw = JSON.stringify(rec), fs = root.tap.getFileSystemManager();
+    call(fs, 'writeFile', { filePath: path, data: raw, encoding: 'utf8' })
+      .then(function () { return call(fs, 'readFile', { filePath: path, encoding: 'utf8' }); })
+      .then(function (back) {
+        if (!back || back.data !== raw) throw new Error('原生文件写后读回不一致');
+        st.fileOk++; st.lastMirrorAt = Date.now();
+        var remaining = [];
+        nativeWaiters.forEach(function (w) { if (w.seq <= rec.seq) w.resolve(true); else remaining.push(w); });
+        nativeWaiters = remaining;
+      }).catch(function (e) {
+        st.fileFail++; st.lastError = String((e && (e.errMsg || e.message)) || e);
+        /* 失败的快照保留供下次保存重试；不能让更旧快照盖掉新快照。 */
+        if (!nativePending || nativePending.seq < rec.seq) nativePending = rec;
+        var remaining = [];
+        nativeWaiters.forEach(function (w) { if (w.seq <= rec.seq) w.resolve(false); else remaining.push(w); });
+        nativeWaiters = remaining;
+      }).then(function () {
+        nativeWriting = false;
+        if (nativePending && nativePending.seq > rec.seq) writeNativeNext();
+      });
+  }
+  function writeNativeSave(metaRaw, runRaw, forceNew) {
+    if (!fsAvailable() || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return Promise.resolve(false);
+    nativeLatest = nativeRecord(metaRaw, runRaw, !!forceNew);
+    nativePending = nativeLatest;
+    nativeLastPromise = new Promise(function (resolve) {
+      nativeWaiters.push({ seq: nativeLatest.seq, resolve: resolve });
+      writeNativeNext();
+    });
+    return nativeLastPromise;
+  }
+  function flushNativeSync() {
+    if (!nativeLatest || !fsAvailable()) return false;
+    var fs = root.tap.getFileSystemManager(), path = nativePath('hide');
+    if (typeof fs.writeFileSync !== 'function' || typeof fs.readFileSync !== 'function') return false;
+    try {
+      var raw = JSON.stringify(nativeLatest);
+      fs.writeFileSync(path, raw, 'utf8');
+      var back = fs.readFileSync(path, 'utf8');
+      if (back !== raw) throw new Error('后台原生文件写后读回不一致');
+      st.fileOk++; return true;
+    } catch (e) { st.fileFail++; st.lastError = String(e && e.message || e); return false; }
+  }
+  function writeNativeSaveSync(metaRaw, runRaw) {
+    if (!fsAvailable() || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return false;
+    var previous = nativeLatest;
+    nativeLatest = nativeRecord(metaRaw, runRaw, true);
+    if (flushNativeSync()) return true;
+    nativeLatest = previous;
+    return false;
+  }
+  function isMissing(e) {
+    return /ENOENT|not exist|not found|不存在|找不到/i.test(String(e && (e.errMsg || e.message || e.code) || e));
+  }
+  function bounded(job, ms) {
+    return new Promise(function (resolve) {
+      var done = false, timer = root.setTimeout(function () { if (!done) { done = true; resolve({ status: 'timeout' }); } }, ms);
+      job.then(function (v) { if (!done) { done = true; root.clearTimeout(timer); resolve(v); } },
+        function (e) { if (!done) { done = true; root.clearTimeout(timer); resolve({ status: isMissing(e) ? 'absent' : 'error' }); } });
+    });
+  }
+  function scanNativeSaves() {
+    if (!fsAvailable()) return Promise.resolve({ records: [], uncertain: false });
+    var fs = root.tap.getFileSystemManager();
+    return Promise.all(['a', 'b', 'hide'].map(function (slot) {
+      return bounded(call(fs, 'readFile', { filePath: nativePath(slot), encoding: 'utf8' })
+        .then(function (r) { return { status: 'ok', record: validNative(r && r.data), slot: slot }; }), 2500);
+    })).then(function (results) {
+      var records = results.filter(function (r) { return r.status === 'ok' && r.record; });
+      records.forEach(function (r) { nativeSeq = Math.max(nativeSeq, Number(r.record.seq) || 0); });
+      return { records: records, uncertain: results.some(function (r) {
+        return r.status === 'timeout' || r.status === 'error' || (r.status === 'ok' && !r.record);
+      }) };
+    });
+  }
+  function parsedPair(metaRaw, runRaw, source, seq, savedAt) {
+    if (!runRaw) return null;
+    try {
+      var run = JSON.parse(runRaw), meta = metaRaw ? JSON.parse(metaRaw) : null;
+      if (!run || typeof run !== 'object' || Array.isArray(run)
+          || !run.res || typeof run.res !== 'object' || !run.lvl || typeof run.lvl !== 'object'
+          || !run.jobs || typeof run.jobs !== 'object' || typeof run.shell !== 'number' || !isFinite(run.shell)
+          || (metaRaw && (!meta || typeof meta !== 'object' || Array.isArray(meta)))) return null;
+      return { source: source, runRaw: runRaw, metaRaw: metaRaw,
+        cycle: Number(meta && meta.cycle) || 0,
+        savedAt: Number(savedAt || run._ts) || 0,
+        seq: Number(seq || run._saveSeq) || 0 };
+    } catch (e) { return null; }
+  }
+  function scanSaveCandidates(runKey, metaKey) {
+    var candidates = [], uncertain = false, hadData = false;
+    var localRun = null, localMeta = null;
+    try {
+      var ls = localStore();
+      if (!ls) uncertain = true;
+      else { localRun = ls.getItem(runKey); localMeta = ls.getItem(metaKey); }
+    } catch (e) { uncertain = true; }
+    if (localRun || localMeta) hadData = true;
+    var local = parsedPair(localMeta, localRun, 'localStorage');
+    if (local) candidates.push(local);
+    else if (hadData) uncertain = true;
+    var tasks = [];
+    if (envAvailable()) tasks.push(Promise.all([runKey, metaKey].map(function (key) {
+      return bounded(call(root.tap, 'getStorage', { key: key }).then(function (r) {
+        return { status: r && typeof r.data === 'string' ? 'ok' : 'absent', raw: r && r.data };
+      }), 2500);
+    })).then(function (a) {
+      var run = a[0], meta = a[1];
+      if (run.status === 'ok' || meta.status === 'ok') hadData = true;
+      if (run.status === 'error' || run.status === 'timeout' || meta.status === 'error' || meta.status === 'timeout') uncertain = true;
+      var pair = parsedPair(meta.raw || null, run.raw || null, 'tapStorage');
+      if (pair) candidates.push(pair); else if (run.status === 'ok' || meta.status === 'ok') uncertain = true;
+    }));
+    if (fsAvailable()) {
+      var fs = root.tap.getFileSystemManager();
+      tasks.push(Promise.all([runKey, metaKey].map(function (key) {
+        return bounded(call(fs, 'readFile', { filePath: filePathFor(key), encoding: 'utf8' }).then(function (r) {
+          return { status: r && typeof r.data === 'string' ? 'ok' : 'absent', raw: r && r.data };
+        }), 2500);
+      })).then(function (a) {
+        var run = a[0], meta = a[1];
+        if (run.status === 'ok' || meta.status === 'ok') hadData = true;
+        if (run.status === 'error' || run.status === 'timeout' || meta.status === 'error' || meta.status === 'timeout') uncertain = true;
+        var pair = parsedPair(meta.raw || null, run.raw || null, 'legacyFile');
+        if (pair) candidates.push(pair); else if (run.status === 'ok' || meta.status === 'ok') uncertain = true;
+      }));
+      tasks.push(scanNativeSaves().then(function (scan) {
+        if (scan.uncertain) uncertain = true;
+        scan.records.forEach(function (item) {
+          hadData = true;
+          var rec = item.record;
+          var pair = parsedPair(rec.meta, rec.run, 'native:' + item.slot, rec.seq, rec.savedAt);
+          if (pair) candidates.push(pair); else uncertain = true;
+        });
+      }));
+    }
+    return Promise.all(tasks).then(function () {
+      candidates.sort(function (a, b) {
+        /* 原生序号是提交顺序。旧格式只在没有有效原生快照时参与迁移。 */
+        if (a.seq || b.seq) return (b.seq || 0) - (a.seq || 0);
+        if (a.cycle !== b.cycle) return b.cycle - a.cycle;
+        if (a.savedAt !== b.savedAt) return b.savedAt - a.savedAt;
+        return b.seq - a.seq;
+      });
+      return { best: candidates[0] || null, candidates: candidates,
+        status: candidates.length ? 'found' : (uncertain || hadData ? 'uncertain' : 'absent') };
+    });
+  }
+
   /* 异步镜像写：② 与 ③ 各自独立，任一成功即算有备份。
    * ⚠️ 调用方**不 await**（fire-and-forget）；返回 Promise 只为让回归能等它落定。 */
+  var mirrorQueues = {};
+  function runMirrorQueue(key) {
+    var q = mirrorQueues[key];
+    if (q.busy || !q.jobs.length) return;
+    q.busy = true;
+    var job = q.jobs[0];
+    var work = job.type === 'remove' ? removeMirrorsNow(key)
+      : Promise.all([writeTapStorage(key, job.val), writeFsFile(key, job.val)])
+        .then(function (r) { return !!(r[0] || r[1]); });
+    work.then(function (ok) {
+      job.waiters.forEach(function (resolve) { resolve(ok); });
+    }, function () {
+      job.waiters.forEach(function (resolve) { resolve(false); });
+    }).then(function () { q.jobs.shift(); q.busy = false; runMirrorQueue(key); });
+  }
   function mirrorWrite(key, val) {
     st.lastMirrorAt = Date.now();
-    return Promise.all([writeTapStorage(key, val), writeFsFile(key, val)])
-      .then(function (r) { return !!(r[0] || r[1]); });
+    var q = mirrorQueues[key] || (mirrorQueues[key] = { busy: false, jobs: [] });
+    return new Promise(function (resolve) {
+      var last = q.jobs[q.jobs.length - 1];
+      if (last && last.type === 'write' && (q.jobs.length > 1 || !q.busy)) {
+        last.val = val; last.waiters.push(resolve);
+      } else q.jobs.push({ type: 'write', val: val, waiters: [resolve] });
+      runMirrorQueue(key);
+    });
   }
 
   /* 异步镜像删除：与 mirrorWrite 严格配对。
    * ⚠️ 少了这一步，「清空存档」会被 ②③ 里的旧档复活（清档后重启又回来了）。 */
   function mirrorRemove(key) {
+    var q = mirrorQueues[key] || (mirrorQueues[key] = { busy: false, jobs: [] });
+    return new Promise(function (resolve) {
+      q.jobs.push({ type: 'remove', waiters: [resolve] });
+      runMirrorQueue(key);
+    });
+  }
+  function removeMirrorsNow(key) {
     var jobs = [];
     if (envAvailable()) {
       jobs.push(call(root.tap, 'removeStorage', { key: key })
@@ -348,16 +544,25 @@
     mirrorRemove(EMERG_KEY);
   }
 
-  /* 异步兜底读：② 优先（同源、快），再 ③。都没有返回 null。
+  /* 旧版备份读：tap.setStorage 与分键文件并行，互不等待。
    * ⚠️ 拿不到时**不要在这里开新档** —— 那是调用方（game.boot）的决定，
    *    而且「三处都没有」与「容器把三处都清了」无法区分，必须交给上层策略。 */
   function readBackupAsync(key) {
-    return readTapStorage(key).then(function (v) {
-      if (v) return { raw: v, source: 'tapStorage' };
-      return readFsFile(key).then(function (v2) {
-        return v2 ? { raw: v2, source: 'file' } : null;
+    return Promise.all([
+      bounded(readTapStorage(key).then(function (raw) { return { status: 'ok', raw: raw }; }), 2500),
+      bounded(readFsFile(key).then(function (raw) { return { status: 'ok', raw: raw }; }), 2500)
+    ]).then(function (results) {
+      var hits = [];
+      if (results[0].raw) hits.push({ raw: results[0].raw, source: 'tapStorage' });
+      if (results[1].raw) hits.push({ raw: results[1].raw, source: 'file' });
+      hits.sort(function (a, b) {
+        function score(hit) {
+          try { var v = JSON.parse(hit.raw); return Number(v._ts || v.at || v.cycle) || 0; }
+          catch (e) { return 0; }
+        }
+        return score(b) - score(a);
       });
-    }).then(function (hit) {
+      var hit = hits[0] || null;
       if (hit) { st.lastRestoreSource = hit.source; st.lastRestoreAt = Date.now(); }
       return hit;
     });
@@ -379,6 +584,12 @@
     envAvailable: envAvailable, fsAvailable: fsAvailable, cloudProbe: cloudProbe,
     readLocal: readLocal, writeLocal: writeLocal, removeLocal: removeLocal,
     mirrorWrite: mirrorWrite, mirrorRemove: mirrorRemove,
+    writeNativeSave: writeNativeSave, flushNativeSync: flushNativeSync,
+    writeNativeSaveSync: writeNativeSaveSync,
+    scanSaveCandidates: scanSaveCandidates,
+    nativeRevision: function () { return nativeSeq; },
+    nextNativeRevision: nextNativeRevision,
+    nativeLastWrite: function () { return nativeLastPromise; },
     readBackupAsync: readBackupAsync,
     readTapStorage: readTapStorage, readFsFile: readFsFile,
     /* ④ 诊断层（2026-10-29）：独立 key，对存档格式零影响。 */

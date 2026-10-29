@@ -26,6 +26,16 @@
     craft_drill: 'assets/resource-icons/resonantDrill.png?v=2'
   };
 
+  /* 件数展示（2026-10-29）：旧日艺术品 / 潮纹碑石的件数是**跨周目无上限累加**的，
+   * 此前裸拼 `(m.oldArtworkEarnedTotal || 0) + ' 件'`，到六位数会把卡片撑破。
+   * 小于 1 万按整数原样（避免 fmtAmt 产出「12.0 件」这种怪相），1 万起走渲染层
+   * 同一个 fmtAmt（12,345 ⇒ 12.3k / 1,000,000 ⇒ 1.00M），宽度有上界。
+   * ⚠️ 不在这里新造一套大数格式：面板「旧日信仰」那张卡一直用 fmtAmt，同页两套口径会打架。 */
+  function fmtCount(n) {
+    n = Math.floor(+n || 0);
+    return n >= 1e4 ? SB.economy.fmtAmt(n) : String(n);
+  }
+
   function perkIconSrc(perk) {
     if (perk.give) {
       var resource = Object.keys(perk.give)[0];
@@ -103,9 +113,9 @@
       '<small>全产出 +' + (lg.oldFaithAllProductionBonus * 100).toFixed(1) + '%</small><p>剩余信仰并入；对数档位累积加成</p></article>' +
       '<article class="meta-legacy-card"><span class="meta-legacy-icon">◇</span><div><b>纪念奇观</b><strong>' + lg.relicCount + ' 座</strong></div>' +
       '<small>科技与市政 +' + ((lg.relicCultureMul - 1) * 100).toFixed(0) + '%</small><p>首次建成的独特奇观收入藏</p></article>' +
-      '<article class="meta-legacy-card"><span class="meta-legacy-icon">▧</span><div><b>旧日艺术品</b><strong>' + (m.oldArtworkEarnedTotal || 0) + ' 件</strong></div>' +
+      '<article class="meta-legacy-card"><span class="meta-legacy-icon">▧</span><div><b>旧日艺术品</b><strong>' + fmtCount(m.oldArtworkEarnedTotal) + ' 件</strong></div>' +
       '<small>市政点 +' + lg.oldArtworkCultureRate.toFixed(2) + '/秒</small><p>累积收藏，提供持续市政点</p></article>' +
-      '<article class="meta-legacy-card"><span class="meta-legacy-icon">⌁</span><div><b>旧日潮纹碑石</b><strong>' + (m.oldTideStelesEarnedTotal || 0) + ' 件</strong></div>' +
+      '<article class="meta-legacy-card"><span class="meta-legacy-icon">⌁</span><div><b>旧日潮纹碑石</b><strong>' + fmtCount(m.oldTideStelesEarnedTotal) + ' 件</strong></div>' +
       '<small>科技点 +' + lg.oldTideSteleScienceRate.toFixed(2) + '/秒</small><p>累积收藏，提供持续科技点</p></article></div></section>';
     h += '<section class="meta-tree-intro"><div><span class="meta-tree-kicker">PERMANENT LEGACY · 轮回天赋</span>' +
       '<h2>潮汐之树</h2><p>前置连线表示真实解锁条件；没有前置的天赋可独立点亮。</p></div>' +

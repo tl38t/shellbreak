@@ -152,9 +152,14 @@
      *    否则「补足了但文案还报旧数」又是一条面板撒谎。 */
     var _HF = (SB.economy && SB.economy.hydroAlloc) ? SB.economy.hydroAlloc(s, 1) : null;
     var _left = _HF ? Math.max(0, _HF.left) : 0;
-    /* 停摆子因（钻头见底 / 剩流不足）纳入签名：徽标要跟着切，否则会出现
-     * 「补完钻头、徽标还写着缺钻头」的第二种面板撒谎。判据与下面 ds 分支同式。 */
-    var _drillNoBit = starved && (s.res.resonantDrill || 0) < SB.CFG.SKYDRILL_DRILL;
+    /* 停摆子因（缺钻头 / 缺剩流）**读引擎的 skyStopWhy**，面板不再自算阈值：
+     *   旧写法 `(s.res.resonantDrill||0) < SKYDRILL_DRILL` 是「每秒 0.1」的口径，
+     *   而引擎那道门当时错写成「热液能 20×dt」⇒ 这个分支永不触发，徽标与文案
+     *   一律甩锅给热液能，玩家（2026-10-29）反馈「看不出钻头不够」正是这里。
+     *   现在两边同一判据 ⇒ 补完钻头徽标自动切回「停摆：热液能」，不会二次撒谎。 */
+    var _stopWhy = (starved && _HF && _HF.skyStopWhy) ? _HF.skyStopWhy : null;
+    var _drillNoBit = starved && (_stopWhy ? _stopWhy === 'bit'
+      : (s.res.resonantDrill || 0) < SB.CFG.SKYDRILL_DRILL);
     var sig = (s.skydrillOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
       (starved ? (_drillNoBit ? 'd' : 'h') : '-') + '|' +
       Math.min(999, Math.floor(_left));
@@ -167,7 +172,9 @@
           SB.CFG.SKYDRILL_HYDRO + '/秒，从热液工坊吃剩的流里取）。';
       } else if (starved) {
         if ((s.res.resonantDrill || 0) < SB.CFG.SKYDRILL_DRILL) {
-          ds = '停摆：共振钻头见底（现存 ' + Math.floor(s.res.resonantDrill || 0) +
+          /* ⚠️ 不能 Math.floor：库存按 0.1/秒扣，常态是小数（0.4 / 0.9），
+           *    floor 会印成「现存 0」——玩家以为自己一个钻头都没有，实际只是不足 1 个。 */
+          ds = '停摆：共振钻头不足（现存 ' + (s.res.resonantDrill || 0).toFixed(1) +
             '，运转每秒耗 ' + SB.CFG.SKYDRILL_DRILL + '）。去工坊打「共振钻头」补货，补足后自动恢复，无需重启。';
         } else {
           var _tur = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
@@ -187,7 +194,12 @@
         '" data-skydrill="1" title="点击启动 / 停机">' + (s.skydrillOn ? '已启动' : '已停机') + '</button>';
     }
     var ct = el('envDrillCt');
-    if (ct) ct.textContent = Math.floor(s.res.resonantDrill || 0) + ' 钻头';
+    if (ct) {
+      /* ⚠️ 不能 floor：钻头按 0.1/秒扣，库存常态是小数（0.9 会显示成「0 钻头」）。
+       *    ≥10 取整（小数位无意义），否则保留 1 位。 */
+      var _bits = s.res.resonantDrill || 0;
+      ct.textContent = (_bits >= 10 ? Math.floor(_bits) : _bits.toFixed(1)) + ' 钻头';
+    }
   }
 
   /* ── 星球重构机 G.E.E.K 开关（ERA9 · 生态重塑解锁奇观，2026-10-19 实装）──
@@ -417,7 +429,10 @@
     if (useLabel) useLabel.textContent = consumers.length ? consumers.join(' · ') : '暂无设备取用';
     var shortages = [];
     if (flow.shopNeed > flow.shopRate + 0.005) shortages.push('热液工坊：产钢降载，缺 ' + (flow.shopNeed - flow.shopRate).toFixed(1) + '/秒');
-    if (flow.skyNeed > flow.skyRate + 0.005) shortages.push('天穹钻机：停摆，缺 ' + (flow.skyNeed - flow.skyRate).toFixed(1) + '/秒');
+    /* 钻机停摆按引擎给的子因分流：缺钻头不是「热液能缺口」，
+     *   旧写法一律印「缺 N/秒」，玩家照它去升汽轮机永远没用（2026-10-29 玩家反馈）。 */
+    if (flow.skyStopWhy === 'bit') shortages.push('天穹钻机：停摆，缺共振钻头（与热液能无关）');
+    else if (flow.skyNeed > flow.skyRate + 0.005) shortages.push('天穹钻机：停摆，缺 ' + (flow.skyNeed - flow.skyRate).toFixed(1) + '/秒');
     if (flow.europaNeed > flow.europaRate + 0.005) shortages.push('发射场（三座合计）：产线暂停，缺 ' + (flow.europaNeed - flow.europaRate).toFixed(1) + '/秒');
     if (flow.geekNeed > flow.geekRate + 0.005) shortages.push('星球重构机 G.E.E.K：改造暂停，缺 ' + (flow.geekNeed - flow.geekRate).toFixed(1) + '/秒');
     var shortageBox = el('hydroShortage'), shortageTitle = el('hydroShortageTitle'), shortageItems = el('hydroShortageItems');

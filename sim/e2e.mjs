@@ -14,6 +14,7 @@ import { run as runAutoResearch } from './e2e-suites/auto-research.mjs';
 import { run as runTechShape } from './e2e-suites/tech-shape.mjs';
 import { run as runEra3Content } from './e2e-suites/era3-content.mjs';
 import { run as runPersistence } from './e2e-suites/persistence.mjs';
+import { run as runSaveMigrate } from './e2e-suites/save-migrate.mjs';
 import { run as runBuildingShape } from './e2e-suites/building-shape.mjs';
 import { run as runEra4Content } from './e2e-suites/era4-content.mjs';
 import { run as runEra10Content } from './e2e-suites/era10-content.mjs';
@@ -821,30 +822,41 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     check('续建一级后 hall = 8（升级走的是同一条建造通道）', up.lvl.hall === 8, 'hall=' + up.lvl.hall);
     check('coreLvl 始终等于 hall（= 8）', SB.economy.coreLvl(up) === 8);
 
-    /* 减耗：8 级 ⇒ ×(1 − 0.16)；装 upg_castle 之后每级省耗率 ×1.5 ⇒ ×(1 − 0.24)。
-     * ⚠️ 2026-10-07 起减耗走 getLimitedDR 衰减、无硬封顶；低等级段（<0.75×lim）仍线性，
-     *   故 8 级这条断言不变。高等级段的 DR 性质见下方「减耗 DR」三连。 */
+    /* 减耗：costOf 里的议价乘区必须 == hallMul，且等级按 coreLvl（= 8）取。
+     * ⚠️ 2026-10-29 议价换成**等比递减**曲线后，8 级的折扣不再是旧线性段的 16%。
+     *   这条断言的本意从来不是「钉住 16% 这个数」，而是「costOf 真的乘了**当前等级**的
+     *   议价乘区」—— 等级读错（读成 0、读成别的建筑、或漏乘）比值会立刻偏离。
+     *   ⇒ 期望值改为从 hallDiscount 现取；曲线形状与参数由 era3-content 的「等比链」
+     *     断言负责钉，这里不重复钉数值（两处都钉数值 ⇒ 调档要改两个地方，必遗漏一个）。 */
     const hm = SB.state.freshRun(false); hm.lvl.hall = 8;
     const hmNo = SB.state.freshRun(false);
     const cNo = SB.economy.costOf(hmNo, 'workshop').coral;
-    check('减耗按 coreLvl 走：8 级 ⇒ 下一级成本 ×(1−0.16)',
-      Math.abs(SB.economy.costOf(hm, 'workshop').coral / cNo - 0.84) < 1e-6,
-      'ratio=' + (SB.economy.costOf(hm, 'lighthouse').coral / cNo).toFixed(4));
+    const mul8 = 1 - SB.economy.hallDiscount(hm);
+    check('减耗按 coreLvl 走：8 级 ⇒ 下一级成本 = 基础 ×(1−当前折扣)',
+      Math.abs(SB.economy.costOf(hm, 'workshop').coral / cNo - mul8) < 1e-9 && mul8 < 0.99,
+      'ratio=' + (SB.economy.costOf(hm, 'workshop').coral / cNo).toFixed(4) +
+      ' 期望=' + mul8.toFixed(4) + '（8 级折扣 ' + ((1 - mul8) * 100).toFixed(1) + '%）');
     hm.upgrades.upg_castle = true;
-    check('装城堡升级 ⇒ 每级省耗率 ×1.5（8 级：×(1−0.16) → ×(1−0.24)，DR 低段仍线性）',
-      Math.abs(SB.economy.costOf(hm, 'workshop').coral / cNo - 0.76) < 1e-6,
-      'ratio=' + (SB.economy.costOf(hm, 'lighthouse').coral / cNo).toFixed(4));
+    const mul8c = 1 - SB.economy.hallDiscount(hm);
+    check('装城堡升级 ⇒ costOf 换成城堡态折扣（每级省耗率 ×1.5 ⇒ 同级省更多）',
+      Math.abs(SB.economy.costOf(hm, 'workshop').coral / cNo - mul8c) < 1e-9 && mul8c < mul8,
+      'ratio=' + (SB.economy.costOf(hm, 'workshop').coral / cNo).toFixed(4) +
+      ' 议事厅=' + mul8.toFixed(4) + ' 城堡=' + mul8c.toFixed(4));
 
-    /* 减耗 DR（2026-10-07 去掉旧 HALL_CAP=0.30 硬墙）：高等级段三条硬性质。
-     * ① 不减到负数（旧「裸去掉封顶」会在 34 级折扣>100% ⇒ 造价变负、pay 倒给资源）；
-     * ② 高等级折扣**超过**旧硬墙（旧最多 0.45 折扣 ⇒ mul 0.55；新 50 级 mul 0.10）；
-     * ③ 折扣随等级单调加深（mul 50 < mul 10，证明没有硬墙在 45% 处把折扣截断）。 */
+    /* 减耗曲线的三条硬性质（2026-10-29 换等比递减后依然要守）：
+     * ① **永不减到负数**：等比曲线是渐近的 ⇒ 折扣恒 < 上限 ⇒ 造价恒 > 0。
+     *    历史：旧「裸去掉封顶」版本 34 级折扣 >100% ⇒ 造价变负、pay 倒给资源。
+     * ② **高等级折扣超过旧硬墙**（旧 `HALL_CAP=0.30` 时代最多折 45% ⇒ mul 0.55）：
+     *    50 级必须比 0.55 更低，证明没有另一道硬墙在半路把折扣截断。
+     * ③ **折扣随等级单调加深**（mul 50 < mul 10）：这是「边际递减但不封顶」的核心，
+     *    换成等比曲线后仍然成立，且不再有旧曲线的末段回升。 */
     const baseC = SB.economy.costOf(SB.state.freshRun(false), 'workshop').coral;
     const mulAt = (lvl) => { const s = SB.state.freshRun(false); s.lvl.hall = lvl; return SB.economy.costOf(s, 'workshop').coral / baseC; };
     const m10 = mulAt(10), m50 = mulAt(50);
-    check('减耗 DR：高等级不减到负（50 级 mul 仍 > 0）', m50 > 0, 'mul=' + m50.toFixed(4));
-    check('减耗 DR：高等级折扣超过旧硬墙（50 级 mul 0.10 < 旧 0.55）', m50 < 0.55, 'mul=' + m50.toFixed(4));
-    check('减耗 DR：折扣随等级单调加深（mul 50 < mul 10，无硬墙截断）', m50 < m10, 'm10=' + m10.toFixed(4) + ' m50=' + m50.toFixed(4));
+    check('减耗：高等级不减到负（50 级 mul 仍 > 0）', m50 > 0, 'mul=' + m50.toFixed(4));
+    check('减耗：高等级折扣超过旧硬墙（50 级 mul < 0.55）', m50 < 0.55,
+      'mul=' + m50.toFixed(4) + '（折扣 ' + ((1 - m50) * 100).toFixed(1) + '%）');
+    check('减耗：折扣随等级单调加深（mul 50 < mul 10，无硬墙截断）', m50 < m10, 'm10=' + m10.toFixed(4) + ' m50=' + m50.toFixed(4));
 
     /* 容量轴：8 级 × 50 = 400（这条是升级**新增**的权柄，升级前恒 0）。 */
     const b0 = SB.state.freshRun(false);
@@ -1922,9 +1934,16 @@ console.log('\n=== 轮回遗产科技同构（tick === rates）===');
   m.memorialWonders = { wonder_test_a: 1, wonder_test_b: 1, wonder_test_c: 1 };
   const lg = SB.prestige.legacy(m);
   let h555 = 0; for (let k = 1; k <= 555; k++) h555 += 1 / k;
-  check('旧日潮纹碑石 555 件 ⇒ 固定速率 = 0.15×H(555) ≈ 1.03（玩家截图口径）',
-    Math.abs(lg.oldTideSteleScienceRate - 0.15 * h555) < 1e-9,
-    'rate=' + lg.oldTideSteleScienceRate.toFixed(4));
+  /* ⚠️ 2026-10-29：系数由 0.15 抬到 1.5（用户拍板 ×10，让第二周目开局更快）。
+   *   这里**改成读 CFG.LEGACY.RATE_PER_ITEM**，是为了验「legacy 真的接线到 config」，
+   *   而不是把标定值再抄一份进断言（抄死的话下次调数又会红，红的还是这条）。
+   *   这不是「改断言掩盖 bug」：结构（件数 → H(n) → 系数 ×H 的平加项）一个字没改。
+   *   `> 0` 是防呆——系数若被误写成 0，本断言会恒等成立而失去意义。 */
+  const legacyRate = (SB.CFG && SB.CFG.LEGACY && SB.CFG.LEGACY.RATE_PER_ITEM) || 0;
+  check('旧日潮纹碑石 555 件 ⇒ 固定速率 = CFG.LEGACY.RATE_PER_ITEM × H(555)',
+    legacyRate > 0 && Math.abs(lg.oldTideSteleScienceRate - legacyRate * h555) < 1e-9,
+    'rate=' + lg.oldTideSteleScienceRate.toFixed(4) + ' 系数=' + legacyRate +
+    '（H(555)=' + h555.toFixed(4) + '）');
   check('纪念奇观 3 座 ⇒ relicScienceMul = 1.03', Math.abs(lg.relicScienceMul - 1.03) < 1e-9);
 
   const s1 = SB.state.freshRun(false);
@@ -1936,8 +1955,8 @@ console.log('\n=== 轮回遗产科技同构（tick === rates）===');
   check('tick 一秒进账 === 面板速率（乘区 + 碑石平加项两路都在）',
     panel > 1 && Math.abs(actual - panel) < 1e-6,
     'panel=' + panel.toFixed(4) + ' tick=' + actual.toFixed(4));
-  check('面板速率确实含碑石平加项（≥ 1.03）', panel >= lg.oldTideSteleScienceRate - 1e-9,
-    'panel=' + panel.toFixed(4));
+  check('面板速率确实含碑石平加项（panel ≥ 碑石速率）', panel >= lg.oldTideSteleScienceRate - 1e-9,
+    'panel=' + panel.toFixed(4) + ' 碑石=' + lg.oldTideSteleScienceRate.toFixed(4));
 
   m.oldArtworkEarnedTotal = bak.art; m.oldTideStelesEarnedTotal = bak.stele;
   m.memorialWonders = bak.mw;   // 还原，不污染后续存档断言
@@ -2393,6 +2412,7 @@ console.log('\n=== era1 专项核算：真实开局，科技全部研究完 ==='
 }
 
 runClickEvents({ SB, check, noop });
+runSaveMigrate({ SB, check, sandbox });   // 2026-10-29：perks 迁移幂等（P0 事故回归锁）
 runAutoPlay({ SB, check });
 runAutoResearch({ SB, check });
 runChallenges({ SB, check, noop });

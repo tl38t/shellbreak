@@ -325,7 +325,12 @@
   /* 猫国 game.js:2726 getLimitedDR 直移植（2026-09-29 城堡容量衰减，用户拍「衰减抄猫国」）。
    * 语义：effect < 上限 75% 时原样给；超过部分只给渐近增量，整条逼近 limit 而不无限膨胀。
    * ⚠️ 本作只把它用在城堡「每级 +50 容量」这条轴（城堡升级可反复装、无等级上限，
-   *   靠这条衰减把总量收口）。limit 是衰减参考上限（待标定默认：约 20 级议事厅 = 1000 容量处收口）。 */
+   *   靠这条衰减把总量收口）。limit 是衰减参考上限（待标定默认：约 20 级议事厅 = 1000 容量处收口）。
+   * ⚠️ 2026-10-29：**议价（hallMulAt）已从这条曲线上分家**，改用等比递减（见下方 HALL_SAVE
+   *   那段注释）。原因：本函数后段是 `1−(1−b)^0.75`，0.75 次幂 < 1 ⇒ 末段导数趋于无穷 ⇒
+   *   最后几级反而加得更多，与「边际递减」相反。容量轴用户没拍改，所以只分家、不改它。
+   *   ⚠️ 别再把议价塞回这里「统一」—— 本函数的 limit 是绝对量（1000 容量），
+   *   议价的 limit 是比例（0.60），后者套 `.75/…` 的绝对量公式会算出无意义的数。 */
   function getLimitedDR(effect, limit) {
     if (effect < limit * 0.75) return effect;
     var a = limit * 0.75;
@@ -391,56 +396,95 @@
     if (s.got) s.got[k] = (s.got[k] || 0) + v;
   }
 
-  /* 统治核心的「议价」：每一级降低所有建筑**下一级**的建造成本，但**边际收益递减**——
-   * 低等级段近似线性省耗，高等级段每级省得越来越少，逼近一个软上限（造价永不到 0）。
-   * ⚠️ 2026-10-06：读数走 `coreLvl(s)`（= 议事厅等级）而不是散写 `s.lvl.hall`——
-   *   建筑在买下 `upg_castle` 之后改叫「城堡」，这个函数读的是同一个数，两处不会各写一份。
-   * ⚠️ 作用在 `ratio^n` 这一侧而不是首级成本上——首级只有一次，
-   *   压首级等于只帮玩家省开头那一次，后期指数曲线一动不动，那不是议事厅该有的分量。
-   * ⚠️ 2026-10-07：去掉硬封顶（旧 `HALL_CAP=0.30` 的 `Math.min` 硬墙是我后加的、用户没拍过），
-   *   改用 DR 衰减曲线 `getLimitedDR`（与城堡容量轴 `castleCapBonus` 完全同构）。
-   *   ★ 为什么是软上限而非硬墙：`getLimitedDR` 下 `eff` 永远 < lim，hallMul 恒 > (1−lim)，
-   *     造价永远 ≥ 10%（lim=0.90），不会出现「去掉封顶直接 `1−等级×0.03`」在 34 级折扣 >100%
-   *     ⇒ 造价变负、`pay` 倒给资源 的真 bug（costOf 对 hallMul 没有下限钳制）。
-   *   ★ 边际递减：`getLimitedDR` 在 effect < 0.75×lim 之前线性，之后拐点收缩、逼近 lim——
-   *     正是用户要的「降低消耗、但边际效益越来越低」，且再没有 45% 那种一刀切的硬墙。
-   *   ★ 城堡（upg_castle）把「减耗效果 +50%」：只提高每级省耗率 `rate`（×1.5，让每级省更多、
-   *     更早逼近天花板）；软上限 `lim` **不**跟随抬高（见 hallMul 内 Math.min 锁回 0.90）。
-   *   ⚠️ 2026-10-10 旧 bug：lim 曾 ×(1+hallSaveMul)=1.35 > 1，导致 hallMul=1-eff 越过 0 变负、
-   *     造价成负数、按钮可无限刷级（10²⁴ 量级）。现 lim 锁死 0.90，hallMul 恒 ≥ 0.10。
-   *   ⚠️ 把原始省耗率 `_n*rate` 先 `Math.min(., lim)` 再进 `getLimitedDR`：该函数对
-   *     effect > lim 会算出 NaN（负数底 fractional 幂），而我们这里 lim 仅 0.90、rate 0.02，
-   *     约 45 级就到 lim——比容量轴（lim=1000、约 20 级到 lim）更易踩中，故加这道下限闸。 */
-  var HALL_SAVE = 0.02;            // 每级原始省耗率（线性段的斜率）
-  var HALL_DR_BASE = 0.50;         // 基础软上限 50%：议事厅/城堡自身的折扣上限（造价地板 50%）
-  var HALL_DR_MAX  = 0.75;         // 最高软上限 75%：含所有仓库建筑（城堡 + 其它 store）的折扣总硬顶
+  /* 统治核心的「议价」：每一级降低所有建筑**下一级**的建造成本，且**每级都在递减**。
+   * ⚠️ 2026-10-29 用户拍板「改成真边际效益」，曲线换成**等比递减**：
+   *      每级增量 = rate × ρ^(n−1)，其中 ρ = 1 − rate/lim
+   *      折扣(n)  = lim × (1 − ρ^n)
+   *   ⇒ 三条性质同时成立，且玩家拿计算器就能逐级验算：
+   *      ① 第 1 级增量恰为 rate（首项不动，早期手感不变）
+   *      ② 每级增量严格等比递减（相邻两级比值恒为 ρ，与当前等级无关）
+   *      ③ 折扣恒 < lim、单调递增、永不越过上限 ⇒ 造价恒 > 0，不需要第二道下限钳制
+   *   ★ 为什么不再用 `getLimitedDR`：它前段线性、后段 `1−(1−b)^0.75`，而 0.75 次幂 < 1
+   *     ⇒ 末段导数趋于无穷 ⇒ **最后几级反而加得更多**（议事厅 2026-10-29 实测：
+   *     19 级 +1.55%、24 级 +3.16%，比中间段还高）。玩家只要观察到一次「越升越多」，
+   *     任何「边际递减」的文案都会被打脸。等比曲线全程递减，没有末段回升。
+   *   ★ 为什么 lim 从 50% 抬到 60%（用户 2026-10-29 选档）：等比是渐近的，50% 档下
+   *     25 级只有 36%（旧曲线 25 级已精确吃满 50%），等于把议价砍掉一大截；
+   *     抬到 60% 后 40 级 49%，等于「旧曲线拉长到 40 级」——总强度基本保留，只是见效推迟。
+   *     造价地板从 50% 降到 40%，仍然远离 0。
+   *   ★ 为什么 rate 从 2% 抬到 2.5%：为配平「前 10 级与旧曲线一致」。旧线性段 10 级 = 20%，
+   *     等比 2.5% 在 10 级 = 20.8%，早期节奏不动；若保持 2%，10 级只剩 16.8%，等于开局就削弱。
+   *   ⚠️ 2026-10-06：读数走 `coreLvl(s)`（= 议事厅等级）而不是散写 `s.lvl.hall`——
+   *     建筑在买下 `upg_castle` 之后改叫「城堡」，这个函数读的是同一个数，两处不会各写一份。
+   *   ⚠️ 作用在 `ratio^n` 这一侧而不是首级成本上——首级只有一次，
+   *     压首级等于只帮玩家省开头那一次，后期指数曲线一动不动，那不是议事厅该有的分量。
+   *   ⚠️ 2026-10-10 旧 bug（保留警示）：lim 曾 ×(1+hallSaveMul)=1.35 > 1，
+   *     导致 hallMul=1−eff 越过 0 变负、造价成负数、按钮可无限刷级（10²⁴ 量级）。
+   *     现 lim 由 hallDiscountLimit 硬顶在 HALL_DR_MAX(0.75)，hallMul 恒 ≥ 0.25。
+   *   ⚠️ **lim 必须 < 1 且 rate > 0**：ρ = 1 − rate/lim 才有意义。rate ≥ lim 时 ρ ≤ 0，
+   *     第 1 级就直接吃满上限（不报错、但也谈不上递减）。hallEffAt 对这两个边界都有兜底。
+   *   ⚠️ 与城堡容量轴 `getLimitedDR` 已经**分家**：那条轴（lim=1000、约 20 级收口）仍是
+   *     猫国直移植的老曲线，用户没拍改。不要为了「统一」把它一起换掉——它的 lim=1000
+   *     是绝对容量而非比例，等比公式套不上去。 */
+  var HALL_SAVE = 0.025;           // 第 1 级的原始省耗率（等比数列首项，不再是线性段斜率）
+  var HALL_DR_BASE = 0.60;         // 渐近上限 60%：议事厅/城堡自身的折扣上限（造价地板 40%）
+  var HALL_DR_MAX  = 0.75;         // 含其它仓库建筑时的折扣总硬顶（当前恒等于 BASE，属预留余量）
   var HALL_DR_CASTLE_HSM = 0.5;    // 城堡 upg_castle 的 hallSaveMul 基准值（剥出「城堡本体」以算额外加成）
   function hallDiscountLimit(s) {
     var hsm = upgSum(s, 'hallSaveMul');
     var extra = Math.max(0, hsm - HALL_DR_CASTLE_HSM);
     return Math.min(HALL_DR_BASE + extra, HALL_DR_MAX);
   }
-  function hallMul(s) {
-    var _n = coreLvl(s);
-    if (!_n) return 1;
-    /* hallSaveMul 是所有「减耗类仓库建筑」的加成之和（当前只有城堡 upg_castle=0.5，
-     * 但 kelpstore/ballast/lighthouse/matStore 等其它仓库建筑若将来也挂这个键，
-     * 一律走 upgSum 聚合 —— 不写第二份「哪些建筑算减耗」清单，避免漂移）。
-     * 城堡把「每级省耗率 +50%」（rate ×1.5），只让折扣更早逼近天花板，不抬高天花板。 */
-    var hsm = upgSum(s, 'hallSaveMul');
-    var rate = HALL_SAVE * (1 + hsm);
-    /* 软上限 = 基础(50%) + 超过城堡基准的额外仓库加成，但绝不越过最高软上限(75%)：
-     * · 仅议事厅/城堡（hsm=0.5）→ lim=0.50（基础软上限 50%，造价地板 50%）
-     * · 若其它仓库建筑也带 hallSaveMul，继续叠加到 0.75 封顶（最高软上限 75%）
-     * ⚠️ 旧 bug：lim 曾 = 0.90×(1+hsm)=0.90×1.5=1.35 > 1 ⇒ hallMul=1-eff 越过 0 变负、
-     *     造价成负数、按钮可无限刷级（10²⁴ 量级，2026-10-10 实测）。
-     *   现 lim 直接取自聚合后的 hsm 并硬顶 0.75 ⇒ hallMul 恒 ∈ [0.25, 1]，彻底根绝负值，
-     *   且任何仓库建筑叠加都不会突破 75%。 */
+  /* 每级增量的衰减比 ρ = 1 − rate/lim。单拎出来是因为面板要显示「约每 N 级增量减半」，
+   * 而那个 N 由 ρ 反解（ln0.5 / lnρ）—— 写在 UI 里就会变成第二份公式，必漂。 */
+  function hallRho(s) {
+    var rate = HALL_SAVE * (1 + upgSum(s, 'hallSaveMul'));
     var lim = hallDiscountLimit(s);
-    var eff  = getLimitedDR(Math.min(_n * rate, lim), lim);   // 走和容量轴同一道衰减曲线
-    return 1 - eff;
+    if (!(lim > 0) || !(rate > 0)) return 1;      // 退化：不衰减（rate=0）或无上限
+    return Math.max(0, 1 - rate / lim);           // rate ≥ lim ⇒ ρ=0 ⇒ 第 1 级即吃满上限
   }
+  /* 按**指定等级**求原始折扣效果（0 ~ lim，等比递减）。hallMulAt / hallInfo 共用这一份，
+   * 绝不写第二遍公式 —— 「面板说再升 1 级多省 Y%、结算按别的算」就是下一个撒谎家族。 */
+  function hallEffAt(s, n) {
+    var _n = (n > 0) ? n : 0;
+    if (!_n) return 0;
+    var lim = hallDiscountLimit(s);
+    if (!(lim > 0)) return 0;
+    var rho = hallRho(s);
+    var eff = lim * (1 - Math.pow(rho, _n));
+    /* NaN 兜底：rate/lim 一旦被标定成异常值（NaN / ∞），Math.pow 会把整条造价乘区污染成 NaN，
+     * 而 costOf 对 hallMul 没有第二道闸 —— 这里错了就是「所有建筑都建不出来」的量级。 */
+    return (typeof eff === 'number' && isFinite(eff)) ? Math.max(0, Math.min(eff, lim)) : 0;
+  }
+  /* 按**指定等级**求造价乘数（1 = 没打折）。hallMul 是它在「当前统治核心等级」上的特例。
+   * 城堡的 hallSaveMul=0.5 只抬高 rate（×1.5）⇒ ρ 更小 ⇒ 前期更快逼近同一上限，
+   * **不抬高上限本身**（那是 2026-10-10 那个负造价 bug 的成因，注释见上面的常数块）。 */
+  function hallMulAt(s, n) { return 1 - hallEffAt(s, n); }
+  function hallMul(s) { return hallMulAt(s, coreLvl(s)); }
   function hallDiscount(s) { return 1 - hallMul(s); }
+  /* 给面板用的议价摘要（纯读，无副作用，不改任何状态）：
+   *   lvl      当前统治核心等级
+   *   discount 当前折扣（0 ~ limit；等比曲线下**永远差一点**到 limit）
+   *   limit    渐近上限（议事厅/城堡 = 0.60；其它仓库建筑带 hallSaveMul 时最多 0.75）
+   *   rate     第 1 级原始省耗率（议事厅 0.025 / 城堡 0.0375 = ×1.5）
+   *   rho      每级增量的衰减比（等于相邻两级增量之比，恒定）
+   *   nextGain 再升 1 级能多省多少 —— 要提醒玩家的边际效应，**恒 > 0**
+   *   halfLvl  增量减半所需等级（ln0.5/lnρ），文案用它把「越升越少」变成可验算的数
+   * ⚠️ 2026-10-29：**删除旧字段 `topLvl`**。等比曲线没有「到顶等级」，旧字段在渐近线上
+   *   只能给出一个永远达不到的 `ceil(lim/rate)`，留着必被误用成「N 级封顶」的假文案
+   *   （这正是上一版玩家看到的那句「25 级到顶」的残留来源）。
+   * ⚠️ 全部走 hallEffAt 同一段公式，面板与 costOf 的折扣天然同源。 */
+  function hallInfo(s) {
+    var n = coreLvl(s), lim = hallDiscountLimit(s);
+    var rate = HALL_SAVE * (1 + upgSum(s, 'hallSaveMul'));
+    var rho = hallRho(s);
+    var cur = hallEffAt(s, n), nxt = hallEffAt(s, n + 1);
+    return {
+      lvl: n, discount: cur, limit: lim, rate: rate, rho: rho,
+      nextGain: Math.max(0, nxt - cur),
+      halfLvl: (rho > 0 && rho < 1) ? Math.round(Math.log(0.5) / Math.log(rho)) : 0
+    };
+  }
   /* 倒置搭建：只减少脚手架材料，不影响同一造价中的其它资源。
    * 建筑、工坊升级与奇观共用此函数，保证显示、材料判定和实际扣费一致。 */
   function scaffoldCostMul(s) {
@@ -1616,7 +1660,7 @@
       return { supply: 0, supplyRate: 0, turbineRate: 0, pressRate: 0, fissionRate: 0, titancloudRate: 0, sunSailRate: 0,
         shopDraw: 0, shopRate: 0, shopRatio: 0, shopNeed: 0,
         demandRate: 0, balanceRate: 0, skyNeed: 0, europaNeed: 0, geekNeed: 0,
-        skyDraw: 0, skyRate: 0, left: 0, starDraw: 0, starRate: 0, drillDraw: 0, drillRate: 0,
+        skyDraw: 0, skyRate: 0, skyStopWhy: null, left: 0, starDraw: 0, starRate: 0, drillDraw: 0, drillRate: 0,
         stationDraw: 0, stationRate: 0, satelliteDraw: 0, satelliteRate: 0, labDraw: 0, labRate: 0, robotDraw: 0, robotRate: 0, robotbayDraw: 0, robotbayRate: 0,
         vrDraw: 0, vrRate: 0, europaDraw: 0, europaRate: 0, geekDraw: 0, geekRate: 0,
         jupitorDraw: 0, jupitorRate: 0 };
@@ -1674,13 +1718,23 @@
     /* 天穹钻机（ERA5）：从剩流里取 SKYDRILL_HYDRO/tick，且需共振钻头够（机器态判据见 shell.js）。
      * ⚠️ 2026-10-07 钻机改手动启动：这里也要认 skydrillOn——rates 与 tickShell 同源，
      *    否则钻机停着时顶栏速率行仍显示「钻机在吃热液能」（面板撒谎家族）。 */
-    var skyDraw = 0, skyNeed = 0;
+    var skyDraw = 0, skyNeed = 0, skyStopWhy = null;
     if (SB.wonder && SB.wonder.owned(s).wonder_skydrill && s.skydrillOn) {
       var hCost = SB.CFG.SKYDRILL_HYDRO * dt;
-      if ((s.res.resonantDrill || 0) >= hCost) {
+      /* ⚠️⚠️ 2026-10-29 修（玩家 10-29 报「看不出钻头不够」）：此前这里写的是
+       *    `if ((s.res.resonantDrill || 0) >= hCost)` —— 拿【共振钻头库存】跟【热液能成本
+       *    hCost = 20×dt】比，两个量纲完全不同（钻头真实消耗 SKYDRILL_DRILL = 0.1/秒，差 200 倍）。
+       *    后果：1× 速（dt=0.25）要囤 5 个、2× 速（dt=0.5）要 10 个、高速/离线（dt=2）要 40 个
+       *    钻头机器才肯转；而面板判据是「库存 < 0.1 才缺钻头」⇒ 那个分支**永不触发**，
+       *    面板一律甩锅给热液能，还会打印「剩流 39 ≥ 20 却不足」这种自相矛盾的诊断。
+       *    shell.js 同一个门用的是 dCost（口径正确），只有这一处写错。
+       *    ⇒ 统一按钻头自己的消耗判；同时把「为什么没取到流」写成 skyStopWhy 交给 UI，
+       *    面板不再自算阈值（单一判据源，同 runStatus/launchStatus 家族纪律）。 */
+      var dCost = SB.CFG.SKYDRILL_DRILL * dt;
+      if ((s.res.resonantDrill || 0) >= dCost) {
         skyNeed = hCost;
-        if (left >= hCost) skyDraw = hCost;
-      }
+        if (left >= hCost) skyDraw = hCost; else skyStopWhy = 'hydro';
+      } else skyStopWhy = 'bit';
     }
     /* ERA6→太空时代（2026-10-13）：星空探索改为「破壳后被动累积」终局资源，
      *   不再吃热液能（旧的热液能第三级消费者 starDraw 路线已废弃）。
@@ -1796,6 +1850,10 @@
       sunSailRate: dt > 0 ? sunSailSupply / dt : sunSailSupply,
       shopDraw: shopDraw, shopRate: dt > 0 ? shopDraw / dt : shopDraw,
       skyDraw: skyDraw, skyRate: dt > 0 ? skyDraw / dt : skyDraw,
+      /* 停摆子因（'bit' 缺共振钻头 / 'hydro' 缺热液能剩流 / null 正常或未启动）：
+       *   引擎与面板共用这一份，面板不再自己比阈值（旧写法 `库存 < SKYDRILL_DRILL`
+       *   与实际门差 200 倍 ⇒ 永远报「缺热液能」，玩家看不出真因）。 */
+      skyStopWhy: skyStopWhy,
       shopRatio: shopDemand > 0 ? shopDraw / shopDemand : (shopL > 0 ? 1 : 0),
       shopNeed: dt > 0 ? shopDemand / dt : shopDemand,
       skyNeed: dt > 0 ? skyNeed / dt : skyNeed,
@@ -2230,6 +2288,13 @@
     return SB.economyRateParts.rates(s);
   }
 
+  /* 速率分项（2026-10-29 · 顶栏资源详情面板）：与 rates 同一函数、同一次计算，
+   * 只是把它顺手记的账一起交出来（{key: [{l,v,b,m,d}]}）。
+   * ⚠️ 面板只准读这一口，不许在 UI 里重算任何一项 —— 那是「面板撒谎」家族的标准入口。 */
+  function ratesParts(s) {
+    return SB.economyRateParts.rateParts(s);
+  }
+
   /* ⚠️ 资源可见性（2026-09-30 UI）：带 unlock 描述的资源在解锁前不显示。
    *   描述符：{tech:'X'} 研究 X / {build:'X'} 建成 X / {job:'X'} 指派 X / {civic:'X'} 解锁 X。
    *   省略 unlock = 核心资源，开局即显示。craft 资源另由 renderRes 分到「工艺资源」区。 */
@@ -2300,6 +2365,10 @@
      *   三条每级效果（减耗 / 市政点 / 容量轴基数）与面板注脚都读它。
      *   导出是为了 e2e 与 UI 能直接断言这个读数，不必把口径抄四遍。 */
     coreLvl: coreLvl, hallDiscount: hallDiscount, hallDiscountLimit: hallDiscountLimit,
+    /* hallInfo（2026-10-29）：议价摘要（当前折扣 / 渐近上限 / 第 1 级省耗率 / 再升一级增量 /
+     *   增量减半等级）。面板靠它说清「等级越高每级省得越少」，不在这边另算一份公式。
+     *   ⚠️ 2026-10-29 起**没有 `topLvl` 了**：等比曲线是渐近的，不存在「到顶等级」。 */
+    hallInfo: hallInfo,
     costOf: costOf, scaffoldAdjustedCost: scaffoldAdjustedCost,
     costTxt: costTxt, costOwnedTxt: costOwnedTxt, buildCostTxt: buildCostTxt,
     canAfford: canAfford, pay: pay,
@@ -2458,6 +2527,8 @@
      *    那会在玩家盯着面板看的时候偷偷烧掉一 tick 的暖石。要看 burning 用 warmBurning。 */
     warmRelief: warmRelief, warmBurningNow: warmBurningNow,
     rates: rates,
+    /* 速率分项（2026-10-29）：顶栏资源详情面板的唯一读数口，与 rates 同一次计算。 */
+    ratesParts: ratesParts,
     tick: tick,
     happyStep: happyStep
   };

@@ -4,6 +4,9 @@
 .save-manager-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 14px}
 .save-manager-actions .btn{min-height:40px;white-space:normal;line-height:1.35}
 .save-manager-actions .btn:disabled{opacity:.48;cursor:not-allowed}
+/* 立即保存（2026-10-29）：独占第一行、跨两列、加粗 —— 面板里唯一「正向改存档」的操作，
+   其余全是往外搬（导出/上传/导入）。手机端退化成 1 列时这条规则仍成立。 */
+.save-manager-actions .save-manager-primary{grid-column:1 / -1;min-height:44px;font-weight:700}
 .save-manager-label{display:block;margin:4px 0 6px;color:var(--text);font-size:13px;font-weight:700}
 /* 2026-10-29：诊断文本框与存档码框共用一套皮肤 —— 只写 #saveCodeBox 时新框会掉回
  * 浏览器默认样式（浅底黑字），在深色面板里像一块贴错的白纸。 */
