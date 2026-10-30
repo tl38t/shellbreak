@@ -1644,7 +1644,7 @@
        *   · 能力存在但调用失败 / 超时 ⇒ **未知**，一律暂停（见下面 error/timeout 分支）。 */
       if (!SB.saveTransfer || !SB.saveTransfer.restoreFromCloudIfAny
           || !(SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable())) {
-        startRun(); bootUi(); return;
+        openFreshRun(); bootUi(); return;
       }
       SB.saveTransfer.restoreFromCloudIfAny(function (cloud) {
         if (cloud && cloud.status === 'found' && cloud.bundle) {
@@ -1658,7 +1658,7 @@
         /* absent = 云端明确答复「没有存档」；unavailable = 运行时没有这条路。
          * 两者都足以判定「设备上确实没有旧档」，可以安全开新局。 */
         if (cloud && (cloud.status === 'absent' || cloud.status === 'unavailable')) {
-          startRun(); bootUi(); return;
+          openFreshRun(); bootUi(); return;
         }
         if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
           SB.saveTransfer.showRecoveryPending((cloud && cloud.error) || '云存档检查失败；为保护旧档，已暂停开新局。');
@@ -1668,16 +1668,163 @@
         SB.saveTransfer.showRecoveryPending('本机存档检查失败：' + (e && e.message || e));
     });
   }
+  /* ══ 运行时就绪门（2026-10-30）════════════════════════════════════════
+   * 【事故形状】玩家报「更新后第一次打开，存档没了」。根因不在读档逻辑，在**时机**：
+   *   `main.js` 在 DOMContentLoaded 里**同步**调 boot，而 TapTap 原生桥注入 `tap`
+   *   是异步的，冷启动（刚更新完、要重拉资源）最慢。那一刻三项能力全为假 ⇒
+   *   旧代码把这句读成「这台机器没有存档能力」⇒ 走同步分支 ⇒ 本机读不到 ⇒
+   *   `rescueGate` 同样全假 ⇒ **startRun() 直接开新档**；而 startRun 末尾立刻
+   *   saveRun，5 秒后的自动存档（若此时 tap 已注入）就把新档写进 shellbreak-save-a/b
+   *   ⇒ 唯一的好档销毁。而且这一路**不经过尸检副本** —— preserveEmergency 只挂在
+   *   finishNew 里，而 finishNew 要求 rescueGate 为真。
+   * 【判据】`tap 没来` ≠ `没有存档`。旧代码把这两件事合并成同一个判断，这就是根因。
+   *   现在拆三态：
+   *     ready = 三项能力任一为真        → 立刻 bootTap()
+   *     hint  = tap 对象在 / 容器 UA     → **等**，期间不判定、不落盘
+   *     none  = 两者皆无                → 纯网页，走与改造前逐字相同的同步路径
+   * ⚠️ hint **只决定「值不值得等」**，绝不可当 ready 用 —— 拿它去读档会读到空，
+   *    然后「确认没有旧档」把好档覆盖掉，等于绕回事故原点。
+   * ⚠️ 超时（8 秒）的出口是**暂停**，不是开新档。同理：没连上 ≠ 没有。
+   * ⚠️ 等待期间必须能逃出去（10-28「卡在更新日志点不动」的教训）：3 秒后出
+   *    「跳过等待」，点了走与今天完全相同的路径，且会打开原生槽写保护。 */
+  /* ⚠️ 这四个数**每次用到时**才读 CFG，不在加载时定格：回归要注入短超时
+   *   （`SB.CFG.BOOT_GATE.WAIT_MS = 150`），定格的话夹具只能干等 8 秒。
+   *   顺带也守住「数值只有一个源」——除 CFG 外不该有第二份。 */
+  function gateCfg(key, fallback) {
+    var g = (SB.CFG && SB.CFG.BOOT_GATE) || {};
+    var v = Number(g[key]);
+    return (isFinite(v) && v > 0) ? v : fallback;
+  }
+
+  function capReady() {
+    if (!SB.store || !SB.store.scanSaveCandidates) return false;
+    return !!((SB.store.envAvailable && SB.store.envAvailable())
+      || (SB.store.fsAvailable && SB.store.fsAvailable())
+      || (SB.saveTransfer && SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable()));
+  }
+  function runtimeHinted() {
+    /* 强证据：tap 已挂在全局（哪怕只是个空壳 —— 说明桥正在往里灌方法）。 */
+    try { if (root.tap) return true; } catch (e) {}
+    /* 弱证据：容器 UA。TapTap 的 webview 会带 TapTap 字样。 */
+    try {
+      var ua = (root.navigator && root.navigator.userAgent) || '';
+      if (/TapTap/i.test(ua)) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  var gateEl = null, gateTimer = null, gateSkipBtn = null, gateStartAt = 0, gateDone = true;
+  function gateRender(waited) {
+    try {
+      if (!document || !document.body) return;
+      if (!gateEl) {
+        gateEl = document.createElement('div');
+        gateEl.id = 'bootGate';
+        gateEl.setAttribute('role', 'status');
+        gateEl.style.cssText = 'position:fixed;inset:0;z-index:100002;display:flex;'
+          + 'flex-direction:column;align-items:center;justify-content:center;gap:14px;'
+          + 'padding:24px;text-align:center;background:rgba(6,12,20,.94);color:#e8eef6;'
+          + 'font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;'
+          + 'pointer-events:auto;-webkit-user-select:none;user-select:none;';
+        gateEl.innerHTML = '<div id="bootGateMsg">正在连接 TapTap…</div>'
+          + '<div id="bootGateSub" style="font-size:13px;opacity:.66;min-height:1.4em"></div>'
+          + '<button type="button" id="bootGateSkip" style="display:none;margin-top:6px;'
+          + 'padding:9px 18px;border:1px solid rgba(232,238,246,.34);border-radius:8px;'
+          + 'background:transparent;color:#e8eef6;font-size:13px;cursor:pointer;">'
+          + '跳过等待，直接进入</button>';
+        document.body.appendChild(gateEl);
+        gateSkipBtn = gateEl.querySelector('#bootGateSkip');
+        if (gateSkipBtn) gateSkipBtn.onclick = function () { gateFinish('skip'); };
+      }
+      var msg = gateEl.querySelector('#bootGateMsg');
+      if (msg) msg.textContent = '正在连接 TapTap…';
+      var sub = gateEl.querySelector('#bootGateSub');
+      if (sub) sub.textContent = '已等待 ' + Math.floor(waited / 1000) + ' 秒';
+      if (gateSkipBtn) gateSkipBtn.style.display = waited >= gateCfg('SKIP_MS', 3000) ? 'block' : 'none';
+    } catch (e) {
+      /* 遮罩画不出来也不能拦住启动 —— 等待逻辑与 UI 必须解耦。 */
+    }
+  }
+  function gateClose() {
+    if (gateTimer) { try { root.clearTimeout(gateTimer); } catch (e) {} gateTimer = null; }
+    try {
+      if (gateEl && gateEl.parentNode) gateEl.parentNode.removeChild(gateEl);
+    } catch (e) {}
+    gateEl = null; gateSkipBtn = null;
+  }
+  function gateFinish(how) {
+    if (gateDone) return;
+    gateDone = true;
+    gateClose();
+    if (SB.store && SB.store.diagSet) {
+      try { SB.store.diagSet({ gate: how, gateMs: Date.now() - gateStartAt }, true); } catch (e) {}
+    }
+    if (how === 'timeout') {
+      /* 兜底出口（2026-10-30）：localStorage 里本来就有可读的档 ⇒ 「tap 没连上」
+       *   根本不影响续档（decideRun 走的就是它），直接继续。
+       *   这一条把「UA 误判成小游戏容器」的代价压到最低：网页版老玩家不会因为
+       *   UA 里带 TapTap 就被卡在恢复界面，更不会点了「开新局」把 local 档碾掉。 */
+      var lr = null;
+      try { lr = SB.store && SB.store.readLocal ? SB.store.readLocal(CFG.RUN_KEY) : null; } catch (e) { lr = null; }
+      if (lr) {
+        var lo = null;
+        try { lo = JSON.parse(lr); } catch (e) { lo = null; }
+        if (lo && lo.res && lo.lvl && lo.jobs) {
+          if (SB.store && SB.store.diagSet) {
+            try { SB.store.diagSet({ gate: 'timeout-local' }, true); } catch (e) {}
+          }
+          bootStage2(); return;
+        }
+      }
+      /* 唯一的「不确定」出口：绝不开新档（见上方判据）。给玩家的动作是明确的 —— 
+       * 退出重开；连续几次都这样就把诊断信息发给我们。 */
+      if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
+        SB.saveTransfer.showRecoveryPending('没能连上 TapTap 运行环境（已等待 '
+          + Math.round(gateCfg('WAIT_MS', 8000) / 1000) + ' 秒）。为保护旧档，已暂停开新局 —— '
+          + '请退出游戏重新打开；如果连续几次都这样，请把存档面板里的诊断信息发给我们。');
+      return;
+    }
+    bootStage2();
+  }
+  function waitRuntime() {
+    gateDone = false;
+    gateStartAt = Date.now();
+    gateRender(0);
+    function poll() {
+      if (gateDone) return;
+      var waited = Date.now() - gateStartAt;
+      if (capReady()) { gateFinish('ready'); return; }
+      if (waited >= gateCfg('WAIT_MS', 8000)) { gateFinish('timeout'); return; }
+      gateRender(waited);
+      gateTimer = root.setTimeout(poll, gateCfg('POLL_MS', 100));
+    }
+    poll();
+  }
+
   function boot() {
     /* 诊断记录（2026-10-29）：读上一次会话留下的那份，并把「启动次数 +1」记下来。
      * ⚠️ 必须在 decideRun 之前读 —— 它同时是「这台设备玩过」的唯一证据（存档可能被清）。 */
     if (SB.store && SB.store.diagLoad) {
       try { SB.store.diagLoad(); SB.store.diagBump('boots', 1, false); } catch (e) {}
     }
-    if (SB.store && SB.store.scanSaveCandidates &&
-        ((SB.store.envAvailable && SB.store.envAvailable())
-        || (SB.store.fsAvailable && SB.store.fsAvailable())
-        || (SB.saveTransfer && SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable()))) {
+    /* ★★ 2026-10-30：先过就绪门。能力齐了直接走；没齐但看着像小游戏容器 ⇒ 等。 */
+    if (!capReady() && runtimeHinted()) { waitRuntime(); return; }
+    if (SB.store && SB.store.diagSet) {
+      /* ⚠️ 必须 immediate：上一句 diagBump('boots') 刚写过盘，非强制写会被 20 秒节流吃掉
+       *   ⇒ 诊断里永远看不到 gate 字段。多写一次约 500 字节，代价可忽略。 */
+      try { SB.store.diagSet({ gate: 'direct', gateMs: 0 }, true); } catch (e) {}
+    }
+    bootStage2();
+  }
+  function bootStage2() {
+    /* ⚠️ 就绪门会把启动推迟到 tap 到位之后才继续，而 main.js 里那句
+     *   `SB.saveTransfer.boot()` 是在「能力全假」的那一刻就跑完的 ⇒ 云备份定时器
+     *   根本没装上（它内部判 cloudAvailable）。这里补一次；boot 内部有 autoPumpTimer
+     *   闸，重复调用安全，不会出现两个 30 秒定时器。 */
+    if (SB.saveTransfer && SB.saveTransfer.boot) {
+      try { SB.saveTransfer.boot(); } catch (e) {}
+    }
+    if (capReady()) {
       bootTap(); return;
     }
     var r = decideRun();
@@ -1736,7 +1883,7 @@
             if (pres) {
               try { log('已保留一份旧档副本（' + pres.bytes + ' 字节，来源 ' + pres.source + '），可在存档面板导出。'); } catch (e) {}
             }
-            startRun();
+            openFreshRun();
             bootUi();
           };
           if (SB.store && SB.store.preserveEmergency) {
@@ -1817,7 +1964,7 @@
        * ⚠️ 诊断里的启动出口要记 `new` 而不是 decideRun 返回的 `empty` —— `empty` 只代表
        *   「localStorage 读不到」，而玩家真正经历的是「开了新档」。两者必须分清，否则
        *   遥测里「本机空但逃过了救援」和「真的新玩家」会长得一模一样。 */
-      startRun();
+      openFreshRun();
       if (SB.store && SB.store.diagSet) {
         try { SB.store.diagSet({ boot: 'new-nogate', bootAt: Date.now() }, true); } catch (e) {}
       }
@@ -1830,9 +1977,129 @@
    * 与 finishNew 的区别：不写诊断出口、不抄尸检副本 —— 玩家已明确表示「本机与云端都没有」。 */
   function forceFreshBoot() {
     if (S) return false;
-    startRun();
+    openFreshRun();
     bootUi();
     return true;
+  }
+  /* ── 开新档统一入口（2026-10-30）────────────────────────────────────
+   * 所有「确认没有旧档」的出口都必须走这里，而不是裸调 startRun()。
+   * 【它多做的两件事】
+   *   ① 记下开档时刻（freshBootAt）—— 晚到补偿的观察窗口从这一刻起算。
+   *   ② 如果**此刻 tap 仍未就绪**，打开原生槽写保护：不许 saveRun 把新档写进
+   *      shellbreak-save-a/b/hide。这是救回旧档的唯一前提 —— 一旦写进去，
+   *      旧档连读都读不到，谈何「让玩家选」。
+   * ⚠️ 保护不是永久的：lateRescue 扫完、或超过 LATE_MS，一律 releaseHold()。
+   *    忘了放 = 玩家永远没有原生副本（只剩 localStorage 一条命），比不保护更糟。 */
+  var freshBootAt = 0;
+  function openFreshRun() {
+    freshBootAt = Date.now();
+    if (!capReady() && SB.store && SB.store.setNativeHold) {
+      try { SB.store.setNativeHold(true); } catch (e) {}
+      armLateRescue();
+    }
+    startRun();
+  }
+  function releaseNativeHold() {
+    if (SB.store && SB.store.setNativeHold) { try { SB.store.setNativeHold(false); } catch (e) {} }
+  }
+  /* ── D. 晚到补偿（2026-10-30）──────────────────────────────────────
+   * 【为什么还要它】就绪门堵住了绝大多数情况，但仍有三条路能在 tap 未就绪时开成新档：
+   *   ① 玩家自己点了「跳过等待」或存档面板的「确认没有旧档，开新局」；
+   *   ② 就绪门误判成 direct（UA 与 tap 都不符合，但容器其实在慢速注入）；
+   *   ③ 未来有人又加了一条开新档的出口却忘了走 openFreshRun。
+   *   这三条下如果 tap 随后注入，本机原生槽里可能躺着比当前更好的档。
+   * 【判据】比对用「周目 → 时长」，**绝不用 seq**：seq 由墙钟派生（见 save-storage.js
+   *   的 nextNativeRevision），新档的 seq 必然更大，拿它比等于永远选我们自己 ——
+   *   这正是《小区门卫模拟器》作者踩的那个「时间戳判新旧」的坑。
+   * 【选之前不写】与 bootTap 里「缺 meta 不接管」同一条纪律：玩家没确认之前，
+   *   一个字节都不落盘，否则捞回来的档会被当前这局二次覆盖。 */
+  var lateArmed = false, lateScanned = false, lateBarShown = false;
+  function armLateRescue() {
+    if (lateArmed) return;
+    lateArmed = true;
+    var deadline = freshBootAt + gateCfg('LATE_MS', 180000);
+    function step() {
+      if (!S) { releaseNativeHold(); return; }
+      if (Date.now() > deadline) { releaseNativeHold(); return; }
+      if (!capReady()) { root.setTimeout(step, 500); return; }
+      lateScan();
+    }
+    root.setTimeout(step, 500);
+  }
+  function lateScan() {
+    if (lateScanned) return;
+    lateScanned = true;
+    var scan;
+    try { scan = SB.store.scanSaveCandidates(CFG.RUN_KEY, CFG.SAVE_KEY); }
+    catch (e) { releaseNativeHold(); return; }
+    scan.then(function (res) {
+      /* ⚠️ 不能只看 res.best：best 是按 seq 排的第一名，而当前这局的 seq 最新
+       *   ⇒ best 恒等于「我们自己刚写的这份」，永远判不出「有更早但更完整的档」。
+       *   必须把**全部候选**按（周目, 时长）取最大，再跟内存档比。 */
+      var pick = null;
+      (res && res.candidates ? res.candidates : []).forEach(function (c) {
+        if (!c || !c.metaRaw) return;          /* 缺 meta 不许接管，见 bootTap 同款判据 */
+        var t = 0;
+        try { t = Number(JSON.parse(c.runRaw).t) || 0; } catch (e) { return; }
+        var rank = (Number(c.cycle) || 0) * 1e9 + t;
+        if (!pick || rank > pick.rank) pick = { rank: rank, cand: c, t: t, cycle: Number(c.cycle) || 0 };
+      });
+      if (!pick) { releaseNativeHold(); return; }
+      var myT = (S && typeof S.t === 'number') ? S.t : 0;
+      var myCycle = (meta && meta.cycle) || 0;
+      /* 「更完整」= 周目更高，或同周目且时长多出 60 秒以上（刚起来那几个 tick 不算）。 */
+      var better = pick.cycle > myCycle || (pick.cycle === myCycle && pick.t > myT + 60);
+      if (!better) { releaseNativeHold(); return; }
+      offerLateRescue(pick.cand, pick.t, pick.cycle);
+    }, function () { releaseNativeHold(); });
+  }
+  function offerLateRescue(hit, hitT, hitCycle) {
+    if (lateBarShown) return;
+    var bar = null;
+    try { bar = document && document.body ? document.createElement('div') : null; } catch (e) { bar = null; }
+    if (!bar) { releaseNativeHold(); return; }   /* 画不出条就别把保护卡住 */
+    lateBarShown = true;
+    var btn = 'padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;';
+    bar.id = 'lateSaveBar';
+    bar.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:100003;'
+      + 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;'
+      + 'padding:10px 12px;border-radius:10px;background:rgba(12,22,34,.97);'
+      + 'border:1px solid rgba(214,178,94,.55);color:#e8eef6;'
+      + 'font:13px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;'
+      + 'box-shadow:0 6px 24px rgba(0,0,0,.45);';
+    bar.innerHTML = '<span>找到一份更完整的存档（第 ' + (hitCycle || 1) + ' 周目 · '
+      + (hitT / 3600).toFixed(2) + ' 小时），要载入吗？</span>'
+      + '<button type="button" id="lateSaveUse" style="' + btn
+      + 'border:0;background:#d6b25e;color:#10202f;font-weight:600;">载入这份</button>'
+      + '<button type="button" id="lateSaveKeep" style="' + btn
+      + 'border:1px solid rgba(232,238,246,.34);background:transparent;color:#e8eef6;">继续当前</button>';
+    try { document.body.appendChild(bar); } catch (e) { releaseNativeHold(); return; }
+    function dismiss(msg) {
+      try { if (bar.parentNode) bar.parentNode.removeChild(bar); } catch (e) {}
+      releaseNativeHold();
+      if (msg) { try { log(msg); } catch (e) {} }
+    }
+    var keep = document.getElementById('lateSaveKeep');
+    if (keep) keep.onclick = function () { dismiss('已忽略本机找到的旧档，继续当前这一局。'); };
+    var use = document.getElementById('lateSaveUse');
+    if (use) use.onclick = function () {
+      /* 先解保护再接管：adoptBundle 会走 writeNativeSaveSync，保护开着等于白写。 */
+      releaseNativeHold();
+      try {
+        adoptBundle({ format: 'shellbreak-save', version: 1,
+          save: { meta: JSON.parse(hit.metaRaw), run: JSON.parse(hit.runRaw) } });
+      } catch (e) {
+        dismiss('旧档载入失败：' + (e && e.message ? e.message : e));
+        return;
+      }
+      /* ⚠️ 这里**不能**再调 bootUi()：主循环已经在跑，重复调用会二次 setInterval(loop)
+       *   ⇒ 双倍 tick（见 boot 拆两段那段注释）。adoptBundle → resumeRun 已经 renderAll，
+       *   循环读的是模块级 S，自然接手。 */
+      if (SB.store && SB.store.diagSet) {
+        try { SB.store.diagSet({ boot: 'late-rescue:' + hit.source, bootAt: Date.now() }, true); } catch (e) {}
+      }
+      dismiss('已载入本机找到的旧档（来源：' + hit.source + '）。');
+    };
   }
   /* boot 的第二段：从「S 已就绪」到「主循环起来」的全部 UI 接线。
    * 只在 decideRun/boot 里各调一次，不重复调用（见上面那条重复 setInterval 的警告）。 */

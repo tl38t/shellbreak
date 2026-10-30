@@ -12,7 +12,7 @@ import zipfile
 
 SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
 OUT = os.environ.get('SB_TAPTAP_OUT',
-    r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc30-v1.0.4.zip')
+    r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc33-v1.0.6.zip')
 TOP = 'shellbreak'
 
 # ---------- 打包前：自动同步源码 → 包目录 ----------
@@ -144,7 +144,11 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.5'" in _cfg, '包内 config.js 版本号不是 Ver1.0.5'
+assert "VERSION: 'Ver1.0.6'" in _cfg, '包内 config.js 版本号不是 Ver1.0.6'
+assert "v: 'Ver1.0.6'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.6 条目'
+# Ver1.0.6 玩家可见 3 条（就绪门）：2 修 + 1 诊断。逐条钉死，漏一条这次等于白改。
+for _kw in ['还没准备好', '一个字节都不会动', '启动等待']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.6 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.5'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.5 条目'
 # Ver1.0.5 玩家可见 6 条（用户 2026-10-29 21:02 拍板清单）逐条钉死：3 修 + 3 新增。
 for _kw in ['轮回商店里买过的强化', '天穹钻机明明在转', '商人共和国是 5 个卡槽',
@@ -264,6 +268,39 @@ for _ui in ('src/ui/render-info.js', 'src/ui/render-pane-village.js'):
     assert 'topLvl' not in _read(_ui), _ui + ' 仍引用已删除的 hallInfo.topLvl（会渲染出假「到顶」）'
 print('P0 修复入包检查: OK (adoptBundle + 分段超时×2 + 写后读回 + 日志去重 + 逃生分支顺序 + 引导层压制 + 版本号/日志 + 节能减耗三落点 + 议价等比曲线)')
 
+
+# ---------- 运行时就绪门（2026-10-30 / Ver1.0.6）----------
+# 事故：`main.js` 在 DOMContentLoaded 里**同步** boot，那一刻 TapTap 原生桥可能还没
+#   注入 `tap` ⇒ 三项能力全假 ⇒ 被读成「这台机器没有存档能力」⇒ startRun 并立刻落盘
+#   ⇒ 5 秒后自动存档把新档写进 shellbreak-save-a/b，唯一的好档销毁。
+# 形状与《小区门卫模拟器》2026-10-24 的公告逐字一致（玩家报「更新后第一次打开没档」）。
+# 下面五条缺任何一条，这个洞就还开着：
+#   ① 三态判别：capReady（能力齐）与 runtimeHinted（像小游戏容器）必须分开；
+#      hint 只决定「值不值得等」，绝不可当 ready 用。
+#   ② 超时出口是**暂停**，不是 startRun。
+#   ③ 超时时若 localStorage 本来就有可读档 ⇒ 直接放行（否则 UA 误判会把网页版卡死）。
+#   ④ 原生槽写保护：tap 未就绪时开的新档不许覆盖还没被看见的旧档。
+#   ⑤ 晚到补偿：tap 晚到后重扫本机，把更完整的旧档提出来让玩家选，选之前不落盘。
+_gm3 = _read('src/game.js')
+assert 'function capReady(' in _gm3 and 'function runtimeHinted(' in _gm3, \
+    '包内 game.js 缺就绪门三态判别（tap 慢注入仍会被当新玩家）'
+assert 'if (!capReady() && runtimeHinted()) { waitRuntime(); return; }' in _gm3, \
+    '包内 boot 没过就绪门'
+assert "gateFinish('timeout')" in _gm3, '包内就绪门缺超时出口'
+assert 'timeout-local' in _gm3, \
+    '包内就绪门超时没区分「localStorage 已有档」（网页版会被误卡在恢复界面）'
+assert 'function openFreshRun(' in _gm3, '包内 game.js 缺开新档统一入口'
+assert 'function armLateRescue(' in _gm3 and 'function offerLateRescue(' in _gm3, \
+    '包内缺晚到补偿（tap 晚到后旧档无法捞回）'
+assert 'setNativeHold(true)' in _gm3, '包内开新档时没打开原生槽写保护'
+assert 'setNativeHold(false)' in _gm3, \
+    '包内写保护没有解除点（玩家会永远只剩 localStorage 一条命）'
+_ss3 = _read('src/save-storage.js')
+assert 'function setNativeHold(' in _ss3 and _ss3.count('nativeHold ||') >= 3, \
+    '包内 save-storage.js 没把写保护接到三处原生写入上'
+assert 'autoPumpTimer' in _read('src/save-transfer.js'), \
+    '包内云备份定时器不是幂等的（就绪门重入会装出两个 30 秒定时器）'
+print('就绪门入包检查: OK (三态判别 + 超时暂停/local 放行 + 写保护 + 晚到补偿 + 定时器幂等)')
 
 # 包内素材必须齐全（2026-10-26 补：rc15 及之前只同步两个 icons 子树，
 # 线上缺 fonts / building-icons / resource-icons / achievements 等 ⇒ 静默 404 缺图）

@@ -14,6 +14,7 @@ import { run as runAutoResearch } from './e2e-suites/auto-research.mjs';
 import { run as runTechShape } from './e2e-suites/tech-shape.mjs';
 import { run as runEra3Content } from './e2e-suites/era3-content.mjs';
 import { run as runPersistence } from './e2e-suites/persistence.mjs';
+import { run as runBootGate } from './e2e-suites/boot-gate.mjs';
 import { run as runSaveMigrate } from './e2e-suites/save-migrate.mjs';
 import { run as runBuildingShape } from './e2e-suites/building-shape.mjs';
 import { run as runEra4Content } from './e2e-suites/era4-content.mjs';
@@ -1963,6 +1964,10 @@ console.log('\n=== 轮回遗产科技同构（tick === rates）===');
 }
 
 await runPersistence({ SB, check, sandbox, doc, makeDoc, loadAll, errors });
+/* 就绪门（2026-10-30）：必须在 persistence 之后 —— 它要开四个全新沙箱，
+ * 每个都完整跑一遍 index.html 的全部脚本；放在前面会让后续套件的共享 SB 变成
+ * 最后一个夹具留下的状态（那一类污染以前踩过，见 persistence.mjs 顶部注释）。 */
+await runBootGate({ SB, check, makeDoc, loadAll, errors });
 
 /* ---------------- 轮回系统（宗教 → 弹窗 → 轮回点 / 商店门控）----------------
  * 2026-09-29 新增：建立宗教解锁「轮回」；解锁前不发放轮回点；

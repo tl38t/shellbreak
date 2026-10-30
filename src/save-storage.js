@@ -131,6 +131,20 @@
   var nativeSeq = Number(readLocal(NATIVE_SEQ_KEY)) || 0;
   var nativePending = null, nativeWriting = false, nativeWaiters = [];
   var nativeLatest = null, nativeLastPromise = Promise.resolve(false);
+  /* ── 原生槽写保护（2026-10-30）────────────────────────────────────
+   * 【它挡的是什么】启动时 tap 还没注入、于是被判成「新玩家」开了新档。这时如果
+   *   不保护，5 秒后的自动存档就会把新档写进 shellbreak-save-a/b，把那份还没被
+   *   我们看见的好档碾掉；`hide` 槽也要一起挡 —— 它正是旧档最可能残留的地方。
+   * 【谁开谁关】game.js 的 openFreshRun() 在「tap 未就绪就开新档」时打开，
+   *   lateRescue 扫完（无论有没有捞到旧档）或超过 LATE_MS 时关闭。
+   * 【代价】保护期内新档只落在 localStorage / 镜像，不进原生槽。真·新玩家最多
+   *   损失这段时间的原生副本 —— 与「老玩家 100 小时被 5 秒覆盖」完全不对称，划算。 */
+  var nativeHold = false;
+  function setNativeHold(on) {
+    nativeHold = !!on;
+    return nativeHold;
+  }
+  function nativeHeld() { return nativeHold; }
   function nextNativeRevision() {
     nativeSeq = Math.max(nativeSeq + 1, Date.now() * 1000 + (nativeSeq % 2 ? 0 : 1));
     writeLocal(NATIVE_SEQ_KEY, String(nativeSeq));
@@ -188,7 +202,7 @@
       });
   }
   function writeNativeSave(metaRaw, runRaw, forceNew) {
-    if (!fsAvailable() || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return Promise.resolve(false);
+    if (nativeHold || !fsAvailable() || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return Promise.resolve(false);
     nativeLatest = nativeRecord(metaRaw, runRaw, !!forceNew);
     nativePending = nativeLatest;
     nativeLastPromise = new Promise(function (resolve) {
@@ -198,7 +212,7 @@
     return nativeLastPromise;
   }
   function flushNativeSync() {
-    if (!nativeLatest || !fsAvailable()) return false;
+    if (nativeHold || !nativeLatest || !fsAvailable()) return false;
     var fs = root.tap.getFileSystemManager(), path = nativePath('hide');
     if (typeof fs.writeFileSync !== 'function' || typeof fs.readFileSync !== 'function') return false;
     try {
@@ -210,7 +224,7 @@
     } catch (e) { st.fileFail++; st.lastError = String(e && e.message || e); return false; }
   }
   function writeNativeSaveSync(metaRaw, runRaw) {
-    if (!fsAvailable() || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return false;
+    if (nativeHold || !fsAvailable() || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return false;
     var previous = nativeLatest;
     nativeLatest = nativeRecord(metaRaw, runRaw, true);
     if (flushNativeSync()) return true;
@@ -404,6 +418,10 @@
   }
   function diagBlank() {
     return { schema: 1, ver: verOf(), cap: '', boots: 0, boot: '', bootAt: 0,
+      /* gate / gateMs（2026-10-30）：启动就绪门的出口与等待耗时。这是「tap 注入慢」
+       * 唯一的现场证据 —— 玩家报「更新后第一次打开没档」时，这两个字段能直接区分
+       * 「根本没等」与「等满了还是没来」。 */
+      gate: '', gateMs: 0,
       ok: 0, fail: 0, skip: 0, patch: 0, skipKey: '', lastPatchKey: '',
       rbOk: 0, rbEmpty: 0, rbMismatch: 0,
       lost: 0, recover: '', emerg: 0, emergAt: 0, err: '', at: 0 };
@@ -490,6 +508,7 @@
       '版本 ' + (d.ver || '?') + '　生成 ' + t(Date.now()),
       '能力 ' + capText() + '　(ls=localStorage ts=tap.setStorage fs=用户目录文件 cl=云存档)',
       '启动 本次=' + (d.boot || '?') + '　累计=' + (d.boots || 0) + '　时刻=' + t(d.bootAt),
+      '就绪 ' + (d.gate || '未走门') + (d.gateMs ? '　等待 ' + d.gateMs + 'ms' : ''),
       '恢复 最近来源=' + (d.recover || '—') + '　丢档(localStorage空但有备份)=' + (d.lost || 0) + ' 次',
       '写盘 成功=' + (d.ok || 0) + ' 失败=' + (d.fail || 0) + ' 拒写=' + (d.skip || 0)
         + ' 补位=' + (d.patch || 0) + '　最近坏键=' + (d.skipKey || '—'),
@@ -586,6 +605,8 @@
     mirrorWrite: mirrorWrite, mirrorRemove: mirrorRemove,
     writeNativeSave: writeNativeSave, flushNativeSync: flushNativeSync,
     writeNativeSaveSync: writeNativeSaveSync,
+    /* 原生槽写保护（2026-10-30）：见 setNativeHold 上方那段注释。 */
+    setNativeHold: setNativeHold, nativeHeld: nativeHeld,
     scanSaveCandidates: scanSaveCandidates,
     nativeRevision: function () { return nativeSeq; },
     nextNativeRevision: nextNativeRevision,

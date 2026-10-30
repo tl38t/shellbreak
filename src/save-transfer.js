@@ -986,6 +986,10 @@
     });
   }
 
+  /* 自动云备份定时器只装一次（2026-10-30）：就绪门会在 `tap` 晚到后**重新**调 boot，
+   * 那时 cloudAvailable 才第一次为真。没有这道闸，第一次（能力未就绪时）那一段白跑、
+   * 第二次才装上；有了闸则可以安全重复调用。 */
+  var autoPumpTimer = null;
   function boot() {
     var button = document.getElementById('btnSaveManager');
     if (button) button.onclick = openPanel;
@@ -997,7 +1001,9 @@
     if (settingsManager) settingsManager.onclick = openPanel;
     /* 自动云备份（2026-10-27）：**只在 TapTap 小游戏环境装定时器**。
      * 普通浏览器与 e2e 沙箱一律不装 —— 装了 node 沙箱进程不肯退出，回归会挂住。 */
-    if (cloudAvailable() && root.setInterval) root.setInterval(autoCloudPump, 30000);
+    if (cloudAvailable() && root.setInterval && !autoPumpTimer) {
+      autoPumpTimer = root.setInterval(autoCloudPump, 30000);
+    }
     var settingsWipe = document.getElementById('btnSettingsWipe');
     if (settingsWipe) settingsWipe.onclick = function () {
       SB.ui.render.confirmPanel({
