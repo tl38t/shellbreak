@@ -35,6 +35,10 @@ export async function run({ SB, check, makeDoc, loadAll, errors }) {
       };
       t.setStorage = (a) => { kv[a.key] = a.data; if (a.success) a.success({}); };
       t.removeStorage = (a) => { delete kv[a.key]; if (a.success) a.success({}); };
+      /* 同步键值（2026-10-30）：官方写明「长期保留」，是「设备没有同步文件接口」时
+       * 唯一能保证 onHide 那一刻真落盘的通道。夹具必须提供，否则测不到兜底分支。 */
+      t.setStorageSync = (k, v) => { kv[k] = v; };
+      t.getStorageSync = (k) => (kv[k] == null ? '' : kv[k]);
     }
     if (o.fs) {
       t.env = { USER_DATA_PATH: 'tapfile://usr' };
@@ -126,6 +130,9 @@ export async function run({ SB, check, makeDoc, loadAll, errors }) {
         diagOf(sbA).gate === 'ready', 'gate=' + diagOf(sbA).gate);
       check('等到了才开档：不误报丢档（lost 计数为 0）',
         (diagOf(sbA).lost || 0) === 0);
+      /* 能力矩阵第①格：全有。shapeText 必须在任何形态下都如实，不许整体为 0 或整体为 1。 */
+      check('接口形态（全有）：wfs1 rfs1 wf1 ud1 kv1',
+        A.store.shapeText() === 'wfs1 rfs1 wf1 ud1 kv1', A.store.shapeText());
     }
   }
 
@@ -237,9 +244,126 @@ export async function run({ SB, check, makeDoc, loadAll, errors }) {
         'gate=' + (diagOf(sbF).gate || '?') + ' run=' + (F.game.run() ? '有' : 'null'));
       check('纯浏览器：不记等待耗时（一步没等）',
         (diagOf(sbF).gateMs || 0) === 0, 'gate=' + diagOf(sbF).gate);
+      /* 能力矩阵第④格：全无。这一格曾经是唯一被测过的形态 —— 其余三格没夹具，
+       * 于是「有 fs 但没有同步写」的中间态一路绿灯放过了两个版本。 */
+      check('接口形态（无 tap）：wfs0 rfs0 wf0 ud0 kv0',
+        F.store.shapeText() === 'wfs0 rfs0 wf0 ud0 kv0', F.store.shapeText());
     }
   }
 
-  /* 共享 SB 未被这些沙箱污染（这条只是在替上面四个独立上下文兜底）。 */
+  /* ── G) 设备没有「同步文件接口」：落盘与导入都必须还能走通 ─────────
+   * 钉住的事故（2026-10-30 玩家诊断反推）：某台 Android 机的 FileSystemManager
+   *   没有 writeFileSync ⇒ ①onHide 的同步落盘恒失败（诊断里「后台原生文件同步
+   *   保存未确认」但「写盘 失败=0」）；②installImportedSave 的原生硬门槛恒 false
+   *   ⇒「用云端覆盖本地」「从存档码导入」100% 中止回滚，玩家只觉得按钮没反应。 */
+  {
+    const tapG = mkTap({ storage: true, fs: true });
+    /* 把同步读写抹掉 —— 这正是真机的形状（异步 writeFile 正常，同步没有）。 */
+    const fsG = tapG.getFileSystemManager();
+    delete fsG.writeFileSync;
+    delete fsG.readFileSync;
+    const sbG = mkSandbox(tapG, 'Mozilla/5.0 TapTap/2.0');
+    let reloads = 0;
+    sbG.location = { reload: () => { reloads++; } };   /* installImportedSave 末尾会 reload */
+    let G = null;
+    try { G = loadAll(sbG).SB; } catch (e) { errors.push('就绪门 G 加载异常: ' + e.message); }
+    if (!G) {
+      check('就绪门 G：沙箱加载成功', false);
+    } else {
+      sbG.__boot();
+      /* ⚠️ 必须先让一轮微任务落定，再开始 flush。
+       *   本夹具的 `setTimeout` 不认延迟（排队即跑），而 `scanSaveCandidates` 内部用
+       *   `bounded(…, 2500)` 给每个读操作套超时 ⇒ 若 boot 刚同步跑完 scan 就 flush，
+       *   那些 2.5 秒超时会**立刻**触发，扫描被判成 `uncertain`（实测：夹具第一版就
+       *   因此崩在 showRecoveryPending）。先 `await sleep(0)` 让 promise 链结算完，
+       *   定时器已被 clearTimeout 标记，后续 flush 才等价于「真机上的正常读」。 */
+      await sleep(0);
+      await settle(sbG, 6);
+      check('G 前条件：这台设备确实开起来了（能力齐、只是没有同步文件 API）',
+        !!G.game.run() && G.store.syncStorageAvailable() === true);
+
+      /* 1) 同步落盘：文件路不通 → 必须退到 tap.setStorageSync 且返回成功 */
+      const flushed = G.store.flushNativeSync();
+      check('无同步文件接口时：同步落盘退到 tap.setStorageSync 并成功',
+        flushed === true && G.store.syncState() === 'kv',
+        'flushed=' + flushed + ' state=' + G.store.syncState());
+      const kvRun = tapG.getStorageSync ? tapG.getStorageSync(G.CFG.RUN_KEY) : null;
+      check('键值通道里确实有这份主档（不是只返回了 true）',
+        !!kvRun && Number(JSON.parse(kvRun).t) >= 0);
+      check('诊断把通道记成 kv（下次玩家发诊断就能一眼定性）',
+        G.store.diagText().indexOf('落盘 同步=kv') >= 0,
+        G.store.diagText().split('\n').filter((l) => l.indexOf('落盘') === 0).join(''));
+      /* 能力矩阵第②格：有 fs、有异步写、**没有**同步读写。诊断必须自己说出这件事，
+       * 不能让下一个人再从返回值反推。 */
+      check('接口形态（有 fs 无同步）：wfs0 rfs0 wf1 ud1 kv1',
+        G.store.shapeText() === 'wfs0 rfs0 wf1 ud1 kv1', G.store.shapeText());
+      /* ⚠️ 这里不能用 `/^接口/` 锚定 —— diagText 是多行拼接的单个字符串，
+       *    不带 m 标志时 `^` 只匹配整串开头，永远命中不了第二行（第一版就红在这）。
+       *    用子串匹配，测的是「这一行在不在、值对不对」，不是行首位置。 */
+      check('诊断里有「接口」这一行且标明 wfs0',
+        G.store.diagText().indexOf('接口 wfs0') >= 0,
+        G.store.diagText().split('\n').filter((l) => l.indexOf('接口') === 0).join(''));
+
+      /* 2) 导入：旧代码在这台设备上必然回滚 + throw。现在必须成功。 */
+      const beforeSeq = Number((G.game.run() || {})._saveSeq) || 0;
+      const bundle = { format: 'shellbreak-save', version: 1, save: {
+        meta: JSON.parse(JSON.stringify(G.game.meta())),
+        run: Object.assign(JSON.parse(JSON.stringify(G.game.run())), { t: 7910 })
+      } };
+      let thrown = null, ret = null;
+      try { ret = G.game.installImportedSave(bundle); } catch (e) { thrown = e; }
+      check('无同步文件接口的设备上：导入不再中止（这就是「云端覆盖无效」的根因）',
+        !thrown && ret === true, thrown ? 'throw: ' + thrown.message : '');
+      const afterRaw = sbG.localStorage.getItem(G.CFG.RUN_KEY);
+      check('导入后主档确实换成了导入的那份',
+        !!afterRaw && Math.round(JSON.parse(afterRaw).t) === 7910,
+        't=' + (afterRaw ? JSON.parse(afterRaw).t : 'null'));
+      check('导入后取了本机更大的 seq（下次启动三源比新旧时它才赢得下来）',
+        Number(JSON.parse(afterRaw)._saveSeq) > beforeSeq,
+        'before=' + beforeSeq + ' after=' + (afterRaw ? JSON.parse(afterRaw)._saveSeq : '?'));
+      check('导入末尾仍走 reload（文件/存档码这条路的既有语义没变）', reloads === 1,
+        'reloads=' + reloads);
+    }
+  }
+
+  /* ── H) 只有键值通道、连文件系统都没有：兜底必须真落地 ─────────────
+   * 能力矩阵第③格。造这一格立刻抓到一个真 bug（已修）：writeNativeSave 的旧判据
+   *   要求 `fsAvailable()`，而这台机器上它恒 false ⇒ nativeLatest 永远是 null ⇒
+   *   flushNativeSync 只能返回 nolatest ⇒ **kv 兜底一次都不可能被触发**。
+   *   也就是说「降级通道」被主路的门槛一起掐死了，和导入被掐是同一个病。
+   * ⚠️ 这一格不能靠 G 段代劳：G 段有 fs（只是没同步方法），异步队列照跑，
+   *    快照照建，测不出「队列根本跑不了」时快照会不会被建起来。 */
+  {
+    const tapH = mkTap({ storage: true });        /* 只有 getStorage/setStorage*，无 getFileSystemManager */
+    const sbH = mkSandbox(tapH, 'Mozilla/5.0 TapTap/2.0');
+    let H = null;
+    try { H = loadAll(sbH).SB; } catch (e) { errors.push('就绪门 H 加载异常: ' + e.message); }
+    if (!H) {
+      check('就绪门 H：沙箱加载成功', false);
+    } else {
+      let bootErrH = null;
+      try { sbH.__boot(); } catch (e) { bootErrH = e; }
+      await sleep(0);
+      await settle(sbH, 6);
+      check('H 前条件：无文件系统但有键值通道，游戏能起来',
+        !!H.game.run() && H.store.syncStorageAvailable() === true,
+        'run=' + (H.game.run() ? '有' : 'null'));
+      check('接口形态（只有 kv）：wfs0 rfs0 wf0 ud0 kv1',
+        H.store.shapeText() === 'wfs0 rfs0 wf0 ud0 kv1', H.store.shapeText());
+
+      const flushedH = H.store.flushNativeSync();
+      check('无文件系统时：同步落盘仍走 kv 并成功（旧判据下这里是 nolatest）',
+        flushedH === true && H.store.syncState() === 'kv',
+        'flushed=' + flushedH + ' state=' + H.store.syncState());
+      const kvRunH = tapH.getStorageSync ? tapH.getStorageSync(H.CFG.RUN_KEY) : null;
+      check('键值通道里确实落了主档（不是只返回 true）',
+        !!kvRunH && Number(JSON.parse(kvRunH).t) >= 0,
+        kvRunH ? 't=' + JSON.parse(kvRunH).t : 'null');
+      check('无文件系统时启动不会去碰异步文件队列（碰了就是 TypeError）',
+        !bootErrH, bootErrH ? bootErrH.message : '');
+    }
+  }
+
+  /* 共享 SB 未被这些沙箱污染（这条只是在替上面这些独立上下文兜底）。 */
   check('共享沙箱的 SB 未被就绪门夹具污染', !!SB && !!SB.game);
 }

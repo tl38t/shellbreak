@@ -873,14 +873,49 @@
       setBusy(false); setStatus('云存档读取失败：' + errorText(e), true);
     });
   }
+  /* 覆盖前先把本机这份原样抄一份（面板上承诺过「导入前会先备份当前本地存档」）。
+   * 只写两个 backup key，不动主档；失败返回 false，不阻断 —— 主档此时还没被碰。 */
+  function backupLocalNow() {
+    var ls = localStore();
+    if (!ls) return false;
+    try {
+      var m = ls.getItem(CFG.SAVE_KEY), r = ls.getItem(CFG.RUN_KEY);
+      if (m !== null) ls.setItem(CFG.SAVE_BACKUP_KEY, m);
+      if (r !== null) ls.setItem(CFG.RUN_BACKUP_KEY, r);
+      return true;
+    } catch (e) { return false; }
+  }
+  /* 「用云端覆盖本地」（2026-10-30 改造：不再走 installImportedSave + reload）。
+   * 【原来为什么无效】installImportedSave 末尾有一道「原生同步写必须确认」的硬门槛，
+   *   而部分真机的 FileSystemManager 没有 writeFileSync ⇒ 那道判据恒 false ⇒
+   *   整单回滚 + throw。玩家点完只觉得「按钮没反应」，本机依旧是那份 4 分钟新档。
+   * 【现在为什么走 adoptBundle】与启动云端救援**同一条路径**：写盘尽力而为，状态直接
+   *   进内存，不 reload。好处有三：① 不依赖 reload（容器里 reload 本身就不稳）；
+   *   ② 立刻看得见（22 小时那份当场接管，不用赌重启后还在）；③ 不会形成重载环。
+   * ⚠️ 覆盖前仍先备份本机（backupLocalNow），面板上的承诺不能食言。 */
   function restoreCloud() {
     if (!pendingCloudArchive) return;
     pendingCloudArchive = null;
     setBusy(true);
+    setStatus('正在下载 TapTap 云存档…');
     restoreFromCloudIfAny(function (cloud) {
+      if (!cloud || cloud.status !== 'found' || !cloud.bundle) {
+        setBusy(false);
+        setStatus('云存档恢复失败：' + ((cloud && cloud.error) || '没有可用的云存档'), true);
+        return;
+      }
+      backupLocalNow();
+      var ok = false;
+      try { ok = !!(SB.game && SB.game.adoptBundle && SB.game.adoptBundle(cloud.bundle)); }
+      catch (e) {
+        setBusy(false);
+        setStatus('云存档覆盖失败：' + (e && e.message ? e.message : e), true);
+        return;
+      }
       setBusy(false);
-      if (cloud && cloud.status === 'found') confirmImport(cloud.bundle, 'TapTap 云存档');
-      else setStatus('云存档恢复失败：' + ((cloud && cloud.error) || '没有可用的云存档'), true);
+      if (!ok) { setStatus('云存档覆盖失败：存档不完整，本机进度未改动。', true); return; }
+      closePanel();
+      try { if (SB.game && SB.game.log) SB.game.log('已用 TapTap 云存档覆盖本机进度。'); } catch (e) {}
     });
   }
   function showLoadProblem(problems) {

@@ -1374,6 +1374,18 @@
   }
 
   /* 导入前先完整验证，并在同一个同步事务里保留现有原始存档。 */
+  /* 给一份「从外部进来的」存档换成本机的最大序号（2026-10-30）。
+   * 【为什么必须有】启动合并三源时按 seq 比新旧（save-storage 的 scanSaveCandidates），
+   *   而外部存档带的是**上一台设备 / 上一次会话**的号，本机那份刚把它顶掉的新档
+   *   号更大 ⇒ 导完重启又回到新档。换号之后这份在三条通道里都赢。
+   * ⚠️ 只在导入 / 接管时调；正常存档的号归 state.saveRun 管，两边都抢会互相打架。 */
+  function stampFreshSeq(run) {
+    if (!run || typeof run !== 'object') return run;
+    try {
+      if (SB.store && SB.store.nextNativeRevision) run._saveSeq = SB.store.nextNativeRevision();
+    } catch (e) {}
+    return run;
+  }
   function installImportedSave(bundle) {
     if (!bundle || bundle.format !== 'shellbreak-save' || bundle.version !== 1 || !bundle.save)
       throw new Error('存档文件格式或版本不受支持。');
@@ -1388,6 +1400,11 @@
     var oldMeta = meta, incomingRun;
     try { meta = incomingMeta; incomingRun = SB.state.migrateRun(incomingRunRaw); }
     finally { meta = oldMeta; }
+    /* 打新 seq（2026-10-30）：云档里的 `_saveSeq` 是**上一台设备 / 上一次会话**的号，
+     *   而本机此刻那份「4 分钟新档」原生槽里的 seq 是后生成的、更大。启动时三源按
+     *   seq 比新旧 ⇒ 刚导入的好档会输给刚把它顶掉的那个新档，等于白导。
+     *   导入后立刻取一个新号，让这份在所有通道里都赢。 */
+    stampFreshSeq(incomingRun);
     var serializedMeta = JSON.stringify(incomingMeta), serializedRun = JSON.stringify(incomingRun);
     if (!root.localStorage) throw new Error('浏览器本地存储不可用。');
     var oldMetaRaw = root.localStorage.getItem(CFG.SAVE_KEY);
@@ -1432,15 +1449,29 @@
       } catch (rollbackError2) {}
       throw new Error('本机存储不可靠：写入后读回的内容不一致，导入已中止（原存档未改动）。');
     }
-    if (SB.store && SB.store.fsAvailable && SB.store.fsAvailable()) {
-      if (!SB.store.writeNativeSaveSync(serializedMeta, serializedRun)) {
-        try {
-          if (oldMetaRaw === null) root.localStorage.removeItem(CFG.SAVE_KEY);
-          else root.localStorage.setItem(CFG.SAVE_KEY, oldMetaRaw);
-          if (oldRunRaw === null) root.localStorage.removeItem(CFG.RUN_KEY);
-          else root.localStorage.setItem(CFG.RUN_KEY, oldRunRaw);
-        } catch (rollbackError3) {}
-        throw new Error('TapTap 原生文件未确认写入，导入已中止。');
+    /* 原生落盘**尽力而为，不再当门槛**（2026-10-30 玩家实测 P0）。
+     * 【旧行为为什么必须废】条件里那句「同步写失败就回滚 + throw」在**没有同步文件
+     *   接口的设备上恒成立**（`writeNativeSaveSync` 直接 false）⇒「用云端覆盖本地」与
+     *   「从存档码导入」100% 中止且回滚，玩家看到的就是「点了没反应 / 覆盖无效」。
+     * 【为什么现在敢放行】上面那道 localStorage 写后读回**已经通过**，说明这份数据
+     *   确实在本机；再因为「另一条通道不可用」把整单撤销，等于把唯一的救援路堵死。
+     * 【落盘顺序】同步文件 → 异步文件（forceNew 取新 seq）+ tap.setStorageSync 镜像。
+     *   后两者任一成功，这份档在真机重启后仍然活着（官方只对它们承诺长期保留）。 */
+    var nativeOk = false;
+    try {
+      if (SB.store && SB.store.writeNativeSaveSync)
+        nativeOk = !!SB.store.writeNativeSaveSync(serializedMeta, serializedRun);
+    } catch (e) { nativeOk = false; }
+    if (!nativeOk && SB.store) {
+      try {
+        if (SB.store.mirrorWrite) {
+          SB.store.mirrorWrite(CFG.SAVE_KEY, serializedMeta);
+          SB.store.mirrorWrite(CFG.RUN_KEY, serializedRun);
+        }
+        if (SB.store.writeNativeSave) SB.store.writeNativeSave(serializedMeta, serializedRun, true);
+      } catch (e2) {}
+      if (SB.store.diagSet) {
+        try { SB.store.diagSet({ err: '导入已落 localStorage，原生同步落盘未确认（已排队异步 + 键值镜像）' }, true); } catch (e3) {}
       }
     }
     suppressExitSave = true;
@@ -1479,6 +1510,9 @@
     finally { meta = oldMeta; }
     if (!inRun || typeof inRun !== 'object') throw new Error('云存档迁移失败。');
     delete inRun._ts;
+    /* 换本机最大号：云档的 seq 属于来源设备，不换就可能输给刚被顶掉的那份新档
+     * （与 installImportedSave 同一判据，见 stampFreshSeq）。 */
+    stampFreshSeq(inRun);
     try {
       if (SB.store && SB.store.writeLocal) {
         var mTxt = JSON.stringify(inMeta), rTxt = JSON.stringify(inRun);
@@ -2207,7 +2241,10 @@
     if (root.tap && typeof root.tap.onHide === 'function') root.tap.onHide(function () {
       flush();
       if (SB.store && SB.store.flushNativeSync && !SB.store.flushNativeSync()) {
-        if (SB.store.diagSet) SB.store.diagSet({ err: '后台原生文件同步保存未确认' }, true);
+        /* 把「卡在哪条通道」一起记下来（2026-10-30）：只写「未确认」等于让我们
+         * 下次还得靠猜；`nosync` 一出现就能确定这台设备没有同步文件接口。 */
+        var _ss = (SB.store.syncState && SB.store.syncState()) || '?';
+        if (SB.store.diagSet) SB.store.diagSet({ err: '后台同步落盘未确认（' + _ss + '）' }, true);
       }
     });
     if (document && document.addEventListener) document.addEventListener('visibilitychange', function () {

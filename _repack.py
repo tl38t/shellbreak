@@ -12,7 +12,7 @@ import zipfile
 
 SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
 OUT = os.environ.get('SB_TAPTAP_OUT',
-    r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc33-v1.0.6.zip')
+    r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc34-v1.0.7.zip')
 TOP = 'shellbreak'
 
 # ---------- 打包前：自动同步源码 → 包目录 ----------
@@ -144,7 +144,12 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.6'" in _cfg, '包内 config.js 版本号不是 Ver1.0.6'
+assert "VERSION: 'Ver1.0.7'" in _cfg, '包内 config.js 版本号不是 Ver1.0.7'
+assert "v: 'Ver1.0.7'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.7 条目'
+# Ver1.0.7 玩家可见 6 条（存档接口兜底）：4 修 + 2 改进。逐条钉死，漏一条这次等于白改。
+for _kw in ['用云端覆盖本地', '存档编号', '最后几分钟', '同步文件接口可用',
+            '当场生效', '「接口」一行']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.7 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.6'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.6 条目'
 # Ver1.0.6 玩家可见 3 条（就绪门）：2 修 + 1 诊断。逐条钉死，漏一条这次等于白改。
 for _kw in ['还没准备好', '一个字节都不会动', '启动等待']:
@@ -296,8 +301,29 @@ assert 'setNativeHold(true)' in _gm3, '包内开新档时没打开原生槽写�
 assert 'setNativeHold(false)' in _gm3, \
     '包内写保护没有解除点（玩家会永远只剩 localStorage 一条命）'
 _ss3 = _read('src/save-storage.js')
-assert 'function setNativeHold(' in _ss3 and _ss3.count('nativeHold ||') >= 3, \
-    '包内 save-storage.js 没把写保护接到三处原生写入上'
+assert 'function setNativeHold(' in _ss3, '包内 save-storage.js 缺 setNativeHold'
+# ⚠️ 不要数 `nativeHold ||` 的字符串出现次数（2026-10-30 改）：三处判据的结构本来就不一样，
+#    flushNativeSync 改成分支式之后计数直接从 3 掉到 2，那是断言脆、不是代码坏。
+#    改成逐函数检查「函数体里确实读了写保护」，与写法无关。
+for _fn in ['function writeNativeSave(', 'function flushNativeSync(', 'function writeNativeSaveSync(']:
+    _i = _ss3.find(_fn)
+    assert _i >= 0, '包内 save-storage.js 缺 ' + _fn
+    assert 'nativeHold' in _ss3[_i:_i + 1400], '包内 ' + _fn + ' 没接原生槽写保护'
+# Ver1.0.7 兜底：没有同步文件接口时必须能退到 tap.setStorageSync，且门槛不能把兜底一起掐掉。
+assert 'function shapeText(' in _ss3, '包内 save-storage.js 缺接口形态探测（玩家诊断看不出缺哪条通道）'
+assert "syncLastState = 'kv'" in _ss3, '包内同步落盘没有 kv 兜底分支'
+assert 'setStorageSync' in _ss3, '包内没有用 tap.setStorageSync（官方承诺长期保留的唯一通道）'
+# 三条落点：门槛拆掉 / 导入打新号 / 云端覆盖就地接管。缺任何一条，玩家那台机器上仍然救不回来。
+_gm7 = _read('src/game.js')
+assert '原生文件未确认写入，导入已中止' not in _gm7, \
+    '包内导入仍挂着原生硬门槛（没有同步文件 API 的机型上「云端覆盖本地」会 100% 中止）'
+assert '_saveSeq = SB.store.nextNativeRevision()' in _gm7, \
+    '包内导入没打本机新 seq（导完重启会输给刚被顶掉的那一份）'
+assert 'adoptBundle' in _read('src/save-transfer.js'), \
+    '包内「用云端覆盖本地」没走就地接管'
+# 反向护栏：writeNativeSave 不许再因为「没有文件系统」整个早退 —— 那会把 kv 兜底一起掐死。
+assert "if (!fsAvailable()) {\n      if (!syncStorageAvailable()) return Promise.resolve(false);" in _ss3, \
+    '包内 writeNativeSave 仍因无文件系统早退（kv 兜底永远不会被触发）'
 assert 'autoPumpTimer' in _read('src/save-transfer.js'), \
     '包内云备份定时器不是幂等的（就绪门重入会装出两个 30 秒定时器）'
 print('就绪门入包检查: OK (三态判别 + 超时暂停/local 放行 + 写保护 + 晚到补偿 + 定时器幂等)')

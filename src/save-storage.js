@@ -202,7 +202,19 @@
       });
   }
   function writeNativeSave(metaRaw, runRaw, forceNew) {
-    if (nativeHold || !fsAvailable() || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return Promise.resolve(false);
+    /* ⚠️ 不能因为「没有文件系统」就整个早退（2026-10-30，Ver1.0.7 修）。
+     *   旧写法 `if (nativeHold || !fsAvailable() || …) return` 会让 nativeLatest
+     *   **永远是 null** ⇒ flushNativeSync 只能返回 nolatest ⇒ 降级到
+     *   tap.setStorageSync 的那条兜底一次都不会被触发。而在没有文件系统的机器上，
+     *   kv 恰恰是唯一能真正落地的通道 —— 门槛把兜底和主路一起掐死了。
+     *   正确形状：有 fs 走异步队列；只有 kv 时只留一份快照，交给 flushNativeSync 同步写。
+     *   返回值 false = 「没有异步落盘确认」，三处调用点都不看它，语义安全。 */
+    if (nativeHold || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return Promise.resolve(false);
+    if (!fsAvailable()) {
+      if (!syncStorageAvailable()) return Promise.resolve(false);
+      nativeLatest = nativeRecord(metaRaw, runRaw, !!forceNew);
+      return Promise.resolve(false);
+    }
     nativeLatest = nativeRecord(metaRaw, runRaw, !!forceNew);
     nativePending = nativeLatest;
     nativeLastPromise = new Promise(function (resolve) {
@@ -211,20 +223,62 @@
     });
     return nativeLastPromise;
   }
+  /* 同步落盘的唯一保证点（onHide / 切后台 / 导入前后）。
+   * 【2026-10-30 补 tap.setStorageSync 兜底 —— 由玩家实测诊断反推的铁证】
+   *   某台 Android 机的诊断同时出现两条：「错误 后台原生文件同步保存未确认」
+   *   与「写盘 失败=0」。后者证明**不是写失败**（catch 里会 fileFail++），
+   *   于是只能是 `typeof fs.writeFileSync !== 'function'` 那条早退 —— 这台设备的
+   *   FileSystemManager **没有同步读写方法**。旧代码直接 return false，一句不记。
+   *   后果远不止「少一份快照」：onHide 那一份从来没落过盘，玩家切后台/杀进程时
+   *   最后一段进度只挂在异步队列上，而 JS 随时会被容器冻结。
+   *   `tap.setStorageSync` 是官方明写「数据将长期保留」的**同步**接口
+   *   （单键 1MB / 总 10MB，本档 ~8KB），正好补上这个洞。
+   * 【写到哪】直接写主键本身（`CFG.SAVE_KEY` / `CFG.RUN_KEY`），不另造 key ——
+   *   启动扫描的 tapStorage 分支读的就是这两个键，落点不变就自动被覆盖，
+   *   不必在 scanSaveCandidates 里加第三套逻辑。
+   * 【顺序】先 tapfile（带 seq/checksum 结构，扫描能按新旧排序）→ 不通再走键值。
+   * ⚠️ `nativeHold` 期间一律不写：保护期是为了别碾掉还没被看见的旧档，
+   *   键值通道同样是旧档的落脚点，一起挡住。 */
+  var syncLastState = '';
+  function syncStorageAvailable() {
+    return !!(root.tap && typeof root.tap.setStorageSync === 'function');
+  }
   function flushNativeSync() {
-    if (nativeHold || !nativeLatest || !fsAvailable()) return false;
-    var fs = root.tap.getFileSystemManager(), path = nativePath('hide');
-    if (typeof fs.writeFileSync !== 'function' || typeof fs.readFileSync !== 'function') return false;
-    try {
-      var raw = JSON.stringify(nativeLatest);
-      fs.writeFileSync(path, raw, 'utf8');
-      var back = fs.readFileSync(path, 'utf8');
-      if (back !== raw) throw new Error('后台原生文件写后读回不一致');
-      st.fileOk++; return true;
-    } catch (e) { st.fileFail++; st.lastError = String(e && e.message || e); return false; }
+    var rec = nativeLatest;
+    if (nativeHold) { syncLastState = 'hold'; return false; }
+    if (!rec) { syncLastState = 'nolatest'; return false; }
+    if (fsAvailable()) {
+      var fs = root.tap.getFileSystemManager(), path = nativePath('hide');
+      if (typeof fs.writeFileSync === 'function' && typeof fs.readFileSync === 'function') {
+        try {
+          var raw = JSON.stringify(rec);
+          fs.writeFileSync(path, raw, 'utf8');
+          var back = fs.readFileSync(path, 'utf8');
+          if (back !== raw) throw new Error('后台原生文件写后读回不一致');
+          st.fileOk++; syncLastState = 'file'; return true;
+        } catch (e) { st.fileFail++; st.lastError = String(e && e.message || e); }
+      } else { syncLastState = 'nosync'; }
+    } else { syncLastState = 'nofs'; }
+    if (syncStorageAvailable()) {
+      var C = SB.CFG || {};
+      try {
+        if (typeof rec.meta === 'string' && rec.meta && C.SAVE_KEY)
+          root.tap.setStorageSync(C.SAVE_KEY, rec.meta);
+        if (typeof rec.run === 'string' && rec.run && C.RUN_KEY)
+          root.tap.setStorageSync(C.RUN_KEY, rec.run);
+        st.tapOk++; syncLastState = 'kv'; return true;
+      } catch (e2) {
+        st.tapFail++; st.lastError = String(e2 && (e2.errMsg || e2.message) || e2);
+        syncLastState = 'kvfail';
+      }
+    }
+    return false;
   }
   function writeNativeSaveSync(metaRaw, runRaw) {
-    if (nativeHold || !fsAvailable() || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return false;
+    /* ⚠️ 不再要求 `fsAvailable()`（2026-10-30）：文件通道不可用时，flushNativeSync
+     *   还能退到 tap.setStorageSync 同步落盘。旧判据把这条路一起掐了，
+     *   于是「用云端覆盖本地」在所有没有同步文件 API 的机器上必然中止。 */
+    if (nativeHold || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return false;
     var previous = nativeLatest;
     nativeLatest = nativeRecord(metaRaw, runRaw, true);
     if (flushNativeSync()) return true;
@@ -416,6 +470,33 @@
     return 'ls' + (localStore() ? 1 : 0) + 'ts' + (envAvailable() ? 1 : 0)
       + 'fs' + (fsAvailable() ? 1 : 0) + 'cl' + (cloudProbe() ? 1 : 0);
   }
+  /* 接口形态探测（2026-10-30，Ver1.0.7）。
+   * ⚠️ **为什么不存进 diagBlank**：能力是「这一刻」的事实，存盘只会留下上次启动的旧样子。
+   *    玩家贴上来的那份必须反映他现在的机器。
+   * ⚠️ **为什么不能只靠 capText 的 fs**：`fsAvailable()` 只回答「有没有 getFileSystemManager」，
+   *    不回答「它会不会**同步**写」。1.0.6 及之前正是在这个盲区里翻车 ——
+   *    某机型有 fs、有异步 writeFile、没有 writeFileSync ⇒ flushNativeSync 早退 ⇒
+   *    导入被硬门槛拦死、切后台那一次落盘从未生效，而诊断只写一句「未确认」，看不出为什么。
+   * 五格各自对应一条独立能力，缺哪个一目了然：
+   *   wfs/rfs = FileSystemManager 同步读写　wf = 异步 writeFile（有 wf 没 wfs 即上述中间态）
+   *   ud = env.USER_DATA_PATH（fsAvailable 的第三个前置）　kv = tap.setStorageSync（官方便利兜底） */
+  function shapeText() {
+    var o = { wfs: 0, rfs: 0, wf: 0, ud: 0, kv: 0 };
+    try {
+      var t = root.tap;
+      if (t && typeof t.getFileSystemManager === 'function') {
+        var fs = t.getFileSystemManager();
+        if (fs) {
+          if (typeof fs.writeFileSync === 'function') o.wfs = 1;
+          if (typeof fs.readFileSync === 'function') o.rfs = 1;
+          if (typeof fs.writeFile === 'function') o.wf = 1;
+        }
+      }
+      if (t && t.env && t.env.USER_DATA_PATH) o.ud = 1;
+      if (t && typeof t.setStorageSync === 'function') o.kv = 1;
+    } catch (e) {}
+    return 'wfs' + o.wfs + ' rfs' + o.rfs + ' wf' + o.wf + ' ud' + o.ud + ' kv' + o.kv;
+  }
   function diagBlank() {
     return { schema: 1, ver: verOf(), cap: '', boots: 0, boot: '', bootAt: 0,
       /* gate / gateMs（2026-10-30）：启动就绪门的出口与等待耗时。这是「tap 注入慢」
@@ -507,12 +588,20 @@
       '天壳 SHELLBREAK 存档诊断',
       '版本 ' + (d.ver || '?') + '　生成 ' + t(Date.now()),
       '能力 ' + capText() + '　(ls=localStorage ts=tap.setStorage fs=用户目录文件 cl=云存档)',
+      /* 接口形态（2026-10-30）：与上一行「能力」的区别 —— 能力答「有没有这条通道」，
+       * 接口答「这条通道到底能做什么」。玩家报「导入点不动 / 切后台丢一段」时，
+       * 先看这行有没有 wfs0（= 无同步写接口），能一句话定性，不必再靠返回值反推。 */
+      '接口 ' + shapeText() + '　(wfs/rfs=文件同步读写 wf=异步写 ud=用户目录 kv=tap.setStorageSync)',
       '启动 本次=' + (d.boot || '?') + '　累计=' + (d.boots || 0) + '　时刻=' + t(d.bootAt),
       '就绪 ' + (d.gate || '未走门') + (d.gateMs ? '　等待 ' + d.gateMs + 'ms' : ''),
       '恢复 最近来源=' + (d.recover || '—') + '　丢档(localStorage空但有备份)=' + (d.lost || 0) + ' 次',
       '写盘 成功=' + (d.ok || 0) + ' 失败=' + (d.fail || 0) + ' 拒写=' + (d.skip || 0)
         + ' 补位=' + (d.patch || 0) + '　最近坏键=' + (d.skipKey || '—'),
       '读回 一致=' + (d.rbOk || 0) + ' 空=' + (d.rbEmpty || 0) + ' 不一致=' + (d.rbMismatch || 0),
+      /* 同步落盘走的是哪条通道：file=用户目录同步写 / kv=tap.setStorageSync /
+       * nosync=没有同步写接口 / nolatest=还没有可写快照。玩家报「切后台丢一段」
+       * 时先看这一行，它是唯一能区分「没写」与「写了没落地」的现场证据。 */
+      '落盘 同步=' + (syncLastState || '未试'),
       '尸检 已保留=' + (d.emerg || 0) + ' 次　最近=' + t(d.emergAt),
       '错误 ' + (d.err || '—')
     ].join('\n');
@@ -605,6 +694,12 @@
     mirrorWrite: mirrorWrite, mirrorRemove: mirrorRemove,
     writeNativeSave: writeNativeSave, flushNativeSync: flushNativeSync,
     writeNativeSaveSync: writeNativeSaveSync,
+    /* 诊断用：上一次同步落盘走的是哪条通道（file / kv / nosync / nolatest / hold）。 */
+    syncState: function () { return syncLastState; },
+    syncStorageAvailable: syncStorageAvailable,
+    /* 接口形态探测（2026-10-30）：导出是为了让 e2e 能直接断言「这格必须是什么」，
+     * 而不是靠诊断文本做字符串匹配。 */
+    shapeText: shapeText,
     /* 原生槽写保护（2026-10-30）：见 setNativeHold 上方那段注释。 */
     setNativeHold: setNativeHold, nativeHeld: nativeHeld,
     scanSaveCandidates: scanSaveCandidates,
