@@ -144,7 +144,12 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.7'" in _cfg, '包内 config.js 版本号不是 Ver1.0.7'
+assert "VERSION: 'Ver1.0.8'" in _cfg, '包内 config.js 版本号不是 Ver1.0.8'
+assert "v: 'Ver1.0.8'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.8 条目'
+# Ver1.0.8 玩家可见 3 条：1 修（补算活锁）+ 2 新增/改进（追踪多目标 / 壳 25% 下限提示）。
+# 逐条钉死，漏一条这次等于白改。
+for _kw in ['卡好几分钟', '最多能同时追踪 4 个目标', '被动削壳到 25%']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.8 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.7'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.7 条目'
 # Ver1.0.7 玩家可见 6 条（存档接口兜底）：4 修 + 2 改进。逐条钉死，漏一条这次等于白改。
 for _kw in ['用云端覆盖本地', '存档编号', '最后几分钟', '同步文件接口可用',

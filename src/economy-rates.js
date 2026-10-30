@@ -287,11 +287,15 @@
        *    面板路漏掉这个乘区就是「面板撒谎」，见上面 silt 那条的同源警告。 */
       stone:   part('stone', '采石工',
                  (j.quarrier || 0) * SB.UNIT.stone,
+                 /* ⚠️ 2026-10-30 修：此处原写 `globalMul(s)`，而 tick 的采石工行用 `_gmx`
+                  *    （= globalMulX，含《大统一方程》的 unifiedMul）⇒ 研究完该科技后面板
+                  *    石头产出比实际进账少一截（「面板撒谎」家族）。全表其余产出行
+                  *    （coral/silt/warmstone/titanium/…）早已是 globalMulX，本行是唯一漏网的。 */
                  [['砂矿坑', mineBonus],
                   ['采集', gatherMul(s)],
                   ['采石镐', toolMul(s, 'quarrier')],
                   ['寒流季', cold],
-                  ['全局产出', globalMul(s)],
+                  ['全局产出', globalMulX(s)],
                   ['采石契', quarryPactMul(s)]])
                + part('stone', 'GEEK 改造', -_gkStoneRate),
       /* 暖石的净速率要减掉**开关正在烧的**那一份：不减的话面板上写着暖石在涨，

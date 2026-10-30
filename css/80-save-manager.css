@@ -42,3 +42,29 @@
   .cc-actions{grid-template-columns:1fr}
   .cc-actions .btn{width:100%}
 }
+/* 兑换码面板（2026-10-30）：与存档管理共用 #modal，所以皮肤也放在这里。
+   ⚠️ 主题变量是 --txt 不是 --text（80-save-manager.css 里几处 var(--text) 是既有的失效写法，
+   别照抄：写错不会报错，只会静默退回继承色）。 */
+.redeem-body{padding:2px 0 0}
+.redeem-intro{margin:0 0 14px;color:var(--dim);font-size:13px;line-height:1.65}
+.redeem-row{display:flex;gap:8px;align-items:stretch}
+.redeem-input{flex:1 1 auto;min-width:0;height:42px;padding:0 12px;border:1px solid var(--line);
+  border-radius:9px;background:var(--panel2);color:var(--txt);letter-spacing:1px;text-transform:uppercase;
+  font:14px/1 ui-monospace,SFMono-Regular,Consolas,monospace}
+.redeem-input::placeholder{color:var(--dim);letter-spacing:0;text-transform:none;
+  font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.redeem-input:focus{outline:none;border-color:var(--cyan)}
+.redeem-go{flex:0 0 auto;min-width:88px;height:42px}
+.redeem-go:disabled{opacity:.5;cursor:not-allowed}
+.redeem-status{min-height:20px;margin:10px 0 0;font-size:12.5px;line-height:1.55;color:var(--dim);overflow-wrap:anywhere}
+.redeem-status.is-ok{color:var(--green)}
+.redeem-status.is-err{color:var(--red)}
+.redeem-status.is-busy{color:var(--cyan)}
+.redeem-used{display:block;margin:8px 0 0;color:var(--dim);font-size:11.5px;line-height:1.5}
+/* 累计行常驻空节点（见 src/redeem.js 的注释），没兑换过就不占位。 */
+.redeem-used:empty{display:none}
+@media(max-width:600px){
+  /* 手机端输入框与按钮换行：13 位码 + 88px 按钮在 320px 宽度下会挤成一团。 */
+  .redeem-row{flex-wrap:wrap}
+  .redeem-go{flex:1 1 100%}
+}

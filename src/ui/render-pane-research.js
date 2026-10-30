@@ -100,6 +100,18 @@
     var done = !!s.techs[t.id];
     var lit = SB.tech.metOf(s, t);          // 已掌握 / 达成过尤里卡 = 亮出内容
     var eureka = !lit ? SB.tech.condShort(s, t.cond) : null;
+    /* 追踪尤里卡（2026-10-30 用户拍板「两处都放」）：只在**未揭示**时给 ——
+     * 揭示=尤里卡已达成，没什么可追。
+     * ⚠️ 用 `<span role="button">` 而不是 `<button>`：卡片本身就是 <button>，HTML 不许嵌套；
+     *   点击由 input.js 的 document 委托拾取，且必须**先于** `[data-tree-node]` 判断，
+     *   否则点 ★ 会先冒泡成「打开详情」。 */
+    var trackStar = '';
+    if (!lit && t.cond && t.cond.t !== 'default') {
+      var _tk = (SB.ui.track && SB.ui.track.isTracked) ? SB.ui.track.isTracked('tech', t.id) : false;
+      trackStar = '<span class="tree-track' + (_tk ? ' on' : '') + '" role="button"' +
+        ' data-track-toggle="tech:' + t.id + '" aria-label="追踪尤里卡条件"' +
+        ' title="' + (_tk ? '取消追踪尤里卡' : '追踪尤里卡') + '">★</span>';
+    }
     var why = done ? null : SB.tech.studyBlocked(s, t.id);
     var fut = t.era > (s.era || 1);
     var status = done ? '已掌握' : !lit ? '未揭示' : why ? '暂不可研究' : '可研究';
@@ -119,7 +131,7 @@
       (!lit ? '<span class="tree-eureka">尤里卡 · ' + (eureka ? eureka.txt : '达成条件后揭示') + '</span>' +
         (eureka && eureka.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + eurekaPct.toFixed(1) + '%"></i></span><b>' + eurekaPct.toFixed(0) + '%</b></span>' : '') : '') +
       '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
-      '<span class="tree-node-status">' + status + '</span>' +
+      '<span class="tree-node-status">' + status + '</span>' + trackStar +
       '<span class="tree-open-hint">查看详情　›</span></span></button>';
     return h;
   }
@@ -801,6 +813,14 @@
     var C = SB.civic, done = !!s.civics[c.id], rev = C.isRevealed(s, c.id);
     var why = done ? null : C.blocked(s, c);
     var boost = !rev ? SB.tech.condShort(s, c.boost) : null;
+    /* 追踪鼓舞（同 techNode 的那条 ★，判据换成 civic.isRevealed）。 */
+    var trackStar = '';
+    if (!rev && c.boost && c.boost.t !== 'default') {
+      var _tk3 = (SB.ui.track && SB.ui.track.isTracked) ? SB.ui.track.isTracked('civic', c.id) : false;
+      trackStar = '<span class="tree-track' + (_tk3 ? ' on' : '') + '" role="button"' +
+        ' data-track-toggle="civic:' + c.id + '" aria-label="追踪鼓舞条件"' +
+        ' title="' + (_tk3 ? '取消追踪鼓舞' : '追踪鼓舞') + '">★</span>';
+    }
     var boostPct = boost && boost.need > 0
       ? Math.max(0, Math.min(100, boost.now / boost.need * 100)) : 0;
     var status = done ? '已完成' : !rev ? '未揭示' : why ? '暂不可研究' : '可研究';
@@ -820,7 +840,7 @@
         (boost ? boost.txt : c.boost ? '达成鼓舞条件后揭示' : '无需鼓舞') + '</span>' +
         (boost && boost.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + boostPct.toFixed(1) + '%"></i></span><b>' + boostPct.toFixed(0) + '%</b></span>' : '') : '') +
       '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
-      '<span class="tree-node-status">' + status + '</span>' +
+      '<span class="tree-node-status">' + status + '</span>' + trackStar +
       '<span class="tree-open-hint">查看详情　›</span></span></button>';
     return h;
   }

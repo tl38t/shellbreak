@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=271" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=273" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -66,6 +66,16 @@
             <input type="checkbox" data-onboarding-toggle checked>
             <span><b>新手引导</b><small>首局逐步高亮操作指引，可随时关闭（关闭后不再自动出现）。</small></span>
           </label>
+          <!-- TapTap 兑换码（2026-10-30 · TDS 无服务器礼包）。
+               ⚠️ 这是**通用**兑换入口，以后办别的活动还用它 ⇒ 文案不写奖励类型、不写「补偿」。
+               ⚠️ 整块由 src/redeem.js 的 boot() 控制显隐：CFG.REDEEM 的 CLIENT_ID / ACTIVITY_ID
+                  任一为空就把整块 display:none（连标题一起），不留一个空标题或死按钮。 -->
+          <div id="redeemSettingBlock">
+            <div class="ui-settings-title">兑换码</div>
+            <div class="ui-settings-actions">
+              <button type="button" class="ui-setting-btn" id="btnSettingsRedeem">输入兑换码</button>
+            </div>
+          </div>
           <div class="ui-settings-title">存档</div>
           <div class="ui-settings-actions">
             <button type="button" class="ui-setting-btn" id="btnSettingsSaveNow">立即保存</button>
@@ -234,11 +244,10 @@
      ⚠️ 外层用 div 不用 button：里面还有一个「×」，button 不能嵌套 button。
      ⚠️ 位置/拖动/跳转全在 src/ui/track-dock.js；这里只留骨架与文案占位。 -->
 <div class="track-dock hidden" id="trackDock" role="region" aria-label="建造追踪">
-  <div class="td-main" data-track-jump="1">
-    <span class="td-title" id="trackTitle"></span>
-    <span class="td-cost" id="trackCost"></span>
-  </div>
-  <button type="button" class="td-close" data-track-clear="1" aria-label="取消追踪" title="取消追踪">×</button>
+  <!-- 2026-10-30 多目标：行由 track-dock.js 的 paint() 生成（每行 = 一个目标 + 自己的 ×）。
+       这里只留容器，不写死任何一行 —— 上限 4 个的裁剪与失效剔除都在 js 侧收口。 -->
+  <div class="td-rows" id="trackRows"></div>
+  <button type="button" class="td-close" data-track-clear="1" aria-label="取消全部追踪" title="取消全部追踪">×</button>
 </div>
 <div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
   <!-- 2026-10-05 系统指引弹窗：点页签旁的「?」打开；内容由 SB.ui.openIntro 从 INTRO 表填入 #introPop。
@@ -246,7 +255,7 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=195"></script>
+<script src="src/config.js?v=197"></script>
 <script src="src/config-catalog.js?v=11"></script>
 <script src="src/config-content.js?v=33"></script>
 <script src="src/config-buildings.js?v=43"></script>
@@ -270,7 +279,7 @@
 <script src="src/wonder.js?v=110"></script>
 <script src="src/economy-social.js?v=9"></script>
 <script src="src/economy.js?v=197"></script>
-<script src="src/economy-rates.js?v=27"></script>
+<script src="src/economy-rates.js?v=28"></script>
 <script src="src/economy-tick.js?v=23"></script>
 <script src="src/offline-scheduler.js?v=3"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
@@ -287,8 +296,8 @@
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
 <script src="src/ui/render-content.js?v=15"></script>
 <script src="src/ui/render-common.js?v=6"></script>
-<script src="src/ui/render-info.js?v=29"></script>
-<script src="src/ui/render-pane-research.js?v=27"></script>
+<script src="src/ui/render-info.js?v=31"></script>
+<script src="src/ui/render-pane-research.js?v=29"></script>
 <script src="src/ui/render-pane-village.js?v=37"></script>
 <script src="src/ui/render-pane-folk.js?v=5"></script>
 <script src="src/ui/render-talent-tree.js?v=5"></script>
@@ -300,19 +309,20 @@
 <script src="src/ui/render-pane-star-map.js?v=9"></script>
 <script src="src/ui/render-pane-workshop.js?v=16"></script>
 <script src="src/ui/render-environment.js?v=19"></script>
-<script src="src/ui/render.js?v=254"></script>
-<script src="src/ui/track-dock.js?v=1"></script>
+<script src="src/ui/render.js?v=256"></script>
+<script src="src/ui/track-dock.js?v=5"></script>
 <script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=167"></script>
+<script src="src/game.js?v=169"></script>
 <script src="src/save-transfer.js?v=15"></script>
-<script src="src/ui/input.js?v=171"></script>
+<script src="src/redeem.js?v=1"></script>
+<script src="src/ui/input.js?v=173"></script>
 <script src="src/ai-strategy.js?v=74"></script>
 <script src="src/ui/theme.js?v=4"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=1"></script>
 <script src="src/achv.js?v=3"></script>
-<script src="src/main.js?v=99"></script>
+<script src="src/main.js?v=101"></script>
 <!-- 现场诊断浮层（2026-10-27）：连点标题 5 次开启，或 URL 带 ?diag。默认零风险、不进任何正常路径。 -->
 <script src="src/ui/diag.js?v=2"></script>
 </body>

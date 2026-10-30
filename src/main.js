@@ -15,6 +15,7 @@
     if (SB.ui.track && SB.ui.track.init) SB.ui.track.init();
     SB.game.boot();
     if (SB.saveTransfer && SB.saveTransfer.boot) SB.saveTransfer.boot();
+    if (SB.redeem && SB.redeem.boot) SB.redeem.boot();
     if (SB.ui.background && SB.ui.background.boot) SB.ui.background.boot();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

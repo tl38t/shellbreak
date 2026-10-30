@@ -123,6 +123,14 @@
     var progress = short && short.need > 0 && !done
       ? Math.max(0, Math.min(100, short.now / short.need * 100)) : 0;
     var showProgress = !revealed && short && short.need > 0;
+    /* 追踪尤里卡 / 鼓舞（2026-10-30）：入口之二。只在「未达成」时给 ——
+     * 达成那一刻 track-dock 自己会把这条剔掉，按钮也就没意义了。
+     * `data-track-kind="btn"` 是给 syncButtons 看的：树节点那颗是纯图标，只有这颗要换文案。 */
+    var trackKind = tech ? 'tech' : 'civic';
+    var canTrack = !done && !revealed &&
+      (tech ? (item.cond && item.cond.t !== 'default') : (item.boost && item.boost.t !== 'default'));
+    var trackOn = (canTrack && SB.ui.track && SB.ui.track.isTracked)
+      ? SB.ui.track.isTracked(trackKind, id) : false;
     var effect = tech ? SB.tech.effectText(item) : item.desc;
     if (tech && effect === '（无直接效果）') effect = item.effectDesc || '无直接数值加成。';
     var unlockSection = tech && item.unlockDesc
@@ -172,7 +180,10 @@
       linkInfoNames(condition) + '</p>' +
       (conditionProgress ? '<small class="tree-eureka-progress">当前进度：' + conditionProgress + '</small>' : '') +
       (showProgress ? '<div class="tree-progress"><i style="width:' + progress.toFixed(1) + '%"></i></div>' : '') +
-      (showProgress ? '<small>进度 ' + progress.toFixed(0) + '%</small>' : '') + '</section>' +
+      (showProgress ? '<small>进度 ' + progress.toFixed(0) + '%</small>' : '') +
+      (canTrack ? '<button type="button" class="btn tree-track-btn' + (trackOn ? ' on' : '') +
+        '" data-track-kind="btn" data-track-toggle="' + trackKind + ':' + id + '">' +
+        (trackOn ? '取消追踪' : '追踪' + (tech ? '尤里卡' : '鼓舞')) + '</button>' : '') + '</section>' +
       '<section class="tree-detail-section"><h4>效果</h4><p>' +
       (revealed ? linkInfoNames(effect, !tech && /工坊配方/.test(effect)) : '达成揭示条件后显示。') + '</p></section>' +
       unlockSection +

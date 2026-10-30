@@ -210,6 +210,20 @@
     /* ⚠️ `d.modalClose` 与「点遮罩关闭」两分支已上提到 S 判空之前（2026-10-28 P0），
      *   这里不要再放一份 —— 重复虽无害，但会让人误以为闸门后面还有一条逃生路。 */
 
+    /* 追踪按钮（树节点里的 ★ / 科技·市政详情面板里那颗）：必须排在 [data-tree-node] 之前
+     * —— ★ 在卡片（本身是 <button>）内部，点击会冒泡到 [data-tree-node]，
+     * 不先截走就变成「点追踪 = 打开详情」，而且按钮看着有反应、实际没追踪上。
+     * 2026-10-30 加，与 track-dock.js 的 syncButtons 成对。 */
+    var trackToggle = t.closest && t.closest('[data-track-toggle]');
+    if (trackToggle) {
+      var tspec = ((trackToggle.dataset && trackToggle.dataset.trackToggle) || '').split(':');
+      if (tspec.length >= 2 && SB.ui.track) {
+        var tres = SB.ui.track.track(tspec[0], tspec.slice(1).join(':'));
+        if (tres === 'full' && SB.ui.track.hint) SB.ui.track.hint();
+      }
+      return;
+    }
+
     /* 科技树 / 市政树节点只做入口，内容和研究操作在 Civ6 式详情卡中。 */
     var treeNode = t.closest && t.closest('[data-tree-node]');
     if (treeNode) {

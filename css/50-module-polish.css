@@ -1137,16 +1137,30 @@ html[data-ui-theme="day"] .policy-picker-error{background:#fdecee;border-color:#
 .track-dock{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:46;display:flex;align-items:flex-start;gap:6px;max-width:min(62vw,240px);padding:8px 10px;border:1px solid #33586f;border-radius:12px;background:rgba(10,24,38,.95);box-shadow:0 6px 18px rgba(0,0,0,.34);color:var(--txt);font-size:11px;line-height:1.35;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
 .track-dock.hidden{display:none}
 .track-dock.is-dragging{cursor:grabbing;opacity:.92}
-.track-dock .td-main{display:flex;flex-direction:column;gap:3px;min-width:0}
-.track-dock .td-title{font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track-dock .td-rows{display:flex;flex-direction:column;gap:4px;min-width:0}
+/* 2026-10-30 多目标：每行 = 一个目标（标题 + 明细 + 自己的 ×）。
+ * 行间用细横线分隔而不是靠间距 —— 4 行时纯间距会让「哪一行归哪个标题」读不清。 */
+.track-dock .td-row{display:flex;align-items:flex-start;gap:5px;min-width:0;padding:1px 0}
+.track-dock .td-row+.td-row{border-top:1px solid rgba(51,88,111,.5);padding-top:5px;margin-top:1px}
+.track-dock .td-row-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.track-dock .td-title{font-weight:700;font-size:11.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .track-dock .td-cost{display:flex;flex-wrap:wrap;gap:3px;color:var(--dim);font-variant-numeric:tabular-nums}
 .track-dock .td-item.is-short{color:var(--red);font-weight:700}
 .track-dock .td-sep{color:#3b5b73;font-style:normal}
+.track-dock .td-x{flex:none;width:16px;height:16px;padding:0;border:0;border-radius:5px;background:transparent;color:#5c7688;font-size:12px;line-height:1;cursor:pointer}
+/* 单行 ⇒ 用外层那颗 ×（视觉与旧版一致）；多行 ⇒ 每行自己的 ×，外层收起。
+ * 不加这条会出现「第一行右边并排两个叉」，玩家分不清哪个是关全部。 */
+.track-dock:not(.is-multi) .td-row .td-x{display:none}
+.track-dock.is-multi .td-close{display:none}
 .track-dock .td-close{flex:none;width:18px;height:18px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dim);font-size:13px;line-height:1;cursor:pointer}
 .track-dock.is-ready{border-color:#43bb78;background:rgba(13,44,31,.96)}
+.track-dock .td-row.is-ready .td-title{color:var(--green)}
 .track-dock.is-ready .td-title{color:var(--green)}
 .track-dock.is-ready .td-cost{color:#9fe3bd}
 .track-dock.is-ready .td-item.is-short{color:var(--green)}
+/* 追踪已满 4 个：抖一下。静默失败会被当成「按钮坏了」（树上那颗 ★ 只有 12px，反馈本来就弱）。 */
+.track-dock.is-full{animation:tdShake .46s ease}
+@keyframes tdShake{0%,100%{transform:translateX(0)}18%{transform:translateX(-3px)}38%{transform:translateX(3px)}58%{transform:translateX(-2px)}78%{transform:translateX(2px)}}
 html[data-ui-theme="day"] .track-dock{background:rgba(250,253,251,.97);border-color:#a9c3d4;color:#17323f;box-shadow:0 6px 16px rgba(23,50,63,.16)}
 html[data-ui-theme="day"] .track-dock.is-ready{background:#eafaf0;border-color:#378b57}
 html[data-ui-theme="day"] .track-dock.is-ready .td-title{color:#15542e}

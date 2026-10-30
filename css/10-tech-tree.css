@@ -175,6 +175,17 @@
 .tree-detail-section h4{margin:0 0 6px;color:#9eb4c4;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
 .tree-detail-section p{margin:0;color:#d5e2eb;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
 .tree-detail-section small{display:block;margin-top:5px;color:var(--dim);font-size:10px}
+/* 追踪尤里卡 / 鼓舞（2026-10-30）：树卡底部状态行里那颗 ★。
+ * ⚠️ 它是 span 不是 button（卡片本身是 <button>，HTML 不许嵌套），点按走 input.js 的 document 委托；
+ *    `margin-left:auto` 与「查看详情」各自 auto ⇒ 两者平分剩余空隙，★ 落在状态文字右侧。
+ *    字号 12px 是为了在 106px 高的定值卡片里不明显改变布局。 */
+.technode .tree-track{margin-left:auto;flex:none;padding:0 2px;color:#5f7d91;font-size:12px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.technode .tree-track.on{color:#f0c05a;text-shadow:0 0 6px rgba(240,192,90,.45)}
+html[data-ui-theme="day"] .technode .tree-track{color:#849cae}
+html[data-ui-theme="day"] .technode .tree-track.on{color:#b8781a}
+/* 详情面板里的那颗（入口之二）：真按钮，占满整行。 */
+.tree-track-btn{display:block;width:100%;margin-top:9px;font-size:12px}
+.tree-track-btn.on{border-color:#8a6a22;color:#f0c05a;background:rgba(60,44,10,.55)}
 .b-flavor{margin-top:9px;padding:10px 13px;border:1px solid rgba(111,145,168,.18);border-radius:11px;
   background:rgba(7,19,31,.32);text-align:center;font-style:italic;color:#9fd9c8;font-size:12.5px;line-height:1.8;overflow-wrap:anywhere}
 @font-face{font-family:"Ma Shan Zheng";src:url("../assets/fonts/Ma_Shan_Zheng.woff2?v=1") format("woff2");font-display:block;}

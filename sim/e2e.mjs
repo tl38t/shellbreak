@@ -16,6 +16,8 @@ import { run as runEra3Content } from './e2e-suites/era3-content.mjs';
 import { run as runPersistence } from './e2e-suites/persistence.mjs';
 import { run as runBootGate } from './e2e-suites/boot-gate.mjs';
 import { run as runSaveMigrate } from './e2e-suites/save-migrate.mjs';
+import { run as runTrackMulti } from './e2e-suites/track-multi.mjs';
+import { run as runRedeem } from './e2e-suites/redeem.mjs';
 import { run as runBuildingShape } from './e2e-suites/building-shape.mjs';
 import { run as runEra4Content } from './e2e-suites/era4-content.mjs';
 import { run as runEra10Content } from './e2e-suites/era10-content.mjs';
@@ -26,6 +28,7 @@ import { run as runWorkshopEconomy } from './e2e-suites/workshop-economy.mjs';
 import { run as runUiAccessibility } from './e2e-suites/ui-accessibility.mjs';
 import { run as runCalendarWarmstone } from './e2e-suites/calendar-warmstone.mjs';
 import { run as runOfflineFastForward } from './e2e-suites/offline-fastforward.mjs';
+import { run as runOfflineCatchupFinish } from './e2e-suites/offline-catchup-finish.mjs';
 import { run as runChallenges } from './e2e-suites/challenges.mjs';
 import { run as runAiStrategy } from './e2e-suites/ai-strategy.mjs';
 
@@ -2172,6 +2175,7 @@ runUiAccessibility({ SB, check, noop, doc, g, fs, path, ROOT, drainStoryModals }
 
 runCalendarWarmstone({ SB, check, noop, doc, g, fs, path, ROOT, fire });
 runOfflineFastForward({ SB, check, sandbox });
+runOfflineCatchupFinish({ SB, check });        // 2026-10-30：补算必须收尾（浮点残渣活锁回归锁）
 
 runWorkshopEconomy({ SB, check, noop, doc, g, fs, path, ROOT, fire, pending, sandbox });
 
@@ -2418,6 +2422,10 @@ console.log('\n=== era1 专项核算：真实开局，科技全部研究完 ==='
 
 runClickEvents({ SB, check, noop });
 runSaveMigrate({ SB, check, sandbox });   // 2026-10-29：perks 迁移幂等（P0 事故回归锁）
+runTrackMulti({ SB, check });              // 2026-10-30：多目标追踪 / 尤里卡·鼓舞
+/* 2026-10-30：兑换码（TDS 无服务器礼包）。**必须 await** —— 它装 fetch 桩并验证
+ * Promise 链上的入账与失败分支，不 await 就只跑完同步段，后面全是假绿。 */
+await runRedeem({ SB, check, sandbox, doc, g });
 runAutoPlay({ SB, check });
 runAutoResearch({ SB, check });
 runChallenges({ SB, check, noop });

@@ -1195,26 +1195,38 @@
     }
     return dt > 1e-9 ? dt : Math.min(gameLeft, STEP);
   }
+  /* 补算收尾容差（真实秒）。⚠️ 这个数不是随手取的：外层 while 用 `> 0`、内层用 `> 1e-9`，
+   * 两处门槛之间是一条**陷阱**——残渣落在 (0, 1e-9) 时内层不进（gameLeft 已 < 1e-9）、
+   * realDone 不再增长、`j.left = Math.max(0, j.left - 0)` 把残渣原样写回 ⇒ 外层每帧空转烧满预算、
+   * `finishCatchUp` 永不执行、离线闸门永远不关（2026-10-30 玩家「打开游戏卡几分钟」的根因）。
+   * 残渣量级由 dt 序列决定：以 2 秒块为主时 ≈1e-10（正落陷阱），以 0.1 微步为主时 ≈1e-7。
+   * 取 1e-6：比两种量级都高一个数量级，且对应真实时间 1 微秒，对任何结算都无意义。 */
+  var CATCHUP_EPS = 1e-6;
   function drainCatchUp(budgetMs) {
     var j = loop.job; if (!j) return;
     if (j.s !== S) { loop.job = null; return; }   // 补算途中重开了周目，作废这一批
-    var t0 = Date.now();
+    /* ⚠️ 预算基准必须叫 tStart，**绝不能叫 t0**：内层曾写成 `var t0 = j.s.t`，
+     * var 在函数作用域内不分块 ⇒ 第一轮内层就把外层 t0 覆盖成游戏逻辑秒（十万量级），
+     * `Date.now() - t0` 立刻远超 budgetMs ⇒ 每次调用只做一轮外层迭代、内层一口气算完整段，
+     * 225ms 预算形同虚设（晚期局单条长任务 4471ms，界面整段冻结）。 */
+    var tStart = Date.now();
     /* 离线补算按「真实秒」记账、按事件块推进：每块最多 OFFLINE_STEP 个游戏秒，
      * 广告银行覆盖时按 2× 换算真实时长，并在余额归零处切段后回落 1×。
      * 旧循环每次只推进 1 个真实秒，导致 1× 时 dt 永远 <=1 秒；现在可跨真实秒批量结算。 */
-    while (j.left > 0 && !j.breakReached && Date.now() - t0 < budgetMs) {
+    while (j.left > CATCHUP_EPS && !j.breakReached && Date.now() - tStart < budgetMs) {
       var mul = adMul();
       var realChunk = j.left;
       if (mul > 1) realChunk = Math.min(realChunk, j.s.ad.ms / 1000); // 银行归零处切开
       var gameLeft = realChunk * mul;
       var realDone = 0;
+      var inner = 0;
       while (gameLeft > 1e-9 && !j.breakReached) {
         var dt = offlineStep(j.s, j, gameLeft);
-        var t0 = j.s.t;
+        var tPrev = j.s.t;                       // 仅用于 integrateFoodPop 的 t0 参数，与预算基准无关
         // 食物/人口积分器在 0.1s 微步内自行推进 happyStep（与食物同栅格重采样），故 tick 侧
         // 同时跳过 food 与 happy（skipFoodPop + skipHappy），避免 happy/奢侈品被双重推进。
         SB.economy.tick(j.s, dt, null, { skipFoodPop: true, skipHappy: true, deferBreakUI: true });   // 其他资源/season/pump/shell 仍走原 tick；food/happy 交给积分器
-        SB.offline.integrateFoodPop(j.s, dt, { t0: t0 }, null);  // 食物/人口 + 幸福度：事件边界闭式积分（替代 tick 内联 food/happy 段）
+        SB.offline.integrateFoodPop(j.s, dt, { t0: tPrev }, null);  // 食物/人口 + 幸福度：事件边界闭式积分（替代 tick 内联 food/happy 段）
         if (j.s._seasonGrantPending) { SB.economy.seasonGrant(j.s); j.s._seasonGrantPending = false; }
         j.tp = (j.tp || 0) + dt;
         gameLeft -= dt;
@@ -1227,9 +1239,17 @@
         }
         /* 星空槽在破壳后独立于 economy.tick 推进；按同一事件块累计，线性速率结果不变。 */
         SB.shell.tickStar(j.s, dt, null);
+        /* 预算让出：内层过去不检查时间（只有外层查），一段 8 小时补算会在一帧里算到底。
+         * 每 64 步查一次 Date.now()，超预算就带着已完成的 realDone 退出，
+         * 余量留给下一帧 —— 界面从「冻 4.5 秒」变成逐帧推进、进度条能走动。
+         * ⚠️ 只在这里 break 内层，外面那句 `j.left = Math.max(0, j.left - realDone)` 必须照常执行，
+         *    否则这一帧算的那部分会被丢掉（时间白算、还得多算一遍）。 */
+        if ((++inner & 63) === 0 && Date.now() - tStart >= budgetMs) break;
       }
       j.left = Math.max(0, j.left - realDone);
     }
+    /* 残渣夹零：不收这一下，进度条会停在 99.99999999% 而不是 100%。 */
+    if (j.left <= CATCHUP_EPS) j.left = 0;
     if (j.total && !j.silent) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);   // 静默补算没有闸门 modal 可报，跳过进度条
     if (j.left <= 0 || j.breakReached) finishCatchUp(j);
   }
