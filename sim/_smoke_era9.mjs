@@ -33,17 +33,38 @@ console.log('\n=== costOf 减消耗管线 ===');
 const s0 = SB.state.freshRun(false);
 s0.lvl.siltpit = 10;
 const cOff0 = SB.economy.costOf(s0, 'siltpit');
-s0.geek.costOffset = 3;
+s0.geek.enceladusDone = true;
 const cOff3 = SB.economy.costOf(s0, 'siltpit');
 const k0 = Object.keys(cOff0)[0];
-ok('覆盖建筑 siltpit：costOffset=3 时造价更低', cOff3[k0] < cOff0[k0],
+ok('覆盖建筑 siltpit：恩克拉多斯完成后造价更低', cOff3[k0] < cOff0[k0],
   k0 + ' 关=' + cOff0[k0].toFixed(2) + ' 开=' + cOff3[k0].toFixed(2));
 const s0b = SB.state.freshRun(false);
 s0b.lvl.robotbay = 6; // robotbay 不是覆盖建筑
 const cNb0 = SB.economy.costOf(s0b, 'robotbay');
-s0b.geek.costOffset = 3;
+s0b.geek.enceladusDone = true;
 const cNb3 = SB.economy.costOf(s0b, 'robotbay');
-ok('非覆盖建筑 robotbay：costOffset 无影响', Math.abs(cNb3[k0] - cNb0[k0]) < 1e-9 || Object.keys(cNb3)[0]===Object.keys(cNb0)[0] && cNb3[Object.keys(cNb0)[0]]===cNb0[Object.keys(cNb0)[0]]);
+ok('非覆盖建筑 robotbay：改造无影响', Math.abs(cNb3[k0] - cNb0[k0]) < 1e-9 || Object.keys(cNb3)[0]===Object.keys(cNb0)[0] && cNb3[Object.keys(cNb0)[0]]===cNb0[Object.keys(cNb0)[0]]);
+
+/* ★ 2026-10-31 分档：廉租社区单独走 enc=1 / terra=2（合计 3 级），其余覆盖建筑 3/5（合计 8 级）。
+ *   判据用「绝对造价」而非「变便宜了」：廉租社区 base 钢=100、ratio=3 都是已知常量，
+ *   ⇒ 只恩克拉多斯应变 100×3^13，双改造应变 100×3^11（而不是 3^6 —— 那是改前的 6561× 折扣）。 */
+const sdz = SB.state.freshRun(false);
+sdz.lvl.tenement = 14; sdz.lvl.nest = 14;
+const tRaw = SB.economy.costOf(sdz, 'tenement').steel;
+const nRaw = SB.economy.costOf(sdz, 'nest').coral;
+sdz.geek.enceladusDone = true;
+const tEnc = SB.economy.costOf(sdz, 'tenement').steel;
+const nEnc = SB.economy.costOf(sdz, 'nest').coral;
+sdz.geek.terraDone = true;
+const tAll = SB.economy.costOf(sdz, 'tenement').steel;
+const nAll = SB.economy.costOf(sdz, 'nest').coral;
+ok('分档：廉租社区仅恩克拉多斯 ⇒ offset=1（14 级按 13 级计价）',
+  Math.abs(tEnc - 100*Math.pow(3,13)) < 1e-6, '钢=' + tEnc.toFixed(0) + ' 期望=' + (100*Math.pow(3,13)).toFixed(0));
+ok('★ 分档：廉租社区双改造 ⇒ offset=3（14 级按 11 级计价，不是 6 级）',
+  Math.abs(tAll - 100*Math.pow(3,11)) < 1e-6, '钢=' + tAll.toFixed(0) + ' 期望=' + (100*Math.pow(3,11)).toFixed(0));
+ok('分档：其余覆盖建筑（nest）仍为 enc=3 / 合计 8',
+  Math.abs(nRaw/nEnc - Math.pow(2.5,3)) < 1e-6 && Math.abs(nRaw/nAll - Math.pow(2.5,8)) < 1e-6,
+  '仅恩克拉多斯折扣=' + (nRaw/nEnc).toFixed(1) + 'x 双改造折扣=' + (nRaw/nAll).toFixed(1) + 'x');
 
 console.log('\n=== 马尔斯工造中心产出（tick===rates）===');
 const s1 = SB.state.freshRun(false);
@@ -158,26 +179,28 @@ sG1.wonders.wonder_geek = true;
 const hfG1 = SB.economy.hydroAlloc(sG1, 1);
 ok('G.E.E.K 建成未启动 ⇒ geekDraw=0', hfG1.geekDraw === 0);
 
-/* 4) 建成且启动、资源充足：扣 kelp/metal/coral 各 GEEK_*×dt，累计 enceladusRun，满 1800s ⇒ enceladusDone + costOffset=3 */
+/* 4) 建成且启动、资源充足：扣 kelp/metal/coral 各 GEEK_*×dt，累计 enceladusRun，满 1800s ⇒ enceladusDone（造价偏移由该旗推导） */
 const sG2 = SB.state.freshRun(false);
-sG2.wonders.wonder_geek = true; sG2.geek = { geekOn: true, enceladusDone:false, terraDone:false, costOffset:0, enceladusRun:0, terraRun:0 };
-sG2.res.kelp = 1e9; sG2.res.metal = 1e9; sG2.res.coral = 1e9; sG2.res.warmstone = 1e9;
+sG2.wonders.wonder_geek = true; sG2.geek = { geekOn: true, enceladusDone:false, terraDone:false, enceladusRun:0, terraRun:0 };
+/* ⚠️ 金属的键名是 `silt`（RESS 里**没有** `metal` 键）：早前夹具写 `res.metal` 等于没设，
+ *    G.E.E.K 一直判 `s.res.silt >= 500` 为假 ⇒ 全程 starved，整段 6 条断言集体假红。 */
+sG2.res.kelp = 1e9; sG2.res.silt = 1e9; sG2.res.stone = 1e9; sG2.res.coral = 1e9; sG2.res.warmstone = 1e9;
 sG2.lvl.hydroturbine = 50;   // 保证热液能剩流够 40/s
-const kelpBefore = sG2.res.kelp, metalBefore = sG2.res.metal, coralBefore = sG2.res.coral;
+const kelpBefore = sG2.res.kelp, siltBefore = sG2.res.silt, coralBefore = sG2.res.coral;
 SB.shell.tickShell(sG2, 1, null, {});
 ok('G.E.E.K 运转扣 kelp 500/s', Math.abs((kelpBefore - sG2.res.kelp) - SB.CFG.GEEK_KELP) < 1e-6, 'Δkelp='+(kelpBefore-sG2.res.kelp));
-ok('G.E.E.K 运转扣 metal 100/s', Math.abs((metalBefore - sG2.res.metal) - SB.CFG.GEEK_METAL) < 1e-6, 'Δmetal='+(metalBefore-sG2.res.metal));
+ok('G.E.E.K 运转扣 silt（金属）100/s', Math.abs((siltBefore - sG2.res.silt) - SB.CFG.GEEK_METAL) < 1e-6, 'Δsilt=' + (siltBefore - sG2.res.silt));
 ok('G.E.E.K 运转扣 coral 100/s', Math.abs((coralBefore - sG2.res.coral) - SB.CFG.GEEK_CORAL) < 1e-6, 'Δcoral='+(coralBefore-sG2.res.coral));
 ok('G.E.E.K 累计 enceladusRun=1s', Math.abs(sG2.geek.enceladusRun - 1) < 1e-9, 'enceladusRun='+sG2.geek.enceladusRun);
 
-/* 5) 跑满 1800s ⇒ enceladusDone + costOffset=3 */
+/* 5) 跑满 1800s ⇒ enceladusDone */
 const sG3 = SB.state.freshRun(false);
-sG3.wonders.wonder_geek = true; sG3.geek = { geekOn: true, enceladusDone:false, terraDone:false, costOffset:0, enceladusRun:0, terraRun:0 };
-sG3.res.kelp = 1e12; sG3.res.metal = 1e12; sG3.res.coral = 1e12; sG3.res.warmstone = 1e9;
+sG3.wonders.wonder_geek = true; sG3.geek = { geekOn: true, enceladusDone:false, terraDone:false, enceladusRun:0, terraRun:0 };
+sG3.res.kelp = 1e12; sG3.res.silt = 1e12; sG3.res.stone = 1e12; sG3.res.coral = 1e12; sG3.res.warmstone = 1e9;
 sG3.lvl.hydroturbine = 50;
 for (let i=0;i<1800;i++) SB.shell.tickShell(sG3, 1, null, {});
 ok('G.E.E.K 跑满 1800s ⇒ enceladusDone', sG3.geek.enceladusDone === true);
-ok('G.E.E.K enceladus 完成 ⇒ costOffset=3', sG3.geek.costOffset === 3, 'costOffset='+sG3.geek.costOffset);
+ok('G.E.E.K enceladus 完成 ⇒ 不再写 costOffset 字段（改由完成旗推导）', !('costOffset' in sG3.geek), Object.keys(sG3.geek).join(','));
 /* costOf 减消耗落点：覆盖建筑 n=10 时 effN = max(0,10-3)=7（costOf 返回资源键对象） */
 sG3.lvl.nest = 10;
 const c10 = SB.economy.costOf(sG3, 'nest');
@@ -186,23 +209,29 @@ const k10 = Object.keys(c10)[0];
 ok('costOf：恩克拉多斯后 nest L10 比基准便宜（effN=7<10）', c10[k10] < c10base[k10] && c10[k10] > 0,
   k10 + ' 恩克拉多斯后=' + c10[k10].toFixed(2) + ' 基准=' + c10base[k10].toFixed(2));
 
-/* 6) 叠加 Terra：研究 terraform 后跑满 3600s ⇒ terraDone + costOffset=8 */
+/* 6) 叠加 Terra：研究 terraform 后跑满 3600s ⇒ terraDone（合计 offset 8；廉租社区单独 3） */
 const sG4 = SB.state.freshRun(false);
-sG4.wonders.wonder_geek = true; sG4.geek = { geekOn: true, enceladusDone:true, terraDone:false, costOffset:3, enceladusRun:1800, terraRun:0 };
+sG4.wonders.wonder_geek = true; sG4.geek = { geekOn: true, enceladusDone:true, terraDone:false, enceladusRun:1800, terraRun:0 };
 sG4.techs.terraform = true;
-sG4.res.kelp = 1e12; sG4.res.metal = 1e12; sG4.res.coral = 1e12; sG4.res.warmstone = 1e9;
+sG4.res.kelp = 1e12; sG4.res.silt = 1e12; sG4.res.stone = 1e12; sG4.res.coral = 1e12; sG4.res.warmstone = 1e9;
 sG4.lvl.hydroturbine = 50;
 for (let i=0;i<3600;i++) SB.shell.tickShell(sG4, 1, null, {});
 ok('G.E.E.K 跑满泰拉 3600s ⇒ terraDone', sG4.geek.terraDone === true);
-ok('G.E.E.K Terra 叠加 ⇒ costOffset=8', sG4.geek.costOffset === 8, 'costOffset='+sG4.geek.costOffset);
+ok('G.E.E.K Terra 叠加 ⇒ terraDone（且不再写 costOffset）', sG4.geek.terraDone === true && !('costOffset' in sG4.geek), Object.keys(sG4.geek).join(','));
+/* ★ 全链路校验分档：真跑满 3600s 后，廉租社区在 14 级必须按 11 级计价（offset=3），
+ *   而不是改前的 6 级（offset=8 → 钢 72,900）。这一条走的是 tickShell 真实写入路径，不是手工塞旗。 */
+sG4.lvl.tenement = 14;
+const tG4 = SB.economy.costOf(sG4, 'tenement').steel;
+ok('★ Terra 叠加后廉租社区按 3 级计价（14 级 = 100×3^11，不是 100×3^6）',
+  Math.abs(tG4 - 100 * Math.pow(3, 11)) < 1e-6, '钢=' + tG4.toFixed(0) + ' 期望=' + (100 * Math.pow(3, 11)).toFixed(0));
 
 /* 7) 缺料暂停、进度保留：kelp 不足时一分不扣、enceladusRun 不增、不丢 geekOn */
 const sG5 = SB.state.freshRun(false);
-sG5.wonders.wonder_geek = true; sG5.geek = { geekOn: true, enceladusDone:false, terraDone:false, costOffset:0, enceladusRun:100, terraRun:0 };
-sG5.res.kelp = 0; sG5.res.metal = 1e9; sG5.res.coral = 1e9; sG5.res.warmstone = 1e9;   // kelp 见底
+sG5.wonders.wonder_geek = true; sG5.geek = { geekOn: true, enceladusDone:false, terraDone:false, enceladusRun:100, terraRun:0 };
+sG5.res.kelp = 0; sG5.res.silt = 1e9; sG5.res.stone = 1e9; sG5.res.coral = 1e9; sG5.res.warmstone = 1e9;   // kelp 见底
 sG5.lvl.hydroturbine = 50;
 SB.shell.tickShell(sG5, 1, null, {});
-ok('G.E.E.K 缺 kelp ⇒ 不扣任何材料', sG5.res.metal === 1e9 && sG5.res.coral === 1e9 && sG5.res.kelp === 0);
+ok('G.E.E.K 缺 kelp ⇒ 不扣任何材料', sG5.res.silt === 1e9 && sG5.res.stone === 1e9 && sG5.res.coral === 1e9 && sG5.res.kelp === 0);
 ok('G.E.E.K 缺料 ⇒ enceladusRun 不增', sG5.geek.enceladusRun === 100);
 ok('G.E.E.K 缺料 ⇒ geekStarved 置位', sG5.geekStarved === true);
 ok('G.E.E.K 缺料 ⇒ 不自动停机（geekOn 保留）', sG5.geek.geekOn === true);
@@ -211,7 +240,7 @@ ok('G.E.E.K 缺料 ⇒ 不自动停机（geekOn 保留）', sG5.geek.geekOn === 
 const rawG = { res:{}, lvl:{}, geek:{ enceladusDone:true } };
 const migG = SB.state.migrateRun(rawG);
 ok('迁移：geek 深合并保留 geekOn 默认', migG.geek && migG.geek.geekOn === false);
-ok('迁移：geek 深合并保留 costOffset 默认', migG.geek && migG.geek.costOffset === 0);
+ok('迁移：旧档 costOffset 键被丢弃（偏移改由两个完成旗推导）', migG.geek && !('costOffset' in migG.geek), 'keys=' + Object.keys(migG.geek).join(','));
 ok('迁移：geek 深合并保留 enceladusDone 真值', migG.geek && migG.geek.enceladusDone === true);
 
 process.exit(fail ? 1 : 0);

@@ -336,6 +336,12 @@ html[data-era="1"][data-deep-bubbles="on"] .era1-bubbles { display:block; }
 .ui-setting-row b { color:var(--txt); font-size:12px; }
 .ui-setting-row small { color:var(--dim); font-size:10px; line-height:1.45; }
 .ui-setting-row--select { align-items:center; cursor:default; margin-top:4px; }
+/* 音乐段音量滑块（2026-10-31）：与 --select 同档「整行不可点、控件自己可拖」。
+ * 滑块占满整行宽度，accent-color 跟随主题青色；窄屏下 min-width 保证仍可精细拖动。 */
+.ui-setting-row--slider { align-items:center; cursor:default; margin-top:6px; flex-direction:column; align-items:stretch; gap:6px; }
+.ui-setting-row--slider > span { width:100%; }
+.audio-volume-slider { width:100%; min-width:120px; accent-color:var(--cyan); cursor:pointer; }
+html[data-ui-theme="day"] .audio-volume-slider { accent-color:#246e76; }
 /* 自动点击未解锁态（2026-10-28）：input 已 disabled，整行变成「去轮回商店」的入口。
  * 标题压暗表示不可操作，提示用暖色（下划线）引导视线 —— 这条提示本身就是给 perks 打的广告位。 */
 .ui-setting-row.is-locked b { color:var(--dim); }

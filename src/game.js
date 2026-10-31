@@ -181,6 +181,7 @@
     /* 自动点击开关跨周目继承（2026-10-28 用户拍）：freshRun 给的是 true，必须用 meta 偏好盖上，
      * 否则「暂停」在破壳后会被静默重置成开。 */
     applyAutoClickPref(S);
+    applyAudioPref(S);   // 背景音乐偏好跨周目继承（2026-10-31，同 autoClick 两层范式）
     SB.state.saveMeta(meta);
     clearLog();
     log('第 ' + meta.cycle + ' 周目开始。冰封壳厚度 ' + S.iceShell + '。');
@@ -243,6 +244,7 @@
       SB.state.saveMeta(meta);
     }
     applyAutoClickPref(S);
+    applyAudioPref(S);   // 背景音乐偏好跨周目继承
     meta.cycle = Math.max(1, meta.cycle);
     dirty = true;
     if (S._repairedResources && S._repairedResources.length) {
@@ -290,6 +292,7 @@
     SB.state.saveMeta(meta);
     S = SB.state.freshRun(false);
     applyAutoClickPref(S);   // meta 已重置 ⇒ 偏好归「开」，这里只是让本局与之一致
+    applyAudioPref(S);   // 背景音乐偏好：meta 重置后归默认（开 + 满音量）
     clearLog();
     log('存档已清空，回到第 1 周目。轮回点与破层层级一并抹去。');
     dirty = true;
@@ -386,7 +389,7 @@
   }
 
   function render() { if (dirty) { dirty = false; SB.ui.render.renderAll(); } }
-  function renderAll() { dirty = false; SB.ui.render.renderAll(); syncAutoClickSetting(); }
+  function renderAll() { dirty = false; SB.ui.render.renderAll(); syncAutoClickSetting(); syncAudioSetting(); }
   function markDirty() { dirty = true; }
 
   /* ══ 设置栏「自动点击」开关（2026-10-28 用户要求）════════════════════════════
@@ -475,6 +478,73 @@
       setTab('meta');
       log('已跳到轮回商店：在「先人孑遗」里购买「潮讯自拾」即可自动点击。');
     });
+  }
+
+  /* ══ 设置栏「音乐」段（2026-10-31 新增）：静音 + BGM 音量 + 当前曲目显示 ════════════
+   * 【两层模型，照抄自动点击】s.audioMuted / s.audioVolume = 本局行为（audio.js 只读这两个）；
+   *    meta.audioMuted / meta.audioVolume = 跨周目偏好（startRun 播种进新局，玩家拨开关时两边同写）。
+   *    判据同 autoClick：缺字段 = 开 + 满音量；meta 里只有「玩家真的拨过」才出现这两个键，
+   *    resumeRun 才能给老档做一次性认领（迁移只校验不重算，不指望它补默认值）。
+   * 【曲名/作者不写死】全部来自 CFG.AUDIO（config.js），这里只读取并拼成「《曲名》— 作者（阶段）」。
+   * 【UI 增量更新】与自动点击同一纪律：只写 checked / value / textContent / class，从不重建节点，
+   *    否则玩家正在拖的滑块会被换掉、这一下输入丢失。 */
+  function audioMutedPref() { return !!(meta && meta.audioMuted === true); }
+  function audioVolPref() {
+    if (meta && typeof meta.audioVolume === 'number') return meta.audioVolume;
+    return (SB.CFG && SB.CFG.AUDIO) ? SB.CFG.AUDIO.defaultVolume : 1;
+  }
+  function applyAudioPref(s) {
+    if (s) { s.audioMuted = audioMutedPref(); s.audioVolume = audioVolPref(); }
+    return s;
+  }
+  function setAudioPref() {
+    if (!meta) return;
+    // 以「本局当前值」为准回写 meta（只有玩家真的拨过才落键；S 初值已由 applyAudioPref 铺好）
+    if (S) { meta.audioMuted = !!S.audioMuted; meta.audioVolume = (typeof S.audioVolume === 'number') ? S.audioVolume : 1; }
+    SB.state.saveMeta(meta);
+  }
+
+  function syncAudioSetting() {
+    if (!document) return;
+    var s = S;
+    var muteBox = document.getElementById('audioMuteToggle');
+    if (muteBox && muteBox.checked !== !!(s && s.audioMuted)) muteBox.checked = !!(s && s.audioMuted);
+    var vol = document.getElementById('audioVolume');
+    if (vol) {
+      var v = (s && typeof s.audioVolume === 'number') ? Math.round(s.audioVolume * 100) : 100;
+      if (Number(vol.value) !== v) vol.value = String(v);
+    }
+    var np = document.getElementById('audioNowPlaying');
+    if (np && SB.audio && SB.audio.currentTrack) {
+      var t = SB.audio.currentTrack();
+      var phase = (s && s.broken) ? '破壳后' : '破壳前';
+      var next = t ? ('《' + t.name + '》— ' + t.author + '（' + phase + '）') : '（未配置曲目）';
+      if (np.textContent !== next) np.textContent = next;
+    }
+  }
+
+  function bindAudioSetting() {
+    if (!document) return;
+    var muteBox = document.getElementById('audioMuteToggle');
+    if (muteBox) muteBox.onchange = function () {
+      if (!S) return;
+      S.audioMuted = !!muteBox.checked;
+      if (SB.audio && SB.audio.setMuted) SB.audio.setMuted(S.audioMuted);
+      setAudioPref();              // 跨周目偏好同步落盘
+      syncAudioSetting();
+    };
+    var vol = document.getElementById('audioVolume');
+    if (vol) {
+      vol.oninput = function () {
+        if (!S) return;
+        var v = Number(vol.value) / 100;
+        S.audioVolume = v;
+        if (SB.audio && SB.audio.setVolume) SB.audio.setVolume(v);
+        syncAudioSetting();
+      };
+      // 拖动结束才落盘 meta，避免 input 事件风暴把存档刷爆
+      vol.onchange = function () { setAudioPref(); };
+    }
   }
 
   function emit(msg) { log(msg); markDirty(); }
@@ -2283,6 +2353,11 @@
      * 那个 disabled 的 checkbox 就是这么自动解禁的，不需要买家自己去通知 UI。 */
     bindAutoClickSetting();
     syncAutoClickSetting();
+    /* ⚙ 设置 → 音乐段（2026-10-31）：绑定 + 首帧同步 + 启动 BGM 引擎。
+     * init() 会挂一次性手势监听，首次交互后才真正出声（浏览器自动播放策略）。 */
+    bindAudioSetting();
+    syncAudioSetting();
+    if (SB.audio && SB.audio.init) SB.audio.init();
     /* 关标签页 / 刷新前立刻落盘：有 5 秒节流在，玩家在这一窗口里刷新就会丢最后几秒，
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */
     function flush() { if (!suppressExitSave && S && !S.broken) SB.state.saveRun(snapshot(S)); }

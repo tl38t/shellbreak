@@ -114,7 +114,7 @@
     //       剩流由 economy.hydroAlloc 同一 tick 算好的 s._hydroFlow.left 给出（工坊低阶先吃满）。
     //    ⚠️ 库存耗 kelp(藻食)/silt(金属)/stone(石头)/coral(珊瑚) 在扣费**之前**判足（扣费先于置位，失败一分不扣），与 skydrill 同纪律；
     //       任一不足或断流 = 暂停、进度保留（enceladusRun/terraRun 累加，绝不回拨 geekOn——补料后下一 tick 自动续转）。
-    //    ⚠️ 唯一效果 = 覆盖建筑造价等级偏移（costOffset，落点 economy.costOf）；无幸福度/市政/产出额外效果（用户拍板不加）。
+    //    ⚠️ 唯一效果 = 覆盖建筑造价等级偏移（落点 economy.costOf，按建筑分档见 COST_OFFSET_COVERED）；无幸福度/市政/产出额外效果（用户拍板不加）。
     if (geekOn && geekOwned) {
       var _gkHydro = SB.CFG.GEEK_HYDRO * dt;
       var _HF2 = s._hydroFlow || (SB.economy ? SB.economy.hydroAlloc(s, dt) : { geekDraw: 0 });
@@ -125,24 +125,22 @@
       if (_geekActive && hydroOK && (s.res.kelp || 0) >= _gkKelp && (s.res.silt || 0) >= _gkMetal && (s.res.stone || 0) >= _gkStone && (s.res.coral || 0) >= _gkCoral) {
         s.res.kelp -= _gkKelp; s.res.silt -= _gkMetal; s.res.stone -= _gkStone; s.res.coral -= _gkCoral;
         if (!s.geek.enceladusDone) {
-          // 阶段一：恩克拉多斯星改造。完成 ⇒ costOffset=3（覆盖建筑升级回到 L3 之前）。
+          // 阶段一：恩克拉多斯星改造。完成 ⇒ 按 COST_OFFSET_COVERED.enc 下调（默认 3 级、廉租社区 1 级）。
           s.geek.enceladusRun = (s.geek.enceladusRun || 0) + dt;
           var _encTime = SB.economy && SB.economy.starTerraformDuration
             ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_ENCELADUS_SECONDS) : SB.CFG.GEEK_ENCELADUS_SECONDS;
           if (s.geek.enceladusRun >= _encTime) {
             s.geek.enceladusDone = true;
-            s.geek.costOffset = 3;
-            if (emit) emit('星球重构机 G.E.E.K 完成恩克拉多斯星改造：人口/速生珊瑚林/矿井/生息区建筑升级花费回到 L3 之前。');
+            if (emit) emit('星球重构机 G.E.E.K 完成恩克拉多斯星改造：覆盖建筑升级花费下调最多 3 级（廉租社区 1 级）。');
           }
         } else if (s.techs.terraform && !s.geek.terraDone) {
-          // 阶段二：泰拉星改造（需先研究 terraform 解锁）。完成 ⇒ costOffset 叠加 +5 = 8（回到 L5 之前）。
+          // 阶段二：泰拉星改造（需先研究 terraform 解锁）。完成 ⇒ 再叠加 COST_OFFSET_COVERED.terra（默认 5 级 ⇒ 合计 8；廉租社区 2 级 ⇒ 合计 3）。
           s.geek.terraRun = (s.geek.terraRun || 0) + dt;
           var _terraTime = SB.economy && SB.economy.starTerraformDuration
             ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
           if (s.geek.terraRun >= _terraTime) {
             s.geek.terraDone = true;
-            s.geek.costOffset = 8;   // 叠加 Rhea(3)+Terra(5)
-            if (emit) emit('星球重构机 G.E.E.K 完成泰拉星改造：覆盖建筑升级花费回到 L5 之前（叠加后合计 L8）。');
+            if (emit) emit('星球重构机 G.E.E.K 完成泰拉星改造：覆盖建筑升级花费下调最多 8 级（廉租社区合计 3 级）。');
           }
         }
         s.geekStarved = false;

@@ -50,9 +50,11 @@ print('已自动同步 index.html / css / src -> 包目录')
 #   resource-icons（34 处）、achievements（22 处）、ui-era、talent-icons、challenges、
 #   company-icons、brand、dyson —— 线上是 404 缺图，而封包断言只查 config.js 文本、
 #   完全查不出来。改为按白名单遍历，**排除 assets/store（66M 本地商店素材，不上传）**。
-ASSET_DIRS = ['achievements', 'backgrounds', 'brand', 'building-icons', 'challenges',
+ASSET_DIRS = ['achievements', 'audio', 'backgrounds', 'brand', 'building-icons', 'challenges',
               'civic-icons', 'company-icons', 'dyson', 'fonts', 'resource-icons',
               'talent-icons', 'tech-icons', 'ui-era', 'wonders']
+# ⚠️ 2026-10-31 新增 audio（BGM 压缩包，见 src/audio.js + CFG.AUDIO）。漏进白名单 = 线上静默缺音乐，
+#    与 2026-10-26「静默缺图」同类事故：封包断言只查 config 文本，查不出缺整个文件夹。
 for _d in ASSET_DIRS:
     _sync_tree(os.path.join(REPO, 'assets', _d), os.path.join(SRC, 'assets', _d))
 print('已自动同步 assets/ 的 %d 个子树 -> 包目录（store 本地素材除外）' % len(ASSET_DIRS))

@@ -566,13 +566,25 @@
   // 单级增量成本。递增系数是建筑自己的 `ratio`（猫国 priceRatio），不是全局常数——
   // 住房 2.5 贵到买不动，产能建筑 1.12 便宜到可以一路铺开，这是两条不同的曲线。
   /* ERA9（2026-10-19 · 用户纠正② / docs/ERA9_TECHS_SPEC §7）：星球重构机 G.E.E.K 完成
-   *   恩克拉多斯/泰拉改造后，给覆盖建筑的有效造价等级往下偏移 `s.geek.costOffset`（Enceladus=3 / Terra=5 替换），
+   *   恩克拉多斯/泰拉改造后，给覆盖建筑的有效造价等级往下偏移（Enceladus / Terra 两阶段），
    *   **不是加等级/虚级**。落点只在 costOf 这一处（Math.pow(ratio, effN)），economy 零改动、
    *   面板天然一致（costOf 是造价显示与真实扣费的共用入口）。覆盖清单以「建筑 id」单一事实源登记，
    *   不要另写一份（那是第二份事实来源，必漂）。`hall` 是否计入属待拍，先不列入。
-   *   ⚠️ `s.geek.costOffset` 默认 0（state.js freshRun），G.E.E.K 运行态未落地前本管线是 no-op。 */
-  var COST_OFFSET_COVERED = { nest: 1, coralhouse: 1, tenement: 1, coralfarm: 1,
-    siltpit: 1, furnace: 1, kelp: 1, weir: 1, warmnest: 1 };
+   *   ⚠️ 偏移量**不再存进 `s.geek.costOffset`**（2026-10-31 废弃该字段），改由两个完成旗
+   *      `enceladusDone` / `terraDone` 按建筑查本表推导 —— 理由见下面 costOf 里的注。 */
+  /* 覆盖建筑 → 两阶段的等级偏移配额 `{ enc: 恩克拉多斯, terra: 泰拉 }`，合计 = 最大有效折扣级数。
+   *   默认 3/5（合计 8）。⚠️ 廉租社区单独走 1/2（合计 3）——2026-10-31 用户拍板。
+   *   为什么要单独降：它的 `ratio` 是全场最高（3），`3^8` = 6561× 折扣 ⇒ 14 级只付 6 级的钱
+   *   （钢 72,900 vs 原价 478,300,000），且 `max(0, n−offset)` 让前 8 级全部落到 effN=0，
+   *   8 级合计只花 200 脚手架 + 800 钢。压到 3 后折扣收成 27×（14 级 = 17,710,000 钢）。
+   *   ⚠️ 这里是唯一事实源，**不要**再开 `tenementCostOffset` 之类的第二个字段。 */
+  var COST_OFFSET_COVERED = {
+    nest: { enc: 3, terra: 5 }, coralhouse: { enc: 3, terra: 5 },
+    tenement: { enc: 1, terra: 2 },
+    coralfarm: { enc: 3, terra: 5 },
+    siltpit: { enc: 3, terra: 5 }, furnace: { enc: 3, terra: 5 },
+    kelp: { enc: 3, terra: 5 }, weir: { enc: 3, terra: 5 }, warmnest: { enc: 3, terra: 5 }
+  };
   function costOf(s, id) {
     var b = null;
     for (var i = 0; i < SB.BUILDINGS.length; i++) if (SB.BUILDINGS[i].id === id) b = SB.BUILDINGS[i];
@@ -622,9 +634,20 @@
      *   超古代科技 −20% 是第一个源，多源**乘法**叠加、地板 ×0.30（=70% 封顶）。
      *   作用域只限 space 区两座（卫星/空间站），不含奇观与地面建筑。 */
     var scm = (b.zone === 'space') ? spaceCostMul(s) : 1;
-    /* ERA9（§7）：覆盖建筑的有效造价等级 = max(0, n − costOffset)。costOffset 来自 G.E.E.K
-     *   改造完成（Enceladus=3 / Terra=5）；未改造时恒 0 ⇒ 本行与旧 `Math.pow(b.ratio, n)` 逐字等价。 */
-    var _offset = (b && COST_OFFSET_COVERED[b.id]) ? ((s.geek && s.geek.costOffset) || 0) : 0;
+    /* ERA9（§7）：覆盖建筑的有效造价等级 = max(0, n − offset)。
+     *   ⚠️ offset 由**两个完成旗**推导（`COST_OFFSET_COVERED[b.id]` 的 enc/terra 配额），
+     *      不再读 `s.geek.costOffset`。这样做的收益是**老存档零迁移**：两个旗是老档本来就存的，
+     *      读出来直接得到新档位；而 costOffset 是「算好的结果」，存档里存的还是旧值 8，
+     *      若继续读它，改表对老玩家一律无效（migrateRun 只校验不重算）。
+     *   ⚠️ `terraDone` 独立蕴含第一阶段已走完（改造链是顺序的）；脏档里出现
+     *      terraDone=true 而 enceladusDone=false 时按满额算，避免出现「只有泰拉那半截偏移」
+     *      这种玩家无论如何走不到的状态。 */
+    var _cov = (b && COST_OFFSET_COVERED[b.id]) ? COST_OFFSET_COVERED[b.id] : null;
+    var _offset = 0;
+    if (_cov && s.geek) {
+      if (s.geek.terraDone) _offset = _cov.enc + _cov.terra;
+      else if (s.geek.enceladusDone) _offset = _cov.enc;
+    }
     var _effN = Math.max(0, n - _offset);
     /* ERA10 市政（2026-10-20 · 虚境祭坛）：`cost.pop` 是**人口造价**，不是资源；
      *   若配置 `popCostByLevel`，数组按当前等级 n 取第 n 项（n=0 即建造 1 级）。

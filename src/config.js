@@ -337,6 +337,22 @@
   // 这条对齐猫国建设者——官方源码里 maxLevel/levelCap/buildMax 全仓库零匹配，
   // 它压住人口的手段是木屋 priceRatio 2.5（"贵"，不是"上限"）。
 
+    // ---- 背景音乐 BGM（2026-10-31 新增）----
+    // 单一数据源：曲名 / 作者 / 资源路径 / 播放阶段。设置面板「音乐」段只读取这里，不写死字符串。
+    // phase: 'pre' = 破壳前（s.broken === false）播放；'post' = 破壳后（s.broken === true）播放。
+    // file 走相对路径，与 index.html 的脚本/资源同根（TapTap H5 容器内也按此相对根解析）。
+    // ⚠️ author 是固定的「百景乐团」，两首同为这一个作者；以后换曲只改这里。
+    AUDIO: {
+      enabled: true,                  // 总开关：false 时连 Audio 元素都不创建（极端低端机可关）
+      tracks: {
+        underIce:  { id: 'underIce',  name: '冰壳之下', en: 'Under the Ice',       author: '百景乐团', phase: 'pre',  file: 'assets/audio/under_ice_depth_loop_20261030_v9_cq128.m4a' },
+        firmament: { id: 'firmament', name: '向着天穹', en: 'Toward the Firmament', author: '百景乐团', phase: 'post', file: 'assets/audio/toward_the_firmament_loop_20261030_v2_cq128.m4a' }
+      },
+      // 默认音量（0~1），对应设置滑块 100%；静音由 s.audioMuted / meta.audioMuted 控制。
+      defaultVolume: 1,
+      crossfadeMs: 800                // 破壳切换时的交叉淡入淡出时长
+    },
+
     // ---- 破壳系数（玩家的破壳主指标）----
     // 系数 = Σ 各项贡献，破壳速率 = BREAK_BASE × 系数（点/秒）。
     // 每项都有自己的墙：人口受住房卡、级数受成本卡、研究要科技。

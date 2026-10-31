@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=279" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=280" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -66,6 +66,20 @@
             <input type="checkbox" data-onboarding-toggle checked>
             <span><b>新手引导</b><small>首局逐步高亮操作指引，可随时关闭（关闭后不再自动出现）。</small></span>
           </label>
+          <!-- 音乐（2026-10-31 新增）：静音 + 音量 + 当前曲目。
+               ⚠️ 结构**静态**，状态全部由 game.js 的 syncAudioSetting() 用 checked / value / textContent
+                  增量更新 —— 与自动点击同一纪律，绝不能被整块重写（否则玩家正在拖的滑块会被换掉）。
+               曲名/作者不写死在此，全部来自 config.js 的 CFG.AUDIO，由 syncAudioSetting 拼出。 -->
+          <div class="ui-settings-title">音乐</div>
+          <label class="ui-setting-row">
+            <input type="checkbox" id="audioMuteToggle">
+            <span><b>静音 BGM</b><small>关闭所有背景音乐（破壳前/后两首都会停）</small></span>
+          </label>
+          <label class="ui-setting-row ui-setting-row--slider">
+            <span><b>BGM 音量</b></span>
+            <input type="range" id="audioVolume" min="0" max="100" value="100" step="1" class="audio-volume-slider" aria-label="BGM 音量">
+          </label>
+          <small class="ui-setting-hint" id="audioNowPlaying">读取中…</small>
           <!-- TapTap 兑换码（2026-10-30 · TDS 无服务器礼包）。
                ⚠️ 这是**通用**兑换入口，以后办别的活动还用它 ⇒ 文案不写奖励类型、不写「补偿」。
                ⚠️ 整块由 src/redeem.js 的 boot() 控制显隐：CFG.REDEEM 的 CLIENT_ID / ACTIVITY_ID
@@ -262,9 +276,9 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=199"></script>
+<script src="src/config.js?v=200"></script>
 <script src="src/config-catalog.js?v=11"></script>
-<script src="src/config-content.js?v=35"></script>
+<script src="src/config-content.js?v=36"></script>
 <script src="src/config-buildings.js?v=46"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
@@ -280,12 +294,12 @@
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/save-storage.js?v=7"></script>
-<script src="src/state-migrate.js?v=20"></script>
-<script src="src/state.js?v=164"></script>
+<script src="src/state-migrate.js?v=21"></script>
+<script src="src/state.js?v=165"></script>
 <script src="src/workshop.js?v=122"></script>
 <script src="src/wonder.js?v=112"></script>
 <script src="src/economy-social.js?v=9"></script>
-<script src="src/economy.js?v=200"></script>
+<script src="src/economy.js?v=201"></script>
 <script src="src/economy-rates.js?v=30"></script>
 <script src="src/economy-tick.js?v=25"></script>
 <script src="src/offline-scheduler.js?v=3"></script>
@@ -293,7 +307,8 @@
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=4"></script>
-<script src="src/shell.js?v=109"></script>
+<script src="src/audio.js?v=1"></script>
+<script src="src/shell.js?v=110"></script>
 <script src="src/habitat.js?v=113"></script>
 <script src="src/folk.js?v=106"></script>
 <script src="src/prestige.js?v=131"></script>
@@ -319,7 +334,7 @@
 <script src="src/ui/render.js?v=266"></script>
 <script src="src/ui/track-dock.js?v=5"></script>
 <script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=171"></script>
+<script src="src/game.js?v=172"></script>
 <script src="src/save-transfer.js?v=15"></script>
 <script src="src/redeem.js?v=2"></script>
 <script src="src/ui/input.js?v=176"></script>

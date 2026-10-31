@@ -776,13 +776,13 @@
     /* ── ERA9 奇观（2026-10-19 实装 · 生态重塑 解锁）──
      * 【星球重构机 G.E.E.K】need='ecological_restoration'（与 wonder_skydrill.need 同机制：
      *   workshop/wonderBlocked 读 w.need 拦「先研究生态重塑」；非 tech 的 unlockWonder 字段，那个键全 src 无消费点）。
-     *   effect 空：G.E.E.K 唯一效果是「覆盖建筑升级花费削减」(s.geek.costOffset)，落点 economy.costOf，
+     *   effect 空：G.E.E.K 唯一效果是「覆盖建筑升级花费削减」（economy.costOf 按 COST_OFFSET_COVERED 分档 + 两个完成旗），落点 economy.costOf，
      *   不经 wonder.effect 通道（无幸福度/市政/产出效果，用户拍板「不加」）。运行态在 shell.tickShell ③段。 */
     { id: 'wonder_geek', name: '星球重构机 G.E.E.K', era: 9, need: 'ecological_restoration',
       cost: { thetaMetal: 1000, steel: 4000, iron: 6000, coral: 10000, kelp: 10000 },
       effect: {},
       desc: '生态重塑的丰碑：建成后于「自然环境」卡启动，依次改造恩克拉多斯星（1800s）与泰拉星（3600s）。' +
-            '完成后人口/速生珊瑚林/矿井/生息区建筑升级花费大幅削减（恩克拉多斯回到 L3 之前、泰拉再叠回 L5 之前）。' },
+            '完成后人口/速生珊瑚林/矿井/生息区建筑升级花费大幅削减（恩克拉多斯下调 3 级、泰拉再下调 5 级；其中廉租社区单独为 1 级 / 合计 3 级）。' },
 
     /* ── ERA5 市政奇观（2026-10-02 实装 · 渊潜鲛歌/社会科学 解锁）──
      * 【夏'多桑大剧院】needCivic='sharksong'。effect.civic:5 = 每秒 +5 市政点（走 wonder.civicBonus，

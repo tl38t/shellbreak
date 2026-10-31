@@ -70,15 +70,15 @@ export function run({ SB, check, noop }) {
       [va.zone, tl.zone, rl.zone].join(','));
 
     /* 造价「从 1 级开始」= **不进 COST_OFFSET_COVERED**（G.E.E.K 改造不给它们打折）。
-     * 行为取证：把 geek.costOffset 调到 8，两座新场的造价必须纹丝不动（欧罗巴也不该动，
+     * 行为取证：把两阶段完成旗都置真（合计 offset 8），两座新场的造价必须纹丝不动（欧罗巴也不该动，
      * 因为它同样不在覆盖名单里）；而 nest（在名单里）必须变便宜——那是反向对照。 */
     const s = fr();
-    /* ⚠️ 必须先把两座都升到 n>0：costOffset 的落点是 `Math.pow(ratio, max(0, n−offset))`，
+    /* ⚠️ 必须先把两座都升到 n>0：偏移的落点是 `Math.pow(ratio, max(0, n−offset))`，
      *    n=0 时偏移量为 0 ⇒ 造价不变，断言会**恒真**（假阳性）。第一版就踩过这个。 */
     s.lvl.terra_launch = 4; s.lvl.nest = 5;
     const c0 = SB.economy.costOf(s, 'terra_launch').steel;
     const n0 = SB.economy.costOf(s, 'nest').coral;
-    s.geek = { geekOn: false, enceladusDone: true, terraDone: true, costOffset: 8, enceladusRun: 0, terraRun: 0 };
+    s.geek = { geekOn: false, enceladusDone: true, terraDone: true, enceladusRun: 0, terraRun: 0 };
     const c1 = SB.economy.costOf(s, 'terra_launch').steel;
     const n1 = SB.economy.costOf(s, 'nest').coral;
     check('★ 异星发射场造价不吃 G.E.E.K 等级偏移（用户「消耗从 1 级开始」）；对照：nest 会变便宜',

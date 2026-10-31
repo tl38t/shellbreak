@@ -551,6 +551,16 @@
        *    meta 侧刻意**不进 emptyMeta**：只有「玩家真的拨过开关」才会出现这个键，
        *    resumeRun 才能靠它区分「从未设置」与「显式设为开」来给老档做一次性认领。 */
       autoClickOn: true,
+      /* 背景音乐偏好（2026-10-31，⚙ 设置 → 音乐）：静音开关 + 音量（0~1）。
+       * 两层模型照抄 autoClickOn（2026-10-28 用户拍「跨周目继承」）：
+       *    s.audioMuted / s.audioVolume = 本局实际行为 —— audio.js 只读这两个；
+       *    meta.audioMuted / meta.audioVolume = 跨周目偏好 —— startRun 播种进新局，玩家拨开关时两边同写。
+       * ⚠️ 判据同 autoClick：`=== false` 才算静音，缺字段 = 开（音量缺字段 = 默认 1）。
+       *    老存档没有这些字段 ⇒ 视为「开 + 满音量」，不需要 migrateRun 迁移（迁移只校验不重算）。
+       *    meta 侧刻意**不进 emptyMeta**：只有「玩家真的拨过开关」才会出现这两个键，
+       *    resumeRun 才能靠它区分「从未设置」与「显式设过」来给老档做一次性认领。 */
+      audioMuted: false,
+      audioVolume: 1,
       _grow: 0,
       /* 超额人口离场累加器（2026-10-31）：pop > popCap 时按整数秒离开 1..n 人。
        * 必须登记在基础表里，否则 migrateRun 的 `for (k in base)` 会把它丢掉 ⇒ 读档后
@@ -572,8 +582,9 @@
        *                   每帆 +0.05 热液能/秒（进 hydroAlloc 供给侧，不进库存）。
        *   geek         —— G.E.E.K 星球重构机运行态：
        *                    geekOn        = 自然环境卡手动启动开关（与 skydrillOn 同纪律）；
-       *                    enceladusDone / terraDone = 恩克拉多斯 / 泰拉改造完成旗（terraform 尤里卡 / 减消耗管线读它）；
-       *                    costOffset = 覆盖建筑的有效造价等级偏移（Enceladus=3 / Terra 叠 +5=8，减消耗落点）；
+       *                    enceladusDone / terraDone = 恩克拉多斯 / 泰拉改造完成旗（减消耗管线**由它俩直接推导**造价偏移）；
+       *                    ⚠️ 2026-10-31 起不再存 `costOffset`：偏移量按 `COST_OFFSET_COVERED` 分建筑档位、由上面两个旗推导。
+       *                      旧档里的 `costOffset` 键会被 migrateRun 的按-key 遍历自然丢弃（base 已无此键），**属有意**，不要补回来。
        *                    enceladusRun / terraRun = 改造进度秒数（自然环境卡 UI 读它）。
        *   ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底（state-migrate.js 的 geek 深合并），自动带出默认值。 */
       sunSails: 0,
@@ -585,7 +596,7 @@
       },
       /* 三座发射场各自保存停用等级数；默认 0 = 每座场建成的等级全部运行。 */
       launchStops: { europa_launch: 0, terra_launch: 0, enceladus_launch: 0 },
-      geek: { geekOn: false, enceladusDone: false, terraDone: false, costOffset: 0, enceladusRun: 0, terraRun: 0 },
+      geek: { geekOn: false, enceladusDone: false, terraDone: false, enceladusRun: 0, terraRun: 0 },
       /* ERA10（驭星纪 · 2026-10-20 实装）：戴森球子系统状态。
        *   dysonNodes     —— 戴森球节点总数（发射场节点模式每座场每运行满 1 节律，按该场等级发射，无限）。
        *   launchMode     —— 发射场制造模式：'sail'（太阳帆，默认）/ 'node'（戴森球节点）；
