@@ -41,6 +41,8 @@
     return '空间站有效等级 +3（免费、不收差价）；' + branch.effect + '。';
   }
   function owned(s) { return (s.wonders && typeof s.wonders === 'object') ? s.wonders : {}; }
+  function crustplateMineMul(s) { return owned(s).wonder_crustplate ? 1.3 : 1; }
+  function terraCoreOwned(s) { return !!owned(s).wonder_terra_core; }
 
   /* ③ 奇观给市政点的那一截（**每秒绝对量**，不是乘区）。
    *    ⚠️ 为什么是绝对量而不是「市政点 +20%」：市政点总量很小（书手 0.15/人/秒），
@@ -464,6 +466,7 @@
     voyagerStarRate: voyagerStarRate, voyagerScholarMul: voyagerScholarMul,
     wonderFuelBonus: wonderFuelBonus, wonderStarFlat: wonderStarFlat,
     khalifaStarRate: khalifaStarRate, khalifaScholarMul: khalifaScholarMul,
-    fishvrHydroDraw: fishvrHydroDraw
+    fishvrHydroDraw: fishvrHydroDraw,
+    crustplateMineMul: crustplateMineMul, terraCoreOwned: terraCoreOwned
   };
 })(typeof window !== 'undefined' ? window : globalThis);

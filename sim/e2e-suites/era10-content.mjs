@@ -1,6 +1,6 @@
 /* e2e suite: 纪元十 · 驭星纪（ERA10）数据 / 接线 / 终局面板。
  * 2026-10-20 用户 ERA10 表实装（授权「实装吧」）后固化。
- * ⚠️ 这一族的共同背景：ERA10 的 7 项科技**几乎全部是「改别的系统」**——发射场换模式、
+ * ⚠️ 这一族的共同背景：ERA10 的科技**几乎全部是「改别的系统」**——发射场换模式、
  *    机器人倍率换读数、信仰基项加项、全产加一条轴、星屑乘区、发射场节律。数据落了没人读
  *    是这个项目最老的毛病（静默为 0、不报错、面板纹丝不动）。所以这里一律**行为断言**：
  *    给一个最小态，让 tick/rates 真跑，比对该变的数变了、不该变的数没动。
@@ -13,7 +13,7 @@ export function run({ SB, check, noop, fs, path, ROOT }) {
   const near = (a, b, eps) => Math.abs(a - b) < (eps === undefined ? 1e-9 : eps);
   const f3 = v => (typeof v === 'number' ? (Math.abs(v) < 1e-9 ? '0' : v.toFixed(4)) : String(v));
 
-  /* ---------------- ① 纪元元数据 + 7 科技形状 ---------------- */
+  /* ---------------- ① 纪元元数据 + ERA10 科技形状 ---------------- */
   {
     const E = SB.ERAS || [];
     const e10 = E.filter(e => e.id === 10)[0];
@@ -25,9 +25,10 @@ export function run({ SB, check, noop, fs, path, ROOT }) {
 
     const T10 = SB.TECHS.filter(t => t.era === 10);
     const m = {}; T10.forEach(t => { m[t.id] = t; });
-    const want = ['adiabatic', 'strong_ai', 'gravity_sling', 'near_star_orbit', 'vector_ctrl', 'heir_of_stars', 'unified_field'];
-    check('纪元十恰好 7 项科技且 id 齐全',
-      T10.length === 7 && want.every(id => !!m[id]), T10.map(t => t.id).join(','));
+    const want = ['adiabatic', 'strong_ai', 'gravity_sling', 'near_star_orbit', 'vector_ctrl', 'heir_of_stars',
+      'unified_field', 'reheavfusion', 'supercrit', 'drift_tech'];
+    check('纪元十含既有 7 项与流浪泰拉 3 项科技',
+      T10.length === 10 && want.every(id => !!m[id]), T10.map(t => t.id).join(','));
     check('三层分布：L1(d=20)=绝热材料/强人工智能/引力弹弓，L2(d=21)=近恒星轨道/空间矢量/继承繁星，L3(d=22)=大统一方程',
       m.adiabatic.layer === 20 && m.strong_ai.layer === 20 && m.gravity_sling.layer === 20 &&
       m.near_star_orbit.layer === 21 && m.vector_ctrl.layer === 21 && m.heir_of_stars.layer === 21 &&
@@ -43,18 +44,44 @@ export function run({ SB, check, noop, fs, path, ROOT }) {
       m.heir_of_stars.reqs.length === 0 &&
       m.unified_field.reqs.join() === 'near_star_orbit,vector_ctrl',
       want.map(id => id + '←[' + m[id].reqs.join('+') + ']').join(' '));
-    const sum = T10.reduce((a, t) => a + t.cost, 0);
-    check('成本阶梯合计 7200 万（800+850+900+1000+1050+1100+1500 万）',
-      sum === 72000000, '合计=' + sum);
-    check('尤里卡条件逐条：太阳帆50 / 充能站10 / 市政太阳系后勤 / 进度40% / 20% / 星屑70 / 进度80%',
+    const sum = T10.filter(t => want.slice(0, 7).includes(t.id)).reduce((a, t) => a + t.cost, 0);
+    /* 2026-10-30 后期难度标定（用户拍板 ERA8-10 每纪元 ×3.5）：ERA10 主线七项由 7200 万升到 2.145 亿。
+     * ⚠️ 这条的**语义**是「挑战专属科技不混进主线总额」，不是「7200 万这个数不能变」。
+     *   所以除了跟数值，另补一条**结构断言**（主线 = 十项 − 挑战三项）：
+     *   以后只调价、不改归属时，那条结构断言仍然有效，不会再误红。 */
+    const chSum = T10.filter(t => t.challengeOnly).reduce((a, t) => a + t.cost, 0);
+    const allSum = T10.reduce((a, t) => a + t.cost, 0);
+    check('既有七项科技成本仍合计 2.145 亿（新增挑战科技不混入主线总额）',
+      sum === 214500000, '合计=' + sum);
+    check('主线七项 = 十项 − 挑战专属三项（结构断言：挑战科技不进主线）',
+      sum === allSum - chSum,
+      '主线=' + sum + ' 全部=' + allSum + ' 挑战=' + chSum);
+    /* ⚠️ 2026-10-30 用户拍板：强人工智能尤里卡 机器人充能站 10 → 3 级。
+     *   原因（记录在案，别再当手滑改回去）：robotbay 的 ratio 是 3（每级造价 ×3），
+     *   1→10 级累计 2362 万 tiplate、第 10 级单级 1574 万（前 6 级只占全程 1.2%）；
+     *   而 cond 是 canStudy 的**硬门槛**（tech.js isRevealed → condMet），不是折扣
+     *   ⇒ 10 级等于把《强人工智能》整条线封死。3 级累计 10,400 tiplate 才是「摸到机器人这条线」。
+     *   本行期望值由用户拍板变更。 */
+    check('尤里卡条件逐条：太阳帆50 / 充能站3 / 市政太阳系后勤 / 进度40% / 20% / 星屑70 / 进度80%',
       m.adiabatic.cond.t === 'sunSails' && m.adiabatic.cond.n === 50 &&
-      m.strong_ai.cond.t === 'built' && m.strong_ai.cond.b === 'robotbay' && m.strong_ai.cond.n === 10 &&
+      m.strong_ai.cond.t === 'built' && m.strong_ai.cond.b === 'robotbay' && m.strong_ai.cond.n === 3 &&
       m.gravity_sling.cond.t === 'civic' && m.gravity_sling.cond.id === 'solar_logistics' &&
       m.near_star_orbit.cond.t === 'dysonPct' && m.near_star_orbit.cond.n === 40 &&
       m.vector_ctrl.cond.t === 'dysonPct' && m.vector_ctrl.cond.n === 20 &&
       m.heir_of_stars.cond.t === 'gathered' && m.heir_of_stars.cond.r === 'stardust' && m.heir_of_stars.cond.n === 70 &&
       m.unified_field.cond.t === 'dysonPct' && m.unified_field.cond.n === 80,
       want.map(id => id + ':' + m[id].cond.t + '/' + (m[id].cond.n === undefined ? m[id].cond.id : m[id].cond.n)).join(' '));
+    /* 边界行为断言：cond 走 `s.lvl[b] >= n`。只钉数值不够 —— 有人把 `>=` 写成 `>`
+     *   时上一条照样绿，但玩家的 3 级会突然不认。 */
+    {
+      const p = fr();
+      p.lvl.robotbay = 2;
+      const at2 = SB.tech.condMet(p, m.strong_ai.cond);
+      p.lvl.robotbay = 3;
+      const at3 = SB.tech.condMet(p, m.strong_ai.cond);
+      check('强人工智能尤里卡边界在 3 级翻转（2 级未达成 / 3 级达成）',
+        at2 === false && at3 === true, '2级=' + at2 + ' 3级=' + at3);
+    }
   }
 
   /* ---------------- ② 纪元闸门：ERA9 的漏 key 修好了，ERA10 终局不许瞬跳 ---------------- */

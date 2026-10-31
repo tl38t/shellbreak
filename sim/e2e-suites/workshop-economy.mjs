@@ -1037,17 +1037,21 @@ console.log('\n=== 工坊：青铜工具 ===');
       [a, b].forEach(x => { x.techs.scholarT = true; x.techs.mathematics = true; x.jobs.scholar = 4; });
       b.lvl.institute = 1;
       const r0 = SB.economy.rates(a).science, r1 = SB.economy.rates(b).science;
-      check('研究所建成后科技产出真的 ×1.5（面板路）',
-        r0 > 0 && Math.abs(r1 / r0 - 1.5) < 1e-9,
+      /* ⚠️ 期望值必须**现读配置**，不许写死 1.5：这个数在 2026-10-30 由 1+0.50 改成 1+0.30，
+       *    写死会让「标定」看起来像「功能坏了」。但也不能只写 1+instituteSci —— 系数被误置 0 时
+       *    断言会退化成「1 === 1」永远真，所以下面带 `_instMul > 1` 守卫。 */
+      const _instMul = 1 + (SB.BLD.instituteSci || 0);
+      check('研究所建成后科技产出真的 ×' + _instMul.toFixed(2) + '（面板路）',
+        _instMul > 1 && r0 > 0 && Math.abs(r1 / r0 - _instMul) < 1e-9,
         r0.toFixed(4) + '/秒 → ' + r1.toFixed(4) + '/秒');
-      /* ⚠️ 只验面板路与结算路对不上 = 玩家看到 +50%、实际进账没变（本项目老病）。 */
+      /* ⚠️ 只验面板路与结算路对不上 = 玩家看到加成、实际进账没变（本项目老病）。 */
       const ta = F(), tb = F();
       [ta, tb].forEach(x => { x.techs.scholarT = true; x.techs.mathematics = true; x.jobs.scholar = 4; });
       tb.lvl.institute = 1;
       SB.economy.tick(ta, 1, null); SB.economy.tick(tb, 1, null);
       const d0 = ta.res.science || 0, d1 = tb.res.science || 0;
       check('研究所的科技加成在 tick 里也成立（面板路 === 结算路，漏一路就红）',
-        d0 > 0 && Math.abs(d1 / d0 - 1.5) < 1e-6,
+        _instMul > 1 && d0 > 0 && Math.abs(d1 / d0 - _instMul) < 1e-6,
         d0.toFixed(6) + ' → ' + d1.toFixed(6) + '（×' + (d1 / d0).toFixed(4) + '）');
     }
 

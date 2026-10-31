@@ -99,8 +99,9 @@
       base += span;
       xOffset += span * COL_PITCH + (byEra[e + 1] ? GEO.ERAPAD : 0);
     }
-    /* 行分配：按 (全局列, 声明序) 扫一遍，每列从 0 开始找第一个空行。
-     * 于是「同列不撞行、跨列允许对齐」—— 树会排成一条整齐的齿梳状。 */
+    /* 行分配：同列先放显式 treeRow，再由未指定的节点按 ID 填空位。
+     * 于是「同列不撞行、跨列允许对齐」—— 树会排成一条整齐的齿梳状；
+     * treeRow 只用于需要调整视觉顺序的节点，不改变科技层级或前置关系。 */
     var used = {}, order = [], cells = {};
     for (e = 1; e <= 12; e++) {
       if (!byEra[e]) break;
@@ -108,12 +109,17 @@
     }
     order.sort(function (a, b) {
       var ca = colOf(a, eraBase, minL), cb = colOf(b, eraBase, minL);
-      return ca - cb || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+      if (ca !== cb) return ca - cb;
+      var ar = typeof a.treeRow === 'number' && a.treeRow >= 0;
+      var br = typeof b.treeRow === 'number' && b.treeRow >= 0;
+      if (ar !== br) return ar ? -1 : 1;
+      if (ar && a.treeRow !== b.treeRow) return a.treeRow - b.treeRow;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
     for (i = 0; i < order.length; i++) {
       t = order[i];
       var col = colOf(t, eraBase, minL);
-      var row = 0;
+      var row = typeof t.treeRow === 'number' && t.treeRow >= 0 ? Math.floor(t.treeRow) : 0;
       while (used[col] && used[col][row]) row++;
       (used[col] = used[col] || {})[row] = true;
       cells[t.id] = {
@@ -180,6 +186,9 @@
     var i, n;
     switch (c.t) {
       case 'default': return true;
+      case 'all':
+        for (i = 0; i < (c.of || []).length; i++) if (!condMet(s, c.of[i])) return false;
+        return true;
       case 'built': return (s.lvl[c.b] || 0) >= c.n;
       case 'total':
         n = 0;
@@ -353,9 +362,9 @@
        *    的 id 是否匹配，不查 meta.challenges.completed（那是「完成」语义）。
        *    drift_terra 挑战本身是占位（challenges.js 加定义但无规则/奖励），故只有「进入」这一种可达成路径。 */
       case 'challenge': {
-        var _ca = (SB.challenges && SB.challenges.active) ? SB.challenges.active(s) : null;
-        return !!(_ca && _ca.id === c.id);
+        return !!(s && s.challenge && s.challenge.id === c.id);
       }
+      case 'geekTerra': return !!(s.geek && s.geek.terraDone);
       /* ERA10（2026-10-20）：`sunSails` —— 太阳帆累计 ≥ n（《绝热材料》尤里卡，用户表「制造超过50」）。
        * ⚠️ 读 s.sunSails（发射场每运行满 1 节律 +1，无限累积）；≥ 口径与 built/total 一致
        *    （严格大于则 n+1，一行可改）。 */
@@ -379,6 +388,14 @@
     switch (c.t) {
       case 'built': now = s.lvl[c.b] || 0;
         return { txt: '建成 ' + bName(c.b) + ' ' + now + ' / ' + c.n, now: now, need: c.n };
+      case 'all': {
+        var allOk = condMet(s, c);
+        return { txt: allOk ? '组合条件已达成' : '需同时满足：' + (c.of || []).map(condText).join('；'), now: allOk ? 1 : 0, need: 1 };
+      }
+      case 'geekTerra': {
+        var terraDone = !!(s.geek && s.geek.terraDone);
+        return { txt: terraDone ? 'G.E.E.K 已完成泰拉改造' : '需 G.E.E.K 完成泰拉改造', now: terraDone ? 1 : 0, need: 1 };
+      }
       case 'total':
         n = 0; for (k in s.lvl) n += s.lvl[k];
         return { txt: '建筑总级数 ' + n + ' / ' + c.n, now: n, need: c.n };
@@ -528,8 +545,7 @@
         return { txt: _gr ? '星球重构机 已完成恩克拉多斯星改造' : '需 星球重构机 完成恩克拉多斯星改造', now: _gr ? 1 : 0, need: 1 };
       }
       case 'challenge': {
-        var _caS = (SB.challenges && SB.challenges.active) ? SB.challenges.active(s) : null;
-        var _entered = !!(_caS && _caS.id === c.id);
+        var _entered = !!(s.challenge && s.challenge.id === c.id);
         var _cDef = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(c.id) : null;
         var _cNm = _cDef ? _cDef.name : c.id;
         return { txt: _entered ? ('已进入挑战「' + _cNm + '」') : ('需进入挑战「' + _cNm + '」'), now: _entered ? 1 : 0, need: 1 };
@@ -723,13 +739,20 @@
     return true;
   }
   function known(s, id) { return !!s.techs[id]; }
+  function techLevel(s, id) {
+    if (!s || !s.techs || !s.techs[id]) return 0;
+    var level = s.techLv && s.techLv[id];
+    return typeof level === 'number' && isFinite(level) && level > 0 ? Math.floor(level) : 1;
+  }
+  function maxTechLevel(t) { return t && t.maxLevel > 0 ? Math.floor(t.maxLevel) : 1; }
 
   /* 能否研究。四条门禁缺一不可：已揭示 / 本纪元内 / 尤里卡达成过 / 前置已掌握。 */
   function canStudy(s, id) {
     var t = byId(id);
     if (!t) return false;
-    if (s.techs[id] || !isRevealed(s, id)) return false;
+    if (techLevel(s, id) >= maxTechLevel(t) || !isRevealed(s, id)) return false;
     if (t.era > (s.era || 1)) return false;      // 纪元闸门：不能跳纪元偷研究
+    if (t.challengeOnly && !(s.challenge && s.challenge.id === 'drift_terra')) return false;
     /* 尤里卡门禁（2026-09-26 用户拍板「灰掉，必须先达成尤里卡」）。
      * 它才是本文件顶部那条设计（条件达成 ⇒ 整项从「不可研究」变「可研究」）的**真正落实**：
      * 在此之前那只是纸面条款 —— revealEra 会在进纪元时把整批节点刷成「已揭示」，
@@ -744,9 +767,10 @@
   function studyBlocked(s, id) {
     var t = byId(id);
     if (!t) return null;
-    if (s.techs[id]) return '已掌握';
+    if (techLevel(s, id) >= maxTechLevel(t)) return '已掌握';
     if (!isRevealed(s, id)) return '未揭露：先达成尤里卡条件';
     if (t.era > (s.era || 1)) return '纪元未到：属于 ' + eraName(t.era) + '，先推进当前纪元';
+    if (t.challengeOnly && !(s.challenge && s.challenge.id === 'drift_terra')) return '仅限流浪泰拉挑战期间研究';
     /* 文案要指得出**该做什么**，不能只说「不行」：这句话会挂成灰按钮的 title，
      * 而卡片上条件行还写着进度，两者合起来才是完整的一句「你还差什么」。 */
     if (!metOf(s, t)) return '尤里卡未达成：达成条件后才能研究';
@@ -761,7 +785,7 @@
     if (!s || !panelOpen(s)) return false;
     var T = SB.TECHS || [], i;
     for (i = 0; i < T.length; i++) {
-      if (s.techs[T[i].id]) continue;
+      if (techLevel(s, T[i].id) >= maxTechLevel(T[i])) continue;
       if (studyBlocked(s, T[i].id) === null) return true;
     }
     return false;
@@ -775,15 +799,19 @@
     if (SB.economySocial && SB.economySocial.companyTechCostSave) disc += SB.economySocial.companyTechCostSave(s);
     var cap = (SB.BLD && SB.BLD.researchLabSaveMax) || 0;
     disc = Math.min(cap, Math.max(0, disc));
-    return t.cost * (1 - disc);
+    var level = techLevel(s, t.id);
+    return t.cost * Math.pow(t.costRatio || 1, level) * (1 - disc);
   }
 
   /* 即时扣费研究（用户拍板）。返回 true 表示本次真的掌握。 */
   function study(s, id, emit) {
     if (!canStudy(s, id)) return false;
     var t = byId(id);
+    var oldLevel = techLevel(s, id);
     s.res.science -= researchCost(s, t);
     s.techs[id] = true;
+    if (!s.techLv) s.techLv = {};
+    s.techLv[id] = oldLevel + 1;
     s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
     /* 2026-10-24 成就「科技大成」（docs/ACHV_DESIGN_v0.3.md §四·8）：单周目全表掌握。
      * 判定收在 achv.checkTechAll（数全表，不维护第二本计数器），这里只转发。 */
@@ -996,6 +1024,8 @@
       case 'lvlSum': return bName(c.ids[0]) + '等建筑合计等级 ' + c.n;
       /* ERA9 新条件类型的纯文案（不碰状态）。 */
       case 'geekEnceladus': return '星球重构机 完成恩克拉多斯星改造';
+      case 'geekTerra': return '星球重构机 完成泰拉改造';
+      case 'all': return (c.of || []).map(condText).join(' 且 ');
       case 'challenge': {
         var _ctD = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(c.id) : null;
         return '进入挑战「' + (_ctD ? _ctD.name : c.id) + '」';
@@ -1071,7 +1101,7 @@
     metOf: metOf,
     metOf: metOf,
     panelOpen: panelOpen, popupSeen: popupSeen, markPopupSeen: markPopupSeen,
-    reqsMet: reqsMet, known: known,
+    reqsMet: reqsMet, known: known, level: techLevel, maxLevel: maxTechLevel,
     canStudy: canStudy, study: study, studyBlocked: studyBlocked, hasResearchable: hasResearchable, effectText: effectText,
     /* researchCost（2026-10-17）：科技消耗的唯一折扣口（科研所 researchLabSave），供 UI 显示与门禁共用。 */
     researchCost: researchCost,

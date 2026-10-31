@@ -97,7 +97,9 @@
    * 两态的判据统一走 SB.tech.metOf —— 那本是 canStudy 的第四条门禁，渲染复用它，
    * 避免「亮没亮」与「能不能研究」各算各的而错位。 */
   function techNode(s, t, cell, w, hh, G) {
-    var done = !!s.techs[t.id];
+    var lv = SB.tech.level(s, t.id), maxLv = SB.tech.maxLevel(t);
+    var done = lv >= maxLv;
+    var partial = lv > 0 && !done;
     var lit = SB.tech.metOf(s, t);          // 已掌握 / 达成过尤里卡 = 亮出内容
     var eureka = !lit ? SB.tech.condShort(s, t.cond) : null;
     /* 追踪尤里卡（2026-10-30 用户拍板「两处都放」）：只在**未揭示**时给 ——
@@ -114,10 +116,11 @@
     }
     var why = done ? null : SB.tech.studyBlocked(s, t.id);
     var fut = t.era > (s.era || 1);
-    var status = done ? '已掌握' : !lit ? '未揭示' : why ? '暂不可研究' : '可研究';
+    var status = done ? '已掌握' : partial ? '等级 ' + lv + '/' + maxLv : !lit ? '未揭示' : why ? '暂不可研究' : '可研究';
     var eurekaPct = eureka && eureka.need > 0
       ? Math.max(0, Math.min(100, eureka.now / eureka.need * 100)) : 0;
-    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + (fut ? ' fut' : '') + ' tree-node';
+    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + (partial ? ' partial' : '') + (fut ? ' fut' : '') +
+      (t.challengeOnly ? ' terra-tech-node' : '') + ' tree-node';
     var h = '<button type="button" class="' + cls + '" id="techrow-' + t.id + '"' +
       ' data-node="' + t.id + '" data-x="' + cell.x + '" data-y="' + cell.y + '"' +
       ' data-layer="' + cell.layer + '"' +

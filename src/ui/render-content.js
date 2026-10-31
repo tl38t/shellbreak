@@ -53,7 +53,11 @@
       solar_ring:       '远看，似乎只是缠绕在恒星赤道上的一缕微不可查的细线。',
       terra_launch:     '热液能驱动的弹射器，经过精密的计算，始终指向恒星的方向。每一枚升空的帆，都在为那颗还远未成形的球添一圈光。',
       enceladus_launch: '热液能驱动的弹射器，经过精密的计算，始终指向恒星的方向。每一枚升空的帆，都在为那颗还远未成形的球添一圈光。',
-      void_altar:       '祂的渴望'
+      void_altar:       '祂的渴望',
+      /* 2026-10-31 流浪泰拉批次（用户表格「引文」列原文）。建筑表惯例**不带书名号**，
+       * 与上面 44 条一致；带「」的只有 TECH_FLAVOR。 */
+      terra_vat:        '城市规模的小小水族箱。',
+      terra_engine:     '今晚我就要远航。'
     },
     TECH_FLAVOR: {
       writing: '「Ⅰ代表今天，Ⅰ•代表明天，•Ⅰ则是昨天，这就是我们最早的文字。」——后世的教科书',
@@ -139,6 +143,13 @@
       vector_ctrl: '「如臂使指。」',
       heir_of_stars: '「继承上一个文明在繁星中留存的遗产。」',
       unified_field: '「强相互作用力、弱相互作用力、引力与电磁力。」',
+      /* 2026-10-31 流浪泰拉批次（用户表格「引文」列原文，一字未改）。
+       * ⚠️ 缺键不是报错，是**静默少一段**：render-info 的科技详情只在有键时渲染 b-flavor，
+       *   玩家读到的是「这五项新科技没有风味文案」，而旧科技全都有。 */
+      mwconverge: '「从太阳星环上望去，目光所及之处俱是一望无际的银色平原。」',
+      reheavfusion: '「就算是石头，也能用来发电。」',
+      supercrit: '「可以慢慢来，但一定要快。」',
+      drift_tech: '「直至东方再次出现霞光。」',
     },
     /* 市政文案：与 TECH_FLAVOR 同口径，放在同一份纯展示文案文件里，
      * 由 render-info.js 的 showTreeDetail 在市政详情「效果」段之后渲染（class=b-flavor）。
@@ -240,7 +251,9 @@
     wonder_khalifa: 'assets/wonders/generated-v2/wonder-khalifa.webp?v=2',
     wonder_fishvr: 'assets/wonders/generated-v2/wonder-fishvr.webp?v=3',
     wonder_geek: 'assets/wonders/generated-v2/wonder-geek.webp?v=2',
-    wonder_jupitor_mas: 'assets/wonders/generated-v2/wonder-jupitor-mas.webp'
+    wonder_jupitor_mas: 'assets/wonders/generated-v2/wonder-jupitor-mas.webp',
+    wonder_terra_core: 'assets/wonders/generated-v2/wonder-terra-central-furnace.jpg?v=1',
+    wonder_crustplate: 'assets/wonders/generated-v2/wonder-crustplate-v2.png?v=2'
   };
   SB.ui.renderContent.WONDER_FLAVOR = {
     wonder_tide_stele: '镌刻着贤王的丰功伟绩，直至他的王国崩塌',
@@ -267,7 +280,12 @@
     wonder_saturn: '为何他们的母星围绕着一颗拥有丰富燃料产出的巨行星旋转？',
     wonder_khalifa: '口径大到能看清一颗星的纹理，也看清自己在宇宙里有多渺小。',
     wonder_fishvr: 'YX9SRQT4=1MMMMM',
-    wonder_jupitor_mas: '你把那颗镍核小行星弹到哪儿去了？该死！'
+    wonder_jupitor_mas: '你把那颗镍核小行星弹到哪儿去了？该死！',
+    /* 2026-10-31 流浪泰拉批次。**缺键的后果是占位符**：
+     * render-info 的 `WONDER_FLAVOR[id] || '这座奇观正在等待一段属于它自己的历史。'`
+     * ⇒ 玩家会以为这两座新奇的文案「还没实装」。 */
+    wonder_terra_core: '星核炉芯已点亮。',
+    wonder_crustplate: '银灰色的架构体深深扎入大陆板块中，直至无垠的远方……'
   };
 
   /* 2026-10-05 系统指引：页签「?」按钮点击后弹出的简介（def=定义，step=第一步）。

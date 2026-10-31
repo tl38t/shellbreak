@@ -6,6 +6,7 @@
   var SB = root.SB;
   if (!SB || !SB.game || !SB.aiStrategy) return;
   var GAME_SPEED = 30;
+  var AI_PLAYER_VERSION = 20;
   /* 主模拟与 AI 共用浏览器主线程。30× 时主循环已经要结算约 300 个 0.1s tick/秒；
    * 每 400ms 再跑一次完整策略（里面会多次计算 rates）会把主线程挤满，名义 30×
    * 反而实际不到 1×。策略不需要跟着每个模拟 tick 跑：每秒重规划一次足够及时。 */
@@ -38,6 +39,21 @@
     if (pauseButton) pauseButton.disabled = !isRunning;
     if (resumeButton) resumeButton.disabled = isRunning;
   }
+  function setPanelCollapsed(collapsed, persist) {
+    if (!panel) return;
+    panel.setAttribute('data-collapsed', collapsed ? 'true' : 'false');
+    var button = document.getElementById('ai-player-collapse');
+    if (button) {
+      button.textContent = collapsed ? '+' : '−';
+      button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      button.setAttribute('aria-label', collapsed ? '展开 AI 状态面板' : '收起 AI 状态面板');
+      button.title = collapsed ? '展开 AI 状态面板' : '收起 AI 状态面板';
+    }
+    if (persist !== false) {
+      try { root.localStorage.setItem('shellbreak-ai-panel-collapsed', collapsed ? '1' : '0'); }
+      catch (e) { /* 浏览器禁用本地存储时仍可在当前页面收起。 */ }
+    }
+  }
   function initPanel() {
     var style = el('style');
     style.textContent = [
@@ -45,6 +61,9 @@
       '#ai-player-panel[data-ai-state="running"]{border-color:#32d17c;box-shadow:0 0 0 3px #32d17c44,0 8px 32px #0008}',
       '#ai-player-panel[data-ai-state="paused"]{border-color:#ff5964;box-shadow:0 0 0 3px #ff596455,0 8px 32px #0008}',
       '#ai-player-panel .ai-player-header{display:flex;align-items:center;justify-content:space-between;gap:8px}',
+      '#ai-player-panel .ai-player-header-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}',
+      '#ai-player-panel[data-collapsed="true"]{width:auto;min-width:205px;padding:8px 10px;border-radius:999px}',
+      '#ai-player-panel[data-collapsed="true"] .ai-player-body{display:none}',
       '#ai-player-panel .ai-player-state{font-size:11px;font-weight:800;letter-spacing:.2px;border-radius:999px;padding:3px 8px;white-space:nowrap}',
       '#ai-player-panel[data-ai-state="running"] .ai-player-state{background:#124a31;color:#8affb7}',
       '#ai-player-panel[data-ai-state="paused"] .ai-player-state{background:#64262e;color:#ffb5bb}',
@@ -56,23 +75,38 @@
       '#ai-player-panel[data-ai-state="paused"] button#ai-player-resume{background:#25bd75;color:#071b11;box-shadow:0 0 0 2px #77ffb366}',
       '#ai-player-panel button:disabled{cursor:default;filter:saturate(.45) brightness(.75);opacity:.68}',
       '#ai-player-panel button:not(:disabled):hover{filter:brightness(1.12)}',
+      '#ai-player-panel button.panel-toggle{width:30px;height:30px;padding:0;margin:0;border-radius:50%;background:#284039;color:#e6f1df;font-size:19px;line-height:1}',
       '#ai-player-panel .stats{margin-top:5px;color:#d1dfd1}',
       '#ai-player-panel .log{max-height:100px;overflow:auto;color:#a8c4a9;font-size:11px}'
     ].join('');
     document.head.appendChild(style);
     panel = el('section'); panel.id = 'ai-player-panel';
+    panel.setAttribute('aria-label', 'AI 自动游玩状态面板');
     var header = el('div'); header.className = 'ai-player-header';
     var title = el('strong', 'AI 自动游玩 · 真实游戏'); title.style.fontSize = '15px'; header.appendChild(title);
+    var headerActions = el('div'); headerActions.className = 'ai-player-header-actions';
     var badge = el('span', 'Ⅱ AI 已暂停'); badge.id = 'ai-player-state'; badge.className = 'ai-player-state';
-    header.appendChild(badge); panel.appendChild(header);
+    headerActions.appendChild(badge);
+    var collapsed = false;
+    try { collapsed = root.localStorage.getItem('shellbreak-ai-panel-collapsed') === '1'; }
+    catch (e) { /* 本地存储不可用时默认展开。 */ }
+    var collapse = el('button', '−'); collapse.id = 'ai-player-collapse'; collapse.className = 'panel-toggle';
+    collapse.type = 'button'; collapse.setAttribute('aria-controls', 'ai-player-body'); collapse.onclick = function () {
+      setPanelCollapsed(panel.getAttribute('data-collapsed') !== 'true');
+    };
+    headerActions.appendChild(collapse);
+    header.appendChild(headerActions); panel.appendChild(header);
+    var body = el('div'); body.className = 'ai-player-body'; body.id = 'ai-player-body';
     var buttons = el('div');
     var stop = el('button', '暂停 AI'); stop.id = 'ai-player-pause'; stop.className = 'stop'; stop.onclick = pause; buttons.appendChild(stop);
     var resume = el('button', '继续 AI'); resume.id = 'ai-player-resume'; resume.onclick = start; buttons.appendChild(resume);
-    panel.appendChild(buttons);
-    var stats = el('div'); stats.className = 'stats'; stats.id = 'ai-player-stats'; panel.appendChild(stats);
+    body.appendChild(buttons);
+    var stats = el('div'); stats.className = 'stats'; stats.id = 'ai-player-stats'; body.appendChild(stats);
     stats.style.whiteSpace = 'pre-line';
-    logNode = el('div'); logNode.className = 'log'; logNode.id = 'ai-player-log'; panel.appendChild(logNode);
+    logNode = el('div'); logNode.className = 'log'; logNode.id = 'ai-player-log'; body.appendChild(logNode);
+    panel.appendChild(body);
     document.body.appendChild(panel);
+    setPanelCollapsed(collapsed, false);
     syncPanelState();
   }
   function say(message) {
@@ -133,6 +167,28 @@
         var item = fallback[i], prior = purchases.length;
         buyTo(item[0], item[1]);
         if (purchases.length > prior) { changed = true; break; }
+      }
+    }
+    /* 流浪泰拉实战调整（2026-10-30）：挑战中不能等到下一周目才投资。
+     * 当前档曾出现泥沙/精铁连续顶仓、而旧 fallback 节点已买齐，导致 75+ 轮回点闲置。
+     * 只在漂泊泰拉挑战里按实测瓶颈追加：仓储紧张先买仓储通汇；再放大炉/热液工坊，
+     * 支持挑战后段的钛板件、强工质与发动机链。所有购买仍走正式 buyPerk。 */
+    if (s.challenge && s.challenge.id === 'drift_terra') {
+      var storageTight = false;
+      var storageResources = ['stone', 'silt', 'warmstone', 'iron', 'titanium'];
+      for (var sr = 0; sr < storageResources.length; sr++) {
+        var resourceId = storageResources[sr];
+        var resourceCap = SB.economy && SB.economy.capOf ? SB.economy.capOf(s, resourceId) : Infinity;
+        var stock = Number(s.res && s.res[resourceId]) || 0;
+        if (isFinite(resourceCap) && resourceCap > 0 && stock / resourceCap >= 0.85) {
+          storageTight = true; break;
+        }
+      }
+      if (storageTight) buyTo('matStoreTail', 99);
+      if ((s.lvl && s.lvl.furnace > 0) || (s.lvl && s.lvl.hotforge > 0)) {
+        buyTo('furnaceHydroLoop', 1);
+        if (s.lvl && s.lvl.furnace > 0) buyTo('furnaceEff1', 1);
+        if (s.lvl && s.lvl.hotforge > 0) buyTo('hydroshopBoost1', 1);
       }
     }
     var after = Number(SB.game.meta().tide) || 0;
@@ -313,13 +369,14 @@
     if (SB.game.getSpeed && SB.game.getSpeed() !== GAME_SPEED) SB.game.setSpeed(GAME_SPEED);
     var s = SB.game.run();
     if (!s) { pause(); say('未读到当前周目状态，AI 已暂停以保护存档。'); return; }
-    if (s.dysonDone) {
+    /* 流浪泰拉挑战以发动机和星核能量为终点；若普通戴森链先完成，仍须继续
+     * 当前挑战周目，不能让通用戴森终点守卫提前停机。 */
+    if (s.dysonDone && !(s.challenge && s.challenge.id === 'drift_terra' && !s.challengeDone)) {
       pause(); say('戴森球已竣工，AI 停在终点；保留本周目和竣工记录。'); return;
     }
-    /* 用户明确改为跳过剩余挑战、跑一局普通虚境结局。挑战局不能沿用；
-     * 用正式 nextCycle API 只退出这一次，保留 meta/永久进度，新局不带 challenge。
-     * 普通局没有任何自动开启挑战的路径，因此不会再次进入挑战序列。 */
-    if (s.challenge) {
+    /* 用户当前要求用原存档实测「流浪泰拉」，因此保留这一项挑战并让共用策略推进；
+     * 其它已取消的挑战仍通过正式 nextCycle API 退出，不登记奖励。 */
+    if (s.challenge && s.challenge.id !== 'drift_terra') {
       var cycleBeforeNormal = Number(SB.game.meta() && SB.game.meta().cycle) || 0;
       if (SB.game.nextCycle) SB.game.nextCycle();
       var normalRun = SB.game.run();
@@ -335,10 +392,29 @@
       }
       return;
     }
-    /* 挑战的通关口径是「神学 + 破壳」正式结算。普通终局选择留在本局，
-     * 会让 challenge 永远不登记奖励；挑战局到壳外时必须复用官方 settleBreak，
-     * 成功后再由 challenge API 开下一项。 */
-    if (s.challenge && s.broken && s.shellOpened && Number(s.shell) <= 0) {
+    if (s.challenge && s.challenge.id === 'drift_terra' && s.challengeDone) {
+      pause();
+      say('流浪泰拉已正式达成并登记奖励；AI 暂停，保留完成的挑战存档。');
+      return;
+    }
+    /* 「流浪泰拉」的目标在壳外（行星发动机与炉芯池），破壳只开放后续科技线，
+     * 不能当作挑战结算点。必须走正式 stay() 留在同一轮继续完成挑战。
+     * 其他挑战仍按各自规则在破壳时走 settleBreak 并核对奖励登记。 */
+    if (s.challenge && s.challenge.id === 'drift_terra' && s.broken && s.shellOpened && Number(s.shell) <= 0) {
+      if (!SB.game.stay) {
+        pause(); say('流浪泰拉需要留在壳外继续挑战，但官方 stay() 接口不可用；AI 已暂停保留存档。'); return;
+      }
+      var driftCycle = Number(SB.game.meta() && SB.game.meta().cycle) || 0;
+      SB.game.stay();
+      s = SB.game.run();
+      var driftCycleAfter = Number(SB.game.meta() && SB.game.meta().cycle) || 0;
+      if (!s || !s.challenge || s.challenge.id !== 'drift_terra' || s.broken || driftCycleAfter !== driftCycle) {
+        pause(); say('未能安全留在流浪泰拉当前周目；AI 已暂停，保留存档供检查。'); return;
+      }
+      lastRebirth = { state: 'continuing-drift-terra-after-shellbreak', cycle: driftCycleAfter,
+        hours: (Number(s.t) || 0) / 3600, points: 0 };
+      say('流浪泰拉尚未达成：已通过官方 stay() 留在本局，继续星海与发动机目标。');
+    } else if (s.challenge && s.broken && s.shellOpened && Number(s.shell) <= 0) {
       if (!s.breakSettled) {
         if (settleChallengeAtShell(s)) return;
       } else if (continueAfterChallengeBreak(s, null)) return;
@@ -466,6 +542,7 @@
     });
     var payload = {
       running: started,
+      aiPlayerVersion: AI_PLAYER_VERSION,
       strategyVersion: SB.aiStrategy.version || null,
       speed: SB.game.getSpeed ? SB.game.getSpeed() : GAME_SPEED,
       configuredSpeed: GAME_SPEED,

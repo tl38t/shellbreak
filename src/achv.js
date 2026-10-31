@@ -59,6 +59,8 @@
       desc: '掌握《飞升虚境》之后竣工戴森球——文明没有停步星海，而是跃入了虚境之中。' },
     { key: 'speedrun',     name: '逐光竞速', icon: 'assets/achievements/achv-speedrun.png',
       desc: '在「逐光竞速」挑战的 4 小时档内凿穿天壳——与时间赛跑，并且跑赢。' },
+    { key: 'driftTerra',   name: '流浪泰拉', icon: 'assets/achievements/achv-drift-terra.png?v=2',
+      desc: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能。' },
     { key: 'starComplete', name: '太空时代', icon: 'assets/achievements/achv-star-complete.png',
       desc: '破壳之后把星空槽完全填满——深海的族民，终于把目光投向了整片星海。' },
     { key: 'religion',     name: '立教', icon: 'assets/achievements/achv-religion.png',
@@ -255,8 +257,13 @@
   function checkTechAll(s, meta) {
     if (!s || !meta || !SB.TECHS || !SB.TECHS.length) return false;
     var n = 0, T = SB.TECHS;
-    for (var i = 0; i < T.length; i++) if (s.techs && s.techs[T[i].id]) n++;
-    if (n >= T.length) return unlockOnce('techAll', meta);
+    var eligible = 0;
+    for (var i = 0; i < T.length; i++) {
+      if (T[i].challengeOnly) continue;
+      eligible++;
+      if (s.techs && s.techs[T[i].id]) n++;
+    }
+    if (eligible > 0 && n >= eligible) return unlockOnce('techAll', meta);
     return false;
   }
   function checkCivicAll(s, meta) {

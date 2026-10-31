@@ -42,10 +42,18 @@ export async function run({ SB, check, sandbox, doc, g }) {
   check('sha1 与规范向量逐字一致（5/5）', vecOK === 5, vecOK + '/5');
   check('sha1 对中文不崩且长度恒 40', R.sha1('天壳补偿').length === 40, R.sha1('天壳补偿'));
 
-  /* ── ② 归一化 ── */
-  check('归一化：小写 + 空格 + 连字符 → 纯大写',
-    R.normalize(' ab-cd 1234 ') === 'ABCD1234', R.normalize(' ab-cd 1234 '));
-  check('归一化：下划线也去掉', R.normalize('ab_cd') === 'ABCD', R.normalize('ab_cd'));
+  /* ── ② 归一化 ──
+   * ⚠️ 这一组的语义 2026-10-30 改过：原来钉的是「转大写」，现在必须钉「**保留大小写**」。
+   *   TDS 随机生成的券码是大小写混排的 13 位串（本活动那颗实际是全小写 krvpcacr334es），
+   *   转大写再发出去，平台一旦大小写敏感就是全员 100016。桩不管大小写，所以这条只能靠
+   *   断言钉住「发出去的字节 == 玩家输入的字节」。 */
+  check('归一化：去空格 + 连字符，且**保留大小写**（转大写会让平台认不出码）',
+    R.normalize(' krv-pcacr 334es ') === 'krvpcacr334es', R.normalize(' krv-pcacr 334es '));
+  check('归一化：下划线也去掉', R.normalize('ab_cd') === 'abcd', R.normalize('ab_cd'));
+  check('防重键仍转大写：同一码换大小写/加连字符视为同一个',
+    R.dedupeKey('KRVP-CACR 334ES') === 'KRVPCACR334ES' &&
+    R.dedupeKey('krvpcacr334es') === 'KRVPCACR334ES',
+    R.dedupeKey('KRVP-CACR 334ES'));
 
   /* ── 夹具：装 fetch 桩 + 改 CFG（全部在 finally 里还原）── */
   const RC = SB.CFG.REDEEM;
@@ -98,20 +106,21 @@ export async function run({ SB, check, sandbox, doc, g }) {
 
     resetLedger();
     const before = residual();
-    r = await R.redeem(' ab-cd 1234 ');
+    r = await R.redeem(' krv-pcacr 334es ');
     check('兑换成功并返回点数', r.ok === true && r.tide === 120, r.msg);
     check('请求打到评审过的那个地址、POST', calls.length === 1 && calls[0].url === R.api &&
       calls[0].opts.method === 'POST', calls.length ? calls[0].url : 'no call');
 
     const b = calls[0] ? calls[0].body : {};
     check('请求体字段齐全（client_id / gift_code / character_id / nonce_str / sign / timestamp）',
-      b.client_id === 'probe_client_1' && b.gift_code === 'ABCD1234' &&
+      b.client_id === 'probe_client_1' && b.gift_code === 'krvpcacr334es' &&
       typeof b.character_id === 'string' && b.character_id.length > 0 &&
       typeof b.nonce_str === 'string' && b.nonce_str.length === 5 &&
       Number.isInteger(b.timestamp));
     check('sign === sha1(timestamp + nonce_str + client_id)',
       b.sign === R.sha1(String(b.timestamp) + b.nonce_str + b.client_id), b.sign);
-    check('码已归一化后再发出去（不发原始带空格串）', b.gift_code === 'ABCD1234', b.gift_code);
+    check('发出去的码是清洗过的原样（去空格连字符，大小写一个字母都不许改）',
+      b.gift_code === 'krvpcacr334es', b.gift_code);
 
     /* ★ character_id 必须是「每个存档一个」的随机 id。
      * 传常量 ⇒ 平台按 (活动, character_id) 算同一用户 ⇒ 通兑码只有第一个玩家能领，
@@ -135,8 +144,8 @@ export async function run({ SB, check, sandbox, doc, g }) {
     check('compensationTotal 记账 +120', m.compensationTotal === 120, String(m.compensationTotal));
     check('★ 定损方程残差不变（补偿没有伪造出新缺口）', residual() === before,
       'before=' + before + ' after=' + residual());
-    check('meta.redeemed 记下这个码与数量',
-      !!m.redeemed && !!m.redeemed.ABCD1234 && m.redeemed.ABCD1234.n === 120,
+    check('meta.redeemed 记下这个码与数量（键是大写防重键）',
+      !!m.redeemed && !!m.redeemed.KRVPCACR334ES && m.redeemed.KRVPCACR334ES.n === 120,
       JSON.stringify(m.redeemed));
 
     /* 写盘后再读回来，字段不能丢（丢了就能反复领）。 */
@@ -144,7 +153,7 @@ export async function run({ SB, check, sandbox, doc, g }) {
       SB.state.saveMeta(m);
       const back = SB.state.loadMeta();
       check('存盘→读回：redeemed 与 compensationTotal 都还在',
-        !!back.redeemed && !!back.redeemed.ABCD1234 && back.compensationTotal === 120,
+        !!back.redeemed && !!back.redeemed.KRVPCACR334ES && back.compensationTotal === 120,
         JSON.stringify({ redeemed: back.redeemed, comp: back.compensationTotal }));
       check('存盘→读回：tideEarnedTotal 不被改写成 tide+spent',
         back.tideEarnedTotal === 120, String(back.tideEarnedTotal));
@@ -152,7 +161,7 @@ export async function run({ SB, check, sandbox, doc, g }) {
 
     /* ── ⑤ 重复领取 ── */
     const n0 = calls.length;
-    r = await R.redeem('abcd-1234');
+    r = await R.redeem('KRVP-CACR 334ES');
     check('同一个码（换大小写/连字符）不许二次入账',
       r.ok === false && m.tide === 120 && calls.length === n0, r.msg);
 

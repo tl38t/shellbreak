@@ -39,7 +39,9 @@
       onboardSeen: false,
       autoResearch: { tech: false, civic: false },
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
-      challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0 } },
+      challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false } },
+      /* 流浪泰拉旧版只有占位状态，缺版本号的旧档会在 normalizeMeta 中清掉那份假通关。 */
+      driftTerraVersion: 1, challengePopupPending: null,
       /* 「看广告 +1 轮回点」每日次数计数（跨周目保留，但按本地日期重置）。
        * date 为本地日期串（YYYY-M-D），与 todayKey() 同源；跨天或旧档无此键 ⇒ 视为重置。
        * count 为当日已看次数，达 AD.REBIRTH_DAILY_MAX（10）即封顶。 */
@@ -207,7 +209,7 @@
         /* ERA3 热液能系统（2026-09-29）：钢 / 热液能 / 钢制零件。三者均无 CAP_BASE 上限键
          *   ⇒ capOf 自动 Infinity（钢无上限抄猫国）。这里只 seed 初始台账，防止 addRes 漏键染 NaN。
          *   hydro 是每 tick 净流入（汽轮机产 - 工坊耗），单局会有正负波动，但落点恒定记 0。 */
-        steel: 0, hydro: 0, steelPart: 0,
+        steel: 0, hydro: 0, steelPart: 0, coreCharge: 0,
         /* ERA4（2026-09-30）：钛 / 脚手架。seed 只防 addRes 漏键染 NaN（与上面那条同族事故）。
          *   ⚠️ 钛 2026-10-07 用户拍板**加了 CAP_BASE.titanium=200**（从工艺区重分类回资源主区），
          *      不再是 Infinity；脚手架仍是工艺制品 ⇒ 无 CAP_BASE 键（capOf 恒 Infinity）。 */
@@ -306,7 +308,8 @@
          * + 虚境祭坛（faith 区，虚境探索解锁）。三条漏键都会让读档静默丢等级 / costOf 读 undefined。
          * ⚠️ void_altar 是本作第一座带 maxLvl 的建筑，等级上限由建筑条目上的 maxLvl 决定，
          *    状态表这边只存等级、不存上限（上限改了老档要跟着生效，不能烤进存档）。 */
-        terra_launch: 0, enceladus_launch: 0, void_altar: 0 },
+        terra_launch: 0, enceladus_launch: 0, void_altar: 0, terra_vat: 0, terra_engine: 0 },
+      terraVatStop: 0,
       /* 2026-10-24 成就系统（轻车熟路记账）：本周目各建筑已购买等级的增量账本。
        * 写入点唯一 = habitat.build 的 s.lvl[id]++（手动/自动建造/AI bot 全走它）；
        * startRun 时并入 meta.buildingLvlTotal 跨周目累计，故本表**不**跨周目保留。
@@ -398,7 +401,8 @@
        * ⚠️ 不是 res 键：renderRes 的资源循环按 SB.RESS 走，happy 单独成行显示。 */
       happy: 0,
       peak: SB.challenges ? SB.challenges.startingPopulation() : SB.CFG.POP_START,
-      challenge: null,
+      challenge: null, challengeDone: false, challengeOutcome: null,
+      seasonLengths: [600, 600, 600], seasonRewardAtStart: false, seasonLengthsVersion: 1,
       deaths: 0,
       coldTicks: 0,
       frostDeaths: 0,
@@ -415,7 +419,7 @@
        *   eureka —— 尤里卡已揭示。未揭示的科技不进可研究列表，条件也不显示。
        *   got    —— 各资源「累计产出」台账，供 gathered 类尤里卡条件判定。
        * 四个字段都要在 freshRun 与 migrateRun 两边同步，规则与 lvl/jobs/seen 一致。 */
-      techs: {},
+      techs: {}, techLv: {},
       /* 各系统页签首次开门时的叙事弹窗，一次性记账。门本身都是派生的，
        * 这里只记「弹过了」；老档的兼容处理见 migrateRun。 */
       techPopup: false,
@@ -548,6 +552,10 @@
        *    resumeRun 才能靠它区分「从未设置」与「显式设为开」来给老档做一次性认领。 */
       autoClickOn: true,
       _grow: 0,
+      /* 超额人口离场累加器（2026-10-31）：pop > popCap 时按整数秒离开 1..n 人。
+       * 必须登记在基础表里，否则 migrateRun 的 `for (k in base)` 会把它丢掉 ⇒ 读档后
+       * 从 0 重新计时（0.9 秒的进度白丢，无害但不干净）。 */
+      _overT: 0,
       _cutBase: 0,   // 累计：基础削壳削掉的点数
       /* 存档墙钟：game.snapshot() 写入，离线补算据此算「玩家离开了多久」。
        * 必须放在基础表里，否则 migrateRun 会把它当成未知字段丢掉，离线补算永远为 0。
@@ -601,6 +609,7 @@
   function normalizeMeta(parsed) {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('跨周目存档格式无效');
     if (!Object.keys(parsed).length) throw new Error('跨周目存档为空');
+    var hasDriftVersion = typeof parsed.driftTerraVersion === 'number' && isFinite(parsed.driftTerraVersion);
     var m = Object.assign(emptyMeta(), parsed);
     if (!m.perks || typeof m.perks !== 'object' || Array.isArray(m.perks)) m.perks = {};
     if (!(typeof m.tideEarnedTotal === 'number' && isFinite(m.tideEarnedTotal)))
@@ -691,6 +700,12 @@
       var completed = m.challenges.completed[challengeId];
       if (challengeId === 'cold' || challengeId === 'small' || challengeId === 'drift_terra') m.challenges.completed[challengeId] = completed === true;
       else m.challenges.completed[challengeId] = Math.max(0, Math.min(3, completed | 0));
+    }
+    if (!hasDriftVersion) {
+      /* drift_terra 过去只是可进入的占位挑战；它不能继续让旧档提前拿到三项通关奖励。 */
+      m.challenges.completed.drift_terra = false;
+      m.driftTerraVersion = 1;
+      m.challengePopupPending = null;
     }
     /* 2026-10-24 成就系统四键守卫（docs/ACHV_DESIGN_v0.3.md）：
      * achv = 本地账本（key→true），achievements = 平台账本，两本都只做「是对象」的兜底，

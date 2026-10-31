@@ -505,7 +505,11 @@
       gate: '', gateMs: 0,
       ok: 0, fail: 0, skip: 0, patch: 0, skipKey: '', lastPatchKey: '',
       rbOk: 0, rbEmpty: 0, rbMismatch: 0,
-      lost: 0, recover: '', emerg: 0, emergAt: 0, err: '', at: 0 };
+      /* jsErr（2026-10-31）：前端报错的持久摘要，由 src/ui/error-log.js 的 sink 写入。
+       * 为什么不复用 err：那个字段被导入/云存档路径占用（后写覆盖先写），
+       * 而前端报错恰恰要与存档故障分开看，混在一个格子里会互相冲刷。
+       * 加字段对老记录零影响：老 JSON 里没有这个键 → undefined → 展示成「—」，schema 仍是 1。 */
+      lost: 0, recover: '', emerg: 0, emergAt: 0, err: '', jsErr: '', at: 0 };
   }
   function diagGet() {
     if (!diagCache) diagCache = diagBlank();
@@ -567,6 +571,20 @@
     var patch = {}; patch[field] = (typeof n === 'number' ? n : 1);
     return diagSet(patch, immediate, true);
   }
+  /* 注册前端报错落盘（2026-10-31）。
+   * 【为什么注册点在这里】src/ui/error-log.js 排在**所有模块之前**（它要抓初始化期的错），
+   *   那一刻本模块还没执行、`SB.store` 不存在，所以只能由这边在 diagSet 就绪后反向挂钩。
+   * 【为什么 immediate】第一条前端报错往往就是「面板崩了」那一刻。走 20 秒节流的话，
+   *   玩家看到白屏直接杀进程重启，这条证据就永远落不了盘 —— 那正是这个 bug 最难查的原因。
+   * 【为什么只写头 3 条】见 error-log.js 的 SINK_MAX：坏机器每 2 秒抛一次，
+   *   无限写盘会把 localStorage 用成噪声，反而拖慢启动。
+   * ⚠️ 写入**不经过** state.saveRun 的 33 键校验（与 diagFlush 同一条理由）：
+   *   诊断必须能在「存档写不进去」时写进去。 */
+  if (SB.errs && typeof SB.errs.setSink === 'function') {
+    try {
+      SB.errs.setSink(function (summary) { diagSet({ jsErr: summary }, true); });
+    } catch (e) {}
+  }
   /* 给人看的一行摘要（云存档 extra 用，必须短：官方 extra 上限 1000 字节）。
    * ⚠️ 用 `k=v` 而不是省掉等号：这段会显示在存档面板给玩家看，`capls1` 这种拼接
    *   连我们自己也一眼读不出是哪个字段。 */
@@ -603,8 +621,22 @@
        * 时先看这一行，它是唯一能区分「没写」与「写了没落地」的现场证据。 */
       '落盘 同步=' + (syncLastState || '未试'),
       '尸检 已保留=' + (d.emerg || 0) + ' 次　最近=' + t(d.emergAt),
-      '错误 ' + (d.err || '—')
+      '错误 ' + (d.err || '—'),
+      /* 前端报错（2026-10-31）：见 src/ui/error-log.js 头注。
+       * 上一行「错误」是**存档层**的（导入/云同步失败），这一块是**JS 运行期**的 ——
+       * 玩家报「某个面板没加载出来」时，只有这一块能给出文件与行号。
+       * 双段设计：`本次` 读内存缓冲（这一刻的现场），`上次` 读诊断盘（重启前的遗留）。
+       * 为什么要两段：白屏后玩家会先重启，重启后往往不再复现 —— 只看内存就永远看不到。 */
+      frontErrText(d)
     ].join('\n');
+  }
+  /* 前端报错两段（本次 / 上次）。任一段缺失都降级成「—」，绝不因为 SB.errs 没装
+   * （e2e 沙箱顶层无 addEventListener，监听器不装）把整份诊断抛掉。 */
+  function frontErrText(d) {
+    var live = '';
+    try { live = (SB.errs && SB.errs.text) ? SB.errs.text() : ''; } catch (e) {}
+    return (live || '前端 无报错（本次会话）')
+      + '\n前端 上次 ' + ((d && d.jsErr) || '—');
   }
 
   /* 尸检副本（2026-10-29）：开新档**之前**，把 ②③ 里那份旧档原样抄一份存进 ④。

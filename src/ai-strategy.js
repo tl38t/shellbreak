@@ -314,13 +314,13 @@
   function deferredNoResetTechOrPrereq(s, tech) {
     if (!tech) return false;
     if (deferredCycleStardustTech(s, tech)) return true;
-    /* 「严冬计划」的尤里卡要求进入尚未实装的「流浪泰拉」挑战。普通虚境终局局
-     * 明确不再跑挑战；把它留作当前科研目标会让状态看起来卡在一个不可达门槛，
-     * 因此只在这条普通终局路线跳过这个占位科技，继续可完成的 Era10 科技。 */
-    if (isVoidEndingRun(s) && tech.id === 'winter' && tech.cond &&
-        tech.cond.t === 'challenge' && tech.cond.id === 'drift_terra') return true;
+    /* challengeOnly 科技及其后继只在对应挑战周目里可研究。普通主线 bot 跳过这条可选支线，
+     * 避免追一个当前周目永远达不到的尤里卡；进入流浪泰拉后保留完整目标链。 */
+    var inDrift = !!(s.challenge && s.challenge.id === 'drift_terra');
+    if (!inDrift && tech.challengeOnly) return true;
     var missingId = firstMissingPrereq(s, tech.id);
     var missing = missingId && SB.tech.byId(missingId);
+    if (!inDrift && missing && missing.challengeOnly) return true;
     return !!(missing && missing.id !== tech.id && deferredCycleStardustTech(s, missing));
   }
   function wonderTechPrereq(s, key) {
@@ -363,8 +363,18 @@
     /* 关键科技被前置链挡住时，当前目标是缺失前置，不是关键科技本身。
      * 必须随 goal.id 切换尤里卡条件；否则会错误追逐远端 key 的地块门槛
      * （例如先冲学术区 35 级，却不建导航要求的 3 座压舱物）。 */
-    return { key: key, id: id, tech: tech,
-      cond: key && id === key.id ? key.cond : tech && tech.cond };
+    var condition = key && id === key.id ? key.cond : tech && tech.cond;
+    /* 组合尤里卡按第一条未满足的子条件展开给规划器；科技层仍以原组合条件作为研究门。
+     * 流浪泰拉的严冬计划先检查挑战状态，再要求 G.E.E.K 完成泰拉改造。 */
+    while (condition && condition.t === 'all' && Array.isArray(condition.of)) {
+      var unmet = null;
+      for (var ci = 0; ci < condition.of.length; ci++) {
+        if (!SB.tech.condMet(s, condition.of[ci])) { unmet = condition.of[ci]; break; }
+      }
+      if (!unmet) break;
+      condition = unmet;
+    }
+    return { key: key, id: id, tech: tech, cond: condition };
   }
   function houseCapacityTarget(s, goal, options) {
     var limit = SB.challenges && SB.challenges.populationLimit ? SB.challenges.populationLimit(s) : Infinity;
@@ -498,8 +508,10 @@
   }
   function geekGateNeedsWonder(s, goal) {
     var cond = goal && goal.cond;
-    return !!(cond && cond.t === 'geekEnceladus' &&
-      !(s.geek && s.geek.enceladusDone) &&
+    var geekPending = cond && cond.t === 'geekEnceladus'
+      ? !(s.geek && s.geek.enceladusDone)
+      : cond && cond.t === 'geekTerra' ? !(s.geek && s.geek.terraDone) : false;
+    return !!(geekPending &&
       !(SB.wonder && SB.wonder.owned(s).wonder_geek));
   }
   function goalCost(s, goal) {
@@ -773,6 +785,13 @@
     if (firstDysonPad) return firstDysonPad;
     var priorityUpgrade = priorityBuildingUpgrade(s);
     if (priorityUpgrade) return priorityUpgrade;
+    /* 流浪泰拉的挑战终点在破壳之后：每座行星发动机都要 4,000 共振钻头。
+     * drillStockTarget() 只覆盖壳层钻机，破壳后会归零；若这里不把挑战建筑列为
+     * 当前硬目标，通用组合扩建会继续升藻场，工艺规划也就不会筹发动机所需钻头。
+     * 选中下一座发动机后，下面既有的 cost/ensureCraft/岗位规划会按正式配方分批补料。 */
+    if (s.challenge && s.challenge.id === 'drift_terra' && !s.challengeDone &&
+        (s.lvl.terra_engine || 0) < 50 && availableBuilding(s, 'terra_engine'))
+      return 'terra_engine';
     /* 节点模式的钛板消耗远高于太阳帆。缺钛板时先扩马尔斯工造中心，
      * 不要等 θ 产率完全追上最终值后才开始补这条独立产线。 */
     if (dysonPlan && dysonPlan.mode === 'node' &&
@@ -830,8 +849,12 @@
           SB.habitat.needMet(s, civicRequiredBuilding)) return civicBuildCond.b;
     }
     /* θ 金属是建筑原料，不能只在“θ产率”科技目标下才扩产。
-     * 例如《强人工智能》要求机器人充能站 10 级，后两级的 θ 成本已远超当前产线；
-     * 旧分支只看 built 尤里卡，虽会显示机器人充能站目标，却没有给 θ 的上游扩产/配工。
+     * 例如《强人工智能》要求机器人充能站 3 级，而 robotbay 的 ratio 是 3（每级造价 ×3），
+     * 单级 θ 成本已远超当前产线；旧分支只看 built 尤里卡，虽会显示机器人充能站目标，
+     * 却没有给 θ 的上游扩产/配工。
+     * ⚠️ 2026-10-30 用户拍板把该尤里卡从 10 级降到 3 级。**这段逻辑不因此作废**：3 级虽然
+     *   便宜（累计 1000 θ金属），但 ratio 3 的陡度仍在，AI 一旦顺着目标继续往 4/5 级堆，
+     *   第 4 级就要 2700 θ金属、第 5 级 8100 —— θ 缺口分支照样是刹车片，别当历史遗留删掉。
      * 对任何当前硬目标的 θ 缺口都按实际限产原料扩产：藻食优先升导流堤，随后会自然
      * 转到热泉炉、砂矿坑或瑞亚星矿井补新的瓶颈；不再盲目只堆研究所等级。 */
     var thetaConditionNeed = thetaConditionTarget(s, cond) > (s.res.thetaMetal || 0) + 1e-9;
@@ -2400,9 +2423,13 @@
       did(SB.ui.input.toggleSkydrill(s));
     /* G.E.E.K 需要一次明确启动操作；建成后自动调用同一 UI 正式切换 API，
      * 只在当前科技正等恩克拉多斯尤里卡时启动，不改写地形改造进度或跨周目状态。 */
+    var geekCondition = goal && goal.cond && goal.cond.t;
+    var geekConditionPending = geekCondition === 'geekEnceladus'
+      ? !(s.geek && s.geek.enceladusDone)
+      : geekCondition === 'geekTerra'
+        ? !!(s.geek && s.geek.enceladusDone && !s.geek.terraDone) : false;
     if (s.wonders && s.wonders.wonder_geek && !(s.geek && s.geek.geekOn) &&
-        goal && goal.cond && goal.cond.t === 'geekEnceladus' &&
-        !(s.geek && s.geek.enceladusDone) && SB.ui && SB.ui.input && SB.ui.input.toggleGeek)
+        geekConditionPending && SB.ui && SB.ui.input && SB.ui.input.toggleGeek)
       did(SB.ui.input.toggleGeek(s));
     if (changed && SB.game.markDirty) SB.game.markDirty();
     return { changed: changed, actions: actions, goal: goal.id || null, condition: cond && cond.t || null,
@@ -2489,7 +2516,7 @@
       build: nextBuild || null, wonder: nextWonder || null };
   }
 
-  SB.aiStrategy = { version: 91, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
+  SB.aiStrategy = { version: 94, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
     markVoidEndingRun: markVoidEndingRun,
     isVoidEndingRun: isVoidEndingRun,
     drillStockTarget: drillStockTarget };

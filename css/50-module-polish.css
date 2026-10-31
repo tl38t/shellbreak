@@ -542,11 +542,11 @@ html[data-ui-theme="day"] .tree-civic .technode.tree-node.open .tree-state-dot{
 .modal #mStay,.modal #mNext{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:196px;height:56px;min-height:56px;padding:10px 16px;border-radius:10px;font-size:16px;font-weight:700;line-height:1.2}
 .break-showcase{width:100%}.break-stage{position:relative;overflow:hidden;aspect-ratio:16/9;min-height:280px;background:#071523}
 .break-scene{position:absolute;inset:0}.break-scene img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 54%;opacity:0;transition:opacity 850ms ease}
-.break-stage[data-phase="intro"] .break-frame-intro,.break-stage[data-phase="impact"] .break-frame-impact,.break-stage[data-phase="gaze"] .break-frame-gaze,.break-stage[data-phase="ending"] .break-frame-ending{opacity:1}
+.break-stage[data-phase="intro"] .break-frame-intro,.break-stage[data-phase="impact"] .break-frame-impact,.break-stage[data-phase="gaze"] .break-frame-gaze,.break-stage[data-phase="ending"] .break-frame-ending,.break-stage[data-phase="core"] .break-frame-core,.break-stage[data-phase="departure"] .break-frame-departure{opacity:1}
 .break-hud{position:absolute;z-index:2;left:clamp(14px,3.5vw,34px);right:clamp(14px,3.5vw,34px);top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;color:#d3e1e8;font-size:10px;text-shadow:0 1px 8px #000}
 .break-phase{padding:6px 9px;border:1px solid rgba(198,235,243,.2);border-radius:999px;background:rgba(8,21,34,.68);color:#d7eaf2}.break-phase b{margin-right:4px;color:var(--cyan)}
 .break-caption{position:absolute;z-index:2;left:clamp(16px,4vw,42px);right:clamp(16px,4vw,42px);bottom:clamp(18px,4.5vw,42px);pointer-events:none;text-shadow:0 2px 16px #000}.break-caption-text{display:none;max-width:72%}
-.break-stage[data-phase="intro"] .break-cap-intro,.break-stage[data-phase="impact"] .break-cap-impact,.break-stage[data-phase="gaze"] .break-cap-gaze,.break-stage[data-phase="ending"] .break-cap-ending{display:block}
+.break-stage[data-phase="intro"] .break-cap-intro,.break-stage[data-phase="impact"] .break-cap-impact,.break-stage[data-phase="gaze"] .break-cap-gaze,.break-stage[data-phase="ending"] .break-cap-ending,.break-stage[data-phase="core"] .break-cap-core,.break-stage[data-phase="departure"] .break-cap-departure{display:block}
 .break-caption small{display:block;margin-bottom:5px;color:var(--cyan);font-size:10px;letter-spacing:2px;font-weight:800}.break-caption h2{margin:0;color:#eaf4fa;font-size:clamp(21px,4vw,42px);line-height:1.1;letter-spacing:.06em}.break-caption p{margin:7px 0 0;color:#d4e4ee;font-size:clamp(10px,1.5vw,14px)}
 .break-end-card{position:absolute;z-index:2;right:clamp(16px,4vw,42px);top:clamp(16px,4vw,38px);padding:11px 14px;border:1px solid rgba(216,239,255,.31);border-radius:10px;background:rgba(7,19,33,.68);opacity:0;transition:opacity .5s}.break-stage[data-phase="ending"] .break-end-card{opacity:1}.break-end-card small{color:#b9d6e5;font-size:9px;letter-spacing:1px}.break-end-card strong{display:block;margin-top:2px;color:#fff0c7;font-size:15px}
 .void-ascension-showcase{--void-accent:#a78bfa;--void-lilac:#e0a6ff;--void-crimson:#d65d78;--void-gold:#f2b65d}
@@ -562,9 +562,47 @@ html[data-ui-theme="day"] .tree-civic .technode.tree-node.open .tree-state-dot{
 .void-ascension-showcase .break-end-card{box-sizing:border-box;width:min(320px,44%);border-color:rgba(214,93,120,.72);background:linear-gradient(145deg,rgba(30,12,42,.92),rgba(7,11,25,.88));font-family:'Ma Shan Zheng','KaiTi','KaiTi_GB2312','STKaiti','SimSun',serif;overflow-wrap:anywhere;box-shadow:0 0 26px rgba(151,66,190,.22),inset 0 0 18px rgba(214,93,120,.08)}
 .void-ascension-showcase .break-end-card small,.void-ascension-showcase .break-end-card strong{color:#ead8ff;font-family:inherit;font-size:14px;line-height:1.8;text-shadow:0 1px 8px #000,0 0 8px rgba(177,116,255,.32)}
 .void-ascension-showcase .break-end-card strong{color:#f2c5d4;font-size:19px}
+/* 流浪泰拉：冰蓝尾焰与金色发动机延续终局分镜布局。 */
+.modal.terra-ending-modal{background:radial-gradient(ellipse at 50% 42%,rgba(15,70,104,.27),rgba(2,8,18,.94) 72%)}
+.modal.terra-ending-modal.break-modal .box{border-color:rgba(102,211,248,.48);background:#061523;box-shadow:0 24px 90px rgba(0,0,0,.68),0 0 40px rgba(48,161,221,.15)}
+.drift-terra-showcase .break-stage::after{content:"";position:absolute;z-index:1;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 56%,rgba(2,10,24,.68))}
+.drift-terra-showcase .break-phase{border-color:rgba(123,220,255,.48);background:rgba(4,28,50,.78)}
+.drift-terra-showcase .break-phase b,.drift-terra-showcase #terraCounter,.drift-terra-showcase .break-caption small{color:#8fe8ff}
+.drift-terra-showcase .break-caption h2{color:#f0fbff;text-shadow:0 2px 18px #001a32,0 0 18px rgba(90,194,235,.35)}
+.drift-terra-showcase .break-caption p{color:#d6ecf6;font-size:clamp(12px,1.65vw,16px);line-height:1.55}
+.drift-terra-showcase .break-end-card{border-color:rgba(142,221,247,.58);background:rgba(3,23,41,.83);box-shadow:0 0 22px rgba(51,166,221,.16)}
+.drift-terra-showcase .break-end-card strong{color:#e1f8ff}
+.drift-terra-showcase .break-stage{isolation:isolate}
+.drift-terra-showcase .break-scene img{transform-origin:50% 50%;transition:opacity 850ms ease,transform 850ms ease}
+.drift-terra-showcase .terra-animate[data-phase="impact"] .break-frame-impact{animation:terraIgniteCamera 2200ms ease-out both}
+.drift-terra-showcase .terra-animate[data-phase="core"] .break-frame-core{animation:terraCoreReveal 2600ms ease-out both}
+.drift-terra-showcase .terra-animate[data-phase="gaze"] .break-frame-gaze{animation:terraEngineField 2700ms ease-out both}
+.drift-terra-showcase .terra-animate[data-phase="departure"] .break-frame-departure{animation:terraDeepSpace 7000ms ease-out both}
+.drift-terra-showcase .break-stage[data-phase="departure"] .break-end-card{opacity:1}
+@keyframes terraIgniteCamera{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.12) translate(-1.5%,1%)}}
+@keyframes terraCoreReveal{from{transform:scale(1.07) translate(0,1%)}to{transform:scale(1) translate(0,0)}}
+@keyframes terraEngineField{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.06) translate(-.5%,.3%)}}
+@keyframes terraDeepSpace{from{transform:scale(1.06) translate(0,1%)}to{transform:scale(1) translate(0,0)}}
+.drift-terra-showcase .terra-ignition{position:absolute;z-index:1;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 38%,rgba(255,239,190,.48),rgba(255,128,55,.18) 24%,transparent 60%);mix-blend-mode:screen}
+.drift-terra-showcase .terra-animate[data-phase="impact"] .terra-ignition{animation:terraIgnition 1600ms ease-out both}
+@keyframes terraIgnition{0%{opacity:0}12%{opacity:.36}38%{opacity:.14}100%{opacity:0}}
+.drift-terra-showcase .terra-animate .break-caption-text{animation:terraCaption 600ms ease-out both}
+@keyframes terraCaption{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.drift-terra-showcase .terra-progress{position:absolute;z-index:3;left:0;right:0;bottom:0;height:3px;background:rgba(109,210,244,.2)}
+.drift-terra-showcase .terra-progress span{display:block;width:100%;height:100%;background:linear-gradient(90deg,#75dfff,#f6dfab);transform:scaleX(0);transform-origin:left}
+.drift-terra-showcase .terra-animate[data-phase="impact"] .terra-progress span{animation:terraProgress 2600ms linear both}
+.drift-terra-showcase .terra-animate[data-phase="core"] .terra-progress span{animation:terraProgress 2600ms linear both}
+.drift-terra-showcase .terra-animate[data-phase="gaze"] .terra-progress span{animation:terraProgress 2700ms linear both}
+.drift-terra-showcase .terra-animate[data-phase="departure"] .terra-progress span{animation:terraProgress 5000ms linear both}
+@keyframes terraProgress{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.modal.terra-ending-modal .break-controls{background:linear-gradient(180deg,#0a2438,#071929)}
+.drift-terra-complete-panel h2{margin:0 0 12px;color:#8fe8ff}
+.drift-terra-complete-panel p{line-height:1.7}
+.drift-terra-complete-panel p.muted{color:#a9cad9}
 .break-controls{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 16px;background:linear-gradient(180deg,#0a1b2c,#081522);border-top:1px solid rgba(154,213,227,.16)}.break-controls .btn{min-height:38px}.break-controls .btn.big{padding:8px 14px}
 @media(max-width:650px){.modal.break-modal{align-items:flex-end;padding:0}.modal.break-modal .box{width:100%;max-width:none;border-radius:16px 16px 0 0}.modal #mStay,.modal #mNext{flex:1 1 140px;width:auto;min-width:0;font-size:14px}.break-stage{aspect-ratio:4/3;min-height:0}.break-caption-text{max-width:84%}.break-end-card{right:12px;top:48px;padding:8px 10px}.break-end-card strong{font-size:12px}.break-controls{padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))}}
 @media(prefers-reduced-motion:reduce){.break-scene img,.break-end-card{transition:none}}
+@media(prefers-reduced-motion:reduce){.drift-terra-showcase .terra-animate .break-scene img,.drift-terra-showcase .terra-animate .terra-ignition,.drift-terra-showcase .terra-animate .break-caption-text,.drift-terra-showcase .terra-animate .terra-progress span{animation:none;transform:none}.drift-terra-showcase .terra-progress span{transform:scaleX(1)}}
 
 /* 轮回挑战：独立页签中的限制、逐档进度与永久奖励。 */
 #pane-challenges{--challenge-accent:#77d6d0;--challenge-accent-soft:rgba(91,196,185,.11)}
@@ -1192,3 +1230,44 @@ html[data-ui-theme="day"] .workshop-crafts>.row .craftbtns .track-toggle{backgro
   60%{box-shadow:inset 0 0 0 2px rgba(77,216,230,.45),0 0 10px rgba(77,216,230,.22)}
   100%{box-shadow:inset 0 0 0 0 rgba(77,216,230,0),0 0 0 rgba(77,216,230,0)}
 }
+
+/* 流浪泰拉挑战科技：冰蓝字色与金色炉芯边光，和常规科技卡区分但不过度发亮。 */
+.tree-tech .technode.tree-node.terra-tech-node{
+  border-color:rgba(115,211,220,.72);
+  background:radial-gradient(ellipse at 100% 0,rgba(86,177,196,.16),transparent 60%),linear-gradient(145deg,#142b3b,#0d1d2b 78%);
+  box-shadow:inset 0 1px rgba(226,247,245,.1),0 0 0 1px rgba(222,190,122,.1),0 7px 18px rgba(0,0,0,.22)
+}
+.tree-tech .technode.tree-node.terra-tech-node::before{
+  width:3px;background:linear-gradient(180deg,#e7c77d 0%,#8de2e4 52%,#579fbb 100%);opacity:1;
+  box-shadow:0 0 12px rgba(111,209,220,.36)
+}
+.tree-tech .technode.tree-node.terra-tech-node .tnm{color:#d9f0ef;text-shadow:0 0 10px rgba(120,211,220,.18)}
+.tree-tech .technode.tree-node.terra-tech-node .tree-eureka{color:#a6cbd3}
+.tree-tech .technode.tree-node.terra-tech-node.open{
+  border-color:rgba(230,202,135,.92);
+  background:radial-gradient(ellipse at 100% 0,rgba(98,196,207,.22),transparent 60%),linear-gradient(145deg,#19384a,#102332 80%);
+  box-shadow:inset 0 1px rgba(238,250,242,.13),0 0 16px rgba(91,202,215,.17),0 7px 18px rgba(0,0,0,.24)
+}
+.tree-tech .technode.tree-node.terra-tech-node.done{
+  border-color:rgba(118,197,177,.78);
+  background:radial-gradient(ellipse at 100% 0,rgba(80,164,158,.15),transparent 60%),linear-gradient(145deg,#16343a,#10252d 80%)
+}
+.tree-tech .technode.tree-node.terra-tech-node.done .tnm{color:#d7f0e7}
+.tree-tech .technode.tree-node.terra-tech-node.lock{border-color:rgba(119,178,190,.48)}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.terra-tech-node{
+  border-color:rgba(81,145,153,.62);
+  background:radial-gradient(ellipse at 100% 0,rgba(73,155,164,.1),transparent 60%),linear-gradient(145deg,#edf6f2,#f7f8f4 78%);
+  box-shadow:inset 0 1px rgba(255,255,255,.85),0 0 0 1px rgba(180,143,69,.1),0 5px 14px rgba(43,79,83,.1)
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.terra-tech-node::before{
+  background:linear-gradient(180deg,#b88a3e 0%,#4f9fa4 52%,#477d9b 100%);box-shadow:0 0 9px rgba(78,153,161,.2)
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.terra-tech-node .tnm{color:#28565e;text-shadow:none}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.terra-tech-node .tree-eureka{color:#54787c}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.terra-tech-node.open{
+  border-color:rgba(166,133,67,.82);background:linear-gradient(145deg,#e3f2ef,#f4f8f4 80%);box-shadow:inset 0 1px rgba(255,255,255,.9),0 0 12px rgba(72,159,169,.14),0 5px 14px rgba(43,79,83,.1)
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.terra-tech-node.done{
+  border-color:rgba(77,147,127,.7);background:linear-gradient(145deg,#e8f4eb,#f5faf5 80%)
+}
+html[data-ui-theme="day"] .tree-tech .technode.tree-node.terra-tech-node.done .tnm{color:#2c6253}

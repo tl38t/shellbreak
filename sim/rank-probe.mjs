@@ -66,11 +66,11 @@ check('① CFG.RANK 存在', !!RANK);
 check('① CFG.RANK.LB 存在', !!(RANK && RANK.LB));
 check('① CFG.RANK.MAP 存在', !!(RANK && RANK.MAP));
 
-// ---- ② MAP 里 9 个指标的参数必须符合平台 enum（单次提交仍最多 5 条）----
+// ---- ② MAP 里 10 个指标的参数必须符合平台 enum（单次提交仍最多 5 条）----
 const VALID_TYPE = ['numeric', 'time'];
 const VALID_ORDER = ['desc', 'asc'];
 const VALID_CALC = ['sum', 'best', 'latest'];
-const EXPECT_KEYS = ['fastest', 'firstFaith', 'dev', 'wonder', 'cycle', 'star', 'tide', 'dyson', 'void'];
+const EXPECT_KEYS = ['fastest', 'firstFaith', 'dev', 'wonder', 'cycle', 'star', 'tide', 'dyson', 'void', 'drift'];
 for (const k of EXPECT_KEYS) {
   const m = RANK.MAP[k];
   check(`② MAP.${k} 存在`, !!m, JSON.stringify(m));
@@ -82,11 +82,12 @@ for (const k of EXPECT_KEYS) {
 // 用户拍板：两个时间榜都是 time + asc（越快越靠前）
 check('② fastest 是 time+asc', RANK.MAP.fastest.scoreType === 'time' && RANK.MAP.fastest.scoreOrder === 'asc');
 check('② firstFaith 是 time+asc', RANK.MAP.firstFaith.scoreType === 'time' && RANK.MAP.firstFaith.scoreOrder === 'asc');
+check('② drift 是 time+asc（最快流浪启程）', RANK.MAP.drift.scoreType === 'time' && RANK.MAP.drift.scoreOrder === 'asc');
 // 累计榜必须 desc（高→低）
 for (const k of ['dev', 'wonder', 'cycle', 'star']) {
   check(`② ${k} 是 desc（累计榜高者在前）`, RANK.MAP[k].scoreOrder === 'desc');
 }
-check('② 共 9 个排行榜指标', EXPECT_KEYS.length === 9, String(EXPECT_KEYS.length));
+check('② 共 10 个排行榜指标', EXPECT_KEYS.length === 10, String(EXPECT_KEYS.length));
 
 // ---- ③ 榜 ID 全空 ⇒ 不提交、入口不显示（线上不能"假装成功"）----
 /* 2026-10-26 起生产 LB 已在现行主体 996563 上全部重建（旧 963517 的 7 个 ID 作废），
@@ -103,17 +104,19 @@ const LB_TRUTH = {
   star: '3o19a9rpfhm8bnbe94',
   tide: 'peq757lhctr3dqzx8j',
   dyson: 'bvn169c2u30f2xhmqj',
-  void: '6bi4710gm6oswyed0m'
+  void: '6bi4710gm6oswyed0m',
+  /* 2026-10-31 create_leaderboard（996563）返回，list_leaderboards 复核为第 10 条。 */
+  drift: 'jqqgofg5g3tvb1uxwz'
 };
 check('③ 生产 ID 与平台实读逐字一致',
   EXPECT_KEYS.every(k => LB_PROD[k] === LB_TRUTH[k]),
   JSON.stringify(LB_PROD));
-check('③ 回填后 9 个 ID 均为非空串且够长',
+check('③ 回填后 10 个 ID 均为非空串且够长',
   EXPECT_KEYS.every(k => typeof LB_PROD[k] === 'string' && LB_PROD[k].length >= 16),
   JSON.stringify(LB_PROD));
 for (const k of EXPECT_KEYS) RANK.LB[k] = '';
 check('③ 无 ID 时 readyKeys 为空', SB.rank.readyKeys().length === 0, JSON.stringify(SB.rank.readyKeys()));
-check('③ 无 ID 时 missingKeys 列出全部 9 个', SB.rank.missingKeys().length === 9, JSON.stringify(SB.rank.missingKeys()));
+check('③ 无 ID 时 missingKeys 列出全部 10 个', SB.rank.missingKeys().length === 10, JSON.stringify(SB.rank.missingKeys()));
 check('③ 无 ID 时 available() = false', SB.rank.available() === false);
 submitted.length = 0;
 SB.rank.submitRun([{ key: 'fastest', value: 100 }, { key: 'dev', value: 5 }]);
@@ -129,7 +132,8 @@ RANK.LB.star = 'lb_star';
 RANK.LB.tide = 'lb_tide';
 RANK.LB.dyson = 'lb_dyson';
 RANK.LB.void = 'lb_void';
-check('④ 回填后 readyKeys = 9', SB.rank.readyKeys().length === 9);
+RANK.LB.drift = 'lb_drift';
+check('④ 回填后 readyKeys = 10', SB.rank.readyKeys().length === 10);
 check('④ 回填后 missingKeys 为空', SB.rank.missingKeys().length === 0);
 check('④ 回填后 available() = true', SB.rank.available() === true);
 

@@ -40,6 +40,36 @@ console.log('\n=== 市政 ===');
       up ? JSON.stringify({ needCivic: up.needCivic, steelBonus: up.steelBonus }) : 'missing upgrade');
   }
 
+  /* ══ 公司系统总开关：《宏观经济学》归属 ERA4（2026-10-30 用户拍板「提前到 ERA4」）══
+   * 三条数据契约：① era4/layer3 且 reqs 改挂《重商主义》(ERA4 L2) —— 旧链
+   *   （ERA5 国民动员 → ERA6 大众传媒 → ERA6 宏观）在 ERA4 根本走不到，光改 era 不改 reqs 等于没开门；
+   *   ② 鼓舞仍是「银行达 3 级」且 bank 是真实建筑（银行本就是 ERA4《银行业》techs.js:554 的产物）；
+   *   ③ cost 必须落在 ERA4 量级（旧值 320000 是 ERA6 档，ERA4 整纪元市政总预算约 22.5 万，
+   *      留着它 = 门开了但摸不到）。这里只钉「不超过 ERA4 现有最高档 60000 的 1.5 倍」这个
+   *      **区间**，不钉具体数值 —— 70000 是提议值待标定，改它不算破坏契约。 */
+  {
+    const mc = SB.civic.byId('macroeconomics');
+    check('《宏观经济学》归 ERA4·L3，前置改挂《重商主义》（公司系统提前到 ERA4 的落地判据）',
+      !!mc && mc.era === 4 && mc.layer === 3 && (mc.reqs || []).join() === 'mercantilism',
+      mc ? JSON.stringify({ era: mc.era, layer: mc.layer, reqs: mc.reqs }) : 'missing civic');
+    check('《宏观经济学》鼓舞仍是「银行达 3 级」且 bank 是真实建筑',
+      !!mc && mc.boost && mc.boost.t === 'built' && mc.boost.b === 'bank' && mc.boost.n === 3 &&
+      SB.BUILDINGS.some(x => x.id === 'bank'),
+      mc ? JSON.stringify(mc.boost) : 'missing civic');
+    check('《宏观经济学》cost 落在 ERA4 量级（≤ 90000，防止被打回 ERA6 的 32 万档）',
+      !!mc && typeof mc.cost === 'number' && mc.cost <= 90000, mc ? 'cost=' + mc.cost : 'missing civic');
+    /* 前置链在 ERA4 内闭合：《重商主义》→《探索》→《中世纪集市》，三层全在 ERA4 及以前。 */
+    const chain = ['mercantilism', 'explore', 'market'];
+    check('公司前置链在 ERA4 内闭合（重商主义→探索→中世纪集市，逐级 reqs 命中且 era ≤ 4）',
+      chain.every(id => {
+        const c = SB.civic.byId(id);
+        if (!c) return false;
+        const parents = c.reqs || [];
+        return parents.every(r => !!SB.civic.byId(r));
+      }) && SB.civic.byId('mercantilism').era === 4 && SB.civic.byId('explore').era === 4);
+  }
+
+
   // ①-甲 数值校准（2026-10-17）：王权神授 cost 倒挂修复 —— 原 8000 比同块 feudal/market/guild/department
   //   (3000/4000/5000/6000) 都高、且背离 10-05 拍板的「降」意图；用户拍板定为 3500（介于封建主义 3000 与中世纪集市 4000 之间）。
   check('王权神授 cost 校准为 3500（消除 era3 同块梯度倒挂，防回归）',
@@ -1172,20 +1202,23 @@ console.log('\n=== 市政 ===');
 
   /* ══ ERA6 市政系统（2026-10-12 实装）═════════════════════════════
    * 钉住：10 项市政 / 3 政体 / 3 政策卡的数据形状 + 关键接线。
-   * 不钉数值（cost 是提议值，待标定）；钉的是结构与「指针真的命中」。 */
+   * 不钉数值（cost 是提议值，待标定）；钉的是结构与「指针真的命中」。
+   * ⚠️ 2026-10-30：《宏观经济学》经用户拍板提前到 ERA4 L3（公司系统开门前提），
+   *   本段由 10 项降为 9 项；它的归属断言移到文件头部 ERA4 段（见「公司系统总开关」那条）。
+   *   这是**分类归属真的变了**，不是改常数凑绿。 */
   {
     const cBy = id => SB.CIVICS.find(c => c.id === id);
-    const want = ['massmedia','naturalhistory','macroeconomics','urbandesign','archaeology',
+    const want = ['massmedia','naturalhistory','urbandesign','archaeology',
                   'ideology','civilization','theo_merit','egalitarianism','federalism'];
-    check('ERA6：10 项市政全部存在', want.every(id => !!cBy(id)),
+    check('ERA6：9 项市政全部存在', want.every(id => !!cBy(id)),
       want.filter(id => !cBy(id)).join(',') || '全到齐');
-    check('ERA6：10 项市政 era 均为 6', want.every(id => cBy(id).era === 6));
-    check('ERA6：10 项市政均带 cost（非根节点）', want.every(id => typeof cBy(id).cost === 'number'));
+    check('ERA6：9 项市政 era 均为 6', want.every(id => cBy(id).era === 6));
+    check('ERA6：9 项市政均带 cost（非根节点）', want.every(id => typeof cBy(id).cost === 'number'));
     check('ERA6：所有前置(reqs)命中现有市政',
       want.every(id => (cBy(id).reqs || []).every(r => !!cBy(r))));
     /* built 类鼓舞 → 真实建筑；cycle 阈值；lifetimeCulture 门槛；civic 指针 */
-    check('ERA6：built 类鼓舞指向真实建筑（tenement/museum/bank/canal）',
-      ['massmedia','naturalhistory','macroeconomics','urbandesign'].every(id => {
+    check('ERA6：built 类鼓舞指向真实建筑（tenement/museum/canal）',
+      ['massmedia','naturalhistory','urbandesign'].every(id => {
         const b = cBy(id).boost; return b && b.t === 'built' && SB.BUILDINGS && SB.BUILDINGS.some(x => x.id === b.b); }));
     check('ERA6：考古/文明 鼓舞走 cycle 阈值（3/7），博物学走 built（博物馆 3 级）',
       cBy('naturalhistory').boost.t === 'built' && cBy('naturalhistory').boost.b === 'museum' && cBy('naturalhistory').boost.n === 3 &&

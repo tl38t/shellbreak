@@ -56,6 +56,10 @@
    * 「单局 8-14h」那条断言就会变成掷骰子。测试用 SB.economy.rollFreeze = () => true/false 顶掉。
    * ⚠️ 随机源走 SB.rng 而不裸调 Math.random，同理（离线补算与存档重放也走这条路）。 */
   function rollFreeze(s) {
+    if (s && s.challenge && s.challenge.id === 'drift_terra') {
+      var coreOwned = SB.wonder && SB.wonder.owned ? SB.wonder.owned(s).wonder_terra_core : false;
+      return !coreOwned;
+    }
     var rnd = SB.rng ? SB.rng() : Math.random();
     return rnd < freezeChance(s);
   }
@@ -105,6 +109,10 @@
       /* ERA10（2026-10-20）：太阳星环每级 +1 人口上限（用户 ERA10 表「近恒星轨道建设」解锁2）。
        * 与住房三件同轴相加（不是乘区）——「+1 人口上限」字面就是加 1。 */
       + (s.lvl.solar_ring || 0)
+      /* 流浪泰拉水舱：**按运行座数**给床位（2026-10-31 用户拍「断电之后上限立刻降」）。
+       * 旧版读总等级 ⇒ 玩家「建满 → 全停」能白拿 +20/座 且不耗热液能。
+       * 现在停用即断电、上限当场缩水，人口走 tick 的超额缓慢离场（CFG.POP_OVER_LEAVE）。 */
+      + activeTerraVat(s) * 20
       + (p.startPop || 0)
       + (p.housePlan || 0) * popBuildLev
       + (SB.civic && SB.civic.popCapPerPopBldg ? SB.civic.popCapPerPopBldg(s) * popBuildLev : 0)  // ERA7 公摊面积卡：人口建筑每级 +0.5 上限
@@ -135,18 +143,67 @@
   /* ⚠️ 取模必须用 SB.SEASONS.length，不能写死季数：2026-09-27 删掉浊流季（4→3），
    * 旧版这里写死 `% 4` ⇒ 索引会落到表里没有的位置（undefined.name 直接炸）。
    * 季节表是最容易被增删的那种表，取模跟着表走才不会每次都漏改一处。 */
-  function seasonIdx(t) { return Math.floor(t / SB.CFG.SEASON_TICKS) % SB.SEASONS.length; }
-  function season(t) { return SEASONS[seasonIdx(t)]; }
+  function isDriftChallenge(s) { return !!(s && s.challenge && s.challenge.id === 'drift_terra'); }
+  function driftRewardDone() {
+    try { return !!(SB.game.meta().challenges.completed.drift_terra); } catch (e) { return false; }
+  }
+  function lockSeasonLengths(s, meta, preserveSeasonTurn) {
+    if (!s) return [];
+    var completed = !!(meta && meta.challenges && meta.challenges.completed && meta.challenges.completed.drift_terra);
+    var out = [], coldAt = -1;
+    for (var i = 0; i < SEASONS.length; i++) {
+      out.push(SEASONS[i].ticks || SB.CFG.SEASON_TICKS || 600);
+      if (coldAt < 0 && SEASONS[i].mult < 1) coldAt = i;
+    }
+    if (coldAt >= 0) {
+      if (completed) out[coldAt] *= 0.5;
+      if (isDriftChallenge(s)) out[coldAt] *= 2;
+    }
+    s.seasonLengths = out;
+    s.seasonRewardAtStart = completed;
+    s.seasonLengthsVersion = 1;
+    if (!preserveSeasonTurn) s._seasonIdx = -1;
+    return out;
+  }
+  function seasonLengths(s) {
+    if (!s) return SEASONS.map(function (season) { return season.ticks || SB.CFG.SEASON_TICKS || 600; });
+    if (s && Array.isArray(s.seasonLengths) && s.seasonLengths.length === SEASONS.length &&
+        s.seasonLengths.every(function (n) { return typeof n === 'number' && isFinite(n) && n > 0; })) return s.seasonLengths;
+    return SEASONS.map(function (season) { return season.ticks || SB.CFG.SEASON_TICKS || 600; });
+  }
+  function seasonIdx(t) {
+    var s = (t && typeof t === 'object') ? t : null;
+    var at = s ? (s.t || 0) : (t || 0), lens = seasonLengths(s), total = 0, i;
+    for (i = 0; i < lens.length; i++) total += lens[i];
+    var pos = total > 0 ? ((at % total) + total) % total : 0;
+    for (i = 0; i < lens.length; i++) { if (pos < lens[i]) return i; pos -= lens[i]; }
+    return 0;
+  }
+  function season(t) {
+    var idx = seasonIdx(t), src = SEASONS[idx];
+    if (idx === 0 && driftRewardDone()) return { name: src.name, mult: src.mult * 1.3, ticks: src.ticks };
+    return src;
+  }
+  function seasonLeftTicks(s) {
+    var lens = seasonLengths(s), i = seasonIdx(s), elapsed = s && s.t || 0, total = 0;
+    for (var j = 0; j < lens.length; j++) total += lens[j];
+    var pos = ((elapsed % total) + total) % total;
+    for (var k = 0; k < i; k++) pos -= lens[k];
+    return Math.max(0, lens[i] - pos);
+  }
 
   /* ── 换季：冰封期骰子只在这里掷 ──
    * 每个寒流季**开局**判一次：中则整季冰封（s.frozen = true），下一季自动解除。
    * 非寒流季一律清掉，不留上一季的残留。
    * ⚠️ 返回值是「是否刚换季」，tick 不需要它，但测试需要（跳过 tick 改 s.t 的场景）。 */
   function seasonTurn(s) {
-    var i = seasonIdx(s.t);
+    var i = seasonIdx(s);
+    /* 星核炉芯建成就结束本轮挑战中的冰封，即使当前寒流季尚未换季。 */
+    if (isDriftChallenge(s) && s.frozen && SB.wonder && SB.wonder.owned &&
+        SB.wonder.owned(s).wonder_terra_core) s.frozen = false;
     if (s._seasonIdx === i) return false;
     s._seasonIdx = i;
-    s.frozen = SEASONS[i].mult < 1 ? rollFreeze(s) : false;
+    s.frozen = season(s).mult < 1 ? rollFreeze(s) : false;
     return true;
   }
   /* ERA4（2026-10-01）· 市政《探索》每季发资源。
@@ -691,7 +748,7 @@
    *    ⇒ 现在两者是**相加而不是互斥**：relief = 历法 + 暖石顶回（上限 1，别把倍率推成负数）。
    *    判据：rates() 的每一项必须与 tick 同项在「不烧暖石」时逐位相等。 */
   function seasonMul(s, warmRelief) {
-    var raw = season(s.t).mult;
+    var raw = season(s).mult;
     var tech = SB.tech ? SB.tech.mul(s).season : 0;
     var relief = (tech || 0) + (warmRelief || 0);
     if (relief > 1) relief = 1;
@@ -706,8 +763,8 @@
    *    那个数（历法之后寒流季已经从 0.25 缓和到 0.4375），报裸值会让他以为
    *    「学了历法反而更冷」。 */
   function seasonMeta(s) {
-    var i = seasonIdx(s.t), n = SB.SEASONS.length;
-    var left = SB.CFG.SEASON_TICKS - (s.t % SB.CFG.SEASON_TICKS);
+    var i = seasonIdx(s), n = SB.SEASONS.length;
+    var left = seasonLeftTicks(s);
     /* ⚠️ 这里也要并进暖石顶回（2026-09-30）：卡片上写的是「这一季深海藻场产出 ×N」，
      *    烧暖石时玩家实际享受到的已经是 seasonMul(s, WARM_RELIEF)，报不带 relief 的那个数
      *    就是同一个「面板撒谎」——拨开关卡片数字不变，玩家以为开关没用。
@@ -716,6 +773,7 @@
     return {
       idx: i, name: SEASONS[i].name, mult: seasonMul(s, relief),
       left: Math.round(left / 60),                 // 换算成「潮日」让读数有单位
+      leftTicks: left,
       next: SEASONS[(i + 1) % n].name,
       known: !!(SB.tech && s.techs && s.techs.calendar)
     };
@@ -743,7 +801,7 @@
   function warmBurningNow(s) {
     if (!s || !s.warmOn || !s.res) return false;
     if (SB.challenges && SB.challenges.warmHeatingBlocked(s)) return false;
-    if (season(s.t).mult >= 1) return false;   // 只在惩罚季（mult<1，现为寒流季）烧
+    if (season(s).mult >= 1) return false;   // 只在惩罚季（mult<1，现为寒流季）烧
     return (s.res.warmstone || 0) >= SB.CFG.WARM_RATE;
   }
 
@@ -1141,7 +1199,11 @@
     return Math.max(1, base + add);
   }
   /* 星屑商店专属乘区：只放大太阳帆带来的热液供给。 */
-  function starSailHydroMul(s) { return 1 + ((s.perk && s.perk.starSailHydro) || 0); }
+  function starSailHydroMul(s) {
+    var perk = 1 + ((s.perk && s.perk.starSailHydro) || 0);
+    var mw = SB.tech && SB.tech.level ? SB.tech.level(s, 'mwconverge') : 0;
+    return perk * (1 + 0.3 * mw) * (s.dysonDone ? 2 : 1) * (isDriftChallenge(s) ? 0.5 : 1);
+  }
   function starNuclearHydroMul(s) { return 1 + ((s.perk && s.perk.starNuclearHydro) || 0); }
   function starSolarRingMul(s) { return 1 + ((s.perk && s.perk.starSolarRing) || 0); }
   function starAlienOutputMul(s) { return 1 + ((s.perk && s.perk.starAlienOutput) || 0); }
@@ -1155,7 +1217,7 @@
   /* 恩克拉多斯与泰拉阶段按树中累计百分比缩短时长；新节点上限 20%，旧档额外等级保留。 */
   function starTerraformDuration(s, base) {
     var reduction = Math.max(0, Math.min(0.95, (s.perk && s.perk.starTerraform) || 0));
-    return Math.max(0, base || 0) * (1 - reduction);
+    return Math.max(0, base || 0) * (1 - reduction) * (driftRewardDone() ? 0.5 : 1);
   }
   /* 每级每秒热液能耗（flow）：帆模式与节点模式均为 4；再乘政策卡《节能减耗》（−50% ⇒ ×0.5）。
    * tick / rates / hydroAlloc 都调它，绝不各写一份。 */
@@ -1601,6 +1663,18 @@
     var stopped = Math.max(0, Math.floor((s && s.siltpitStop) || 0));
     return Math.max(0, total - Math.min(total, stopped));
   }
+  function siltPitMul(s) {
+    return (1 + activeSiltpit(s) * SB.BLD.siltBonus) *
+      (SB.wonder && SB.wonder.crustplateMineMul ? SB.wonder.crustplateMineMul(s) : 1);
+  }
+  function rheaMul(s) {
+    return SB.wonder && SB.wonder.crustplateMineMul ? SB.wonder.crustplateMineMul(s) : 1;
+  }
+  function activeTerraVat(s) {
+    var total = Math.max(0, Math.floor((s && s.lvl && s.lvl.terra_vat) || 0));
+    var stopped = Math.max(0, Math.floor((s && s.terraVatStop) || 0));
+    return Math.max(0, total - Math.min(total, stopped));
+  }
   function autoDrillCount(s) {
     if (!s || !(s.upgrades && s.upgrades.upg_autodrill)) return 0;
     return activeSiltpit(s);
@@ -1630,6 +1704,7 @@
         shopL = Math.max(0, (s.lvl.hydroshop || 0) - (s.hydroshopStop || 0)),
         /* ERA7：核热厂（不烧暖石的新热液源）与空间站（耗流方）都参与流分配，早退判据要带上。 */
         fisL = s.lvl.fissionplant || 0,
+        vatL = activeTerraVat(s),
         staL = s.lvl.spacestation || 0,
         /* ERA7（2026-10-18 · 用户纠正补）：轨道卫星每级耗 1 热液能/秒，与空间站同口径，
          *   运行座数 = 等级 − satelliteStop（停掉的卫星不耗流、也不产星空）。 */
@@ -1656,14 +1731,15 @@
      *    而不是 0 —— steelFlow 的 `s.res.hydro = HF.supplyRate` 会把顶栏主数写成 undefined
      *    （解了 metalrefine 但一台汽轮机都没建时就是这样），rates().hydroSupply 同理。
      *    这种缺键不报错、只在面板上变成 NaN/undefined，属于「面板撒谎」家族。 */
-    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && !(geekOn && geekOwned))
+    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && !(geekOn && geekOwned))
       return { supply: 0, supplyRate: 0, turbineRate: 0, pressRate: 0, fissionRate: 0, titancloudRate: 0, sunSailRate: 0,
         shopDraw: 0, shopRate: 0, shopRatio: 0, shopNeed: 0,
         demandRate: 0, balanceRate: 0, skyNeed: 0, europaNeed: 0, geekNeed: 0,
         skyDraw: 0, skyRate: 0, skyStopWhy: null, left: 0, starDraw: 0, starRate: 0, drillDraw: 0, drillRate: 0,
         stationDraw: 0, stationRate: 0, satelliteDraw: 0, satelliteRate: 0, labDraw: 0, labRate: 0, robotDraw: 0, robotRate: 0, robotbayDraw: 0, robotbayRate: 0,
         vrDraw: 0, vrRate: 0, europaDraw: 0, europaRate: 0, geekDraw: 0, geekRate: 0,
-        jupitorDraw: 0, jupitorRate: 0 };
+        jupitorDraw: 0, jupitorRate: 0, vatPoolDraw: 0, vatFlowDraw: 0, vatFlowRate: 0, coreNetRate: 0,
+        fissionStoneDraw: 0, fissionStoneRate: 0 };
     /* ERA5（2026-10-02）：高压热机管道(wonder_presspipe) 给热液能**供给侧 +10 绝对量**，
      *   走 wonder.hydroWonderMul 出口。与高压气泵升级的 hydroMul（乘区）是两回事，这里加法叠加。 */
     var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
@@ -1689,9 +1765,13 @@
      *   （供给侧直接相加，与高压热机管道 _press 同类；×挑战乘区与汽轮机同口径）。
      *   ⚠️ 铀消耗不在此扣（tick 侧直耗），这里只管流；「断铀不停堆」为提议口径待标定。
      *   ERA9（2026-10-19 · 核聚变 nuclear_fusion）：热液能产出 ×5（读 s.techs.nuclear_fusion 直读，无通用 mul 键）。 */
+    var fissionStoneNeed = (s.upgrades && s.upgrades.upg_reheavfusion) ? fisL * 1000 * dt : 0;
+    var fissionStoneDraw = Math.min(fissionStoneNeed, Math.max(0, s.res.stone || 0));
+    var fissionStoneRatio = fissionStoneNeed > 0 ? fissionStoneDraw / fissionStoneNeed : 0;
     if (fisL > 0) {
       var _nf = (s.techs && s.techs.nuclear_fusion) ? 5 : 1;
       fissionSupply = fisL * (SB.BLD.fissionHydro || 0) * starNuclearHydroMul(s) * dt * _nf
+        * ((s.upgrades && s.upgrades.upg_reheavfusion) ? (1 + fissionStoneRatio) : 1)
         * (SB.challenges ? SB.challenges.productionMul(s) : 1);
       supply += fissionSupply;
     }
@@ -1838,8 +1918,16 @@
       var _jpLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw);
       jupitorDraw = Math.min(jupitorNeed, _jpLeft);
     }
+    /* 泰拉水舱优先从已蓄能的炉芯池取能，再消耗剩余热液能流；未满足部分不影响人口容量。 */
+    var vatNeed = vatL * 100 * dt;
+    var coreOwned = !!(SB.wonder && SB.wonder.owned && SB.wonder.owned(s).wonder_terra_core);
+    var vatPoolDraw = coreOwned ? Math.min(vatNeed, Math.max(0, (s.res && s.res.coreCharge) || 0)) : 0;
+    var vatFlowNeed = Math.max(0, vatNeed - vatPoolDraw);
+    var leftBeforeVat = Math.max(0, left - skyDraw - starDraw - drillDraw - stationDraw - satelliteDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw - jupitorDraw);
+    var vatFlowDraw = Math.min(vatFlowNeed, leftBeforeVat);
+    var leftAfterVat = leftBeforeVat - vatFlowDraw;
     var demand = shopDemand + skyNeed + drillNeed + stationNeed + satelliteNeed + labNeed + robotNeed
-      + robotbayNeed + vrNeed + europaNeed + geekNeed + jupitorNeed;
+      + robotbayNeed + vrNeed + europaNeed + geekNeed + jupitorNeed + vatFlowDraw;
     var demandRate = dt > 0 ? demand / dt : demand;
     var supplyRate = dt > 0 ? supply / dt : supply;
     return { supply: supply, supplyRate: dt > 0 ? supply / dt : supply,
@@ -1860,7 +1948,10 @@
       europaNeed: dt > 0 ? europaNeed / dt : europaNeed,
       geekNeed: dt > 0 ? geekNeed / dt : geekNeed,
       demandRate: demandRate, balanceRate: supplyRate - demandRate,
-      left: left - skyDraw - starDraw - drillDraw - stationDraw - satelliteDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw - jupitorDraw,
+      left: leftAfterVat,
+      vatPoolDraw: vatPoolDraw, vatFlowDraw: vatFlowDraw, vatFlowRate: dt > 0 ? vatFlowDraw / dt : vatFlowDraw,
+      coreNetRate: coreOwned ? (dt > 0 ? (leftAfterVat - vatPoolDraw) / dt : leftAfterVat - vatPoolDraw) : 0,
+      fissionStoneDraw: fissionStoneDraw, fissionStoneRate: dt > 0 ? fissionStoneDraw / dt : fissionStoneDraw,
       starDraw: starDraw, starRate: dt > 0 ? starDraw / dt : starDraw,
       drillDraw: drillDraw, drillRate: dt > 0 ? drillDraw / dt : drillDraw,
       stationDraw: stationDraw, stationRate: dt > 0 ? stationDraw / dt : stationDraw,
@@ -1936,6 +2027,11 @@
     var HF = hydroAlloc(s, dt);
     s._hydroFlow = HF;                 // 留给 tickShell 的天穹钻机读剩流（同 tick 内 steelFlow 先于 tickShell）
     s.res.hydro = HF.supplyRate;       // ★ flow 模型：每 tick 覆盖写「每秒供给」，不累积库存
+    s.res.stone = Math.max(0, (s.res.stone || 0) - HF.fissionStoneDraw);
+    if (SB.wonder && SB.wonder.owned && SB.wonder.owned(s).wonder_terra_core) {
+      s.res.coreCharge = Math.max(0, Math.min(50000000,
+        (s.res.coreCharge || 0) - HF.vatPoolDraw + HF.left));
+    }
     /* ERA6→太空时代（2026-10-13）：星空探索的累加已迁出热液能流，改由 shell.tickStar 被动处理
      *   （见 economy.starRate / shell.tickStar）。HF.starDraw 恒 0，此处不再落点。 */
     /* 暖石扣费（唯一副作用落点）：按**运行座数**扣（state.turbineStop 已停的座不计）。
@@ -1990,14 +2086,16 @@
      *   漏加 = 顶栏热液能净消耗少算几路（面板撒谎家族）。
      *   ERA10（2026-10-20）：再补 jupitorDraw（朱庇特质量加速站 20/s）——同一个坑，第三次踩到：
      *   hydroAlloc 里算得再准，净速率这一行漏掉就是「面板说没在烧、实际每秒掉 20」。 */
-    var hydro = -(HF.shopDraw + HF.skyDraw + HF.starDraw + HF.drillDraw + HF.stationDraw + HF.labDraw + HF.robotDraw + HF.robotbayDraw + HF.vrDraw + HF.europaDraw + HF.geekDraw + HF.jupitorDraw);
+    var hydro = -(HF.shopDraw + HF.skyDraw + HF.starDraw + HF.drillDraw + HF.stationDraw + HF.labDraw + HF.robotDraw + HF.robotbayDraw + HF.vrDraw + HF.europaDraw + HF.geekDraw + HF.jupitorDraw + HF.vatFlowDraw);
     /* ERA9（2026-10-19）：europaRate 透传（hydroAlloc 的欧罗巴发射场满供判据），供 rates 算发射场库存耗料。
      * ERA9-GEEK（2026-10-21）：geekRate 同上透传 —— GEEK 的**库存耗料**（藻食/金属/石头/珊瑚）在
      *   shell.tickShell ③段直扣，rates 要减掉这四笔必须拿到「热液能是否给满」这一个判据，
      *   否则面板只能二选一：要么假装没耗（珊瑚被抽干还显示 +450/s，用户报的 bug），
      *   要么停摆时也照扣（反向撒谎）。同源取 HF.geekRate，与 tick 的 `_HF2.geekDraw > 0` 等价。 */
     return { steel: steel, hydro: hydro, hydroSupply: HF.supplyRate, starRate: HF.starRate,
-      europaRate: HF.europaRate, geekRate: HF.geekRate };
+      europaRate: HF.europaRate, geekRate: HF.geekRate,
+      fissionStoneRate: HF.fissionStoneRate, vatFlowRate: HF.vatFlowRate,
+      coreNetRate: HF.coreNetRate };
   }
 
   /* ── ERA8（2026-10-18 · spec §3）：θ生物金属产线（生物材料研究所）────────
@@ -2355,10 +2453,12 @@
     /* ⚠️ upgSum 导出（2026-09-29 工坊升级 craftRatio）：工坊效率的第五个加法来源
      *    （建筑级 / 奇观 / 科技 / 政体 / 工坊升级）读它就位，单一聚合函数避免各模块重算漏键。 */
     upgSum: upgSum, observatoryBonusPct: observatoryBonusPct,
-    seasonIdx: seasonIdx, season: season, seasonMeta: seasonMeta, warmBurning: warmBurning,
+    seasonIdx: seasonIdx, season: season, seasonMeta: seasonMeta, seasonLeftTicks: seasonLeftTicks,
+    lockSeasonLengths: lockSeasonLengths, warmBurning: warmBurning,
     seasonTurn: seasonTurn, seasonGrant: seasonGrant, freezeChance: freezeChance, rollFreeze: rollFreeze,
     capOf: capOf, addRes: addRes, resUnlocked: resUnlocked,
-    activeSiltpit: activeSiltpit, autoDrillCount: autoDrillCount, autoDrillOutputMul: autoDrillOutputMul,
+    activeSiltpit: activeSiltpit, siltPitMul: siltPitMul, rheaMul: rheaMul, activeTerraVat: activeTerraVat,
+    autoDrillCount: autoDrillCount, autoDrillOutputMul: autoDrillOutputMul,
     activeWorkshops: activeWorkshops, industrialRobotOutputMul: industrialRobotOutputMul,
     /* coreLvl（2026-10-06 城堡「真升级」）：统治核心等级 = 议事厅的等级。
      *   城堡是它买下工坊升级 `upg_castle` 之后的新**名字**，不是第二座建筑 ⇒ 就是 lvl.hall。

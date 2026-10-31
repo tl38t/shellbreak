@@ -105,8 +105,19 @@
     m.compensationTotal = (m.compensationTotal || 0) + n;
   }
 
+  /* 玩家输入的清洗：去首尾空白，去空格 / 连字符 / 下划线。
+   * ⚠️ **不转大写**（2026-10-30 实测修正）：TDS 随机生成的是**大小写混排** 13 位券码
+   *   （本活动那颗实际就是全小写 `krvpcacr334es`）。原来这里 `.toUpperCase()` 会把玩家
+   *   输入的码改写成 `KRVPCACR334ES` 再发出去 —— 平台一旦大小写敏感就是全员 100016
+   *   「兑换码无效」，而这种错在本地夹具里永远看不出来（桩不管大小写）。
+   *   保持原样送出，在「敏感」与「不敏感」两种平台下都成立，所以这是唯一安全的选择。 */
   function normalize(code) {
-    return String(code || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
+    return String(code || '').trim().replace(/[\s\-_]/g, '');
+  }
+  /* 本地防重键：**只**用于 meta.redeemed 与 alreadyRedeemed，绝不发给平台。
+   * 转大写是为了让「同一个码换大小写/加连字符重输」仍被认成同一个（见 redeem 的重复领取段）。 */
+  function dedupeKey(code) {
+    return normalize(code).toUpperCase();
   }
 
   /* ── 每个存档独立的「游戏用户 ID」（character_id）────────────────────────────
@@ -179,8 +190,8 @@
     if (!m) return Promise.resolve({ ok: false, msg: '存档还没就绪，请稍后重试。' });
     if (busy) return Promise.resolve({ ok: false, msg: '正在兑换，请稍候…' });
     if (!code) return Promise.resolve({ ok: false, msg: '请先输入兑换码。' });
-    if (!/^[A-Z0-9]{4,24}$/.test(code)) return Promise.resolve({ ok: false, msg: '兑换码只含字母和数字，请再检查一遍。' });
-    if (alreadyRedeemed(m, code)) return Promise.resolve({ ok: false, msg: '这个码你已经领过了。' });
+    if (!/^[A-Za-z0-9]{4,24}$/.test(code)) return Promise.resolve({ ok: false, msg: '兑换码只含字母和数字，请再检查一遍。' });
+    if (alreadyRedeemed(m, dedupeKey(code))) return Promise.resolve({ ok: false, msg: '这个码你已经领过了。' });
     if (typeof root.fetch !== 'function') return Promise.resolve({ ok: false, msg: '当前环境不能联网兑换。' });
 
     var ts = Math.floor(Date.now() / 1000);
@@ -189,6 +200,7 @@
     for (var i = 0; i < 5; i++) nonce += pool.charAt(Math.floor(Math.random() * pool.length));
     var body = {
       client_id: String(c.CLIENT_ID),
+      /* ⚠️ 送**原样大小写**的码（见 normalize 注释）；本地记录用的是大写键。 */
       gift_code: code,
       /* ⚠️ 每个存档独立的 id，绝不能用常量（见 characterId 的注释）。 */
       character_id: characterId(m),
@@ -223,7 +235,7 @@
       var n = rewardNum();
       var meta = SB.game.meta();
       if (!meta.redeemed || typeof meta.redeemed !== 'object') meta.redeemed = {};
-      meta.redeemed[code] = { t: Date.now(), n: n };
+      meta.redeemed[dedupeKey(code)] = { t: Date.now(), n: n };
       credit(meta, n);
       if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
       if (SB.game && SB.game.log) SB.game.log('兑换成功：轮回点 +' + n + '（累计兑换 ' + (meta.compensationTotal || n) + '）。');
@@ -322,6 +334,8 @@
   SB.redeem = {
     boot: boot, open: open, redeem: redeem,
     ready: ready, sha1: sha1, normalize: normalize,
+    /* dedupeKey 单独导出：回归要能钉住「大小写不同但同码只入账一次」这条。 */
+    dedupeKey: dedupeKey,
     /* 供探针/回归直接断言，避免它们去猜内部格式。characterId 单独导出是为了钉住
      * 「每个存档一个 id」这条（写常量会让除第一个玩家以外全员 100017）。 */
     characterId: characterId,

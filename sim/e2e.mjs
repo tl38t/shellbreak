@@ -245,6 +245,25 @@ if (process.argv.includes('--offline-only')) {
   process.exit(failedOffline.length ? 1 : 0);
 }
 
+/* 流浪泰拉规则涉及跨五个时代的长局；独立入口让 goal / 奖励 / 新经济链回归不必等待整局 bot。
+ * 仍使用同一份完整生产脚本、假 DOM、挑战测试与 bot 决策，不复制实现。 */
+if (process.argv.includes('--challenge-only')) {
+  runChallenges({ SB, check, noop });
+  const failedChallenge = checks.filter(c => !c.ok);
+  console.log(`\n挑战测试：${checks.length - failedChallenge.length}/${checks.length} 通过`);
+  process.exit(failedChallenge.length || errors.length ? 1 : 0);
+}
+
+/* 离线补算性能专项（2026-10-31 加）：单帧预算 / 收尾这两条断言原本只在全量跑到 1000+ 条
+ * 之后才执行，改一行动辄等三分钟，定位性能回归时等于没法迭代。
+ * 独立入口**不复制实现**，只提前跑同一个套件（与上面两个 only 同一套纪律）。 */
+if (process.argv.includes('--perf-only')) {
+  runOfflineCatchupFinish({ SB, check });
+  const failedPerf = checks.filter(c => !c.ok);
+  console.log(`\n离线补算性能：${checks.length - failedPerf.length}/${checks.length} 通过`);
+  process.exit(failedPerf.length ? 1 : 0);
+}
+
 /* ⚠️ 2026-10-20 补：假点击目标**必须带祖先 closest 能力**，否则整类「祖先特征判据」的
  * 回归在这里永远看不见（真实踩过：input.js 用 `closest('[data-era]')` 认纪元按钮，
  * 而「页面材质」把 data-era 写在 <html> 上 ⇒ 全站按钮从采集到市政研究全部静默失联，
@@ -902,20 +921,19 @@ console.log('\n=== 纪元三 · economy 接线 ===');
    *   权威口径：desc 写成「X升级：…」的升级项 = **那座建筑买下后就地改名**，
    *   不是另造一座建筑。声明在 UPGRADES 的 `upgradesBuilding` 字段，判定在 render。 */
   {
-    /* ERA6（2026-10 实装）：upg_starscope 把 天壳观测站 升级为 星空观测站，
-     *   与城堡×3 同类「买了就地改名」契约；下面是第 5 条。
-     * ERA7（2026-10-17 实装）：upg_logiware 把 商队驿站 升级为 物流仓库，是第 6 条。 */
-    const CHAIN = { upg_fishbonemine: 'siltpit', upg_university: 'institute', upg_castle: 'hall', upg_deepmine: 'siltpit', upg_starscope: 'observatory', upg_logiware: 'caravanserai' };
+    /* ERA6（2026-10 实装）：upg_starscope 把 天壳观测站 升级为 星空观测站。
+     * ERA7（2026-10-17 实装）：upg_logiware 把 商队驿站升级为物流仓库。
+     * ERA10 流浪泰拉：upg_crustmine 是砂矿坑第三段升级，接在鱼骨矿井与深层矿井之后。 */
+    const CHAIN = { upg_fishbonemine: 'siltpit', upg_university: 'institute', upg_castle: 'hall', upg_deepmine: 'siltpit', upg_crustmine: 'siltpit', upg_starscope: 'observatory', upg_logiware: 'caravanserai' };
     const declared = SB.UPGRADES.filter(u => u.upgradesBuilding);
-    /* ⚠️ 2026-10 ERA6：upg_starscope（观测站→星空观测站）是第 5 条；2026-10-17 ERA7：upg_logiware（商队驿站→物流仓库）是第 6 条。
-     *    与城堡×3 同类契约，不是「随手加一条」，是 approved 设计里商队驿站可被升级。 */
-    check('建筑升级型共 6 条，全部声明了 upgradesBuilding（+50%/级 扩容那几条不算）',
-      declared.length === 6, '实=' + declared.length);
+    /* 共七条：流浪泰拉新增的地壳钻井是砂矿坑第三段升级；扩容升级不改建筑名，不计入。 */
+    check('建筑升级型共 7 条，全部声明了 upgradesBuilding（+50%/级 扩容那几条不算）',
+      declared.length === 7, '实=' + declared.length);
     const badDecl = declared.filter(u => !SB.habitat.buildingById(u.upgradesBuilding));
     check('每条 upgradesBuilding 都指向真实存在的建筑（别写错 id）', badDecl.length === 0,
       '错=' + badDecl.map(u => u.id + '→' + u.upgradesBuilding).join(','));
     const wrong = declared.filter(u => u.upgradesBuilding !== CHAIN[u.id]);
-    check('五条顶替关系与设计一致（矿坑×2 / 研究所 / 议事厅 / 商队驿站）', wrong.length === 0,
+    check('七条顶替关系与设计一致（矿坑×3 / 研究所 / 议事厅 / 观测站 / 商队驿站）', wrong.length === 0,
       '错=' + wrong.map(u => u.id).join(','));
     const noDesc = declared.filter(u => !u.buildingDesc);
     check('每条都写了 buildingDesc（建筑行文案不能复用 desc 的「X升级：」主语）',
@@ -945,10 +963,11 @@ console.log('\n=== 纪元三 · economy 接线 ===');
     pv.upgrades.upg_deepmine = true;
     check('矿坑：两级都装仍不造价、等级仍同一座', keyOf('siltpit') === kPit0
       && pv.lvl.siltpit === 0);
-    /* 声明顺序 = 升级顺序：UPGRADES 里 deepmine 在 fishbonemine 之后 ⇒ 遍历到后者覆盖前者。 */
+    /* 声明顺序 = 升级顺序：砂矿坑第三段升级必须最后覆盖鱼骨矿井与深层矿井。 */
     const order = SB.UPGRADES.filter(u => u.upgradesBuilding === 'siltpit').map(u => u.id);
-    check('声明顺序保证链式取最深一级（fishbonemine 在 deepmine 之前）',
-      order[0] === 'upg_fishbonemine' && order[order.length - 1] === 'upg_deepmine', order.join('→'));
+    check('声明顺序保证链式取最深一级（fishbonemine → deepmine → crustmine）',
+      order.indexOf('upg_fishbonemine') < order.indexOf('upg_deepmine') &&
+      order.indexOf('upg_deepmine') < order.indexOf('upg_crustmine'), order.join('→'));
   }
 
   /* ④ 资源可见性（2026-09-30）：解锁前不显示，工艺资源独立分区。

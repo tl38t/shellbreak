@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=273" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=279" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -134,6 +134,8 @@
     <!-- 海底火山周期：内容由 ui/render-environment.js 的 renderEnv 每帧填（随「历法」是否掌握整块换文案）。
          ⚠️ 这个容器是每帧重画的，里面**不许放按钮**（见 renderEnv 的注释）。 -->
     <div class="row envsplit" id="envVolcano" data-page-node-id="EnvVolcano01"></div>
+    <!-- 星核炉芯储能与净流量是纯读数，随环境卡状态刷新。 -->
+    <div class="row envsplit" id="envCore" style="display:none" data-page-node-id="EnvCore01"></div>
     <!-- 暖石开关（保温法的兑现物）：2026-09-27 用户要求从「巢穴」页搬到这一卡，
          因为它是**看天候才有用**的动作（只在寒流季烧），摆在建造成群里没人会想到去翻。
          ⚠️ 它同样是每帧刷新的容器，但**不是每帧重建 DOM** —— renderWarm 只在
@@ -255,73 +257,78 @@
   <div class="intro-mask hidden" id="introMask" data-page-node-id="IntroMask01" onclick="if(event.target===this)SB.ui.closeIntro()"><div class="box intro-pop" id="introPop"></div></div>
 
 <!-- 加载顺序即依赖顺序，不可调换；改 JS 必须同时 bump 行尾 ?v= -->
-<script src="src/config.js?v=197"></script>
+<!-- 前端报错捕获（2026-10-31）：必须排在**第一个**。它只挂 window 的 error /
+     unhandledrejection 监听器，不读任何依赖；排在 config.js 之后就会漏掉整段
+     模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
+     错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
+<script src="src/ui/error-log.js?v=1"></script>
+<script src="src/config.js?v=199"></script>
 <script src="src/config-catalog.js?v=11"></script>
-<script src="src/config-content.js?v=33"></script>
-<script src="src/config-buildings.js?v=43"></script>
+<script src="src/config-content.js?v=35"></script>
+<script src="src/config-buildings.js?v=46"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=136"></script>
-<script src="src/tech.js?v=118"></script>
+<script src="src/techs.js?v=146"></script>
+<script src="src/tech.js?v=121"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=28"></script>
+<script src="src/civics-data.js?v=29"></script>
 <script src="src/civics.js?v=132"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
-<script src="src/save-storage.js?v=5"></script>
-<script src="src/state-migrate.js?v=18"></script>
-<script src="src/state.js?v=162"></script>
-<script src="src/workshop.js?v=120"></script>
-<script src="src/wonder.js?v=110"></script>
+<script src="src/save-storage.js?v=7"></script>
+<script src="src/state-migrate.js?v=20"></script>
+<script src="src/state.js?v=164"></script>
+<script src="src/workshop.js?v=122"></script>
+<script src="src/wonder.js?v=112"></script>
 <script src="src/economy-social.js?v=9"></script>
-<script src="src/economy.js?v=197"></script>
-<script src="src/economy-rates.js?v=28"></script>
-<script src="src/economy-tick.js?v=23"></script>
+<script src="src/economy.js?v=200"></script>
+<script src="src/economy-rates.js?v=30"></script>
+<script src="src/economy-tick.js?v=25"></script>
 <script src="src/offline-scheduler.js?v=3"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=4"></script>
 <script src="src/shell.js?v=109"></script>
-<script src="src/habitat.js?v=111"></script>
+<script src="src/habitat.js?v=113"></script>
 <script src="src/folk.js?v=106"></script>
 <script src="src/prestige.js?v=131"></script>
-<script src="src/challenges.js?v=7"></script>
+<script src="src/challenges.js?v=14"></script>
 <script src="src/auto-research.js?v=1"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=15"></script>
+<script src="src/ui/render-content.js?v=18"></script>
 <script src="src/ui/render-common.js?v=6"></script>
-<script src="src/ui/render-info.js?v=31"></script>
-<script src="src/ui/render-pane-research.js?v=29"></script>
-<script src="src/ui/render-pane-village.js?v=37"></script>
+<script src="src/ui/render-info.js?v=33"></script>
+<script src="src/ui/render-pane-research.js?v=32"></script>
+<script src="src/ui/render-pane-village.js?v=39"></script>
 <script src="src/ui/render-pane-folk.js?v=5"></script>
 <script src="src/ui/render-talent-tree.js?v=5"></script>
 <script src="src/ui/render-pane-meta.js?v=11"></script>
-<script src="src/ui/render-pane-challenges.js?v=12"></script>
+<script src="src/ui/render-pane-challenges.js?v=15"></script>
 <script src="src/ui/render-pane-company.js?v=4"></script>
 <script src="src/ui/render-pane-faith.js?v=2"></script>
 <script src="src/ui/render-pane-wonder.js?v=4"></script>
 <script src="src/ui/render-pane-star-map.js?v=9"></script>
 <script src="src/ui/render-pane-workshop.js?v=16"></script>
-<script src="src/ui/render-environment.js?v=19"></script>
-<script src="src/ui/render.js?v=256"></script>
+<script src="src/ui/render-environment.js?v=21"></script>
+<script src="src/ui/render.js?v=266"></script>
 <script src="src/ui/track-dock.js?v=5"></script>
 <script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=169"></script>
+<script src="src/game.js?v=171"></script>
 <script src="src/save-transfer.js?v=15"></script>
-<script src="src/redeem.js?v=1"></script>
-<script src="src/ui/input.js?v=173"></script>
-<script src="src/ai-strategy.js?v=74"></script>
+<script src="src/redeem.js?v=2"></script>
+<script src="src/ui/input.js?v=176"></script>
+<script src="src/ai-strategy.js?v=78"></script>
 <script src="src/ui/theme.js?v=4"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=1"></script>
-<script src="src/achv.js?v=3"></script>
+<script src="src/achv.js?v=11"></script>
 <script src="src/main.js?v=101"></script>
 <!-- 现场诊断浮层（2026-10-27）：连点标题 5 次开启，或 URL 带 ?diag。默认零风险、不进任何正常路径。 -->
 <script src="src/ui/diag.js?v=2"></script>

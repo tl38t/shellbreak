@@ -179,7 +179,9 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
       wonder_shadow_theater: 200,
       wonder_congress: 300,
       wonder_logistics: 100,
-      wonder_national_logistics: 100
+      wonder_national_logistics: 100,
+      /* ERA10 流浪泰拉新增：原始造价 6000，沿用全局奇观脚手架折半规则的标定值。 */
+      wonder_crustplate: 6000
     };
     const entries = [].concat(SB.BUILDINGS || [], SB.UPGRADES || [], SB.WONDERS || []);
     const actual = {};

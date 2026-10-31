@@ -14,7 +14,10 @@ import { loadAll, mulberry32 } from './load-sb.mjs';
 function mkEl(id) {
   const el = {
     id, _html: '', textContent: '', value: '', checked: false,
-    dataset: {}, style: {}, children: [], onclick: null,
+    dataset: {}, style: {}, children: [], onclick: null, attributes: {},
+    setAttribute(name, value) { this.attributes[name] = String(value); },
+    removeAttribute(name) { delete this.attributes[name]; },
+    focus() {}, select() {}, scrollIntoView() {},
     _classes: new Set(id === 'modal' ? ['hidden'] : []),
     classList: {
       add(c) { el._classes.add(c); },

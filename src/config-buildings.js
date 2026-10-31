@@ -179,12 +179,12 @@
      *   sciRatio：`sciRatio` 这个名字里没有「谁的」，复用会让「潮纹馆 +10%」与
      *   「研究所 +50%」在同一次乘法里混成一笔，将来想单独调其中一个就得拆开 ——
      *   结构与系数分开放，改的时候不会牵连另一条线。
-     * ⚠️ 0.50 是**待标定**的提议值（用户规格「科技产出 ×50%」是数字口径，
-     *   这里定的是「每级 ×50%」那个形式）。
+     * ⚠️ 0.30 是**用户 2026-10-30 拍板的标定值**（原 0.50）。同批三刀见文件末尾
+     *   「2026-10-30 后期难度标定」那段注释：压后期科技爆炸。
      * 【读取点】economy-tick.js 的结算与 economy-rates.js 的速率读数（与 library 那条必须逐字同构）。
      * ⚠️ 只加这一处系数是不够的：读它的那两行是手写的，漏一处就变成
-     *   「面板写着 +50%、实际进账没有」—— 由 e2e「研究所科技加成」那条逐项钉死。 */
-    instituteSci: 0.50,
+     *   「面板写着 +30%、实际进账没有」—— 由 e2e「研究所科技加成」那条逐项钉死。 */
+    instituteSci: 0.30,
     /* ⚠️【BLD.templeFaithRatio · 2026-09-28 新增】神庙是**潮纹馆的第二座对位建筑**：
      *    潮纹馆把「学者产出」×0.10/级、广场把「书手产出」×0.10/级、神庙把
      *    「信仰产出」×0.10/级。三座同构、各管一条资源线，系数都是猫国 library 那个 0.1。
@@ -550,9 +550,17 @@
      * 【解锁权双写】requiredTech 与 mathematics 那一项的 eff.unlockBuild 指向同一项，
      *   e2e「建筑解锁来源」守着两边一致。
      * ⚠️ 死锁自查：数学的尤里卡条件是「库存科技 1000」，**不指向研究所本身**
-     *   （若写成「建成研究所」就是尤里卡要求自己解锁的那座建筑 ⇒ 永远达不成）。 */
-    { id: 'institute', icon: 'assets/building-icons/era-2/era2-institute.png', name: '研究所',   ratio: 1.15, cost: {stone: 100, silt: 100},
-      desc: '科技产出 ×50%（仅作用于学者）；升级为大学后变 ×100%', requiredTech: ['mathematics'] },
+     *   （若写成「建成研究所」就是尤里卡要求自己解锁的那座建筑 ⇒ 永远达不成）。
+     * 【ratio 2026-10-30 标定：1.15 → 1.35】同批 instituteSci 0.50 → 0.30（见文件上方那条）。
+     *   这条 ratio 原来与潮纹馆同为 1.15（猫国同款「每级 ×1.15」），意味着研究所等级可以
+     *   一路堆到 30+ 级 ⇒ 学者乘区线性拉满，是后期科技爆炸的主因之一。
+     *   ⚠️ ratio 只影响**下一级**造价，已建等级不变 ⇒ 老档不会破，但「再升一级」会陡。
+     *   20 级老档实测档位（`ratio^20 × 100`，对照原 1.15 的 1,636）：
+     *     1.15 → 1,636（1.0×）｜**1.35 → 40,427（24.7×）**｜1.5 → 332,526（203×）
+     *   用户 2026-10-30 在 1.5 与 1.35 之间选了 **1.35**（1.5 的断崖太硬）。
+     *   10 / 15 / 30 级对应倍数：×5.0 / ×11.1 / ×122.8。 */
+    { id: 'institute', icon: 'assets/building-icons/era-2/era2-institute.png', name: '研究所',   ratio: 1.35, cost: {stone: 100, silt: 100},
+      desc: '学者科技产出 +30%/级；升级为大学后变 +80%/级', requiredTech: ['mathematics'] },
     /* ── 广场（2026-09-28 用户规格 · 市政《戏剧与诗歌》解锁）──
      * 【对标物是潮纹馆，不是热泉井】潮纹馆（library）给科技、广场给市政点，
      *   **两座是姊妹不是同类**：同构的乘区系数（BLD.squareCivRatio 0.10）、
@@ -732,11 +740,13 @@
       desc: '人口上限 +10/级（由 popCap 读）；每级额外 +5% 居民奢侈品消耗（增耗，economy.tenementLuxAdd 读）。',
       requiredCivic: 'urbanization' },
     /* ── ERA6（2026-10 实装）：科研所（chemistry 解锁，双写一致）：
-     *   每级科技产出 +10%（researchLabSci，tick/rates 同式），且使研究科技消耗 −2%/级（researchLabSave，
-     *   由 tech.study 读）。造价全 tiplate。
+     *   每级**学者**科技产出 +10%（researchLabSci，tick/rates 同式），且使研究科技消耗 −2%/级
+     *   （researchLabSave，由 tech.study 读）。造价全 tiplate。
+     *   ⚠️ 措辞 2026-10-30 收窄：这个系数只乘「学者的科技产出」，不是全口径科技产出
+     *     （其他来源的科技点不走 tick 的学者括号），原文案「科技产出 +10%」会让人以为全局。
      *   ⚠️ ratio 2026-10-17 用户拍板 1.15 → 2（成本每级翻倍，收敛更快；收益曲线同步前移）。 */
     { id: 'researchlab', icon: 'assets/building-icons/era-6/era6-researchlab.png', name: '科研所', ratio: 2, cost: { tiplate: 200 },
-      desc: '科技产出 +10%/级（researchLabSci）；研究科技消耗 −2%/级（researchLabSave）。',
+      desc: '学者科技产出 +10%/级（researchLabSci）；研究科技消耗 −2%/级（researchLabSave）。',
       requiredTech: ['chemistry'] },
 
     /* ── ERA7（2026-10-17 实装 · spec §5 太空建筑系统 + §4 核裂变）──
@@ -850,7 +860,15 @@
     { id: 'void_altar', icon: 'assets/building-icons/era-10/era10-void-altar-v2.png', name: '虚境祭坛', ratio: 1.5,
       cost: { pop: 30 }, popCostByLevel: [30, 75, 200], maxLvl: 3,
       desc: '以族民为祭：建造 1 级消耗 30 人口，升至 2 级消耗 75，升至 3 级消耗 200（按当前职业分配比例扣减）。三级俱成，虚境的门为你打开。',
-      requiredCivic: 'void_explore' }
+      requiredCivic: 'void_explore', noChallenge: ['drift_terra'] },
+    { id: 'terra_vat', icon: 'assets/building-icons/era-10/era10-terra-vat.png', name: '泰拉地壳密闭水舱巨构', ratio: 1.5,
+      cost: { tiplate: 3000, thetaMetal: 500, stoneBeam: 100000, resonantDrill: 1000 },
+      desc: '每级增加 20 人口上限，并每秒消耗 100 热液能；优先取自星核炉芯池，池空后占用热液能流。停用即断电：该座的人口上限立刻消失，超出上限的族民会陆续离开。',
+      requiredTech: ['winter'] },
+    { id: 'terra_engine', icon: 'assets/building-icons/era-10/era10-terra-engine.png', name: '行星发动机', ratio: 1,
+      cost: { thetaMetal: 10000, strongProp: 1000, tiplate: 7500, resonantDrill: 4000 },
+      desc: '把泰拉推离原有轨道。建成 50 座并灌满星核炉芯池，即完成流浪泰拉挑战。',
+      requiredTech: ['drift_tech'] }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -924,7 +942,8 @@
     /* ERA10（2026-10-20）：太阳星环归星海区（近恒星轨道建筑，与卫星/空间站同区 ⇒ 吃 spaceCostMul）。
      * 两座异星发射场同归星海区（在地工业 → 与 rheamine/titancloud/mars_workshop 同区，同样吃 spaceCostMul）；
      * 虚境祭坛归信仰区（与神庙/黑色方碑同区，纯 UI 分区，不吃 spaceCostMul）。 */
-    solar_ring: 'space', terra_launch: 'space', enceladus_launch: 'space', void_altar: 'faith'
+    solar_ring: 'space', terra_launch: 'space', enceladus_launch: 'space', void_altar: 'faith',
+    terra_vat: 'workshop', terra_engine: 'break'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';

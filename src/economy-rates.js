@@ -100,11 +100,12 @@
      *   含暖石、钛以及以后新增的矿工伴生矿物（此前只乘了 stone/silt，暖石/钛被排除）。
      *   只按运行中的砂矿坑计数，必须与 economy-tick.js 的 _siltPit 同值同源，保证面板===结算。
      *   ⚠️ 任何新增矿工伴生矿物，都必须在 rates() 与 tick() 两侧都乘它，否则又变面板撒谎。 */
-    var mineBonus = 1 + activeSiltpit(s) * SB.BLD.siltBonus;
+    var mineBonus = SB.economy.siltPitMul(s);
     /* ERA8 市政（2026-10-18）：星际物流网卡 planetOutMul ×1.3 罩异星建筑（瑞亚/泰坦）各行，装卡才 >1。
      *   必须在 return 对象**之前**声明（对象字面量里不能写 var——上一次落点就是踩了这个）。 */
     var _planetMulR = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1)
       * (1 + (Tr ? Tr.alienOutMul : 0)) * P.starAlienOutputMul(s);   // ERA9 行星际快速物流：异星建筑产出 +20%（与星际物流网卡 ×1.3 加算）
+    var _rheaMulR = SB.economy.rheaMul(s);
     /* ERA9：发射场库存耗料净速率（uranium/strongProp/thinafilm/tiplate），与 tick 2f 同判据
      *   （hydro 满供 + 库存够才扣）。_sr.europaRate 即 hydroAlloc 的 europaRate（dt=1），与 tick 同源。
      * ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」）：节点模式（launchMode='node' 且已完成
@@ -212,6 +213,13 @@
                   ['矿工契', minerPactMul(s)],
                   ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)]])
                + part('silt', '熔炉耗料', -fc * (Tr ? Tr.bldEff : 1))
+               + ((s.upgrades && s.upgrades.upg_crustmine)
+                 ? part('silt', '地壳钻井伴生', (j.miner || 0) * 0.05,
+                     [['砂矿坑', mineBonus], ['矿脉升级', 1 + upgSum(s, 'mineSilt')],
+                      ['阿尔巴达', (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1],
+                      ['采集', gatherMul(s)], ['矿工镐', toolMul(s, 'miner')], ['寒流季', cold],
+                      ['全局产出', globalMulX(s)], ['矿工契', minerPactMul(s)],
+                      ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)], ['自动钻机', autoDrillOutputMul(s)]]) : 0)
                + part('silt', 'GEEK 改造', -_gkSiltRate),
       /* ⚠️ 2026-09-30 ERA4 · 钛（深层矿井 upg_deepmine 上线后才有产出）：
        *    与上面 silt/warmstone 同源同式（同一批 gatherMul・toolMul(miner)・cold・globalMul），
@@ -266,7 +274,7 @@
       /* ERA8：瑞亚星矿井每级 +0.25 铀/秒（与 tick 的 rheamine 铀行同式相加；含星际物流网乘区）。 */
                + part('uranium', '瑞亚星矿井',
                    (s.lvl.rheamine || 0) * (SB.BLD.rheamineUranium || 0),
-                   [['全局产出', globalMulX(s)], ['星际物流', _planetMulR]])
+                   [['全局产出', globalMulX(s)], ['星际物流', _planetMulR], ['板块加固', _rheaMulR]])
                + part('uranium', '核聚变厂耗料', -(s.lvl.fissionplant || 0) * (SB.BLD.fissionUranium || 0) * _fissionUraniumMul)
                + part('uranium', '研究所原料', -_thetaIn.uranium)
                + part('uranium', '发射场耗料', -_elURate),
@@ -275,10 +283,10 @@
        *   矿井上线后必须有键，否则 renderRes 拿到的 rate 是 undefined（面板撒谎家族）。 */
       stoneBeam:  part('stoneBeam', '瑞亚星矿井',
                     (s.lvl.rheamine || 0) * (SB.BLD.rheamineBeam || 0),
-                    [['全局产出', globalMulX(s)], ['星际物流', _planetMulR]]),
+                    [['全局产出', globalMulX(s)], ['星际物流', _planetMulR], ['板块加固', _rheaMulR]]),
       hardCoral:  part('hardCoral', '瑞亚星矿井',
                     (s.lvl.rheamine || 0) * (SB.BLD.rheamineCoral || 0),
-                    [['全局产出', globalMulX(s)], ['星际物流', _planetMulR]]),
+                    [['全局产出', globalMulX(s)], ['星际物流', _planetMulR], ['板块加固', _rheaMulR]]),
       /* stone / warmstone：与 tick 同源（同一个 gatherMul・cold 乘子）。
        * ⚠️ 暖石是矿工**伴生**产物（唯一来源 = 矿工人数 × 矿工乘子），没有别的建筑单独产它；
        *    2026-10-16 起**也吃砂矿坑等级加成**（mineBonus，与 stone/silt 同式）——矿脉设施现放大一切
@@ -297,6 +305,7 @@
                   ['寒流季', cold],
                   ['全局产出', globalMulX(s)],
                   ['采石契', quarryPactMul(s)]])
+               + part('stone', '重核聚变耗石', -_sr.fissionStoneRate)
                + part('stone', 'GEEK 改造', -_gkStoneRate),
       /* 暖石的净速率要减掉**开关正在烧的**那一份：不减的话面板上写着暖石在涨，
        * 玩家开着他以为只是在攒，实际有一路正在往火里扔。
@@ -381,7 +390,14 @@
                    [['星际物流', _planetMulR]])
                + part('rocketFuel', '奇观加成', SB.wonder ? SB.wonder.wonderFuelBonus(s) : 0),
       /* ERA8：θ生物金属产线（thetaRate 与 thetaFlow 同式不扣料，开工率按当前库存现算）。 */
-      thetaMetal: part('thetaMetal', '生物材料研究所', SB.economy.thetaRate(s)),
+      thetaMetal: part('thetaMetal', '生物材料研究所', SB.economy.thetaRate(s))
+        + ((s.upgrades && s.upgrades.upg_crustmine)
+          ? part('thetaMetal', '地壳钻井伴生', (j.miner || 0) * 0.005,
+              [['砂矿坑', mineBonus], ['矿脉升级', 1 + upgSum(s, 'mineSilt')],
+               ['阿尔巴达', (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1],
+               ['采集', gatherMul(s)], ['矿工镐', toolMul(s, 'miner')], ['寒流季', cold],
+               ['全局产出', globalMulX(s)], ['矿工契', minerPactMul(s)],
+               ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)], ['自动钻机', autoDrillOutputMul(s)]]) : 0),
       /* ERA6→ERA7：星空探索每秒产出。基础文明推力 + 星空观测站升级（upg_starscope）+ 太空建筑运行座数贡献，
        *   读 economy.starRate（与 tick 同口径；太空建筑的「开几座」开关在此生效）。 */
       starExplore: part('starExplore', '星空槽累积', SB.economy.starRate(s)),

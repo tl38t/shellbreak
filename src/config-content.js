@@ -11,9 +11,9 @@
    * ⚠️ 增删本表时必须确认 `economy.seasonIdx` 取的是 `SEASONS.length` 而不是写死的 3
    *   （旧版写死 4，删季不跟着改会直接索引越界）。 */
   var SEASONS = [
-    { name: '暖流季', mult: 1.50 },
-    { name: '平流季', mult: 1.00 },
-    { name: '寒流季', mult: 0.25 }
+    { name: '暖流季', mult: 1.50, ticks: 600 },
+    { name: '平流季', mult: 1.00, ticks: 600 },
+    { name: '寒流季', mult: 0.25, ticks: 600 }
   ];
 
   // 资源表。get 用于渲染层读值（渲染不得直接摸 s.res）。
@@ -458,13 +458,18 @@
       craftRatio: 0.10,
       cost: { rope: 600 },
       desc: '工坊自动化：工艺制作效率 +10%，并自带 1 个自动制作槽。' },
-    /* 大学：need=教育。效果：研究所学者产出 +100%（instituteSci 0.5 加到 BLD.instituteSci 0.50
-     *   ⇒ 合计每级 ×100%，用户规格「学者科技 +50% 变 +100%」）。cost 100 石头 + 50 铁制支架。 */
+    /* 大学：need=教育。效果：研究所学者产出每级**再 +50 个百分点**（instituteSci 0.5 加到
+     *   BLD.instituteSci 之上）。
+     * ⚠️ 2026-10-30 后期难度标定：BLD.instituteSci 由 0.50 降到 0.30
+     *   ⇒ 升级前 +30%/级、升级后 **+80%/级**（原来的 +50% → +100% 已不成立）。
+     *   ⇒ 这里与 buildingDesc 只写「升级给什么 / 合计多少」，面板侧由 render-info 的
+     *     uniSciTotal() 现读配置算，**不许在任何地方写死合计百分比**（第二份真源必漂）。
+     * cost 100 石头 + 50 铁制支架。 */
     { id: 'upg_university', name: '大学', need: 'education', upgradesBuilding: 'institute',
-      buildingDesc: '学者科技产出 +100%（每级合计 ×100%）。',
+      buildingDesc: '学者科技产出 +50%（升级后每级 +80%）。',
       instituteSci: 0.5,
       cost: { stone: 100, ironBracket: 50 },
-      desc: '研究所升级：学者科技产出 +100%（每级合计 ×100%）。' },
+      desc: '研究所升级：学者科技产出由 +30%/级 提升到 +80%/级。' },
     /* 城堡：need=城堡(科技)。效果：① 议价减耗（hallSaveMul 0.5 ⇒ 每级省耗率 ×1.5，
      *   渐近上限仍取基础 60%、其它仓库叠加到最高 75%；2026-10-29 起换**等比递减**曲线，
      *   不再和容量轴共用 getLimitedDR —— 后者的 0.75 次幂末段会回升，与「越升越少」相反）；
@@ -497,6 +502,15 @@
       mineTitanium: true,
       cost: { steelPart: 50, hardCoral: 200 },
       desc: '砂矿坑升级：矿工开始伴生钛。' },
+    { id: 'upg_crustmine', name: '地壳钻井', need: 'supercrit', upgradesBuilding: 'siltpit',
+      buildingDesc: '砂矿坑矿工每人额外产出 0.05 金属/秒、0.005 θ生物金属/秒。',
+      crustMine: true,
+      cost: { stoneBeam: 40000, resonantDrill: 3000, science: 10000000 },
+      desc: '砂矿坑升级：矿工每人额外产出 0.05 金属/秒、0.005 θ生物金属/秒。' },
+    { id: 'upg_reheavfusion', name: '重核聚变', need: 'reheavfusion',
+      reheavfusion: true,
+      cost: { thetaMetal: 200, science: 10000000 },
+      desc: '核热厂每级额外消耗 1000 石头/秒；铀与石头均充足时热液能产出翻倍，短缺时按比例降产。' },
     { id: 'upg_hppump', name: '高压气泵', need: 'thermo',
       hydroMul: 0.5,
       cost: { steelPart: 100, titanium: 100 },
@@ -876,7 +890,13 @@
     { id: 'wonder_jupitor_mas', name: '朱庇特质量加速站', era: 10, need: 'gravity_sling',
       cost: { strongProp: 20, thinafilm: 100 },
       effect: { biomatlabOut: 1.0 },
-      desc: '气态巨星的质量投射器：每秒耗 20 热液能，生物材料研究所产出 +100%。' }
+      desc: '气态巨星的质量投射器：每秒耗 20 热液能，生物材料研究所产出 +100%。' },
+    { id: 'wonder_terra_core', name: '泰拉中央星核炉芯', era: 10, need: 'reheavfusion',
+      cost: { thinafilm: 300, strongProp: 1000, steel: 5000 }, effect: {},
+      desc: '星核炉芯池可储存至多 50M 热液能，并抵消流浪泰拉挑战中的冰封。' },
+    { id: 'wonder_crustplate', name: '大陆板块加固构件', era: 10, need: 'supercrit',
+      cost: { thinafilm: 600, strongProp: 2000, scaffold: 6000, steelPart: 10000 }, effect: {},
+      desc: '砂矿坑整条产出与瑞亚星的石梁、硬化珊瑚、铀产出各 ×1.3。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。

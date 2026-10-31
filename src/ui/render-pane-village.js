@@ -261,6 +261,19 @@
             (_sprun >= lv ? ' disabled' : '') + '>＋</button>' + _spExtra +
             '</span>';
         }
+        var terraVatBtn = '';
+        if (b.id === 'terra_vat' && lv > 0) {
+          var _tvstop = Math.max(0, Math.min(lv, Math.floor(s.terraVatStop || 0)));
+          var _tvrun = lv - _tvstop;
+          terraVatBtn = '<span class="furnctl' + (_tvrun > 0 ? ' on' : '') + '">' +
+            '<button class="fbtn" data-terra-vat-dec="1" title="停用一座水舱：立刻 −20 人口上限，超出的人口会陆续离开"' +
+            (_tvrun <= 0 ? ' disabled' : '') + '>−</button>' +
+            '<b class="fnum">开 ' + _tvrun + '/' + lv + '</b>' +
+            '<button class="fbtn" data-terra-vat-inc="1" title="启用一座水舱：+20 人口上限，每秒耗 100 热液能"' +
+            (_tvrun >= lv ? ' disabled' : '') + '>＋</button>' +
+            '<span class="fdraw" title="先从星核炉芯池取能，池空后再用热液能流">需求 ' + (_tvrun * 100) + '/秒</span>' +
+            '</span>';
+        }
         /* 工坊「开几座」：基础工艺效率、工业机器人加成与耗流都按运行的工坊数量计算。 */
         var workshopBtn = '';
         /* 2026-10-26 修复：开关是《工业机器人》(upg_indrobot) 的效果（config-content.js:591
@@ -475,7 +488,7 @@
           '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
           ' <span class="tag" data-lv="' + b.id + '" title="' + lvTitle + '">等级 ' + lvValueTxt + '</span>' +
           (elBtn ? '<span class="launch-mode-anchor">' + elBtn + '</span>' : '') +
-          '</span><span class="bld-ops">' + _lpLackHTML + siltpitBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
+          '</span><span class="bld-ops">' + _lpLackHTML + siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
           '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
           '</div></div></div>' +
           '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + (trackBtn ? ' has-track' : '') + '">' + autoBtn +

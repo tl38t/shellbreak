@@ -103,7 +103,7 @@
     var _T = SB.tech ? SB.tech.mul(s) : null;
     /* ⚠️ 2026-10-16 用户拍板：运行中的砂矿坑放大所有矿工/采石工产出（含暖石/钛/未来伴生矿物）。
      *   与 rates() 的 mineBonus 同源同值；stone/silt/暖石/钛四条产出行都必须乘它。 */
-    var _siltPit = 1 + activeSiltpit(s) * SB.BLD.siltBonus;
+    var _siltPit = SB.economy.siltPitMul(s);
     /* 自动化钻探：每座开启矿井只翻倍自身份额，总加成按开启 / 总矿井数折算。 */
     var _adMul = autoDrillOutputMul(s);
 
@@ -179,6 +179,12 @@
       addRes(s, 'warmstone', j.miner * SB.UNIT.warmstone * _siltPit * fishWarm * popMul
         * _gather * mine * cold * _gmx * (1 + (_T ? _T.warmMul : 0)) * _mp
         * (SB.challenges ? SB.challenges.warmstoneMul(s) : 1) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * dt);
+      if (s.upgrades && s.upgrades.upg_crustmine) {
+        var _crustMul = _siltPit * fishSilt * popMul * _gather * mine * cold * _gmx * _mp
+          * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul;
+        addRes(s, 'silt', j.miner * 0.05 * _crustMul * dt);
+        addRes(s, 'thetaMetal', j.miner * 0.005 * _crustMul * dt);
+      }
     }
 
     // 2) 加工（2026-09-28 起改为**建筑自动**：熔炉建成就转，不再要匠人）
@@ -213,11 +219,12 @@
     //       另加 ERA9 行星际快速物流 interlog 的 alienOutMul +20%（与网卡乘区加算，与 rates._planetMulR 同口径）。
     var _planetMul = (SB.civic ? SB.civic.cardPlanetOutMul(s) : 1)
       * (1 + (_T ? _T.alienOutMul : 0)) * SB.economyInternals.starAlienOutputMul(s);
+    var _rheaMul = SB.economy.rheaMul(s);
     if (s.lvl.rheamine > 0) {
       var _rl = s.lvl.rheamine;
-      addRes(s, 'stoneBeam', _rl * (SB.BLD.rheamineBeam || 0) * _gmx * _planetMul * dt);
-      addRes(s, 'hardCoral', _rl * (SB.BLD.rheamineCoral || 0) * _gmx * _planetMul * dt);
-      addRes(s, 'uranium', _rl * (SB.BLD.rheamineUranium || 0) * _gmx * _planetMul * dt);
+      addRes(s, 'stoneBeam', _rl * (SB.BLD.rheamineBeam || 0) * _gmx * _planetMul * _rheaMul * dt);
+      addRes(s, 'hardCoral', _rl * (SB.BLD.rheamineCoral || 0) * _gmx * _planetMul * _rheaMul * dt);
+      addRes(s, 'uranium', _rl * (SB.BLD.rheamineUranium || 0) * _gmx * _planetMul * _rheaMul * dt);
     }
     // 2e) ERA9 马尔斯工造中心（星海区在地制造）：每级 钛金板件/钛，吃 globalMul + 星际物流网（与 rheamine 同口径）。
     //     计入 lvlSum 异星建筑总等级（techs 已含 mars_workshop）；吃 alienOutMul（行星际快速物流 +20%，rates 侧加算）。
@@ -539,22 +546,31 @@
       if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit('生育：一名族民降生。'); }
     } else s._grow = 0;
     s.peak = Math.max(s.peak, s.pop);
-    /* ERA7（2026-10 实装）：政策卡《公摊面积》取下时其 +0.5/人口建筑 的加成消失 ⇒ 人口上限可能跌破当前人口。
-     * 此处把人口钳回上限（「超额人口消失」）——isFull 只停生育、不主动减员，拆卡不会自动掉人，故在此收口。
-     * ⚠️ popCap 定义在 economy.js（SB.economy.popCap），本模块不自带 ⇒ 走 SB.economy 单一真源。 */
-    if (s.pop > (SB.economy ? SB.economy.popCap(s) : Infinity)) {
-      var _capNow = SB.economy ? SB.economy.popCap(s) : s.pop;
-      var _lostPop = s.pop - _capNow;
-      s.pop = _capNow;
-      /* ⚠️ 2026-10-27 用户报：「+3 人口政策卡（《乡镇集会》）产满人口之后再卸下来，
-       *   闲置会变 −3，但是实际是 0」。根因就是这里：**只钳 pop、不收回岗位** ⇒
-       *   idle = pop − sum(jobs) 变负。岗位回收走 folk.trimJobsToPop，
-       *   顺序与存档迁移同一口径（从尾部职业往前，保住采集者）。 */
-      if (SB.folk && SB.folk.trimJobsToPop) {
-        SB.folk.trimJobsToPop(s);
-        if (emit && _lostPop > 0) emit('人口上限下降：' + _lostPop + ' 名族民离开（超出上限）。');
+    /* ERA7（2026-10）：政策卡《公摊面积》取下后 +0.5/人口建筑 消失 ⇒ 人口上限可能跌破当前人口。
+     * ERA10 流浪泰拉（2026-10-31 用户拍）：水舱停用 = 断电，上限**立刻**降，人口**缓慢**降。
+     * ⚠️ 旧实现直接 `s.pop = cap`（瞬间蒸发），玩家读到的只能是「凭空少人」。
+     * 现在按整数秒结算：每秒离开 max(1, 超额×CFG.POP_OVER_LEAVE) 人，见 config.js 该常量注。
+     * ⚠️ 用累加器 `_overT` 而不是每 tick 直接减：tick 的 dt 有 0.1 / 1 / 补算多种，
+     *   按 tick 减会让 0.1 步长变成 10 倍速；`while` 保证大 dt（离线补算）也不会漏结算。
+     * ⚠️ 减员后必须走 folk.trimJobsToPop：只钳 pop 不收回岗位 ⇒ idle = pop − Σjobs 变负
+     *   （2026-10-27 用户报过的「闲置 −3」就是这条路径）。 */
+    var _capNow = SB.economy ? SB.economy.popCap(s) : Infinity;
+    if (s.pop > _capNow) {
+      s._overT = (s._overT || 0) + dt;
+      var _lostPop = 0;
+      while (s.pop > _capNow && s._overT >= 1) {
+        s._overT -= 1;
+        var _excess = s.pop - _capNow;
+        var _leave = Math.max(1, Math.round(_excess * (SB.CFG.POP_OVER_LEAVE || 0)));
+        if (_leave > _excess) _leave = _excess;
+        s.pop -= _leave;
+        _lostPop += _leave;
       }
-    }
+      if (_lostPop > 0) {
+        if (SB.folk && SB.folk.trimJobsToPop) SB.folk.trimJobsToPop(s);
+        if (emit) emit('人口上限下降：' + _lostPop + ' 名族民离开（超出上限）。');
+      }
+    } else s._overT = 0;
 
     // 7) 冻伤（仅冰封期）
     if (cold < 1) {

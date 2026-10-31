@@ -216,6 +216,21 @@
       card: 'card_mineral_charter',
       desc: '解锁政策卡「矿物章程」：精铁产出 +15%。',
       note: '鼓舞：累计产出精铁达 1000。' },
+    /* 公司系统总开关（2026-10-30 用户拍：从 ERA6 L2 提前到 ERA4 L3）。
+     * 锚点理由：银行建筑本就是 ERA4《银行业》(techs.js:554, ERA4 L4) 的产物
+     *   ⇒ 鼓舞「银行达 3 级」在 ERA4 内可达成，公司挂着它自己的激励条件放在 ERA6 本来就是错位。
+     * 前置改挂《重商主义》(ERA4 L2 · 商人/贸易)：公司 = 商人的组织化，比旧链
+     *   （ERA5《国民动员》→ ERA6《大众传媒》→ ERA6 宏观）在语义与时序上都更贴。
+     * ⚠️ cost 70000 是**提议值**（ERA4 L3 参照：矿物章程 30000；ERA4 现有最高 60000），
+     *   未经总时长核算 ⇒ 待用户拍板。旧值 320000 是 ERA6 量级，而 ERA4 整纪元的市政
+     *   总预算约 22.5 万，留着旧值等于「门开了但摸不到」。
+     * ⚠️ 副作用（标定范围，需拍）：藻食/珊瑚 +10%~+30% 从 ERA4 起全程生效
+     *   （公司运营 3h 即满「全国性企业」），直接抬口粮与人口曲线。
+     * ⚠️ icon 仍指 era-6 目录：资产文件名是 era6-macro.png，改路径会破图，故保留。 */
+    { id: 'macroeconomics', name: '宏观经济学', icon: 'assets/civic-icons/era-6/era6-macro.png', cost: 70000, era: 4, layer: 3,
+      reqs: ['mercantilism'], boost: { t: 'built', b: 'bank', n: 3 },
+      desc: '解锁「公司」页面；研究完成后自动成立藻食公司和珊瑚公司。',
+      note: '鼓舞：银行达 3 级。' },
     { id: 'reformed', name: '归正会', icon: 'assets/civic-icons/era-4/era4-reformed.png', cost: 25000, era: 4, layer: 1,
       reqs: ['department'],
       /* 已建立宗教（religion 鼓舞类型，2026-10-01 新增于 tech.condMet）。
@@ -323,10 +338,6 @@
       card: 'card_museum',
       desc: '解锁政策卡「博物馆管理」；每完成一次轮回，艺术品效果额外提高 10%。',
       note: '鼓舞：博物馆达 3 级。' },
-    { id: 'macroeconomics', name: '宏观经济学', icon: 'assets/civic-icons/era-6/era6-macro.png', cost: 320000, era: 6, layer: 2,
-      reqs: ['massmedia'], boost: { t: 'built', b: 'bank', n: 3 },
-      desc: '解锁「公司」页面；研究完成后自动成立藻食公司和珊瑚公司。',
-      note: '鼓舞：银行达 3 级。' },
     { id: 'urbandesign', name: '城市设计', icon: 'assets/civic-icons/era-6/era6-urbandesign.png', cost: 340000, era: 6, layer: 2,
       reqs: ['massmedia'], boost: { t: 'built', b: 'canal', n: 20 },
       desc: '解锁奇观「全国快速物流通道」；王国潮道每级使精铁、钢产能 +1%，若同时建成「总物流站」，这部分产能加成翻倍。',

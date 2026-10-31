@@ -507,6 +507,100 @@
     if (btn) btn.onclick = hideModal;
   }
 
+  function showChallengeCompletePanel(outcome) {
+    var modal = el('modal'), box = el('modalBox');
+    if (!modal || !box || !outcome) return false;
+    resetModalChrome();
+    function escHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>\"']/g, function (ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+    box.innerHTML = '<div class="star-complete-panel drift-terra-complete-panel">' +
+      '<h2>★ 流浪泰拉 · 挑战完成</h2>' +
+      '<p>' + escHtml(outcome.goalText || '挑战目标已达成。') + '</p>' +
+      '<p class="muted">永久奖励已生效：' + escHtml(outcome.reward || '') + '。本局仍可继续发展。</p>' +
+      '<div class="break-controls"><button class="btn big" type="button" id="challengeCompleteClose">继续</button></div>' +
+      '</div>';
+    modal.classList.remove('hidden'); bodyModalClass(true);
+    var btn = el('challengeCompleteClose');
+    if (btn) btn.onclick = hideModal;
+    return true;
+  }
+
+  /* 流浪泰拉达标后播放四段分镜：点火特写 → 炉芯满载 → 地表发动机群 → 深空远景。 */
+  function showChallengeComplete(outcome) {
+    var modal = el('modal'), box = el('modalBox');
+    if (!modal || !box || !outcome) return false;
+    if (prefersReducedMotion()) return showChallengeCompletePanel(outcome);
+    clearBreakAnimation();
+    clearDysonAnimation();
+    var phases = ['impact', 'core', 'gaze', 'departure'];
+    var frameFiles = ['frame-01-ignition.webp', 'frame-02-v2.webp', 'frame-03-v2.webp', 'frame-04-v2.webp'];
+    var names = ['发动机点火', '炉芯满载', '全面点火', '驶向深空'];
+    var alts = [
+      '行星发动机点火近景：环形炉芯中喷出垂直火焰，蒸汽与火星翻涌',
+      '轨道视角的冰封泰拉：赤道一带的发动机网被同时点亮，蓝白光柱连成一圈',
+      '泰拉弧面上的行星发动机群依次点火，蓝白尾焰沿地平线升起，远处太阳照亮冰原',
+      '驶向深空的暗色泰拉，行星边缘泛起薄薄的冰蓝色大气辉光，远处恒星在上方闪耀'
+    ];
+    var captions = [
+      '<small>行星发动机 · 点火特写</small><h2>第一束火焰。</h2><p>主喷口点燃，火流穿过冰雾，远航由此开始。</p>',
+      '<small>流浪泰拉 · 星核蓄能</small><h2>炉芯，满载。</h2><p>热液能在冰封之下汇聚</p>',
+      '<small>行星发动机群 · 全面点火</small><h2>泰拉，挣脱旧轨。</h2><p>发动机沿地平线次第亮起，尾焰映出整颗星球的尺度。</p>',
+      '<small>告别太阳 · 深空启程</small><h2>启航</h2><p>摇篮与光被抛于身后，我们驶入茫茫星空</p>'
+    ];
+    var framesHtml = '', captionsHtml = '';
+    for (var i = 0; i < phases.length; i++) {
+      framesHtml += '<img class="break-frame-' + phases[i] + '" src="assets/backgrounds/sequence/era-10/drift-terra/' + frameFiles[i] + '" alt="' + alts[i] + '">';
+      captionsHtml += '<div class="break-caption-text break-cap-' + phases[i] + '">' + captions[i] + '</div>';
+    }
+    box.innerHTML =
+      '<section class="break-showcase drift-terra-showcase" aria-label="流浪泰拉通关演出">' +
+        '<div class="break-stage" id="terraStage" data-phase="impact">' +
+          '<div class="break-scene">' + framesHtml + '</div>' +
+          '<div class="terra-ignition" aria-hidden="true"></div>' +
+          '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="terraPhaseName">' + names[0] + '</span></span><span id="terraCounter">01 / 04</span></div>' +
+          '<div class="break-caption" aria-live="polite">' + captionsHtml + '</div>' +
+          '<div class="break-end-card"><small>挑战完成</small><strong>流浪泰拉 · 星际远航</strong></div>' +
+          '<div class="terra-progress" aria-hidden="true"><span></span></div>' +
+        '</div>' +
+        '<div class="break-controls"><button class="btn" id="terraReplay" type="button">↻ 重播</button><button class="btn big" id="terraContinue" type="button">跳过动画</button></div>' +
+      '</section>';
+    resetModalChrome();
+    modal.classList.add('break-modal', 'terra-ending-modal');
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+    var stage = el('terraStage'), phaseName = el('terraPhaseName'), counter = el('terraCounter');
+    var replay = el('terraReplay'), continueBtn = el('terraContinue');
+    var times = [0, 2600, 5200, 7900];
+    function setStep(index) {
+      stage.dataset.phase = phases[index];
+      if (phaseName) phaseName.textContent = names[index];
+      if (counter) counter.textContent = '0' + (index + 1) + ' / 04';
+      if (continueBtn && index === phases.length - 1) continueBtn.textContent = '查看结局';
+    }
+    function play() {
+      clearDysonAnimation();
+      /* 重播时先撤销动画类，再强制一次布局，让第一幕的镜头运动也从头开始。 */
+      stage.classList.remove('terra-animate');
+      if (stage.offsetWidth) stage.offsetWidth;
+      stage.classList.add('terra-animate');
+      setStep(0);
+      if (continueBtn) continueBtn.textContent = '跳过动画';
+      for (var j = 1; j < phases.length; j++) {
+        (function (index) { _dysonAnimationTimers.push(setTimeout(function () { setStep(index); }, times[index])); })(j);
+      }
+    }
+    if (replay) replay.onclick = play;
+    if (continueBtn) continueBtn.onclick = function () {
+      clearDysonAnimation();
+      showChallengeCompletePanel(outcome);
+    };
+    play();
+    return true;
+  }
+
   /* ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁2 / 用户拍 Q2）：戴森球通关演出与弹窗。
    * 镜像星空槽满槽先例（showStarComplete）：复用 #modal 浮层；无 modal 元素时 no-op
    * （dysonDone 已置位，星图戴森面板仍会显示竣工态，不丢信息）。
@@ -1373,7 +1467,7 @@
     var vh = el('villageHeadName');
     if (vh && SB.habitat && SB.habitat.habitatName) vh.textContent = SB.habitat.habitatName(s);
     renderRes(); renderShell(); renderPanes(); renderBreakBtn(); clock(); renderGrowBar();
-    SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderDrill(s);
+    SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderCore(s); SB.ui.renderParts.renderDrill(s);
     SB.ui.renderParts.renderGeek(s);
     SB.ui.renderParts.renderStar(s); SB.ui.renderParts.renderHydro(s); SB.ui.renderParts.renderReligion(s);
     SB.ui.renderParts.renderHabitatName(s);
@@ -1385,7 +1479,7 @@
     applyEraSkin(s);
     renderChallengeNotice(s);
     renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar();
-    SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderDrill(s);
+    SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderCore(s); SB.ui.renderParts.renderDrill(s);
     SB.ui.renderParts.renderGeek(s);
     SB.ui.renderParts.renderHydro(s);
     renderIdleTag(); renderEvent(s); SB.ui.renderCommon.paintHappy(s);
@@ -1786,7 +1880,7 @@
    * 【纪律】凡是往 #modal 里写内容的函数，写之前先 resetModalChrome()，再 add 自己的变体类。
    *   不许再靠「记得删掉哪几个类」——漏删 offline-summary-modal 正是这样发生的。 */
   var MODAL_VARIANT_CLASSES = ['offline-summary-modal', 'tree-modal', 'tree-tech', 'tree-civic',
-    'break-modal', 'void-ending-modal', 'void-civic-modal', 'story-modal', 'gov-picker-modal'];
+    'break-modal', 'void-ending-modal', 'terra-ending-modal', 'void-civic-modal', 'story-modal', 'gov-picker-modal'];
   var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box'];
   function resetModalChrome() {
     var modal = el('modal'), box = el('modalBox'), i;
@@ -2262,6 +2356,7 @@
     /* 星空槽满槽占位结算面板（2026-10-13 镜像破壳）：tickStar 满槽时调它弹面板。
      * 导出是因为 shell.tickStar 通过 SB.ui.render.showStarComplete 调用（与 showBreakPanel 同源）。 */
     showStarComplete: showStarComplete,
+    showChallengeComplete: showChallengeComplete,
     /* ERA10（2026-10-20）：戴森球通关弹窗。economy-tick 2f 段 dysonPct 达 1 时通过
      * SB.ui.render.showDysonComplete 调用（与 tickStar→showStarComplete 同款路径）。 */
     showDysonComplete: showDysonComplete,

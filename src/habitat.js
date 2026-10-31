@@ -108,6 +108,7 @@
     return !!(b && b.retiredBy && s && s.lvl && (s.lvl[b.retiredBy] || 0) > 0);
   }
   function unlocked(s, b) {
+    if (b.noChallenge && s && s.challenge && b.noChallenge.indexOf(s.challenge.id) >= 0) return false;
     if (b.defaultUnlockable) return true;
     if (retired(s, b)) return false;
     /* 默认锁着。猫国的 `unlockable` 在 Spec 里是 MANDATORY（必填），
@@ -144,6 +145,8 @@
 
   // 给 UI 用的解锁理由：为什么要灰掉
   function lockReason(s, b) {
+    if (b.noChallenge && s && s.challenge && b.noChallenge.indexOf(s.challenge.id) >= 0)
+      return '流浪泰拉挑战期间不可建造';
     if (b.requiredTech) {
       for (var i = 0; i < b.requiredTech.length; i++) {
         if (!s.techs[b.requiredTech[i]]) {

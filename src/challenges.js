@@ -40,15 +40,13 @@
         { label: '8 小时档', cap: 8 * 60 * 60 },
         { label: '4 小时档', cap: 4 * 60 * 60 }
       ] },
-    /* ERA9（寻光纪 · 本次实装占位）：流浪泰拉（drift_terra）。
-     * ⚠️ 当前**纯占位**：无规则、无奖励、单档，仅用于承接 ERA9 科技《严冬计划》的尤里卡
-     *   cond `{ t: 'challenge', id: 'drift_terra' }`（entered 语义 = 进入本挑战即可解锁严冬计划）。
-     *   G.E.E.K 运行态 + 流浪泰拉挑战的真实规则/奖励留待最后单独实装；在此之前进入它只触发
-     *   标准挑战流程（结算当前周目并重开），不施加任何限制、不给任何永久奖励（reward 占位文案）。
-     * ⚠️ kind 用「单次挑战」、tiers 单档，与 cold/small 同构，避免 resolveRun 走三档分支报错。 */
-    { id: 'drift_terra', name: '流浪泰拉', icon: '🪐', badge: 'assets/challenges/challenge-drift_terra-v2.jpg', kind: '单次挑战',
-      summary: '（占位）泰拉脱离轨道流浪，严冬将至。', rule: '（待实装）',
-      reward: '（待实装）', tiers: [{ label: '进入挑战', cap: null }] }
+    { id: 'drift_terra', name: '流浪泰拉', icon: '🪐', badge: 'assets/challenges/challenge-drift_terra-v3.png?v=2', kind: '单次挑战',
+      summary: '泰拉脱离轨道流浪，严冬将至。',
+      rule: '寒流季必定冰封且持续时间 ×2；太阳帆热液能产出 ×0.5。允许烧暖石；建成星核炉芯后解除冰封。',
+      reward: '永久暖流季全产 +30% · 寒流季时长 ×0.5 · G.E.E.K 环境改造时间 ×0.5',
+      goal: { t: 'all', of: [{ t: 'built', b: 'terra_engine', n: 50 }, { t: 'res', r: 'coreCharge', n: 50000000 }] },
+      goalText: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能',
+      tiers: [{ label: '星际远航', cap: null }] }
   ];
   var BY_ID = {};
   for (var i = 0; i < DEFINITIONS.length; i++) BY_ID[DEFINITIONS[i].id] = DEFINITIONS[i];
@@ -126,7 +124,52 @@
   function warmHeatingBlocked(s) {
     var a = active(s);
     if (!a || a.id !== 'cold' || !SB.economy || !SB.economy.season) return false;
-    return SB.economy.season(s.t).mult < 1;
+    return SB.economy.season(s).mult < 1;
+  }
+  function goalMet(s, goal) {
+    if (!goal) return false;
+    if (goal.t === 'all') {
+      for (var i = 0; i < (goal.of || []).length; i++) if (!goalMet(s, goal.of[i])) return false;
+      return true;
+    }
+    if (goal.t === 'built') return !!(s.lvl && (s.lvl[goal.b] || 0) >= goal.n);
+    if (goal.t === 'res') return !!(s.res && (s.res[goal.r] || 0) >= goal.n);
+    if (goal.t === 'wonders') {
+      var ow = SB.wonder && SB.wonder.owned ? SB.wonder.owned(s) : {};
+      return (goal.ids || []).every(function (id) { return !!ow[id]; });
+    }
+    return false;
+  }
+  function award(s, meta) {
+    if (!s || !s.challenge || s.challenge.id !== 'drift_terra' || s.challengeDone) return null;
+    var d = BY_ID.drift_terra, tier = Math.max(0, Math.min(d.tiers.length - 1, s.challenge.tier | 0));
+    if (tier !== tierDone(d.id, meta) || !goalMet(s, d.goal)) return null;
+    if (!meta.challenges) meta.challenges = emptyProgress();
+    meta.challenges.completed = meta.challenges.completed || {};
+    meta.challenges.completed.drift_terra = true;
+    var outcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label, reward: d.reward, goalText: d.goalText };
+    s.challengeDone = true;
+    s.challengeOutcome = outcome;
+    meta.challengePopupPending = outcome;
+    /* 奖励立即生效：本局后续寒流季采用「奖励 ×0.5，再乘挑战 ×2」的 600 秒时长。
+     * 保留上次季节标记，避免奖励落账时把当前冰封季重新掷一次。 */
+    if (SB.economy && SB.economy.lockSeasonLengths) SB.economy.lockSeasonLengths(s, meta, true);
+    if (SB.achv && SB.achv.unlockOnce) SB.achv.unlockOnce('driftTerra', meta);
+    /* 排行榜「最快流浪启程」（2026-10-31 建榜 · db 15061）：成绩 = 达成瞬间的墙钟秒。
+     * ⚠️ 用 wallT 不用 s.t：后者是逻辑秒、吃广告倍速，会把成绩腰斩。 */
+    if (SB.rank && SB.rank.submitRun) SB.rank.submitRun([{ key: 'drift', value: s.wallT }]);
+    if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    /* ⚠️ 季长奖励落在**本局**（s.seasonLengths），saveMeta 管不到它。
+     * 不立刻落盘 ⇒ 自动存档（5 秒）之间刷新 / 切后台被杀 ⇒ 读回来是「已完成 + 旧季长」，
+     * 而 resumeRun 只在 seasonLengthsVersion 缺失时重算 ⇒ 寒流 600→300 这条奖励静默丢失
+     * （2026-10-31 检查发现）。这一行是奖励入账的一部分，不是可选的保险。 */
+    if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
+    if (SB.game && SB.game.log) SB.game.log('流浪泰拉挑战达成：' + d.goalText + '。永久奖励已生效。');
+    return outcome;
+  }
+  function evaluate(s, meta) {
+    if (!s || !s.challenge || !meta) return null;
+    return award(s, meta);
   }
   function rewardFor(d, tier) {
     return d.tiers.length === 1 ? d.reward : d.rewards[tier];
@@ -195,6 +238,7 @@
   }
   function resolveRun(s, meta) {
     var a = s && s.challenge, d = a && BY_ID[a.id];
+    if (d && d.goal) return null; // goal 挑战由 evaluate() 即时结算，不依赖破壳/轮回
     if (!d || !s || s.shell > 0) return null;
     var tier = Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0));
     if (tier !== tierDone(d.id, meta)) return null;
@@ -222,6 +266,7 @@
     growthDuration: growthDuration, startingPopulation: startingPopulation,
     elapsedSeconds: elapsedSeconds, remainingSeconds: remainingSeconds, timedOut: timedOut, formatClock: formatClock,
     warmHeatingBlocked: warmHeatingBlocked, canStart: canStart, begin: begin, prepareStart: prepareStart,
-    resolveRun: resolveRun, rewardFor: rewardFor
+    resolveRun: resolveRun, rewardFor: rewardFor, goalMet: goalMet, evaluate: evaluate,
+    entered: function (s, id) { return !!(s && s.challenge && s.challenge.id === id); }
   };
 })(typeof window !== 'undefined' ? window : globalThis);

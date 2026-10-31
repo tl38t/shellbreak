@@ -176,6 +176,7 @@
       }
     }
     if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now() };
+    if (SB.economy && SB.economy.lockSeasonLengths) SB.economy.lockSeasonLengths(S, meta);
     if (prev && prev.perk) S.perk = Object.assign(SB.state.emptyPerks(), prev.perk);
     /* 自动点击开关跨周目继承（2026-10-28 用户拍）：freshRun 给的是 true，必须用 meta 偏好盖上，
      * 否则「暂停」在破壳后会被静默重置成开。 */
@@ -195,6 +196,17 @@
   // 继续未完成的上一周目（刷新页面时）
   function resumeRun(saved) {
     S = saved;
+    /* 季长自愈（2026-10-31）：除了「缺版本号」的老档，还有一种格局要重算 ——
+     * meta 已记「流浪泰拉完成」但本局季长还是旧的（seasonRewardAtStart=false）。
+     * 那是奖励入账只写了 meta 没写 run 的存档（修复前的产物），不重算的话
+     * 寒流季时长 ×0.5 这条永久奖励对老档永久失效。
+     * preserveSeasonTurn=true：只换表、不重置换季游标，避免读档时把当前冰封季重掷一次。 */
+    var _rewardNow = !!(meta.challenges && meta.challenges.completed && meta.challenges.completed.drift_terra);
+    if (SB.economy && SB.economy.lockSeasonLengths &&
+        (!S.seasonLengthsVersion || (_rewardNow && !S.seasonRewardAtStart))) {
+      SB.economy.lockSeasonLengths(S, meta, !!S.seasonLengthsVersion);
+      SB.state.saveRun(snapshot(S));
+    }
     /* 兼容更新前已经建成卫星但尚未记永久解锁旗的存档。 */
     if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
     /* 2026-10-24 老档补偿（docs/ACHV_DESIGN_v0.3.md §四·1，事项 3 用户拍「要」）：
@@ -1100,6 +1112,8 @@
        * 不随倍速放大——倍速只加快世界、不加快自动点击节奏。 */
       if (!loop.job && SB.autoplay && SB.autoplay.autoClick) SB.autoplay.autoClick(S, elapsed, emit);
     }
+    if (S && SB.challenges && SB.challenges.evaluate) SB.challenges.evaluate(S, meta);
+    if (S) flushChallengePopup();
     // 存档节流：localStorage 写入较贵，5 秒一次足够
     if (S && !S.broken && now - (loop._lastSave || 0) > 5000) {
       loop._lastSave = now;
@@ -1170,7 +1184,7 @@
    * 回到在线步长，使工业消耗与保温按同一时间顺序交错结算。 */
   function offlineStep(s, j, gameLeft) {
     var dt = Math.min(OFFLINE_STEP, gameLeft);
-    var seasonLeft = SB.CFG.SEASON_TICKS - (s.t % SB.CFG.SEASON_TICKS);
+    var seasonLeft = SB.economy.seasonLeftTicks(s);
     // tick 在推进 s.t 后换季，所以跨季的最后一个 0.1s tick 用新季倍率。
     // 留出这一步单独结算，避免整块 dt 在边界处提前套用新季节。
     if (seasonLeft > STEP + 1e-9) dt = Math.min(dt, seasonLeft - STEP);
@@ -1185,7 +1199,7 @@
       var famineLeft = (60 - (s.famine || 0)) * STEP;
       if (famineLeft > 1e-9) dt = Math.min(dt, famineLeft);
     }
-    var warmCold = s.warmOn && SB.economy.season(s.t).mult < 1;
+    var warmCold = s.warmOn && SB.economy.season(s).mult < 1;
     if (warmCold && s.warmOn && s.res.warmstone > 0) {
       var warmstoneRate = SB.economy.rates(s).warmstone || 0;
       var reliefRate = SB.economy.warmBurningNow(s) ? SB.CFG.WARM_RATE : 0;
@@ -1228,6 +1242,7 @@
         SB.economy.tick(j.s, dt, null, { skipFoodPop: true, skipHappy: true, deferBreakUI: true });   // 其他资源/season/pump/shell 仍走原 tick；food/happy 交给积分器
         SB.offline.integrateFoodPop(j.s, dt, { t0: tPrev }, null);  // 食物/人口 + 幸福度：事件边界闭式积分（替代 tick 内联 food/happy 段）
         if (j.s._seasonGrantPending) { SB.economy.seasonGrant(j.s); j.s._seasonGrantPending = false; }
+        if (SB.challenges && SB.challenges.evaluate) SB.challenges.evaluate(j.s, meta);
         j.tp = (j.tp || 0) + dt;
         gameLeft -= dt;
         realDone += dt / mul;
@@ -1296,6 +1311,18 @@
     if (!R) return;
     if (s.civics && s.civics.ascend_void && R.showAscendVoid) R.showAscendVoid(s);
     else if (R.showDysonComplete) R.showDysonComplete(s);
+  }
+  function flushChallengePopup() {
+    var outcome = meta && meta.challengePopupPending;
+    if (!outcome || !S || (S.broken && S.shellOpened && !S.breakSettled)) return false;
+    var modal = root.document && root.document.getElementById ? root.document.getElementById('modal') : null;
+    if (modal && !modal.classList.contains('hidden')) return false;
+    var shown = SB.ui && SB.ui.render && SB.ui.render.showChallengeComplete
+      ? SB.ui.render.showChallengeComplete(outcome) : false;
+    if (!shown) return false;
+    meta.challengePopupPending = null;
+    SB.state.saveMeta(meta);
+    return true;
   }
   function showOfflineSettlement(j, breakReport) {
     var lines = [], resourceRows = [], overviewCards = '', incidentRows = '', any = false, rk = RESS_KEYS(), i, k, d;

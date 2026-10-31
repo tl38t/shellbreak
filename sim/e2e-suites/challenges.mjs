@@ -3,22 +3,253 @@ export function run({ SB, check, noop }) {
   console.log('\n=== 轮回挑战 ===');
   const meta = SB.game.meta();
   const savedProgress = JSON.parse(JSON.stringify(meta.challenges || {}));
-  const empty = () => ({ completed: { cold: false, small: false, science: 0, abyss: 0 } });
+  const savedAchv = JSON.parse(JSON.stringify(meta.achv || {}));
+  const savedAchievements = JSON.parse(JSON.stringify(meta.achievements || {}));
+  const savedChallengePopupPending = meta.challengePopupPending;
+  const empty = () => ({ completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false } });
   try {
     meta.challenges = empty();
     const api = SB.challenges;
     let s = SB.state.freshRun(false);
 
-    check('五类挑战已注册，分档挑战只开放顺序下一档', api.list().length === 5 &&
+    check('六类挑战已注册，分档挑战只开放顺序下一档', api.list().length === 6 &&
       api.canStart('science', s, meta) && !api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
       '挑战数=' + api.list().length);
     let pane = SB.ui.render.paneChallenges();
-    check('挑战独立页展示五项挑战与首次开始入口',
+    check('挑战独立页展示六项挑战与首次开始入口',
       ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉'].every(name => pane.includes(name)) &&
       pane.includes('暖石产出 -30%') && pane.includes('学者、书手各 ≤ 15 人') &&
       pane.includes('总人口、职业人数门槛豁免') &&
-      (pane.match(/data-challenge-start=/g) || []).length === 5,
+      (pane.match(/data-challenge-start=/g) || []).length === 6,
       '开始入口=' + ((pane.match(/data-challenge-start=/g) || []).length));
+    check('挑战页总说明不再误称所有挑战都要完成神学并破壳',
+      !pane.includes('完成《神学》资格并凿穿天壳，才算挑战通关') && pane.includes('各项挑战有各自的目标'),
+      '通关说明按各挑战目标执行');
+    const liveRun = SB.game.run();
+    const savedLiveChallenge = liveRun.challenge, savedLiveChallengeDone = liveRun.challengeDone;
+    liveRun.challenge = { id: 'drift_terra', tier: 0 };
+    liveRun.challengeDone = false;
+    const activePane = SB.ui.render.paneChallenges();
+    check('流浪泰拉挑战卡说明目标达成时立即发奖',
+      activePane.includes('达成目标时永久奖励会立即生效') &&
+      activePane.includes('行星发动机 0 / 50'));
+    liveRun.challenge = savedLiveChallenge;
+    liveRun.challengeDone = savedLiveChallengeDone;
+    {
+      const drift = SB.state.freshRun(false);
+      drift.challenge = { id: 'drift_terra', tier: 0 };
+      drift.lvl.terra_engine = 50;
+      drift.res.coreCharge = 50000000;
+      drift.shell = 0; drift.broken = true;
+      const lockedLengths = SB.economy.lockSeasonLengths(drift, empty());
+      const outcome = api.evaluate(drift, meta);
+      const repeated = api.evaluate(drift, meta);
+      check('流浪泰拉目标同时要求 50 座发动机与 50M 炉芯池，破壳状态不影响达成结算',
+        !!outcome && outcome.id === 'drift_terra' && drift.challengeDone === true &&
+        meta.challenges.completed.drift_terra === true && meta.challengePopupPending === outcome &&
+        api.resolveRun(drift, meta) === null,
+        outcome ? outcome.goalText : '未达成');
+      check('流浪泰拉奖励幂等，已达成后重复 evaluate 不会再次发奖', repeated === null &&
+        api.evaluate(drift, meta) === null, '重复 evaluate 返回 null');
+      check('挑战起始寒流季为 1200 秒，奖励入账后本局即时降为 600 秒',
+        lockedLengths[2] === 1200 && drift.seasonLengths[2] === 600,
+        lockedLengths.join('/') + ' → ' + drift.seasonLengths.join('/'));
+    }
+    {
+      const regular = SB.state.freshRun(false);
+      regular.challenge = { id: 'drift_terra', tier: 0 };
+      const withoutReward = SB.economy.lockSeasonLengths(regular, empty());
+      const afterRewardMeta = { challenges: empty() };
+      afterRewardMeta.challenges.completed.drift_terra = true;
+      const rewarded = SB.economy.lockSeasonLengths(SB.state.freshRun(false), afterRewardMeta);
+      check('季长奖励：普通周目寒流季 300 秒，奖励与挑战叠加后 600 秒',
+        withoutReward[2] === 1200 && rewarded[2] === 300 &&
+        SB.economy.lockSeasonLengths(regular, afterRewardMeta)[2] === 600,
+        withoutReward[2] + ' / ' + rewarded[2] + ' / ' + regular.seasonLengths[2]);
+    }
+    {
+      const base = SB.state.freshRun(false);
+      const challenge = SB.state.freshRun(false);
+      challenge.challenge = { id: 'drift_terra', tier: 0 };
+      base.sunSails = challenge.sunSails = 100;
+      const baseRate = SB.economy.hydroAlloc(base, 1).sunSailRate;
+      const challengeRate = SB.economy.hydroAlloc(challenge, 1).sunSailRate;
+      check('流浪泰拉太阳帆热液能减半（相同帆数）',
+        baseRate > 0 && Math.abs(challengeRate / baseRate - 0.5) < 1e-9,
+        baseRate + ' / ' + challengeRate);
+    }
+    {
+      const mainline = SB.state.freshRun(false);
+      const challenge = SB.state.freshRun(false);
+      mainline.era = challenge.era = 10;
+      mainline.eureka.mwconverge = challenge.eureka.mwconverge = true;
+      mainline.eurekaMet.mwconverge = challenge.eurekaMet.mwconverge = true;
+      mainline.techs.microwave_heat = challenge.techs.microwave_heat = true;
+      mainline.sunSails = challenge.sunSails = 1000;
+      mainline.res.science = challenge.res.science = 1e9;
+      challenge.challenge = { id: 'drift_terra', tier: 0 };
+      const studies = [];
+      for (let i = 0; i < 5; i++) studies.push(SB.tech.study(mainline, 'mwconverge', noop));
+      check('微波收敛可在主线研究五级，并按等级提高太阳帆热液能',
+        studies.every(Boolean) && mainline.techLv.mwconverge === 5 &&
+        SB.tech.level(mainline, 'mwconverge') === 5 &&
+        SB.tech.studyBlocked(mainline, 'mwconverge') === '已掌握' &&
+        SB.economy.hydroAlloc(mainline, 1).sunSailRate > SB.economy.hydroAlloc(challenge, 1).sunSailRate,
+        '研究=' + studies.join('/') + ' 等级=' + (mainline.techLv.mwconverge || 0));
+    }
+    {
+      const mainline = SB.state.freshRun(false);
+      const challenge = SB.state.freshRun(false);
+      mainline.era = challenge.era = 10;
+      mainline.eureka.reheavfusion = true;
+      mainline.eurekaMet.reheavfusion = true;
+      mainline.techs.winter = mainline.techs.nuclear_fusion = true;
+      mainline.res.science = 1e9;
+      challenge.challenge = { id: 'drift_terra', tier: 0 };
+      check('限定科技仅流浪泰拉挑战可研究，灰态原因明确',
+        !SB.tech.canStudy(mainline, 'reheavfusion') &&
+        SB.tech.studyBlocked(mainline, 'reheavfusion') === '仅限流浪泰拉挑战期间研究',
+        SB.tech.studyBlocked(mainline, 'reheavfusion'));
+    }
+    {
+      const drift = SB.state.freshRun(false);
+      drift.challenge = { id: 'drift_terra', tier: 0 };
+      drift.era = 9;
+      SB.TECHS.filter(t => t.era < 9 || (t.era === 9 && t.id !== 'winter' && t.id !== 'mwconverge'))
+        .forEach(t => { drift.techs[t.id] = true; });
+      const goal = SB.aiStrategy.researchGoal(drift);
+      check('自动 bot 把「严冬计划」组合尤里卡拆成当前待办的 G.E.E.K 泰拉改造',
+        goal.key && goal.key.id === 'winter' && goal.cond && goal.cond.t === 'geekTerra',
+        '目标=' + (goal.key && goal.key.id) + ' 条件=' + (goal.cond && goal.cond.t));
+      drift.wonders = { wonder_geek: true };
+      drift.geek = { geekOn: false, enceladusDone: true, terraDone: false };
+      const decision = SB.aiStrategy.step(drift, { emit: noop });
+      check('自动 bot 在等待泰拉改造尤里卡时启动已建成的 G.E.E.K',
+        drift.geek.geekOn === true && decision.condition === 'geekTerra',
+        'G.E.E.K=' + drift.geek.geekOn + ' 条件=' + decision.condition);
+    }
+    {
+      const drift = SB.state.freshRun(false);
+      drift.challenge = { id: 'drift_terra', tier: 0 };
+      drift.era = 10; drift.eureka.void_altar = true;
+      drift.techs.ascend_void = true; drift.res.faith = 1e9;
+      drift.lvl.hall = 10; drift.res.stone = 1e9;
+      check('流浪泰拉禁建虚境祭坛',
+        SB.habitat.unlocked(drift, 'void_altar') === false &&
+        SB.habitat.build(drift, 'void_altar', noop) === false,
+        'unlocked=' + SB.habitat.unlocked(drift, 'void_altar'));
+    }
+    {
+      const poolFirst = SB.state.freshRun(false);
+      poolFirst.challenge = { id: 'drift_terra', tier: 0 };
+      poolFirst.wonders = { wonder_terra_core: true };
+      poolFirst.lvl.terra_vat = 1;
+      poolFirst.res.coreCharge = 20;
+      const before = poolFirst.res.coreCharge;
+      const expected = SB.economy.hydroAlloc(poolFirst, 0.1);
+      SB.economy.tick(poolFirst, 0.1, noop);
+      check('水舱先从炉芯池取能，dt=0.1 时池扣 10，不重扣或漏乘 dt',
+        expected.vatPoolDraw === 10 && expected.vatFlowDraw === 0 &&
+        Math.abs(poolFirst.res.coreCharge - (before - 10)) < 1e-9,
+        '池取=' + expected.vatPoolDraw + ' 流取=' + expected.vatFlowDraw + ' 池变化=' + (poolFirst.res.coreCharge - before));
+    }
+    {
+      const freeze = SB.state.freshRun(false);
+      freeze.challenge = { id: 'drift_terra', tier: 0 };
+      const beforeCore = SB.economy.rollFreeze(freeze);
+      freeze.frozen = true;
+      freeze._seasonIdx = SB.economy.seasonIdx(freeze);
+      freeze.wonders = { wonder_terra_core: true };
+      SB.economy.seasonTurn(freeze);
+      const afterCore = SB.economy.rollFreeze(freeze);
+      const vat = SB.state.freshRun(false);
+      vat.lvl.terra_vat = 2;
+      const activeCap = SB.economy.popCap(vat);
+      vat.terraVatStop = 2;
+      check('流浪泰拉在炉芯建成前必定冰封；炉芯建成后解除冰封，停用水舱即刻少 40 上限',
+        beforeCore === true && afterCore === false && freeze.frozen === false &&
+        activeCap === SB.economy.popCap(SB.state.freshRun(false)) + 40 &&
+        SB.economy.popCap(vat) === activeCap - 40,
+        '冻结=' + beforeCore + '/' + afterCore + ' 人口上限=' + activeCap + '（停用后 ' + SB.economy.popCap(vat) + '）');
+    }
+    {
+      /* 2026-10-31 用户拍：断电后上限立刻降、人口缓慢降低（不是瞬间蒸发）。 */
+      const slow = SB.state.freshRun(false);
+      slow.challenge = { id: 'drift_terra', tier: 0 };
+      slow.lvl.terra_vat = 2;
+      const fullCap = SB.economy.popCap(slow);
+      slow.pop = fullCap;
+      slow.res.kelp = 1e6;
+      slow.terraVatStop = 2;
+      const capAfterStop = SB.economy.popCap(slow);
+      SB.economy.tick(slow, 0.1, noop);
+      const afterTenth = slow.pop;
+      SB.economy.tick(slow, 1, noop);
+      const afterOne = slow.pop;
+      for (let i = 0; i < 90; i++) SB.economy.tick(slow, 1, noop);
+      check('水舱断电后人口按秒缓慢离场（0.1 秒不掉人、1 秒掉 2 人、最终回到上限）',
+        capAfterStop === fullCap - 40 && afterTenth === fullCap && afterOne === fullCap - 2 &&
+        slow.pop === capAfterStop,
+        '上限 ' + fullCap + '→' + capAfterStop + ' / 人口 0.1s=' + afterTenth +
+        ' 1.1s=' + afterOne + ' 最终=' + slow.pop);
+    }
+    {
+      const base = SB.state.freshRun(false);
+      base.lvl.fissionplant = 1; base.techs.nuclear_fusion = true; base.res.stone = 1000;
+      const boosted = SB.state.freshRun(false);
+      boosted.lvl.fissionplant = 1; boosted.techs.nuclear_fusion = true;
+      boosted.upgrades.upg_reheavfusion = true; boosted.res.stone = 1000;
+      const starved = SB.state.freshRun(false);
+      starved.lvl.fissionplant = 1; starved.techs.nuclear_fusion = true;
+      starved.upgrades.upg_reheavfusion = true; starved.res.stone = 500;
+      const baseRate = SB.economy.hydroAlloc(base, 1).fissionRate;
+      const full = SB.economy.hydroAlloc(boosted, 1);
+      const partial = SB.economy.hydroAlloc(starved, 1);
+      check('重核聚变升级耗石充足时热液能翻倍，石料短缺时按供料比例降低增产',
+        full.fissionRate === baseRate * 2 && partial.fissionStoneDraw === 500 &&
+        partial.fissionRate === baseRate * 1.5,
+        '基础=' + baseRate + ' 满料=' + full.fissionRate + ' 半料=' + partial.fissionRate);
+    }
+    {
+      const base = SB.state.freshRun(false);
+      base.lvl.siltpit = 1; base.jobs.miner = 10;
+      const crust = SB.state.freshRun(false);
+      crust.lvl.siltpit = 1; crust.jobs.miner = 10; crust.upgrades.upg_crustmine = true;
+      const baseRates = SB.economy.rates(base), crustRates = SB.economy.rates(crust);
+      const expectedMetal = 10 * 0.05 * SB.economy.siltPitMul(crust);
+      const expectedTheta = 10 * 0.005 * SB.economy.siltPitMul(crust);
+      const plated = SB.state.freshRun(false);
+      plated.lvl.siltpit = 1; plated.wonders = { wonder_crustplate: true };
+      const plainMul = SB.economy.siltPitMul(base);
+      check('地壳钻井伴生金属与 θ 生物金属；板块构件同时放大矿坑与瑞亚星产出',
+        Math.abs((crustRates.silt - baseRates.silt) - expectedMetal) < 1e-9 &&
+        Math.abs(crustRates.thetaMetal - expectedTheta) < 1e-9 &&
+        Math.abs(SB.economy.siltPitMul(plated) / plainMul - 1.3) < 1e-9 &&
+        SB.economy.rheaMul(plated) === 1.3,
+        '金属=' + (crustRates.silt - baseRates.silt) + ' θ=' + crustRates.thetaMetal + ' 矿坑×' + SB.economy.siltPitMul(plated) + ' 瑞亚×' + SB.economy.rheaMul(plated));
+    }
+    {
+      const flow = SB.state.freshRun(false);
+      flow.challenge = { id: 'drift_terra', tier: 0 };
+      flow.wonders = { wonder_terra_core: true };
+      flow.lvl.terra_vat = 1;
+      flow.sunSails = 6000;
+      const before = flow.res.coreCharge;
+      const expected = SB.economy.hydroAlloc(flow, 0.1).coreNetRate;
+      SB.economy.tick(flow, 0.1, noop);
+      check('水舱池空时占用剩余热液能流，炉芯净增速率与实际结算一致',
+        expected > 0 && Math.abs((flow.res.coreCharge - before) / 0.1 - expected) < 1e-7,
+        '预期=' + expected.toFixed(4) + '/秒 实得=' + ((flow.res.coreCharge - before) / 0.1).toFixed(4) + '/秒');
+    }
+    {
+      const full = SB.state.freshRun(false);
+      full.wonders = { wonder_terra_core: true };
+      full.sunSails = 1000;
+      full.res.coreCharge = 50000000 - 1;
+      SB.economy.tick(full, 1, noop);
+      check('星核炉芯池封顶 50M，超出流量不会溢出上限',
+        full.res.coreCharge === 50000000, '存量=' + full.res.coreCharge);
+    }
     meta.challenges = { completed: { cold: true, small: true, science: 1, abyss: 1 } };
     pane = SB.ui.render.paneChallenges();
     check('单次挑战完成后关闭入口，分档挑战只显示下一档入口',
@@ -106,10 +337,9 @@ export function run({ SB, check, noop }) {
     s.challenge = { id: 'science', tier: 0 };
     const sciencePeopleGates = SB.TECHS.filter(t => t.cond && (t.cond.t === 'pop' || t.cond.t === 'job'));
     const civicPeopleGates = SB.CIVICS.filter(c => c.boost && (c.boost.t === 'pop' || c.boost.t === 'job'));
-    /* ERA8（2026-10-18）：protoai 尤里卡「人口 70」加入 ⇒ 科技人数门槛 3 → 4
-     *    （「忽视科文仍保留人数门槛」的语义要求新门槛同样被正常判定——下面 every 照查）。 */
+    /* 科技与市政人数门槛按当前数据表计数；新增门槛必须一起接受挑战门禁回归。 */
     check('忽视科文仍保留尤里卡与鼓舞中的所有人数门槛', !api.ignorePopulationGates(s) &&
-      sciencePeopleGates.length === 4 && civicPeopleGates.length === 3 &&
+      sciencePeopleGates.length === 4 && civicPeopleGates.length === 4 &&
       sciencePeopleGates.every(t => !SB.tech.condMet(s, t.cond)) &&
       civicPeopleGates.every(c => !SB.civic.boostMet(s, c)),
       '人数门槛仍由正常条件判定');
@@ -235,6 +465,9 @@ export function run({ SB, check, noop }) {
       cleared ? cleared.name + '：' + cleared.reward : '挑战未完成');
   } finally {
     meta.challenges = savedProgress;
+    meta.achv = savedAchv;
+    meta.achievements = savedAchievements;
+    meta.challengePopupPending = savedChallengePopupPending;
     SB.state.saveMeta(meta);
   }
 }

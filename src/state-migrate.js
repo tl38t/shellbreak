@@ -22,6 +22,15 @@
         startedAt: typeof raw.challenge.startedAt === 'number' && isFinite(raw.challenge.startedAt) && raw.challenge.startedAt > 0
           ? raw.challenge.startedAt : 0 };
     } else out.challenge = null;
+    out.challengeDone = !!(raw.challengeDone && out.challenge && out.challenge.id === 'drift_terra');
+    out.challengeOutcome = out.challengeDone && raw.challengeOutcome && typeof raw.challengeOutcome === 'object'
+      ? raw.challengeOutcome : null;
+    var rawSeasonLengths = Array.isArray(raw.seasonLengths) ? raw.seasonLengths : null;
+    out.seasonLengths = rawSeasonLengths && rawSeasonLengths.length === (SB.SEASONS || []).length &&
+      rawSeasonLengths.every(function (n) { return typeof n === 'number' && isFinite(n) && n > 0; })
+      ? rawSeasonLengths.slice() : (SB.SEASONS || []).map(function (season) { return season.ticks || SB.CFG.SEASON_TICKS || 600; });
+    out.seasonRewardAtStart = raw.seasonRewardAtStart === true;
+    out.seasonLengthsVersion = raw.seasonLengthsVersion === 1 && !!rawSeasonLengths ? 1 : 0;
     var repairedResources = [];
     function fixTable(obj, ref, repairKeys) {
       var o = {}, key;
@@ -34,6 +43,7 @@
       return o;
     }
     out.res = fixTable(raw.res, base.res, repairedResources);
+    out.res.coreCharge = Math.max(0, Math.min(50000000, out.res.coreCharge || 0));
     /* 旧档破壳后可能已经点过「留在这一局」（broken 被复位）。壳厚为 0
      * 表示本周目已经破壳；补上一次性结算标记，避免读档后重复发轮回奖励。 */
     out.shellOpened = raw.shellOpened === true || (typeof raw.shell === 'number' && raw.shell <= 0);
@@ -63,6 +73,7 @@
       configurable: true
     });
     out.lvl = fixTable(raw.lvl, base.lvl);
+    out.terraVatStop = Math.max(0, Math.min(out.lvl.terra_vat || 0, Math.floor(Number(raw.terraVatStop) || 0)));
     /* 发射场各自保存帆/节点周期余数。旧版只有共用的 sunSailProc / dysonProc，
      * 将这份余数迁到首个已建发射场，避免升级后丢失已有进度或复制出多份进度。 */
     var _launchIds = [], _launchDefs = SB.BUILDINGS || [];
@@ -254,6 +265,16 @@
         if (!hit) continue;
       }
       out.techs[nid] = true;
+    }
+    out.techLv = {};
+    var rawTechLv = raw.techLv && typeof raw.techLv === 'object' && !Array.isArray(raw.techLv) ? raw.techLv : {};
+    for (var tlId in out.techs) {
+      var techDef = null;
+      for (var tli = 0; SB.TECHS && tli < SB.TECHS.length; tli++) if (SB.TECHS[tli].id === tlId) { techDef = SB.TECHS[tli]; break; }
+      var maxTechLv = techDef && techDef.maxLevel > 0 ? techDef.maxLevel : 1;
+      var savedLv = rawTechLv[tlId];
+      out.techLv[tlId] = typeof savedLv === 'number' && isFinite(savedLv)
+        ? Math.max(1, Math.min(maxTechLv, Math.floor(savedLv))) : 1;
     }
     out.techVer = (out.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约（迁移写入 s.techs 后失效旧缓存）
     /* 政策卡槽升维（2026-09-29）：s.card 单值 → s.cards 数组。

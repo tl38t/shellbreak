@@ -83,7 +83,7 @@
     /* 闸的判据在 economy.warmBurningNow（mult<1），这里只做展示层的归类：
      * 用 season 而不是 burning 反推「非寒流季」——烧不烧还叠加了石够不够，
      * 反推会把「石不够」误报成「不在寒流季」，提示就自相矛盾了。 */
-    var inCold = SB.economy.season(s.t).mult < 1;
+    var inCold = SB.economy.season(s).mult < 1;
     var challengeBlocksHeating = !!(SB.challenges && SB.challenges.warmHeatingBlocked(s));
     var burning = SB.economy.warmBurning(s);
     var sig = (s.warmOn ? 'on' : 'off') + '|' + (inCold ? 'c' : 'w') + '|' +
@@ -108,6 +108,25 @@
     /* 库存数字单独刷：不进签名，所以烧起来时它是唯一在动的节点，按钮不动。 */
     var ws = el('envWarmWs');
     if (ws) ws.textContent = Math.floor(s.res.warmstone || 0);
+  }
+
+  function renderCore(s) {
+    var box = el('envCore'); if (!box) return;
+    var owned = !!(SB.wonder && SB.wonder.owned && SB.wonder.owned(s).wonder_terra_core);
+    if (!owned) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = '';
+    var charge = Math.max(0, Math.min(50000000, (s.res && s.res.coreCharge) || 0));
+    var pct = charge / 50000000 * 100;
+    var flow = SB.economy.hydroAlloc(s, 1);
+    var net = flow.coreNetRate || 0;
+    var sign = net > 0 ? '+' : '';
+    var vat = SB.economy.activeTerraVat(s);
+    var html = '<div><div class="nm">' + envWonderIcon('wonder_terra_core') + '泰拉中央星核炉芯' +
+      '<span class="tag">' + pct.toFixed(2) + '%</span></div>' +
+      '<div class="ds">储能 ' + SB.economy.fmtAmt(charge) + ' / 50M · 净增 ' + sign + net.toFixed(2) + '/秒' +
+      (vat ? ' · 水舱运行 ' + vat + ' 座（优先耗池，池空后占热液能流）' : '') + '</div>' +
+      '<div class="tree-progress"><i style="width:' + pct.toFixed(2) + '%"></i></div></div>';
+    if (box.innerHTML !== html) box.innerHTML = html;
   }
 
   /* ── 天穹钻机启动行（2026-10-07）────────────────────────────────────
@@ -512,6 +531,7 @@
   }
   parts.renderEnv = renderEnv;
   parts.renderWarm = renderWarm;
+  parts.renderCore = renderCore;
   parts.renderDrill = renderDrill;
   parts.renderGeek = renderGeek;
   parts.renderStar = renderStar;

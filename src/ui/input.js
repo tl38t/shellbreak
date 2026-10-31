@@ -7,6 +7,20 @@
   var E = null;
   var folkControlPointerActive = false;
   var folkControlPointerGeneration = 0;
+  /* ⚠️ 2026-10-31：指针保护必须有**墙钟兜底**（原实现只靠 pointerup/click 复位）。
+   *   机制：render.js 的 renderPanes 在 folkControlPointerActive 为真时**整帧跳过** #pane-folk，
+   *   目的是别在 pointerdown → 合成 click 的空档里把按钮节点换掉（换了 click 就没 target）。
+   *   问题是复位只有两条路 —— pointerup / pointercancel（document 上）和真的 click 到达。
+   *   **只要这三者一个都没来，标志就永久卡 true** ⇒ renderPanes 永远跳过族民面板 ⇒
+   *   玩家点 ＋ / − / ×N，数据其实改了，但面板**永不重画**，表现就是「人口分配不了」：
+   *   数字不动、按钮灰态不动、步长切了没反应。且它只活在 JS 内存里
+   *   ⇒ 轮回/重开本周目不重置，安卓切后台再回来 JS 上下文也没重建 ⇒ 「重启几次都没恢复」。
+   *   会丢事件的真实场景：手指按下后转为原生滚动（部分 WebKit 只发 pointercancel 到被捕获的元素）、
+   *   手指移出视口松手、小游戏容器接管手势。
+   *   兜底取 1500ms：远长于 down→click 的正常空档（<200ms），又短于一次 renderPanes 周期×1，
+   *   最坏情况下玩家最多看到一帧没刷新，之后自愈。 */
+  var FOLK_POINTER_GUARD_MS = 1500;
+  var folkControlPointerDeadline = 0;
 
   function run() { return SB.game.run(); }
   function emit(msg) { SB.game.emit(msg); }
@@ -29,6 +43,7 @@
 
     dragMoved = false;
     folkControlPointerActive = false;
+    folkControlPointerDeadline = 0;
     folkControlPointerGeneration++;
     if (button.disabled) return true;
     var d = button.dataset || {};
@@ -315,6 +330,19 @@
             (_sprun * (SB.UNIT.drillHydro || 0.3)).toFixed(2) + '/秒';
         }
         SB.game.log(_spmsg + '。');
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
+    if (d.terraVatInc || d.terraVatDec) {
+      var _tvlv = s.lvl.terra_vat || 0;
+      var _tvstop = Math.max(0, Math.min(_tvlv, Math.floor(s.terraVatStop || 0)));
+      _tvstop += d.terraVatDec ? 1 : -1;
+      _tvstop = Math.max(0, Math.min(_tvstop, _tvlv));
+      if (_tvstop !== (s.terraVatStop || 0)) {
+        s.terraVatStop = _tvstop;
+        var _tvrun = _tvlv - _tvstop;
+        SB.game.log('泰拉水舱：开 ' + _tvrun + '/' + _tvlv + ' 座，热液能需求 ' + (_tvrun * 100) + '/秒。');
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -821,6 +849,8 @@
   function onPointerDown(e) {
     var t = e.target;
     folkControlPointerActive = !!(t && t.closest && t.closest('#pane-folk .folk-job-controls button'));
+    /* 武装墙钟兜底（见文件头 FOLK_POINTER_GUARD_MS 那条注）：只有真的按在岗位按钮上才武装。 */
+    folkControlPointerDeadline = folkControlPointerActive ? (Date.now() + FOLK_POINTER_GUARD_MS) : 0;
     /* 每次新指针操作都清掉上次树图拖动标记。触屏不接管拖动，但仍要清标记；
      * 否则上一次拖出页面且没有合成 click 时，后续触屏点击会被 onClick 当成拖动吞掉。 */
     dragMoved = false;
@@ -861,12 +891,26 @@
     if (folkControlPointerActive) {
       var generation = folkControlPointerGeneration;
       root.setTimeout(function () {
-        if (generation === folkControlPointerGeneration) folkControlPointerActive = false;
+        if (generation === folkControlPointerGeneration) {
+          folkControlPointerActive = false;
+          folkControlPointerDeadline = 0;
+        }
       }, 120);
     }
   }
 
-  function isFolkControlPointerActive() { return folkControlPointerActive; }
+  /* ⚠️ 读侧自愈（2026-10-31）：renderPanes 每 2 秒读一次这个函数，所以把兜底放在**读侧**
+   *   就够了，不需要额外定时器。超时即清标志并让 generation 前进一步 ——
+   *   前进一步是为了让 `onPointerUp` 里那个 120ms 的 setDelay 回调失效（它带 generation 校验），
+   *   避免它按旧代次又清一次、把新一次按压的保护误撤掉。 */
+  function isFolkControlPointerActive() {
+    if (folkControlPointerActive && folkControlPointerDeadline && Date.now() > folkControlPointerDeadline) {
+      folkControlPointerActive = false;
+      folkControlPointerDeadline = 0;
+      folkControlPointerGeneration++;
+    }
+    return folkControlPointerActive;
+  }
 
   function onChange(e) {
     var t = e.target || {};

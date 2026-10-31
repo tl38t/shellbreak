@@ -614,6 +614,7 @@
     for (k in wc) s.res[k] -= wc[k];
     s.wonders = s.wonders || {};
     s.wonders[id] = true;
+    if (id === 'wonder_terra_core') s.frozen = false;
     /* 一次性奖励（大图书馆的 +1000 科技点，2026-09-28 用户规格）。
      * ⚠️ 排在**置位之后**、也只在这里发一次：奇观是买断制（上面 wonderBlocked 会拦
      *    第二次），所以「只发一次」是买断制自带的，不需要另设防重标记。

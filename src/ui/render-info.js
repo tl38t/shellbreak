@@ -64,7 +64,9 @@
     }
     if (!item) return;
 
-    var done = tech ? !!s.techs[id] : !!s.civics[id];
+    var techLevel = tech ? SB.tech.level(s, id) : 0;
+    var techMaxLevel = tech ? SB.tech.maxLevel(item) : 1;
+    var done = tech ? techLevel >= techMaxLevel : !!s.civics[id];
     var revealed = tech ? SB.tech.metOf(s, item) : SB.civic.isRevealed(s, id);
     var blocked = done ? null : tech ? SB.tech.studyBlocked(s, id) : SB.civic.blocked(s, item);
     var short = SB.tech.condShort(s, tech ? item.cond : item.boost);
@@ -92,7 +94,7 @@
       if (item.era && item.era > (s.era || 1)) blockKind = 'era';
       else if (SB.civic.reqsMet(s, item) && !SB.economy.enough(s.res.culture, item.cost || 0)) blockKind = 'culture';
     }
-    var state = done ? (tech ? '已掌握' : '已完成') : !revealed ? '未揭露' :
+    var state = done ? (tech ? '已掌握' : '已完成') : tech && techLevel > 0 ? '等级 ' + techLevel + '/' + techMaxLevel : !revealed ? '未揭露' :
       !blocked ? '可研究' : blockKind === 'science' ? '科技点不足' :
       blockKind === 'culture' ? '市政点不足' :
       blockKind === 'prereq' ? '缺少前置' : blockKind === 'era' ? '纪元未到' :
@@ -175,7 +177,8 @@
       '</div><div class="tree-detail-title"><h3 id="treeDetailTitle">' + title + (item.key && revealed ? ' <span class="tree-key">关键节点</span>' : '') +
       '</h3><span class="tree-detail-state ' + (done ? 'done' : blocked ? 'locked' : 'ready') + '">' + state + '</span></div>' +
       '<button class="tree-detail-close" type="button" data-modal-close="1" aria-label="关闭详情">×</button></div>' +
-      '<div class="tree-cost"><span>研究成本</span><b>' + (cost ? cost + ' ' + currencyName : '免费') + '</b></div>' + blockDetail +
+      (tech && techMaxLevel > 1 ? '<div class="tree-cost"><span>当前等级</span><b>' + techLevel + ' / ' + techMaxLevel + '</b></div>' : '') +
+      '<div class="tree-cost"><span>本次研究成本</span><b>' + (cost ? SB.economy.fmtAmt(cost) + ' ' + currencyName : '免费') + '</b></div>' + blockDetail +
       '<section class="tree-detail-section"><h4>' + (tech ? '尤里卡' : '鼓舞') + '</h4><p>' +
       linkInfoNames(condition) + '</p>' +
       (conditionProgress ? '<small class="tree-eureka-progress">当前进度：' + conditionProgress + '</small>' : '') +
@@ -252,7 +255,7 @@
     }
     if (b.id === 'researchlab') {
       var _researchPct = (SB.BLD.researchLabSci || 0) * 100;
-      return '科技产出 +' + _researchPct.toFixed(1) + '%/级；研究科技消耗 −' +
+      return '学者科技产出 +' + _researchPct.toFixed(1) + '%/级；研究科技消耗 −' +
         (((SB.BLD.researchLabSave || 0) * 100).toFixed(0)) + '%/级。';
     }
     if (b.id === 'robotbay') {
@@ -280,6 +283,17 @@
       var d = dec == null ? 1 : dec; sign = sign || '+';
       return label + ' ' + sign + perPct.toFixed(d) + '%/级（当前 ' + sign + curPct.toFixed(d) + '%）';
     }
+    /* 大学（upg_university）在 BLD.instituteSci 之上再加一份 instituteSci ⇒ 面板这句
+     * 必须**现读配置**。2026-10-30 之前这里写死「×100%」，而 BLD 从 0.50 降到 0.30 后
+     * 合计只有 0.80 ⇒ 写死的数会立刻变成假话。凡「合计值 = 基础值 + 升级值」一律现算，
+     * 不许留第二份真源。 */
+    function uniSciTotal() {
+      var t = (B.instituteSci || 0), i;
+      for (i = 0; SB.UPGRADES && i < SB.UPGRADES.length; i++) {
+        if (SB.UPGRADES[i].id === 'upg_university') t += (SB.UPGRADES[i].instituteSci || 0);
+      }
+      return t;
+    }
     switch (id) {
       case 'kelp':         return add('自动产藻食', B.food, B.food * L, '/秒', 2) + '；吃季节减产';
       case 'weir':         return pct('藻食产出', B.foodWeir * 100, B.foodWeir * 100 * L);
@@ -290,9 +304,9 @@
                                  '；' + add('其余资源上限', B.lighthouseCap, B.lighthouseCap * L, '', 0);
       case 'workshop':     return pct('工艺制作效率', (b.craftRatio || 0) * 100, (b.craftRatio || 0) * 100 * L, 0);
       case 'siltpit':      return pct('矿工与采石工产出', B.siltBonus * 100, B.siltBonus * 100 * L, 0);
-      case 'library':      return pct('科技产出（仅学者）', B.sciRatio * 100, B.sciRatio * 100 * L, 0);
-      case 'institute':    return pct('科技产出（仅学者）', B.instituteSci * 100, B.instituteSci * 100 * L, 0) +
-                                 '；升级为大学后变 ×100%/级';
+      case 'library':      return pct('学者科技产出', B.sciRatio * 100, B.sciRatio * 100 * L, 0);
+      case 'institute':    return pct('学者科技产出', B.instituteSci * 100, B.instituteSci * 100 * L, 0) +
+                                 '；升级为大学后变 +' + (uniSciTotal() * 100).toFixed(0) + '%/级';
       case 'square':       return pct('市政点产出（仅' + SB.folk.jobName(s, 'scribe') + '）', B.squareCivRatio * 100, B.squareCivRatio * 100 * L, 0) +
                                  '；装《戏剧与诗歌》后翻倍';
       case 'temple':       return pct('信仰产出', B.templeFaithRatio * 100, B.templeFaithRatio * 100 * L, 0) +

@@ -144,7 +144,15 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.8'" in _cfg, '包内 config.js 版本号不是 Ver1.0.8'
+assert "VERSION: 'Ver1.0.9'" in _cfg, '包内 config.js 版本号不是 Ver1.0.9'
+assert "v: 'Ver1.0.9'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.9 条目'
+# Ver1.0.9 玩家可见 10 条：9 新增（流浪泰拉挑战 / 限制 / 奖励 / 5 科技 / 2 奇观 / 2 建筑 /
+# 2 升级 / 成就+排行 / 兑换码）+ 1 修复（挑战页通关目标文案）。
+# 只钉「这一版独有的关键词」；「流浪泰拉」这种挑战名在别处也可能出现，故不单用它兜底。
+for _kw in ['挑战中会开启新科技线', '星核炉芯池灌满 50M 热液能后完成挑战', '微波收敛研究',
+            '泰拉地壳密闭水舱巨构', '大陆板块加固构件',
+            '设置中新增兑换码兑换', '修复挑战页「通关目标」一栏']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.9 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.8'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.8 条目'
 # Ver1.0.8 玩家可见 3 条：1 修（补算活锁）+ 2 新增/改进（追踪多目标 / 壳 25% 下限提示）。
 # 逐条钉死，漏一条这次等于白改。
