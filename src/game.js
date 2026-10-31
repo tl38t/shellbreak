@@ -829,7 +829,9 @@
     if (modal) { modal.classList.add('hidden'); if (document.body) document.body.classList.remove('modal-open'); }
   }
 
-  /* 公司系统（ERA6 市政《宏观经济学》解锁）：宏观经济学完成那一刻自动成立藻食/珊瑚两家公司。
+  /* 公司系统（ERA4 市政《宏观经济学》解锁，2026-10-31 母门前移）：宏观经济学完成那一刻自动成立藻食/珊瑚两家公司。
+   * 其余行业按各自 req 逐家成立（钢铁挂 ERA4《工坊学校》市政 / 仓储挂 ERA5《城市化》市政 /
+   * 科研挂 ERA6《化学》/ 工艺挂 ERA6《热力锻锤》/ θ金属挂 ERA8《生物材料》）。
    * 行业池与名字池在 src/companies.js（独立数据层，日后加行业只改那一处）。
    * ⚠️ 2026-10-13 改「单独关闭」：逐家公司独立判定 —— 每家只在「未成立且未被玩家解散」时自动成立，
    *   玩家已解散的那家（companyState[res].closed=true）绝不自动复建，必须手动「重建」。
@@ -843,7 +845,7 @@
     var any = false;
     for (var i = 0; i < SB.COMPANIES.length; i++) {
       var c = SB.COMPANIES[i];
-      /* 逐家前置（科技/市政）：公司本身需《宏观经济学》(ERA6) 已解锁，req 须 ERA6 以后。
+      /* 逐家前置（科技/市政）：公司本身需《宏观经济学》(ERA4·L3) 已解锁；req 只需不早于母门。
        * 前置未满足 ⇒ 不自动成立（等玩家研究到该科技/市政，下趟泵再补成立）。 */
       if (SB.companyReqMet && !SB.companyReqMet(s, c)) continue;
       var st = SB.companyState ? SB.companyState(s, c.res) : null;

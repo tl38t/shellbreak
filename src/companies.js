@@ -1,6 +1,10 @@
 /* ───────────────────────────────────────────────────────────────────────────
- * 公司系统 · 数据层（ERA6 市政：宏观经济学解锁的「公司」标签）
- * 2026-10-12
+ * 公司系统 · 数据层（ERA4 市政：宏观经济学解锁的「公司」标签）
+ * 2026-10-12 建立 / 2026-10-31 母门前移到 ERA4
+ *
+ * ⚠️ 母门 = 市政《宏观经济学》。2026-10-31 起它挂在 **ERA4·L3**（原 ERA6·L2），
+ *    解锁链：中世纪集市 → 探索(ERA4·L1) → 重商主义(ERA4·L2) → 宏观经济学(ERA4·L3)。
+ *    依据：鼓舞条件「银行达 3 级」的银行建筑本身就是 ERA4《银行业》(techs.js) 的产物。
  *
  * 设计要点（用户拍板）：
  *  · 与科技/市政并列的独立标签；拥有市政「宏观经济学」后自动成立，玩家无手动操作。
@@ -28,9 +32,10 @@
   /* 行业定义。namePool 为该行业专属名字库（不与其他行业共用，避免撞名）。
    * 2026-10-20 扩展字段：
    *   · tiers：可覆盖通用 SB.COMPANY_TIERS 的行业加成（工艺/科研公司的全国性企业为 +40%）。
-   *   · req：解锁前置（{tech:id} / {civic:id}）。公司本身由《宏观经济学》(ERA6) 解锁，
-   *           req 必须 ERA6 及以后（用户硬约束），否则门早过、等于没门。
-   *   · craft:true：加成进 workshop.craftRatio 加法乘区（非资源产出），由 SB.companyCraftRatio 喂入。
+   *   · req：解锁前置（{tech:id} / {civic:id}）。公司本身由《宏观经济学》(ERA4·L3) 解锁，
+   *           req 只需**晚于或等于母门**，不必再是「ERA6 及以后」——那条旧硬约束是宏观经济学
+   *           还在 ERA6 时写的，2026-10-31 母门前移后已作废（且它从来只是一句注释，无机制执行）。
+   *   · storage:true：加成进 economy.capOf 的容量乘区（非资源产出），由 SB.companyStorageMul 喂入。
    *   · outLabel：公司页描述用（替代原先硬编码的 kelp/coral 文案）。 */
   SB.COMPANIES = [
     {
@@ -61,7 +66,9 @@
       outLabel: '工艺制作效率',
       luxBonus: 0.10,
       craft: true,          // 加成进 craftRatio 加法乘区（SB.companyCraftRatio）
-      req: { tech: 'robotics' },   // ERA8 机器人技术
+      /* 2026-10-31 用户拍板：工艺公司从 ERA8《机器人技术》前移到 ERA6《热力锻锤》(非 KEY)。
+       * 该科技本身就给「自动制作槽位 +1」，是工艺侧最近的锚点。 */
+      req: { tech: 'hotforge_hammer' },   // ERA6 热力锻锤
       tiers: [
         { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
         { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
@@ -80,7 +87,11 @@
       label: '钢铁',
       outLabel: '钢产出',
       luxBonus: 0.10,
-      req: { tech: 'hotforge_hammer' },  // ERA6 热力锻锤
+      /* 2026-10-31 用户拍板：钢铁公司由科技改挂**市政**，锚点从 ERA6《热力锻锤》前移到
+       * ERA4《工坊学校》(civ_steelschool, ERA4·L2) —— 该市政解锁的正是工坊升级「精炼钢厂：
+       * 钢产出 +25%」，与钢铁公司主题完全重合。也因此公司页在 ERA4 一打开就有 3 家
+       * （藻食/珊瑚/钢铁），而不是原来的 2 家空页。 */
+      req: { civic: 'civ_steelschool' },  // ERA4 工坊学校
       tiers: [
         { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
         { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
@@ -91,6 +102,36 @@
       namePool: [
         '瀚海钢铁', '玄铁冶炼', '锋钢实业', '熔渊钢业', '钢渊集团',
         '砺锋钢铁', '渊钢联合', '千锻钢业', '玄钢工造', '潮汐钢铁'
+      ]
+    },
+    /* 2026-10-31 新增仓储公司（用户拍板「再加个加仓储的公司」）。
+     *  · res:'storage' 是**伪键**（同 craftco 的 'craft'）：不是 RESS 资源，只作
+     *    companyState / companyNames 的索引键，绝不拿它去查 companyMul(s,'storage')。
+     *  · storage:true 是给 companyMul 的**排除标记**（走 companyStorageMul，不进资源产出乘区），
+     *    与 craft:true 同构。
+     *  · 加成落在 economy.capOf 的**两处 return**（kelp 分支 / 通用材料分支），
+     *    ⚠️ 且必须**排除 starExplore** —— 它是太空时代结局阈值（CFG.STAR_CAP 与之等值），
+     *    抬它等于改通关条件。
+     *  · 后两档 0.45/0.60 低于生产类公司（0.50/0.70）：容量的边际价值随纪元递减
+     *    （后期很少触顶），峰值给 70% 不划算。此为**提议值待标定**。 */
+    {
+      id: 'storeco',
+      res: 'storage',       // 伪键，不是 RESS 资源
+      label: '仓储',
+      outLabel: '所有材料仓储上限',
+      luxBonus: 0.10,
+      storage: true,        // 加成进 capOf 容量乘区（SB.companyStorageMul）
+      req: { civic: 'urbanization' },   // ERA5 城市化（该市政解锁廉租社区 + 基础物流建设卡）
+      tiers: [
+        { key: 'town',     name: '乡镇企业',   bonus: 0.10, unlockSec: 0 },
+        { key: 'local',    name: '地方企业',   bonus: 0.20, unlockSec: 3600 },
+        { key: 'national', name: '全国性企业', bonus: 0.30, unlockSec: 10800 },
+        { key: 'planetary', name: '星球命脉', bonus: 0.45, unlockSec: 21600, unlockCivic: 'globalization' },
+        { key: 'cosmic', name: '寰宇巨企', bonus: 0.60, unlockSec: 43200, unlockCivic: 'solar_logistics' }
+      ],
+      namePool: [
+        '渊栈储运', '澜仓实业', '海枢物流', '深栈仓配', '沧溟储运',
+        '枢潮仓储', '鲸背物流', '千仓联合', '碧栈实业', '渊通仓配'
       ]
     },
     {
@@ -228,7 +269,8 @@
   };
 
   /* 逐家公司解锁前置（科技/市政）。无 req ⇒ 老行为（由 macroeconomics 闸门统一管）。
-   * ⚠️ 前置必须 ERA6 及以后（公司 ERA6 才开），否则门早过等于没门（用户硬约束）。 */
+   * ⚠️ 前置只需**不早于母门**（母门 = 宏观经济学 ERA4·L3）；更早的前置等于没门。
+   *    旧注释「必须 ERA6 及以后」随母门 2026-10-31 前移已作废。 */
   SB.companyReqMet = function (s, c) {
     if (!c || !c.req) return true;
     if (c.req.tech) return !!(s.techs && s.techs[c.req.tech]);

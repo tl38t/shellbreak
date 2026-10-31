@@ -268,6 +268,13 @@
      *   旧 legacy().matStoreLevel 已随迁移剥离。 */
     var matMul = 1 + 0.05 * ((s.perk && s.perk.matStore) || 0);
     if (!(typeof matMul === 'number' && isFinite(matMul) && matMul > 0)) matMul = 1;
+    /* 仓储公司（2026-10-31 新增，companies.js storage:true）：容量**乘法**乘区。
+     * ⚠️ 必须排除 starExplore —— CAP_BASE.starExplore 就是太空时代的结局阈值
+     *   （与 CFG.STAR_CAP 等值，e2e 有断言监控两者相等），乘进去等于把通关条件抬高 60%。
+     * ⚠️ 排除判据写在这里而不是 companyStorageMul 里：那个函数不该知道「哪个资源是结局阈值」，
+     *   资源语义属于 economy 层。 */
+    var _stor = (SB.companyStorageMul && k !== 'starExplore') ? SB.companyStorageMul(s) : 1;
+    if (!(typeof _stor === 'number' && isFinite(_stor) && _stor > 0)) _stor = 1;
     if (k === 'kelp') {
       /* ⚠️ 扩容升级是**乘法**，整套仓储线里只有它这一条是乘法 —— 见下面的 matCap。 */
       var kelpCastle = castleCapBonus(s, k);
@@ -280,7 +287,8 @@
       return kelpCap
         * capUpgradeMul(s, 'upg_kelpstore_1', k)
         * capUpgradeMul(s, 'upg_kelpstore_2', k)   /* 2026-10-01 II 级扩容：与压舱库 II 同构，补上这条乘法轴（漏接 = 死升级） */
-        * matMul;
+        * matMul
+        * _stor;                                   /* 2026-10-31 仓储公司容量乘区 */
     }
     /* 其余有上限资源：基础 + 压舱仓 + 通用扩容；表外资源已在上方直接返回 Infinity。 */
     /* ⚠️ **2026-09-28：这里少一对括号，把整条资源线的容量打成了 0。**
@@ -338,7 +346,8 @@
     var matCastle = castleCapBonus(s, k);
     if (!(typeof matCastle === 'number' && isFinite(matCastle) && matCastle >= 0)) matCastle = 0;
     var cap = (matCap + matCastle) * capUpgradeMul(s, 'upg_ballast_1', k)
-      * capUpgradeMul(s, 'upg_ballast_2', k) * capUpgradeMul(s, 'upg_alloy_warehouse', k) * matMul;
+      * capUpgradeMul(s, 'upg_ballast_2', k) * capUpgradeMul(s, 'upg_alloy_warehouse', k) * matMul
+      * _stor;                                 /* 2026-10-31 仓储公司容量乘区（starExplore 已在上方排除） */
     return (typeof cap === 'number' && isFinite(cap) && cap >= 0) ? cap : base;
   }
 
@@ -2620,6 +2629,7 @@
      *   不导出则 SB.companyMul 为 undefined、兜底走 1 ⇒ 加成恒显 +0%（面板撒谎）。 */
     companyMul: SOCIAL.companyMul, companyLuxMul: SOCIAL.companyLuxMul,
     companyCraftRatio: SOCIAL.companyCraftRatio,
+    companyStorageMul: SOCIAL.companyStorageMul,   /* 2026-10-31 仓储公司容量乘区 */
     tenementLuxAdd: SOCIAL.tenementLuxAdd,
     /* warmRelief 必须导出：它是「这一 tick 顶回几成」的唯一权威读数，
      * 结算面板的 burning 提示、回归里那几条断言都读它。
@@ -2638,4 +2648,6 @@
   SB.companyMul = SOCIAL.companyMul;
   SB.companyLuxMul = SOCIAL.companyLuxMul;
   SB.companyCraftRatio = SOCIAL.companyCraftRatio;
+  /* 2026-10-31 仓储公司：capOf 内部读顶层 SB.companyStorageMul（与上面三家同源做法）。 */
+  SB.companyStorageMul = SOCIAL.companyStorageMul;
 })(typeof window !== 'undefined' ? window : globalThis);

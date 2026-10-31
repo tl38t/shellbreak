@@ -25,7 +25,7 @@
     { id: 'craft',  name: '技艺',   icon: 'assets/civic-icons/era-1/era1-craft.png', cost: 100, era: 1, layer: 2, reqs: ['laws'],
       boost: { t: 'built', b: 'workshop', n: 1 },
       card: 'card_craft',
-      desc: '解锁政策卡「技艺」。',
+      desc: '解锁政策卡「技艺」（工坊效率 +20%）、「征夫发役」（纪元 1–3 奇观建造消耗 −20%）。',
       note: '鼓舞：建成 1 级工坊。' },
 
     /* 神秘主义：鼓舞 = 完成科技「海潮占卜」。
@@ -151,7 +151,7 @@
       /* autoBuildZones 声明本市政开放哪些区域的逐建筑自动建造/升级开关。
        * 执行与 UI 都读同一字段，新增区域自动化解锁不另造一套机制。 */
       autoBuildZones: ['food'],
-      desc: '解锁政策卡「农奴制」，以及生息区建筑自动建造/升级（逐建筑开关）。',
+      desc: '解锁政策卡「农奴制」、「庄园制」（食物产出 ×1.20），以及生息区建筑自动建造/升级（逐建筑开关）。',
       note: '鼓舞：生息区建筑合计等级达 100。' },
     { id: 'market', name: '中世纪集市', icon: 'assets/civic-icons/era-3/era3-market.png', cost: 4000, era: 3, layer: 2,
       reqs: ['political'],
@@ -171,7 +171,7 @@
       boost: { t: 'total', n: 55 },
       card: 'card_guild',
       wonder: 'wonder_grand_bazaar',
-      desc: '解锁政策卡「职业行会」（取代技艺），以及奇观「大巴扎」。',
+      desc: '解锁政策卡「职业行会」（取代技艺）、「王室特许」（纪元 1–5 奇观建造消耗 −20%，取代征夫发役），以及奇观「大巴扎」。',
       note: '鼓舞：建筑总等级达 55。' },
     { id: 'steel_guild', name: '钢铁公会', icon: 'assets/civic-icons/era-3/era3-guild.png', cost: 7000, era: 3, layer: 3, reqs: ['guild'],
       boost: { t: 'gathered', r: 'steel', n: 10000 },
@@ -229,7 +229,7 @@
      * ⚠️ icon 仍指 era-6 目录：资产文件名是 era6-macro.png，改路径会破图，故保留。 */
     { id: 'macroeconomics', name: '宏观经济学', icon: 'assets/civic-icons/era-6/era6-macro.png', cost: 70000, era: 4, layer: 3,
       reqs: ['mercantilism'], boost: { t: 'built', b: 'bank', n: 3 },
-      desc: '解锁「公司」页面；研究完成后自动成立藻食公司和珊瑚公司。',
+      desc: '解锁政策卡「公司税」（公司产出加成与奢侈消耗加成 ×1.3）；解锁「公司」页面，研究完成后自动成立藻食公司和珊瑚公司。',
       note: '鼓舞：银行达 3 级。' },
     { id: 'reformed', name: '归正会', icon: 'assets/civic-icons/era-4/era4-reformed.png', cost: 25000, era: 4, layer: 1,
       reqs: ['department'],
@@ -255,7 +255,7 @@
       boost: { t: 'built', b: 'observatory', n: 1 },
       card: 'card_enlightenment',
       building: 'museum',
-      desc: '解锁政策卡「启蒙运动」（替代历史记录：潮纹馆/大学科技 +100%、神庙信仰 −50%）、建筑「博物馆」。',
+      desc: '解锁政策卡「启蒙运动」（替代历史记录：潮纹馆/大学科技 +100%、神庙信仰 −50%）、「启蒙沙龙」（科技产出的 15% 转为市政点）、建筑「博物馆」。',
       note: '鼓舞：天壳观测站等级 ≥ 1。' },
     { id: 'historiography', name: '历史哲学', icon: 'assets/civic-icons/era-4/era4-historiography.png', cost: 60000, era: 4, layer: 2,
       reqs: ['reformed'],
@@ -282,7 +282,7 @@
     { id: 'rationing', name: '工业化配给', icon: 'assets/civic-icons/era-5/era5-rationing.png', cost: 90000, era: 5, layer: 1, reqs: ['enlightenment'],
       boost: { t: 'gathered', r: 'steel', n: 10000 },
       card: 'card_rationing',
-      desc: '解锁政策卡「工业化配给」「政治经济学」。',
+      desc: '解锁政策卡「工业化配给」「政治经济学」「五年计划」（精铁、钢产出 +30%）。',
       note: '鼓舞：累计钢产量达 10000。' },
     /* ══ ERA4 市政（2026-10-17 新增 · 工坊学校）════════════════════════
      * 【定位】在市政里补一条「加钢生产」的通路：完成即解锁工坊升级「精炼钢厂」
@@ -344,7 +344,7 @@
       note: '鼓舞：王国潮道达 20 级。' },
     { id: 'archaeology', name: '考古学', icon: 'assets/civic-icons/era-6/era6-archaeology.png', cost: 300000, era: 6, layer: 2,
       reqs: ['naturalhistory'], boost: { t: 'cycle', n: 3 },
-      desc: '艺术品制造消耗 −20%。',
+      desc: '解锁政策卡「考古发掘」（艺术品、潮纹记录的制作效率 +25%）；艺术品制造消耗 −20%。',
       note: '鼓舞：轮回数达 3 周目。' },
     { id: 'ideology', name: '意识形态', icon: 'assets/civic-icons/era-6/era6-ideology.png', cost: 380000, era: 6, layer: 2,
       reqs: ['massmedia', 'naturalhistory'], boost: { t: 'lifetimeCulture', n: 900000 },
@@ -410,7 +410,7 @@
       note: '鼓舞：星海区建筑合计等级达 5。' },
     { id: 'ancestor_heritage', name: '先民遗产', icon: 'assets/civic-icons/era-7/era7-ancestor.png', cost: 800000, era: 7, layer: 3,
       reqs: ['ancient_civics'], boost: { t: 'cycle', n: 10 },
-      desc: '本轮回星屑获取 +20%（破壳结算时计入）。',
+      desc: '解锁政策卡「质量效应」（本轮回星屑获取 ×1.15）；本轮回星屑获取 +20%（破壳结算时计入）。',
       note: '鼓舞：轮回数达 10 周目。' },
     { id: 'planet_village', name: '星球村', icon: 'assets/civic-icons/era-7/era7-village.png', cost: 1100000, era: 7, layer: 3,
       reqs: ['cultural_heritage'], boost: { t: 'anyWonders', ids: ['wonder_logistics', 'wonder_national_logistics'] },
@@ -430,7 +430,7 @@
     { id: 'starfaith', name: '群星与神明', icon: 'assets/civic-icons/era-8/era8-starfaith.png', cost: 1300000, era: 8, layer: 1,
       reqs: ['space_race', 'planet_village'], boost: { t: 'starPct', n: 5 },
       /* 被动：信仰产出 ×(1 + 星空进度)（进度=starExplore/STAR_CAP 小数）。economy.faithRate 读。 */
-      desc: '信仰产出提高 x%，x 为星空探索进度（破壳后随星空累积持续变强）。',
+      desc: '解锁政策卡「星际广播」（每颗轨道卫星使信仰产出 +5%）；信仰产出提高 x%，x 为星空探索进度（破壳后随星空累积持续变强）。',
       note: '鼓舞：星空探索进度超过 5%。' },
     { id: 'globalization', name: '全球化', icon: 'assets/civic-icons/era-8/era8-globalization.png', cost: 1500000, era: 8, layer: 1,
       reqs: ['planet_village'], boost: { t: 'wonders', ids: ['wonder_logistics', 'wonder_national_logistics'] },

@@ -248,7 +248,7 @@
     var idx = companyTierIndex(s, res);
     if (idx < 0) return 1;
     var c = companyByRes(res);
-    if (!c || c.craft) return 1;   // craft 型公司走 companyCraftRatio，不进资源产出乘区
+    if (!c || c.craft || c.storage) return 1;   // craft 型走 companyCraftRatio、storage 型走 companyStorageMul，都不进资源产出乘区
     var tiers = c.tiers || SB.COMPANY_TIERS;
     /* ERA2-7 扩卡（2026-10-22）：公司税卡（companyBonusMul 1.30）把公司产出加成 ×1.3。 */
     return 1 + ((tiers[idx] && tiers[idx].bonus) || 0) * ((SB.civic && SB.civic.cardCompanyBonusMul) ? SB.civic.cardCompanyBonusMul(s) : 1);
@@ -278,6 +278,24 @@
     }
     return m;
   }
+  /* 仓储公司（companies.js storage:true）的容量乘区（2026-10-31 新增）。
+   * 返回**倍数**（1 + 加成），由 economy.capOf 直接乘在容量上 —— 与 craftRatio 的加法乘区不同档。
+   * ⚠️ 吃公司税卡（companyBonusMul 1.30）：卡面写的是「公司加成 ×1.3」，仓储也是公司加成。
+   * ⚠️ 调用方（capOf）必须自己排除 starExplore：它是结局阈值，抬它等于改通关条件。 */
+  function companyStorageMul(s) {
+    if (!s || !SB.COMPANIES) return 1;
+    var m = 0, i;
+    for (i = 0; i < SB.COMPANIES.length; i++) {
+      var c = SB.COMPANIES[i];
+      if (!c.storage) continue;
+      var idx = companyTierIndex(s, c.res);
+      if (idx < 0) continue;
+      var tiers = c.tiers || SB.COMPANY_TIERS;
+      m += (tiers[idx] && tiers[idx].bonus) || 0;
+    }
+    if (!(typeof m === 'number' && isFinite(m) && m > 0)) return 1;
+    return 1 + m * ((SB.civic && SB.civic.cardCompanyBonusMul) ? SB.civic.cardCompanyBonusMul(s) : 1);
+  }
   /* 公司系统给的奢侈品消耗额外加成：逐家 sum（每家恒 +10%，关掉哪家居然就少哪家）。
    * 旧版全局 0.10，现在只统计「存活且已成立」的公司，匹配「单独关闭」语义。 */
   function companyLuxMul(s) {
@@ -299,6 +317,7 @@
     happyMul: happyMul, happyOf: happyOf, happyTier: happyTier, HAPPY_TIERS: HAPPY_TIERS,
     happyTierList: happyTierList,
     companyTierIndex: companyTierIndex, companyMul: companyMul, companyLuxMul: companyLuxMul,
-    companyCraftRatio: companyCraftRatio, companyTechCostSave: companyTechCostSave
+    companyCraftRatio: companyCraftRatio, companyTechCostSave: companyTechCostSave,
+    companyStorageMul: companyStorageMul
   };
 })(typeof window !== 'undefined' ? window : globalThis);
