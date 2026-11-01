@@ -929,8 +929,12 @@
     * (SB.civic ? SB.civic.govMinePerPop(s) : 1); }
   /* 热泉炉（精铁）效率 / 热液工坊（钢）效率：+20%/级（系数 0.20）。
    * 落点 = ironFlow 的产出段（tick/rates 同式）× furnaceEffMul；钢产线（steelFlow/steelRate）× hydroshopEffMul。 */
-  function furnaceEffMul(s) { return 1 + 0.20 * (s.perk.furnaceEff || 0); }
-  function hydroshopEffMul(s) { return 1 + 0.20 * (s.perk.hydroshopEff || 0); }
+  /* 轮回炉火（2026-11-01 · perk.furnaceLoop / perk.hydroLoop，潮汐之树 15 点，dyn:'loop5'）：+5%×轮回次数。
+   * ⚠️【量纲】loop5 键存的是**分数**（a[k]×0.05×cycle×lv），cycle=10 时键值 0.5 = +50%，
+   *   所以是**直接相加**，不能写成 `0.20 * furnaceLoop`（那会得到 +10%，缩水 5 倍）。
+   *   「每轮回重算、无上限」= 用户 2026-11-01 拍板，不加 clamps。 */
+  function furnaceEffMul(s) { return 1 + 0.20 * (s.perk.furnaceEff || 0) + (s.perk.furnaceLoop || 0); }
+  function hydroshopEffMul(s) { return 1 + 0.20 * (s.perk.hydroshopEff || 0) + (s.perk.hydroLoop || 0); }
   /* 热液工坊（钢）产出：+10%/级（与 furnaceBoost 同系数）。落点 = steelFlow/steelRate 产出段。 */
   function hydroshopBoostMul(s) { return 1 + 0.10 * (s.perk.hydroshopBoost || 0); }
   /* 学者系 / 书手系产出：+10%/级。落点 = 学者行（tick/rates 同式）× scholarPactMul；书手行（cultureRate）× scribePactMul。 */

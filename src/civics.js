@@ -604,6 +604,34 @@
     }
     return m;
   }
+  /* 轮回商店「之位」三件（2026-11-01 用户拍板 A 方案）：**任意政体**额外给一个指定类型的政策槽。
+   *   slotCraft → 工造槽(prod) / slotEcon → 民生槽(grow) / slotSci → 科研槽(sci)。
+   *
+   * ⚠️【为什么要有这张表】2026-10-23 潮汐之树落地时，这三个键被 `workshop.slotCap()` 当成
+   *    「工坊自动制作槽 +1」在读，而 desc 承诺的是**政策卡槽**；同时 `CFG.AUTO.SLOT_MAX = 4`
+   *    恰好被 autoCraft I/II/III 占满 ⇒ 玩家花 50 点买了个一点不涨的槽。玩家报「加政策卡槽的
+   *    没生效」就是这一条。现在唯一落点在这里，`slotCap` 那边已摘除，**别再两边都读**。
+   *
+   * ⚠️ 类型必须是 SLOT_TYPES 里真实存在的键：原来 slotEcon 的 desc 写「经济槽」，而 SLOT_TYPES
+   *    只有 prod/sci/grow/relig/wild，根本没有 econ ⇒ 那个描述从来无法实现，已改「民生槽」。
+   * ⚠️ `s.perk` 由 `state.derivePerksFromMeta()` 每局重算，老存档不需要迁移：只要玩家买过，
+   *    这一局读到的就是已生效的值。 */
+  var PERK_POLICY_SLOTS = [
+    { key: 'slotCraft', type: 'prod' },
+    { key: 'slotEcon', type: 'grow' },
+    { key: 'slotSci', type: 'sci' }
+  ];
+  /* 返回槽数组（与 slotList 同一个形状），供 slotList 合并与回归断言直读。 */
+  function perkPolicySlots(s) {
+    var out = [];
+    if (!s || !s.perk) return out;
+    for (var i = 0; i < PERK_POLICY_SLOTS.length; i++) {
+      var def = PERK_POLICY_SLOTS[i];
+      var n = Number(s.perk[def.key]) || 0;
+      for (var j = 0; j < n; j++) out.push({ type: def.type });
+    }
+    return out;
+  }
 
   // ── 几何（横卷）──────────────────────────────────────────────────
   /* 与 tech.js 的 layout() **同构**：列 = `layer`、行 = 排版产物、连线 = `reqs`。
@@ -1262,6 +1290,10 @@
     /* ERA7（2026-10）：超古代市政送的市政政策槽（civicPolicySlots），叠加在政体自带槽之上。 */
     var _ps = civicPolicySlots(s);
     for (var _pi = 0; _pi < _ps; _pi++) out.push({ type: 'wild' });
+    /* 2026-11-01：轮回商店「之位」三件（工造 / 民生 / 科研 各 +1），叠加在政体配方之上。
+     * 与上面三处同构，只是类型不是 wild —— 它们各自只吃对应类型的政策卡。 */
+    var _pk = perkPolicySlots(s);
+    for (var _pki = 0; _pki < _pk.length; _pki++) out.push(_pk[_pki]);
     return out;
   }
   /* 政策卡能进哪种槽。万能槽吃一切；卡的 type 缺省视为万能（老卡没标类型 ⇒ 不硬堵）。 */
@@ -1378,6 +1410,9 @@
     govFirstAdoptionFree: govFirstAdoptionFree,
     govBlocked: govBlocked, canSetGov: canSetGov, setGov: setGov,
     slots: slots, slotList: slotList, cardFits: cardFits, slotTypeName: slotTypeName,
+    /* 2026-11-01：轮回商店「之位」三件（工造/民生/科研）给的政策槽，回归直接断它，
+     * 不必去数 slotList 里哪几个是政体自带的。 */
+    perkPolicySlots: perkPolicySlots, PERK_POLICY_SLOTS: PERK_POLICY_SLOTS,
     currentSlotType: currentSlotType,
     flow: flow, effectText: effectText, boostText: boostText,
     govCraftRatio: govCraftRatio, cardCraftRatio: cardCraftRatio, govLuxuryMul: govLuxuryMul, govHappyBonus: govHappyBonus,

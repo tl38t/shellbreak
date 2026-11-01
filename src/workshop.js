@@ -114,6 +114,15 @@
      *   公司由《宏观经济学》解锁、按成立时长升级；与上面十一源相加，不是相乘。
      *   读数走 SB.companyCraftRatio（economy-social.js，与 companyMul 同源）。 */
     if (SB.companyCraftRatio) m += SB.companyCraftRatio(s) || 0;
+    /* ⑬ 轮回工巧（2026-11-01 · perk.craftLoop，潮汐之树 15 点，dyn:'loop5'）：+5%×轮回次数。
+     *   ⚠️【量纲】这个键里存的是**分数**，不是等级数：写入端
+     *      prestige.applyPerk / state.derivePerksFromMeta 的 loop5 分支写的是
+     *      `a[k] × 0.05 × cycle × lv` ⇒ cycle=10、1 级时键值 = 0.5，本身就等于 +50%。
+     *      **绝不能照抄上面 ⑧ 那行写成 `0.10 * craftLoop`** —— 那会算出 +5%，
+     *      比 desc 承诺的少 10 倍，而且接上了、有变化、不报错，是最难查的那类静默缩水。
+     *   desc 写「无上限」⇒ 不设 clamps（2026-11-01 用户拍「不设」）。
+     *   ⚠️ 本条只管产出（craftMul → 产出那截），成本端从不打折，与 ⑧ 同一定义域。 */
+    m += (s.perk && s.perk.craftLoop ? s.perk.craftLoop : 0);
     return m;
   }
   /* 产出倍率。猫国：`craftAmt = amt * (1 + craftRatio)`（workshop.js:2660）。
@@ -303,11 +312,11 @@
     var n = 0;
     if (s.upgrades && s.upgrades.upg_autoshop) n += (SB.CFG.AUTO && SB.CFG.AUTO.SLOT_BASE) || 1;
     n += (s.perk && s.perk.autoCraft) || 0;
-    /* 潮汐之树（2026-10-23）：三系槽位节点（slotCraft / slotEcon / slotSci，各 cost:50）各 +1 自动制作槽，
-     *   与 autoCraft / 热锻锤 / 复合型工厂同源叠加。 */
-    n += (s.perk && s.perk.slotCraft) || 0;
-    n += (s.perk && s.perk.slotEcon) || 0;
-    n += (s.perk && s.perk.slotSci) || 0;
+    /* ⚠️ 2026-11-01 摘除：`slotCraft` / `slotEcon` / `slotSci`（轮回商店「之位」三件）原先在这里
+     *   各 +1 自动制作槽，但它们的 desc 承诺的是**政策卡槽**，且 SLOT_MAX=4 早被 autoCraft I/II/III
+     *   占满 ⇒ 玩家 50 点买了个一点不涨的槽（玩家报「加政策卡槽的没生效」）。
+     *   现在三者归位到 `civic.slotList()`（工造/民生/科研各一个政策槽），这里**不要再加回来**，
+     *   否则同一个天赋会在两个系统里各记一次。 */
     /* ERA6（2026-10 实装）：热力锻锤（hotforge_hammer）每级 +1 自动制作槽（与 upg_autoshop 同源叠加）。 */
     if (s.techs && s.techs.hotforge_hammer) n += 1;
     /* ERA7（2026-10-17 · spec §4）：复合型工厂（upg_complexf）+1 自动工艺槽位（与热锻锤同源叠加）。 */

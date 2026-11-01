@@ -948,6 +948,30 @@ console.log('\n=== 市政 ===');
   check('三种纪元二政体各给 3 个槽（用户「三个政体都给三个槽」），配方与状态一致',
     allThree, badThree.join(' '));
 
+  /* ── 2026-11-01：轮回商店「之位」三件 ────────────────────────────────
+   * 玩家报「加政策卡槽的没生效」。根因有两层：① 三个键被 `workshop.slotCap` 当自动制作槽读，
+   * 而 desc 承诺的是政策卡槽；② 自动制作槽 SLOT_MAX=4 早被 autoCraft I/II/III 占满 ⇒ 一点不涨。
+   * 现已归位到 slotList（工造/民生/科研 各一个），下面两条钉住「归位」与「不重复计数」。 */
+  {
+    const pk = SB.state.freshRun(false);
+    pk.gov = 'tribe';
+    const pkBase = SB.civic.slotList(pk).length;
+    pk.perk.slotCraft = 1; pk.perk.slotEcon = 1; pk.perk.slotSci = 1;
+    const pkNew = SB.civic.slotList(pk).map(v => v.type);
+    check('轮回商店「之位」三件各给 1 个对口政策槽（工造/民生/科研）',
+      pkNew.length === pkBase + 3 &&
+      pkNew.filter(t => t === 'prod').length === 1 &&
+      pkNew.filter(t => t === 'grow').length === 1 &&
+      pkNew.filter(t => t === 'sci').length === 1,
+      JSON.stringify(pkNew));
+    /* 反向：不能同时在工坊自动制作槽里记一次（否则同一个天赋两个系统各生效一次） */
+    const capA = SB.workshop.slotCap(pk);
+    pk.perk.slotCraft = 0; pk.perk.slotEcon = 0; pk.perk.slotSci = 0;
+    check('「之位」不计入工坊自动制作槽（与 SLOT_MAX 无关）',
+      SB.workshop.slotCap(pk) === capA,
+      'slotCap ' + capA + ' → ' + SB.workshop.slotCap(pk));
+  }
+
   /* 多槽可同时装多张卡：flow 逐槽聚合、乘区逐槽相乘。 */
   const g3 = SB.state.freshRun(false);
   g3.civics = { laws: 1, craft: 1, mystic: 1, drama: 1, records: 1, theology: 1, political: 1 };

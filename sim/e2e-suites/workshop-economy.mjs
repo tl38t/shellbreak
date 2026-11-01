@@ -1281,5 +1281,56 @@ console.log('\n=== 工坊：青铜工具 ===');
   }
 }
 
+/* ---------------- 轮回 loop5：轮回工巧 / 轮回炉火 ---------------- *
+ * 2026-11-01：玩家报「轮回商店很多项目没生效」，查出这两个 15 点节点是**死键** ——
+ * 写入端（prestige.applyPerk / state.derivePerksFromMeta 的 dyn:'loop5' 分支）一直正常，
+ * 读的人一个都没有。已接线，这里钉死。
+ * ⚠️【单位】键里存的是**分数**（a[k]×0.05×cycle×lv），不是等级数：cycle=10、1 级 ⇒ 0.5 = +50%。
+ *   所以夹具**必须走 freshRun 生产路径**（改 meta → 重算），不许手写 `perk.craftLoop = 5`：
+ *   手写等于把 +50% 当成 +500%，接错也不会红（与 upg_logiware 那次同一个坑）。
+ * ⚠️ meta.perks 的键是**节点 id**（'craftQuota1'），不是 apply 键（'craftQuota'）。 */
+console.log('\n=== 轮回 loop5：轮回工巧 / 轮回炉火 ===');
+{
+  const m = SB.game.meta();
+  const keepP = m.perks, keepC = m.cycle, keepS = m.starPerks;
+  const loopRun = (perks, cycle) => {
+    m.perks = Object.assign({}, perks);
+    m.cycle = cycle;
+    m.starPerks = {};                    // 星屑共鸣会给 n:Infinity 节点追加效果，这里不掺
+    const s = SB.state.freshRun(false);
+    m.perks = keepP; m.cycle = keepC; m.starPerks = keepS;
+    return s;
+  };
+  const DUMMY = { id: 'craft_steelpart', out: 1 };   // craftMul 只读 c.id / c.out
+  try {
+    const s10 = loopRun({ craftLoop: 1 }, 10);
+    check('轮回工巧：loop5 写入的是分数（1×0.05×10=0.5），工坊制作乘区 1 → 1.5',
+      Math.abs(s10.perk.craftLoop - 0.5) < 1e-9 &&
+      Math.abs(SB.workshop.craftMul(loopRun({}, 10), DUMMY) - 1) < 1e-9 &&
+      Math.abs(SB.workshop.craftMul(s10, DUMMY) - 1.5) < 1e-9,
+      'craftLoop=' + s10.perk.craftLoop + ' craftMul=' + SB.workshop.craftMul(s10, DUMMY).toFixed(3));
+
+    const sF = loopRun({ furnaceHydroLoop: 1 }, 10);
+    check('轮回炉火：热泉炉效率/热液工坊效率 1 → 1.5（两个键都读，不是只读一个）',
+      Math.abs(SB.economy.furnaceEffMul(loopRun({}, 10)) - 1) < 1e-9 &&
+      Math.abs(SB.economy.furnaceEffMul(sF) - 1.5) < 1e-9 &&
+      Math.abs(SB.economy.hydroshopEffMul(sF) - 1.5) < 1e-9,
+      '炉 ' + SB.economy.furnaceEffMul(sF).toFixed(2) + ' / 坊 ' + SB.economy.hydroshopEffMul(sF).toFixed(2));
+
+    /* 「每轮回重算」的反面：第 1 周目 cycle=0 ⇒ 一点不加。买它的人在首轮看不到任何变化是对的。 */
+    check('第 1 周目（cycle=0）两个节点都不加成 —— 符合「每轮回重算」',
+      Math.abs(SB.workshop.craftMul(loopRun({ craftLoop: 1 }, 0), DUMMY) - 1) < 1e-9 &&
+      Math.abs(SB.economy.furnaceEffMul(loopRun({ furnaceHydroLoop: 1 }, 0)) - 1) < 1e-9,
+      'craftMul/炉 = ' + SB.workshop.craftMul(loopRun({ craftLoop: 1 }, 0), DUMMY).toFixed(3) +
+      '/' + SB.economy.furnaceEffMul(loopRun({ furnaceHydroLoop: 1 }, 0)).toFixed(3));
+
+    /* 与同轴老节点相加（不是相乘、也不是再乘一次系数）：cycle10 + 工坊定额 I ⇒ 1+0.50+0.10 = 1.60。 */
+    check('与同轴节点是加法：工坊定额 I 的 +10% 叠加后为 1.60',
+      Math.abs(SB.workshop.craftMul(loopRun({ craftLoop: 1, craftQuota1: 1 }, 10), DUMMY) - 1.6) < 1e-9,
+      'craftMul=' + SB.workshop.craftMul(loopRun({ craftLoop: 1, craftQuota1: 1 }, 10), DUMMY).toFixed(3));
+  } finally {
+    m.perks = keepP; m.cycle = keepC; m.starPerks = keepS;
+  }
+}
 
 }

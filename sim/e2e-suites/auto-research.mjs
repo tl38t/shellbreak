@@ -60,9 +60,23 @@ export function run({ SB, check }) {
   check('商店开关可开/关、开关状态写入 meta，未购买的类别不能开启',
     enabled === true && disabled === false && locked === null && liveMeta.autoResearch.tech === false &&
     liveMeta.autoResearch.civic === false && persisted);
-  const metaHtml = SB.ui.renderParts.paneMeta();
-  check('已购买的自动研究升级在商店显示显式开关与关闭状态',
-    /data-auto-research="tech" aria-pressed="false"/.test(metaHtml) && /开启科技自动研究/.test(metaHtml));
+  /* 2026-11-01：开关从「轮回商店 → 天赋节点」搬到科技页 / 市政页，形态改成拨动开关。
+   * 断言分两层：①位置对了（商店里不再有按钮、两页各有一个 role=switch）；
+   * ②显示与实际生效同源（拨一下 aria-checked 立刻跟着变，不是各自缓存一份）。
+   * ⚠️ 直接调 autoResearchSwitch() 而不是 paneTech()：科技面板没开门时整页会换成
+   *    paneTechLocked，开关根本不渲染 —— 那条路测出来的是「没开门所以没开关」。 */
+  const sw = SB.ui.renderParts.research;
+  const swTech = sw.autoResearchSwitch('tech');
+  const swCivic = sw.autoResearchSwitch('civic');
+  check('自动研究开关已移到科技页 / 市政页，且是拨动开关（role=switch）',
+    /class="sw" role="switch" aria-checked="false" data-auto-research="tech"/.test(swTech) &&
+    /data-auto-locked="civic"/.test(swCivic) &&
+    !/data-auto-research/.test(SB.ui.renderParts.paneMeta()));
+  const turnedOn = SB.prestige.toggleAutoResearch('tech');
+  check('拨动开关的显示与实际生效同源（拨一下 aria-checked 立刻跟着变）',
+    turnedOn === true &&
+    /class="sw on" role="switch" aria-checked="true" data-auto-research="tech"/.test(sw.autoResearchSwitch('tech')));
+  SB.prestige.toggleAutoResearch('tech');
   liveMeta.autoResearch = saved.autoResearch;
   if (saved.autoStudy === undefined) delete liveMeta.perks.autoStudy;
   else liveMeta.perks.autoStudy = saved.autoStudy;

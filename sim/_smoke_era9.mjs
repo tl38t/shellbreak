@@ -182,8 +182,11 @@ ok('G.E.E.K 建成未启动 ⇒ geekDraw=0', hfG1.geekDraw === 0);
 /* 4) 建成且启动、资源充足：扣 kelp/metal/coral 各 GEEK_*×dt，累计 enceladusRun，满 1800s ⇒ enceladusDone（造价偏移由该旗推导） */
 const sG2 = SB.state.freshRun(false);
 sG2.wonders.wonder_geek = true; sG2.geek = { geekOn: true, enceladusDone:false, terraDone:false, enceladusRun:0, terraRun:0 };
-/* ⚠️ 金属的键名是 `silt`（RESS 里**没有** `metal` 键）：早前夹具写 `res.metal` 等于没设，
- *    G.E.E.K 一直判 `s.res.silt >= 500` 为假 ⇒ 全程 starved，整段 6 条断言集体假红。 */
+/* ⚠️ 金属的键名是 `silt`（RESS 里**没有** `metal` 键）。
+ *    游戏本体早在 e923d459(2026-10-21) 就把 shell.js 改成了 `s.res.silt`，**线上一直是好的**；
+ *    漏改的是本夹具：写 `res.metal`（不存在的键 ⇒ 等于没设）+ 完全没设 `stone`，
+ *    而 shell.js:125 要求 kelp/silt/stone/coral **全部**达标才扣料 ⇒ 一粒都不扣（连设对的 kelp 也是 0）。
+ *    实测旧版：整段 9 条失败（不是 6 条），EXIT=1。 */
 sG2.res.kelp = 1e9; sG2.res.silt = 1e9; sG2.res.stone = 1e9; sG2.res.coral = 1e9; sG2.res.warmstone = 1e9;
 sG2.lvl.hydroturbine = 50;   // 保证热液能剩流够 40/s
 const kelpBefore = sG2.res.kelp, siltBefore = sG2.res.silt, coralBefore = sG2.res.coral;

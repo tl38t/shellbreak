@@ -93,7 +93,7 @@
     { id: 'steelpart', name: '钢零件巧工', subtree: 'steel', layer: 3, cost: 25, recipe: 'craft_steelpart', rmul: 0.30, nest: 'hydroshopBoost2', desc: '钢制零件工艺效率 +30%' },
     { id: 'hydroshopBoost3', name: '热坊 III', subtree: 'steel', layer: 3, cost: 20, apply: { hydroshopBoost: 1 }, nest: 'hydroshopBoost2', desc: '热液工坊产出再 +10%' },
     { id: 'furnaceBoostTail', name: '炉压通汇', subtree: 'steel', layer: 4, cost: 20, scale: 1.5, n: Infinity, apply: { furnaceBoost: 0.5 }, nest: 'furnaceBoost3', desc: '热泉炉产出再 +5%/级（无上限，每级 ×1.5）' },
-    { id: 'slotCraft', name: '工造之位', subtree: 'steel', layer: 4, cost: 50, apply: { slotCraft: 1 }, nests: ['furnaceBoost3', 'hydroshopBoost3'], desc: '任意政体额外 +1 工造槽' },
+    { id: 'slotCraft', name: '工造之位', subtree: 'steel', layer: 4, cost: 75, apply: { slotCraft: 1 }, nests: ['furnaceBoost3', 'hydroshopBoost3'], desc: '任意政体额外 +1 工造槽' },
     { id: 'hydroshopBoostTail', name: '热坊通汇', subtree: 'steel', layer: 4, cost: 25, scale: 1.5, n: Infinity, apply: { hydroshopBoost: 0.5 }, nest: 'hydroshopBoost3', desc: '热液工坊产出再 +5%/级（无上限，每级 ×1.5）' },
     /* ── 政经往来 ── */
     { id: 'luxuryPact1', name: '商契 I', subtree: 'politics', layer: 1, cost: 2, apply: { luxuryPact: 1 }, desc: '商人系产出 +10%' },
@@ -109,8 +109,8 @@
     { id: 'luxuryPactTail', name: '商通汇', subtree: 'politics', layer: 4, cost: 10, scale: 1.5, n: Infinity, apply: { luxuryPact: 0.5 }, nest: 'luxuryPact3', desc: '商人系产出再 +5%/级（无上限，每级 ×1.5）' },
     { id: 'happiness', name: '安乐之治', subtree: 'politics', layer: 4, cost: 20, apply: { happiness: 1 }, nests: ['luxuryPact3', 'scribePact3'], desc: '幸福度 +1' },
     { id: 'scribePactTail', name: '书通汇', subtree: 'politics', layer: 4, cost: 12, scale: 1.5, n: Infinity, apply: { scribePact: 0.5 }, nest: 'scribePact3', desc: '书手系产出再 +5%/级（无上限，每级 ×1.5）' },
-    { id: 'autoCivic', name: '市政自转', subtree: 'politics', layer: 4, cost: 20, apply: { autoCivic: 1 }, nest: 'scribePact3', desc: '解锁市政自动研究器（默认关闭）' },
-    { id: 'slotEcon', name: '经济之位', subtree: 'politics', layer: 5, cost: 50, apply: { slotEcon: 1 }, nest: 'happiness', desc: '任意政体额外 +1 经济槽' },
+    { id: 'autoCivic', name: '市政自转', subtree: 'politics', layer: 4, cost: 20, apply: { autoCivic: 1 }, nest: 'scribePact3', desc: '解锁市政自动研究器（开关在市政页顶部，默认关闭）' },
+    { id: 'slotEcon', name: '经济之位', subtree: 'politics', layer: 5, cost: 75, apply: { slotEcon: 1 }, nest: 'happiness', desc: '任意政体额外 +1 民生槽' },
     /* ── 远见之人 ── */
     { id: 'scholarPact1', name: '学契 I', subtree: 'vision', layer: 1, cost: 3, apply: { scholarPact: 1 }, desc: '学者系产出 +10%' },
     { id: 'shellSurvey1', name: '钻机测绘 I', subtree: 'vision', layer: 1, cost: 6, apply: { shellSurvey: 4 }, desc: '天穹钻机效率 +20%' },
@@ -122,9 +122,9 @@
     { id: 'shellSurvey3', name: '钻机测绘 III', subtree: 'vision', layer: 3, cost: 18, apply: { shellSurvey: 4 }, nest: 'shellSurvey2', desc: '天穹钻机效率再 +20%' },
     { id: 'thinShell', name: '薄壳之智', subtree: 'vision', layer: 3, cost: 15, apply: { thin: 2 }, nest: 'shellSurvey2', desc: '天壳厚度 −20%' },
     { id: 'scholarPactTail', name: '学通汇', subtree: 'vision', layer: 4, cost: 12, scale: 1.5, n: Infinity, apply: { scholarPact: 0.5 }, nest: 'scholarPact3', desc: '学者系产出再 +5%/级（无上限，每级 ×1.5）' },
-    { id: 'autoStudy', name: '科技自转', subtree: 'vision', layer: 4, cost: 20, apply: { autoStudy: 1 }, nest: 'scholarPact3', desc: '解锁科技自动研究器（默认关闭）' },
+    { id: 'autoStudy', name: '科技自转', subtree: 'vision', layer: 4, cost: 20, apply: { autoStudy: 1 }, nest: 'scholarPact3', desc: '解锁科技自动研究器（开关在科技页顶部，默认关闭）' },
     { id: 'vibrodrill', name: '钻头巧工', subtree: 'vision', layer: 4, cost: 20, recipe: 'craft_drill', rmul: 0.30, nest: 'shellSurvey3', desc: '震动钻头工艺效率 +30%' },
-    { id: 'slotSci', name: '科技之位', subtree: 'vision', layer: 5, cost: 50, apply: { slotSci: 1 }, nest: 'autoStudy', desc: '任意政体额外 +1 科技槽' }
+    { id: 'slotSci', name: '科技之位', subtree: 'vision', layer: 5, cost: 75, apply: { slotSci: 1 }, nest: 'autoStudy', desc: '任意政体额外 +1 科研槽' }
   ];
 
   /* 星屑商店：星之至宝节点等级写入 meta.starPerks；apply 与 recipe 分别提供数值和工艺效果。 */

@@ -150,14 +150,12 @@
       for (var ii = 0; ii < items.length; ii++) {
         var p = items[ii], st = SB.prestige.perkState(p.id);
         var prereqIds = SB.prestige.perkPrerequisites ? SB.prestige.perkPrerequisites(p) : (p.nest ? [p.nest] : []);
-        var autoKind = p.id === 'autoStudy' ? 'tech' : p.id === 'autoCivic' ? 'civic' : '';
-        var autoOn = !!(autoKind && m.autoResearch && m.autoResearch[autoKind]);
         var nodeState = st.done ? 'is-done' : st.locked ? 'is-locked' : st.afford ? 'is-ready' : 'is-growing';
         var status = st.done ? '已满级' : st.locked ? '等待前置' : st.afford ? '可以点亮' : '积攒轮回点';
-        var extraHtml = autoKind && st.lv > 0
-          ? '<button type="button" class="btn meta-auto-toggle talent-auto-toggle" data-auto-research="' + autoKind +
-            '" aria-pressed="' + autoOn + '" title="自动研究默认关闭；只会研究当前满足全部条件且资源足够的项目">' +
-            (autoOn ? '关闭' : '开启') + (autoKind === 'tech' ? '科技' : '市政') + '自动研究</button>' : '';
+        /* ⚠️ 2026-11-01 用户拍板：自动研究开关从商店挪到科技页 / 市政页（做成拨动开关）。
+         *   这里**不留第二份按钮** —— 两处都能改同一个 meta 字段，只会让玩家怀疑
+         *   「我到底在哪儿改的」；节点卡改由 desc 说明开关去哪了。 */
+        var extraHtml = '';
         /* 轮回联动节点（dyn:'loop5'）：效果 = 系数 × 5% × 轮回次数 × 等级，每局 freshRun 由
          * derivePerksFromMeta 重算（读 m.cycle，无封顶）。徽标直接显示当前周目下的实时生效值，
          * 与结算口径同源（面板===结算），让玩家看到「这节点现在到底加多少」。 */

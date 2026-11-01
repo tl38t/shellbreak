@@ -10,6 +10,51 @@
     for (var i = 0; i < E.length; i++) if (E[i].id === n) return E[i];
     return { id: n, name: n + ' 纪元', motto: '', color: '#6FE3D2', desc: '' };
   }
+  /* ── 自动研究拨动开关（2026-11-01 用户：「把按钮改到科技、市政界面，做成拨动开关」）
+   * 开关从「轮回商店 → 天赋树节点下方」搬到**用得着它的那一页**：玩家决定要不要开自动
+   * 研究时，人就在科技页 / 市政页，不该为了按一下先跳到另一个页签再跳回来。
+   *   解锁仍是轮回天赋 autoStudy / autoCivic，买断事实读 meta.perks（与
+   *   auto-research.js 的 unlocked() 同源）；开关值只读 meta.autoResearch。
+   *   本函数不缓存、不派生第二份真相 —— 点击后由 prestige.toggleAutoResearch 落盘，
+   *   随 renderAll 重绘回读（这也是「面板显示 === 实际生效」的唯一保证）。
+   * ⚠️ 未解锁**也渲染**（灰锁态），不隐藏：藏起来等于这个 20 点的天赋买完，玩家在
+   *    页面上看不出任何变化，还得自己回商店翻才知道多了个开关。
+   * ⚠️ 结构里带嵌套 span ⇒ input.js 的点击委托必须从 e.target 往上 closest 回
+   *    [data-auto-research]；直读 dataset 会像 data-perk 那样「看着能点、点了没反应」。 */
+  function autoResearchSwitch(kind) {
+    var tech = kind === 'tech';
+    var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var perkId = tech ? 'autoStudy' : 'autoCivic';
+    var owned = !!(m && m.perks && m.perks[perkId] > 0);
+    var on = !!(owned && m.autoResearch && m.autoResearch[kind] === true);
+    var label = tech ? '科技' : '市政';
+    var perkName = tech ? '科技自转' : '市政自转';
+    var branch = tech ? '远见之人' : '政经往来';
+    var hint = owned
+      ? (on ? '已开启' : '已关闭')
+      : '未解锁 · 轮回天赋「' + perkName + '」';
+    var tip = owned
+      ? '自动研究' + label + '：每项仍要过 canStudy / canResearch，不绕过尤里卡、前置、纪元与资源门槛'
+      : '在顶栏「轮回商店 → ' + branch + '」花 20 点买下「' + perkName + '」，这个开关才会解锁';
+    /* 锁态用一枚挂锁代替滑块：光靠「灰轨道 + 虚线边」会被读成「关着的开关」，
+     * 玩家点两下发现没反应才知道不是那么回事。挂锁是这一眼就懂的符号。 */
+    var track = owned
+      ? '<span class="sw-track" aria-hidden="true"><span class="sw-knob"></span></span>'
+      : '<span class="sw-track sw-track-lock" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24" focusable="false"><rect x="5.5" y="10.5" width="13" height="9" rx="2.4"/>' +
+        '<path d="M8.6 10.5V8a3.4 3.4 0 0 1 6.8 0v2.5"/></svg></span>';
+    var inner = track +
+      '<span class="sw-copy"><b>自动研究' + label + '</b><i>' + hint + '</i></span>';
+    if (!owned) {
+      return '<div class="auto-research-bar is-locked"><span class="sw" role="switch" ' +
+        'aria-checked="false" aria-disabled="true" data-auto-locked="' + kind +
+        '" title="' + tip + '">' + inner + '</span></div>';
+    }
+    return '<div class="auto-research-bar"><button type="button" class="sw' + (on ? ' on' : '') +
+      '" role="switch" aria-checked="' + on + '" data-auto-research="' + kind +
+      '" title="' + tip + '">' + inner + '</button></div>';
+  }
+
   /* ── 科技树本体（文明 6 式横卷）─────────────────────────────────────
    * 【为什么不是「第 N 层」小标题的竖排列表】用户 2026-09-26 明确纠正过两次：
    *   竖排列表里层一和层二读起来是**上下并列**，玩家看不出先后；文明 6 是把节点
@@ -333,7 +378,7 @@
     var sel = (techViewEra >= 1 && techViewEra <= E.length) ? techViewEra : era;
     techViewEra = sel;
 
-    var h = eraNav(s, era, sel);
+    var h = autoResearchSwitch('tech') + eraNav(s, era, sel);
     h += eraDetail(s, era, sel, prog, sci);
     h += techTree(s);
     h += '<div class="note">尤里卡只「揭示」节点本身，不折算研究进度（设计已定）。' +
@@ -386,7 +431,7 @@
       '" data-civic-view="government" aria-pressed="' + (civicView === 'government') + '">政体' + govHint + '</button>' +
       '<button type="button" class="subtab' + (civicView === 'tree' ? ' on' : '') +
       '" data-civic-view="tree" aria-pressed="' + (civicView === 'tree') + '">市政树' + treeHint + '</button></div>';
-    return h + (civicView === 'tree'
+    return h + autoResearchSwitch('civic') + (civicView === 'tree'
       ? '<div class="subtab-panel civic-tree-panel">' + civicTree(s) + '</div>'
       : '<div class="subtab-panel civic-government-panel">' + paneCivicGov(s) + paneCivicSlot(s) + '</div>');
   }
@@ -871,6 +916,10 @@
   SB.ui.renderParts = SB.ui.renderParts || {};
   SB.ui.renderParts.research = {
     paneTech: paneTech, paneCivic: paneCivic,
+    /* 2026-11-01：科技 / 市政页顶部的自动研究拨动开关。回归直接调它断言
+     * 「已买=可拨、未买=锁态」，不必先把科技面板的门打开（paneTech 在未开门时
+     * 整页换成 paneTechLocked，开关根本不出现 —— 那会测成「没开门 ⇒ 没开关」）。 */
+    autoResearchSwitch: autoResearchSwitch,
     paneCivicGov: paneCivicGov, paneGovPicker: paneGovPicker, paneCivicSlot: paneCivicSlot,
     /* 2026-10-27：点槽直接选卡（`panePolicyPicker(s, slotIdx)`）。 */
     panePolicyPicker: panePolicyPicker,

@@ -146,7 +146,14 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.9'" in _cfg, '包内 config.js 版本号不是 Ver1.0.9'
+assert "VERSION: 'Ver1.0.10'" in _cfg, '包内 config.js 版本号不是 Ver1.0.10'
+assert "v: 'Ver1.0.10'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.10 条目'
+# Ver1.0.10 玩家可见 3 条：1 修复（轮回商店五个天赋不生效）+ 2 新增/改进（自动研究开关搬家 / 两首 BGM）。
+# 逐条钉死：漏一条这次等于白改。曲名连英文名一起钉，防止只写中文、与 CFG.AUDIO 里对不上。
+for _kw in ['轮回炉火不生效问题', '科技页和市政页的顶部',
+            '冰壳之下~Under the Ice~', '向着天穹~Toward the Firmament~',
+            '背景声大小可以在设置中调节']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.10 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.9'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.9 条目'
 # Ver1.0.9 玩家可见 10 条：9 新增（流浪泰拉挑战 / 限制 / 奖励 / 5 科技 / 2 奇观 / 2 建筑 /
 # 2 升级 / 成就+排行 / 兑换码）+ 1 修复（挑战页通关目标文案）。

@@ -614,12 +614,29 @@
       }
       return;
     }
-    if (d.autoResearch) {
-      var autoState = SB.prestige.toggleAutoResearch(d.autoResearch);
+    /* 自动研究拨动开关（2026-11-01 从轮回商店挪到科技页 / 市政页）。
+     * ⚠️ 按钮内部是 .sw-track / .sw-knob 两层 span，玩家实际点到的是它们 ⇒ 必须从
+     *   e.target 往上 closest 回 [data-auto-research]；直读 t.dataset 会像 data-perk
+     *   那样「看着能点、点了毫无反应」（同一个坑，见下方 perkBtn 的注释）。
+     * 锁定态（未买轮回天赋）是 span[data-auto-locked]，点它只给一句去哪解锁的话。 */
+    var autoBtn = d.autoResearch !== undefined
+      ? t
+      : (t.closest ? t.closest('[data-auto-research]') : null);
+    if (autoBtn && autoBtn.dataset && autoBtn.dataset.autoResearch) {
+      var autoKind = autoBtn.dataset.autoResearch;
+      var autoState = SB.prestige.toggleAutoResearch(autoKind);
       if (autoState !== null) {
         SB.game.markDirty(); SB.game.renderAll();
-        SB.game.log((d.autoResearch === 'tech' ? '科技' : '市政') + '自动研究已' + (autoState ? '开启' : '关闭') + '。');
+        SB.game.log((autoKind === 'tech' ? '科技' : '市政') + '自动研究已' + (autoState ? '开启' : '关闭') + '。');
       }
+      return;
+    }
+    var autoLock = (t.closest && d.autoLocked === undefined)
+      ? t.closest('[data-auto-locked]') : null;
+    if (autoLock && autoLock.dataset && autoLock.dataset.autoLocked) {
+      var lockTech = autoLock.dataset.autoLocked === 'tech';
+      SB.game.log('自动研究' + (lockTech ? '科技' : '市政') + '还没解锁：先在顶栏「轮回商店 → ' +
+        (lockTech ? '远见之人' : '政经往来') + '」花 20 点买下「' + (lockTech ? '科技自转' : '市政自转') + '」。');
       return;
     }
     /* 天赋节点（轮回树 data-perk / 星空树 data-star-perk，2026-10-24 修）。
