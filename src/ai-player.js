@@ -206,11 +206,14 @@
     return lastInvestment;
   }
   function nextChallengeId() {
-    if (!SB.challenges || !SB.challenges.canStart) return null;
+    if (!SB.challenges || !SB.challenges.canStartFresh) return null;
     var order = ['cold', 'small', 'science', 'abyss', 'speedrun'];
     var s = SB.game.run(), meta = SB.game.meta();
+    /* ⛔ 必须用 canStartFresh（还有未通关档位），不能用 canStart：
+     * 2026-11-02 挑战开放「通关后仍可重打」后，canStart 对已通关项恒为真 ⇒
+     * 机器人会在第一项通关后来回重开它，永远走不到虚境终局。 */
     for (var i = 0; i < order.length; i++)
-      if (SB.challenges.canStart(order[i], s, meta)) return order[i];
+      if (SB.challenges.canStartFresh(order[i], s, meta)) return order[i];
     return null;
   }
   function allImplementedChallengesDone(meta) {

@@ -163,6 +163,9 @@ html[data-ui-theme="day"] {
   --tree-tech-soft: rgba(20,127,135,.12);
   --tree-civic: #9a6c25;
   --tree-civic-soft: rgba(154,108,37,.12);
+  /* 可点文字色（.building-name）：浅海玻璃底色上必须压深，否则 #a9eef0 在白卡上读不出来。 */
+  --link: #0c6b73;
+  --link-hover: #07545b;
 }
 html[data-ui-theme="day"] body {
   background: radial-gradient(900px 540px at 82% -12%,rgba(56,155,164,.14),transparent 70%),

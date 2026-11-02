@@ -149,6 +149,30 @@
     return out;
   }
 
+  /* 只把 dyn:'loop5' 的键按当前 meta 重算（轮回工巧 craftLoop / 轮回炉火 furnaceLoop+hydroLoop）。
+   * 【为什么单独有这个函数】这两个键是 meta 的**纯函数**（0.05 × 周目 × 等级 × 星无限倍率），
+   *   不含任何本局累加 ⇒ 读档时按当前 meta 覆盖是幂等的，也不会与「购买时即时到账」那份叠加。
+   *   其余键（纯加法）与周目无关，既没必要也不该在这里动。
+   * 【为什么读档必须动它】2026-11-02 之前 `game.startRun` 拿上一局的 perk 表整表覆盖派生结果
+   *   （见那里那条注）⇒ 老存档里这两个键被冻在「购买那一局」的 cycle 上，甚至为 0。
+   *   只修 startRun 的话，这批玩家要等下一个周目才生效，读档进来仍旧「没生效」。
+   * 【同源】算式不另写一份，直接取 derivePerksFromMeta 的结果，避免两处口径漂移。 */
+  function syncLoopPerks(s, m) {
+    if (!s || !s.perk) return false;
+    var d = derivePerksFromMeta();
+    if (!d.applied) return false;
+    void m;                       // 参数只为可读性保留（真正读的是 SB.game.meta()）
+    var changed = false, PL = SB.TIDE_TREE || [], i, k;
+    for (i = 0; i < PL.length; i++) {
+      var p = PL[i];
+      if (p.dyn !== 'loop5' || !p.apply) continue;
+      for (k in p.apply) {
+        if (s.perk[k] !== d.perk[k]) { s.perk[k] = d.perk[k]; changed = true; }
+      }
+    }
+    return changed;
+  }
+
   /* 生成一周目。inherit: true 时继承上一周目的增益（轮回点/破层级/已购增益）。
    * 注意：破层级 layers 一期恒为 1（破冰 = 第 1 层），结构上留给二期大气壳。 */
   function freshRun(keepPerks) {
@@ -163,7 +187,13 @@
       perk = emptyPerks();
     }
     var thin = perk.thin || 0;
-    var iceShell = Math.round(SB.CFG.ICE_SHELL * Math.pow(0.9, thin));
+    /* 薄壳之智（perk.thin）＝ 天壳厚度 **线性 −10% / 级**（2026-11-01 用户拍板改线性）。
+     * ⚠️ 这里以前是 `Math.pow(0.9, thin)`，把 thin 当级数做复利：thin=2 ⇒ 0.81 = −19%，
+     *   而 desc 写的是「−20%」⇒ 500000 上少减 5000 点。同一棵天赋树里 shellSurvey 走的是
+     *   线性（`1 + 0.05 × 级`），只有这一条用了复利 —— 属实现与描述分叉，不是四舍五入。
+     * 下限 0.1 是结构防护（防将来真给到 10 级以上时壳厚归零/变负），不是标定。
+     * ⚠️ 改这里必须同步 `state-migrate.js` 的迁移段，否则老档迁一次又算回复利值。 */
+    var iceShell = Math.round(SB.CFG.ICE_SHELL * Math.max(0.1, 1 - 0.1 * thin));
     /* 星屑跨周目局外资源：freshRun 把累计结算发放量 seed 进 got.stardust；余额兑换不改变尤里卡进度。 */
     var _meta = null;
     try { if (SB.game && SB.game.meta) _meta = SB.game.meta(); } catch (e) { _meta = null; }
@@ -1150,6 +1180,9 @@
     emptyMeta: emptyMeta,
     emptyPerks: emptyPerks,
     freshRun: freshRun,
+    /* 2026-11-02：读档时把 dyn:'loop5' 的键（轮回工巧 / 轮回炉火）按当前 meta 重算。
+     * 这两个键是 meta 的纯函数，覆盖幂等；只为救「被 startRun 旧逻辑冻住」的老存档。 */
+    syncLoopPerks: syncLoopPerks,
     migrateRun: migrateRun,
     loadMeta: loadMeta,
     normalizeMeta: normalizeMeta,

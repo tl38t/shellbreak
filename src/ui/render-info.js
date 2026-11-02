@@ -285,7 +285,7 @@
     }
     /* 大学（upg_university）在 BLD.instituteSci 之上再加一份 instituteSci ⇒ 面板这句
      * 必须**现读配置**。2026-10-30 之前这里写死「×100%」，而 BLD 从 0.50 降到 0.30 后
-     * 合计只有 0.80 ⇒ 写死的数会立刻变成假话。凡「合计值 = 基础值 + 升级值」一律现算，
+     * 合计只有 0.80（2026-11-02 又降到 0.60）⇒ 写死的数会立刻变成假话。凡「合计值 = 基础值 + 升级值」一律现算，
      * 不许留第二份真源。 */
     function uniSciTotal() {
       var t = (B.instituteSci || 0), i;
@@ -293,6 +293,17 @@
         if (SB.UPGRADES[i].id === 'upg_university') t += (SB.UPGRADES[i].instituteSci || 0);
       }
       return t;
+    }
+    /* 「研究所有没有已经升级成大学」——判据与 showBuildingInfo 顶部那段改名循环**同一套**
+     * （`upgradesBuilding === 'institute'` + `s.upgrades[id]`），不另写一份 id 常量：
+     * 将来换升级项或再加一项顶替研究所时，改名与效果两句会一起跟着变，不会一处新一处旧。
+     * ⚠️ `s.upgrades.<id>` 只有「装没装」两态（workshop.upgradeBuy 只写 true），别当等级用。 */
+    function uniInstalled() {
+      for (var i = 0; SB.UPGRADES && i < SB.UPGRADES.length; i++) {
+        var u = SB.UPGRADES[i];
+        if (u.upgradesBuilding === 'institute' && s && s.upgrades && s.upgrades[u.id]) return true;
+      }
+      return false;
     }
     switch (id) {
       case 'kelp':         return add('自动产藻食', B.food, B.food * L, '/秒', 2) + '；吃季节减产';
@@ -305,8 +316,19 @@
       case 'workshop':     return pct('工艺制作效率', (b.craftRatio || 0) * 100, (b.craftRatio || 0) * 100 * L, 0);
       case 'siltpit':      return pct('矿工与采石工产出', B.siltBonus * 100, B.siltBonus * 100 * L, 0);
       case 'library':      return pct('学者科技产出', B.sciRatio * 100, B.sciRatio * 100 * L, 0);
-      case 'institute':    return pct('学者科技产出', B.instituteSci * 100, B.instituteSci * 100 * L, 0) +
-                                 '；升级为大学后变 +' + (uniSciTotal() * 100).toFixed(0) + '%/级';
+      /* ⚠️ 2026-11-02 修（用户报「大学不是 +80% 吗，450% 是显示错误还是加成不对」）：
+       *   原样输出是「学者科技产出 +30%/级（当前 +450%）；升级为大学后变 +80%/级」——
+       *   而卡片标题此时已经是「大学」（showBuildingInfo 顶部按 upgradesBuilding 改名），
+       *   前半句却仍是升级前的 30%，后半句还在说「升级后」，读起来就是「加没生效」。
+       *   结算侧三条读取点（economy-rates 的 _sciBr / economy-tick / economy.js）
+       *   写的都是 `BLD.instituteSci + upgSum(s,'instituteSci')` ⇒ 实际就是两值之和
+       *   （2026-11-02 起 0.30 + 0.30 = 0.60/级），错的只有那句文案。
+       *   已装升级时直接给合计值与真实当前值，不再提「升级后」。 */
+      case 'institute': {
+        if (uniInstalled()) return pct('学者科技产出', uniSciTotal() * 100, uniSciTotal() * 100 * L, 0);
+        return pct('学者科技产出', B.instituteSci * 100, B.instituteSci * 100 * L, 0) +
+               '；升级为大学后变 +' + (uniSciTotal() * 100).toFixed(0) + '%/级';
+      }
       case 'square':       return pct('市政点产出（仅' + SB.folk.jobName(s, 'scribe') + '）', B.squareCivRatio * 100, B.squareCivRatio * 100 * L, 0) +
                                  '；装《戏剧与诗歌》后翻倍';
       case 'temple':       return pct('信仰产出', B.templeFaithRatio * 100, B.templeFaithRatio * 100 * L, 0) +

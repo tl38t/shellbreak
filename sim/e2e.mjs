@@ -956,6 +956,44 @@ console.log('\n=== 纪元三 · economy 接线 ===');
       keyOf('hall') === kHall0 && keyOf('institute') === kInst0);
     check('研究所升级后仍能续建（同一座通道）', SB.habitat.build(pv, 'institute') === true
       && pv.lvl.institute === 1, 'inst=' + pv.lvl.institute);
+    /* ⚠️ 2026-11-02（用户报「大学不是 +80% 吗，这个 450% 是显示错误还是加成确实不对」）：
+     * 卡片标题早就按 upgradesBuilding 改成「大学」了，但「效果」段仍按基础值出句子 ——
+     * 「学者科技产出 +30%/级（当前 +450%）；升级为大学后变 +80%/级」⇒ 玩家读成「加没生效」。
+     * 结算侧三条读取点（economy-rates 的 _sciBr / economy-tick / economy.js）写的都是
+     * `BLD.instituteSci + upgSum(s,'instituteSci')` ⇒ 面板必须与「两值之和」同口径。
+     * ⚠️ 同日用户拍板：大学合计 +80%/级 → **+60%/级**（降的是升级那份 0.5 → 0.3，研究所本体不动）。
+     * 这里锁「面板与结算同口径」：已装升级时面板必须给合计值，且不再出现 30%。
+     * ⚠️ 判据只用数字串 —— 建筑名会被 linkInfoNames 包成 <a>，含名字的句子会被标签打断。 */
+    {
+      const gs = SB.game.run();
+      const bakInst = gs.lvl.institute, bakUni = gs.upgrades.upg_university;
+      /* 合计值一律现读配置（不写死），再单独用一条断言钉住「用户拍板的那个数」。 */
+      const uniPerLv = (SB.BLD.instituteSci || 0) +
+        SB.UPGRADES.filter(u => u.id === 'upg_university').reduce((a, u) => a + (u.instituteSci || 0), 0);
+      gs.lvl.institute = 15;
+      gs.upgrades.upg_university = false;
+      SB.ui.render.showBuildingInfo('institute');
+      const preHtml = doc.getElementById('modalBox').innerHTML;
+      check('研究所（未升级）卡片给出 +30%/级 与当前 +450%，并提示升级后变 +60%',
+        preHtml.includes('+30%/级') && preHtml.includes('当前 +450%') && preHtml.includes('+60%/级'),
+        preHtml.replace(/<[^>]+>/g, '|').slice(-240));
+      gs.upgrades.upg_university = true;
+      SB.ui.render.showBuildingInfo('institute');
+      const postHtml = doc.getElementById('modalBox').innerHTML;
+      check('大学（已装升级）卡片直接给 +60%/级 与当前 +900%，不再残留 +30%/级',
+        postHtml.includes('+60%/级') && postHtml.includes('当前 +900%') && !postHtml.includes('+30%/级'),
+        postHtml.replace(/<[^>]+>/g, '|').slice(-240));
+      /* 这条**故意写死** 0.60：它是用户 2026-11-02 拍板的标定值。
+       * 改动系数时必须红一次，逼人回来同步三处手写文案（BLD.institute.desc /
+       * Techs.education.unlockDesc / UPGRADES.upg_university 的 desc 与 buildingDesc）。 */
+      check('大学每级乘区 = 用户拍板值 0.60（基础 0.30 + 升级 0.30）',
+        Math.abs(uniPerLv - 0.60) < 1e-9, 'perLv=' + uniPerLv);
+      const shownPct = (postHtml.match(/\+(\d+)%\/级/) || [])[1];
+      check('大学卡片百分比 = 配置合计（基础 + 升级那份），两处同源',
+        shownPct !== undefined && Math.abs(Number(shownPct) - uniPerLv * 100) < 1e-6,
+        '面板=' + shownPct + '% 配置=' + (uniPerLv * 100).toFixed(0) + '%');
+      gs.lvl.institute = bakInst; gs.upgrades.upg_university = bakUni;
+    }
     /* 链式：矿坑两级都装了 ⇒ 显示最深一级「深层矿井」，不是第一级「鱼骨矿井」。 */
     check('矿坑：只装鱼骨矿井时数据层认它', !!pv.upgrades.upg_fishbonemine || true);
     pv.upgrades.upg_fishbonemine = true;
@@ -1830,7 +1868,21 @@ if (SB.game.run().broken) {
   check('可进入下一周目', SB.game.meta().cycle === cycleBefore + 1, '第 ' + SB.game.meta().cycle + ' 周目');
   check('新周目清空建筑与资源', SB.economy.lvlSum(s2) === 0 && s2.res.coral === 0);
   check('新周目继承增益结构', !!s2.perk, JSON.stringify(s2.perk));
-  check('新周目冰壳按 perk 重算', s2.iceShell === Math.round(SB.CFG.ICE_SHELL * Math.pow(0.9, s2.perk.thin || 0)), 'iceShell=' + s2.iceShell);
+  {
+    /* ⚠️ 期望值必须**自己按描述算**，不能照抄游戏里的实现。这条断言原来写的是
+     *   `Math.pow(0.9, thin)` —— 与 state.js 同源，于是「实现用复利、desc 写线性」
+     *   这个分叉它永远测不出来（自洽式断言的通病）。现改为按 desc「−10%/级」推。
+     *   下面再钉一个绝对值：500000 壳 + 薄壳 2 级必须恰好 400000，
+     *   复利会给出 405000 ⇒ 两处一起改错也拦得住。 */
+    const _thin = s2.perk.thin || 0;
+    const _wantShell = Math.round(SB.CFG.ICE_SHELL * Math.max(0.1, 1 - 0.1 * _thin));
+    check('新周目冰壳按 perk 重算（线性 −10%/级，不是复利 0.9^n）',
+      s2.iceShell === _wantShell, 'iceShell=' + s2.iceShell + ' want=' + _wantShell + ' thin=' + _thin);
+    if (_thin === 2 && SB.CFG.ICE_SHELL === 500000) {
+      check('薄壳 2 级恰好 −20%（500000 → 400000，不是复利的 405000）',
+        s2.iceShell === 400000, 'iceShell=' + s2.iceShell);
+    }
+  }
 } else {
   /* 这四条**挂起，不是改绿**：破冰没发生 ⇒ 结算面板不存在 ⇒ 轮回点 / 周目推进全走不到。
    * 【重设后照原样还原】把下面的 pending(...) 换回 check(...) 原句即可。 */
@@ -1859,6 +1911,18 @@ check('轮回商店有余额摘要与 8 子树天赋树（2026-10-23 潮汐之�
     .every(t => metaMarkup.includes(t)));
 check('轮回商店每项天赋节点仍对应唯一购买按钮',
   SB.TIDE_TREE.every(p => (metaMarkup.match(new RegExp('data-perk="' + p.id + '"', 'g')) || []).length === 1));
+/* 2026-11-01（用户拍板 A 方案）：未解锁的商店页签一律「渲染 + 置灰」，不许整块消失。
+ * 反面教材是轮回点页签原先写成 `if (rebirthOpen) tabs += ...`，于是「建成轨道卫星
+ * （星屑页已开）但还没完成《神学》做过合格轮回」的玩家进商店只看到一个孤零零的星屑页签，
+ * 连「还有一个商店在等你」都无从得知。断言按「文案前 300 字符内的属性段」取，避免
+ * 假 DOM 需要 HTML 解析。 */
+function shopTabAttrs(html, label) {
+  const i = html.indexOf(label);
+  return i < 0 ? '' : html.slice(Math.max(0, i - 300), i);
+}
+check('已解锁时轮回点页签可点（无 disabled）且为激活态',
+  (function () { const a = shopTabAttrs(metaMarkup, '轮回点商店'); return a.includes('is-active') && !a.includes('disabled'); })(),
+  shopTabAttrs(metaMarkup, '轮回点商店').slice(-140));
 const s3 = SB.game.run();
 SB.game.meta().tide = 30;                       // 给够点数，验证扣款与到账
 const kelpBefore = s3.res.kelp;
@@ -2020,6 +2084,19 @@ SB.state.saveMeta(SB.game.meta());
 SB.game.startRun();
 check('未建立宗教、即使进到第二周目，shopUnlocked 仍为 false（不能进轮回商店）', SB.game.meta().shopUnlocked === false);
 check('未建立宗教时 meta 页仍 locked', doc.querySelector('.tab[data-tab="meta"]').classList.contains('locked'));
+/* 2026-11-01（用户拍板 A 方案）：门没开时轮回点页签**仍然渲染**，只是置灰。
+ * 原先写成 `if (rebirthOpen) tabs += ...` ⇒ 页签整块消失，「建成卫星（星屑页已开）
+ * 但还没完成《神学》做过合格轮回」的玩家进商店只看到一个孤零零的星屑页签。
+ * 这里把卫星显式归零，让本段不依赖「主流程此刻走到 ERA7 没有」——
+ * 否则将来主流程一变，这条会以「断言过期」的形式假红。 */
+if (SB.game.run() && SB.game.run().lvl) SB.game.run().lvl.satellite = 0;
+SB.game.renderAll();
+const lockedShopHtml = doc.getElementById('pane-meta').innerHTML;
+check('未解锁轮回点时，轮回点页签仍渲染为置灰态（不再整块消失）',
+  (function () {
+    const a = shopTabAttrs(lockedShopHtml, '轮回点商店');
+    return !!a && a.includes('meta-shop-tab') && a.includes('is-locked') && a.includes('disabled');
+  })(), shopTabAttrs(lockedShopHtml, '轮回点商店').slice(-140));
 /* 2026-10-24 挑战与成就拆成两个页签：门与 meta 页同源（首次轮回），一门两页。 */
 check('未首次轮回时挑战/成就页签均 locked',
   doc.querySelector('.tab[data-tab="challenges"]').classList.contains('locked') &&
@@ -2053,6 +2130,60 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
   (SB.game.setTab('achievements'), SB.game.getTab() === 'achievements') &&
   !doc.getElementById('pane-achievements').classList.contains('hidden'),
   'tab=' + SB.game.getTab());
+
+/* 4.5) 【2026-11-02 玩家报「轮回工巧 / 轮回炉火还是没生效」】轮回联动节点（dyn:'loop5'）
+ *      必须**每局按 meta.cycle 重算**。旧版 game.startRun 里那句
+ *      `S.perk = Object.assign(emptyPerks(), prev.perk)` 拿「上一局」的表整表覆盖，
+ *      把 freshRun 刚派生出的 loop5 值冲掉：
+ *        · 常规节点与周目无关、值恰好相同 ⇒ 一直没暴露；
+ *        · 这两条「每轮回重算」的会被冻在上一次购买时的周目，甚至整表归 0
+ *          （买完没等到自动存档就退出，run 存档里还是旧表）⇒ 商店徽标写 +X%、实际不加。
+ *      ⚠️ 判据必须包含「不是 0」——只写「等于 0.05×cycle」的话，两者都为 0 时会假绿。
+ *      ⚠️ 夹具走生产路径（改 meta → startRun），不手写 s.perk 键值（量纲：键存分数）。 */
+{
+  const mP = SB.game.meta();
+  const bakPerks = Object.assign({}, mP.perks || {});
+  mP.perks = Object.assign({}, mP.perks, { craftLoop: 1, furnaceHydroLoop: 1 });
+
+  SB.game.startRun();
+  let sL = SB.game.run();
+  const cyc1 = mP.cycle;
+  const want1 = 0.05 * cyc1;
+  check('轮回工巧新周目按 meta.cycle 重算：s.perk.craftLoop = 0.05 × 周目，且不为 0',
+    Math.abs(sL.perk.craftLoop - want1) < 1e-9 && sL.perk.craftLoop > 0,
+    'cycle=' + cyc1 + ' craftLoop=' + sL.perk.craftLoop + ' 期望=' + want1);
+  check('轮回炉火同样不被 startRun 冲掉：furnaceLoop / hydroLoop = 0.05 × 周目，乘区真实抬高',
+    Math.abs(sL.perk.furnaceLoop - want1) < 1e-9 && Math.abs(sL.perk.hydroLoop - want1) < 1e-9 &&
+    Math.abs(SB.economy.furnaceEffMul(sL) - (1 + want1)) < 1e-9 &&
+    Math.abs(SB.economy.hydroshopEffMul(sL) - (1 + want1)) < 1e-9,
+    'furnace=' + SB.economy.furnaceEffMul(sL).toFixed(3) + ' 期望=' + (1 + want1).toFixed(3));
+  check('轮回工巧接进工坊制作乘区（craftMul 随键值同比抬高）',
+    Math.abs(SB.workshop.craftMul(sL, { id: 'craft_steelpart', out: 1 }) - (1 + want1)) < 1e-9,
+    'craftMul=' + SB.workshop.craftMul(sL, { id: 'craft_steelpart', out: 1 }).toFixed(3));
+
+  /* 再翻一个周目：值必须**线性涨**（旧版被 prev.perk 冻住，这里会红） */
+  SB.game.startRun();
+  sL = SB.game.run();
+  check('再轮回一次后 loop5 值线性增长（不是冻结在上一次的值）',
+    Math.abs(sL.perk.craftLoop - 0.05 * mP.cycle) < 1e-9 && sL.perk.craftLoop > want1,
+    'cycle=' + mP.cycle + ' craftLoop=' + sL.perk.craftLoop + ' 上一周目=' + want1);
+
+  /* 读档纠正：老存档里被冻住的值（这里用哨兵 0.99，既非 0 也非任何周目的真值）
+   * 必须在 resumeRun 的 syncLoopPerks 里被拉回当前口径。 */
+  sL.perk.craftLoop = 0.99; sL.perk.furnaceLoop = 0.99; sL.perk.hydroLoop = 0.99;
+  const fixed = SB.state.syncLoopPerks(sL);
+  const wantNow = 0.05 * mP.cycle;
+  check('读档纠正：被冻住的 loop5 键按当前 meta 重算（哨兵 0.99 → 0.05 × 周目）',
+    fixed === true && Math.abs(sL.perk.craftLoop - wantNow) < 1e-9 &&
+    Math.abs(sL.perk.furnaceLoop - wantNow) < 1e-9 && Math.abs(sL.perk.hydroLoop - wantNow) < 1e-9,
+    'craftLoop=' + sL.perk.craftLoop + ' 期望=' + wantNow);
+  check('读档纠正幂等：再跑一次不再改动（返回 false）', SB.state.syncLoopPerks(sL) === false);
+
+  /* 还原，不影响后续断言（meta 里不留这两个节点、本局三个键归零） */
+  mP.perks = bakPerks;
+  sL.perk.craftLoop = 0; sL.perk.furnaceLoop = 0; sL.perk.hydroLoop = 0;
+  SB.state.saveMeta(mP);
+}
 
 /* 5b) 【2026-10-05 拍板】重开按钮的结算分流：本局研究完《神学》⇒ 走真正轮回结算（doBreak），
  *      未研究 ⇒ 仅纯重开（resetRun），不结算、不发点。

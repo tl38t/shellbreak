@@ -382,6 +382,33 @@ console.log('\n=== 纪元四 · 天壳工程 ===');
     check('flow：建成但未启动 ⇒ 钻机不转不吃流（run=0、starved 假、速率行只剩工坊-2）',
       !(m2.skydrillRun > 0) && !m2.skydrillStarved && Math.abs(SB.economy.rates(m2).hydro + 2) < 1e-9,
       'run=' + (m2.skydrillRun || 0) + ' rate.hydro=' + SB.economy.rates(m2).hydro);
+    /* ⑥ 破壳后「使命结束即关机」（2026-11-02 玩家贴图报：自然环境卡已改显「破壳后奇观效果」，
+     *   热液能面板却还挂着「天穹钻机 −20/秒」）。两件事分开钉，因为它们是**两条不同的路**：
+     *     a) 破壳那一刻 shell.onShellZero 把开关落下（新档）；
+     *     b) hydroAlloc 的机器态判据自己认 broken / shell（**老档唯一能救的路** ——
+     *        它们早在本修之前就破壳了，onShellZero 那次关机永远不会再发生）。
+     *   ⚠️ 只测 a 会让 b 漏网：夹具把 skydrillOn 写回 true 才压得住 b。 */
+    const pb = SB.state.freshRun(false);
+    pb.lvl.hydroturbine = 25; pb.lvl.hydroshop = 2; pb.res.warmstone = 1e9; pb.res.silt = 1e9;
+    pb.res.resonantDrill = 1000; pb.wonders = { wonder_skydrill: true }; pb.skydrillOn = true;
+    SB.economy.tick(pb, 1, noop);
+    check('flow：破壳前钻机确实在吃流（夹具自检 −22）',
+      Math.abs(SB.economy.rates(pb).hydro + 22) < 1e-9, 'rate.hydro=' + SB.economy.rates(pb).hydro);
+    pb.shell = 5;   // 钻机 100/秒 ⇒ 下一 tick 必定凿穿并触发 onShellZero
+    SB.economy.tick(pb, 1, noop, { deferBreakUI: true });
+    check('破壳即关机：onShellZero 把 skydrillOn / skydrillStarved 一起落下',
+      pb.broken === true && pb.skydrillOn === false && pb.skydrillStarved === false,
+      'broken=' + pb.broken + ' on=' + pb.skydrillOn + ' starved=' + pb.skydrillStarved);
+    const pbFlow = SB.economy.hydroAlloc(pb, 1);
+    check('破壳后不再给钻机留流（skyNeed=0、速率行只剩工坊 −2）',
+      pbFlow.skyNeed === 0 && pbFlow.skyRate === 0 && Math.abs(SB.economy.rates(pb).hydro + 2) < 1e-9,
+      'skyNeed=' + pbFlow.skyNeed + ' skyRate=' + pbFlow.skyRate + ' rate.hydro=' + SB.economy.rates(pb).hydro);
+    /* 老档路径：已经 broken、但存档里 skydrillOn 仍是 true ⇒ 一律不许取流。 */
+    pb.skydrillOn = true;
+    const pbOld = SB.economy.hydroAlloc(pb, 1);
+    check('老存档（broken 但 skydrillOn 仍为真）不取流 —— 机器态判据自己认 broken',
+      pbOld.skyNeed === 0 && pbOld.skyRate === 0 && Math.abs(SB.economy.rates(pb).hydro + 2) < 1e-9,
+      'skyNeed=' + pbOld.skyNeed + ' skyRate=' + pbOld.skyRate + ' rate.hydro=' + SB.economy.rates(pb).hydro);
     // ⑤ 量纲：dt 必须被归一（STEP 变化不改主数，否则「这 tick 产多少」会被当成「每秒」）
     const q = SB.state.freshRun(false);
     q.lvl.hydroturbine = 3; q.res.warmstone = 1e9;

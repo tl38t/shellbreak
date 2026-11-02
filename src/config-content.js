@@ -458,18 +458,22 @@
       craftRatio: 0.10,
       cost: { rope: 600 },
       desc: '工坊自动化：工艺制作效率 +10%，并自带 1 个自动制作槽。' },
-    /* 大学：need=教育。效果：研究所学者产出每级**再 +50 个百分点**（instituteSci 0.5 加到
+    /* 大学：need=教育。效果：研究所学者产出每级**再 +30 个百分点**（instituteSci 0.3 加到
      *   BLD.instituteSci 之上）。
-     * ⚠️ 2026-10-30 后期难度标定：BLD.instituteSci 由 0.50 降到 0.30
-     *   ⇒ 升级前 +30%/级、升级后 **+80%/级**（原来的 +50% → +100% 已不成立）。
+     * ⚠️ 2026-10-30 后期难度标定：BLD.instituteSci 由 0.50 降到 0.30。
+     * ⚠️ 2026-11-02 用户拍板：**大学合计由 +80%/级 下调到 +60%/级** ⇒ 降的是升级这一份
+     *   （0.5 → 0.3），研究所本体那份 +30%/级 不动。于是：升级前 +30%/级、升级后 **+60%/级**。
      *   ⇒ 这里与 buildingDesc 只写「升级给什么 / 合计多少」，面板侧由 render-info 的
      *     uniSciTotal() 现读配置算，**不许在任何地方写死合计百分比**（第二份真源必漂）。
+     *   ⚠️ 同一个合计值还会出现在两处**手写文案**里，改这里必须同步：
+     *     `BLD.institute.desc`（config-buildings，建筑行）、`Techs.education.unlockDesc`
+     *     （techs.js，科技卡），否则「科技卡说 60%、面板算 60%、建筑行说 80%」。
      * cost 100 石头 + 50 铁制支架。 */
     { id: 'upg_university', name: '大学', need: 'education', upgradesBuilding: 'institute',
-      buildingDesc: '学者科技产出 +50%（升级后每级 +80%）。',
-      instituteSci: 0.5,
+      buildingDesc: '学者科技产出 +60%/级（含研究所那份 +30%）。',
+      instituteSci: 0.3,
       cost: { stone: 100, ironBracket: 50 },
-      desc: '研究所升级：学者科技产出由 +30%/级 提升到 +80%/级。' },
+      desc: '研究所升级：学者科技产出由 +30%/级 提升到 +60%/级。' },
     /* 城堡：need=城堡(科技)。效果：① 议价减耗（hallSaveMul 0.5 ⇒ 每级省耗率 ×1.5，
      *   渐近上限仍取基础 60%、其它仓库叠加到最高 75%；2026-10-29 起换**等比递减**曲线，
      *   不再和容量轴共用 getLimitedDR —— 后者的 0.75 次幂末段会回升，与「越升越少」相反）；

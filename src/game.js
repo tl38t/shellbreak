@@ -175,9 +175,17 @@
         if (typeof _blv === 'number' && _blv > 0) _blt[_blk] = (_blt[_blk] || 0) + _blv;
       }
     }
-    if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now() };
+    if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now(), replay: options.challenge.replay === true };
     if (SB.economy && SB.economy.lockSeasonLengths) SB.economy.lockSeasonLengths(S, meta);
-    if (prev && prev.perk) S.perk = Object.assign(SB.state.emptyPerks(), prev.perk);
+    /* ⚠️ 2026-11-02（玩家报「轮回工巧 / 轮回炉火还是没生效」）：
+     * 这行是「潮汐之树 derivePerksFromMeta」之前的遗物（基线 aa3647d3 就在，744e8497 才引入派生）。
+     * 现在 freshRun 已经按 meta 把**整张天赋表**重算过，这里再用「上一局」的表整表覆盖 ⇒ 派生结果被丢掉：
+     *   · 常规节点（纯加法、与周目无关）值恰好相同 ⇒ 一直没人发现；
+     *   · dyn:'loop5'（轮回工巧 craftLoop / 轮回炉火 furnaceLoop+hydroLoop）按 cycle 重算 ⇒
+     *     被冻在「上一次购买那一局」的值上，甚至整表归 0（购买后没等到自动存档就关掉游戏）⇒
+     *     商店徽标写着「⟳ 联动 · 当前 +X%」，工坊/热泉炉实际一点不加 —— 就是玩家说的「没生效」。
+     * ⇒ 只有**没有 meta** 的地基场景（sim 裸夹具）才保留旧表兜底。 */
+    if (prev && prev.perk && !meta) S.perk = Object.assign(SB.state.emptyPerks(), prev.perk);
     /* 自动点击开关跨周目继承（2026-10-28 用户拍）：freshRun 给的是 true，必须用 meta 偏好盖上，
      * 否则「暂停」在破壳后会被静默重置成开。 */
     applyAutoClickPref(S);
@@ -234,6 +242,11 @@
      * 已结算的旧档则沿用原行为，恢复为可继续发展的破壳后周目。 */
     if (S.shellOpened && !(S.broken && !S.breakSettled)) S.broken = false;
     if (!S.perk) S.perk = SB.state.emptyPerks();
+    /* 2026-11-02 老档纠正：轮回工巧 / 轮回炉火（dyn:'loop5'）的键值在旧版本被 startRun 的整表覆盖
+     * 冻在「购买那一局」的周目数上（甚至为 0，见 startRun 那条注）。这两个键是 meta 的纯函数，
+     * 按当前 meta 重算是幂等的，不会与本局累加叠加 ⇒ 读档即修正，不必等下一个周目。
+     * 同步落盘：不写回去的话，玩家下次进游戏还会看到同一份被冻住的值。 */
+    if (SB.state.syncLoopPerks && SB.state.syncLoopPerks(S, meta)) SB.state.saveRun(snapshot(S));
     /* 自动点击开关跨周目继承（2026-10-28）：
      *   ① 一次性认领 —— meta 里**没有**这个键（= 玩家从未拨过开关，属于「先装开关、后装继承」
      *      的档）而本局存档里有布尔值 ⇒ 认领存档里的值。不认领就会把玩家已设的「暂停」抹成开。

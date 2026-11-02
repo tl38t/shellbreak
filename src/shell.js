@@ -158,6 +158,14 @@
 
   function onShellZero(s, emit, opts) {
     s.shell = 0;
+    /* ⚠️ 2026-11-02（玩家报「破壳后钻机不运行了还在吃 −20/秒热液」）：这里补上**关机**。
+     *   破壳后机头没有壳可凿，但 skydrillOn 一直是 true ⇒ hydroAlloc 会继续按 20/秒 给它留份额
+     *   （那份是从流里**真扣**的，不是显示）。两处一起修：
+     *     · 本条：破壳即把开关落下（状态说真话，存档里不会留一个「开着却没活干」的机器）；
+     *     · economy.hydroAlloc：机器态判据补 `!s.broken && shell > 0`，救已经破壳的老存档。
+     *   ⚠️ 不要只做本条：它是**一次性事件**，老档早已过去，只靠它那批档照样漏 20/秒。 */
+    s.skydrillOn = false;
+    s.skydrillStarved = false;
     /* 破壳先展示当前结算预估；只有玩家选择轮回时才真正入账。留在本局后，
      * shellOpened 保持为真，文明可继续发展，之后再次按最新状态结算。 */
     s.shellOpened = true;

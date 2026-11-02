@@ -33,12 +33,13 @@
         '剩余 ' + api.formatClock(api.remainingSeconds(s)) + ' · 离线继续计时';
       else progressText = api.warmHeatingBlocked(s) ? '寒流季：保温法禁用，产业仍可消耗暖石' : '非寒流季：保温法可正常使用';
       h += '<section class="challenge-active' + (activeTimedOut ? ' is-failed' : '') + '"><span class="challenge-active-mark">' +
-        (activeTimedOut ? '已超时' : s.challengeDone && active.id === 'drift_terra' ? '已达成' : '进行中') + '</span>' +
-        '<div><b>' + activeDef.name + ' · ' + activeTier.label + '</b><small>' + progressText + '</small></div>' +
+        (activeTimedOut ? '已超时' : s.challengeDone && active.id === 'drift_terra' ? '已达成' : active.replay === true ? '重复挑战' : '进行中') + '</span>' +
+        '<div><b>' + activeDef.name + ' · ' + activeTier.label + (active.replay === true ? ' · 重复挑战' : '') + '</b><small>' + progressText + '</small></div>' +
         '<span class="challenge-active-hint">' + (activeTimedOut ? '重开本周目后可再次尝试，不消耗档位' :
           (activeDef.goalText || '通关目标：完成《神学》并凿穿天壳')) + '</span></section>';
     } else {
-      h += '<div class="challenge-howto">每档挑战首次通关都会让之后的轮回点获取永久提高 10%。分档挑战必须逐档完成；单次挑战完成后不会再次开放。</div>';
+      h += '<div class="challenge-howto">每档挑战首次通关都会让之后的轮回点获取永久提高 10%。分档挑战必须逐档完成。' +
+        '全部通关后仍可再次挑战：重打已通的最高档，不再重复发奖，只刷新排行榜成绩。</div>';
     }
 
     h += '<section class="challenge-grid">';
@@ -62,7 +63,7 @@
         h += '<div class="challenge-tiers">';
         for (var ti = 0; ti < d.tiers.length; ti++) {
           var td = d.tiers[ti], tierActive = isActive && active.tier === ti;
-          var tierState = ti < done ? '已通关' : tierActive ? (activeTimedOut ? '已超时' : '进行中') : ti === done && !blocked && !exhausted ? '下一档' : '锁定';
+          var tierState = tierActive ? (activeTimedOut ? '已超时' : '进行中') : ti < done ? '已通关' : ti === done && !blocked && !exhausted ? '下一档' : '锁定';
           var tierRule = d.id === 'science' ? '学者、' + scribeName + '各 ≤ ' + td.cap + ' 人' :
             d.id === 'speedrun' ? '限时 ' + api.formatClock(td.cap) + ' · 离线计时' : '本轮全产出 -' + Math.round(td.cap * 100) + '%';
           h += '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? (activeTimedOut ? ' active failed' : ' active') : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
@@ -75,15 +76,23 @@
         h += '<div class="challenge-reward"><small>永久奖励</small><b>' + d.reward + '</b></div>';
       }
 
-      if (exhausted) {
-        h += '<footer class="challenge-card-foot"><span>奖励已永久生效，此挑战入口已关闭。</span></footer>';
-      } else if (isActive) {
+      /* ⚠️ isActive 必须排在 exhausted 之前：重打已通关的挑战时两个条件同时为真，
+       * 反过来的话「进行中」的卡会显示成「已完成」并再给一个开始按钮。 */
+      if (isActive) {
         var activeFoot = activeTimedOut ? '已超时；重开本周目后可重试，档位不会消耗。' :
+          active.replay === true ? '重复挑战：通关不重复发奖，只会把成绩刷进排行榜。' :
           s.challengeDone && d.id === 'drift_terra' ? '目标已完成，永久奖励已入账；可以继续发展或开始新周目。' :
             d.id === 'drift_terra' ? '达成目标时永久奖励会立即生效；你可以继续发展或开始新周目。' :
               '本轮限制生效中。通关后领取当前档奖励。';
         h += '<footer class="challenge-card-foot"><span>' + activeFoot +
-          '</span><button class="btn" disabled>' + (activeTimedOut ? '本档已超时' : '本轮挑战中') + '</button></footer>';
+          '</span><button class="btn" disabled>' + (activeTimedOut ? '本档已超时' : active.replay === true ? '重复挑战中' : '本轮挑战中') + '</button></footer>';
+      } else if (exhausted) {
+        /* 2026-11-02 玩家反馈「挑战不能反复打」：全部通关后仍留入口，重打最高档。
+         * 只刷榜、不再发奖（规则见 SB.challenges 的 startTier / isReplay 注释）。 */
+        h += blocked
+          ? '<footer class="challenge-card-foot"><span>永久奖励已生效。先结束当前挑战周目再重打。</span><button class="btn" disabled>暂不可开始</button></footer>'
+          : '<footer class="challenge-card-foot"><span>永久奖励已生效。再次挑战不再发奖，只刷新排行榜成绩。</span>' +
+            '<button class="btn challenge-start" type="button" data-challenge-start="' + d.id + '">再次挑战 · ' + d.tiers[d.tiers.length - 1].label + '</button></footer>';
       } else if (blocked) {
         h += '<footer class="challenge-card-foot"><span>先完成或重开当前挑战周目。</span><button class="btn" disabled>暂不可开始</button></footer>';
       } else {
@@ -92,7 +101,7 @@
       }
       h += '</article>';
     }
-    h += '</section><div class="challenge-footnote">挑战奖励跨周目保留。挑战失败或主动重开不会消耗档位，也不会领取奖励。</div>';
+    h += '</section><div class="challenge-footnote">挑战奖励跨周目保留。挑战失败或主动重开不会消耗档位，也不会领取奖励。已通关的挑战可再次挑战，只刷新排行榜成绩、不重复发奖。</div>';
     return h;
   }
 

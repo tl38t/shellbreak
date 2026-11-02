@@ -560,7 +560,7 @@
      *   用户 2026-10-30 在 1.5 与 1.35 之间选了 **1.35**（1.5 的断崖太硬）。
      *   10 / 15 / 30 级对应倍数：×5.0 / ×11.1 / ×122.8。 */
     { id: 'institute', icon: 'assets/building-icons/era-2/era2-institute.png', name: '研究所',   ratio: 1.35, cost: {stone: 100, silt: 100},
-      desc: '学者科技产出 +30%/级；升级为大学后变 +80%/级', requiredTech: ['mathematics'] },
+      desc: '学者科技产出 +30%/级；升级为大学后变 +60%/级', requiredTech: ['mathematics'] },
     /* ── 广场（2026-09-28 用户规格 · 市政《戏剧与诗歌》解锁）──
      * 【对标物是潮纹馆，不是热泉井】潮纹馆（library）给科技、广场给市政点，
      *   **两座是姊妹不是同类**：同构的乘区系数（BLD.squareCivRatio 0.10）、

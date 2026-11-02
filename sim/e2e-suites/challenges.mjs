@@ -12,8 +12,12 @@ export function run({ SB, check, noop }) {
     const api = SB.challenges;
     let s = SB.state.freshRun(false);
 
-    check('六类挑战已注册，分档挑战只开放顺序下一档', api.list().length === 6 &&
-      api.canStart('science', s, meta) && !api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
+    /* 2026-11-02：挑战开放重打后，「能开」与「还有新档」是两件事 —— canStart 含重打，
+     * canStartFresh 只认未通关档。这里两侧都钉，防止将来有人把两个函数合成一个。 */
+    check('六类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 6 &&
+      api.canStartFresh('science', s, meta) && api.canStart('science', s, meta) &&
+      !api.canStartFresh('science', s, { challenges: { completed: { science: 3 } } }) &&
+      api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
       '挑战数=' + api.list().length);
     let pane = SB.ui.render.paneChallenges();
     check('挑战独立页展示六项挑战与首次开始入口',
@@ -252,11 +256,14 @@ export function run({ SB, check, noop }) {
     }
     meta.challenges = { completed: { cold: true, small: true, science: 1, abyss: 1 } };
     pane = SB.ui.render.paneChallenges();
-    check('单次挑战完成后关闭入口，分档挑战只显示下一档入口',
-      !pane.includes('data-challenge-start="cold"') && !pane.includes('data-challenge-start="small"') &&
-      pane.includes('data-challenge-start="science"') && pane.includes('data-challenge-start="abyss"') &&
-      pane.includes('第一档') && pane.includes('第二档'),
-      '已完成单次挑战无重开按钮');
+    /* 2026-11-02 规则变更（玩家要求「可以反复挑战刷排行榜」）：已通关不再关闭入口，
+     * 改成「再次挑战」；未通关的分档挑战仍只放下一档。旧断言要求 cold/small 无按钮，
+     * 已被这条规则推翻，故整条重写而不是删掉。 */
+    check('已通关的挑战保留「再次挑战」入口，未通关的分档挑战只放下一档',
+      (pane.match(/data-challenge-start=/g) || []).length === 6 &&
+      pane.includes('再次挑战 · 完成挑战') && pane.includes('结算并挑战 · 第二档') &&
+      !pane.includes('此挑战入口已关闭'),
+      '入口数=' + ((pane.match(/data-challenge-start=/g) || []).length));
     /* 2026-10-24：成就墙从挑战页尾拆到独立页签（paneAchievements）。
      * 两侧都要钉：挑战页**不再**含墙（否则拆分静默失效），成就页含三区结构。 */
     const paneAchv = SB.ui.render.paneAchievements();
@@ -461,8 +468,67 @@ export function run({ SB, check, noop }) {
     const cleared = api.resolveRun(candidate, challengeMeta);
     candidate.challenge = null;
     check('完成神学并凿穿天壳后记录单次挑战', !!cleared &&
-      challengeMeta.challenges.completed.small === true && !api.canStart('small', candidate, challengeMeta),
+      challengeMeta.challenges.completed.small === true &&
+      !api.canStartFresh('small', candidate, challengeMeta) &&
+      api.canStart('small', candidate, challengeMeta),
       cleared ? cleared.name + '：' + cleared.reward : '挑战未完成');
+
+    /* ── 2026-11-02 挑战可反复重打（玩家反馈「想反复挑战刷排行榜」）────────────
+     * 口径（用户拍板）：全部通关后仍可开；重打已通**最高档**；不重复发奖、
+     * 不再累加「轮回点 +10%」；只有排行榜成绩被刷新。
+     * 判据三条要点：① 档位必须夹在 length-1（否则 d.tiers[tier].label 抛错）；
+     *   ② 账本逐字节不变（不是「值看起来一样」）；③ 重打仍受本档限制约束。 */
+    {
+      const replayMeta = { challenges: empty() };
+      replayMeta.challenges.completed = { cold: true, small: true, science: 3, abyss: 3, speedrun: 3, drift_terra: true };
+      const idle = SB.state.freshRun(false);
+      check('全部通关后仍可开挑战，重打档位夹在最高档上，且「新档」入口已关闭',
+        api.canStart('science', idle, replayMeta) && api.isReplay('science', replayMeta) &&
+        api.startTier('science', replayMeta) === 2 && !api.canStartFresh('science', idle, replayMeta),
+        'tier=' + api.startTier('science', replayMeta));
+
+      const ledgerBefore = JSON.stringify(replayMeta.challenges.completed);
+      const mulBefore = SB.prestige.breakReport(SB.state.freshRun(false)).challengePointMul;
+      const re = SB.state.freshRun(false);
+      re.challenge = { id: 'science', tier: 2, replay: true };
+      re.civics.theology = true;
+      re.shell = 0; re.broken = true;
+      re.pop = 20; re.peak = 20; re.jobs.scholar = 5; re.jobs.scribe = 5;
+      const reOut = api.resolveRun(re, replayMeta);
+      check('重复通关只报成绩：挑战账本一字不改，+10% 轮回点加成不变',
+        !!reOut && reOut.replay === true && reOut.reward === null &&
+        JSON.stringify(replayMeta.challenges.completed) === ledgerBefore &&
+        SB.prestige.breakReport(SB.state.freshRun(false)).challengePointMul === mulBefore,
+        reOut ? 'reward=' + reOut.reward : '未结算');
+
+      const over = SB.state.freshRun(false);
+      over.challenge = { id: 'science', tier: 2, replay: true };
+      over.civics.theology = true;
+      over.shell = 0; over.broken = true;
+      over.pop = 20; over.peak = 20; over.jobs.scholar = 6; over.jobs.scribe = 0;
+      check('重打不能绕过本档限制：学者超第三档上限则该局不算通关',
+        api.resolveRun(over, replayMeta) === null, '学者=' + over.jobs.scholar);
+    }
+    {
+      /* 流浪泰拉是唯一有专属榜的挑战：重打必须再提交一次 drift，否则「刷排行榜」是空话；
+       * 同时不能再塞 challengePopupPending（那会重播分镜并谎称「永久奖励已生效」）。 */
+      const driftMeta = { challenges: empty() };
+      driftMeta.challenges.completed.drift_terra = true;
+      const dr = SB.state.freshRun(false);
+      dr.challenge = { id: 'drift_terra', tier: 0, replay: true };
+      dr.lvl.terra_engine = 50; dr.res.coreCharge = 50000000; dr.wallT = 1234;
+      const sent = [];
+      const savedSubmit = SB.rank && SB.rank.submitRun;
+      if (SB.rank) SB.rank.submitRun = (entries) => { if (entries) sent.push(...entries); };
+      let driftOut = null;
+      try { driftOut = api.evaluate(dr, driftMeta); }
+      finally { if (SB.rank && savedSubmit) SB.rank.submitRun = savedSubmit; }
+      check('流浪泰拉重复达成：不发奖、不弹永久奖励面板，但重新提交「最快流浪启程」榜',
+        !!driftOut && driftOut.replay === true && driftOut.reward === null &&
+        !driftMeta.challengePopupPending &&
+        sent.length === 1 && sent[0].key === 'drift' && sent[0].value === 1234,
+        driftOut ? '榜=' + JSON.stringify(sent) : '未结算');
+    }
   } finally {
     meta.challenges = savedProgress;
     meta.achv = savedAchv;

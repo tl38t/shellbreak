@@ -143,6 +143,23 @@
   function award(s, meta) {
     if (!s || !s.challenge || s.challenge.id !== 'drift_terra' || s.challengeDone) return null;
     var d = BY_ID.drift_terra, tier = Math.max(0, Math.min(d.tiers.length - 1, s.challenge.tier | 0));
+    var replay = s.challenge.replay === true || tierDone(d.id, meta) >= d.tiers.length;
+    if (replay) {
+      if (!goalMet(s, d.goal)) return null;
+      var replayOutcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
+        reward: null, goalText: d.goalText, replay: true };
+      s.challengeDone = true;
+      s.challengeOutcome = replayOutcome;
+      /* 重复达成也要刷榜（这就是玩家要的东西）。平台 calcType='best' 自动留更快的一次，
+       * 所以重复提交只会改善、不会覆盖掉旧成绩。
+       * ⛔ 不写 meta.challengePopupPending：那会重播四段分镜，并弹出「永久奖励已生效」——
+       *   重复挑战根本没发奖，那句话是假的。 */
+      if (SB.rank && SB.rank.submitRun) SB.rank.submitRun([{ key: 'drift', value: s.wallT }]);
+      if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
+      if (SB.game && SB.game.log)
+        SB.game.log('再次达成流浪泰拉：' + d.goalText + '。本局不重复发奖，成绩已提交排行榜。');
+      return replayOutcome;
+    }
     if (tier !== tierDone(d.id, meta) || !goalMet(s, d.goal)) return null;
     if (!meta.challenges) meta.challenges = emptyProgress();
     meta.challenges.completed = meta.challenges.completed || {};
@@ -196,42 +213,67 @@
     var hours = Math.floor(whole / 3600), minutes = Math.floor((whole % 3600) / 60), secs = whole % 60;
     return hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (secs < 10 ? '0' : '') + secs;
   }
+  /* ── 重打（2026-11-02 玩家反馈「挑战模式不能反复挑战刷排行榜」）─────────────
+   * 规则（用户拍板）：全部 6 项通关后仍可再战；分档挑战重打**已通的最高档**；
+   *   重复通关不再发放永久奖励、不再累加「轮回点获取 +10%」，只把成绩刷进现有排行榜。
+   * ⇒ 「能不能开」必须分两个函数，不许混用：
+   *     canStart       = 能开（含重打）—— UI 按钮用
+   *     canStartFresh  = 还有未通关的档位 —— 机器人选挑战用。若让 ai-player 继续用
+   *                      canStart，它会在已通关的挑战上无限重开，永远走不到虚境终局。
+   * ⚠️ 重打时 tier 必须夹到 tiers.length-1：直接拿 tierDone() 会等于 length，
+   *   `d.tiers[tier].label` 立刻抛 TypeError（旧实现正是靠 canStart 挡住这一档才没炸）。 */
+  function startTier(id, meta) {
+    var d = BY_ID[id];
+    if (!d) return 0;
+    return Math.max(0, Math.min(d.tiers.length - 1, tierDone(id, meta)));
+  }
+  function isReplay(id, meta) {
+    var d = BY_ID[id];
+    return !!d && tierDone(id, meta) >= d.tiers.length;
+  }
   function canStart(id, s, meta) {
     var d = BY_ID[id];
     if (!d || active(s)) return false;
-    var next = tierDone(id, meta);
-    return next < d.tiers.length;
+    return true;
+  }
+  function canStartFresh(id, s, meta) {
+    var d = BY_ID[id];
+    if (!d || active(s)) return false;
+    return tierDone(id, meta) < d.tiers.length;
   }
   function begin(id) {
     var s = SB.game.run(), meta = SB.game.meta(), d = BY_ID[id];
     if (!canStart(id, s, meta)) return false;
-    var tier = tierDone(id, meta);
+    var tier = startTier(id, meta), replay = isReplay(id, meta);
     /* 自动结算当前周目；没有《神学》时沿用普通重开的规则，不发轮回点。 */
     if (s && !s.broken && SB.prestige.qualified(s))
       SB.prestige.doBreak(s, SB.game.emit, { silent: true, challengeStart: true });
-    SB.game.startRun({ challenge: { id: id, tier: tier } });
+    SB.game.startRun({ challenge: { id: id, tier: tier, replay: replay } });
     SB.game.setTab('challenges');
-    SB.game.log('挑战开始：' + d.name + ' · ' + d.tiers[tier].label + '。');
+    SB.game.log((replay ? '再次挑战：' : '挑战开始：') + d.name + ' · ' + d.tiers[tier].label +
+      (replay ? '（重复挑战不发奖，成绩计入排行榜）。' : '。'));
     SB.game.renderAll();
     return true;
   }
   function prepareStart(id) {
     var s = SB.game.run(), meta = SB.game.meta(), d = BY_ID[id];
     if (!canStart(id, s, meta)) return false;
-    var tier = tierDone(id, meta), t = d.tiers[tier];
+    var tier = startTier(id, meta), replay = isReplay(id, meta), t = d.tiers[tier];
     var qualified = SB.prestige.qualified(s), report = qualified ? SB.prestige.breakReport(s) : null;
     var payout = report ? report.tidePoints : 0;
     var selectedRule = d.id === 'speedrun' ? '必须在 ' + formatClock(t.cap) + ' 内完成《神学》并凿穿天壳；离线时间也计入。' :
       d.id === 'science' ? '学者与书手岗位人数各不得超过 ' + t.cap + ' 人。' :
         d.id === 'abyss' ? '本轮全产出 -' + Math.round(t.cap * 100) + '%。' : d.rule;
     SB.ui.render.confirmPanel({
-      title: '结算并开始挑战？',
+      title: replay ? '再次开始这项挑战？' : '结算并开始挑战？',
       body: '<div class="warnbox">当前周目将自动结算并重开。' +
         (qualified ? '预计获得 <b>' + payout.toFixed(2) + ' 轮回点</b>。' : '尚未完成《神学》，本次不会获得轮回点。') +
-        '</div><div class="note"><b>' + d.name + ' · ' + t.label + '</b><br>' +
+        '</div><div class="note"><b>' + d.name + ' · ' + t.label + (replay ? ' · 重复挑战' : '') + '</b><br>' +
         selectedRule +
-        '</div><div class="note">本局进度会重置；轮回点、已完成挑战与永久奖励保留。</div>',
-      ok: '结算并开始',
+        '</div><div class="note">本局进度会重置；轮回点、已完成挑战与永久奖励保留。' +
+        (replay ? '<br>本次为重复挑战：通关不再发放永久奖励，也不会再次提高轮回点获取，只刷新排行榜成绩。' : '') +
+        '</div>',
+      ok: replay ? '再次挑战' : '结算并开始',
       onOk: function () { begin(id); }
     });
     return true;
@@ -241,13 +283,21 @@
     if (d && d.goal) return null; // goal 挑战由 evaluate() 即时结算，不依赖破壳/轮回
     if (!d || !s || s.shell > 0) return null;
     var tier = Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0));
-    if (tier !== tierDone(d.id, meta)) return null;
+    /* 重打：tierDone 已等于 length，常规判据 `tier !== tierDone` 会把这次通关整个吞掉。
+     * 标记优先读 s.challenge.replay（存档迁移会保留它），读不到再按进度反推，
+     * 避免「老档里一局没标 replay 的重打局」白打。 */
+    var replay = a.replay === true || tierDone(d.id, meta) >= d.tiers.length;
+    if (!replay && tier !== tierDone(d.id, meta)) return null;
     if (d.id === 'speedrun' && elapsedSeconds(s) >= d.tiers[tier].cap)
       return { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
         failed: true, elapsed: elapsedSeconds(s), limit: d.tiers[tier].cap };
     if (!SB.prestige.qualified(s)) return null;
     if (d.id === 'science' && jobLimitExceeded(s, d.tiers[tier].cap)) return null;
     if (d.id === 'small' && (s.peak || s.pop) > d.tiers[tier].cap) return null;
+    /* 重打只报成绩，**一个字都不写账本**：meta.challenges.completed 保持原值 ⇒
+     * completedCount() 不变 ⇒「每档 +10% 轮回点获取」不会被重复领取（用户拍板口径）。 */
+    if (replay) return { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
+      replay: true, reward: null };
     var c = progress(meta);
     if (d.tiers.length === 1) c[d.id] = true;
     else c[d.id] = Math.max(c[d.id] | 0, tier + 1);
@@ -265,7 +315,9 @@
     warmstoneMul: warmstoneMul, populationLimit: populationLimit,
     growthDuration: growthDuration, startingPopulation: startingPopulation,
     elapsedSeconds: elapsedSeconds, remainingSeconds: remainingSeconds, timedOut: timedOut, formatClock: formatClock,
-    warmHeatingBlocked: warmHeatingBlocked, canStart: canStart, begin: begin, prepareStart: prepareStart,
+    warmHeatingBlocked: warmHeatingBlocked, canStart: canStart, canStartFresh: canStartFresh,
+    startTier: startTier, isReplay: isReplay,
+    begin: begin, prepareStart: prepareStart,
     resolveRun: resolveRun, rewardFor: rewardFor, goalMet: goalMet, evaluate: evaluate,
     entered: function (s, id) { return !!(s && s.challenge && s.challenge.id === id); }
   };

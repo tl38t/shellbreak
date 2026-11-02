@@ -146,7 +146,18 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.10'" in _cfg, '包内 config.js 版本号不是 Ver1.0.10'
+assert "VERSION: 'Ver1.0.11'" in _cfg, '包内 config.js 版本号不是 Ver1.0.11'
+assert "v: 'Ver1.0.11'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.11 条目'
+# Ver1.0.11 玩家可见 6 条：3 修复（钻机破壳后仍耗热液 / 大学升级后显示旧数值 / 薄壳之智数值错误）
+# + 3 新增改进（挑战可重打 / 轮回点商店页签常驻 / 建筑名可点提示）。
+# 逐条钉死：漏一条这次等于白改。三短句按用户 2026-11-02 指定口径，一字不带解释。
+for _kw in ['修复天穹钻机破壳后仍消耗热液能的问题',
+            '修复大学升级后依然显示旧数值的问题',
+            '修复薄壳之智数值错误的问题',
+            '挑战可以反复挑战了：六项挑战全部通关后入口不再关闭',
+            '轮回点商店的页签不再藏起来',
+            '建筑名与工坊配方名加了贴字的下划线']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.11 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.10'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.10 条目'
 # Ver1.0.10 玩家可见 3 条：1 修复（轮回商店五个天赋不生效）+ 2 新增/改进（自动研究开关搬家 / 两首 BGM）。
 # 逐条钉死：漏一条这次等于白改。曲名连英文名一起钉，防止只写中文、与 CFG.AUDIO 里对不上。

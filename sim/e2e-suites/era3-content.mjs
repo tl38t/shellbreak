@@ -109,8 +109,10 @@ console.log('\n=== 纪元三 · 资源/建筑/升级/奇观 落地 ===');
   check('upg_autoshop: need=metalrefine, craftRatio=0.10',
     um.upg_autoshop && um.upg_autoshop.need === 'metalrefine' && um.upg_autoshop.craftRatio === 0.10,
     'autoshop=' + JSON.stringify(um.upg_autoshop));
-  check('upg_university: need=education, instituteSci=0.5（与 BLD.instituteSci 相加 = +80%/级）',
-    um.upg_university && um.upg_university.need === 'education' && um.upg_university.instituteSci === 0.5,
+  /* ⚠️ 2026-11-02 用户拍板：大学合计 +80%/级 → +60%/级 ⇒ 升级那份 0.5 → 0.3
+   *   （研究所本体 BLD.instituteSci 保持 0.30 不动）。0.30 + 0.30 = 0.60。 */
+  check('upg_university: need=education, instituteSci=0.3（与 BLD.instituteSci 相加 = +60%/级）',
+    um.upg_university && um.upg_university.need === 'education' && um.upg_university.instituteSci === 0.3,
     'university=' + JSON.stringify(um.upg_university));
   check('upg_castle: need=castle, hallSaveMul/castleCap 生效',
     um.upg_castle && um.upg_castle.need === 'castle' &&

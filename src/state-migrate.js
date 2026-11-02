@@ -19,6 +19,10 @@
       var challengeDef = SB.challenges.byId(raw.challenge.id);
       out.challenge = { id: raw.challenge.id,
         tier: Math.max(0, Math.min(challengeDef.tiers.length - 1, raw.challenge.tier | 0)),
+        /* 2026-11-02 挑战可重打：replay 标记必须一起带过来。此处的 challenge 是
+         * **白名单重建**（不是 for-in 拷贝），漏写就等于读档后「重复挑战」变回普通挑战，
+         * 通关会被当成首次通关去写 meta。 */
+        replay: raw.challenge.replay === true,
         startedAt: typeof raw.challenge.startedAt === 'number' && isFinite(raw.challenge.startedAt) && raw.challenge.startedAt > 0
           ? raw.challenge.startedAt : 0 };
     } else out.challenge = null;
@@ -397,15 +401,36 @@
      * 【等比重算，不是直接赋值】
      *   直接赋 iceShell = 新值会把「已经凿到 25%」的进度重置成满壳 = 白送进度；
      *   按 shell/iceShell 的比例缩放，玩家看到的剩余百分比不变，只是分母变大。
-     *   另有 perk.thin（冰壳永久削弱，每级 ×0.9）：它已经体现在存档的 iceShell 里，
+     *   另有 perk.thin（冰壳永久削弱，线性 −10%/级）：它已经体现在存档的 iceShell 里，
      *   所以按比例缩放天然继承，不重复乘。 */
     var curBase = SB.CFG.ICE_SHELL;
     if (typeof out.baseShell === 'number' && out.baseShell > 0 && out.baseShell !== curBase) {
       var keepRatio = out.iceShell > 0 ? out.shell / out.iceShell : 1;
       if (!(keepRatio >= 0 && keepRatio <= 1)) keepRatio = 1;   // 存档被手改成越界值时按满壳处理
-      out.iceShell = Math.round(curBase * Math.pow(0.9, (out.perk && out.perk.thin) || 0));
+      out.iceShell = Math.round(curBase * Math.max(0.1, 1 - 0.1 * ((out.perk && out.perk.thin) || 0)));
       out.baseShell = curBase;
       out.shell = Math.round(out.iceShell * keepRatio);
+    }
+    /* ⚠️ 薄壳口径纠正（2026-11-01）：perk.thin 由「复利 0.9^thin」改成「线性 1−0.1×thin」。
+     * 【为什么上面那段救不到这批老档】上面只在 `baseShell ≠ CFG.ICE_SHELL` 时跑，而这些档案的
+     *   baseShell 早就等于 500000 了 ⇒ 本函数对「同厚度版本」的存档只校验不重算，光改公式
+     *   对他们一律无效（实测：iceShell 会一直是 405000 = 0.9²，玩家看到 −19%）。
+     * 【判据：值指纹，不用新增存档字段】本档 iceShell 恰等于旧复利值、且两式不等
+     *   ⇒ 这份存档就是旧口径算出来的。`migrateRun` 走 `if (k in base)` 白名单，
+     *   新增字段必须在 freshRun 里加才保留得下来，所以这里刻意不加版本戳。
+     * 【幂等】纠正后 iceShell 变成线性值，重跑不再命中；thin=0/1 时两式本来就相等
+     *   （1.0 / 0.9），天然跳过。 */
+    var _thinLv = (out.perk && out.perk.thin) || 0;
+    if (_thinLv > 0) {
+      var _shellComp = Math.round(curBase * Math.pow(0.9, _thinLv));
+      var _shellLin = Math.round(curBase * Math.max(0.1, 1 - 0.1 * _thinLv));
+      if (out.iceShell === _shellComp && _shellComp !== _shellLin) {
+        var _ratio2 = out.iceShell > 0 ? out.shell / out.iceShell : 1;
+        if (!(_ratio2 >= 0 && _ratio2 <= 1)) _ratio2 = 1;
+        out.iceShell = _shellLin;
+        out.baseShell = curBase;          // 与上面那段同一条不变式：baseShell 必须等于当前厚度版本
+        out.shell = Math.round(out.iceShell * _ratio2);
+      }
     }
     /* G.E.E.K 运行态（ERA9）：与 res/lvl 不同，它是「我新代码整对象写」的字段，但为前向兼容
      * （将来给 geek 加新旗时，旧档只存了老旗会丢失新旗默认值），做一层按 key 的浅合并而非

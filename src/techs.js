@@ -494,7 +494,7 @@
     { id: 'education',  name: '教育',   icon: 'assets/tech-icons/era-3/era3-education.png', era: 3, cost: 8000, branch: 'know', key: false, reqs: ['apprentice', 'mathematics'], layer: 3,
       cond: { t: 'built', b: 'institute', n: 3 },
       eff: {},
-      unlockDesc: '解锁研究所升级「大学」（学者科技产出 +100%/级）和奇观「阿尔巴达热液大学」。' },
+      unlockDesc: '解锁研究所升级「大学」（学者科技产出 +60%/级）和奇观「阿尔巴达热液大学」。' },
 
     /* 金属精炼前置 = 学徒制。尤里卡 = 完成鱼骨矿井（装 upg_fishbonemine，cond 'upgrade'）。
      * 尤里卡查鱼骨矿井、unlockBuild 查汽轮机/工坊——两件不同节点，不互锁。 */

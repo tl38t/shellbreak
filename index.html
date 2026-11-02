@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=281" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+    <link rel="stylesheet" href="css/main.css?v=284" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -276,13 +276,13 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=202"></script>
+<script src="src/config.js?v=203"></script>
 <script src="src/config-catalog.js?v=12"></script>
-<script src="src/config-content.js?v=36"></script>
-<script src="src/config-buildings.js?v=46"></script>
+<script src="src/config-content.js?v=37"></script>
+<script src="src/config-buildings.js?v=47"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=146"></script>
+<script src="src/techs.js?v=147"></script>
 <script src="src/tech.js?v=121"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
@@ -294,12 +294,12 @@
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/save-storage.js?v=7"></script>
-<script src="src/state-migrate.js?v=21"></script>
-<script src="src/state.js?v=165"></script>
+<script src="src/state-migrate.js?v=23"></script>
+<script src="src/state.js?v=167"></script>
 <script src="src/workshop.js?v=124"></script>
 <script src="src/wonder.js?v=112"></script>
 <script src="src/economy-social.js?v=9"></script>
-<script src="src/economy.js?v=202"></script>
+<script src="src/economy.js?v=203"></script>
 <script src="src/economy-rates.js?v=30"></script>
 <script src="src/economy-tick.js?v=25"></script>
 <script src="src/offline-scheduler.js?v=3"></script>
@@ -308,33 +308,33 @@
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=4"></script>
 <script src="src/audio.js?v=1"></script>
-<script src="src/shell.js?v=110"></script>
+<script src="src/shell.js?v=111"></script>
 <script src="src/habitat.js?v=113"></script>
 <script src="src/folk.js?v=106"></script>
 <script src="src/prestige.js?v=131"></script>
-<script src="src/challenges.js?v=14"></script>
+<script src="src/challenges.js?v=15"></script>
 <script src="src/auto-research.js?v=1"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
 <script src="src/ui/render-content.js?v=18"></script>
 <script src="src/ui/render-common.js?v=6"></script>
-<script src="src/ui/render-info.js?v=33"></script>
+<script src="src/ui/render-info.js?v=35"></script>
 <script src="src/ui/render-pane-research.js?v=35"></script>
 <script src="src/ui/render-pane-village.js?v=39"></script>
 <script src="src/ui/render-pane-folk.js?v=5"></script>
 <script src="src/ui/render-talent-tree.js?v=5"></script>
 <script src="src/ui/render-pane-meta.js?v=12"></script>
-<script src="src/ui/render-pane-challenges.js?v=15"></script>
+<script src="src/ui/render-pane-challenges.js?v=16"></script>
 <script src="src/ui/render-pane-company.js?v=4"></script>
 <script src="src/ui/render-pane-faith.js?v=2"></script>
 <script src="src/ui/render-pane-wonder.js?v=4"></script>
 <script src="src/ui/render-pane-star-map.js?v=9"></script>
 <script src="src/ui/render-pane-workshop.js?v=16"></script>
 <script src="src/ui/render-environment.js?v=21"></script>
-<script src="src/ui/render.js?v=266"></script>
+<script src="src/ui/render.js?v=268"></script>
 <script src="src/ui/track-dock.js?v=5"></script>
 <script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=172"></script>
+<script src="src/game.js?v=174"></script>
 <script src="src/save-transfer.js?v=15"></script>
 <script src="src/redeem.js?v=2"></script>
 <script src="src/ui/input.js?v=177"></script>

@@ -885,10 +885,20 @@
     if (metaShopView === 'stardust' && !starOpen) metaShopView = rebirthOpen ? 'rebirth' : '';
     if (metaShopView !== 'stardust' && !rebirthOpen && starOpen) metaShopView = 'stardust';
     var showStar = metaShopView === 'stardust' && starOpen;
+    /* 2026-11-01 用户拍板 A 方案：轮回点页签**始终渲染**，未解锁时置灰（与星屑页签同一套
+     * 未解锁态：is-locked + disabled + title）。原先是 `if (rebirthOpen)` 直接不渲染，
+     * 于是「建了轨道卫星（ERA7）但还没完成《神学》做过合格轮回」的玩家进商店只看到
+     * 孤零零一个星屑页签，连「还有一个商店在等你」这件事都无从得知。
+     * ⚠️ 这里只改可见性，**门本身一个字没动**：meta.shopUnlocked 仍只由
+     *    prestige.doBreak 的合格分支（!qualified 会提前 return，走不到置真那句）置位。 */
+    var showRebirth = !showStar && rebirthOpen;
     var tabs = '';
-    if (rebirthOpen) tabs +=
-      '<button type="button" class="meta-shop-tab' + (!showStar ? ' is-active' : '') + '" role="tab" aria-selected="' + (!showStar) + '" aria-controls="meta-shop-panel" onclick="SB.ui.render.setMetaShopView(\'rebirth\')">' +
-      '<span class="meta-shop-tab-icon" aria-hidden="true">✧</span><span>轮回点商店</span></button>';
+    tabs +=
+      '<button type="button" class="meta-shop-tab' + (showRebirth ? ' is-active' : '') + (!rebirthOpen ? ' is-locked' : '') +
+      '" role="tab" aria-selected="' + showRebirth + '" aria-controls="meta-shop-panel"' +
+      (rebirthOpen ? ' onclick="SB.ui.render.setMetaShopView(\'rebirth\')"' : ' disabled title="完成《神学》并轮回后开放"') + '>' +
+      '<span class="meta-shop-tab-icon" aria-hidden="true">✧</span><span>轮回点商店</span>' +
+      (!rebirthOpen ? '<small>完成《神学》后开放</small>' : '') + '</button>';
     if (starOpen || rebirthOpen) tabs +=
       '<button type="button" class="meta-shop-tab' + (showStar ? ' is-active' : '') + (!starOpen ? ' is-locked' : '') + '" role="tab" aria-selected="' + showStar + '" aria-controls="meta-shop-panel"' +
       (starOpen ? ' onclick="SB.ui.render.setMetaShopView(\'stardust\')"' : ' disabled title="建成首座轨道卫星后永久解锁"') + '>' +
@@ -1827,7 +1837,12 @@
       (!r.locked ? '<div class="kv"><span>' + (res() && res().breakSettled ? '本次获得星屑' : '当前预估星屑') + '</span><b style="color:#82ddff;font-size:17px">' + (r.stardust || 0) + '</b></div>' : '');
     var extra = '';
     if (r.challengePointMul > 1) extra += '<div class="note">挑战通关永久加成：轮回点获取 +' + Math.round((r.challengePointMul - 1) * 100) + '%</div>';
-    if (r.challengeClear) extra += '<div class="note">挑战通关：<b>' + r.challengeClear.name + ' · ' + r.challengeClear.label + '</b>，永久获得 ' + r.challengeClear.reward + '；之后轮回点获取再 +10%。</div>';
+    /* 2026-11-02 挑战可重打：重复通关既没有永久奖励、也不加 +10%，原文案会写出
+     * 「永久获得 null」并谎称再加 10%。按 replay 标记分两句。 */
+    if (r.challengeClear) extra += r.challengeClear.replay
+      ? '<div class="note">再次通关：<b>' + r.challengeClear.name + ' · ' + r.challengeClear.label +
+        '</b>。重复挑战不重复发放永久奖励，本局成绩已计入排行榜。</div>'
+      : '<div class="note">挑战通关：<b>' + r.challengeClear.name + ' · ' + r.challengeClear.label + '</b>，永久获得 ' + r.challengeClear.reward + '；之后轮回点获取再 +10%。</div>';
     var challengeFailureNote = r.challengeFailure ? '<div class="note" style="color:var(--red)">挑战未通关：<b>' + r.challengeFailure.name + ' · ' + r.challengeFailure.label + '</b>已超过 ' +
       SB.challenges.formatClock(r.challengeFailure.limit) + '（本次用时 ' + SB.challenges.formatClock(r.challengeFailure.elapsed) + '），本档奖励未领取。重开本周目后可重试。</div>' : '';
     if (challengeFailureNote) extra += challengeFailureNote;

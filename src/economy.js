@@ -1835,7 +1835,18 @@
      * ⚠️ 2026-10-07 钻机改手动启动：这里也要认 skydrillOn——rates 与 tickShell 同源，
      *    否则钻机停着时顶栏速率行仍显示「钻机在吃热液能」（面板撒谎家族）。 */
     var skyDraw = 0, skyNeed = 0, skyStopWhy = null;
-    if (SB.wonder && SB.wonder.owned(s).wonder_skydrill && s.skydrillOn) {
+    /* ⚠️ 2026-11-02 修（玩家贴图报「破壳后钻机已经不运行了，还在消耗热液 −20/秒」）：
+     *   机器态判据必须与 shell.tickShell **逐字同源**：那里第一行是 `if (s.broken) return 0`，
+     *   停机闸是 `s.skydrillOn && owned && s.shell > 0`。此处原先只看 `skydrillOn` ⇒
+     *   破壳后 tickShell 早已 return、钻机一点活不干，这一路却仍按 20/秒 把流**真扣走**
+     *   （后面每一路都是 `left - skyDraw ...`，被扣的是钻探/空间站/卫星/发射场的份）
+     *   ⇒ 这不是显示 bug，是白烧 20/秒，下游还会因这份被占而欠流降载。
+     *   判据：壳削完 = 使命结束 = 不再取流（面板那行随之自然消失，见 render-environment 的
+     *   consumers 过滤 `> 0.005`）。造第二份「机器还在不在转」的定义就是漂移的开始。
+     *   ⚠️ 老存档（已经 broken 且 skydrillOn 仍是 true）救不回来 —— shell.onShellZero 那次
+     *      关机是**一次性事件**、早已过去 ⇒ 这道判据必须自己认 broken / shell，不能只靠它。 */
+    if (SB.wonder && SB.wonder.owned(s).wonder_skydrill && s.skydrillOn
+      && !s.broken && (s.shell || 0) > 0) {
       var hCost = SB.CFG.SKYDRILL_HYDRO * dt;
       /* ⚠️⚠️ 2026-10-29 修（玩家 10-29 报「看不出钻头不够」）：此前这里写的是
        *    `if ((s.res.resonantDrill || 0) >= hCost)` —— 拿【共振钻头库存】跟【热液能成本

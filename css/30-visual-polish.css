@@ -23,6 +23,10 @@
   --gold:#f5cd6b;
   --line-soft:rgba(104,164,196,.18);
   --panel-radius:14px;
+  /* 可点文字（建筑名 / 作坊条目）的链接色。2026-11-02 新增：只给 .building-name 用，
+     与正文 --txt 拉开色相，让「可点」不靠单薄的一条虚线。日间主题在 40-atmosphere-theme.css 覆盖。 */
+  --link:#a9eef0;
+  --link-hover:#d9fdff;
 }
 
 html{background:var(--bg)}
@@ -209,8 +213,16 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 #pane-village .bzone .row .buy-actions.has-auto-toggle>.btn.buy{flex:0 0 176px;border-radius:0 7px 7px 0;border-left-width:0}
 html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-toggle{background:#ffedc9;border-color:#c18222;color:#69420e;box-shadow:inset 0 1px rgba(255,255,255,.8)}
 html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-toggle.on{background:#c9efd5;border-color:#378b57;color:#15542e;box-shadow:inset 0 1px rgba(255,255,255,.85),0 0 7px rgba(55,139,87,.16)}
-.building-name{display:inline;padding:0;border:0;border-bottom:1px dotted rgba(105,226,223,.4);border-radius:0;background:none;color:var(--txt);font:inherit;font-weight:700;line-height:inherit;text-align:left;cursor:pointer}
-.building-name:hover{color:var(--cyan);border-bottom-color:var(--cyan)}
+/* 建筑名 / 作坊条目名：点击看详情。可点提示改用「虚下划线 + 色差」（2026-11-02 用户拍板 B+色差）。
+ * 旧写法 `border-bottom:1px dotted` 的坑：**border 按盒子绘制**，而聚落页把名字覆盖成
+ * `display:block;width:100%`（占满 220px 名字栏）⇒ 虚线横贯整栏，实测盒子 340px 而文字只有 36~48px，
+ * 玩家读成"行分隔线"而不是"这能点"。`text-decoration` 按 **text run** 绘制，只画在文字身上（实测 39px），
+ * 且不改盒子尺寸、热区、居中方式 ⇒ 一条声明解决，无需动布局。 */
+.building-name{display:inline;padding:0;border:0;border-radius:0;background:none;color:var(--link);font:inherit;font-weight:700;line-height:inherit;text-align:left;cursor:pointer;text-decoration:underline dotted;text-decoration-thickness:1px;text-decoration-color:color-mix(in srgb,var(--link) 62%,transparent);text-underline-offset:3px}
+/* hover 是纯视觉装饰 ⇒ 按 00-core 的约定收进 @media (hover:hover)，触屏改走 :active 给按下反馈，
+   否则 iPhone 上点完留下粘滞的高亮残留。 */
+@media (hover:hover){ .building-name:hover{color:var(--link-hover);text-decoration-color:var(--link-hover);text-decoration-thickness:2px} }
+.building-name:active{color:var(--link-hover);text-decoration-color:var(--link-hover)}
 .building-name:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:3px}
 .building-info{display:grid;gap:10px}
 .building-info-level{color:var(--dim);font-size:12px}
