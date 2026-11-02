@@ -611,8 +611,31 @@
       if (SB.CIVICS) for (var ci = 0; ci < SB.CIVICS.length; ci++) if (SB.CIVICS[ci].id === w.needCivic) cn = SB.CIVICS[ci].name;
       return '需要先完成市政「' + (cn || w.needCivic) + '」';
     }
+    /* 挑战专属奇观（2026-11-02）：与建筑/_科技/_市政同一道白名单门。
+     * 星球气候调节卫星网靠《我们的摇篮》解锁，而那条市政本身就是挑战专属 ⇒
+     * 这道门在基游戏里永远不会被跨过，但面板仍需要一句说得清的理由。 */
+    if (w.challengeOnly) {
+      var _co = w.challengeOnly, _cur = s.challenge && s.challenge.id;
+      var _ok = _co === true ? _cur === 'drift_terra'
+        : (typeof _co === 'string' ? _cur === _co : _co.indexOf(_cur) >= 0);
+      if (!_ok) return '仅限水体污染挑战期间建造';
+    }
     var lack = lackText(s, SB.wonder ? SB.wonder.discountedCost(s, id) : w.cost);
     if (lack) return '还缺 ' + lack;
+    /* 建造价里的建筑等级成分（2026-11-02 · costBuild）。
+     * ⚠️ 必须排在资源不足之**后**：两者都不满足时先报资源是历史口径
+     *   （老玩家习惯「还缺 X」），而建筑等级是新概念，放在后面才不会把
+     *   旧提示整个挤掉。两条都要（不是 if/else）——只报一条会让玩家补完资源后又撞墙。 */
+    if (SB.wonder && SB.wonder.buildCostLack) {
+      var _bl = SB.wonder.buildCostLack(s, id);
+      if (_bl.length) {
+        var _bt = [];
+        for (var _bi = 0; _bi < _bl.length; _bi++) {
+          _bt.push(SB.wonder.buildCostText(s, id) || (_bl[_bi].id + ' ' + _bl[_bi].need + ' 级'));
+        }
+        return '还缺建筑等级：' + _bt[0];
+      }
+    }
     return null;
   }
   function buildWonder(s, id, emit) {
@@ -621,6 +644,22 @@
     var k;
     var wc = SB.wonder ? SB.wonder.discountedCost(s, id) : w.cost;
     for (k in wc) s.res[k] -= wc[k];
+    /* 建造价里的建筑等级（2026-11-02 · costBuild）：与上面资源同一个付费动作。
+     * ⚠️ 必须排在 wonderBlocked 返 null 之后（已由第二行保证），否则会把不够的等级
+     *   付成负数 —— 负等级会一路传到 lvlSum / zoneLvl / 建筑效果里。
+     * ⚠️ 付完不重算 folk / 就业：建筑等级下降不变人口上限这类东西的
+     *   真值状态（popCap 是实时算的），下一 tick 自然收敛。 */
+    if (SB.wonder && SB.wonder.payBuildCost) {
+      SB.wonder.payBuildCost(s, id);
+      /* 扣等级后把「停用座数」夹回 ≤ 当前等级（2026-11-02 · costBuild）。
+       *   运行座数 = lvl − xxxStop（economy/hydroAlloc/game.syncSpacecraft 三处同式）。
+       *   不夹的话，拆掉 10 级卫星而 satelliteStop 还是 5 ⇒ 运行座数 -5 ⇒
+       *   负的星空产出与负的耗流一路流进结算（没有任何一处会报错）。 */
+      if ((s.satelliteStop || 0) > (s.lvl.satellite || 0)) s.satelliteStop = s.lvl.satellite || 0;
+      if ((s.spacestationStop || 0) > (s.lvl.spacestation || 0)) s.spacestationStop = s.lvl.spacestation || 0;
+      /* 星图的卫星清单是按实时 lvl 重建的，重建一次免得界面上还挂着已拆掉的那 10 颗。 */
+      if (SB.game && SB.game.syncSpacecraft) SB.game.syncSpacecraft(s);
+    }
     s.wonders = s.wonders || {};
     s.wonders[id] = true;
     if (id === 'wonder_terra_core') s.frozen = false;

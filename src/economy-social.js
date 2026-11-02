@@ -32,7 +32,12 @@
       + (SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0)
       /* 潮汐之树（2026-10-23）：安乐之治（happiness）每级 +1 幸福度基线，与政体/奇观偏移同口径
        *   （进 _gb 基线、被 happyMech 剥除，详见 economy.js happyStep）。 */
-      + ((s && s.perk && s.perk.happiness) || 0)) || 0;
+      + ((s && s.perk && s.perk.happiness) || 0)
+      /* 水体污染（2026-11-02）：五阶段压幸福度（负值）。
+       * ⚠️⚠️ 这一项是「居民别被自己污染养贵」的唯一保险：happyMech = s.happy − 本函数，
+       *   若不剥掉它，happyCost 会把它算进消耗单价 ⇒ 污染反而让居民变贵（方向相反的 bug）。
+       *   三处必须同批改：economy.js happyStep 的 _gb、本函数、economy.js happyLedger.bonusParts。 */
+      + ((SB.economy && SB.economy.pollutionHappyOffset) ? SB.economy.pollutionHappyOffset(s) : 0)) || 0;
   }
   /* 用于**计价**的幸福度 = s.happy − 加成。可以为负（加成大于当前幸福度时），
    *   happyCost 对 H≤0 走保底 0.005，与 tick 的 `_Hmech` 同一套分支，天然对齐。 */
@@ -125,7 +130,11 @@
        *    那句错误注释正是这个 bug 潜伏 8 天的原因：它让人以为改一处就够。当时只有本函数乘了
        *    cardHappyConsumeMul，另两处都没乘 ⇒ 装卡后面板显示 ×1.5、实扣不变。
        *    现已三处同乘。**以后加居民侧新乘区，必须改三处并逐条加断言**。 */
-      * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1);
+      * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1)
+      /* 水体污染（2026-11-02 · C 定案）：污染死亡 → 幸福消耗 ×(1 + 0.3%×限额内 + 3%×限额外)。
+       * ⚠️ 三处同乘：本函数（面板）、economy.js happyStep 的 _D（在线实扣 / 离线复用）、
+       *   economy-rates 的 D（速率行）。只改这一处 = 2026-10-28《节能减耗》事故的原样重演。 */
+      * ((SB.economy && SB.economy.pollutionHappyBurnMul) ? SB.economy.pollutionHappyBurnMul(s) : 1);
   }
   /* 每人每秒消耗（2026-10-05 · 幸福度那行要摆出来给玩家看）。
    * ⚠️ 只给**政策调整前**的裸值：govHappyConsumeMul / happyConsumeMul 是政体与奇观给的
@@ -165,7 +174,12 @@
       * (1 + SB.economy.upgSum(s, 'luxuryMul'))
       * SB.economy.bankMul(s)
       * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1)
-      * (SB.civic ? SB.civic.cardJobOutMul(s) : 1);   // ERA7 延长工时卡：商人产出 +30%（职业产出口径）
+      * (SB.civic ? SB.civic.cardJobOutMul(s) : 1)    // ERA7 延长工时卡：商人产出 +30%（职业产出口径）
+      /* 水体污染通关奖励（2026-11-02）：商人奢侈品产出 ×1.5（跨周目永久）。
+       * ⚠️ 三处同源：本函数（面板供给）、economy.js happyStep 的 _S（实账）、
+       *   economy-rates 的 luxury 商人产出明细。e2e 有一条断言钉「happySupply === tick 毛产出」
+       *   ⇒ 写成三份必翻车（与上面 /cardJobOutMul/ 那条同一纪律）。 */
+      * ((SB.economy && SB.economy.luxuryOutMul) ? SB.economy.luxuryOutMul(s) : 1);
   }
   /* 幸福度 → 全产乘区（台阶式，与文明6 同构：需求连续、效果分段）。
    * ⚠️ 排除 luxury 自身（luxury 产出行走 baseMul）：happy 增益不放大自己的燃料。 */

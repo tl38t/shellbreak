@@ -288,6 +288,45 @@
   /* ⑫ 轮回商店「遗址施工图」折扣：奇观建造成本 ×(1 − 0.05 × wonderBlueprint等级)，最多 −20%。
    *   ⚠️ 显示（render）、扣费（buildWonder）、可建造判定（wonderBlocked 的 lackText）三处必须同源，
    *       否则「面板写省了、扣费没省 / 按钮还能按但实际建不起」这类面板撒谎。 */
+  /* ── 建造价里的「建筑等级」成分（2026-11-02 新增 · costBuild 通道）──
+   * 星球气候调节卫星网要「消耗 10 级轨道卫星」。为什么不写进 `cost`：
+   *   `buildWonder` 是裸 `s.res[k] -= wc[k]`，而 s.res.satellite 不存在 ⇒ 写出 NaN 进存档；
+   *   `lackText` / `costOwnedTxt` 也会把它读成「现有 0」永远凑不齐。
+   *   分成 `costBuild: { satellite: 10 }` 后，既有 `for k in cost` 循环一个字都不用改。
+   * ⚠️ 四处同源：门禁（workshop.wonderBlocked）/ 实扣（buildWonder）/
+   *   面板文案（render-pane-wonder / render-info）。四处都走本文件的函数。
+   * ⚠️ 不吃任何折扣：蓝图 / 心胜于物 / 征夫发役 都只减资源那一块，
+   *   建筑等级是实物成本，打折会让「10 级」变成小数。 */
+  function buildCostNeed(s, id) {
+    var w = byId(id);
+    return (w && w.costBuild) ? w.costBuild : null;
+  }
+  function buildCostLack(s, id) {
+    var need = buildCostNeed(s, id), out = [];
+    if (!need) return out;
+    var L = (s && s.lvl) || {};
+    for (var k in need) if ((L[k] || 0) < need[k]) out.push({ id: k, need: need[k], have: L[k] || 0 });
+    return out;
+  }
+  function buildName(id) {
+    var i;
+    for (i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++) if (SB.BUILDINGS[i].id === id) return SB.BUILDINGS[i].name;
+    return id;
+  }
+  function buildCostText(s, id) {
+    var need = buildCostNeed(s, id), parts = [];
+    if (!need) return '';
+    for (var k in need) parts.push(buildName(k) + ' ' + need[k] + ' 级');
+    return parts.join(' + ');
+  }
+  /* 实扣：只在 buildWonder 里调。夹 0 是必要的 ——
+   *   建筑等级没有「负数」语义，而付费前已经过 buildCostLack 校验，
+   *   这里再 Math.max 一次是防「别处调用 / 存档被手改」。 */
+  function payBuildCost(s, id) {
+    var need = buildCostNeed(s, id);
+    if (!need || !s || !s.lvl) return;
+    for (var k in need) s.lvl[k] = Math.max(0, (s.lvl[k] || 0) - need[k]);
+  }
   function discountedCost(s, id) {
     var w = byId(id);
     if (!w || !w.cost) return {};
@@ -461,6 +500,7 @@
     skydrillPostBreak: skydrillPostBreak,
     skydrillCivic: skydrillCivic, skydrillHappyOffset: skydrillHappyOffset,
     discountedCost: discountedCost,
+    buildCostNeed: buildCostNeed, buildCostLack: buildCostLack, buildCostText: buildCostText, payBuildCost: payBuildCost,
     mineMul: mineMul, stationBonus: stationBonus, mannedRocketMul: mannedRocketMul,
     throneFaithMul: throneFaithMul, throneCraftMul: throneCraftMul, throneSciMul: throneSciMul,
     voyagerStarRate: voyagerStarRate, voyagerScholarMul: voyagerScholarMul,

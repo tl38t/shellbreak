@@ -27,6 +27,9 @@
   var minerPactMul = P.minerPactMul, quarryPactMul = P.quarryPactMul, furnaceEffMul = P.furnaceEffMul, scholarPactMul = P.scholarPactMul, obsSciMul = P.obsSciMul, resUnlocked = P.resUnlocked;
   var seasonTurn = P.seasonTurn, steelFlow = P.steelFlow, toolMul = P.toolMul;
   var upgSum = P.upgSum, warmCap = P.warmCap, warmEff = P.warmEff, warmRelief = P.warmRelief;
+  /* 水体污染（2026-11-02）：存量积分 + 死亡掷骰。两者都从 internals 取（不是 SB.economy 本体）——
+   * 本文件只解构 P，挂在 SB.economy 上的函数它拿不到（thetaFlow 首跑 e2e 崩过的同款坑）。 */
+  var pollutionSettle = P.pollutionSettle, pollutionRollDeath = P.pollutionRollDeath;
 
   function tick(s, dt, emit, opts) {
     if (s.broken) return;
@@ -207,6 +210,16 @@
 
     // 2b) ERA3 热液能 → 钢（热液汽轮机产热液能、热液工坊吃能产钢；比例降产）
     steelFlow(s, dt);
+
+    /* 2b-2) 水体污染存量结算（2026-11-02 · docs/challenge-ocean-pollution-design.md v11）。
+     * ⚠️ 必须紧跟在 steelFlow 之后：排放量来自 hydroAlloc 的两枝脏源，而 hydroAlloc
+     *   每个 tick 只在 steelFlow 里跑一次，`s._hydroFlow` 就是那一份快照 —— 晚于任何
+     *   改写热液分配的段落都会读到别的快照（三处同源铁律）。
+     * ⚠️ 为什么放在**这里**而不是第 7 步人口段：第 7 步在 `skipFoodPop` 路径下会被整段
+     *   跳过（离线/高速走 integrateFoodPop），而污染存量是**确定性积分**，离线也必须
+     *   一次算完。概率性的死亡掷骰才是必须放进 0.1s 微步的那一半（见第 7 步末）。
+     * ⚠️ 非挑战周目 pollutionSettle 首行即 return 0，连乘区都走不到。 */
+    pollutionSettle(s, dt, s._hydroFlow);
 
     // 2c) ERA8 θ生物金属（生物材料研究所：耗 藻食/精铁/钛/铀 ⇒ 产 θ；开工率=最紧原料）。
     //     ⚠️ 在 steelFlow 之后调：hydroAlloc 的 labDraw（研究所耗流）已在同一 tick 分配好。
@@ -591,6 +604,18 @@
     }
 
     } // 闭合 if (!(opts && opts.skipFoodPop))：food/pop 段整体交给 integrateFoodPop 接管
+
+    /* 7b) 水体污染死亡（2026-11-02）。
+     * ⚠️ 两种 dt 都要到这里：常规 tick（dt=0.1~1）走本行；离线/高速因为 skipFoodPop 跳过
+     *   上面整段，改由 offline-scheduler.foodAdvanceMicro 每 0.1s 微步掷（两处同函数、
+     *   同 `1−(1−p)^dt` 折算，所以步长怎么变人口损失口径都不变）。
+     * ⚠️ 每 tick 对**整个人口**只掷一次、最多死 1 人（用户定案 Q）：概率**不乘人口数**。
+     *   写成 `pop × p` 会让 30 人时死亡率 30 倍，玩家读到的是「一秒钟全灭」。
+     * ⚠️ 顺序：排在冻伤之后。两条死亡线都改 s.pop、都自带 `s.pop > 1` 守卫，
+     *   顺序本身不影响结果，但**写死**才不会以后插入新死亡源时被悄悄改序。
+     * ⚠️ emit 签名两种：tick 的 emit(msg) 单参；离线那个是 emit(msg, at)。pollutionRollDeath
+     *   用 `arguments` 判 at，所以这里只传两个参数是对的。 */
+    pollutionRollDeath(s, dt, emit);
 
     // 8) 天壳推进（基础削壳 + 祭坛削壳）
     SB.shell.tickShell(s, dt, emit, opts);

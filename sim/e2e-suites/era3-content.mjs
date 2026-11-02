@@ -39,9 +39,12 @@ console.log('\n=== 纪元三 · 钢与热液能 ===');
     c('castle').t === 'gov' && c('castle').wild === 3,
     'cond=' + JSON.stringify(c('castle')));
 
-  /* 金属精炼解锁热液汽轮机 + 热液工坊（与建筑侧 requiredTech 双写一致，见下块）。 */
-  check('金属精炼解锁 热液汽轮机 + 热液工坊',
-    (m.metalrefine.eff.unlockBuild || []).join() === 'hydroturbine,hydroshop',
+  /* 金属精炼解锁热液汽轮机 + 热液工坊（与建筑侧 requiredTech 双写一致，见下块）。
+   * 2026-11-02：水体污染的《潮汐往复机》也挂本枝（设计文档 v11 §3.1「科技 金属精炼」）——
+   *   它在基游戏被 challengeOnly 挡着，但**解锁权仍必须写在这里**，否则挑战周目里
+   *   判定（building.requiredTech=metalrefine）通过、解锁权却没有 ⇒ 永远建不出来。 */
+  check('金属精炼解锁 热液汽轮机 + 热液工坊 + 潮汐往复机（挑战专属，仅解锁权）',
+    (m.metalrefine.eff.unlockBuild || []).join() === 'hydroturbine,hydroshop,tidemachine',
     'unlockBuild=' + JSON.stringify(m.metalrefine.eff.unlockBuild));
 
   /* ⚠️ cond 真的能算（功能验证，不是只看形状）：造态喂 condMet，逐项证「达成/未达成」分流正确。

@@ -642,6 +642,13 @@
     var flavor = WONDER_FLAVOR[id] || '这座奇观正在等待一段属于它自己的历史。';
     var body = wonderArt(w, s) +
       '<div class="tree-cost"><span>建造成本</span><b>' + SB.economy.costTxt(cost) + '</b></div>' +
+      /* 建筑等级成分（2026-11-02 · costBuild）：单独一行。
+       * ⚠️ 不能并进上面那行的 costTxt —— 它只认 RESS 键，把建筑 id 往里塞
+       *   会打出一串看不懂的内部名。 */
+      (function () {
+        var bt = (SB.wonder && SB.wonder.buildCostText) ? SB.wonder.buildCostText(s, id) : '';
+        return bt ? '<div class="tree-cost"><span>消耗建筑</span><b>' + bt + '</b></div>' : '';
+      })() +
       '<section class="tree-detail-section"><h4>效果</h4><p>' + linkInfoNames(wonderDesc) + '</p>' +
       (done ? SB.ui.renderCommon.happyBonusNote(s, 'wonder', w.id) : '') + '</section>' +
       '<section class="tree-detail-section"><h4>解锁条件</h4>' + reqHtml + '</section>' +

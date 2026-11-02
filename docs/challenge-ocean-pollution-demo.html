@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN" data-era="1" data-ui-theme="night">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>水体污染挑战 · 面板演示</title>
+  <link rel="stylesheet" href="../css/main.css?v=282">
+  <style>
+    .demo-intro { margin: 0 0 12px; padding: 9px 12px; border-left: 3px solid var(--cyan); border-radius: 0 7px 7px 0; background: rgba(77,216,230,.06); color: var(--dim); font-size: 12px; }
+    .demo-intro strong { color: var(--txt); font-weight: 600; }
+    .demo-mark { margin-left: 7px; color: var(--amber); font-size: 10px; letter-spacing: .5px; }
+    .env-volcano { margin: 0; padding: 8px 0 4px; border-bottom: 0; }
+    .pollution-row { display: block; padding: 0; }
+    .pollution-panel { padding: 11px 0 4px; width: 100%; }
+    .pollution-head, .pollution-head-main, .pollution-score, .pollution-rate-head, .pollution-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .pollution-title-row { justify-content: flex-start; }
+    .pollution-icon { display: inline-grid; place-items: center; width: 29px; height: 29px; flex: 0 0 29px; border: 1px solid rgba(77,216,230,.2); border-radius: 8px; background: rgba(77,216,230,.07); font-size: 17px; }
+    .pollution-title { font-size: 16px; font-weight: 600; letter-spacing: .5px; }
+    .pollution-sub { display: block; margin-top: 2px; color: var(--dim); font-size: 13px; font-weight: 400; letter-spacing: 0; }
+    .pollution-state { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border: 1px solid color-mix(in srgb, var(--op-stage-color) 36%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--op-stage-color) 10%, transparent); color: var(--op-stage-color); font-size: 14px; white-space: nowrap; }
+    .pollution-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; }
+    .pollution-hero { display: flex; align-items: center; gap: 24px; margin: 20px 0 17px; }
+    .pollution-ring { --ring-progress: 46.7%; --op-stage-color: var(--amber); display: grid; place-items: center; width: 184px; height: 184px; flex: 0 0 184px; border-radius: 50%; background: conic-gradient(from -90deg, var(--op-stage-color) 0 var(--ring-progress), #17263b var(--ring-progress) 100%); box-shadow: 0 0 22px color-mix(in srgb, var(--op-stage-color) 13%, transparent); }
+    .pollution-ring-core { display: flex; width: 151px; height: 151px; flex-direction: column; align-items: center; justify-content: center; border: 1px solid rgba(110,153,186,.14); border-radius: 50%; background: var(--panel); text-align: center; }
+    .pollution-ring-value { color: var(--txt); font-size: 26px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .pollution-ring-label { margin-top: 5px; color: var(--dim); font-size: 13px; }
+    .pollution-progress-copy { min-width: 0; flex: 1; }
+    .pollution-next-label { color: var(--dim); font-size: 15px; }
+    .pollution-next-value { display: block; margin-top: 2px; color: var(--txt); font-size: 25px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .pollution-threshold { color: var(--dim); font-size: 13px; }
+    .pollution-stage-line { display: flex; align-items: center; gap: 5px; margin-top: 12px; }
+    .pollution-stage-seg { display: block; height: 5px; flex: 1; border-radius: 4px; background: #18283d; }
+    .pollution-stage-seg.done { background: color-mix(in srgb, var(--op-stage-color) 42%, #18283d); }
+    .pollution-stage-seg.current { background: var(--op-stage-color); box-shadow: 0 0 8px color-mix(in srgb, var(--op-stage-color) 45%, transparent); }
+    .pollution-progress-label { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: var(--dim); font-size: 13px; }
+    .pollution-eta { margin-top: 9px; color: var(--dim); font-size: 14px; }
+    .pollution-eta strong { color: var(--txt); font-weight: 500; }
+    .pollution-rates { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; margin-top: 17px; }
+    .pollution-rate { min-width: 0; padding: 11px 13px; border: 1px solid rgba(59,91,121,.22); border-radius: 7px; background: linear-gradient(145deg,rgba(17,32,54,.78),rgba(10,24,42,.72)); }
+    .pollution-rate-label { display: block; color: var(--dim); font-size: 13px; }
+    .pollution-rate-value { display: block; margin-top: 4px; color: var(--txt); font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .pollution-rate-value.up { color: var(--red); }
+    .pollution-rate-value.down { color: var(--green); }
+    .pollution-effects { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 13px; color: var(--dim); font-size: 14px; }
+    .pollution-effect { padding: 3px 8px; border: 1px solid rgba(255,184,77,.15); border-radius: 4px; background: rgba(255,184,77,.06); color: var(--amber); font-size: 13px; white-space: nowrap; }
+    .pollution-alert { display: none; margin-top: 10px; padding: 9px 11px; border-left: 3px solid var(--red); background: rgba(255,95,109,.07); color: var(--red); font-size: 13px; }
+    .pollution-alert.show { display: block; }
+    .pollution-score { flex-wrap: wrap; margin-top: 13px; padding-top: 11px; border-top: 1px solid rgba(59,91,121,.35); color: var(--dim); font-size: 13px; }
+    .pollution-score strong { color: var(--txt); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .pollution-grade { color: var(--cyan) !important; }
+    .pollution-grade.zero { color: var(--red) !important; }
+    .pollution-hydro { margin-top: 12px; color: var(--dim); font-size: 13px; }
+    .pollution-hydro strong { color: var(--txt); font-weight: 500; }
+    .pollution-board { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(59,91,121,.35); color: var(--dim); font-size: 14px; }
+    .pollution-board strong { color: var(--cyan); font-size: 15px; font-variant-numeric: tabular-nums; }
+    .demo-controls { margin-top: 12px; }
+    .demo-controls .restitle { margin-top: 0; }
+    .demo-stage-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .demo-stage-buttons .tab { padding: 5px 9px; font-size: 11px; }
+    .demo-stage-buttons .tab.on { color: var(--op-stage-color, var(--cyan)); border-color: var(--op-stage-color, var(--cyan)); background: color-mix(in srgb, var(--op-stage-color, var(--cyan)) 11%, var(--panel2)); }
+    .demo-control-hint { margin-top: 7px; color: var(--dim); font-size: 10px; }
+    .demo-footer { margin: -3px 2px 0; color: var(--dim); font-size: 10px; text-align: right; }
+    @media (max-width: 520px) {
+      .wrap { padding: 10px; }
+      .brandline { align-items: flex-start; }
+      .header-actions { margin-left: auto; }
+      .pollution-hero { gap: 12px; margin: 15px 0 12px; }
+      .pollution-ring { width: 112px; height: 112px; flex-basis: 112px; }
+      .pollution-ring-core { width: 92px; height: 92px; }
+      .pollution-ring-value { font-size: 17px; }
+      .pollution-ring-label { font-size: 10px; }
+      .pollution-next-label { font-size: 12px; }
+      .pollution-next-value { font-size: 18px; }
+      .pollution-threshold, .pollution-progress-label { font-size: 10px; }
+      .pollution-eta { font-size: 11px; }
+      .pollution-rates { gap: 5px; }
+      .pollution-rate { padding: 7px 6px; }
+      .pollution-rate-label { font-size: 10px; }
+      .pollution-rate-value { font-size: 12px; }
+      .pollution-effects { font-size: 11px; }
+      .pollution-effect { padding: 2px 5px; font-size: 10px; }
+      .pollution-score, .pollution-hydro, .pollution-board { font-size: 11px; }
+      .pollution-board strong { font-size: 12px; }
+      .demo-stage-buttons .tab { flex: 1 1 28%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true">
+    <div class="atmosphere-scene scene-a"></div>
+    <div class="atmosphere-scene scene-b"></div>
+    <div class="era1-bubbles"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="atmosphere-vignette"></div>
+  </div>
+  <main class="wrap ocean-demo">
+    <header class="brandline">
+      <img class="brandmark" src="../assets/brand/logo-shell-sun.jpg" alt="">
+      <div>
+        <h1>自海渊至群星</h1>
+        <div class="sub">深海纪元 · 海洋污染挑战</div>
+      </div>
+      <div class="header-actions"><span class="tag">UI 原型</span></div>
+    </header>
+
+    <p class="demo-intro"><strong>挑战专属面板</strong>　热液能供给转化为污染排放。污染按存量累积，点选下方阶段预览不同生态状态。</p>
+
+    <section class="card" id="card-env">
+      <div class="cardhd" id="envFoldToggle" style="--hc:#a78bfa" role="button" tabindex="0" aria-expanded="true"><span class="cv">▾</span>自然环境<span class="hcsub">环境状态</span></div>
+      <div id="envBody">
+        <div class="shellbar"><span id="shellLbl">天壳 · 冰封层厚度</span><span id="shellTxt">86%</span></div>
+        <div class="shellwrap" role="img" aria-label="天壳剩余厚度 86%"><div class="shellfill" style="width:86%"></div></div>
+        <div class="note">冰封层仍在缓慢消退。污染挑战已启动。</div>
+        <div class="row envsplit env-volcano"><span class="nm">海底火山</span><span class="ds">丰饶季 · 藻场产出 ×1.18</span></div>
+
+        <div class="row envsplit pollution-row">
+          <section class="pollution-panel" id="pollutionPanel" aria-labelledby="pollutionTitle">
+            <div class="pollution-head">
+              <div class="pollution-title-row">
+                <span class="pollution-icon" aria-hidden="true">🌊</span>
+                <div class="pollution-title" id="pollutionTitle">海洋污染<span class="pollution-sub">净污染存量 · 每秒变化</span></div>
+              </div>
+              <span class="pollution-state" id="pollutionStage">阶段 2 · 赤潮</span>
+            </div>
+
+            <div class="pollution-hero">
+              <div class="pollution-ring" id="pollutionRing" role="progressbar" aria-label="赤潮阶段进度 47%" aria-valuenow="47" aria-valuemin="0" aria-valuemax="100">
+                <div class="pollution-ring-core"><strong class="pollution-ring-value" id="pollutionStock">96,000</strong><span class="pollution-ring-label">净污染</span></div>
+              </div>
+              <div class="pollution-progress-copy">
+                <span class="pollution-next-label" id="pollutionNextLabel">距下一阶段 · 死区</span>
+                <strong class="pollution-next-value" id="pollutionNextValue">64,000</strong>
+                <div class="pollution-threshold" id="pollutionThreshold">阶段阈值 40,000 → 160,000</div>
+                <div class="pollution-stage-line" id="pollutionStageLine" aria-hidden="true"></div>
+                <div class="pollution-progress-label"><span id="pollutionProgressName">赤潮阶段进度</span><strong id="pollutionProgressValue">47%</strong></div>
+                <div class="pollution-eta" id="pollutionEta">按当前净增速，约 <strong>12 分钟</strong>进入死区</div>
+              </div>
+            </div>
+
+            <div class="pollution-rates" aria-label="污染收支">
+              <div class="pollution-rate"><span class="pollution-rate-label">污染排放</span><strong class="pollution-rate-value up" id="pollutionEmission">+120.0 /秒</strong></div>
+              <div class="pollution-rate"><span class="pollution-rate-label">净化</span><strong class="pollution-rate-value down" id="pollutionCleanup">−24.0 /秒</strong></div>
+              <div class="pollution-rate"><span class="pollution-rate-label">净变化</span><strong class="pollution-rate-value up" id="pollutionNet">+96.0 /秒</strong></div>
+            </div>
+            <div class="pollution-effects"><span>当前影响</span><span class="pollution-effect" id="effectNone" hidden>暂无</span><span class="pollution-effect" id="effectHappy">幸福 −2</span><span class="pollution-effect" id="effectKelp">藻食 −45%</span><span class="pollution-effect" id="effectCoral">珊瑚 −45%</span><span class="pollution-effect" id="effectDeath" title="整个人口每步掷一次，最多死亡 1 人；医院与政策卡可降低实际概率">死亡基准 0.1%／秒</span></div>
+            <div class="pollution-alert" id="pollutionAlert" role="status">阶段 4：藻食与珊瑚产出 −95%；整个人口每步判定污染死亡，基准概率 2%／秒。医院与政策卡可降低实际概率。</div>
+            <div class="pollution-score"><span>污染死亡 <strong id="pollutionDeaths">14</strong> 人 · 墓地限额 <strong id="graveQuota">24</strong></span><strong class="pollution-grade" id="pollutionPenalty">幸福消耗 +4.2%</strong></div>
+            <div class="pollution-hydro"><strong>热液能流</strong>　脏源 <span id="hydroDirty">120.0</span>/秒 · 洁净源 <span id="hydroSupply">130.0</span>/秒</div>
+            <div class="pollution-board"><span>最低污染通关榜 · 以通关时净污染存量计</span><strong>若此刻通关：<span id="pollutionScore">96,000</span></strong></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="游戏页签">
+      <button class="tab on" type="button">巢穴</button>
+      <button class="tab" type="button">族民</button>
+      <button class="tab" type="button">科技</button>
+      <button class="tab" type="button">市政</button>
+      <button class="tab" type="button">奇观</button>
+      <button class="tab" type="button">挑战</button>
+    </nav>
+
+    <section class="card demo-controls" aria-labelledby="demoStageTitle">
+      <div class="restitle" id="demoStageTitle">演示控制 · 污染阶段</div>
+      <div class="demo-stage-buttons" role="group" aria-label="选择要预览的污染阶段">
+        <button class="tab" type="button" data-preview-stage="0" aria-pressed="false">澄海</button>
+        <button class="tab" type="button" data-preview-stage="1" aria-pressed="false">浊流</button>
+        <button class="tab on" type="button" data-preview-stage="2" aria-pressed="true">赤潮</button>
+        <button class="tab" type="button" data-preview-stage="3" aria-pressed="false">死区</button>
+        <button class="tab" type="button" data-preview-stage="4" aria-pressed="false">腐渊</button>
+      </div>
+      <div class="demo-control-hint">阶段切换只改预览。速率、污染死亡和墓地读数是示例局数据；接入游戏后由本局状态实时驱动。</div>
+    </section>
+    <p class="demo-footer">阶段名称、阈值与惩罚按设计文档 v11；死亡口径为整个人口每步一次、最多 1 人。</p>
+  </main>
+
+  <script>
+    (function () {
+      var stages = [
+        { name: '澄海', from: 0, to: 1000, pollution: 620, dirty: 12.0, clean: 118.0, cleanup: 15.0,
+          deaths: 0, quota: 20, happy: null, kelp: null, coral: null, death: null,
+          color: 'var(--green)', phase: '未受污染', next: '浊流' },
+        { name: '浊流', from: 1000, to: 40000, pollution: 8400, dirty: 48.0, clean: 130.0, cleanup: 15.0,
+          deaths: 6, quota: 20, happy: '幸福 −1', kelp: '藻食 −30%', coral: null, death: '死亡基准 0.05%／秒',
+          color: 'var(--cyan)', phase: '水质下降', next: '赤潮' },
+        { name: '赤潮', from: 40000, to: 160000, pollution: 96000, dirty: 120.0, clean: 130.0, cleanup: 24.0,
+          deaths: 14, quota: 24, happy: '幸福 −2', kelp: '藻食 −45%', coral: '珊瑚 −45%', death: '死亡基准 0.1%／秒',
+          color: 'var(--amber)', phase: '藻华暴发', next: '死区' },
+        { name: '死区', from: 160000, to: 6400000, pollution: 420000, dirty: 260.0, clean: 140.0, cleanup: 30.0,
+          deaths: 26, quota: 28, happy: '幸福 −4', kelp: '藻食 −70%', coral: '珊瑚 −70%', death: '死亡基准 0.5%／秒',
+          color: '#ff8f4d', phase: '溶氧枯竭', next: '腐渊' },
+        { name: '腐渊', from: 6400000, to: 0, pollution: 7600000, dirty: 320.0, clean: 150.0, cleanup: 34.0,
+          deaths: 48, quota: 32, happy: '幸福 −8', kelp: '藻食 −95%', coral: '珊瑚 −95%', death: '死亡基准 2%／秒',
+          color: 'var(--red)', phase: '生态崩塌', next: null }
+      ];
+      var byId = function (id) { return document.getElementById(id); };
+      var format = function (n) { return Math.round(n).toLocaleString('en-US'); };
+      var formatRate = function (n) { return (n >= 0 ? '+' : '−') + Math.abs(n).toFixed(1) + ' /秒'; };
+      var stageLine = byId('pollutionStageLine');
+
+      function render(stageIndex) {
+        var s = stages[stageIndex];
+        var net = s.dirty - s.cleanup;
+        var progress = s.next ? Math.max(0, Math.min(1, (s.pollution - s.from) / (s.to - s.from))) : 1;
+        /* 死亡→幸福消耗：墓限额内 0.3%/人，限额外 3%/人。扩建墓地 ⇒ 限额变大 ⇒ 超额部分自动降回 0.3%。 */
+        var within = Math.min(s.deaths, s.quota), over = Math.max(0, s.deaths - s.quota);
+        var penaltyPct = within * 0.3 + over * 3;
+        byId('pollutionStage').textContent = '阶段 ' + stageIndex + ' · ' + s.name;
+        byId('pollutionPanel').style.setProperty('--op-stage-color', s.color);
+        byId('pollutionStock').textContent = format(s.pollution);
+        byId('pollutionScore').textContent = format(s.pollution);
+        byId('pollutionRing').style.setProperty('--ring-progress', (progress * 100).toFixed(1) + '%');
+        byId('pollutionRing').style.setProperty('--op-stage-color', s.color);
+        byId('pollutionRing').setAttribute('aria-valuenow', Math.round(progress * 100));
+        byId('pollutionRing').setAttribute('aria-label', s.name + '阶段进度 ' + Math.round(progress * 100) + '%');
+        byId('pollutionNextLabel').textContent = s.next ? '距下一阶段 · ' + s.next : '已达最高阶段';
+        byId('pollutionNextValue').textContent = s.next ? format(Math.max(0, s.to - s.pollution)) : '≥ 6,400,000';
+        byId('pollutionThreshold').textContent = s.next
+          ? '阶段阈值 ' + format(s.from) + ' → ' + format(s.to)
+          : '阶段阈值 6,400,000 起（没有下一阶段）';
+        byId('pollutionProgressName').textContent = s.next ? s.name + '阶段进度' : '腐渊阶段';
+        byId('pollutionProgressValue').textContent = Math.round(progress * 100) + '%';
+        stageLine.replaceChildren();
+        for (var i = 0; i < 5; i += 1) {
+          var segment = document.createElement('span');
+          segment.className = 'pollution-stage-seg' + (i < stageIndex ? ' done' : i === stageIndex ? ' current' : '');
+          segment.setAttribute('aria-hidden', 'true');
+          stageLine.appendChild(segment);
+        }
+        if (net <= 0) {
+          byId('pollutionEta').innerHTML = '当前净变化为负，污染存量正在回落';
+        } else if (s.next) {
+          var seconds = Math.ceil((s.to - s.pollution) / net);
+          var timeText = seconds >= 3600 ? Math.floor(seconds / 3600) + ' 小时 ' + Math.ceil((seconds % 3600) / 60) + ' 分钟' : Math.ceil(seconds / 60) + ' 分钟';
+          byId('pollutionEta').innerHTML = '按当前净增速，约 <strong>' + timeText + '</strong>进入' + s.next;
+        } else {
+          byId('pollutionEta').innerHTML = '已达最高阶段：藻食与珊瑚近乎归零，人口持续死亡';
+        }
+        byId('pollutionEmission').textContent = formatRate(s.dirty);
+        byId('pollutionCleanup').textContent = '−' + s.cleanup.toFixed(1) + ' /秒';
+        byId('pollutionNet').textContent = formatRate(net);
+        byId('pollutionNet').classList.toggle('up', net > 0);
+        byId('pollutionNet').classList.toggle('down', net <= 0);
+        byId('pollutionDeaths').textContent = format(s.deaths);
+        byId('graveQuota').textContent = format(s.quota);
+        byId('pollutionPenalty').textContent = '幸福消耗 +' + penaltyPct.toFixed(1) + '%';
+        byId('pollutionPenalty').className = 'pollution-grade' + (over > 0 ? ' zero' : '');
+        byId('hydroDirty').textContent = s.dirty.toFixed(1);
+        byId('hydroSupply').textContent = s.clean.toFixed(1);
+        byId('pollutionAlert').classList.toggle('show', stageIndex === 4);
+        var chips = [['effectHappy', s.happy], ['effectKelp', s.kelp], ['effectCoral', s.coral], ['effectDeath', s.death]];
+        var anyChip = false;
+        chips.forEach(function (pair) {
+          var el = byId(pair[0]);
+          if (pair[1]) {
+            el.hidden = false;
+            el.textContent = pair[1];
+            if (pair[0] === 'effectDeath') el.title = '整个人口每步掷一次，最多死亡 1 人；医院与政策卡可降低实际概率';
+            anyChip = true;
+          }
+          else { el.hidden = true; }
+        });
+        byId('effectNone').hidden = anyChip;
+        document.querySelectorAll('[data-preview-stage]').forEach(function (button) {
+          var active = Number(button.getAttribute('data-preview-stage')) === stageIndex;
+          button.classList.toggle('on', active);
+          button.setAttribute('aria-pressed', active ? 'true' : 'false');
+          button.style.setProperty('--op-stage-color', active ? s.color : 'var(--cyan)');
+        });
+      }
+
+      document.querySelectorAll('[data-preview-stage]').forEach(function (button) {
+        button.addEventListener('click', function () { render(Number(button.getAttribute('data-preview-stage'))); });
+      });
+      var fold = byId('envFoldToggle');
+      function toggleEnvironment() {
+        var card = byId('card-env');
+        var folded = card.classList.toggle('folded');
+        fold.setAttribute('aria-expanded', folded ? 'false' : 'true');
+      }
+      fold.addEventListener('click', toggleEnvironment);
+      fold.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleEnvironment(); }
+      });
+      render(2);
+    }());
+  </script>
+</body>
+</html>

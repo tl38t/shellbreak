@@ -900,7 +900,24 @@
       desc: '星核炉芯池可储存至多 50M 热液能，并抵消流浪泰拉挑战中的冰封。' },
     { id: 'wonder_crustplate', name: '大陆板块加固构件', era: 10, need: 'supercrit',
       cost: { thinafilm: 600, strongProp: 2000, scaffold: 6000, steelPart: 10000 }, effect: {},
-      desc: '砂矿坑整条产出与瑞亚星的石梁、硬化珊瑚、铀产出各 ×1.3。' }
+      desc: '砂矿坑整条产出与瑞亚星的石梁、硬化珊瑚、铀产出各 ×1.3。' },
+
+    /* ══ 水体污染挑战奇观（2026-11-02 · docs/challenge-ocean-pollution-design.md §3.5）══
+     * 【星球气候调节卫星网】解锁走 needCivic（《我们的摇篮》，那条市政本身是挑战专属）。
+     *   效果：污染 −15/s（永久、无等级），走 economy.pollutionCleanup 的
+     *   CLEAN_WONDER 一条路。⚠️ 不进 effect 表：wonder.effect 是乘区/加值的
+     *   通道，而污染净化只有一个落点（pollutionCleanup），在那里直接读 owned()。
+     * 【造价两块】cost 是资源，costBuild 是建筑等级（吞 10 级轨道卫星）。
+     *   ⚠️ 绝不能把 satellite 写进 cost —— s.res.satellite 不存在，
+     *   buildWonder 的裸扣会写出 NaN（见 wonder.js buildCostNeed 那段注）。
+     * 质量级：200 火箭引擎 + 400 封闭藻仓 + 10 级卫星 ≈
+     *   火箭燃料 5.1 万 + 藻仓 2400 + 钛板 1.13 万，约为旅行者1号的 2.5 倍。 */
+    { id: 'wonder_climatesat', name: '星球气候调节卫星网', era: 8, needCivic: 'our_cradle',
+      challengeOnly: 'waterpollution',
+      cost: { rocketEngine: 200, sealbin: 400 },
+      costBuild: { satellite: 10 },
+      effect: {},
+      desc: '轨道上的阳伞：每秒净化 15 点污染（永久，不随等级变化）。建造时消耗 10 级轨道卫星。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。

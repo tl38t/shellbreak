@@ -46,12 +46,39 @@
       reward: '永久暖流季全产 +30% · 寒流季时长 ×0.5 · G.E.E.K 环境改造时间 ×0.5',
       goal: { t: 'all', of: [{ t: 'built', b: 'terra_engine', n: 50 }, { t: 'res', r: 'coreCharge', n: 50000000 }] },
       goalText: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能',
-      tiers: [{ label: '星际远航', cap: null }] }
+      rankKey: 'drift', rankValue: function (s) { return s.wallT; },
+      onComplete: function (s, meta) {
+        /* 奖励立即生效：本局后续寒流季采用「奖励 ×0.5，再乘挑战 ×2」的 600 秒时长。
+         * 保留上次季节标记，避免奖励落账时把当前冰封季重新掷一次。 */
+        if (SB.economy && SB.economy.lockSeasonLengths) SB.economy.lockSeasonLengths(s, meta, true);
+        if (SB.achv && SB.achv.unlockOnce) SB.achv.unlockOnce('driftTerra', meta);
+      },
+      tiers: [{ label: '星际远航', cap: null }] },
+    /* ── 水体污染（2026-11-02 实装 · docs/challenge-ocean-pollution-design.md v11）───────
+     * 单档、goal 型（`t:'dyson'`）：戴森球竣工即通关，飞升虚境同样收敛到 dysonDone。
+     * 全部污染机制住在 economy.js 的 pollution* 函数族里，**只在 `s.challenge.id ===
+     * 'waterpollution'` 的周目生效**；本定义只负责「怎么开始 / 怎么算赢 / 发什么奖」。
+     * ⚠️ 通用奖励「每档 +10% 轮回点获取」不在 reward 文案里（用户定案 R）：那是六项挑战
+     *   共享的规则，由 prestige.breakReport 的 challengePointMul 统一给，写进单项文案会让人
+     *   以为只有这项才给。 */
+    { id: 'waterpollution', name: '水体污染', icon: '☣', badge: 'assets/challenges/challenge-waterpollution.svg', kind: '单次挑战',
+      summary: '热液能产出即排污，五个阶段逐级侵蚀幸福、藻食与人口。',
+      rule: '热液能建筑每秒排放与产出等值的污染（星屑树乘区不计）；污染达 1000 / 4 万 / 16 万 / 640 万依次进入浊流、赤潮、死区、腐渊，逐级扣幸福、削藻食与珊瑚，并按秒掷死亡；每名死者永久提高幸福消耗（墓地限额内 0.3%、超限 3%）。',
+      reward: '永久星屑产出 +10% · 商人奢侈品产出 +50% · 初始人口 +2',
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成飞升虚境亦算）',
+      /* 排行榜「最低污染通关」（db 待建 · CFG.RANK.MAP.pollution，asc + best）：
+       * 成绩 = 达成瞬间的 `s.pollution` 存量（取整）。⚠️ 不存 peak —— 玩家要的是
+       * 「通关时海有多脏」，峰值会随经营风格抖动，不可比。 */
+      rankKey: 'pollution', rankValue: function (s) { return Math.round(s.pollution || 0); },
+      tiers: [{ label: '海渊澄明', cap: null }] }
   ];
   var BY_ID = {};
   for (var i = 0; i < DEFINITIONS.length; i++) BY_ID[DEFINITIONS[i].id] = DEFINITIONS[i];
 
-  function emptyProgress() { return { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false } }; }
+  /* ⚠️ 这个对象是**进度白名单**：`state-migrate` 与 `progress()` 都靠它兜底，新增挑战
+   *   漏登记 ⇒ 老档读回来的 completed 里没有这个键 ⇒ tierDone 恒 0 ⇒ 每次进游戏都像没通过、
+   *   重打还能再领一次奖（2026-11-02 加 waterpollution 时同步补上）。 */
+  function emptyProgress() { return { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false, waterpollution: false } }; }
   function progress(meta) {
     var c = meta && meta.challenges && meta.challenges.completed;
     return c || emptyProgress().completed;
@@ -117,9 +144,11 @@
     var done = tierDone('small', SB.game && SB.game.meta ? SB.game.meta() : null);
     return SB.CFG.GROW_NEED * (done ? 0.5 : 1);
   }
+  /* 起始人口：小国寡民 +3、水体污染 +2（两项都通过则叠加）。 */
   function startingPopulation() {
-    var done = tierDone('small', SB.game && SB.game.meta ? SB.game.meta() : null);
-    return SB.CFG.POP_START + (done ? 3 : 0);
+    var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
+    var done = tierDone('small', meta), pol = tierDone('waterpollution', meta);
+    return SB.CFG.POP_START + (done ? 3 : 0) + (pol ? 2 : 0);
   }
   function warmHeatingBlocked(s) {
     var a = active(s);
@@ -134,54 +163,69 @@
     }
     if (goal.t === 'built') return !!(s.lvl && (s.lvl[goal.b] || 0) >= goal.n);
     if (goal.t === 'res') return !!(s.res && (s.res[goal.r] || 0) >= goal.n);
+    /* 戴森球竣工（ERA10 终局，2026-11-02 加）：`s.dysonDone` 是 economy-tick 里
+     *   dysonPct(s) >= 1 时置位的一次性旗；飞升虚境（civics.ascend_void）也收敛到它，
+     *   所以这里不需要额外的 `|| s.ascendVoidDone` 分支。 */
+    if (goal.t === 'dyson') return !!s.dysonDone;
     if (goal.t === 'wonders') {
       var ow = SB.wonder && SB.wonder.owned ? SB.wonder.owned(s) : {};
       return (goal.ids || []).every(function (id) { return !!ow[id]; });
     }
     return false;
   }
+  /* ── goal 型挑战的通用结算（2026-11-02 泛化）────────────────────────────────
+   * 这一段原先整段写死 drift_terra（id 判断、排行榜 key、季长副作用全是硬编码），
+   * 加「水体污染」时若照抄一份，两套结算必然各自演化（「面板撒谎」家族的同构版本：
+   * 一个改了一个没改，玩家在两处遇到同一份规则却表现不同）。现在把**挑战个性**收进
+   * DEFINITION：
+   *   d.goal        达成条件（goalMet 通用求值）
+   *   d.goalText    通关目标文案
+   *   d.rankKey     排行榜键（CFG.RANK.LB / MAP 的 key）
+   *   d.rankValue   成绩取值 (s) => number
+   *   d.onComplete  达成瞬间的本局副作用（drift 重掷季长 / 置成就）
+   * ⚠️ 副作用若写在**本局**（s.xxx）上，onComplete 里还得自己 saveRun —— 见下面那段注。
+   * ⚠️ 重复达成（replay）分支**一个字都不写账本**：meta.challenges.completed 保持原值
+   *   ⇒ completedCount() 不变 ⇒「每档 +10% 轮回点获取」不会被重复领取（用户定案 R）。 */
   function award(s, meta) {
-    if (!s || !s.challenge || s.challenge.id !== 'drift_terra' || s.challengeDone) return null;
-    var d = BY_ID.drift_terra, tier = Math.max(0, Math.min(d.tiers.length - 1, s.challenge.tier | 0));
-    var replay = s.challenge.replay === true || tierDone(d.id, meta) >= d.tiers.length;
+    var ch = s && s.challenge, d = ch && BY_ID[ch.id];
+    if (!d || !d.goal || s.challengeDone) return null;
+    var tier = Math.max(0, Math.min(d.tiers.length - 1, ch.tier | 0));
+    var replay = ch.replay === true || tierDone(d.id, meta) >= d.tiers.length;
     if (replay) {
       if (!goalMet(s, d.goal)) return null;
       var replayOutcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
         reward: null, goalText: d.goalText, replay: true };
       s.challengeDone = true;
       s.challengeOutcome = replayOutcome;
-      /* 重复达成也要刷榜（这就是玩家要的东西）。平台 calcType='best' 自动留更快的一次，
-       * 所以重复提交只会改善、不会覆盖掉旧成绩。
-       * ⛔ 不写 meta.challengePopupPending：那会重播四段分镜，并弹出「永久奖励已生效」——
+      /* 重复达成也要刷榜（这就是玩家要的东西）。平台 calcType='best' 自动留更好的一次，
+       * 所以重复提交只会改善、不会覆盖掉旧成绩。 */
+      if (d.rankKey && SB.rank && SB.rank.submitRun)
+        SB.rank.submitRun([{ key: d.rankKey, value: d.rankValue ? d.rankValue(s) : 0 }]);
+      /* ⛔ 不写 meta.challengePopupPending：那会重播四段分镜，并弹出「永久奖励已生效」——
        *   重复挑战根本没发奖，那句话是假的。 */
-      if (SB.rank && SB.rank.submitRun) SB.rank.submitRun([{ key: 'drift', value: s.wallT }]);
       if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
       if (SB.game && SB.game.log)
-        SB.game.log('再次达成流浪泰拉：' + d.goalText + '。本局不重复发奖，成绩已提交排行榜。');
+        SB.game.log('再次达成' + d.name + '：' + d.goalText + '。本局不重复发奖，成绩已提交排行榜。');
       return replayOutcome;
     }
     if (tier !== tierDone(d.id, meta) || !goalMet(s, d.goal)) return null;
     if (!meta.challenges) meta.challenges = emptyProgress();
     meta.challenges.completed = meta.challenges.completed || {};
-    meta.challenges.completed.drift_terra = true;
+    meta.challenges.completed[d.id] = true;
     var outcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label, reward: d.reward, goalText: d.goalText };
     s.challengeDone = true;
     s.challengeOutcome = outcome;
     meta.challengePopupPending = outcome;
-    /* 奖励立即生效：本局后续寒流季采用「奖励 ×0.5，再乘挑战 ×2」的 600 秒时长。
-     * 保留上次季节标记，避免奖励落账时把当前冰封季重新掷一次。 */
-    if (SB.economy && SB.economy.lockSeasonLengths) SB.economy.lockSeasonLengths(s, meta, true);
-    if (SB.achv && SB.achv.unlockOnce) SB.achv.unlockOnce('driftTerra', meta);
-    /* 排行榜「最快流浪启程」（2026-10-31 建榜 · db 15061）：成绩 = 达成瞬间的墙钟秒。
-     * ⚠️ 用 wallT 不用 s.t：后者是逻辑秒、吃广告倍速，会把成绩腰斩。 */
-    if (SB.rank && SB.rank.submitRun) SB.rank.submitRun([{ key: 'drift', value: s.wallT }]);
+    if (d.onComplete) d.onComplete(s, meta);
+    if (d.rankKey && SB.rank && SB.rank.submitRun)
+      SB.rank.submitRun([{ key: d.rankKey, value: d.rankValue ? d.rankValue(s) : 0 }]);
     if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
     /* ⚠️ 季长奖励落在**本局**（s.seasonLengths），saveMeta 管不到它。
      * 不立刻落盘 ⇒ 自动存档（5 秒）之间刷新 / 切后台被杀 ⇒ 读回来是「已完成 + 旧季长」，
      * 而 resumeRun 只在 seasonLengthsVersion 缺失时重算 ⇒ 寒流 600→300 这条奖励静默丢失
      * （2026-10-31 检查发现）。这一行是奖励入账的一部分，不是可选的保险。 */
     if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
-    if (SB.game && SB.game.log) SB.game.log('流浪泰拉挑战达成：' + d.goalText + '。永久奖励已生效。');
+    if (SB.game && SB.game.log) SB.game.log(d.name + '挑战达成：' + d.goalText + '。永久奖励已生效。');
     return outcome;
   }
   function evaluate(s, meta) {

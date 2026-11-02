@@ -1321,3 +1321,13 @@ html[data-ui-theme="day"] .auto-research-bar .sw-track-lock svg{stroke:#5d7f90}
   .auto-research-bar .sw-copy b{font-size:11px}
   .auto-research-bar .sw-copy i{font-size:9px}
 }
+
+/* ══ 水体污染面板（2026-11-02 · 挑战专属，容器 #envPollution）══════════════════════
+ * 只是污染存量到下一阶段的一条进度条。刻意不做动画：它每帧都可能被重建
+ * （签名变化时），动画会变成「一直在抖」。颜色用主题变量，两套主题自动跟随。 */
+.polbar{position:relative;height:6px;margin:6px 0 8px;border-radius:3px;
+  background:rgba(120,214,208,.14);overflow:hidden}
+.polbar>i{display:block;height:100%;width:0;border-radius:3px;
+  background:linear-gradient(90deg,#5fbf95,#d8b45a 55%,#c0574f);
+  transition:width .25s ease}
+html[data-ui-theme="day"] .polbar{background:rgba(40,90,105,.14)}

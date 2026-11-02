@@ -802,6 +802,29 @@
     if (s.civBoost && s.civBoost[c.id]) return true;
     return c.boost ? condMet(s, c.boost) : true;
   }
+  /* 挑战专属市政 / 政策卡白名单（2026-11-02）：与建筑的 `challengeOnly` 同一语义。
+   *   `challengeOnly: 'waterpollution'` / ['id',...] ⇒ 只在那些挑战周目里存在。
+   * ⚠️ 三处共用本函数（blocked 文案 / 树渲染过滤 / cardOwned），绝不各写一份 ——
+   *   各写一份的经典症状是「树里看得到、点得动、点了没反应」或「卡库里冒出来但装不上」。
+   * ⚠️ 判当前周目而非已通关：挑战专属内容是**本局**的，回基游戏就该消失。 */
+  function challengeAllows(s, obj) {
+    var co = obj && obj.challengeOnly;
+    if (!co) return true;
+    var cur = s && s.challenge && s.challenge.id;
+    if (!cur) return false;
+    if (co === true) return cur === 'drift_terra';
+    if (typeof co === 'string') return cur === co;
+    return co.indexOf(cur) >= 0;
+  }
+  function challengeOnlyName(co) {
+    var list = (co === true || !co) ? ['drift_terra'] : (typeof co === 'string' ? [co] : co);
+    var names = [];
+    for (var i = 0; i < list.length; i++) {
+      var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
+      names.push(c ? c.name : list[i]);
+    }
+    return names.join(' / ');
+  }
   function isRevealed(s, id) { return !!(s && s.civShown && s.civShown[id]); }
 
   /* 每 2 秒（以及每次玩家动作后）跑一趟：记鼓舞台账 + 揭示新市政。
@@ -828,6 +851,7 @@
       if (!s.civBoost) s.civBoost = {};
       if (c.boost && !s.civBoost[c.id] && condMet(s, c.boost)) s.civBoost[c.id] = 1;
       if (s.civShown[c.id]) continue;
+      if (!challengeAllows(s, c)) continue;                // 挑战专属：不在本局就永不揭示
       if (!(s.civics[c.id] || boostMet(s, c))) continue;   // ⚠️ 收市政对象，见 boostMet 那条注
       s.civShown[c.id] = 1;
       n++;
@@ -851,6 +875,7 @@
   /* 返回 null 表示可以研究，否则返回「为什么不行」——这句会挂成灰按钮的 title。 */
   function blocked(s, c) {
     if (s.civics[c.id]) return null;
+    if (!challengeAllows(s, c)) return '仅限' + challengeOnlyName(c.challengeOnly) + '挑战期间研究';
     if (!isRevealed(s, c.id)) return '尚未揭示——先达成鼓舞条件';
     /* 纪元闸（对齐 tech.studyBlocked:571）：鼓舞达成可揭示，但不能跳纪元偷研究。
      * 揭示与可研究脱钩，正是方案 A 的核心——让「100% 进度条」与「未揭示」不再自相矛盾。 */
@@ -966,6 +991,10 @@
     /* 退役（2026-09-30）：技艺卡被职业行会取代。retiredBy 指向**市政 id**，
      * 那项市政完成后卡即不可再装（已装的由 research 顺手拔下）。 */
     if (p.retiredBy && s.civics && s.civics[p.retiredBy]) return false;
+    /* 挑战专属卡（2026-11-02）：借道既有的 urbanization/enlightenment/globalization 三条市政，
+     * 但那三条在基游戏也会完成 ⇒ 不加这道门，三张污染卡会在正常周目里冒出来（效果恒 0，
+     * 玩家读到的是一张没有作用的坏卡）。 */
+    if (!challengeAllows(s, p)) return false;
     /* 卡要由**已完成的市政**解锁。与其自己的 civic 键对不上时一律视为未拥有——
      * 那意味着存档被手改，宁可不给，也不能让一张没解锁的卡生效。 */
     return !!(s.civics && s.civics[p.civic]);
@@ -1398,6 +1427,7 @@
     byId: byId, govById: govById, policyById: policyById,
     panelOpen: panelOpen, panelBlock: panelBlock,
     condMet: condMet, condShort: condShort, boostMet: boostMet, isRevealed: isRevealed,
+    challengeAllows: challengeAllows, challengeOnlyName: challengeOnlyName,
     pump: pump,
     layout: layout, geo: geo, eraAnchorX: eraAnchorX, visibleEra: visibleEra,
     /* pitch 按当前 geo 现算（卡片尺寸是借来的，写死在导出对象里会与 geo 脱钩）。 */

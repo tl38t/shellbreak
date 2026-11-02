@@ -308,6 +308,9 @@
     var C = SB.CIVICS || [], total = 0, completed = 0, revealed = 0;
     for (var i = 0; i < C.length; i++) {
       if ((C[i].era || 1) !== era) continue;
+      /* 挑战专属市政不计数（2026-11-02）：否则基游戏里 era3 会显示「5 项 · 已完成 2」，
+       * 而其中 1 项根本不存在于本周目（「树已展开」的数字会永远差一格）。 */
+      if (C[i].challengeOnly && SB.civic.challengeAllows && !SB.civic.challengeAllows(s, C[i])) continue;
       total++;
       if (s.civics && s.civics[C[i].id]) completed++;
       if (SB.civic.isRevealed(s, C[i].id)) revealed++;
@@ -787,7 +790,15 @@
     var sel = civicEraChosen && civicViewEra >= 1 && civicViewEra <= E.length ? civicViewEra : visibleEra;
     civicViewEra = sel;
     var C = SB.CIVICS || [], visible = {};
-    for (var i = 0; i < C.length; i++) visible[C[i].id] = (C[i].era || 1) <= visibleEra;
+    /* 挑战专属市政（2026-11-02）：不在本局就整条不渲染 —— 它们的鼓舞条件读污染，
+     * 基游戏恒 0 ⇒ 永远「未揭示」的灰节点，摆在树里只会让玩家以为漏了什么。
+     * ⚠️ 判据走 SB.civic.challengeAllows（与 blocked / cardOwned 同一个函数）。 */
+    for (var i = 0; i < C.length; i++) {
+      if (C[i].challengeOnly && SB.civic.challengeAllows && !SB.civic.challengeAllows(s, C[i])) {
+        visible[C[i].id] = false; continue;
+      }
+      visible[C[i].id] = (C[i].era || 1) <= visibleEra;
+    }
     var treeW = G.PADX, treeMaxRow = 0;
     for (i = 0; i < C.length; i++) {
       if (!visible[C[i].id]) continue;

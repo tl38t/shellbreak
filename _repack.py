@@ -146,7 +146,17 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.11'" in _cfg, '包内 config.js 版本号不是 Ver1.0.11'
+assert "VERSION: 'Ver1.0.12'" in _cfg, '包内 config.js 版本号不是 Ver1.0.12'
+assert "v: 'Ver1.0.12'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.12 条目'
+# Ver1.0.12 玩家可见 4 条：1 修复（幸福明细漏「安乐之治」）+ 3 新增（水体污染挑战 / 内容清单 / 永久奖励）。
+# 逐条钉死：漏一条这次等于白改。
+for _kw in ['修复幸福消耗明细漏统计「安乐之治」加成的问题',
+            '新增挑战《水体污染》',
+            '澄海、浊流、赤潮、死区、腐渊',
+            '《装罐填埋》',
+            '《星球气候调节卫星网》',
+            '星屑产出 +10%、商人奢侈品产出 +50%、初始人口 +2']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.12 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.11'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.11 条目'
 # Ver1.0.11 玩家可见 6 条：3 修复（钻机破壳后仍耗热液 / 大学升级后显示旧数值 / 薄壳之智数值错误）
 # + 3 新增改进（挑战可重打 / 轮回点商店页签常驻 / 建筑名可点提示）。

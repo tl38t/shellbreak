@@ -1476,3 +1476,36 @@ meta.tide + meta.spent === meta.tideEarnedTotal
 `tide = tideEarnedTotal − spent + 10M`，残差 `tideEarnedTotal − tide − spent` 在任何合法操作下不变；
 只加 `tide` 会让残差掉 −N ⇒ 下次对账把「补偿」当成「又丢了 N 点」⇒ 重复补偿且收不回来。
 回归锁 `sim/e2e-suites/redeem.mjs` 就钉这条残差不变，而不是只断言「点数涨了」。
+
+---
+
+## 五点三十三、`challengeOnly` 这类「多形态开关」在**六处**各有一份判定与一份文案，漏一处就是全角字符乱码级的笑话（2026-11-02 · 水体污染实装）
+
+**事故形态**：给《装罐填埋》挂 `challengeOnly: 'waterpollution'`（字符串形态）后，
+`tech.challengeOnlyReason` 里写的是 `var list = (co && co.length) ? co : ['drift_terra'];`
+—— `'waterpollution'.length` 是 14，于是**按字符**遍历去查挑战名，灰按钮的 title 渲染成
+`仅限w / a / t / e / r / p / o / l / l / u / t / i / o / n挑战期间研究`。
+同族的 `civics.challengeOnlyName` / `habitat.challengeOnlyName` 一开始就写了
+`typeof co === 'string' ? [co] : co`，**只有 tech 那份漏了**。e2e 当天抓到。
+
+**判据**：
+1. 一个字段允许 `true | string | array` 三种形态时，**每一个**判断函数、**每一个**文案函数都要各写一次归一化。
+   本项目现有六处：`habitat.challengeAllows/challengeOnlyName`、`tech.challengeOnlyOk/challengeOnlyReason`、
+   `civics.challengeAllows/challengeOnlyName`、`workshop.wonderBlocked` 内联、`ai-strategy` 的 `chalAllowed`、
+   `render-pane-wonder/research` 的列表过滤。加第七处时**先 grep 前六处抄归一化那一行**。
+2. 加了挑战门之后，**门要排在最前**（对齐 `civics.blocked`）：`已掌握 → 挑战门 → 未揭露 → 纪元未到`。
+   反过来写会让基游戏玩家看到「先达成尤里卡条件」，去攒一个永远不会揭示的节点。
+3. 挑战专属**建筑必须双写同枝**：`BUILDINGS[].requiredTech` 与某科技 `eff.unlockBuild` 指同一个节点。
+   曾把《潮汐往复机》写到 `industrialize`、建筑侧写 `metalrefine` ⇒ 挑战周目里
+   「判定通过、解锁权没有」⇒ 永远建不出来，而面板只显示「尚未解锁」。
+   `building-shape.mjs` 的「建筑侧 requiredTech 与科技侧 unlockBuild 不冲突」就是钉这条。
+4. 新建筑必须同时进三张表，各有断言：`state.freshRun().lvl`（漏了 = 读档静默归零 + `costOf` 全表 NaN）、
+   `BUILD_ZONE_OF`（漏了 = 该建筑在任何分区都不渲染）、`SB.BUILDINGS` 本体。
+5. 挑战专属**奇观**不能塞进 `cost`：`costBuild` 是独立通道。混进 `cost` 会让
+   `economy.costTxt` 的 `SB.RESS['satellite'].name` 抛 TypeError 炸整页；扣完等级还要
+   `satelliteStop = min(satelliteStop, lvl)` + `syncSpacecraft(s)`，否则星图运行座数出负值。
+6. **挑战总数断言写死数字是正确的**（`challenges.mjs` 的 6 → 7）。它不是冗余：加挑战会让
+   三条 UI 断言的期望值一起变，写死才逼人承认「我在改内容表」，而不是把断言改成
+   `=== DEFINITIONS.length` 让它永远真。
+7. 新套件必须在 `sim/e2e.mjs` **注册两次**：全量调用点 + 一个 `--xxx-only` 快入口
+   （全量两分半，改一行也要等它，等于没有回归环路）。快入口**不复制实现**，只提前跑同一个 `run`。

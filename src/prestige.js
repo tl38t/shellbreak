@@ -380,6 +380,12 @@
     /* ERA2-7 扩卡（2026-10-22）：质量效应卡（breakStardustMul 1.15）本轮回星屑获取 ×1.15。
      * 结算 / 预览同源（breakReport 也调 stardustGain）。 */
     if (SB.civic && SB.civic.cardBreakStardustMul) mul *= SB.civic.cardBreakStardustMul(s);
+    /* 水体污染挑战奖励（2026-11-02）：永久星屑产出 +10%。
+     * ⚠️ 与「祖先遗产 1.2」「星之遗构」等**独立相乘**，不要并进上面任何一行 ——
+     *   合并后改一个挑战的奖励会顺带改动别的挑战/科技的实际收益。
+     * ⚠️ 读 meta 不在 s 上：这是**跨周目**奖励，必须走 tierDone（老档 completed 里没这个键
+     *   就是没通过，不能靠 s.challengeDone 判）。 */
+    if (SB.challenges && SB.challenges.tierDone('waterpollution', SB.game && SB.game.meta ? SB.game.meta() : null)) mul *= 1.1;
     return Math.floor(levels * 0.1 * mul);
   }
   function starPerkDef(id) {

@@ -144,6 +144,19 @@
         if (why && /^需要先/.test(why)) return null;       // 未解锁（列表里也不显示）
       }
       var rowsW = costRows(s, SB.wonder.discountedCost(s, id));
+      /* 建造价里的建筑等级（2026-11-02 · costBuild）：必须进行，否则追踪框会「材料全齐 ⇒ 变绿」
+       * 而按钮还是灰的 —— 和 sunSailRate=0 那类假绿同族（玩家会反复点一个点不动的按钮）。
+       * ⚠️ have 取的是 `s.lvl[k]`（建筑等级），不是 `s.res[k]`（库存） —— 这正是 lackText
+       *   不能复用的原因（它只读 s.res）。 */
+      if (SB.wonder.buildCostNeed) {
+        var bneed = SB.wonder.buildCostNeed(s, id);
+        if (bneed) {
+          for (var bk in bneed) {
+            var bhave = (s.lvl && s.lvl[bk]) || 0;
+            rowsW.push({ name: (SB.wonder.buildCostText(s, id) || bk), have: bhave, need: bneed[bk], short: bhave < bneed[bk] });
+          }
+        }
+      }
       return {
         kind: kind, id: id, title: SB.wonder.displayName(s, id),
         rows: rowsW, ready: allOk(rowsW)

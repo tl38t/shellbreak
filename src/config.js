@@ -20,7 +20,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.0.11',
+    VERSION: 'Ver1.0.12',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -31,6 +31,14 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      { v: 'Ver1.0.12', date: '2026-11-03', items: [
+        // —— 修复 ——
+        '修复幸福消耗明细漏统计「安乐之治」加成的问题（明细少一项，「人口 × 每人」与实际消耗算不平）。',
+        // —— 新增：挑战《水体污染》 ——
+        '新增挑战《水体污染》：泰拉的海水会随排放一起变脏，污染分五档 —— 澄海、浊流、赤潮、死区、腐渊。档位越高，居民越难受（幸福消耗上升），超标还会有人死去并占用安息位。把污染压住、建成戴森球即可通关。',
+        '《水体污染》里新增 6 座建筑、5 项市政、7 张政策卡、1 项科技《装罐填埋》和 1 座奇观《星球气候调节卫星网》（建成后污染 -15/秒，但要消耗 10 级轨道卫星）。',
+        '《水体污染》的奖励（永久）：星屑产出 +10%、商人奢侈品产出 +50%、初始人口 +2。'
+      ] },
       { v: 'Ver1.0.11', date: '2026-11-02', items: [
         // —— 修复 ——
         '修复天穹钻机破壳后仍消耗热液能的问题',
@@ -237,7 +245,11 @@
       void: '6bi4710gm6oswyed0m',        // 最快虚境飞升   time / asc / best  (db 12745)
       /* 2026-10-31 于 996563 新建（db 15061，create_leaderboard 自动发布）：
        * 流浪泰拉达成那一刻的墙钟秒数（50 座行星发动机 + 星核炉芯池灌满 50M）。 */
-      drift: 'jqqgofg5g3tvb1uxwz'        // 最快流浪启程   time / asc / best  (db 15061)
+      drift: 'jqqgofg5g3tvb1uxwz',       // 最快流浪启程   time / asc / best  (db 15061)
+      /* 水体污染（2026-11-02）：通关瞬间的污染存量，越小越好。
+       * ⚠️ 空串 = **尚未在平台建榜**（`rank.submitRun` 用 `if (lb[k])` 判，空串自动跳过，
+       *   不发请求、不会 500001）。用户建好榜后把「客户端 ID」填进来即可，代码不用再动。 */
+      pollution: ''                      // 最低污染通关   numeric / asc / best  (db 待建)
     },
     /* 榜 -> 参数表。与 LB 平行维护，键必须对得上。 */
     MAP: {
@@ -250,7 +262,10 @@
       tide:     { title: '最多轮回点',   scoreType: 'numeric', scoreOrder: 'desc', calcType: 'best' },
       dyson:    { title: '最快建立戴森球', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
       void:     { title: '最快虚境飞升', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
-      drift:    { title: '最快流浪启程', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' }
+      drift:    { title: '最快流浪启程', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
+      /* 水体污染：通关瞬间的污染存量（整数、越小越好）。与 dyson/void 的时间榜并列，
+       * 但比的是「你把海留得多干净」，所以是 numeric + asc。 */
+      pollution: { title: '最低污染通关', scoreType: 'numeric', scoreOrder: 'asc', calcType: 'best' }
     },
     /* 时间榜的显示单位（分数仍是整秒，这里只管 UI 上怎么写）。
      *⛔ 不做「毫秒榜」：score 必须是整数，秒以下精度平台存不了。 */
@@ -505,6 +520,54 @@
     HAPPY_COST_SLOPE: 0.010,  // H>0 后每人每秒增量：c(H)=0.005+0.010·H（3× 跨度，H=1→0.015）
     HAPPY_FLOOR: -2,          // 硬底（动荡档=[-2,-1)，否则该档永远落空）
     HAPPY_K: 0.02,            // 恒温器系数：dH/dt=K·(supply−demand)，收敛快慢标定用
+    /* ── 水体污染挑战（2026-11-02 用户逐条给定数值，`docs/challenge-ocean-pollution-design.md` v11）──
+     * ⚠️ 全部数值视为**用户权威值**：再调 = 新一轮标定，须用户重拍。
+     * ⚠️ 只在 `s.challenge.id === 'waterpollution'` 的周目里生效；基游戏 pollution 恒 0。
+     * 口径速查：
+     *   · 存量 `s.pollution`，每 tick += (脏源排放 − 净化) × dt，夹 ≥0；
+     *   · 脏源 = 汽轮机 / 高压热机管道 / 气态巨行星轨道工厂 / 核热厂 / 泰坦气云站（五源，k=1 等值）；
+     *   · 洁净源（潮汐往复机 / 太阳能基站 / 恩拉多克斯风场 / 太阳帆）产热液但**不进**排放；
+     *   · 阶段按**绝对阈值**判，只决定 debuff 强度，不参与评分（挑战是单档）。 */
+    POLLUTION: {
+      K: 1,                                   // 污染系数：1 热液能/s 脏产出 = 1 污染/s（用户定 1:1）
+      /* 五阶段：`at` = 进入该阶段的最低存量。阶段 0 无任何效果。 */
+      STAGES: [
+        { name: '澄海', at: 0,       happy: 0,  kelpMul: 1.00, coralMul: 1.00, deathP: 0 },
+        { name: '浊流', at: 1000,    happy: -1, kelpMul: 0.70, coralMul: 1.00, deathP: 0.0005 },
+        { name: '赤潮', at: 40000,   happy: -2, kelpMul: 0.55, coralMul: 0.55, deathP: 0.0010 },
+        { name: '死区', at: 160000,  happy: -4, kelpMul: 0.30, coralMul: 0.30, deathP: 0.0050 },
+        { name: '腐渊', at: 6400000, happy: -8, kelpMul: 0.05, coralMul: 0.05, deathP: 0.0200 }
+      ],
+      /* 污染死亡 → 幸福消耗加成（C 定案）：死亡**永久累积**，但按**当前墓地配额**逐帧重算，
+       *   配额内的死按 IN_CAP、超出的按 OVER_CAP —— 扩建墓地后超额部分自动降档。 */
+      BURIAL: {
+        PER_GRAVE: 4,        // 每座墓地 +4 限额
+        PER_TEMPLE: 1,       // 政策卡《告解圣事》：每座神庙 +1 限额
+        IN_CAP: 0.003,       // 限额内每个污染死亡 → 幸福消耗 +0.3%
+        OVER_CAP: 0.03       // 限额外每个污染死亡 → 幸福消耗 +3%
+      },
+      /* 医院：污染死亡概率 −p_hosp(L)，`p_hosp = 1 − HOSP_BASE^(L/HOSP_MAX_LVL)`。
+       * L=15 恰好 = 0.4（顶），全程递减无空转等级（用户拍「15 级到顶」，替代原 1-0.94^L）。 */
+      HOSP_BASE: 0.6,
+      HOSP_MAX_LVL: 15,
+      HOSP_MAX_REDUCE: 0.4,
+      /* 减死亡率（政策卡，二者互斥、只取更高的一张）：隔离病患 15% / 疾控防治 30%。 */
+      CARD_QUARANTINE: 0.15,
+      CARD_DISEASE: 0.30,
+      /* 排放乘区（政策卡，二者互斥）：污染治理 −20% / 绿色运动 −40%。
+       * 装罐填埋是**独立因子**，只乘汽轮机那一枝（不是全局 rateMul，见 §1.2）。 */
+      RATE_MUL_CONTROL: 0.8,
+      RATE_MUL_GREEN: 0.6,
+      /* 装罐填埋（科技）：汽轮机排放 ×0.5，同时**额外**吃 5 金属/秒（暖石照旧，G 定案）。 */
+      CANFILL_TURBINE_MUL: 0.5,
+      CANFILL_METAL_PER_LVL: 5,
+      /* 净化（每秒从存量里扣，不分源）：保护区 −8/座；保护星球卡 −0.1/鲛人；
+       * 最终手段卡 −0.5/异星建筑等级；奇观「星球气候调节卫星网」−15（固定、无等级）。 */
+      CLEAN_RESERVE: 8,
+      CLEAN_PER_POP: 0.1,
+      CLEAN_PER_ALIEN_LVL: 0.5,
+      CLEAN_WONDER: 15
+    },
     GROW_NEED: 40,                 // 连续盈余多少秒生一个（2026-09-30 用户拍：100 → 40，繁殖太慢）
     GROW_KEEP: 20,                // 藻食余量高于此才开始生育
     /* 人口超过上限后的离场速率（2026-10-31 用户拍：「上限立刻降，人口缓慢降低」）。

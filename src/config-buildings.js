@@ -237,6 +237,11 @@
     solarRingOut: 0.05,
     rheamineBeam: 2.5, rheamineCoral: 2.5, rheamineUranium: 0.25,
     titancloudHydro: 6, titancloudFuel: 5,
+    /* 水体污染（2026-11-02 · 用户给定）：三座**洁净**热液源，每级每秒供给。
+     * 与 titancloudHydro 同一供给侧通道（不烧暖石、不进 pollutionRate）。
+     * ⚠️ 数值改动请连带看 docs/challenge-ocean-pollution-design.md §3.1 与 §4 ——
+     *   这三座是挑战里唯一的「又要产能又不加污」正路，抬高一个数就等于降低整档难度。 */
+    tideHydro: 1, solarHydro: 3, windHydro: 15,
     /* ERA9（2026-10-19 实装）：马尔斯工造中心每级每秒产 钛金板件/钛（用户拍 P7①：tiplate+3、titanium+2）。
      *   与 rheamine/titancloud 同族，吃 _planetMul（星际物流网卡 ×1.3 + 行星际快速物流 +20% 加算）。 */
     marsTiplate: 3, marsTitanium: 2,
@@ -868,7 +873,45 @@
     { id: 'terra_engine', icon: 'assets/building-icons/era-10/era10-terra-engine.png', name: '行星发动机', ratio: 1,
       cost: { thetaMetal: 10000, strongProp: 1000, tiplate: 7500, resonantDrill: 4000 },
       desc: '把泰拉推离原有轨道。建成 50 座并灌满星核炉芯池，即完成流浪泰拉挑战。',
-      requiredTech: ['drift_tech'] }
+      requiredTech: ['drift_tech'] },
+
+    /* ══ 水体污染挑战专属（2026-11-02 · docs/challenge-ocean-pollution-design.md v11 §3.1）══
+     * 6 座 = 3 座**洁净热液源** + 3 座治理件。全部挂 `challengeOnly:'waterpollution'`：
+     *   非挑战周目连行都不出现（habitat.unlocked 的挑战白名单），不需要 noChallenge 反写。
+     * 【洁净源】产出走 hydroAlloc 的 cleanSupply 那一枝 ⇒ 面板看得到热液能，但**不进**
+     *   pollutionOther/pollutionTurbine。这是本挑战的设计支点：想产热液就得排污，
+     *   除非走这三座（代价是造价与前置更贵/更晚）。
+     * 美术图标按各自解锁时代放进 `assets/building-icons/era-*`，与既有建筑共用渲染通道。
+     * ⚠️ 洁净源不吃星屑树乘区（它们不在星图里），但吃挑战 productionMul，与核热厂同口径。 */
+    { id: 'tidemachine', challengeOnly: 'waterpollution', name: '潮汐往复机', icon: 'assets/building-icons/era-3/era3-tidemachine.png', ratio: 1.5,
+      cost: { stone: 100, silt: 100, coral: 200 },
+      desc: '把建设潮道的知识用到热液能的开发上，潮汐推动着精妙的连杆飞速运转：每级 +1 热液能/秒，不产生污染。',
+      requiredTech: ['metalrefine'] },
+    { id: 'solarstation', challengeOnly: 'waterpollution', name: '太阳能基站', icon: 'assets/building-icons/era-6/era6-solarstation.png', ratio: 1.5,
+      cost: { steel: 3500, titanium: 2500 },
+      desc: '凹面收集着来自恒星的永恒热量：每级 +3 热液能/秒，不产生污染。',
+      requiredTech: ['chemistry'] },
+    { id: 'enladofarm', challengeOnly: 'waterpollution', name: '恩拉多克斯阵列风场', icon: 'assets/building-icons/era-9/era9-enladofarm.png', ratio: 2,
+      cost: { thetaMetal: 100, stoneBeam: 10000, tiplate: 3000 },
+      desc: '钢铁的三叶草海在风中摇曳：每级 +15 热液能/秒，不产生污染。',
+      requiredTech: ['alien_eng'] },
+    /* 【墓地】污染死亡的安息位：每座 +4（CFG.POLLUTION.BURIAL.PER_GRAVE）。
+     *   超出安息位的死者把幸福消耗从 0.3%/人 抬到 3%/人 —— 所以「扩建墓地」是
+     *   **可逆的止损**（C 定案：按当前配额逐帧重算，不是锁死历史值）。 */
+    { id: 'grave', challengeOnly: 'waterpollution', name: '墓地', icon: 'assets/building-icons/era-3/era3-grave.png', ratio: 1.5,
+      cost: { stone: 200, coral: 200 },
+      desc: '静谧之地。每座为污染死者提供 4 个安息位；死者超出安息位时，幸福消耗惩罚由每人 0.3% 升至 3%。',
+      requiredCivic: 'public_grave' },
+    /* 【医院】降低污染致死几率：1 − 0.6^(L/15)，15 级到顶 −40%（连续递减，没有白给等级）。 */
+    { id: 'hospital', challengeOnly: 'waterpollution', name: '医院', icon: 'assets/building-icons/era-4/era4-hospital.png', ratio: 1.5,
+      cost: { steel: 100, stone: 1000 },
+      desc: '死神前的最后一道防线。每级降低污染致死几率，边际递减，15 级到顶 −40%。',
+      requiredCivic: 'public_health' },
+    /* 【保护区】固定净化 8/s/座（CFG.POLLUTION.CLEAN_RESERVE），不受任何乘区放大。 */
+    { id: 'reserve', challengeOnly: 'waterpollution', name: '保护区', icon: 'assets/building-icons/era-7/era7-reserve.png', ratio: 2,
+      cost: { kelp: 10000, coral: 5000 },
+      desc: '愿我们的后代仍能在水草与珊瑚间嬉戏。每座每秒净化 8 点污染。',
+      requiredCivic: 'protect_earth' }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -943,7 +986,12 @@
      * 两座异星发射场同归星海区（在地工业 → 与 rheamine/titancloud/mars_workshop 同区，同样吃 spaceCostMul）；
      * 虚境祭坛归信仰区（与神庙/黑色方碑同区，纯 UI 分区，不吃 spaceCostMul）。 */
     solar_ring: 'space', terra_launch: 'space', enceladus_launch: 'space', void_altar: 'faith',
-    terra_vat: 'workshop', terra_engine: 'break'
+    terra_vat: 'workshop', terra_engine: 'break',
+    /* 水体污染挑战（2026-11-02）：三座洁净热液源与汽轮机/核热厂同归工坊区（热液产线家族）；
+     *   恩拉多克斯风场是异星阵列（造价里有石梁/钛板）⇒ 星海区，与 rheamine/titancloud 同待遇，
+     *   吃 spaceCostMul 软上限；墓地/医院归市政区（行政民生），保护区归生息区（它就是「种海」）。 */
+    tidemachine: 'workshop', solarstation: 'workshop', enladofarm: 'space',
+    grave: 'civic', hospital: 'civic', reserve: 'food'
   };
   for (var _bzi = 0; _bzi < BUILDINGS.length; _bzi++) {
     BUILDINGS[_bzi].zone = BUILD_ZONE_OF[BUILDINGS[_bzi].id] || 'core';

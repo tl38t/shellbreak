@@ -1480,6 +1480,10 @@
     SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderCore(s); SB.ui.renderParts.renderDrill(s);
     SB.ui.renderParts.renderGeek(s);
     SB.ui.renderParts.renderStar(s); SB.ui.renderParts.renderHydro(s); SB.ui.renderParts.renderReligion(s);
+    /* 水体污染面板（2026-11-02）：仅挑战周目显示（函数内部首行判 pollutionOn）。
+     * ⚠️ 两个调用点（正常渲染 + 轻量渲染）都要加 —— 只加一个的话面板会在
+     *   某一条路径上不刷新（数字僵住，玩家以为污染不涨了）。 */
+    if (SB.ui.renderParts.renderPollution) SB.ui.renderParts.renderPollution(s);
     SB.ui.renderParts.renderHabitatName(s);
     renderIdleTag(); renderEvent(s); renderAd(); renderRank();
   }
@@ -1492,6 +1496,7 @@
     SB.ui.renderParts.renderEnv(s); SB.ui.renderParts.renderWarm(s); SB.ui.renderParts.renderCore(s); SB.ui.renderParts.renderDrill(s);
     SB.ui.renderParts.renderGeek(s);
     SB.ui.renderParts.renderHydro(s);
+    if (SB.ui.renderParts.renderPollution) SB.ui.renderParts.renderPollution(s);
     renderIdleTag(); renderEvent(s); SB.ui.renderCommon.paintHappy(s);
     /* 建造追踪小框（2026-10-29）：常驻节点（index.html 的 #trackDock），
      * 内部自带 200ms 节流 + 字符串指纹，数字没变不写 DOM —— 逐帧调它等于白调。

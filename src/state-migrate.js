@@ -26,7 +26,13 @@
         startedAt: typeof raw.challenge.startedAt === 'number' && isFinite(raw.challenge.startedAt) && raw.challenge.startedAt > 0
           ? raw.challenge.startedAt : 0 };
     } else out.challenge = null;
-    out.challengeDone = !!(raw.challengeDone && out.challenge && out.challenge.id === 'drift_terra');
+    /* ⚠️ 2026-11-02：原先写死 `out.challenge.id === 'drift_terra'`，新增 goal 型挑战
+     *   （水体污染）后，读档会把 challengeDone 抹成 false ⇒ **本局可以重复领奖**
+     *   （重放结算分镜 + 重复写 meta）。判据改成「有挑战 且 该挑战靠 goal 即时结算」——
+     *   goal 型挑战的 challengeDone 由 challenges.award 写，非 goal 型由破壳/轮回结算写，
+     *   两者都要保留。 */
+    out.challengeDone = !!(raw.challengeDone && out.challenge && SB.challenges
+      && SB.challenges.byId(out.challenge.id) && SB.challenges.byId(out.challenge.id).goal);
     out.challengeOutcome = out.challengeDone && raw.challengeOutcome && typeof raw.challengeOutcome === 'object'
       ? raw.challengeOutcome : null;
     var rawSeasonLengths = Array.isArray(raw.seasonLengths) ? raw.seasonLengths : null;
@@ -48,6 +54,13 @@
     }
     out.res = fixTable(raw.res, base.res, repairedResources);
     out.res.coreCharge = Math.max(0, Math.min(50000000, out.res.coreCharge || 0));
+    /* 水体污染（2026-11-02）：老档没有这三个键 ⇒ 直接落 base 的 0；有值但不是有限数
+     * （旧存档被外部改过 / JSON null）也一律回 0 —— pollution 会进面板与死亡几率，
+     * NaN 会一路污染阶段判定（`NaN >= 1000` 恒 false，看起来像「污染系统坏了」）。 */
+    function fixNonNeg(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? v : 0; }
+    out.pollution = fixNonNeg(raw.pollution);
+    out.pollutionGross = fixNonNeg(raw.pollutionGross);
+    out.pollutionDeaths = Math.floor(fixNonNeg(raw.pollutionDeaths));
     /* 旧档破壳后可能已经点过「留在这一局」（broken 被复位）。壳厚为 0
      * 表示本周目已经破壳；补上一次性结算标记，避免读档后重复发轮回奖励。 */
     out.shellOpened = raw.shellOpened === true || (typeof raw.shell === 'number' && raw.shell <= 0);
@@ -77,6 +90,13 @@
       configurable: true
     });
     out.lvl = fixTable(raw.lvl, base.lvl);
+    /* 水体污染（2026-11-02）：奇观 costBuild 会扣轨道卫星等级 ⇒ 任何来源的负数/非数
+     * 等级都要夹回 0。负等级会让 starRate 反向、costOf 算出负成本、lvlSum 类市政鼓舞缩水。
+     * ⚠️ 必须放在 fixTable(raw.lvl) **之后**（那一步会重建 out.lvl）。 */
+    for (var _lvKey in out.lvl) {
+      var _lvVal = out.lvl[_lvKey];
+      if (!(typeof _lvVal === 'number' && isFinite(_lvVal)) || _lvVal < 0) out.lvl[_lvKey] = 0;
+    }
     out.terraVatStop = Math.max(0, Math.min(out.lvl.terra_vat || 0, Math.floor(Number(raw.terraVatStop) || 0)));
     /* 发射场各自保存帆/节点周期余数。旧版只有共用的 sunSailProc / dysonProc，
      * 将这份余数迁到首个已建发射场，避免升级后丢失已有进度或复制出多份进度。 */

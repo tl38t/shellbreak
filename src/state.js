@@ -338,7 +338,14 @@
          * + 虚境祭坛（faith 区，虚境探索解锁）。三条漏键都会让读档静默丢等级 / costOf 读 undefined。
          * ⚠️ void_altar 是本作第一座带 maxLvl 的建筑，等级上限由建筑条目上的 maxLvl 决定，
          *    状态表这边只存等级、不存上限（上限改了老档要跟着生效，不能烤进存档）。 */
-        terra_launch: 0, enceladus_launch: 0, void_altar: 0, terra_vat: 0, terra_engine: 0 },
+        terra_launch: 0, enceladus_launch: 0, void_altar: 0, terra_vat: 0, terra_engine: 0,
+        /* 水体污染挑战专属（2026-11-02 · docs/challenge-ocean-pollution-design.md v11 §3.1）：
+         *   tidemachine / solarstation / enladofarm（洁净热液源）+ grave / hospital / reserve（治理件）。
+         *   漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
+         * ⚠️ 这 6 座在**非挑战周目**永远建不起来（habitat.unlocked 的挑战白名单），
+         *   但状态表的键必须一直在 —— fixTable 以本 seed 为 ref，缺键会让
+         *   「挑战周目建了墓地 → 回基游戏 → 再进挑战」时等级静默归零。 */
+        tidemachine: 0, solarstation: 0, enladofarm: 0, grave: 0, hospital: 0, reserve: 0 },
       terraVatStop: 0,
       /* 2026-10-24 成就系统（轻车熟路记账）：本周目各建筑已购买等级的增量账本。
        * 写入点唯一 = habitat.build 的 s.lvl[id]++（手动/自动建造/AI bot 全走它）；
@@ -437,6 +444,15 @@
       coldTicks: 0,
       frostDeaths: 0,
       famineDeaths: 0,
+      /* ── 水体污染挑战（2026-11-02）─────────────────────────────────────
+       * `pollution`      净存量（≥0）。只在 waterpollution 周目累积，其余周目恒 0。
+       * `pollutionGross` 累计排放（毛），**纯诊断字段**：面板/调试看「这局一共排了多少」，
+       *                  不参与任何判据（原「净/毛比例法评分」随挑战改单档整体作废）。
+       * `pollutionDeaths` 因污染死亡人数（只增不减）。市政「公众墓地」的解锁条件读它，
+       *                  幸福消耗惩罚也按它与当前墓地配额逐帧重算（见 economy.pollutionBurial）。
+       * ⚠️ 三键必须登记在 freshRun —— state-migrate 的读档白名单只保留 base 里已有的键，
+       *   不登记 = 刷新即丢 = 污染存量每 5 秒自动存档后被抹回 0。 */
+      pollution: 0, pollutionGross: 0, pollutionDeaths: 0,
       shell: iceShell,
       iceShell: iceShell,
       baseShell: SB.CFG.ICE_SHELL,
@@ -736,10 +752,14 @@
     m.autoResearch = { tech: m.autoResearch.tech === true, civic: m.autoResearch.civic === true };
     if (!m.challenges || typeof m.challenges !== 'object' || Array.isArray(m.challenges)) m.challenges = { completed: {} };
     if (!m.challenges.completed || typeof m.challenges.completed !== 'object' || Array.isArray(m.challenges.completed)) m.challenges.completed = {};
-    var challengeIds = { cold: true, small: true, science: true, abyss: true, speedrun: true, drift_terra: true };
+    /* ⚠️ 挑战 id 白名单：**新增挑战必须同时加进这里**，否则读档后 `completed` 里那一项被
+     *   抹掉 ⇒ 玩家重启游戏就丢永久奖励（本表是「三处同源」的第三处，另两处 =
+     *   challenges.emptyProgress 与 state-migrate 的 challengeDone 判据）。 */
+    var challengeIds = { cold: true, small: true, science: true, abyss: true, speedrun: true, drift_terra: true, waterpollution: true };
+    var singleTierChallenges = { cold: true, small: true, drift_terra: true, waterpollution: true };
     for (var challengeId in challengeIds) {
       var completed = m.challenges.completed[challengeId];
-      if (challengeId === 'cold' || challengeId === 'small' || challengeId === 'drift_terra') m.challenges.completed[challengeId] = completed === true;
+      if (singleTierChallenges[challengeId]) m.challenges.completed[challengeId] = completed === true;
       else m.challenges.completed[challengeId] = Math.max(0, Math.min(3, completed | 0));
     }
     if (!hasDriftVersion) {

@@ -65,6 +65,11 @@
     'peak':           'food',
     'frostDeaths':    'food',
     'famineDeaths':   'food',
+    /* 水体污染（2026-11-02）：死亡掷骰住在 foodAdvanceMicro 里（与冻伤同栅格）⇒ 归属 food；
+     *   存量 `pollution` 由 economy-tick 的 step 2b-2 一次积分完（标记为 economy-tick，
+     *   不是注册子系统，只作文档用 —— 本表不被校验，见文件头「一字段一所有者」）。 */
+    'pollutionDeaths': 'food',
+    'pollution':       'economy-tick',
     'happy':          'happiness',
     'res.coral':      'res-coral',
     'res.silt':       'res-silt',
@@ -196,6 +201,14 @@
         if (emit) emit('冰封期冻死了一名族民。', at + mdt);
       }
     }
+    /* ---- 水体污染死亡（2026-11-02）----------------------------------------
+     * 与上面冻伤同一条纪律：**概率事件必须按 0.1s 微步掷**，不能拿整段离线 dt 掷一次
+     * （8 小时只掷一次 = 离线期间一个都不死，玩家回来发现「挂机反而安全」）。
+     * ⚠️ 调用 economy 的同一个函数（不是这里再写一份）：它对 dt 做 `1−(1−p)^dt` 折算，
+     *   所以微步 0.1s 与 at 传不传都不影响口径；两处入口同一个实现才不会漂。
+     * ⚠️ 污染**存量**不在这里积分（economy-tick 的 step 2b-2 已经用整段 dt 一次算完）。
+     * ⚠️ 非挑战周目首行即 return false，零开销。 */
+    if (SB.economy && SB.economy.pollutionRollDeath) SB.economy.pollutionRollDeath(s, mdt, emit, at + mdt);
   }
 
   /* 下一个确定性事件边界的逻辑秒偏移（相对当前 s.t，>0）。

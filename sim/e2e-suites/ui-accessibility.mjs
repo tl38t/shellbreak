@@ -127,25 +127,39 @@ console.log('\n=== 奇观未解锁不显示 ===');
   const bakShellOpened = s.shellOpened;
   const bakBreakSettled = s.breakSettled;
   const bakSkydrillOn = s.skydrillOn;
+  /* 2026-11-02：挑战专属奇观（wonder_climatesat）多一道**周目门**。
+   *   它的「门」不是科技/市政而是「你正在打那个挑战」，所以：
+   *     · 未解锁态 ⇒ 活局（无挑战）⇒ 这一行必须不出现；
+   *     · 解锁态 ⇒ 把 s.challenge 设成它许可的那个周目，这一行必须出现。
+   *   ⚠️ 不跳过它 —— 跳过就等于承认「新增一类门可以不被覆盖」，
+   *   下次再加门类时这条断言会静默失效（2026-10-05 那条教训的同一形状）。 */
+  const bakChallenge = s.challenge;
   let allHiddenOk = true, allOpenOk = true, badHidden = [], badOpen = [];
 
   for (const w of SB.WONDERS) {
-    /* 未解锁态：清掉所有门 */
+    /* 未解锁态：清掉所有门 + 退回到「不在挑战周目」 */
     s.techs = {}; s.civics = {}; s.wonders = {};
+    s.challenge = bakChallenge;
     let blocked = null;
     if (w.need) blocked = '需要先研究「x」';
     else if (w.needCivic) blocked = '需要先完成市政「x」';
-    if (!blocked) continue;                       // 无门 ⇒ 永远显示，单独验
+    /* 只挂挑战门的奇观也参与（门 = 周目）。 */
+    if (!blocked && !w.challengeOnly) continue;   // 无门 ⇒ 永远显示，单独验
     const shownUnlocked = names(SB.ui.render.paneWonder());
     /* paneWonder 读的是活局，直接看该行在不在渲染结果里 */
     if (shownUnlocked.indexOf(w.id) >= 0) { allHiddenOk = false; badHidden.push(w.id); }
 
-    /* 解锁态：把这座自己的门打开 */
+    /* 解锁态：把这座自己的门打开（含周目门） */
     s.techs = Object.assign({}, bakTech);
     s.civics = Object.assign({}, bakCiv);
     s.wonders = {};
+    s.challenge = bakChallenge;
     if (w.need) s.techs[w.need] = true;
     if (w.needCivic) s.civics[w.needCivic] = true;
+    if (w.challengeOnly) {
+      const co = Array.isArray(w.challengeOnly) ? w.challengeOnly[0] : w.challengeOnly;
+      s.challenge = { id: co === true ? 'drift_terra' : co, tier: 0 };
+    }
     if (names(SB.ui.render.paneWonder()).indexOf(w.id) < 0) {
       allOpenOk = false; badOpen.push(w.id);
     }
@@ -159,8 +173,8 @@ console.log('\n=== 奇观未解锁不显示 ===');
    *   这条**原本拿它当例子**的断言已失去前提（表里不该再有裸奔奇观，改由上面那条
    *   「全库都已挂门」钉）。这里换成**真正需要守的那条例外**：门未开的奇观在
    *   「已建成」状态下仍要显示 —— 也就是 `done` 优先于过滤那条纪律。 */
-  s.techs = {}; s.civics = {}; s.wonders = {};
-  check('门未开的奇观在裸奔局里一律不显示（裸奔奇观已绝迹，全库 14 座都有门）',
+  s.techs = {}; s.civics = {}; s.wonders = {}; s.challenge = bakChallenge;
+  check('门未开的奇观在裸奔局里一律不显示（裸奔奇观已绝迹，全库都有科技/市政/周目门）',
     names(SB.ui.render.paneWonder()).length === 0,
     '仍显示=' + (names(SB.ui.render.paneWonder()).join(',') || '无'));
 
@@ -197,7 +211,7 @@ console.log('\n=== 奇观未解锁不显示 ===');
 
   s.techs = bakTech; s.civics = bakCiv; s.wonders = bakWon; s.broken = bakBroken;
   s.shell = bakShell; s.shellOpened = bakShellOpened; s.breakSettled = bakBreakSettled;
-  s.skydrillOn = bakSkydrillOn;
+  s.skydrillOn = bakSkydrillOn; s.challenge = bakChallenge;
   SB.ui.renderParts.renderDrill(s);
 }
 

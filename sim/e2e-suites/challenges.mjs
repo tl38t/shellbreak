@@ -6,7 +6,7 @@ export function run({ SB, check, noop }) {
   const savedAchv = JSON.parse(JSON.stringify(meta.achv || {}));
   const savedAchievements = JSON.parse(JSON.stringify(meta.achievements || {}));
   const savedChallengePopupPending = meta.challengePopupPending;
-  const empty = () => ({ completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false } });
+  const empty = () => ({ completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false, waterpollution: false } });
   try {
     meta.challenges = empty();
     const api = SB.challenges;
@@ -14,17 +14,19 @@ export function run({ SB, check, noop }) {
 
     /* 2026-11-02：挑战开放重打后，「能开」与「还有新档」是两件事 —— canStart 含重打，
      * canStartFresh 只认未通关档。这里两侧都钉，防止将来有人把两个函数合成一个。 */
-    check('六类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 6 &&
+    /* 2026-11-02：水体污染加入 ⇒ 挑战总数 6 → 7（本条断言刻意写死数字：
+     *   加挑战必须是有意识的动作，顺手改这里就是「我知道自己在改内容表」。） */
+    check('七类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 7 &&
       api.canStartFresh('science', s, meta) && api.canStart('science', s, meta) &&
       !api.canStartFresh('science', s, { challenges: { completed: { science: 3 } } }) &&
       api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
       '挑战数=' + api.list().length);
     let pane = SB.ui.render.paneChallenges();
-    check('挑战独立页展示六项挑战与首次开始入口',
-      ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉'].every(name => pane.includes(name)) &&
+    check('挑战独立页展示七项挑战与首次开始入口',
+      ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉', '水体污染'].every(name => pane.includes(name)) &&
       pane.includes('暖石产出 -30%') && pane.includes('学者、书手各 ≤ 15 人') &&
       pane.includes('总人口、职业人数门槛豁免') &&
-      (pane.match(/data-challenge-start=/g) || []).length === 6,
+      (pane.match(/data-challenge-start=/g) || []).length === 7,
       '开始入口=' + ((pane.match(/data-challenge-start=/g) || []).length));
     check('挑战页总说明不再误称所有挑战都要完成神学并破壳',
       !pane.includes('完成《神学》资格并凿穿天壳，才算挑战通关') && pane.includes('各项挑战有各自的目标'),
@@ -259,8 +261,9 @@ export function run({ SB, check, noop }) {
     /* 2026-11-02 规则变更（玩家要求「可以反复挑战刷排行榜」）：已通关不再关闭入口，
      * 改成「再次挑战」；未通关的分档挑战仍只放下一档。旧断言要求 cold/small 无按钮，
      * 已被这条规则推翻，故整条重写而不是删掉。 */
+    /* 入口数 = 挑战总数（2026-11-02 加水体污染后 6 → 7）。 */
     check('已通关的挑战保留「再次挑战」入口，未通关的分档挑战只放下一档',
-      (pane.match(/data-challenge-start=/g) || []).length === 6 &&
+      (pane.match(/data-challenge-start=/g) || []).length === 7 &&
       pane.includes('再次挑战 · 完成挑战') && pane.includes('结算并挑战 · 第二档') &&
       !pane.includes('此挑战入口已关闭'),
       '入口数=' + ((pane.match(/data-challenge-start=/g) || []).length));
@@ -354,7 +357,9 @@ export function run({ SB, check, noop }) {
     s.civics = Object.fromEntries(SB.CIVICS.map(c => [c.id, true]));
     for (const tech of SB.TECHS) s.eureka[tech.id] = true;
     s.era = 99; s.res.science = 1e9;
-    const nextTech = [...SB.TECHS].reverse().find(t => t.cost && t.reqs && t.reqs.every(id => s.techs[id]));
+    /* ⚠️ 夹具必须排除 challengeOnly 项（2026-11-02）：这里测的是「科文总数不受限」，
+     *   拿一个**当前周目不许可**的挑战专属项当夹具，测的就不是那条性质了。 */
+    const nextTech = [...SB.TECHS].reverse().find(t => t.cost && t.reqs && !t.challengeOnly && t.reqs.every(id => s.techs[id]));
     if (nextTech) {
       s.techs[nextTech.id] = false;
       s.eurekaMet[nextTech.id] = true;
@@ -363,7 +368,7 @@ export function run({ SB, check, noop }) {
     check('忽视科文不限制已掌握科技总数', !!nextTech &&
       SB.tech.study(s, nextTech.id, noop) && s.techs[nextTech.id],
       nextTech ? nextTech.name : '没有合适的科技夹具');
-    const nextCivic = [...SB.CIVICS].reverse().find(c => c.cost && c.reqs.every(id => s.civics[id]));
+    const nextCivic = [...SB.CIVICS].reverse().find(c => c.cost && !c.challengeOnly && c.reqs.every(id => s.civics[id]));
     if (nextCivic) {
       s.civics[nextCivic.id] = false;
       s.civShown[nextCivic.id] = true;

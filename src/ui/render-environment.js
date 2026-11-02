@@ -529,6 +529,78 @@
         '<div class="ds">名字会显示在巢穴页签与标题上，本轮回有效、轮回后重新起。改名随时可改，无消耗。</div>';
     }
   }
+  /* ── 水体污染面板（2026-11-02 · docs/challenge-ocean-pollution-design.md v11）────────
+   * 只在 `challenge.id === 'waterpollution'` 的周目里出现（pollutionOn）；基游戏连容器都隐藏。
+   * 放在「自然环境」卡：它回答的是「外面现在什么样」（与海底火山/天壳同一类），
+   *   而不是「我要做什么」。
+   * ⚠️ 与 #envWarm / #envDrill / #envStar 同一套纪律：**纯读数、不放按钮**（每帧重建 DOM 会丢点击），
+   *   并且用状态签名节流——签名不变一个节点都不动。
+   * ⚠️ 所有数字都从 `SB.economy.pollutionSources(s)` 与 `pollution*` 函数取 ——
+   *   面板不许自己乘任何乘区、也不许重写阈值（面板撒谎家族）。 */
+  var polSig = '';
+  function renderPollution(s) {
+    var box = el('envPollution'); if (!box) return;
+    var E = SB.economy;
+    if (!s || !E || !E.pollutionOn || !E.pollutionOn(s)) {
+      if (polSig !== '') { polSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+      return;
+    }
+    var st = E.pollutionStage(s), idx = E.pollutionStageIndex(s);
+    var src = E.pollutionSources(s);
+    var cap = E.pollutionBurialCap(s), deaths = s.pollutionDeaths || 0;
+    var burn = E.pollutionHappyBurnMul(s);
+    var pBase = E.pollutionDeathPBase(s);
+    var stages = (CFG.POLLUTION && CFG.POLLUTION.STAGES) || [];
+    var next = stages[idx + 1];
+    var pollution = s.pollution || 0;
+    /* 进度条口径：当前阶段阈值 → 下一阶段阈值 的百分比。
+     * 最高阶段没有 next ⇒ 条满（100%）。 */
+    var pct = 100;
+    if (next) {
+      /* 阈值取 `stages[idx].at`（当前阶段的起点）——不要用 pollutionStage()
+       * 返回对象里的字段：它只带 debuff，不带阈值。 */
+      var lo = (stages[idx] && stages[idx].at) || 0;
+      pct = Math.max(0, Math.min(100, (pollution - lo) / (next.at - lo) * 100));
+    }
+    var fmt = E.fmtAmt;
+    var sig = [idx, Math.floor(pollution), Math.round(src.emit * 100), Math.round(src.clean * 100),
+      deaths, cap, Math.round(pct)].join('|');
+    if (sig === polSig) {
+      /* 签名不变时只刷存量那一个数字（textContent），不重建整块。 */
+      var num = el('polNowNum');
+      if (num) num.textContent = fmt(pollution);
+      var bar = el('polBarFill');
+      if (bar) bar.style.width = pct.toFixed(1) + '%';
+      return;
+    }
+    polSig = sig;
+    box.style.display = '';
+    var debuff = [];
+    if (st.happy) debuff.push('幸福度 ' + st.happy);
+    if (st.kelpMul < 1) debuff.push('藻食 −' + Math.round((1 - st.kelpMul) * 100) + '%');
+    if (st.coralMul < 1) debuff.push('珊瑚 −' + Math.round((1 - st.coralMul) * 100) + '%');
+    if (pBase > 0) debuff.push('每秒 ' + (pBase * 100).toFixed(2) + '% 概率死亡 1 人');
+    var html = '<div><div class="nm">水体污染 · ' + st.name +
+      '<span class="tag ' + (idx === 0 ? 'ok' : idx >= 3 ? 'bad' : '') + '">第 ' + (idx + 1) + ' / ' + stages.length + ' 阶段</span></div>' +
+      '<div class="ds">污染存量 <b id="polNowNum">' + fmt(pollution) + '</b>' +
+      (next ? ' · 距「' + next.name + '」还差 ' + fmt(Math.max(0, next.at - pollution)) : ' · 已至最深处') + '</div>' +
+      '<div class="polbar"><i id="polBarFill" style="width:' + pct.toFixed(1) + '%"></i></div>' +
+      '<div class="ds">排放 <b style="color:var(--red)">+' + fmt(src.emit) + '/s</b>' +
+      ' · 净化 <b style="color:var(--green)">−' + fmt(src.clean) + '/s</b>' +
+      ' · 净变 <b>' + (src.net >= 0 ? '+' : '−') + fmt(Math.abs(src.net)) + '/s</b></div>' +
+      '<div class="ds">来源：汽轮机 ' + fmt(src.turbine) + '/s' +
+      (src.other > 0 ? ' · 其他脏源 ' + fmt(src.other) + '/s' : '') +
+      (src.rateMul < 1 ? ' · 政策减排 −' + Math.round((1 - E.pollutionRateMul(s)) * 100) + '%' : '') +
+      (src.canfillMul < 1 ? ' · 装罐填埋 −50%' : '') + '</div>' +
+      (debuff.length ? '<div class="ds">当前惩罚：' + debuff.join(' · ') + '</div>' : '') +
+      (deaths > 0
+        ? '<div class="ds">因污染而死 <b>' + deaths + '</b> 人 · 安息位 <b>' + cap + '</b>' +
+          ' · 幸福消耗 <b style="color:var(--red)">+' + ((burn - 1) * 100).toFixed(1) + '%</b>' +
+          (deaths > cap ? '（超限，每人 3%）' : '（限内，每人 0.3%）') + '</div>'
+        : '') +
+      '</div>';
+    box.innerHTML = html;
+  }
   parts.renderEnv = renderEnv;
   parts.renderWarm = renderWarm;
   parts.renderCore = renderCore;
@@ -538,4 +610,5 @@
   parts.renderHydro = renderHydro;
   parts.renderReligion = renderReligion;
   parts.renderHabitatName = renderHabitatName;
+  parts.renderPollution = renderPollution;
 })(typeof window !== 'undefined' ? window : globalThis);

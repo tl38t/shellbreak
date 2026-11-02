@@ -22,6 +22,18 @@
   var launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
   /* ERA2-7 扩卡（2026-10-22）：科技产出读数（启蒙沙龙卡把 15% 科技转市政点，与 tick 同源）。 */
   var sciOut = P.sciOut;
+  /* 水体污染（2026-11-02）：三处乘区必须与 tick 同源 ——
+   *   pollutionCoralMul       → 珊瑚行
+   *   pollutionHappyBurnMul   → 奢侈品需求 D
+   *   luxuryOutMul            → 商人奢侈品产出 S（通关奖励 +50%）
+   * ⚠️ 这三个都是「读挑战状态算乘区」的纯函数，可安全放进 rates（不写存档、不掷骰）。 */
+  var pollutionCoralMul = P.pollutionCoralMul, pollutionHappyBurnMul = P.pollutionHappyBurnMul;
+  var pollutionEmitRate = P.pollutionEmitRate, pollutionCleanup = P.pollutionCleanup;
+  /* ⚠️ 用包一层而不是直接 `var luxuryOutMul = SB.economy.luxuryOutMul`：本文件虽在
+   *   economy.js 之后加载（index.html 302/303），但那个「晚了也照样跑」的加载顺序
+   *   曾经改过一次（见 index.html 市政那段注）。包一层，顺序变了也只是乘区退化为 1，
+   *   不是整页 ReferenceError。 */
+  function luxuryOutMul(s) { return (SB.economy && SB.economy.luxuryOutMul) ? SB.economy.luxuryOutMul(s) : 1; }
 
   /* ══ 速率分项收集（2026-10-29 · 用户「点顶栏材料，只显示数值」）═════════════════
    * 面板要回答「这一行每秒是怎么算出来的」，而**绝不能另写一套公式**（面板撒谎家族：
@@ -194,7 +206,10 @@
                   ['寒流季', cold],
                   ['全局产出', globalMulX(s)],
                   ['政策卡', (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'coral') : 1)],
-                  ['公司', SOCIAL.companyMul(s, 'coral')]])
+                  ['公司', SOCIAL.companyMul(s, 'coral')],
+                  /* 水体污染（2026-11-02）：赤潮起珊瑚匠 −45%/−70%/−95%。
+                   * ⚠️ 与 tick 的珊瑚行同乘这**一个**函数（economy.pollutionCoralMul）。 */
+                  ['水体污染', pollutionCoralMul(s)]])
                + part('coral', 'GEEK 改造', -_gkCoralRate),
       /* 与 tick 同源：金属只来自矿工，且同样吃 siltMul（砂矿坑加成）。tick 那边
        * 把 siltpit 自动产出删了之后，这里若还留着「+ lvl.siltpit × SB.UNIT.silt」，
@@ -352,6 +367,12 @@
        *    是两个不同口径，别合并：顶栏速率行要「这行每秒怎么变」⇒ 读 hydro；
        *    尤里卡「热液能产出 10/s」要「汽轮机造出来多少」⇒ 读这个。 */
       hydroSupply: part('hydroSupply', '汽轮机产出', _sr.hydroSupply),
+      /* 水体污染存量净变（/s）= 脏源排放 − 净化（2026-11-02）。
+       * ⚠️ 只读快照：emit 取 _sr 上透传的同一份 hydroAlloc 结果（pollutionEmitRate 内部
+       *   只做加法，不再跑一次 hydroAlloc）；clean 走 pollutionCleanup（含保护区/卡/奇观）。
+       * ⚠️ 非挑战周目两枝都恒 0 ⇒ 面板这一行不显示（不要给它加「基游戏也显示」的门）。 */
+      pollution: part('pollution', '脏源排放', pollutionEmitRate(s, _sr))
+               + part('pollution', '净化设施', -pollutionCleanup(s)),
       /* ⚠️ 市政卡的 `cv.science` 那一份也乘（与 tick 的 4b 步同式）；
        *    ⚠️ 括号位置：乘区要裹住**两个加项**，不能只裹 scholar 那一段。 */
       /* ⚠️ 与上面 tick 里那一行**逐字同构**（含 institute 那一项、以及大图书馆
@@ -438,7 +459,11 @@
            /* 2026-09-30 ERA4：银行每级商人产出 +10% */
            ['银行', bankMul(s)],
            /* 大巴扎：每名鲛人 +1% 奢侈品获取 */
-           ['大巴扎', SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1]]);
+           ['大巴扎', SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1],
+           /* 水体污染通关奖励 +50%（2026-11-02）：跨周目永久，与上面各项独立相乘。
+            * ⚠️ economy-social.happySupply / economy.js 的 _S / 本行 三处必须同一个函数，
+            *   e2e 有一条断言钉「happySupply === tick 毛产出」。 */
+           ['挑战·水体污染', luxuryOutMul(s)]]);
         if (S <= 0) return 0;
         /* ⚠️ 2026-10-14 双修：① 需求换 luxDemandMul 净系数（增耗三项 − 居民减耗单括号抵消）；
          *   ② **补齐此前漏乘的政体/奇观两项**（商人共和国 0.7 / 国会 0.9）——
@@ -451,7 +476,11 @@
           /* ⚠️ 2026-10-28 补乘：《节能减耗》card_saving 的 happyConsumeMul ×1.5 原先只活在
            *   economy-social.happyBurn 里，本行与 economy.js 的 _D 都漏了 ⇒ 面板撒谎。
            *   三处（本行 / economy.js _D / economy-social.happyBurn）必须同乘这一个乘区。 */
-          * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1);
+          * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1)
+          /* 水体污染（2026-11-02）：每名死者永久抬高幸福消耗（墓地限额内 0.3%、超限 3%）。
+           * ⚠️ 第四处同源：economy-social.happyBurn（实账）/ economy.js 的 _D（tick 计价）/
+           *   本行（面板）/ economy-social.happyCost 的调用方 —— 少一处就是面板撒谎。 */
+          * pollutionHappyBurnMul(s);
         return S + part('luxury', '人口消耗', -Math.min(S, D));
       })()
     };

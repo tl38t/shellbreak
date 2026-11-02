@@ -377,6 +377,16 @@
         var _dp = (SB.economy && SB.economy.dysonPct) ? SB.economy.dysonPct(s) : 0;
         return _dp * 100 >= c.n - 1e-9;
       }
+      /* 水体污染（2026-11-02）：两条解锁条件，读 economy 的污染状态。
+       *   `pollution`        → 当前污染存量 ≥ n（五阶段阈值 1000/4万/16万/640万）
+       *   `pollutionDeaths`  → 累计因污染死亡 ≥ n
+       * ⚠️ 直接读 s.pollution / s.pollutionDeaths（两者都是存档字段，state-migrate 已补 0），
+       *   不走 pollutionStage —— 阶段是**阈值换算的派生量**，拿它反推存量会丢精度，
+       *   而且阶段表一改（标定）就会把所有解锁条件一起悄悄改掉。
+       * ⚠️ 非挑战周目两个字段恒 0 ⇒ 条件恒不成立 ⇒ 这 5 条市政自然不揭示
+       *   （与 challengeOnly 双保险：后者连列表都不显示，前者防「显示但点不动」）。 */
+      case 'pollution': return (s.pollution || 0) >= c.n;
+      case 'pollutionDeaths': return (s.pollutionDeaths || 0) >= (c.n || 1);
       default: return false;
     }
   }
@@ -426,6 +436,16 @@
         var _dp2 = (SB.economy && SB.economy.dysonPct) ? SB.economy.dysonPct(s) : 0;
         var _pc = _dp2 * 100;
         return { txt: '戴森球进度 ' + _pc.toFixed(1) + '% / ' + c.n + '%', now: _pc, need: c.n };
+      }
+      /* 水体污染（2026-11-02）：与 condMet 同口径（同一个 s.pollution 字段）。
+       * ⚠️ now 用 Math.floor 显示（存量是浮点，玩家不需要看到 1000.0000001）。 */
+      case 'pollution': {
+        var _polNow = s.pollution || 0;
+        return { txt: '污染存量 ' + Math.floor(_polNow) + ' / ' + c.n, now: _polNow, need: c.n };
+      }
+      case 'pollutionDeaths': {
+        var _pdn = s.pollutionDeaths || 0;
+        return { txt: '因污染死亡 ' + _pdn + ' 人 / ' + (c.n || 1), now: _pdn, need: c.n || 1 };
       }
       case 'tech': return { txt: '掌握科技「' + techName(c.id) + '」', now: (s.techs && s.techs[c.id]) ? 1 : 0, need: 1 };
       case 'wonder': {
@@ -733,6 +753,36 @@
     }
     return n;
   }
+  /* 挑战专属科技的门（2026-11-02 泛化）：原先两处都硬编码 `s.challenge.id === 'drift_terra'`，
+   * 加《装罐填埋》（只属水体污染）时若再抄一个 or，两处判据会各自演化。
+   *   `challengeOnly: true`        → 旧语义，等价于 ['drift_terra']（既有 4 项科技不动）
+   *   `challengeOnly: ['id', ...]` → 白名单，当前周目是其中之一才可研究
+   * ⚠️ 只判「当前周目」不判「已通关」：挑战专属科技是**本局**的临时工具，
+   *   通关后回到基游戏周目就该消失（与建筑 noChallenge 同一语义方向）。 */
+  function challengeOnlyOk(s, t) {
+    var co = t && t.challengeOnly;
+    if (!co) return true;
+    var cur = s && s.challenge && s.challenge.id;
+    if (!cur) return false;
+    if (co === true) return cur === 'drift_terra';
+    if (typeof co === 'string') return cur === co;
+    return co.indexOf(cur) >= 0;
+  }
+  function challengeOnlyReason(t) {
+    var co = t && t.challengeOnly;
+    if (co === true || !co) return '仅限流浪泰拉挑战期间研究';
+    /* ⚠️ 字符串**必须先包成数组**（2026-11-02 e2e 当场抓到）：裸写 `co.length` 对
+     *   'waterpollution' 得到 14，于是按**字符**逐个查挑战 ⇒ 文案渲染成
+     *   「仅限w / a / t / e / r…挑战期间研究」。civics / habitat 两处同族函数
+     *   一开始就写了 `typeof co === 'string' ? [co] : co`，只有这里漏了。 */
+    var list = (typeof co === 'string') ? [co] : co;
+    var names = [];
+    for (var i = 0; i < list.length; i++) {
+      var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
+      names.push(c ? c.name : list[i]);
+    }
+    return '仅限' + names.join(' / ') + '挑战期间研究';
+  }
   function reqsMet(s, t) {
     if (!t.reqs) return true;
     for (var i = 0; i < t.reqs.length; i++) if (!s.techs[t.reqs[i]]) return false;
@@ -752,7 +802,7 @@
     if (!t) return false;
     if (techLevel(s, id) >= maxTechLevel(t) || !isRevealed(s, id)) return false;
     if (t.era > (s.era || 1)) return false;      // 纪元闸门：不能跳纪元偷研究
-    if (t.challengeOnly && !(s.challenge && s.challenge.id === 'drift_terra')) return false;
+    if (!challengeOnlyOk(s, t)) return false;
     /* 尤里卡门禁（2026-09-26 用户拍板「灰掉，必须先达成尤里卡」）。
      * 它才是本文件顶部那条设计（条件达成 ⇒ 整项从「不可研究」变「可研究」）的**真正落实**：
      * 在此之前那只是纸面条款 —— revealEra 会在进纪元时把整批节点刷成「已揭示」，
@@ -762,19 +812,32 @@
     /* ⚠️ 必须与 study 的扣费同口 researchCost（2026-10-17 用户拍板实装折扣断链）：
      *   旧版裸读 t.cost ⇒ 建科研所后「科技点在折后价~原价之间」时本函数 false、
      *   而 studyBlocked（折扣口）判 null ⇒ 红点亮、点了没反应，且折扣从未让人更早买得起。 */
+    if (!resCostMet(s, t)) return false;
     return SB.economy.enough(s.res.science, researchCost(s, t));
   }
   function studyBlocked(s, id) {
     var t = byId(id);
     if (!t) return null;
     if (techLevel(s, id) >= maxTechLevel(t)) return '已掌握';
+    /* 挑战门排在**最前**（2026-11-02 调整，对齐 civics.blocked 的同一顺序）：
+     *   「你在基游戏，这棵枝永远研究不了」是结构事实，「先达成尤里卡」是实现路径，
+     *   后者对一个永远不会揭示的节点等于误导 —— 玩家会去攒尤里卡，攒完还是灰。
+     *   ⚠️ 顺序也决定 UI 灰按钮的 title；改这里前先看 render-pane-research 的暗态分支。 */
+    if (!challengeOnlyOk(s, t)) return challengeOnlyReason(t);
     if (!isRevealed(s, id)) return '未揭露：先达成尤里卡条件';
     if (t.era > (s.era || 1)) return '纪元未到：属于 ' + eraName(t.era) + '，先推进当前纪元';
-    if (t.challengeOnly && !(s.challenge && s.challenge.id === 'drift_terra')) return '仅限流浪泰拉挑战期间研究';
     /* 文案要指得出**该做什么**，不能只说「不行」：这句话会挂成灰按钮的 title，
      * 而卡片上条件行还写着进度，两者合起来才是完整的一句「你还差什么」。 */
     if (!metOf(s, t)) return '尤里卡未达成：达成条件后才能研究';
     if (!reqsMet(s, t)) return '缺少前置科技：' + t.reqs.map(function (r) { return byId(r).name; }).join('、');
+    /* 材料门排在科技点门**之前**：材料是可以靠攒解决的确定门槛，科技点是主进度，
+     * 先报材料玩家才知道该去开矿而不是干等。 */
+    var _lack = resCostLack(s, t);
+    if (_lack) {
+      var _lackName = (SB.RESS && SB.RESS[_lack.r] && SB.RESS[_lack.r].name) || _lack.r;
+      return '材料不足：' + _lackName + ' 现有 ' + SB.economy.fmtAmt(s.res[_lack.r] || 0) +
+        ' / 需求 ' + SB.economy.fmtAmt(_lack.n);
+    }
     if (!SB.economy.enough(s.res.science, researchCost(s, t))) return '科技点不足：现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(researchCost(s, t));
     return null;
   }
@@ -793,6 +856,32 @@
 
   /* ERA6（2026-10 实装）：科研所（researchlab）每级让研究科技消耗 −2%（researchLabSave），
    *   合计不超过 researchLabSaveMax（防成本翻负）。扣费与「够不够」判定共用此入口，避免按钮灰错。 */
+  /* ── 科技的**额外资源造价**（2026-11-02 新增，为《装罐填埋》的「金属 4000」而开）──
+   * 本作科技一直只收科技点；这是第一个还要掏库存的节点，所以单开一条通道而不是塞进 cost。
+   * ⚠️ 四处必须同源，缺一处就是老毛病（按钮亮着点了没反应 / 没写却扣了）：
+   *   ① canStudy 门禁 ② study 实扣 ③ studyBlocked 文案 ④ 详情面板的成本行。
+   * ⚠️ 不吃科研所折扣（researchCost 那条折扣口只管科技点），也不吃任何难度乘区 ——
+   *   它就是一个定量库存门槛，写清楚「多少金属」玩家才读得懂。 */
+  function resCostList(t) {
+    var rc = t && t.resCost, out = [];
+    if (!rc) return out;
+    for (var k in rc) if (rc[k] > 0) out.push({ r: k, n: rc[k] });
+    return out;
+  }
+  function resCostMet(s, t) {
+    var list = resCostList(t);
+    for (var i = 0; i < list.length; i++) {
+      if (!SB.economy.enough(s.res[list[i].r], list[i].n)) return false;
+    }
+    return true;
+  }
+  function resCostLack(s, t) {
+    var list = resCostList(t);
+    for (var i = 0; i < list.length; i++) {
+      if (!SB.economy.enough(s.res[list[i].r], list[i].n)) return list[i];
+    }
+    return null;
+  }
   function researchCost(s, t) {
     var disc = ((s.lvl && s.lvl.researchlab) || 0) * ((SB.BLD && SB.BLD.researchLabSave) || 0);
     if (!(typeof disc === 'number' && isFinite(disc))) disc = 0;
@@ -809,6 +898,11 @@
     var t = byId(id);
     var oldLevel = techLevel(s, id);
     s.res.science -= researchCost(s, t);
+    /* 额外资源造价（2026-11-02）：按 canStudy 已校验过的同一张表实扣。
+     * ⚠️ 用 addRes 的负数版还是直扣？——直扣，与上面 science 同一种写法；
+     *   这些资源没有「累计产出」账本（got）语义，不该记进累计。 */
+    var _rcList = resCostList(t);
+    for (var _ri = 0; _ri < _rcList.length; _ri++) s.res[_rcList[_ri].r] -= _rcList[_ri].n;
     s.techs[id] = true;
     if (!s.techLv) s.techLv = {};
     s.techLv[id] = oldLevel + 1;
@@ -986,6 +1080,8 @@
       case 'gathered': return '累计产出 ' + resName(c.r) + ' ' + c.n;
       case 'sunSails': return '太阳帆累计 ' + c.n;
       case 'dysonPct': return '戴森球进度 ' + c.n + '%';
+      case 'pollution': return '污染存量 ' + c.n;
+      case 'pollutionDeaths': return '因污染死亡 ' + (c.n || 1) + ' 人';
       case 'rate': return rateName(c.r) + ' ' + c.n + '/秒';
       case 'pop': return '人口 ' + c.n;
       case 'job': return jobName(c.j) + ' ' + c.n + ' 人';
@@ -1104,7 +1200,7 @@
     reqsMet: reqsMet, known: known, level: techLevel, maxLevel: maxTechLevel,
     canStudy: canStudy, study: study, studyBlocked: studyBlocked, hasResearchable: hasResearchable, effectText: effectText,
     /* researchCost（2026-10-17）：科技消耗的唯一折扣口（科研所 researchLabSave），供 UI 显示与门禁共用。 */
-    researchCost: researchCost,
+    researchCost: researchCost, resCostList: resCostList, resCostMet: resCostMet, resCostLack: resCostLack,
     keysOf: keysOf, eraProgress: eraProgress, advanceEra: advanceEra, pump: pump,
     eurekaLine: eurekaLine, flushEureka: flushEureka,
     mul: mul, techCount: techCount, eraTechCount: eraTechCount,

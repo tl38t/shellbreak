@@ -1326,7 +1326,11 @@
     return (byBuild + byJob) * SOCIAL.companyMul(s, 'kelp') * (cold || 1)
       * (1 + (s.lvl.weir || 0) * SB.BLD.foodWeir)                // 增旋钮：两条来源一起放大
       * globalMulX(s)                                          // 全资源乘区（灯塔/信仰/奇观/政体/大统一方程；与 rates 同式）
-      * ((SB.civic && SB.civic.cardFoodOutMul) ? SB.civic.cardFoodOutMul(s) : 1);  // ERA2-7：庄园制卡 ×1.20（乘区，tick/rates 同源）
+      * ((SB.civic && SB.civic.cardFoodOutMul) ? SB.civic.cardFoodOutMul(s) : 1)  // ERA2-7：庄园制卡 ×1.20（乘区，tick/rates 同源）
+      /* 水体污染（2026-11-02）：五阶段按存量打折藻食产出（浊流 −30% … 腐渊 −95%）。
+       * 乘在**整段**（建筑侧 + 职业侧 + 公司 + 全产轴）——用户规格写的是「藻食产出 −X%」，
+       * 不是「藻场产量 −X%」。rates 的 kelp 行调同一个 foodRate ⇒ 面板===结算。 */
+      * pollutionKelpMul(s);
   }
   /* ERA2-7 扩卡（2026-10-22 实装）：科技产出（每秒，未乘挑战乘区），与 rates().science 的「基项」完全同构。
    * 落点：启蒙沙龙卡把 15% 科技产出转为市政点——tick 与 rates 都读本函数，保证面板===结算。
@@ -1762,13 +1766,22 @@
          *   与天穹钻机同纪律——只有「已建成且手动启动」才占流；否则面板会谎报它在吃能。 */
         geekOwned = !!(SB.wonder && SB.wonder.owned(s).wonder_geek),
         geekOn = !!(s.geek && s.geek.geekOn),
-        _adCount = autoDrillCount(s);
+        _adCount = autoDrillCount(s),
+        /* 水体污染（2026-11-02）：三座**洁净**热液源（潮汐往复机 / 太阳能基站 / 恩拉多克斯风场）。
+         *   它们进 supply（玩家面板能看到热液能产出），但**不进** pollutionRate ——
+         *   这是本挑战唯一一条「又要产能又不污染」的正路，也是约束型通关的设计支点。 */
+        _tideL = s.lvl.tidemachine || 0,
+        _solarL = s.lvl.solarstation || 0,
+        _windL = s.lvl.enladofarm || 0;
     /* ⚠️ 提前返回也必须**补齐全部键**（含三个 Rate）：少一个键，读它的人拿到 undefined
      *    而不是 0 —— steelFlow 的 `s.res.hydro = HF.supplyRate` 会把顶栏主数写成 undefined
      *    （解了 metalrefine 但一台汽轮机都没建时就是这样），rates().hydroSupply 同理。
      *    这种缺键不报错、只在面板上变成 NaN/undefined，属于「面板撒谎」家族。 */
-    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && !(geekOn && geekOwned))
+    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && _tideL <= 0 && _solarL <= 0 && _windL <= 0 && !(geekOn && geekOwned))
       return { supply: 0, supplyRate: 0, turbineRate: 0, pressRate: 0, fissionRate: 0, titancloudRate: 0, sunSailRate: 0,
+        /* 水体污染：早退对象也必须**补齐全部键**（少一个键 ⇒ 读它的人拿到 undefined，
+         *   面板会显示 NaN —— 与上面那段注释同一条纪律）。 */
+        cleanRate: 0, pollutionTurbineRate: 0, pollutionOtherRate: 0,
         shopDraw: 0, shopRate: 0, shopRatio: 0, shopNeed: 0,
         demandRate: 0, balanceRate: 0, skyNeed: 0, europaNeed: 0, geekNeed: 0,
         skyDraw: 0, skyRate: 0, skyStopWhy: null, left: 0, starDraw: 0, starRate: 0, drillDraw: 0, drillRate: 0,
@@ -1780,6 +1793,10 @@
      *   走 wonder.hydroWonderMul 出口。与高压气泵升级的 hydroMul（乘区）是两回事，这里加法叠加。 */
     var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
     var supply = 0, rW = 1, turbineSupply = 0, pressSupply = 0, fissionSupply = 0, titancloudSupply = 0;
+    /* 水体污染（2026-11-02）：脏源**每秒**排放（未乘政策 rateMul / k），与上面几个 supply 局部变量
+     * 同源同值（`/dt` 归一）。分两枝返回，是因为装罐填埋只削**汽轮机**那一枝（§1.2 的坑）：
+     *   pollutionTurbine = 汽轮机；pollutionOther = 高压热机管道 + 轨道工厂 + 核热厂 + 泰坦气云站。 */
+    var pollutionTurbine = 0, pollutionOther = 0, cleanSupply = 0;
     if (turL > 0) {
       /* ⚠️ 暖石门控：暖石不够则汽轮机按比例降产（读 s.res.warmstone，但**不在此扣**——扣费只在 steelFlow）。
        *   ⚠️ 同耗乘 warmEff（refine/specfuel 降耗）：门控与 steelFlow 实扣用同一乘子，保证面板===结算。 */
@@ -1796,6 +1813,10 @@
       turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _turbineFactor;
       pressSupply = _press * _turbineFactor;
       supply = turbineSupply + pressSupply;
+      if (dt > 0) {
+        pollutionTurbine += turbineSupply / dt;
+        pollutionOther += pressSupply / dt;
+      }
     }
     /* ERA7（2026-10-17 · spec §4）：核热厂——每级 +10 热液能/秒，**不烧暖石**的新热液源
      *   （供给侧直接相加，与高压热机管道 _press 同类；×挑战乘区与汽轮机同口径）。
@@ -1806,17 +1827,25 @@
     var fissionStoneRatio = fissionStoneNeed > 0 ? fissionStoneDraw / fissionStoneNeed : 0;
     if (fisL > 0) {
       var _nf = (s.techs && s.techs.nuclear_fusion) ? 5 : 1;
+      /* 水体污染（2026-11-02 用户拍「星屑树乘区豁免」）：核热厂的**排放**不含星屑树
+       *   `starNuclearHydroMul` —— 点星屑树拿到的额外热液不污染（这是给玩家的一条
+       *   「既要产能又不加污」的正路）。核聚变 ×5 与重核聚变仍照进排放（`_nf` / 石头比在污染侧）。
+       *   ⚠️ 三处必须同源：产出（下面这行）、排放（pollutionOther 那行）、面板（hydroAlloc 返回值）。 */
+      var _fisPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
+      var _fisRatio = (s.upgrades && s.upgrades.upg_reheavfusion) ? (1 + fissionStoneRatio) : 1;
       fissionSupply = fisL * (SB.BLD.fissionHydro || 0) * starNuclearHydroMul(s) * dt * _nf
-        * ((s.upgrades && s.upgrades.upg_reheavfusion) ? (1 + fissionStoneRatio) : 1)
-        * (SB.challenges ? SB.challenges.productionMul(s) : 1);
+        * _fisRatio * _fisPM;
       supply += fissionSupply;
+      pollutionOther += fisL * (SB.BLD.fissionHydro || 0) * _nf * _fisRatio * _fisPM;
     }
     /* ERA8（2026-10-18 · spec §4）：泰坦星气云采集站——每级 +6 热液能/秒（不烧暖石，
      *   与核热厂同一供给侧通道）+ 每级产 5 燃料/秒（燃料行在 tick/rates，不进流）。 */
     if (tcL > 0) {
-      titancloudSupply = tcL * (SB.BLD.titancloudHydro || 0) * starAlienOutputMul(s) * dt
-        * (SB.challenges ? SB.challenges.productionMul(s) : 1);
+      var _tcPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
+      titancloudSupply = tcL * (SB.BLD.titancloudHydro || 0) * starAlienOutputMul(s) * dt * _tcPM;
       supply += titancloudSupply;
+      /* 排放同样豁免星屑树 `starAlienOutputMul`（与核热厂同一条统一原则）。 */
+      pollutionOther += tcL * (SB.BLD.titancloudHydro || 0) * _tcPM;
     }
     /* ERA9（2026-10-19 · 用户确认④）：太阳帆（星图累加器，s.sunSails，无限、无上限）每帆 +0.05 热液能/秒，
      *   进 hydro 供给侧（与核热厂/泰坦气云同类并联相加）。断流/缺料不影响帆本身（帆是已累积的产能，
@@ -1826,6 +1855,17 @@
       sunSailSupply = (s.sunSails || 0) * (SB.CFG.SUNSAIL_HYDRO || 0.05) * starSailHydroMul(s) * dt
         * (SB.challenges ? SB.challenges.productionMul(s) : 1);
       supply += sunSailSupply;
+    }
+    /* 水体污染（2026-11-02）：三座**洁净**热液源 —— 潮汐往复机 +1/s·级、太阳能基站 +3/s·级、
+     *   恩拉多克斯阵列风场 +15/s·级（数值见 BLD.tideHydro / solarHydro / windHydro）。
+     *   进 supply（玩家看得到热液能，命脉照旧），但**不进** pollutionRate。
+     *   ⚠️ ×挑战 productionMul 与核热厂/泰坦站同口径；不×星屑树（这三座不在星图里）。 */
+    if (_tideL > 0 || _solarL > 0 || _windL > 0) {
+      var _cleanPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
+      cleanSupply = (_tideL * (SB.BLD.tideHydro || 0)
+        + _solarL * (SB.BLD.solarHydro || 0)
+        + _windL * (SB.BLD.windHydro || 0)) * dt * _cleanPM;
+      supply += cleanSupply;
     }
     /* 工坊（低阶科技先吃满）：从本 tick 流里取 min(需求, 供给)。 */
     var shopDemand = shopL * SB.UNIT.hydroShopLvl * dt;
@@ -1983,6 +2023,11 @@
       fissionRate: dt > 0 ? fissionSupply / dt : fissionSupply,
       titancloudRate: dt > 0 ? titancloudSupply / dt : titancloudSupply,
       sunSailRate: dt > 0 ? sunSailSupply / dt : sunSailSupply,
+      /* 水体污染：洁净源每秒供给 + 脏源每秒排放（两枝分开，装罐填埋只乘 turbine 那枝）。
+       * 面板的「污染来源」行读 pollutionTurbineRate + pollutionOtherRate，与结算同源。 */
+      cleanRate: dt > 0 ? cleanSupply / dt : cleanSupply,
+      pollutionTurbineRate: pollutionTurbine,
+      pollutionOtherRate: pollutionOther,
       shopDraw: shopDraw, shopRate: dt > 0 ? shopDraw / dt : shopDraw,
       skyDraw: skyDraw, skyRate: dt > 0 ? skyDraw / dt : skyDraw,
       /* 停摆子因（'bit' 缺共振钻头 / 'hydro' 缺热液能剩流 / null 正常或未启动）：
@@ -2017,6 +2062,197 @@
       geekDraw: geekDraw, geekRate: dt > 0 ? geekDraw / dt : geekDraw,
       jupitorDraw: jupitorDraw, jupitorRate: dt > 0 ? jupitorDraw / dt : jupitorDraw };
   }
+  /* ═══════════ 水体污染（2026-11-02 · docs/challenge-ocean-pollution-design.md v11）═══════════
+   * 【范围】只在 `s.challenge.id === 'waterpollution'` 的周目里生效；基游戏一律恒 0 / 恒 1
+   *   —— 因此每个入口第一行都是 `pollutionOn(s)`，非挑战周目连一次判断都走不到乘区里。
+   * 【为什么全部集中在本段】五类读取者（排放 / 存量 / 死亡 / 藻食珊瑚 / 幸福三处）一旦各写一份
+   *   阈值或乘区，就会出现本仓记过多次的「面板撒谎」家族。这里导出的是**唯一口径**：
+   *     ① hydroAlloc → pollutionRate（脏源每秒排放，未乘政策）
+   *     ② economy-tick / offline-scheduler → settle / rollDeath
+   *     ③ foodRate / 珊瑚行 → pollutionKelpMul / pollutionCoralMul
+   *     ④ happyStep / happyBonusTotal / happyLedger / rates → pollutionHappyOffset / pollutionHappyBurnMul
+   * 【数值】全部在 CFG.POLLUTION（改数值只改 config.js 那一条纪律）。 */
+  function pollutionCfg() { return CFG.POLLUTION || {}; }
+  /* 挑战是否在进行。⚠️ 与 challenges.entered(s,id) 同一判据，此处不调它：
+   *   economy.js 在 index.html 里排在 challenges.js **之前**，虽然加载期不执行，
+   *   但直接读 s.challenge 也少一层跨模块依赖。 */
+  function pollutionOn(s) { return !!(s && s.challenge && s.challenge.id === 'waterpollution'); }
+  function polHasCard(s, id) { return !!(s && s.cards && s.cards.indexOf(id) >= 0); }
+  /* 阶段号（0..4）。阈值是**绝对存量**，阶段只决定 debuff 强度，不参与评分。 */
+  function pollutionStageIndex(s) {
+    if (!pollutionOn(s)) return 0;
+    var st = pollutionCfg().STAGES || [], p = s.pollution || 0, idx = 0;
+    for (var i = 0; i < st.length; i++) if (p >= st[i].at) idx = i;
+    return idx;
+  }
+  function pollutionStage(s) {
+    var st = pollutionCfg().STAGES || [], i = pollutionStageIndex(s), d = st[i] || {};
+    return {
+      i: i, name: d.name || '', at: d.at || 0,
+      nextAt: st[i + 1] ? st[i + 1].at : null,
+      happy: d.happy || 0,
+      kelpMul: d.kelpMul === undefined ? 1 : d.kelpMul,
+      coralMul: d.coralMul === undefined ? 1 : d.coralMul,
+      deathP: d.deathP || 0
+    };
+  }
+  /* 政策卡对**排放**的乘区（污染治理 −20% / 绿色运动 −40%，后者替代前者）。
+   * ⚠️ 装罐填埋**不进这里**：它只削汽轮机一枝，见 pollutionEmitRate 的 turMul。 */
+  function pollutionRateMul(s) {
+    if (!pollutionOn(s)) return 1;
+    var c = pollutionCfg();
+    if (polHasCard(s, 'card_green_movement')) return c.RATE_MUL_GREEN === undefined ? 0.6 : c.RATE_MUL_GREEN;
+    if (polHasCard(s, 'card_pollution_control')) return c.RATE_MUL_CONTROL === undefined ? 0.8 : c.RATE_MUL_CONTROL;
+    return 1;
+  }
+  function pollutionCanfillOn(s) { return !!(pollutionOn(s) && s.techs && s.techs.canfill); }
+  /* 排放按源拆开（面板 / e2e / 结算共用的唯一算式）。
+   *   HF.pollutionTurbineRate = 汽轮机（唯一吃装罐填埋 −50% 的一枝）
+   *   HF.pollutionOtherRate   = 高压热机管道 + 轨道工厂 + 核热厂 + 泰坦气云站（星屑树已豁免）
+   * ⚠️ `turbine + other` 恒等于总排放：pollutionEmitRate 只是把两者相加，**不许**在这里
+   *   之外再写一份「总排放」公式（面板撒谎家族最典型的成因：拆项与总额各算一套）。 */
+  function pollutionSplit(s, HF) {
+    var c = pollutionCfg(), k = c.K === undefined ? 1 : c.K;
+    if (!pollutionOn(s) || !HF) return { rateMul: 1, canfillMul: 1, turbine: 0, other: 0 };
+    var rateMul = pollutionRateMul(s);
+    var cf = pollutionCanfillOn(s)
+      ? (c.CANFILL_TURBINE_MUL === undefined ? 0.5 : c.CANFILL_TURBINE_MUL) : 1;
+    return {
+      rateMul: rateMul, canfillMul: cf,
+      turbine: (HF.pollutionTurbineRate || 0) * rateMul * cf * k,
+      other: (HF.pollutionOtherRate || 0) * rateMul * k
+    };
+  }
+  /* 每秒脏源排放（已乘 政策 rateMul / 装罐填埋 / k）。
+   * ⚠️ 为什么读 HF 而不在这儿重算：五个局部变量（rW / fisL / _nf / fissionStoneRatio / tcL）
+   *   只在 hydroAlloc 里存在，另算一份就是第二份口径（迟早与供给漂）。 */
+  function pollutionEmitRate(s, HF) {
+    if (!pollutionOn(s) || !HF) return 0;
+    var sp = pollutionSplit(s, HF);
+    return sp.turbine + sp.other;
+  }
+  /* 面板读数（纯度查询，无副作用）：一次给出「清洁源供给 / 两枝排放 / 总净化 / 存量净变」。
+   * ⚠️ 面板**不许**自己乘 rateMul 或再拼一次加法 —— 全部从这一口取。 */
+  function pollutionSources(s) {
+    var out = { on: pollutionOn(s), turbine: 0, other: 0, emit: 0, clean: 0,
+      cleanRate: 0, rateMul: 1, canfillMul: 1, net: 0 };
+    if (!out.on) return out;
+    var HF = hydroAlloc(s, 1);
+    var sp = pollutionSplit(s, HF);
+    out.turbine = sp.turbine; out.other = sp.other;
+    out.emit = sp.turbine + sp.other;
+    out.rateMul = sp.rateMul; out.canfillMul = sp.canfillMul;
+    out.cleanRate = HF.cleanRate || 0;      // 洁净源给了多少热液能（不计污染）
+    out.clean = pollutionCleanup(s);
+    out.net = out.emit - out.clean;
+    return out;
+  }
+  /* 每秒净化量（总存量扣减，不分源）。 */
+  function pollutionCleanup(s) {
+    if (!pollutionOn(s)) return 0;
+    var c = pollutionCfg(), v = 0;
+    v += (s.lvl.reserve || 0) * (c.CLEAN_RESERVE || 0);
+    if (polHasCard(s, 'card_protect_planet')) v += (s.pop || 0) * (c.CLEAN_PER_POP || 0);
+    if (polHasCard(s, 'card_last_resort')) {
+      var alienLvl = (s.lvl.rheamine || 0) + (s.lvl.titancloud || 0) + (s.lvl.mars_workshop || 0);
+      v += alienLvl * (c.CLEAN_PER_ALIEN_LVL || 0);
+    }
+    /* 奇观「星球气候调节卫星网」：固定 −15/s、无等级（S 定案：不补星空、也不随等级放大）。 */
+    if (SB.wonder && SB.wonder.owned && SB.wonder.owned(s).wonder_climatesat) v += (c.CLEAN_WONDER || 0);
+    return v;
+  }
+  /* 存量结算：每 tick 一次，**允许大步**（离线/高速也是一次算完）。
+   * ⚠️ 与死亡掷骰是两条独立纪律：这里可以 dt=600，掷骰绝不可以（见 pollingRollDeath 注释）。 */
+  function pollutionSettle(s, dt, HF) {
+    if (!pollutionOn(s) || !(dt > 0)) return 0;
+    var emit = pollutionEmitRate(s, HF || s._hydroFlow);
+    var clean = pollutionCleanup(s);
+    s.pollutionGross = (s.pollutionGross || 0) + emit * dt;
+    s.pollution = Math.max(0, (s.pollution || 0) + (emit - clean) * dt);
+    return emit - clean;
+  }
+  /* 医院减死亡率：p_hosp(L) = 1 − HOSP_BASE^(L/HOSP_MAX_LVL)，L=15 恰好 0.4。
+   * ⚠️ 夹在 HOSP_MAX_REDUCE 之内（用户拍「15 级到顶」）；超出等级的等级不再有收益。 */
+  function pollutionHospReduce(s) {
+    var c = pollutionCfg();
+    var maxLvl = c.HOSP_MAX_LVL || 15, maxRed = c.HOSP_MAX_REDUCE === undefined ? 0.4 : c.HOSP_MAX_REDUCE;
+    var lv = Math.min(maxLvl, s.lvl.hospital || 0);
+    if (lv <= 0) return 0;
+    var red = 1 - Math.pow(c.HOSP_BASE === undefined ? 0.6 : c.HOSP_BASE, lv / maxLvl);
+    return red > maxRed ? maxRed : red;
+  }
+  /* 污染死亡的基础概率（每秒）。F 定案：base × (1−卡) × (1−医院)，两张卡互斥只取一张。 */
+  function pollutionDeathPBase(s) {
+    if (!pollutionOn(s)) return 0;
+    var st = pollutionStage(s);
+    if (!(st.deathP > 0)) return 0;
+    var c = pollutionCfg();
+    var cardRed = polHasCard(s, 'card_disease_control') ? (c.CARD_DISEASE || 0)
+      : polHasCard(s, 'card_quarantine') ? (c.CARD_QUARANTINE || 0) : 0;
+    return st.deathP * (1 - cardRed) * (1 - pollutionHospReduce(s));
+  }
+  /* 按 dt 折算的命中概率：`1−(1−p)^dt`（B 定案）。
+   * ⚠️ 为什么必须折：0.05%/s 的 8 小时离线若只掷一次骰，等于「离线不死人」；
+   *   而按 tick 掷又会让 0.1s 步长把死亡率放大 10 倍。指数折算把三种 dt 拉回同一口径。 */
+  function pollutionDeathRisk(s, dt) {
+    var p = pollutionDeathPBase(s);
+    if (!(p > 0) || !(dt > 0)) return 0;
+    return 1 - Math.pow(1 - p, dt);
+  }
+  /* 污染死亡掷骰（Q 定案）：**整个人口每步掷一次、最多死 1 人**，不随人口数量放大。
+   *   两条时间轴都调它：economy-tick（1× 常规）与 offline-scheduler.foodAdvanceMicro（0.1s 微步）。
+   *   ⚠️ 人口 > 1 才掷（与饥荒/冻伤同一条护栏）——污染不会把最后一个族民带走。
+   *   ⚠️ emit 的两个签名并存：tick 传 `emit(msg)`，离线传 `emit(msg, at)`。用 arguments 判，
+   *      别在调用方复制一份死亡逻辑。 */
+  function pollutionRollDeath(s, dt, emit, at) {
+    if (!pollutionOn(s) || !(s.pop > 1)) return false;
+    var risk = pollutionDeathRisk(s, dt);
+    if (!(risk > 0)) return false;
+    if ((SB.rng ? SB.rng() : Math.random()) >= risk) return false;
+    s.pop--;
+    s.pollutionDeaths = (s.pollutionDeaths || 0) + 1;
+    if (SB.folk && SB.folk.reconcile) SB.folk.reconcile(s);
+    if (SB.folk && SB.folk.reconcileRobot) SB.folk.reconcileRobot(s);
+    if (emit) {
+      if (at === undefined) emit('水体污染导致一名族民死亡。');
+      else emit('水体污染导致一名族民死亡。', at);
+    }
+    return true;
+  }
+  /* 墓地限额（C 定案）：每座墓地 +4；装了《告解圣事》后每座神庙 +1。 */
+  function pollutionBurialCap(s) {
+    if (!pollutionOn(s)) return 0;
+    var c = pollutionCfg().BURIAL || {};
+    var q = (s.lvl.grave || 0) * (c.PER_GRAVE === undefined ? 4 : c.PER_GRAVE);
+    if (polHasCard(s, 'card_confession')) q += (s.lvl.temple || 0) * (c.PER_TEMPLE === undefined ? 1 : c.PER_TEMPLE);
+    return q;
+  }
+  /* 死亡→幸福消耗乘区（C 定案）：死亡**永久累积**，但按**当前**墓地配额逐帧重算 ——
+   *   扩建墓地后 Q 变大，原本超限的死亡被「回填」进限额，那部分从 3% 自动降为 0.3%
+   *   （不是锁死历史值）。⚠️ 无硬上限：死到几十上百人时 happyBurn 会被放大很多，
+   *   这是设计要的惩罚（文档 §2.2 已标风险）。 */
+  function pollutionHappyBurnMul(s) {
+    if (!pollutionOn(s)) return 1;
+    var c = pollutionCfg().BURIAL || {};
+    var D = s.pollutionDeaths || 0, Q = pollutionBurialCap(s);
+    var inCap = Math.min(D, Q), over = Math.max(0, D - Q);
+    return 1 + (c.IN_CAP === undefined ? 0.003 : c.IN_CAP) * inCap
+      + (c.OVER_CAP === undefined ? 0.03 : c.OVER_CAP) * over;
+  }
+  /* 幸福度偏移（负值）：进 _gb 基线 —— 三处必须同源，见 §2.1 的账（只改一处会让居民变贵）。 */
+  function pollutionHappyOffset(s) { return pollutionOn(s) ? pollutionStage(s).happy : 0; }
+  function pollutionKelpMul(s) { return pollutionOn(s) ? pollutionStage(s).kelpMul : 1; }
+  function pollutionCoralMul(s) { return pollutionOn(s) ? pollutionStage(s).coralMul : 1; }
+  /* 水体污染通关奖励：商人奢侈品产出 ×1.5（**跨周目永久**，按 meta.tierDone 判）。
+   * ⚠️ 三个读取者必须都调本函数（economy-social.happySupply / happyStep 的 _S / economy-rates 的
+   *   商人明细）：e2e 有一条断言钉「happySupply === tick 毛产出」，写成三份必然漂。
+   * ⚠️ 与马具(toolMul)/寡头政体(govLuxuryMul)/马镫升级(luxuryMul) **独立相乘**，不合并进任何一条。 */
+  function luxuryOutMul(s) {
+    if (!SB.challenges || !SB.challenges.tierDone) return 1;
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    return SB.challenges.tierDone('waterpollution', meta) ? 1.5 : 1;
+  }
+
   /* 副作用版（tick 调用）：算好流分配后**只扣暖石**，且把 s.res.hydro 写成「每秒供给」
    * （覆盖写，绝不再 += —— 这就是 flow 模型「不储存」的核心）。工坊据此产钢。
    * ⚠️ 单位铁律：这里存的是 **每秒**（÷dt 归一），不是「这一 tick 产多少」——
@@ -2087,6 +2323,15 @@
     if (turL > 0) {
       var warmNeed = turL * SB.UNIT.hydroWarm * dt * warmEff(s);
       s.res.warmstone -= Math.min(warmNeed, s.res.warmstone);
+      /* 水体污染（2026-11-02 · G 定案「额外」）：科技《装罐填埋》让每级运行中的汽轮机
+       *   **额外**吃 5 金属/秒（暖石照旧，不是替代）。落点在 steelFlow 而不是 hydroAlloc：
+       *   这里是本 tick 唯一扣料的地方（暖石也在这），进 hydroAlloc 会变成「纯函数有副作用」。
+       *   ⚠️ 5/s/级 × 50 台 = 250 金属/秒：真正的约束是金属产能，这就是设计要的
+       *      「用金属换污染」，也是逼迫玩家削减脏源/转洁净源的杠杆。 */
+      if (pollutionOn(s) && s.techs && s.techs.canfill) {
+        var _cfNeed = turL * (pollutionCfg().CANFILL_METAL_PER_LVL === undefined ? 5 : pollutionCfg().CANFILL_METAL_PER_LVL) * dt;
+        s.res.silt = Math.max(0, (s.res.silt || 0) - Math.min(_cfNeed, s.res.silt || 0));
+      }
     }
     var shopL = s.lvl.hydroshop || 0;
     if (shopL <= 0) return 0;
@@ -2142,7 +2387,12 @@
     return { steel: steel, hydro: hydro, hydroSupply: HF.supplyRate, starRate: HF.starRate,
       europaRate: HF.europaRate, geekRate: HF.geekRate,
       fissionStoneRate: HF.fissionStoneRate, vatFlowRate: HF.vatFlowRate,
-      coreNetRate: HF.coreNetRate };
+      coreNetRate: HF.coreNetRate,
+      /* 水体污染（2026-11-02）：把 hydroAlloc 的两枝排放与洁净源供给一起透传。
+       * ⚠️ 必须在**同一个 HF** 上取，别在 rates / 面板里另调一次 hydroAlloc ——
+       *   两次调用的 s 状态理论上相同，但「同一个快照」才是 e2e 能钉住的东西。 */
+      pollutionTurbineRate: HF.pollutionTurbineRate, pollutionOtherRate: HF.pollutionOtherRate,
+      cleanRate: HF.cleanRate };
   }
 
   /* ── ERA8（2026-10-18 · spec §3）：θ生物金属产线（生物材料研究所）────────
@@ -2390,7 +2640,12 @@
       + (SB.civic ? SB.civic.cardHappyOffset(s) : 0)
       + (SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0)
       /* 潮汐之树（2026-10-23）：安乐之治（happiness）每级 +1 幸福度基线，与政体/奇观偏移同口径。 */
-      + ((s && s.perk && s.perk.happiness) || 0);
+      + ((s && s.perk && s.perk.happiness) || 0)
+      /* 水体污染（2026-11-02）：五阶段压幸福度（浊流 −1 … 腐渊 −8）。
+       * ⚠️ 必须**同时**加进 happyBonusTotal（economy-social.js）与 happyLedger.bonusParts。
+       *   只加这里不加 happyBonusTotal ⇒ happyMech 没剥掉这项 ⇒ happyCost 反而变贵，
+       *   污染会「让居民变贵」（方向相反的 bug）；不加 bonusParts ⇒ 面板偏移之和 ≠ 机制值。 */
+      + pollutionHappyOffset(s);
     var _tMer = toolMul(s, 'merchant');
     var _uLux = upgSum(s, 'luxuryMul');
     var _lp = luxuryPactMul(s);
@@ -2407,6 +2662,8 @@
       * (SB.civic ? SB.civic.govLuxuryMul(s) : 1) * (1 + _uLux) * _lp * _bank
       * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1)
       * (SB.civic ? SB.civic.cardJobOutMul(s) : 1);   // ERA7 延长工时卡：商人产出 +30%（与面板 happySupply 同式，面板===结算）
+    /* 水体污染通关奖励（2026-11-02）：商人奢侈品产出 ×1.5。与 happySupply / rates 商人明细三处同源。 */
+    _S *= luxuryOutMul(s);
     var _Hmech = (s.happy || 0) - _gb;
     /* ⚠️⚠️ 2026-10-28 修「三处同源被漏两路」：《节能减耗》card_saving 的 happyConsumeMul ×1.5
      *   原先**只**乘在 SOCIAL.happyBurn（面板读数链）里，tick 的 _D 与 rates 的 D 都没乘
@@ -2421,7 +2678,12 @@
       * (SB.civic ? SB.civic.govHappyConsumeMul(s) : 1)
       * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1)
       /* ERA10 市政《节能减耗》：居民侧幸福度消耗 ×1.5（与政体/奇观同一条乘区链，相乘不抵消）。 */
-      * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1);
+      * ((SB.civic && SB.civic.cardHappyConsumeMul) ? SB.civic.cardHappyConsumeMul(s) : 1)
+      /* 水体污染（2026-11-02 · C 定案）：污染死亡 → 幸福消耗 ×(1 + 0.3%×限额内 + 3%×限额外)。
+       * ⚠️⚠️ 三处同乘（与《节能减耗》那次事故同一形态）：本行（在线 tick 实扣）、
+       *   economy-social.happyBurn（面板）、economy-rates 的 D（速率行）。
+       *   只改 happyBurn ⇒ 面板涨了、实扣纹丝不动，且离线（复用本函数）也漏 ⇒ 三头对不上。 */
+      * pollutionHappyBurnMul(s);
     addRes(s, 'luxury', _S * dt);
     s.res.luxury -= Math.min(_S, _D) * dt;
     s.happy = resUnlocked(s, 'luxury')
@@ -2457,6 +2719,14 @@
 
   SB.economyInternals = {
     addRes: addRes, algaeCropMul: algaeCropMul, bankMul: bankMul, baseMul: baseMul,
+    /* 水体污染（2026-11-02）：tick / 离线积分器从 P 取这一组（economy-tick 只解构 P，
+     * 挂 SB.economy 本体它拿不到 —— 与 thetaFlow 首跑 e2e 崩过的是同一个坑）。 */
+    pollutionSettle: pollutionSettle, pollutionRollDeath: pollutionRollDeath,
+    pollutionHappyBurnMul: pollutionHappyBurnMul, pollutionCoralMul: pollutionCoralMul,
+    /* rates() 读污染净速率用（与 tick 同一对函数）。
+     * ⚠️ 本文件的 economyInternals 是「只能增不能漏」的清单：rates / economy-tick /
+     *   shell / offline-scheduler 全从 P 取读数，只挂 SB.economy 本体它们拿不到。 */
+    pollutionEmitRate: pollutionEmitRate, pollutionCleanup: pollutionCleanup,
     coldSeasonMul: coldSeasonMul, coralFarmMul: coralFarmMul, coralPactMul: coralPactMul,
     cultureRate: cultureRate, faithRate: faithRate, foodRate: foodRate, foodUse: foodUse,
     fuelRate: fuelRate, furnaceBoostMul: furnaceBoostMul, gatherMul: gatherMul,
@@ -2490,9 +2760,22 @@
   };
   SB.economy = {
     fmt: fmt, fmtAmt: fmtAmt,
-    /* ERA8：θ生物金属产线（tick 走 thetaFlow、rates 走 thetaRate，与 steelFlow/steelRate 对同构）。
-     * ⚠️ 必须挂在 SB.economy 本体——economy-rates.js 的 rates() 调 SB.economy.thetaRate，
-     *    只进 economyInternals（sim 侧 P 表）运行时拿不到（首跑 e2e 即因此崩）。 */
+    /* ── 水体污染（2026-11-02）─────────────────────────────────────────────
+     * 全部集中导出口：UI 面板、challenges（阶段名/评分）、economy-tick、offline-scheduler、
+     * e2e 都从这一口读 —— 谁都不许自己再写一份阈值或乘区（面板撒谎家族的标准入口）。
+     * ⚠️ pollutionStage / pollutionEmitRate / pollutionSettle / pollutionRollDeath 是**纯函数**
+     *   （rollDeath 除外，它会改 s.pop），可在无 DOM 环境安全调用。 */
+    pollutionOn: pollutionOn, pollutionStage: pollutionStage, pollutionStageIndex: pollutionStageIndex,
+    pollutionEmitRate: pollutionEmitRate, pollutionCleanup: pollutionCleanup, pollutionSettle: pollutionSettle,
+    /* 面板读数口（2026-11-02）：拆源排放 + 清洁源供给 + 净化 + 净变，一次给全。 */
+    pollutionSources: pollutionSources, pollutionSplit: pollutionSplit,
+    pollutionRateMul: pollutionRateMul, pollutionCanfillOn: pollutionCanfillOn,
+    pollutionHospReduce: pollutionHospReduce, pollutionDeathPBase: pollutionDeathPBase,
+    pollutionDeathRisk: pollutionDeathRisk, pollutionRollDeath: pollutionRollDeath,
+    pollutionBurialCap: pollutionBurialCap, pollutionHappyBurnMul: pollutionHappyBurnMul,
+    pollutionHappyOffset: pollutionHappyOffset, pollutionKelpMul: pollutionKelpMul, pollutionCoralMul: pollutionCoralMul,
+    /* 水体污染通关奖励乘区（商人奢侈品 +50%）—— 面板/实账/速率三处同源的唯一入口。 */
+    luxuryOutMul: luxuryOutMul,
     thetaFlow: thetaFlow, thetaRate: thetaRate, thetaInputRates: thetaInputRates,
     rOf: rOf, starRate: starRate, spaceCostMul: spaceCostMul, isCold: isCold, popCap: popCap, isFull: isFull,
     growthDuration: growthDuration, lvlSum: lvlSum,
@@ -2580,15 +2863,25 @@
        *   不知道其中有多少来自政体，于是「采用古典共和 ⇒ 幸福度 +1」这条收益在面板上等于不存在。
        *   【为什么要单列而不是只给总数】偏移量是**可开关的**（换政体就消失），
        *   与供需驱动的那部分性质不同。混在一个数里，玩家会以为幸福度只能靠供需爬。
-       * ⚠️ 四项之和必须与 tick 里那个 `_gb` **逐项一致**（那是恒定器的基线来源）：
-       *   政体 happyBonus + 奇观 happyBonus + 政策卡 happyOffset + 天穹钻机 skydrill。
+       * ⚠️ 六项之和必须与 tick 里那个 `_gb` **逐项一致**（那是恒定器的基线来源）：
+       *   政体 happyBonus + 奇观 happyBonus + 政策卡 happyOffset + 天穹钻机 skydrill
+       *   + 安乐之治 perk.happiness + 水体污染 pollutionHappyOffset（2026-11-02）。
        *   漏一项 ⇒ 面板摆的偏移之和与实际机制值对不上（面板撒谎家族的标准成因）。
        *   ⚠️ 别在这里另写一份汇总：直接调那四个已导出的函数，与 tick 同源。 */
       var bonusParts = [
         { label: '政体', v: SB.civic ? SB.civic.govHappyBonus(s) : 0 },
         { label: '王国大交易所', v: SB.wonder ? SB.wonder.happyBonus(s) : 0 },
         { label: '政策卡', v: SB.civic ? SB.civic.cardHappyOffset(s) : 0 },
-        { label: '天穹钻机', v: SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0 }
+        { label: '天穹钻机', v: SB.wonder ? SB.wonder.skydrillHappyOffset(s) : 0 },
+        /* ⚠️ 2026-11-02 补（用户批「顺手修」）：本表原先只有上面 4 项，而 happyStep 的 `_gb`
+         *   与 happyBonusTotal 都是 5 项 —— 少的就是这条「安乐之治」。
+         *   后果：买了安乐之治后 `mechH = H − bonus(4项)` 比 `happyMech(s)` 大出 perk.happiness
+         *   ⇒ 面板的「人口 × 每人 = 耗」对不上实际扣费（netNeed / toNext 同偏）。
+         *   ⚠️ 旧 e2e（ui-accessibility 那条「mechH 与导出函数同值」）用的夹具 perk.happiness = 0
+         *      ⇒ 一直假绿，测不到这个缺口。新断言必须显式设成非零。 */
+        { label: '安乐之治', v: (s && s.perk && s.perk.happiness) || 0 },
+        /* 水体污染：五阶段压幸福度（负值）。与 happyStep 的 _gb、happyBonusTotal 同源同项数。 */
+        { label: '水体污染', v: pollutionHappyOffset(s) }
       ];
       var bonus = 0, nonzero = [];
       for (var bi = 0; bi < bonusParts.length; bi++) {

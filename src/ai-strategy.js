@@ -314,13 +314,22 @@
   function deferredNoResetTechOrPrereq(s, tech) {
     if (!tech) return false;
     if (deferredCycleStardustTech(s, tech)) return true;
-    /* challengeOnly 科技及其后继只在对应挑战周目里可研究。普通主线 bot 跳过这条可选支线，
-     * 避免追一个当前周目永远达不到的尤里卡；进入流浪泰拉后保留完整目标链。 */
-    var inDrift = !!(s.challenge && s.challenge.id === 'drift_terra');
-    if (!inDrift && tech.challengeOnly) return true;
+    /* challengeOnly 科技及其后继只在**允许它的**挑战周目里可研究。普通主线 bot 跳过这条
+     * 可选支线，避免追一个当前周目永远达不到的尤里卡；进了对应挑战后保留完整目标链。
+     * ⚠️ 2026-11-02 泛化：原先只认 drift_terra（`inDrift`），加《装罐填埋》（水体污染专属）
+     *   后必须按白名单判 —— 照旧写死的话，水体污染周目里的 bot 会把 canfill 及其后继
+     *   当成「永不可达」永久跳过，而玩家手动能研究 ⇒ bot 走不到戴森球、挑战永远结算不了。 */
+    var curChal = (s.challenge && s.challenge.id) || null;
+    var chalAllowed = function (t) {
+      if (!t || !t.challengeOnly) return true;
+      if (t.challengeOnly === true) return curChal === 'drift_terra';
+      if (typeof t.challengeOnly === 'string') return curChal === t.challengeOnly;
+      return t.challengeOnly.indexOf(curChal) >= 0;
+    };
+    if (!chalAllowed(tech)) return true;
     var missingId = firstMissingPrereq(s, tech.id);
     var missing = missingId && SB.tech.byId(missingId);
-    if (!inDrift && missing && missing.challengeOnly) return true;
+    if (missing && !chalAllowed(missing)) return true;
     return !!(missing && missing.id !== tech.id && deferredCycleStardustTech(s, missing));
   }
   function wonderTechPrereq(s, key) {

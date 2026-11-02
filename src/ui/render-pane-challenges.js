@@ -51,7 +51,10 @@
       var exhausted = done >= d.tiers.length, next = Math.min(done, d.tiers.length - 1);
       var blocked = !!active && !isActive;
       var activeTimedOut = isActive && d.id === 'speedrun' && api.timedOut(s);
-      var status = isActive ? (activeTimedOut ? '已超时' : s.challengeDone && d.id === 'drift_terra' ? '已达成' : '进行中') : exhausted ? '已完成' : blocked ? '等待当前挑战结束' : (d.tiers.length > 1 ? '下一档可挑战' : '尚未完成');
+      /* 「已达成」判据从硬编码 drift_terra 泛化为 `d.goal`（2026-11-02）：
+       * goal 型挑战（流浪泰拉 / 水体污染）都是「目标一达成就结算」，
+       * 没有破壳/轮回那一步，不改的话新挑战会永远显示「进行中」。 */
+      var status = isActive ? (activeTimedOut ? '已超时' : s.challengeDone && d.goal ? '已达成' : '进行中') : exhausted ? '已完成' : blocked ? '等待当前挑战结束' : (d.tiers.length > 1 ? '下一档可挑战' : '尚未完成');
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
       h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + d.badge + '" alt=""></span>' +
         '<div class="challenge-card-name"><h3>' + d.name + '</h3><small>' + d.kind + ' · ' + summary + '</small></div>' +
@@ -81,8 +84,8 @@
       if (isActive) {
         var activeFoot = activeTimedOut ? '已超时；重开本周目后可重试，档位不会消耗。' :
           active.replay === true ? '重复挑战：通关不重复发奖，只会把成绩刷进排行榜。' :
-          s.challengeDone && d.id === 'drift_terra' ? '目标已完成，永久奖励已入账；可以继续发展或开始新周目。' :
-            d.id === 'drift_terra' ? '达成目标时永久奖励会立即生效；你可以继续发展或开始新周目。' :
+          s.challengeDone && d.goal ? '目标已完成，永久奖励已入账；可以继续发展或开始新周目。' :
+            d.goal ? '达成目标时永久奖励会立即生效；你可以继续发展或开始新周目。' :
               '本轮限制生效中。通关后领取当前档奖励。';
         h += '<footer class="challenge-card-foot"><span>' + activeFoot +
           '</span><button class="btn" disabled>' + (activeTimedOut ? '本档已超时' : active.replay === true ? '重复挑战中' : '本轮挑战中') + '</button></footer>';

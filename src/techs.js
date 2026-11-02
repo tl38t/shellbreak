@@ -500,8 +500,13 @@
      * 尤里卡查鱼骨矿井、unlockBuild 查汽轮机/工坊——两件不同节点，不互锁。 */
     { id: 'metalrefine', name: '金属精炼', icon: 'assets/tech-icons/era-3/era3-metal-refining.png', era: 3, cost: 6500, branch: 'survive', key: true, reqs: ['apprentice'], layer: 2,
       cond: { t: 'upgrade', id: 'upg_fishbonemine' },
-      eff: { unlockBuild: ['hydroturbine', 'hydroshop'] },
-      note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 自动工坊 / 钢制零件。',
+      /* 水体污染挑战的《潮汐往复机》挂在本枝（设计文档 v11 §3.1「科技 金属精炼」）。
+       * ⚠️ **必须与 building 的 requiredTech 同枝**：building-shape 的
+       *   「建筑侧 requiredTech 与科技侧 unlockBuild 不冲突」断言就是钉这一条
+       *   （曾经写错到 industrialize 上 ⇒ 挑战周目里潮汐往复机永远建不出来，
+       *    而 building 自己找 metalrefine ⇒ 判定与解锁权分家，这是最隐蔽的一类断链）。 */
+      eff: { unlockBuild: ['hydroturbine', 'hydroshop', 'tidemachine'] },
+      note: 'Civ6: Metalurgy · 完成鱼骨矿井即掌握。解锁热液汽轮机 / 热液工坊 / 潮汐往复机 / 自动工坊 / 钢制零件。',
       unlockDesc: '解锁工坊配方「钢制零件」。' },
 
     /* ═══ ERA3 精铁·钢提速（用户 2026-10 设计）：黑烟囱炼铁 ─══
@@ -621,6 +626,22 @@
       eff: { unlockBuild: ['hotforge'] },
       note: 'Civ6: Industrialization · 热液能产出达到 10/s。解锁热锻工厂。' },
 
+    /* ── 水体污染挑战专属（2026-11-02 · docs/challenge-ocean-pollution-design.md §3.4）──
+     * 【装罐填埋】热液汽轮机额外耗 5 金属/秒/级（steelFlow 里直扣，暖石耗照旧），
+     *   换取汽轮机那一枝污染产出 −50%（economy.pollutionSplit 的 canfillMul）。
+     *   它是本挑战的**核心取舍**：省污染，但要拿金属去填 —— 金属线本来就吃热液能，
+     *   于是「治理」本身也变成一条间接排污的链。
+     * ⚠️ `challengeOnly: 'waterpollution'`：只在挑战周目可研究（tech.challengeOnlyOk）。
+     *   ⚠️ 别写成 `true`（那等于 drift_terra）。
+     * ⚠️ `resCost: { silt: 4000 }`：本作第一个「还要掏库存」的科技，走 tech.js 的
+     *   resCostList 四同源通道（门禁/实扣/文案/面板）。 */
+    { id: 'canfill', name: '装罐填埋', icon: '', era: 5, cost: 80000, branch: 'survive', key: false,
+      reqs: ['industrialize'], layer: 6, challengeOnly: 'waterpollution',
+      resCost: { silt: 4000 },
+      eff: {},
+      effectDesc: '热液汽轮机每秒额外消耗 5 金属（每级），其污染产出 −50%。',
+      note: '把废气封进旧罐子埋回海床：汽轮机额外耗 5 金属/秒/级，该类污染源 −50%。' },
+
     { id: 'pubedu', name: '普及教育', icon: 'assets/tech-icons/era-5/era5-public-schooling.png', era: 5, cost: 90000, branch: 'know', key: false,
       reqs: ['printing', 'physics'], layer: 5,
       cond: { t: 'rate', r: 'science', n: 100 },
@@ -676,7 +697,10 @@
 
     { id: 'chemistry', name: '化学', icon: 'assets/tech-icons/era-6/era6-chemistry.png', era: 6, cost: 400000, branch: 'know', key: true, reqs: ['modpart'], layer: 9,
       cond: { t: 'wonders', ids: ['wonder_great_library', 'wonder_albada'] },
-      eff: { unlockBuild: ['researchlab'] },
+      /* 水体污染（2026-11-02）：太阳能基站（+3 热液能/秒、不排污）的解锁权双写在这里，
+       * 与 BUILDINGS.solarstation.requiredTech 同源。非挑战周目里那座建筑被
+       * challengeOnly 挡着，解锁权写着也不会露出来（不会出现「科技说解锁了、建筑却没有」）。 */
+      eff: { unlockBuild: ['researchlab', 'solarstation'] },
       /* 关键节点（科技线高潮）。研究实验室：+10%/级（软30/硬50 递减）科技产出 + 降科研消耗-2%/级。
        * 学者→科学家（读 s.techs.chemistry，folk.jobName 同构于农民改名）。 */
       note: '解锁研究实验室（每级+10%科技产出 软30/硬50 递减 + 科研消耗-2%/级，造价全钛金板件）；完成后学者改称科学家。关键节点。' },
@@ -912,7 +936,9 @@
       /* 尤里卡 = 异星建筑总等级 >20（lvlSum，含 rheamine/titancloud/mars_workshop）。 */
       cond: { t: 'lvlSum', ids: ['rheamine', 'titancloud', 'mars_workshop'], n: 20 },
       /* 解锁 = 建筑马尔斯工造中心（BUILDINGS.mars_workshop.requiredTech 双写）。 */
-      eff: { unlockBuild: ['mars_workshop'] },
+      /* 水体污染（2026-11-02）：恩拉多克斯阵列风场（+15 热液能/秒、不排污）双写在此，
+       * 与 BUILDINGS.enladofarm.requiredTech 同源。 */
+      eff: { unlockBuild: ['mars_workshop', 'enladofarm'] },
       unlockDesc: '建筑：马尔斯工造中心（造价 160θ生物金属 + 10 强工质火箭引擎，每级产钛与钛金板件）。' },
 
     { id: 'blackhistory', name: '黑历史蓝图', icon: 'assets/tech-icons/era-9/era9-blackhistory.png?v=2', era: 9, cost: 14700000, branch: 'know', key: false, reqs: ['interplanetary'], layer: 18,

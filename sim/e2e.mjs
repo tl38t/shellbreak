@@ -30,6 +30,7 @@ import { run as runCalendarWarmstone } from './e2e-suites/calendar-warmstone.mjs
 import { run as runOfflineFastForward } from './e2e-suites/offline-fastforward.mjs';
 import { run as runOfflineCatchupFinish } from './e2e-suites/offline-catchup-finish.mjs';
 import { run as runChallenges } from './e2e-suites/challenges.mjs';
+import { run as runWaterPollution } from './e2e-suites/waterpollution.mjs';
 import { run as runAiStrategy } from './e2e-suites/ai-strategy.mjs';
 
 const errors = [];
@@ -252,6 +253,15 @@ if (process.argv.includes('--challenge-only')) {
   const failedChallenge = checks.filter(c => !c.ok);
   console.log(`\n挑战测试：${checks.length - failedChallenge.length}/${checks.length} 通过`);
   process.exit(failedChallenge.length || errors.length ? 1 : 0);
+}
+
+/* 水体污染（2026-11-02 加）：13 组断言全部自带夹具，与整局 bot 无耦合。
+ * 全量跑一轮两三分钟，改污染相关代码时靠这个入口秒级迭代；**不复制实现**。 */
+if (process.argv.includes('--pollution-only')) {
+  runWaterPollution({ SB, check, noop, dom: g });
+  const failedPol = checks.filter(c => !c.ok);
+  console.log(`\n水体污染：${checks.length - failedPol.length}/${checks.length} 通过`);
+  process.exit(failedPol.length || errors.length ? 1 : 0);
 }
 
 /* 离线补算性能专项（2026-10-31 加）：单帧预算 / 收尾这两条断言原本只在全量跑到 1000+ 条
@@ -2579,6 +2589,9 @@ await runRedeem({ SB, check, sandbox, doc, g });
 runAutoPlay({ SB, check });
 runAutoResearch({ SB, check });
 runChallenges({ SB, check, noop });
+/* 2026-11-02：水体污染（挑战专属系统）—— 每条断言都自带夹具，与整局 bot 无耦合，
+ * 但仍放在全量尾部，避免影响前面「整局时长 / 成就」这类共享状态的断言。 */
+runWaterPollution({ SB, check, noop, dom: g });
 runAiStrategy({ SB, check, noop });
 console.log('\n================ 汇总 ================');
 // B 档基线：首局（原始时代 → 破冰重置）挂机 8-14 小时 —— 全局标定，默认挂起

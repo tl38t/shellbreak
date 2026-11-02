@@ -567,7 +567,49 @@
       reqs: ['supreme_directive'], boost: { t: 'dysonPct', n: 60 },
       card: 'card_our_sea',
       desc: '解锁政策卡「我们的海」：信仰与科研产出 −30%，工坊效率翻倍（乘区 ×2）。',
-      note: '前置：至高指令。鼓舞：戴森球进度达到 60%。' }
+      note: '前置：至高指令。鼓舞：戴森球进度达到 60%。' },
+
+    /* ══ 水体污染挑战市政（2026-11-02 · docs/challenge-ocean-pollution-design.md §3.3）══
+     * 5 条全部 `challengeOnly:'waterpollution'`：
+     *   ① 树里整条不渲染（render-pane-research 的 visible 过滤）
+     *   ② 卡库里对应的卡不出现（civics.cardOwned 的同名门）
+     *   ③ 基游戏里就算把污染字段手改成大数也不会揭示（pump 的同名门）
+     * 鼓舞条件全部读污染状态（tech.condMet 的 `pollution` / `pollutionDeaths`），
+     * 阈值与五阶段一一对应（1000 / 40000 / 160000 / 6400000）。
+     * ⚠️ era / layer 必须满足「前置 layer ≤ 自身 layer」（e2e 有一条拦着）：
+     *   卫生法令·公众墓地 ← 行政部门(L2) ⇒ L3；公共卫生 ← 启蒙运动(L2) ⇒ L3；
+     *   保护地球 ← 现代思潮(L1) ⇒ L2；我们的摇篮 ← 星际政治(L3) ⇒ L3。
+     * ⚠️ cost 全部是**提议值待标定**（用户未给，按同时代同层量级顺延）。 */
+     { id: 'sanitation_act', name: '卫生法令', icon: 'assets/civic-icons/era-3/era3-sanitation-act.png', cost: 10000, era: 3, layer: 3,
+      reqs: ['department'], challengeOnly: 'waterpollution',
+      boost: { t: 'pollution', n: 1000 },
+      card: 'card_quarantine',
+      desc: '解锁政策卡「隔离病患」：污染致死概率 −15%（不受医院软上限影响）。',
+      note: '鼓舞：污染存量达 1000。' },
+     { id: 'public_grave', name: '公众墓地', icon: 'assets/civic-icons/era-3/era3-public-grave.png', cost: 10000, era: 3, layer: 3,
+      reqs: ['department'], challengeOnly: 'waterpollution',
+      boost: { t: 'pollutionDeaths', n: 1 },
+      building: 'grave', card: 'card_confession',
+      desc: '解锁建筑「墓地」（每座提供 4 个安息位）与政策卡「告解圣事」（每座神庙额外 +1 安息位）。',
+      note: '鼓舞：出现第一名因污染死亡的族民。' },
+     { id: 'public_health', name: '公共卫生', icon: 'assets/civic-icons/era-4/era4-public-health.png', cost: 65000, era: 4, layer: 3,
+      reqs: ['enlightenment'], challengeOnly: 'waterpollution',
+      boost: { t: 'pollution', n: 40000 },
+      building: 'hospital',
+      desc: '解锁建筑「医院」：每级降低污染致死几率，边际递减，15 级到顶 −40%。',
+      note: '鼓舞：污染存量达 40000（赤潮）。' },
+     { id: 'protect_earth', name: '保护地球', icon: 'assets/civic-icons/era-7/era7-protect-earth.png', cost: 550000, era: 7, layer: 2,
+      reqs: ['modern_thought'], challengeOnly: 'waterpollution',
+      boost: { t: 'pollution', n: 160000 },
+      card: 'card_protect_planet', building: 'reserve',
+      desc: '解锁政策卡「保护星球」（每名鲛人 −0.1/s 污染）与建筑「保护区」（每座 −8/s 污染）。',
+      note: '鼓舞：污染存量达 160000（死区）。' },
+     { id: 'our_cradle', name: '我们的摇篮', icon: 'assets/civic-icons/era-8/era8-our-cradle.png', cost: 3000000, era: 8, layer: 3,
+      reqs: ['space_politics'], challengeOnly: 'waterpollution',
+      boost: { t: 'pollution', n: 6400000 },
+      card: 'card_last_resort',
+      desc: '解锁政策卡「最终手段」（每级异星建筑 −0.5/s 污染）与奇观「星球气候调节卫星网」（−15/s 污染，永久）。',
+      note: '鼓舞：污染存量达 6400000（腐渊）。' }
   ];
 
   /* 槽位类型。Civ6 是 军事 / 经济 / 外交 / 万能；本作按约束 §2 砍掉军事（没有军事单位）、
@@ -1048,7 +1090,37 @@
     /* 质量效应（星屑回流改名）：轮回星屑结算 ×1.15。挂《先民遗产》(ancestor_heritage)，breakStardustMul 通道（prestige.stardustGain 结算/预览同源）。 */
     { id: 'card_mass_effect', name: '质量效应', civic: 'ancestor_heritage',
       breakStardustMul: 1.15,
-      desc: '本轮回星屑获取 ×1.15（破壳结算时计入）。', flavor: '红，蓝，还是绿？' }
+      desc: '本轮回星屑获取 ×1.15（破壳结算时计入）。', flavor: '红，蓝，还是绿？' },
+
+    /* ══ 水体污染挑战政策卡（2026-11-02 · docs/challenge-ocean-pollution-design.md §3.2）══ */
+    { id: 'card_quarantine', name: '隔离病患', civic: 'sanitation_act', type: 'grow', challengeOnly: 'waterpollution',
+      effect: {},
+      desc: '污染致死概率 −15%（不受医院 40% 的软上限影响）。',
+      flavor: '「德罗丽丝女王陛下有令，所有病人必须集中居住。」' },
+    { id: 'card_confession', name: '告解圣事', civic: 'public_grave', type: 'grow', challengeOnly: 'waterpollution',
+      effect: {},
+      desc: '每座神庙额外提供 1 个安息位（与墓地叠加）。',
+      flavor: '「求主欣然地使他得享安息与永福……」' },
+    { id: 'card_protect_planet', name: '保护星球', civic: 'protect_earth', type: 'grow', challengeOnly: 'waterpollution',
+      effect: {},
+      desc: '每名鲙人每秒净化 0.1 点污染。',
+      flavor: '「我们的星球，我们的摇篮。」' },
+    { id: 'card_last_resort', name: '最终手段', civic: 'our_cradle', type: 'grow', challengeOnly: 'waterpollution',
+      effect: {},
+      desc: '每级异星建筑（瑞亚星矿井 / 泰坦星气云采集站 / 马尔斯工造中心）每秒净化 0.5 点污染。',
+      flavor: '「阿克西斯的后部会因引力坠向地球，你们努力过头了！」' },
+    { id: 'card_disease_control', name: '疾控防治', civic: 'urbanization', type: 'grow', challengeOnly: 'waterpollution',
+      effect: {},
+      desc: '污染致死概率 −30%（不受医院软上限影响，取代「隔离病患」）。',
+      flavor: '「请在这里排队检测核酸。」' },
+    { id: 'card_pollution_control', name: '污染治理', civic: 'enlightenment', type: 'prod', challengeOnly: 'waterpollution',
+      effect: {},
+      desc: '污染产出 −20%（与「绿色运动」互斥，后者更强且取代前者）。',
+      flavor: '「伦尼姆，帝国的明珠，但贫民窟的孩子很难在这里的工业废水中活过 14 岁。」' },
+    { id: 'card_green_movement', name: '绿色运动', civic: 'globalization', type: 'prod', challengeOnly: 'waterpollution',
+      effect: {},
+      desc: '污染产出 −40%（取代「污染治理」）。',
+      flavor: '「How dare you！」' }
   ];
   // Public content tables are shared by migration, UI, and the civic rules module.
   SB.CIVICS = CIVICS;

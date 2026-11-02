@@ -107,8 +107,33 @@
   function retired(s, b) {
     return !!(b && b.retiredBy && s && s.lvl && (s.lvl[b.retiredBy] || 0) > 0);
   }
+  /* 挑战专属建筑白名单（2026-11-02 新增，与 `noChallenge` 黑名单配对的另一半）。
+   *   `noChallenge: ['drift_terra']` = 基游戏有、这个挑战里不能建（虚境祭坛）
+   *   `challengeOnly: 'waterpollution'` / ['id',...] = **只有**这些挑战周目里能建
+   * ⚠️ 判「当前周目」而不是「已通关」：挑战专属建筑是**本局**的工具，通关回到基游戏周目
+   *   就该消失（否则玩家能用 +15/s 的洁净热源白嫖整局，整个挑战的设计支点就没了）。
+   * ⚠️ 非挑战周目 `s.challenge` 为 null ⇒ 恒 false ⇒ 整行不出现，连灰按钮都没有。 */
+  function challengeAllows(s, b) {
+    var co = b && b.challengeOnly;
+    if (!co) return true;
+    var cur = s && s.challenge && s.challenge.id;
+    if (!cur) return false;
+    if (co === true) return cur === 'drift_terra';
+    if (typeof co === 'string') return cur === co;
+    return co.indexOf(cur) >= 0;
+  }
+  function challengeOnlyName(co) {
+    var list = (co === true || !co) ? ['drift_terra'] : (typeof co === 'string' ? [co] : co);
+    var names = [];
+    for (var i = 0; i < list.length; i++) {
+      var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
+      names.push(c ? c.name : list[i]);
+    }
+    return names.join(' / ');
+  }
   function unlocked(s, b) {
     if (b.noChallenge && s && s.challenge && b.noChallenge.indexOf(s.challenge.id) >= 0) return false;
+    if (!challengeAllows(s, b)) return false;
     if (b.defaultUnlockable) return true;
     if (retired(s, b)) return false;
     /* 默认锁着。猫国的 `unlockable` 在 Spec 里是 MANDATORY（必填），
@@ -147,6 +172,9 @@
   function lockReason(s, b) {
     if (b.noChallenge && s && s.challenge && b.noChallenge.indexOf(s.challenge.id) >= 0)
       return '流浪泰拉挑战期间不可建造';
+    /* 挑战专属建筑：排在科技/市政墙**之前** —— 先说「这周目根本没有这座建筑」，
+     * 再说「还差什么科技」，否则玩家会以为研究完那几个科技就能建。 */
+    if (!challengeAllows(s, b)) return '仅限' + challengeOnlyName(b.challengeOnly) + '挑战期间建造';
     if (b.requiredTech) {
       for (var i = 0; i < b.requiredTech.length; i++) {
         if (!s.techs[b.requiredTech[i]]) {

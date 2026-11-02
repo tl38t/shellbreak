@@ -48,6 +48,11 @@
       var wonderDesc = SB.wonder.displayDesc(s, w.id);
       var why = done ? null : SB.workshop.wonderBlocked(s, w.id);
       if (!done && why && /^需要先/.test(why)) continue;   // 未解锁 ⇒ 整行不显示
+      /* 挑战专属奇观（2026-11-02）：不在本局就整行不显示。
+       * ⚠️ 不能靠上面那条 `/^需要先/` 顺带过去 —— challengeOnly 的拒绝文案是
+       *   「仅限…期间建造」，不以「需要先」开头 ⇒ 会被当成「已解锁但材料不够」显示出来，
+       *   玩家看到一座永远建不了的奇观。判据走 civics 的同一道白名单门。 */
+      if (!done && w.challengeOnly && SB.civic && SB.civic.challengeAllows && !SB.civic.challengeAllows(s, w)) continue;
       shown++;
       if (done) completed++;
       if (hideDone && done) continue;
@@ -58,7 +63,13 @@
       cards += '<div class="row' + (done ? ' is-owned' : '') + '"' + (done ? ' data-owned="1"' : '') + '>' +
         '<div class="nm">' + icon + '<div class="wonder-name-copy"><div class="wonder-name-line"><button type="button" class="building-name" data-wonder-info="' + w.id + '" aria-haspopup="dialog" title="查看奇观效果与建造条件">' + wonderName + '</button>' + (done ? ' <span class="tag ok">已建成</span>' : '') + '</div>' +
         (done ? SB.ui.renderCommon.happyBonusNote(s, 'wonder', w.id) : '') + '</div></div>' +
-        '<div class="ds">' + wonderDesc + '<span class="wonder-cost">建造材料：' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) + '</span></div>' +
+        '<div class="ds">' + wonderDesc + '<span class="wonder-cost">建造材料：' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) +
+          /* 建筑等级成分（2026-11-02 · costBuild）：与材料分开写，因为它不是库存、
+           * 也吃不到任何折扣（且 costTxt 只认资源名）。 */
+          (function () {
+            var bt = (SB.wonder && SB.wonder.buildCostText) ? SB.wonder.buildCostText(s, w.id) : '';
+            return bt ? '<span class="wonder-cost">消耗建筑：' + bt + '</span>' : '';
+          })() + '</div>' +
         (!done ? '<span class="wonder-state ' + (why ? 'waiting' : 'ready') + '">' + (why ? '材料不足' : '可建造') + '</span>' : '') +
         '<span class="wonder-actions">' +
         '<button class="btn' + (done || why ? '' : ' buy') + '" data-wonder="' + w.id + '"' +
@@ -66,7 +77,11 @@
         (function () {
           var wcost = SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost;
           var wtxt = SB.economy.costOwnedTxt(s, wcost);
-          return done ? '已建成' : why ? (/^需要先/.test(why) ? '未解锁' : '建不起 ' + wtxt) : '建成 ' + wtxt;
+          /* 建筑等级也算在「建不起」里（2026-11-02）：否则玩家会看到
+           * 「建成（材料全齐）」而按钮是灰的 —— why 里写着缺建筑等级。 */
+          var btxt = (SB.wonder && SB.wonder.buildCostLack && SB.wonder.buildCostLack(s, w.id).length)
+            ? '＋' + SB.wonder.buildCostText(s, w.id) : '';
+          return done ? '已建成' : why ? (/^需要先|^仅限/.test(why) ? '未解锁' : '建不起 ' + wtxt + btxt) : '建成 ' + wtxt + btxt;
         })() + '</button>' +
         /* 建造追踪（2026-10-29）：只在「材料不足」时给。未解锁的不给（连材料清单都还看不到），
          * 已建成的也不给。与巢穴建筑行同一个 s.track 与同一个 data-track 委托。
