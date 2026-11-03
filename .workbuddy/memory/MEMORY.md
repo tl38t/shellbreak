@@ -10,7 +10,7 @@
 - **唯一回归 = `node --max-old-space-size=8192 sim/e2e.mjs`**（4096 会 EXIT=139）。⚠️ 单次红绿不是结论，**连跑 3 次看分布**。
 - **判据：改常数让断言变绿 = 标定→停；改代码让 NaN/死锁/永远建不起来消失 = bug→可做。**
 - ⚠️ **`defer` ≠ `pending`**：defer=最后统一算；pending=当前设计下不可能成立，挂起+写死理由，**绝不改断言迁就现状**。
-- ⚠️ **破壳 ≠ 本局结束**（2026-11-03 定案，推翻 2026-10-15 旧假设）：ERA10 全在破壳之后，`economy.tick` 不再因 `s.broken` 早退；破壳只弹「破壳结果」+ 当场判定破壳型挑战（读 `challengeSeal` 快照），**结算只在玩家主动点底栏「轮回」**；`s.broken` 从破壳起一直 true 到换局，`stay()` 已删。
+- ⚠️ **破壳 ≠ 本局结束**（2026-11-03 定案，推翻 2026-10-15 旧假设）：ERA10 全在破壳之后，破壳只弹「破壳结果」+ 当场判定破壳型挑战（读 `challengeSeal` 快照），**结算只在玩家主动点底栏「轮回」**；`s.broken` 从破壳起一直 true 到换局，`stay()` 已删。⚠️ **停摆要在调用方拆门**：只删 `economy-tick` 首行早退是零效果（1.0.13 就这么漏的），`game.js` 的主循环/离线补算/UI 刷新/自动存档/退出 flush + `save-transfer` 的手动与云存档共 9 处 `!broken` 必须一起拆（2026-11-03 已修，未发版；回归锁 `sim/e2e-suites/break-continue.mjs`）。
 - ⚠️ **`s.upgrades.<id>` 只有两态**（`workshop.js upgradeBuy` 只写 `= true`），绝不可当数量做乘算；等级一律读 `s.lvl.<建筑>`（对标 `castleCapBonus`）。
 - ⚠️ **夹具口径必须与生产写入路径逐字一致**：曾用 `upgrades.x = 2`（当等级）而生产只写 `true` ⇒ 假绿掩盖真 bug 两周。造夹具前先回查「哪个函数写这个字段、写什么类型」。
 - **同一文件多处修改必须串行下发**：并行 Edit 互相覆盖（都回成功、回归照样绿）。改完**回盘 grep 终值**才算改好。
@@ -29,7 +29,7 @@
 - **水体污染**：已实装、已发 Ver1.0.12（`V-20261103`）。`pollutionSplit` 是唯一脏源算式；内容挂 `challengeOnly:'waterpollution'`；suite 51 条（`--pollution-only`）。⚠️ **TapTap 未建 `pollution` 榜**（`RANK.LB.pollution` 空串 ⇒ 通关不上榜）。⚠️ **成就「海渊澄明」2026-11-03 才补**（`achv.js` 定义 + `CFG.ACHV.pollutionClear='0'` + 定义里 `onComplete`），平台 ID 待后台建，现在只记本地账本。goal 型展示面同日补齐：完成面板标题读 `outcome.name`、四段分镜只对 `drift_terra` 播、挑战页进度走 `progressLine` 单一落点、破壳后补 `.challenge-active.is-readonly` 只读进度。⚠️ 待标定：6 建筑造价、5 市政 600/800/1000 万、五阶段死亡率。见 JUDGMENTS 五点三十三。
 - **ERA10（戴森纪）**：已实装入库（`4d64aaf`/`ac647f6`）。落点 = `launchLvl/launchCycleOf/launchHydroPer`，发射场清单由 `BUILDINGS[].launchpad` 反推；`pop` 非 RESS 键 ⇒ costOf/canAfford/pay/costOwnedTxt 四处必须跳过。待标定：戴森可达性（现 1 帆/10s/级）、市政成本、两座发射场造价。
 - **兑换码**：代码全、入口隐藏（`ready()` 假 ⇒ 整块连标题一起隐藏）。入账必须**同时**写 `tide` 与 `tideEarnedTotal`+`compensationTotal`；`character_id` **绝不可写常量**（用 `meta.installId`）。**待办**：`CFG.REDEEM.CLIENT_ID`/`ACTIVITY_ID` 只能后台拿；容器能否直连 `poster-api.xd.cn` 未验证。见 JUDGMENTS 五点三十二。
-- **版本线（2026-11-03 实测）**：线上 `V-20261102` = Ver1.0.11；审核中 `V-20261103` = Ver1.0.12（`1209794a`，rc39 / 479 文件）。⚠️ **判审没审过只认 `get_current_app_info` 草稿段**（`get_app_status` 无视 `app_id`，审核中也回「已上线(4)」）。⚠️ 试上传不能拿真应用当靶子（曾误传 898459）。
+- **版本线（2026-11-03 17:33 实测）**：线上 `V-20261103` = **Ver1.0.12 已过审上线**；**审核中 `V-20261103-1` = Ver1.0.13**（commit `bbe69e68` 已 push，包 `rc40-v1.0.13.zip` 479 文件 / 55,714.6 KB，SHA-256 `592f6f83…d3c0b0` 全断言 PASS：破壳体验重做 + 挑战门禁二选一 + 多级科技读档修复 + goal 型展示补齐）。⚠️ **发版前必跑「工作区 vs 上一版 zip 逐文件 md5」对比脚本**：本轮抓到 `economy.js` 内容变了但 ?v 漏 bump。⚠️ **判审没审过只认 `get_current_app_info` 草稿段**（`get_app_status` 无视 `app_id`）。⚠️ 试上传不能拿真应用当靶子（曾误传 898459）。
 - **TapTap 发布**：**963517 已弃用，全部更新走 996563**。广告位 `SPACE_ID:'1054324'`（996563 竖屏，接对了）。⚠️ 封包必须**单文件夹** `shellbreak/`，必跑两条判据（顶层唯一 + 真解压复查）。⚠️ `taptap-minigame` MCP cwd=`D:\EVE-IDLE`，`gamePath` 只收相对路径 ⇒ 写 `../shellbreak/TAPTAP-H5-OUTPUT/...`。
 - **排行榜**：9 个榜已在 996563 建齐（旧 963517 的 7 个 ID 全废）。⚠️ 本宿主 MCP 自带 `start→complete` 永远失败（`pendingState` 纯内存 + `uA()` 轮询上限 120s）；掉线用 `tmp/_tt_a_devcode.mjs` + `tmp/_tt_b_poll.mjs`，token 落 `cache/local/oauth-token.json`。`TAPTAP_MCP_MAC_TOKEN` 不可用。
 - **历史遗留阻塞（用户曾拍「暂时先不管」）**：地热线恒 0（`fuelRate` 首行 return 0）⇒ 破冰/跨周目走不到；覆盖洞 bot 凿料阈值饿死大图书馆链；成本跨仓储上限（大灯塔/大图书馆精铁 > `CAP_BASE.iron`）。

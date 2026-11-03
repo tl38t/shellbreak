@@ -171,7 +171,10 @@
     var s = null;
     try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) { s = null; }
     if (!s) { saveNowFeedback('当前没有可保存的进度。', true); return false; }
-    if (s.broken) { saveNowFeedback('当前进度异常（已进入存档保护），无法保存。', true); return false; }
+    /* ⚠️ 2026-11-03：这里原有一条「破壳即存档保护，拒绝保存」。破壳曾是本局终点，
+     *   现在它只是里程碑（后面还有整个 ERA10），broken 会一直为真到换局
+     *   ⇒ 那条判据会让玩家破壳后**永远存不了档**，还弹「当前进度异常」误导成存档坏了。
+     *   真正的异常态判据是「快照生成失败」，由下面那句负责。 */
     var snap = null;
     try { snap = SB.game.snapshot(s); } catch (e) { snap = null; }
     if (!snap) { saveNowFeedback('保存失败：无法生成进度快照。', true); return false; }
@@ -647,8 +650,9 @@
     if (!cloudAvailable()) return;           // 非 TapTap 环境：静默跳过，不报错
     var s = null;
     try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) { return; }
-    /* 破壳未结算时状态是过渡态，传上去价值低、还可能与结算后的档打架 —— 跳过。 */
-    if (!s || s.broken) return;
+    /* ⚠️ 2026-11-03：原先写「破壳未结算时是过渡态，跳过上传」。现在破壳后 broken 长期为真
+     *   ⇒ 这条会让破壳后的 ERA10 进度**永远不上云**，跨设备就丢。破壳不再是过渡态。 */
+    if (!s) return;
     var now = Date.now();
     if (now - autoState.lastTryAt < AUTO_GAP_MS) return;
     var m = SB.game && SB.game.meta ? SB.game.meta() : null;

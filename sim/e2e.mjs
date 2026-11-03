@@ -32,6 +32,8 @@ import { run as runOfflineCatchupFinish } from './e2e-suites/offline-catchup-fin
 import { run as runChallenges } from './e2e-suites/challenges.mjs';
 import { run as runWaterPollution } from './e2e-suites/waterpollution.mjs';
 import { run as runAiStrategy } from './e2e-suites/ai-strategy.mjs';
+/* 2026-11-03：破壳不再是本局终点 —— 破壳后在线推进/存档的门禁回归锁。 */
+import { run as runBreakContinue } from './e2e-suites/break-continue.mjs';
 
 const errors = [];
 const checks = [];
@@ -272,6 +274,15 @@ if (process.argv.includes('--perf-only')) {
   const failedPerf = checks.filter(c => !c.ok);
   console.log(`\n离线补算性能：${checks.length - failedPerf.length}/${checks.length} 通过`);
   process.exit(failedPerf.length ? 1 : 0);
+}
+
+/* 破壳后推进专项（2026-11-03）：玩家报「破壳后卡着不动」的回归锁。
+ * 只跑源码判据 + 两条行为判据，秒级迭代；**不复制实现**。 */
+if (process.argv.includes('--break-only')) {
+  runBreakContinue({ SB, check });
+  const failedBreak = checks.filter(c => !c.ok);
+  console.log(`\n破壳后推进：${checks.length - failedBreak.length}/${checks.length} 通过`);
+  process.exit(failedBreak.length || errors.length ? 1 : 0);
 }
 
 /* ⚠️ 2026-10-20 补：假点击目标**必须带祖先 closest 能力**，否则整类「祖先特征判据」的
@@ -2676,6 +2687,8 @@ runChallenges({ SB, check, noop });
 /* 2026-11-02：水体污染（挑战专属系统）—— 每条断言都自带夹具，与整局 bot 无耦合，
  * 但仍放在全量尾部，避免影响前面「整局时长 / 成就」这类共享状态的断言。 */
 runWaterPollution({ SB, check, noop, dom: g });
+/* 2026-11-03：破壳后推进/存档回归锁。放尾部：它会临时把主 fixture 置 broken 再还原。 */
+runBreakContinue({ SB, check });
 runAiStrategy({ SB, check, noop });
 console.log('\n================ 汇总 ================');
 // B 档基线：首局（原始时代 → 破冰重置）挂机 8-14 小时 —— 全局标定，默认挂起

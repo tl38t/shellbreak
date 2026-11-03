@@ -1068,7 +1068,11 @@
 
     /* 离开过的间隙：后台期间定时器基本不跑，这里在下次回调时才算得出来，
      * 于是「离线补算」和「切回前台补算」是同一条路径。 */
-    if (S && !S.broken && loop._lastWall) {
+    /* ⚠️ 2026-11-03（玩家报「挑战中破壳后游戏卡着不动」）：这里原带 `!S.broken`。
+     *   破壳后 ERA10 是正文内容（发射场 → 戴森球 → 星图），离开一段同样要给离线收益；
+     *   带 broken 门等于「破壳后切后台 = 白挂」。真正的暂停由各模块自判（削壳/钻机/星空槽）。
+     *   同批拆掉的还有：主循环 while(1131)、广告时间银行、UI 刷新、自动存档、退出 flush。 */
+    if (S && loop._lastWall) {
       var gap = (wall - loop._lastWall) / 1000;
       /* 2026-10-24 分级离线：gap ≥ OFFLINE_MIN 都要补算（挂机收益一分不少），
        * 但 gap < OFFLINE_SETTLE_MIN（30min，用户拍板）时静默补算——
@@ -1087,7 +1091,8 @@
      *   等于奖励氪金与挂机。
      * ⚠️ 离线也照涨（游戏本就支持离线补算）；要「有效游玩时长」得再扣离线段，那是另一口径。
      * ⚠️ 补算期间（loop.job）同样要涨 —— 墙钟确实在走，且 offlineCap 已封顶。 */
-    if (S && !S.broken && loop._wtPrev) {
+    /* 排行榜墙钟计时：破壳后照走（同一批拆门：破壳不是本局终点）。 */
+    if (S && loop._wtPrev) {
       var wtGap = (wall - loop._wtPrev) / 1000;
       /* 上限守卫：单次差值超过 1 天基本是机器被挂起/系统休眠了，那段时间不该算成绩。
        * ⚠️ 门槛用字面量 86400而不是 SB.CFG.OFFLINE_MIN —— 后者语义是
@@ -1114,7 +1119,7 @@
      * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。
      * ⚠️ 只在**在线**扣：离线补算期间（loop.job=true）由 drainCatchUp 按真实离线秒统一扣减（且吃 2×），
      *    这里加 !loop.job 守卫，避免离线时既被 nibble 又不给 2× 进度的双重错账。 */
-    if (!loop.job && S && !S.broken && S.ad && S.ad.on && S.ad.ms > 0) {
+    if (!loop.job && S && S.ad && S.ad.on && S.ad.ms > 0) {
       var adWas = S.ad.ms > 0;
       S.ad.ms = Math.max(0, S.ad.ms - elapsed * 1000);
       if (adWas && S.ad.ms === 0) dirty = true;
@@ -1128,7 +1133,12 @@
     var fastClock = fastOnline ? { tp: loop._tp || 0 } : null;
     /* 补算进行中时暂停实时推进：这段墙钟时间已经在补算里算过了，
      * 再叠加实时 tick 就是重复计时。 */
-    while (!loop.job && loop.acc >= STEP && S && !S.broken) {
+    /* ⚠️ 2026-11-03：这里原本是 `while (… && S && !S.broken)`。
+     *   Ver1.0.13 只删了 economy-tick.js 首行的 `if (s.broken) return;`，门却留在这里 ——
+     *   tick 压根不被调用，删早退等于零效果，破壳后依旧全停（玩家报的就是这个）。
+     *   破壳后该停的东西各自判：削壳 shell.tickShell、钻机 economy.hydroAlloc、
+     *   挑战限制 challenges.active()。本局唯一终点 = 玩家主动轮回（askResetRun）。 */
+    while (!loop.job && loop.acc >= STEP && S) {
       var onlineDt = STEP;
       if (fastOnline) {
         /* 30× 在线要求约 300 个完整 economy.tick/秒；浏览器主线程追不上时，
@@ -1139,7 +1149,9 @@
         onlineDt = offlineStep(S, fastClock, loop.acc);
         var onlineT0 = S.t;
         SB.economy.tick(S, onlineDt, emit, { skipFoodPop: true, skipHappy: true });
-        if (!S.broken) SB.offline.integrateFoodPop(S, onlineDt, { t0: onlineT0 }, emit);
+        /* 破壳后人口/食物照常推进（同一批拆门）：挑战成绩已由破壳快照定格，
+         *   破壳后的人口变化不会再改写判定，所以这里没有理由冻结。 */
+        SB.offline.integrateFoodPop(S, onlineDt, { t0: onlineT0 }, emit);
         batchFastTicks++;
       } else {
         SB.economy.tick(S, onlineDt, emit);   // 天壳推进在 tick 内完成（基础削壳 + 祭坛削壳）
@@ -1181,12 +1193,21 @@
      *   而那个闸会让「破壳后一直不结算」的局永远攒不到星空 —— 现在破壳即开始累积。 */
     if (S) SB.shell.tickStar(S, elapsed * speed * adMul(), emit);
 
+    /* ⚠️ 2026-11-03：这块原先是 `if (S && !S.broken) { … }`，把**UI 刷新**也一起关掉了 ——
+     *   破壳后界面连顶栏、资源数字都不再重绘，玩家看到的就是「游戏卡死」（玩家反馈原话）。
+     *   现在只把「壳面相关」的跑动留在 !broken 里，UI 与自动点击无条件跑。 */
     if (S && !S.broken) {
       /* 点击时间事件（天壳震动等）：只在线推进——离线补算 drainCatchUp 不跑本系统。
-       * 用墙钟节流（events.update 内部），不随倍速放大。事件模块自带独立 RNG，不碰 SB.rng。 */
+       * 用墙钟节流（events.update 内部），不随倍速放大。事件模块自带独立 RNG，不碰 SB.rng。
+       * 破壳后没有壳面可震，omen 事件也属于破壳前期内容，故保留 !S.broken。 */
       if (SB.events) SB.events.update(S, emit);
       /* 自动拾取点击事件（轮回商店 autoEvent）：只在线（!loop.job）。出现即领，玩家无需点 #omen 横幅。 */
       if (!loop.job && SB.autoplay) SB.autoplay.autoEventClaim(S, emit);
+      /* 新手引导走查：每帧（或每 2 秒 pane 刷新）评估推进条件并重定位高亮。
+       * 无 DOM / 未激活时内部早退，不影响正常循环与 e2e。破壳后引导早已走完，留在本门内。 */
+      if (SB.onboarding && SB.onboarding.tick) SB.onboarding.tick(S);
+    }
+    if (S) {
       /* 面板读数的周期刷新：**墙钟** 2 秒一次，与倍速无关。
        * 【为什么不在泵里顺手置脏】泵按逻辑秒节流，10× 速下等于 0.2 秒一趟，
        * 那是拿「整块重建五个 pane（含 33 个节点的科技长卷）」当代价去刷几个数字，
@@ -1197,17 +1218,18 @@
         loop._lastPane = now; dirty = true;
       }
       if (dirty) renderAll(); else SB.ui.render.renderTick();
-      /* 新手引导走查：每帧（或每 2 秒 pane 刷新）评估推进条件并重定位高亮。
-       * 无 DOM / 未激活时内部早退，不影响正常循环与 e2e。 */
-      if (SB.onboarding && SB.onboarding.tick) SB.onboarding.tick(S);
       /* 自动采集点击（轮回商店 autoClick，N 次/真实秒）：只在线（!loop.job），用帧钟 elapsed 累计，
-       * 不随倍速放大——倍速只加快世界、不加快自动点击节奏。 */
+       * 不随倍速放大——倍速只加快世界、不加快自动点击节奏。
+       * 破壳后照跑：这是玩家花钱买的常驻能力，破壳不退还、也不该停。 */
       if (!loop.job && SB.autoplay && SB.autoplay.autoClick) SB.autoplay.autoClick(S, elapsed, emit);
     }
     if (S && SB.challenges && SB.challenges.evaluate) SB.challenges.evaluate(S, meta);
     if (S) flushChallengePopup();
-    // 存档节流：localStorage 写入较贵，5 秒一次足够
-    if (S && !S.broken && now - (loop._lastSave || 0) > 5000) {
+    /* 存档节流：localStorage 写入较贵，5 秒一次足够。
+     * ⚠️ 2026-11-03：原先带 `!S.broken`。破壳后 s.broken 会一直为真到换局（stay() 已删），
+     *   这条门会让破壳后的整个 ERA10 进度**永不落盘**，而手动存档那边还会报「存档保护」。
+     *   破壳只是里程碑，不是异常态 ⇒ 破壳后照常自动存档。 */
+    if (S && now - (loop._lastSave || 0) > 5000) {
       loop._lastSave = now;
       SB.state.saveRun(snapshot(S));
     }
@@ -1423,7 +1445,11 @@
   }
   function flushChallengePopup() {
     var outcome = meta && meta.challengePopupPending;
-    if (!outcome || !S || (S.broken && S.shellOpened && !S.breakSettled)) return false;
+    /* ⚠️ 2026-11-03：这里原有一条 `(S.broken && S.shellOpened && !S.breakSettled)` 早退，
+     *   用来「破壳待结算时不抢 modal」。但破壳后 broken 会一直为真到换局（stay() 已删）
+     *   ⇒ goal 型挑战（水体污染 / 流浪泰拉）在破壳后达成时，这条弹窗**永远不弹**。
+     *   避免抢 modal 的职责由下面那句「modal 未隐藏就返回」承担，判据只留它。 */
+    if (!outcome || !S) return false;
     var modal = root.document && root.document.getElementById ? root.document.getElementById('modal') : null;
     if (modal && !modal.classList.contains('hidden')) return false;
     var shown = SB.ui && SB.ui.render && SB.ui.render.showChallengeComplete
@@ -2413,8 +2439,10 @@
     syncAudioSetting();
     if (SB.audio && SB.audio.init) SB.audio.init();
     /* 关标签页 / 刷新前立刻落盘：有 5 秒节流在，玩家在这一窗口里刷新就会丢最后几秒，
-     * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。 */
-    function flush() { if (!suppressExitSave && S && !S.broken) SB.state.saveRun(snapshot(S)); }
+     * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。
+     * ⚠️ 2026-11-03：去掉 `!S.broken`。破壳后 broken 长期为真 ⇒ 这一条曾让「破壳后的
+     *   ERA10 进度」在切后台 / 关页面时整体丢失（自动存档那条同批拆门）。 */
+    function flush() { if (!suppressExitSave && S) SB.state.saveRun(snapshot(S)); }
     if (root.addEventListener) root.addEventListener('pagehide', flush);
     if (root.tap && typeof root.tap.onHide === 'function') root.tap.onHide(function () {
       flush();

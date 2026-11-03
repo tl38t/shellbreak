@@ -626,10 +626,12 @@
 
     // 8) 天壳推进（基础削壳 + 祭坛削壳）
     SB.shell.tickShell(s, dt, emit, opts);
-    /* ⚠️ 星空槽（starExplore）的累积**不放这里**：economy.tick 在 s.broken 时于顶部直接早退
-     *   （line 1335 `if (s.broken) return;`），破壳后这条路径根本不跑。
-     *   星空槽是破壳后的终局资源，累积由 game.loop()（在线）/ drainCatchUp()（离线）直接调
-     *   SB.shell.tickStar 推进——见 game.js。放这里只会变成永远到不了的死代码。 */
+    /* ⚠️ 星空槽（starExplore）的累积**不放这里**：它按「真实帧时」推进
+     *   （game.loop 里 `elapsed * speed * adMul()`；离线由 drainCatchUp 按真实离线秒另算），
+     *   而本函数吃的是逻辑步长 dt —— 放这里会变成两套口径、倍速与离线各算一遍。
+     *   ⇒ 累积只由 SB.shell.tickStar 在 game.js 的两个入口推进（内部自己判壳厚/已破壳）。
+     *   ⚠️ 2026-11-03 更正：本条注释此前写的是「economy.tick 在 s.broken 时顶部直接早退，
+     *     放这里是死代码」。那句早退已删，破壳后本函数照跑；上面这条口径理由才是它不在本函数里的原因。 */
 
     /* ERA4（2026-10-01）：换季那一发资源不在 tick 里直接发——tick 中途状态半更新，
      * 此刻读 rates() 拿到的数值口径是脏的。只置标记，由 game 主循环在 tick 返回后、

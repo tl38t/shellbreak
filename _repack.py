@@ -146,7 +146,15 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.13'" in _cfg, '包内 config.js 版本号不是 Ver1.0.13'
+assert "VERSION: 'Ver1.0.14'" in _cfg, '包内 config.js 版本号不是 Ver1.0.14'
+assert "v: 'Ver1.0.14'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.14 条目'
+# Ver1.0.14 玩家可见 2 条：破壳后停摆 / 破壳后存档被拒绝。
+# 背景：1.0.13 只删了 economy.tick 首行的 broken 早退，但调用方 game.js 主循环的 !S.broken 还在
+# ⇒ 改动零效果；同时旧出口 stay() 被删 ⇒ 玩家连「退出本局」都没有，表现为死机。
+# 这两条必须同时在，缺任何一条这次等于白改。
+for _kw in ['修复破壳之后游戏停摆不动的问题',
+            '修复破壳之后无法存档的问题']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.14 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.13'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.13 条目'
 # Ver1.0.13 玩家可见 9 条：4 修复（多级科技读档后无法升级 / 水体污染面板错标流浪泰拉 /
 # 水体污染挑战页显示寒流文案 / 读档纪元回退）+ 5 新增改进（破壳体验重做 / 破壳挑战结算二选一 /
