@@ -30,11 +30,38 @@
      *   （水体污染）后，读档会把 challengeDone 抹成 false ⇒ **本局可以重复领奖**
      *   （重放结算分镜 + 重复写 meta）。判据改成「有挑战 且 该挑战靠 goal 即时结算」——
      *   goal 型挑战的 challengeDone 由 challenges.award 写，非 goal 型由破壳/轮回结算写，
-     *   两者都要保留。 */
+     *   两者都要保留。
+     * ⚠️ 2026-11-03：破壳型挑战改成「破壳即判定」，它的 challengeDone 也会在**局内**为真。
+     *   再按 goal 过滤一遍，破壳后刷新一次就把 done 抹成 false ⇒ challenges.evaluate 的
+     *   补判分支会拿同一份 seal 再判一次（账本能挡住重复发奖，但会重复报榜与重复写日志）。
+     *   ⇒ 只要有 challenge 就保留 done；真正的幂等在 resolveRun 的 tier 判据里。 */
     out.challengeDone = !!(raw.challengeDone && out.challenge && SB.challenges
-      && SB.challenges.byId(out.challenge.id) && SB.challenges.byId(out.challenge.id).goal);
+      && SB.challenges.byId(out.challenge.id));
     out.challengeOutcome = out.challengeDone && raw.challengeOutcome && typeof raw.challengeOutcome === 'object'
       ? raw.challengeOutcome : null;
+    /* 破壳快照（2026-11-03）：破壳瞬间冻下的判据，跨读档必须保留 ——
+     * 丢了它，「破壳时没学《神学》、补学之后补判」就只能退回实时值，
+     * 等于让玩家在破壳后用操作改写已完成挑战的成绩。 */
+    var rawSeal = raw.challengeSeal;
+    out.challengeSeal = (rawSeal && typeof rawSeal === 'object'
+        && typeof rawSeal.elapsed === 'number' && isFinite(rawSeal.elapsed))
+      ? { at: rawSeal.at | 0,
+          /* 允许 -1（= 该局没有有效计时，非限时挑战的常态）：不能 Math.max(0, …) 抹成 0，
+           * 那会让「无计时」在判定侧被当成「刚出发 0 秒」。 */
+          elapsed: rawSeal.elapsed,
+          peak: Math.max(0, rawSeal.peak || 0),
+          scholar: Math.max(0, rawSeal.scholar | 0),
+          scribe: Math.max(0, rawSeal.scribe | 0),
+          qualified: rawSeal.qualified === true }
+      : null;
+    /* 挑战限制解除标记（2026-11-03）：破壳不再自动解除限制，改由玩家在破壳结果面板里选。
+     * ⚠️ 老档（无此键）必须默认 true —— 反了就是灾难级事故：读档瞬间深渊重压的 -60% 回来、
+     *   小国寡民人口上限掉到 15 触发缓慢离场、忽视科文把已有学者从 20 砍到 5。
+     * 判据：有布尔值就信它（新档即使 false 也会被 JSON 序列化保留，不会被当成「缺失」）；
+     *   没这个键 ⇒ 「已经破过壳 / 挑战已判完」视作已解除，只有还在挑战途中的老档继续受限。 */
+    out.challengeReleased = typeof raw.challengeReleased === 'boolean'
+      ? raw.challengeReleased
+      : !!(out.challenge && (raw.broken === true || out.challengeDone === true));
     var rawSeasonLengths = Array.isArray(raw.seasonLengths) ? raw.seasonLengths : null;
     out.seasonLengths = rawSeasonLengths && rawSeasonLengths.length === (SB.SEASONS || []).length &&
       rawSeasonLengths.every(function (n) { return typeof n === 'number' && isFinite(n) && n > 0; })
@@ -350,8 +377,13 @@
     if (!Object.prototype.hasOwnProperty.call(raw, 'wonderPopup'))
       out.wonderPopup = !!(raw.techs && raw.techs.masonry);
 
+    /* ⚠️ 上限必须跟着 ERAS 走（2026-11-03 修）：原先写死 `Math.min(7, …)`，而现在是 10 个纪元
+     *   ⇒ 读一张 era 9 的档，纪元被夹回 7，随后靠 advanceEra 两拍「7→8→9」自己爬回来。
+     *   爬得回来是因为旧纪元的 key 早已全清，但这中间会重跑两次 revealEra(8)/(9)，
+     *   且凡是「把 s.era 当作已到达之地」的判据（科技门、AI 的 era 过滤）都会短暂看错。 */
+    var _eraMax = (SB.ERAS && SB.ERAS.length) ? SB.ERAS.length : 10;
     out.era = (typeof raw.era === 'number' && isFinite(raw.era))
-      ? Math.max(1, Math.min(7, Math.floor(raw.era))) : 1;
+      ? Math.max(1, Math.min(_eraMax, Math.floor(raw.era))) : 1;
     /* ⚠️ 尤里卡一律重来：老档根本没有这个字段，而它记录的是「这些条件当时达成了」。
      * 保留一个空壳会让 UI 声称「已揭示」却没揭示。下一 tick 的 discover() 会
      * 按当前真实状态补上，玩家看到的是同一批条件被重新点亮一次。 */

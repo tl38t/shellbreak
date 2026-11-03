@@ -89,16 +89,28 @@
       else if (item.era > (s.era || 1)) blockKind = 'era';
       else if (!SB.tech.metOf(s, item)) blockKind = 'eureka';
       else if (!detailReqsMet) blockKind = 'prereq';
+      /* 材料门排在科技点门之前 —— 与 studyBlocked 的顺序**逐字一致**，
+       * 否则卡片报的原因会和灰按钮的 title 打架（同一个按钮两种说法）。 */
+      else if (SB.tech.resCostLack && SB.tech.resCostLack(s, item)) blockKind = 'material';
       else if (!SB.economy.enough(s.res.science, cost)) blockKind = 'science';
     } else if (!tech && !done && blocked && revealed) {
       if (item.era && item.era > (s.era || 1)) blockKind = 'era';
       else if (SB.civic.reqsMet(s, item) && !SB.economy.enough(s.res.culture, item.cost || 0)) blockKind = 'culture';
     }
-    var state = done ? (tech ? '已掌握' : '已完成') : tech && techLevel > 0 ? '等级 ' + techLevel + '/' + techMaxLevel : !revealed ? '未揭露' :
-      !blocked ? '可研究' : blockKind === 'science' ? '科技点不足' :
-      blockKind === 'culture' ? '市政点不足' :
-      blockKind === 'prereq' ? '缺少前置' : blockKind === 'era' ? '纪元未到' :
-      blockKind === 'eureka' ? '尤里卡未达成' : '暂不可研究';
+    /* ⚠️ 「等级 x/y」必须排在 blocked 之后（2026-11-03 修「科技升不了」的另一半）：
+     *   原先 `tech && techLevel > 0` 紧跟在 done 后面 ⇒ 只要升过一级，徽章与按钮就
+     *   **永远**显示「等级 3/5」，被任何门禁卡住都不说原因，玩家只看到一个灰按钮。
+     *   现在只有「可研究」时才展示等级，被卡住一律报原因。 */
+    var state = done ? (tech ? '已掌握' : '已完成')
+      : !revealed ? '未揭露'
+      : !blocked ? (tech && techLevel > 0 ? '等级 ' + techLevel + '/' + techMaxLevel : '可研究')
+      : blockKind === 'science' ? '科技点不足'
+      : blockKind === 'culture' ? '市政点不足'
+      : blockKind === 'material' ? '材料不足'
+      : blockKind === 'prereq' ? '缺少前置'
+      : blockKind === 'era' ? '纪元未到'
+      : blockKind === 'eureka' ? '尤里卡未达成'
+      : '暂不可研究';
     var currency = tech ? 'science' : 'culture';
     var currencyName = tech ? '科技点' : '市政点';
     var reqs = item.reqs || [], reqHtml = '', reqDone, parent, parentDone, parentName;
@@ -149,6 +161,8 @@
         blockDetail = '<div class="tree-detail-blocked science"><b>科技点不足</b><span>现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(cost) + '</span></div>';
       } else if (blockKind === 'prereq') {
         blockDetail = '<div class="tree-detail-blocked prereq"><b>缺少前置科技</b><span>' + blocked.replace(/^缺少前置科技：/, '') + '</span></div>';
+      } else if (blockKind === 'material') {
+        blockDetail = '<div class="tree-detail-blocked material"><b>材料不足</b><span>' + blocked.replace(/^材料不足：/, '') + '</span></div>';
       } else if (blockKind === 'era') {
         blockDetail = '<div class="tree-detail-blocked era"><b>纪元未到</b><span>' + blocked.replace(/^纪元未到：/, '') + '</span></div>';
       }
@@ -159,7 +173,10 @@
         blockDetail = '<div class="tree-detail-blocked culture"><b>市政点不足</b><span>现有 ' + SB.economy.fmtAmt(s.res.culture) + ' / 需求 ' + SB.economy.fmtAmt(cost) + '</span></div>';
       }
     }
-    var buttonText = done ? state : blocked ? (blockKind === 'science' ? '科技点不足' : blockKind === 'culture' ? '市政点不足' : state) : cost
+    /* 灰按钮上写原因，而不是写「等级 x/y」：blocked 的文案都是「原因：细节」形，
+     * 取冒号前那截当按钮字，细节留给卡片上的 blockDetail（那里还有具体数值）。 */
+    var blockHead = blocked ? String(blocked).split('：')[0] : '';
+    var buttonText = done ? state : blocked ? (blockHead || state) : cost
       ? '研究　' + SB.economy.costOwnedTxt(s, (function () { var c = {}; c[currency] = cost; return c; })())
       : '免费研究';
     var box = el('modalBox'), modal = el('modal');

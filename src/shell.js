@@ -176,10 +176,35 @@
      * 也拿得到后者；破壳后选「留在本局」不发轮回点也照发本条。一次性，
      * 离线补算期同样置位（unlockOnce 不是 UI，不受 deferBreakUI 影响）。 */
     if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta) SB.achv.unlockOnce('shellBreak', SB.game.meta());
+    /* 破壳即判定破壳型挑战（2026-11-03）。
+     * 【为什么在这里，而不是结算时】破壳型挑战（寒流禁火 / 小国寡民 / 忽视科文 /
+     *   深渊重压 / 逐光竞速）的胜负都以「凿穿天壳」为终点；破壳之后玩家还要继续玩
+     *   ERA10（发射场 → 戴森球），人口、岗位、现实计时全都还会变。
+     *   判定留到结算 ⇒ 破壳后多挂机两小时会把 4 小时档判成超时。
+     * ⇒ 先冻 seal（判据快照），再当场判定。之后无论玩家玩多久、什么时候轮回，
+     *   这次挑战的成绩都定格在破壳这一秒。
+     * ⚠️ seal 必须在 sealRun 之前写：resolveRun 内部优先读 s.challengeSeal。 */
+    var chOutcome = null;
+    if (SB.challenges && SB.challenges.seal && SB.game && SB.game.meta) {
+      s.challengeSeal = SB.challenges.seal(s);
+      chOutcome = SB.challenges.sealRun(s, SB.game.meta());
+    }
     var report = SB.prestige.breakReport(s);
     if (!SB.prestige.qualified(s)) { report.tidePoints = 0; report.locked = true; }
-    /* 离线补算期间由结算器统一接管弹窗：不要让动画先弹出、又被离线总结覆盖。 */
-    if (!(opts && opts.deferBreakUI)) (SB.game.showBreakAnimation || SB.game.showBreakPanel)(report);
+    if (chOutcome) {
+      if (chOutcome.failed) report.challengeFailure = chOutcome;
+      else report.challengeClear = chOutcome;
+    }
+    /* ⚠️ 2026-11-03：破壳不再弹「轮回结算」面板。破壳只是本局中段的一个里程碑，
+     *   后面还有整个 ERA10。结算只发生在玩家主动点底栏「轮回」时（askResetRun）。
+     *   这里给的是「破壳结果」：挑战判定 + 壳外时代开启。 */
+    if (!(opts && opts.deferBreakUI)) {
+      if (SB.ui && SB.ui.render && SB.ui.render.showBreakAnimation)
+        SB.ui.render.showBreakAnimation(report, function () { SB.ui.render.showBreakResult(report); });
+      else if (SB.ui && SB.ui.render && SB.ui.render.showBreakResult)
+        SB.ui.render.showBreakResult(report);
+      else if (SB.game.showBreakPanel) SB.game.showBreakPanel(report);
+    }
     if (emit) emit('冰壳裂开了。');
   }
 

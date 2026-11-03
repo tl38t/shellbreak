@@ -659,6 +659,19 @@
     if (!s.eureka) s.eureka = {};
     if (!s.eurekaMet) s.eurekaMet = {};
     var T = SB.TECHS || [], got = [];
+    /* ⚠️ 已掌握但缺 eureka 的节点必须先补揭示（2026-11-03 修「科技升不了」）。
+     *   `state-migrate` 每次读档都 `out.eureka = {}`（刻意，见那里的注释），重建只走两条路：
+     *     · `revealEra` —— 守卫 `!s.techs[id]`（已掌握不再揭示）
+     *     · 本函数下面那一支 —— 守卫同为「已掌握跳过」
+     *   两条都不管已掌握节点 ⇒ 它们的 eureka 标记**永久缺失**。
+     *   单级科技无感（done 直接判 level >= max）；多级科技直接卡死：
+     *     studyBlocked 先判 isRevealed ⇒ 报「未揭露」；
+     *     而渲染侧 revealed 用 metOf（含 techs 兜底）⇒ 面板正常显示内容；
+     *     ⇒ 玩家看到「内容都在、按钮灰着写等级 3/5、不告诉你为什么」。
+     *   补写不进 got：这不是新揭示，不该播报。 */
+    for (var _k = 0; _k < T.length; _k++) {
+      if (s.techs[T[_k].id] && !s.eureka[T[_k].id]) s.eureka[T[_k].id] = 1;
+    }
     for (var i = 0; i < T.length; i++) {
       var t = T[i];
       if (t.era > (s.era || 1)) continue;
@@ -800,7 +813,7 @@
   function canStudy(s, id) {
     var t = byId(id);
     if (!t) return false;
-    if (techLevel(s, id) >= maxTechLevel(t) || !isRevealed(s, id)) return false;
+    if (techLevel(s, id) >= maxTechLevel(t) || (!isRevealed(s, id) && !metOf(s, t))) return false;
     if (t.era > (s.era || 1)) return false;      // 纪元闸门：不能跳纪元偷研究
     if (!challengeOnlyOk(s, t)) return false;
     /* 尤里卡门禁（2026-09-26 用户拍板「灰掉，必须先达成尤里卡」）。
@@ -824,7 +837,10 @@
      *   后者对一个永远不会揭示的节点等于误导 —— 玩家会去攒尤里卡，攒完还是灰。
      *   ⚠️ 顺序也决定 UI 灰按钮的 title；改这里前先看 render-pane-research 的暗态分支。 */
     if (!challengeOnlyOk(s, t)) return challengeOnlyReason(t);
-    if (!isRevealed(s, id)) return '未揭露：先达成尤里卡条件';
+    /* ⚠️ 与渲染同源（2026-11-03）：原先只认 isRevealed（eureka 标记），可该标记在读档后
+     *   对所有**已掌握**节点都是缺失的（见 discover 顶部那段）⇒ 多级科技升不了且不报原因。
+     *   metOf 里含「已掌握 / 曾达成 / 现达成」三档，isRevealed 只是其中一档的标记。 */
+    if (!isRevealed(s, id) && !metOf(s, t)) return '未揭露：先达成尤里卡条件';
     if (t.era > (s.era || 1)) return '纪元未到：属于 ' + eraName(t.era) + '，先推进当前纪元';
     /* 文案要指得出**该做什么**，不能只说「不行」：这句话会挂成灰按钮的 title，
      * 而卡片上条件行还写着进度，两者合起来才是完整的一句「你还差什么」。 */

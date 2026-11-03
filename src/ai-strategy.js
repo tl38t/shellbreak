@@ -52,6 +52,121 @@
   function freeBuilding(s, id) {
     return availableBuilding(s, id) && SB.economy.canAfford(s, SB.economy.costOf(s, id));
   }
+  function cheapestAvailableZoneBuild(s, zone) {
+    var rows = (SB.BUILDINGS || []).filter(function (b) {
+      return b && b.zone === zone && availableBuilding(s, b.id);
+    }).map(function (b) {
+      var cost = SB.economy.costOf(s, b.id) || {}, score = 0;
+      Object.keys(cost).forEach(function (resource) {
+        var cap = SB.economy.capOf(s, resource);
+        var scale = isFinite(cap) && cap > 0 ? cap : Math.max(1000, Number(cost[resource]) || 1);
+        score += Math.max(0, Number(cost[resource]) || 0) / scale;
+      });
+      return { id: b.id, score: score, affordable: freeBuilding(s, b.id) };
+    });
+    rows.sort(function (a, b) {
+      if (a.affordable !== b.affordable) return a.affordable ? -1 : 1;
+      return a.score - b.score;
+    });
+    return rows.length ? rows[0].id : null;
+  }
+  function prerequisiteTechBuildTarget(s, techId, seen) {
+    seen = seen || [];
+    if (!techId || seen.indexOf(techId) >= 0 || s.techs && s.techs[techId]) return null;
+    seen.push(techId);
+    var tech = SB.tech && SB.tech.byId ? SB.tech.byId(techId) : null;
+    if (!tech) return null;
+    var reqs = tech.reqs || [];
+    for (var i = 0; i < reqs.length; i++) {
+      if (s.techs && s.techs[reqs[i]]) continue;
+      var prerequisiteTarget = prerequisiteTechBuildTarget(s, reqs[i], seen);
+      if (prerequisiteTarget) return prerequisiteTarget;
+    }
+    var cond = tech.cond;
+    if (!cond || !SB.tech.condMet || SB.tech.condMet(s, cond)) return null;
+    if (cond.t === 'zoneLvl') return cheapestAvailableZoneBuild(s, cond.zone);
+    if (cond.t === 'built' && cond.b && (s.lvl[cond.b] || 0) < (cond.n || 1)) {
+      if (availableBuilding(s, cond.b)) return cond.b;
+      var blockedBuilding = SB.habitat.buildingById(cond.b);
+      return blockedBuilding ? buildingPrerequisiteBuildTarget(s, blockedBuilding, seen) : null;
+    }
+    return null;
+  }
+  function buildingPrerequisiteBuildTarget(s, building, seen) {
+    var techs = building && building.requiredTech || [];
+    for (var i = 0; i < techs.length; i++) {
+      if (s.techs && s.techs[techs[i]]) continue;
+      var target = prerequisiteTechBuildTarget(s, techs[i], seen || []);
+      if (target) return target;
+    }
+    return null;
+  }
+  function isWaterPollutionRun(s) {
+    return !!(s && s.challenge && s.challenge.id === 'waterpollution');
+  }
+  /* 污染挑战的汽轮机不能只按暖石库存决定开机数：那会把所有可持续机组都开满，
+   * 即使热液流远多于工坊/矿井等实际负荷，余流也会继续产生污染。按正式 hydroAlloc
+   * 逐台试算，保留满足真实负荷所需的最少台数；「我们的摇篮」污染门槛完成前至少留
+   * 一台脏源，避免污染阶段目标失去进度来源。 */
+  function pollutionDemandLimitedTurbines(s, sustainableLimit) {
+    if (!isWaterPollutionRun(s) || !SB.economy || !SB.economy.hydroAlloc) return sustainableLimit;
+    var total = Math.max(0, Math.floor(Number(s.lvl && s.lvl.hydroturbine) || 0));
+    var limit = Math.min(total, Math.max(0, Math.floor(Number(sustainableLimit) || 0)));
+    var minimum = s.civics && s.civics.our_cradle ? 0 : (limit > 0 ? 1 : 0);
+    for (var running = minimum; running <= limit; running++) {
+      var probe = Object.assign({}, s, {
+        turbineStop: total - running,
+        /* 清洁源也能供热液工坊；不要让旧的停机数把这项真实负荷从试算中删掉。 */
+        hydroshopStop: 0
+      });
+      var flow = SB.economy.hydroAlloc(probe, 1);
+      if (flow && Number(flow.balanceRate) >= -1e-9) return running;
+    }
+    return limit;
+  }
+  /* 水体污染局优先用挑战专属洁净热液源补“热液能供给”硬门槛，避免为同一缺口
+   * 无条件扩汽轮机、额外推高污染。按正式产量和当前等级造价择优；所有建造仍走
+   * 下方统一 cost/岗位规划与 habitat.build API。 */
+  function pollutionCleanHydroBuild(s, targetRate) {
+    if (!isWaterPollutionRun(s) || !SB.economy || !SB.economy.rates) return null;
+    var current = Math.max(0, Number(SB.economy.rates(s).hydroSupply) || 0);
+    var gap = Math.max(0, (Number(targetRate) || 0) - current);
+    if (gap <= 1e-9) return null;
+    var pm = SB.challenges && SB.challenges.productionMul
+      ? Math.max(0, Number(SB.challenges.productionMul(s)) || 0) : 1;
+    var candidates = [
+      { id: 'tidemachine', out: Number(SB.BLD && SB.BLD.tideHydro) || 0 },
+      { id: 'solarstation', out: Number(SB.BLD && SB.BLD.solarHydro) || 0 },
+      { id: 'enladofarm', out: Number(SB.BLD && SB.BLD.windHydro) || 0 }
+    ].filter(function (row) {
+      row.out *= pm;
+      return row.out > 0 && availableBuilding(s, row.id);
+    }).map(function (row) {
+      var cost = SB.economy.costOf(s, row.id) || {}, burden = 0;
+      Object.keys(cost).forEach(function (resource) {
+        var cap = SB.economy.capOf(s, resource);
+        var scale = isFinite(cap) && cap > 0 ? cap : Math.max(1, Number(cost[resource]) || 1);
+        burden += Math.max(0, Number(cost[resource]) || 0) / scale;
+      });
+      return { id: row.id, out: row.out, coversGap: row.out + 1e-9 >= gap,
+        affordable: freeBuilding(s, row.id), value: row.out / (1 + burden) };
+    }).sort(function (a, b) {
+      if (a.affordable !== b.affordable) return a.affordable ? -1 : 1;
+      if (a.coversGap !== b.coversGap) return a.coversGap ? -1 : 1;
+      return b.value - a.value;
+    });
+    return candidates.length ? candidates[0].id : null;
+  }
+  /* 解锁后的污染治理建筑必须进入正式建造计划：墓地补足已发生的死亡配额，医院逐步
+   * 升至规则上限；保护区只在腐渊与“我们的摇篮”已完成后少量铺设，避免提前净化把
+   * 6.4M 的最后一条挑战市政门槛压回去。 */
+  function waterPollutionSupportBuild(s) {
+    if (!isWaterPollutionRun(s)) return null;
+    /* 挑战目标是完成戴森工程；墓地/医院只缓解死亡后果，不推进终局。尤其累计死亡
+     * 永久保留，若追补墓地会把建造目标卡在指数增长的墓地/压舱仓链上。保护区最多
+     * 3 级已按直接净化目标补齐；之后让位给科技、发射场和戴森所需的硬目标。 */
+    return null;
+  }
   function thetaProductionPlan(s, targetRate) {
     if (!s || !SB.economy || !SB.economy.rates || !SB.economy.thetaInputRates) return null;
     var levels = Math.max(0, Number(s.lvl && s.lvl.biomatlab) || 0);
@@ -153,6 +268,33 @@
   }
   function thetaSourceBuilding(s, plan) {
     if (!plan || !plan.limiting) return null;
+    if (plan.limiting === 'kelp' && availableBuilding(s, 'weir') &&
+        costExceedsCapacity(s, SB.economy.costOf(s, 'weir')) &&
+        availableBuilding(s, 'kelp') &&
+        !costExceedsCapacity(s, SB.economy.costOf(s, 'kelp'))) {
+      /* 导流堤边际更高，但高等级造价越过仓储上限时不能让它触发数百万级压舱仓回退；
+       * 暂用可装入当前仓储的藻场补产，等资源/仓储条件变化后再评估导流堤。 */
+      return 'kelp';
+    }
+    if (plan.limiting === 'hydro' && isWaterPollutionRun(s)) {
+      /* θ产线的热液瓶颈也要走污染挑战的洁净供给选择器。旧分支直接返回汽轮机，
+       * 容量不足时又回退到巨额压舱仓；即使潮汐机/太阳能基站仍可扩建，也不会被选中。
+       * 按分阶段实验室数和现有非实验室负荷计算目标，继续使用正式产率与建造 API。 */
+      var hydroRates = SB.economy.rates(s);
+      var labHydro = Math.max(0, Number(SB.BLD && SB.BLD.biomatlabHydro) || 0);
+      var currentLabHydro = Math.max(0, Number(plan.active) || 0) * labHydro;
+      var totalHydroDemand = Math.max(0, -(Number(hydroRates.hydro) || 0));
+      var otherHydroDemand = Math.max(0, totalHydroDemand - currentLabHydro);
+      var stagedLabs = Math.min(Number(plan.targetLabs) || 0,
+        Math.max(Number(plan.active) || 0, Number(plan.stagedTargetLabs) || 0));
+      var cleanHydroTarget = otherHydroDemand + stagedLabs * labHydro / 0.90;
+      var cleanHydroSupply = Math.max(0, Number(hydroRates.hydroSupply) || 0);
+      /* 若现有洁净供给已能支撑本阶段实验室数，先让 chooseBuild() 补实验室；
+       * 不能因为最终目标更高，就提前扩潮汐机并被其仓储成本拖进压舱仓回退。 */
+      if (cleanHydroTarget <= cleanHydroSupply + 1e-9) return null;
+      var cleanHydroSource = pollutionCleanHydroBuild(s, cleanHydroTarget);
+      if (cleanHydroSource) return cleanHydroSource;
+    }
     var id = plan.limiting === 'iron' ? 'furnace' :
       plan.limiting === 'titanium' ? 'siltpit' :
       plan.limiting === 'uranium' ? 'rheamine' :
@@ -348,6 +490,28 @@
     var keys = SB.tech.keysOf(s.era) || [], key = null;
     for (var i = 0; i < keys.length; i++)
       if (!s.techs[keys[i].id] && !deferredNoResetTechOrPrereq(s, keys[i])) { key = keys[i]; break; }
+    /* 当前市政若要求建造一座被普通科技锁住的建筑，先研究它的最早可推进科技。
+     * 否则会形成真实循环：宏观经济学要求 3 级银行，银行要求「银行业」；关键科技
+     * 深空力学又要求后置的「太空竞赛」市政，关键科技优先级会让 AI 永远不回头研究
+     * 银行业，银行和太空区建筑都不出现。完成这个市政建筑门后，太空竞赛的正式区级
+     * 目标会让 AI 建卫星/空间站，推进星空并消纳可用热液能。 */
+    var civicBuildGate = nextCivicGoal(s), civicBoostGate = civicBuildGate && civicBuildGate.boost;
+    if (civicBoostGate && civicBoostGate.t === 'built' && civicBoostGate.b &&
+        (s.lvl[civicBoostGate.b] || 0) < civicBoostGate.n) {
+      var civicGateBuilding = SB.habitat.buildingById(civicBoostGate.b);
+      var civicGateTechs = civicGateBuilding && civicGateBuilding.requiredTech || [];
+      for (var cti = 0; cti < civicGateTechs.length; cti++) {
+        if (s.techs && s.techs[civicGateTechs[cti]]) continue;
+        var civicGateMissingId = firstMissingPrereq(s, civicGateTechs[cti]);
+        var civicGateTech = civicGateMissingId && SB.tech.byId(civicGateMissingId);
+        if (civicGateTech && civicGateTech.era <= s.era &&
+            !deferredNoResetTechOrPrereq(s, civicGateTech) &&
+            SB.tech.reqsMet(s, civicGateTech) && SB.tech.isRevealed(s, civicGateTech.id)) {
+          key = civicGateTech;
+          break;
+        }
+      }
+    }
     /* 关键节点全清会推进纪元，但不少普通科技仍是后续系统的前置（导航→数学→教育等）。
      * 关键节点完成后，继续按科技表顺序补齐当前已开放时代的普通科技，不把它们误当成可忽略项。 */
     if (!key) {
@@ -491,6 +655,11 @@
     return !isOwned(s, w.id) && w.era <= s.era &&
       (!w.need || s.techs[w.need]) && (!w.needCivic || s.civics && s.civics[w.needCivic]);
   }
+  function waterPollutionWonderTarget(s) {
+    if (!isWaterPollutionRun(s) || !(s.civics && s.civics.our_cradle)) return null;
+    var climateSat = SB.workshop.wonderById('wonder_climatesat');
+    return climateSat && wonderEligible(s, climateSat) ? climateSat : null;
+  }
   function civicNeedsWonder(s, civicGoal) {
     var boost = civicGoal && civicGoal.boost;
     if (!boost || ['anyWonders', 'wonders', 'wonderEra'].indexOf(boost.t) < 0 || SB.civic.boostMet(s, civicGoal)) return false;
@@ -598,6 +767,10 @@
   }
   function chooseWonder(s, goal, options, civicGoal) {
     var ids = goal && goal.cond && goal.cond.t === 'wonders' ? goal.cond.ids || [] : [];
+    /* 「我们的摇篮」解锁的星球气候调节卫星网是本挑战的永久净化奇观；市政完成后
+     * 把它提升为明确目标，不让普通奇观列表顺序把挑战专属终点件一直排在队尾。 */
+    var climateSatTarget = waterPollutionWonderTarget(s);
+    if (climateSatTarget) return climateSatTarget.id;
     /* 《星球改造》的尤里卡必须由 G.E.E.K 完成恩克拉多斯改造；此前该条件只显示
      * “等资源”，可选奇观又会被住房目标压过，AI 永远不建、不启动 G.E.E.K。把这座
      * 奇观明确作为当前科技的硬前置，让现有工艺材料计划与正式奇观 API 接手。 */
@@ -784,7 +957,7 @@
   function chooseBuild(s, goal, options, civicGoal, dysonPlan) {
     var cond = goal.cond, targetCap = houseCapacityTarget(s, goal, options), id, rows, i;
     /* 议事厅/城堡是本局核心建筑，未建时必须先于工坊和普通扩建落地；
-     * 建成后再由 priorityBuildingUpgrade() 把城堡升级推到减费软上限。 */
+     * 建成后城堡仍优先于普通扩建，但不能压过当前科技/市政的硬性建造前置。 */
     if (availableBuilding(s, 'hall') && !s.lvl.hall) return 'hall';
     /* 工坊是后续制作的系统入口；议事厅已建后优先补工坊，避免工艺链缺位。 */
     if (availableBuilding(s, 'workshop') && !s.lvl.workshop) return 'workshop';
@@ -792,8 +965,23 @@
      * 发射场；先建第一座欧罗巴/已解锁发射场，策略才能合法地产帆并开启戴森科技。 */
     var firstDysonPad = dysonLaunchTarget(s, goal);
     if (firstDysonPad) return firstDysonPad;
-    var priorityUpgrade = priorityBuildingUpgrade(s);
-    if (priorityUpgrade) return priorityUpgrade;
+    /* 水体污染挑战的气候卫星网若已攒齐资源而只差 costBuild 等级，必须先补卫星。
+     * 原位置在纳米科技 θ 产率分支之后，导致 AI 总是回去扩藻食/压舱仓，虽已筹齐
+     * 火箭引擎和封闭藻仓，却永远不建这 10 级卫星。材料尚缺时仍允许硬科技/市政先推进。 */
+    var climateWonderTarget = waterPollutionWonderTarget(s);
+    if (climateWonderTarget) {
+      var climateWonderBlocked = SB.workshop.wonderBlocked(s, climateWonderTarget.id);
+      if (climateWonderBlocked && /^还缺建筑等级/.test(climateWonderBlocked)) {
+        var climateBuildLacks = SB.wonder && SB.wonder.buildCostLack
+          ? SB.wonder.buildCostLack(s, climateWonderTarget.id) : [];
+        for (var cbi = 0; cbi < climateBuildLacks.length; cbi++) {
+          if (availableBuilding(s, climateBuildLacks[cbi].id)) return climateBuildLacks[cbi].id;
+          var climatePrereq = buildingPrerequisiteBuildTarget(s,
+            SB.habitat.buildingById(climateBuildLacks[cbi].id));
+          if (climatePrereq) return climatePrereq;
+        }
+      }
+    }
     /* 流浪泰拉的挑战终点在破壳之后：每座行星发动机都要 4,000 共振钻头。
      * drillStockTarget() 只覆盖壳层钻机，破壳后会归零；若这里不把挑战建筑列为
      * 当前硬目标，通用组合扩建会继续升藻场，工艺规划也就不会筹发动机所需钻头。
@@ -856,6 +1044,13 @@
       var civicRequiredBuilding = SB.habitat.buildingById(civicBuildCond.b);
       if (civicRequiredBuilding && SB.habitat.unlocked(s, civicRequiredBuilding) &&
           SB.habitat.needMet(s, civicRequiredBuilding)) return civicBuildCond.b;
+      /* 市政目标要求一座被科技锁住的建筑时，沿建筑 requiredTech 回溯最先可推进的
+       * 科技尤里卡。否则会出现「宏观经济学要 3 级银行 → 银行业解锁银行 → 贸易区 35 级」
+       * 的间接门槛，但建造器看不到 bank，回退去反复扩仓，市政与后续太空科技一起停住。 */
+      if (civicRequiredBuilding) {
+        var civicUnlockTarget = buildingPrerequisiteBuildTarget(s, civicRequiredBuilding);
+        if (civicUnlockTarget) return civicUnlockTarget;
+      }
     }
     /* θ 金属是建筑原料，不能只在“θ产率”科技目标下才扩产。
      * 例如《强人工智能》要求机器人充能站 3 级，而 robotbay 的 ratio 是 3（每级造价 ×3），
@@ -893,15 +1088,28 @@
       if (rows.length) return rows[0].id;
     }    /* 《工业化》的尤里卡检查热液能总供给，不是扣除工坊消耗后的净流量。
      * 关键科技回溯可能把该 rate 条件设为当前目标；按真实 rates 补汽轮机。 */
+    var hydroEurekaBurst = false;
     if (cond && cond.t === 'rate' && cond.r === 'hydroSupply') {
       var hydroSupply = SB.economy.rates(s).hydroSupply || 0;
       if (hydroSupply + 1e-9 < cond.n) {
+        var cleanHydroTarget = pollutionCleanHydroBuild(s, cond.n);
+        if (cleanHydroTarget) return cleanHydroTarget;
         var hydroTarget = hydroTurbineTarget(s, cond.n);
         var neededTurbines = hydroTarget.required;
         /* 先铺出所需装机容量，即使当前暖石只够部分汽轮机运行；step() 会停掉不可持续部分，
          * 并提高矿工权重补暖石。把「当前可持续数」当建造上限会让条件长期低于阈值、反复选别的建筑。 */
         if (availableBuilding(s, 'hydroturbine') && (s.lvl.hydroturbine || 0) < neededTurbines)
           return 'hydroturbine';
+      }
+    }
+    /* 连续负热液流会让发射场、θ实验室等设施停摆。污染挑战先补洁净供给；只有对应
+     * 洁净源尚未解锁时才落回汽轮机路径，且缺料仍由统一原料规划补齐。 */
+    if (isWaterPollutionRun(s)) {
+      var hydroRates = SB.economy.rates(s), supplyRate = Math.max(0, Number(hydroRates.hydroSupply) || 0);
+      var demandRate = Math.max(0, -(Number(hydroRates.hydro) || 0));
+      if (supplyRate + 1e-9 < demandRate) {
+        var cleanDemandTarget = pollutionCleanHydroBuild(s, demandRate);
+        if (cleanDemandTarget) return cleanDemandTarget;
       }
     }
     /* 钢制工具的工具尤里卡需要真实钢库存；钢来自「热液汽轮机 → 热液工坊」，
@@ -1067,6 +1275,17 @@
         }
       }
     }
+    /* 当前科技/市政硬门槛已处理后，再补污染挑战的可选治理建筑。
+     * 不能把医院 10→15 这类生存优化放在前面：其高等级造价会越过原料仓容量，
+     * 规划器随即退回压舱仓；这会遮住「印刷术→热液工坊 3」和「宏观经济学→银行 3」
+     * 等真正的科技/市政门槛，导致可用热液能长期闲置。治理建筑仍会在门槛推进后建设。
+     * 先兑现已经识别出的科技/市政硬门槛，再投普通城堡减费与核心扩建。
+     * 否则宏观经济学要求 3 级银行时，城堡升级先触发仓储回退，AI 会反复造压舱仓，
+     * 让印刷术要求的热液工坊 1/3 永远不动；但议事厅首次建造仍在函数开头保留最高位。 */
+    var pollutionSupport = waterPollutionSupportBuild(s);
+    if (pollutionSupport) return pollutionSupport;
+    var priorityUpgrade = priorityBuildingUpgrade(s);
+    if (priorityUpgrade) return priorityUpgrade;
     /* 住房价格会跨过珊瑚/石头的仓储上限；若候选住房因容量而不可达，
      * 再建压舱仓扩容，否则 bot 会永远选中买不起的下一座房并停在当前人口。 */
     if (housingBlockedByCapacity(s, targetCap)) {
@@ -1097,6 +1316,10 @@
   }
   function shouldPrioritizeConditionBuild(s, goal, buildId, civicGoal) {
     var cond = goal && goal.cond;
+    /* 水体污染挑战完成「我们的摇篮」后，气候卫星网是明确的挑战奇观目标，
+     * 不能被关键科技尤里卡过滤器从计划/工艺需求里删掉；chooseBuild 仍先推进硬门槛，
+     * 奇观材料与当前主目标并行筹备。 */
+    if (waterPollutionWonderTarget(s)) return false;
     /* 壳层科技的 shell:1 尤里卡必须靠已研究的天穹钻机奇观继续削壳；
      * 它虽不是 wonders 条件，仍是这条硬门槛的必需建造，不能被通用过滤器当作可选项丢弃。 */
     if (shellNeedsDrill(s, goal)) return false;
@@ -1255,9 +1478,21 @@
   }
   function nextCivicGoal(s) {
     if (!SB.civic.panelOpen(s)) return null;
+    /* 挑战专属市政按它们自己的污染阈值/死亡门槛推进。先排这些当前周目才存在的
+     * 节点，避免被后置的普通可选市政长期遮住；普通局则由同一门控直接略过。 */
+    if (isWaterPollutionRun(s)) {
+      for (var wi = 0; wi < SB.CIVICS.length; wi++) {
+        var wc = SB.CIVICS[wi];
+        if (!wc || wc.challengeOnly !== 'waterpollution' || s.civics[wc.id] ||
+            (wc.era && wc.era > s.era) || !SB.civic.reqsMet(s, wc) ||
+            !wc.boost || SB.civic.boostMet(s, wc)) continue;
+        return wc;
+      }
+    }
     for (var i = 0; i < SB.CIVICS.length; i++) {
       var c = SB.CIVICS[i];
       if (c.era && c.era > s.era || s.civics[c.id] || !SB.civic.reqsMet(s, c)) continue;
+      if (SB.civic.challengeAllows && !SB.civic.challengeAllows(s, c)) continue;
       /* 星屑是正式轮回结算才入账的跨周目资源；戴森球完成前禁止轮回时，
        * 未达标的星屑鼓舞在本局无法取得。跳过这类只影响可选市政的死门槛，
        * 让队列继续规划可解锁深空科技的《太空竞赛》等后续市政。 */
@@ -1280,7 +1515,10 @@
   }
   function step(s, options) {
     options = options || {};
-    if (!s || s.broken || !SB || !SB.game || !SB.tech) return { changed: false, goal: null };
+    /* ⚠️ 2026-11-03：删掉 s.broken 早退。ERA10（发射场 → 戴森球 → 星图）全部在破壳之后，
+     *   破壳就停摆等于让 AI 永远走不到壳外内容。破壳后真正该停的动作各自有判据
+     *   （开钻机 / 削壳那几处仍保留 s.broken）。 */
+    if (!s || !SB || !SB.game || !SB.tech) return { changed: false, goal: null };
     var emit = options.emit || SB.game.emit, changed = false, actions = 0;
     function did(ok) { if (ok) { changed = true; actions++; } return !!ok; }
     function manualGatherTo(resource, target, maxClicks) {
@@ -2001,6 +2239,7 @@
      * 保留四分之一暖石仓储，并允许用最多 30 游戏秒库存短时开足所需机组；只计新增机组
      * 相对当前运转状态的净暖石消耗，不能把已在运行的机组重复从库存预算中扣除。门槛研究后
      * 下一步会回到 hydroSupportCap() 给出的可持续台数。 */
+    var hydroEurekaBurst = false;
     if (cond && cond.t === 'rate' && cond.r === 'hydroSupply') {
       var currentHydro = SB.economy.rates(s).hydroSupply || 0;
       var hydroTarget = hydroTurbineTarget(s, cond.n), activeTurbines = hydroTarget.active;
@@ -2018,17 +2257,25 @@
          * without requiring the population/resources to sustain 50/s for half a minute. */
         var burstWarm = Math.max(0, addedWarmRate - currentWarmRate);
         if ((s.lvl.hydroturbine || 0) >= burstTurbines &&
-            (s.res.warmstone || 0) - burstWarm >= warmReserve)
+            (s.res.warmstone || 0) - burstWarm >= warmReserve) {
           sustainableTurbines = Math.max(sustainableTurbines, burstTurbines);
+          hydroEurekaBurst = true;
+        }
       }
     }
+    /* 供给尤里卡需要短时冲量时照常开足；其余污染挑战时段按真实负荷削减闲置汽轮机。 */
+    if (isWaterPollutionRun(s) && !hydroEurekaBurst)
+      sustainableTurbines = pollutionDemandLimitedTurbines(s, sustainableTurbines);
     var runningTurbines = Math.min(s.lvl.hydroturbine || 0, sustainableTurbines);
     var turbineStop = Math.max(0, (s.lvl.hydroturbine || 0) - runningTurbines);
     if ((s.turbineStop || 0) !== turbineStop) {
       s.turbineStop = turbineStop;
       changed = true; actions++;
     }
-    var runningShops = Math.min(s.lvl.hydroshop || 0, runningTurbines);
+    /* 污染挑战的清洁热液源同样可以驱动工坊；其他模式沿用「每台汽轮机配一台工坊」。 */
+    var runningShops = isWaterPollutionRun(s)
+      ? Math.max(0, Number(s.lvl.hydroshop) || 0)
+      : Math.min(s.lvl.hydroshop || 0, runningTurbines);
     var hydroPriority = null;
     /* 破壳的硬门槛是钻机持续拿到 20/s 热液能。原先所有热液工坊先吃满，
      * 即使钻机因此只剩 15.5/s，AI 也只会升级研究所，导致关键科技永远卡在 75%。
@@ -2440,6 +2687,24 @@
     if (s.wonders && s.wonders.wonder_geek && !(s.geek && s.geek.geekOn) &&
         geekConditionPending && SB.ui && SB.ui.input && SB.ui.input.toggleGeek)
       did(SB.ui.input.toggleGeek(s));
+    /* ⚠️ 2026-11-03：停用计数必须按**最终**等级再同步一次。
+     * 上面那次 `sustainableTurbines → s.turbineStop` 发生在动作循环**之前**，
+     * 而汽轮机/工坊是在循环里由 habitat.build 落地的 ⇒ 本轮新建的那一台不受停用
+     * 计数覆盖，暖石养不起也照样算「运行中」，净速率当场转负（实测 +2.016 → -2.872），
+     * 库存烧空后连人口一起冻死。症状只在「同一步里既补产能又建造」时出现，
+     * 因为此时才第一次走到「钢制零件 → 补汽轮机/工坊」那条分支。
+     * 复用 hydroSupportCap 的口径：它把汽轮机的自耗加回去算**毛供**，而毛供与在运台数
+     * 无关 ⇒ 循环前算出的 sustainTurbines 对建成后的等级依然成立（含尤里卡冲量与
+     * 污染挑战负荷削减两处修正），不需要重算。
+     * ⚠️ 只**往上顶**停用数，绝不往下调：上面那轮已经把钻机保留流量（hydroPriority）
+     * 折算进 hydroshopStop，这里若按公式重算会把为钻机让路的工坊又开回来。 */
+    var finalTurbineStop = Math.max(0, (s.lvl.hydroturbine || 0) -
+      Math.min(s.lvl.hydroturbine || 0, sustainableTurbines));
+    if ((s.turbineStop || 0) < finalTurbineStop) { s.turbineStop = finalTurbineStop; changed = true; actions++; }
+    var finalShopRun = Math.min(s.lvl.hydroshop || 0,
+      isWaterPollutionRun(s) ? (s.lvl.hydroshop || 0) : Math.min(s.lvl.hydroturbine || 0, sustainableTurbines));
+    var finalShopStop = Math.max(0, (Number(s.lvl.hydroshop) || 0) - finalShopRun);
+    if ((s.hydroshopStop || 0) < finalShopStop) { s.hydroshopStop = finalShopStop; changed = true; actions++; }
     if (changed && SB.game.markDirty) SB.game.markDirty();
     return { changed: changed, actions: actions, goal: goal.id || null, condition: cond && cond.t || null,
       thetaProduction: thetaPlan,
@@ -2525,7 +2790,7 @@
       build: nextBuild || null, wonder: nextWonder || null };
   }
 
-  SB.aiStrategy = { version: 94, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
+  SB.aiStrategy = { version: 107, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
     markVoidEndingRun: markVoidEndingRun,
     isVoidEndingRun: isVoidEndingRun,
     drillStockTarget: drillStockTarget };

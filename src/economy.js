@@ -1773,11 +1773,14 @@
         _tideL = s.lvl.tidemachine || 0,
         _solarL = s.lvl.solarstation || 0,
         _windL = s.lvl.enladofarm || 0;
+    /* ERA5 高压热机管道 / 轨道工厂是并联进汽口，不依赖汽轮机是否运行。
+     * 在早退判定前读取，才能让只有这条独立供给的状态继续进入分配。 */
+    var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
     /* ⚠️ 提前返回也必须**补齐全部键**（含三个 Rate）：少一个键，读它的人拿到 undefined
      *    而不是 0 —— steelFlow 的 `s.res.hydro = HF.supplyRate` 会把顶栏主数写成 undefined
      *    （解了 metalrefine 但一台汽轮机都没建时就是这样），rates().hydroSupply 同理。
      *    这种缺键不报错、只在面板上变成 NaN/undefined，属于「面板撒谎」家族。 */
-    if (turL <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && _tideL <= 0 && _solarL <= 0 && _windL <= 0 && !(geekOn && geekOwned))
+    if (turL <= 0 && _press <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && _tideL <= 0 && _solarL <= 0 && _windL <= 0 && !(geekOn && geekOwned))
       return { supply: 0, supplyRate: 0, turbineRate: 0, pressRate: 0, fissionRate: 0, titancloudRate: 0, sunSailRate: 0,
         /* 水体污染：早退对象也必须**补齐全部键**（少一个键 ⇒ 读它的人拿到 undefined，
          *   面板会显示 NaN —— 与上面那段注释同一条纪律）。 */
@@ -1789,9 +1792,6 @@
         vrDraw: 0, vrRate: 0, europaDraw: 0, europaRate: 0, geekDraw: 0, geekRate: 0,
         jupitorDraw: 0, jupitorRate: 0, vatPoolDraw: 0, vatFlowDraw: 0, vatFlowRate: 0, coreNetRate: 0,
         fissionStoneDraw: 0, fissionStoneRate: 0 };
-    /* ERA5（2026-10-02）：高压热机管道(wonder_presspipe) 给热液能**供给侧 +10 绝对量**，
-     *   走 wonder.hydroWonderMul 出口。与高压气泵升级的 hydroMul（乘区）是两回事，这里加法叠加。 */
-    var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
     var supply = 0, rW = 1, turbineSupply = 0, pressSupply = 0, fissionSupply = 0, titancloudSupply = 0;
     /* 水体污染（2026-11-02）：脏源**每秒**排放（未乘政策 rateMul / k），与上面几个 supply 局部变量
      * 同源同值（`/dt` 归一）。分两枝返回，是因为装罐填埋只削**汽轮机**那一枝（§1.2 的坑）：
@@ -1803,21 +1803,24 @@
       var warmNeed = turL * SB.UNIT.hydroWarm * dt * warmEff(s);
       var canWarm = Math.min(warmNeed, s.res.warmstone);
       rW = warmNeed > 0 ? canWarm / warmNeed : 0;
-      /* ⚠️ 2026-09-30 ERA4：高压气泵(hydroMul) 只放大**汽轮机供给那一侧**，
-       *    不放大工坊的需求 —— 反过来写会让「+50% 热液能」变成「多烧 50% 暖石」的方向错误。
-       *   ⚠️ ERA5：_press 作为并联进汽口的绝对增量，同样乘 rW（按比例降产时管道也按比例供）。 */
-      var _turbineFactor = dt * rW
+    }
+    /* 公共供给乘区：热能优先、平等主义、挑战产出倍率，以及暖石可用率 rW。
+     * 无运行汽轮机时没有暖石需求，rW 保持 1；并联管道/轨道工厂仍可独立供给。
+     * 高压气泵 hydroMul 只在汽轮机支路乘，不放大这条独立进汽口。 */
+    var _sourceFactor = (turL > 0 || _press > 0)
+      ? dt * rW
         * (SB.civic ? SB.civic.cardHydroMul(s) : 1)
         * (SB.civic ? SB.civic.govHydroPerPop(s) : 1)   // ERA6 平等主义：每名鲛人 +0.1% 热液能产出
-        * (SB.challenges ? SB.challenges.productionMul(s) : 1);
-      turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _turbineFactor;
-      pressSupply = _press * _turbineFactor;
-      supply = turbineSupply + pressSupply;
-      if (dt > 0) {
-        pollutionTurbine += turbineSupply / dt;
-        pollutionOther += pressSupply / dt;
-      }
+        * (SB.challenges ? SB.challenges.productionMul(s) : 1)
+      : 0;
+    if (turL > 0) {
+      turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _sourceFactor;
+      if (dt > 0) pollutionTurbine += turbineSupply / dt;
     }
+    /* ERA5 并联进汽口：停用汽轮机只停汽轮机本身，不关高压热机管道/轨道工厂。 */
+    pressSupply = _press * _sourceFactor;
+    supply = turbineSupply + pressSupply;
+    if (dt > 0) pollutionOther += pressSupply / dt;
     /* ERA7（2026-10-17 · spec §4）：核热厂——每级 +10 热液能/秒，**不烧暖石**的新热液源
      *   （供给侧直接相加，与高压热机管道 _press 同类；×挑战乘区与汽轮机同口径）。
      *   ⚠️ 铀消耗不在此扣（tick 侧直耗），这里只管流；「断铀不停堆」为提议口径待标定。

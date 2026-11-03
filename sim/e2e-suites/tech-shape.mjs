@@ -167,4 +167,31 @@ console.log('\n=== 科技树形状 ===');
   check('没有科技的前置比它自己更深一层', badLayer.length === 0, badLayer.join('；'));
 }
 
+/* ---------------- 多级科技读档后仍可继续升级（2026-11-03）----------------
+ * 玩家实测「微波收敛研究 等级 3/5，按钮灰着写等级 3/5，点不动也不说原因」。
+ * 根因是三处叠加：① state-migrate 每次读档 `out.eureka = {}`；
+ * ② revealEra 与 discover 的守卫都是「已掌握跳过」⇒ 已掌握节点的 eureka 永远补不回来；
+ * ③ canStudy/studyBlocked 只认 isRevealed（静态标记），而渲染侧 revealed 用 metOf
+ *    （含 techs 兜底）⇒ 面板正常显示内容、按钮却是灰的，且 blockKind 判不出原因为空。
+ * 这四条断言把「读档 → 仍可升级」的整条链路钉住。 */
+{
+  const raw = { res: { science: 1e9 }, techs: { microwave_heat: true, mwconverge: true },
+    techLv: { mwconverge: 3 }, eureka: { mwconverge: 1 }, eurekaMet: { mwconverge: 1 },
+    sunSails: 1200, lvl: {}, civics: {}, era: 9 };
+  const s = SB.state.migrateRun(raw);
+  check('迁移不再把纪元夹到 7（ERAS 已 10 个）', s.era === 9, 'era=' + s.era);
+  check('迁移清空 eureka 后，已掌握的多级科技仍判「可研究」（isRevealed 假但 metOf 真）',
+    SB.tech.canStudy(s, 'mwconverge') && SB.tech.studyBlocked(s, 'mwconverge') === null,
+    'blocked=' + JSON.stringify(SB.tech.studyBlocked(s, 'mwconverge')));
+  const before = !!s.eureka.mwconverge;
+  SB.tech.discover(s);
+  check('discover 会把「已掌握但缺 eureka」的节点补揭示（否则读档后永远卡住）',
+    before === false && s.eureka.mwconverge === 1, 'before=' + before);
+  const lv0 = SB.tech.level(s, 'mwconverge');
+  const ok = SB.tech.study(s, 'mwconverge');
+  check('实际升级成功：3/5 → 4/5，且科技点按 researchCost 扣',
+    ok === true && SB.tech.level(s, 'mwconverge') === lv0 + 1,
+    'lv=' + SB.tech.level(s, 'mwconverge'));
+}
+
 }

@@ -355,15 +355,19 @@ export function run({ SB, check, noop, dom }) {
         dom('envPollution') === '', '容器内容=' + JSON.stringify((dom('envPollution') || '').slice(0, 40)));
       rp(polRun(s => { s.pollution = 2000; s.lvl.hydroturbine = 10; s.pollutionDeaths = 3; }));
       const polHtml = dom('envPollution');
-      check('挑战周目：面板显示「水体污染 · 阶段名 + 第 n / 5 阶段」',
-        polHtml.indexOf('水体污染 · 浊流') >= 0 && polHtml.indexOf('第 2 / 5 阶段') >= 0,
+      /* 2026-11-03：这三条断言跟着 2eb6324b（污染面板表现更新）改 ——
+       * 面板标题从「水体污染」改成「海洋污染」，阶段标记从「第 n / 5 阶段」改成
+       * 「阶段 n · 名称」，死亡行从「因污染而死」改成「污染死亡 / 墓地安息位」。
+       * 面板改了却不同步断言，是回归变红的直接原因（不是本轮破壳改造引入的）。 */
+      check('挑战周目：面板显示「海洋污染 · 阶段名 + 阶段序号」',
+        polHtml.indexOf('海洋污染') >= 0 && polHtml.indexOf('阶段 1 · 浊流') >= 0,
         polHtml.replace(/<[^>]*>/g, ' ').slice(0, 80));
-      check('挑战周目：面板显示排放/净化/净变三行读数（净变 = 拆分项之和）',
-        polHtml.indexOf('排放') >= 0 && polHtml.indexOf('净化') >= 0 && polHtml.indexOf('净变') >= 0 &&
-        /净变\s*<b>[+−]/.test(polHtml), '有净变行');
-      check('挑战周目：面板把死亡数与安息位一起报出来（超限时写明「每人 3%」）',
-        polHtml.indexOf('因污染而死') >= 0 && polHtml.indexOf('安息位') >= 0 &&
-        polHtml.indexOf('每人 3%') >= 0, '死亡 3 人 / 安息位 0 ⇒ 超限');
+      check('挑战周目：面板显示排放/净化/净变化三行读数（净变化 = 拆分项之和）',
+        polHtml.indexOf('污染排放') >= 0 && polHtml.indexOf('净化') >= 0 && polHtml.indexOf('净变化') >= 0 &&
+        /净变化<\/span><b/.test(polHtml), '有净变化行');
+      check('挑战周目：面板把污染死亡数与墓地安息位一起报出来（超限时写明「每人增加 3%」）',
+        polHtml.indexOf('污染死亡') >= 0 && polHtml.indexOf('墓地安息位') >= 0 &&
+        polHtml.indexOf('每人增加 3%') >= 0 && polHtml.indexOf('超限') >= 0, '死亡 3 人 / 安息位 0 ⇒ 超限');
       rp(baseRun());
     }
   } finally {

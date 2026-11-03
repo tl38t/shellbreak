@@ -137,11 +137,16 @@ export function run({ SB, check, noop }) {
   const steelTurbines = steel.lvl.hydroturbine - (steel.turbineStop || 0);
   const steelShops = steel.lvl.hydroshop - (steel.hydroshopStop || 0);
   const steelSupport = Math.floor((SB.economy.rates(steel).warmstone + 1e-9) / SB.UNIT.hydroWarm);
-  /* ⚠️ 2026-10-29 **红转绿，原因不纯，别当好消息**：这条以前是红的，改成等比议价曲线
-   *   + 把 `priorityBuildingUpgrade` 的判据从「未到上限」换成「nextGain > 0.5%」之后变绿。
-   *   查过：不是 AI 学会判断暖石约束了，而是它现在把 hall 占成了目标 ⇒ 压根没去扩汽轮机
-   *   ⇒ `steelTurbines <= steelSupport` 顺带成立。若哪天 hall 不可建（材料不够），这条会回红。
-   *   ⇒ 它现在测的是「AI 没盲目扩建」，而**不是**「AI 判断出了暖石约束」。两者别混。 */
+  /* ⚠️ 这条断言的历史比它看起来复杂，别当中性绿灯读：
+   *   1) 2026-10-29 它一度靠「AI 把 hall 占成目标、压根没去扩汽轮机」顺带变绿 ——
+   *      那时测的是「没扩建」，**不是**「判断出了暖石约束」。
+   *   2) 2026-11-03 它真的红了，而且红得有道理：`priorityBuildingUpgrade` 因污染挑战
+   *      被下移到「钢制零件 → 补汽轮机/工坊」分支之后，同一步里真的会建出一台汽轮机；
+   *      而 `turbineStop` 是在**动作循环之前**算的 ⇒ 新建那台不受停用计数覆盖，
+   *      暖石毛供只有 2.128/s（不够一台 5/s）却按「运行中」记账，净速率 +2.016 → -2.872。
+   *      ⇒ 修的是 step() 尾部「按最终等级再同步一次停用数」（见 ai-strategy.js）。
+   *   3) 判据口径注意：这里用的是**净**速率，`steelSupport` 没有把汽轮机自耗加回去
+   *      （与下面 steelTools 那条不同）。稳态下它其实要求「一台都别开」，语气比字面更严。 */
   check('钢制零件目标受暖石净产能约束，不盲目扩建/运行汽轮机',
     steelTurbines <= steelSupport && steelShops <= steelTurbines,
     'decision=' + JSON.stringify(steelDecision) + ' warmstone=' + SB.economy.rates(steel).warmstone +

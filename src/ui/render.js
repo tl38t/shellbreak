@@ -516,8 +516,13 @@
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch];
       });
     }
-    box.innerHTML = '<div class="star-complete-panel drift-terra-complete-panel">' +
-      '<h2>★ 流浪泰拉 · 挑战完成</h2>' +
+    /* 2026-11-03：标题原先写死「流浪泰拉」，但 challenges.award() 对**任何** goal 型挑战都会
+     * 挂 meta.challengePopupPending ⇒《水体污染》通关也弹「★ 流浪泰拉 · 挑战完成」，
+     * 奖励与日志却是它自己的（账本没错、面板撒谎）。现在一律读 outcome：
+     * award() 给的 name / label / goalText / reward 本来就是按定义取的。 */
+    var title = escHtml(outcome.name || '挑战');
+    box.innerHTML = '<div class="star-complete-panel challenge-complete-panel">' +
+      '<h2>★ ' + title + ' · 挑战完成</h2>' +
       '<p>' + escHtml(outcome.goalText || '挑战目标已达成。') + '</p>' +
       '<p class="muted">永久奖励已生效：' + escHtml(outcome.reward || '') + '。本局仍可继续发展。</p>' +
       '<div class="break-controls"><button class="btn big" type="button" id="challengeCompleteClose">继续</button></div>' +
@@ -528,10 +533,14 @@
     return true;
   }
 
-  /* 流浪泰拉达标后播放四段分镜：点火特写 → 炉芯满载 → 地表发动机群 → 深空远景。 */
+  /* 流浪泰拉达标后播放四段分镜：点火特写 → 炉芯满载 → 地表发动机群 → 深空远景。
+   * ⚠️ 这四张图和四条字幕是**《流浪泰拉》专属素材**（行星发动机点火），2026-11-03 起加门控：
+   *   `outcome.id !== 'drift_terra'` 直接出结算面板。在这之前任何 goal 型挑战通关都会播完
+   *   泰拉发动机，再在结束卡上写「流浪泰拉 · 星际远航」—— 水体污染通关时整段张冠李戴。 */
   function showChallengeComplete(outcome) {
     var modal = el('modal'), box = el('modalBox');
     if (!modal || !box || !outcome) return false;
+    if (outcome.id !== 'drift_terra') return showChallengeCompletePanel(outcome);
     if (prefersReducedMotion()) return showChallengeCompletePanel(outcome);
     clearBreakAnimation();
     clearDysonAnimation();
@@ -1752,7 +1761,7 @@
     clearDysonAnimation();
     if (!modal || !box || prefersReducedMotion()) {
       if (afterAnimation) afterAnimation();
-      else showBreakPanel(r);
+      else showBreakResult(r);
       return;
     }
     clearBreakAnimation();
@@ -1795,14 +1804,15 @@
       stage.dataset.phase = step[0];
       if (phaseName) phaseName.textContent = step[1];
       if (counter) counter.textContent = step[2];
-      if (continueBtn && step[0] === 'ending') continueBtn.textContent = '查看结算';
+      /* 2026-11-03：动画结束时不再是「查看结算」—— 破壳不是本局终点 */
+      if (continueBtn && step[0] === 'ending') continueBtn.textContent = '进入壳外时代';
     }
     function finish() {
       var report = _breakAnimationReport;
       clearBreakAnimation();
       if (report) {
         if (afterAnimation) afterAnimation();
-        else showBreakPanel(report);
+        else showBreakResult(report);
       }
     }
     function play() {
@@ -1817,6 +1827,106 @@
     if (replay) replay.onclick = play;
     if (continueBtn) continueBtn.onclick = finish;
     play();
+  }
+
+  /* 破壳结果面板（2026-11-03）：破壳不再是本局终点，所以这里**不叫结算**。
+   * 与 showBreakPanel 的分工：
+   *   showBreakResult —— 破壳那一刻的「里程碑结果」：挑战判定 + 壳外时代开启
+   *   showBreakPanel  —— 玩家主动轮回时的「账本明细」：本轮拿多少轮回点 / 星屑
+   * ⚠️ 这里只有一个出口按钮，且它不写任何账本。点完继续玩 ERA10；
+   *   要结算得去底栏「轮回」（askResetRun → doBreak）。
+   * ⚠️ 挑战结果必须在这里显示：判定发生在破壳瞬间（challenges.sealRun），
+   *   不在这里说，玩家要等下一次轮回结算才知道自己赢了还是超时了。 */
+  /* 破壳结果面板（2026-11-03 B 方案，用户拍板）：破壳是本局中段里程碑，不是终点。
+   * 与旧版三点差别：
+   *   ① 挑战结果从「一行 note」升级成独立块 —— 旧文案玩家读完不知道限制还挂着；
+   *   ② 出口变成二选一：结算并轮回 / 解除限制进入壳外时代（不再有「保留限制」这项）；
+   *   ③ 解除是一次性的（challenges.release 置 challengeReleased），之后不可再打开。
+   * ⚠️ 破壳后挑战限制**不再自动消失**：active() 的判据已从 `!s.broken` 换成
+   *   `!s.challengeReleased`，所以这块必须给出「解除」的出口，否则玩家会被自己的挑战锁死。 */
+  function showBreakResult(r, after) {
+    clearBreakAnimation();
+    resetModalChrome();
+    r = r || {};
+    var s = res();
+    var a = s && s.challenge;
+    var cd = a && SB.challenges && SB.challenges.byId ? SB.challenges.byId(a.id) : null;
+    var qualified = !!(s && SB.prestige && SB.prestige.qualified(s));
+    var acctLabel = qualified ? '结算并轮回' : '结算后重开';
+    /* 挑战块：goal 型（流浪泰拉 / 水体污染）终点不在破壳，破壳时不该出块。 */
+    var ch = '';
+    if (cd && !cd.goal) {
+      var tier = Math.max(0, Math.min(cd.tiers.length - 1, a.tier | 0));
+      var cls = '', head = '', badge = '', body = '';
+      if (r.challengeClear) {
+        cls = ' ok'; head = '挑战达成'; badge = '已达成';
+        body = r.challengeClear.replay
+          ? '重复挑战不重复发放永久奖励，本局成绩已计入排行榜。'
+          : '永久奖励已生效：<b>' + r.challengeClear.reward + '</b>';
+      } else if (r.challengeFailure) {
+        cls = ' fail'; head = '挑战未通关'; badge = '已超时';
+        body = '用时 <b>' + SB.challenges.formatClock(r.challengeFailure.elapsed) + '</b>，超过 ' +
+          SB.challenges.formatClock(r.challengeFailure.limit) + ' —— 本档奖励未领取。';
+      } else if (!qualified) {
+        /* 破壳那一刻还没学《神学》：判定挂起，补学后按同一份 seal 补判（challenges.evaluate）。 */
+        cls = ' pending'; head = '挑战判定挂起'; badge = '待补判';
+        body = '本局尚未完成《神学》—— 学完之后按<b>破壳那一刻</b>的成绩补判，不会用之后的数据。';
+      } else {
+        /* 快照条件不满足（峰值人口 / 学者书手超档）：判据被绕过才会走到这，别静默成「没反应」。 */
+        cls = ' fail'; head = '挑战未达成'; badge = '条件不符';
+        body = '破壳那一刻的成绩没有满足本档限制，本档奖励未领取。';
+      }
+      /* 标题行取「判定结果自带的」名称/档位，而不是当前 s.challenge ——
+       * 复核老档时两者可能不是同一条（结果来自 s.challengeOutcome，挑战可能是后开的）。 */
+      var cInfo = r.challengeClear || r.challengeFailure || { name: cd.name, label: cd.tiers[tier].label };
+      ch = '<div class="bresult' + cls + '">' +
+        '<div class="cc-head">' +
+        '<span class="cc-icon">' + (cls === ' ok' ? '✓' : (cls === ' fail' ? '✕' : '?')) + '</span>' +
+        '<div class="cc-title"><b>' + head + '</b><small>' + cInfo.name + ' · ' + cInfo.label + '</small></div>' +
+        '<span class="cc-badge">' + badge + '</span></div>' +
+        '<div class="cc-reward">' + body + '</div>' +
+        '<div class="cc-hint">挑战的限制仍然生效 —— 选一项继续：</div>' +
+        '<div class="cc-actions">' +
+        '<button class="btn" id="mCycle">' + acctLabel + '</button>' +
+        '<button class="btn big" id="mRelease">解除限制，进入壳外时代</button>' +
+        '</div></div>';
+    }
+    var tideLine = r.locked
+      ? '<div class="note" style="color:var(--red)">本局尚未完成《神学》，现在轮回不发放轮回点。研究完《神学》再结算即可。</div>'
+      : '<div class="note">当前可结算：<b>' + (r.tidePoints || 0).toFixed(2) + '</b> 轮回点 · <b>' +
+        (r.stardust || 0) + '</b> 星屑。随时可在底栏点「轮回」领取。</div>';
+    var box = el('modalBox');
+    box.innerHTML =
+      '<h3>天壳裂开了</h3>' +
+      '<div class="note">冰壳之外的星空已经打开。<b>本局不会结束</b> —— 轨道发射场、戴森球、星图与星空槽都可以继续建设，发展分和星屑也还能接着攒。</div>' +
+      tideLine + ch +
+      (ch ? '' :
+        '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
+        '<button class="btn big" id="mGo">进入壳外时代</button></div>');
+    el('modal').classList.remove('hidden');
+    bodyModalClass(true);
+    /* 关面板 + 落盘 + 重绘。keepAfter 才接着弹离线明细 ——
+     * 选「结算并轮回」时周目已经换了，那张明细里的离线收益对新周目没有意义，不再追着弹。 */
+    function leave(keepAfter) {
+      hideModal();
+      if (SB.game && SB.game.markDirty) SB.game.markDirty();
+      if (SB.game && SB.game.renderAll) SB.game.renderAll();
+      if (keepAfter && after) after();
+    }
+    if (el('mRelease')) el('mRelease').onclick = function () {
+      /* 一次性：release 置 challengeReleased=true，之后 active() 再也不返回本局挑战。 */
+      if (SB.challenges && SB.challenges.release) SB.challenges.release(s);
+      leave(true);
+    };
+    if (el('mCycle')) el('mCycle').onclick = function () {
+      if (SB.game && SB.game.settleAndCycle) SB.game.settleAndCycle();
+      else { if (SB.game.settleBreak) SB.game.settleBreak(); if (SB.game.nextCycle) SB.game.nextCycle(); }
+    };
+    if (el('mGo')) el('mGo').onclick = function () {
+      /* 非挑战局 / goal 型挑战（流浪泰拉、水体污染）：破壳不是它们的终点，也没有「本轮挑战限制」
+       * 要撤 —— goal 型的 active() 仍按 !s.broken 判，破壳即失效。 */
+      leave(true);
+    };
   }
 
   /* 轮回结算面板（2026-10-02 重设）：契约与 prestige.breakReport 对齐 ——
@@ -1859,21 +1969,24 @@
       : (res() && !res().breakSettled
         ? '<div class="note">这只是当前预估，留在本局继续发展后，轮回结算会按最新进度重新计算。</div>'
         : (extra || '<div class="note">轮回点 = 1 + floor(发展分 × 系数 × 破壳系数)，发展分 = 2×峰值族民 + 建筑纪元分 + 工坊解锁项；下一局继承轮回点、已购增益与旧日遗产账本。</div>'));
-    var shellCracked = !!(res() && res().shell <= 0);
+    /* 2026-11-03：这张面板现在只服务「主动轮回」（破壳那一刻走 showBreakResult），
+     * 所以标题固定「轮回结算」—— 别再按 shell<=0 叫「冰壳裂开了」，那会让玩家
+     * 以为破壳和结算是同一件事。 */
     box.innerHTML =
-      '<h3>' + (shellCracked ? '冰壳裂开了' : '轮回结算') + '</h3>' +
+      '<h3>轮回结算</h3>' +
       rows +
       note +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
-      (res() && res().breakSettled ? '' : '<button class="btn" id="mStay">探索壳外的星空</button>') +
-      '<button class="btn big" id="mNext">' + (res() && res().breakSettled ? '开始轮回' : '结算并轮回') + '</button></div>';
+      '<button class="btn big" id="mNext">' + (res() && res().breakSettled ? '开始轮回' : '结算并发放轮回点') + '</button></div>';
     el('modal').classList.remove('hidden'); bodyModalClass(true);
-    if (el('mStay')) el('mStay').onclick = function () { SB.game.stay(); };
+    /* 2026-11-03：删掉「探索壳外的星空」（原 mStay）。
+     * 那个按钮的全部作用是把 s.broken 改回 false，让本局继续 —— 破壳不再停摆之后
+     * 它既无意义又有害：改回 false 会让挑战限制在破壳后重新生效（active() 的 !s.broken）。 */
     if (res() && res().breakSettled) {
       el('mNext').textContent = (m && m.religionSeen) ? '开始轮回' : '重开本周目';
       el('mNext').onclick = function () { SB.game.nextCycle(); };
     } else {
-      el('mNext').textContent = SB.prestige.qualified(res()) ? '结算并轮回' : '结算后重开';
+      el('mNext').textContent = SB.prestige.qualified(res()) ? '结算并发放轮回点' : '结算后重开';
       el('mNext').onclick = function () { SB.game.settleBreak(); };
     }
   }
@@ -2368,7 +2481,7 @@
     /* 顶栏资源详情面板（2026-10-29）：input.js 的 [data-res-detail] 委托调它。
      * 只读 economy.ratesParts，不写游戏状态。 */
     showResDetail: showResDetail,
-    showBreakPanel: showBreakPanel, showBreakAnimation: showBreakAnimation, hideModal: hideModal, confirmPanel: confirmPanel,
+    showBreakPanel: showBreakPanel, showBreakResult: showBreakResult, showBreakAnimation: showBreakAnimation, hideModal: hideModal, confirmPanel: confirmPanel,
     /* 弹窗外壳归一化（2026-10-29）：导出给 render-info.js（树图详情卡）/ game.js（政体命名框）/
      * save-transfer.js（存档管理）——它们都往同一个 #modal 里写内容，必须先清掉上一张面板的变体类。
      * 见 resetModalChrome 的注释（离线结算类残留把破壳面板压成竖排那次事故）。 */

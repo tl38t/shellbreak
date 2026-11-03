@@ -175,7 +175,12 @@
         if (typeof _blv === 'number' && _blv > 0) _blt[_blk] = (_blt[_blk] || 0) + _blv;
       }
     }
-    if (options && options.challenge) S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now(), replay: options.challenge.replay === true };
+    if (options && options.challenge) {
+      S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now(), replay: options.challenge.replay === true };
+      /* 新挑战必须从未解除态起算（2026-11-03）：限制是否生效靠 challengeReleased 判，
+       * 万一将来 S 不是 freshRun 造出来的，残留的 true 会让整局限制形同不存在。 */
+      S.challengeReleased = false;
+    }
     if (SB.economy && SB.economy.lockSeasonLengths) SB.economy.lockSeasonLengths(S, meta);
     /* ⚠️ 2026-11-02（玩家报「轮回工巧 / 轮回炉火还是没生效」）：
      * 这行是「潮汐之树 derivePerksFromMeta」之前的遗物（基线 aa3647d3 就在，744e8497 才引入派生）。
@@ -318,24 +323,26 @@
     syncChangelogDot();
   }
 
-  function stay() {
-    if (S) S.broken = false;
-    SB.ui.render.hideModal();
-    dirty = true;
-    renderAll();
-    if (S) SB.state.saveRun(snapshot(S));
-    /* 破壳待处理时启动会优先展示结算选择，推迟的首次解锁提示在玩家选择留在本局后补播。
-     * 更新日志不参与这个队列了（2026-10-28）：红点由 bootUi 统一同步，这里只补一次保证
-     * 「破壳局 → 留下 → 页脚可见」这条路红点也是准的。 */
-    if (S) { maybeSciencePopup(S); maybeReligionPopup(S); maybeTabUnlockPopups(S); syncChangelogDot(); }
-  }
-
-  /* 玩家主动选择轮回时才结算当前最新发展分；留在本局不会调用此入口。 */
+  /* 玩家主动选择轮回时才结算当前最新发展分。
+   * 2026-11-03 起没有「留在本局」这条分支了 —— 破壳之后本来就在本局继续玩，
+   * 原 stay() 的全部作用（把 s.broken 改回 false 让经济复活）已经不需要，
+   * 而且它有害：broken 变 false 会让挑战限制在破壳后重新生效。 */
   function settleBreak() {
     if (!S || !S.shellOpened || S.shell > 0 || S.breakSettled) return null;
     var report = SB.prestige.doBreak(S, emit, { silent: true });
     if (report) SB.ui.render.showBreakPanel(report);
     return report;
+  }
+
+  /* 破壳结果面板的「结算并轮回」：入账 + 换周目，一步走完（2026-11-03 用户拍板）。
+   * 旧流程是两步（先 doBreak 把面板重弹一次、再点「开始轮回」），玩家感受是
+   * 「我点了轮回，它又让我轮回一次，而且选项还少了一个」。
+   * ⚠️ doBreak 要传 silent:true —— 否则它会自己再弹一次结算面板，紧接着就被 nextCycle 关掉。 */
+  function settleAndCycle() {
+    if (S && S.shellOpened && S.shell <= 0 && !S.breakSettled) {
+      SB.prestige.doBreak(S, emit, { silent: true });
+    }
+    nextCycle();
   }
 
   /* 星图天体清单（萨图恩行星系，与 star-map-frame.html 的 data-id 对齐）。
@@ -1167,12 +1174,12 @@
     loop._lastBatchSimSeconds = S && typeof batchGameStart === 'number' ? Math.max(0, S.t - batchGameStart) : 0;
 
     /* 星空槽推进（2026-10-13 镜像破壳：破壳后由文明推力被动累积到 STAR_CAP）。
-     * ⚠️ 不能放 economy.tick 里——tick 在 s.broken 时顶部直接早退（1335 行），破壳后那条路径不跑。
-     *   故挂在这里：只要 S 存在就按真实帧时推进；tickStar 内部判 !broken → 早退（破壳前不累积）。
-     *   离线补算走 drainCatchUp（同语义、按真实离线秒推进）。 */
-    /* 未结算的破壳选择期间冻结星空槽；玩家选择留在本局后才继续推进。 */
-    if (S && !(S.broken && S.shellOpened && !S.breakSettled))
-      SB.shell.tickStar(S, elapsed * speed * adMul(), emit);
+     * ⚠️ 不能放 economy.tick 里 —— tick 里没有这条路径（削壳在第 8 步，星空槽与它无关）。
+     *   故挂在这里：只要 S 存在就按真实帧时推进；tickStar 内部自己判「没破壳不累积」。
+     *   离线补算走 drainCatchUp（同语义、按真实离线秒推进）。
+     * ⚠️ 2026-11-03：删掉了「未结算时冻结星空槽」的外层闸。破壳不再需要玩家做选择，
+     *   而那个闸会让「破壳后一直不结算」的局永远攒不到星空 —— 现在破壳即开始累积。 */
+    if (S) SB.shell.tickStar(S, elapsed * speed * adMul(), emit);
 
     if (S && !S.broken) {
       /* 点击时间事件（天壳震动等）：只在线推进——离线补算 drainCatchUp 不跑本系统。
@@ -1239,6 +1246,10 @@
       uncountedSecs: Math.max(0, gap - secs),
       before: before, bPop: s.pop, bShell: s.shell,
       bFam: s.famineDeaths, bFrost: s.frostDeaths,
+      /* 2026-11-03：破壳不再是补算终点，改成「记一笔」——
+       *   bBroke = 进入补算时是否已经破壳（已经破的老档不该再补播一次破壳动画）
+       *   brokeDuring = 本次补算期间是否破了壳（补算结束后据此补播动画与结果面板） */
+      bBroke: !!s.broken, brokeDuring: false,
       silent: !!silent
     };
     /* 2026-10-24 分级离线（用户拍板 30min）：短暂离开走静默补算——不锁界面、不弹闸门。
@@ -1333,10 +1344,12 @@
         realDone += dt / mul;
         if (mul > 1) j.s.ad.ms = Math.max(0, j.s.ad.ms - dt / mul * 1000);
         if (j.tp >= TECH_PUMP - 1e-9) { j.tp = Math.max(0, j.tp - TECH_PUMP); pumpTech(j.s, null); pumpCivic(j.s, null); }
-        if (j.s.broken && j.s.shellOpened && !j.s.breakSettled) {
-          j.breakReached = true;
-          break;
-        }
+        /* ⚠️ 2026-11-03：破壳不再是补算终点。
+         *   旧流程里破壳要玩家在「留在本局 / 结算轮回」之间做选择，所以补算必须停在那里等。
+         *   现在破壳后本局继续跑 ERA10（发射场 → 戴森球），停在这里等于把破壳之后那段
+         *   离线时间整段吞掉。改为只记一笔标记，补算照常跑完。
+         * ⚠️ !j.bBroke 是必须的：进补算时就已破壳的老档，不该再补播一次破壳动画。 */
+        if (!j.brokeDuring && !j.bBroke && j.s.broken) j.brokeDuring = true;
         /* 星空槽在破壳后独立于 economy.tick 推进；按同一事件块累计，线性速率结果不变。 */
         SB.shell.tickStar(j.s, dt, null);
         /* 预算让出：内层过去不检查时间（只有外层查），一段 8 小时补算会在一帧里算到底。
@@ -1356,18 +1369,29 @@
   function finishCatchUp(j) {
     loop.job = null;
     var breakReport = null;
-    if (j.s.broken && j.s.shellOpened && !j.s.breakSettled) {
-      /* 破壳就是离线补算的终点：先保存状态并播放破壳动画，之后再进入离线结算。 */
+    /* 2026-11-03：只认「本次补算期间破的壳」（j.brokeDuring）。
+     * 原判据看的是当前状态（broken && shellOpened && !breakSettled），在新流程下
+     * 「破壳后一直不结算」恒为真 ⇒ 每次离线回来都重播一遍破壳动画。 */
+    if (j.brokeDuring) {
+      /* 破壳事件先落盘，避免动画期间被杀丢掉挑战判定与 seal。 */
       SB.state.saveRun(snapshot(j.s));
       renderAll();
       breakReport = SB.prestige.breakReport(j.s);
       if (!SB.prestige.qualified(j.s)) { breakReport.tidePoints = 0; breakReport.locked = true; }
+      if (j.s.challengeOutcome) {
+        if (j.s.challengeOutcome.failed) breakReport.challengeFailure = j.s.challengeOutcome;
+        else breakReport.challengeClear = j.s.challengeOutcome;
+      }
     }
     /* 2026-10-24 分级离线：静默补算且无终局事件 ⇒ 不弹结算报告，日志一行交代完事。
-     * 有 breakReport（离开期间破壳）时不走这里——破壳动画 + 结算窗照弹，见下。 */
+     * 有 breakReport（离开期间破壳）时不走这里——破壳动画 + 结果窗照弹，见下。 */
     if (j.silent && !breakReport) { silentCatchUpSummary(j); return; }
     function showSettlement() { showOfflineSettlement(j, breakReport); }
-    if (breakReport) SB.game.showBreakAnimation(breakReport, showSettlement);
+    /* 顺序：破壳动画 → 破壳结果（挑战判定 + 壳外时代）→ 离线结算明细。
+     * 破壳结果是里程碑，离线明细是流水账，里程碑先看。 */
+    if (breakReport) SB.ui.render.showBreakAnimation(breakReport, function () {
+      SB.ui.render.showBreakResult(breakReport, showSettlement);
+    });
     else showSettlement();
   }
   /* 静默补算的一句话交代：时长 + 超上限未计入 + 人口 / 饿死 / 冻死异动。
@@ -1485,11 +1509,12 @@
       summary: true,
       ok: '继续',
       onOk: function () {
-        if (breakReport) SB.ui.render.showBreakPanel(breakReport);
-        else { maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); fireDysonPending(j); }
+        /* 2026-11-03：破壳结果已经在这张面板之前播过（finishCatchUp：动画 → 结果窗 → 本面板），
+         * 这里不再重复弹结算面板，只补播被离线遮罩盖住的叙事与终局事件。 */
+        maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); fireDysonPending(j);
       }
     });
-    if (modalShown === false && breakReport) SB.ui.render.showBreakPanel(breakReport);
+    if (modalShown === false && breakReport) SB.ui.render.showBreakResult(breakReport);
     else if (modalShown === false && j.s.dysonPopupPending) fireDysonPending(j);
   }
   /* 存档字段取舍：`_` 前缀曾被当成「不落盘」的依据，那是错的——
@@ -2277,24 +2302,40 @@
     if (SB.achv && SB.achv.syncMeta) SB.achv.syncMeta(meta);
     SB.ui.render.initTabs();
     SB.ui.render.initSpeeds();
-    var pendingBreak = !!(S && S.broken && S.shellOpened && !S.breakSettled);
-    if (pendingBreak) {
-      var report = SB.prestige.breakReport(S);
-      if (!SB.prestige.qualified(S)) { report.tidePoints = 0; report.locked = true; }
-      SB.ui.render.showBreakPanel(report);
+    /* 2026-11-03：破壳后读档不再弹「结算」面板 —— 破壳不是本局终点，不需要玩家做选择。
+     * ⚠️ 原 pendingBreak 分支的判据（broken && shellOpened && !breakSettled）在「破壳后
+     *   一直不结算」的新流程下**恒为真**，保留它等于每次启动都把玩家锁在结算面板上。
+     * ⚠️ 但「挑战已判定、玩家还没选解除/轮回」是另一回事：他上次是直接关掉了游戏，
+     *   那张面板必须补回来。否则限制一直生效、又找不到入口 —— 挑战页要首次轮回后才开，
+     *   玩家会被自己的挑战锁死在这一局。 */
+    var pendingChallengeUI = !!(S && S.broken && S.shellOpened && !S.breakSettled
+      && S.challenge && S.challengeDone && !S.challengeReleased
+      && SB.challenges && SB.challenges.byId(S.challenge.id));
+    if (pendingChallengeUI) {
+      var pendingReport = SB.prestige.breakReport(S);
+      if (!SB.prestige.qualified(S)) { pendingReport.tidePoints = 0; pendingReport.locked = true; }
+      if (S.challengeOutcome) {
+        if (S.challengeOutcome.failed) pendingReport.challengeFailure = S.challengeOutcome;
+        else pendingReport.challengeClear = S.challengeOutcome;
+      }
+      SB.ui.render.showBreakResult(pendingReport);
     } else {
+      if (S && S.broken && S.shellOpened && !S.breakSettled) {
+        log('天壳已破。发射场、戴森球、星图与星空槽可以继续建设；想结算时点底栏「轮回」。');
+      }
       /* 启动自动弹窗（2026-10-28 恢复原样）：解锁叙事×3 + 新手引导层。
        * ⚠️ 只弹「启动时该弹的那些」，各功能自己的入口（页签、设置里的更新日志按钮）
-       *   一律保留；`pendingBreak`（破壳结算）是必须玩家选择的存档节点，不在此列。
-       * ⚠️ 顺序不能换：解锁叙事先于引导层 —— 引导的步骤文案按「页签已解锁」写。 */
+       *   一律保留。
+       * ⚠️ 顺序不能换：解锁叙事先于引导层 —— 引导的步骤文案按「页签已解锁」写。
+       * ⚠️ 破壳挑战待选时整组跳过：它们同样抢 #modal，会把自己的面板压掉。 */
       maybeSciencePopup(S);   // 兜底：读档 / 硬重置后若门槛已过，仍然把开门那一刻补播
       maybeReligionPopup(S);  // 兜底：读档 / 硬重置后若神学已过，仍然把宗教弹窗补播
       maybeTabUnlockPopups(S); // 兜底：读档 / 硬重置后补播各系统页签的首次解锁叙事
       if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);  // 首局新手引导（门控内部：设置关/已播过则早退）
-      /* 更新日志红点（2026-10-28 起取代自动弹窗）：纯视觉角标，不抢焦点、不遮挡、
-       * 不参与 #modal 竞争。必须排在叙事/引导之后 —— 它们会开 #modal 并清点页脚状态。 */
-      syncChangelogDot();
     }
+    /* 更新日志红点（2026-10-28 起取代自动弹窗）：纯视觉角标，不抢焦点、不遮挡、
+     * 不参与 #modal 竞争。必须排在叙事/引导之后 —— 它们会开 #modal 并清点页脚状态。 */
+    syncChangelogDot();
     var _btnBreak = document.getElementById('btnBreak');
     if (_btnBreak) _btnBreak.onclick = function () {
       var S0 = SB.game.run();
@@ -2467,9 +2508,10 @@
     },
     adMul: adMul, grantAdBoost: grantAdBoost, toggleAdBoost: toggleAdBoost,
     grantRebirthAd: grantRebirthAd, adRebirthState: adRebirthState, todayKey: todayKey,
-    startRun: startRun, nextCycle: nextCycle, stay: stay, recordLaunch: recordLaunch,
+    startRun: startRun, nextCycle: nextCycle, recordLaunch: recordLaunch,
     syncSpacecraft: syncSpacecraft,
     resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave, settleBreak: settleBreak,
+    settleAndCycle: settleAndCycle,
     /* ERA10（2026-10-20）：轮回确认流程导出——戴森球通关弹窗的「立即轮回」钮复用
      * （与顶栏「重置/轮回」按钮同一份 confirmPanel + doBreak 逻辑，不写第二套）。 */
     askReset: askResetRun,
@@ -2490,6 +2532,8 @@
     forceFreshBoot: forceFreshBoot,
     showBreakPanel: function (r) { SB.ui.render.showBreakPanel(r); },
     showBreakAnimation: function (r, afterAnimation) { SB.ui.render.showBreakAnimation(r, afterAnimation); },
+    /* 2026-11-03：破壳结果面板（挑战判定 + 壳外时代），与「轮回结算」是两张不同的面板。 */
+    showBreakResult: function (r, after) { SB.ui.render.showBreakResult(r, after); },
     submitRankOnBreak: submitRankOnBreak,
     submitRankPeriodic: submitRankPeriodic
   };

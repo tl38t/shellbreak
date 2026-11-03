@@ -32,7 +32,14 @@
   var pollutionSettle = P.pollutionSettle, pollutionRollDeath = P.pollutionRollDeath;
 
   function tick(s, dt, emit, opts) {
-    if (s.broken) return;
+    /* ⚠️ 2026-11-03：这里原本是 `if (s.broken) return;` —— 那时破壳＝本局终点。
+     *   ERA10（轨道发射场 → 戴森球 → 星图 → 星空槽）全部长在破壳之后，而建造要钢铁、
+     *   θ金属、强工质这些**生产出来**的资源 ⇒ 破壳后经济必须继续跑，否则壳外内容根本玩不动。
+     *   破壳后真正该停的东西由各自模块自己判，不要再用「破壳」当「本局终止」：
+     *     · 削壳      —— shell.tickShell 首行 `if (s.broken) return 0`（壳已归零，无壳可削）
+     *     · 天穹钻机  —— economy.hydroAlloc 的 `!s.broken && shell > 0`
+     *     · 挑战限制  —— challenges.active() 的 `!s.broken`（破壳 = 这一天挑战结束）
+     *   本局真正的终点只有一个：玩家主动轮回（askResetRun → doBreak → nextCycle）。 */
     s.t += dt;
     /* 换季判定必须排在读 cold 之前：冰封期是「这一季中没中」的状态，
      * 先换季再取 cold，否则开局那一 tick 会带着上一季的 frozen 跑。 */

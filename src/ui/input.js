@@ -669,6 +669,15 @@
       if (exchanged) { SB.game.markDirty(); SB.game.renderAll(); }
       return;
     }
+    if (d.challengeRelease) {
+      /* 一次性解除本轮挑战限制（2026-11-03）：破壳后限制不再自动消失，由玩家自己决定何时撤。
+       * 不可逆 —— release 内部置 challengeReleased，之后 active() 再也不返回本局挑战。
+       * 挑战页这一处是破壳结果面板之外**唯一**的解除入口，别删。 */
+      if (SB.challenges && SB.challenges.release && SB.challenges.release(SB.game.run())) {
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
     if (d.challengeStart) {
       if (SB.challenges && SB.challenges.prepareStart(d.challengeStart)) return;
       return;

@@ -534,6 +534,190 @@ export function run({ SB, check, noop }) {
         sent.length === 1 && sent[0].key === 'drift' && sent[0].value === 1234,
         driftOut ? '榜=' + JSON.stringify(sent) : '未结算');
     }
+
+    /* ── 破壳即判定（2026-11-03）─────────────────────────────────────────
+     * 破壳不再等于本局结束：破壳之后还有 ERA10（发射场 → 戴森球 → 星图），
+     * 所以破壳型挑战（寒流禁火 / 小国寡民 / 忽视科文 / 深渊重压 / 逐光竞速）的
+     * 判定必须挪到「壳归零那一刻」，并且读破壳快照 —— 否则破壳后继续玩的人口、
+     * 岗位、现实计时会把已经赢下的局改写掉。 */
+    {
+      const m1 = { challenges: empty() };
+      const s1 = SB.state.freshRun(false);
+      s1.challenge = { id: 'cold', tier: 0, replay: false };
+      s1.civics.theology = true;
+      s1.shell = 1; s1.peak = 20; s1.pop = 20;
+      check('破壳型挑战：壳还没归零时不判定', api.resolveRun(s1, m1) === null && !m1.challenges.completed.cold,
+        'shell=' + s1.shell);
+      s1.shell = 0; s1.broken = true; s1.shellOpened = true;
+      s1.challengeSeal = api.seal(s1);
+      const out1 = api.sealRun(s1, m1);
+      check('破壳瞬间即判定并落账（不等轮回结算）', !!out1 && !!out1.reward &&
+        m1.challenges.completed.cold === true && s1.challengeDone === true,
+        out1 ? 'reward=' + out1.reward : '未判定');
+      check('破壳快照冻结了计时/峰值人口/神学状态', !!s1.challengeSeal &&
+        typeof s1.challengeSeal.elapsed === 'number' && s1.challengeSeal.peak === 20 &&
+        s1.challengeSeal.qualified === true, JSON.stringify(s1.challengeSeal));
+    }
+    {
+      /* 小国寡民的上限是 15。破壳后挑战限制自动解除（active() 的 !s.broken），
+       * 玩家可以随便把人口堆回去 —— 判定必须读破壳快照，不能用实时人口。 */
+      const m2 = { challenges: empty() };
+      const s2 = SB.state.freshRun(false);
+      s2.challenge = { id: 'small', tier: 0, replay: false };
+      s2.civics.theology = true;
+      s2.shell = 0; s2.broken = true; s2.shellOpened = true;
+      s2.peak = 12; s2.pop = 12;
+      s2.challengeSeal = api.seal(s2);
+      s2.pop = 40; s2.peak = 40;            // 破壳后继续玩，人口远超上限
+      const out2 = api.sealRun(s2, m2);
+      check('小国寡民：判定读破壳快照，破壳后人口涨到 40 不会把已赢的局判输',
+        !!out2 && m2.challenges.completed.small === true,
+        out2 ? '快照 peak=' + s2.challengeSeal.peak + ' 实时=' + s2.peak : '未判定');
+    }
+    {
+      /* 逐光竞速的计时是 Date.now() - startedAt，破壳后还在走。判定留到结算，
+       * 玩家破壳后挂机十几小时，16 小时档就被判超时。
+       * ⚠️ 档位必须与 tierDone 对齐：三档挑战的常规判据是 `tier === tierDone`，
+       *   直接拿 tier=2 又不预置完成度会被 resolveRun 当成「跳过前两档」而返回 null。 */
+      const m3 = { challenges: empty() };
+      const s3 = SB.state.freshRun(false);
+      s3.challenge = { id: 'speedrun', tier: 0, replay: false, startedAt: Date.now() - 3 * 3600 * 1000 };
+      s3.civics.theology = true;
+      s3.shell = 0; s3.broken = true; s3.shellOpened = true;
+      s3.challengeSeal = api.seal(s3);                        // 破壳时用了 3 小时
+      s3.challenge.startedAt = Date.now() - 20 * 3600 * 1000;  // 破壳后又挂了 17 小时
+      const out3 = api.sealRun(s3, m3);
+      check('逐光竞速：破壳后继续挂机不会把 16 小时档判成超时（按破壳快照定格）',
+        !!out3 && !out3.failed && (m3.challenges.completed.speedrun | 0) === 1,
+        out3 ? 'failed=' + !!out3.failed + ' 快照用时=' + Math.round(s3.challengeSeal.elapsed) + 's' : '未判定');
+    }
+    {
+      /* 破壳时还没学《神学》：先挂起，补学之后按同一份快照补判。
+       * 这是 2026-10 以来的既有行为，不能借这次改造静默收紧成「必须破壳前学完」。 */
+      const m4 = { challenges: empty() };
+      const s4 = SB.state.freshRun(false);
+      s4.challenge = { id: 'cold', tier: 0, replay: false };
+      s4.shell = 0; s4.broken = true; s4.shellOpened = true;
+      s4.challengeSeal = api.seal(s4);
+      const hang = api.sealRun(s4, m4);
+      check('破壳时还没学《神学》：判定挂起、不写账本',
+        hang === null && !m4.challenges.completed.cold && s4.challengeDone === false, '挂起=' + (hang === null));
+      s4.civics.theology = true;
+      const later = api.evaluate(s4, m4);
+      check('补学《神学》后按同一份破壳快照补判', !!later && m4.challenges.completed.cold === true,
+        later ? 'reward=' + later.reward : '未补判');
+    }
+    {
+      /* 结算只做账本：doBreak 里不许再调 resolveRun。
+       * 否则破壳后补学的局会按结算那一刻的人口/岗位重判一次，把定格的成绩改写。 */
+      const savedTide = meta.tide, savedSubmit = SB.game.submitRankOnBreak;
+      SB.game.submitRankOnBreak = function () {};
+      const s5 = SB.state.freshRun(false);
+      s5.challenge = { id: 'cold', tier: 0, replay: false };
+      s5.civics.theology = true;
+      s5.shell = 0; s5.broken = true; s5.shellOpened = true;
+      const before = JSON.stringify(meta.challenges);
+      try { SB.prestige.doBreak(s5, null, { silent: true }); }
+      finally { meta.tide = savedTide; SB.game.submitRankOnBreak = savedSubmit; }
+      check('结算只做账本：doBreak 不再代为判定挑战', JSON.stringify(meta.challenges) === before,
+        '挑战账本前后一致');
+    }
+    {
+      /* 破壳后经济必须继续跑 —— 否则造不出发射场，ERA10 与水体污染（goal = 戴森球）都玩不动。 */
+      const s6 = SB.state.freshRun(false);
+      s6.broken = true; s6.shell = 0; s6.shellOpened = true;
+      const t0 = Number(s6.t) || 0;
+      SB.economy.tick(s6, 10, null, { skipFoodPop: true, skipHappy: true });
+      check('破壳后经济照常运转（t 继续累加，不再整条停摆）', Number(s6.t) > t0 + 9,
+        't ' + t0.toFixed(1) + ' → ' + Number(s6.t).toFixed(1));
+      s6.res.starExplore = 0; s6.lvl.satellite = 2; s6.breakSettled = false;
+      SB.shell.tickStar(s6, 100, null);
+      check('破壳后星空槽立即累积（不再需要先「结算」才解冻）', Number(s6.res.starExplore) > 0,
+        'star=' + Number(s6.res.starExplore).toFixed(1));
+    }
+    {
+      /* 2026-11-03（用户拍板）：破壳不再自动解除挑战限制 —— 成绩在壳归零那刻定格，
+       * 门禁什么时候撤由玩家自己选，且只有一次机会。 */
+      const rs = SB.state.freshRun(false);
+      rs.challenge = { id: 'small', tier: 0 };
+      rs.shell = 0; rs.broken = true; rs.shellOpened = true;
+      rs.challengeDone = true; rs.challengeReleased = false;
+      check('破壳后挑战限制仍在（人口上限还是本档 15，不再随 broken 自动解除）',
+        api.populationLimit(rs) === 15 && !!api.active(rs), '上限=' + api.populationLimit(rs));
+      const rel1 = api.release(rs), rel2 = api.release(rs);
+      check('解除限制一次性：首调 true、再调 false，且不碰 broken/shell',
+        rel1 === true && rel2 === false && rs.challengeReleased === true && rs.broken === true && rs.shell === 0,
+        'release=' + rel1 + '/' + rel2);
+      check('解除后人口上限回到基础设施上限（Infinity，不再被本档压住）',
+        api.populationLimit(rs) === Infinity && !api.active(rs), '上限=' + api.populationLimit(rs));
+
+      /* goal 型挑战的终点在壳外（50 座发动机 / 戴森球）：破壳后必须正常发育，沿用旧判据。 */
+      const gs = SB.state.freshRun(false);
+      gs.challenge = { id: 'drift_terra', tier: 0 };
+      gs.shell = 0; gs.broken = true; gs.shellOpened = true;
+      check('goal 型挑战破壳后自动失去限制，不依赖玩家解除',
+        !api.active(gs) && gs.challengeReleased !== true, 'active=' + !!api.active(gs));
+    }
+    {
+      /* 迁移：老档没有 challengeReleased 这个键，必须默认「已解除」——反了就是读档瞬间
+       * 深渊重压的 -60% 产出回来、小国寡民人口上限掉到 15、忽视科文把学者从 20 砍到 5。 */
+      const legacy = SB.state.migrateRun({ res: {}, techs: {}, lvl: {}, civics: {},
+        challenge: { id: 'abyss', tier: 0 }, broken: true, shellOpened: true, shell: 0 });
+      check('迁移：破壳过的老档默认「限制已解除」', legacy.challengeReleased === true,
+        'released=' + legacy.challengeReleased);
+      const freshFalse = SB.state.migrateRun({ res: {}, techs: {}, lvl: {}, civics: {},
+        challenge: { id: 'abyss', tier: 0 }, broken: true, shellOpened: true, shell: 0,
+        challengeDone: true, challengeReleased: false });
+      check('迁移：新档的 challengeReleased=false 原样保留（不能当成缺字段补成 true）',
+        freshFalse.challengeReleased === false, 'released=' + freshFalse.challengeReleased);
+      const midRun = SB.state.migrateRun({ res: {}, techs: {}, lvl: {}, civics: {},
+        challenge: { id: 'small', tier: 0 }, broken: false });
+      check('迁移：还在挑战途中的老档保持受限', midRun.challengeReleased === false,
+        'released=' + midRun.challengeReleased);
+    }
+    {
+      /* 2026-11-03：水体污染 2026-11-02 实装时**漏了成就条目**（achv.js 无定义 + CFG.ACHV 无键
+       * + 挑战定义无 onComplete）⇒ 通关能发奖励、能写 meta.challenges.completed，但成就墙与
+       * 平台都不会亮。这里钉三处：定义存在、达成时写本地账本、CFG 里留了占位键。 */
+      const ws = SB.state.freshRun(false);
+      ws.challenge = { id: 'waterpollution', tier: 0 };
+      ws.dysonDone = true;
+      const out = api.evaluate(ws, meta);
+      check('水体污染通关解锁成就「海渊澄明」（原先连成就定义都没有）',
+        !!out && out.id === 'waterpollution' && !!(meta.achv && meta.achv.pollutionClear) &&
+        !!(SB.achv && SB.achv.defOf('pollutionClear')),
+        'outcome=' + (out && out.id) + ' achv=' + !!(meta.achv && meta.achv.pollutionClear));
+      check('水体污染成就登记了 CFG.ACHV 键（占位待回填，不能是 undefined）',
+        typeof SB.CFG.ACHV.pollutionClear === 'string' && SB.CFG.ACHV.pollutionClear.length > 0,
+        'id=' + SB.CFG.ACHV.pollutionClear);
+      meta.challengePopupPending = null;
+
+      /* B：挑战页进度行原先按 id 写死，水体污染没有分支 ⇒ 落进 else，把**寒流禁火**的文案
+       * 显示给自己（玩家完全看不到污染阶段与戴森进度）。 */
+      const cur = SB.game.run();
+      const snap = { challenge: cur.challenge, done: cur.challengeDone, broken: cur.broken,
+        shell: cur.shell, opened: cur.shellOpened, pollution: cur.pollution, engines: cur.lvl.terra_engine };
+      cur.challenge = { id: 'waterpollution', tier: 0 };
+      cur.challengeDone = false; cur.broken = false; cur.pollution = 5000;
+      const wpPane = SB.ui.render.paneChallenges();
+      check('水体污染挑战页显示自己的阶段与戴森进度，不再借用寒流禁火的文案',
+        wpPane.includes('浊流') && wpPane.includes('戴森') &&
+        !wpPane.includes('非寒流季：保温法可正常使用'), '含浊流=' + wpPane.includes('浊流'));
+
+      /* C：破壳后 goal 型挑战 active() 返回 null ⇒ 整块 if (active) 消失，而《流浪泰拉》的
+       * 50 座发动机正是破壳之后才建的 ⇒ 攻关全过程看不到 x / 50。补只读进度条。 */
+      cur.challenge = { id: 'drift_terra', tier: 0 };
+      cur.challengeDone = false; cur.lvl.terra_engine = 7;
+      cur.broken = true; cur.shell = 0; cur.shellOpened = true;
+      const driftPane = SB.ui.render.paneChallenges();
+      check('破壳后 goal 型挑战仍显示只读进度（壳外推进 + 行星发动机 x/50）',
+        driftPane.includes('壳外推进') && driftPane.includes('行星发动机 7 / 50') &&
+        !driftPane.includes('非寒流季：保温法可正常使用'),
+        '壳外推进=' + driftPane.includes('壳外推进'));
+      cur.challenge = snap.challenge; cur.challengeDone = snap.done; cur.broken = snap.broken;
+      cur.shell = snap.shell; cur.shellOpened = snap.opened; cur.pollution = snap.pollution;
+      cur.lvl.terra_engine = snap.engines;
+    }
   } finally {
     meta.challenges = savedProgress;
     meta.achv = savedAchv;

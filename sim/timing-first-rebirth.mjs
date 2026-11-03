@@ -298,9 +298,8 @@ while (frame < MAX_FRAMES) {
     if (CONTINUE_AFTER_BREAK && s.shellOpened && !s.breakSettled) {
       if (breakReachedAt === null) {
         breakReachedAt = s.t / 3600;
-        console.log('  ★ 破壳 @ ' + breakReachedAt.toFixed(2) + 'h；自动选择「探索壳外的星空」，继续验证 ERA7。');
+        console.log('  ★ 破壳 @ ' + breakReachedAt.toFixed(2) + 'h；本局继续跑壳外内容（2026-11-03 起破壳不再弹结算，无需 stay()）。');
       }
-      SB.game.stay();
       continuedAfterBreak = true;
     } else {
       runHours = s.t / 3600;

@@ -358,9 +358,10 @@ if (process.argv.includes('--waterpollution-bot')) {
     frames(1);
     f++;
     let s = SB.game.run();
-    /* 目标挑战必须按正式“留在壳外星空”动作续跑；普通破壳不是挑战失败。 */
+    /* 2026-11-03：破壳后不再需要「留在壳外」这个动作 —— 本局本来就在继续跑 ERA10。
+     * 这里只记一笔「已破壳且仍在同一周目」，供日志核对。 */
     if (s.broken && s.shellOpened && Number(s.shell) <= 0 && !s.breakSettled) {
-      SB.game.stay(); stayedAfterBreak = true; s = SB.game.run();
+      stayedAfterBreak = true;
     }
     const era = Number(s.era) || 1;
     const tech = Object.keys(s.techs || {}).filter(k => s.techs[k]).length;

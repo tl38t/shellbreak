@@ -439,6 +439,14 @@
       happy: 0,
       peak: SB.challenges ? SB.challenges.startingPopulation() : SB.CFG.POP_START,
       challenge: null, challengeDone: false, challengeOutcome: null,
+      /* 破壳快照（2026-11-03）：破壳型挑战的判据在壳归零那一刻冻住 —— 计时/峰值人口/
+       * 学者与书手岗位。破壳后还要玩 ERA10，这些量会继续变，判定必须读快照而不是实时值。
+       * ⚠️ 必须登记在 freshRun 里：migrateRun 是白名单重建，漏了这行读档就丢快照。 */
+      challengeSeal: null,
+      /* 挑战限制是否已由玩家解除（2026-11-03）：破壳不再自动解除限制，改由破壳结果面板的
+       * 「解除限制，进入壳外时代」写入 true，一次性、不可逆。
+       * ⚠️ 必须登记在 freshRun：migrateRun 是白名单重建，漏了它读档瞬间限制全回来。 */
+      challengeReleased: false,
       seasonLengths: [600, 600, 600], seasonRewardAtStart: false, seasonLengthsVersion: 1,
       deaths: 0,
       coldTicks: 0,

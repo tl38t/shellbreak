@@ -85,12 +85,17 @@ console.log('\n=== 场景 B：破壳未处理（broken=true）===');
   runTicks(s, 60);
   info('60s 后 shell', s.shell.toFixed(2) + '（离线前 ' + bShell + '）');
   ok('B1 未结算破壳态 tickShell 应整个 return（shell 不动）', s.shell === bShell, 'shell=' + s.shell);
-  /* game.js drainCatchUp 的掐断判据（逐字复刻，改了源码这里会红） */
-  info('drainCatchUp 掐断判据', 'broken && shellOpened && !breakSettled');
-  const wouldBreak = !!(s.broken && s.shellOpened && !s.breakSettled);
-  info('该判据当前取值', wouldBreak);
-  ok('B2 未结算破壳态 ⇒ 离线补算在第一个 chunk 就被 breakReached 掐断', wouldBreak === true);
-  info('后果', 'j.left 全部剩余时长不计 → 结算面板出现「破壳后剩余 … 未继续补算」');
+  /* 2026-11-03：破壳不再是离线补算的终点。
+   * 旧版这里复刻的是 `broken && shellOpened && !breakSettled ⇒ breakReached`，
+   * 那条掐断已在 game.js drainCatchUp 里删除（破壳后要接着跑 ERA10），
+   * 复刻它就变成「测一段已经不存在的逻辑」—— 源码改了探针不红，是假绿。
+   * 现在直接测行为：破壳态的 tick 必须继续推进。 */
+  const tBefore = s.t;
+  runTicks(s, 10);
+  info('破壳态再跑 10 秒', 't ' + tBefore.toFixed(1) + ' → ' + s.t.toFixed(1));
+  ok('B2 破壳后经济仍推进（不再在破壳处掐断离线补算）', s.t > tBefore + 9,
+    'Δ=' + (s.t - tBefore).toFixed(1) + 's');
+  info('语义', '破壳后剩余离线时间照常结算，只有削壳与钻机停');
 }
 
 /* ────────────────────────────────────────────────────────────

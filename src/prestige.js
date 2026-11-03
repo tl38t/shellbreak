@@ -224,10 +224,10 @@
     if (!qualified(s)) {
       r.tidePoints = 0;
       r.locked = true;
-      if (s.shell <= 0 && SB.challenges) {
-        var unqualifiedChallengeOutcome = SB.challenges.resolveRun(s, meta);
-        if (unqualifiedChallengeOutcome && unqualifiedChallengeOutcome.failed) r.challengeFailure = unqualifiedChallengeOutcome;
-      }
+      /* 挑战已在破壳那一刻判定并落账（2026-11-03，见 shell.onShellZero → challenges.sealRun）。
+       * 这里只把本局已判定的结果带回报告供面板展示，绝不再判一次 ——
+       * 再判一次会让「破壳后才补学《神学》」的局按结算时的人口/岗位重算，把已经定格的成绩改写。 */
+      if (s.challengeOutcome && s.challengeOutcome.failed) r.challengeFailure = s.challengeOutcome;
       /* ⛔ 通关榜排除这一局（用户 2026-10-07 拍板：只认「凿穿 + 已建神学」）。
        * 仍然上报 wonder/cycle ——「建成了什么」不因没建神学而失效。*/
       if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
@@ -251,10 +251,11 @@
      * ⚠️ 老档无此键 ⇒ 从 0 起算，不追溯（历史轮回次数无法从 cycle 反推，见设计稿 §四·4）。 */
     meta.rebirths = (meta.rebirths || 0) + 1;
     /* 挑战必须完成《神学》资格并真正凿穿天壳；普通结算/重开不兑现挑战奖励。 */
-    if (s.shell <= 0 && SB.challenges) {
-      var challengeOutcome = SB.challenges.resolveRun(s, meta);
-      if (challengeOutcome && challengeOutcome.failed) r.challengeFailure = challengeOutcome;
-      else r.challengeClear = challengeOutcome;
+    /* 同上：破壳型挑战在破壳那一刻就判完了（2026-11-03），结算只做账本。
+     * 这里把结果带回报告，供「轮回结算」面板说明这次挑战赢没赢。 */
+    if (s.challengeOutcome) {
+      if (s.challengeOutcome.failed) r.challengeFailure = s.challengeOutcome;
+      else r.challengeClear = s.challengeOutcome;
     }
     // ② 旧日信仰：本局剩余信仰并入总量
     /* ERA8 市政《信仰回响》（2026-10-18 用户表解锁2）：本轮回入账 ×1.2（仅当轮，不跨周目累积）。 */

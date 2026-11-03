@@ -145,17 +145,25 @@ export function run({ SB, check, sandbox }) {
     const saved = SB.state.loadRun();
     const modal = sandbox && sandbox.document && sandbox.document.getElementById('modal');
     const modalHtml = sandbox && sandbox.document && sandbox.document.getElementById('modalBox')._html;
-    check('离线补算破壳后立即停止剩余时间', breach.broken && breach.shell === 0 && breach.t < 120,
+    /* 2026-11-03：破壳不再是离线补算的终点 —— 破壳之后还有 ERA10（发射场 → 戴森球），
+     *   离线期间破壳的那段剩余时间必须继续算完，否则破壳后的产出被整段吞掉。
+     *   ⚠️ 这条断言与旧版正好相反（旧：t < 120；新：t ≥ 120），是有意翻转的。 */
+    check('离线补算破壳后继续算完剩余时间（破壳不是补算终点）', breach.broken && breach.shell === 0 && breach.t >= 119.9,
       '逻辑时间推进 ' + breach.t.toFixed(1) + '/120 秒');
-    check('离线破壳直接显示结算选择而非普通离线总结', !!modal && !modal.classList.contains('hidden') &&
-      /冰壳裂开了/.test(modalHtml) && !/离线结算/.test(modalHtml), '结算面板已显示');
+    check('离线破壳先给破壳事件（动画/结果），不再抢占成「结算选择」', !!modal && !modal.classList.contains('hidden') &&
+      /破壳|天壳|冰壳/.test(modalHtml) && !/离线结算/.test(modalHtml), '面板=' + String(modalHtml || '').slice(0, 40));
+    check('离线破壳的挑战判定已在破壳瞬间落账（不等结算）', !breach.challenge || breach.challengeDone === true,
+      'challenge=' + (breach.challenge && breach.challenge.id) + ' done=' + breach.challengeDone);
     check('离线破壳待选择状态已写入存档', !!saved && saved.broken && saved.shellOpened && !saved.breakSettled,
       saved ? 'broken=' + saved.broken + '，shellOpened=' + saved.shellOpened : '未读到存档');
-    SB.game.boot(); // 模拟刷新后重新启动：启动路径必须优先恢复待处理的破壳选择。
+    SB.game.boot(); // 模拟刷新后重新启动：破壳不再是「待玩家选择」的节点，启动必须直接进游戏。
     const resumedModal = sandbox && sandbox.document && sandbox.document.getElementById('modal');
     const resumedHtml = sandbox && sandbox.document && sandbox.document.getElementById('modalBox')._html;
-    check('刷新后仍直接恢复破壳结算界面', SB.game.run().broken && !!resumedModal &&
-      !resumedModal.classList.contains('hidden') && /冰壳裂开了/.test(resumedHtml), '待结算状态已恢复');
+    /* 2026-11-03：旧断言要求刷新后「恢复破壳结算界面」，新流程反过来 ——
+     *   破壳后一直不结算，若启动时还弹结算面板，玩家每次进游戏都会被它锁住。 */
+    check('刷新后不再弹破壳结算界面（直接进游戏）', SB.game.run().broken === true &&
+      !(/轮回结算|天壳裂开了|结算并发放轮回点/.test(resumedHtml || '')),
+      'modalHidden=' + (resumedModal ? resumedModal.classList.contains('hidden') : 'null'));
   } finally {
     if (breakCfg) {
       SB.CFG.BREAK_BASE = breakCfg.base;

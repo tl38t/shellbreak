@@ -61,6 +61,12 @@
       desc: '在「逐光竞速」挑战的 4 小时档内凿穿天壳——与时间赛跑，并且跑赢。' },
     { key: 'driftTerra',   name: '流浪泰拉', icon: 'assets/achievements/achv-drift-terra.png?v=2',
       desc: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能。' },
+    /* 2026-11-03 补登记：水体污染 2026-11-02 实装时只做了挑战定义，**漏了成就条目**
+     *   （achv.js 无定义 + CFG.ACHV 无键 + waterpollution 定义无 onComplete）⇒
+     *   通关能发奖励、能写 meta.challenges.completed，但成就墙与平台都不会亮。
+     * icon 复用挑战徽章（64×64 SVG，img 自动缩放），暂不另做 PNG。 */
+    { key: 'pollutionClear', name: '海渊澄明', icon: 'assets/challenges/challenge-waterpollution.svg',
+      desc: '在「水体污染」挑战里让戴森球竣工——带着最脏的海，走到了群星之间。' },
     { key: 'starComplete', name: '太空时代', icon: 'assets/achievements/achv-star-complete.png',
       desc: '破壳之后把星空槽完全填满——深海的族民，终于把目光投向了整片星海。' },
     { key: 'religion',     name: '立教', icon: 'assets/achievements/achv-religion.png',

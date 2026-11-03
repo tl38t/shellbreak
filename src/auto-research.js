@@ -60,7 +60,10 @@
   }
 
   function tick(s, m, emit) {
-    if (!s || !m || s.broken) return { tech: 0, civic: 0 };
+    /* ⚠️ 2026-11-03：删掉 s.broken 早退。破壳之后还有整整一个 ERA10 科技线
+     *   （重核聚变 / 超临界致密材料 / 强人工智能 / 大统一方程…，造价 2380 万~1.49 亿），
+     *   停掉自动研究 = 破壳后科技线直接卡死。 */
+    if (!s || !m) return { tech: 0, civic: 0 };
     var tech = researchTech(s, m, emit);
     var civic = researchCivic(s, m, emit);
     return { tech: tech, civic: civic };

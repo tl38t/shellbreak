@@ -70,6 +70,11 @@
        * 成绩 = 达成瞬间的 `s.pollution` 存量（取整）。⚠️ 不存 peak —— 玩家要的是
        * 「通关时海有多脏」，峰值会随经营风格抖动，不可比。 */
       rankKey: 'pollution', rankValue: function (s) { return Math.round(s.pollution || 0); },
+      /* 2026-11-03 补：原先没有 onComplete ⇒ 通关只发账本奖励，成就墙不亮。
+       * 与 drift_terra 用同一把锁（achv.unlockOnce 内部幂等，重复达成不会重发）。 */
+      onComplete: function (s, meta) {
+        if (SB.achv && SB.achv.unlockOnce) SB.achv.unlockOnce('pollutionClear', meta);
+      },
       tiers: [{ label: '海渊澄明', cap: null }] }
   ];
   var BY_ID = {};
@@ -93,7 +98,30 @@
     for (var j = 0; j < DEFINITIONS.length; j++) n += tierDone(DEFINITIONS[j].id, meta);
     return n;
   }
-  function active(s) { return s && !s.broken && s.challenge && BY_ID[s.challenge.id] ? s.challenge : null; }
+  /* 挑战限制「是否仍生效」。2026-11-03 用户拍板：破壳不再自动解除限制 ——
+   * 破壳型挑战的成绩在壳归零那一刻已定格（见 sealRun），但门禁什么时候撤由玩家自己选。
+   * 旧判据 `!s.broken` 的问题：破壳瞬间人口上限从 15 跳到 241、-60% 产出同时回正，
+   * 玩家看到的「挑战」在破壳那一刻就自己消失了，等于限制从没起过作用。
+   * ⚠️ 老档迁移必须补成 true（见 state-migrate 的对应注释），否则读档瞬间限制全回来。 */
+  function active(s) {
+    var a = s && s.challenge, d = a && BY_ID[a.id];
+    if (!d) return null;
+    /* goal 型（流浪泰拉 / 水体污染）的终点在壳外 —— 破壳后要造 50 座行星发动机、要打到戴森球，
+     * 人口与产出不能还压着，所以它们沿用旧判据「破壳即解除」。
+     * 破壳型五项才走「玩家显式解除」（2026-11-03 用户拍板：成就要现做，限制不能自己消失）。 */
+    if (d.goal) return s.broken ? null : a;
+    return s.challengeReleased ? null : a;
+  }
+  /* 解除本轮挑战限制：一次性，不可再打开（否则等于「打不过就关、想刷榜再开」）。
+   * 非挑战局 / 已解除 ⇒ false，不重复写日志。 */
+  function release(s) {
+    var a = s && s.challenge, d = a && BY_ID[a.id];
+    if (!d || s.challengeReleased) return false;
+    s.challengeReleased = true;
+    if (SB.game && SB.game.log)
+      SB.game.log('已解除「' + d.name + '」的限制，本局按正常规则继续（之后无法再打开）。');
+    return true;
+  }
   function activeTier(s) {
     var a = active(s), d = a && BY_ID[a.id];
     return a && d ? d.tiers[Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0))] : null;
@@ -228,9 +256,41 @@
     if (SB.game && SB.game.log) SB.game.log(d.name + '挑战达成：' + d.goalText + '。永久奖励已生效。');
     return outcome;
   }
+  /* 破壳瞬间的判定入口（2026-11-03）：由 shell.onShellZero 在壳归零那一刻调用。
+   * 与 resolveRun 的差别只有「落盘时机」：判定完立刻把 meta 与本局一起存掉 ——
+   *   破壳后玩家还要继续玩，若不立刻落盘，中途崩溃 / 切后台被杀会丢掉这次判定，
+   *   而 seal 还在 ⇒ 下次启动按同一份快照补判，结果一致。
+   * ⚠️ 幂等靠两处：s.challengeDone（本局）与 tierDone（账本，resolveRun 里的 tier 判据）。
+   *   两处都在，补判不会重复发奖、也不会重复上榜（平台 calcType='best' 兜底）。 */
+  function sealRun(s, meta) {
+    if (!s || s.challengeDone) return null;
+    var out = resolveRun(s, meta);
+    if (!out) return null;
+    s.challengeDone = true;
+    s.challengeOutcome = out;
+    if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    if (SB.state && SB.state.saveRun && SB.game && SB.game.run && SB.game.run() === s)
+      SB.state.saveRun(SB.game.snapshot(s));
+    if (SB.game && SB.game.log) {
+      SB.game.log(out.failed
+        ? out.name + '挑战未通关：已超过 ' + formatClock(out.limit) + '，本档奖励未领取。'
+        : out.name + '挑战达成：' + out.label + (out.replay ? '（重复挑战，仅刷新排行榜）。' : '，永久奖励已生效。'));
+    }
+    return out;
+  }
   function evaluate(s, meta) {
     if (!s || !s.challenge || !meta) return null;
-    return award(s, meta);
+    var out = award(s, meta);
+    if (out) return out;
+    /* 破壳型补判（2026-11-03）：破壳那一刻还没学《神学》⇒ resolveRun 直接返回 null，
+     *   判定被挂起。补学之后在这里按破壳时冻下的 seal 补判一次 —— 判据仍是破壳瞬间的
+     *   计时/人口/岗位，不是补学那一刻的。
+     * ⚠️ 三个条件缺一不可：seal 存在（破壳过）、未判过、壳已归零。
+     *   少写 !challengeDone 就会每帧重判一次（每帧一次存档写入）。 */
+    var d = BY_ID[s.challenge.id];
+    if (d && !d.goal && s.challengeSeal && !s.challengeDone && s.shell <= 0)
+      return sealRun(s, meta);
+    return null;
   }
   function rewardFor(d, tier) {
     return d.tiers.length === 1 ? d.reward : d.rewards[tier];
@@ -322,22 +382,62 @@
     });
     return true;
   }
-  function resolveRun(s, meta) {
+  /* 破壳快照（2026-11-03）：破壳型挑战的判据全都吃「此刻」的量 ——
+   *   逐光竞速算现实秒、小国寡民看峰值人口、忽视科文看学者/书手岗位。
+   *   破壳之后玩家还要继续玩 ERA10（发射场 → 戴森球），这些量都会继续变。
+   *   若把判定留到结算时再读，等于允许玩家在破壳后用操作改写已完成的挑战成绩
+   *   （最刺眼的是逐光竞速：破壳后多挂机两小时，4 小时档直接判超时）。
+   * ⇒ 破壳那一刻把判据所需的量冻成 seal 存进本局，之后的判定一律读 seal。
+   * ⚠️ qualified 也进快照，但**不参与判定**：它只记录「破壳那一刻有没有《神学》」，
+   *   供排障用。判定仍用**当前**的 qualified —— 破壳时没学的局先挂起、补学后补判，
+   *   这是 2026-10 以来的既有行为，不借这次改动悄悄收紧成「必须破壳前学完」。 */
+  function seal(s) {
+    if (!s) return null;
+    /* ⚠️ elapsed 必须落成有限数：非限时挑战没有 startedAt，elapsedSeconds 返回 Infinity，
+     *   而 Infinity 进 JSON 会变成 null ⇒ 存档落盘后这份快照就废了（migrateRun 会判非法）。
+     *   -1 = 「本局没有有效计时」，判定侧据此回落实时值（与改动前同口径）。 */
+    var el = elapsedSeconds(s);
+    return {
+      at: Date.now(),
+      elapsed: isFinite(el) ? el : -1,
+      peak: Math.max(0, s.peak || 0, s.pop || 0),
+      scholar: (s.jobs && s.jobs.scholar) || 0,
+      scribe: (s.jobs && s.jobs.scribe) || 0,
+      qualified: !!(s.civics && s.civics.theology)
+    };
+  }
+
+  /* sealOverride 显式传入时用它，否则读本局的 challengeSeal。
+   * ⚠️ 老档（2026-11-03 之前破壳）没有 challengeSeal ⇒ 回落到实时值，与改动前同口径。 */
+  function resolveRun(s, meta, sealOverride) {
     var a = s && s.challenge, d = a && BY_ID[a.id];
     if (d && d.goal) return null; // goal 挑战由 evaluate() 即时结算，不依赖破壳/轮回
     if (!d || !s || s.shell > 0) return null;
+    var seal0 = sealOverride || s.challengeSeal || null;
     var tier = Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0));
     /* 重打：tierDone 已等于 length，常规判据 `tier !== tierDone` 会把这次通关整个吞掉。
      * 标记优先读 s.challenge.replay（存档迁移会保留它），读不到再按进度反推，
      * 避免「老档里一局没标 replay 的重打局」白打。 */
     var replay = a.replay === true || tierDone(d.id, meta) >= d.tiers.length;
     if (!replay && tier !== tierDone(d.id, meta)) return null;
-    if (d.id === 'speedrun' && elapsedSeconds(s) >= d.tiers[tier].cap)
+    var elapsed = (seal0 && typeof seal0.elapsed === 'number' && seal0.elapsed >= 0)
+      ? seal0.elapsed : elapsedSeconds(s);
+    if (d.id === 'speedrun' && elapsed >= d.tiers[tier].cap)
       return { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
-        failed: true, elapsed: elapsedSeconds(s), limit: d.tiers[tier].cap };
+        failed: true, elapsed: elapsed, limit: d.tiers[tier].cap };
     if (!SB.prestige.qualified(s)) return null;
-    if (d.id === 'science' && jobLimitExceeded(s, d.tiers[tier].cap)) return null;
-    if (d.id === 'small' && (s.peak || s.pop) > d.tiers[tier].cap) return null;
+    if (d.id === 'science') {
+      /* 岗位上限必须读破壳快照：破壳后挑战限制自动解除（active() 的 !s.broken），
+       * 玩家此时可以随便把学者堆回上限以上 —— 用实时值判会把已赢的局判成输。 */
+      var capS = d.tiers[tier].cap;
+      var schN = seal0 ? seal0.scholar : ((s.jobs && s.jobs.scholar) || 0);
+      var scrN = seal0 ? seal0.scribe : ((s.jobs && s.jobs.scribe) || 0);
+      if (schN > capS || scrN > capS) return null;
+    }
+    if (d.id === 'small') {
+      var peakN = seal0 ? seal0.peak : (s.peak || s.pop);
+      if (peakN > d.tiers[tier].cap) return null;
+    }
     /* 重打只报成绩，**一个字都不写账本**：meta.challenges.completed 保持原值 ⇒
      * completedCount() 不变 ⇒「每档 +10% 轮回点获取」不会被重复领取（用户拍板口径）。 */
     if (replay) return { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
@@ -363,6 +463,7 @@
     startTier: startTier, isReplay: isReplay,
     begin: begin, prepareStart: prepareStart,
     resolveRun: resolveRun, rewardFor: rewardFor, goalMet: goalMet, evaluate: evaluate,
+    seal: seal, sealRun: sealRun, release: release,
     entered: function (s, id) { return !!(s && s.challenge && s.challenge.id === id); }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
