@@ -254,7 +254,7 @@
     wonder_jupitor_mas: 'assets/wonders/generated-v2/wonder-jupitor-mas.webp',
     wonder_terra_core: 'assets/wonders/generated-v2/wonder-terra-central-furnace.jpg?v=1',
      wonder_crustplate: 'assets/wonders/generated-v2/wonder-crustplate-v2.png?v=2',
-     wonder_climatesat: 'assets/wonders/generated-v2/wonder-climate-regulator-network.png'
+     wonder_climatesat: 'assets/wonders/generated-v2/wonder-climate-regulator-network.png?v=2'
   };
   SB.ui.renderContent.WONDER_FLAVOR = {
     wonder_tide_stele: '镌刻着贤王的丰功伟绩，直至他的王国崩塌',

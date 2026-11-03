@@ -82,7 +82,7 @@ function pending(name, reason) {
 function mkEl(id) {
   const el = {
     id, _html: '', textContent: '', value: '', checked: false,
-    dataset: {}, style: {}, children: [], onclick: null,
+    dataset: {}, style: { setProperty() {}, removeProperty() {}, getPropertyValue() { return ''; } }, children: [], onclick: null,
     _classes: new Set(id === 'modal' ? ['hidden'] : []),
     classList: {
       add(c) { el._classes.add(c); },
@@ -333,6 +333,89 @@ function frames(n) {
     fakeNow += FRAME_MS;
     for (const fn of sandbox._intervals) fn();
   }
+}
+
+/* 水体污染 bot 实跑：使用真实挑战 API、主循环与共享 AI 策略，在隔离的内存存档里
+ * 从新周目推进到正式结算或预算上限。此模式不读取/覆盖玩家浏览器存档。 */
+if (process.argv.includes('--waterpollution-bot')) {
+  const limit = Math.max(1000, Number(process.env.SB_WATERPOLLUTION_FRAMES) || 120000);
+  const began = SB.challenges.begin('waterpollution');
+  if (!began) {
+    console.error('无法通过正式挑战 API 开始水体污染挑战');
+    process.exit(2);
+  }
+  SB.game.setSpeed(30);
+  console.log('\n=== 水体污染挑战：真实 AI 策略隔离实跑 ===');
+  console.log('起点：新周目 / '+SB.game.run().pop+' 人 / 30× / 帧预算 '+limit);
+  let f = 0, lastEra = 0, lastTech = 0, lastReport = 0, goal = '',
+    lastTechFrame = 0, stayedAfterBreak = false, strategyPlan = null;
+  while (f < limit) {
+    if (f % 4 === 0) {
+      const result = SB.aiStrategy.step(SB.game.run());
+      goal = result && result.goal || goal;
+      strategyPlan = result || strategyPlan;
+    }
+    frames(1);
+    f++;
+    let s = SB.game.run();
+    /* 目标挑战必须按正式“留在壳外星空”动作续跑；普通破壳不是挑战失败。 */
+    if (s.broken && s.shellOpened && Number(s.shell) <= 0 && !s.breakSettled) {
+      SB.game.stay(); stayedAfterBreak = true; s = SB.game.run();
+    }
+    const era = Number(s.era) || 1;
+    const tech = Object.keys(s.techs || {}).filter(k => s.techs[k]).length;
+    if (f - lastReport >= 4000 || era !== lastEra || tech !== lastTech || s.challengeDone || s.broken) {
+      const pct = SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0;
+      const stage = SB.economy.pollutionStage ? SB.economy.pollutionStage(s) : {};
+      const rates = SB.economy.rates(s);
+      console.log('[frame '+f+'] '+(s.t/3600).toFixed(1)+'h Era '+era+
+        ' tech '+tech+'/'+SB.TECHS.length+' pop '+s.pop+'/'+s.peak+
+        ' 污染 '+Math.round(s.pollution||0)+'（'+(stage.name||'?')+'）'+
+        ' 人口上限 '+SB.economy.popCap(s)+' 幸福 '+Number(s.happy||0).toFixed(1)+
+        ' 热液净 '+(rates.hydro||0).toFixed(1)+'/s'+
+        ' 帆 '+Math.floor(s.sunSails||0)+' 节点 '+Math.floor(s.dysonNodes||0)+
+        ' 戴森 '+(pct*100).toFixed(1)+'% 目标 '+goal+
+        ' 岗位 '+JSON.stringify(s.jobs)+' 建筑 '+JSON.stringify(Object.fromEntries(
+          Object.entries(s.lvl||{}).filter(([,v]) => Number(v)>0)))+
+        ' 关键资源 '+JSON.stringify(Object.fromEntries(
+          ['kelp','coral','warmstone','silt','iron','steel','hydro','rocketFuel','uranium'].map(k=>[k,+Number(s.res&&s.res[k]||0).toFixed(1)])))+
+        (s.challengeDone ? ' 结果 '+JSON.stringify(s.challengeOutcome) : '')+
+        (stayedAfterBreak ? ' 已正式选择 stay()' : '')+
+        (s.breakSettled ? ' 已结算' : ''));
+      if (f - lastTechFrame >= 12000 && !s.challengeDone) {
+        console.log('停滞判定：连续约 10 游戏小时没有新科技，停止本次基线实跑。');
+        break;
+      }
+      if (tech !== lastTech) lastTechFrame = f;
+      lastEra = era; lastTech = tech; lastReport = f;
+    }
+    if (s.challengeDone || s.breakSettled) break;
+  }
+  const end = SB.game.run();
+  const houseDiagnostics = ['nest', 'coralhouse'].map(id => {
+    const def = SB.habitat.buildingById(id), cost = SB.economy.costOf(end, id) || {};
+    return { id, level:end.lvl[id]||0, unlocked:!!(def && SB.habitat.unlocked(end,def)),
+      needMet:!!(def && SB.habitat.needMet(end,def)), cost,
+      caps:Object.fromEntries(Object.keys(cost).map(k=>[k,SB.economy.capOf(end,k)])),
+      canAfford:SB.economy.canAfford(end,cost) };
+  });
+  const polSources = SB.economy.pollutionSources ? SB.economy.pollutionSources(end) : {};
+  console.log('\n结果：'+(end.challengeDone ? '挑战正式通关' : end.breakSettled ? '结算后停止（未通关）' : '尚未通关'));
+  console.log('最终：'+JSON.stringify({ frame:f, hours:+(end.t/3600).toFixed(2), era:Number(end.era)||1,
+    tech:Object.keys(end.techs||{}).filter(k=>end.techs[k]).length, pop:end.pop, peak:end.peak,
+    challenge:end.challenge, challengeDone:end.challengeDone, challengeOutcome:end.challengeOutcome,
+    pollution:Math.round(end.pollution||0), hydro:+(SB.economy.rates(end).hydro||0).toFixed(2),
+    popCap:SB.economy.popCap(end), jobs:end.jobs,
+    levels:Object.fromEntries(Object.entries(end.lvl||{}).filter(([,v])=>Number(v)>0)), resources:end.res,
+    houseDiagnostics, techBlock:SB.tech.studyBlocked(end,goal), pollutionSources:polSources,
+    plan:strategyPlan && { goal:strategyPlan.goal, condition:strategyPlan.condition,
+      build:strategyPlan.build, plannedUpgrade:strategyPlan.plannedUpgrade,
+      housingTarget:strategyPlan.housingTarget, housingChecks:strategyPlan.housingChecks,
+      ironStorageUpgrades:strategyPlan.ironStorageUpgrades, actions:strategyPlan.actions },
+    sunSails:end.sunSails||0, dysonNodes:end.dysonNodes||0,
+    dysonPct:SB.economy.dysonPct ? SB.economy.dysonPct(end) : 0,
+    dysonDone:!!end.dysonDone, target:goal }));
+  process.exit(end.challengeDone ? 0 : 1);
 }
 
 /* ---------------- 开局解锁链（对齐猫国：开局列表里只有猫薄荷田一张脸）----------------

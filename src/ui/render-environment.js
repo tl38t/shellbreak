@@ -538,6 +538,25 @@
    * ⚠️ 所有数字都从 `SB.economy.pollutionSources(s)` 与 `pollution*` 函数取 ——
    *   面板不许自己乘任何乘区、也不许重写阈值（面板撒谎家族）。 */
   var polSig = '';
+  function pollutionEtaText(seconds) {
+    seconds = Math.max(0, seconds);
+    if (seconds < 60) return '不足 1 分钟';
+    var minutes = Math.ceil(seconds / 60);
+    if (minutes < 60) return minutes + ' 分钟';
+    var hours = Math.floor(minutes / 60), remain = minutes % 60;
+    if (hours < 24) return hours + ' 小时' + (remain ? ' ' + remain + ' 分钟' : '');
+    var days = Math.floor(hours / 24), remHours = hours % 24;
+    return days + ' 天' + (remHours ? ' ' + remHours + ' 小时' : '');
+  }
+  function pollutionPercent(fraction) {
+    return (Math.max(0, fraction) * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
+  }
+  function pollutionForecastText(next, pollution, net) {
+    if (!next) return '已达最高阶段：生态产出与人口承受力都处于危险水平';
+    if (net > 0) return '按当前净增速，约 <b>' + pollutionEtaText((next.at - pollution) / net) + '</b>进入' + next.name;
+    if (net < 0) return '当前净化快于排放，污染存量正在回落';
+    return '当前排放与净化持平，污染存量暂时不变';
+  }
   function renderPollution(s) {
     var box = el('envPollution'); if (!box) return;
     var E = SB.economy;
@@ -548,57 +567,93 @@
     var st = E.pollutionStage(s), idx = E.pollutionStageIndex(s);
     var src = E.pollutionSources(s);
     var cap = E.pollutionBurialCap(s), deaths = s.pollutionDeaths || 0;
+    var overBurial = Math.max(0, deaths - cap);
     var burn = E.pollutionHappyBurnMul(s);
     var pBase = E.pollutionDeathPBase(s);
     var stages = (CFG.POLLUTION && CFG.POLLUTION.STAGES) || [];
+    idx = Math.max(0, Math.min(stages.length - 1, idx));
+    var current = stages[idx] || {};
     var next = stages[idx + 1];
-    var pollution = s.pollution || 0;
-    /* 进度条口径：当前阶段阈值 → 下一阶段阈值 的百分比。
-     * 最高阶段没有 next ⇒ 条满（100%）。 */
+    var pollution = Math.max(0, +s.pollution || 0);
+    /* 环形进度 = 当前阶段起点 → 下一阶段起点；最高阶段封顶。 */
     var pct = 100;
     if (next) {
-      /* 阈值取 `stages[idx].at`（当前阶段的起点）——不要用 pollutionStage()
-       * 返回对象里的字段：它只带 debuff，不带阈值。 */
-      var lo = (stages[idx] && stages[idx].at) || 0;
+      var lo = current.at || 0;
       pct = Math.max(0, Math.min(100, (pollution - lo) / (next.at - lo) * 100));
     }
     var fmt = E.fmtAmt;
-    var sig = [idx, Math.floor(pollution), Math.round(src.emit * 100), Math.round(src.clean * 100),
-      deaths, cap, Math.round(pct)].join('|');
+    var forecast = pollutionForecastText(next, pollution, src.net);
+    var sig = [idx, Math.round(src.emit * 100), Math.round(src.clean * 100),
+      Math.round(src.cleanRate * 100), Math.round(src.turbine * 100), Math.round(src.other * 100),
+      src.rateMul, src.canfillMul, deaths, cap, Math.round(burn * 10000), Math.round(pBase * 1000000),
+      st.happy, st.kelpMul, st.coralMul].join('|');
     if (sig === polSig) {
-      /* 签名不变时只刷存量那一个数字（textContent），不重建整块。 */
-      var num = el('polNowNum');
+      /* 小数变化时只增量更新读数与环，不重建整块。 */
+      var num = el('polNowNum'), nextNum = el('polNextNum'), progress = el('polProgressValue');
+      var score = el('polScoreNow'), ring = el('polRing');
+      var eta = el('polEta');
       if (num) num.textContent = fmt(pollution);
-      var bar = el('polBarFill');
-      if (bar) bar.style.width = pct.toFixed(1) + '%';
+      if (nextNum) nextNum.textContent = next ? fmt(Math.max(0, next.at - pollution)) : '最高阶段';
+      if (progress) progress.textContent = Math.round(pct) + '%';
+      if (score) score.textContent = fmt(pollution);
+      if (eta && eta.innerHTML !== forecast) eta.innerHTML = forecast;
+      if (ring) {
+        ring.style.setProperty('--pol-progress', pct.toFixed(1) + '%');
+        ring.setAttribute('aria-valuenow', String(Math.round(pct)));
+        ring.setAttribute('aria-valuetext', st.name + '阶段，污染存量 ' + fmt(pollution));
+      }
       return;
     }
     polSig = sig;
-    box.style.display = '';
+    box.style.display = 'block';
+    var stageColors = ['var(--green)', 'var(--cyan)', 'var(--amber)', '#ff8f4d', 'var(--red)'];
+    box.style.setProperty('--pol-stage', stageColors[idx] || 'var(--cyan)');
     var debuff = [];
-    if (st.happy) debuff.push('幸福度 ' + st.happy);
+    if (st.happy < 0) debuff.push('幸福 −' + Math.abs(st.happy));
     if (st.kelpMul < 1) debuff.push('藻食 −' + Math.round((1 - st.kelpMul) * 100) + '%');
     if (st.coralMul < 1) debuff.push('珊瑚 −' + Math.round((1 - st.coralMul) * 100) + '%');
-    if (pBase > 0) debuff.push('每秒 ' + (pBase * 100).toFixed(2) + '% 概率死亡 1 人');
-    var html = '<div><div class="nm">水体污染 · ' + st.name +
-      '<span class="tag ' + (idx === 0 ? 'ok' : idx >= 3 ? 'bad' : '') + '">第 ' + (idx + 1) + ' / ' + stages.length + ' 阶段</span></div>' +
-      '<div class="ds">污染存量 <b id="polNowNum">' + fmt(pollution) + '</b>' +
-      (next ? ' · 距「' + next.name + '」还差 ' + fmt(Math.max(0, next.at - pollution)) : ' · 已至最深处') + '</div>' +
-      '<div class="polbar"><i id="polBarFill" style="width:' + pct.toFixed(1) + '%"></i></div>' +
-      '<div class="ds">排放 <b style="color:var(--red)">+' + fmt(src.emit) + '/s</b>' +
-      ' · 净化 <b style="color:var(--green)">−' + fmt(src.clean) + '/s</b>' +
-      ' · 净变 <b>' + (src.net >= 0 ? '+' : '−') + fmt(Math.abs(src.net)) + '/s</b></div>' +
-      '<div class="ds">来源：汽轮机 ' + fmt(src.turbine) + '/s' +
-      (src.other > 0 ? ' · 其他脏源 ' + fmt(src.other) + '/s' : '') +
-      (src.rateMul < 1 ? ' · 政策减排 −' + Math.round((1 - E.pollutionRateMul(s)) * 100) + '%' : '') +
-      (src.canfillMul < 1 ? ' · 装罐填埋 −50%' : '') + '</div>' +
-      (debuff.length ? '<div class="ds">当前惩罚：' + debuff.join(' · ') + '</div>' : '') +
-      (deaths > 0
-        ? '<div class="ds">因污染而死 <b>' + deaths + '</b> 人 · 安息位 <b>' + cap + '</b>' +
-          ' · 幸福消耗 <b style="color:var(--red)">+' + ((burn - 1) * 100).toFixed(1) + '%</b>' +
-          (deaths > cap ? '（超限，每人 3%）' : '（限内，每人 0.3%）') + '</div>'
-        : '') +
-      '</div>';
+    if (pBase > 0) debuff.push('死亡概率 ' + pollutionPercent(pBase) + '/秒');
+    var segments = '';
+    for (var i = 0; i < stages.length; i++) {
+      segments += '<i class="pol-stage-seg' + (i < idx ? ' done' : i === idx ? ' current' : '') + '" aria-hidden="true"></i>';
+    }
+    var modifiers = [];
+    if (src.rateMul < 1) modifiers.push('政策减排 −' + Math.round((1 - src.rateMul) * 100) + '%');
+    if (src.canfillMul < 1) modifiers.push('装罐填埋：汽轮机排放 −' + Math.round((1 - src.canfillMul) * 100) + '%');
+    var netClass = src.net > 0 ? 'up' : src.net < 0 ? 'down' : '';
+    var deathTitle = '此概率已计入医院与政策卡减免；每个结算步对整个人口掷一次，最多死亡 1 人。';
+    var alert = idx >= 3
+      ? '<div class="pol-alert" role="status"><b>生态危急 · ' + st.name + '</b>　藻食与珊瑚产出大幅降低，污染死亡风险已启用' +
+        (pBase > 0 ? '（当前 ' + pollutionPercent(pBase) + '/秒）。' : '。') + '</div>'
+      : '';
+    var html = '<section class="pollution-panel" aria-labelledby="polTitle">' +
+      '<header class="pol-head"><div class="pol-title-group"><img class="pol-icon" src="assets/challenges/challenge-waterpollution.svg?v=2" alt="" aria-hidden="true">' +
+      '<div><div class="pol-title" id="polTitle">海洋污染</div><div class="pol-sub">净污染存量 · 每秒变化</div></div></div>' +
+      '<span class="pol-stage"><i aria-hidden="true"></i>阶段 ' + idx + ' · ' + st.name + '</span></header>' +
+      '<div class="pol-hero"><div class="pol-ring" id="polRing" role="progressbar" aria-label="' + st.name + '阶段进度" aria-valuetext="' + st.name + '阶段，污染存量 ' + fmt(pollution) + '" aria-valuenow="' + Math.round(pct) + '" aria-valuemin="0" aria-valuemax="100" style="--pol-progress:' + pct.toFixed(1) + '%">' +
+      '<div class="pol-ring-core"><b id="polNowNum">' + fmt(pollution) + '</b><span>净污染存量</span></div></div>' +
+      '<div class="pol-progress-copy"><div class="pol-next-label">' + (next ? '距下一阶段 · ' + next.name : '已进入最高阶段') + '</div>' +
+      '<strong class="pol-next-value" id="polNextNum">' + (next ? fmt(Math.max(0, next.at - pollution)) : '最高阶段') + '</strong>' +
+      '<div class="pol-threshold">' + (next ? '阶段阈值 ' + fmt(current.at || 0) + ' → ' + fmt(next.at) : '腐渊 · 污染 ≥ ' + fmt(current.at || 0)) + '</div>' +
+      '<div class="pol-stage-line" aria-hidden="true">' + segments + '</div>' +
+      '<div class="pol-progress-label"><span>' + st.name + '阶段进度</span><b id="polProgressValue">' + Math.round(pct) + '%</b></div>' +
+      '<div class="pol-eta" id="polEta">' + forecast + '</div></div></div>' +
+      '<div class="pol-rates" aria-label="污染收支">' +
+      '<div class="pol-rate"><span>污染排放</span><b class="up">+' + fmt(src.emit) + '<small>/秒</small></b></div>' +
+      '<div class="pol-rate"><span>净化</span><b class="down">−' + fmt(src.clean) + '<small>/秒</small></b></div>' +
+      '<div class="pol-rate"><span>净变化</span><b class="' + netClass + '">' + (src.net > 0 ? '+' : src.net < 0 ? '−' : '') + fmt(Math.abs(src.net)) + '<small>/秒</small></b></div></div>' +
+      '<div class="pol-effects"><span class="pol-effects-label">当前影响</span>' +
+      (debuff.length ? debuff.map(function (item) {
+        var title = item.indexOf('死亡概率 ') === 0 ? ' title="' + deathTitle + '"' : '';
+        return '<span class="pol-effect"' + title + '>' + item + '</span>';
+      }).join('') : '<span class="pol-effect neutral">暂无阶段惩罚</span>') + '</div>' + alert +
+      '<div class="pol-burial"><span>污染死亡 <b>' + deaths + '</b> 人 · 墓地安息位 <b>' + cap + '</b>' +
+      (overBurial ? ' <em>超限 ' + overBurial + ' 人</em>' : '') + '</span>' +
+      '<strong title="限额内每名死者增加 0.3% 幸福消耗，超限部分每人增加 3%；墓地扩建后按当前限额重算">幸福消耗 +' + Math.max(0, (burn - 1) * 100).toFixed(1) + '%</strong></div>' +
+      '<div class="pol-source"><div><b>热液能流</b><span>脏源排放 ' + fmt(src.emit) + '/秒 · 洁净源供给 ' + fmt(src.cleanRate) + '/秒</span></div>' +
+      '<div class="pol-source-detail">汽轮机 ' + fmt(src.turbine) + '/秒 · 其他脏源 ' + fmt(src.other) + '/秒' +
+      (modifiers.length ? ' · ' + modifiers.join(' · ') : '') + '</div></div>' +
+      '<div class="pol-score"><span>若此刻完成戴森球 · 通关污染存量（越低越好）</span><b id="polScoreNow">' + fmt(pollution) + '</b></div></section>';
     box.innerHTML = html;
   }
   parts.renderEnv = renderEnv;

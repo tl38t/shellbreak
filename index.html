@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {}
 </script>
-    <link rel="stylesheet" href="css/main.css?v=285" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=286" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -290,7 +290,7 @@
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=30"></script>
+<script src="src/civics-data.js?v=31"></script>
 <script src="src/civics.js?v=134"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
@@ -319,7 +319,7 @@
 <script src="src/auto-research.js?v=1"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=19"></script>
+<script src="src/ui/render-content.js?v=20"></script>
 <script src="src/ui/render-common.js?v=6"></script>
 <script src="src/ui/render-info.js?v=36"></script>
 <script src="src/ui/render-pane-research.js?v=36"></script>
@@ -333,7 +333,7 @@
 <script src="src/ui/render-pane-wonder.js?v=5"></script>
 <script src="src/ui/render-pane-star-map.js?v=9"></script>
 <script src="src/ui/render-pane-workshop.js?v=16"></script>
-<script src="src/ui/render-environment.js?v=22"></script>
+<script src="src/ui/render-environment.js?v=23"></script>
 <script src="src/ui/render.js?v=269"></script>
 <script src="src/ui/track-dock.js?v=6"></script>
 <script src="src/onboarding.js?v=1"></script>

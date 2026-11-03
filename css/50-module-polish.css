@@ -1322,12 +1322,86 @@ html[data-ui-theme="day"] .auto-research-bar .sw-track-lock svg{stroke:#5d7f90}
   .auto-research-bar .sw-copy i{font-size:9px}
 }
 
-/* ══ 水体污染面板（2026-11-02 · 挑战专属，容器 #envPollution）══════════════════════
- * 只是污染存量到下一阶段的一条进度条。刻意不做动画：它每帧都可能被重建
- * （签名变化时），动画会变成「一直在抖」。颜色用主题变量，两套主题自动跟随。 */
-.polbar{position:relative;height:6px;margin:6px 0 8px;border-radius:3px;
-  background:rgba(120,214,208,.14);overflow:hidden}
-.polbar>i{display:block;height:100%;width:0;border-radius:3px;
-  background:linear-gradient(90deg,#5fbf95,#d8b45a 55%,#c0574f);
-  transition:width .25s ease}
-html[data-ui-theme="day"] .polbar{background:rgba(40,90,105,.14)}
+/* ══ 水体污染面板（2026-11-03 · 挑战专属，容器 #envPollution）══════════════════════
+ * 阶段环、收支、影响和死亡负担都由 renderPollution 读取 economy 的同源结果。
+ * 环不做过渡动画：污染每帧变化，持续动画会追不上数值。 */
+#envPollution.row.envsplit{display:block;min-width:0;margin-top:14px;padding:12px 0 0;border-top:1px dashed rgba(104,164,196,.2)}
+.pollution-panel{display:block;min-width:0;padding:12px;border:1px solid color-mix(in srgb,var(--pol-stage) 25%,var(--line));border-radius:12px;background:linear-gradient(145deg,color-mix(in srgb,var(--pol-stage) 5%,var(--panel2)),var(--panel) 78%);box-shadow:inset 0 1px rgba(210,238,250,.025)}
+.pol-head,.pol-title-group,.pol-stage,.pol-burial,.pol-score{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pol-title-group{justify-content:flex-start;min-width:0}
+.pol-icon{display:block;width:36px;height:36px;flex:0 0 36px;object-fit:contain;border:1px solid rgba(77,216,230,.2);border-radius:8px;background:rgba(77,216,230,.07)}
+.pol-title{color:var(--txt);font-size:16px;font-weight:700;letter-spacing:.03em}
+.pol-sub{display:block;margin-top:2px;color:var(--dim);font-size:13px}
+.pol-stage{flex:0 0 auto;justify-content:flex-start;padding:5px 10px;border:1px solid color-mix(in srgb,var(--pol-stage) 35%,transparent);border-radius:6px;background:color-mix(in srgb,var(--pol-stage) 9%,transparent);color:var(--pol-stage);font-size:14px;white-space:nowrap}
+.pol-stage i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 7px currentColor}
+.pol-hero{display:flex;align-items:center;gap:24px;margin:20px 0 17px}
+.pol-ring{--pol-progress:0%;display:grid;place-items:center;width:184px;height:184px;flex:0 0 184px;border-radius:50%;background:conic-gradient(from -90deg,var(--pol-stage) 0 var(--pol-progress),rgba(91,126,157,.14) var(--pol-progress) 100%);box-shadow:0 0 18px color-mix(in srgb,var(--pol-stage) 13%,transparent)}
+.pol-ring-core{display:flex;width:151px;height:151px;flex-direction:column;align-items:center;justify-content:center;border:1px solid rgba(110,153,186,.16);border-radius:50%;background:var(--panel);text-align:center}
+.pol-ring-core b{max-width:100%;overflow:hidden;color:var(--txt);font-size:26px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.pol-ring-core span{margin-top:5px;color:var(--dim);font-size:13px}
+.pol-progress-copy{min-width:0;flex:1}
+.pol-next-label{color:var(--dim);font-size:15px}
+.pol-next-value{display:block;margin-top:2px;color:var(--txt);font-size:25px;font-weight:700;font-variant-numeric:tabular-nums}
+.pol-threshold{color:var(--dim);font-size:13px}
+.pol-stage-line{display:flex;gap:5px;margin-top:12px}
+.pol-stage-seg{display:block;height:5px;min-width:0;flex:1;border-radius:3px;background:rgba(91,126,157,.16)}
+.pol-stage-seg.done{background:color-mix(in srgb,var(--pol-stage) 42%,rgba(91,126,157,.16))}
+.pol-stage-seg.current{background:var(--pol-stage);box-shadow:0 0 7px color-mix(in srgb,var(--pol-stage) 40%,transparent)}
+.pol-progress-label{display:flex;justify-content:space-between;gap:8px;margin-top:6px;color:var(--dim);font-size:13px}
+.pol-progress-label b{color:var(--pol-stage);font-variant-numeric:tabular-nums}
+.pol-eta{min-height:1.4em;margin-top:9px;color:var(--dim);font-size:14px;line-height:1.45}
+.pol-eta b{color:var(--txt);font-weight:600}
+.pol-rates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:17px}
+.pol-rate{display:flex;min-width:0;flex-direction:column;gap:4px;padding:11px 13px;border:1px solid rgba(59,91,121,.22);border-radius:8px;background:linear-gradient(145deg,rgba(17,32,54,.64),rgba(10,24,42,.5))}
+.pol-rate>span{color:var(--dim);font-size:13px}
+.pol-rate>b{overflow:hidden;color:var(--txt);font-size:19px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pol-rate>b small{margin-left:3px;color:var(--dim);font-size:11px;font-weight:500}
+.pol-rate>b.up{color:var(--red)}
+.pol-rate>b.down{color:var(--green)}
+.pol-effects{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:13px}
+.pol-effects-label{margin-right:2px;color:var(--dim);font-size:14px}
+.pol-effect{padding:3px 8px;border:1px solid rgba(255,184,77,.16);border-radius:5px;background:rgba(255,184,77,.055);color:var(--amber);font-size:13px;white-space:nowrap}
+.pol-effect.neutral{border-color:var(--line-soft);background:transparent;color:var(--dim)}
+.pol-alert{margin-top:10px;padding:9px 11px;border-left:3px solid var(--red);background:rgba(255,95,109,.07);color:var(--dim);font-size:13px;line-height:1.45}
+.pol-alert b{color:var(--red)}
+.pol-burial{flex-wrap:wrap;margin-top:13px;padding-top:11px;border-top:1px solid rgba(59,91,121,.3);color:var(--dim);font-size:13px}
+.pol-burial b{color:var(--txt);font-variant-numeric:tabular-nums}
+.pol-burial em{margin-left:4px;color:var(--red);font-size:11px;font-style:normal}
+.pol-burial>strong{color:var(--red);font-size:14px;font-variant-numeric:tabular-nums}
+.pol-source{margin-top:12px;color:var(--dim);font-size:13px;line-height:1.55}
+.pol-source>div:first-child{display:flex;flex-wrap:wrap;gap:5px 10px}
+.pol-source>div:first-child>b{color:var(--txt);font-weight:600}
+.pol-source-detail{margin-top:2px;overflow-wrap:anywhere}
+.pol-score{flex-wrap:wrap;margin-top:13px;padding-top:11px;border-top:1px solid rgba(59,91,121,.3);color:var(--dim);font-size:13px}
+.pol-score>b{color:var(--cyan);font-size:15px;font-variant-numeric:tabular-nums}
+html[data-ui-theme="day"] .pollution-panel{border-color:color-mix(in srgb,var(--pol-stage) 30%,var(--line));background:linear-gradient(145deg,color-mix(in srgb,var(--pol-stage) 6%,#f8fbf9),#edf4f1 82%);box-shadow:inset 0 1px rgba(255,255,255,.75)}
+html[data-ui-theme="day"] .pol-ring{background:conic-gradient(from -90deg,var(--pol-stage) 0 var(--pol-progress),rgba(60,102,119,.12) var(--pol-progress) 100%)}
+html[data-ui-theme="day"] .pol-ring-core{background:var(--panel)}
+html[data-ui-theme="day"] .pol-rate{border-color:rgba(69,111,119,.2);background:linear-gradient(145deg,rgba(255,255,255,.8),rgba(232,240,238,.75))}
+html[data-ui-theme="day"] .pol-alert{background:rgba(183,71,83,.07)}
+@media(max-width:520px){
+  #envPollution.row.envsplit{margin-top:11px;padding-top:10px}
+  .pollution-panel{padding:9px}
+  .pol-head{gap:6px}
+  .pol-stage{padding:4px 6px;font-size:10px}
+  .pol-icon{width:30px;height:30px;flex-basis:30px}
+  .pol-title{font-size:14px}
+  .pol-sub{font-size:9px}
+  .pol-hero{gap:10px;margin:12px 0 10px}
+  .pol-ring{width:108px;height:108px;flex-basis:108px}
+  .pol-ring-core{width:88px;height:88px}
+  .pol-ring-core b{font-size:16px}
+  .pol-ring-core span{font-size:9px}
+  .pol-next-label{font-size:12px}
+  .pol-next-value{font-size:17px}
+  .pol-threshold,.pol-progress-label{font-size:10px}
+  .pol-eta{font-size:11px}
+  .pol-rate{padding:7px 6px}
+  .pol-rate>span{font-size:9px}
+  .pol-rate>b{font-size:11px}
+  .pol-rate>b small{font-size:8px}
+  .pol-effects-label,.pol-effect{font-size:10px}
+  .pol-burial,.pol-source,.pol-score{font-size:11px}
+  .pol-burial>strong{font-size:12px}
+  .pol-score>b{font-size:12px}
+}
