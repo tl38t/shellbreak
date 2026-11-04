@@ -298,21 +298,21 @@
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
 <script src="src/techs.js?v=148"></script>
-<script src="src/tech.js?v=123"></script>
+<script src="src/tech.js?v=124"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
 <script src="src/civics-data.js?v=31"></script>
-<script src="src/civics.js?v=134"></script>
+<script src="src/civics.js?v=135"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/save-storage.js?v=7"></script>
-<script src="src/state-migrate.js?v=27"></script>
-<script src="src/state.js?v=170"></script>
+<script src="src/state-migrate.js?v=28"></script>
+<script src="src/state.js?v=171"></script>
 <script src="src/workshop.js?v=125"></script>
-<script src="src/wonder.js?v=113"></script>
+<script src="src/wonder.js?v=114"></script>
 <script src="src/economy-social.js?v=10"></script>
 <script src="src/economy.js?v=207"></script>
 <script src="src/economy-rates.js?v=33"></script>
@@ -326,15 +326,15 @@
 <script src="src/shell.js?v=113"></script>
 <script src="src/habitat.js?v=114"></script>
 <script src="src/folk.js?v=106"></script>
-<script src="src/prestige.js?v=133"></script>
+<script src="src/prestige.js?v=134"></script>
 <script src="src/challenges.js?v=20"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
 <script src="src/ui/render-content.js?v=20"></script>
 <script src="src/ui/render-common.js?v=6"></script>
-<script src="src/ui/render-info.js?v=37"></script>
-<script src="src/ui/render-pane-research.js?v=36"></script>
+<script src="src/ui/render-info.js?v=38"></script>
+<script src="src/ui/render-pane-research.js?v=37"></script>
 <script src="src/ui/render-pane-village.js?v=39"></script>
 <script src="src/ui/render-pane-folk.js?v=5"></script>
 <script src="src/ui/render-talent-tree.js?v=5"></script>
@@ -349,7 +349,7 @@
 <script src="src/ui/render.js?v=275"></script>
 <script src="src/ui/track-dock.js?v=6"></script>
 <script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=178"></script>
+<script src="src/game.js?v=179"></script>
 <script src="src/save-transfer.js?v=16"></script>
 <script src="src/redeem.js?v=3"></script>
 <script src="src/ui/input.js?v=178"></script>
