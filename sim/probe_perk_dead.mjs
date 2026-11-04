@@ -69,17 +69,18 @@ for (const c of CASES) {
     JSON.stringify(SB.civic.perkPolicySlots(s)));
 }
 
-/* 关键回归：旧实现在「自动工坊买满」时被 SLOT_MAX 夹死，现在必须不受影响 */
+/* 关键回归：「之位」三件只给政策卡槽，绝不能动工坊自动制作槽。
+ * 2026-11-04：工坊自动槽已取消硬上限（旧 SLOT_MAX=4 夹死的那条 bug 一并消失）。 */
 {
   const s = run();
   s.upgrades.upg_autoshop = true;
-  s.perk.autoCraft = 3;                 // 自动工坊 I/II/III 全买 ⇒ 自动槽已到上限 4
+  s.perk.autoCraft = 3;                 // 自动工坊 I/II/III 全买
   const capFull = SB.workshop.slotCap(s);
   const before = SB.civic.slotList(s).length;
   for (const c of CASES) s.perk[c.id] = 1;
-  ok('自动工坊买满时「之位」仍然生效（不再被 SLOT_MAX 吃掉）',
-    capFull === SB.CFG.AUTO.SLOT_MAX && SB.civic.slotList(s).length === before + 3,
-    '自动槽 ' + capFull + ' / 政策槽 ' + before + ' → ' + SB.civic.slotList(s).length);
+  ok('「之位」不计入工坊自动制作槽（自动槽已无硬上限）',
+    capFull >= 4 && SB.workshop.slotCap(s) === capFull && SB.civic.slotList(s).length === before + 3,
+    '自动槽 ' + capFull + ' → ' + SB.workshop.slotCap(s) + ' / 政策槽 ' + before + ' → ' + SB.civic.slotList(s).length);
 }
 
 /* 类型对口：工造槽只吃 prod 卡，民生槽只吃 grow 卡，科研槽只吃 sci 卡 */

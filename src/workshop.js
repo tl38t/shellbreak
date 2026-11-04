@@ -284,7 +284,9 @@
 
   /* ══ 自动制作槽（2026-10-07 用户拍板）══════════════════════════════════
    * 两个来源：**工坊升级项「自动工坊」自带 1 个**（装了就有，见 SB.UPGRADES.upg_autoshop），
-   * 轮回商店 `autoCraft1/2/3` 每级 +1（写进 s.perk.autoCraft）。上限 SB.CFG.AUTO.SLOT_MAX。
+   * 轮回商店 `autoCraft1/2/3` 每级 +1（写进 s.perk.autoCraft），ERA6/ERA7 的科技与升级项另各 +1。
+   * ⚠️ 2026-11-04 用户拍板「不设上限」：槽数 = 各来源之和，不再夹任何硬上限
+   *    （旧 CFG.AUTO.SLOT_MAX=4 已删，见 config.js 那条注）。
    *
    * 【槽触发方式】
    *   配方全部原料都有上限：原料达到「容量 × 所选档位」（100% = 满仓）后，转制当时可造份数的对应比例。
@@ -300,11 +302,12 @@
    * ⚠️ 一档百分比 = 造**当时可造量**的这一比例，不是「造到 25% 仓位」——
    *    后者在原料满仓时等于造 0 份（已经在 100% 了），槽会永远不动。 */
 
-  /* 槽位上限与自动制作参数从 SB.CFG.AUTO 读（写在数据侧，实现里不硬编码，见 config 那条注）。 */
-  function slotMax() { return (SB.CFG.AUTO && SB.CFG.AUTO.SLOT_MAX) || 4; }
+  /* 自动制作参数从 SB.CFG.AUTO 读（写在数据侧，实现里不硬编码，见 config 那条注）。
+   * ⚠️ 这里原先有 slotMax() 读 AUTO.SLOT_MAX；2026-11-04 取消上限后一并删除，
+   *    别再以任何形式把 Math.min 夹子加回 slotCap。 */
   function pcts() { return (SB.CFG.AUTO && SB.CFG.AUTO.PCTS) || [0.25, 0.5, 0.75, 1]; }
 
-  /* 当前可用槽数 = 自动工坊升级自带 + 轮回商店买的，夹在 [0, 上限]。
+  /* 当前可用槽数 = 各来源之和，不设硬上限（2026-11-04 用户拍板）。
    * ⚠️ 判据读 `s.upgrades.upg_autoshop`（装了才给槽）—— 它就是那个「自带槽」的来源，
    *    不另设一个开关：升级项本身已经是买断的，装没装是唯一事实。 */
   function slotCap(s) {
@@ -313,15 +316,19 @@
     if (s.upgrades && s.upgrades.upg_autoshop) n += (SB.CFG.AUTO && SB.CFG.AUTO.SLOT_BASE) || 1;
     n += (s.perk && s.perk.autoCraft) || 0;
     /* ⚠️ 2026-11-01 摘除：`slotCraft` / `slotEcon` / `slotSci`（轮回商店「之位」三件）原先在这里
-     *   各 +1 自动制作槽，但它们的 desc 承诺的是**政策卡槽**，且 SLOT_MAX=4 早被 autoCraft I/II/III
-     *   占满 ⇒ 玩家 50 点买了个一点不涨的槽（玩家报「加政策卡槽的没生效」）。
+     *   各 +1 自动制作槽，但它们的 desc 承诺的是**政策卡槽**（玩家报「加政策卡槽的没生效」）。
      *   现在三者归位到 `civic.slotList()`（工造/民生/科研各一个政策槽），这里**不要再加回来**，
-     *   否则同一个天赋会在两个系统里各记一次。 */
-    /* ERA6（2026-10 实装）：热力锻锤（hotforge_hammer）每级 +1 自动制作槽（与 upg_autoshop 同源叠加）。 */
+     *   否则同一个天赋会在两个系统里各记一次。取消上限后更没有理由把它们接回来。 */
+    /* ERA6（2026-10 实装）：热力锻锤（hotforge_hammer）+1 自动制作槽（与 upg_autoshop 同源叠加）。 */
     if (s.techs && s.techs.hotforge_hammer) n += 1;
-    /* ERA7（2026-10-17 · spec §4）：复合型工厂（upg_complexf）+1 自动工艺槽位（与热锻锤同源叠加）。 */
+    /* ERA7《复合型工厂》科技本身 +1：techs.js 的 effectDesc 写「自动制作槽位 +1」，
+     *   且那里的注释就写「读 s.techs.complexf」。旧实现只读下面的 upg_complexf 升级项，
+     *   等于科技这份承诺落空（又一条静默断链）。两处是独立投资：研究科技 +1、再买升级项 +1，
+     *   各自文案各自兑现，别合并成一条。 */
+    if (s.techs && s.techs.complexf) n += 1;
+    /* ERA7（2026-10-17 · spec §4）：复合型工厂升级项（upg_complexf）+1 自动工艺槽位。 */
     if (s.upgrades && s.upgrades.upg_complexf) n += 1;
-    return Math.max(0, Math.min(n, slotMax()));
+    return Math.max(0, n);
   }
 
   /* 某配方当前占着哪个槽（返回下标，-1 = 没占）。
@@ -747,7 +754,7 @@
     maxCraftable: maxCraftable, stepAmt: stepAmt, stepOut: stepOut, craftBlocked: craftBlocked,
     craft: craft, steps: CRAFT_STEPS,
     /* 自动制作槽（2026-10-07）：槽数 / 占槽 / 改档 / 释放 / 满仓判定 / 泵 */
-    slotMax: slotMax, pcts: pcts, slotCap: slotCap, slotPct: slotPct,
+    pcts: pcts, slotCap: slotCap, slotPct: slotPct,
     slotBatch: slotBatch, slotUsesBatch: slotUsesBatch, hasFiniteInput: hasFiniteInput,
     hasUnboundedInput: hasUnboundedInput, slotIndexOf: slotIndexOf,
     setSlot: setSlot, setSlotBatch: setSlotBatch, clearSlot: clearSlot, autoReady: autoReady, autoTick: autoTick,

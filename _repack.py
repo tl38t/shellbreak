@@ -146,7 +146,15 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.15'" in _cfg, '包内 config.js 版本号不是 Ver1.0.15'
+assert "VERSION: 'Ver1.0.16'" in _cfg, '包内 config.js 版本号不是 Ver1.0.16'
+assert "v: 'Ver1.0.16'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.16 条目'
+# Ver1.0.16 玩家可见 4 条：3 修复（结算并挑战吞奖励 / 自动槽不起效 / 复合型工厂槽位没兑现）
+# ＋ 1 调整（天壳地质学门槛 50%→75%）。三条修复都是玩家实测在踩的线上问题，漏一条等于白改。
+for _kw in ['修复在挑战页点「结算并挑战」时不给本局轮回点和星屑的问题',
+            '修复轮回商店买的「自动工坊」槽位不起效的问题',
+            '修复科技《复合型工厂》承诺的「自动工艺槽位 +1」没有兑现的问题',
+            '《天壳地质学》的揭示门槛从破壳 50% 调整为 75%']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.16 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.15'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.15 条目'
 # Ver1.0.15 玩家可见 11 条：6 新增（四项终局挑战 / 限制生命周期 / 每档 +10% 轮回点口径）
 # ＋ 4 修复（G.E.E.K 破壳冻死 / G.E.E.K 空烧热液能 / 破壳后挑战页状态 / 平等主义热液加成）

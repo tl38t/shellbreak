@@ -735,6 +735,88 @@ export function run({ SB, check, noop }) {
       cur.shell = snap.shell; cur.shellOpened = snap.opened; cur.pollution = snap.pollution;
       cur.lvl.terra_engine = snap.engines;
     }
+
+    /* ── 2026-11-04：挑战页「结算并挑战」必须真的结算本局 ──────────────────
+     * 旧判据 `!s.broken` 在 11-03「破壳 ≠ 本局结束」之后语义反转：破壳后点那颗按钮
+     * 整段跳过 doBreak，startRun 直接丢局 ⇒ 确认面板承诺的轮回点 / 星屑一分不发。
+     * 这里跑**真实的** begin()：隔离账本 + 临时桩，跑完 finally 全还原，不污染全局 S / meta。 */
+    {
+      const src = api.begin.toString().replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      check('begin() 结算判据读 breakSettled，不再读 !s.broken',
+        src.includes('!s.breakSettled') && !src.includes('!s.broken'), src.slice(0, 140));
+
+      const G = SB.game, St = SB.state;
+      const hasAchv = !!SB.achv, hasTransfer = !!SB.saveTransfer;
+      const saved = {
+        run: G.run, meta: G.meta, snapshot: G.snapshot, startRun: G.startRun,
+        setTab: G.setTab, log: G.log, renderAll: G.renderAll, emit: G.emit,
+        submit: G.submitRankOnBreak, saveRun: St.saveRun, saveMeta: St.saveMeta,
+        achvOnBreak: hasAchv ? SB.achv.onBreak : null,
+        backupSoon: hasTransfer ? SB.saveTransfer.backupSoon : null
+      };
+      const fac = (SB.BUILDINGS || []).filter(b => b.stardustFacility).slice(0, 2).map(b => b.id);
+      function scenario(broken, settled, qual) {
+        const fm = {
+          tide: 0, tideEarnedTotal: 0, stardust: 0, stardustEarned: 0,
+          rebirths: 0, oldFaith: 0, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
+          shopUnlocked: false, perks: {}, challenges: { completed: {} },
+          achievements: {}, achv: {}, memorialWonders: {}
+        };
+        const rs = SB.state.freshRun(false);
+        rs.civics.theology = qual;
+        rs.peak = 120; rs.pop = 100;
+        (SB.BUILDINGS || []).filter(b => !b.stardustFacility).slice(0, 3)
+          .forEach(b => { rs.lvl[b.id] = 8; });
+        fac.forEach(id => { rs.lvl[id] = 30; });
+        rs.shell = broken ? 0 : 200000;
+        rs.shellOpened = broken; rs.broken = broken; rs.breakSettled = settled;
+        let starts = 0;
+        G.run = () => rs; G.meta = () => fm;
+        G.snapshot = () => ({}); G.startRun = () => { starts++; };
+        G.setTab = noop; G.log = noop; G.renderAll = noop; G.emit = noop;
+        G.submitRankOnBreak = noop; St.saveRun = noop; St.saveMeta = noop;
+        if (hasAchv) SB.achv.onBreak = noop;
+        if (hasTransfer) SB.saveTransfer.backupSoon = noop;
+        const rep = SB.prestige.breakReport(rs);
+        const before = { tide: fm.tide, sd: fm.stardust };
+        let threw = null;
+        try { api.begin('waterpollution'); } catch (e) { threw = e; }
+        return { rs: rs, fm: fm, rep: rep, before: before, starts: starts, threw: threw };
+      }
+      let A, B, C, D;
+      try {
+        A = scenario(true, false, true);    // 破壳后未结算 ← 玩家报的场景
+        B = scenario(false, false, true);   // 破壳前（对照组）
+        C = scenario(true, true, true);     // 已结算（幂等组）
+        D = scenario(true, false, false);   // 未学神学（普通重开，不发点）
+      } finally {
+        G.run = saved.run; G.meta = saved.meta; G.snapshot = saved.snapshot;
+        G.startRun = saved.startRun; G.setTab = saved.setTab; G.log = saved.log;
+        G.renderAll = saved.renderAll; G.emit = saved.emit;
+        G.submitRankOnBreak = saved.submit;
+        St.saveRun = saved.saveRun; St.saveMeta = saved.saveMeta;
+        if (hasAchv) SB.achv.onBreak = saved.achvOnBreak;
+        if (hasTransfer) SB.saveTransfer.backupSoon = saved.backupSoon;
+      }
+      check('四条路径 begin() 都不抛错且各切一次周目',
+        !A.threw && !B.threw && !C.threw && !D.threw &&
+        A.starts === 1 && B.starts === 1 && C.starts === 1 && D.starts === 1,
+        'A=' + A.starts + ' B=' + B.starts + ' C=' + C.starts + ' D=' + D.starts);
+      check('★ 破壳后「结算并挑战」按预估发放轮回点（旧代码发 0）',
+        A.fm.tide - A.before.tide === A.rep.tidePoints && A.rep.tidePoints > 0,
+        '预估=' + A.rep.tidePoints + ' 实发=' + (A.fm.tide - A.before.tide));
+      check('★ 破壳后「结算并挑战」同步发放星屑（旧代码发 0）',
+        A.fm.stardust - A.before.sd === A.rep.stardust && A.rep.stardust > 0,
+        '预估=' + A.rep.stardust + ' 实发=' + (A.fm.stardust - A.before.sd));
+      check('破壳后结算确实发生（breakSettled 置真）', A.rs.breakSettled === true);
+      check('破壳前同一按钮仍按预估入账（提前轮回不被改坏）',
+        B.fm.tide - B.before.tide === B.rep.tidePoints && B.rep.tidePoints > 0,
+        '预估=' + B.rep.tidePoints + ' 实发=' + (B.fm.tide - B.before.tide));
+      check('已结算局不重复入账（doBreak 幂等锁）',
+        C.fm.tide === C.before.tide && C.fm.stardust === C.before.sd);
+      check('未学《神学》仍走普通重开：不发点、不写 breakSettled',
+        D.fm.tide === 0 && D.fm.stardust === 0 && D.rs.breakSettled === false);
+    }
   } finally {
     meta.challenges = savedProgress;
     meta.achv = savedAchv;

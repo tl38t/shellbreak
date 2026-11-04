@@ -718,14 +718,15 @@
    *   slotCraft → 工造槽(prod) / slotEcon → 民生槽(grow) / slotSci → 科研槽(sci)。
    *
    * ⚠️【为什么要有这张表】2026-10-23 潮汐之树落地时，这三个键被 `workshop.slotCap()` 当成
-   *    「工坊自动制作槽 +1」在读，而 desc 承诺的是**政策卡槽**；同时 `CFG.AUTO.SLOT_MAX = 4`
-   *    恰好被 autoCraft I/II/III 占满 ⇒ 玩家花 50 点买了个一点不涨的槽。玩家报「加政策卡槽的
-   *    没生效」就是这一条。现在唯一落点在这里，`slotCap` 那边已摘除，**别再两边都读**。
+   *    「工坊自动制作槽 +1」在读，而 desc 承诺的是**政策卡槽**；当时工坊自动槽还被硬上限 4
+   *    夹死、恰好被 autoCraft I/II/III 占满 ⇒ 玩家花 50 点买了个一点不涨的槽。玩家报「加政策卡槽的
+   *    没生效」就是这一条。现在唯一落点在这里，`slotCap` 那边已摘除，**别再两边都读**
+   *    （2026-11-04 工坊自动槽已取消硬上限，更没有理由接回来）。
    *
    * ⚠️ 类型必须是 SLOT_TYPES 里真实存在的键：原来 slotEcon 的 desc 写「经济槽」，而 SLOT_TYPES
    *    只有 prod/sci/grow/relig/wild，根本没有 econ ⇒ 那个描述从来无法实现，已改「民生槽」。
-   * ⚠️ `s.perk` 由 `state.derivePerksFromMeta()` 每局重算，老存档不需要迁移：只要玩家买过，
-   *    这一局读到的就是已生效的值。 */
+   * ⚠️ `s.perk` 由 `state.derivePerksFromMeta()` 每局重算；读档时 `resumeRun` 的
+   *    `syncDerivedPerks()` 还会按 meta 账本整表对齐一次（老档不必手工迁移）。 */
   var PERK_POLICY_SLOTS = [
     { key: 'slotCraft', type: 'prod' },
     { key: 'slotEcon', type: 'grow' },

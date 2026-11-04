@@ -950,7 +950,8 @@ console.log('\n=== 市政 ===');
 
   /* ── 2026-11-01：轮回商店「之位」三件 ────────────────────────────────
    * 玩家报「加政策卡槽的没生效」。根因有两层：① 三个键被 `workshop.slotCap` 当自动制作槽读，
-   * 而 desc 承诺的是政策卡槽；② 自动制作槽 SLOT_MAX=4 早被 autoCraft I/II/III 占满 ⇒ 一点不涨。
+   * 而 desc 承诺的是政策卡槽；② 当时工坊自动槽还有 SLOT_MAX=4 的硬上限、早被
+   * autoCraft I/II/III 占满 ⇒ 一点不涨（该上限 2026-11-04 已取消）。
    * 现已归位到 slotList（工造/民生/科研 各一个），下面两条钉住「归位」与「不重复计数」。 */
   {
     const pk = SB.state.freshRun(false);
@@ -967,7 +968,7 @@ console.log('\n=== 市政 ===');
     /* 反向：不能同时在工坊自动制作槽里记一次（否则同一个天赋两个系统各生效一次） */
     const capA = SB.workshop.slotCap(pk);
     pk.perk.slotCraft = 0; pk.perk.slotEcon = 0; pk.perk.slotSci = 0;
-    check('「之位」不计入工坊自动制作槽（与 SLOT_MAX 无关）',
+    check('「之位」不计入工坊自动制作槽（三键不重复计数）',
       SB.workshop.slotCap(pk) === capA,
       'slotCap ' + capA + ' → ' + SB.workshop.slotCap(pk));
   }
@@ -1515,7 +1516,9 @@ console.log('\n=== 市政 ===');
    *    判据：**谁读它**必须有断言钉住，否则下次改表又会退化成死键。 */
   {
     const W = SB.workshop;
-    /* 槽数 = 自动工坊自带 1 + perk，封顶 CFG.AUTO.SLOT_MAX */
+    /* 槽数 = 各来源之和，2026-11-04 用户拍板「不设上限」（旧 CFG.AUTO.SLOT_MAX=4 已删）。
+     * 旧上限的病：晚期玩家自带 1 + 热力锻锤 1 + 复合型工厂科技/升级项 2 = 4，
+     * 再买 autoCraft2/3 共 35 轮回点换 0 槽 ⇒ 玩家报「买的自动槽不起效」。 */
     const s0 = SB.state.freshRun(false);
     check('自动槽：未装自动工坊 = 0 槽（perk 是**额外**槽，不是唯一来源）',
       W.slotCap(s0) === 0, 'slotCap=' + W.slotCap(s0));
@@ -1524,8 +1527,53 @@ console.log('\n=== 市政 ===');
     s0.perk.autoCraft = 2;
     check('自动槽：+ 轮回商店 2 级 ⇒ 3 槽', W.slotCap(s0) === 3, 'slotCap=' + W.slotCap(s0));
     s0.perk.autoCraft = 9;
-    check('自动槽：封顶 CFG.AUTO.SLOT_MAX',
-      W.slotCap(s0) === SB.CFG.AUTO.SLOT_MAX, 'slotCap=' + W.slotCap(s0));
+    check('自动槽：不设上限 —— 9 级 perk ⇒ 10 槽（旧版会被夹成 4）',
+      W.slotCap(s0) === 10, 'slotCap=' + W.slotCap(s0));
+    check('自动槽：上限常数与 slotMax() 已删（别再把夹子加回来）',
+      SB.CFG.AUTO.SLOT_MAX === undefined && W.slotMax === undefined,
+      'SLOT_MAX=' + SB.CFG.AUTO.SLOT_MAX + ' slotMax=' + W.slotMax);
+
+    /* 五个来源各自兑现；科技《复合型工厂》本身必须给槽（techs.js 的 effectDesc 写了 +1，
+     * 旧实现只读 upg_complexf 升级项 ⇒ 科技那份承诺落空）。 */
+    const sSrc = SB.state.freshRun(false);
+    sSrc.upgrades = { upg_autoshop: true };
+    sSrc.techs = { complexf: true };
+    check('自动槽：ERA7《复合型工厂》科技本身 +1（effectDesc 兑现）',
+      W.slotCap(sSrc) === 2, 'slotCap=' + W.slotCap(sSrc));
+    sSrc.techs.hotforge_hammer = true;
+    sSrc.upgrades.upg_complexf = true;
+    sSrc.perk.autoCraft = 3;
+    check('自动槽：全来源叠加 = 7 槽，不被上限吃掉',
+      W.slotCap(sSrc) === 7, 'slotCap=' + W.slotCap(sSrc));
+
+    /* 读档重建：migrateRun 只校验不重算，raw.perk 会整表覆盖运行态 ⇒
+     * 存档写在购买之前时 s.perk.autoCraft 就是 0。重算必须落在调用方（resumeRun），
+     * 且按 meta 账本对齐是幂等的。这里临时写 meta 后立刻还原，不污染共享 fixture。 */
+    const mSlot = SB.game.meta();
+    const slotIds = ['autoCraft1', 'autoCraft2', 'autoCraft3'];
+    const slotBak = {};
+    mSlot.perks = mSlot.perks || {};
+    for (const sid of slotIds) slotBak[sid] = mSlot.perks[sid];
+    try {
+      for (const sid of slotIds) mSlot.perks[sid] = 1;
+      const stale = SB.state.freshRun(false);
+      stale.perk.autoCraft = 0;                 // 购买前写下的存档快照
+      const changed1 = SB.state.syncDerivedPerks(stale);
+      check('读档：账本已买 3 档自动槽、存档是旧值 ⇒ 按账本重建 autoCraft=3',
+        changed1 === true && stale.perk.autoCraft === 3,
+        'autoCraft=' + stale.perk.autoCraft + ' changed=' + changed1);
+      check('读档：按账本重建是幂等的（第二次同步不再改动）',
+        SB.state.syncDerivedPerks(stale) === false && stale.perk.autoCraft === 3,
+        'autoCraft=' + stale.perk.autoCraft);
+      stale.upgrades = { upg_autoshop: true };
+      check('读档：重建后槽数真的涨到 4（不是只有账本好看）',
+        W.slotCap(stale) === 4, 'slotCap=' + W.slotCap(stale));
+    } finally {
+      for (const sid of slotIds) {
+        if (slotBak[sid] === undefined) delete mSlot.perks[sid];
+        else mSlot.perks[sid] = slotBak[sid];
+      }
+    }
 
     /* 占槽 / 改档 / 释放。比例档位只认 CFG.AUTO.PCTS。 */
     const sa = SB.state.freshRun(false);

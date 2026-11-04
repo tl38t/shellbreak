@@ -663,7 +663,11 @@
 
     { id: 'shellgeo', name: '天壳地质学', icon: 'assets/tech-icons/era-5/era5-shell-geology.png', era: 5, cost: 120000, branch: 'know', key: false,
       reqs: ['invert'], layer: 6,
-      cond: { t: 'shell', n: 0.5 },
+      /* 2026-11-04 用户拍板 50% → 75%：与 FLOOR_AT=0.25 的自动削壳停手线对齐。
+       * ⚠️ 这是**可达性边界**，别再往上抬：自动段最多削到 brokenRatio=0.75，
+       *   超过 0.75 的门槛在钻机建成之前永远不成立，而钻机又依赖本科技 ⇒ 死锁。
+       *   实测（tmp/_probe_shellgeo75.mjs）：地板处 brokenRatio 精确等于 0.75、condMet 真。 */
+      cond: { t: 'shell', n: 0.75 },
       eff: {},
       unlockDesc: '解锁工坊配方「共振钻头」和工坊升级「倒置工程学」（所有建筑造价 −20%）。' },
 

@@ -446,8 +446,15 @@
     var s = SB.game.run(), meta = SB.game.meta(), d = BY_ID[id];
     if (!canStart(id, s, meta)) return false;
     var tier = startTier(id, meta), replay = isReplay(id, meta);
-    /* 自动结算当前周目；没有《神学》时沿用普通重开的规则，不发轮回点。 */
-    if (s && !s.broken && SB.prestige.qualified(s))
+    /* 自动结算当前周目；没有《神学》时沿用普通重开的规则，不发轮回点。
+     * ⚠️ 2026-11-04 修「挑战页结算并挑战吞掉整局结算」：判据必须是 **本局是否已结算**
+     *   （breakSettled），不是 `!s.broken`。2026-11-03 起破壳 ≠ 本局结束，s.broken 从壳
+     *   归零那一刻起一直是 true 直到换局，而结算只在玩家主动点轮回/本按钮时发生 ⇒
+     *   旧判据让破壳后点这颗按钮整段跳过 doBreak，紧接着 startRun 把当前局丢掉，
+     *   轮回点与星屑一分不发（确认面板却按 breakReport 承诺了一个数字）。
+     *   破壳前的提前轮回也必须照常结算，故不能改成「必须已破壳」。
+     *   重复结算不必在这里防：prestige.doBreak 首行有 breakSettled 幂等早退。 */
+    if (s && !s.breakSettled && SB.prestige.qualified(s))
       SB.prestige.doBreak(s, SB.game.emit, { silent: true, challengeStart: true });
     SB.game.startRun({ challenge: { id: id, tier: tier, replay: replay } });
     SB.game.setTab('challenges');

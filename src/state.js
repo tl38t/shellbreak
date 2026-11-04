@@ -153,26 +153,31 @@
     return out;
   }
 
-  /* 只把 dyn:'loop5' 的键按当前 meta 重算（轮回工巧 craftLoop / 轮回炉火 furnaceLoop+hydroLoop）。
-   * 【为什么单独有这个函数】这两个键是 meta 的**纯函数**（0.05 × 周目 × 等级 × 星无限倍率），
-   *   不含任何本局累加 ⇒ 读档时按当前 meta 覆盖是幂等的，也不会与「购买时即时到账」那份叠加。
-   *   其余键（纯加法）与周目无关，既没必要也不该在这里动。
-   * 【为什么读档必须动它】2026-11-02 之前 `game.startRun` 拿上一局的 perk 表整表覆盖派生结果
-   *   （见那里那条注）⇒ 老存档里这两个键被冻在「购买那一局」的 cycle 上，甚至为 0。
-   *   只修 startRun 的话，这批玩家要等下一个周目才生效，读档进来仍旧「没生效」。
-   * 【同源】算式不另写一份，直接取 derivePerksFromMeta 的结果，避免两处口径漂移。 */
-  function syncLoopPerks(s, m) {
+  /* 读档时把「可由 meta 账本派生的 perk 数值键」整表对齐（2026-11-04 扩写）。
+   * 【为什么不再只管 loop5】原 syncLoopPerks 只重算 dyn:'loop5' 的两个键，理由是它们
+   *   随周目变化；纯加法键被当成「与周目无关、存档里必然是对的」放过了。但存档里的
+   *   s.perk 并不是权威态 —— `migrateRun` 是「只校验不重算」，会拿 `raw.perk` 整表覆盖
+   *   运行态（见 state-migrate.js 的 out.perk）。只要存档写下的那一刻 s.perk 落后于
+   *   meta.perks（中途在轮回商店买了 autoCraft、跨周目旧档、云存档合并…），读档后
+   *   s.perk.autoCraft 就是旧值 ⇒ workshop.slotCap 少算 ⇒ 玩家「买了自动槽却不起效」，
+   *   且每刷新一次就复发一次。
+   * 【为什么可以整表覆盖】freshRun 的 perk 本来就来自 derivePerksFromMeta()（唯一落点），
+   *   那份算式对纯加法 / mode:'max' / loop5 三类键都是 meta 的**纯函数**，不含本局累加，
+   *   故与「购买时即时到账」的那份不会重复计账，覆盖是幂等的。
+   *   recipeCraft 是字典不是数值键，跳过（它由同一派生式生成，不属本次缺陷范围）。
+   * 【落点纪律】必须在**调用方**（game.resumeRun），不能塞进 migrateRun —— 后者按设计
+   *   只校验不重算；与「破壳停摆要在调用方拆门」同一条。 */
+  function syncDerivedPerks(s, m) {
     if (!s || !s.perk) return false;
     var d = derivePerksFromMeta();
     if (!d.applied) return false;
     void m;                       // 参数只为可读性保留（真正读的是 SB.game.meta()）
-    var changed = false, PL = SB.TIDE_TREE || [], i, k;
-    for (i = 0; i < PL.length; i++) {
-      var p = PL[i];
-      if (p.dyn !== 'loop5' || !p.apply) continue;
-      for (k in p.apply) {
-        if (s.perk[k] !== d.perk[k]) { s.perk[k] = d.perk[k]; changed = true; }
-      }
+    var changed = false, k;
+    for (k in d.perk) {
+      if (!Object.prototype.hasOwnProperty.call(d.perk, k)) continue;
+      var want = d.perk[k];
+      if (typeof want !== 'number' || !isFinite(want)) continue;
+      if (s.perk[k] !== want) { s.perk[k] = want; changed = true; }
     }
     return changed;
   }
@@ -1221,9 +1226,10 @@
     emptyMeta: emptyMeta,
     emptyPerks: emptyPerks,
     freshRun: freshRun,
-    /* 2026-11-02：读档时把 dyn:'loop5' 的键（轮回工巧 / 轮回炉火）按当前 meta 重算。
-     * 这两个键是 meta 的纯函数，覆盖幂等；只为救「被 startRun 旧逻辑冻住」的老存档。 */
-    syncLoopPerks: syncLoopPerks,
+    /* 2026-11-02 起：读档时把可由 meta 派生的 perk 数值键按当前账本重算（幂等）。
+     * 2026-11-04 扩到全部纯加法键（含 autoCraft），修「买的自动槽读档后不起效」。 */
+    syncDerivedPerks: syncDerivedPerks,
+    syncLoopPerks: syncDerivedPerks,   // 兼容旧调用名（行为已扩到全部派生键）
     migrateRun: migrateRun,
     loadMeta: loadMeta,
     normalizeMeta: normalizeMeta,

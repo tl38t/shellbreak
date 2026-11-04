@@ -3,7 +3,7 @@
 <head data-page-node-id="SHpRYBRRIDcP8Bx75nsUrT">
 <meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
-<title>自海渊至群星：深海文明建设</title>
+<title>渊海群星：深海文明建设</title>
 <script>
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
@@ -25,7 +25,7 @@
   <header class="brandline" data-page-node-id="BrandLineP0">
     <img class="brandmark" src="assets/brand/logo-shell-sun.jpg" alt="" aria-hidden="true">
     <div>
-      <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">自海渊至群星</h1>
+      <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">渊海群星</h1>
       <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自无光的渊海，眺望闪熠星河</div>
     </div>
     <div class="header-actions">
@@ -291,27 +291,27 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=209"></script>
+<script src="src/config.js?v=211"></script>
 <script src="src/config-catalog.js?v=12"></script>
 <script src="src/config-content.js?v=38"></script>
 <script src="src/config-buildings.js?v=48"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=148"></script>
-<script src="src/tech.js?v=124"></script>
+<script src="src/techs.js?v=149"></script>
+<script src="src/tech.js?v=125"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
 <script src="src/civics-data.js?v=31"></script>
-<script src="src/civics.js?v=135"></script>
+<script src="src/civics.js?v=136"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/save-storage.js?v=7"></script>
 <script src="src/state-migrate.js?v=28"></script>
-<script src="src/state.js?v=171"></script>
-<script src="src/workshop.js?v=125"></script>
+<script src="src/state.js?v=172"></script>
+<script src="src/workshop.js?v=126"></script>
 <script src="src/wonder.js?v=114"></script>
 <script src="src/economy-social.js?v=10"></script>
 <script src="src/economy.js?v=207"></script>
@@ -323,11 +323,11 @@
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=4"></script>
 <script src="src/audio.js?v=1"></script>
-<script src="src/shell.js?v=113"></script>
+<script src="src/shell.js?v=114"></script>
 <script src="src/habitat.js?v=114"></script>
 <script src="src/folk.js?v=106"></script>
 <script src="src/prestige.js?v=134"></script>
-<script src="src/challenges.js?v=20"></script>
+<script src="src/challenges.js?v=21"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
@@ -349,7 +349,7 @@
 <script src="src/ui/render.js?v=275"></script>
 <script src="src/ui/track-dock.js?v=6"></script>
 <script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=179"></script>
+<script src="src/game.js?v=180"></script>
 <script src="src/save-transfer.js?v=16"></script>
 <script src="src/redeem.js?v=3"></script>
 <script src="src/ui/input.js?v=178"></script>

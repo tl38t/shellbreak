@@ -255,11 +255,13 @@
      * 已结算的旧档则沿用原行为，恢复为可继续发展的破壳后周目。 */
     if (S.shellOpened && !(S.broken && !S.breakSettled)) S.broken = false;
     if (!S.perk) S.perk = SB.state.emptyPerks();
-    /* 2026-11-02 老档纠正：轮回工巧 / 轮回炉火（dyn:'loop5'）的键值在旧版本被 startRun 的整表覆盖
-     * 冻在「购买那一局」的周目数上（甚至为 0，见 startRun 那条注）。这两个键是 meta 的纯函数，
-     * 按当前 meta 重算是幂等的，不会与本局累加叠加 ⇒ 读档即修正，不必等下一个周目。
-     * 同步落盘：不写回去的话，玩家下次进游戏还会看到同一份被冻住的值。 */
-    if (SB.state.syncLoopPerks && SB.state.syncLoopPerks(S, meta)) SB.state.saveRun(snapshot(S));
+    /* 老档纠正（2026-11-02 起，2026-11-04 扩到全部派生键）：s.perk 不是权威态，
+     * migrateRun 只校验不重算，会拿存档里的 raw.perk 整表覆盖运行态。凡是 meta 账本
+     * 已买、而存档写下时 s.perk 还没跟上的键（轮回商店 autoCraft / loop5 联动等），
+     * 读档后都会「买了却不起效」。按当前 meta 重算整份派生 perk 是幂等的，
+     * 不会与购买时即时到账那份叠加 ⇒ 读档即修正，不必等下一个周目。
+     * 同步落盘：不写回去的话，玩家下次进游戏还会看到同一份旧值。 */
+    if (SB.state.syncDerivedPerks && SB.state.syncDerivedPerks(S, meta)) SB.state.saveRun(snapshot(S));
     /* 自动点击开关跨周目继承（2026-10-28）：
      *   ① 一次性认领 —— meta 里**没有**这个键（= 玩家从未拨过开关，属于「先装开关、后装继承」
      *      的档）而本局存档里有布尔值 ⇒ 认领存档里的值。不认领就会把玩家已设的「暂停」抹成开。

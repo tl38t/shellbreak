@@ -220,10 +220,12 @@
         return wc >= c.n;
       }
       case 'coef': return SB.shell.breakCoef(s) >= c.n;
-      /* `shell` —— **破壳达到 n**：壳**剩余**比例（1 − rOf）≥ n。
-       * ⚠️ 与 `coef`（破壳系数，会涨的）不是同一概念：用户要的「破壳 50%」是壳还剩一半没凿，
-       *    对应 brokenRatio = 1 − rOf（shell.js 导出）。autoRate 会把壳削到 FLOOR_AT=0.25
-       *    （brokenRatio 0.75）才停，中途必经过 0.5 ⇒ 条件可达。 */
+      /* `shell` —— **破壳达到 n**：已削掉的比例 brokenRatio = 1 − rOf ≥ n。
+       * ⚠️ 与 `coef`（破壳系数，会涨的）不是同一概念。《天壳地质学》要的是「壳削掉 75%」，
+       *    对应 shell.js 导出的 brokenRatio。autoRate 削到 FLOOR_AT=0.25 停手 ⇒
+       *    brokenRatio 恰好收在 0.75；钻机再从那里削到 1（破壳后 rOf=0）。
+       * ⚠️ 因此 **n 的上限是 0.75**：再高就只有建好钻机才能达成，而钻机的前置科技链
+       *    要过《天壳地质学》⇒ 循环依赖死锁。改这个数前先证「数学上可能吗」。 */
       case 'shell': {
         if (!SB.shell || !SB.shell.brokenRatio) return false;
         return SB.shell.brokenRatio(s) >= (c.n || 0);

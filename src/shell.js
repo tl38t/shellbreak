@@ -38,8 +38,11 @@
     return c;
   }
 
-  /* 破壳比例 = 1 − rOf（壳剩余比例）。autoRate 把壳削到 FLOOR_AT=0.25 就停，
-   * 于是 brokenRatio 在区间 [0.75, 1] 收口；中途必经过 0.5 ⇒ 尤里卡「破壳 50%」可达。 */
+  /* 破壳比例 = 1 − rOf（壳剩余比例的补）。autoRate 削到 FLOOR_AT=0.25 就停手 ⇒
+   * brokenRatio 精确收在 0.75，随后由天穹钻机继续削到 1（破壳后 rOf=0）。
+   * ⚠️ 0.75 是《天壳地质学》的门槛（techs.js:666，2026-11-04 从 0.5 抬上来），也是
+   *    所有 `cond:{t:'shell'}` 在「钻机建成前」能取到的最大值；别把 FLOOR_AT 单独调高，
+   *    否则那个科技永远揭示不了、钻机也就永远建不起来（循环依赖）。 */
   function brokenRatio(s) {
     return 1 - SB.economy.rOf(s);
   }
