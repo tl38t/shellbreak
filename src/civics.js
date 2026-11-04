@@ -36,7 +36,96 @@
 
   function byId(id) { for (var i = 0; i < CIVICS.length; i++) if (CIVICS[i].id === id) return CIVICS[i]; return null; }
   function govById(id) { for (var i = 0; i < GOVS.length; i++) if (GOVS[i].id === id) return GOVS[i]; return null; }
-  function policyById(id) { for (var i = 0; i < POLICIES.length; i++) if (POLICIES[i].id === id) return POLICIES[i]; return null; }
+  var GOV_PASSIVE_CARD_PREFIX = 'card_gov_passive_';
+  var GOV_PASSIVE_FIELDS = ['effect', 'craftRatio', 'luxuryMul', 'happyBonus', 'buildSave', 'happyConsumeMul',
+    'faithPerAcademy', 'faithPerCivic', 'faithPerBuilding', 'craftPerPop', 'hydroPerPop', 'minePerPop',
+    'civicOutMul', 'sciOutMul', 'mermanFoodMul', 'allOutMul', 'faithMul', 'oldFaithMul'];
+  function currentMeta() {
+    try { return SB.game && SB.game.meta ? SB.game.meta() : null; } catch (e) { return null; }
+  }
+  function govPassiveUnlocked(meta, govId) {
+    return !!(meta && meta.govPassiveCards && meta.govPassiveCards[govId]
+      && SB.challenges && SB.challenges.tierDone('good_old_days', meta));
+  }
+  function makeGovPassiveCard(g) {
+    if (!g) return null;
+    var passiveDesc = g.desc || '采用后获得该政体效果。';
+    var slotDescAt = passiveDesc.indexOf('；');
+    if (slotDescAt >= 0) passiveDesc = passiveDesc.slice(slotDescAt + 1).trim();
+    var card = { id: GOV_PASSIVE_CARD_PREFIX + g.id, name: g.name, civic: null, type: 'grow',
+      govPassive: g.id, desc: '政体被动：' + passiveDesc };
+    for (var i = 0; i < GOV_PASSIVE_FIELDS.length; i++) {
+      var field = GOV_PASSIVE_FIELDS[i];
+      if (g[field] !== undefined) card[field] = g[field];
+    }
+    return card;
+  }
+  function addGovPassiveCard(govId) {
+    var g = govById(govId), id = GOV_PASSIVE_CARD_PREFIX + govId;
+    if (!g) return null;
+    for (var i = 0; i < POLICIES.length; i++) if (POLICIES[i].id === id) return POLICIES[i];
+    var card = makeGovPassiveCard(g);
+    POLICIES.push(card);
+    return card;
+  }
+  function ensureGovPassiveCards(s) {
+    var meta = currentMeta();
+    if (!meta || !meta.govPassiveCards || !SB.challenges || !SB.challenges.tierDone('good_old_days', meta)) return POLICIES;
+    for (var i = 0; i < GOVS.length; i++) if (govPassiveUnlocked(meta, GOVS[i].id)) addGovPassiveCard(GOVS[i].id);
+    return POLICIES;
+  }
+  function policyList(s) { return ensureGovPassiveCards(s); }
+  function policyById(id) {
+    for (var i = 0; i < POLICIES.length; i++) if (POLICIES[i].id === id) return POLICIES[i];
+    if (typeof id === 'string' && id.indexOf(GOV_PASSIVE_CARD_PREFIX) === 0) {
+      var govId = id.slice(GOV_PASSIVE_CARD_PREFIX.length), meta = currentMeta();
+      if (govPassiveUnlocked(meta, govId)) return addGovPassiveCard(govId);
+    }
+    return null;
+  }
+  function unlockGovPassiveCard(govId, meta) {
+    meta = meta || currentMeta();
+    if (!govById(govId) || !meta || !SB.challenges || !SB.challenges.tierDone('good_old_days', meta)) return false;
+    if (!meta.govPassiveCards || typeof meta.govPassiveCards !== 'object' || Array.isArray(meta.govPassiveCards)) meta.govPassiveCards = {};
+    if (meta.govPassiveCards[govId]) { addGovPassiveCard(govId); return false; }
+    meta.govPassiveCards[govId] = true;
+    addGovPassiveCard(govId);
+    if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    return true;
+  }
+  function recordGovAdoption(govId, meta) {
+    meta = meta || currentMeta();
+    if (!govById(govId) || !meta) return false;
+    if (!meta.govEverAdopted || typeof meta.govEverAdopted !== 'object' || Array.isArray(meta.govEverAdopted))
+      meta.govEverAdopted = {};
+    if (meta.govEverAdopted[govId]) return false;
+    meta.govEverAdopted[govId] = true;
+    if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    return true;
+  }
+  function unlockAdoptedGovPassiveCards(meta, runAdopted) {
+    meta = meta || currentMeta();
+    if (!meta || !SB.challenges || !SB.challenges.tierDone('good_old_days', meta)) return false;
+    if (!meta.govEverAdopted || typeof meta.govEverAdopted !== 'object' || Array.isArray(meta.govEverAdopted))
+      meta.govEverAdopted = {};
+    if (runAdopted && typeof runAdopted === 'object') {
+      for (var id in runAdopted) if (runAdopted[id] && govById(id)) meta.govEverAdopted[id] = true;
+    }
+    /* 酋邦制是所有周目的起始政体，也就是美好旧日挑战中被保留的制度。 */
+    meta.govEverAdopted.tribe = true;
+    if (!meta.govPassiveCards || typeof meta.govPassiveCards !== 'object' || Array.isArray(meta.govPassiveCards))
+      meta.govPassiveCards = {};
+    var changed = false;
+    for (var i = 0; i < GOVS.length; i++) {
+      var govId = GOVS[i].id;
+      if (!meta.govEverAdopted[govId] || meta.govPassiveCards[govId]) continue;
+      meta.govPassiveCards[govId] = true;
+      addGovPassiveCard(govId);
+      changed = true;
+    }
+    if (changed && SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    return changed;
+  }
 
   /* 政策卡的**乘区出口**：《戏剧与诗歌》《神学》《历史记录》的「效果 +100%」都走这里。
    * ⚠️【为什么乘区不进 `effect`】effect 走的是 flow() 那条「平坦加值/秒」通道，
@@ -124,6 +213,21 @@
    * 所以各自一个函数，判「装没装」用 inSlot（s.cards 数组逐槽查，与 flow 同口径）。
    * ⚠️ 只在卡装着时才生效——研究出市政只是拿到卡，没装 = 恒 1，别在这儿放宽。 */
   function cardSlotted(s, id) { return !!(s && s.cards && s.cards.indexOf(id) >= 0); }
+  function installedGovPassiveSources(s) {
+    var out = [], arr = (s && s.cards) || [];
+    for (var i = 0; i < arr.length; i++) {
+      var p = policyById(arr[i]);
+      if (!p || !p.govPassive || p.govPassive === s.gov || !cardOwned(s, p.id)) continue;
+      var g = govById(p.govPassive);
+      if (g) out.push(g);
+    }
+    return out;
+  }
+  function govPassiveCardSum(s, field) {
+    var sum = 0, sources = installedGovPassiveSources(s);
+    for (var i = 0; i < sources.length; i++) if (typeof sources[i][field] === 'number') sum += sources[i][field];
+    return sum;
+  }
   /* 王权神授：城堡每级 +10% 信仰产出。乘在 faithRate 的整段产出上（economy 读）。
    * ⚠️ 2026-10-06 城堡「真升级」：城堡**不是独立建筑**，而是议事厅买下工坊升级
    *   `upg_castle` 之后的新名字 ⇒ 这里的「城堡等级」就是 `s.lvl.hall`（经济层的
@@ -264,14 +368,16 @@
    * 仅当采用神权政体时生效。返回**绝对量**（与 FAITH_PER_POP 同单位，信仰/秒）。 */
   function theoFaithBonus(s) {
     var g = govById(s.gov);
-    if (!g || typeof g.faithPerAcademy !== 'number') return 0;
+    var perAcademy = (g && typeof g.faithPerAcademy === 'number' ? g.faithPerAcademy : 0) + govPassiveCardSum(s, 'faithPerAcademy');
+    var perCivic = (g && typeof g.faithPerCivic === 'number' ? g.faithPerCivic : 0) + govPassiveCardSum(s, 'faithPerCivic');
+    if (!(perAcademy || perCivic)) return 0;
     var a = 0, cv = 0, _i;
     if (SB.BUILDINGS) for (_i = 0; _i < SB.BUILDINGS.length; _i++) {
       var _z = SB.BUILDINGS[_i].zone;
       if (_z === 'academy') a += (s.lvl[SB.BUILDINGS[_i].id] || 0);
       else if (_z === 'civic') cv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
     }
-    return a * g.faithPerAcademy + cv * (g.faithPerCivic || 0);
+    return a * perAcademy + cv * perCivic;
   }
 
   /* ── ERA6（2026-10-12 实装）· 各动态效果读数 ──
@@ -373,16 +479,16 @@
   /* 星际联邦政体：全产 +10%（allOutMul）。economy.globalMul 末尾乘，覆盖珊瑚/石/金属/暖石/精铁/科技/市政点/藻食/地热/奢侈品。 */
   function govAllOutMul(s) {
     var g = govById(s.gov);
-    return (g && typeof g.allOutMul === 'number') ? g.allOutMul : 1;
+    return ((g && typeof g.allOutMul === 'number') ? g.allOutMul : 1) * cardFieldMul(s, 'allOutMul');
   }
   /* 寰宇教会政体：信仰产出 ×(faithMul) + 旧日信仰全产档 ×(oldFaithMul)。economy.faithRate / baseMul 读。 */
   function govFaithMul(s) {
     var g = govById(s.gov);
-    return (g && typeof g.faithMul === 'number') ? g.faithMul : 1;
+    return ((g && typeof g.faithMul === 'number') ? g.faithMul : 1) * cardFieldMul(s, 'faithMul');
   }
   function govOldFaithMul(s) {
     var g = govById(s.gov);
-    return (g && typeof g.oldFaithMul === 'number') ? g.oldFaithMul : 1;
+    return ((g && typeof g.oldFaithMul === 'number') ? g.oldFaithMul : 1) * cardFieldMul(s, 'oldFaithMul');
   }
   /* 血肉苦弱卡：精铁/钢/θ金属等资源乘区（resOutMul map）。economy iron/steel/theta 行读，逐资源相乘。 */
   function cardResOutMul(s, res) {
@@ -518,11 +624,12 @@
   /* 教权国：所有建筑每级 +1 信仰/秒（绝对量，加在 faithRate 末尾）。仅采用该政体时生效。 */
   function faithPerBuildingBonus(s) {
     var g = govById(s.gov);
-    if (!g || typeof g.faithPerBuilding !== 'number') return 0;
+    var per = (g && typeof g.faithPerBuilding === 'number' ? g.faithPerBuilding : 0) + govPassiveCardSum(s, 'faithPerBuilding');
+    if (!per) return 0;
     var lv = 0, _i;
     if (SB.BUILDINGS) for (_i = 0; _i < SB.BUILDINGS.length; _i++)
       lv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
-    return lv * g.faithPerBuilding;
+    return lv * per;
   }
   /* 平等主义：每名鲛人 +0.1% 工坊效率（加法乘区，叠进 govCraftRatio）。 */
   function govCraftPerPop(s) {
@@ -532,12 +639,12 @@
   /* 平等主义：每名鲛人 +0.1% 热液能产出（乘在 hydroAlloc 的 supply 上，返回乘区基准 1）。 */
   function govHydroPerPop(s) {
     var g = govById(s.gov);
-    return (g && typeof g.hydroPerPop === 'number') ? 1 + g.hydroPerPop * (s.pop || 0) : 1;
+    return 1 + ((g && typeof g.hydroPerPop === 'number' ? g.hydroPerPop : 0) + govPassiveCardSum(s, 'hydroPerPop')) * (s.pop || 0);
   }
   /* 平等主义：每名鲛人 +0.1% 矿井产出（叠进 mineTaxMul，tick/rates 同源，返回乘区基准 1）。 */
   function govMinePerPop(s) {
     var g = govById(s.gov);
-    var m = (g && typeof g.minePerPop === 'number') ? g.minePerPop * (s.pop || 0) : 0;
+    var m = ((g && typeof g.minePerPop === 'number' ? g.minePerPop : 0) + govPassiveCardSum(s, 'minePerPop')) * (s.pop || 0);
     return 1 + m;
   }
   /* 联邦制：科技/市政产出 +10%（乘区，与 cardOutMul 同乘区相乘返回基准 1）。 */
@@ -552,7 +659,10 @@
   /* 联邦制：鲛人食物消耗 −10%（返回减耗比例，foodUse 乘以 (1 − 此值)）。 */
   function govMermanFoodMul(s) {
     var g = govById(s.gov);
-    return (g && typeof g.mermanFoodMul === 'number') ? g.mermanFoodMul : 0;
+    var keep = 1 - (g && typeof g.mermanFoodMul === 'number' ? g.mermanFoodMul : 0);
+    var sources = installedGovPassiveSources(s);
+    for (var i = 0; i < sources.length; i++) if (typeof sources[i].mermanFoodMul === 'number') keep *= 1 - sources[i].mermanFoodMul;
+    return 1 - keep;
   }
   /* 历史哲学：ERA1/2/3 的奇观每座 +5 市政点获取（wonderEraCivic 字段，绝对值/秒）。
    * 仅当《历史哲学》完成后生效。economy.cultureRate 读。 */
@@ -872,6 +982,10 @@
     }
     return true;
   }
+  function researchCost(s, c) {
+    var mul = SB.challenges && SB.challenges.researchCostMul ? SB.challenges.researchCostMul(s) : 1;
+    return (c && c.cost || 0) * mul;
+  }
   /* 返回 null 表示可以研究，否则返回「为什么不行」——这句会挂成灰按钮的 title。 */
   function blocked(s, c) {
     if (s.civics[c.id]) return null;
@@ -886,7 +1000,8 @@
       if (c.reqsAny) for (var k = 0; k < c.reqsAny.length; k++) if (!s.civics[c.reqsAny[k]]) need.push(byId(c.reqsAny[k]).name);
       return '需先完成：' + need.join('、');
     }
-    if ((s.res.culture || 0) < c.cost) return '市政点 ' + Math.floor(s.res.culture || 0) + ' / ' + c.cost;
+    var cost = researchCost(s, c);
+    if ((s.res.culture || 0) < cost) return '市政点 ' + Math.floor(s.res.culture || 0) + ' / ' + cost;
     return null;
   }
 
@@ -912,7 +1027,7 @@
   function research(s, id, emit) {
     if (!canResearch(s, id)) return false;
     var c = byId(id);
-    s.res.culture -= c.cost;
+    s.res.culture -= researchCost(s, c);
     s.civics[id] = 1;
     /* 2026-10-26 排行榜「最快虚境飞升」：research 已防重采（s.civics[id] 已置位即 return），
      * 天然只报一次；仅在采用 ascend_void 那一刻提交墙钟秒（与 firstFaith 同口径）。 */
@@ -930,10 +1045,12 @@
     if (emit) emit('获得 1 次免费卸下机会（当前共 ' + s.cardFreeRemoves + ' 次）');
     /* 政体随《法典》自带。用 s.gov 是否为 null 判「还没采用过」而不是靠 cost 判——
      * 老档读进来时 gov 可能是 null，这条免费路径必须仍然走得到。 */
-    if (c.gov && !s.gov) {
+    if (c.gov && !s.gov
+        && !(SB.challenges && SB.challenges.governmentLocked && SB.challenges.governmentLocked(s) && c.gov !== 'tribe')) {
       s.gov = c.gov;
       s.govAdopted = s.govAdopted || {};
       s.govAdopted[c.gov] = true;
+      recordGovAdoption(c.gov);
     }
     /* 卡退役（2026-09-30）：完成后扫一遍 POLICIES，把 retiredBy 指向本市政的卡从
      * 所有槽里拔下。**免费**——退役是制度行为，不是玩家「换卡」，不该收换卡费。
@@ -988,6 +1105,7 @@
   function cardOwned(s, id) {
     var p = policyById(id);
     if (!p) return false;
+    if (p.govPassive) return govPassiveUnlocked(currentMeta(), p.govPassive);
     /* 退役（2026-09-30）：技艺卡被职业行会取代。retiredBy 指向**市政 id**，
      * 那项市政完成后卡即不可再装（已装的由 research 顺手拔下）。 */
     if (p.retiredBy && s.civics && s.civics[p.retiredBy]) return false;
@@ -1027,17 +1145,22 @@
       id = arr[i]; if (!id) continue;
       cd = policyById(id);
       /* 旧存档/手改状态即使残留已退役卡，也不能继续叠加工坊效率。 */
-      if (cd && typeof cd.craftRatio === 'number' && cardOwned(s, id)) m += cd.craftRatio;
+      if (cd && cardOwned(s, id)) {
+        if (typeof cd.craftRatio === 'number') m += cd.craftRatio;
+        if (typeof cd.craftPerPop === 'number') m += cd.craftPerPop * (s.pop || 0);
+      }
     }
     return m;
   }
-  function govLuxuryMul(s)  { var g = govById(s.gov); return g && typeof g.luxuryMul === 'number' ? g.luxuryMul : 1; }
-  function govHappyBonus(s) { var g = govById(s.gov); return g && typeof g.happyBonus === 'number' ? g.happyBonus : 0; }
+  function govLuxuryMul(s)  { var g = govById(s.gov); return (g && typeof g.luxuryMul === 'number' ? g.luxuryMul : 1) * cardFieldMul(s, 'luxuryMul'); }
+  function govHappyBonus(s) { var g = govById(s.gov); return (g && typeof g.happyBonus === 'number' ? g.happyBonus : 0) + cardFieldSum(s, 'happyBonus'); }
   /* 君主制（2026-09-30）：礁栖核心建筑建造消耗 −10%。返回的是**乘数**（没采用 = 1），
    * economy.costOf 对 zone==='core' 的建筑乘上它——显示与扣费同走 costOf，天然同源。 */
   function govBuildCostMul(s, bid) {
     var g = govById(s.gov);
-    if (!g || typeof g.buildSave !== 'number') return 1;
+    var currentSave = g && typeof g.buildSave === 'number' ? g.buildSave : 0;
+    var cardSave = cardFieldSum(s, 'buildSave');
+    if (!(currentSave || cardSave)) return 1;
     /* 规格原文是「**所有礁栖核心建筑**建造消耗 −10%」——减耗只认 zone==='core' 的建筑。
      * ⚠️ bid 缺省 = 调用方没传建筑 id，按 1 处理（宁可不少减，不能错减）；
      *    建造面板与 costOf 都传 id，只有「泛问政体强度」这种调用才会缺省。 */
@@ -1046,7 +1169,7 @@
       for (var _i = 0; _i < SB.BUILDINGS.length; _i++) if (SB.BUILDINGS[_i].id === bid) _zb = SB.BUILDINGS[_i];
       if (!_zb || _zb.zone !== 'core') return 1;
     }
-    return 1 - g.buildSave;
+    return (1 - currentSave) * Math.max(0, 1 - cardSave);
   }
 
   /* ERA6（2026-10-12 实装）：三个新政体（教权国 / 平等主义 / 联邦制）采用时弹窗让玩家起名，
@@ -1122,10 +1245,21 @@
     if (!clear) {
       var p = policyById(id);
       if (!p) return '没有这张卡';
+      var activeChallenge = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
+      if (activeChallenge && activeChallenge.id === 'anarchy' && id !== 'card_cycle_terminus')
+        return '安那其主义挑战只允许装备「轮回之终末」';
       if (inSlot(s, id)) return null;                 // 已经在某槽里 ⇒ 幂等
       if (!cardOwned(s, id)) {
+        if (p.govPassive) return '需先通关「美好旧日」并采用过「' + (govById(p.govPassive).name) + '」';
         var c = byId(p.civic);
-        return '需先完成市政「' + c.name + '」';
+        return '需先完成市政「' + (c ? c.name : '相关市政') + '」';
+      }
+      if (p.govPassive && s.gov === p.govPassive)
+        return '不能装备与当前政体同名的被动卡';
+      if (p.govPassive && s.cards) for (var gi = 0; gi < s.cards.length; gi++) {
+        var installedGovCard = policyById(s.cards[gi]);
+        if (installedGovCard && installedGovCard.govPassive && gi !== slot)
+          return '每局最多装备一张政体被动卡';
       }
       /* ⚠️ 类型不匹配与「还没解锁」是两回事，文案要说清是哪一种：
        *    前者是「这张卡在别的槽里」，后者是「这张卡你还没有」。
@@ -1260,6 +1394,8 @@
   }
   function govBlocked(s, id) {
     if (!govById(id)) return '没有这个政体';
+    if (SB.challenges && SB.challenges.governmentLocked && SB.challenges.governmentLocked(s) && id !== 'tribe')
+      return '美好旧日挑战期间只能采用酋邦制';
     if (s.gov === id) return null;
     if (!govOwned(s, id)) return '需先完成解锁它的市政';
     if (govFirstAdoptionFree(s, id)) return null;
@@ -1279,6 +1415,7 @@
     s.gov = id;
     s.govAdopted = s.govAdopted || {};
     s.govAdopted[id] = true;
+    recordGovAdoption(id);
     /* ERA6（2026-10-12）：采用三个新政体之一且尚未起名 ⇒ 弹窗命名（采用 = 命名时机，
      *   与用户规格「采用时弹窗命名、更名为 XX 教权国/联盟/联邦」一致）。无 DOM 环境
      *   （e2e 沙箱）直接跳过，govName 留空不报错。采用其它政体不触发。 */
@@ -1288,10 +1425,19 @@
       SB.game.maybeGovNamingPopup(s, id);
     }
     ensureCards(s);                              // 换政体 ⇒ 槽数变 ⇒ s.cards 按 index 截断/补 null
+    unlockGovPassiveCard(id);
+    /* 若换入的政体与已装备被动卡同名，自动免费卸下，守住「当前政体卡不能自选使用」规则。 */
+    var removedGovCard = false;
+    for (var gci = 0; gci < (s.cards || []).length; gci++) {
+      var equipped = policyById(s.cards[gci]);
+      if (equipped && equipped.govPassive === id) { s.cards[gci] = null; removedGovCard = true; }
+    }
+    if (removedGovCard) s.card = s.cards[0] || null;
     if (emit) emit(s.gov === null
       ? '政体已撤回。'
       : '政体换为「' + govById(id).name + '」' +
-        (firstFree ? '（该政体首次采用免费）' : fee > 0 ? '（花 ' + fee + ' 市政点）' : '（免费）'));
+        (firstFree ? '（该政体首次采用免费）' : fee > 0 ? '（花 ' + fee + ' 市政点）' : '（免费）') +
+        (removedGovCard ? '；同名政体被动卡已免费卸下' : ''));
     return true;
   }
 
@@ -1310,6 +1456,10 @@
     for (k in g.slots) {
       for (var i = 0; i < (g.slots[k] || 0); i++) out.push({ type: k });
     }
+    /* 安那其主义通关奖励：所有政体的配方都额外获得一个万能槽。 */
+    var _meta = currentMeta();
+    if (SB.challenges && SB.challenges.tierDone && SB.challenges.tierDone('anarchy', _meta) > 0)
+      out.push({ type: 'wild' });
     /* 奇观送的宗教槽（2026-10-01 ERA4）：欧'洛瓦宗座教堂 effect.religSlot。叠加在政体自带槽之上。 */
     var _rs = wonderReligSlots(s);
     for (var _ri = 0; _ri < _rs; _ri++) out.push({ type: 'relig' });
@@ -1424,7 +1574,7 @@
   SB.GOVS = GOVS;
   SB.POLICIES = POLICIES;
   SB.civic = {
-    byId: byId, govById: govById, policyById: policyById,
+    byId: byId, govById: govById, policyById: policyById, policyList: policyList,
     panelOpen: panelOpen, panelBlock: panelBlock,
     condMet: condMet, condShort: condShort, boostMet: boostMet, isRevealed: isRevealed,
     challengeAllows: challengeAllows, challengeOnlyName: challengeOnlyName,
@@ -1433,7 +1583,9 @@
     /* pitch 按当前 geo 现算（卡片尺寸是借来的，写死在导出对象里会与 geo 脱钩）。 */
     pitch: function () { var G = geo(); return { col: G.W + GEO.COL, row: G.H + GEO.ROW }; },
     reqsMet: reqsMet, blocked: blocked, hasResearchable: hasResearchable, canResearch: canResearch, research: research,
-    topCost: topCost, cardCost: cardCost, govCost: govCost, govRoutineMul: govRoutineMul,
+    topCost: topCost, cardCost: cardCost, govCost: govCost, govRoutineMul: govRoutineMul, researchCost: researchCost,
+    recordGovAdoption: recordGovAdoption,
+    unlockGovPassiveCard: unlockGovPassiveCard, unlockAdoptedGovPassiveCards: unlockAdoptedGovPassiveCards,
     cardOwned: cardOwned, govOwned: govOwned,
     cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
     removeCard: removeCard,

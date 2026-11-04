@@ -502,7 +502,7 @@
         '<div class="gov-current-identity">' + govSymbol(currentGov.id, 'gov-symbol-current') + '<div class="gov-current-copy">' +
           '<div class="gov-expanded-kicker">当前政体 <i class="is-current">生效中</i></div>' +
           '<h3 class="gov-expanded-title">' + currentTitle + '</h3></div></div>' +
-        '<p class="gov-picker-desc">' + currentGov.desc + '</p>' +
+        '<p class="gov-picker-desc">' + currentGov.desc + (hasAnarchyBonusSlot() ? '（另有安那其主义奖励的 1 个万能槽）' : '') + '</p>' +
         (currentGov.flavor ? '<p class="gov-picker-flavor b-flavor">' + currentGov.flavor + '</p>' : '') +
         '<div class="gov-picker-slots"><span>政策卡槽</span><strong>' + recipeText(currentGov) + '</strong></div>' +
         '<div class="gov-picker-footer"><span>当前政体正在生效' + SB.ui.renderCommon.happyBonusNote(s, 'gov') + '</span>' +
@@ -525,9 +525,9 @@
       var adoptionCost = C.govCost(s);
       options += '<article class="gov-picker-card gov-option-card' + (on ? ' is-current' : '') + '">' +
         '<header class="gov-option-head">' + govSymbol(v.id) + '<h3>' + v.name + '</h3><i class="' + statusClass + '">' + tileState + '</i></header>' +
-        '<p class="gov-option-desc">' + v.desc + '</p>' +
+        '<p class="gov-option-desc">' + v.desc + (hasAnarchyBonusSlot() ? '（另有安那其主义奖励的 1 个万能槽）' : '') + '</p>' +
         (v.flavor ? '<p class="gov-option-flavor b-flavor">' + v.flavor + '</p>' : '') +
-        '<div class="gov-option-slots"><span>政策卡槽</span><strong>' + recipeText(v) + '</strong></div>' +
+          '<div class="gov-option-slots"><span>政策卡槽</span><strong>' + recipeText(v) + '</strong></div>' +
         '<footer class="gov-option-footer"><span>' + (on ? '当前政体正在生效' : (firstFree ? '首次采用免费' : ('更换费用：' + adoptionCost + ' 市政点'))) +
           (why ? '<small>' + why + '</small>' : '') + '</span>' +
           '<button type="button" class="btn buy gov-adopt" data-gov="' + v.id + '"' + ((on || why) ? ' disabled' : '') +
@@ -552,8 +552,13 @@
       out.push(g.slots[k] + ' ' + SB.civic.slotTypeName(k));
       n += g.slots[k];
     }
+    if (hasAnarchyBonusSlot()) { out.push('1 万能槽（安那其主义奖励）'); n++; }
     if (!n) return '不提供政策卡槽';
     return out.join(' ＋ ');
+  }
+  function hasAnarchyBonusSlot() {
+    var m = SB.game && SB.game.meta ? SB.game.meta() : null;
+    return !!(SB.challenges && SB.challenges.tierDone && SB.challenges.tierDone('anarchy', m));
   }
 
   /* 政策卡槽（Civ6 式）：一个个**带类型的格子**，空格子也画出来 ——
@@ -669,8 +674,9 @@
         '</div>';
     }
     var cand = [], i, p;
-    for (i = 0; i < SB.POLICIES.length; i++) {
-      p = SB.POLICIES[i];
+    var policies = C.policyList ? C.policyList(s) : (SB.POLICIES || []);
+    for (i = 0; i < policies.length; i++) {
+      p = policies[i];
       if (!C.cardOwned(s, p.id)) continue;                     // 没解锁的不列（与池子同口径）
       if (!C.cardFits(p, st)) continue;                        // 槽型不对口
       if (cur && p.id === cur) continue;                       // 就是当前这张
@@ -714,8 +720,9 @@
     var own = [], i, p;
     var categoryOrder = ['prod', 'sci', 'grow', 'relig', 'wild'];
     var categories = { prod: [], sci: [], grow: [], relig: [], wild: [] };
-    for (i = 0; i < SB.POLICIES.length; i++) {
-      p = SB.POLICIES[i];
+    var policies = C.policyList ? C.policyList(s) : (SB.POLICIES || []);
+    for (i = 0; i < policies.length; i++) {
+      p = policies[i];
       if (C.cardOwned(s, p.id)) {
         own.push(p);
         /* 老卡未标 type 时按规则视为万能卡；未知类型也安全回落，避免 UI 出现 undefined。 */

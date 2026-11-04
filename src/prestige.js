@@ -372,7 +372,8 @@
   }
   function stardustGain(s) {
     var levels = stardustFacilityLevels(s);
-    var starPct = (SB.CFG.STAR_CAP > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / SB.CFG.STAR_CAP) : 0;
+    var starCap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : SB.CFG.STAR_CAP;
+    var starPct = (starCap > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / starCap) : 0;
     var dysonPct = SB.economy && SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0;
     var mul = (1 + starPct) * (1 + 0.5 * dysonPct);
     if (s.civics && s.civics.ancestor_heritage) mul *= 1.2;
@@ -387,6 +388,8 @@
      * ⚠️ 读 meta 不在 s 上：这是**跨周目**奖励，必须走 tierDone（老档 completed 里没这个键
      *   就是没通过，不能靠 s.challengeDone 判）。 */
     if (SB.challenges && SB.challenges.tierDone('waterpollution', SB.game && SB.game.meta ? SB.game.meta() : null)) mul *= 1.1;
+    if (SB.challenges && SB.challenges.stardustRewardMul)
+      mul *= SB.challenges.stardustRewardMul(SB.game && SB.game.meta ? SB.game.meta() : null);
     return Math.floor(levels * 0.1 * mul);
   }
   function starPerkDef(id) {

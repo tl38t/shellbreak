@@ -163,6 +163,12 @@
      * 故 startRun 此处不碰 shopUnlocked；它的解锁由 prestige.doBreak 在真实轮回发生时置位，
      * 旧档（已有跨周目进度）由 loadMeta 迁移补双解锁。 */
     var prev = S;
+    /* 收录旧档本周目已经采用过的政体。新版本会在 setGov 时实时记账；这次兼容把更新前
+     * 存在 s.govAdopted 的选择并入跨周目账本，供「美好旧日」解锁对应被动卡。 */
+    if (prev && prev.govAdopted && SB.civic && SB.civic.recordGovAdoption) {
+      for (var _govId in prev.govAdopted) if (prev.govAdopted[_govId]) SB.civic.recordGovAdoption(_govId, meta);
+      if (prev.gov) SB.civic.recordGovAdoption(prev.gov, meta);
+    }
     S = SB.state.freshRun(true);
     /* 2026-10-24 轻车熟路记账（docs/ACHV_DESIGN_v0.3.md §四·1）：离开本周目前，把本周目
      * 各建筑已购等级增量并入跨周目账本。唯一写入漏斗 = habitat.build 的 s.lvl[id]++，
@@ -180,6 +186,8 @@
       /* 新挑战必须从未解除态起算（2026-11-03）：限制是否生效靠 challengeReleased 判，
        * 万一将来 S 不是 freshRun 造出来的，残留的 true 会让整局限制形同不存在。 */
       S.challengeReleased = false;
+      /* 掌控永远与须臾：冰壳目标依档位放大，周目初始壳与后续归一化都以此为准。 */
+      if (SB.challenges && SB.challenges.applyShellTarget) SB.challenges.applyShellTarget(S);
     }
     if (SB.economy && SB.economy.lockSeasonLengths) SB.economy.lockSeasonLengths(S, meta);
     /* ⚠️ 2026-11-02（玩家报「轮回工巧 / 轮回炉火还是没生效」）：
@@ -2328,6 +2336,9 @@
     if (SB.achv && SB.achv.syncMeta) SB.achv.syncMeta(meta);
     SB.ui.render.initTabs();
     SB.ui.render.initSpeeds();
+    /* 设置栏扩展（2026-11-03）：通关演出回看的显隐与按钮接线。
+     * 幂等（onclick 直赋、toggle 监听带绑定哨兵），bootUi 重入不会重复挂。 */
+    SB.ui.render.bindSettingsExtras();
     /* 2026-11-03：破壳后读档不再弹「结算」面板 —— 破壳不是本局终点，不需要玩家做选择。
      * ⚠️ 原 pendingBreak 分支的判据（broken && shellOpened && !breakSettled）在「破壳后
      *   一直不结算」的新流程下**恒为真**，保留它等于每次启动都把玩家锁在结算面板上。

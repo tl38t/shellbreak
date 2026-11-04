@@ -15,18 +15,21 @@ export function run({ SB, check, noop }) {
     /* 2026-11-02：挑战开放重打后，「能开」与「还有新档」是两件事 —— canStart 含重打，
      * canStartFresh 只认未通关档。这里两侧都钉，防止将来有人把两个函数合成一个。 */
     /* 2026-11-02：水体污染加入 ⇒ 挑战总数 6 → 7（本条断言刻意写死数字：
-     *   加挑战必须是有意识的动作，顺手改这里就是「我知道自己在改内容表」。） */
-    check('七类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 7 &&
+     *   加挑战必须是有意识的动作，顺手改这里就是「我知道自己在改内容表」。）
+     * 2026-11-04：四项终局挑战（安那其 / 美好旧日 / 三地发射网 / 掌握永远与须臾）
+     *   实装 ⇒ 7 → 11。它们的定义、assets、civics 与 economy-tick 配套同批落地；
+     *   断言的其余条件（canStart/canStartFresh 两路）不受数量影响。 */
+    check('十一类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 11 &&
       api.canStartFresh('science', s, meta) && api.canStart('science', s, meta) &&
       !api.canStartFresh('science', s, { challenges: { completed: { science: 3 } } }) &&
       api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
       '挑战数=' + api.list().length);
     let pane = SB.ui.render.paneChallenges();
-    check('挑战独立页展示七项挑战与首次开始入口',
+    check('挑战独立页展示十一项挑战与首次开始入口',
       ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉', '水体污染'].every(name => pane.includes(name)) &&
       pane.includes('暖石产出 -30%') && pane.includes('学者、书手各 ≤ 15 人') &&
       pane.includes('总人口、职业人数门槛豁免') &&
-      (pane.match(/data-challenge-start=/g) || []).length === 7,
+      (pane.match(/data-challenge-start=/g) || []).length === 11,
       '开始入口=' + ((pane.match(/data-challenge-start=/g) || []).length));
     check('挑战页总说明不再误称所有挑战都要完成神学并破壳',
       !pane.includes('完成《神学》资格并凿穿天壳，才算挑战通关') && pane.includes('各项挑战有各自的目标'),
@@ -261,9 +264,9 @@ export function run({ SB, check, noop }) {
     /* 2026-11-02 规则变更（玩家要求「可以反复挑战刷排行榜」）：已通关不再关闭入口，
      * 改成「再次挑战」；未通关的分档挑战仍只放下一档。旧断言要求 cold/small 无按钮，
      * 已被这条规则推翻，故整条重写而不是删掉。 */
-    /* 入口数 = 挑战总数（2026-11-02 加水体污染后 6 → 7）。 */
+    /* 入口数 = 挑战总数（2026-11-02 加水体污染后 6 → 7；2026-11-04 加四项终局挑战后 7 → 11）。 */
     check('已通关的挑战保留「再次挑战」入口，未通关的分档挑战只放下一档',
-      (pane.match(/data-challenge-start=/g) || []).length === 7 &&
+      (pane.match(/data-challenge-start=/g) || []).length === 11 &&
       pane.includes('再次挑战 · 完成挑战') && pane.includes('结算并挑战 · 第二档') &&
       !pane.includes('此挑战入口已关闭'),
       '入口数=' + ((pane.match(/data-challenge-start=/g) || []).length));
@@ -651,12 +654,20 @@ export function run({ SB, check, noop }) {
       check('解除后人口上限回到基础设施上限（Infinity，不再被本档压住）',
         api.populationLimit(rs) === Infinity && !api.active(rs), '上限=' + api.populationLimit(rs));
 
-      /* goal 型挑战的终点在壳外（50 座发动机 / 戴森球）：破壳后必须正常发育，沿用旧判据。 */
+      /* goal 型挑战的终点在壳外（50 座发动机 / 戴森球）：破壳后必须正常发育。
+       * 2026-11-04 修：active() 不再返回 null —— 旧的「破壳即解除」会让挑战页退回
+       * 「尚未完成」并给出可点的重开入口（点一下丢掉当前 ERA10）。
+       * 但「不压人口/产出/岗位」这条性质必须仍然成立：那些限制都按 id 分支
+       * （small / abyss / science / cold），goal 型全部落到默认值。 */
       const gs = SB.state.freshRun(false);
       gs.challenge = { id: 'drift_terra', tier: 0 };
       gs.shell = 0; gs.broken = true; gs.shellOpened = true;
-      check('goal 型挑战破壳后自动失去限制，不依赖玩家解除',
-        !api.active(gs) && gs.challengeReleased !== true, 'active=' + !!api.active(gs));
+      check('goal 型挑战破壳后仍在进行，但不施加人口/岗位/保温限制，也不要求玩家解除',
+        !!api.active(gs) && api.populationLimit(gs) === Infinity &&
+        api.jobLimit(gs, 'scholar') === Infinity && api.warmHeatingBlocked(gs) === false &&
+        gs.challengeReleased !== true,
+        'active=' + !!api.active(gs) + ' popCap=' + api.populationLimit(gs) +
+        ' 保温禁=' + api.warmHeatingBlocked(gs));
     }
     {
       /* 迁移：老档没有 challengeReleased 这个键，必须默认「已解除」——反了就是读档瞬间
@@ -704,16 +715,22 @@ export function run({ SB, check, noop }) {
         wpPane.includes('浊流') && wpPane.includes('戴森') &&
         !wpPane.includes('非寒流季：保温法可正常使用'), '含浊流=' + wpPane.includes('浊流'));
 
-      /* C：破壳后 goal 型挑战 active() 返回 null ⇒ 整块 if (active) 消失，而《流浪泰拉》的
-       * 50 座发动机正是破壳之后才建的 ⇒ 攻关全过程看不到 x / 50。补只读进度条。 */
+      /* C：破壳后 goal 型挑战必须仍是「进行中」（2026-11-04 修）。
+       * 修复前 active() 在破壳后返回 null ⇒ 卡片整块消失、退回「尚未完成」，
+       * 还给出可点的「结算并挑战」按钮（begin() 会直接 startRun，丢掉当前 ERA10 进度）。
+       * 修好后走正常卡片：徽标「进行中」、进度行照旧 x / 50、且没有重开入口。 */
       cur.challenge = { id: 'drift_terra', tier: 0 };
       cur.challengeDone = false; cur.lvl.terra_engine = 7;
       cur.broken = true; cur.shell = 0; cur.shellOpened = true;
       const driftPane = SB.ui.render.paneChallenges();
-      check('破壳后 goal 型挑战仍显示只读进度（壳外推进 + 行星发动机 x/50）',
-        driftPane.includes('壳外推进') && driftPane.includes('行星发动机 7 / 50') &&
+      check('破壳后 goal 型挑战仍是进行中，显示行星发动机 x/50 且不给重开入口',
+        driftPane.includes('challenge-status active">进行中') &&
+        driftPane.includes('行星发动机 7 / 50') &&
+        !driftPane.includes('壳外推进') &&
+        !driftPane.includes('data-challenge-start="drift_terra"') &&
         !driftPane.includes('非寒流季：保温法可正常使用'),
-        '壳外推进=' + driftPane.includes('壳外推进'));
+        'x/50=' + driftPane.includes('行星发动机 7 / 50') +
+        ' 重开按钮=' + driftPane.includes('data-challenge-start="drift_terra"'));
       cur.challenge = snap.challenge; cur.challengeDone = snap.done; cur.broken = snap.broken;
       cur.shell = snap.shell; cur.shellOpened = snap.opened; cur.pollution = snap.pollution;
       cur.lvl.terra_engine = snap.engines;

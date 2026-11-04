@@ -396,8 +396,8 @@
      * 这里直接切换为工程进度与帆/节点计数。 */
     if (s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled)) {
       if (s.techs && s.techs.adiabatic) {
-        var dysonCapSails = SB.CFG.DYSON_SAIL_CAP || 10000;
-        var dysonCapNodes = SB.CFG.DYSON_NODE_CAP || 1000;
+        var dysonCapSails = SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(s) : (SB.CFG.DYSON_SAIL_CAP || 10000);
+        var dysonCapNodes = SB.challenges && SB.challenges.dysonNodeCap ? SB.challenges.dysonNodeCap(s) : (SB.CFG.DYSON_NODE_CAP || 1000);
         var dysonRatio = SB.economy && SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0;
         var dysonPercent = Math.max(0, Math.min(100, dysonRatio * 100));
         var currentSails = Math.max(0, Number(s.sunSails) || 0);
@@ -432,7 +432,7 @@
         hint.textContent = '五阶段各代表总工程的 20%；进度取太阳帆与戴森球节点中较慢的一项，两项都达标后工程竣工。';
         return;
       }
-      var cap = SB.CFG.STAR_CAP || 0;
+      var cap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
       var cur = s.res.starExplore || 0;
       var p = cap > 0 ? (cur / cap) * 100 : 0;
       f.style.width = Math.max(0, Math.min(100, p)) + '%';
@@ -491,7 +491,7 @@
   function showStarComplete(s) {
     var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
     resetModalChrome();
-    var cap = SB.CFG.STAR_CAP || 0;
+    var cap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
     var cur = (s && s.res && s.res.starExplore) || 0;
     box.innerHTML = '<div class="star-complete-panel">'
       + '<h2>★ 太空时代达成</h2>'
@@ -521,10 +521,15 @@
      * 奖励与日志却是它自己的（账本没错、面板撒谎）。现在一律读 outcome：
      * award() 给的 name / label / goalText / reward 本来就是按定义取的。 */
     var title = escHtml(outcome.name || '挑战');
+    /* 设置栏「回看演出」走同一个面板，但**不能**说「永久奖励已生效」——那次是重播，
+     * 一分钱都没发（同上一条注释的同一个坑：面板说的话必须是这次真的发生的事）。 */
+    var isReview = outcome.review === true;
     box.innerHTML = '<div class="star-complete-panel challenge-complete-panel">' +
-      '<h2>★ ' + title + ' · 挑战完成</h2>' +
+      '<h2>★ ' + title + ' · ' + (isReview ? '通关演出' : '挑战完成') + '</h2>' +
       '<p>' + escHtml(outcome.goalText || '挑战目标已达成。') + '</p>' +
-      '<p class="muted">永久奖励已生效：' + escHtml(outcome.reward || '') + '。本局仍可继续发展。</p>' +
+      (isReview
+        ? '<p class="muted">这是通关演出的回放，不影响任何进度与奖励。</p>'
+        : '<p class="muted">永久奖励已生效：' + escHtml(outcome.reward || '') + '。本局仍可继续发展。</p>') +
       '<div class="break-controls"><button class="btn big" type="button" id="challengeCompleteClose">继续</button></div>' +
       '</div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
@@ -541,7 +546,10 @@
     var modal = el('modal'), box = el('modalBox');
     if (!modal || !box || !outcome) return false;
     if (outcome.id !== 'drift_terra') return showChallengeCompletePanel(outcome);
-    if (prefersReducedMotion()) return showChallengeCompletePanel(outcome);
+    /* 系统减弱动效偏好：默认让位（直接出静态面板）。但 `review` 是玩家在设置里**主动点**
+     * 「回看演出」——他要的就是这段动画，这里再静音等于按钮骗人；四段切换本来就是 JS 定时
+     * 换图，CSS 动效被系统关掉也仍是一场完整的分镜放映。 */
+    if (prefersReducedMotion() && outcome.review !== true) return showChallengeCompletePanel(outcome);
     clearBreakAnimation();
     clearDysonAnimation();
     var phases = ['impact', 'core', 'gaze', 'departure'];
@@ -571,7 +579,7 @@
           '<div class="terra-ignition" aria-hidden="true"></div>' +
           '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="terraPhaseName">' + names[0] + '</span></span><span id="terraCounter">01 / 04</span></div>' +
           '<div class="break-caption" aria-live="polite">' + captionsHtml + '</div>' +
-          '<div class="break-end-card"><small>挑战完成</small><strong>流浪泰拉 · 星际远航</strong></div>' +
+          '<div class="break-end-card"><small>' + (outcome.review === true ? '演出回顾' : '挑战完成') + '</small><strong>流浪泰拉 · 星际远航</strong></div>' +
           '<div class="terra-progress" aria-hidden="true"><span></span></div>' +
         '</div>' +
         '<div class="break-controls"><button class="btn" id="terraReplay" type="button">↻ 重播</button><button class="btn big" id="terraContinue" type="button">跳过动画</button></div>' +
@@ -587,7 +595,7 @@
       stage.dataset.phase = phases[index];
       if (phaseName) phaseName.textContent = names[index];
       if (counter) counter.textContent = '0' + (index + 1) + ' / 04';
-      if (continueBtn && index === phases.length - 1) continueBtn.textContent = '查看结局';
+      if (continueBtn && index === phases.length - 1) continueBtn.textContent = (outcome.review === true ? '结束回顾' : '查看结局');
     }
     function play() {
       clearDysonAnimation();
@@ -610,6 +618,59 @@
     return true;
   }
 
+  /* ── 设置栏「通关演出回看」（2026-11-03 用户要求：想再看可以反复播放）────────────
+   * 起因：重复挑战（replay）通关时刻意不弹庆祝面板（challenges.award 的 replay 分支不写
+   * meta.challengePopupPending），于是第二次通关的玩家再也看不到这段演出。
+   * 与其改判定去重播，不如给一个**主动**入口：看过就通关过，随时回看。
+   *
+   * ⚠️ 三条纪律：
+   *   ① 入口只在真的通关过《流浪泰拉》之后出现（`canReplayTerra`）—— 否则等于把终局演出
+   *      当预告片剧透，还会和挑战页的「未挑战」状态自相矛盾。
+   *   ② 回看用的是本地造的 outcome，`review: true`：**不碰账本**（不写 challengePopupPending、
+   *      不调 challenges.award、不提交排行榜），面板与结束卡也据此换成「回放」口径。
+   *   ③ 所有 DOM 访问都先判存在 —— e2e 的假 document 没有 querySelector / addEventListener。 */
+  function canReplayTerra(m) {
+    var meta = m || (SB.game && SB.game.meta ? SB.game.meta() : null);
+    var c = meta && meta.challenges && meta.challenges.completed;
+    return !!(c && c.drift_terra === true);
+  }
+  function terraReviewOutcome() {
+    var d = SB.challenges && SB.challenges.byId ? SB.challenges.byId('drift_terra') : null;
+    return {
+      id: 'drift_terra',
+      name: (d && d.name) || '流浪泰拉',
+      label: (d && d.tiers && d.tiers[0] && d.tiers[0].label) || '星际远航',
+      reward: null,
+      goalText: (d && d.goalText) || '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能',
+      review: true
+    };
+  }
+  function replayTerraSequence() {
+    if (!canReplayTerra()) return false;
+    /* 先收起设置浮层：它贴在顶栏下方，会把演出遮掉一块（modal 是 fixed 全屏遮罩）。 */
+    var det = root.document && root.document.querySelector ? root.document.querySelector('details.ui-settings') : null;
+    if (det) det.open = false;
+    return showChallengeComplete(terraReviewOutcome());
+  }
+  /* 显隐：通关后设置里才出现「回看」这一块。
+   * 只在 boot 与设置浮层展开时各同步一次 —— 面板是静态 HTML，不做每帧重算。 */
+  function syncTerraReplayRow() {
+    var block = el('terraReplayBlock');
+    if (!block) return;
+    var on = canReplayTerra();
+    if (block.hidden !== !on) block.hidden = !on;
+  }
+  function bindSettingsExtras() {
+    var btn = el('btnReplayTerra');
+    if (btn) btn.onclick = replayTerraSequence;
+    var det = root.document && root.document.querySelector ? root.document.querySelector('details.ui-settings') : null;
+    if (det && det.addEventListener && !det._terraReplayBound) {
+      det._terraReplayBound = true;
+      det.addEventListener('toggle', syncTerraReplayRow);
+    }
+    syncTerraReplayRow();
+  }
+
   /* ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁2 / 用户拍 Q2）：戴森球通关演出与弹窗。
    * 镜像星空槽满槽先例（showStarComplete）：复用 #modal 浮层；无 modal 元素时 no-op
    * （dysonDone 已置位，星图戴森面板仍会显示竣工态，不丢信息）。
@@ -623,7 +684,8 @@
     var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
     resetModalChrome();
     var sails = (s && s.sunSails) || 0, nodes = (s && s.dysonNodes) || 0;
-    var sailCap = SB.CFG.DYSON_SAIL_CAP || 10000, nodeCap = SB.CFG.DYSON_NODE_CAP || 1000;
+    var sailCap = SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(s) : (SB.CFG.DYSON_SAIL_CAP || 10000);
+    var nodeCap = SB.challenges && SB.challenges.dysonNodeCap ? SB.challenges.dysonNodeCap(s) : (SB.CFG.DYSON_NODE_CAP || 1000);
     box.innerHTML = '<div class="dyson-complete-panel">'
       + '<h2>★ 戴森球竣工</h2>'
       + '<p>太阳帆 <b>' + sails.toLocaleString() + '</b> / ' + sailCap.toLocaleString()
@@ -972,7 +1034,8 @@
     var s = res(); if (!s) return '';
     var m = meta();
     var sd = (m && (m.stardust || 0)) || 0;
-    var starPct = (SB.CFG.STAR_CAP > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / SB.CFG.STAR_CAP) : 0;
+    var starCap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : SB.CFG.STAR_CAP;
+    var starPct = (starCap > 0) ? Math.min(1, ((s.res && s.res.starExplore) || 0) / starCap) : 0;
     var dysonPct = SB.economy.dysonPct(s);
     var facilityLvls = SB.prestige.stardustFacilityLevels(s);
     var nextGain = SB.prestige.stardustGain(s);
@@ -1202,12 +1265,13 @@
               type: 'sb-spacecraft',
               list: _smS.spacecraft || [],
               bodies: SB.STAR_MAP_BODIES || [],
-              star: { value: (_smS.res && _smS.res.starExplore) || 0, cap: (SB.CFG && SB.CFG.STAR_CAP) || 0 },
+              star: { value: (_smS.res && _smS.res.starExplore) || 0,
+                cap: SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(_smS) : ((SB.CFG && SB.CFG.STAR_CAP) || 0) },
               era: _smS.era || 1,
               sunSails: _smS.sunSails || 0,
-              sunSailCap: (SB.CFG && SB.CFG.DYSON_SAIL_CAP) || 10000,
+              sunSailCap: SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(_smS) : ((SB.CFG && SB.CFG.DYSON_SAIL_CAP) || 10000),
               dysonNodes: _smS.dysonNodes || 0,
-              dysonNodeCap: (SB.CFG && SB.CFG.DYSON_NODE_CAP) || 1000,
+              dysonNodeCap: SB.challenges && SB.challenges.dysonNodeCap ? SB.challenges.dysonNodeCap(_smS) : ((SB.CFG && SB.CFG.DYSON_NODE_CAP) || 1000),
               dysonPct: _smDysonPct,
               adiabatic: !!(_smS.techs && _smS.techs.adiabatic),
               solarRingLevel: _smLvl.solar_ring || 0,
@@ -1462,6 +1526,25 @@
       progress = speedTimedOut ? '已超时 · 重开本周目后可重试' :
         '剩余 ' + SB.challenges.formatClock(SB.challenges.remainingSeconds(s)) + ' · ' +
         (SB.prestige.qualified(s) ? '神学资格 ✓' : '待完成神学') + ' · 壳厚 ' + Math.max(0, Math.round(Number(s.shell) || 0));
+    } else if (active.id === 'anarchy') {
+      var disallowed = (s.cards || []).filter(function (id) { return id && id !== 'card_cycle_terminus'; }).length;
+      progress = disallowed ? '违规政策卡 ' + disallowed + ' 张 · 允许「轮回之终末」' : '未装备政策卡 · 「轮回之终末」例外';
+    } else if (active.id === 'good_old_days') {
+      progress = '当前政体：' + (SB.civic.govTitleName ? SB.civic.govTitleName(s) : '酋邦制');
+    } else if (active.id === 'three_launch_sites') {
+      rule = '戴森球竣工时三座轨道发射场都须达到 11 级';
+      progress = '欧罗巴 ' + ((s.lvl && s.lvl.europa_launch) || 0) + '/11 · 泰拉 ' +
+        ((s.lvl && s.lvl.terra_launch) || 0) + '/11 · 恩克拉多斯 ' + ((s.lvl && s.lvl.enceladus_launch) || 0) + '/11';
+      if (s.dysonDone && !s.dysonLaunchSitesReady) progress += ' · 本轮竣工时未达标，需重开';
+    } else if (active.id === 'eternity_moment') {
+      var eternityStarCap = SB.challenges.starCap(s);
+      var eternitySailCap = SB.challenges.dysonSailCap(s), eternityNodeCap = SB.challenges.dysonNodeCap(s);
+      rule = '研究成本 ×' + cap + ' · 冰壳、星空、太阳帆、戴森节点目标 ×' + cap;
+      progress = '天壳 ' + Math.round(Math.max(0, s.shell || 0)).toLocaleString() + '/' +
+        SB.challenges.shellTarget(s).toLocaleString() + ' · 星空 ' + Math.round((s.res && s.res.starExplore) || 0).toLocaleString() +
+        '/' + eternityStarCap.toLocaleString() + ' · 太阳帆 ' + Math.floor(s.sunSails || 0).toLocaleString() +
+        '/' + eternitySailCap.toLocaleString() + ' · 戴森节点 ' + Math.floor(s.dysonNodes || 0).toLocaleString() +
+        '/' + eternityNodeCap.toLocaleString();
     } else {
       rule = def.rule || def.summary || '';
       progress = '挑战限制持续生效';
@@ -2490,6 +2573,10 @@
      * 导出是因为 shell.tickStar 通过 SB.ui.render.showStarComplete 调用（与 showBreakPanel 同源）。 */
     showStarComplete: showStarComplete,
     showChallengeComplete: showChallengeComplete,
+    /* 设置栏「通关演出回看」（2026-11-03）：bindSettingsExtras 由 game.bootUi 调一次接线，
+     * replayTerraSequence 与 canReplayTerra 另外导出供回归直接断言（不依赖真实 DOM）。 */
+    bindSettingsExtras: bindSettingsExtras,
+    replayTerraSequence: replayTerraSequence, canReplayTerra: canReplayTerra,
     /* ERA10（2026-10-20）：戴森球通关弹窗。economy-tick 2f 段 dysonPct 达 1 时通过
      * SB.ui.render.showDysonComplete 调用（与 tickStar→showStarComplete 同款路径）。 */
     showDysonComplete: showDysonComplete,

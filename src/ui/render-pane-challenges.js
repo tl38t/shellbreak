@@ -7,12 +7,14 @@
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
 
-  /* 当前挑战的一行进度文案（2026-11-03 抽出）。抽出的原因有两个：
+  /* 当前挑战的一行进度文案（2026-11-03 抽出）。抽出的原因：
    *   ① 水体污染原先没有专属分支 ⇒ 落进最后的 else，把**寒流禁火**的文案显示给自己
    *      （「非寒流季：保温法可正常使用」），玩家完全看不到污染阶段和戴森进度；
-   *   ② 破壳后 goal 型挑战 active() 返回 null，《流浪泰拉》那 50 台发动机恰恰是破壳后
-   *      才造的 ⇒ 整块 if (active) 不渲染，真正推进它的全过程都看不到 x / 50。
-   *      C 方案的只读块要复用同一份口径，所以在这里单一化，新增挑战只改这一处。
+   *   ② 进度要同时出现在卡片与顶部提示条，两处各写一份必然分叉 —— 在这里单一化，
+   *      新增挑战只改这一处。
+   * 2026-11-04 背景：破壳后 goal 型挑战一度让 active() 返回 null（已修，见 challenges.active），
+   *   当时《流浪泰拉》的 50 台发动机整段看不到进度，临时加过一块「壳外推进」只读块。
+   *   现在卡片的 if (active) 正常渲染它，那块兜底已无可达路径，随修复一并删除。
    * 兜底不再借用别人的文案：任何未登记分支一律回落到自己的 goalText。 */
   function progressLine(s, api, def, tier) {
     var scribeName = SB.folk.jobName(s, 'scribe');
@@ -25,6 +27,29 @@
       var pst = (SB.economy.pollutionStage && SB.economy.pollutionStage(s)) || {};
       return (pst.name || '澄海') + ' · 污染 ' + SB.economy.fmtAmt(s.pollution || 0) +
         ' · 戴森 ' + Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100) + '%';
+    }
+    if (def.id === 'anarchy') {
+      var anarchyCards = (s.cards || []).filter(function (id) { return id && id !== 'card_cycle_terminus'; });
+      return anarchyCards.length ? '政策卡违规 ' + anarchyCards.length + ' 张（允许「轮回之终末」）'
+        : '未装备政策卡（「轮回之终末」例外）';
+    }
+    if (def.id === 'good_old_days')
+      return '当前政体：' + (SB.civic.govTitleName ? SB.civic.govTitleName(s) : '酋邦制');
+    if (def.id === 'three_launch_sites') {
+      if (s.challengeDone) return '挑战已达成 · 永久奖励已生效';
+      var launchText = '欧罗巴 ' + ((s.lvl && s.lvl.europa_launch) || 0) + '/11 · 泰拉 ' +
+        ((s.lvl && s.lvl.terra_launch) || 0) + '/11 · 恩克拉多斯 ' + ((s.lvl && s.lvl.enceladus_launch) || 0) + '/11';
+      if (s.dysonDone && !s.dysonLaunchSitesReady) return '戴森球已竣工，但当时发射场未达标 · 本轮需重开';
+      return launchText + ' · 戴森 ' + Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100) + '%';
+    }
+    if (def.id === 'eternity_moment') {
+      var starCap = api.starCap ? api.starCap(s) : SB.CFG.STAR_CAP;
+      var sailCap = api.dysonSailCap ? api.dysonSailCap(s) : SB.CFG.DYSON_SAIL_CAP;
+      var nodeCap = api.dysonNodeCap ? api.dysonNodeCap(s) : SB.CFG.DYSON_NODE_CAP;
+      return '倍率 ×' + tier.cap + ' · 天壳 ' + Math.round(Math.max(0, s.shell || 0)).toLocaleString() + '/' +
+        api.shellTarget(s).toLocaleString() + ' · 星空 ' + Math.round((s.res && s.res.starExplore) || 0).toLocaleString() + '/' +
+        starCap.toLocaleString() + ' · 太阳帆 ' + Math.floor(s.sunSails || 0).toLocaleString() + '/' +
+        sailCap.toLocaleString() + ' · 戴森节点 ' + Math.floor(s.dysonNodes || 0).toLocaleString() + '/' + nodeCap.toLocaleString();
     }
     if (def.id === 'science') return '学者 ' + (s.jobs.scholar || 0) + ' / ' + tier.cap +
       ' · ' + scribeName + ' ' + (s.jobs.scribe || 0) + ' / ' + tier.cap;
@@ -56,21 +81,10 @@
           s.challengeDone && !activeDef.goal ? '成绩已定格；挑战限制仍生效，可在卡片上解除' :
           (activeDef.goalText || '通关目标：完成《神学》并凿穿天壳')) + '</span></section>';
     } else {
-      /* C 方案（2026-11-03）：破壳那一刻 active() 对 goal 型挑战返回 null（壳外不能还压着限制），
-       * 但《流浪泰拉》的 50 座行星发动机**正是破壳之后才开始建的**，于是整块 if (active) 消失，
-       * 玩家在整个攻关期都看不到 x / 50。这里补一条**只读**进度：不带任何按钮、不写状态。 */
-      var lingering = null;
-      if (s && s.challenge && !s.challengeDone) {
-        var ld = api.byId(s.challenge.id);
-        if (ld && ld.goal) lingering = ld;
-      }
-      if (lingering) {
-        var lTier = lingering.tiers[(s.challenge.tier | 0)] || lingering.tiers[0];
-        h += '<section class="challenge-active is-readonly"><span class="challenge-active-mark">壳外推进</span>' +
-          '<div><b>' + lingering.name + ' · ' + lTier.label + '</b><small>' +
-          progressLine(s, api, lingering, lTier) + '</small></div>' +
-          '<span class="challenge-active-hint">目标：' + (lingering.goalText || '') + '</span></section>';
-      }
+      /* 2026-11-04：这里原先还有一块「壳外推进」只读进度（C 方案）。
+       * 它是给「破壳后 goal 型 active() 返回 null」打的补丁；该判据已修
+       * （challenges.active：goal 型只要未 challengeDone 就返回 a），
+       * 未完成的 goal 挑战一定走上面 if (active) 分支 ⇒ 这段已无可达路径，删除。 */
       h += '<div class="challenge-howto">每档挑战首次通关都会让之后的轮回点获取永久提高 10%。分档挑战必须逐档完成。' +
         '全部通关后仍可再次挑战：重打已通的最高档，不再重复发奖，只刷新排行榜成绩。</div>';
     }
@@ -102,7 +116,9 @@
           var td = d.tiers[ti], tierActive = isActive && active.tier === ti;
           var tierState = tierActive ? (activeTimedOut ? '已超时' : '进行中') : ti < done ? '已通关' : ti === done && !blocked && !exhausted ? '下一档' : '锁定';
           var tierRule = d.id === 'science' ? '学者、' + scribeName + '各 ≤ ' + td.cap + ' 人' :
-            d.id === 'speedrun' ? '限时 ' + api.formatClock(td.cap) + ' · 离线计时' : '本轮全产出 -' + Math.round(td.cap * 100) + '%';
+            d.id === 'speedrun' ? '限时 ' + api.formatClock(td.cap) + ' · 离线计时' :
+            d.id === 'eternity_moment' ? '研究成本 ×' + td.cap + ' · 四项终局目标 ×' + td.cap :
+              '本轮全产出 -' + Math.round(td.cap * 100) + '%';
           h += '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? (activeTimedOut ? ' active failed' : ' active') : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
             '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + d.badge + '" alt=""><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
             '<div><b>' + td.label + '</b><span>' + tierState + '</span></div><small>' + tierRule + '</small>' +

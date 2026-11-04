@@ -37,6 +37,7 @@
      *   ⇒ 只要有 challenge 就保留 done；真正的幂等在 resolveRun 的 tier 判据里。 */
     out.challengeDone = !!(raw.challengeDone && out.challenge && SB.challenges
       && SB.challenges.byId(out.challenge.id));
+    out.dysonLaunchSitesReady = raw.dysonLaunchSitesReady === true;
     out.challengeOutcome = out.challengeDone && raw.challengeOutcome && typeof raw.challengeOutcome === 'object'
       ? raw.challengeOutcome : null;
     /* 破壳快照（2026-11-03）：破壳瞬间冻下的判据，跨读档必须保留 ——
@@ -459,8 +460,10 @@
     if (typeof out.baseShell === 'number' && out.baseShell > 0 && out.baseShell !== curBase) {
       var keepRatio = out.iceShell > 0 ? out.shell / out.iceShell : 1;
       if (!(keepRatio >= 0 && keepRatio <= 1)) keepRatio = 1;   // 存档被手改成越界值时按满壳处理
-      out.iceShell = Math.round(curBase * Math.max(0.1, 1 - 0.1 * ((out.perk && out.perk.thin) || 0)));
       out.baseShell = curBase;
+      out.iceShell = SB.challenges && SB.challenges.shellTarget
+        ? SB.challenges.shellTarget(out)
+        : Math.round(curBase * Math.max(0.1, 1 - 0.1 * ((out.perk && out.perk.thin) || 0)));
       out.shell = Math.round(out.iceShell * keepRatio);
     }
     /* ⚠️ 薄壳口径纠正（2026-11-01）：perk.thin 由「复利 0.9^thin」改成「线性 1−0.1×thin」。
@@ -474,8 +477,11 @@
      *   （1.0 / 0.9），天然跳过。 */
     var _thinLv = (out.perk && out.perk.thin) || 0;
     if (_thinLv > 0) {
-      var _shellComp = Math.round(curBase * Math.pow(0.9, _thinLv));
-      var _shellLin = Math.round(curBase * Math.max(0.1, 1 - 0.1 * _thinLv));
+      var _challengeShellMul = SB.challenges && SB.challenges.shellMultiplier ? SB.challenges.shellMultiplier(out) : 1;
+      var _shellComp = Math.round(curBase * Math.pow(0.9, _thinLv) * _challengeShellMul);
+      var _shellLin = SB.challenges && SB.challenges.shellTarget
+        ? SB.challenges.shellTarget(out)
+        : Math.round(curBase * Math.max(0.1, 1 - 0.1 * _thinLv));
       if (out.iceShell === _shellComp && _shellComp !== _shellLin) {
         var _ratio2 = out.iceShell > 0 ? out.shell / out.iceShell : 1;
         if (!(_ratio2 >= 0 && _ratio2 <= 1)) _ratio2 = 1;

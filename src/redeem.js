@@ -16,6 +16,13 @@
  *
  *   ⚠️ character_id 必须**每个存档一个**（meta.installId），不能写常量 —— 详见 characterId()。
  *
+ * ── 第二条通道：本地礼包码（2026-11-04 新增）────────────────────────────────
+ *   `CFG.REDEEM.LOCAL_GRANTS` 里配的码不走网络：normalize → 查表 → 命中直接入账。
+ *   用途是「改一处配置就能发」的临时福利，不必等后台建活动、填 ACTIVITY_ID。
+ *   两种奖励可同时给：tide（轮回点，必须走 credit 维护定损方程）、stardust（星屑，只加余额）。
+ *   ⚠️ 明文 code 写在包里 = 解包可见 = 全服可领；只给某一个人的码必须换成 h（sha1）。
+ *   生成：`node tmp/_mkcode.mjs <你的码>`。
+ *
  * ── 接口事实（2026-10-30 curl 实测，不是照文档猜）──────────────────────────
  *   POST https://poster-api.xd.cn/api/v1.0/cdk/game/submit-simple
  *   sign = sha1(timestamp + nonce_str + client_id)   ← 用 Client ID 代 Secret，可安全放客户端
@@ -34,13 +41,57 @@
   var TIMEOUT_MS = 12000;
 
   function rc() { return (CFG.REDEEM || {}); }
-  function ready() {
+  /* 平台通道是否可用（两个 ID 都来自开发者后台，见 config.js）。 */
+  function platformReady() {
     var c = rc();
     return !!(c.CLIENT_ID && c.ACTIVITY_ID);
+  }
+  /* 面板/入口是否可用 = 平台通道 || 至少配了一个本地码。
+   * ⚠️ 不能只判平台：只配本地码时（临时发福利）入口必须照样出现。 */
+  function ready() {
+    return platformReady() || localGrants().length > 0;
   }
   function rewardNum() {
     var n = Number(rc().REWARD_NUM);
     return (isFinite(n) && n > 0) ? Math.floor(n) : 0;
+  }
+
+  /* ── 本地礼包码（2026-11-04）──────────────────────────────────────────────
+   * 与平台码走同一个入口、同一张防重表，区别只有一处：**命中就本地入账，一个请求都不发**。
+   * 用途是「改配置就能发」的临时福利 —— 平台路径要先在后台建活动、填 ACTIVITY_ID，
+   * 临时给一个玩家补一笔等不起。
+   * 匹配口径与平台码的归一化一致：去空格/连字符/下划线，大小写不敏感（走 dedupeKey）。
+   * 两种存法：code 明文（好改，但包是明文 JS ⇒ 解包可见 = 全服可领）、
+   *          h = sha1('sb:' + 大写码)（包里只有哈希，看不到码）。
+   * 哈希生成：`node tmp/_mkcode.mjs <你的码>`。 */
+  function localGrants() {
+    var arr = rc().LOCAL_GRANTS;
+    if (!arr || Object.prototype.toString.call(arr) !== '[object Array]') return [];
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+      var g = arr[i];
+      if (!g || typeof g !== 'object') continue;
+      var tide = Math.floor(Number(g.tide) || 0), star = Math.floor(Number(g.stardust) || 0);
+      if (!(tide > 0) && !(star > 0)) continue;   /* 空奖励项一律忽略，不发空气 */
+      out.push({
+        h: g.h ? String(g.h).toLowerCase() : '',
+        code: g.code ? dedupeKey(String(g.code)) : '',
+        tide: Math.max(0, tide), stardust: Math.max(0, star),
+        label: String(g.label || '礼包')
+      });
+    }
+    return out;
+  }
+  function localHash(key) { return sha1('sb:' + String(key || '').toUpperCase()); }
+  /* key 必须是 dedupeKey() 归一化后的**大写**串。 */
+  function findLocal(key) {
+    var list = localGrants(), hk = null;
+    for (var i = 0; i < list.length; i++) {
+      var g = list[i];
+      if (g.h) { if (hk === null) hk = localHash(key); if (hk === g.h) return g; }
+      else if (g.code && g.code === key) return g;
+    }
+    return null;
   }
 
   /* ── SHA-1（纯 JS）───────────────────────────────────────────────────────
@@ -103,6 +154,36 @@
     m.tide = (m.tide || 0) + n;
     m.tideEarnedTotal = (m.tideEarnedTotal || 0) + n;
     m.compensationTotal = (m.compensationTotal || 0) + n;
+  }
+
+  /* ── 星屑入账（2026-11-04 新增，本地礼包码用）────────────────────────────────
+   * ⚠️ 与 tide 不同，这里**刻意不写 stardustEarned**。那个字段是三处共用的
+   *   「累计**结算**获得」口径：
+   *     ① 排行榜「最多星屑」（game.js: entries key:'star'，值就是 stardustEarned）
+   *     ② 商店面板那行「累计结算获得 X」
+   *     ③ freshRun 把它 seed 进 s.got.stardust，喂超古代科技/市政的「星屑累积」尤里卡
+   *   礼包码是赠送、不是结算产出。写进 earned ⇒ 后台发的福利同时抬高排行榜成绩与
+   *   尤里卡进度（等于用运营手段换游戏内成就）。所以：**余额加、统计不加**。
+   * ⚠️ 顺手把 stardustShopUnlocked 置真：商店的门是「建成首座轨道卫星」，
+   *   有余额却进不去商店是死路。这与 normalizeMeta 的「已有星屑资产即视为曾解锁」同一口径。 */
+  function creditStar(m, n) {
+    m.stardust = Math.max(0, Math.floor(Number(m.stardust) || 0)) + Math.max(0, Math.floor(Number(n) || 0));
+    m.stardustShopUnlocked = true;
+  }
+
+  /* 本地码入账（不联网）。与平台成功路径共用 meta.redeemed 防重表，
+   * 但记录里多一个 s 字段（星屑），方便以后查账。 */
+  function applyLocal(m, g, key) {
+    var parts = [];
+    if (g.tide > 0) { credit(m, g.tide); parts.push('轮回点 +' + g.tide); }
+    if (g.stardust > 0) { creditStar(m, g.stardust); parts.push('星屑 +' + g.stardust); }
+    if (!m.redeemed || typeof m.redeemed !== 'object') m.redeemed = {};
+    m.redeemed[key] = { t: Date.now(), n: g.tide || 0, s: g.stardust || 0 };
+    if (SB.state && SB.state.saveMeta) SB.state.saveMeta(m);
+    if (SB.game && SB.game.log) SB.game.log('兑换成功：' + parts.join('、') + '（' + g.label + '）。');
+    /* ⚠️ 导出名是 renderAll（写错会静默不刷新），与平台路径同一处出口。 */
+    if (SB.ui && SB.ui.render && SB.ui.render.renderAll) SB.ui.render.renderAll();
+    return { ok: true, msg: '兑换成功：' + parts.join('、') + '。', tide: g.tide || 0, stardust: g.stardust || 0 };
   }
 
   /* 玩家输入的清洗：去首尾空白，去空格 / 连字符 / 下划线。
@@ -191,7 +272,16 @@
     if (busy) return Promise.resolve({ ok: false, msg: '正在兑换，请稍候…' });
     if (!code) return Promise.resolve({ ok: false, msg: '请先输入兑换码。' });
     if (!/^[A-Za-z0-9]{4,24}$/.test(code)) return Promise.resolve({ ok: false, msg: '兑换码只含字母和数字，请再检查一遍。' });
-    if (alreadyRedeemed(m, dedupeKey(code))) return Promise.resolve({ ok: false, msg: '这个码你已经领过了。' });
+    var key = dedupeKey(code);
+    if (alreadyRedeemed(m, key)) return Promise.resolve({ ok: false, msg: '这个码你已经领过了。' });
+
+    /* ── 本地码优先（2026-11-04）：命中就本地入账，一个请求都不发 ──
+     * 顺序很重要：放在 fetch 检查**之前**，否则没有网络能力的环境会把本地码一起挡掉，
+     * 而本地码恰恰是用来绕开网络的那条路。 */
+    var lg = findLocal(key);
+    if (lg) return Promise.resolve(applyLocal(m, lg, key));
+
+    if (!platformReady()) return Promise.resolve({ ok: false, msg: '这个兑换码无效，请核对有没有输错。' });
     if (typeof root.fetch !== 'function') return Promise.resolve({ ok: false, msg: '当前环境不能联网兑换。' });
 
     var ts = Math.floor(Date.now() / 1000);
@@ -263,10 +353,10 @@
      *   以后发别的活动还在用它 —— 所以这里只说「平台兑换码 / 每个码一次 / 奖励直接到账」，
      *   具体给什么由成功提示那行按实际入账说（见 redeem 的返回值）。 */
     var body =
-      '<div class="modal-hd"><b>TapTap 兑换码</b>' +
+      '<div class="modal-hd"><b>兑换码</b>' +
       '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
       '<div class="redeem-body">' +
-        '<p class="redeem-intro">输入 TapTap 平台发放的兑换码，兑换成功后奖励直接进入存档。' +
+        '<p class="redeem-intro">输入兑换码，兑换成功后奖励直接进入存档。' +
           '每个码只能使用一次。</p>' +
         '<div class="redeem-row">' +
           '<input id="redeemCode" class="redeem-input" type="text" maxlength="24" ' +
@@ -281,7 +371,7 @@
       '</div>';
     if (!ready()) {
       body =
-        '<div class="modal-hd"><b>TapTap 兑换码</b>' +
+        '<div class="modal-hd"><b>兑换码</b>' +
         '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
         '<div class="redeem-body"><p class="redeem-intro">兑换功能尚未开放。</p></div>';
     }
@@ -333,9 +423,12 @@
 
   SB.redeem = {
     boot: boot, open: open, redeem: redeem,
-    ready: ready, sha1: sha1, normalize: normalize,
+    ready: ready, platformReady: platformReady, sha1: sha1, normalize: normalize,
     /* dedupeKey 单独导出：回归要能钉住「大小写不同但同码只入账一次」这条。 */
     dedupeKey: dedupeKey,
+    /* 本地礼包码（2026-11-04）：回归要能直接断言「命中即入账、一个请求都不发」，
+     * 以及「星屑只加余额、不加 stardustEarned」（否则白送的星屑会抬高排行榜与尤里卡）。 */
+    localGrants: localGrants, findLocal: findLocal, localHash: localHash, creditStar: creditStar,
     /* 供探针/回归直接断言，避免它们去猜内部格式。characterId 单独导出是为了钉住
      * 「每个存档一个 id」这条（写常量会让除第一个玩家以外全员 100017）。 */
     characterId: characterId,

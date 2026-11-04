@@ -1122,8 +1122,10 @@
    * 旧档 / e2e 沙箱无键时按 0 兜底（sunSails/dysonNodes 均可能缺省）。 */
   function dysonPct(s) {
     if (!s) return 0;
-    var _sail = Math.max(0, s.sunSails || 0) / (SB.CFG.DYSON_SAIL_CAP || 10000);
-    var _node = Math.max(0, s.dysonNodes || 0) / (SB.CFG.DYSON_NODE_CAP || 1000);
+    var _sailCap = SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(s) : (SB.CFG.DYSON_SAIL_CAP || 10000);
+    var _nodeCap = SB.challenges && SB.challenges.dysonNodeCap ? SB.challenges.dysonNodeCap(s) : (SB.CFG.DYSON_NODE_CAP || 1000);
+    var _sail = Math.max(0, s.sunSails || 0) / _sailCap;
+    var _node = Math.max(0, s.dysonNodes || 0) / _nodeCap;
     return Math.min(1, Math.min(_sail, _node));
   }
 
@@ -1260,6 +1262,8 @@
   function launchHydroPer(s) {
     var base = launchNodeMode(s) ? (SB.UNIT.dysonNodeHydro || 4) : (SB.UNIT.launchSailHydro || 4);
     var m = (SB.civic && SB.civic.cardLaunchHydroMul) ? SB.civic.cardLaunchHydroMul(s) : 1;
+    var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
+    if (SB.challenges && SB.challenges.launchHydroRewardMul) m *= SB.challenges.launchHydroRewardMul(meta);
     return base * m;
   }
   /* 冻伤减免 = **这一瞬间暖石在烧**（2026-09-26：暖壳石 / hearth 随骨材线一并删除，
@@ -1766,6 +1770,10 @@
          *   与天穹钻机同纪律——只有「已建成且手动启动」才占流；否则面板会谎报它在吃能。 */
         geekOwned = !!(SB.wonder && SB.wonder.owned(s).wonder_geek),
         geekOn = !!(s.geek && s.geek.geekOn),
+        /* ⚠️ 2026-11-04：「还有活要干吗」—— 只有它才该占 40/秒。判据唯一落点 = shell.geekActive，
+         *   不许在这里再写一遍表达式（本文件与 shell/economy-rates 三份副本各自漂移过，
+         *   结果就是「面板说在烧、实际没干活」或反过来）。没活干的两态：等 terraform 研究 / 两阶段都完成。 */
+        _geekActive = !!(SB.shell && SB.shell.geekActive) && SB.shell.geekActive(s),
         _adCount = autoDrillCount(s),
         /* 水体污染（2026-11-02）：三座**洁净**热液源（潮汐往复机 / 太阳能基站 / 恩拉多克斯风场）。
          *   它们进 supply（玩家面板能看到热液能产出），但**不进** pollutionRate ——
@@ -1780,7 +1788,7 @@
      *    而不是 0 —— steelFlow 的 `s.res.hydro = HF.supplyRate` 会把顶栏主数写成 undefined
      *    （解了 metalrefine 但一台汽轮机都没建时就是这样），rates().hydroSupply 同理。
      *    这种缺键不报错、只在面板上变成 NaN/undefined，属于「面板撒谎」家族。 */
-    if (turL <= 0 && _press <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && _tideL <= 0 && _solarL <= 0 && _windL <= 0 && !(geekOn && geekOwned))
+    if (turL <= 0 && _press <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && _tideL <= 0 && _solarL <= 0 && _windL <= 0 && !(geekOn && geekOwned && _geekActive))
       return { supply: 0, supplyRate: 0, turbineRate: 0, pressRate: 0, fissionRate: 0, titancloudRate: 0, sunSailRate: 0,
         /* 水体污染：早退对象也必须**补齐全部键**（少一个键 ⇒ 读它的人拿到 undefined，
          *   面板会显示 NaN —— 与上面那段注释同一条纪律）。 */
@@ -1793,6 +1801,8 @@
         jupitorDraw: 0, jupitorRate: 0, vatPoolDraw: 0, vatFlowDraw: 0, vatFlowRate: 0, coreNetRate: 0,
         fissionStoneDraw: 0, fissionStoneRate: 0 };
     var supply = 0, rW = 1, turbineSupply = 0, pressSupply = 0, fissionSupply = 0, titancloudSupply = 0;
+    /* 平等主义的每人口热液加成覆盖所有供给源；只在汽轮机/管道上乘会漏掉 ERA7+ 的并联能源。 */
+    var govHydroMul = SB.civic ? SB.civic.govHydroPerPop(s) : 1;
     /* 水体污染（2026-11-02）：脏源**每秒**排放（未乘政策 rateMul / k），与上面几个 supply 局部变量
      * 同源同值（`/dt` 归一）。分两枝返回，是因为装罐填埋只削**汽轮机**那一枝（§1.2 的坑）：
      *   pollutionTurbine = 汽轮机；pollutionOther = 高压热机管道 + 轨道工厂 + 核热厂 + 泰坦气云站。 */
@@ -1804,21 +1814,20 @@
       var canWarm = Math.min(warmNeed, s.res.warmstone);
       rW = warmNeed > 0 ? canWarm / warmNeed : 0;
     }
-    /* 公共供给乘区：热能优先、平等主义、挑战产出倍率，以及暖石可用率 rW。
+    /* 汽轮机与高压管道的公共供给乘区：热能优先、挑战产出倍率，以及暖石可用率 rW。
      * 无运行汽轮机时没有暖石需求，rW 保持 1；并联管道/轨道工厂仍可独立供给。
-     * 高压气泵 hydroMul 只在汽轮机支路乘，不放大这条独立进汽口。 */
+     * 高压气泵 hydroMul 只在汽轮机支路乘，不放大这条独立进汽口；政体人口加成在各供给源分别乘。 */
     var _sourceFactor = (turL > 0 || _press > 0)
       ? dt * rW
         * (SB.civic ? SB.civic.cardHydroMul(s) : 1)
-        * (SB.civic ? SB.civic.govHydroPerPop(s) : 1)   // ERA6 平等主义：每名鲛人 +0.1% 热液能产出
         * (SB.challenges ? SB.challenges.productionMul(s) : 1)
       : 0;
     if (turL > 0) {
-      turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _sourceFactor;
+      turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _sourceFactor * govHydroMul;
       if (dt > 0) pollutionTurbine += turbineSupply / dt;
     }
     /* ERA5 并联进汽口：停用汽轮机只停汽轮机本身，不关高压热机管道/轨道工厂。 */
-    pressSupply = _press * _sourceFactor;
+    pressSupply = _press * _sourceFactor * govHydroMul;
     supply = turbineSupply + pressSupply;
     if (dt > 0) pollutionOther += pressSupply / dt;
     /* ERA7（2026-10-17 · spec §4）：核热厂——每级 +10 热液能/秒，**不烧暖石**的新热液源
@@ -1837,18 +1846,18 @@
       var _fisPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
       var _fisRatio = (s.upgrades && s.upgrades.upg_reheavfusion) ? (1 + fissionStoneRatio) : 1;
       fissionSupply = fisL * (SB.BLD.fissionHydro || 0) * starNuclearHydroMul(s) * dt * _nf
-        * _fisRatio * _fisPM;
+        * _fisRatio * _fisPM * govHydroMul;
       supply += fissionSupply;
-      pollutionOther += fisL * (SB.BLD.fissionHydro || 0) * _nf * _fisRatio * _fisPM;
+      pollutionOther += fisL * (SB.BLD.fissionHydro || 0) * _nf * _fisRatio * _fisPM * govHydroMul;
     }
     /* ERA8（2026-10-18 · spec §4）：泰坦星气云采集站——每级 +6 热液能/秒（不烧暖石，
      *   与核热厂同一供给侧通道）+ 每级产 5 燃料/秒（燃料行在 tick/rates，不进流）。 */
     if (tcL > 0) {
       var _tcPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
-      titancloudSupply = tcL * (SB.BLD.titancloudHydro || 0) * starAlienOutputMul(s) * dt * _tcPM;
+      titancloudSupply = tcL * (SB.BLD.titancloudHydro || 0) * starAlienOutputMul(s) * dt * _tcPM * govHydroMul;
       supply += titancloudSupply;
       /* 排放同样豁免星屑树 `starAlienOutputMul`（与核热厂同一条统一原则）。 */
-      pollutionOther += tcL * (SB.BLD.titancloudHydro || 0) * _tcPM;
+      pollutionOther += tcL * (SB.BLD.titancloudHydro || 0) * _tcPM * govHydroMul;
     }
     /* ERA9（2026-10-19 · 用户确认④）：太阳帆（星图累加器，s.sunSails，无限、无上限）每帆 +0.05 热液能/秒，
      *   进 hydro 供给侧（与核热厂/泰坦气云同类并联相加）。断流/缺料不影响帆本身（帆是已累积的产能，
@@ -1856,7 +1865,7 @@
     var sunSailSupply = 0;
     if ((s.sunSails || 0) > 0) {
       sunSailSupply = (s.sunSails || 0) * (SB.CFG.SUNSAIL_HYDRO || 0.05) * starSailHydroMul(s) * dt
-        * (SB.challenges ? SB.challenges.productionMul(s) : 1);
+        * (SB.challenges ? SB.challenges.productionMul(s) : 1) * govHydroMul;
       supply += sunSailSupply;
     }
     /* 水体污染（2026-11-02）：三座**洁净**热液源 —— 潮汐往复机 +1/s·级、太阳能基站 +3/s·级、
@@ -1867,7 +1876,7 @@
       var _cleanPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
       cleanSupply = (_tideL * (SB.BLD.tideHydro || 0)
         + _solarL * (SB.BLD.solarHydro || 0)
-        + _windL * (SB.BLD.windHydro || 0)) * dt * _cleanPM;
+        + _windL * (SB.BLD.windHydro || 0)) * dt * _cleanPM * govHydroMul;
       supply += cleanSupply;
     }
     /* 工坊（低阶科技先吃满）：从本 tick 流里取 min(需求, 供给)。 */
@@ -1993,7 +2002,7 @@
      *   （…→机器人→充能站→魔鱼VR→发射场→G.E.E.K）。断流只停耗。其**库存耗料**（kelp/metal/coral）
      *   与**改造进度累加**在 shell.tickShell ③段同 tick 内结算（同 s._hydroFlow 判据 ⇒ 面板===结算）。 */
     var geekDraw = 0, geekNeed = 0;
-    if (geekOn && geekOwned) {
+    if (geekOn && geekOwned && _geekActive) {
       geekNeed = SB.CFG.GEEK_HYDRO * dt;
       var _geekLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw);
       /* G.E.E.K 需要整额热液能才能推进；短缺时停摆并释放流量给后续用户。 */
@@ -2602,7 +2611,8 @@
       /* ERA8 市政《群星与神明》（2026-10-18 用户表解锁1）：信仰产出 ×(1+星空进度)。
        *   进度 = starExplore / STAR_CAP 小数（5% ⇒ ×1.05），破壳前恒 ×1。市政完成即生效（非卡）。 */
       * (s.civics && s.civics.starfaith
-          ? 1 + (SB.CFG.STAR_CAP > 0 ? (s.res.starExplore || 0) / SB.CFG.STAR_CAP : 0) : 1)
+          ? 1 + ((SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : SB.CFG.STAR_CAP) > 0
+            ? (s.res.starExplore || 0) / (SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : SB.CFG.STAR_CAP) : 0) : 1)
       /* ERA8 两张动态信仰卡（星际广播每卫星 +5% / 我们在此 core+space 每级 +10%，装卡才生效）。 */
       * (SB.civic && SB.civic.dynFaithCardMul ? SB.civic.dynFaithCardMul(s) : 1)
       * (SB.wonder && SB.wonder.abbeyFaithMul ? SB.wonder.abbeyFaithMul(s) : 1)

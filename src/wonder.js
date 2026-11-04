@@ -409,7 +409,7 @@
    *   ⚠️ 落点：economy.starRate（星空速率）与 tick/rates 学者行（ScholarMul），各接一路；
    *       漏一路就是「面板撒谎」。 */
   function voyagerPct(s) {
-    var cap = SB.CFG.STAR_CAP || 0;
+    var cap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
     return cap > 0 ? (s.res && s.res.starExplore || 0) / cap : 1;
   }
   function voyagerStarRate(s) {

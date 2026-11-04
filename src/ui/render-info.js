@@ -82,7 +82,7 @@
      * 市政侧无折扣，走原价。旧版判定/显示各裸读 item.cost ⇒ 卡面显示原价、实扣折后价。 */
     var cost = tech
       ? (SB.tech.researchCost ? SB.tech.researchCost(s, item) : (item.cost || 0))
-      : (item.cost || 0);
+      : (SB.civic.researchCost ? SB.civic.researchCost(s, item) : (item.cost || 0));
     var blockKind = '';
     if (tech && !done && blocked) {
       if (!revealed) blockKind = 'unrevealed';
@@ -95,7 +95,7 @@
       else if (!SB.economy.enough(s.res.science, cost)) blockKind = 'science';
     } else if (!tech && !done && blocked && revealed) {
       if (item.era && item.era > (s.era || 1)) blockKind = 'era';
-      else if (SB.civic.reqsMet(s, item) && !SB.economy.enough(s.res.culture, item.cost || 0)) blockKind = 'culture';
+      else if (SB.civic.reqsMet(s, item) && !SB.economy.enough(s.res.culture, cost)) blockKind = 'culture';
     }
     /* ⚠️ 「等级 x/y」必须排在 blocked 之后（2026-11-03 修「科技升不了」的另一半）：
      *   原先 `tech && techLevel > 0` 紧跟在 done 后面 ⇒ 只要升过一级，徽章与按钮就

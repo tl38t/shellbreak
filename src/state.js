@@ -39,7 +39,11 @@
       onboardSeen: false,
       autoResearch: { tech: false, civic: false },
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
-      challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false } },
+      challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false,
+        waterpollution: false, anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0 } },
+      /* 美好旧日解锁后，首次采用的各政体会永久生成对应被动政策卡。 */
+      govPassiveCards: {},
+      govEverAdopted: {},
       /* 流浪泰拉旧版只有占位状态，缺版本号的旧档会在 normalizeMeta 中清掉那份假通关。 */
       driftTerraVersion: 1, challengePopupPending: null,
       /* 「看广告 +1 轮回点」每日次数计数（跨周目保留，但按本地日期重置）。
@@ -660,7 +664,7 @@
        *   dysonPopupPending —— 离线补算期间达成竣工、待结算窗关闭后再播的挂起旗（见下）。
        * ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底自动带出默认值（与 geek 同机制）。 */
       dysonNodes: 0, launchMode: 'sail',
-      dysonDone: false, dysonPopupSeen: false, dysonPopupPending: false,
+      dysonDone: false, dysonLaunchSitesReady: false, dysonPopupSeen: false, dysonPopupPending: false,
       /* 建造追踪（2026-10-29）：角落小框跟踪的目标，格式 `kind:id[@lv]`
        * （'bld:workshop@0' / 'wonder:wonder_lighthouse' / 'craft:craft_rope'）。
        * ⚠️ **必须出现在这张表里**：`state-migrate.migrateRun` 是
@@ -763,12 +767,21 @@
     /* ⚠️ 挑战 id 白名单：**新增挑战必须同时加进这里**，否则读档后 `completed` 里那一项被
      *   抹掉 ⇒ 玩家重启游戏就丢永久奖励（本表是「三处同源」的第三处，另两处 =
      *   challenges.emptyProgress 与 state-migrate 的 challengeDone 判据）。 */
-    var challengeIds = { cold: true, small: true, science: true, abyss: true, speedrun: true, drift_terra: true, waterpollution: true };
-    var singleTierChallenges = { cold: true, small: true, drift_terra: true, waterpollution: true };
+    var challengeIds = { cold: true, small: true, science: true, abyss: true, speedrun: true, drift_terra: true, waterpollution: true,
+      anarchy: true, good_old_days: true, three_launch_sites: true, eternity_moment: true };
+    var singleTierChallenges = { cold: true, small: true, drift_terra: true, waterpollution: true,
+      anarchy: true, good_old_days: true, three_launch_sites: true };
     for (var challengeId in challengeIds) {
       var completed = m.challenges.completed[challengeId];
       if (singleTierChallenges[challengeId]) m.challenges.completed[challengeId] = completed === true;
       else m.challenges.completed[challengeId] = Math.max(0, Math.min(3, completed | 0));
+    }
+    if (!m.govPassiveCards || typeof m.govPassiveCards !== 'object' || Array.isArray(m.govPassiveCards)) m.govPassiveCards = {};
+    if (!m.govEverAdopted || typeof m.govEverAdopted !== 'object' || Array.isArray(m.govEverAdopted)) m.govEverAdopted = {};
+    var _govList = SB.GOVS || [];
+    for (var _gai = 0; _gai < _govList.length; _gai++) {
+      var _gaid = _govList[_gai].id;
+      m.govEverAdopted[_gaid] = !!m.govEverAdopted[_gaid];
     }
     if (!hasDriftVersion) {
       /* drift_terra 过去只是可进入的占位挑战；它不能继续让旧档提前拿到三项通关奖励。 */

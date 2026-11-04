@@ -137,14 +137,14 @@
     /* ⚠️ 2026-09-30 ERA4 · 钛：装了深层矿井(upg_deepmine) 后矿工伴生钛。
      *    门读的是 `s.upgrades`（买断升级），不是建筑等级 —— 与 rates.titanium 同一门同一式。 */
     if (j.miner > 0 && s.upgrades && s.upgrades.upg_deepmine) {
-      addRes(s, 'titanium', j.miner * SB.UNIT.titanium * _siltPit * _gather * _tM * cold * _gmx * (1 + (_T ? _T.titaniumMul : 0)) * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul * dt);
+      addRes(s, 'titanium', j.miner * SB.UNIT.titanium * _siltPit * _gather * _tM * cold * _gmx * (1 + (_T ? _T.titaniumMul : 0)) * _mp * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul * dt);
     }
     /* ERA7（2026-10-17 · spec §2）：铀 —— 矿工伴生（0.002/秒/人，暖石 0.05 的 1/25，稀有度对齐）。
      *   门=科技《自动化钻探》（s.techs.autodrill，spec 拍的是科技门，与钛的升级门不同源）。
      *   乘区照钛那行同族：砂矿坑（矿脉设施放大一切伴生产出）+ 采集 + 矿镐 + 季节 + 全产；
      *   ⚠️ 与 rates 的 uranium 行逐字同构，漏一路就是面板撒谎。 */
     if (j.miner > 0 && s.techs && s.techs.autodrill) {
-      addRes(s, 'uranium', j.miner * SB.UNIT.uranium * _siltPit * _gather * _tM * cold * _gmx * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul * dt);
+      addRes(s, 'uranium', j.miner * SB.UNIT.uranium * _siltPit * _gather * _tM * cold * _gmx * _mp * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul * dt);
     }
     /* ERA7（2026-10-17 · 2026-10-21 调整）：核热厂每级耗铀 0.35/秒（fissionUranium）。
      *   ⚠️ 直接消耗（不进 hydroAlloc 流）；铀是带上限普通资源，扣到 0 止。
@@ -325,6 +325,9 @@
          * shell.js:175 同款调用路径）；dysonPopupSeen 防重播——玩家选「继续游玩」后不再弹。 */
         if (!s.dysonDone && SB.economy && SB.economy.dysonPct && SB.economy.dysonPct(s) >= 1) {
           s.dysonDone = true;
+          s.dysonLaunchSitesReady = ((s.lvl && s.lvl.europa_launch) || 0) >= 11
+            && ((s.lvl && s.lvl.terra_launch) || 0) >= 11
+            && ((s.lvl && s.lvl.enceladus_launch) || 0) >= 11;
           /* 2026-10-26 排行榜「最快建立戴森球」：dysonDone 一次性守卫天然只报一次。
            * 离线挂起 / 弹窗已看不影响上榜（与 dysonEnd 成就同落点）。 */
           if (SB.rank) SB.rank.submitRun([{ key: 'dyson', value: s.wallT }]);

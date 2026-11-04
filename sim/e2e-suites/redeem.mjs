@@ -57,13 +57,19 @@ export async function run({ SB, check, sandbox, doc, g }) {
 
   /* ── 夹具：装 fetch 桩 + 改 CFG（全部在 finally 里还原）── */
   const RC = SB.CFG.REDEEM;
-  const savedCfg = { CLIENT_ID: RC.CLIENT_ID, ACTIVITY_ID: RC.ACTIVITY_ID, REWARD_NUM: RC.REWARD_NUM };
+  const savedCfg = { CLIENT_ID: RC.CLIENT_ID, ACTIVITY_ID: RC.ACTIVITY_ID, REWARD_NUM: RC.REWARD_NUM,
+    /* 本地码表是数组引用：套件里会整体换掉它，finally 必须换回来，否则后续套件
+     * 会看到一个「多了几个测试码」的配置。 */
+    LOCAL_GRANTS: RC.LOCAL_GRANTS };
   const hadFetch = Object.prototype.hasOwnProperty.call(sandbox, 'fetch');
   const savedFetch = sandbox.fetch;
   const m = SB.game.meta();
   const savedMeta = {
     tide: m.tide, tideEarnedTotal: m.tideEarnedTotal, spent: m.spent,
-    compensationTotal: m.compensationTotal, redeemed: m.redeemed, installId: m.installId
+    compensationTotal: m.compensationTotal, redeemed: m.redeemed, installId: m.installId,
+    /* 2026-11-04：本地礼包码发星屑，这三个字段必须一起还原，否则后面所有依赖
+     * 「星屑余额 / 累计结算 / 商店是否解锁」的套件都会跑在一个被改过的世界上。 */
+    stardust: m.stardust, stardustEarned: m.stardustEarned, stardustShopUnlocked: m.stardustShopUnlocked
   };
 
   let calls = [];
@@ -85,16 +91,32 @@ export async function run({ SB, check, sandbox, doc, g }) {
   }
 
   try {
-    /* ── ③ 未配置 ⇒ 不开网络、不写状态（按钮也整块不显示）── */
+    /* ── ③ 两条通道都没配 ⇒ 不开网络、不写状态（按钮也整块不显示）──
+     * ⚠️ 2026-11-04 起「未配置」必须**同时**清掉本地码表：入口的判据是
+     *   `platformReady() || localGrants().length > 0`，只清平台两项而留着本地码，
+     *   ready() 仍为真，这条断言就会变成假红。 */
     resetLedger();
+    const savedLocalForGate = RC.LOCAL_GRANTS;
     RC.CLIENT_ID = ''; RC.ACTIVITY_ID = ''; RC.REWARD_NUM = 120;
+    RC.LOCAL_GRANTS = [];
     check('未配置时 ready() 为假', R.ready() === false);
+    check('平台两项留空 ⇒ platformReady() 单独也为假', R.platformReady() === false);
     let r = await R.redeem('ABCD1234');
     check('未配置 ⇒ 拒绝且一个请求都不发', r.ok === false && calls.length === 0, r.msg);
     R.boot();
     check('未配置 ⇒ 设置里整块隐藏（不留死按钮）',
       doc.getElementById('redeemSettingBlock').style.display === 'none',
       String(doc.getElementById('redeemSettingBlock').style.display));
+
+    /* ── ③b 只配本地码、平台留空 ⇒ 入口**不能**消失 ──
+     * 临时发福利时通常还没去后台建活动，这时若按平台判据隐藏，玩家就找不到输入框。 */
+    RC.LOCAL_GRANTS = savedLocalForGate;
+    check('平台留空但配了本地码 ⇒ ready() 为真', R.ready() === true);
+    R.boot();
+    check('平台留空但配了本地码 ⇒ 入口照常显示',
+      doc.getElementById('redeemSettingBlock').style.display === '',
+      String(doc.getElementById('redeemSettingBlock').style.display));
+    RC.LOCAL_GRANTS = [];
 
     /* ── ④ 配好之后：成功路径 ── */
     RC.CLIENT_ID = 'probe_client_1'; RC.ACTIVITY_ID = 'act_probe'; RC.REWARD_NUM = 120;
@@ -219,6 +241,53 @@ export async function run({ SB, check, sandbox, doc, g }) {
       r.ok === true && m.tide === tideD + 7, 'tide=' + m.tide);
     RC.REWARD_NUM = 120;
 
+    /* ── ⑩b 本地礼包码（2026-11-04）：命中即本地入账，一个请求都不发 ──
+     * 这条路是「改一处配置就能发」的临时福利通道（首次用途：给客户 50 星屑）。
+     * 钉三件事：① 不走网络（没有 fetch 也能领）；② 星屑**只加余额、不加 stardustEarned**
+     *   —— 那个字段同时喂排行榜「最多星屑」和超古代科技/市政的「星屑累积」尤里卡，
+     *   白送的星屑写进去等于用运营福利换游戏内成就；③ 防重与平台码共用 meta.redeemed。 */
+    const LOCALCODE = 'LOCALSTAR50';
+    RC.LOCAL_GRANTS = [{ code: LOCALCODE, stardust: 50, label: '星屑礼包' }];
+    resetLedger();
+    m.stardust = 0; m.stardustEarned = 0; m.stardustShopUnlocked = false;
+    const nCallBeforeLocal = calls.length;
+    r = await R.redeem('local-star-50');
+    check('本地码命中即成功（大小写/连字符不影响）', r.ok === true && r.stardust === 50, r.msg);
+    check('★ 本地码一个网络请求都不发', calls.length === nCallBeforeLocal, calls.length);
+    check('星屑余额 +50', m.stardust === 50, String(m.stardust));
+    check('★ stardustEarned 不变（白送的星屑不许抬高排行榜与尤里卡）',
+      m.stardustEarned === 0, String(m.stardustEarned));
+    check('顺手解锁星屑商店（有余额却进不去是死路）', m.stardustShopUnlocked === true);
+    check('本地码也进 meta.redeemed 防重表（键为大写归一化、记 s=星屑数）',
+      !!m.redeemed[LOCALCODE] && m.redeemed[LOCALCODE].s === 50,
+      JSON.stringify(m.redeemed[LOCALCODE]));
+    const stardustAfterLocal = m.stardust;
+    r = await R.redeem(LOCALCODE);
+    check('本地码不许二次领取', r.ok === false && /领过/.test(r.msg) && m.stardust === stardustAfterLocal, r.msg);
+
+    /* 未命中的码不能被本地路径吞掉 —— 仍要落到平台（否则玩家输错码会得到「无效」以外的怪提示）。 */
+    responder = () => ({ success: false, error: 100016 });
+    r = await R.redeem('NOTLOCAL1');
+    check('未命中的码继续走平台（不被本地路径吞掉）', r.ok === false && /无效/.test(r.msg), r.msg);
+    responder = () => ({ success: true, error: 0, activity_id: 'act_probe' });
+
+    /* 平台两项留空时，本地码必须照样能领（这条是整条通道的存在意义）。 */
+    const savedCID = RC.CLIENT_ID, savedAID = RC.ACTIVITY_ID;
+    RC.CLIENT_ID = ''; RC.ACTIVITY_ID = '';
+    RC.LOCAL_GRANTS = [{ code: 'LOCAL0099', stardust: 5, label: '平台留空档' }];
+    r = await R.redeem('LOCAL0099');
+    check('平台两项留空时本地码照样能领（纯本地、不依赖网络）',
+      r.ok === true && r.stardust === 5, r.msg);
+    r = await R.redeem('NOTLOCAL2');
+    check('平台两项留空且未命中 ⇒ 判「码无效」（而不是联网失败）',
+      r.ok === false && /无效/.test(r.msg), r.msg);
+    RC.CLIENT_ID = savedCID; RC.ACTIVITY_ID = savedAID;
+    RC.LOCAL_GRANTS = savedLocalForGate;
+    /* 奖励为 0 的条目不许发空气。 */
+    RC.LOCAL_GRANTS = [{ code: 'EMPTY001', label: '空' }];
+    check('奖励为 0 的本地条目被忽略', R.localGrants().length === 0, R.localGrants().length);
+    RC.LOCAL_GRANTS = savedLocalForGate;
+
     /* ── ⑪ 环境没有 fetch ⇒ 说清楚，而不是静默失败 ── */
     delete sandbox.fetch;
     r = await R.redeem('NOFETCH1');
@@ -238,8 +307,11 @@ export async function run({ SB, check, sandbox, doc, g }) {
   } finally {
     /* 还原世界：CFG、meta、fetch、面板。漏一个后续套件就会跑在被改过的状态上。 */
     RC.CLIENT_ID = savedCfg.CLIENT_ID; RC.ACTIVITY_ID = savedCfg.ACTIVITY_ID; RC.REWARD_NUM = savedCfg.REWARD_NUM;
+    RC.LOCAL_GRANTS = savedCfg.LOCAL_GRANTS;
     m.tide = savedMeta.tide; m.tideEarnedTotal = savedMeta.tideEarnedTotal; m.spent = savedMeta.spent;
     m.compensationTotal = savedMeta.compensationTotal; m.redeemed = savedMeta.redeemed;
+    m.stardust = savedMeta.stardust; m.stardustEarned = savedMeta.stardustEarned;
+    m.stardustShopUnlocked = savedMeta.stardustShopUnlocked;
     if (savedMeta.installId === undefined) delete m.installId; else m.installId = savedMeta.installId;
     if (hadFetch) sandbox.fetch = savedFetch; else delete sandbox.fetch;
     if (SB.ui && SB.ui.render && SB.ui.render.hideModal) SB.ui.render.hideModal();

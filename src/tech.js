@@ -183,6 +183,8 @@
   // ── 尤里卡条件判定 ────────────────────────────────────────────────
   function condMet(s, c) {
     if (!c) return true;
+    if ((c.t === 'gov' || c.t === 'govWildSlots' || c.t === 'govId')
+        && SB.challenges && SB.challenges.bypassGovernmentGates && SB.challenges.bypassGovernmentGates(s)) return true;
     var i, n;
     switch (c.t) {
       case 'default': return true;
@@ -319,7 +321,7 @@
        * ⚠️ 进度 = 存量 / STAR_CAP（config.js CAP_BASE.starExplore），破壳前存量恒 0
        *    ⇒ 不达成（星空槽是破壳后资源，见 shell.tickStar），这是口径不是 bug。 */
       case 'starPct': {
-        var _capPct = SB.CFG.STAR_CAP || 0;
+        var _capPct = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
         if (_capPct <= 0) return false;
         return ((s.res.starExplore || 0) / _capPct * 100) >= (c.n || 0);
       }
@@ -394,6 +396,9 @@
   // 给 UI 用的「还差多少」文案。返回 null 表示已达成。
   function condShort(s, c) {
     if (!c || c.t === 'default') return null;
+    if ((c.t === 'gov' || c.t === 'govWildSlots' || c.t === 'govId')
+        && SB.challenges && SB.challenges.bypassGovernmentGates && SB.challenges.bypassGovernmentGates(s))
+      return { txt: '美好旧日挑战豁免政体门槛', now: 1, need: 1 };
     var now, n, k;
     switch (c.t) {
       case 'built': now = s.lvl[c.b] || 0;
@@ -516,7 +521,7 @@
         return { txt: resName(c.r) + '上限 ' + Math.floor(_capV) + ' / ' + c.n, now: Math.floor(_capV), need: c.n };
       }
       case 'starPct': {
-        var _capS2 = SB.CFG.STAR_CAP || 0;
+        var _capS2 = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
         var _pctNow = _capS2 > 0 ? (s.res.starExplore || 0) / _capS2 * 100 : 0;
         return { txt: '星空进度 ' + _pctNow.toFixed(1) + '% / ' + (c.n || 0) + '%', now: _pctNow, need: c.n || 0 };
       }
@@ -905,7 +910,8 @@
     var cap = (SB.BLD && SB.BLD.researchLabSaveMax) || 0;
     disc = Math.min(cap, Math.max(0, disc));
     var level = techLevel(s, t.id);
-    return t.cost * Math.pow(t.costRatio || 1, level) * (1 - disc);
+    var challengeMul = SB.challenges && SB.challenges.researchCostMul ? SB.challenges.researchCostMul(s) : 1;
+    return t.cost * Math.pow(t.costRatio || 1, level) * (1 - disc) * challengeMul;
   }
 
   /* 即时扣费研究（用户拍板）。返回 true 表示本次真的掌握。 */

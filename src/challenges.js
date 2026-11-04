@@ -75,7 +75,43 @@
       onComplete: function (s, meta) {
         if (SB.achv && SB.achv.unlockOnce) SB.achv.unlockOnce('pollutionClear', meta);
       },
-      tiers: [{ label: '海渊澄明', cap: null }] }
+      tiers: [{ label: '海渊澄明', cap: null }] },
+    { id: 'anarchy', name: '安那其主义', icon: '⚑', badge: 'assets/challenges/challenge-anarchy.png', kind: '终局挑战',
+      summary: '废除政策卡制度，只留下虚境信仰。',
+      rule: '全程不得装备政策卡；「轮回之终末」是唯一例外。',
+      reward: '永久星屑获取 +10% · 所有政体 +1 万能政策槽',
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成虚境飞升亦算）',
+      tiers: [{ label: '无政府纪元', cap: null }] },
+    { id: 'good_old_days', name: '美好旧日', icon: '⌛', badge: 'assets/challenges/challenge-good-old-days.png', kind: '终局挑战',
+      summary: '始终保持酋邦制，沿用最初的社会秩序。',
+      rule: '全程保持酋邦制；本挑战豁免要求采用多槽或指定政体的科技、市政门槛。',
+      reward: '永久星屑获取 +10% · 解锁已采用政体的被动卡',
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成虚境飞升亦算）',
+      onComplete: function (s, meta) {
+        if (SB.civic && SB.civic.unlockAdoptedGovPassiveCards)
+          SB.civic.unlockAdoptedGovPassiveCards(meta, s.govAdopted);
+      },
+      tiers: [{ label: '旧制永存', cap: null }] },
+    { id: 'three_launch_sites', name: '三地发射网', icon: '🚀', badge: 'assets/challenges/challenge-three-launch-sites.png', kind: '终局挑战',
+      summary: '三座行星发射场都要扩建到十一级。',
+      rule: '戴森球竣工时，欧罗巴、泰拉、恩克拉多斯发射场都必须达到 11 级。',
+      reward: '永久星屑获取 +10% · 三座发射场热液能消耗 -10%',
+      goal: { t: 'dysonLaunchSites' }, goalText: '戴森球竣工时三座轨道发射场都达到 11 级（虚境飞升亦算）',
+      tiers: [{ label: '三地并举', cap: null }] },
+    { id: 'eternity_moment', name: '掌控永远与须臾程度的能力', icon: '☾', badge: 'assets/challenges/challenge-eternity-moment.png', kind: '三档终局挑战',
+      summary: '研究与终局工程目标依档位提高五、十或二十倍。',
+      rule: '科技与市政研究点成本乘以本档倍率；冰壳厚度、星空探索、太阳帆和戴森节点目标也乘以本档倍率。尤里卡、前置条件与科技额外材料成本不变。',
+      rewards: [
+        '永久星屑获取 +10% · 科技与市政研究点成本 -5%',
+        '永久星屑获取 +10% · 科技与市政研究点成本 -10%',
+        '永久星屑获取 +10% · 科技与市政研究点成本 -15%'
+      ],
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成虚境飞升亦算）',
+      tiers: [
+        { label: '五倍永恒', cap: 5 },
+        { label: '十倍永恒', cap: 10 },
+        { label: '二十倍永恒', cap: 20 }
+      ] }
   ];
   var BY_ID = {};
   for (var i = 0; i < DEFINITIONS.length; i++) BY_ID[DEFINITIONS[i].id] = DEFINITIONS[i];
@@ -83,7 +119,8 @@
   /* ⚠️ 这个对象是**进度白名单**：`state-migrate` 与 `progress()` 都靠它兜底，新增挑战
    *   漏登记 ⇒ 老档读回来的 completed 里没有这个键 ⇒ tierDone 恒 0 ⇒ 每次进游戏都像没通过、
    *   重打还能再领一次奖（2026-11-02 加 waterpollution 时同步补上）。 */
-  function emptyProgress() { return { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false, waterpollution: false } }; }
+  function emptyProgress() { return { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false, waterpollution: false,
+    anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0 } }; }
   function progress(meta) {
     var c = meta && meta.challenges && meta.challenges.completed;
     return c || emptyProgress().completed;
@@ -106,10 +143,23 @@
   function active(s) {
     var a = s && s.challenge, d = a && BY_ID[a.id];
     if (!d) return null;
-    /* goal 型（流浪泰拉 / 水体污染）的终点在壳外 —— 破壳后要造 50 座行星发动机、要打到戴森球，
-     * 人口与产出不能还压着，所以它们沿用旧判据「破壳即解除」。
-     * 破壳型五项才走「玩家显式解除」（2026-11-03 用户拍板：成就要现做，限制不能自己消失）。 */
-    if (d.goal) return s.broken ? null : a;
+    /* goal 型（流浪泰拉 / 水体污染 / 四项终局挑战）的终点**全在壳外**：
+     *   流浪泰拉要的 50 座行星发动机、水体污染要的戴森球，都是破壳之后才建得起来的。
+     * ⇒ 破壳不是 goal 型的终点。旧判据 `s.broken && !d.persistAfterShell` 会让
+     *   「进行中」在破壳那一刻消失（2026-11-04 用户报「一破壳挑战就被清除」），连带三个后果：
+     *     · 挑战页整排退回「尚未完成 / 下一档可挑战」；
+     *     · canStart 变 true（它只拦 active），卡片给出「结算并挑战」；
+     *     · 那个按钮真的能点 —— begin() 会直接 startRun，当前 ERA10 进度当场丢掉。
+     *   而真源从没丢：s.challenge 还在、evaluate() 照常按 goal 发奖、
+     *   寒流必冰封与太阳帆 ×0.5 在 economy.js 里硬编码 id 判断、根本不看这里
+     *   ⇒ 坏的不是挑战本身，是这一处状态与随之出现的入口。
+     * ⚠️ 这里**不许再出现 s.broken**：goal 型的唯一结束条件是 challengeDone。
+     * ⚠️ 与破壳型五项口径不同：那五项破壳即定格成绩，但限制撤不撤由玩家在卡片上点
+     *   （s.challengeReleased，2026-11-03 用户拍板），所以它们读的是 challengeReleased。 */
+    if (d.goal) {
+      if (s.challengeDone) return null;
+      return a;
+    }
     return s.challengeReleased ? null : a;
   }
   /* 解除本轮挑战限制：一次性，不可再打开（否则等于「打不过就关、想刷榜再开」）。
@@ -129,6 +179,51 @@
   function ignorePopulationGates(s) {
     var a = active(s);
     return !!(a && a.id === 'small');
+  }
+  function bypassGovernmentGates(s) {
+    var a = active(s);
+    return !!(a && a.id === 'good_old_days');
+  }
+  function governmentLocked(s) {
+    var a = active(s);
+    return !!(a && a.id === 'good_old_days' && s.gov !== 'tribe');
+  }
+  function recordedMultiplier(s) {
+    var a = s && s.challenge, d = a && BY_ID[a.id];
+    if (!d || d.id !== 'eternity_moment') return 1;
+    var tier = d.tiers[Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0))];
+    return tier && tier.cap ? tier.cap : 1;
+  }
+  function multiplier(s) {
+    var a = active(s);
+    return a && a.id === 'eternity_moment' ? recordedMultiplier(s) : 1;
+  }
+  function starCap(s) { return (SB.CFG.STAR_CAP || 0) * multiplier(s); }
+  function dysonSailCap(s) { return (SB.CFG.DYSON_SAIL_CAP || 10000) * multiplier(s); }
+  function dysonNodeCap(s) { return (SB.CFG.DYSON_NODE_CAP || 1000) * multiplier(s); }
+  function shellTarget(s) {
+    var base = Number(s && s.baseShell) || Number(SB.CFG.ICE_SHELL) || 0;
+    var thin = (s && s.perk && s.perk.thin) || 0;
+    return Math.round(base * Math.max(0.1, 1 - 0.1 * thin) * recordedMultiplier(s));
+  }
+  function applyShellTarget(s) {
+    if (!s || !s.challenge || s.challenge.id !== 'eternity_moment') return false;
+    s.iceShell = shellTarget(s);
+    s.shell = s.iceShell;
+    return true;
+  }
+  function researchCostMul(s) {
+    var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
+    var done = tierDone('eternity_moment', meta);
+    return multiplier(s) * Math.max(0, 1 - 0.05 * done);
+  }
+  function stardustRewardMul(meta) {
+    var count = tierDone('anarchy', meta) + tierDone('good_old_days', meta) +
+      tierDone('three_launch_sites', meta) + tierDone('eternity_moment', meta);
+    return 1 + 0.10 * count;
+  }
+  function launchHydroRewardMul(meta) {
+    return tierDone('three_launch_sites', meta) ? 0.9 : 1;
   }
   function jobLimit(s, job) {
     var a = active(s);
@@ -191,6 +286,8 @@
     }
     if (goal.t === 'built') return !!(s.lvl && (s.lvl[goal.b] || 0) >= goal.n);
     if (goal.t === 'res') return !!(s.res && (s.res[goal.r] || 0) >= goal.n);
+    /* 发射场门槛在 dysonDone 置位的同一 tick 冻结，不能竣工后再补等级通关。 */
+    if (goal.t === 'dysonLaunchSites') return !!(s.dysonDone && s.dysonLaunchSitesReady);
     /* 戴森球竣工（ERA10 终局，2026-11-02 加）：`s.dysonDone` 是 economy-tick 里
      *   dysonPct(s) >= 1 时置位的一次性旗；飞升虚境（civics.ascend_void）也收敛到它，
      *   所以这里不需要额外的 `|| s.ascendVoidDone` 分支。 */
@@ -239,8 +336,8 @@
     if (tier !== tierDone(d.id, meta) || !goalMet(s, d.goal)) return null;
     if (!meta.challenges) meta.challenges = emptyProgress();
     meta.challenges.completed = meta.challenges.completed || {};
-    meta.challenges.completed[d.id] = true;
-    var outcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label, reward: d.reward, goalText: d.goalText };
+    meta.challenges.completed[d.id] = d.tiers.length === 1 ? true : tier + 1;
+    var outcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label, reward: rewardFor(d, tier), goalText: d.goalText };
     s.challengeDone = true;
     s.challengeOutcome = outcome;
     meta.challengePopupPending = outcome;
@@ -454,6 +551,12 @@
     list: function () { return DEFINITIONS; }, byId: function (id) { return BY_ID[id] || null; },
     progress: progress, tierDone: tierDone, completedCount: completedCount,
     active: active, activeTier: activeTier, ignorePopulationGates: ignorePopulationGates,
+    bypassGovernmentGates: bypassGovernmentGates, governmentLocked: governmentLocked,
+    multiplier: multiplier, shellMultiplier: recordedMultiplier,
+    starCap: starCap, dysonSailCap: dysonSailCap, dysonNodeCap: dysonNodeCap,
+    shellTarget: shellTarget, applyShellTarget: applyShellTarget,
+    researchCostMul: researchCostMul, stardustRewardMul: stardustRewardMul,
+    launchHydroRewardMul: launchHydroRewardMul,
     jobLimit: jobLimit, jobLimitReason: jobLimitReason, jobLimitExceeded: jobLimitExceeded,
     productionMul: productionMul, scienceCultureMul: scienceCultureMul,
     warmstoneMul: warmstoneMul, populationLimit: populationLimit,

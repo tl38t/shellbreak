@@ -111,4 +111,79 @@ export function run({ SB, check }) {
       !!S && !err && ok === true,
       err ? String(err && err.message) : ('saveNow=' + ok));
   }
+
+  /* ⑥ G.E.E.K（星球重构机）：破壳后必须继续改造 —— 2026-11-04 玩家报「更新后破壳
+   *   恢复了，但星球改造器又卡着不动」。
+   *
+   * 根因：G.E.E.K 的推进原本写在 shell.tickShell 的 ③ 段，而 tickShell 首行
+   *   `if (s.broken) return 0`（破壳后无壳可削，这条本身是对的）把「改造别的星球」
+   *   一起挡了；且早退发生在 geekStarved 置位之前 ⇒ 面板仍显示「运转中」、倒计时
+   *   冻住、不告诉玩家任何原因。
+   * 更深的影响是死锁：terraDone 永假 ⇒ geekTerra 永假 ⇒《严冬计划》永不揭示
+   *   （techs.js 的 cond 是硬门槛）⇒ 重核聚变 → 超临界 → 流浪泰拉科技全断
+   *   ⇒ 行星发动机永不解锁 ⇒ 流浪泰拉挑战（50 座行星发动机）无法通关。
+   *
+   * 三层判据：源码（broken 门不许跑在 G.E.E.K 前面 / 判据同源）、行为（破壳态照跑）、
+   *   流分配（没活干就不许再占 40/秒 —— 修复前四种情形全给 40）。 */
+  {
+    const shellSrc = stripComments(fs.readFileSync(path.join(ROOT, 'src/shell.js'), 'utf8'));
+    const ecoSrc = stripComments(fs.readFileSync(path.join(ROOT, 'src/economy.js'), 'utf8'));
+    const rateSrc = stripComments(fs.readFileSync(path.join(ROOT, 'src/economy-rates.js'), 'utf8'));
+
+    const iGeek = shellSrc.indexOf('tickGeek(s, dt, emit);');
+    const iBroken = shellSrc.indexOf('if (s.broken) return 0;');
+    check('shell.tickShell 里 G.E.E.K 跑在 broken 门之前',
+      iGeek > 0 && iBroken > 0 && iGeek < iBroken,
+      'tickGeek@' + iGeek + ' broken门@' + iBroken);
+    check('economy.hydroAlloc 的 G.E.E.K 判据带「有活干」',
+      /if \(geekOn && geekOwned && _geekActive\)/.test(ecoSrc),
+      '_geekActive 参与流分配');
+    check('economy-rates 的 G.E.E.K 判据读同一落点',
+      /SB\.shell\.geekActive\(s\)/.test(rateSrc),
+      'shell.geekActive 单一落点');
+
+    /* 行为夹具：奇观已建成 + 已启动 + 四样料管够。broken 决定是不是破壳态。 */
+    function geekFixture(broken, mut) {
+      const g = SB.state.freshRun(false);
+      g.iceShell = 1e6; g.shell = 0;
+      g.shellOpened = broken; g.broken = broken; g.breakSettled = false;
+      g.wonders = g.wonders || {}; g.wonders.wonder_geek = true;
+      g.geek = { geekOn: true, enceladusDone: false, enceladusRun: 0, terraDone: false, terraRun: 0 };
+      g.res.kelp = 1e9; g.res.silt = 1e9; g.res.stone = 1e9; g.res.coral = 1e9;
+      if (mut) mut(g);
+      return g;
+    }
+
+    /* 破壳态：进度必须推进、料必须扣（修复前两者都是 0）。 */
+    {
+      const g = geekFixture(true);
+      g._hydroFlow = { geekDraw: SB.CFG.GEEK_HYDRO * 10, left: 999, skyDraw: 0 };
+      const run0 = g.geek.enceladusRun, kelp0 = g.res.kelp;
+      SB.shell.tickShell(g, 10, null, {});
+      check('破壳后 G.E.E.K 仍推进（修复前进度恒 0）',
+        g.geek.enceladusRun - run0 >= 9.999,
+        'Δ进度=' + (g.geek.enceladusRun - run0).toFixed(3) + 's');
+      check('破壳后 G.E.E.K 仍扣料',
+        kelp0 - g.res.kelp >= SB.CFG.GEEK_KELP * 10 - 1e-6,
+        'Δ藻食=' + (kelp0 - g.res.kelp));
+    }
+
+    /* 流分配同源：有活干才占 40/秒；没活干（等 terraform / 两阶段完成）一律不占。 */
+    function geekFlow(broken, mut) {
+      const g = geekFixture(broken, mut);
+      g.lvl.hydroturbine = 200;
+      g.res.warmstone = 1e9;
+      return SB.economy.hydroAlloc(g, 1);
+    }
+    const flowOn = geekFlow(true).geekRate;
+    check('G.E.E.K 有活干时照常分配到热液能',
+      flowOn > 0, 'geekRate=' + flowOn);
+    const flowDone = geekFlow(false, g => { g.geek.enceladusDone = true; g.geek.terraDone = true; }).geekRate;
+    check('G.E.E.K 两阶段都完成后不再占热液能',
+      flowDone === 0, 'geekRate=' + flowDone);
+    const flowWaitA = geekFlow(false, g => { g.geek.enceladusDone = true; }).geekRate;
+    const flowWaitB = geekFlow(true, g => { g.geek.enceladusDone = true; }).geekRate;
+    check('G.E.E.K 等 terraform 期间不再占热液能（破壳前后同判）',
+      flowWaitA === 0 && flowWaitB === 0, '破壳前=' + flowWaitA + ' 破壳后=' + flowWaitB);
+  }
 }

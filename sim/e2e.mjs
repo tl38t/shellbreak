@@ -276,6 +276,16 @@ if (process.argv.includes('--perf-only')) {
   process.exit(failedPerf.length ? 1 : 0);
 }
 
+/* 兑换码专项（2026-11-04）：平台签名 + 本地礼包码两条通道都在这个套件里，
+ * 而它原先只在全量跑到 2600+ 条之后才执行（改一行动辄等几分钟，等于没法迭代）。
+ * 独立入口**不复制实现**，只提前跑同一个套件（与上面几个 only 同一套纪律）。 */
+if (process.argv.includes('--redeem-only')) {
+  await runRedeem({ SB, check, sandbox, doc, g });
+  const failedRedeem = checks.filter(c => !c.ok);
+  console.log(`\n兑换码：${checks.length - failedRedeem.length}/${checks.length} 通过`);
+  process.exit(failedRedeem.length || errors.length ? 1 : 0);
+}
+
 /* 破壳后推进专项（2026-11-03）：玩家报「破壳后卡着不动」的回归锁。
  * 只跑源码判据 + 两条行为判据，秒级迭代；**不复制实现**。 */
 if (process.argv.includes('--break-only')) {
@@ -2684,6 +2694,37 @@ await runRedeem({ SB, check, sandbox, doc, g });
 runAutoPlay({ SB, check });
 runAutoResearch({ SB, check });
 runChallenges({ SB, check, noop });
+/* 2026-11-03：设置栏「通关演出回看」（用户要求「放到设置里，想再看可以反复播放」）。
+ * 两件事必须钉死：① 入口只在真的通关过《流浪泰拉》之后出现（不剧透、不留死按钮）；
+ * ② 回看只是放片，**一个账本字段都不许写**（尤其不许塞 challengePopupPending ——
+ * 那会在下一次进游戏时又弹一次「永久奖励已生效」）。 */
+{
+  check('设置回看：未通关《流浪泰拉》时不出现入口',
+    SB.ui.render.canReplayTerra({ challenges: { completed: {} } }) === false);
+  check('设置回看：通关后出现入口',
+    SB.ui.render.canReplayTerra({ challenges: { completed: { drift_terra: true } } }) === true);
+  const M = SB.game.meta();
+  const done = M.challenges && M.challenges.completed;
+  const keep = done ? done.drift_terra : undefined;
+  const pend0 = M.challengePopupPending;
+  try {
+    if (done) done.drift_terra = false;
+    check('设置回看：未通关时点击不播、不写账本',
+      SB.ui.render.replayTerraSequence() === false && M.challengePopupPending === pend0 &&
+      (!done || done.drift_terra === false), 'played 应恒为 false');
+    if (done) done.drift_terra = true;
+    const played = SB.ui.render.replayTerraSequence();
+    const html = g('modalBox');
+    check('设置回看：通关后点开播的是「演出回顾」而不是「永久奖励已生效」',
+      played === true && html.indexOf('演出回顾') >= 0 && html.indexOf('永久奖励已生效') < 0,
+      played ? 'modal 已填充' : '未播放');
+    check('设置回看：播放后账本与弹窗待办均未被改动',
+      M.challengePopupPending === pend0 && done && done.drift_terra === true);
+  } finally {
+    if (done) done.drift_terra = keep;
+    SB.ui.render.hideModal();
+  }
+}
 /* 2026-11-02：水体污染（挑战专属系统）—— 每条断言都自带夹具，与整局 bot 无耦合，
  * 但仍放在全量尾部，避免影响前面「整局时长 / 成就」这类共享状态的断言。 */
 runWaterPollution({ SB, check, noop, dom: g });

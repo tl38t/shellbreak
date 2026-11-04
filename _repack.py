@@ -146,7 +146,26 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.14'" in _cfg, '包内 config.js 版本号不是 Ver1.0.14'
+assert "VERSION: 'Ver1.0.15'" in _cfg, '包内 config.js 版本号不是 Ver1.0.15'
+assert "v: 'Ver1.0.15'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.15 条目'
+# Ver1.0.15 玩家可见 11 条：6 新增（四项终局挑战 / 限制生命周期 / 每档 +10% 轮回点口径）
+# ＋ 4 修复（G.E.E.K 破壳冻死 / G.E.E.K 空烧热液能 / 破壳后挑战页状态 / 平等主义热液加成）
+# ＋ 1 新增改进（流浪泰拉回看）。
+# 逐条钉死：这版三个修复都是玩家已经在踩的线上问题，漏一条发出去等于白改。
+# ⚠️ 礼包码那条是运营向，用户拍板不进公开日志 ⇒ 本地码照常可用，只是不写进 CHANGELOG。
+for _kw in ['新增挑战《安那其主义》',
+            '新增挑战《美好旧日》',
+            '新增挑战《三地发射网》',
+            '新增挑战《掌控永远与须臾程度的能力》',
+            '四项终局挑战的限制会一直持续到通关为止',
+            '四项终局挑战每通一档都计入',
+            '修复破壳之后「星球重构机 G.E.E.K」卡住不动的问题',
+            '修复 G.E.E.K 在没有活可干的时候仍然占着 40 热液能/秒的问题',
+            '修复破壳之后挑战页把进行中的挑战显示成「尚未完成」',
+            '修复平等主义「每名鲛人 +0.1% 热液能产出」漏加成的问题',
+            '设置里新增「回看《流浪泰拉》」']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.15 更新日志缺条目：' + _kw
+assert '活动礼包码直接领取' not in _cfg, '包内 config.js 仍残留礼包码那条公开日志（用户要求删）'
 assert "v: 'Ver1.0.14'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.14 条目'
 # Ver1.0.14 玩家可见 2 条：破壳后停摆 / 破壳后存档被拒绝。
 # 背景：1.0.13 只删了 economy.tick 首行的 broken 早退，但调用方 game.js 主循环的 !S.broken 还在

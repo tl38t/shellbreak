@@ -158,7 +158,10 @@
     if ((s.geek && s.geek.geekOn) && (SB.wonder && SB.wonder.owned(s).wonder_geek)) {
       /* 与 shell.js ③段逐字同构：两阶段改造都已完成 ⇒ 无活可干，自动停、不扣料。
        * ⚠️ 这份「是否还在改造」的判断是面板不撒谎的关键——不然改造做完后面板还一直显示 −500/s。 */
-      var _geekActive = !s.geek.enceladusDone || (s.techs.terraform && !s.geek.terraDone);
+      /* ⚠️ 2026-11-04：改调 shell.geekActive 这个**单一落点**。本处原先自己写了一份表达式，
+       *   与 shell/economy 各一份 —— 三份副本漂移过一次，就是「面板显示的扣料与实际不符」。
+       *   这里只读不写：返回 false 表示没活干，面板不该显示在扣料。 */
+      var _geekActive = !!(SB.shell && SB.shell.geekActive) && SB.shell.geekActive(s);
       var _gkKNeed = SB.CFG.GEEK_KELP || 0, _gkMNeed = SB.CFG.GEEK_METAL || 0;
       var _gkSNeed = SB.CFG.GEEK_STONE || 0, _gkCNeed = SB.CFG.GEEK_CORAL || 0;
       if (_geekActive && _sr.geekRate > 0
@@ -247,6 +250,7 @@
                       ['矿工镐', toolMul(s, 'miner')],
                       ['寒流季', cold],
                       ['全局产出', globalMulX(s)],
+                      ['矿工契', minerPactMul(s)],
                       ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)],
                       ['科技乘区', 1 + (Tr ? Tr.titaniumMul : 0)],
                       ['自动钻机', autoDrillOutputMul(s)]])
@@ -283,6 +287,7 @@
                       ['矿工镐', toolMul(s, 'miner')],
                       ['寒流季', cold],
                       ['全局产出', globalMulX(s)],
+                      ['矿工契', minerPactMul(s)],
                       ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)],
                       ['自动钻机', autoDrillOutputMul(s)]])
                  : 0)

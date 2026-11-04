@@ -46,15 +46,95 @@
 
   function autoRate(s) { return SB.CFG.BREAK_BASE * breakCoef(s); }
 
+  /* ── G.E.E.K「还有活要干」的唯一判据（2026-11-04 抽出）────────────────────
+   * 无活干的两态：① 恩克拉多斯已完成、但还没研究《星球改造》（在等）② 两阶段都完成。
+   * ⚠️ 三处读点必须同源，不许再各写一遍（历史上已散成三份各自漂移的副本）：
+   *     · shell.tickGeek      —— 真结算（推进 / 扣料）
+   *     · economy.hydroAlloc  —— 流分配（没活干就不该占 40/秒 热液能）
+   *     · economy-rates       —— 面板里每 s 扣的料
+   */
+  function geekActive(s) {
+    if (!s || !s.geek) return false;
+    if (!s.geek.enceladusDone) return true;
+    return !!(s.techs && s.techs.terraform) && !s.geek.terraDone;
+  }
+
+  /* ── 星球重构机 G.E.E.K 的每 tick 推进（ERA9 · 生态重塑解锁奇观）──────────────
+   * 建成后在「自然环境」卡手动启动，依次改造恩克拉多斯星（1800s）→ 研究 terraform
+   * 后改造泰拉星（3600s）。唯一效果 = 覆盖建筑造价等级偏移（economy.costOf 的
+   * COST_OFFSET_COVERED 分档）；无幸福度 / 市政 / 产出额外效果（用户拍板不加）。
+   *
+   * ⚠️ 2026-11-04 从 tickShell 的 ③ 段独立出来，**必须在 broken 门之外跑**。
+   *   原因：tickShell 首行 `if (s.broken) return 0` 本身是对的（破壳后无壳可削），
+   *   但它把「改造别的星球」和「削天壳」绑进了同一个函数 ⇒ 破壳后 G.E.E.K 进度被
+   *   永久冻结。而且早退发生在 geekStarved 置位之前 ⇒ 面板仍显示「运转中」、倒计时
+   *   冻住、不给任何原因（玩家报「星球改造器卡着不动」）。
+   *   更重的一条：terraDone 永假 ⇒ geekTerra 永假 ⇒《严冬计划》永不揭示（techs.js 的
+   *   cond 是硬门槛）⇒ 重核聚变 → 超临界 → 流浪泰拉科技全断 ⇒ 行星发动机永不解锁
+   *   ⇒ 流浪泰拉挑战无法通关（它的 goal 是 50 座行星发动机）。
+   *
+   * 破壳后仍会继续吃 GEEK_HYDRO/秒 热液能 —— 这是有意的：改造进度是既有投入，不该
+   * 因为凿穿冰壳而作废；不想要这份开销的玩家可以自己点停机。
+   *
+   * ⚠️ 抄天穹钻机 flow 模型：热液能是「每 tick 瞬态流」，从本 tick 剩流里取 GEEK_HYDRO，
+   *   不读 s.res.hydro 库存池。剩流由 economy.hydroAlloc 同一 tick 算好（工坊低阶先吃满，
+   *   G.E.E.K 排在发射场之后、朱庇特之前）。
+   * ⚠️ 库存耗 kelp(藻食)/silt(金属)/stone(石头)/coral(珊瑚) 在扣费**之前**判足
+   *   （扣费先于置位，失败一分不扣），与 skydrill 同纪律；任一不足或断流 = 暂停、
+   *   进度保留（enceladusRun/terraRun 累加，绝不回拨 geekOn——补料后下一 tick 自动续转）。
+   */
+  function tickGeek(s, dt, emit) {
+    /* 运行态闸门（与天穹钻机同纪律）：已建成 + 玩家手动启动 + 还有活要干。 */
+    if (!(s.geek && s.geek.geekOn)) return;
+    if (!(SB.wonder && SB.wonder.owned(s).wonder_geek)) return;
+    /* 没活干：顺手把停摆位清掉 —— 否则「改造做完」之后面板会永远挂着
+     * 「缺×× · 停摆」徽标（starved 是上一阶段留下的，没人再把它落回 false）。 */
+    if (!geekActive(s)) { s.geekStarved = false; return; }
+    var _HF2 = s._hydroFlow || (SB.economy ? SB.economy.hydroAlloc(s, dt) : { geekDraw: 0 });
+    var hydroOK = _HF2.geekDraw > 0;
+    var _gkKelp = SB.CFG.GEEK_KELP * dt, _gkMetal = SB.CFG.GEEK_METAL * dt,
+        _gkStone = SB.CFG.GEEK_STONE * dt, _gkCoral = SB.CFG.GEEK_CORAL * dt;
+    if (hydroOK && (s.res.kelp || 0) >= _gkKelp && (s.res.silt || 0) >= _gkMetal
+        && (s.res.stone || 0) >= _gkStone && (s.res.coral || 0) >= _gkCoral) {
+      s.res.kelp -= _gkKelp; s.res.silt -= _gkMetal; s.res.stone -= _gkStone; s.res.coral -= _gkCoral;
+      if (!s.geek.enceladusDone) {
+        /* 阶段一：恩克拉多斯星改造。完成 ⇒ COST_OFFSET_COVERED.enc（默认 3 级、廉租社区 1 级）。 */
+        s.geek.enceladusRun = (s.geek.enceladusRun || 0) + dt;
+        var _encTime = SB.economy && SB.economy.starTerraformDuration
+          ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_ENCELADUS_SECONDS) : SB.CFG.GEEK_ENCELADUS_SECONDS;
+        if (s.geek.enceladusRun >= _encTime) {
+          s.geek.enceladusDone = true;
+          if (emit) emit('星球重构机 G.E.E.K 完成恩克拉多斯星改造：覆盖建筑升级花费下调最多 3 级（廉租社区 1 级）。');
+        }
+      } else if (s.techs.terraform && !s.geek.terraDone) {
+        /* 阶段二：泰拉星改造（需先研究 terraform）。完成 ⇒ 再叠加 COST_OFFSET_COVERED.terra
+         *   （默认 5 级 ⇒ 合计 8；廉租社区 2 级 ⇒ 合计 3）。 */
+        s.geek.terraRun = (s.geek.terraRun || 0) + dt;
+        var _terraTime = SB.economy && SB.economy.starTerraformDuration
+          ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
+        if (s.geek.terraRun >= _terraTime) {
+          s.geek.terraDone = true;
+          if (emit) emit('星球重构机 G.E.E.K 完成泰拉星改造：覆盖建筑升级花费下调最多 8 级（廉租社区合计 3 级）。');
+        }
+      }
+      s.geekStarved = false;
+    } else if (!s.geekStarved) {
+      s.geekStarved = true;
+      var _need = '每 s 需 ' + SB.CFG.GEEK_HYDRO + ' 热液能（剩流）+ ' + SB.CFG.GEEK_KELP + ' 藻食 + ' + SB.CFG.GEEK_METAL +
+        ' 金属 + ' + SB.CFG.GEEK_STONE + ' 石头 + ' + SB.CFG.GEEK_CORAL + ' 珊瑚';
+      if (emit) emit('星球重构机 G.E.E.K 缺少热液能或材料（' + _need + '），停转——补足后自动继续。');
+    }
+  }
+
   /* 一个 tick 的天壳推进。dt 为秒。
    * 返回本次实际削掉的壳量，供渲染层显示「正在以 X 点/秒 推进」。 */
   function tickShell(s, dt, emit, opts) {
     if (s.shell < 0) s.shell = 0;   // 修复破壳后钻机凿出的历史负壳（显示漂移，如 -235602）
-    if (s.broken) return 0;
     var cut = 0;
-    /* G.E.E.K 运行态闸门（与天穹钻机同纪律）：已建成且玩家手动启动才跑。 */
-    var geekOn = !!(s.geek && s.geek.geekOn);
-    var geekOwned = !!(SB.wonder && SB.wonder.owned(s).wonder_geek);
+    /* ⚠️ 2026-11-04：G.E.E.K 必须在 broken 门**之前**推进 —— 见 tickGeek 的注释。
+     *   破壳后 ① 削壳与 ② 天穹钻机都无壳可做，只有它还有活要干。 */
+    tickGeek(s, dt, emit);
+    if (s.broken) return 0;
 
     // ① 基础削壳：卡在 FLOOR_AT，不越过
     //    判定用的是 <= 语义——壳精确停在 25% 时也必须停手，否则会来回抖动
@@ -105,50 +185,6 @@
             : '天穹钻机缺共振钻头（现存 ' + (s.res.resonantDrill || 0).toFixed(1) + '，每秒耗 ' +
               SB.CFG.SKYDRILL_DRILL + '），停转——去工坊补货后自动继续。');
         }
-      }
-    }
-
-    // ③ 星球重构机 G.E.E.K（ERA9 · 生态重塑解锁奇观）：建成后在「自然环境」卡手动启动，
-    //    依次改造恩克拉多斯星（1800s）→ 研究 terraform 后改造泰拉星（3600s）。
-    //    ⚠️ 抄天穹钻机 flow 模型：热液能是「每 tick 瞬态流」，从本 tick 剩流里取 GEEK_HYDRO，不再读 s.res.hydro 库存池。
-    //       剩流由 economy.hydroAlloc 同一 tick 算好的 s._hydroFlow.left 给出（工坊低阶先吃满）。
-    //    ⚠️ 库存耗 kelp(藻食)/silt(金属)/stone(石头)/coral(珊瑚) 在扣费**之前**判足（扣费先于置位，失败一分不扣），与 skydrill 同纪律；
-    //       任一不足或断流 = 暂停、进度保留（enceladusRun/terraRun 累加，绝不回拨 geekOn——补料后下一 tick 自动续转）。
-    //    ⚠️ 唯一效果 = 覆盖建筑造价等级偏移（落点 economy.costOf，按建筑分档见 COST_OFFSET_COVERED）；无幸福度/市政/产出额外效果（用户拍板不加）。
-    if (geekOn && geekOwned) {
-      var _gkHydro = SB.CFG.GEEK_HYDRO * dt;
-      var _HF2 = s._hydroFlow || (SB.economy ? SB.economy.hydroAlloc(s, dt) : { geekDraw: 0 });
-      var hydroOK = _HF2.geekDraw > 0;
-      var _gkKelp = SB.CFG.GEEK_KELP * dt, _gkMetal = SB.CFG.GEEK_METAL * dt, _gkStone = SB.CFG.GEEK_STONE * dt, _gkCoral = SB.CFG.GEEK_CORAL * dt;
-      // 两阶段改造都已完成（或等待 terraform 研究）⇒ 没有活儿可干，自动停：不扣料、不走 starvation。
-      var _geekActive = !s.geek.enceladusDone || (s.techs.terraform && !s.geek.terraDone);
-      if (_geekActive && hydroOK && (s.res.kelp || 0) >= _gkKelp && (s.res.silt || 0) >= _gkMetal && (s.res.stone || 0) >= _gkStone && (s.res.coral || 0) >= _gkCoral) {
-        s.res.kelp -= _gkKelp; s.res.silt -= _gkMetal; s.res.stone -= _gkStone; s.res.coral -= _gkCoral;
-        if (!s.geek.enceladusDone) {
-          // 阶段一：恩克拉多斯星改造。完成 ⇒ 按 COST_OFFSET_COVERED.enc 下调（默认 3 级、廉租社区 1 级）。
-          s.geek.enceladusRun = (s.geek.enceladusRun || 0) + dt;
-          var _encTime = SB.economy && SB.economy.starTerraformDuration
-            ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_ENCELADUS_SECONDS) : SB.CFG.GEEK_ENCELADUS_SECONDS;
-          if (s.geek.enceladusRun >= _encTime) {
-            s.geek.enceladusDone = true;
-            if (emit) emit('星球重构机 G.E.E.K 完成恩克拉多斯星改造：覆盖建筑升级花费下调最多 3 级（廉租社区 1 级）。');
-          }
-        } else if (s.techs.terraform && !s.geek.terraDone) {
-          // 阶段二：泰拉星改造（需先研究 terraform 解锁）。完成 ⇒ 再叠加 COST_OFFSET_COVERED.terra（默认 5 级 ⇒ 合计 8；廉租社区 2 级 ⇒ 合计 3）。
-          s.geek.terraRun = (s.geek.terraRun || 0) + dt;
-          var _terraTime = SB.economy && SB.economy.starTerraformDuration
-            ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
-          if (s.geek.terraRun >= _terraTime) {
-            s.geek.terraDone = true;
-            if (emit) emit('星球重构机 G.E.E.K 完成泰拉星改造：覆盖建筑升级花费下调最多 8 级（廉租社区合计 3 级）。');
-          }
-        }
-        s.geekStarved = false;
-      } else if (_geekActive && !s.geekStarved) {
-        s.geekStarved = true;
-        var _need = '每 s 需 ' + SB.CFG.GEEK_HYDRO + ' 热液能（剩流）+ ' + SB.CFG.GEEK_KELP + ' 藻食 + ' + SB.CFG.GEEK_METAL +
-          ' 金属 + ' + SB.CFG.GEEK_STONE + ' 石头 + ' + SB.CFG.GEEK_CORAL + ' 珊瑚';
-        if (emit) emit('星球重构机 G.E.E.K 缺少热液能或材料（' + _need + '），停转——补足后自动继续。');
       }
     }
 
@@ -218,7 +254,7 @@
     if (!s || s.shell > 0 || !(s.broken || s.shellOpened || s.breakSettled) || s.starComplete) return;
     var rate = (SB.economy && SB.economy.starRate) ? SB.economy.starRate(s) : 0;
     if (!(rate > 0)) return;
-    var cap = SB.CFG.STAR_CAP || 0;
+    var cap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
     var cur = s.res.starExplore || 0;
     var next = Math.min(cap, cur + rate * dt);
     s.res.starExplore = next;
@@ -239,6 +275,10 @@
     breakCoef: breakCoef,
     brokenRatio: brokenRatio,
     autoRate: autoRate,
+    /* G.E.E.K「还有活要干」—— economy.hydroAlloc 与 economy-rates 都必须读这个，
+     * 不许各自再写一遍（同源铁律，见函数注释）。 */
+    geekActive: geekActive,
+    tickGeek: tickGeek,
     tickShell: tickShell,
     tickStar: tickStar,
     onShellZero: onShellZero

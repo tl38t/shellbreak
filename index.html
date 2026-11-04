@@ -90,6 +90,18 @@
               <button type="button" class="ui-setting-btn" id="btnSettingsRedeem">输入兑换码</button>
             </div>
           </div>
+          <!-- 通关演出回看（2026-11-03 用户要求「放到设置里，想再看可以反复播放」）。
+               起因：重复挑战通关刻意不弹庆祝面板，第二次通关的人再也看不到这段演出。
+               ⚠️ 默认 hidden，由 render.js 的 syncTerraReplayRow() 按「已通关《流浪泰拉》」
+                  显隐 —— 未通关不剧透，也不留一个点了没反应的死按钮。
+               ⚠️ 结构静态、只有 hidden 被改；按钮 onclick 由 bindSettingsExtras() 接，
+                  与自动点击/音乐那两块同一条纪律：这里不许被整块重写。 -->
+          <div id="terraReplayBlock" hidden>
+            <div class="ui-settings-title">通关演出</div>
+            <div class="ui-settings-actions">
+              <button type="button" class="ui-setting-btn" id="btnReplayTerra">回看《流浪泰拉》</button>
+            </div>
+          </div>
           <div class="ui-settings-title">存档</div>
           <div class="ui-settings-actions">
             <button type="button" class="ui-setting-btn" id="btnSettingsSaveNow">立即保存</button>
@@ -279,7 +291,7 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=207"></script>
+<script src="src/config.js?v=209"></script>
 <script src="src/config-catalog.js?v=12"></script>
 <script src="src/config-content.js?v=38"></script>
 <script src="src/config-buildings.js?v=48"></script>
@@ -302,20 +314,20 @@
 <script src="src/workshop.js?v=125"></script>
 <script src="src/wonder.js?v=113"></script>
 <script src="src/economy-social.js?v=10"></script>
-<script src="src/economy.js?v=205"></script>
-<script src="src/economy-rates.js?v=31"></script>
-<script src="src/economy-tick.js?v=28"></script>
+<script src="src/economy.js?v=207"></script>
+<script src="src/economy-rates.js?v=33"></script>
+<script src="src/economy-tick.js?v=29"></script>
 <script src="src/offline-scheduler.js?v=4"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=4"></script>
 <script src="src/audio.js?v=1"></script>
-<script src="src/shell.js?v=112"></script>
+<script src="src/shell.js?v=113"></script>
 <script src="src/habitat.js?v=114"></script>
 <script src="src/folk.js?v=106"></script>
 <script src="src/prestige.js?v=133"></script>
-<script src="src/challenges.js?v=19"></script>
+<script src="src/challenges.js?v=20"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
@@ -327,19 +339,19 @@
 <script src="src/ui/render-pane-folk.js?v=5"></script>
 <script src="src/ui/render-talent-tree.js?v=5"></script>
 <script src="src/ui/render-pane-meta.js?v=12"></script>
-<script src="src/ui/render-pane-challenges.js?v=20"></script>
+<script src="src/ui/render-pane-challenges.js?v=21"></script>
 <script src="src/ui/render-pane-company.js?v=4"></script>
 <script src="src/ui/render-pane-faith.js?v=2"></script>
 <script src="src/ui/render-pane-wonder.js?v=5"></script>
 <script src="src/ui/render-pane-star-map.js?v=9"></script>
 <script src="src/ui/render-pane-workshop.js?v=16"></script>
 <script src="src/ui/render-environment.js?v=23"></script>
-<script src="src/ui/render.js?v=274"></script>
+<script src="src/ui/render.js?v=275"></script>
 <script src="src/ui/track-dock.js?v=6"></script>
 <script src="src/onboarding.js?v=1"></script>
 <script src="src/game.js?v=178"></script>
 <script src="src/save-transfer.js?v=16"></script>
-<script src="src/redeem.js?v=2"></script>
+<script src="src/redeem.js?v=3"></script>
 <script src="src/ui/input.js?v=178"></script>
 <script src="src/ai-strategy.js?v=90"></script>
 <script src="src/ui/theme.js?v=4"></script>
