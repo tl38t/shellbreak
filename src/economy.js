@@ -704,7 +704,7 @@
    *    改它会让「上限 1,200」印成「1,200.0」。这里是**成本标签单独换**。 */
   function costTxt(c) {
     var out = [];
-    for (var k in c) out.push(SB.RESS[k].name + ' ' + fmtAmt(c[k]));
+    for (var k in c) out.push((SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name) + ' ' + fmtAmt(c[k]));
     return out.join(' + ');
   }
   /* ⚠️ 2026-10-05 用户需求：建造按钮「不只显示要多少，也显示已有多少」，形如「珊瑚 30/50」。
@@ -720,14 +720,19 @@
       /* ERA10 市政（2026-10-20 · 虚境祭坛）：人口造价也要在按钮上显示「有/需要」，
        * 否则玩家只看到「建造 是」却不知道这一步要吃 30 人（按钮标签 = 唯一的成本提示）。 */
       if (k === 'pop') {
-        out.push('人口 ' + Math.floor((typeof s.pop === 'number' && isFinite(s.pop)) ? s.pop : 0) + '/' + fmtAmt(c.pop));
+        var populationName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName('population', '人口') : '人口';
+        out.push(populationName + ' ' + Math.floor((typeof s.pop === 'number' && isFinite(s.pop)) ? s.pop : 0) + '/' + fmtAmt(c.pop));
         continue;
       }
       var rawHave = s.res && s.res[k];
       /* 存档迁移会清洗旧 NaN，但面板也必须防住当前运行态的坏值：
        *    这里显示的是「已有 / 需要」，坏的已有值应回落为 0，绝不能把 NaN 印给玩家。 */
       var have = (typeof rawHave === 'number' && isFinite(rawHave)) ? Math.floor(rawHave) : 0;
-      out.push(SB.RESS[k].name + ' ' + have + '/' + fmtAmt(c[k]));
+      var resourceName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
+      var itemText = SB.i18n && SB.i18n.t ? SB.i18n.t('ui.build.cost.item_amount', {
+        resourceName: resourceName, owned: have, required: fmtAmt(c[k])
+      }) : '';
+      out.push(itemText || (resourceName + ' ' + have + '/' + fmtAmt(c[k])));
     }
     return out.join(' ');
   }
@@ -744,8 +749,10 @@
     if (!s || !id) return '';
     var cc = c || costOf(s, id);
     if (SB.habitat && SB.habitat.freeFirstBuild && SB.habitat.freeFirstBuild(s, id)) {
-      return '免费' + ((typeof cc.pop === 'number' && cc.pop > 0)
-        ? '（仍需人口 ' + fmtAmt(cc.pop) + '）' : '');
+      if (typeof cc.pop === 'number' && cc.pop > 0 && SB.i18n && SB.i18n.t) {
+        return SB.i18n.t('ui.build.cost.free_population_required', { populationRequired: fmtAmt(cc.pop) });
+      }
+      return (SB.i18n && SB.i18n.t && SB.i18n.t('ui.build.cost.free')) || '免费';
     }
     return costOwnedTxt(s, cc);
   }
@@ -2827,7 +2834,11 @@
     /* 水体污染通关奖励乘区（商人奢侈品 +50%）—— 面板/实账/速率三处同源的唯一入口。 */
     luxuryOutMul: luxuryOutMul,
     thetaFlow: thetaFlow, thetaRate: thetaRate, thetaInputRates: thetaInputRates,
-    rOf: rOf, starRate: starRate, spaceCostMul: spaceCostMul, isCold: isCold, popCap: popCap, isFull: isFull,
+    /* 2026-11-06：UI 的「本季冰封」提示要显示全局产出倍率（含 coldPenalty 加成），
+     * 必须与 tick / rates 同源。此前它只挂在 economyInternals ⇒ 冰封季 renderShell
+     * 调 SB.economy.coldSeasonMul 抛 TypeError，renderAll 中断并连带打断启动流程。 */
+    rOf: rOf, starRate: starRate, spaceCostMul: spaceCostMul, isCold: isCold, coldSeasonMul: coldSeasonMul,
+    popCap: popCap, isFull: isFull,
     growthDuration: growthDuration, lvlSum: lvlSum,
     enough: enough,
     /* ⚠️ upgSum 导出（2026-09-29 工坊升级 craftRatio）：工坊效率的第五个加法来源

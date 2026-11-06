@@ -20,6 +20,15 @@
   function meta() { return SB.game.meta(); }
 
   function el(id) { return document.getElementById(id); }
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function htmlText(value) {
+    return String(value == null ? '' : value).replace(/[&<>\"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' })[ch];
+    });
+  }
 
   /* 页面材质只跟随当前周目的纪元，不改存档数据。游戏重载页面时也会由这里从活动局恢复。 */
   function applyEraSkin(s) {
@@ -105,9 +114,19 @@
     var m = CARD_META[key] || { name: key, color: 'var(--cyan)' };
     /* 巢穴页的名字随纪元演进（家在长大），其余页用固定名。
      * ⚠️ 取活动局 run() 的 era，2 秒面板重画时会自动跟着纪元走。 */
-    var nm = (key === 'village') ? (SB.habitat && SB.habitat.habitatName ? SB.habitat.habitatName(SB.game.run()) : m.name) : m.name;
+    var titleKeys = {
+      folk: 'ui.pane.people.title', tech: 'ui.pane.research.title', civic: 'ui.pane.civics.title',
+      faith: 'ui.pane.faith.title', workshop: 'ui.workshop.title', wonder: 'ui.pane.wonders.title',
+      'star-map': 'ui.pane.star_map.title', company: 'ui.pane.companies.title',
+      challenges: 'ui.pane.challenges.title', achievements: 'ui.pane.achievements.title',
+      meta: 'ui.pane.prestige_shop.title'
+    };
+    var nm = (key === 'village')
+      ? (SB.habitat && SB.habitat.habitatName ? SB.habitat.habitatName(SB.game.run()) : m.name)
+      : tr(titleKeys[key], null, m.name);
+    nm = htmlText(nm);
     return '<div class="cardhd" data-fold="' + key + '" style="--hc:' + m.color +
-      '" title="点击折叠 / 展开"><span class="cv">▾</span>' + nm +
+      '" title="' + htmlText(tr('ui.card.collapse_expand.tooltip', null, '点击折叠 / 展开')) + '"><span class="cv">▾</span>' + nm +
       (sub ? '<span class="hcsub">' + sub + '</span>' : '') + '</div>';
   }
   loadFold();
@@ -151,8 +170,10 @@
     var n = el('building-icon-toggle');
     if (!n) return;
     n.setAttribute('aria-pressed', BUILDING_ICONS_SHOWN ? 'true' : 'false');
-    n.textContent = BUILDING_ICONS_SHOWN ? '图标：显示' : '图标：隐藏';
-    n.title = BUILDING_ICONS_SHOWN ? '点击隐藏建筑图标' : '点击显示建筑图标';
+    n.textContent = tr(BUILDING_ICONS_SHOWN ? 'ui.building_icons.shown.label' : 'ui.building_icons.hidden.label', null,
+      BUILDING_ICONS_SHOWN ? '图标：显示' : '图标：隐藏');
+    n.title = tr(BUILDING_ICONS_SHOWN ? 'ui.building_icons.hide.tooltip' : 'ui.building_icons.show.tooltip', null,
+      BUILDING_ICONS_SHOWN ? '点击隐藏建筑图标' : '点击显示建筑图标');
   }
   function loadBuildingIconPreference() {
     try {
@@ -263,7 +284,7 @@
       }
       /* 信仰行的标签：玩家给信仰起了名 ⇒ 用宗教名代替「信仰」二字（神学解锁后可在 #religionBox 改名）。
        * ERA9 虚境信仰卡装填后强制「虚境」并锁死（覆盖玩家自定义名，见 civics.faithDisplayName）。 */
-      var rowName = SB.RESS[k].name;
+      var rowName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
       if (k === 'faith') {
         var rn = (SB.civic && SB.civic.faithDisplayName)
           ? SB.civic.faithDisplayName(s)
@@ -402,10 +423,12 @@
         var dysonPercent = Math.max(0, Math.min(100, dysonRatio * 100));
         var currentSails = Math.max(0, Number(s.sunSails) || 0);
         var currentNodes = Math.max(0, Number(s.dysonNodes) || 0);
-        var stagePosition = s.dysonDone ? 5 : dysonPercent / 20;
-        var currentStage = Math.min(5, Math.floor(dysonPercent / 20) + 1);
-        if (s.dysonDone) currentStage = 5;
         var stageTrack = el('shellDysonStages');
+        var stageCount = stageTrack && stageTrack.children && stageTrack.children.length ? stageTrack.children.length : 5;
+        var stageContributionPercent = 100 / stageCount;
+        var stagePosition = s.dysonDone ? stageCount : dysonPercent / stageContributionPercent;
+        var currentStage = Math.min(stageCount, Math.floor(dysonPercent / stageContributionPercent) + 1);
+        if (s.dysonDone) currentStage = stageCount;
         if (stageTrack) {
           if (s.dysonDone) stageTrack.classList.add('is-finished');
           else stageTrack.classList.remove('is-finished');
@@ -424,12 +447,22 @@
         f.className = 'shellfill dyson';
         if (f.parentNode) f.parentNode.classList.add('dyson-progress');
         var dysonLbl = el('shellLbl');
-        if (dysonLbl) dysonLbl.innerHTML = '<img class="special-resource-icon" src="assets/building-icons/era-10/era10-solar-ring-v2.png" alt="" aria-hidden="true" width="20" height="20"><span>戴森球工程进度</span>';
-        txt.innerHTML = (s.dysonDone ? '★ 戴森球已竣工' : '戴森球工程 ' + dysonPercent.toFixed(2) + '%') +
-          ' <span class="dyson-stage-badge">阶段 ' + currentStage + ' / 5</span>' +
-          ' <span class="cap">（太阳帆 ' + currentSails.toLocaleString() + ' / ' + dysonCapSails.toLocaleString() +
-          ' ＋ 戴森球节点 ' + currentNodes.toLocaleString() + ' / ' + dysonCapNodes.toLocaleString() + '）</span>';
-        hint.textContent = '五阶段各代表总工程的 20%；进度取太阳帆与戴森球节点中较慢的一项，两项都达标后工程竣工。';
+        if (dysonLbl) dysonLbl.innerHTML = '<img class="special-resource-icon" src="assets/building-icons/era-10/era10-solar-ring-v2.png" alt="" aria-hidden="true" width="20" height="20"><span>' +
+          htmlText(tr('ui.shell.dyson.project.label', null, '戴森球工程进度')) + '</span>';
+        var projectLabel = s.dysonDone
+          ? tr('ui.shell.dyson.project.complete', null, '★ 戴森球已竣工')
+          : tr('ui.shell.dyson.project.progress', { dysonProgressPercent: dysonPercent.toFixed(2) }, '戴森球工程 ' + dysonPercent.toFixed(2) + '%');
+        var stageLabel = tr('ui.shell.dyson.project.stage', { currentStage: currentStage, stageCount: stageCount }, '阶段 ' + currentStage + ' / ' + stageCount);
+        var countLabel = tr('ui.shell.dyson.project.sail_node_counts', {
+          currentSails: currentSails.toLocaleString(), sailCap: dysonCapSails.toLocaleString(),
+          currentNodes: currentNodes.toLocaleString(), nodeCap: dysonCapNodes.toLocaleString()
+        }, '（太阳帆 ' + currentSails.toLocaleString() + ' / ' + dysonCapSails.toLocaleString() +
+          ' ＋ 戴森球节点 ' + currentNodes.toLocaleString() + ' / ' + dysonCapNodes.toLocaleString() + '）');
+        txt.innerHTML = htmlText(projectLabel) + ' <span class="dyson-stage-badge">' + htmlText(stageLabel) +
+          '</span> <span class="cap">' + htmlText(countLabel) + '</span>';
+        hint.textContent = tr('ui.shell.dyson.project.progress_hint', {
+          stageCount: stageCount, stageContributionPercent: stageContributionPercent.toFixed(0)
+        }, '五阶段各代表总工程的 20%；进度取太阳帆与戴森球节点中较慢的一项，两项都达标后工程竣工。');
         return;
       }
       var cap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
@@ -440,27 +473,42 @@
       if (f.parentNode) f.parentNode.classList.remove('dyson-progress');
       /* 卡片标题跟着翻转（2026-10-13 截图验证发现：条改了、标题还挂「天壳 · 冰封层厚度」）。 */
       var lbl = el('shellLbl');
-      if (lbl) lbl.innerHTML = '<img class="special-resource-icon" src="assets/resource-icons/starExplore.png?v=2" alt="" aria-hidden="true" width="20" height="20"><span>星空 · 深空探索进度</span>';
+      if (lbl) lbl.innerHTML = '<img class="special-resource-icon" src="assets/resource-icons/starExplore.png?v=2" alt="" aria-hidden="true" width="20" height="20"><span>' +
+        htmlText(tr('ui.shell.star_exploration.progress_label', null, '星空 · 深空探索进度')) + '</span>';
       if (s.starComplete) {
-        txt.innerHTML = '★ 太空时代达成 <span class="cap">（' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '）</span>';
-        hint.textContent = '星空探索已达上限；研究《绝热材料》后，戴森球工程进度会接替这里。';
+        /* `.cap` 是线上原版的计数样式：拆成「标题 + 计数」两个语义 key，
+         * 既不把 HTML 塞进文案，也不会让整串被 htmlText() 转义后丢掉样式。
+         * ⚠️ 必须写 innerHTML：e2e 的 DOM 桩只从 _html 读 #shellTxt。 */
+        var completeParams = {
+          currentStarProgress: Math.round(cur).toLocaleString(), starProgressCap: cap.toLocaleString()
+        };
+        txt.innerHTML = htmlText(tr('ui.shell.star_exploration.complete', null, '★ 太空时代达成')) +
+          ' <span class="cap">' + htmlText(tr('ui.shell.star_exploration.complete_counts', completeParams,
+            '（' + completeParams.currentStarProgress + ' / ' + completeParams.starProgressCap + '）')) + '</span>';
+        hint.textContent = tr('ui.shell.star_exploration.complete_hint', null, '星空探索已达上限；研究《绝热材料》后，戴森球工程进度会接替这里。');
       } else {
-        txt.innerHTML = '星空槽 ' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '（' + p.toFixed(2) + '%）';
-        hint.textContent = '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积，满槽即太空时代达成。'
-          + '卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。';
+        /* ⚠️ 必须写 innerHTML：e2e 的 DOM 桩只把 innerHTML 同步到 _html，
+         * 用 textContent 会让「星空槽」断言读到上一帧的旧串。 */
+        txt.innerHTML = htmlText(tr('ui.shell.star_exploration.progress', {
+          currentStarProgress: Math.round(cur).toLocaleString(), starProgressCap: cap.toLocaleString(), starProgressPercent: p.toFixed(2)
+        }, '星空槽 ' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '（' + p.toFixed(2) + '%）'));
+        hint.textContent = tr('ui.shell.star_exploration.progress_hint', null, '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积，满槽即太空时代达成。卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。');
       }
       return;
     }
     /* 破壳前：原有天壳条逻辑 */
     var lbl0 = el('shellLbl');
-    if (lbl0) lbl0.textContent = '天壳 · 冰封层厚度';
+    if (lbl0) lbl0.textContent = tr('ui.shell.thickness.label', null, '天壳 · 冰封层厚度');
     var p2 = SB.economy.rOf(s) * 100;
     f.style.width = Math.max(0, p2) + '%';
     f.className = 'shellfill' + (SB.economy.isCold(s) ? ' cold' : '');
     if (f.parentNode) f.parentNode.classList.remove('dyson-progress');
-    txt.innerHTML =
-      Math.round(s.shell) + ' / ' + s.iceShell + '（' + p2.toFixed(1) + '%）' +
-      (SB.economy.isCold(s) ? ' <span class="coldbadge">· 本季冰封</span>' : '');
+    /* 线上原版是全角括号「（25.0%）」；接 i18n 时曾把整串硬编码成半角，
+     * 现在收回词库，中文/英文各自保留正确标点，不再在渲染器里拼中文。 */
+    txt.innerHTML = htmlText(tr('ui.shell.thickness.progress', {
+      currentShell: Math.round(s.shell), iceShell: s.iceShell, shellPercent: p2.toFixed(1)
+    }, Math.round(s.shell) + ' / ' + s.iceShell + '（' + p2.toFixed(1) + '%）')) +
+      (SB.economy.isCold(s) ? ' <span class="coldbadge">' + htmlText(tr('ui.shell.thickness.frozen_badge', null, '· 本季冰封')) + '</span>' : '');
     /* 2026-10-30（用户）：「提醒玩家被动破壳只能到 25%，后续要造奇观钻头」。
      * 两件事必须在**没到下限时**就说清楚，不能等卡住了才讲：
      *   ① 基础（被动）削壳有天花板 = FLOOR_AT，不是无限推；
@@ -469,19 +517,25 @@
      *    玩家顺着找会扑空（真机取证：`#card-env button` 一个都没有）。改成条件语态
      *    「建成后这一行下方就会出现启动按钮」，只在真的会有按钮时才指向它。 */
     var floorPct = Math.round((CFG.FLOOR_AT || 0) * 100);
-    var hint2 = '被动削壳：族民、建筑、科技推高它，但最多只能把天壳削到 ' + floorPct +
-      '%——最后一段要靠建成奇观「天穹钻机」来凿。';
+    var hint2 = tr('ui.shell.thickness.hint.passive_limit', { shellFloorPercent: floorPct },
+      '被动削壳：族民、建筑、科技推高它，但最多只能把天壳削到 ' + floorPct + '%——最后一段要靠建成奇观「天穹钻机」来凿。');
     if (SB.economy.rOf(s) <= CFG.FLOOR_AT) {
-      hint2 = '已到 ' + floorPct + '% 下限，被动削壳到此为止。剩下的天壳要靠奇观「天穹钻机」：'
-        + '先在科技页研究同名科技，再到奇观页建成它，这一行下方就会出现启动按钮。';
+      hint2 = tr('ui.shell.thickness.hint.at_limit', { shellFloorPercent: floorPct },
+        '已到 ' + floorPct + '% 下限，被动削壳到此为止。剩下的天壳要靠奇观「天穹钻机」：先在科技页研究同名科技，再到奇观页建成它，这一行下方就会出现启动按钮。');
     }
     /* 冰封那段是**次要信息**，不该跟主指令抢行数：已到下限时概率恒定（越薄越容易中到顶），
      * 再报一次「现在 25%」只会和主句的下限数字撞在一起读成一句话。 */
-    if (SB.economy.isCold(s)) hint2 += ' 本季冰封：全局产出 ×0.6，族民会冻伤（拨开暖石开关即可免）。';
-    else if (SB.economy.rOf(s) <= CFG.FLOOR_AT) hint2 += ' 冰封按寒流季掷骰，壳越薄越容易中。';
+    if (SB.economy.isCold(s)) hint2 += ' ' + tr('ui.shell.thickness.hint.frozen_season', {
+      coldSeasonGlobalProductionMultiplier: SB.economy.coldSeasonMul(s)
+    }, '本季冰封：全局产出 ×0.6，族民会冻伤（拨开暖石开关即可免）。');
+    /* 下限时只给短句（不重复报概率）；与未到下限的长句是两种语义，
+     * 之前误用同一个 key ⇒ 下限态会显示长句。各自独立登记，不共用 key。 */
+    else if (SB.economy.rOf(s) <= CFG.FLOOR_AT) hint2 += ' ' + tr('ui.shell.thickness.hint.freeze_chance_at_limit', null,
+      '冰封按寒流季掷骰，壳越薄越容易中。');
     else {
-      hint2 += ' 冰封期在每个寒流季开局掷一次，壳越薄越容易中——按现在的壳厚是 ' +
-        Math.round(SB.economy.freezeChance(s) * 100) + '%。';
+      hint2 += ' ' + tr('ui.shell.thickness.hint.freeze_chance', {
+        freezeChancePercent: Math.round(SB.economy.freezeChance(s) * 100)
+      }, '冰封期在每个寒流季开局掷一次，壳越薄越容易中——按现在的壳厚是 ' + Math.round(SB.economy.freezeChance(s) * 100) + '%。');
     }
     hint.textContent = hint2;
   }
@@ -1414,7 +1468,9 @@
 
   function clock() {
     var s = res(); if (!s) return;
-    el('clock').textContent = '存续 ' + (s.t / 3600).toFixed(2) + ' 小时｜已削壳 ' + Math.max(0, s.baseShell - s.shell).toFixed(0);
+    el('clock').textContent = tr('run.clock.duration_and_shell', {
+      hours: (s.t / 3600).toFixed(2), shellRemoved: Math.max(0, s.baseShell - s.shell).toFixed(0)
+    }, '存续 ' + (s.t / 3600).toFixed(2) + ' 小时｜已削壳 ' + Math.max(0, s.baseShell - s.shell).toFixed(0));
   }
 
   /* 族民 tab 上的生育进度条：直接读 tick 里的 s._grow / economy.growthDuration（第 6 步），
@@ -1497,7 +1553,12 @@
     if (idle === _lastIdleTag) return;
     _lastIdleTag = idle;
     var t = el('folkTabName');
-    if (t) t.textContent = idle > 0 ? '族民（' + idle + '）' : '族民';
+    if (t) {
+      /* 用已登记的 people.tab.idle_count（全角括号），别在渲染器里手拼半角标签。 */
+      t.textContent = idle > 0
+        ? tr('people.tab.idle_count', { idleCount: idle }, '族民（' + idle + '）')
+        : tr('ui.pane.people.title', null, '族民');
+    }
   }
 
   /* 当前挑战提示放在页签与面板之间；子节点保持常驻，只改文本，避免每帧重建按钮吞掉点击。 */
@@ -2580,6 +2641,13 @@
   }
 
   SB.ui = SB.ui || {};
+  if (root.addEventListener) root.addEventListener('shellbreak:locale-changed', function () {
+    if (!SB.game || !SB.game.run || !SB.game.run()) return;
+    _lastIdleTag = -1;
+    syncBuildingIconToggle();
+    renderAll();
+  });
+
   SB.ui.openIntro = openIntro;     /* 供 index.html 页签「?」按钮 onclick 调用 */
   SB.ui.closeIntro = closeIntro;
   SB.ui.render = {

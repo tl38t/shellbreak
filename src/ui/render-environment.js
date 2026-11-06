@@ -6,6 +6,14 @@
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
   var CFG = SB.CFG;
   function el(id) { return root.document.getElementById(id); }
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function seasonName(index, fallback) {
+    var keys = ['content.season_warm.name', 'content.season_slack.name', 'content.season_cold.name'];
+    return tr(keys[index], null, fallback);
+  }
 
   /* ── 奇观机器横幅小图标（2026-10-23 用户拍：自然环境卡里两台奇观机器挂奇观图标）──
    * 图源**单点复用** render-content.js 的 WONDER_ART（奇观页 36×36 同一张表）——
@@ -43,14 +51,16 @@
     if (!s) return;
     var box = el('envVolcano'); if (!box) return;
     var sm = SB.economy.seasonMeta(s);
-    var html = '<div><div class="nm">海底火山 · ' +
-      (sm.known ? sm.name : '看不出规律') + '</div><div class="ds">' +
-      (sm.known
-        ? '这一季深海藻场产出 ×' + sm.mult.toFixed(3) +
-          '；约 ' + sm.left + ' 潮日后转<b>' + sm.next + '</b>。'
-          + (sm.mult < 1 ? '<span style="color:var(--red)">减产季。</span>' : '')
-        : '族民记下的次数对不上潮水的涨落——「历法」能把这一季的周期与减产幅度读出来。')
-      + '</div></div>';
+    var currentSeason = sm.known ? seasonName(sm.idx, sm.name) : tr('environment.season.pattern_unclear', null, '看不出规律');
+    var heading = tr('environment.volcano.heading', { seasonName: currentSeason }, '海底火山 · ' + currentSeason);
+    var note = sm.known
+      ? tr('environment.season.kelp_forecast', {
+          seasonMultiplier: sm.mult.toFixed(3),
+          nextSeason: seasonName((sm.idx + 1) % 3, sm.next), tideDays: sm.left
+        }, '这一季深海藻场产出 ×' + sm.mult.toFixed(3) + '；约 ' + sm.left + ' 潮日后转入' + sm.next + '。')
+          + (sm.mult < 1 ? '<span style="color:var(--red)">' + tr('environment.season.reduced_output', null, '减产季。') + '</span>' : '')
+      : tr('environment.season.pattern_note', null, '族民记下的次数对不上潮水的涨落——「历法」能把这一季的周期与减产幅度读出来。');
+    var html = '<div><div class="nm">' + heading + '</div><div class="ds">' + note + '</div></div>';
     if (html === envCache) return;
     envCache = html;
     box.innerHTML = html;
@@ -657,7 +667,7 @@
         (pBase > 0 ? '（当前 ' + pollutionPercent(pBase) + '/秒）。' : '。') + '</div>'
       : '';
     var html = '<section class="pollution-panel" aria-labelledby="polTitle">' +
-      '<header class="pol-head"><div class="pol-title-group"><img class="pol-icon" src="assets/challenges/challenge-waterpollution.svg?v=2" alt="" aria-hidden="true">' +
+      '<header class="pol-head"><div class="pol-title-group"><img class="pol-icon" src="assets/challenges/challenge-waterpollution-illustrated.webp" alt="" aria-hidden="true">' +
       '<div><div class="pol-title" id="polTitle">海洋污染</div><div class="pol-sub">净污染存量 · 每秒变化</div></div></div>' +
       '<span class="pol-stage"><i aria-hidden="true"></i>阶段 ' + idx + ' · ' + st.name + '</span></header>' +
       '<div class="pol-hero"><div class="pol-ring" id="polRing" role="progressbar" aria-label="' + st.name + '阶段进度" aria-valuetext="' + st.name + '阶段，污染存量 ' + fmt(pollution) + '" aria-valuenow="' + Math.round(pct) + '" aria-valuemin="0" aria-valuemax="100" style="--pol-progress:' + pct.toFixed(1) + '%">' +

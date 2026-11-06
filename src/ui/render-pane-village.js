@@ -4,6 +4,21 @@
   var SB = root.SB || (root.SB = {});
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function buildingName(id, fallback) {
+    return SB.i18n && SB.i18n.buildingName ? SB.i18n.buildingName(id, fallback) : fallback;
+  }
+  function zoneName(id, fallback) {
+    return SB.i18n && SB.i18n.zoneName ? SB.i18n.zoneName(id, fallback) : fallback;
+  }
+  function htmlText(value) {
+    return String(value == null ? '' : value).replace(/[&<>\"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' })[ch];
+    });
+  }
 
   function launchProgressPct(s, buildingId) {
     if (!s || !SB.economy || !SB.economy.launchCycleOf) return 0;
@@ -64,25 +79,35 @@
     var _acOn = _acRate > 0 && !(s.autoClickOn === false);
     var _acTag = _acRate <= 0 ? ''
       : (_acOn
-        ? '<span class="auto-click-tag" title="轮回商店「潮讯自拾」：自动替你点这两个按钮，' +
-          '不随游戏倍速放大。可在 ⚙ 设置 → 自动 里暂停">自动点击中 · ' + _acRate + ' 次/秒</span>'
-        : '<span class="auto-click-tag is-off" title="已在 ⚙ 设置 → 自动 里暂停；' +
-          '手动点这两个按钮不受影响">自动点击已暂停</span>');
+        ? '<span class="auto-click-tag" title="' + htmlText(tr('village.auto_click.active.tooltip', null, '轮回商店「潮讯自拾」：自动替你点这两个按钮，不随游戏倍速放大。可在 ⚙ 设置 → 自动 里暂停')) + '">' +
+          htmlText(tr('village.auto_click.active.status', { clicksPerSecond: _acRate }, '自动点击中 · ' + _acRate + ' 次/秒')) + '</span>'
+        : '<span class="auto-click-tag is-off" title="' + htmlText(tr('village.auto_click.paused.tooltip', null, '已在 ⚙ 设置 → 自动 里暂停；手动点这两个按钮不受影响')) + '">' +
+          htmlText(tr('village.auto_click.paused.status', null, '自动点击已暂停')) + '</span>');
     /* ⚠️ 2026-10-16 用户「这里也统一一下」：两个采集按钮包进 .gather-btns，行加 .gather-row ——
      *   旧状两钮是 .row 的裸 flex 子项、无宽度约束，被文本列挤成逐字竖排，且「+1 / +0.1」
      *   宽窄不一。尺寸统一写进 CSS（见 50-module-polish）。 */
-    h += '<div class="row gather-row"><div><div class="nm">手动采集' + _acTag + '</div>' +
-      '<div class="ds">开局 1 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢' +
-      '（人口上限 1 → 3），再攒 15 藻食建深海菌圃让口粮跟上。' +
+    var startupPopulation = SB.challenges && SB.challenges.startingPopulation ? SB.challenges.startingPopulation() : SB.CFG.POP_START;
+    var nestBuilding = SB.habitat.buildingById('nest') || {};
+    var kelpBuilding = SB.habitat.buildingById('kelp') || {};
+    var coralCost = nestBuilding.cost && nestBuilding.cost.coral || 0;
+    var kelpCost = kelpBuilding.cost && kelpBuilding.cost.kelp || 0;
+    var startingCap = SB.BLD.houseBase || startupPopulation;
+    var startupHint = tr('village.startup.housing_food_hint', {
+      startingPopulation: startupPopulation, passiveIncome: 0, coralCost: coralCost,
+      oldPopulationCap: startingCap, newPopulationCap: startingCap + (SB.BLD.house || 0), kelpCost: kelpCost
+    }, '开局 1 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢（人口上限 1 → 3），再攒 15 藻食建深海菌圃让口粮跟上。');
+    var growthHint = tr('village.population.growth.kelp_threshold', { kelpThreshold: SB.CFG.GROW_KEEP },
+      '人口要涨得同时满足两条：住房没住满，且藻食高于 ' + SB.CFG.GROW_KEEP + '（低于此值会一直停摆）。');
+    h += '<div class="row gather-row"><div><div class="nm">' + htmlText(tr('village.gather.manual.heading', null, '手动采集')) + _acTag + '</div>' +
+      '<div class="ds">' + htmlText(startupHint) +
       /* 2026-10-27 用户：「是不是应该说明藻食低于 20 人口就不会增长」——
        * 这条规则原先只写在族民页的生育那一行，而玩家绝大多数时间待在巢穴页，
        * 于是出现「建完菌圃以为就会生人、结果人数纹丝不动」的困惑。
        * ⚠️ 门槛读 CFG.GROW_KEEP，不写死 20（改常数时文案自动跟）。 */
-      '<b>人口要涨得同时满足两条：住房没住满，且藻食高于 ' + SB.CFG.GROW_KEEP +
-      '（低于此值会一直停摆）。</b></div></div>' +
+      '<b>' + htmlText(growthHint) + '</b></div></div>' +
       '<div class="gather-btns">' +
-      '<button class="btn buy" data-gather="kelp">采藻食 +' + GA.kelp + '</button>' +
-      '<button class="btn buy" data-gather="coral">采珊瑚 +' + GA.coral + '</button>' +
+      '<button class="btn buy" data-gather="kelp">' + htmlText(tr('village.gather.kelp.button', { gatherAmount: GA.kelp }, '采藻食 +' + GA.kelp)) + '</button>' +
+      '<button class="btn buy" data-gather="coral">' + htmlText(tr('village.gather.coral.button', { gatherAmount: GA.coral }, '采珊瑚 +' + GA.coral)) + '</button>' +
       '</div></div>';
 
     /* ── 海底火山周期已挪走（2026-09-26 用户要求）──
@@ -150,12 +175,14 @@
          *   页面启动即 `querySelector is not a function`。踩过一次，改名 `_upi`。 */
         /* 2026-10-21（用户拍板）：描述走共享出口 SB.ui.buildingDescText —— 凡「科技改写数值」
          *   的建筑（当前=核热厂）按本局实际状态出数，不写「如果研究了会是多少」的条件句。 */
-        var dispName = b.name,
+        var dispName = buildingName(b.id, b.name),
             dispDesc = (SB.ui && SB.ui.buildingDescText) ? SB.ui.buildingDescText(s, b) : b.desc;
+        if (b.id === 'kelp') dispDesc = tr('building.kelp.description', { kelpPerLevel: SB.BLD.food }, dispDesc);
+        else if (b.id === 'nest') dispDesc = tr('building.nest.description', { populationCapacity: SB.BLD.house }, dispDesc);
         for (var _upi = 0; SB.UPGRADES && _upi < SB.UPGRADES.length; _upi++) {
           var _u = SB.UPGRADES[_upi];
           if (_u.upgradesBuilding === b.id && s.upgrades && s.upgrades[_u.id]) {
-            dispName = _u.name;
+            dispName = SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(_u.id, _u.name) : _u.name;
             /* `buildingDesc` 是给建筑行准备的完整文案；没写就退回 `desc`。
              *   两者主语不同：desc 说「砂矿坑升级：…」（升级面板里正确），buildingDesc
              *   直接陈述效果（那一行已经叫鱼骨矿井了）。见 config 那段分工注释。 */
@@ -177,20 +204,23 @@
          * 等级 >0 用「升级」、首级用「建造」：买的是同一件事，但玩家心里问的是
          * 「这一级要多少」，用词跟着等级走比一律写「建造」更答得上话。
          * 前置没满足时只说「需 XX」——那时按钮点不动，成本不是当下该看的信息。 */
-        var label = blocked ? '需 ' + (SB.habitat.buildingById(b.need) || {}).name
-          : (lv > 0 ? '升级 ' : '建造 ') + SB.economy.buildCostTxt(s, b.id, c);
+        var neededBuilding = b.need ? SB.habitat.buildingById(b.need) : null;
+        var neededName = neededBuilding ? buildingName(neededBuilding.id, neededBuilding.name) : '';
+        var label = blocked
+          ? tr('village.building.requirement.needs', { requiredBuilding: neededName }, '需 ' + neededName)
+          : tr(lv > 0 ? 'village.building.action.upgrade' : 'village.building.action.build', null, lv > 0 ? '升级' : '建造') + ' ' + SB.economy.buildCostTxt(s, b.id, c);
         /* 轻车熟路首建免费（2026-10-28）：costOf 已把资源项乘 0，buildCostTxt 会输出「免费」。
          *   优先级：blocked / canalCap / maxReached 都在它上面 —— 那三个是「点不动」，
          *   免费只表示「不用花钱」，不能让一个点不动的按钮看起来可以点。 */
         /* 王国潮道的跨建筑钳制与 build()/lockReason() 同一条判定——不判它按钮会
          * 「亮着但点了没反应」（build 内部静默 return false）。 */
         var canalCap = b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);
-        if (canalCap) label = '需先升灯塔（现 ' + (s.lvl.lighthouse || 0) + ' 级）';
+        if (canalCap) label = tr('village.building.lighthouse_level_required', { lighthouseLevel: s.lvl.lighthouse || 0 }, '需先升灯塔（现 ' + (s.lvl.lighthouse || 0) + ' 级）');
         /* ERA10 市政（2026-10-20 · 虚境祭坛 `maxLvl:3`）：等级上限与 habitat.build **同判据**
          * （都读建筑条目的 maxLvl，不烤死数字）。跑到上限时按钮灰掉且文案直说，
          * 绝不能留一个「亮着但点了静默 return false」的按钮（与 canalCap 同一纪律）。 */
         var maxReached = !!(b.maxLvl && lv >= b.maxLvl);
-        if (maxReached) label = '已达上限 ' + b.maxLvl + ' 级';
+        if (maxReached) label = tr('village.building.level_cap', { maxLevel: b.maxLvl }, '已达上限 ' + b.maxLvl + ' 级');
         /* 建造追踪（2026-10-29 · 玩家提议，用户拍板）：只在**这一级买不起**时出现。
          * 买得起就消失——那时该做的是直接点建造，多一个钮只是噪声。
          * 按钮是纯视图入口（只写 s.track），结算/成本一律不经过它。
@@ -204,20 +234,27 @@
           var _ton = s.track === _tkey;
           trackBtn = '<button type="button" class="btn track-toggle' + (_ton ? ' on' : '') + '"' +
             ' data-track="bld:' + b.id + '" aria-pressed="' + (_ton ? 'true' : 'false') + '"' +
-            ' title="' + (_ton ? '已追踪：材料够了会在屏幕角落提示，点提示框可直接跳回来'
-                              : '追踪这个建筑：材料够了在屏幕角落提示你') + '">' +
-            (_ton ? '已追踪' : '追踪') + '</button>';
+            ' title="' + htmlText(tr(_ton ? 'village.building.track.tracked.tooltip' : 'village.building.track.action.tooltip', null,
+              _ton ? '已追踪：材料够了会在屏幕角落提示，点提示框可直接跳回来' : '追踪这个建筑：材料够了在屏幕角落提示你')) + '">' +
+            htmlText(tr(_ton ? 'village.building.track.tracked.button' : 'village.building.track.action.button', null, _ton ? '已追踪' : '追踪')) + '</button>';
         }
         /* 区域建筑自动建造/升级开关：权限由已完成市政的 autoBuildZones 决定，
          * 生息区归封建主义、贸易区域归重商主义；仍复用 s.autoUpg 与 data-auto。 */
         var autoBtn = '';
         if (SB.habitat.autoZoneUnlocked(s, z.id)) {
           var _au = !!(s.autoUpg && s.autoUpg[b.id]);
+          /* 状态/动作一律走词库：这里先前按 locale 硬编码了 'On/Off'、'disable it'，
+           * 等于在渲染器里养了第二套英文文案，既绕开登记表也会和术语表漂移。 */
+          var _autoStatus = tr(_au ? 'village.automation.status.enabled' : 'village.automation.status.disabled',
+            null, _au ? '已启用' : '已停用');
+          var _autoAction = tr(_au ? 'village.automation.action.disable' : 'village.automation.action.enable',
+            null, _au ? '停用' : '启用');
           /* 和升级按钮并排组成紧凑按钮组；保留独立的 data-auto 点击区。 */
           autoBtn = '<button type="button" class="btn tog auto-upgrade-toggle' + (_au ? ' on' : '') + '" data-auto="' + b.id + '"' +
             ' aria-pressed="' + (_au ? 'true' : 'false') + '"' +
-            ' aria-label="自动建造 / 升级' + (_au ? '已启用' : '已停用') + '"' +
-            ' title="自动建造 / 升级' + (_au ? '已启用，点击停用' : '已停用，点击启用') + '">自动</button>';
+            ' aria-label="' + htmlText(tr('village.building.auto_toggle.aria_label', { automationStatus: _autoStatus }, '自动建造 / 升级' + _autoStatus)) + '"' +
+            ' title="' + htmlText(tr('village.building.auto_toggle.tooltip', { automationStatus: _autoStatus, toggleAction: _autoAction }, '自动建造 / 升级' + _autoStatus + '，点击' + (_au ? '停用' : '启用'))) + '">' +
+            htmlText(tr('ui.settings.automation.title', null, '自动')) + '</button>';
         }
         /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）：建成（lv>0）后才出现。
          * 炉子是「金属+暖石 → 精铁」的持续消耗口，玩家按原料供给决定开几座。
@@ -410,9 +447,12 @@
           ? lv + '+' + SB.wonder.libBonus(s) : lv;
         /* ERA10 市政：带等级上限的建筑显示「当前/上限」，让玩家一眼看到还剩几级可建。 */
         if (b.maxLvl) lvValueTxt = lv + '/' + b.maxLvl;
-        var lvTitle = b.maxLvl ? '建筑等级（当前/上限）' : '建筑等级';
+        /* tooltip 与可见标签是两种语义：`village.building.level.label` 是「等级 X」，
+         * 之前被同时拿去当 tooltip，接上词库后 tooltip 会从「建筑等级 X」掉成「等级 X」。 */
+        var lvTitle = b.maxLvl ? tr('village.building.level.current_cap.label', null, '建筑等级（当前/上限）')
+          : tr('village.building.level.tooltip', { levelText: lvValueTxt }, '建筑等级 ' + lvValueTxt);
         if (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0 && !b.maxLvl) {
-          lvTitle = '含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）';
+          lvTitle = tr('village.building.level.virtual_bonus.tooltip', { wonderName: buildingName('great_library', '大潮纹馆') }, '含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）');
         }
         var rowState = 'bld-row' + (lv > 0 ? ' is-owned' : '') + (blocked || canalCap ? ' is-blocked' : '') +
           (!blocked && !canalCap && ok ? ' is-ready' : '');
@@ -485,11 +525,11 @@
         }
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
-          '" aria-haspopup="dialog" title="查看' + dispName + '的效果与建造信息">' + dispName + '</button>' +
-          ' <span class="tag" data-lv="' + b.id + '" title="' + lvTitle + '">等级 ' + lvValueTxt + '</span>' +
+          '" aria-haspopup="dialog" title="' + htmlText(tr('village.building.info.tooltip', { buildingName: dispName }, '查看' + dispName + '的效果与建造信息')) + '">' + htmlText(dispName) + '</button>' +
+          ' <span class="tag" data-lv="' + b.id + '" title="' + htmlText(lvTitle) + '">' + htmlText(tr('village.building.level.label', { levelText: lvValueTxt }, '等级 ' + lvValueTxt)) + '</span>' +
           (elBtn ? '<span class="launch-mode-anchor">' + elBtn + '</span>' : '') +
           '</span><span class="bld-ops">' + _lpLackHTML + siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
-          '<div class="ds">' + dispDesc + (blocked ? '（需先建成' + (SB.habitat.buildingById(b.need) || {}).name + '）' : '') +
+          '<div class="ds">' + dispDesc + (blocked ? htmlText(tr('village.building.prerequisite.note', { requiredBuilding: neededName }, '（需先建成' + neededName + '）')) : '') +
           '</div></div></div>' +
           '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + (trackBtn ? ' has-track' : '') + '">' + autoBtn +
           '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button>' +
@@ -505,7 +545,7 @@
           '" data-zone="' + z.id + '">' +
           '<div class="bztitle" data-zfold="' + z.id + '" style="--hc:' +
           (SB.ui.render.zoneColor(z.id) || 'var(--dim)') + '" title="点击折叠 / 展开">' +
-          '<span class="bzcv">▾</span>' + z.name + '</div>' +
+          '<span class="bzcv">▾</span>' + htmlText(zoneName(z.id, z.name)) + '</div>' +
           '<div class="bzbody">' + zRows + '</div></div>';
       }
     }

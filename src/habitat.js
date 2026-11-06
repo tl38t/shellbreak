@@ -22,7 +22,20 @@
    *   未起名时沿用末档演进名「渊海之国」（用户拍板：无缝、一眼知道能改名）。
    *   纪元 < 6 仍是固定演进名（巢穴 → … → 渊海之国），保持原样。 */
   var HABITAT_NAMES = { 1: '巢穴', 2: '灯火山厝', 3: '锻火镇', 4: '潮机城', 5: '渊海之国' };
+  var HABITAT_NAME_KEYS = {
+    1: 'ui.habitat.name',
+    2: 'settlement.name.lamplit_mountain_homes',
+    3: 'settlement.name.forgefire_town',
+    4: 'settlement.name.tideworks_city',
+    5: 'settlement.name.abyssal_realm'
+  };
   var HABITAT_DEFAULT_ERA6 = '渊海之国';   // ERA6+ 未起名时的兜底名（与纪元五末档一致，过渡无缝）
+  function localizedDefaultName(era) {
+    var fallback = HABITAT_NAMES[era] || HABITAT_NAMES[1];
+    var key = HABITAT_NAME_KEYS[era] || HABITAT_NAME_KEYS[5];
+    var translated = SB.i18n && SB.i18n.t ? SB.i18n.t(key) : '';
+    return translated || fallback;
+  }
   function habitatName(s) {
     var e = (s && s.era) || 1;
     if (e >= 6) {
@@ -43,9 +56,10 @@
       }
       /* 一次都没起名 ⇒ 沿用纪元五末档「渊海之国」，不加政体后缀
        * （默认演进名不是玩家起的名字，拼上「联邦」反而像 bug）。 */
-      return HABITAT_DEFAULT_ERA6;
+      var defaultName = SB.i18n && SB.i18n.t ? SB.i18n.t(HABITAT_NAME_KEYS[5]) : '';
+      return defaultName || HABITAT_DEFAULT_ERA6;
     }
-    return HABITAT_NAMES[e] || HABITAT_NAMES[1];
+    return localizedDefaultName(e);
   }
 
   // 前置建筑：未满足则灰掉（提示而非静默失败）
