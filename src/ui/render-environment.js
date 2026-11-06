@@ -71,6 +71,19 @@
    *   那会让按钮每 100ms 重建一次，点击必然丢——正是这套节流要防的事。
    * 面板四种状态，少写一种玩家就会以为开关坏了：
    *   没这项科技（整行不显示）/ 已关 / 待命（非寒流季，不耗石）/ 石不够 / 正在烧。 */
+  /* 动态费率读数（2026-11-05）：烧石 = 0.03 × 破壳系数，开局约 0.008/秒、
+   * 规模铺开后到数 / 秒量级。一档小数位写死会把开局显示成「0.0/秒」（玩家以为不用烧石），
+   * 所以按量级切精度。
+   * ⚠️ 与库存数字同纪律：它不进状态签名，走独立 span 的 textContent 每帧刷，
+   *    否则文明规模一变就重建整块 HTML，按钮按下与抬起之间被换掉 ⇒ 那次点击丢失。 */
+  function warmRateText(v) {
+    if (!isFinite(v) || v <= 0) return '0';
+    if (v >= 100) return v.toFixed(0);
+    if (v >= 10) return v.toFixed(1);
+    if (v >= 1) return v.toFixed(2);
+    return v.toFixed(3);
+  }
+
   var warmSig = '';
   function renderWarm(s) {
     var box = el('envWarm'); if (!box) return;
@@ -92,8 +105,9 @@
       warmSig = sig;
       var live = s.warmOn && (s.res.warmstone || 0) > 0;
       box.innerHTML = '<div><div class="nm">暖石开关 <span class="tag" id="envWarmWs">0</span></div>' +
-        '<div class="ds">保温法：烧暖石（' + SB.CFG.WARM_RATE +
-        '/秒）<b>只在寒流季生效</b>——顶回藻场减产（不是全额，留一点残余），' +
+        '<div class="ds">保温法：烧暖石（<span id="envWarmRate">' +
+        warmRateText(SB.economy.warmRate(s)) + '</span>/秒，随文明规模增长）' +
+        '<b>只在寒流季生效</b>——顶回藻场减产（不是全额，留一点残余），' +
         '寒流季若触发冰封期则冻伤归零。一份暖石两件事都靠它，其余季不耗石。' +
         (challengeBlocksHeating ? '<br><b>寒流禁火挑战：寒流季保温法停用；热泉炉和热液设备仍照常运行。</b>' : '') +
         '</div></div>' +
@@ -105,9 +119,12 @@
         ' title="' + (challengeBlocksHeating ? '寒流禁火挑战：寒流季禁止保温燃烧' : '点击切换启用 / 停用') + '">' +
         (challengeBlocksHeating ? '寒流禁用' : s.warmOn ? '启用' : '停用') + '</button>';
     }
-    /* 库存数字单独刷：不进签名，所以烧起来时它是唯一在动的节点，按钮不动。 */
+    /* 库存数字单独刷：不进签名，所以烧起来时它是唯一在动的节点，按钮不动。
+     * 费率同理（随破壳系数变化），也走独立 span，绝不并回签名。 */
     var ws = el('envWarmWs');
     if (ws) ws.textContent = Math.floor(s.res.warmstone || 0);
+    var wr = el('envWarmRate');
+    if (wr) wr.textContent = warmRateText(SB.economy.warmRate(s));
   }
 
   function renderCore(s) {
@@ -163,6 +180,13 @@
       return;
     }
     var starved = !!s.skydrillStarved && !!s.skydrillOn;
+    /* 天元突破（2026-11-05）：倍率只从引擎唯一读数口取，面板的耗率 / 速率必须同乘，
+     * 否则玩家切到 2× 后文案还写「0.1/秒、100 点/秒」（面板撒谎家族）。
+     * 没点亮天赋 ⇒ 按钮不上屏、_mul 恒 1 ⇒ 老存档 / 挑战周目的文案逐字不变。 */
+    var _mul = (SB.shell && SB.shell.skydrillMul) ? SB.shell.skydrillMul(s) : 1;
+    var _overdrive = !!(s.perk && s.perk.drillOverdrive > 0);
+    var _bitRate = SB.CFG.SKYDRILL_DRILL * _mul;
+    var _cutRate = SB.CFG.SKYDRILL_RATE * _mul;
     /* ⚠️ 2026-10-07 用户报「已启动还是没反应」：停摆文案原是「钻头见底，或剩流不足」二选一
      *   的泛化句，玩家读不出自己卡在哪条。改为**带实测数字**的诊断：
      *   hydroAlloc(s,1) 是纯函数（dt=1 ⇒ 各字段已是每秒口径），直接给出供/吃/剩三数，
@@ -178,23 +202,23 @@
      *   现在两边同一判据 ⇒ 补完钻头徽标自动切回「停摆：热液能」，不会二次撒谎。 */
     var _stopWhy = (starved && _HF && _HF.skyStopWhy) ? _HF.skyStopWhy : null;
     var _drillNoBit = starved && (_stopWhy ? _stopWhy === 'bit'
-      : (s.res.resonantDrill || 0) < SB.CFG.SKYDRILL_DRILL);
+      : (s.res.resonantDrill || 0) < _bitRate);
     var sig = (s.skydrillOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
       (starved ? (_drillNoBit ? 'd' : 'h') : '-') + '|' +
-      Math.min(999, Math.floor(_left));
+      Math.min(999, Math.floor(_left)) + '|' + _mul + '|' + (_overdrive ? 'o' : '-');
     if (sig !== drillSig) {
       drillSig = sig;
       var ds;
       if (!s.skydrillOn) {
         ds = '建成即就绪，尚未启动。点右侧按钮开始凿穿最后 ' + (CFG.FLOOR_AT * 100) +
-          '% 壳厚——运转期间持续吃共振钻头（' + SB.CFG.SKYDRILL_DRILL + '/秒）与热液能（' +
+          '% 壳厚——运转期间持续吃共振钻头（' + _bitRate + '/秒）与热液能（' +
           SB.CFG.SKYDRILL_HYDRO + '/秒，从热液工坊吃剩的流里取）。';
       } else if (starved) {
-        if ((s.res.resonantDrill || 0) < SB.CFG.SKYDRILL_DRILL) {
+        if ((s.res.resonantDrill || 0) < _bitRate) {
           /* ⚠️ 不能 Math.floor：库存按 0.1/秒扣，常态是小数（0.4 / 0.9），
            *    floor 会印成「现存 0」——玩家以为自己一个钻头都没有，实际只是不足 1 个。 */
           ds = '停摆：共振钻头不足（现存 ' + (s.res.resonantDrill || 0).toFixed(1) +
-            '，运转每秒耗 ' + SB.CFG.SKYDRILL_DRILL + '）。去工坊打「共振钻头」补货，补足后自动恢复，无需重启。';
+            '，运转每秒耗 ' + _bitRate + '）。去工坊打「共振钻头」补货，补足后自动恢复，无需重启。';
         } else {
           var _tur = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
           ds = '停摆：热液能剩流 ' + _left.toFixed(1) + '/秒，不足 ' + SB.CFG.SKYDRILL_HYDRO +
@@ -203,14 +227,20 @@
             '升汽轮机（每级 +1/秒）或停用热液工坊；暖石断供汽轮机也会停产。补足后自动恢复，无需重启。';
         }
       } else {
-        ds = '运转中：钻头以 ' + SB.CFG.SKYDRILL_RATE + ' 点/秒削壳（轮回「壳层勘探」可再加成），吃完停摆、补足自动续。';
+        ds = '运转中：钻头以 ' + _cutRate + ' 点/秒削壳（' + _mul + '× 档；轮回「壳层勘探」可再加成），吃完停摆、补足自动续。';
       }
       box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + '天穹钻机' +
         (starved ? '<b class="lack-tag is-stop">缺' + (_drillNoBit ? '钻头' : '热液能') + ' · 停摆</b>' : '') +
         ' <span class="tag" id="envDrillCt">0</span></div>' +
         '<div class="ds">' + ds + '</div></div>' +
+        /* 天元突破按钮与启动按钮同组：只在已点亮天赋时出现，文案只报当前档，
+         * 真实耗率 / 速率在上面的 ds 里（手机端没有 hover 也读得到）。 */
+        '<div class="env-drill-ops">' +
+        (_overdrive ? '<button class="btn tog' + (_mul > 1 ? ' on' : '') +
+          '" data-drill-mul="1" title="天元突破：点击切换 1× / 2× 钻头倍率">钻头 ' + _mul + '×</button>' : '') +
         '<button class="btn tog' + (s.skydrillOn ? ' on' : '') +
-        '" data-skydrill="1" title="点击启动 / 停机">' + (s.skydrillOn ? '已启动' : '已停机') + '</button>';
+        '" data-skydrill="1" title="点击启动 / 停机">' + (s.skydrillOn ? '已启动' : '已停机') + '</button>' +
+        '</div>';
     }
     var ct = el('envDrillCt');
     if (ct) {

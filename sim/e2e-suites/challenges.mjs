@@ -25,11 +25,15 @@ export function run({ SB, check, noop }) {
       api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
       '挑战数=' + api.list().length);
     let pane = SB.ui.render.paneChallenges();
+    /* 2026-11-05：流浪泰拉加了「第 15 周目」开启前置 ⇒ 前置未满足时它不给开始按钮，
+     * 入口数是 10 而不是 11。这是规格变更，不是把断言放宽：仍逐项点名 11 个挑战，
+     * 期望值由生产门禁同源给出（不许在这里再写死一个数字掩盖分叉）。 */
+    const expectedStarts = api.prereqOk('drift_terra', meta) ? 11 : 10;
     check('挑战独立页展示十一项挑战与首次开始入口',
       ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉', '水体污染'].every(name => pane.includes(name)) &&
       pane.includes('暖石产出 -30%') && pane.includes('学者、书手各 ≤ 15 人') &&
       pane.includes('总人口、职业人数门槛豁免') &&
-      (pane.match(/data-challenge-start=/g) || []).length === 11,
+      (pane.match(/data-challenge-start=/g) || []).length === expectedStarts,
       '开始入口=' + ((pane.match(/data-challenge-start=/g) || []).length));
     check('挑战页总说明不再误称所有挑战都要完成神学并破壳',
       !pane.includes('完成《神学》资格并凿穿天壳，才算挑战通关') && pane.includes('各项挑战有各自的目标'),
@@ -264,9 +268,10 @@ export function run({ SB, check, noop }) {
     /* 2026-11-02 规则变更（玩家要求「可以反复挑战刷排行榜」）：已通关不再关闭入口，
      * 改成「再次挑战」；未通关的分档挑战仍只放下一档。旧断言要求 cold/small 无按钮，
      * 已被这条规则推翻，故整条重写而不是删掉。 */
-    /* 入口数 = 挑战总数（2026-11-02 加水体污染后 6 → 7；2026-11-04 加四项终局挑战后 7 → 11）。 */
+    /* 入口数 = 挑战总数（2026-11-02 加水体污染后 6 → 7；2026-11-04 加四项终局挑战后 7 → 11）。
+     * 2026-11-05：再减去被「第 15 周目」前置挡住的流浪泰拉（口径同上，同源读门禁）。 */
     check('已通关的挑战保留「再次挑战」入口，未通关的分档挑战只放下一档',
-      (pane.match(/data-challenge-start=/g) || []).length === 11 &&
+      (pane.match(/data-challenge-start=/g) || []).length === (api.prereqOk('drift_terra', meta) ? 11 : 10) &&
       pane.includes('再次挑战 · 完成挑战') && pane.includes('结算并挑战 · 第二档') &&
       !pane.includes('此挑战入口已关闭'),
       '入口数=' + ((pane.match(/data-challenge-start=/g) || []).length));

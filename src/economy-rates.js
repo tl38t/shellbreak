@@ -16,6 +16,8 @@
   var isCold = P.isCold, libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
   var minerPactMul = P.minerPactMul, quarryPactMul = P.quarryPactMul, furnaceEffMul = P.furnaceEffMul, scholarPactMul = P.scholarPactMul, obsSciMul = P.obsSciMul, steelRate = P.steelRate;
   var toolMul = P.toolMul, upgSum = P.upgSum, warmBurningNow = P.warmBurningNow;
+  /* 2026-11-05：费率随破壳系数变化，保温开关这一行必须读 economy.warmRate（与 warmRelief 同源）。 */
+  var warmRate = P.warmRate;
   var warmEff = P.warmEff;
   /* ERA10 市政（2026-10-20）：发射场读数与 tick 同源（三座合计等级 / 节律 / 每级耗流）。 */
   var launchRunLvl = P.launchRunLvl, launchNodeMode = P.launchNodeMode, launchMaterialPer = P.launchMaterialPer;
@@ -230,7 +232,8 @@
                   ['全局产出', globalMulX(s)],
                   ['矿工契', minerPactMul(s)],
                   ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)]])
-               + part('silt', '熔炉耗料', -fc * (Tr ? Tr.bldEff : 1))
+               + part('silt', '热泉炉耗料', -fc * (Tr ? Tr.bldEff : 1)
+                   * (SB.faith && SB.faith.furnaceMetalUseMul ? SB.faith.furnaceMetalUseMul(s) : 1))
                + ((s.upgrades && s.upgrades.upg_crustmine)
                  ? part('silt', '地壳钻井伴生', (j.miner || 0) * 0.05,
                      [['砂矿坑', mineBonus], ['矿脉升级', 1 + upgSum(s, 'mineSilt')],
@@ -348,7 +351,7 @@
                   ['矿工契', minerPactMul(s)],
                   ['挑战', (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)],
                   ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)]])
-                 + part('warmstone', '保温开关', -(warmBurningNow(s) ? SB.CFG.WARM_RATE : 0))
+                 + part('warmstone', '保温开关', -(warmBurningNow(s) ? warmRate(s) : 0))
                  + part('warmstone', '熔炉耗料', -fc * ((Tr ? Tr.bldEff : 1)) * warmEff(s))
                  + part('warmstone', '汽轮机耗料', -_turL * SB.UNIT.hydroWarm * warmEff(s)),
       /* ⚠️ `iron` 记的是**消耗掉的原料份数**，不是产出的精铁量 —— 沿用原有口径。
@@ -361,7 +364,8 @@
                   ['热泉炉加成', furnaceBoostMul(s)],
                   ['热泉炉效率', furnaceEffMul(s)],
                   ['冶炼', P.smeltingOutMul(s)],
-                  ['国家物流', (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0) + 1]])
+                  ['国家物流', (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0) + 1],
+                  ['炉火礼赞', (SB.faith && SB.faith.furnaceIronOutputMul ? SB.faith.furnaceIronOutputMul(s) : 1)]])
                + part('iron', '研究所原料', -_thetaIn.iron),
       /* ERA3 热液能系统（2026-10-05 flow 模型）：steelRate 非变异版，与 tick 的 steelFlow 同式（dt=1）。
        *   steel = 工坊实际产钢速率；hydro = 本 tick **实际消耗**（工坊吃 + 钻机吃），作顶栏速率行（−M/s）。
@@ -423,7 +427,8 @@
                ['阿尔巴达', (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1],
                ['采集', gatherMul(s)], ['矿工镐', toolMul(s, 'miner')], ['寒流季', cold],
                ['全局产出', globalMulX(s)], ['矿工契', minerPactMul(s)],
-               ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)], ['自动钻机', autoDrillOutputMul(s)]]) : 0),
+               ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)], ['自动钻机', autoDrillOutputMul(s)],
+               ['星炉献礼', (SB.faith && SB.faith.thetaOutputMul ? SB.faith.thetaOutputMul(s) : 1)]]) : 0),
       /* ERA6→ERA7：星空探索每秒产出。基础文明推力 + 星空观测站升级（upg_starscope）+ 太空建筑运行座数贡献，
        *   读 economy.starRate（与 tick 同口径；太空建筑的「开几座」开关在此生效）。 */
       starExplore: part('starExplore', '星空槽累积', SB.economy.starRate(s)),

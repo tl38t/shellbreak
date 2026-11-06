@@ -260,7 +260,9 @@
     // ② 旧日信仰：本局剩余信仰并入总量
     /* ERA8 市政《信仰回响》（2026-10-18 用户表解锁2）：本轮回入账 ×1.2（仅当轮，不跨周目累积）。 */
     meta.oldFaith = (meta.oldFaith || 0)
-      + Math.max(0, (s.res && s.res.faith) || 0) * ((s.civics && s.civics.faith_echo) ? 1.2 : 1);
+      + Math.max(0, (s.res && s.res.faith) || 0) * ((s.civics && s.civics.faith_echo) ? 1.2 : 1)
+      + (SB.faith && SB.faith.has && SB.faith.has(s, 'ancient_covenant')
+        ? Math.max(0, Number(s.faithEarnedTotal) || 0) * 0.10 : 0);
     // ③ 旧日遗迹观光点：首次建成的独特奇观入藏
     var newly = [];
     if (s.wonders && meta.memorialWonders) {

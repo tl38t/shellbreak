@@ -221,7 +221,7 @@
      *   工艺资源无仓储上限，摇篮奇观消耗 10000 不会被容量挡住。
      * 【火箭引擎 rocketEngine】工艺制品：燃料 200 + 封闭藻仓 10 → 1（craft_rocketengine，need:'crewed'）。
      *   火箭引擎同样无仓储上限。
-     * 【星屑 stardust】跨周目局外资源：结算发放并可在星穹商店兑换，不做逐秒产出
+     * 【星屑 stardust】跨周目局外资源：结算发放并可在星屑商店兑换，不做逐秒产出
      *   ⇒ 无 UNIT 键、无 tick/rates 行；故意不给 CAP_BASE 键（同 science/culture 口径 ⇒ capOf 恒 Infinity）。
      *   星屑商店门=首座轨道卫星建成，并写入跨周目永久解锁旗。 */
     rocketFuel:   { name: '燃料', short: '燃', kind: 'craft', unlock: { tech: 'refine' } },

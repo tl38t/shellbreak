@@ -140,9 +140,10 @@ function runDecoupled(state, seconds, seed) {
     const warmCold = s.warmOn && SB.economy.season(s.t).mult < 1;
     if (warmCold && s.res.warmstone > 0) {
       const wsRate = SB.economy.rates(s).warmstone || 0;
-      const reliefRate = SB.economy.warmBurningNow(s) ? SB.CFG.WARM_RATE : 0;
+      const wRate = SB.economy.warmRate(s);       // 2026-11-05：动态费率，与 game.js 同源
+      const reliefRate = SB.economy.warmBurningNow(s) ? wRate : 0;
       const otherDrain = Math.max(0, -(wsRate + reliefRate));
-      const warmBuffer = SB.CFG.WARM_RATE * (1 + dt) + otherDrain * dt;
+      const warmBuffer = wRate * (1 + dt) + otherDrain * dt;
       if (s.res.warmstone <= warmBuffer) dt = Math.min(dt, STEP);
     }
     const tc = s.t;

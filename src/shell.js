@@ -40,14 +40,38 @@
 
   /* 破壳比例 = 1 − rOf（壳剩余比例的补）。autoRate 削到 FLOOR_AT=0.25 就停手 ⇒
    * brokenRatio 精确收在 0.75，随后由天穹钻机继续削到 1（破壳后 rOf=0）。
-   * ⚠️ 0.75 是《天壳地质学》的门槛（techs.js:666，2026-11-04 从 0.5 抬上来），也是
-   *    所有 `cond:{t:'shell'}` 在「钻机建成前」能取到的最大值；别把 FLOOR_AT 单独调高，
-   *    否则那个科技永远揭示不了、钻机也就永远建不起来（循环依赖）。 */
+   * ⚠️ 0.75 是 `cond:{t:'shell'}` 在「钻机建成前」能取到的**可达上限**，不是任何科技的
+   *    门槛值：《天壳地质学》门槛 2026-11-05 已纠正为 0.25（techs.js:670）。
+   *    别把 FLOOR_AT 单独调高，否则上限跌破门槛时那条科技永远揭示不了、钻机也建不起来。 */
   function brokenRatio(s) {
     return 1 - SB.economy.rOf(s);
   }
 
-  function autoRate(s) { return SB.CFG.BREAK_BASE * breakCoef(s); }
+  /* 万众热忱（2026-11-05 用户拍板）：基础自动削壳的**独立乘区**，加算 1+0.2×级数。
+   * ⚠️ 绝不可并进 breakCoef —— 那里还被暖石费率 warmRate(0.03×coef)、星空槽 starRate、
+   *    coef 型尤里卡阈值与建造日志共用，且 COLD ×1.35 / 总动员令乘在整段上。
+   *    并进去 ⇒ 买「破壳加速」会顺带加重寒流季暖石消耗（静默惩罚）、破壳后星空槽变快。
+   * ⚠️ 只影响 ① 自动削壳段：FLOOR_AT 是硬停手线（买满也不会跳过 ERA5 科技链），
+   *    ② 天穹钻机 SKYDRILL_RATE 不读这里，故 desc 写「基础削壳速度」而非「破壳速度」。 */
+  function autoRate(s) {
+    var lv = (s.perk && s.perk.shellDrive) || 0;   // 老档缺键按 0 处理，不依赖存档迁移
+    var drive = 1 + (SB.CFG.SHELL_DRIVE_STEP || 0) * lv;
+    return SB.CFG.BREAK_BASE * breakCoef(s) * drive;
+  }
+
+  /* 天元突破：天穹钻机钻头倍率的**唯一读数口**（2026-11-05）。
+   * 门 = 本局已解锁（s.perk.drillOverdrive > 0）；档 = meta.skydrillMul（1 / 2，跨周目）。
+   * ⚠️ 倍率绝不写进 s.perk 的数值键：那是已购天赋派生表，会被 syncDerivedPerks 按账本
+   *    整表覆盖 ⇒ 玩家拨的档一读档就丢。也不要在别处再判一次门（同源铁律）。
+   * ⚠️ 热路径（tickShell / hydroAlloc 每 tick 各一次）调用，故只读一次 meta() 且带守卫：
+   *    读不到 meta、脏档值、没买天赋 ⇒ 一律 1×，老档与离线补算口径自动一致。 */
+  function skydrillMul(s) {
+    if (!s || !s.perk || !(s.perk.drillOverdrive > 0)) return 1;
+    var m = null;
+    try { if (SB.game && SB.game.meta) m = SB.game.meta(); } catch (e) { return 1; }
+    var max = Number(SB.CFG.SKYDRILL_OVERDRIVE_MUL) || 2;
+    return (m && m.skydrillMul === max) ? max : 1;
+  }
 
   /* ── G.E.E.K「还有活要干」的唯一判据（2026-11-04 抽出）────────────────────
    * 无活干的两态：① 恩克拉多斯已完成、但还没研究《星球改造》（在等）② 两阶段都完成。
@@ -159,7 +183,9 @@
     //    ⚠️ 资源见底自动停摆（补足后下一 tick 自动继续）；停摆是**运行态的暂停**，
     //       不回拨 skydrillOn——补料后不用玩家再点一次。
     if (s.skydrillOn && SB.wonder && SB.wonder.owned(s).wonder_skydrill && s.shell > 0) {
-      var dCost = SB.CFG.SKYDRILL_DRILL * dt;
+      /* 天元突破 2×：钻头耗率与削壳速率同乘 _dm；热液能 hCost 不放大。 */
+      var _dm = skydrillMul(s);
+      var dCost = SB.CFG.SKYDRILL_DRILL * _dm * dt;
       var hCost = SB.CFG.SKYDRILL_HYDRO * dt;
       // 热液能侧：hydroAlloc 已是「本 tick 流分配」唯一权威（含钻机吃剩流的那一份），
       //   skyDraw>0 即表示「工坊吃完后剩流够钻机取 SKYDRILL_HYDRO 且共振钻头够」⇒ 钻机这一份已被占走。
@@ -171,7 +197,8 @@
         /* 潮汐之树（2026-10-23）：壳面测绘节点（shellSurvey1/2/3）替代旧 shellSurvey；
          *   直接读 s.perk.shellSurvey（每级 +5% 削壳速率，与旧 shellSurveyLevel 同口径）。 */
         var _ss = 1 + 0.05 * ((s.perk && s.perk.shellSurvey) || 0);
-        var sWant = SB.CFG.SKYDRILL_RATE * _ss * dt;
+        var sWant = SB.CFG.SKYDRILL_RATE * _ss * _dm * dt
+          * (SB.faith && SB.faith.shellDrillSpeedMul ? SB.faith.shellDrillSpeedMul(s) : 1);
         s.shell -= sWant;
         cut += sWant;
         s._cutSky = (s._cutSky || 0) + sWant;
@@ -186,7 +213,7 @@
           emit(_bitOK
             ? '天穹钻机缺热液能（工坊吃完后剩流不足 ' + SB.CFG.SKYDRILL_HYDRO + '/秒），停转——补足后自动继续。'
             : '天穹钻机缺共振钻头（现存 ' + (s.res.resonantDrill || 0).toFixed(1) + '，每秒耗 ' +
-              SB.CFG.SKYDRILL_DRILL + '），停转——去工坊补货后自动继续。');
+              (SB.CFG.SKYDRILL_DRILL * _dm) + '），停转——去工坊补货后自动继续。');
         }
       }
     }
@@ -278,6 +305,8 @@
     breakCoef: breakCoef,
     brokenRatio: brokenRatio,
     autoRate: autoRate,
+    /* 天元突破：tickShell / economy.hydroAlloc / UI / bot 备料都必须读这一个口。 */
+    skydrillMul: skydrillMul,
     /* G.E.E.K「还有活要干」—— economy.hydroAlloc 与 economy-rates 都必须读这个，
      * 不许各自再写一遍（同源铁律，见函数注释）。 */
     geekActive: geekActive,

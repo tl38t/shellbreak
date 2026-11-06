@@ -18,10 +18,14 @@
    * 兜底不再借用别人的文案：任何未登记分支一律回落到自己的 goalText。 */
   function progressLine(s, api, def, tier) {
     var scribeName = SB.folk.jobName(s, 'scribe');
-    if (def.id === 'drift_terra') return s.challengeDone
-      ? '挑战已达成 · 永久奖励已生效'
-      : '行星发动机 ' + ((s.lvl && s.lvl.terra_engine) || 0) + ' / 50 · 星核炉芯池 ' +
-        SB.economy.fmtAmt((s.res && s.res.coreCharge) || 0) + ' / 50M';
+    if (def.id === 'drift_terra') {
+      if (s.challengeDone) return '挑战已达成 · 永久奖励已生效';
+      /* 进行中的档要读 inRunOk：cycle 已在 startRun 加过一次，不能再 +1。 */
+      var _pr = api.prereqState ? api.prereqState(def.id) : null;
+      return '行星发动机 ' + ((s.lvl && s.lvl.terra_engine) || 0) + ' / 50 · 星核炉芯池 ' +
+        SB.economy.fmtAmt((s.res && s.res.coreCharge) || 0) + ' / 50M' +
+        ((_pr && !_pr.inRunOk) ? ' · ⚠ 第 ' + _pr.now + '/' + _pr.need + ' 周目，开启前置未满足，本局无法通关' : '');
+    }
     if (def.id === 'waterpollution') {
       if (s.challengeDone) return '挑战已达成 · 永久奖励已生效';
       var pst = (SB.economy.pollutionStage && SB.economy.pollutionStage(s)) || {};
@@ -97,17 +101,22 @@
       var rule = d.id === 'science' ? '学者与' + scribeName + '岗位人数各不得超过本档上限' : d.rule;
       var exhausted = done >= d.tiers.length, next = Math.min(done, d.tiers.length - 1);
       var blocked = !!active && !isActive;
+      /* 开启前置（2026-11-05）：只挡「还没开始」的入口；已在进行中的档不受影响，
+       * 老档 / 改档也要能继续看到自己的进度，而不是被门禁静默抹掉。 */
+      var prereq = api.prereqState(d.id, m), gateBlocked = !!prereq && !prereq.ok;
       var activeTimedOut = isActive && d.id === 'speedrun' && api.timedOut(s);
       /* 「已达成」判据：goal 型（2026-11-02 推广）+ 破壳型（2026-11-03 破壳即判定）。
        * 两种挑战的 challengeDone 都在局内就为真，所以这里不再按 d.goal 过滤。 */
-      var status = isActive ? (activeTimedOut ? '已超时' : s.challengeDone ? '已达成' : '进行中') : exhausted ? '已完成' : blocked ? '等待当前挑战结束' : (d.tiers.length > 1 ? '下一档可挑战' : '尚未完成');
+      var status = isActive ? (activeTimedOut ? '已超时' : s.challengeDone ? '已达成' : '进行中') : exhausted ? '已完成' : blocked ? '等待当前挑战结束' : gateBlocked ? '周目不足' : (d.tiers.length > 1 ? '下一档可挑战' : '尚未完成');
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
       h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + d.badge + '" alt=""></span>' +
         '<div class="challenge-card-name"><h3>' + d.name + '</h3><small>' + d.kind + ' · ' + summary + '</small></div>' +
-        '<span class="challenge-status' + (exhausted ? ' done' : activeTimedOut ? ' failed' : isActive ? ' active' : '') + '">' + status + '</span></header>';
+        '<span class="challenge-status' + (exhausted ? ' done' : activeTimedOut ? ' failed' : isActive ? ' active' : gateBlocked ? ' locked' : '') + '">' + status + '</span></header>';
       h += '<div class="challenge-card-rule"><small>本轮限制' +
         (s.challengeReleased && !d.goal ? ' <em class="challenge-released">已解除</em>' : '') +
         '</small><p>' + rule + '</p>' +
+        (prereq ? '<small>开启前置</small><p class="challenge-prereq' + (gateBlocked ? ' is-lack' : '') +
+          '">' + api.prereqText(d.id, m) + '</p>' : '') +
         '<small>通关目标</small><p>' + (d.goalText || '完成《神学》并凿穿天壳') + '</p></div>';
 
       if (d.tiers.length > 1) {
@@ -146,6 +155,13 @@
           h += '<footer class="challenge-card-foot"><span>' + activeFoot +
             '</span><button class="btn" disabled>' + (activeTimedOut ? '本档已超时' : active.replay === true ? '重复挑战中' : '本轮挑战中') + '</button></footer>';
         }
+      } else if (gateBlocked) {
+        /* 门禁与 canStart 同源：按钮不给 data-challenge-start，委托永远不会触发 begin()。
+         * 仍留一颗灰按钮（而不是整行消失），玩家能看见「为什么点不了」和差几周目。 */
+        h += '<footer class="challenge-card-foot"><span>' +
+          (blocked ? '先结束当前挑战周目；' : '') + '开启前置未满足：当前第 ' + prereq.now +
+          ' 周目，开始后第 ' + prereq.after + ' 周目，还差 ' + prereq.lack + ' 周目。</span>' +
+          '<button class="btn" disabled>需第 ' + prereq.need + ' 周目</button></footer>';
       } else if (exhausted) {
         /* 2026-11-02 玩家反馈「挑战不能反复打」：全部通关后仍留入口，重打最高档。
          * 只刷榜、不再发奖（规则见 SB.challenges 的 startTier / isReplay 注释）。 */

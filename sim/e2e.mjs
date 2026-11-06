@@ -6,7 +6,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadAll, ROOT, mulberry32 } from './load-sb.mjs';
+import { loadAll, loadNoDom, ROOT, mulberry32 } from './load-sb.mjs';
 /* Suites receive this run's shared SB/check fixture and run in sequence; keep one loadAll. */
 import { run as runClickEvents } from './e2e-suites/click-events.mjs';
 import { run as runAutoPlay } from './e2e-suites/autoplay.mjs';
@@ -34,6 +34,13 @@ import { run as runWaterPollution } from './e2e-suites/waterpollution.mjs';
 import { run as runAiStrategy } from './e2e-suites/ai-strategy.mjs';
 /* 2026-11-03：破壳不再是本局终点 —— 破壳后在线推进/存档的门禁回归锁。 */
 import { run as runBreakContinue } from './e2e-suites/break-continue.mjs';
+import { run as runUiPrefs } from './e2e-suites/ui-prefs.mjs';
+import { run as runStarShellPress } from './e2e-suites/star-shell-press.mjs';
+import { run as runTideShellDrive } from './e2e-suites/tide-shell-drive.mjs';
+import { run as runTideDrillOverdrive } from './e2e-suites/tide-drill-overdrive.mjs';
+import { run as runChallengePrereq } from './e2e-suites/challenge-prereq.mjs';
+/* 2026-11-05：追踪坞工坊产物「去制造」跳转（用户反馈）。 */
+import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
 
 const errors = [];
 const checks = [];
@@ -246,6 +253,56 @@ if (process.argv.includes('--offline-only')) {
   const failedOffline = checks.filter(c => !c.ok);
   console.log(`\n离线快进测试：${checks.length - failedOffline.length}/${checks.length} 通过`);
   process.exit(failedOffline.length ? 1 : 0);
+}
+
+/* 设备级 UI 偏好（2026-11-05）：单独验证偏好层与两个面板开关，不必跑完整整局 bot。 */
+if (process.argv.includes('--ui-prefs-only')) {
+  await runUiPrefs({ SB, check, sandbox, loadNoDom, g });
+  const failedPrefs = checks.filter(c => !c.ok);
+  console.log(`\n偏好持久化测试：${checks.length - failedPrefs.length}/${checks.length} 通过`);
+  process.exit(failedPrefs.length || errors.length ? 1 : 0);
+}
+
+/* 星屑商店「天外重压」三级减壳（2026-11-05）：单独验节点上屏与壳厚口径，
+ * 不必跑完整整局 bot。同样使用主沙箱的真实 SB，不复制实现。 */
+if (process.argv.includes('--star-shell-press-only')) {
+  runStarShellPress({ SB, check });
+  const failedPress = checks.filter(c => !c.ok);
+  console.log(`\n天外重压测试：${checks.length - failedPress.length}/${checks.length} 通过`);
+  process.exit(failedPress.length || errors.length ? 1 : 0);
+}
+
+/* 潮汐之树「万众热忱」三级基础削壳加速（2026-11-05）：单独验独立乘区、加算口径、
+ * 「不进 breakCoef」的逐位隔离与真实 DOM，不必跑完整整局 bot。 */
+if (process.argv.includes('--tide-shell-drive-only')) {
+  runTideShellDrive({ SB, check });
+  const failedDrive = checks.filter(c => !c.ok);
+  console.log(`\n万众热忱测试：${checks.length - failedDrive.length}/${checks.length} 通过`);
+  process.exit(failedDrive.length || errors.length ? 1 : 0);
+}
+
+/* 潮汐之树「天元突破」钻头倍率（2026-11-05）：单独验 2× 的耗率/速率同源、
+ * 两道钻头门、热液能不放大与真实 DOM，不必跑完整整局 bot。 */
+if (process.argv.includes('--tide-drill-overdrive-only')) {
+  runTideDrillOverdrive({ SB, check, g });
+  const failedOver = checks.filter(c => !c.ok);
+  console.log(`\n天元突破测试：${checks.length - failedOver.length}/${checks.length} 通过`);
+  process.exit(failedOver.length || errors.length ? 1 : 0);
+}
+
+/* 流浪泰拉「第 15 周目」开启前置（2026-11-05）：门禁、卡片、确认面板、常驻条同源。 */
+if (process.argv.includes('--challenge-prereq-only')) {
+  runChallengePrereq({ SB, check, g, doc });
+  const failedPre = checks.filter(c => !c.ok);
+  console.log(`\n挑战开启前置测试：${checks.length - failedPre.length}/${checks.length} 通过`);
+  process.exit(failedPre.length || errors.length ? 1 : 0);
+}
+
+if (process.argv.includes('--track-craft-jump-only')) {
+  runTrackCraftJump({ SB, check, g, sandbox });
+  const failedJump = checks.filter(c => !c.ok);
+  console.log(`\n追踪坞去制造跳转测试：${checks.length - failedJump.length}/${checks.length} 通过`);
+  process.exit(failedJump.length || errors.length ? 1 : 0);
 }
 
 /* 流浪泰拉规则涉及跨五个时代的长局；独立入口让 goal / 奖励 / 新经济链回归不必等待整局 bot。
@@ -2165,6 +2222,9 @@ console.log('\n=== 轮回遗产科技同构（tick === rates）===');
 }
 
 await runPersistence({ SB, check, sandbox, doc, makeDoc, loadAll, errors });
+/* 设备级 UI 偏好（2026-11-05）：放在硬重置之后，正好能证明「清档不清」；
+ * 它用 loadNoDom 开独立会话，不继承主沙箱的 SB，不会污染后面的 boot-gate。 */
+await runUiPrefs({ SB, check, sandbox, loadNoDom, g });
 /* 就绪门（2026-10-30）：必须在 persistence 之后 —— 它要开四个全新沙箱，
  * 每个都完整跑一遍 index.html 的全部脚本；放在前面会让后续套件的共享 SB 变成
  * 最后一个夹具留下的状态（那一类污染以前踩过，见 persistence.mjs 顶部注释）。 */
@@ -2731,6 +2791,21 @@ runWaterPollution({ SB, check, noop, dom: g });
 /* 2026-11-03：破壳后推进/存档回归锁。放尾部：它会临时把主 fixture 置 broken 再还原。 */
 runBreakContinue({ SB, check });
 runAiStrategy({ SB, check, noop });
+/* 2026-11-05：星屑商店「天外重压」。放全量最尾部——它会临时改 meta.starPerks
+ * 与当前局的 perk.thin / iceShell，虽然自带 finally 还原，也别压在整局 bot 前面。 */
+runStarShellPress({ SB, check });
+/* 2026-11-05：潮汐之树「万众热忱」。放最尾部——它会临时改 meta.perks 与当前局的
+ * perk.shellDrive，虽自带 finally 还原，也别压在整局 bot 前面。 */
+runTideShellDrive({ SB, check });
+/* 2026-11-05：潮汐之树「天元突破」。同样放最尾部——它会临时改 meta.perks /
+ * meta.skydrillMul 与当前局的 perk.drillOverdrive，自带 finally 还原。 */
+runTideDrillOverdrive({ SB, check, g });
+/* 2026-11-05：挑战开启前置。放全量最尾部——它会临时改 meta.cycle 与当前局的
+ * s.challenge，虽自带 finally 还原，也别压在整局 bot 前面。 */
+runChallengePrereq({ SB, check, g, doc });
+/* 2026-11-05：追踪坞「去制造」跳转。放全量最尾部，临时替换 setTab / setWorkshopView /
+ * renderPanes 等并在 finally 还原，不压在整局 bot 前面。 */
+runTrackCraftJump({ SB, check, g, sandbox });
 console.log('\n================ 汇总 ================');
 // B 档基线：首局（原始时代 → 破冰重置）挂机 8-14 小时 —— 全局标定，默认挂起
 defer('单局时长落在 8-14 小时', runHours >= 8 && runHours <= 14, runHours.toFixed(2) + 'h');

@@ -114,21 +114,49 @@
     /* ── 远见之人 ── */
     { id: 'scholarPact1', name: '学契 I', subtree: 'vision', layer: 1, cost: 3, apply: { scholarPact: 1 }, desc: '学者系产出 +10%' },
     { id: 'shellSurvey1', name: '钻机测绘 I', subtree: 'vision', layer: 1, cost: 6, apply: { shellSurvey: 4 }, desc: '天穹钻机效率 +20%' },
+    /* 万众热忱（2026-11-05 用户拍板）：基础自动削壳的独立乘区，与钻机测绘并排成第三条根链。
+     * ⚠️ apply 键 shellDrive 绝不可改成 coef：breakCoef 还被暖石费率 / 星空槽 / coef 型尤里卡 /
+     *    建造日志共用，塞进去会让「买破壳加速」顺带加重寒流季暖石消耗（静默惩罚）。
+     * ⚠️ 只加速 shell.js ① 自动削壳段；② 天穹钻机 SKYDRILL_RATE 不受影响，故 desc 写「基础削壳」。 */
+    { id: 'fanaticism1', name: '万众热忱 I', subtree: 'vision', layer: 1, cost: 8, apply: { shellDrive: 1 }, desc: '基础削壳速度 +20%（仅自动削壳段，天穹钻机不变）' },
     { id: 'scholarPact2', name: '学契 II', subtree: 'vision', layer: 2, cost: 6, apply: { scholarPact: 1 }, nest: 'scholarPact1', desc: '学者系产出再 +10%' },
     { id: 'tidalRecord1', name: '潮纹巧工 I', subtree: 'vision', layer: 2, cost: 5, recipe: 'craft_tidal_record', rmul: 0.10, nest: 'scholarPact1', desc: '潮纹石板工艺效率 +10%' },
     { id: 'shellSurvey2', name: '钻机测绘 II', subtree: 'vision', layer: 2, cost: 12, apply: { shellSurvey: 4 }, nest: 'shellSurvey1', desc: '天穹钻机效率再 +20%' },
+    { id: 'fanaticism2', name: '万众热忱 II', subtree: 'vision', layer: 2, cost: 15, apply: { shellDrive: 1 }, nest: 'fanaticism1', desc: '基础削壳速度再 +20%（累计 +40%）' },
     { id: 'scholarPact3', name: '学契 III', subtree: 'vision', layer: 3, cost: 9, apply: { scholarPact: 1 }, nest: 'scholarPact2', desc: '学者系产出再 +10%' },
     { id: 'tidalRecord2', name: '潮纹巧工 II', subtree: 'vision', layer: 3, cost: 10, recipe: 'craft_tidal_record', rmul: 0.10, nest: 'scholarPact2', desc: '潮纹石板工艺效率再 +10%（共 +20%）' },
     { id: 'shellSurvey3', name: '钻机测绘 III', subtree: 'vision', layer: 3, cost: 18, apply: { shellSurvey: 4 }, nest: 'shellSurvey2', desc: '天穹钻机效率再 +20%' },
+    { id: 'fanaticism3', name: '万众热忱 III', subtree: 'vision', layer: 3, cost: 25, apply: { shellDrive: 1 }, nest: 'fanaticism2', desc: '基础削壳速度再 +20%（累计 +60%）' },
     { id: 'thinShell', name: '薄壳之智', subtree: 'vision', layer: 3, cost: 15, apply: { thin: 2 }, nest: 'shellSurvey2', desc: '天壳厚度 −20%' },
     { id: 'scholarPactTail', name: '学通汇', subtree: 'vision', layer: 4, cost: 12, scale: 1.5, n: Infinity, apply: { scholarPact: 0.5 }, nest: 'scholarPact3', desc: '学者系产出再 +5%/级（无上限，每级 ×1.5）' },
     { id: 'autoStudy', name: '科技自转', subtree: 'vision', layer: 4, cost: 20, apply: { autoStudy: 1 }, nest: 'scholarPact3', desc: '解锁科技自动研究器（开关在科技页顶部，默认关闭）' },
     { id: 'vibrodrill', name: '钻头巧工', subtree: 'vision', layer: 4, cost: 20, recipe: 'craft_drill', rmul: 0.30, nest: 'shellSurvey3', desc: '震动钻头工艺效率 +30%' },
+    /* 天元突破（2026-11-05 用户拍板）：钻机测绘 I→II→III 这条链的**终点**（layer 4，与
+     * 「钻头巧工」并排），40 轮回点买的是「倍率可调」这个能力，不是直接改默认行为。
+     * ⚠️ apply 键 drillOverdrive 只是「已解锁」开关位，不参与任何数值公式；真实倍率由
+     *    SB.shell.skydrillMul(s) 统一读 meta.skydrillMul + 这个门得出，绝不在别处再判一次。
+     * ⚠️ 2× 档按用户字面「投入两倍钻头获取两倍破壳速度」：共振钻头 0.1→0.2/秒、
+     *    削壳 100→200 点/秒；热液能 20/秒与运行态幸福度 −1 都不变（没说要翻倍就别顺手动）。
+     *    与钻机测绘 _ss 乘区相乘，与「万众热忱」的①自动削壳段完全隔离。 */
+    { id: 'tengenToppa', name: '天元突破', subtree: 'vision', layer: 4, cost: 40, apply: { drillOverdrive: 1 }, nest: 'shellSurvey3', desc: '解锁天穹钻机钻头倍率：可切到 2×，每秒投入两倍共振钻头、换取两倍破壳速度（热液能不变，默认仍 1×）' },
     { id: 'slotSci', name: '科技之位', subtree: 'vision', layer: 5, cost: 75, apply: { slotSci: 1 }, nest: 'autoStudy', desc: '任意政体额外 +1 科研槽' }
   ];
 
   /* 星屑商店：星之至宝节点等级写入 meta.starPerks；apply 与 recipe 分别提供数值和工艺效果。 */
   var STAR_PERKS = [
+    /* ── 天壳压制（2026-11-05 用户拍板）──
+     * 星屑商店里唯一影响「破壳前」的一组，定位是留给多周目的长期投资。
+     * ⚠️ 复用 perk.thin（线性 −10%/级）：freshRun 的壳厚公式、challenges.shellTarget、
+     *    state-migrate 的两段壳厚迁移全都读它 ⇒ 不另开字段，避免同一口径写四遍。
+     *    与潮汐之树「薄壳之智」(apply thin:2) **加算、无硬顶**：满配 thin=5 ⇒ 壳厚 250000。
+     *    公式里的 max(0.1, …) 是防壳厚归零/变负的结构下限，不是减幅上限，保留。
+     * ⚠️ 壳厚在 freshRun 一次算死；buyStarPerk 的 applyPerk 会即时写 s.perk.thin，
+     *    但不重算 s.iceShell ⇒ 局中购买只对下一局生效。desc 必须写明，否则会被当成「买了没用」。
+     * ⚠️ 成本 4/8/16 是用户拍板值，不参与本轮标定。 */
+    { id: 'starShellPress1', name: '天外重压 I', desc: '每局开局天壳厚度 −10%（下一局起生效）', kind: 'shell', layer: 1, n: 1, cost: 4, apply: { thin: 1 } },
+    { id: 'starShellPress2', name: '天外重压 II', desc: '天壳厚度再 −10%（累计 −20%，下一局起生效）', kind: 'shell', layer: 2, nest: 'starShellPress1', n: 1, cost: 8, apply: { thin: 1 } },
+    { id: 'starShellPress3', name: '天外重压 III', desc: '天壳厚度再 −10%（累计 −30%，下一局起生效）', kind: 'shell', layer: 3, nest: 'starShellPress2', n: 1, cost: 16, apply: { thin: 1 } },
+
     { id: 'starFolk1', name: '繁星劳作 I', desc: '族民岗位产出 +10%', kind: 'folk', layer: 1, n: 1, cost: 1, apply: { starFolk: 0.10 } },
     { id: 'starFolk2', name: '繁星劳作 II', desc: '族民岗位产出额外 +10%（累计 +20%）', kind: 'folk', layer: 2, nest: 'starFolk1', n: 1, cost: 2, apply: { starFolk: 0.10 } },
     { id: 'starFolk3', name: '繁星劳作 III', desc: '族民岗位产出再额外 +10%（累计 +30%）', kind: 'folk', layer: 3, nest: 'starFolk2', n: 1, cost: 4, apply: { starFolk: 0.10 } },

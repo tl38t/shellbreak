@@ -71,6 +71,11 @@ html[data-ui-theme="day"] .tab.avail::after{background:#d8394b;box-shadow:0 0 5p
 .qbtn{width:16px;height:16px;flex:none;border-radius:50%;font-size:10px;font-weight:700;line-height:1}
 html[data-ui-theme="day"] .tab.on{box-shadow:inset 0 0 0 1px rgba(20,127,135,.06),inset 0 -2px #167b83}
 html[data-ui-theme="day"] .qbtn{background:#e4efec;border-color:#9bb9b9;color:#176d75}
+/* 页签「?」说明按钮 → 右上角浮角标（2026-11-06 玩家反馈：原内联紧贴文字极易误触）。
+   .tab 有 overflow:hidden，角标只能落框内右上角（top/right 内缩），靠 padding-right 给文字让位；
+   与左上角 avail 红点互不冲突。仍是独立点按目标（onclick 自带 stopPropagation），不触发切换。 */
+.tabs .tab{ padding-right:18px }
+.tabs .tab .qbtn{ position:absolute; top:1px; right:1px; margin:0; z-index:3; line-height:16px; cursor:help }
 
 #pane-workshop{padding:0}
 .workshop-overview{padding:16px 18px;background:linear-gradient(120deg,rgba(105,226,223,.09),rgba(16,42,66,.12));border-bottom:1px solid var(--line-soft)}
@@ -382,7 +387,7 @@ html[data-ui-theme="day"] .meta-tree-jump-list>span{color:#667286}html[data-ui-t
 .meta-tree-action{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0}.meta-tree-action>small{color:#78879a;font-size:7px;text-align:center;white-space:nowrap}.meta-tree-action .meta-buy{min-width:0;width:100%;min-height:28px;padding:4px 3px;border-color:color-mix(in srgb,var(--tree-accent) 28%,transparent);background:color-mix(in srgb,var(--tree-accent) 9%,transparent);color:#d5d0ff;font-size:8px;white-space:nowrap}.meta-tree-node.is-ready{border-color:color-mix(in srgb,var(--tree-accent) 44%,transparent);box-shadow:0 0 12px color-mix(in srgb,var(--tree-accent) 7%,transparent)}.meta-tree-node.is-ready .meta-tree-node-sigil{border-color:var(--tree-accent);color:var(--tree-accent);box-shadow:0 0 9px color-mix(in srgb,var(--tree-accent) 36%,transparent)}.meta-tree-node.is-ready:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--tree-accent) 66%,transparent);background:linear-gradient(135deg,color-mix(in srgb,var(--tree-accent) 12%,#162639),rgba(9,23,37,.96));box-shadow:0 5px 18px rgba(0,0,0,.18)}.meta-tree-node.is-done{border-color:rgba(112,193,153,.3);background:linear-gradient(135deg,rgba(29,72,59,.47),rgba(9,30,32,.82))}.meta-tree-node.is-done .meta-tree-node-sigil{border-color:#7bcaa0;color:#a3e5bd;box-shadow:0 0 9px rgba(112,193,153,.36)}.meta-tree-node.is-done .meta-tree-rank{color:#a8dfba;border-color:rgba(112,193,153,.22)}.meta-tree-node.is-locked{opacity:.72}.meta-tree-node.is-locked .meta-tree-node-sigil{color:#697482;border-color:rgba(134,147,164,.2)}.meta-tree-node.is-growing .meta-tree-node-sigil{color:var(--tree-accent)}
 .star-tree-intro{--meta-accent:#78d9ef;--meta-accent-soft:rgba(80,190,218,.12);border-color:rgba(120,217,239,.26);background:radial-gradient(ellipse at 8% 0,rgba(65,180,218,.19),transparent 54%),linear-gradient(125deg,rgba(11,37,55,.96),rgba(8,24,40,.94))}.star-tree-intro .meta-tree-kicker{color:#82d9ed}.star-tree-intro .meta-tree-progress{border-color:rgba(120,217,239,.2)}.star-tree-intro .meta-tree-progress-track>i{background:linear-gradient(90deg,#43a9cc,#9aedf6);box-shadow:0 0 10px rgba(108,219,238,.5)}
 .star-yield-details{margin:-4px 0 10px;padding:8px 11px;border:1px solid rgba(120,217,239,.15);border-radius:10px;background:rgba(7,25,39,.48);color:#9fb4c4}.star-yield-details summary{display:flex;align-items:center;gap:8px;color:#c7d8e1;font-size:9px;cursor:pointer;list-style:none}.star-yield-details summary::-webkit-details-marker{display:none}.star-yield-details summary::before{content:"＋";color:#7ed3e5}.star-yield-details[open] summary::before{content:"−"}.star-yield-details summary span{margin-left:auto;color:#849bac;font-size:8px;text-align:right}.star-yield-details p{margin:7px 0 1px;color:#96aabc;font-size:8px;line-height:1.6}
-.star-tree-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:10px}.star-tree-branch{--tree-accent:#76cce7}.star-tree-civilization{--tree-accent:#b2a5ff}.star-tree-industry{--tree-accent:#70d0d9}.star-tree-frontier{--tree-accent:#83d9ba}.star-tree-automation{--tree-accent:#dfb879}.star-tree-node .meta-tree-rank{color:#a9d9e6}.star-tree-node.is-done .meta-tree-node-sigil{color:#a5eddf}.star-exchange-group{margin-top:12px}.star-exchange-group .meta-section-title>b{color:#8fd9e8}
+.star-tree-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:10px}.star-tree-branch{--tree-accent:#76cce7}.star-tree-shell{--tree-accent:#a8b8f0}.star-tree-civilization{--tree-accent:#b2a5ff}.star-tree-industry{--tree-accent:#70d0d9}.star-tree-frontier{--tree-accent:#83d9ba}.star-tree-automation{--tree-accent:#dfb879}.star-tree-node .meta-tree-rank{color:#a9d9e6}.star-tree-node.is-done .meta-tree-node-sigil{color:#a5eddf}.star-exchange-group{margin-top:12px}.star-exchange-group .meta-section-title>b{color:#8fd9e8}
 html[data-ui-theme="day"] .meta-tree-intro{border-color:rgba(117,104,196,.2);background:radial-gradient(ellipse at 8% 0,rgba(137,122,223,.12),transparent 55%),linear-gradient(125deg,#f1f0fd,#f4f8fa)}html[data-ui-theme="day"] .meta-tree-intro h2{color:#37345a}html[data-ui-theme="day"] .meta-tree-intro p,html[data-ui-theme="day"] .meta-tree-progress>span,html[data-ui-theme="day"] .meta-tree-progress>small{color:#667286}html[data-ui-theme="day"] .meta-tree-progress{border-color:rgba(117,104,196,.18);background:rgba(255,255,255,.62)}html[data-ui-theme="day"] .meta-tree-progress>b{color:#39375d}html[data-ui-theme="day"] .meta-tree-branch{background:linear-gradient(155deg,#f8f9fd,#eef2f7)}html[data-ui-theme="day"] .meta-tree-branch-head>div>b{color:#394357}html[data-ui-theme="day"] .meta-tree-branch-head>div>small{color:#778497}html[data-ui-theme="day"] .meta-tree-node{border-color:rgba(100,119,145,.18);background:linear-gradient(135deg,#fff,#f3f6fa)}html[data-ui-theme="day"] .meta-tree-title>b{color:#29374a}html[data-ui-theme="day"] .meta-tree-desc{color:#5f6e80}html[data-ui-theme="day"] .meta-tree-action>small{color:#758297}html[data-ui-theme="day"] .star-yield-details{border-color:rgba(68,154,181,.2);background:#f2f8fa}html[data-ui-theme="day"] .star-yield-details summary{color:#435b66}html[data-ui-theme="day"] .star-yield-details summary span,html[data-ui-theme="day"] .star-yield-details p{color:#657c87}
 @media(max-width:980px){.meta-tree-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.meta-tree-jump-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -702,6 +707,9 @@ html[data-ui-theme="day"] .challenge-notice-link{border-color:rgba(40,125,123,.2
 .challenge-active.is-readonly{border-style:dashed;border-color:rgba(139,170,190,.34);background:rgba(139,170,190,.07)}
 .challenge-active.is-readonly .challenge-active-mark{background:rgba(139,170,190,.15);color:#a9cad9}
 html[data-ui-theme="day"] .challenge-active.is-readonly{background:rgba(139,170,190,.1);border-color:rgba(90,120,140,.28)}
+/* 开启前置未满足（2026-11-05）：暖色警示，与「已超时」的红、「已完成」的绿区分开。 */
+.challenge-status.locked{border-color:rgba(232,178,96,.38);color:#e8b260}.challenge-prereq.is-lack{color:#e8b260}
+html[data-ui-theme="day"] .challenge-status.locked{color:#8a5a18}html[data-ui-theme="day"] .challenge-prereq.is-lack{color:#8a5a18}
 html[data-ui-theme="day"] .challenge-active.is-readonly .challenge-active-mark{color:#3f6270}
 
 /* ══ ERA10 市政 · 虚境祭坛血纹（2026-10-20）══════════════════════════════
@@ -977,6 +985,34 @@ html[data-ui-theme="day"] #pane-faith .faith-state-row.is-void-anchored{backgrou
 html[data-ui-theme="day"] .faith-void-seal{border-color:rgba(126,84,166,.28);background:rgba(145,102,187,.09);color:#684687}
 html[data-ui-theme="day"] #pane-village .bld-row.faith-monolith{border-color:rgba(87,130,161,.22);box-shadow:inset 0 0 0 1px rgba(93,131,165,.05)}
 html[data-ui-theme="day"] #pane-village .bld-row.faith-monolith.is-owned{border-color:rgba(126,95,167,.32);box-shadow:inset 0 0 0 1px rgba(126,95,167,.08)}
+
+/* Weekly Faith tenet drafts: inline choice cards, with no modal interruption. */
+.faith-tenets{margin-top:18px;padding:14px;border:1px solid rgba(230,145,176,.25);border-radius:14px;background:linear-gradient(145deg,rgba(73,42,66,.22),rgba(12,28,43,.2))}
+.faith-tenets-head h3,.faith-tenet-draft-head h4,.faith-tenet-established h4{margin:0;color:#f0bfd0;font-size:15px}
+.faith-tenets-head p,.faith-tenet-draft-head p,.faith-tenets-progress span,.faith-tenets-empty{margin:4px 0 0;color:var(--muted,#9daab5);font-size:12px}
+.faith-tenets-progress{display:flex;flex-wrap:wrap;justify-content:space-between;gap:5px 14px;margin-top:12px;padding:9px 11px;border-radius:9px;background:rgba(0,0,0,.16);font-size:12px}
+.faith-tenets-progress b{color:#f2d7e1}
+.faith-tenet-draft,.faith-tenet-established{margin-top:14px}
+.faith-tenet-options,.faith-tenet-established-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:9px;margin-top:8px}
+.faith-tenet-choice{display:flex;align-items:flex-start;gap:10px;min-width:0;padding:10px;border:1px solid rgba(230,145,176,.23);border-radius:11px;background:rgba(7,20,31,.68);color:var(--text,#e8edf0);text-align:left;cursor:pointer;transition:border-color .15s ease,background .15s ease,transform .15s ease}
+.faith-tenet-choice:hover{border-color:rgba(240,178,201,.75);background:rgba(63,38,58,.48);transform:translateY(-1px)}
+.faith-tenet-choice:focus-visible{outline:2px solid #f0b2c9;outline-offset:2px}
+.faith-tenet-icon{width:54px;height:54px;flex:0 0 54px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.32))}
+.faith-tenet-copy,.faith-tenet-established-card>div{display:flex;min-width:0;flex-direction:column;gap:4px}
+.faith-tenet-copy>b,.faith-tenet-established-card b{color:#f0bfd0;font-size:13px}
+.faith-tenet-copy>span,.faith-tenet-established-card span{color:var(--muted,#a9b4bd);font-size:11px;line-height:1.45}
+.faith-tenet-copy>i,.faith-tenet-established-card i{color:#e5a9c0;font-size:10px;font-style:normal;font-weight:700}
+.faith-tenet-established-card{display:flex;align-items:center;gap:10px;min-width:0;padding:9px;border:1px solid rgba(230,145,176,.16);border-radius:10px;background:rgba(0,0,0,.11)}
+.faith-tenets-empty{padding:8px 0}
+html[data-ui-theme="day"] .faith-tenets{border-color:rgba(151,83,117,.2);background:linear-gradient(145deg,rgba(222,174,192,.16),rgba(255,255,255,.38))}
+html[data-ui-theme="day"] .faith-tenets-head h3,html[data-ui-theme="day"] .faith-tenet-draft-head h4,html[data-ui-theme="day"] .faith-tenet-established h4,html[data-ui-theme="day"] .faith-tenet-copy>b,html[data-ui-theme="day"] .faith-tenet-established-card b{color:#74445b}
+html[data-ui-theme="day"] .faith-tenets-progress{background:rgba(255,255,255,.48)}
+html[data-ui-theme="day"] .faith-tenets-progress b{color:#654458}
+html[data-ui-theme="day"] .faith-tenet-choice{border-color:rgba(151,83,117,.2);background:rgba(255,255,255,.52);color:#35313a}
+html[data-ui-theme="day"] .faith-tenet-choice:hover{border-color:rgba(151,83,117,.55);background:rgba(250,232,239,.9)}
+html[data-ui-theme="day"] .faith-tenet-copy>span,html[data-ui-theme="day"] .faith-tenet-established-card span,html[data-ui-theme="day"] .faith-tenets-head p,html[data-ui-theme="day"] .faith-tenet-draft-head p,html[data-ui-theme="day"] .faith-tenets-progress span,html[data-ui-theme="day"] .faith-tenets-empty{color:#716874}
+html[data-ui-theme="day"] .faith-tenet-copy>i,html[data-ui-theme="day"] .faith-tenet-established-card i{color:#965d77}
+html[data-ui-theme="day"] .faith-tenet-established-card{border-color:rgba(151,83,117,.16);background:rgba(255,255,255,.32)}
 html[data-ui-theme="day"] #pane-village .bld-row.void-altar.void-lv-3{border-color:rgba(161,90,162,.4)}
 @media(prefers-reduced-motion:reduce){.void-ascension-showcase .break-stage::after{transition:none}}
 
@@ -1189,6 +1225,10 @@ html[data-ui-theme="day"] .policy-picker-error{background:#fdecee;border-color:#
 .track-dock .td-item.is-short{color:var(--red);font-weight:700}
 .track-dock .td-sep{color:#3b5b73;font-style:normal}
 .track-dock .td-x{flex:none;width:16px;height:16px;padding:0;border:0;border-radius:5px;background:transparent;color:#5c7688;font-size:12px;line-height:1;cursor:pointer}
+.track-dock .td-craft{display:flex;flex-wrap:wrap;gap:4px;margin-top:1px}
+.track-dock .td-goto-craft{display:inline-block;padding:0 5px;border-radius:5px;background:rgba(86,160,214,.18);color:#8fd0ff;font-size:10.5px;line-height:16px;text-decoration:none;cursor:pointer}
+.track-dock .td-goto-craft:hover{background:rgba(86,160,214,.34)}
+.track-dock .td-goto-craft.is-locked{background:transparent;color:var(--dim);cursor:not-allowed}
 /* 单行 ⇒ 用外层那颗 ×（视觉与旧版一致）；多行 ⇒ 每行自己的 ×，外层收起。
  * 不加这条会出现「第一行右边并排两个叉」，玩家分不清哪个是关全部。 */
 .track-dock:not(.is-multi) .td-row .td-x{display:none}

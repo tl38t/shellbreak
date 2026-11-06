@@ -101,6 +101,7 @@
     var inc = companyLuxMul(s) + (SB.civic ? SB.civic.cardLuxConsumeMul(s) : 0)
       + tenementLuxAdd(s) + fissionLuxAdd(s);
     var net = 1 + inc - luxSaveAll(s);
+    if (SB.faith && SB.faith.luxuryUseMul) net *= SB.faith.luxuryUseMul(s);
     return net < 0 ? 0 : net;      // 护栏：极端减耗下净需求不为负
   }
   function happyBurn(s) {

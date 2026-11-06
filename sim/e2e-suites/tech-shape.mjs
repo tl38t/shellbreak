@@ -194,32 +194,32 @@ console.log('\n=== 科技树形状 ===');
     'lv=' + SB.tech.level(s, 'mwconverge'));
 }
 
-/* ---------------- 《天壳地质学》破壳门槛 75%（2026-11-04 用户拍板）----------------
- * 旧值 0.5 ⇒ 玩家「破壳不到一半钻头就造不了」。改成 0.75 后恰好卡在自动削壳的
- * 停手线 FLOOR_AT=0.25 上，所以除了数值本身，更要钉住**可达性**：
- * 若门槛 > 0.75，钻机建成前 brokenRatio 永远够不到，而钻机的科技链要过 shellgeo
- * ⇒ 整条破壳链死锁。这里同时锁住「面板文案跟着 n 走」，避免出现「面板说 50%、
- * 实际要 75%」的撒谎。 */
+/* ---------------- 《天壳地质学》破壳门槛 25%（2026-11-05 纠正）----------------
+ * 用户原话：「搞反了，是 25% 破壳就可以研究科技，不是 75%」。
+ * n = **已削掉**的壳比例，0.25 ⇒ 早期解锁共振钻头 / 钻机链。
+ * ⚠️ 仍要钉住可达性上限 1 − FLOOR_AT = 0.75：门槛一旦超过它，钻机建成前
+ *    brokenRatio 永远够不到，而钻机前置要过 shellgeo ⇒ 循环依赖死锁。
+ *    同时锁「面板文案跟着 n 走」，避免「面板说 50%、实际要 25%」的撒谎。 */
 {
   const T = SB.TECHS;                 // 上面的 T/m 在各自块作用域里，这里另取
   const geo = T.find(t => t.id === 'shellgeo');
   const at = r => ({ iceShell: 500000, shell: 500000 * (1 - r) });
-  const floorRatio = 1 - SB.CFG.FLOOR_AT;
-  check('《天壳地质学》门槛 = 破壳 75%，与自动削壳停手线对齐',
-    geo && geo.cond && geo.cond.t === 'shell' && geo.cond.n === 0.75 && floorRatio === 0.75,
+  const ceilRatio = 1 - SB.CFG.FLOOR_AT;
+  check('《天壳地质学》门槛 = 破壳 25%，且不超过钻机前可达上限 75%',
+    geo && geo.cond && geo.cond.t === 'shell' && geo.cond.n === 0.25 && geo.cond.n <= ceilRatio,
     geo && JSON.stringify(geo.cond));
-  check('条件文案输出「破壳 75%」（不写死旧值 50%）',
-    SB.tech.condText(geo.cond) === '破壳 75%' && SB.tech.condShort(at(0.5), geo.cond).need === 0.75,
+  check('条件文案输出「破壳 25%」（不写死 50% / 75%）',
+    SB.tech.condText(geo.cond) === '破壳 25%' && SB.tech.condShort(at(0.1), geo.cond).need === 0.25,
     SB.tech.condText(geo.cond));
-  check('削掉 50% ⇒ 未达成（旧口径会在这一步放行）',
-    SB.tech.condMet(at(0.5), geo.cond) === false);
-  check('★ 自动段停手线 75% ⇒ 达成，破壳链没有循环依赖死锁',
-    SB.shell.brokenRatio(at(floorRatio)) === 0.75 && SB.tech.condMet(at(floorRatio), geo.cond) === true,
-    'br=' + SB.shell.brokenRatio(at(floorRatio)));
-  check('破壳后 100% ⇒ 仍达成（条件不回退）', SB.tech.condMet(at(1), geo.cond) === true);
+  check('削掉 20% ⇒ 未达成（边界前一格）', SB.tech.condMet(at(0.2), geo.cond) === false);
+  check('★ 削掉 25% ⇒ 达成（用户要的早期解锁）', SB.tech.condMet(at(0.25), geo.cond) === true);
+  check('削掉 50% / 自动段停手线 75% ⇒ 仍达成（条件不回退）',
+    SB.tech.condMet(at(0.5), geo.cond) === true &&
+    SB.shell.brokenRatio(at(ceilRatio)) === 0.75 && SB.tech.condMet(at(ceilRatio), geo.cond) === true);
+  check('破壳后 100% ⇒ 仍达成', SB.tech.condMet(at(1), geo.cond) === true);
   const ones = T.filter(t => t.cond && t.cond.t === 'shell' && t.cond.n === 1);
-  check('另一条「破壳 100%」条件不受牵连（75% 时不该提前成立）',
-    ones.length >= 1 && ones.every(t => !SB.tech.condMet(at(0.75), t.cond) && SB.tech.condMet(at(1), t.cond)),
+  check('另一条「破壳 100%」条件不受牵连（25% 时不该提前成立）',
+    ones.length >= 1 && ones.every(t => !SB.tech.condMet(at(0.25), t.cond) && SB.tech.condMet(at(1), t.cond)),
     ones.map(t => t.id).join(','));
 }
 

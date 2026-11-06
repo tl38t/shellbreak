@@ -870,12 +870,16 @@
   }
   function drillStockTarget(s) {
     if (!s || !s.techs || !s.techs.shellgeo || s.broken) return 0;
-    var shellRate = SB.CFG.SKYDRILL_RATE * (1 + 0.05 * ((s.perk && s.perk.shellSurvey) || 0));
+    /* 天元突破 2×：削壳速率与钻头耗率同倍放大，故「凿完这段壳要囤多少钻头」这个
+     * 商式数学上相消（2× 档供 0.2/秒、只跑一半时间）。两边仍都读同一个倍率口，
+     * 免得将来只改一边时备料目标静默偏离生产口径。 */
+    var _dm = (SB.shell && SB.shell.skydrillMul) ? SB.shell.skydrillMul(s) : 1;
+    var shellRate = SB.CFG.SKYDRILL_RATE * (1 + 0.05 * ((s.perk && s.perk.shellSurvey) || 0)) * _dm;
     /* 基础削壳会先把壳推到 25% 下限；钻机要凿的是下限以内的整段，
      * 不是「当前壳厚超过下限的部分」。用 min 保证在下限处仍按最后 25% 备料。 */
     var drillShell = Math.min(Math.max(0, s.shell || 0),
       (s.iceShell || SB.CFG.ICE_SHELL) * SB.CFG.FLOOR_AT);
-    return 20 + Math.ceil(drillShell / Math.max(1, shellRate) * SB.CFG.SKYDRILL_DRILL * 1.05);
+    return 20 + Math.ceil(drillShell / Math.max(1, shellRate) * SB.CFG.SKYDRILL_DRILL * _dm * 1.05);
   }
   function portfolioBuild(s, excludeId) {
     /* 建造总等级门槛期间，不能把第二个建造动作也全投给同一个硬门槛建筑。

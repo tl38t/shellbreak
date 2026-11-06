@@ -376,6 +376,9 @@
     }
     var _outputMul = SB.economy && SB.economy.folkOutputMul ? SB.economy.folkOutputMul(s) : 1;
     if (_outputMul !== 1) for (k in r) r[k] *= _outputMul;
+    if (SB.faith && SB.faith.professionOutputMul) {
+      for (k in r) r[k] *= SB.faith.professionOutputMul(s, k);
+    }
     return r;
   }
 

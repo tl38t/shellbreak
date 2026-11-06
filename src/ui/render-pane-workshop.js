@@ -10,19 +10,23 @@
    *   已完成的数量是**活的**（买下第二把斧头就从 1 变 2），而 zone 折叠那套的键是
    *   **固定 id**（ZONE_FOLDED[id]）⇒ 拿来记「第 N 项已完成」会在计数变化时对不上号。
    *   一个全局开关 + 实时计数，键固定、计数现算，两边都不会漂。
-   * ⚠️ 状态存 localStorage 而不是 s（存局内状态会被轮回清掉，玩家每局都要重按）。
+   * ⚠️ 状态不进 s（存周目状态会被轮回清掉，玩家每局都要重按）。
+   * ⚠️【2026-11-05 改走 SB.store 设备级偏好层】原先各模块自己写裸 localStorage 键，
+   *   但 TapTap 只对 tapfile://usr 与 tap.setStorage 有持久承诺 ⇒ 清缓存 / 重启就复位。
+   *   现在三通道镜像 + 旧键迁移 + 启动异步回填，详见 save-storage.js ⑤。
+   *   这里**不再缓存布尔**：每次读权威态，异步备份晚到时下一次重画自然生效，
+   *   也不会出现「玩家刚点开、慢到的旧值把它顶回去」。
    * ⚠️ 默认**不隐藏**：已买下的工具是玩家的资产清单，默认藏起来会让人以为丢了。
    *   想「清爽」的玩家主动点一下，这是设置项该有的默认取向。 */
-  var HIDE_DONE_KEY = 'sb.hideDone.v1';
-  var hideDone = false;
-  try {
-    var rawHd = root.localStorage && root.localStorage.getItem(HIDE_DONE_KEY);
-    if (rawHd === '1') hideDone = true;
-  } catch (e) { hideDone = false; }
+  var HIDE_DONE_KEY = 'workshopHideDone';
+  function hideDone() {
+    var S = SB.store;
+    return !!(S && S.prefGet && S.prefGet(HIDE_DONE_KEY, false));
+  }
   function toggleHideDone() {
-    hideDone = !hideDone;
-    try { if (root.localStorage) root.localStorage.setItem(HIDE_DONE_KEY, hideDone ? '1' : '0'); } catch (e) {}
-    return hideDone;
+    var v = !hideDone(), S = SB.store;
+    if (S && S.prefSet) S.prefSet(HIDE_DONE_KEY, v);
+    return v;
   }
   /* 「工坊里已完成了几项」——**只数买断类**（工具 + 工艺升级项）。
    * ⚠️ 配方（工艺制作）**不算**：它是反复制造，不存在「完成」状态，
@@ -43,9 +47,9 @@
   function hideDoneBtn(s) {
     var n = doneCount(s);
     if (!n) return '';
-    return '<button class="tgl" data-hidedone="1" aria-pressed="' + (hideDone ? 'true' : 'false') +
+    return '<button class="tgl" data-hidedone="1" aria-pressed="' + (hideDone() ? 'true' : 'false') +
       '" title="点击切换是否显示已完成的项目（工具与升级项）">' +
-      (hideDone ? '显示已完成（' + n + '）' : '隐藏已完成（' + n + '）') + '</button>';
+      (hideDone() ? '显示已完成（' + n + '）' : '隐藏已完成（' + n + '）') + '</button>';
   }
 
   /* ── 「升级项」页签的进度与未读 NEW（2026-10-17 用户）────────────────────
@@ -58,10 +62,12 @@
    *   写成「已完成 n / 已揭晓 m」而不是光秃秃的 n/m：这个页签里混着「职业工具」和
    *   「工坊升级」两段，标清楚才知道分母是什么。
    *
-   * 【「看过」存 localStorage 而不是 s】与上面 hideDone 同一条理由，但更强：
-   *   工具/升级项本身是**局内**状态（s.tools / s.upgrades），轮回会清空它们，
-   *   而「这条内容我已经知道它存在了」是**跨局**的认知。跟着轮回清零的话，
-   *   每开一局所有条目都会重新闪一次 NEW —— 那这个角标就废了。
+   * 【「看过」仍存裸 localStorage，与上面 hideDone 不同源】工具/升级项本身是**局内**
+   *   状态（s.tools / s.upgrades），轮回会清空它们，而「这条内容我已经知道它存在了」
+   *   是**跨局**的认知：跟着轮回清零的话，每开一局所有条目都会重新闪一次 NEW。
+   *   ⚠️ 但 2026-11-05 只按用户要求迁了「隐藏已完成」两个开关，NEW 角标这条还在旧的
+   *      裸键上 ⇒ TapTap 清缓存后可能重新闪一次 NEW。**已知范围外项**：要一起迁就走
+   *      SB.store 的同一个 PREF_KEY，别再开第三条通道。
    *
    * 【键带 `t:` / `u:` 前缀】工具与升级项分属两张表，id 当前不会撞（升级项统一
    *   `upg_` 前缀），但 id 表是活的：将来真撞了，不该让两件不同的东西互相把对方
@@ -171,13 +177,13 @@
         '<small>买断后持续生效；每件工具只作用于对应职业。</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
         '<section class="workshop-section"><header class="workshop-section-title"><b>工坊升级</b>' +
         '<small>一次装填，永久生效。</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
-        (hideDone ? '<div class="note">已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。</div>' : '') +
+        (hideDone() ? '<div class="note">已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。</div>' : '') +
         '<div class="note">工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。</div>';
     }
     return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>工艺制作</b>' +
       '<small>查看每次投入、当前产出与批量选项。</small></header>' +
       autoSlotSummary(s) + '<div class="workshop-grid workshop-crafts">' + paneCraftRows(s) + '</div></section>' +
-      (hideDone ? '<div class="note">已完成的项目当前被隐藏' +
+      (hideDone() ? '<div class="note">已完成的项目当前被隐藏' +
         '（' + doneCount(s) + ' 项）——点上方「显示已完成」把它们放回来。</div>' : '') +
       '<div class="note">这里的配方可以反复制造，石梁是当前奇观的主要建材。' +
       '（礁石平台、深潜那一类通用采集加成，仍然会一并作用在职业产出上。）' +
@@ -223,7 +229,7 @@
       var productIcon = c.res ? '<img class="craft-icon" src="assets/resource-icons/' + c.res + '.png?v=2" alt="" aria-hidden="true" width="36" height="36" decoding="async">' : '';
       var cost = [], k;
       for (k in c.in) cost.push(SB.RESS[k].name + ' ' + c.in[k]);
-      h += '<div class="row"><div class="nm">' + productIcon + '<button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + c.name + '</button></div>' +
+      h += '<div class="row" data-craft-res="c.res"><div class="nm">' + productIcon + '<button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + c.name + '</button></div>' +
         '<div class="ds">每次：' + cost.join(' + ') +
         ' ⇒ <b>' + SB.economy.fmtAmt(c.out * mul) + '</b>' +
         '（效率 +' + ((mul - 1) * 100).toFixed(0) + '%）</div>';
@@ -346,7 +352,7 @@
        *   反过来的话开关一开，「未解锁」与「已完成」两种行会一起消失，
        *   玩家会以为「连没解锁的东西都藏了」，而设置项该只管完成态。
        *   ⚠️ 计数在 doneCount(s) 里现算（不受这里的循环影响），不另记一份。 */
-      if (hideDone && owned) continue;
+      if (hideDone() && owned) continue;
       /* ⚠️ 2026-10-05 用户拍板：**未解锁的条目不显示**（改前七件工具全列）。
        *   判据复用按钮文案已在用的 `/^需要先/` 前缀（未解锁 vs 买不起），不新立一套。
        *   例外：已买下的永远显示（否则玩家看不到自己买过什么）——
@@ -366,7 +372,7 @@
         (owned || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button></div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
-      (hideDone && doneCount(s) > 0 ? '（可买的都买完了）' : '（还没有可买的工具）') + '</div></div>';
+      (hideDone() && doneCount(s) > 0 ? '（可买的都买完了）' : '（还没有可买的工具）') + '</div></div>';
     return h + '<div class="note">门槛是建成工坊本身，不是青铜术——青铜术是纪元一最贵的科技，' +
       '等它解锁工具就晚到了。</div>';
   }
@@ -387,7 +393,7 @@
       var why = on ? null : W.upgradeBlocked(s, u.id);
       /* ⚠️ 2026-10-05：与工具同口径 —— ① hideDone 开着时跳过已装上的（先判开关）；
        *   ② 未解锁不显示，已装上的在显示态永远显示。 */
-      if (hideDone && on) continue;
+      if (hideDone() && on) continue;
       if (!itemRevealed(on, why)) continue;
       shown++;
       /* 与工具同口径：灰着还写「装上」会让玩家以为点了会怎样，实际什么都没有。 */
@@ -405,7 +411,7 @@
         '<div class="upgrade-actions">' + _buyBtn + '</div></div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
-      (hideDone && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';
+      (hideDone() && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';
     return h;
   }
 

@@ -59,6 +59,20 @@ for _d in ASSET_DIRS:
     _sync_tree(os.path.join(REPO, 'assets', _d), os.path.join(SRC, 'assets', _d))
 print('已自动同步 assets/ 的 %d 个子树 -> 包目录（store 本地素材除外）' % len(ASSET_DIRS))
 
+# ⚠️ 2026-11-05：破壳分镜的 engraved-v1/v2/v3 是**未定稿草案**（15 个文件 / 约 38 MB），
+#    生产代码仍引用旧图（sequence/era-5/frame-0*.webp + breakthrough/end-stars-draft-low.jpg）。
+#    backgrounds 是整目录白名单同步，不排除会把这些未引用素材一起打进包（57 MB → 95 MB）。
+#    ⚠️ 排除必须放在同步**之后**：放前面会被下一轮 _sync_tree 原样复制回来。
+#    将来若正式启用某一版分镜，改这里保留对应目录，并同步补上代码引用与 ?v bump。
+_BR = os.path.join(SRC, 'assets', 'backgrounds', 'breakthrough')
+_DRAFT_DIRS = [os.path.join(_BR, d) for d in sorted(os.listdir(_BR))
+               if d.startswith('engraved-v') and os.path.isdir(os.path.join(_BR, d))]
+for _draft in _DRAFT_DIRS:
+    shutil.rmtree(_draft, ignore_errors=True)
+assert not [d for d in os.listdir(_BR) if d.startswith('engraved-v')], '未定稿分镜草案目录没排干净'
+print('已排除未定稿分镜草案目录 %d 个：%s' %
+      (len(_DRAFT_DIRS), ', '.join(os.path.basename(d) for d in _DRAFT_DIRS) or '无'))
+
 # ---------- 打包前：确认包内源码已是新壳厚 ----------
 cfg = os.path.join(SRC, 'src', 'config.js')
 with open(cfg, encoding='utf-8') as f:
@@ -146,14 +160,29 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.16'" in _cfg, '包内 config.js 版本号不是 Ver1.0.16'
+assert "VERSION: 'Ver1.0.17'" in _cfg, '包内 config.js 版本号不是 Ver1.0.17'
+assert "v: 'Ver1.0.17'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.17 条目'
+# Ver1.0.17 玩家可见 8 条：3 修复（25% 门槛方向搞反 / 隐藏开关跨重启复位 /
+# 流浪泰拉 15 周目前置没说清楚）＋ 1 调整（暖石动态费率）＋ 4 新增
+# （星屑「天外重压」三级减壳 / 轮回「万众热忱」三级加速 / 轮回「天元突破」钻头倍率
+# / 追踪坞工坊产物「去制造」跳转）。25% 那条是线上 1.0.16 实装成 75% 的更正，
+# 隐藏开关、流浪泰拉前置与追踪坞跳转都是玩家实测反馈，漏一条等于白改。
+for _kw in ['修复《天壳地质学》的揭示门槛实装方向搞反的问题',
+            '修复工坊与奇观「隐藏已完成」开关每次重开游戏都要重按的问题',
+            '《流浪泰拉》挑战现在写明开启前置',
+            '保温法烧暖石不再是固定每秒 1 块',
+            '星屑商店新增「天壳压制」一组天赋「天外重压」',
+            '轮回商店「远见之人」新增三级天赋「万众热忱」',
+            '轮回商店「钻机测绘」终点新增天赋「天元突破」',
+            '追踪坞（角落小框）里，凡是需要工坊产物的材料不足时']:
+    assert _kw in _cfg, '包内 config.js 的 Ver1.0.17 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.16'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.16 条目'
 # Ver1.0.16 玩家可见 4 条：3 修复（结算并挑战吞奖励 / 自动槽不起效 / 复合型工厂槽位没兑现）
-# ＋ 1 调整（天壳地质学门槛 50%→75%）。三条修复都是玩家实测在踩的线上问题，漏一条等于白改。
+# ＋ 1 调整（天壳地质学门槛 50%→25%）。三条修复都是玩家实测在踩的线上问题，漏一条等于白改。
 for _kw in ['修复在挑战页点「结算并挑战」时不给本局轮回点和星屑的问题',
             '修复轮回商店买的「自动工坊」槽位不起效的问题',
             '修复科技《复合型工厂》承诺的「自动工艺槽位 +1」没有兑现的问题',
-            '《天壳地质学》的揭示门槛从破壳 50% 调整为 75%']:
+            '《天壳地质学》的揭示门槛从破壳 50% 调整为 25%']:
     assert _kw in _cfg, '包内 config.js 的 Ver1.0.16 更新日志缺条目：' + _kw
 assert "v: 'Ver1.0.15'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.15 条目'
 # Ver1.0.15 玩家可见 11 条：6 新增（四项终局挑战 / 限制生命周期 / 每档 +10% 轮回点口径）

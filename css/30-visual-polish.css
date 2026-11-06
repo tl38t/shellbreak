@@ -132,6 +132,13 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 .row .nm{font-size:12px;font-weight:700}
 .row .ds{font-size:11px;line-height:1.55;color:var(--dim)}
 .row.envsplit{border-top:1px dashed rgba(104,164,196,.2);border-bottom:0;margin-top:12px;padding-top:12px}
+/* 天元突破：钻头倍率与启动/停机两个按钮同组。.row 是 space-between flex，
+ * 不包一层会把三个子元素拉成等距三列；窄屏允许整行换行，别把说明文字挤到 min-content 以下。 */
+.env-drill-ops{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0}
+@media (max-width:520px){
+  #envDrill{flex-wrap:wrap}
+  #envDrill>.env-drill-ops{width:100%;justify-content:flex-start}
+}
 .secttl{font-size:12px;letter-spacing:1.3px}
 
 .tabs{gap:7px;padding:7px;margin-bottom:12px;border:1px solid var(--line-soft);border-radius:13px;background:rgba(7,24,40,.72);box-shadow:0 12px 32px rgba(0,0,0,.14)}

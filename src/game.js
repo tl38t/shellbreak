@@ -218,6 +218,7 @@
   // 继续未完成的上一周目（刷新页面时）
   function resumeRun(saved) {
     S = saved;
+    if (SB.faith && SB.faith.syncRun && SB.faith.syncRun(S)) markDirty();
     /* 季长自愈（2026-10-31）：除了「缺版本号」的老档，还有一种格局要重算 ——
      * meta 已记「流浪泰拉完成」但本局季长还是旧的（seasonRewardAtStart=false）。
      * 那是奖励入账只写了 meta 没写 run 的存档（修复前的产物），不重算的话
@@ -469,14 +470,14 @@
     if (row) row.classList.toggle('is-locked', !owned);
     var hint = document.getElementById('autoClickHint');
     if (hint) {
+      var i18n = SB.i18n && SB.i18n.t ? SB.i18n : null, branch = i18n ? i18n.t('ui.prestige.tree.remnants.name') : '先人孑遗', perk = i18n ? i18n.t('prestige.perk.tidal_auto_click.name') : '潮讯自拾';
       var next = !owned
-        ? (shopOpen()
-          ? '未拥有 —— 到「轮回商店 · 先人孑遗」购买「潮讯自拾」（点此行直达）'
-          : '未拥有 —— 首次破壳后商店开放，届时在「轮回商店 · 先人孑遗」购买「潮讯自拾」')
+        ? (shopOpen() ? (i18n ? i18n.t('game.autoclick.not_owned.shop_open_hint', { perkName: perk, perkBranch: branch }) : '未拥有 —— 到「轮回商店 · 先人孑遗」购买「潮讯自拾」（点此行直达）')
+          : (i18n ? i18n.t('game.autoclick.not_owned.shop_locked_hint', { perkName: perk, perkBranch: branch }) : '未拥有 —— 首次破壳后商店开放，届时在「轮回商店 · 先人孑遗」购买「潮讯自拾」'))
         : (on
-          ? '已拥有「潮讯自拾」· 每秒 ' + rate + ' 次，不受游戏倍速影响'
+          ? (i18n ? i18n.t('game.autoclick.active_hint', { automationName: perk, clickRate: rate }) : '已拥有「潮讯自拾」· 每秒 ' + rate + ' 次，不受游戏倍速影响')
           /* 暂停态特意点明「跨周目保留」：破壳后新周目仍是关，否则玩家会以为买的东西丢了。 */
-          : '已暂停：不再自动采集，手动点「手动采集」照旧可用（跨周目保留）');
+          : (i18n ? i18n.t('game.autoclick.paused.hint') : '已暂停：不再自动采集，手动点「手动采集」照旧可用（跨周目保留）'));
       if (hint.textContent !== next) hint.textContent = next;
     }
   }
@@ -546,9 +547,9 @@
     }
     var np = document.getElementById('audioNowPlaying');
     if (np && SB.audio && SB.audio.currentTrack) {
-      var t = SB.audio.currentTrack();
-      var phase = (s && s.broken) ? '破壳后' : '破壳前';
-      var next = t ? ('《' + t.name + '》— ' + t.author + '（' + phase + '）') : '（未配置曲目）';
+      var t = SB.audio.currentTrack(), i18n = SB.i18n && SB.i18n.t ? SB.i18n : null, trackName = t && i18n && i18n.getLocale && i18n.getLocale() === 'en-US' ? (t.en || t.name) : t && t.name, artistName = t && t.author === '百景乐团' && i18n && i18n.getLocale && i18n.getLocale() === 'en-US' ? i18n.t('music.artist.baijing_ensemble') : t && t.author;
+      var phase = i18n ? i18n.t((s && s.broken) ? 'game.audio.phase.after_shellbreak' : 'game.audio.phase.before_shellbreak') : (s && s.broken) ? '破壳后' : '破壳前';
+      var next = t ? (i18n ? i18n.t('game.audio.now_playing', { trackName: trackName, artistName: artistName, audioPhase: phase }) : ('《' + t.name + '》— ' + t.author + '（' + phase + '）')) : (i18n ? i18n.t('game.audio.track_not_configured') : '（未配置曲目）');
       if (np.textContent !== next) np.textContent = next;
     }
   }
@@ -1330,9 +1331,10 @@
     var warmCold = s.warmOn && SB.economy.season(s).mult < 1;
     if (warmCold && s.warmOn && s.res.warmstone > 0) {
       var warmstoneRate = SB.economy.rates(s).warmstone || 0;
-      var reliefRate = SB.economy.warmBurningNow(s) ? SB.CFG.WARM_RATE : 0;
+      var warmRate = SB.economy.warmRate(s);          // 2026-11-05：动态费率，与 tick 同源
+      var reliefRate = SB.economy.warmBurningNow(s) ? warmRate : 0;
       var otherDrain = Math.max(0, -(warmstoneRate + reliefRate));
-      var warmBuffer = SB.CFG.WARM_RATE * (1 + dt) + otherDrain * dt;
+      var warmBuffer = warmRate * (1 + dt) + otherDrain * dt;
       if (s.res.warmstone <= warmBuffer) dt = Math.min(dt, STEP);
     }
     return dt > 1e-9 ? dt : Math.min(gameLeft, STEP);
@@ -2044,6 +2046,12 @@
     bootStage2();
   }
   function bootStage2() {
+    /* 设备级 UI 偏好（2026-11-05）：就绪门之后 tap 已注入，这时才读得到 ②③ 的备份。
+     * fire-and-forget：偏好只是「隐藏已完成」这类视图态，晚几帧生效没有数值后果；
+     * 命中后 prefGet 立刻返回回填值，下一次 2 秒重画自然跟上。 */
+    if (SB.store && SB.store.prefHydrate) {
+      try { SB.store.prefHydrate(); } catch (e) {}
+    }
     /* ⚠️ 就绪门会把启动推迟到 tap 到位之后才继续，而 main.js 里那句
      *   `SB.saveTransfer.boot()` 是在「能力全假」的那一刻就跑完的 ⇒ 云备份定时器
      *   根本没装上（它内部判 cloudAvailable）。这里补一次；boot 内部有 autoPumpTimer
@@ -2228,6 +2236,9 @@
   }
   function releaseNativeHold() {
     if (SB.store && SB.store.setNativeHold) { try { SB.store.setNativeHold(false); } catch (e) {} }
+    /* 晚到补偿那条路（玩家跳过就绪门 / tap 慢注入）走到这里时 tap 才刚齐，
+     * 补一次偏好回填；prefHydrate 幂等，bootStage2 已经命中过就直接返回。 */
+    if (SB.store && SB.store.prefHydrate) { try { SB.store.prefHydrate(); } catch (e) {} }
   }
   /* ── D. 晚到补偿（2026-10-30）──────────────────────────────────────
    * 【为什么还要它】就绪门堵住了绝大多数情况，但仍有三条路能在 tap 未就绪时开成新档：

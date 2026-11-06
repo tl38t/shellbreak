@@ -5,6 +5,65 @@
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
 
+  function escapeHtml(value) {
+    return String(value === undefined || value === null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function faithTenets(s) {
+    var F = SB.faith;
+    if (!F) return '';
+    var fmt = SB.economy.fmtAmt;
+    var total = Number(s.faithEarnedTotal) || 0;
+    var next = F.nextThreshold(s);
+    var h = '<section class="faith-tenets"><header class="faith-tenets-head">' +
+      '<h3>' + escapeHtml(F.text('faith.tenets.section_title')) + '</h3>' +
+      '<p>' + escapeHtml(F.text('faith.tenets.intro')) + '</p></header>' +
+      '<div class="faith-tenets-progress"><b>' + escapeHtml(F.text('faith.tenets.cumulative', { amount: fmt(total) })) + '</b>' +
+      '<span>' + escapeHtml(next === null
+        ? F.text('faith.tenets.thresholds_complete')
+        : F.text('faith.tenets.next_threshold', { threshold: fmt(next) })) + '</span></div>';
+    var drafts = Array.isArray(s.faithTenetDrafts) ? s.faithTenetDrafts : [];
+    for (var i = 0; i < drafts.length; i++) {
+      var draft = drafts[i];
+      if (!draft || draft.chosen) continue;
+      var options = Array.isArray(draft.options) ? draft.options : [];
+      h += '<section class="faith-tenet-draft"><div class="faith-tenet-draft-head"><h4>' +
+        escapeHtml(F.text('faith.tenets.pending_title', { threshold: fmt(draft.threshold) })) + '</h4><p>' +
+        escapeHtml(F.text('faith.tenets.choose_hint', { count: options.length })) + '</p></div>' +
+        '<div class="faith-tenet-options">';
+      for (var j = 0; j < options.length; j++) {
+        var tenet = F.byId(options[j]);
+        if (!tenet) continue;
+        h += '<button type="button" class="faith-tenet-choice" data-faith-tenet="' + escapeHtml(tenet.id) +
+          '" data-faith-threshold="' + Number(draft.threshold) + '"><img class="faith-tenet-icon" src="' +
+          escapeHtml(tenet.icon) + '" alt="" loading="lazy"><span class="faith-tenet-copy"><b>' +
+          escapeHtml(F.tenetName(tenet.id)) + '</b><span>' + escapeHtml(F.tenetEffect(tenet.id)) +
+          '</span><i>' + escapeHtml(F.text('faith.tenets.choose_button')) + '</i></span></button>';
+      }
+      h += '</div></section>';
+    }
+    var chosen = Array.isArray(s.faithTenets) ? s.faithTenets : [];
+    h += '<section class="faith-tenet-established"><h4>' + escapeHtml(F.text('faith.tenets.chosen_title')) + '</h4>';
+    if (!chosen.length) h += '<p class="faith-tenets-empty">' + escapeHtml(F.text('faith.tenets.empty_chosen')) + '</p>';
+    else {
+      h += '<div class="faith-tenet-established-list">';
+      for (var k = 0; k < chosen.length; k++) {
+        var selected = F.byId(chosen[k]);
+        if (!selected) continue;
+        var threshold = F.thresholdForTenet(s, selected.id);
+        var thresholdLabel = threshold === null ? '' : '<i>' +
+          escapeHtml(F.text('faith.tenets.threshold_tag', { threshold: fmt(threshold) })) + '</i>';
+        h += '<article class="faith-tenet-established-card"><img class="faith-tenet-icon" src="' +
+          escapeHtml(selected.icon) + '" alt="" loading="lazy"><div><b>' + escapeHtml(F.tenetName(selected.id)) +
+          '</b><span>' + escapeHtml(F.tenetEffect(selected.id)) + '</span>' + thresholdLabel +
+          '</div></article>';
+      }
+      h += '</div>';
+    }
+    return h + '</section></section>';
+  }
+
   /* ── 信仰页（2026-09-30 用户：「单独起一个信仰面板」）────────────────────
    * 原先信仰在主页面上只是一张小卡（#religionBox），里面孤零零一个命名输入框 ——
    * 玩家看得见框、看不见「信仰这条轴在做什么」。现在收成一个正式页签，
@@ -48,6 +107,7 @@
       '养的人越多、攒得越快；神庙每级 +' +
       (((SB.BLD && SB.BLD.templeFaithRatio) || 0) * 100).toFixed(0) +
       '% 是它唯一的建筑乘区。</div></div></div>';
+    h += faithTenets(s);
     return h;
   }
   function paneFaithLocked() {

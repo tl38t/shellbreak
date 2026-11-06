@@ -221,9 +221,10 @@
       }
       case 'coef': return SB.shell.breakCoef(s) >= c.n;
       /* `shell` —— **破壳达到 n**：已削掉的比例 brokenRatio = 1 − rOf ≥ n。
-       * ⚠️ 与 `coef`（破壳系数，会涨的）不是同一概念。《天壳地质学》要的是「壳削掉 75%」，
-       *    对应 shell.js 导出的 brokenRatio。autoRate 削到 FLOOR_AT=0.25 停手 ⇒
-       *    brokenRatio 恰好收在 0.75；钻机再从那里削到 1（破壳后 rOf=0）。
+       * ⚠️ 与 `coef`（破壳系数，会涨的）不是同一概念。《天壳地质学》当前取 0.25
+       *    （2026-11-05 用户纠正：削掉四分之一就能研究，不是 75%）。
+       *    autoRate 削到 FLOOR_AT=0.25 停手 ⇒ brokenRatio 精确收在 0.75；
+       *    钻机再从那里削到 1（破壳后 rOf=0）。
        * ⚠️ 因此 **n 的上限是 0.75**：再高就只有建好钻机才能达成，而钻机的前置科技链
        *    要过《天壳地质学》⇒ 循环依赖死锁。改这个数前先证「数学上可能吗」。 */
       case 'shell': {
@@ -913,7 +914,8 @@
     disc = Math.min(cap, Math.max(0, disc));
     var level = techLevel(s, t.id);
     var challengeMul = SB.challenges && SB.challenges.researchCostMul ? SB.challenges.researchCostMul(s) : 1;
-    return t.cost * Math.pow(t.costRatio || 1, level) * (1 - disc) * challengeMul;
+    return t.cost * Math.pow(t.costRatio || 1, level) * (1 - disc) * challengeMul
+      * (SB.faith && SB.faith.techCostMul ? SB.faith.techCostMul(s) : 1);
   }
 
   /* 即时扣费研究（用户拍板）。返回 true 表示本次真的掌握。 */
@@ -931,6 +933,7 @@
     if (!s.techLv) s.techLv = {};
     s.techLv[id] = oldLevel + 1;
     s.techVer = (s.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
+    if (SB.faith && SB.faith.awardOnTechnology) SB.faith.awardOnTechnology(s);
     /* 2026-10-24 成就「科技大成」（docs/ACHV_DESIGN_v0.3.md §四·8）：单周目全表掌握。
      * 判定收在 achv.checkTechAll（数全表，不维护第二本计数器），这里只转发。 */
     if (SB.achv && SB.achv.checkTechAll && SB.game && SB.game.meta)

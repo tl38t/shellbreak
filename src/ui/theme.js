@@ -11,6 +11,11 @@
   var RES_OPTIONS = ['auto', '720p', '1080p', '1440p', '2K'];
   var DESIGN_WIDTH = { '720p': 1280, '1080p': 1920, '1440p': 2560, '2K': 2048 };
 
+  function translated(key, fallback) {
+    var i18n = root.SB && root.SB.i18n;
+    return i18n && i18n.t ? (i18n.t(key) || fallback) : fallback;
+  }
+
   function prefersReducedMotion() {
     return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
@@ -33,13 +38,15 @@
     if (checkbox) {
       checkbox.checked = enabled;
       checkbox.disabled = reduced;
-      checkbox.title = reduced ? '系统已开启减少动态效果，气泡动画保持关闭' : '';
+      checkbox.title = reduced
+        ? translated('ui.theme.deep_bubbles.reduced_motion_tooltip', '系统已开启减少动态效果，气泡动画保持关闭')
+        : '';
     }
     var hint = root.document.querySelector
       ? root.document.querySelector('[data-bubbles-hint]') : null;
     if (hint) hint.textContent = reduced
-      ? '系统减少动态效果时自动关闭'
-      : '仅在暗流纪偶尔上浮';
+      ? translated('ui.theme.deep_bubbles.reduced_motion_hint', '系统减少动态效果时自动关闭')
+      : translated('ui.settings.bubbles.hint', '只在暗流纪偶尔上浮');
     if (persist) {
       try { root.localStorage.setItem(BUBBLES_KEY, enabled ? '1' : '0'); } catch (e) {}
     }
@@ -105,6 +112,9 @@
     var initial = docRoot.dataset.uiTheme || 'night';
     apply(initial, false);
     applyBubbles(savedBubblesPreference(), false);
+    root.addEventListener('shellbreak:locale-changed', function () {
+      applyBubbles(savedBubblesPreference(), false);
+    });
 
     // ---- 新手引导开关（与 uiResolution 同模式：localStorage 'shellbreak.onboarding'，默认开） ----
     var obToggle = root.document.querySelector('[data-onboarding-toggle]');

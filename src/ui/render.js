@@ -980,6 +980,7 @@
   }
 
   var STAR_TREE_ICON_BY_KEY = {
+    shell: 'assets/resource-icons/thinafilm.png?v=2',
     civilization: 'assets/tech-icons/era-10/era10-heir-of-stars.png',
     enterprise: 'assets/company-icons/craftco.png',
     industry: 'assets/building-icons/era-10/era10-solar-ring-v2.png',
@@ -987,6 +988,7 @@
     automation: 'assets/tech-icons/era-8/era8-robotics.png'
   };
   var STAR_PERK_ICON_BY_ID = {
+    starShellPress1: 'assets/resource-icons/thinafilm.png?v=2',
     starFolk1: 'assets/tech-icons/era-1/era1-cultivation.png',
     starInfinite: 'assets/resource-icons/stardust.png',
     starModuleHousing: 'assets/building-icons/era-5/era5-tenement.png',
@@ -1016,6 +1018,7 @@
   };
   function starPerkIconSrc(perk) {
     if (STAR_PERK_ICON_BY_ID[perk.id]) return STAR_PERK_ICON_BY_ID[perk.id];
+    if (/^starShellPress/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starShellPress1;
     if (/^starFolk/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starFolk1;
     if (/^starCompanyMaturity/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starCompanyMaturity1;
     if (/^starSmelt/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starSmelt1;
@@ -1029,7 +1032,7 @@
     return '';
   }
 
-  /* 星穹商店：星屑结算、永久强化和轮回点兑换。 */
+  /* 星屑商店：星屑结算、永久强化和轮回点兑换。 */
   function paneStarDome() {
     var s = res(); if (!s) return '';
     var m = meta();
@@ -1045,6 +1048,7 @@
       if (fb.stardustFacility && fl > 0) facilityNames.push(fb.name + ' ' + fl);
     }
     var starTrees = [
+      { key: 'shell', icon: '◐', accent: '#a8b8f0', title: '天壳压制', subtitle: '削减下一局的天壳厚度 · 局中购买不对本局生效', ids: ['starShellPress1', 'starShellPress2', 'starShellPress3'] },
       { key: 'civilization', icon: '✦', accent: '#b2a5ff', title: '文明共鸣', subtitle: '强化族民、住房与轮回遗产', ids: ['starFolk1', 'starFolk2', 'starFolk3', 'starInfinite', 'starModuleHousing', 'starFoldableStructure'] },
       { key: 'enterprise', icon: '⌂', accent: '#d9b878', title: '寰宇巨企', subtitle: '加速企业成长，协同科研产出', ids: ['starCompanyMaturity1', 'starCompanyMaturity2', 'starCompanyMaturity3', 'starCompanyResearchSynergy'] },
       { key: 'industry', icon: '⚙', accent: '#70d0d9', title: '星际工业', subtitle: '提升星炉、核电、发射与星环制造', ids: ['starSmelt1', 'starSmelt2', 'starSmelt3', 'starLaunchSpeed1', 'starNuclearHydro1', 'starNuclearHydro2', 'starNuclearHydro3', 'starSailHydro1', 'starSailHydro2', 'starSolarRing1', 'starSolarRing2', 'starSolarRing3', 'starRingRocketEngineCraft', 'starRingThetaFilmCraft', 'starRingStrongPropellantCraft'] },
@@ -1548,6 +1552,13 @@
     } else {
       rule = def.rule || def.summary || '';
       progress = '挑战限制持续生效';
+      /* 2026-11-05：流浪泰拉的 15 周目前置在此也给一条实时读数 —— 老档 / 改档
+       * 可能在低周目就已经进了挑战，底栏常驻条是玩家唯一一直看得见的地方。 */
+      var _pr = (active.id === 'drift_terra' && SB.challenges.prereqState)
+        ? SB.challenges.prereqState(active.id) : null;
+      if (_pr) progress = _pr.inRunOk
+        ? '开启前置已满足 · 第 ' + _pr.now + ' / ' + _pr.need + ' 周目'
+        : '⚠ 第 ' + _pr.now + ' / ' + _pr.need + ' 周目 · 开启前置未满足，本局无法通关';
     }
 
     var titleNode = el('challengeNoticeTitle'), ruleNode = el('challengeNoticeRule'), progressNode = el('challengeNoticeProgress');
@@ -2350,6 +2361,11 @@
         ct.title = reasons.join('；');
       }
     }
+    var ft = doc.querySelector('.tab[data-tab="faith"]');
+    if (ft) {
+      var faithOpen = !!(SB.economy && s && SB.economy.resUnlocked(s, 'faith'));
+      ft.classList.toggle('avail', faithOpen && !!(SB.faith && SB.faith.hasPending && SB.faith.hasPending(s)));
+    }
     /* 奇观页签「可建造」红点（2026-10-20）：复用 masonry 门（与 syncTabLocks:1259 同源）
      * + wonderBlocked 门禁（与 render-pane-wonder.js:39 面板「可建造」绿色按钮同源），绝不另立判据。
      * 仅「已解锁且当前材料足够、可立即建造」才亮（用户拍板语义）；活指示不记 localStorage，
@@ -2565,6 +2581,8 @@
      * 只读 economy.ratesParts，不写游戏状态。 */
     showResDetail: showResDetail,
     showBreakPanel: showBreakPanel, showBreakResult: showBreakResult, showBreakAnimation: showBreakAnimation, hideModal: hideModal, confirmPanel: confirmPanel,
+    /* 2026-11-05：导出供回归直接断言挑战开启前置的常驻条文案（与 paneChallenges 同手法）。 */
+    renderChallengeNotice: renderChallengeNotice,
     /* 弹窗外壳归一化（2026-10-29）：导出给 render-info.js（树图详情卡）/ game.js（政体命名框）/
      * save-transfer.js（存档管理）——它们都往同一个 #modal 里写内容，必须先清掉上一张面板的变体类。
      * 见 resetModalChrome 的注释（离线结算类残留把破壳面板压成竖排那次事故）。 */
@@ -2645,6 +2663,10 @@
      *   【它能钉住什么】新加的资源线 perk 是否真的上屏、desc 与 costs 档数是否匹配、
      *   st.next 是否是数字而不是 undefined（那类「undefined 点」的上屏事故就钉在它上面）。 */
     paneMeta: SB.ui.renderParts.paneMeta,
+    /* 2026-11-05：导出 `paneStarDome`（星屑商店整棵树）供「天外重压」回归直接断言
+     * 「新组上屏 / 三节点都在 / 图标不空」。与 paneMeta 同一手法：走 renderPanes 取不到
+     * 属性（假 DOM 的 innerHTML 不回填 children，还有状态签名节流），导的是同一个函数。 */
+    paneStarDome: paneStarDome,
     paneChallenges: SB.ui.renderParts.paneChallenges,
     /* ⚠️ 2026-10-24：导出 `paneAchievements`（成就墙独立页签）供回归直接断言
      * 「挑战页不再含成就墙、成就页含三区」——与 paneWonder 同一手法：

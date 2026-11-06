@@ -339,7 +339,8 @@
     /* ERA2-7 扩卡（2026-10-22）：按纪元闸门的奇观减耗（征夫发役 cap3 / 王室特许 cap5，各 −20%）。
      * 仅对该 cap 覆盖纪元内的奇观生效，与 cardWonderBuildSave 相加后统一进 (1 − save)。 */
     var saveEra = (SB.civic && SB.civic.cardWonderBuildSaveEra) ? SB.civic.cardWonderBuildSaveEra(s, w.era) : 0;
-    var mul = Math.max(0, 1 - 0.05 * lv) * Math.max(0, 1 - save - saveEra);
+    var mul = Math.max(0, 1 - 0.05 * lv) * Math.max(0, 1 - save - saveEra)
+      * (SB.faith && SB.faith.wonderCostMul ? SB.faith.wonderCostMul(s) : 1);
     var cost = SB.economy && SB.economy.scaffoldAdjustedCost
       ? SB.economy.scaffoldAdjustedCost(s, w.cost) : w.cost;
     var out = {}, k;

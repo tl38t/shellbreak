@@ -71,6 +71,7 @@
     if (id === 'thinShell') return 'assets/resource-icons/thinafilm.png?v=2';
     if (id === 'autoStudy' || id === 'slotSci') return 'assets/resource-icons/science.png?v=2';
     if (id === 'vibrodrill') return 'assets/resource-icons/resonantDrill.png?v=2';
+    if (id === 'tengenToppa') return 'assets/tech-icons/era-5/era5-sky-drill.png';
     return '';
   }
 
@@ -85,7 +86,7 @@
       { key: 'food', icon: '✿', iconSrc: TREE_ICON_BY_KEY.food, accent: '#6ed4c1', title: '唯食与犁', subtitle: '藻食·珊瑚·御寒' },
       { key: 'steel', icon: '🔩', iconSrc: TREE_ICON_BY_KEY.steel, accent: '#b8c0cc', title: '百炼成钢', subtitle: '精铁·钢·工艺零件' },
       { key: 'politics', icon: '⚖', iconSrc: TREE_ICON_BY_KEY.politics, accent: '#e5a9d6', title: '政经往来', subtitle: '商·书·奢侈·幸福' },
-      { key: 'vision', icon: '🔭', iconSrc: TREE_ICON_BY_KEY.vision, accent: '#9eacff', title: '远见之人', subtitle: '学者·钻机·薄壳' }
+      { key: 'vision', icon: '🔭', iconSrc: TREE_ICON_BY_KEY.vision, accent: '#9eacff', title: '远见之人', subtitle: '学者·钻机·薄壳·破壳·倍率' }
     ];
     var ownedNodes = 0, totalLevels = 0, totalNodes = SB.TIDE_TREE.length;
     var treeProgress = Object.create(null);

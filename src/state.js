@@ -38,6 +38,10 @@
        * 设置开关（localStorage shellbreak.onboarding）是另一回事：玩家偏好，不进周目存档。 */
       onboardSeen: false,
       autoResearch: { tech: false, civic: false },
+      /* 天元突破：天穹钻机的钻头倍率档（1 或 2），跨周目保留，默认 1×。
+       * 与 autoResearch 同属「玩家拨过的机器设置」，不是周目内状态，故住 meta 不进 freshRun。
+       * 没买天赋时 SB.shell.skydrillMul 会把它整档忽略（恒 1×），所以这里存 2 也不生效。 */
+      skydrillMul: 1,
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
       challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false,
         waterpollution: false, anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0 } },
@@ -65,7 +69,8 @@
        *   buildingLvlTotal 轻车熟路跨周目累计账本（建筑 id → 累计购买等级），startRun 合并本周目 buildingLvlRun 增量。
        * ⚠️ 老档无这些键 ⇒ normalizeMeta 的 Object.assign(emptyMeta(), parsed) 自动补默认值，零迁移代码。 */
       achv: {}, achievements: {}, rebirths: 0, buildingLvlTotal: {},
-      starPerks: { starFolk1: 0, starFolk2: 0, starFolk3: 0, starInfinite: 0, starModuleHousing: 0, starFoldableStructure: 0,
+      starPerks: { starShellPress1: 0, starShellPress2: 0, starShellPress3: 0,
+        starFolk1: 0, starFolk2: 0, starFolk3: 0, starInfinite: 0, starModuleHousing: 0, starFoldableStructure: 0,
         starCompanyMaturity1: 0, starCompanyMaturity2: 0, starCompanyMaturity3: 0, starCompanyResearchSynergy: 0,
         starSmelt1: 0, starSmelt2: 0, starSmelt3: 0, starLaunchSpeed1: 0, starNuclearHydro1: 0, starNuclearHydro2: 0, starNuclearHydro3: 0,
         starSailHydro1: 0, starSailHydro2: 0, starSolarRing1: 0, starSolarRing2: 0, starSolarRing3: 0,
@@ -80,6 +85,9 @@
      * 漏一个键会让 economy 读数 undefined ⇒ 被当成 0（通常无害），但显式列全避免歧义。 */
     return { gather: 0, coef: 0, thin: 0, popcap: 0, housePlan: 0, coldStore: 0, offline: 0,
       matStore: 0, civicArchive: 0, tideProof: 0, wonderBlueprint: 0, shellSurvey: 0,
+      /* 天元突破（2026-11-05）：「已解锁 2× 倍率」开关位，不是倍率数值本身。
+       * 倍率存 meta.skydrillMul，由 SB.shell.skydrillMul(s) 单点读，别在这里塞数值。 */
+      drillOverdrive: 0,
       autoStudy: 0, autoCivic: 0, autoCraft: 0, civicPlan: 0, wonderPlan: 0,
       /* ⚠️ 2026-10-05 新增 8 键（资源线专项 + 建造减耗）。**同文件多处改动必须串行**，
        * 写完必须回盘 grep 终值确认没被后一次覆盖（同判据见 JUDGMENTS §五点十一）。 */
@@ -104,6 +112,9 @@
       startPop: 0, minerPact: 0, quarryPact: 0, furnaceEff: 0, hydroshopEff: 0, hydroshopBoost: 0,
       scholarPact: 0, scribePact: 0, workSpeed: 0, coldPenalty: 0, luxDrain: 0, happiness: 0,
       slotCraft: 0, slotEcon: 0, slotSci: 0, craftLoop: 0, furnaceLoop: 0, hydroLoop: 0,
+      /* 2026-11-05「万众热忱」：基础自动削壳的独立乘区级数（shell.js autoRate 读）。
+       * ⚠️ 不放进 coef：breakCoef 另有暖石费率 / 星空槽 / 尤里卡 / 建造日志四类读者。 */
+      shellDrive: 0,
       recipeCraft: {} };
   }
 
@@ -530,6 +541,7 @@
       cards: [],            // 政策卡槽（数组，逐槽；2026-09-29 由 s.card 单值升维）
       card: null,          // 第 0 号槽镜像（旧代码/回归读方便，非事实来源）
       religionName: '',     // 玩家给信仰起的名字（空 = 未命名；神学解锁后可改，无消耗）
+      faithEarnedTotal: 0, faithTenets: [], faithTenetDrafts: [],
       habitatName: '',      // 玩家给聚落起的名字（空 = 未起名；ERA6+ 可在巢穴页改名，本轮回有效）
       /* ERA6 市政（2026-10 实装）—— 意识形态门槛 / 政体命名 / 公司系统所需的顶层字段：
        *   lifetimeCulture —— 累计市政点**产出**（不是存量，存量采纳时已被消费）。
@@ -693,6 +705,11 @@
     m.stardust = Math.max(0, Math.floor(m.stardust));
     if (!(typeof m.stardustEarned === 'number' && isFinite(m.stardustEarned))) m.stardustEarned = m.stardust;
     m.stardustEarned = Math.max(0, Math.floor(m.stardustEarned));
+    /* 天元突破的倍率档只认 1 / SKYDRILL_OVERDRIVE_MUL，脏档（改档 / 旧版本）一律回落 1×：
+     * 否则 meta 里一个任意数会直接乘进钻头消耗与削壳速率，属于无上限数值注入。
+     * 倍率数值只在 config.js 定义，这里不写死 2。 */
+    var _maxMul = (SB.CFG && Number(SB.CFG.SKYDRILL_OVERDRIVE_MUL)) || 2;
+    m.skydrillMul = m.skydrillMul === _maxMul ? _maxMul : 1;
     /* 星屑商店在首座轨道卫星建成时永久解锁，跨周目保留；旧档若已有星屑资产/天赋，视为曾解锁。 */
     m.stardustShopUnlocked = m.stardustShopUnlocked === true || m.stardust > 0 || m.stardustEarned > 0;
     if (!m.starPerks || typeof m.starPerks !== 'object' || Array.isArray(m.starPerks)) m.starPerks = {};

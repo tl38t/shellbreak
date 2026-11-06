@@ -4,23 +4,25 @@
   var SB = root.SB || (root.SB = {});
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
-  var HIDE_DONE_KEY = 'sb.wonderHideDone.v1';
-  var hideDone = false;
-  try {
-    hideDone = !!(root.localStorage && root.localStorage.getItem(HIDE_DONE_KEY) === '1');
-  } catch (e) { hideDone = false; }
-
+  /* 「隐藏已建成」的持久化口径与工坊完全一致（2026-11-05）：设备级、独立键、
+   * 三通道镜像、默认不隐藏、清档不清。⚠️ 不缓存布尔 —— 读的是 SB.store 权威态，
+   * 启动异步回填晚到时下一次 PANE_REFRESH 自然跟上，也不会顶掉玩家刚按下的值。 */
+  var HIDE_DONE_KEY = 'wonderHideDone';
+  function hideDone() {
+    var S = SB.store;
+    return !!(S && S.prefGet && S.prefGet(HIDE_DONE_KEY, false));
+  }
   function toggleHideDone() {
-    hideDone = !hideDone;
-    try { if (root.localStorage) root.localStorage.setItem(HIDE_DONE_KEY, hideDone ? '1' : '0'); } catch (e) {}
-    return hideDone;
+    var v = !hideDone(), S = SB.store;
+    if (S && S.prefSet) S.prefSet(HIDE_DONE_KEY, v);
+    return v;
   }
 
   function hideDoneButton(completed) {
     if (!completed) return '';
-    return '<button class="tgl" data-wonder-hidedone="1" aria-pressed="' + (hideDone ? 'true' : 'false') +
+    return '<button class="tgl" data-wonder-hidedone="1" aria-pressed="' + (hideDone() ? 'true' : 'false') +
       '" title="点击切换是否显示已建成的奇观">' +
-      (hideDone ? '显示已完成（' + completed + '）' : '隐藏已完成（' + completed + '）') + '</button>';
+      (hideDone() ? '显示已完成（' + completed + '）' : '隐藏已完成（' + completed + '）') + '</button>';
   }
 
   function paneWonder() {
@@ -55,7 +57,7 @@
       if (!done && w.challengeOnly && SB.civic && SB.civic.challengeAllows && !SB.civic.challengeAllows(s, w)) continue;
       shown++;
       if (done) completed++;
-      if (hideDone && done) continue;
+      if (hideDone() && done) continue;
       visible++;
       var art = SB.ui.renderContent && SB.ui.renderContent.WONDER_ART && SB.ui.renderContent.WONDER_ART[w.id];
       var icon = art ? '<img class="wonder-icon" src="' + art + '" alt="" aria-hidden="true" width="36" height="36" loading="lazy" decoding="async">' :
@@ -103,7 +105,7 @@
       '<div class="wonder-overview-side"><div class="wonder-count"><b>' + completed + '<i> / </i>' + shown + '</b><small>已建成 / 已揭晓</small></div>' +
       hideDoneButton(completed) + '</div></div>' +
       '<div class="wonder-intro">奇观不会重复建造或消耗维护。石梁是当前主要建造材料，例如海潮方碑需要 20 根。</div>' +
-      '<div class="wonder-grid">' + (visible ? cards : hideDone && completed
+      '<div class="wonder-grid">' + (visible ? cards : hideDone() && completed
         ? '<div class="note">已完成的奇观当前被隐藏（' + completed + ' 座）——点上方「显示已完成」把它们放回来。</div>'
         : '<div class="note">还没有任何奇观向你揭开。</div>') + '</div>';
     return h;

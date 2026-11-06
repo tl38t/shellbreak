@@ -120,6 +120,17 @@
     var s = run();
     if (!s) return;
 
+    var faithChoice = t.closest && t.closest('[data-faith-tenet]');
+    if (!faithChoice && d.faithTenet !== undefined) faithChoice = t;
+    if (faithChoice) {
+      var faithData = faithChoice.dataset || {};
+      if (SB.faith && SB.faith.choose(s, Number(faithData.faithThreshold), faithData.faithTenet)) {
+        SB.game.markDirty();
+        SB.game.renderAll();
+      }
+      return;
+    }
+
     /* 顶栏资源格 → 资源详情面板（2026-10-29）：纯读数面板，不改游戏状态。
      * ⚠️ 从 target 往上 closest 回整格：`.res` 里还有图标/名称/速率几个子节点，
      *    点在子节点上也必须能开（与 [data-era]/[data-slot] 同一写法）。
@@ -184,7 +195,7 @@
       return;
     }
     /* 工坊「隐藏已完成」（2026-10-05 用户「工坊要能隐藏显示已经完成项目」）：
-     * 同样是纯视图动作（只翻 render 模块里的 hideDone + 持久化），不碰游戏状态。
+     * 同样是纯视图动作（只翻 SB.store 的设备级偏好，2026-11-05 起不再写裸 localStorage），不碰游戏状态。
      * ⚠️ 与上面两个折叠分支的**关键差别**：卡片/区折叠是翻 DOM 上已有的类，
      *    而这个开关是「渲染时**跳不跳过这一行**」决定的 ⇒ **必须重画才生效**。
      *    忘了这次重画的话，按钮的文字会变（因为开关自身在标题行里）
@@ -560,6 +571,13 @@
       toggleWarm(SB.game.run());
       return;
     }
+    /* 天元突破：钻头倍率 1× ⇄ 2×（按钮只在已点亮天赋时出现）。
+     * 与发射场模式按钮同纪律：按钮内若加图标 span，从子元素点击要沿 DOM 找回委托按钮。 */
+    var drillMulButton = d.drillMul !== undefined ? t : (t.closest && t.closest('button[data-drill-mul]'));
+    if (drillMulButton) {
+      toggleDrillMul(SB.game.run());
+      return;
+    }
     if (d.skydrill) {
       toggleSkydrill(SB.game.run());
       return;
@@ -826,6 +844,27 @@
     return true;
   }
 
+  /* ── 天元突破：天穹钻机钻头倍率 1× ⇄ 2×（2026-11-05）────────────────────
+   * 闸门只认「本局已点亮天赋」（s.perk.drillOverdrive > 0）：倍率是**玩家设置**，
+   * 不是机器动作，所以不像 toggleSkydrill 那样要求奇观已建成（没建成时按钮本就不上屏）。
+   * ⚠️ 档位写 meta.skydrillMul（跨周目保留），绝不写 s.perk —— 后者会被
+   *    syncDerivedPerks 按 meta 账本整表覆盖，存进去读一次档就丢。
+   * ⚠️ 引擎侧只从 SB.shell.skydrillMul(s) 读，这里不直接改任何速率常量。 */
+  function toggleDrillMul(s) {
+    if (!s || !s.perk || !(s.perk.drillOverdrive > 0)) return false;
+    var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    if (!m) return false;
+    var max = Number(SB.CFG.SKYDRILL_OVERDRIVE_MUL) || 2;
+    m.skydrillMul = m.skydrillMul === max ? 1 : max;
+    SB.state.saveMeta(m);
+    SB.game.markDirty(); SB.game.renderAll();
+    SB.game.log(m.skydrillMul > 1
+      ? '天元突破：钻头倍率切到 ' + max + '×（共振钻头 ' + (SB.CFG.SKYDRILL_DRILL * max) +
+        '/秒、削壳 ' + (SB.CFG.SKYDRILL_RATE * max) + ' 点/秒，热液能不变）。'
+      : '天元突破：钻头倍率切回 1×。');
+    return m.skydrillMul;
+  }
+
   /* ── 星球重构机 G.E.E.K 启动 / 停机（ERA9 · 生态重塑解锁奇观，2026-10-19 实装）──
    * 闸门 = 奇观已建成（与 renderGeek 的显示条件同源：没建成这按钮不出现在页面上，这里再判一道防直达调用）。
    * 停摆（缺料）不回拨开关——补料后自动续转。运行态不加幸福度 −1（用户拍板）。 */
@@ -988,7 +1027,7 @@
      *   重构为「按建筑停用数 workshopStop + industrialRobotOutputMul」（economy.js:1225/1230），
      *   函数本体已删、导出却还引用 ⇒ IIFE 末尾 ReferenceError ⇒ SB.ui.input 整块没赋上值 ⇒
      *   main.js:10 `SB.ui.input.boot()` 跟着崩 ⇒ 页面只剩空壳（资源/巢穴面板全空）。 */
-    boot: boot, toggleSkydrill: toggleSkydrill, toggleGeek: toggleGeek,
+    boot: boot, toggleSkydrill: toggleSkydrill, toggleDrillMul: toggleDrillMul, toggleGeek: toggleGeek,
     toggleLaunchMode: toggleLaunchMode,
     isFolkControlPointerActive: isFolkControlPointerActive
   };

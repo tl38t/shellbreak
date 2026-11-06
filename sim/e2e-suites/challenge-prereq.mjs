@@ -1,0 +1,189 @@
+/* e2e suite: 《流浪泰拉》「第 15 周目」开启前置（2026-11-05，用户拍 #B）。
+ *
+ * 判据与生产同源，不重写算式：
+ *   ① DEFINITIONS.prereq.n 必须等于 blackhistory.cond.n（唯一真源，防止两处漂移）；
+ *   ② 门禁按「startRun 后 cycle+1」判 —— 用真实的 SB.tech.condMet 交叉验证
+ *      「第 14 周目点开始 → 进局后 cycle=15 → condMet 真」，不是自己算 14+1；
+ *   ③ UI 用真实 paneChallenges() / renderChallengeNotice() / prepareStart()，
+ *      不 mock 实现、不复制文案。
+ * ⚠️ 本套件放全量最尾部：会临时改 meta.cycle / meta.challenges.completed /
+ *    s.challenge / s.challengeDone / s.lvl.terra_engine，finally 全还原。
+ */
+export function run({ SB, check, g, doc }) {
+  console.log('\n=== 挑战开启前置：流浪泰拉（第 15 周目）===');
+  const api = SB.challenges;
+  const meta = SB.game.meta();
+  const s = SB.game.run();
+  const def = api.byId('drift_terra');
+  const black = (SB.TECHS || []).find(t => t.id === 'blackhistory');
+  const hadCompleted = !!(meta.challenges && meta.challenges.completed);
+  const keep = {
+    cycle: meta.cycle,
+    driftDone: hadCompleted ? meta.challenges.completed.drift_terra : undefined,
+    challenge: s.challenge,
+    challengeDone: s.challengeDone,
+    engine: s.lvl ? s.lvl.terra_engine : undefined
+  };
+  const fresh = () => SB.state.freshRun(false);
+  const starts = (html) => (html.match(/data-challenge-start=/g) || []).length;
+
+  try {
+    /* 清掉全局账本里可能残留的「流浪泰拉已通关」，否则 exhausted 会抢走状态徽标，
+     * 低周目卡片会显示「已完成」而不是「周目不足」——那是夹具污染，不是被测行为。 */
+    if (hadCompleted) meta.challenges.completed.drift_terra = false;
+    s.challenge = null;
+    s.challengeDone = false;
+
+    /* ── 1. 定义与唯一真源 ─────────────────────────────────────────── */
+    check('前置数字只有一个真源：drift_terra.prereq.n === blackhistory.cond.n === 15',
+      !!def.prereq && def.prereq.t === 'cycle' && def.prereq.n === 15 &&
+      !!black && black.cond.t === 'cycle' && black.cond.n === def.prereq.n,
+      'prereq=' + JSON.stringify(def.prereq) + ' blackhistory=' + JSON.stringify(black && black.cond));
+    check('blackhistory 是 winter 的 reqs（前置链没断，15 周目确实是通关链首）',
+      !!black && (SB.TECHS || []).some(t => t.id === 'winter' && (t.reqs || []).indexOf('blackhistory') >= 0),
+      'winter.reqs=' + JSON.stringify(((SB.TECHS || []).find(t => t.id === 'winter') || {}).reqs));
+    check('其余 10 项挑战均无 prereq（门禁不误伤）',
+      api.list().length === 11 && api.list().filter(d => d.prereq).length === 1,
+      '带前置项数=' + api.list().filter(d => d.prereq).length);
+
+    /* ── 2. 边界：+1 口径 ──────────────────────────────────────────── */
+    const st0 = api.prereqState('drift_terra', { cycle: 0 });
+    const st13 = api.prereqState('drift_terra', { cycle: 13 });
+    const st14 = api.prereqState('drift_terra', { cycle: 14 });
+    const st15 = api.prereqState('drift_terra', { cycle: 15 });
+    check('cycle=0：进局后 1/15，还差 14 周目',
+      !st0.ok && st0.after === 1 && st0.lack === 14, JSON.stringify(st0));
+    check('cycle=13：进局后 14/15，未满足，还差 1 周目',
+      !st13.ok && st13.after === 14 && st13.lack === 1 && st13.lackInRun === 2,
+      JSON.stringify(st13));
+    check('cycle=14：进局后 15/15，刚好满足（不能按 now>=15 判）',
+      st14.ok && st14.after === 15 && st14.lack === 0, JSON.stringify(st14));
+    check('cycle=15：ok 与 inRunOk 都为真（进行中不再 +1）',
+      st15.ok && st15.inRunOk && st15.lackInRun === 0, JSON.stringify(st15));
+    check('其他挑战 prereqState 为 null / prereqOk 为真 / 文案为空',
+      api.prereqState('cold', { cycle: 0 }) === null && api.prereqOk('cold', { cycle: 0 }) === true &&
+      api.prereqText('cold', { cycle: 0 }) === '', 'cold 不受影响');
+
+    /* ── 3. 文案 ───────────────────────────────────────────────────── */
+    const t13 = api.prereqText('drift_terra', { cycle: 13 });
+    const t14 = api.prereqText('drift_terra', { cycle: 14 });
+    check('未满足文案点名 15 周目 / 还差 1 周目 / 黑历史蓝图 / 无法通关',
+      t13.indexOf('第 15 周目') >= 0 && t13.indexOf('还差 1 周目') >= 0 &&
+      t13.indexOf('《黑历史蓝图》') >= 0 && t13.indexOf('无法通关') >= 0, t13);
+    check('已满足文案写「已满足」且不写「还差」',
+      t14.indexOf('已满足') >= 0 && t14.indexOf('还差') < 0, t14);
+
+    /* ── 4. 门禁（真实函数） ────────────────────────────────────────── */
+    const f = fresh();
+    check('cycle=13：canStart / canStartFresh 都挡住流浪泰拉',
+      !api.canStart('drift_terra', f, { cycle: 13 }) &&
+      !api.canStartFresh('drift_terra', f, { cycle: 13 }),
+      'canStart=' + api.canStart('drift_terra', f, { cycle: 13 }));
+    check('cycle=14：canStart / canStartFresh 都放行',
+      api.canStart('drift_terra', f, { cycle: 14 }) &&
+      api.canStartFresh('drift_terra', f, { cycle: 14 }),
+      'canStart=' + api.canStart('drift_terra', f, { cycle: 14 }));
+    check('cycle=0：其余 10 项挑战仍可开',
+      api.list().filter(d => d.id !== 'drift_terra')
+        .every(d => api.canStart(d.id, f, { cycle: 0 })), '其他挑战不受影响');
+    f.challenge = { id: 'waterpollution', tier: 0 };
+    check('已有进行中挑战时仍为 false（active 的原语义没丢）',
+      !api.canStart('drift_terra', f, { cycle: 14 }), 'active 优先');
+
+    /* ── 5. 与 tech.condMet 真实交叉验证「+1」 ──────────────────────── */
+    meta.cycle = 13;
+    const cm13 = SB.tech.condMet(f, { t: 'cycle', n: 15 });
+    meta.cycle = 14;
+    const cm14 = SB.tech.condMet(f, { t: 'cycle', n: 15 });
+    meta.cycle = 15;
+    const cm15 = SB.tech.condMet(f, { t: 'cycle', n: 15 });
+    check('真实 condMet：13 / 14 周目为假，15 周目为真（门禁放行 ⇔ 进局后 condMet 真）',
+      cm13 === false && cm14 === false && cm15 === true,
+      '13=' + cm13 + ' 14=' + cm14 + ' 15=' + cm15);
+    check('门禁放行的那个边界正是 condMet 转真的那一步（14+1=15）',
+      api.canStart('drift_terra', fresh(), { cycle: 14 }) === cm15, '+1 口径同源');
+
+    /* ── 6. 真实 DOM：挑战卡片 ──────────────────────────────────────── */
+    meta.cycle = 13;
+    const paneLow = SB.ui.render.paneChallenges();
+    check('低周目卡片：显示「开启前置」/ 还差 1 周目 / 周目不足，且不给开始按钮',
+      paneLow.indexOf('<small>开启前置</small>') >= 0 &&
+      paneLow.indexOf('还差 1 周目') >= 0 && paneLow.indexOf('>周目不足<') >= 0 &&
+      paneLow.indexOf('challenge-status locked') >= 0 &&
+      paneLow.indexOf('data-challenge-start="drift_terra"') < 0,
+      'starts=' + starts(paneLow));
+    check('低周目卡片：入口数 10（11 项减去被挡住的流浪泰拉）',
+      starts(paneLow) === 10, 'starts=' + starts(paneLow));
+    check('规则区的「开启前置」行只出现一次（不误加到别的挑战）',
+      (paneLow.match(/<small>开启前置<\/small>/g) || []).length === 1,
+      '次数=' + (paneLow.match(/<small>开启前置<\/small>/g) || []).length);
+    check('低周目卡片：其余挑战仍各有开始入口',
+      paneLow.indexOf('data-challenge-start="cold"') >= 0 &&
+      paneLow.indexOf('data-challenge-start="waterpollution"') >= 0, 'cold / 水体污染在');
+
+    meta.cycle = 14;
+    const paneOk = SB.ui.render.paneChallenges();
+    check('第 14 周目卡片：前置显示已满足，入口恢复 11 个且流浪泰拉可点',
+      paneOk.indexOf('已满足') >= 0 && paneOk.indexOf('>周目不足<') < 0 &&
+      starts(paneOk) === 11 && paneOk.indexOf('data-challenge-start="drift_terra"') >= 0,
+      'starts=' + starts(paneOk));
+
+    /* ── 7. 进行中的老档不能被门禁静默抹掉 ─────────────────────────── */
+    meta.cycle = 13;
+    s.challenge = { id: 'drift_terra', tier: 0 };
+    s.challengeDone = false;
+    if (s.lvl) s.lvl.terra_engine = 7;
+    const paneActive = SB.ui.render.paneChallenges();
+    check('进行中老档：仍显示发动机进度 + 前置警示，且没有「结算并挑战」',
+      paneActive.indexOf('行星发动机 7 / 50') >= 0 &&
+      paneActive.indexOf('开启前置未满足') >= 0 &&
+      paneActive.indexOf('data-challenge-start="drift_terra"') < 0,
+      'engine7=' + paneActive.indexOf('行星发动机 7 / 50'));
+    check('进行中老档：状态仍是「进行中」，不是「周目不足」',
+      paneActive.indexOf('challenge-status active">进行中') >= 0 &&
+      paneActive.indexOf('>周目不足<') < 0, 'active 分支优先');
+
+    /* ── 8. 常驻通知条（真实渲染函数 + 假 DOM textContent） ─────────── */
+    const noticeNode = doc.getElementById('challengeNoticeProgress');
+    SB.ui.render.renderChallengeNotice(s);
+    const noticeLow = noticeNode.textContent;
+    check('常驻条低周目：显示 13 / 15 与前置未满足',
+      noticeLow.indexOf('13 / 15') >= 0 && noticeLow.indexOf('前置未满足') >= 0, noticeLow);
+    meta.cycle = 15;
+    SB.ui.render.renderChallengeNotice(s);
+    const noticeOk = noticeNode.textContent;
+    check('常驻条达标：显示「开启前置已满足」',
+      noticeOk.indexOf('开启前置已满足') >= 0, noticeOk);
+
+    /* ── 9. 确认面板（真实 prepareStart 路径，不 mock 挑战模块） ────── */
+    meta.cycle = 14;
+    s.challenge = null;
+    s.challengeDone = false;
+    const origConfirm = SB.ui.render.confirmPanel;
+    let panel = null;
+    SB.ui.render.confirmPanel = (opts) => { panel = opts; };
+    try {
+      const opened = api.prepareStart('drift_terra');
+      check('确认面板带「开启前置」段与第 15 周目（玩家点按钮前就能看见）',
+        opened === true && !!panel && panel.body.indexOf('<b>开启前置</b>') >= 0 &&
+        panel.body.indexOf('第 15 周目') >= 0,
+        'opened=' + opened + ' body=' + (panel ? panel.body.slice(0, 220) : 'null'));
+      panel = null;
+      meta.cycle = 13;
+      const blockedOpen = api.prepareStart('drift_terra');
+      check('cycle=13 时 prepareStart 直接拒绝，连确认面板都不弹',
+        blockedOpen === false && panel === null, 'blockedOpen=' + blockedOpen);
+    } finally {
+      SB.ui.render.confirmPanel = origConfirm;
+    }
+  } finally {
+    meta.cycle = keep.cycle;
+    if (hadCompleted) meta.challenges.completed.drift_terra = keep.driftDone;
+    s.challenge = keep.challenge;
+    s.challengeDone = keep.challengeDone;
+    if (s.lvl) {
+      if (keep.engine === undefined) delete s.lvl.terra_engine;
+      else s.lvl.terra_engine = keep.engine;
+    }
+  }
+}

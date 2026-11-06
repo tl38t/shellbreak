@@ -3,14 +3,14 @@
 <head data-page-node-id="SHpRYBRRIDcP8Bx75nsUrT">
 <meta charset="UTF-8" data-page-node-id="Jk9PQmKfNCVjv0ESrhDZui">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="lofTws7VgRynewBDTK2G5T">
-<title>渊海群星：深海文明建设</title>
+<title data-i18n="ui.document.title">渊海群星：深海文明建设</title>
 <script>
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
-  } catch (e) {}
+  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=1"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=1"><\/script>' : '') + '<script src="src/i18n.js?v=1"><\/script>');
 </script>
-<link rel="stylesheet" href="css/main.css?v=289" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=293" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -25,69 +25,69 @@
   <header class="brandline" data-page-node-id="BrandLineP0">
     <img class="brandmark" src="assets/brand/logo-shell-sun.jpg" alt="" aria-hidden="true">
     <div>
-      <h1 data-page-node-id="3tzEaGBEF5gD812MH9arEu">渊海群星</h1>
-      <div class="sub" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自无光的渊海，眺望闪熠星河</div>
+      <h1 data-i18n="ui.brand.title" data-page-node-id="3tzEaGBEF5gD812MH9arEu">渊海群星</h1>
+      <div class="sub" data-i18n="ui.brand.tagline" data-page-node-id="r5HsAB1BnxTvHMTwjkJPEj">自无光的渊海，眺望闪熠星河</div>
     </div>
     <div class="header-actions">
-      <div class="theme-switch" role="group" aria-label="界面配色">
-        <button type="button" data-ui-theme-choice="day" aria-pressed="false">☀ 日间</button>
-        <button type="button" data-ui-theme-choice="night" aria-pressed="true">☾ 夜间</button>
+      <div class="theme-switch" role="group" aria-label="界面配色" data-i18n-aria-label="ui.theme.switch.accessible_label">
+        <button type="button" data-ui-theme-choice="day" aria-pressed="false" data-i18n="ui.theme.day">☀ 日间</button>
+        <button type="button" data-ui-theme-choice="night" aria-pressed="true" data-i18n="ui.theme.night">☾ 夜间</button>
       </div>
       <details class="ui-settings">
-        <summary aria-label="界面设置">⚙ 设置</summary>
-        <div class="ui-settings-popover" role="group" aria-label="界面效果">
-          <div class="ui-settings-title">界面效果</div>
+        <summary aria-label="界面设置" data-i18n-aria-label="ui.settings.open.accessible_label" data-i18n="ui.settings.open.label">⚙ 设置</summary>
+        <div class="ui-settings-popover" role="group" aria-label="界面效果" data-i18n-aria-label="ui.settings.effects.accessible_label">
+          <div id="localeSettingBlock" hidden></div><div class="ui-settings-title" data-i18n="ui.settings.effects.title">界面效果</div>
           <label class="ui-setting-row">
             <input type="checkbox" data-ui-effect="deep-bubbles">
-            <span><b>气泡上浮动画</b><small data-bubbles-hint>只在暗流纪偶尔上浮</small></span>
+            <span><b data-i18n="ui.settings.bubbles.label">气泡上浮动画</b><small data-bubbles-hint data-i18n="ui.settings.bubbles.hint">只在暗流纪偶尔上浮</small></span>
           </label>
-          <div class="ui-settings-title">显示</div>
+          <div class="ui-settings-title" data-i18n="ui.settings.display.title">显示</div>
           <label class="ui-setting-row ui-setting-row--select">
-            <span><b>游戏分辨率</b><small>仅桌面/横屏生效；移动端始终自适应。较低档位可减轻 GPU 负担与发热。</small></span>
-            <select data-ui-resolution class="ui-resolution-select">
-              <option value="auto">自适应（默认）</option>
-              <option value="720p">720p（1280×720）</option>
-              <option value="1080p">1080p（1920×1080）</option>
-              <option value="1440p">1440p（2560×1440）</option>
-              <option value="2K">2K（2048×1080）</option>
+            <span><b data-i18n="ui.settings.resolution.label">游戏分辨率</b><small data-i18n="ui.settings.resolution.hint">仅桌面/横屏生效；移动端始终自适应。较低档位可减轻 GPU 负担与发热。</small></span>
+            <select data-ui-resolution class="ui-resolution-select" data-i18n-aria-label="ui.settings.resolution.label">
+              <option value="auto" data-i18n="ui.settings.resolution.auto">自适应（默认）</option>
+              <option value="720p" data-i18n="ui.settings.resolution.720p">720p（1280×720）</option>
+              <option value="1080p" data-i18n="ui.settings.resolution.1080p">1080p（1920×1080）</option>
+              <option value="1440p" data-i18n="ui.settings.resolution.1440p">1440p（2560×1440）</option>
+              <option value="2K" data-i18n="ui.settings.resolution.2k">2K（2048×1080）</option>
             </select>
           </label>
-          <div class="ui-settings-title">自动</div>
+          <div class="ui-settings-title" data-i18n="ui.settings.automation.title">自动</div>
           <!-- 自动点击开关（2026-10-28 用户要求「设置栏里也加一个自动点击开关，没有研究就提示在轮回商店购买」）。
                ⚠️ 结构**静态**，状态全部由 game.js 的 syncAutoClickSetting() 用 textContent / checked /
                   disabled / class 增量更新 —— 这里绝不能被整块重写，否则玩家点的那一下会被换掉（同 envWarm 纪律）。
                未拥有 perks 时 input 被 disabled ⇒ 不会产生 change 事件；整行仍可点，点了跳「轮回商店」。 -->
           <label class="ui-setting-row" id="autoClickRow">
             <input type="checkbox" id="autoClickToggle">
-            <span><b>自动点击</b><small id="autoClickHint">读取中…</small></span>
+            <span><b data-i18n="ui.settings.auto_click.label">自动点击</b><small id="autoClickHint" data-i18n="ui.status.auto_click.loading">读取中…</small></span>
           </label>
-          <div class="ui-settings-title">引导</div>
+          <div class="ui-settings-title" data-i18n="ui.settings.tutorial.title">引导</div>
           <label class="ui-setting-row">
             <input type="checkbox" data-onboarding-toggle checked>
-            <span><b>新手引导</b><small>首局逐步高亮操作指引，可随时关闭（关闭后不再自动出现）。</small></span>
+            <span><b data-i18n="ui.settings.onboarding.label">新手引导</b><small data-i18n="ui.settings.onboarding.hint">首局逐步高亮操作指引，可随时关闭（关闭后不再自动出现）。</small></span>
           </label>
           <!-- 音乐（2026-10-31 新增）：静音 + 音量 + 当前曲目。
                ⚠️ 结构**静态**，状态全部由 game.js 的 syncAudioSetting() 用 checked / value / textContent
                   增量更新 —— 与自动点击同一纪律，绝不能被整块重写（否则玩家正在拖的滑块会被换掉）。
                曲名/作者不写死在此，全部来自 config.js 的 CFG.AUDIO，由 syncAudioSetting 拼出。 -->
-          <div class="ui-settings-title">音乐</div>
+          <div class="ui-settings-title" data-i18n="ui.settings.music.title">音乐</div>
           <label class="ui-setting-row">
             <input type="checkbox" id="audioMuteToggle">
-            <span><b>静音 BGM</b><small>关闭所有背景音乐（破壳前/后两首都会停）</small></span>
+            <span><b data-i18n="ui.settings.audio.mute">静音 BGM</b><small data-i18n="ui.settings.audio.mute.hint">关闭所有背景音乐（破壳前/后两首都会停）</small></span>
           </label>
           <label class="ui-setting-row ui-setting-row--slider">
-            <span><b>BGM 音量</b></span>
-            <input type="range" id="audioVolume" min="0" max="100" value="100" step="1" class="audio-volume-slider" aria-label="BGM 音量">
+            <span><b data-i18n="ui.settings.audio.volume.label">BGM 音量</b></span>
+            <input type="range" id="audioVolume" min="0" max="100" value="100" step="1" class="audio-volume-slider" aria-label="BGM 音量" data-i18n-aria-label="ui.settings.audio.volume.accessible_label">
           </label>
-          <small class="ui-setting-hint" id="audioNowPlaying">读取中…</small>
+          <small class="ui-setting-hint" id="audioNowPlaying" data-i18n="ui.settings.audio.now_playing.loading">读取中…</small>
           <!-- TapTap 兑换码（2026-10-30 · TDS 无服务器礼包）。
                ⚠️ 这是**通用**兑换入口，以后办别的活动还用它 ⇒ 文案不写奖励类型、不写「补偿」。
                ⚠️ 整块由 src/redeem.js 的 boot() 控制显隐：CFG.REDEEM 的 CLIENT_ID / ACTIVITY_ID
                   任一为空就把整块 display:none（连标题一起），不留一个空标题或死按钮。 -->
           <div id="redeemSettingBlock">
-            <div class="ui-settings-title">兑换码</div>
+            <div class="ui-settings-title" data-i18n="ui.settings.redeem.title">兑换码</div>
             <div class="ui-settings-actions">
-              <button type="button" class="ui-setting-btn" id="btnSettingsRedeem">输入兑换码</button>
+              <button type="button" class="ui-setting-btn" id="btnSettingsRedeem" data-i18n="ui.settings.redeem.open">输入兑换码</button>
             </div>
           </div>
           <!-- 通关演出回看（2026-11-03 用户要求「放到设置里，想再看可以反复播放」）。
@@ -97,21 +97,21 @@
                ⚠️ 结构静态、只有 hidden 被改；按钮 onclick 由 bindSettingsExtras() 接，
                   与自动点击/音乐那两块同一条纪律：这里不许被整块重写。 -->
           <div id="terraReplayBlock" hidden>
-            <div class="ui-settings-title">通关演出</div>
+            <div class="ui-settings-title" data-i18n="ui.settings.ending_replay.title">通关演出</div>
             <div class="ui-settings-actions">
-              <button type="button" class="ui-setting-btn" id="btnReplayTerra">回看《流浪泰拉》</button>
+              <button type="button" class="ui-setting-btn" id="btnReplayTerra" data-i18n="ui.settings.ending_replay.open">回看《流浪泰拉》</button>
             </div>
           </div>
-          <div class="ui-settings-title">存档</div>
+          <div class="ui-settings-title" data-i18n="ui.settings.saves.title">存档</div>
           <div class="ui-settings-actions">
-            <button type="button" class="ui-setting-btn" id="btnSettingsSaveNow">立即保存</button>
-            <button type="button" class="ui-setting-btn" id="btnSettingsSaveManager">存档管理</button>
-            <button type="button" class="ui-setting-btn ui-setting-btn--danger" id="btnSettingsWipe">清空存档</button>
+            <button type="button" class="ui-setting-btn" id="btnSettingsSaveNow" data-i18n="save.action.save_now">立即保存</button>
+            <button type="button" class="ui-setting-btn" id="btnSettingsSaveManager" data-i18n="save.action.manage">存档管理</button>
+            <button type="button" class="ui-setting-btn ui-setting-btn--danger" id="btnSettingsWipe" data-i18n="save.action.erase">清空存档</button>
           </div>
           <!-- 手动保存反馈位（2026-10-29）：设置面板里没有状态行，所以单开一行小字。
                默认文案说明自动保存节奏；点完变成「已保存 · HH:MM」或失败的真实原因。
                ⚠️ 只由 save-transfer.js 的 saveNowFeedback 改 textContent，不许塞 HTML。 -->
-          <small class="ui-setting-hint" id="saveNowHint">进度每 5 秒自动保存一次</small>
+          <small class="ui-setting-hint" id="saveNowHint" data-i18n="save.autosave.hint">进度每 5 秒自动保存一次</small>
         </div>
       </details>
     </div>
@@ -125,7 +125,7 @@
   <div class="card omen" id="omen" hidden data-page-node-id="OmenCard01">
     <div class="omen-hd"><span class="omen-name" id="omenName"></span><span class="omen-cd" id="omenCd"></span></div>
     <div class="omen-copy" id="omenCopy"></div>
-    <button class="btn big" data-omen="claim" id="omenBtn">拾取</button>
+    <button class="btn big" data-omen="claim" id="omenBtn" data-i18n="ui.omen.collect">拾取</button>
   </div>
 
   <!-- 资源卡（2026-09-30）：加可折叠彩色标题条（data-fold=res，见 render.js CARD_META）。
@@ -291,70 +291,72 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=211"></script>
-<script src="src/config-catalog.js?v=12"></script>
-<script src="src/config-content.js?v=38"></script>
+<script src="src/config.js?v=218"></script>
+<script src="src/config-catalog.js?v=15"></script>
+<script src="src/config-content.js?v=39"></script>
 <script src="src/config-buildings.js?v=48"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=149"></script>
-<script src="src/tech.js?v=125"></script>
+<script src="src/techs.js?v=151"></script>
+<script src="src/tech.js?v=127"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=31"></script>
-<script src="src/civics.js?v=136"></script>
+<script src="src/civics-data.js?v=32"></script>
+<script src="src/civics.js?v=137"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
-<script src="src/save-storage.js?v=7"></script>
+<script src="src/save-storage.js?v=8"></script>
 <script src="src/state-migrate.js?v=28"></script>
-<script src="src/state.js?v=172"></script>
-<script src="src/workshop.js?v=126"></script>
-<script src="src/wonder.js?v=114"></script>
-<script src="src/economy-social.js?v=10"></script>
-<script src="src/economy.js?v=207"></script>
-<script src="src/economy-rates.js?v=33"></script>
-<script src="src/economy-tick.js?v=29"></script>
+<script src="src/state.js?v=176"></script>
+<script src="src/workshop.js?v=127"></script>
+<script src="src/wonder.js?v=115"></script>
+<script src="src/economy-social.js?v=11"></script>
+<script src="src/economy.js?v=210"></script>
+<script src="src/faith-text.js?v=1"></script>
+<script src="src/faith.js?v=1"></script>
+<script src="src/economy-rates.js?v=35"></script>
+<script src="src/economy-tick.js?v=30"></script>
 <script src="src/offline-scheduler.js?v=4"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
 <script src="src/events.js?v=1"></script>
 <script src="src/autoplay.js?v=4"></script>
 <script src="src/audio.js?v=1"></script>
-<script src="src/shell.js?v=114"></script>
+<script src="src/shell.js?v=118"></script>
 <script src="src/habitat.js?v=114"></script>
-<script src="src/folk.js?v=106"></script>
-<script src="src/prestige.js?v=134"></script>
-<script src="src/challenges.js?v=21"></script>
+<script src="src/folk.js?v=107"></script>
+<script src="src/prestige.js?v=135"></script>
+<script src="src/challenges.js?v=22"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=20"></script>
+<script src="src/ui/render-content.js?v=21"></script>
 <script src="src/ui/render-common.js?v=6"></script>
 <script src="src/ui/render-info.js?v=38"></script>
 <script src="src/ui/render-pane-research.js?v=37"></script>
 <script src="src/ui/render-pane-village.js?v=39"></script>
 <script src="src/ui/render-pane-folk.js?v=5"></script>
 <script src="src/ui/render-talent-tree.js?v=5"></script>
-<script src="src/ui/render-pane-meta.js?v=12"></script>
-<script src="src/ui/render-pane-challenges.js?v=21"></script>
+<script src="src/ui/render-pane-meta.js?v=14"></script>
+<script src="src/ui/render-pane-challenges.js?v=22"></script>
 <script src="src/ui/render-pane-company.js?v=4"></script>
-<script src="src/ui/render-pane-faith.js?v=2"></script>
-<script src="src/ui/render-pane-wonder.js?v=5"></script>
+<script src="src/ui/render-pane-faith.js?v=3"></script>
+<script src="src/ui/render-pane-wonder.js?v=6"></script>
 <script src="src/ui/render-pane-star-map.js?v=9"></script>
-<script src="src/ui/render-pane-workshop.js?v=16"></script>
-<script src="src/ui/render-environment.js?v=23"></script>
-<script src="src/ui/render.js?v=275"></script>
-<script src="src/ui/track-dock.js?v=6"></script>
+<script src="src/ui/render-pane-workshop.js?v=18"></script>
+<script src="src/ui/render-environment.js?v=25"></script>
+<script src="src/ui/render.js?v=278"></script>
+<script src="src/ui/track-dock.js?v=7"></script>
 <script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=180"></script>
+<script src="src/game.js?v=184"></script>
 <script src="src/save-transfer.js?v=16"></script>
 <script src="src/redeem.js?v=3"></script>
-<script src="src/ui/input.js?v=178"></script>
-<script src="src/ai-strategy.js?v=90"></script>
-<script src="src/ui/theme.js?v=4"></script>
+<script src="src/ui/input.js?v=182"></script>
+<script src="src/ai-strategy.js?v=91"></script>
+<script src="src/ui/theme.js?v=5"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=1"></script>

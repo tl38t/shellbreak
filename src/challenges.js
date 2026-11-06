@@ -46,6 +46,12 @@
       reward: '永久暖流季全产 +30% · 寒流季时长 ×0.5 · G.E.E.K 环境改造时间 ×0.5',
       goal: { t: 'all', of: [{ t: 'built', b: 'terra_engine', n: 50 }, { t: 'res', r: 'coreCharge', n: 50000000 }] },
       goalText: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能',
+      /* 2026-11-05：开启前置（不是「本轮限制」）。winter 的 reqs 是 blackhistory，
+       *   而 blackhistory 的尤里卡是 cycle>=15（techs.js:950-952 / tech.js:333-336）。
+       *   cycle 只在 startRun 时 +1（game.js:159）⇒ 低周目进了挑战，本局再也涨不上去，
+       *   整条《严冬计划》链研究不了、50 座行星发动机永远解锁不了。
+       *   数字只在**这一处**写，门禁 / 卡片 / 确认面板 / 通知条全读它。 */
+      prereq: { t: 'cycle', n: 15 },
       rankKey: 'drift', rankValue: function (s) { return s.wallT; },
       onComplete: function (s, meta) {
         /* 奖励立即生效：本局后续寒流季采用「奖励 ×0.5，再乘挑战 ×2」的 600 秒时长。
@@ -432,15 +438,47 @@
     var d = BY_ID[id];
     return !!d && tierDone(id, meta) >= d.tiers.length;
   }
+  /* ── 挑战开启前置（2026-11-05 · 流浪泰拉第 15 周目）────────────────────────
+   * ⚠️ 口径：点「结算并挑战」→ begin() 先 doBreak（不动 cycle）→ startRun()
+   *    meta.cycle++（game.js:159）⇒ 玩家**进局后**是 now+1；tech.condMet 的
+   *    case 'cycle' 读的就是那个值（tech.js:333-336）。门禁必须按 now+1 判，
+   *    写成 now>=15 会把第 14 周目（进局即达标）误挡在外面。
+   * ⚠️ ok / lack 给「还没开始」的卡片与门禁用；inRunOk / lackInRun 给「进行中」
+   *    的通知条用（那时 cycle 已经加过了，不能再 +1，否则面板会撒谎）。
+   * ⚠️ 只对 DEFINITIONS 里带 prereq 的挑战生效，其余十项一行都不碰。 */
+  function prereqState(id, meta) {
+    var d = BY_ID[id], p = d && d.prereq;
+    if (!p || p.t !== 'cycle') return null;
+    var m = meta || (SB.game && SB.game.meta ? SB.game.meta() : null);
+    var now = (m && Number(m.cycle)) || 0;
+    var need = Number(p.n) || 0;
+    var after = now + 1;
+    return { need: need, now: now, after: after,
+      ok: after >= need, lack: Math.max(0, need - after),
+      inRunOk: now >= need, lackInRun: Math.max(0, need - now) };
+  }
+  function prereqText(id, meta) {
+    var st = prereqState(id, meta);
+    if (!st) return '';
+    if (st.ok) return '需达到第 ' + st.need + ' 周目：已满足（当前第 ' + st.now +
+      ' 周目，开始挑战后第 ' + st.after + ' 周目）。';
+    return '需达到第 ' + st.need + ' 周目（当前第 ' + st.now + ' 周目，开始挑战后第 ' +
+      st.after + ' 周目，还差 ' + st.lack + ' 周目）。周目不足时《严冬计划》科技链的' +
+      '前置《黑历史蓝图》不会揭露，本局无法通关。';
+  }
+  function prereqOk(id, meta) {
+    var st = prereqState(id, meta);
+    return !st || st.ok;
+  }
   function canStart(id, s, meta) {
     var d = BY_ID[id];
     if (!d || active(s)) return false;
-    return true;
+    return prereqOk(id, meta);
   }
   function canStartFresh(id, s, meta) {
     var d = BY_ID[id];
     if (!d || active(s)) return false;
-    return tierDone(id, meta) < d.tiers.length;
+    return tierDone(id, meta) < d.tiers.length && prereqOk(id, meta);
   }
   function begin(id) {
     var s = SB.game.run(), meta = SB.game.meta(), d = BY_ID[id];
@@ -472,12 +510,14 @@
     var selectedRule = d.id === 'speedrun' ? '必须在 ' + formatClock(t.cap) + ' 内完成《神学》并凿穿天壳；离线时间也计入。' :
       d.id === 'science' ? '学者与书手岗位人数各不得超过 ' + t.cap + ' 人。' :
         d.id === 'abyss' ? '本轮全产出 -' + Math.round(t.cap * 100) + '%。' : d.rule;
+    var prereqLine = prereqText(id, meta);
     SB.ui.render.confirmPanel({
       title: replay ? '再次开始这项挑战？' : '结算并开始挑战？',
       body: '<div class="warnbox">当前周目将自动结算并重开。' +
         (qualified ? '预计获得 <b>' + payout.toFixed(2) + ' 轮回点</b>。' : '尚未完成《神学》，本次不会获得轮回点。') +
         '</div><div class="note"><b>' + d.name + ' · ' + t.label + (replay ? ' · 重复挑战' : '') + '</b><br>' +
         selectedRule +
+        (prereqLine ? '</div><div class="note"><b>开启前置</b><br>' + prereqLine : '') +
         '</div><div class="note">本局进度会重置；轮回点、已完成挑战与永久奖励保留。' +
         (replay ? '<br>本次为重复挑战：通关不再发放永久奖励，也不会再次提高轮回点获取，只刷新排行榜成绩。' : '') +
         '</div>',
@@ -570,6 +610,7 @@
     growthDuration: growthDuration, startingPopulation: startingPopulation,
     elapsedSeconds: elapsedSeconds, remainingSeconds: remainingSeconds, timedOut: timedOut, formatClock: formatClock,
     warmHeatingBlocked: warmHeatingBlocked, canStart: canStart, canStartFresh: canStartFresh,
+    prereqState: prereqState, prereqText: prereqText, prereqOk: prereqOk,
     startTier: startTier, isReplay: isReplay,
     begin: begin, prepareStart: prepareStart,
     resolveRun: resolveRun, rewardFor: rewardFor, goalMet: goalMet, evaluate: evaluate,

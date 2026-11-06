@@ -193,7 +193,8 @@
         var _crustMul = _siltPit * fishSilt * popMul * _gather * mine * cold * _gmx * _mp
           * (SB.wonder ? SB.wonder.mineMul(s) : 1) * _adMul;
         addRes(s, 'silt', j.miner * 0.05 * _crustMul * dt);
-        addRes(s, 'thetaMetal', j.miner * 0.005 * _crustMul * dt);
+        addRes(s, 'thetaMetal', j.miner * 0.005 * _crustMul * dt
+          * (SB.faith && SB.faith.thetaOutputMul ? SB.faith.thetaOutputMul(s) : 1));
       }
     }
 
@@ -208,11 +209,12 @@
        *    吐出来的精铁则乘 gm —— 与 rates.iron 那一行保持同一个 expr，别各写一套。 */
       /* ⚠️ 原料按 **bldEff 折扣**扣：同产出只耗 e× 原料（效率，不是产出）。未乘 gm —— 灯塔不该让玩家少扣一份原料。 */
       var _e = (_T ? _T.bldEff : 1);
-      s.res.silt -= fc * _e;
+      s.res.silt -= fc * _e * (SB.faith && SB.faith.furnaceMetalUseMul ? SB.faith.furnaceMetalUseMul(s) : 1);
       /* ⚠️ 暖石实扣乘 warmEff（refine/specfuel 降耗），与 ironFlow 门控同乘子 ⇒ 面板===结算。 */
       s.res.warmstone -= fc * _e * warmEff(s);
       addRes(s, 'iron', fc * _gmx * (1 + upgSum(s, 'ironBonus')) * _fb * _fe * SB.economy.smeltingOutMul(s)
-        * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0)));
+        * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0))
+        * (SB.faith && SB.faith.furnaceIronOutputMul ? SB.faith.furnaceIronOutputMul(s) : 1));
     }
 
     // 2b) ERA3 热液能 → 钢（热液汽轮机产热液能、热液工坊吃能产钢；比例降产）

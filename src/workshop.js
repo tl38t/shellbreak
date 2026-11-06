@@ -114,6 +114,7 @@
      *   公司由《宏观经济学》解锁、按成立时长升级；与上面十一源相加，不是相乘。
      *   读数走 SB.companyCraftRatio（economy-social.js，与 companyMul 同源）。 */
     if (SB.companyCraftRatio) m += SB.companyCraftRatio(s) || 0;
+    if (SB.faith && SB.faith.workshopEthicAdd) m += SB.faith.workshopEthicAdd(s) || 0;
     /* ⑬ 轮回工巧（2026-11-01 · perk.craftLoop，潮汐之树 15 点，dyn:'loop5'）：+5%×轮回次数。
      *   ⚠️【量纲】这个键里存的是**分数**，不是等级数：写入端
      *      prestige.applyPerk / state.derivePerksFromMeta 的 loop5 分支写的是
@@ -326,6 +327,7 @@
      *   等于科技这份承诺落空（又一条静默断链）。两处是独立投资：研究科技 +1、再买升级项 +1，
      *   各自文案各自兑现，别合并成一条。 */
     if (s.techs && s.techs.complexf) n += 1;
+    if (SB.faith && SB.faith.autoCraftSlots) n += SB.faith.autoCraftSlots(s) || 0;
     /* ERA7（2026-10-17 · spec §4）：复合型工厂升级项（upg_complexf）+1 自动工艺槽位。 */
     if (s.upgrades && s.upgrades.upg_complexf) n += 1;
     return Math.max(0, n);

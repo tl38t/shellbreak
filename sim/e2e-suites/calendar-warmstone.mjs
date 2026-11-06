@@ -156,7 +156,8 @@ console.log('\n=== 历法读数与暖石开关 ===');
     'warmRelief=' + wFull + ' 产出 ' + r0.toFixed(4) + ' → ' + rateFull.toFixed(4));
   check('暖石充足：burning 标记起来', SB.economy.warmBurning(coldT) === true, '');
 
-  coldT.res.warmstone = 0.01;                        // 不够烧这一 tick 的
+  const coldNeed = SB.economy.warmRate(coldT);
+  coldT.res.warmstone = coldNeed / 2;                // 不够烧这一 tick（费率动态，别写死常数）
   const wDry = SB.economy.warmRelief(coldT, 1);
   const rateDry = SB.economy.foodRate(coldT, 1, wDry);
   check('暖石见底：这一 tick 顶不住，产出回落', wDry === 0 && rateDry < rateFull,
@@ -165,8 +166,10 @@ console.log('\n=== 历法读数与暖石开关 ===');
     SB.economy.warmBurning(coldT) === false, '');
 
   /* rates() 的暖石净速率必须与 warmRelief 同源。这条判据分叉的窗口很窄
-   * （暖石剩不到一个 WARM_RATE 的那几秒），但症状是「面板说在烧、结算没烧」，
-   * 而且只在这一个落点出现，别的数值回归碰不到它。 */
+   * （暖石剩不到一个 warmRate(s) 的那几秒），但症状是「面板说在烧、结算没烧」，
+   * 而且只在这一个落点出现，别的数值回归碰不到它。
+   * ⚠️ 2026-11-05 起费率动态（0.03 × 破壳系数）：夹具一律用 warmRate(state) 现算，
+   *    不许再拿 `0.5` / `2` 这类对着旧 1.0/秒 调出来的魔数当边界。 */
   const dryT = SB.state.freshRun(false);
   dryT.lvl.kelp = 10; dryT.res.kelp = 1e6;
   dryT.techs.calendar = true;
@@ -178,18 +181,21 @@ console.log('\n=== 历法读数与暖石开关 ===');
   check('暖石产出基线 > 0（伴生线是这条开关的燃料）', prod > 0, prod.toFixed(4) + '/秒');
 
   dryT.warmOn = true;
-  dryT.res.warmstone = 0.5;                // WARM_RATE = 1：不够烧满一 tick
+  const dryNeed = SB.economy.warmRate(dryT);
+  dryT.res.warmstone = dryNeed / 2;        // 不够烧满一 tick
   const netThin = SB.economy.rates(dryT).warmstone;
   const relThin = SB.economy.warmRelief(dryT, 1);
   check('暖石剩不到一个 tick 的量：rates 与 warmRelief 都不认这口',
     Math.abs(netThin - prod) < 1e-9 && relThin === 0 && SB.economy.warmBurningNow(dryT) === false,
-    'rates ' + netThin.toFixed(4) + ' / warmRelief ' + relThin + ' / 纯产出 ' + prod.toFixed(4));
+    'rates ' + netThin.toFixed(4) + ' / warmRelief ' + relThin + ' / 纯产出 ' + prod.toFixed(4) +
+    ' / 费率 ' + dryNeed.toFixed(4));
 
-  dryT.res.warmstone = 2;
+  dryT.res.warmstone = dryNeed * 2;
   const netFull = SB.economy.rates(dryT).warmstone;
   check('暖石够烧：rates 扣掉那一口，与 warmRelief 同步',
-    Math.abs(netFull - (prod - SB.CFG.WARM_RATE)) < 1e-9 && SB.economy.warmRelief(dryT, 1) > 0,
-    'rates ' + netFull.toFixed(4) + ' / 期望 ' + (prod - SB.CFG.WARM_RATE).toFixed(4));
+    Math.abs(netFull - (prod - dryNeed)) < 1e-9 && SB.economy.warmRelief(dryT, 1) > 0,
+    'rates ' + netFull.toFixed(4) + ' / 期望 ' + (prod - dryNeed).toFixed(4) +
+    ' / 费率 ' + dryNeed.toFixed(4));
 
   /* ⚠️ 面板 == 实账：「**烧暖石**」那一档（2026-09-30 补，用户报「开关暖石产出完全没区别」）。
    *    上面那条不变式（见「③ 面板 == 实账」）只覆盖「**不烧暖石**」（relief=0），
@@ -256,9 +262,43 @@ console.log('\n=== 历法读数与暖石开关 ===');
   bothT.t = bothColdI * SB.CFG.SEASON_TICKS;
   const bs0 = bothT.res.warmstone;
   SB.economy.tick(bothT, 1, noop);
+  const bsRate = SB.economy.warmRate(bothT);   // tick 内 warmRelief 用的费率（换季骰子此时已落定）
   check('一份暖石只扣一次：同一 tick 里减产与冻伤共用同一个消耗口',
-    Math.abs((bs0 - bothT.res.warmstone) - SB.CFG.WARM_RATE) < 1e-9,
-    '扣掉 ' + (bs0 - bothT.res.warmstone).toFixed(4) + '，期望 ' + SB.CFG.WARM_RATE);
+    Math.abs((bs0 - bothT.res.warmstone) - bsRate) < 1e-9,
+    '扣掉 ' + (bs0 - bothT.res.warmstone).toFixed(4) + '，期望 ' + bsRate.toFixed(4));
+
+  /* ⑧ 动态费率（2026-11-05 用户拍板）：r(s) = WARM_COEF_RATE × breakCoef(s)。
+   *    三条锁：① 口径逐位相等 ② 随文明规模单调涨 ③ coef=0 时不白拿。
+   *    ⚠️ ② 钉的是「费率必须真的随规模变」这个结构 —— 谁把 warmRate 改回常数，
+   *       这条会红；不是拿断言去迁就某个数值。 */
+  {
+    const a = SB.state.freshRun(false);
+    const rA = SB.economy.warmRate(a);
+    check('暖石费率 = 0.03 × 破壳系数（唯一落点 economy.warmRate）',
+      Math.abs(rA - SB.CFG.WARM_COEF_RATE * SB.shell.breakCoef(a)) < 1e-12,
+      'r=' + rA.toFixed(6) + ' / coef=' + SB.shell.breakCoef(a).toFixed(6));
+    const b = SB.state.freshRun(false);
+    b.pop = 40; b.lvl.kelp = 30; b.techs.calendar = true; b.techs.mining = true;
+    const rB = SB.economy.warmRate(b);
+    check('文明规模变大 ⇒ 寒流季烧石费率跟着涨（不再固定 1/秒）',
+      rB > rA * 2, 'freshRun ' + rA.toFixed(6) + '/秒 → 扩规模 ' + rB.toFixed(6) + '/秒');
+
+    const guard = SB.state.freshRun(false);
+    guard.t = coldIdx * SB.CFG.SEASON_TICKS;
+    guard.warmOn = true; guard.res.warmstone = 100;
+    const origCoef = SB.shell.breakCoef;
+    SB.shell.breakCoef = () => 0;
+    try {
+      const g0 = guard.res.warmstone;
+      const gRelief = SB.economy.warmRelief(guard, 1);
+      check('破壳系数为 0：不白拿（不烧石 / 不顶减产 / 不压冻伤）',
+        SB.economy.warmRate(guard) === 0 && gRelief === 0 &&
+        SB.economy.warmBurningNow(guard) === false && guard.res.warmstone === g0 &&
+        SB.economy.warmCap(guard) === 0,
+        'r=' + SB.economy.warmRate(guard) + ' relief=' + gRelief +
+        ' 石 ' + g0 + ' → ' + guard.res.warmstone);
+    } finally { SB.shell.breakCoef = origCoef; }
+  }
 
   /* ⑤ 冰封期（2026-09-27 用户拍板：改成「每个寒流季随机触发、壳越薄概率越高、线性、封顶 33%」）
    * 旧形态是「壳 ≤ 25% 就恒定挨冻、且永不解除」——它让冰封期变成后期一个**永久状态**，
@@ -349,7 +389,7 @@ console.log('\n=== 历法读数与暖石开关 ===');
    *      而那正好会把点击丢失这个 bug 放回来。 */
   const warmBox = doc.getElementById('envWarm');
   const html0 = warmBox._html;
-  ui.res.warmstone = 4;                        // 还够烧（≥ WARM_RATE），签名里的「正在烧」不变
+  ui.res.warmstone = 4;                        // 还够烧（≥ warmRate(ui)），签名里的「正在烧」不变
   /* ⚠️ 这里必须先 markDirty：SB.game.render() 是**脏标记门控**的
    *    （game.js:126 `if (dirty)`）。上一次 render 已经把 dirty 清了，直接调
    *    `render()` 会整帧压根不跑 —— 量没刷上去是测试的锅，不是节流的锅。
@@ -373,6 +413,17 @@ console.log('\n=== 历法读数与暖石开关 ===');
     g('envWarm').indexOf('一份暖石两件事') !== -1, '');
   check('不再宣传不分季节的旧口径「一份暖石办两件事」',
     g('envWarm').indexOf('一份暖石办两件事') === -1, '');
+  /* 2026-11-05：费率随破壳系数变化后，文案里写死的「烧暖石（1/秒）」会变成假信息。
+   * 数字搬到独立 span（每帧刷 textContent，不进签名），断言既要赶走旧串、也要验读数真上屏。 */
+  const shownRate = Number(doc.getElementById('envWarmRate').textContent);
+  const realRate = SB.economy.warmRate(ui);
+  check('面板不再写死「1/秒」：显示实时费率且说明随文明规模增长',
+    g('envWarm').indexOf('烧暖石（1/秒）') === -1 &&
+    g('envWarm').indexOf('随文明规模增长') !== -1 &&
+    isFinite(shownRate) && shownRate > 0 &&
+    Math.abs(shownRate - realRate) <= Math.max(0.001, realRate * 0.02),
+    'envWarmRate=' + doc.getElementById('envWarmRate').textContent +
+    ' / warmRate=' + realRate.toFixed(6));
   const on = ui.warmOn;
   fire({ dataset: { warm: '1' } });
   check('点开关：状态真的翻转', ui.warmOn !== on, 'warmOn=' + ui.warmOn);

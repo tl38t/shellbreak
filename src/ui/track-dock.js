@@ -83,6 +83,7 @@
         have = (typeof raw === 'number' && isFinite(raw)) ? Math.floor(raw) : 0;
       }
       out.push({
+        k: k,
         name: k === 'pop' ? '人口' : ((SB.RESS && SB.RESS[k] && SB.RESS[k].name) || k),
         have: have,
         need: need,
@@ -221,6 +222,17 @@
     return true;
   }
 
+  /* 工坊产物资源键集合（从 SB.CRAFTS 自动提取，新增配方自动覆盖）。
+   * 用来判断「这一行资源是不是得去工坊造的」——只有工坊产物才在追踪坞里给「去制造」链接。 */
+  var _craftRes = null;
+  function craftResSet() {
+    if (_craftRes) return _craftRes;
+    _craftRes = {};
+    var L = SB.CRAFTS || (SB.workshop && SB.workshop.crafts && SB.workshop.crafts()) || [];
+    for (var ci = 0; ci < L.length; ci++) if (L[ci] && L[ci].res) _craftRes[L[ci].res] = 1;
+    return _craftRes;
+  }
+
   /* ── 绘制 ─────────────────────────────────────────────────── */
   var lastHtml = '', lastState = '', lastMs = 0;
   /* 跳转高亮的「目标 + 截止时间」。为什么要记而不是直接 add 类：
@@ -245,7 +257,19 @@
     if (row.classList && !row.classList.contains('is-track-flash')) row.classList.add('is-track-flash');
   }
 
-  function rowHtml(item) {
+  /* 把目标行滚到视野中央并记高亮（模块级，jump 与 gotoCraft 共用）。
+   * ⚠️ 落上去的类会随 pane 每 2 秒整块重画消失，所以记「目标选择器 + 截止时间」，
+   *    由 syncFlash 每次重算时按当前 DOM 补回去。 */
+  function scrollTo(sel) {
+    var d = doc(); if (!d) return;
+    var node = d.querySelector(sel);
+    if (!node) return;
+    var row = node.closest('.bld-row') || node.closest('.row') || node;
+    if (row.scrollIntoView) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    flashSel = sel; flashUntil = Date.now() + 1400; syncFlash();
+  }
+
+  function rowHtml(item, s) {
     var info = item.info, parts = [], i, r;
     /* 造价行与尤里卡行是两种形状：前者 {name,have,need}，后者自带整句 txt（来自 condShort）。
      * 统一在渲染处收口，resolve 不做字符串拼接 —— 免得两处各拼一份又漂。 */
@@ -255,6 +279,20 @@
         : r.name + ' ' + r.have + '/' + (SB.economy.fmtAmt ? SB.economy.fmtAmt(r.need) : r.need);
       parts.push('<span class="td-item' + (r.short ? ' is-short' : '') + '">' + esc(txt) + '</span>');
     }
+    /* 工坊产物 + 不足 ⇒ 给一个「去制造」链接，点它跳工坊制造页并滚到对应配方。
+     * 只给「不足」的（够了的没必要去造）；普通资源（石头/珊瑚/科技点）不在 CRAFT_RES 里，不显示。
+     * 工坊没建成时降级成灰色不可点（标题说明原因），避免点了跳到一个还没解锁的页。 */
+    var craftLinks = [], builtW = s && s.lvl && s.lvl.workshop > 0, crset = craftResSet();
+    for (i = 0; i < info.rows.length; i++) {
+      r = info.rows[i];
+      if (r.k && r.short && crset[r.k]) {
+        if (builtW) {
+          craftLinks.push('<a class="td-goto-craft" data-goto-craft="' + esc(r.k) + '" title="去工坊制作 ' + esc(r.name) + '">去制造 ' + esc(r.name) + '</a>');
+        } else {
+          craftLinks.push('<span class="td-goto-craft is-locked" title="未建成工坊，无法前往制作">去制造 ' + esc(r.name) + '</span>');
+        }
+      }
+    }
     var verb = (info.kind === 'bld' && info.lv > 0) ? '升级 ' : '';
     var title = verb + info.title;
     if (info.ready) title += ' · 可以' + (info.kind === 'craft' ? '制作' : '建造');
@@ -262,6 +300,7 @@
       '<div class="td-row-main">' +
         '<span class="td-title">' + esc(title) + '</span>' +
         '<span class="td-cost">' + parts.join('<i class="td-sep">·</i>') + '</span>' +
+        (craftLinks.length ? '<span class="td-craft">' + craftLinks.join('') + '</span>' : '') +
       '</div>' +
       '<button type="button" class="td-x" data-track-drop="' + esc(item.key) + '" ' +
         'aria-label="取消追踪 ' + esc(title) + '" title="取消追踪">×</button>' +
@@ -305,7 +344,7 @@
     var html = '', allReady = true;
     for (i = 0; i < alive.length; i++) {
       if (!alive[i].info.ready) allReady = false;
-      html += rowHtml(alive[i]);
+      html += rowHtml(alive[i], s);
     }
     /* 整块比字符串：只有真变了才写 innerHTML。
      * 每帧重写会让长按选中失败、也会把 :active 打断（同原实现的理由）。 */
@@ -436,6 +475,20 @@
    *    所以这里串三次 rAF：切页 → 展开分区 → 滚动。
    * ⚠️ 分区折叠时行节点仍在 DOM 里（只是 .bzbody 被 CSS 隐藏），
    *    所以「先查行、再拿它祖先的分区 id」这条路是可行的，不用另存区名。 */
+  /* 追踪坞里「去制造」链接：跳到工坊制造子页并把对应配方滚到视野中。
+   * 与 jump 的 craft 分支同一条落点，只是按「产物资源键」定位而不是配方 id。 */
+  function gotoCraft(res) {
+    var s = run();
+    if (!s || !res) return;
+    if (SB.game && SB.game.setTab) SB.game.setTab('workshop');
+    if (SB.ui.render && SB.ui.render.setWorkshopView) {
+      try { SB.ui.render.setWorkshopView('making'); } catch (e) {}
+    }
+    if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+    var raf = root.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+    raf(function () { raf(function () { scrollTo('#pane-workshop [data-craft-res="' + res + '"]'); }); });
+  }
+
   function jump(key) {
     var s = run();
     if (!s) return;
@@ -444,22 +497,7 @@
     if (!use) return;
     var info = resolve(s, use);
     if (!info) { drop(use); return; }
-    var d = doc(); if (!d) return;
     var raf = root.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
-
-    /* 高亮闪烁不能只 `classList.add` 一次完事：巢穴/工坊/奇观的 pane 每 2 秒**整块重画**，
-     * 落上去的类会随节点一起消失（实测工坊那条就丢过一次：跳过去了、但没闪）。
-     * ⇒ 记「目标选择器 + 截止时间」，由 paint 每次重算时按当前 DOM 补回去。 */
-    function markFlash(sel) {
-      flashSel = sel; flashUntil = Date.now() + 1400; syncFlash();
-    }
-    function scrollTo(sel) {
-      var node = d.querySelector(sel);
-      if (!node) return;
-      var row = node.closest('.bld-row') || node.closest('.row') || node;
-      if (row.scrollIntoView) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      markFlash(sel);
-    }
 
     if (info.kind === 'bld') {
       if (SB.game && SB.game.setTab) SB.game.setTab('village');
@@ -557,6 +595,8 @@
   /* 一次点按该干什么：× 关一个 / ×× 全清 / 行 → 跳到那一行。 */
   function act(target) {
     var t = target || {};
+    var craftEl = t.closest && t.closest('[data-goto-craft]');
+    if (craftEl) { gotoCraft(craftEl.getAttribute('data-goto-craft')); return; }
     var dropEl = t.closest && t.closest('[data-track-drop]');
     if (dropEl) { drop(dropEl.dataset ? dropEl.dataset.trackDrop : ''); return; }
     var clearEl = t.closest && t.closest('[data-track-clear]');
@@ -571,7 +611,7 @@
     if (node.classList && node.classList.contains('hidden')) return;
     /* 「×」不参与拖动：否则想关掉它时手指一抖就变成拖动，点不中关闭。 */
     var t = e.target || {};
-    if (t.closest && t.closest('[data-track-clear], [data-track-drop]')) return;
+    if (t.closest && t.closest('[data-track-clear], [data-track-drop], [data-goto-craft]')) return;
     var r = node.getBoundingClientRect();
     drag = { dx: (e.clientX || 0) - r.left, dy: (e.clientY || 0) - r.top,
       x0: e.clientX || 0, y0: e.clientY || 0, w: r.width, h: r.height };
@@ -635,7 +675,7 @@
 
   ui.track = {
     init: bind, paint: paint, track: track, untrack: drop, clear: clear, jump: jump,
-    resolve: resolve, costRows: costRows, isTracked: isTracked, keys: keys,
+    gotoCraft: gotoCraft, resolve: resolve, costRows: costRows, isTracked: isTracked, keys: keys,
     syncButtons: syncButtons, hint: hint, MAX: MAX
   };
 })(typeof window !== 'undefined' ? window : globalThis);

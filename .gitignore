@@ -7,4 +7,8 @@ tech-tree-demo.html
 
 # ===== 打包产物 / 截图（2026-10-15 用户拍板：不入库，体积大且可重生成）=====
 TAPTAP-H5-OUTPUT/
+
+# ===== Electron desktop build artifacts =====
+node_modules/
+dist/electron/
 截图/

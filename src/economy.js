@@ -116,7 +116,8 @@
       + (p.startPop || 0)
       + (p.housePlan || 0) * popBuildLev
       + (SB.civic && SB.civic.popCapPerPopBldg ? SB.civic.popCapPerPopBldg(s) * popBuildLev : 0)  // ERA7 公摊面积卡：人口建筑每级 +0.5 上限
-      + (SB.civic && SB.civic.cardPopCapFlat ? SB.civic.cardPopCapFlat(s) : 0); // 人口政策卡：固定上限加值
+      + (SB.civic && SB.civic.cardPopCapFlat ? SB.civic.cardPopCapFlat(s) : 0) // 人口政策卡：固定上限加值
+      + (SB.faith && SB.faith.popCapBonus ? SB.faith.popCapBonus(s) : 0);
     /* 人口按完整个体计数。公摊面积等效果可能给出 x.5 床位，按要求向上取整；
      * 挑战人口硬上限仍在取整后钳制（当前挑战上限均为整数）。 */
     return Math.min(Math.ceil(cap), SB.challenges ? SB.challenges.populationLimit(s) : Infinity);
@@ -460,6 +461,8 @@
      * 记的是「流进来的量」而不是「留在池里的量」——仓储溢出的部分也算采到过，
      * 否则玩家一路爆仓却永远点不亮「累计产出 500」这类条件。 */
     if (s.got) s.got[k] = (s.got[k] || 0) + v;
+    if (k === 'faith' && SB.faith && SB.faith.recordEarned && SB.faith.recordEarned(s, v)
+        && SB.game && SB.game.markDirty) SB.game.markDirty();
   }
 
   /* 统治核心的「议价」：每一级降低所有建筑**下一级**的建造成本，且**每级都在递减**。
@@ -675,7 +678,8 @@
     for (var k in b.cost) {
       if (k === 'pop') continue;
       o[k] = b.cost[k] * Math.pow(b.ratio, _effN) * hm * gm * wm * isb * hsb * bsb
-        * scm * (k === 'scaffold' ? sc : 1) * _freeMul;
+        * scm * (SB.faith && SB.faith.buildingCostMul ? SB.faith.buildingCostMul(s) : 1)
+        * (k === 'scaffold' ? sc : 1) * _freeMul;
     }
     return o;
   }
@@ -816,9 +820,27 @@
    * 开关只表达「我想抵消」，能不能抵消取决于手里有没有暖石（伴生产物，会烧完）。
    * 【为什么烧的量按 dt 计而不是「每 tick 固定一口」】漏乘 dt 就会变成
    *    每秒烧 10 倍（STEP=0.1），一个寒流季把攒了半局的暖石一次烧光。 */
+  /* ── 保温法每秒烧石量（2026-11-05 用户拍板：随文明规模变化）──
+   *    r(s) = CFG.WARM_COEF_RATE(0.03) × SB.shell.breakCoef(s)
+   * ⚠️ 唯一落点：tick 的 warmRelief、rates 的暖石行、主循环补算的步长保护、
+   *    面板文案，全部读这个函数，谁都不许自己再写一份或拿旧常数当费率。
+   * ⚠️ 纯查询、无副作用、不掷骰：可在渲染路径每帧调（breakCoef 只是几个 pow +
+   *    一次 techs 遍历，10fps 下开销可忽略）。
+   * ⚠️ shell.js 晚于本文件加载（index.html 317 / 326），所以**运行期**取 SB.shell.breakCoef，
+   *    用守卫读法（与 starRate 同源范式）；模块还没到时退 0，绝不回退到常数费率。
+   * ⚠️ r<=0（破壳系数为 0 / 非有限值）时返回 0，由 warmBurningNow 判「没在烧」：
+   *    否则 `res >= 0` 恒真 ⇒ 不耗一粒石却白拿减产顶回 + 冻伤归零。 */
+  function warmRate(s) {
+    if (!s) return 0;
+    var coef = (SB.shell && SB.shell.breakCoef) ? SB.shell.breakCoef(s) : 0;
+    var r = SB.CFG.WARM_COEF_RATE * coef
+      * (SB.faith && SB.faith.warmstoneUseMul ? SB.faith.warmstoneUseMul(s) : 1);
+    return (isFinite(r) && r > 0) ? r : 0;
+  }
+
   /* 「这一瞬间开关会不会真的烧」——纯查询，无副作用。
    * ⚠️ 判据被 warmRelief 与 rates() 共用，不各写一遍：
-   *    分开写的差别只在「暖石剩不到一个 need（`>= WARM_RATE`）」那几秒 —— numbers 上极小，
+   *    分开写的差别只在「暖石剩不到一个 need（`>= warmRate(s)`）」那几秒 —— numbers 上极小，
    *    症状却是面板写着正在烧、实际一 tick 都没烧（rates 提前扣了、结算没扣，两边对不上）。 */
   /* ⚠️【2026-09-27 用户拍板：改回「只在寒流季烧」】历史经历了三步：
    *    ① 原本就是季节闸（mult<1 才烧），当时理由是「暖石只顶回减产一个用途」；
@@ -834,7 +856,8 @@
     if (!s || !s.warmOn || !s.res) return false;
     if (SB.challenges && SB.challenges.warmHeatingBlocked(s)) return false;
     if (season(s).mult >= 1) return false;   // 只在惩罚季（mult<1，现为寒流季）烧
-    return (s.res.warmstone || 0) >= SB.CFG.WARM_RATE;
+    var r = warmRate(s);
+    return r > 0 && (s.res.warmstone || 0) >= r;
   }
 
   /* ⚠️ 三条「顶不住」的出口都要把 warmBurning 落成 false，不能只管置 true：
@@ -844,8 +867,8 @@
    *    还亮着「正在烧」，等于骗玩家。落位是这段自己的职责，别指望调用方记得清。 */
   function warmRelief(s, dt) {
     if (!warmBurningNow(s)) { s.warmBurning = false; return 0; }
-    var need = SB.CFG.WARM_RATE * (dt == null ? 1 : dt);
-    if (!(s.res.warmstone >= need)) { s.warmBurning = false; return 0; }
+    var need = warmRate(s) * (dt == null ? 1 : dt);
+    if (!(need > 0) || !(s.res.warmstone >= need)) { s.warmBurning = false; return 0; }
     s.res.warmstone -= need;
     s.warmBurning = true;
     return SB.CFG.WARM_RELIEF;
@@ -1442,6 +1465,7 @@
     var f = 1;
     if (s && s.techs && s.techs.refine) f *= 0.7;
     if (s && s.techs && s.techs.specfuel) f *= 0.7;
+    if (SB.faith && SB.faith.warmstoneUseMul) f *= SB.faith.warmstoneUseMul(s);
     return isFinite(f) && f > 0 ? f : 1;
   }
 
@@ -1489,6 +1513,7 @@
     if (!s || !s.lvl) return out;
     var T = SB.tech ? SB.tech.mul(s) : null;
     var e = (T ? T.bldEff : 1);
+    var metalUse = SB.faith && SB.faith.furnaceMetalUseMul ? SB.faith.furnaceMetalUseMul(s) : 1;
     out.warm = warmDraw(s, id);      // 只有汽轮机 / 热泉炉 > 0
     if (id === 'furnace') {
       var flv = s.lvl.furnace || 0;
@@ -1497,7 +1522,7 @@
         /* 与 ironFlow 的 rate 完全同式（那里是「转几份/秒」，这里乘 bldEff 得「吃几吨金属/秒」）。 */
         var cold = isCold(s) ? coldSeasonMul(s) : 1;
         var frate = SB.UNIT.iron * frun * (T ? T.smelt : 1) * cold * (T ? T.craft : 1);
-        out.metal = frate * e;
+        out.metal = frate * e * metalUse;
       }
     } else if (id === 'hydroshop') {
       /* ⚠️ 工坊这里给的是**需求（满转）**而不是 hydroAlloc 的 shopDraw（已被供给打折）。
@@ -1690,7 +1715,7 @@
     /* 两种原料取**较小**的库存（已按效率放宽 ÷e）：哪样先见底就按哪样停，不会把一样抽成负数再白吃另一样。
      * ⚠️ 暖石门控同步乘 warmEff（refine/specfuel 降耗）：实际每吨铁耗暖石变少，同一份暖石能撑更多铁，
      *   门控必须跟着放宽，否则会「有暖石却不产铁」的假缺料；tick 实扣那行用同一个 warmEff 与之对应。 */
-    return Math.min(rate * dt, s.res.silt / e, s.res.warmstone / (e * warmEff(s)));
+    return Math.min(rate * dt, s.res.silt / (e * metalUse), s.res.warmstone / (e * warmEff(s)));
   }
 
   /* ERA3 热液能系统（2026-09-29 起；2026-10-05 重做为 **flow 模型**）：
@@ -1823,7 +1848,8 @@
         * (SB.challenges ? SB.challenges.productionMul(s) : 1)
       : 0;
     if (turL > 0) {
-      turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _sourceFactor * govHydroMul;
+      turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _sourceFactor * govHydroMul
+        * (SB.faith && SB.faith.turbineOutputMul ? SB.faith.turbineOutputMul(s) : 1);
       if (dt > 0) pollutionTurbine += turbineSupply / dt;
     }
     /* ERA5 并联进汽口：停用汽轮机只停汽轮机本身，不关高压热机管道/轨道工厂。 */
@@ -1909,7 +1935,11 @@
        *    shell.js 同一个门用的是 dCost（口径正确），只有这一处写错。
        *    ⇒ 统一按钻头自己的消耗判；同时把「为什么没取到流」写成 skyStopWhy 交给 UI，
        *    面板不再自算阈值（单一判据源，同 runStatus/launchStatus 家族纪律）。 */
-      var dCost = SB.CFG.SKYDRILL_DRILL * dt;
+      /* 天元突破 2×（2026-11-05）：钻头耗率翻倍（削壳速率在 shell.tickShell 同倍放大），
+       * 热液能 hCost 仍 20/秒不变。⚠️ 这道「钻头够不够取流」的判据必须与 tickShell 的
+       * dCost 逐字同源，倍率只准从 SB.shell.skydrillMul 读一次，别在这里另写一份门。 */
+      var _skyMul = (SB.shell && SB.shell.skydrillMul) ? SB.shell.skydrillMul(s) : 1;
+      var dCost = SB.CFG.SKYDRILL_DRILL * _skyMul * dt;
       if ((s.res.resonantDrill || 0) >= dCost) {
         skyNeed = hCost;
         if (left >= hCost) skyDraw = hCost; else skyStopWhy = 'hydro';
@@ -2362,7 +2392,8 @@
       /* ERA9 血肉苦弱卡（resOutMul.steel=1.3）：钢产出 +30%（装卡才生效）。 */
       * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'steel') : 1)
       * (SB.companyMul ? SB.companyMul(s, 'steel') : 1)
-      * hydroshopEffMul(s) * hydroshopBoostMul(s) * smeltingOutMul(s);
+      * hydroshopEffMul(s) * hydroshopBoostMul(s) * smeltingOutMul(s)
+      * (SB.faith && SB.faith.steelOutputMul ? SB.faith.steelOutputMul(s) : 1);
     addRes(s, 'steel', out);
     return out;
   }
@@ -2385,7 +2416,8 @@
       /* ERA9 血肉苦弱卡（resOutMul.steel=1.3）：钢产出 +30%（装卡才生效）。 */
       * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'steel') : 1)
       * (SB.companyMul ? SB.companyMul(s, 'steel') : 1)
-      * hydroshopEffMul(s) * hydroshopBoostMul(s) * smeltingOutMul(s);
+      * hydroshopEffMul(s) * hydroshopBoostMul(s) * smeltingOutMul(s)
+      * (SB.faith && SB.faith.steelOutputMul ? SB.faith.steelOutputMul(s) : 1);
     /* ERA8：补 labDraw（生物材料研究所）/ robotDraw（工业机器人）/ robotbayDraw（机器人充能站）三个新耗流方——
      *   漏加 = 顶栏热液能净消耗少算几路（面板撒谎家族）。
      *   ERA10（2026-10-20）：再补 jupitorDraw（朱庇特质量加速站 20/s）——同一个坑，第三次踩到：
@@ -2442,14 +2474,16 @@
       * (SB.companyMul ? SB.companyMul(s, 'thetaMetal') : 1)
       /* ERA10 朱庇特质量加速站（wonder_jupitor_mas.effect.biomatlabOut=1.0）：研究所产出 ×2，
        * 与纳米技术的 biomatlabOut ×1.10 **独立相乘**（合计 ×2.10）。读数走 wonder.js（纪律③）。 */
-      * (SB.wonder && SB.wonder.wonderBiomatlabOut ? SB.wonder.wonderBiomatlabOut(s) : 1);
+      * (SB.wonder && SB.wonder.wonderBiomatlabOut ? SB.wonder.wonderBiomatlabOut(s) : 1)
+      * (SB.faith && SB.faith.thetaOutputMul ? SB.faith.thetaOutputMul(s) : 1);
   }
   /* ERA10（2026-10-20）：太阳星环平产量 —— 每级 +0.05 θ金属/秒（用户 ERA10 表原值）。
    * ⚠️ **平产**：不吃 biomatlab 开工率（无原料需求）、不吃 globalMul（字面「每秒生产」），
    *    与 biomatlab 线独立相加。独立成函数是因为 thetaFlow/thetaRate 两处都要读，
    *    且 biomatlab 停工（ratio=0 / lv=0）时这项**照产**——早期 return 会把它静吞掉。 */
   function solarRingOut(s) {
-    return (s.lvl.solar_ring || 0) * (SB.BLD.solarRingOut || 0) * starSolarRingMul(s);
+    return (s.lvl.solar_ring || 0) * (SB.BLD.solarRingOut || 0) * starSolarRingMul(s)
+      * (SB.faith && SB.faith.thetaOutputMul ? SB.faith.thetaOutputMul(s) : 1);
   }
   function thetaFlow(s, dt) {
     var q = thetaRatio(s);
@@ -2628,7 +2662,8 @@
       * (SB.civic && SB.civic.cardFaithOutMul ? SB.civic.cardFaithOutMul(s) : 1)
       + (SB.civic && SB.civic.theoFaithBonus ? SB.civic.theoFaithBonus(s) : 0)
       + (SB.civic && SB.civic.faithPerBuildingBonus ? SB.civic.faithPerBuildingBonus(s) : 0))
-      * (SB.challenges ? SB.challenges.productionMul(s) : 1);   // ERA6 教权国：所有建筑每级 +1 信仰/秒
+      * (SB.challenges ? SB.challenges.productionMul(s) : 1)
+      * (SB.faith && SB.faith.faithOutputMul ? SB.faith.faithOutputMul(s) : 1);   // ERA6 教权国：所有建筑每级 +1 信仰/秒
   }
 
   /* ⚠️ 全文件单位铁律：凡是「每秒速率」，写进资源池时必须 × dt。
@@ -2752,6 +2787,8 @@
     observatoryBonusPct: observatoryBonusPct, obsSciMul: obsSciMul, resUnlocked: resUnlocked, seasonTurn: seasonTurn,
     steelFlow: steelFlow, steelRate: steelRate, toolMul: toolMul, upgSum: upgSum,
     warmBurningNow: warmBurningNow, warmCap: warmCap, warmEff: warmEff, warmRelief: warmRelief,
+    /* rates / economy-tick 从 P 取读数：暖石行的「保温开关」扣减必须与 warmRelief 同源。 */
+    warmRate: warmRate,
     /* ERA8：θ生物金属产线（tick 走 thetaFlow、rates 走 thetaRate，与 steelFlow/steelRate 对同构）。 */
     thetaFlow: thetaFlow, thetaRate: thetaRate, thetaInputRates: thetaInputRates,
     /* ERA10（2026-10-20）：unifiedMul / globalMulX / dysonPct / solarRingOut 进 internals——
@@ -2980,6 +3017,8 @@
      * ⚠️ 它有副作用（会烧石、会置 warmBurning），所以别在渲染路径里调用它——
      *    那会在玩家盯着面板看的时候偷偷烧掉一 tick 的暖石。要看 burning 用 warmBurning。 */
     warmRelief: warmRelief, warmBurningNow: warmBurningNow,
+    /* 每秒烧石量（动态）：UI 文案 / 主循环补算 / e2e 都从这一口读，纯查询无副作用。 */
+    warmRate: warmRate,
     rates: rates,
     /* 速率分项（2026-10-29）：顶栏资源详情面板的唯一读数口，与 rates 同一次计算。 */
     ratesParts: ratesParts,

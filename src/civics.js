@@ -985,7 +985,8 @@
   }
   function researchCost(s, c) {
     var mul = SB.challenges && SB.challenges.researchCostMul ? SB.challenges.researchCostMul(s) : 1;
-    return (c && c.cost || 0) * mul;
+    return (c && c.cost || 0) * mul
+      * (SB.faith && SB.faith.civicCostMul ? SB.faith.civicCostMul(s) : 1);
   }
   /* 返回 null 表示可以研究，否则返回「为什么不行」——这句会挂成灰按钮的 title。 */
   function blocked(s, c) {
@@ -1070,6 +1071,7 @@
       /* ⚠️ 仅第 0 号槽镜像，**勿读**（读→ cardSlotted / cardCraftRatio），2026-10-14 钉 */
       s.card = s.cards[0] || null;
     }
+    if (SB.faith && SB.faith.awardOnCivic) SB.faith.awardOnCivic(s);
     return true;
   }
 

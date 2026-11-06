@@ -708,6 +708,91 @@
     });
   }
 
+  /* ── ⑤ 设备级 UI 偏好（2026-11-05）────────────────────────────────
+   * 【为什么单独一条 key、单独三通道】工坊 / 奇观的「隐藏已完成」开关原来各写一条
+   *   裸 `sb.*` localStorage 键。TapTap 只承诺 `tapfile://usr` 与 `tap.setStorage`
+   *   长期保留，localStorage 会随容器清缓存蒸发 ⇒ 玩家每次重开都要再按一次。
+   *   诊断层（④）已经验证「独立 key + 三通道镜像」在这台设备上跑得通，这里照抄形状。
+   * 【为什么不进 meta / 不入 run】偏好是**设备级**，不是账号级、也不是周目级：
+   *   轮回 / 清档 / 导入存档 / 云备份覆盖本地都不该改变它（用户 2026-11-05 拍板
+   *   「清档不清」）。state.js 与 game.js 的清档只删 SAVE_KEY / RUN_KEY，碰不到这里。
+   * 【默认值】一律 false（不隐藏）。老玩家升级上来不会突然发现资产清单不见了。
+   * 【迁移】旧 `sb.hideDone.v1` / `sb.wonderHideDone.v1` 只在**新键缺字段**时读一次，
+   *   随后固化进权威键；旧键留着不删（回退旧版时行为不变，删了反而制造差异）。
+   * 【异步回填】tap 可能晚注入（见 game.js 就绪门）⇒ 模块加载那一刻读备份会扑空。
+   *   所以 `prefHydrate()` 允许反复调用、命中即停；game.bootStage2 在门之后调一次，
+   *   releaseNativeHold（晚到补偿）再补一次。
+   *   ⚠️ 玩家在本会话已经点过开关（prefDirty）就一律不回填，免得慢到的旧值把刚按下的
+   *      状态顶回去 —— 所有「异步恢复 + 同步交互」都必须有这道护栏。
+   * ⚠️ 不许把 pref 塞进 saveRun 的键校验 / 存档快照：它必须能在「存档读不到」时照常存在。 */
+  var PREF_KEY = 'shellbreak.ui.v1';
+  var PREF_LEGACY = {
+    workshopHideDone: 'sb.hideDone.v1',
+    wonderHideDone: 'sb.wonderHideDone.v1'
+  };
+  var prefCache = null, prefDirty = false, prefHydrated = false, prefHydrating = false;
+
+  function prefParse(raw) {
+    if (!raw) return null;
+    try {
+      var o = JSON.parse(raw);
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : null;
+    } catch (e) { return null; }
+  }
+  /* 同步权威态。⚠️ 无 DOM 脚本（loadNoDom）里 root.setTimeout 可能不存在，
+   * 但 prefLocal 本身不碰定时器，纯同步读写，可安全在所有环境调用。 */
+  function prefLocal() {
+    if (prefCache) return prefCache;
+    var o = prefParse(readLocal(PREF_KEY)) || {}, migrated = false, k;
+    for (k in PREF_LEGACY) {
+      if (!Object.prototype.hasOwnProperty.call(PREF_LEGACY, k)) continue;
+      if (k in o) continue;
+      o[k] = (readLocal(PREF_LEGACY[k]) === '1') ? 1 : 0;
+      migrated = true;
+    }
+    if (!o._at) o._at = 0;       // 0 = 迁移 / 无新键；备份带时间戳就优先采用备份
+    prefCache = o;
+    if (migrated) writeLocal(PREF_KEY, JSON.stringify(o));
+    return o;
+  }
+  function prefGet(key, dflt) {
+    var v = prefLocal()[key];
+    if (v === 1 || v === true || v === '1') return true;
+    if (v == null || v === 0 || v === false || v === '0') return !!dflt;
+    return !!v;
+  }
+  /* 返回 Promise（resolve 成新值）只为让回归能等镜像落定；UI 的点击路径不 await。 */
+  function prefSet(key, val) {
+    var o = prefLocal(), v = !!val;
+    o[key] = v ? 1 : 0;
+    o._at = Date.now();
+    prefDirty = true;
+    var txt = JSON.stringify(o);
+    writeLocal(PREF_KEY, txt);
+    return mirrorWrite(PREF_KEY, txt).then(function () { return v; });
+  }
+  /* 从 ②③ 备份救回「localStorage 被容器清掉」的那份。
+   * ⚠️ 没有 setTimeout 的沙箱里 bounded() 会抛，直接跳过 —— 那是纯逻辑脚本，没有 tap。 */
+  function prefHydrate() {
+    if (prefHydrated || prefHydrating || prefDirty || typeof root.setTimeout !== 'function')
+      return Promise.resolve(false);
+    prefHydrating = true;
+    var local = prefLocal();
+    return readBackupAsync(PREF_KEY).then(function (hit) {
+      var back = hit && prefParse(hit.raw);
+      if (!back || prefDirty) return false;            // 异步期间玩家点了开关 ⇒ 让手上的值赢
+      var localAt = Number(local._at) || 0, backAt = Number(back._at) || 0;
+      if (backAt <= localAt) return false;
+      prefHydrated = true;
+      prefCache = back;
+      writeLocal(PREF_KEY, JSON.stringify(back));
+      return true;
+    }, function () { return false; }).then(function (ok) {
+      prefHydrating = false;
+      return ok;
+    });
+  }
+
   function status() {
     return {
       env: envAvailable(), fs: fsAvailable(), cloud: cloudProbe(),
@@ -748,6 +833,8 @@
     preserveEmergency: preserveEmergency, emergencyLoad: emergencyLoad,
     emergencyClear: emergencyClear,
     DIAG_KEY: DIAG_KEY, EMERG_KEY: EMERG_KEY,
+    /* ⑤ 设备级 UI 偏好（2026-11-05）：不进存档、清档不清、默认 false。 */
+    prefGet: prefGet, prefSet: prefSet, prefHydrate: prefHydrate, PREF_KEY: PREF_KEY,
     status: status
   };
 })(typeof window !== 'undefined' ? window : globalThis);
