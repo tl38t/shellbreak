@@ -1691,8 +1691,19 @@
     var box = el('modalBox'), modal = el('modal');
     if (!box || !modal) return;
     var log = (SB.CFG && SB.CFG.CHANGELOG) || [];
+    /* 2026-11-06 本地化：CFG.CHANGELOG 的 items 存 i18n 语义 key，中文基准在
+     * src/locales/zh-CN.js、英文在 electron/locales/en-US.js，二者由登记表生成。
+     * TapTap / 未知运行时恒取 zh-CN；只有明确 Electron 才可能取 en-US。
+     * 取不到词时退回 key 本身，方便在面板里立刻发现漏登记，而不是静默空行。 */
+    function chgEsc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
     var body = log.map(function (e) {
-      var items = (e.items || []).map(function (it) { return '<li>' + it + '</li>'; }).join('');
+      var items = (e.items || []).map(function (it) {
+        var txt = (SB.i18n && SB.i18n.t) ? (SB.i18n.t(it) || it) : it;
+        return '<li>' + chgEsc(txt) + '</li>';
+      }).join('');
       return '<div class="chg-entry">' +
         '<div class="chg-hd"><span class="chg-ver">' + (e.v || '?') + '</span>' +
         (e.date ? '<span class="chg-date">' + e.date + '</span>' : '') + '</div>' +

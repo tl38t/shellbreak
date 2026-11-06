@@ -161,125 +161,68 @@ assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动�
 
 _cfg = _read('src/config.js')
 assert "VERSION: 'Ver1.0.17'" in _cfg, '包内 config.js 版本号不是 Ver1.0.17'
-assert "v: 'Ver1.0.17'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.17 条目'
-# Ver1.0.17 玩家可见 8 条：3 修复（25% 门槛方向搞反 / 隐藏开关跨重启复位 /
-# 流浪泰拉 15 周目前置没说清楚）＋ 1 调整（暖石动态费率）＋ 4 新增
-# （星屑「天外重压」三级减壳 / 轮回「万众热忱」三级加速 / 轮回「天元突破」钻头倍率
-# / 追踪坞工坊产物「去制造」跳转）。25% 那条是线上 1.0.16 实装成 75% 的更正，
-# 隐藏开关、流浪泰拉前置与追踪坞跳转都是玩家实测反馈，漏一条等于白改。
-for _kw in ['修复《天壳地质学》的揭示门槛实装方向搞反的问题',
-            '修复工坊与奇观「隐藏已完成」开关每次重开游戏都要重按的问题',
-            '《流浪泰拉》挑战现在写明开启前置',
-            '保温法烧暖石不再是固定每秒 1 块',
-            '星屑商店新增「天壳压制」一组天赋「天外重压」',
-            '轮回商店「远见之人」新增三级天赋「万众热忱」',
-            '轮回商店「钻机测绘」终点新增天赋「天元突破」',
-            '追踪坞（角落小框）里，凡是需要工坊产物的材料不足时']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.17 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.16'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.16 条目'
-# Ver1.0.16 玩家可见 4 条：3 修复（结算并挑战吞奖励 / 自动槽不起效 / 复合型工厂槽位没兑现）
-# ＋ 1 调整（天壳地质学门槛 50%→25%）。三条修复都是玩家实测在踩的线上问题，漏一条等于白改。
-for _kw in ['修复在挑战页点「结算并挑战」时不给本局轮回点和星屑的问题',
-            '修复轮回商店买的「自动工坊」槽位不起效的问题',
-            '修复科技《复合型工厂》承诺的「自动工艺槽位 +1」没有兑现的问题',
-            '《天壳地质学》的揭示门槛从破壳 50% 调整为 25%']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.16 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.15'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.15 条目'
-# Ver1.0.15 玩家可见 11 条：6 新增（四项终局挑战 / 限制生命周期 / 每档 +10% 轮回点口径）
-# ＋ 4 修复（G.E.E.K 破壳冻死 / G.E.E.K 空烧热液能 / 破壳后挑战页状态 / 平等主义热液加成）
-# ＋ 1 新增改进（流浪泰拉回看）。
-# 逐条钉死：这版三个修复都是玩家已经在踩的线上问题，漏一条发出去等于白改。
-# ⚠️ 礼包码那条是运营向，用户拍板不进公开日志 ⇒ 本地码照常可用，只是不写进 CHANGELOG。
-for _kw in ['新增挑战《安那其主义》',
-            '新增挑战《美好旧日》',
-            '新增挑战《三地发射网》',
-            '新增挑战《掌控永远与须臾程度的能力》',
-            '四项终局挑战的限制会一直持续到通关为止',
-            '四项终局挑战每通一档都计入',
-            '修复破壳之后「星球重构机 G.E.E.K」卡住不动的问题',
-            '修复 G.E.E.K 在没有活可干的时候仍然占着 40 热液能/秒的问题',
-            '修复破壳之后挑战页把进行中的挑战显示成「尚未完成」',
-            '修复平等主义「每名鲛人 +0.1% 热液能产出」漏加成的问题',
-            '设置里新增「回看《流浪泰拉》」']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.15 更新日志缺条目：' + _kw
+
+# ---------- 更新日志本地化守卫（2026-11-06） ----------
+# CFG.CHANGELOG 的 items 已全部改成 i18n 语义 key：中文基准在
+# src/locales/zh-CN.js（进 TapTap 包），英文在 electron/locales/en-US.js
+#（Electron 专属，按规范不进包，故从 REPO 读）。旧守卫逐字搜中文串，
+# key 化后必然失效，这里改成「结构 + key + 双语资源」四重校验：
+#   ① 17 个版本都在，CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
+#   ② 恰 98 条语义 key、互不重复；
+#   ③ 包内 zh-CN 与仓库 en-US 都含这 98 个 key 且译文非空；
+#   ④ 中英文都没有未烘焙的 {placeholder}，且废弃的机械 key 不再被引用。
+import re as _re
+import json as _json
+
+_expected_versions = ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
+for _v in _expected_versions:
+    assert "v: '%s'" % _v in _cfg, '包内 config.js 更新日志缺 %s 条目' % _v
+
+_chg_start = _cfg.index('CHANGELOG:')
+_chg_start = _cfg.index('[', _chg_start)
+_depth = 0
+_chg_end = None
+for _i in range(_chg_start, len(_cfg)):
+    if _cfg[_i] == '[':
+        _depth += 1
+    elif _cfg[_i] == ']':
+        _depth -= 1
+        if _depth == 0:
+            _chg_end = _i
+            break
+assert _chg_end, '包内 config.js 的 CHANGELOG 数组括号不配对'
+_chg_body = _cfg[_chg_start:_chg_end]
+_chg_code = _re.sub(r'/\*.*?\*/', '', _chg_body, flags=_re.S)
+_chg_code = _re.sub(r'//[^\n]*', '', _chg_code)
+assert not _re.search(r'[\u4e00-\u9fff]', _chg_code), \
+    '包内 config.js 的 CHANGELOG 仍残留中文硬编码条目（应先登记再引用 key）'
+_chg_keys = _re.findall(r"'((?:changelog|ui\.footer)\.[a-z0-9_.]+)'", _chg_body)
+assert len(_chg_keys) == 98, '包内 config.js 更新日志 key 数应为 98，实为 %d' % len(_chg_keys)
+assert len(set(_chg_keys)) == 98, '包内 config.js 更新日志有重复 key'
+
+def _locale_dict(_path):
+    with open(_path, encoding='utf-8') as _f:
+        _txt = _f.read()
+    _m = _re.search(r'Object\.freeze\((\{.*\})\);', _txt, _re.S)
+    assert _m, '词库格式异常（读不到 Object.freeze）: ' + _path
+    return _json.loads(_m.group(1))
+
+_zh_locale = _locale_dict(os.path.join(SRC, 'src', 'locales', 'zh-CN.js'))
+_en_locale = _locale_dict(os.path.join(REPO, 'electron', 'locales', 'en-US.js'))
+for _k in _chg_keys:
+    assert _k in _zh_locale and str(_zh_locale[_k]).strip(), '包内 zh-CN 词库缺日志中文: ' + _k
+    assert _k in _en_locale and str(_en_locale[_k]).strip(), '仓库 en-US 词库缺日志英文: ' + _k
+    assert not _re.search(r'\{[A-Za-z0-9_]+\}', str(_zh_locale[_k])), '中文日志有未烘焙占位符: ' + _k
+    assert not _re.search(r'\{[A-Za-z0-9_]+\}', str(_en_locale[_k])), '英文日志有未烘焙占位符: ' + _k
+
+_idx = _read('index.html')
+for _old_key in ['ui.render.anonymous_function.leaderboard',
+                 'ui.render.anonymous_function.changelog']:
+    assert _old_key not in _idx, '包内 index.html 仍引用已废弃的机械 key: ' + _old_key
+for _new_key in ['ui.footer.leaderboard_button', 'ui.footer.changelog_button']:
+    assert _new_key in _idx, '包内 index.html 缺页脚语义 key: ' + _new_key
 assert '活动礼包码直接领取' not in _cfg, '包内 config.js 仍残留礼包码那条公开日志（用户要求删）'
-assert "v: 'Ver1.0.14'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.14 条目'
-# Ver1.0.14 玩家可见 2 条：破壳后停摆 / 破壳后存档被拒绝。
-# 背景：1.0.13 只删了 economy.tick 首行的 broken 早退，但调用方 game.js 主循环的 !S.broken 还在
-# ⇒ 改动零效果；同时旧出口 stay() 被删 ⇒ 玩家连「退出本局」都没有，表现为死机。
-# 这两条必须同时在，缺任何一条这次等于白改。
-for _kw in ['修复破壳之后游戏停摆不动的问题',
-            '修复破壳之后无法存档的问题']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.14 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.13'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.13 条目'
-# Ver1.0.13 玩家可见 9 条：4 修复（多级科技读档后无法升级 / 水体污染面板错标流浪泰拉 /
-# 水体污染挑战页显示寒流文案 / 读档纪元回退）+ 5 新增改进（破壳体验重做 / 破壳挑战结算二选一 /
-# 挑战页解除限制入口 / 壳外挑战通关进度 / 成就海渊澄明）。逐条钉死：漏一条这次等于白改。
-for _kw in ['修复多级科技读档后无法继续升级的问题',
-            '修复《水体污染》挑战通关时结算面板错标成《流浪泰拉》的问题',
-            '修复《水体污染》挑战进行中，挑战页显示成《寒流禁火》文案的问题',
-            '修复读档后纪元被错误回退的问题',
-            '破壳体验重做：破壳后游戏不再停摆',
-            '「结算并轮回」或「解除限制，进入壳外时代」',
-            '挑战页新增「解除限制」入口',
-            '《流浪泰拉》《水体污染》的通关进度现在会显示在挑战页',
-            '《水体污染》通关新增成就「海渊澄明」']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.13 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.12'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.12 条目'
-# Ver1.0.12 玩家可见 4 条：1 修复（幸福明细漏「安乐之治」）+ 3 新增（水体污染挑战 / 内容清单 / 永久奖励）。
-# 逐条钉死：漏一条这次等于白改。
-for _kw in ['修复幸福消耗明细漏统计「安乐之治」加成的问题',
-            '新增挑战《水体污染》',
-            '澄海、浊流、赤潮、死区、腐渊',
-            '《装罐填埋》',
-            '《星球气候调节卫星网》',
-            '星屑产出 +10%、商人奢侈品产出 +50%、初始人口 +2']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.12 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.11'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.11 条目'
-# Ver1.0.11 玩家可见 6 条：3 修复（钻机破壳后仍耗热液 / 大学升级后显示旧数值 / 薄壳之智数值错误）
-# + 3 新增改进（挑战可重打 / 轮回点商店页签常驻 / 建筑名可点提示）。
-# 逐条钉死：漏一条这次等于白改。三短句按用户 2026-11-02 指定口径，一字不带解释。
-for _kw in ['修复天穹钻机破壳后仍消耗热液能的问题',
-            '修复大学升级后依然显示旧数值的问题',
-            '修复薄壳之智数值错误的问题',
-            '挑战可以反复挑战了：六项挑战全部通关后入口不再关闭',
-            '轮回点商店的页签不再藏起来',
-            '建筑名与工坊配方名加了贴字的下划线']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.11 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.10'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.10 条目'
-# Ver1.0.10 玩家可见 3 条：1 修复（轮回商店五个天赋不生效）+ 2 新增/改进（自动研究开关搬家 / 两首 BGM）。
-# 逐条钉死：漏一条这次等于白改。曲名连英文名一起钉，防止只写中文、与 CFG.AUDIO 里对不上。
-for _kw in ['轮回炉火不生效问题', '科技页和市政页的顶部',
-            '冰壳之下~Under the Ice~', '向着天穹~Toward the Firmament~',
-            '背景声大小可以在设置中调节']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.10 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.9'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.9 条目'
-# Ver1.0.9 玩家可见 10 条：9 新增（流浪泰拉挑战 / 限制 / 奖励 / 5 科技 / 2 奇观 / 2 建筑 /
-# 2 升级 / 成就+排行 / 兑换码）+ 1 修复（挑战页通关目标文案）。
-# 只钉「这一版独有的关键词」；「流浪泰拉」这种挑战名在别处也可能出现，故不单用它兜底。
-for _kw in ['挑战中会开启新科技线', '星核炉芯池灌满 50M 热液能后完成挑战', '微波收敛研究',
-            '泰拉地壳密闭水舱巨构', '大陆板块加固构件',
-            '设置中新增兑换码兑换', '修复挑战页「通关目标」一栏']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.9 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.8'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.8 条目'
-# Ver1.0.8 玩家可见 3 条：1 修（补算活锁）+ 2 新增/改进（追踪多目标 / 壳 25% 下限提示）。
-# 逐条钉死，漏一条这次等于白改。
-for _kw in ['卡好几分钟', '最多能同时追踪 4 个目标', '被动削壳到 25%']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.8 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.7'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.7 条目'
-# Ver1.0.7 玩家可见 6 条（存档接口兜底）：4 修 + 2 改进。逐条钉死，漏一条这次等于白改。
-for _kw in ['用云端覆盖本地', '存档编号', '最后几分钟', '同步文件接口可用',
-            '当场生效', '「接口」一行']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.7 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.6'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.6 条目'
-# Ver1.0.6 玩家可见 3 条（就绪门）：2 修 + 1 诊断。逐条钉死，漏一条这次等于白改。
-for _kw in ['还没准备好', '一个字节都不会动', '启动等待']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.6 更新日志缺条目：' + _kw
-assert "v: 'Ver1.0.5'" in _cfg, '包内 config.js 更新日志缺 Ver1.0.5 条目'
-# Ver1.0.5 玩家可见 6 条（用户 2026-10-29 21:02 拍板清单）逐条钉死：3 修 + 3 新增。
-for _kw in ['轮回商店里买过的强化', '天穹钻机明明在转', '商人共和国是 5 个卡槽',
-            '立即保存', '顶栏的资源格现在可以点开看明细', '建造追踪']:
-    assert _kw in _cfg, '包内 config.js 的 Ver1.0.5 更新日志缺条目：' + _kw
+print('更新日志本地化守卫: OK (17 版本 / 98 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
 
 # ---------- 存档诊断 + 三个 P0（2026-10-29 / Ver1.0.4）----------
 # 这一批全是「玩家报存档没了」的对策，任何一条漏进包里都等于白改，所以逐条钉死。

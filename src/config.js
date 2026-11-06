@@ -14,7 +14,9 @@
 
   var CFG = {
     /* ---- 版本号与更新日志（2026-10-27 恢复）----
-     * VERSION = 当前构建版本号；CHANGELOG = 最新在前，游戏内「更新日志」面板直接渲染这张表。
+     * VERSION = 当前构建版本号；CHANGELOG = 最新在前，游戏内「更新日志」面板渲染这张表。
+     * ⚠️ 2026-11-06 本地化：items 里存的是 i18n 语义 key，不是中文原文。中文基准与英文译文都在 i18n_text_inventory.xlsx / src/locales/zh-CN.js / electron/locales/en-US.js，
+     *   由 render.js 的 openChangelog() 经 SB.i18n.t() 取词。改文案先改登记表再重新生成词库，不要在这里写回中文硬编码。
      * ⚠️ 版本号口径（2026-10-27 用户拍板改动）：对外版本名改为 `Ver1.0.1`，
      *   取代此前 `v0.MAJOR.MINOR`（原约定 2026-10-11 立，2026-10-27 废止）。
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
@@ -33,164 +35,167 @@
     CHANGELOG: [
       { v: 'Ver1.0.17', date: '2026-11-05', items: [
         // —— 修复 ——
-        '修复《天壳地质学》的揭示门槛实装方向搞反的问题：门槛被误设得过高，「共振钻头」配方与整条天穹钻机科技链要一直等到破壳前夕才出现。现在天壳削掉四分之一（25%）就能研究。',
-        '修复工坊与奇观「隐藏已完成」开关每次重开游戏都要重按的问题：现在按设备记住，清空存档也不会把它清掉。默认仍然是全部显示，想清爽的玩家主动点一次即可。',
-        '《流浪泰拉》挑战现在写明开启前置：需达到第 15 周目才能通关，挑战页会显示当前周目与还差几周目，周目不足时不能开始。此前这个前置只藏在《黑历史蓝图》科技的尤里卡条件里，低周目玩家进去后整条《严冬计划》科技链无法研究、本局必然打不通。',
+        'changelog.fix.geology_threshold_inverted',
+        'changelog.fix.hidden_completed_persistence',
+        'changelog.challenge.wandering_terra_prerequisite',
         // —— 调整 ——
-        '保温法烧暖石不再是固定每秒 1 块：现在按文明规模增长（每秒 = 破壳系数的 3%），早期很省，后期要更多矿工才供得上，环境卡会显示当前实时费率。只在寒流季生效、顶回藻场减产（留一点残余）、冰封期冻伤归零、其余季不耗石这些规则都不变。',
+        'changelog.balance.warmstone_dynamic_rate',
         // —— 新增 ——
-        '星屑商店新增「天壳压制」一组天赋「天外重压」：三级分别让下一局的天壳厚度减少 10% / 20% / 30%（累计），与「薄壳之智」加算、不设上限。壳厚在开局时算定，所以局中点亮后从下一局起生效。',
-        '轮回商店「远见之人」新增三级天赋「万众热忱」：基础削壳速度分别 +20% / +40% / +60%（加算），局中点亮即时生效。只加速自动削壳段，天穹钻机段与寒流季暖石消耗都不变。',
-        '轮回商店「钻机测绘」终点新增天赋「天元突破」：点亮后可在自然环境卡把天穹钻机切到 2×，每秒投入两倍共振钻头、换取两倍破壳速度。默认仍是 1×，倍率设置跨周目保留；热液能消耗不变。',
-        '追踪坞（角落小框）里，凡是需要工坊产物的材料不足时，会多出一个「去制造」链接，点一下直接跳到工坊的制造页并滚到对应配方；工坊还没建成时该链接灰显不可点。'
+        'changelog.talent.stardust_shell_suppression',
+        'changelog.talent.prestige_shellbreak_zeal',
+        'changelog.talent.drill_overdrive',
+        'changelog.ui.track_dock_craft_jump',
+        // —— 新增 / 优化 ——
+        'changelog.faith.tenet_system',
+        'changelog.ui.help_badge_reposition'
       ] },
       { v: 'Ver1.0.16', date: '2026-11-04', items: [
         // —— 修复 ——
-        '修复在挑战页点「结算并挑战」时不给本局轮回点和星屑的问题：确认面板写着「预计获得 X 轮回点」，点下去却一分不入账，当前周目的进度也被直接丢掉。现在挑战页与底栏「轮回」两条结算入口口径一致，已结算过的周目也不会重复发放。',
-        '修复轮回商店买的「自动工坊」槽位不起效的问题：晚期玩家把三档都买齐也一点不涨，读档之后槽数还会退回 1。现在自动制作槽不再设硬上限，读档会按已购买的永久天赋重建。',
-        '修复科技《复合型工厂》承诺的「自动工艺槽位 +1」没有兑现的问题：此前只认同名工坊升级项，现在科技与升级项是两笔独立投资，各自生效。',
+        'changelog.fix.challenge_settlement_no_reward',
+        'changelog.fix.auto_workshop_slots',
+        'changelog.fix.compound_factory_slot',
         // —— 调整 ——
-        '《天壳地质学》的揭示门槛从破壳 50% 调整为 25%：天壳削掉四分之一就能研究，「共振钻头」配方与整条天穹钻机科技链现在可以更早解锁。'
+        'changelog.balance.geology_threshold_25_percent'
       ] },
       { v: 'Ver1.0.15', date: '2026-11-04', items: [
         // —— 新增：四项终局挑战 ——
-        '新增挑战《安那其主义》：全程不许装备政策卡，「轮回之终末」是唯一例外（政体随便换）。完成戴森球工程即通关。奖励（永久）：星屑获取 +10%，所有政体额外 +1 个万能政策槽。',
-        '新增挑战《美好旧日》：全程保持酋邦制，同时豁免「必须采用多槽政体 / 指定政体」的科技与市政门槛（只在本挑战周目内生效，不改普通规则）。完成戴森球工程即通关。奖励（永久）：星屑获取 +10%，并解锁你在各周目采用过的政体的被动卡 —— 这类卡可以装进政策槽，用来补回放弃政体时丢掉的那部分效果。',
-        '新增挑战《三地发射网》：戴森球竣工那一刻，欧罗巴、泰拉、恩克拉多斯三座行星发射场都要达到 11 级。奖励（永久）：星屑获取 +10%，三座发射场的热液能消耗 -10%。',
-        '新增挑战《掌控永远与须臾程度的能力》：三档挑战，倍率 ×5 / ×10 / ×20。科技与市政的研究点成本、天壳厚度、星空探索目标、太阳帆与戴森节点目标全部按倍率放大；尤里卡、前置条件与科技的额外材料成本不变。每档奖励（永久）：星屑获取 +10%，科技与市政研究点成本再 -5% / -10% / -15%。',
-        '四项终局挑战的限制会一直持续到通关为止，破壳不会自动解除（与《流浪泰拉》《水体污染》同口径）。挑战页会实时显示当前违规卡片数、当前政体、三座发射场等级或四项终局目标的进度。',
-        '四项终局挑战每通一档都计入「每档 +10% 轮回点获取」，与已有挑战同规则。',
+        'changelog.challenge.anarchy',
+        'changelog.challenge.good_old_days',
+        'changelog.challenge.three_world_launch_network',
+        'changelog.challenge.mastery_eternity_moment',
+        'changelog.challenge.endgame_restrictions',
+        'changelog.challenge.tiered_prestige_bonus',
         // —— 修复 ——
-        '修复破壳之后「星球重构机 G.E.E.K」卡住不动的问题：面板显示运转中、倒计时也在走，但进度和材料一动不动。被同一条堵死的《严冬计划》科技线、行星发动机与《流浪泰拉》通关也已恢复。',
-        '修复 G.E.E.K 在没有活可干的时候仍然占着 40 热液能/秒的问题（第一阶段做完但还没研究泰拉改造，或两个阶段都已完成）。',
-        '修复破壳之后挑战页把进行中的挑战显示成「尚未完成」、并给出一个能点的「结算并挑战」按钮的问题 —— 那颗按钮会当场重开一局，丢掉当前纪元 10 的全部进度。现在破壳后仍显示「进行中」。',
-        '修复平等主义「每名鲛人 +0.1% 热液能产出」漏加成的问题：此前只作用于汽轮机与高压管道，核聚变、泰坦云、地热、太阳帆等后期供给源都没算进去。',
+        'changelog.fix.geek_stuck_post_shellbreak',
+        'changelog.fix.geek_idle_energy_drain',
+        'changelog.fix.challenge_active_after_shellbreak',
+        'changelog.fix.merfolk_hydrothermal_bonus',
         // —— 新增 / 改进 ——
-        '设置里新增「回看《流浪泰拉》」：通关过之后可以反复播放那段通关演出，纯回放，不碰任何进度与奖励。'
+        'changelog.settings.replay_wandering_terra'
       ] },
       { v: 'Ver1.0.14', date: '2026-11-03', items: [
         // —— 修复 ——
-        '修复破壳之后游戏停摆不动的问题：资源不增长、自动研究不走、星空槽冻结，界面看起来像死机，只能完全退出重进。',
-        '修复破壳之后无法存档的问题：此前破壳后的纪元 10 进度（发射场、戴森球、星空槽、科技）退出游戏就会回滚。'
+        'changelog.fix.post_shellbreak_simulation_stalled',
+        'changelog.fix.save_post_shellbreak_progress'
       ] },
       { v: 'Ver1.0.13', date: '2026-11-03', items: [
         // —— 修复 ——
-        '修复多级科技读档后无法继续升级的问题（此前《微波收敛研究》在重启游戏后按钮会一直置灰，原因也不显示）。',
-        '修复《水体污染》挑战通关时结算面板错标成《流浪泰拉》的问题。',
-        '修复《水体污染》挑战进行中，挑战页显示成《寒流禁火》文案的问题。',
-        '修复读档后纪元被错误回退的问题（影响后期纪元的存档，能自己爬回来但期间科技会重复揭示）。',
+        'changelog.fix.multilevel_tech_load',
+        'changelog.fix.water_pollution_completion_label',
+        'changelog.fix.water_pollution_active_label',
+        'changelog.fix.load_era_rollback',
         // —— 新增 / 改进 ——
-        '破壳体验重做：破壳后游戏不再停摆 —— 之前破壳后必须点「探索壳外的星空」才能继续，星空槽还会被冻结；现在破壳即刻进入壳外时代，纪元 10 的内容可以直接推进。',
-        '破壳时的挑战结算：如果破壳时挑战达成，结果面板会出现「挑战达成」区域，二选一 ——「结算并轮回」或「解除限制，进入壳外时代」。解除是一次性的、不可逆；选了轮回则正常入账换周目。',
-        '挑战达成后，挑战页新增「解除限制」入口（成绩已定格，解除后不可再打开）。',
-        '《流浪泰拉》《水体污染》的通关进度现在会显示在挑战页，破壳后也能随时查看。',
-        '《水体污染》通关新增成就「海渊澄明」（本地成就墙即刻生效）。'
+        'changelog.shellbreak.post_shellbreak_continuation',
+        'changelog.shellbreak.challenge_resolution_choices',
+        'changelog.challenge.release_restrictions',
+        'changelog.challenge.progress_persists_post_shellbreak',
+        'changelog.achievement.clear_waters_of_deep'
       ] },
       { v: 'Ver1.0.12', date: '2026-11-03', items: [
         // —— 修复 ——
-        '修复幸福消耗明细漏统计「安乐之治」加成的问题（明细少一项，「人口 × 每人」与实际消耗算不平）。',
+        'changelog.fix.happiness_cost_blissful_reign',
         // —— 新增：挑战《水体污染》 ——
-        '新增挑战《水体污染》：泰拉的海水会随排放一起变脏，污染分五档 —— 澄海、浊流、赤潮、死区、腐渊。档位越高，居民越难受（幸福消耗上升），超标还会有人死去并占用安息位。把污染压住、建成戴森球即可通关。',
-        '《水体污染》里新增 6 座建筑、5 项市政、7 张政策卡、1 项科技《装罐填埋》和 1 座奇观《星球气候调节卫星网》（建成后污染 -15/秒，但要消耗 10 级轨道卫星）。',
-        '《水体污染》的奖励（永久）：星屑产出 +10%、商人奢侈品产出 +50%、初始人口 +2。'
+        'changelog.challenge.water_pollution',
+        'changelog.challenge.water_pollution_content',
+        'changelog.challenge.water_pollution_rewards'
       ] },
       { v: 'Ver1.0.11', date: '2026-11-02', items: [
         // —— 修复 ——
-        '修复天穹钻机破壳后仍消耗热液能的问题',
-        '修复大学升级后依然显示旧数值的问题',
-        '修复薄壳之智数值错误的问题',
+        'changelog.fix.sky_drill_post_shellbreak_energy',
+        'changelog.fix.university_upgrade_value_refresh',
+        'changelog.fix.thin_shell_wisdom_values',
         // —— 新增 / 改进 ——
-        '挑战可以反复挑战了：六项挑战全部通关后入口不再关闭，可重打已通的最高档。重打只刷新排行榜成绩，不重复发奖，也不影响已拿到的永久奖励。',
-        '轮回点商店的页签不再藏起来：以前要解锁后才出现，很多玩家不知道有这么个商店。现在一直可见，未解锁时置灰并提示「完成《神学》后开放」。',
-        '建筑名与工坊配方名加了贴字的下划线和独立配色：原先那条虚线会横穿整行，读起来像分隔线而不像可点的链接。'
+        'changelog.challenge.replay_highest_tier',
+        'changelog.ui.prestige_shop_tab_visible',
+        'changelog.ui.clickable_text_links'
       ] },
       { v: 'Ver1.0.10', date: '2026-11-01', items: [
         // —— 修复 ——
-        '修复轮回商店工造之位 / 经济之位 / 科技之位/轮回工巧/轮回炉火不生效问题',
+        'changelog.fix.prestige_perk_effects',
         // —— 新增 / 改进 ——
-        '自动研究的开关从轮回商店搬到了科技页和市政页的顶部',
-        '新增两首由百景乐团制作的BGM：《冰壳之下~Under the Ice~》 和 《向着天穹~Toward the Firmament~》，背景声大小可以在设置中调节。'
+        'changelog.ui.auto_study_controls',
+        'changelog.audio.new_tracks'
       ] },
       { v: 'Ver1.0.9', date: '2026-10-31', items: [
         // —— 新增：挑战《流浪泰拉》+ 兑换码 ——
-        '新增挑战《流浪泰拉》：挑战中会开启新科技线，需在泰拉地表建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能后完成挑战。',
-        '《流浪泰拉》的限制：寒流季必定冰封，且时长翻倍；太阳帆的热液能产出减半；虚境祭坛不可建造。暖石照常可以烧。',
-        '《流浪泰拉》的奖励（永久）：暖流季全产出 +30%、寒流季时长减半、G.E.E.K 的泰拉环境改造耗时减半。',
-        '新增 5 项科技：严冬计划、重核聚变、超临界致密材料、流浪泰拉（这四项只在《流浪泰拉》里出现），以及任何周目都能研究的「微波收敛研究」—— 同一张卡可研究 5 次，每级太阳帆热液能产出 +30%，成本逐级 ×1.5。',
-        '新增 2 座奇观：泰拉中央星核炉芯（可存 50M 热液能，并解除挑战中的冰封）、大陆板块加固构件（砂矿坑整条产线、以及瑞亚星的石梁 / 硬化珊瑚 / 铀各 ×1.3）。',
-        '新增 2 座建筑：泰拉地壳密闭水舱巨构（每级 +20 人口上限，每秒耗 100 热液能，优先消耗炉芯池中的热液能）、行星发动机。',
-        '新增 2 项工坊升级：重核聚变（核热厂每级多吃 1000 石头/秒，铀与石头都够时热液能产出翻倍，断料按比例降产）、地壳钻井（砂矿坑矿工每人伴生 0.05 金属/秒、0.005 θ生物金属/秒）。',
-        '新增成就《流浪泰拉》，以及排行榜「最快流浪启程」。',
-        '设置中新增兑换码兑换。',
+        'changelog.challenge.wandering_terra',
+        'changelog.challenge.wandering_terra_rules',
+        'changelog.challenge.wandering_terra_rewards',
+        'changelog.technology.wandering_terra_additions',
+        'changelog.wonder.wandering_terra_additions',
+        'changelog.building.wandering_terra_additions',
+        'changelog.workshop.wandering_terra_upgrades',
+        'changelog.achievement.wandering_terra',
+        'changelog.settings.redeem_codes',
         // —— 修复 ——
-        '修复挑战页「通关目标」一栏：现在会写清每个挑战自己的通关目标与进度，不再一律显示「完成《神学》并凿穿天壳」。'
+        'changelog.challenge.goal_descriptions'
       ] },
       { v: 'Ver1.0.8', date: '2026-10-30', items: [
         // —— 修复 ——
-        '修复「打开游戏要卡好几分钟，卡完才开始动」：很久没上线时，离线收益补算会卡在一个收不了尾的空转循环里。现在 1 秒内算完，算出来的收益和以前一样。',
+        'changelog.performance.offline_progress',
         // —— 新增 / 改进 ——
-        '追踪框现在最多能同时追踪 4 个目标：点科技 / 市政节点上的 ★ 就能加进来，详情面板里也有按钮。带尤里卡、鼓舞的目标会显示当前进度。',
-        '被动削壳到 25% 就削不动了，以前没说清：现在会明确讲最后一段只能靠奇观「天穹钻机」来凿，并写清先去科技页研究同名科技、再到奇观页建造。'
+        'changelog.ui.building_tracker',
+        'changelog.ui.shellbreak_hint'
       ] },
       { v: 'Ver1.0.7', date: '2026-10-30', items: [
         // —— 修复 ——
-        '修复「点『用云端覆盖本地』没反应，进度还是没变」：部分安卓机型没有同步写文件的存档接口，旧版本会把这次导入整个中止（只在面板底部留一行小字），并且把本机存档回滚。现在改用 TapTap 官方承诺长期保留的键值通道来落盘。',
-        '修复「从云存档或存档码导入成功了，重启又变回新档」：导入时没有更新本机的存档编号，重启比对时它输给了刚被顶掉的那一份。现在导入后会取本机最新的编号。',
-        '修复「切到后台再回来，丢的总是最后几分钟」：同一条原因 —— 切后台时那次保存从来没有真正写成功过。现在两条通道都会尝试。',
-        '修复「从存档码导入在这类机型上必定失败」：导入不再要求同步文件接口可用，只要本机存档写进去、读回来一致就继续。',
+        'changelog.fix.taptap_local_save_fallback',
+        'changelog.fix.import_save_revision',
+        'changelog.fix.background_save',
+        'changelog.fix.import_save_code_readback',
         // —— 新增 / 改进 ——
-        '「用云端覆盖本地」改为当场生效：点完立刻看到云端那份的进度，不再重载页面（重载在弱网下容易又读空一次）。覆盖前仍会先备份本机进度。',
-        '存档诊断新增「接口」一行：能直接看出这台机器支持哪种存档方式，反馈问题时省掉一轮来回排查。'
+        'changelog.ui.cloud_restore_immediate',
+        'changelog.save.diagnostics_api_shape'
       ] },
       { v: 'Ver1.0.6', date: '2026-10-30', items: [
         // —— 修复 ——
-        '修复「更新完第一次打开，存档变成一局新的」：刚进游戏时 TapTap 还没准备好，旧版本会把它当成「这台机器没有存档」直接开新档，把原来的进度盖掉。现在会先等它连上（最多 8 秒，屏幕上有提示），等不到也不会开新档，而是停下来让你重试。',
-        '修复「本机明明还留着一份更完整的旧存档，却没被用上」：如果 TapTap 是游戏开始之后才连上的，现在会自动把本机旧档再找一遍，找到更完整的会问你「要不要载入这份」，你选之前一个字节都不会动。',
+        'changelog.fix.taptap_startup_wait',
+        'changelog.fix.late_taptap_local_recovery',
         // —— 新增 / 改进 ——
-        '存档诊断信息里新增「启动等待」一行：以后再反馈存档问题，这一行能直接看出是没等到 TapTap，还是等到了却读不到档。'
+        'changelog.save.diagnostics_startup_wait'
       ] },
       { v: 'Ver1.0.5', date: '2026-10-29', items: [
         // —— 修复 ——
-        '修复「轮回商店里买过的强化，过一阵自己就没了」：旧的强化记录每次启动都会被重新折算一遍，把后来买的节点整片删掉（买过「自动制作槽」的玩家一定会遇到）。现在只折算一次，已点亮的强化一律保留，重新买也不会再被没收。',
-        '修复「天穹钻机明明在转，却一直提示缺热液能」：停摆判定用错了数值，缺钻头时会报成缺热液能，钻头剩不到 1 个还会显示成 0 个。现在「缺钻头 / 缺热液能 / 运转中」三种状态分开显示。',
-        '修正商人共和国与神权政体的政策卡槽说明：商人共和国是 5 个卡槽（3 万能 + 1 工造 + 1 民生），神权政体是 3 万能 + 2 宗教槽。实际给的槽位一直如此，此前只是说明写错。',
+        'changelog.fix.prestige_upgrade_migration',
+        'changelog.fix.sky_drill_status_labels',
+        'changelog.fix.policy_slot_descriptions',
         // —— 新增 / 改进 ——
-        '存档管理新增「立即保存」：手动存一次并当场读回来核对，存不上会直接告诉你。',
-        '顶栏的资源格现在可以点开看明细：存量 / 上限、每秒净值，以及这笔净值由哪些建筑、哪些职业各自贡献多少、又被哪些加成放大。',
-        '新增「建造追踪」：买不起的建筑、奇观或配方旁边会出现「追踪」按钮，点一下屏幕角上出现小框，比如「工坊（石头 141 / 185.6）」，不够的材料标红；材料补齐后整框变绿并提示「可以建造」，点小框直接跳到那一行。小框可拖动、可关闭。'
+        'changelog.save.manual_save',
+        'changelog.ui.resource_breakdown',
+        'changelog.ui.build_tracker'
       ] },
       { v: 'Ver1.0.4', date: '2026-10-29', items: [
         // —— 修复 ——
-        '修复「退出之后存档就没了」：启动时读不到存档会先检查本机备份和 TapTap 云存档，不会再直接把你当新玩家开一局新档。',
-        '修复「某个资源数值异常后进度再也不保存」：现在会沿用上一次的正常值把存档继续保存下去，其余进度不受影响，并在存档面板提示是哪个资源。',
-        '修复「本机存储写不进去时，两份备份也一起停了」：主通道失败时会继续往另外两条更可靠的通道写。',
-        '修复本机存储「写进去没报错、其实没存上」却毫无察觉：现在会定期读回来核对，存不上能立刻发现并记录。',
+        'changelog.fix.auto_recover_saves',
+        'changelog.fix.invalid_resource_save_repair',
+        'changelog.fix.backup_channels',
+        'changelog.fix.readback_verification',
         // —— 新增 / 改进 ——
-        '存档管理新增「复制诊断信息」：存档出问题时点一下，把生成的那段文字发给开发者，就能快速定位原因（不含任何存档内容）。',
-        '存档管理新增「旧档副本」：万一确实读不到存档，会自动把旧档先留一份，你可以从面板里导出，不必重头再来。',
-        '导出的存档文件现在会附带诊断信息，反馈问题时只需要发这一个文件。'
+        'changelog.save.copy_diagnostics',
+        'changelog.save.emergency_copy',
+        'changelog.save.export_diagnostics'
       ] },
       { v: 'Ver1.0.3', date: '2026-10-28', items: [
         // —— 修复 ——
-        '修复「卡在更新日志、点什么都没反应、重启也一样」：启动流程不会再被云存档接口挂住，任何一步超时都会自动继续往下走。',
-        '修复云存档恢复成功却反复重载页面：恢复改为当场接管，恢复成功就能直接玩。',
-        '修复存档导入后仍显示旧进度：写入后会立刻读回来核对，失败会当场告诉你，不再悄悄失败。',
-        '修复弹窗看得见却点不动、关不掉：新手引导的欢迎层原本盖在弹窗上方吃掉点击，现在弹窗打开期间它会自动让开。',
-        '修复「节能减耗」市政卡只改了面板数字、实际幸福消耗没下降：面板、每秒结算、离线结算三处现在一致。',
+        'changelog.fix.cloud_startup_timeout',
+        'changelog.fix.cloud_restore_reload_loop',
+        'changelog.fix.save_import_readback',
+        'changelog.fix.modal_tutorial_overlay',
+        'changelog.fix.energy_saving_civic',
         // —— 新增 / 改进 ——
-        '更新日志改为红点提示：有新内容时页脚的「更新日志」按钮右上角亮红点，点开看过后熄灭，不再每次进游戏自动弹窗。',
-        '「轻车熟路」成就新增实用奖励：某建筑的「轻车熟路」达成后，之后每个轮回里第一次建造它不消耗材料。成就墙顶部有说明。',
-        '自动点击改为静默采集：不再让整个面板反复重绘闪烁，资源照常到账；采集行右侧会显示「自动点击中 · 每秒 N 次」。',
-        '设置里新增「自动点击」开关：可以随时暂停 / 恢复，选择会跨周目保留；还没购买「潮讯自拾」时，点这一行直接跳到轮回商店。'
+        'changelog.ui.changelog_badge',
+        'changelog.achievement.second_nature_reward',
+        'changelog.ui.silent_autoclick',
+        'changelog.settings.autoclick'
       ] },
       { v: 'Ver1.0.2', date: '2026-10-28', items: [
-        '修复清缓存、换设备后进度丢失：启动时会自动从 TapTap 云存档恢复。',
-        '存档管理新增「本地 / 云端」进度对比，可以自己选择保留哪一份。'
+        'changelog.save.cloud_restore_on_start',
+        'changelog.save.local_cloud_comparison'
       ] },
       { v: 'Ver1.0.1', date: '2026-10-27', items: [
-        '新增存档自动云备份。',
-        '现在可以直接点击政策槽选择政策卡。',
-        '修改深海鱼牧场文案。'
+        'changelog.save.automatic_cloud_backup',
+        'changelog.ui.policy_slot_selection',
+        'changelog.copy.deep_sea_fish_farm'
       ] }
     ],
     // ---- ERA9 星海终局常量 ----
