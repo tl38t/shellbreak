@@ -18,10 +18,16 @@ to assert that the checked-in `zh-CN.js` / `en-US.js` are up to date. Generation
 is deterministic (sorted keys, LF newlines); running it twice produces no diff.
 
 Only rows whose English status is `已校对` are exported to `en-US.js`. Rows
-marked `待校对` (currently the 73 `faith.tenet*` / `faith.tenets*` strings)
-still export their Simplified Chinese source to `zh-CN.js` but no English
-value, so `SB.i18n.valueFor()` falls back to Chinese at runtime. Unreviewed
+marked `待校对` or any other non-approved status still export their
+Simplified Chinese source to `zh-CN.js` but no English value, so
+`SB.i18n.valueFor()` falls back to Chinese at runtime. Unreviewed
 translations are never shipped silently.
+
+As of 2026-11-06 the 73 `faith.tenet*` / `faith.tenets*` strings have been
+proofread and approved against terminology already used in the reviewed rows,
+so `en-US.js` now carries all 3841 keys present in `zh-CN.js`. Nine entries
+were reworded during that review; each correction is recorded in the
+registry's `复核备注` column.
 
 Register each player-facing string and its semantic key in the inventory before
 changing code. English resources stay under `electron/locales`, a directory
