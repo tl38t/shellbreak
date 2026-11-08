@@ -39,8 +39,10 @@ import { run as runStarShellPress } from './e2e-suites/star-shell-press.mjs';
 import { run as runTideShellDrive } from './e2e-suites/tide-shell-drive.mjs';
 import { run as runTideDrillOverdrive } from './e2e-suites/tide-drill-overdrive.mjs';
 import { run as runChallengePrereq } from './e2e-suites/challenge-prereq.mjs';
+import { run as runTechUnlockTag } from './e2e-suites/tech-unlock-tag.mjs';
 /* 2026-11-05：追踪坞工坊产物「去制造」跳转（用户反馈）。 */
 import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
+import { run as runMetaRenderGuard } from './e2e-suites/meta-render-guard.mjs';
 
 const errors = [];
 const checks = [];
@@ -99,7 +101,17 @@ function mkEl(id) {
       contains(c) { return el._classes.has(c); },
       toggle(c, on) { if (on === undefined) { el._classes.has(c) ? el._classes.delete(c) : el._classes.add(c); } else if (on) el._classes.add(c); else el._classes.delete(c); }
     },
-    appendChild(c) { el.children.push(c); },
+    /* ⚠️ 2026-11-07 补 `options`：真实 <select> 有 HTMLOptionsCollection，桩上没有
+     *    ⇒ game.js 的 bindAudioSetting() 读 sel.options.length 直接抛
+     *    "Cannot read properties of undefined (reading 'length')"，整份 e2e 在 boot 就断。
+     *    同 2026-10-06 的 querySelector 那条：桩缺真实 DOM 有的能力，别急着改被测代码。
+     *    appendChild 必须把 <option> 同步进 options，否则「选项建了几次 / 文案对不对」
+     *    在 e2e 里全是假绿。 */
+    options: [],
+    appendChild(c) {
+      el.children.push(c);
+      if (c && c.tag === 'option') el.options.push(c);
+    },
     removeChild() {},
     addEventListener() {},
     setAttribute() {},
@@ -303,6 +315,15 @@ if (process.argv.includes('--track-craft-jump-only')) {
   const failedJump = checks.filter(c => !c.ok);
   console.log(`\n追踪坞去制造跳转测试：${checks.length - failedJump.length}/${checks.length} 通过`);
   process.exit(failedJump.length || errors.length ? 1 : 0);
+}
+
+/* 2026-11-08：科技「解锁建筑」列表挑战专属标注（金属精炼/外星工程混解锁反例）。
+ * 单独验 effectText 标注逻辑，不必跑完整整局 bot。 */
+if (process.argv.includes('--tech-unlock-tag-only')) {
+  runTechUnlockTag({ SB, check });
+  const failedTag = checks.filter(c => !c.ok);
+  console.log(`\n科技解锁列表标注测试：${checks.length - failedTag.length}/${checks.length} 通过`);
+  process.exit(failedTag.length || errors.length ? 1 : 0);
 }
 
 /* 流浪泰拉规则涉及跨五个时代的长局；独立入口让 goal / 奖励 / 新经济链回归不必等待整局 bot。
@@ -2032,12 +2053,18 @@ if (SB.game.run().broken) {
   check('结算面板给出轮回点数值', !!m, m ? m[1] + ' 点' : '');
   check('轮回点已记入跨周目存档', meta.tide > 0, 'tide=' + meta.tide.toFixed(2));
   // 进入下一周目
-  const cycleBefore = meta.cycle;
+  /* 2026-11-06：cycle 收紧为「合格轮回次数」，换局（nextCycle）不再推进它 ⇒ 这里改判 runs。
+   * 同时补一条反向断言：换局**本身**不得再涨 cycle（那正是「重开本周目白涨周目」的复发点）。 */
+  const runsBefore = meta.runs;
+  const cycleBeforeNext = meta.cycle;
   const nextBtn = doc.getElementById('mNext');   // 结算按钮是直接绑定 onclick，不走委托
   if (typeof nextBtn.onclick === 'function') nextBtn.onclick();
   else fire({ target: { id: 'mNext' } });
   const s2 = SB.game.run();
-  check('可进入下一周目', SB.game.meta().cycle === cycleBefore + 1, '第 ' + SB.game.meta().cycle + ' 周目');
+  check('可进入下一周目', SB.game.meta().runs === runsBefore + 1, '第 ' + SB.game.meta().runs + ' 局');
+  check('换局本身不推进轮回次数（cycle 只在合格结算时 +1）',
+    SB.game.meta().cycle === cycleBeforeNext,
+    'cycle ' + cycleBeforeNext + ' → ' + SB.game.meta().cycle);
   check('新周目清空建筑与资源', SB.economy.lvlSum(s2) === 0 && s2.res.coral === 0);
   check('新周目继承增益结构', !!s2.perk, JSON.stringify(s2.perk));
   {
@@ -2336,7 +2363,11 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
     Math.abs(SB.workshop.craftMul(sL, { id: 'craft_steelpart', out: 1 }) - (1 + want1)) < 1e-9,
     'craftMul=' + SB.workshop.craftMul(sL, { id: 'craft_steelpart', out: 1 }).toFixed(3));
 
-  /* 再翻一个周目：值必须**线性涨**（旧版被 prev.perk 冻住，这里会红） */
+  /* 再翻一个周目：值必须**线性涨**（旧版被 prev.perk 冻住，这里会红）
+   * ⚠️ 2026-11-06：cycle 收紧为「合格轮回次数」，startRun 只涨 runs、不涨 cycle
+   * ⇒ 这里必须先手动推进 cycle（等价于刚完成一次合格轮回结算），否则测的是
+   * 「没轮回时值不变」，而不是「轮回后线性涨」—— 那条本来由 startRun 代劳的副作用没了。 */
+  mP.cycle += 1;
   SB.game.startRun();
   sL = SB.game.run();
   check('再轮回一次后 loop5 值线性增长（不是冻结在上一次的值）',
@@ -2358,6 +2389,39 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
   mP.perks = bakPerks;
   sL.perk.craftLoop = 0; sL.perk.furnaceLoop = 0; sL.perk.hydroLoop = 0;
   SB.state.saveMeta(mP);
+}
+
+/* 4.6) 【2026-11-06 玩家报「轮回后看广告获得的加速就消失了」】广告时间银行 s.ad 必须跨周目继承。
+ *      freshRun 里 `ad:{ms:0,on:true}` 是硬编码，startRun 此前没有任何 prev.ad 搬运 ⇒ 每轮回一次
+ *      就把玩家花真实时间换来的余额作废（最多 BOOST_CAP_MIN = 6 小时）。同一次 startRun 里
+ *      autoClickOn / audioMuted / audioVolume 都有显式继承，只有这条没有 ⇒ 是遗漏不是设计。
+ *      ⚠️ 四条一起钉。只钉「余额继承」会漏掉两个更隐蔽的：超上限不夹（余额能突破广告封顶）
+ *         与脏值回填（`Math.min(cap, NaN)` = NaN ⇒ 面板有数、adMul 永远 1×）。 */
+{
+  const CAP = (SB.CFG.AD.BOOST_CAP_MIN || 360) * 60000;
+  const sAd = SB.game.run();
+  sAd.ad = { ms: 5400000, on: false };
+  SB.game.startRun();
+  const sAd2 = SB.game.run();
+  check('轮回后广告时间银行继承：90 分钟余额不被 startRun 清零',
+    !!sAd2.ad && sAd2.ad.ms === 5400000, 'ms=' + (sAd2.ad && sAd2.ad.ms));
+  check('轮回后 2× 开关沿用玩家上次的选择（关着囤时间，换局后仍是关）',
+    !!sAd2.ad && sAd2.ad.on === false, 'on=' + (sAd2.ad && sAd2.ad.on));
+
+  sAd2.ad = { ms: CAP * 4, on: true };
+  SB.game.startRun();
+  const sAd3 = SB.game.run();
+  check('继承时按 BOOST_CAP_MIN 夹住（30 小时 → 6 小时），不许突破广告封顶',
+    !!sAd3.ad && sAd3.ad.ms === CAP, 'ms=' + (sAd3.ad && sAd3.ad.ms) + ' cap=' + CAP);
+
+  sAd3.ad = { ms: NaN, on: true };
+  SB.game.startRun();
+  const sAd4 = SB.game.run();
+  check('脏值不回填：ms=NaN ⇒ 余额归 0（防 Math.min(cap,NaN)=NaN 污染面板与 adMul）',
+    !!sAd4.ad && sAd4.ad.ms === 0 && isFinite(sAd4.ad.ms), 'ms=' + (sAd4.ad && sAd4.ad.ms));
+
+  /* 还原：本局余额归零，别把 6 小时带进后面的夹具 */
+  sAd4.ad = { ms: 0, on: true };
 }
 
 /* 5b) 【2026-10-05 拍板】重开按钮的结算分流：本局研究完《神学》⇒ 走真正轮回结算（doBreak），
@@ -2803,6 +2867,11 @@ runTideDrillOverdrive({ SB, check, g });
 /* 2026-11-05：挑战开启前置。放全量最尾部——它会临时改 meta.cycle 与当前局的
  * s.challenge，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runChallengePrereq({ SB, check, g, doc });
+/* 2026-11-08：科技「解锁建筑」列表挑战专属标注（金属精炼/外星工程混解锁的反例回归锁）。 */
+runTechUnlockTag({ SB, check });
+/* 2026-11-08：轮回商店渲染守卫（"一闪一闪" 闪烁回归锁）。放全量最尾部：hook 假 DOM
+ * #pane-meta 的 innerHTML setter 计数，断言「静止态不重写 / 变化后恰好重写 1 次」。 */
+runMetaRenderGuard({ SB, check, doc });
 /* 2026-11-05：追踪坞「去制造」跳转。放全量最尾部，临时替换 setTab / setWorkshopView /
  * renderPanes 等并在 finally 还原，不压在整局 bot 前面。 */
 runTrackCraftJump({ SB, check, g, sandbox });

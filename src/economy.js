@@ -10,10 +10,51 @@
   var CFG = SB.CFG, SEASONS = SB.SEASONS, UNIT = SB.UNIT, BLD = SB.BLD;
   var SOCIAL = SB.economySocial;
 
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+
+  /* 大数字显示模式：'compact' = K/M/B/T/Qa/Qi/Sp/Sx 阶梯缩写；'sci' = 科学计数法。
+   * ⚠️ 默认 'compact' 是为了**零回归**：老玩家看到的就是 K/M，本改动只补齐缺失的
+   *    B/T 以上档（旧代码 ≥1e9 会撑爆成「百万×百万」的怪值，见截图 6613993.01M）。
+   * 切换走设置面板（theme.js 接线），落 localStorage，跨周目保留。 */
+  var numberFormatMode = 'compact';
+  function setNumberFormat(mode) {
+    numberFormatMode = (mode === 'sci') ? 'sci' : 'compact';
+    return numberFormatMode;
+  }
+  function getNumberFormat() { return numberFormatMode; }
+
+  /* 紧凑阶梯后缀表：从大到小，命中第一个 ≥ 阀值的档。≥1e24 之后（放置游戏数值极少触及）
+   * 回落科学计数法由调用方控制——这里只覆盖到 Sx，避免无限造后缀。
+   * k/M 的小数位**严格保持旧行为**（k=1 位、M=2 位），大档统一 2 位。 */
+  function trimZeros(s) {
+    var i = s.indexOf('.');
+    if (i < 0) return s;
+    return s.replace(/\.?0+$/, '');
+  }
+  function abbreviate(n, mode) {
+    var neg = n < 0, abs = Math.abs(n);
+    if (mode === 'sci') {
+      if (abs >= 1e4) return (neg ? '-' : '') + abs.toExponential(2).replace('e+', 'e');
+      return (neg ? '-' : '') + abs.toLocaleString('en-US');
+    }
+    if (abs >= 1e24) return (neg ? '-' : '') + trimZeros((abs / 1e24).toFixed(2)) + 'Sx';
+    if (abs >= 1e21) return (neg ? '-' : '') + trimZeros((abs / 1e21).toFixed(2)) + 'Sp';
+    if (abs >= 1e18) return (neg ? '-' : '') + trimZeros((abs / 1e18).toFixed(2)) + 'Qi';
+    if (abs >= 1e15) return (neg ? '-' : '') + trimZeros((abs / 1e15).toFixed(2)) + 'Qa';
+    if (abs >= 1e12) return (neg ? '-' : '') + trimZeros((abs / 1e12).toFixed(2)) + 'T';
+    if (abs >= 1e9) return (neg ? '-' : '') + trimZeros((abs / 1e9).toFixed(2)) + 'B';
+    if (abs >= 1e6) return (neg ? '-' : '') + (abs / 1e6).toFixed(2) + 'M';
+    if (abs >= 1e4) return (neg ? '-' : '') + (abs / 1e3).toFixed(1) + 'k';
+    return null; // < 10000：交给调用方的原小数位逻辑，本函数不插手
+  }
+
   function fmt(n) {
     n = +n || 0;
-    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-    if (n >= 1e4) return (n / 1e3).toFixed(1) + 'k';
+    var ab = abbreviate(n, numberFormatMode);
+    if (ab !== null) return ab;
     return Math.floor(n).toLocaleString('en-US');
   }
   /* 顶栏格子里那个**存量**读数：固定一位小数（用户 2026-09-26 要求）。
@@ -29,8 +70,8 @@
    *    不赌运行时有没有完整 ICU 数据。 */
   function fmtAmt(n) {
     n = +n || 0;
-    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-    if (n >= 1e4) return (n / 1e3).toFixed(1) + 'k';
+    var ab = abbreviate(n, numberFormatMode);
+    if (ab !== null) return ab;
     var whole = Math.floor(n), dec = Math.round((n - whole) * 10);
     if (dec >= 10) { whole++; dec = 0; }   // 四舍五入进位：9.96 → 10.0 而不是 9.10
     return whole.toLocaleString('en-US') + '.' + dec;
@@ -114,6 +155,18 @@
        * 现在停用即断电、上限当场缩水，人口走 tick 的超额缓慢离场（CFG.POP_OVER_LEAVE）。 */
       + activeTerraVat(s) * 20
       + (p.startPop || 0)
+      /* 2026-11-07 用户报「水体 +2、小国寡民 +3，开局该 6 人却跳回 4」：挑战奖励此前
+       *   只由 challenges.startingPopulation() 写进 freshRun 的 pop/peak，popCap 完全不读它
+       *   ⇒ 开局必然 pop > popCap，被 economy-tick.js 的超额离场（POP_OVER_LEAVE=0.05，
+       *   每秒至少走 1 人）与 state-migrate.js 的读档硬钳两处赶回去；买满繁衍生息 III 时
+       *   cap = houseBase(1) + startPop(3) = 4，就是玩家看到的「跳回 4」。
+       * 奖励必须与容器同源：这里加的是「起始人口相对 POP_START 的增量」，与 freshRun
+       *   调的是同一个函数（内部自带 meta 兜底），不新增 state 字段、不动迁移白名单。
+       *   game.js 模块加载即 loadMeta()，导入/云档的 migrateRun 也会临时换好 meta ⇒ 读档时可取。
+       * ⚠️ 语义变化（已报用户并拍板 A）：奖励从「送 5 人立刻赶走 ≈ 实际 0」变成
+       *   「5 人 + 5 个永久人口上限」。小国寡民挑战进行中 populationLimit=15 仍会二次钳制。 */
+      + (SB.challenges && SB.challenges.startingPopulation
+          ? SB.challenges.startingPopulation() - SB.CFG.POP_START : 0)
       + (p.housePlan || 0) * popBuildLev
       + (SB.civic && SB.civic.popCapPerPopBldg ? SB.civic.popCapPerPopBldg(s) * popBuildLev : 0)  // ERA7 公摊面积卡：人口建筑每级 +0.5 上限
       + (SB.civic && SB.civic.cardPopCapFlat ? SB.civic.cardPopCapFlat(s) : 0) // 人口政策卡：固定上限加值
@@ -1716,6 +1769,10 @@
      *   产能（rate*dt）不变，但资源上限放宽到 ÷e，使 fc 能顶到产能、而实际扣减只 fc×e。
      *   与「铁器/黑烟囱」smelt（产出乘区）分工明确：那是多产，这是省料。 */
     var e = (T ? T.bldEff : 1);
+    /* 信仰信条「炉火什一税」的原料倍率：此处是门控（库存/(e×metalUse)），
+     * 与 consumeRates（面板）、economy-tick（实扣）、economy-rates（速率）逐字同式。
+     * ⚠️ 曾漏定义 ⇒ 只要建了热泉炉且未全停，rates() 抛 ReferenceError、整帧渲染中断（2026-11-06 修）。 */
+    var metalUse = SB.faith && SB.faith.furnaceMetalUseMul ? SB.faith.furnaceMetalUseMul(s) : 1;
     var rate = SB.UNIT.iron * run * (T ? T.smelt : 1) * cold * (T ? T.craft : 1)
       /* ERA9 血肉苦弱卡（resOutMul.iron=1.3）：精铁产出 +30%（装卡才生效）。 */
       * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'iron') : 1);
@@ -2263,8 +2320,9 @@
     if (SB.folk && SB.folk.reconcile) SB.folk.reconcile(s);
     if (SB.folk && SB.folk.reconcileRobot) SB.folk.reconcileRobot(s);
     if (emit) {
-      if (at === undefined) emit('水体污染导致一名族民死亡。');
-      else emit('水体污染导致一名族民死亡。', at);
+      var message = tr('ui.log.pollution.death', null, '水体污染导致一名族民死亡。');
+      if (at === undefined) emit(message);
+      else emit(message, at);
     }
     return true;
   }
@@ -2817,6 +2875,7 @@
   };
   SB.economy = {
     fmt: fmt, fmtAmt: fmtAmt,
+    setNumberFormat: setNumberFormat, getNumberFormat: getNumberFormat,
     /* ── 水体污染（2026-11-02）─────────────────────────────────────────────
      * 全部集中导出口：UI 面板、challenges（阶段名/评分）、economy-tick、offline-scheduler、
      * e2e 都从这一口读 —— 谁都不许自己再写一份阈值或乘区（面板撒谎家族的标准入口）。

@@ -1,4 +1,5 @@
 /* e2e suite: reincarnation challenges, run restrictions, rewards, and settlement gates. */
+import fs from 'node:fs';
 export function run({ SB, check, noop }) {
   console.log('\n=== 轮回挑战 ===');
   const meta = SB.game.meta();
@@ -6,7 +7,7 @@ export function run({ SB, check, noop }) {
   const savedAchv = JSON.parse(JSON.stringify(meta.achv || {}));
   const savedAchievements = JSON.parse(JSON.stringify(meta.achievements || {}));
   const savedChallengePopupPending = meta.challengePopupPending;
-  const empty = () => ({ completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false, waterpollution: false } });
+  const empty = () => ({ completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, dyson_rush: 0, drift_terra: false, waterpollution: false } });
   try {
     meta.challenges = empty();
     const api = SB.challenges;
@@ -19,7 +20,8 @@ export function run({ SB, check, noop }) {
      * 2026-11-04：四项终局挑战（安那其 / 美好旧日 / 三地发射网 / 掌握永远与须臾）
      *   实装 ⇒ 7 → 11。它们的定义、assets、civics 与 economy-tick 配套同批落地；
      *   断言的其余条件（canStart/canStartFresh 两路）不受数量影响。 */
-    check('十一类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 11 &&
+    /* 2026-11-07：星海竞速（限时戴森）⇒ 11 → 12。 */
+    check('十二类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 12 &&
       api.canStartFresh('science', s, meta) && api.canStart('science', s, meta) &&
       !api.canStartFresh('science', s, { challenges: { completed: { science: 3 } } }) &&
       api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
@@ -28,8 +30,8 @@ export function run({ SB, check, noop }) {
     /* 2026-11-05：流浪泰拉加了「第 15 周目」开启前置 ⇒ 前置未满足时它不给开始按钮，
      * 入口数是 10 而不是 11。这是规格变更，不是把断言放宽：仍逐项点名 11 个挑战，
      * 期望值由生产门禁同源给出（不许在这里再写死一个数字掩盖分叉）。 */
-    const expectedStarts = api.prereqOk('drift_terra', meta) ? 11 : 10;
-    check('挑战独立页展示十一项挑战与首次开始入口',
+    const expectedStarts = api.prereqOk('drift_terra', meta) ? 12 : 11;
+    check('挑战独立页展示十二项挑战与首次开始入口',
       ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉', '水体污染'].every(name => pane.includes(name)) &&
       pane.includes('暖石产出 -30%') && pane.includes('学者、书手各 ≤ 15 人') &&
       pane.includes('总人口、职业人数门槛豁免') &&
@@ -271,7 +273,7 @@ export function run({ SB, check, noop }) {
     /* 入口数 = 挑战总数（2026-11-02 加水体污染后 6 → 7；2026-11-04 加四项终局挑战后 7 → 11）。
      * 2026-11-05：再减去被「第 15 周目」前置挡住的流浪泰拉（口径同上，同源读门禁）。 */
     check('已通关的挑战保留「再次挑战」入口，未通关的分档挑战只放下一档',
-      (pane.match(/data-challenge-start=/g) || []).length === (api.prereqOk('drift_terra', meta) ? 11 : 10) &&
+      (pane.match(/data-challenge-start=/g) || []).length === (api.prereqOk('drift_terra', meta) ? 12 : 11) &&
       pane.includes('再次挑战 · 完成挑战') && pane.includes('结算并挑战 · 第二档') &&
       !pane.includes('此挑战入口已关闭'),
       '入口数=' + ((pane.match(/data-challenge-start=/g) || []).length));
@@ -429,6 +431,130 @@ export function run({ SB, check, noop }) {
     check('小国寡民奖励让新周目人口 +3、生育时间减半',
       api.startingPopulation() === SB.CFG.POP_START + 3 && api.growthDuration(s) === SB.CFG.GROW_NEED / 2);
 
+    /* 2026-11-07 用户报「水体 +2、小国寡民 +3，开局该 6 人却跳回 4」：
+     * 旧实现把奖励只写进 freshRun 的 pop/peak，popCap 完全不读 ⇒ 开局必然 pop > cap，
+     * 被 economy-tick 的超额离场与 state-migrate 的读档硬钳两处赶回去，奖励等于没发。
+     * 下面钉死「奖励与容器同源」：裸开局、买满天赋、读档、两项叠加、面板文案。 */
+    const bonusRun = SB.state.freshRun(false);
+    check('★ 挑战起始人口奖励同步进上限：裸开局 pop = popCap',
+      bonusRun.pop === api.startingPopulation() &&
+      SB.economy.popCap(bonusRun) === api.startingPopulation() &&
+      bonusRun.pop <= SB.economy.popCap(bonusRun),
+      'pop=' + bonusRun.pop + ' cap=' + SB.economy.popCap(bonusRun));
+    const bonusPerk = SB.state.freshRun(false);
+    bonusPerk.perk.startPop = 3;
+    check('★ 买满繁衍生息 III 不再把起始人口钳回 4',
+      bonusPerk.pop === api.startingPopulation() &&
+      SB.economy.popCap(bonusPerk) === api.startingPopulation() + 3 &&
+      bonusPerk.pop <= SB.economy.popCap(bonusPerk),
+      'pop=' + bonusPerk.pop + ' cap=' + SB.economy.popCap(bonusPerk));
+    check('★ 读档迁移不再把起始人口砍回上限',
+      SB.state.migrateRun(JSON.parse(JSON.stringify(bonusRun))).pop === bonusRun.pop,
+      '读档后 pop=' + SB.state.migrateRun(JSON.parse(JSON.stringify(bonusRun))).pop);
+    /* 真实用户场景：small + waterpollution 都通关 ⇒ 起始 6 人。 */
+    meta.challenges = { completed: { cold: true, small: true, waterpollution: true, science: 2, abyss: 1 } };
+    const bothBonus = SB.state.freshRun(false);
+    check('★ 小国寡民 + 水体污染叠加：起始 6 人且上限同步到 6',
+      api.startingPopulation() === SB.CFG.POP_START + 5 &&
+      bothBonus.pop === api.startingPopulation() &&
+      SB.economy.popCap(bothBonus) === api.startingPopulation() &&
+      bothBonus.pop <= SB.economy.popCap(bothBonus),
+      'pop=' + bothBonus.pop + ' cap=' + SB.economy.popCap(bothBonus));
+    /* paneVillage 挂在 SB.ui.renderParts（不是 SB.ui.render，与 paneChallenges 不同）。 */
+    const villagePane = SB.ui.renderParts && SB.ui.renderParts.paneVillage;
+    const villageHtml = typeof villagePane === 'function' ? villagePane() : '';
+    check('★ 巢穴页教程文案的开局上限与引擎同源（不再写 1 → 3）',
+      !!villageHtml && villageHtml.includes('人口上限 ' + api.startingPopulation() + ' → ' + (api.startingPopulation() + (SB.BLD.house || 0))),
+      'paneVillage 可用=' + !!villageHtml + ' startingPopulation=' + api.startingPopulation());
+
+    /* ── 2026-11-08 方案 B：挑战专属内容标注 ──────────────────────────────
+     * 判据：信息必须落在决策点；角标文本必须是**挑战显示名**而不是内部 id
+     * （2026-11-02「w / a / t / e / r…」事故）；基游戏不挂；
+     * 6 项无 challengeOnly 字段的「间接专属」也要纳管；7 处渲染共用同一个 helper。 */
+    const tagFn = SB.ui.renderCommon && SB.ui.renderCommon.challengeTag;
+    const idsFn = SB.ui.renderCommon && SB.ui.renderCommon.challengeTagIds;
+    const tagAll = [];
+    for (const tn of ['BUILDINGS', 'TECHS', 'CIVICS', 'WONDERS', 'UPGRADES', 'CRAFTS']) {
+      for (const o of (SB[tn] || [])) if (o && o.id) tagAll.push(o);
+    }
+    /* 政策卡表在不同导出名下只取一份，绝不叠三重导致计数重复。 */
+    for (const o of (SB.CARDS || SB.POLICY_CARDS || SB.POLICIES || [])) if (o && o.id) tagAll.push(o);
+    const explicit = tagAll.filter(o => !!o.challengeOnly);
+    const indirectIds = ['terra_vat', 'terra_engine', 'wonder_terra_core', 'wonder_crustplate',
+      'upg_crustmine', 'upg_reheavfusion'];
+    const indirect = tagAll.filter(o => indirectIds.indexOf(o.id) >= 0 && !o.challengeOnly);
+    const baseS = SB.state.freshRun(false);
+    const waterS = SB.state.freshRun(false); waterS.challenge = { id: 'waterpollution', tier: 0 };
+    const terraS = SB.state.freshRun(false); terraS.challenge = { id: 'drift_terra', tier: 0 };
+
+    check('★ 挑战角标归一化：true / string / array 三态都解成 id 数组',
+      !!idsFn && JSON.stringify(idsFn({ challengeOnly: true })) === '["drift_terra"]' &&
+      JSON.stringify(idsFn({ challengeOnly: 'waterpollution' })) === '["waterpollution"]' &&
+      JSON.stringify(idsFn({ challengeOnly: ['cold', 'small'] })) === '["cold","small"]' &&
+      JSON.stringify(idsFn({})) === '[]');
+
+    check('★ 24 项显式 + 6 项间接专属全部被同一个 helper 纳管',
+      !!tagFn && explicit.length === 24 && indirect.length === 6 &&
+      explicit.every(o => {
+        const ids = idsFn(o);
+        const s = ids.indexOf('waterpollution') >= 0 ? waterS
+          : ids.indexOf('drift_terra') >= 0 ? terraS : baseS;
+        return /class="co-tag"/.test(tagFn(s, o)) && tagFn(baseS, o) === '';
+      }) &&
+      indirect.every(o => /class="co-tag"/.test(tagFn(terraS, o)) && tagFn(baseS, o) === '' &&
+        tagFn(waterS, o) === ''),
+      '显式=' + explicit.length + ' 间接=' + indirect.length + ' 间接 id=' + indirect.map(o => o.id).join(','));
+
+    const waterTag = tagFn(waterS, explicit.find(o => o.challengeOnly === 'waterpollution'));
+    const terraTag = tagFn(terraS, indirect.find(o => o.id === 'upg_crustmine'));
+    check('★ 角标文案用挑战显示名、不含内部 id，且桌面 title 与触屏 ⓘ 同源',
+      /水体污染限定/.test(waterTag) && !/waterpollution/.test(waterTag) &&
+      /流浪泰拉限定/.test(terraTag) && !/drift_terra/.test(terraTag) &&
+      /挑战专属内容，仅在当前周目出现/.test(waterTag) &&
+      /class="hover-info-btn co-info"/.test(waterTag) &&
+      /SB\.ui\.showHoverInfo/.test(waterTag) &&
+      waterTag.indexOf('title="') !== waterTag.lastIndexOf('title="'),
+      'water=' + waterTag.slice(0, 90));
+
+    /* 静态接线锁：7 处渲染逐字调用同一个 helper，少了任意一处都会掉到 6。
+     * 用源码而不是 toString()：techNode / civicNode / pool 是闭包内函数，拿不到引用。 */
+    let tagWires = 0;
+    for (const f of ['render-pane-village.js', 'render-pane-research.js',
+      'render-pane-wonder.js', 'render-pane-workshop.js']) {
+      const src = fs.readFileSync(new URL('../../src/ui/' + f, import.meta.url), 'utf8');
+      tagWires += (src.match(/renderCommon\.challengeTag\(s,/g) || []).length;
+    }
+    check('★ 7 处渲染拼接全走共用 helper（不多不少）', tagWires === 7, '实测接线=' + tagWires);
+
+    /* 真实渲染冒烟：paneVillage 读 SB.game.run()，构造全解锁的水体污染周目，
+     * 确认角标真的上屏（不是只在 helper 单测里绿）。try/finally 逐字段还原。 */
+    const tagRun = SB.game.run();
+    const tagBak = {
+      challenge: tagRun.challenge, techs: tagRun.techs, civics: tagRun.civics,
+      civShown: tagRun.civShown, seen: tagRun.seen
+    };
+    let villageTagHtml = '';
+    try {
+      tagRun.challenge = { id: 'waterpollution', tier: 0 };
+      tagRun.techs = {}; for (const t of (SB.TECHS || [])) tagRun.techs[t.id] = true;
+      tagRun.civics = {}; for (const c of (SB.CIVICS || [])) tagRun.civics[c.id] = true;
+      tagRun.civShown = {}; for (const c of (SB.CIVICS || [])) tagRun.civShown[c.id] = true;
+      tagRun.seen = {}; for (const b of (SB.BUILDINGS || [])) tagRun.seen[b.id] = 1;
+      villageTagHtml = SB.ui.renderParts.paneVillage();
+    } catch (e) { villageTagHtml = 'ERR:' + (e && e.message); }
+    finally { Object.assign(tagRun, tagBak); }
+    const villageBadges = (villageTagHtml.match(/class="co-tag"/g) || []).length;
+    check('★ 真实建造页面板在挑战周目确有角标上屏，基游戏为 0',
+      villageBadges >= 1 && /水体污染限定/.test(villageTagHtml) &&
+      !/waterpollution 限定/.test(villageTagHtml),
+      '挑战周目角标=' + villageBadges + ' html头=' + villageTagHtml.slice(0, 60));
+    tagRun.challenge = null;
+    const villageBaseHtml = SB.ui.renderParts.paneVillage();
+    tagRun.challenge = tagBak.challenge;
+    check('★ 基游戏建造页面板角标数 = 0',
+      (villageBaseHtml.match(/class="co-tag"/g) || []).length === 0,
+      '基游戏角标=' + (villageBaseHtml.match(/class="co-tag"/g) || []).length);
+
     meta.challenges = empty();
     const warmBase = SB.state.freshRun(false);
     const warmTrial = SB.state.freshRun(false);
@@ -541,6 +667,65 @@ export function run({ SB, check, noop }) {
         !driftMeta.challengePopupPending &&
         sent.length === 1 && sent[0].key === 'drift' && sent[0].value === 1234,
         driftOut ? '榜=' + JSON.stringify(sent) : '未结算');
+    }
+
+    /* ── 星海竞速：限时 goal 型（2026-11-07）──────────────────────────────
+     * 终点从「破壳」推到「戴森竣工」，但 goal 型不走 resolveRun 的超时分支，
+     * 所以必须单独锁住「计时泛化」「award 超时早退」「三档奖励」三件事。 */
+    {
+      const rush = api.byId('dyson_rush');
+      check('星海竞速定义：timed 标记 + 戴森 goal + 16/8/4 小时三档',
+        !!rush && rush.timed === true && !!rush.goal && rush.goal.t === 'dyson' &&
+        rush.tiers.length === 3 && rush.tiers[0].cap === 16 * 3600 &&
+        rush.tiers[1].cap === 8 * 3600 && rush.tiers[2].cap === 4 * 3600,
+        rush ? JSON.stringify(rush.tiers.map(t => t.cap)) : '无定义');
+      check('星海竞速已进进度白名单（老档读回不会把通关账清零）',
+        api.progress({}).dyson_rush === 0);
+
+      const mk = (tier, agoHours, done) => {
+        const st = SB.state.freshRun(false);
+        st.challenge = { id: 'dyson_rush', tier: tier, replay: false,
+          startedAt: Date.now() - agoHours * 3600 * 1000 };
+        st.dysonDone = !!done;
+        return st;
+      };
+      const pending = mk(0, 1, false);
+      check('限时计时对新挑战生效（不是只认 speedrun）',
+        api.timedOut(pending) === false && api.remainingSeconds(pending) > 0,
+        '剩余=' + api.remainingSeconds(pending));
+
+      const late = mk(2, 5, true);
+      check('第三档超时判定成立', api.timedOut(late) === true);
+      const lateMeta = { challenges: empty() };
+      const lateOut = api.evaluate(late, lateMeta);
+      check('超时后即使戴森已竣工也不发奖 / 不写账本 / 不弹完成面板',
+        lateOut === null && !lateMeta.challengePopupPending &&
+        (lateMeta.challenges.completed.dyson_rush | 0) === 0,
+        lateOut ? JSON.stringify(lateOut) : '未结算（正确）');
+
+      const fast = mk(0, 1, true);
+      fast.wallT = 4321;
+      const fastMeta = { challenges: empty() };
+      const rushSent = [];
+      const rushSavedSubmit = SB.rank && SB.rank.submitRun;
+      if (SB.rank) SB.rank.submitRun = (entries) => { if (entries) rushSent.push(...entries); };
+      let fastOut = null;
+      try { fastOut = api.evaluate(fast, fastMeta); }
+      finally { if (SB.rank && rushSavedSubmit) SB.rank.submitRun = rushSavedSubmit; }
+      check('限时内戴森竣工 ⇒ 首档发奖、账本 +1、弹完成面板',
+        !!fastOut && fastOut.reward === '永久全产出 +5%' && !fastOut.replay &&
+        (fastMeta.challenges.completed.dyson_rush | 0) === 1 &&
+        !!fastMeta.challengePopupPending,
+        fastOut ? JSON.stringify(fastOut) : '未结算');
+      check('星海竞速达标提交「最快星海竞速」榜（成绩 = 本局墙钟秒，不复用 dyson 全局榜）',
+        rushSent.length === 1 && rushSent[0].key === 'dysonrush' && rushSent[0].value === 4321,
+        '榜=' + JSON.stringify(rushSent));
+
+      meta.challenges.completed.dyson_rush = 3;
+      const mul3 = api.productionMul(SB.state.freshRun(false));
+      meta.challenges.completed.dyson_rush = 0;
+      check('星海竞速三档奖励确实进全产出倍率（1 → 1.15）',
+        Math.abs(mul3 - 1.15) < 1e-9, '倍率=' + mul3);
     }
 
     /* ── 破壳即判定（2026-11-03）─────────────────────────────────────────

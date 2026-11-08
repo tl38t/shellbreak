@@ -31,6 +31,11 @@
    * 本文件只解构 P，挂在 SB.economy 上的函数它拿不到（thetaFlow 首跑 e2e 崩过的同款坑）。 */
   var pollutionSettle = P.pollutionSettle, pollutionRollDeath = P.pollutionRollDeath;
 
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+
   function tick(s, dt, emit, opts) {
     /* ⚠️ 2026-11-03：这里原本是 `if (s.broken) return;` —— 那时破壳＝本局终点。
      *   ERA10（轨道发射场 → 戴森球 → 星图 → 星空槽）全部长在破壳之后，而建造要钢铁、
@@ -553,7 +558,7 @@
         s.pop--; s.famine = 0; s.famineDeaths++;
         SB.folk.reconcile(s);   // 减员后超额职业位退回闲置池
         SB.folk.reconcileRobot(s);   // B7：robotbay 降级后机器人超额退回（防御性）
-        if (emit) emit('藻食耗尽，有人饿死了。');
+        if (emit) emit(tr('ui.log.famine.death', null, '藻食耗尽，有人饿死了。'));
       }
     } else s.famine = 0;
 
@@ -568,7 +573,7 @@
     if (!isFull(s) && s.res.kelp > SB.CFG.GROW_KEEP) {
       s._grow += dt;
       var growNeed = SB.economy ? SB.economy.growthDuration(s) : SB.CFG.GROW_NEED;
-      if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit('生育：一名族民降生。'); }
+      if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit(tr('ui.log.population.birth', null, '生育：一名族民降生。')); }
     } else s._grow = 0;
     s.peak = Math.max(s.peak, s.pop);
     /* ERA7（2026-10）：政策卡《公摊面积》取下后 +0.5/人口建筑 消失 ⇒ 人口上限可能跌破当前人口。
@@ -593,7 +598,7 @@
       }
       if (_lostPop > 0) {
         if (SB.folk && SB.folk.trimJobsToPop) SB.folk.trimJobsToPop(s);
-        if (emit) emit('人口上限下降：' + _lostPop + ' 名族民离开（超出上限）。');
+        if (emit) emit(tr('ui.log.population.cap_reduced', { peopleLost: _lostPop }, '人口上限下降：' + _lostPop + ' 名族民离开（超出上限）。'));
       }
     } else s._overT = 0;
 
@@ -611,7 +616,7 @@
         s.pop--; s.frostDeaths++;
         SB.folk.reconcile(s);   // 减员后超额职业位退回闲置池
         SB.folk.reconcileRobot(s);   // B7：robotbay 降级后机器人超额退回（防御性）
-        if (emit) emit('冰封期冻死了一名族民。');
+        if (emit) emit(tr('ui.log.frostbite.death', null, '冰封期冻死了一名族民。'));
       }
     }
 

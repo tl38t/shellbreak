@@ -24,6 +24,25 @@
 
   function run() { return SB.game.run(); }
   function emit(msg) { SB.game.emit(msg); }
+  function tr(key, params) {
+    var i18n = SB.i18n;
+    return i18n && i18n.t ? i18n.t(key, params) : '';
+  }
+  function buildingName(id) {
+    var i18n = SB.i18n;
+    return i18n && i18n.buildingName ? i18n.buildingName(id) : '';
+  }
+  function unitLabel(key) { return tr(key); }
+  function activeBuildingLog(name, active, total, unitKey, inactiveKey) {
+    var inactiveNote = inactiveKey ? ' ' + tr(inactiveKey) : '';
+    SB.game.log(tr('ui.log.building.active_count', {
+      facilityName: name,
+      activeCount: active,
+      totalCount: total,
+      unitLabel: unitLabel(unitKey),
+      inactiveNote: inactiveNote
+    }));
+  }
 
   var FOLK_CONTROL_SELECTOR =
     '#pane-folk .folk-job-controls button[data-step], ' +
@@ -318,8 +337,11 @@
       if (_fstop !== (s.furnaceStop || 0)) {
         s.furnaceStop = _fstop;
         var _frun = _flv - _fstop;
-        SB.game.log('热泉炉：开 ' + _frun + '/' + _flv + ' 座' +
-          (_frun === 0 ? '（停产，不再消耗金属与暖石）。' : '。'));
+        activeBuildingLog(
+          buildingName('furnace'), _frun, _flv,
+          'ui.unit.building_count',
+          _frun === 0 ? 'ui.log.building.furnace.stopped_note' : null
+        );
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -334,13 +356,19 @@
       if (_spstop !== (s.siltpitStop || 0)) {
         s.siltpitStop = _spstop;
         var _sprun = _splv - _spstop;
-        var _spmsg = '砂矿坑：开 ' + _sprun + '/' + _splv + ' 座';
+        var _siltAutomationNote = '';
         if (s.upgrades && s.upgrades.upg_autodrill) {
           var _sppct = _splv > 0 ? Math.round(_sprun / _splv * 100) : 0;
-          _spmsg += '，自动化钻探钛/铀总产出 +' + _sppct + '%，热液能需求 ' +
-            (_sprun * (SB.UNIT.drillHydro || 0.3)).toFixed(2) + '/秒';
+          _siltAutomationNote = tr('ui.log.silt_pit.automation_note', {
+            outputBonusPercent: _sppct,
+            hydrothermalDemand: (_sprun * (SB.UNIT.drillHydro || 0.3)).toFixed(2)
+          });
         }
-        SB.game.log(_spmsg + '。');
+        SB.game.log(tr('ui.log.silt_pit.running_and_bonus', {
+          activeCount: _sprun,
+          totalCount: _splv,
+          automationNote: _siltAutomationNote
+        }));
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -353,7 +381,11 @@
       if (_tvstop !== (s.terraVatStop || 0)) {
         s.terraVatStop = _tvstop;
         var _tvrun = _tvlv - _tvstop;
-        SB.game.log('泰拉水舱：开 ' + _tvrun + '/' + _tvlv + ' 座，热液能需求 ' + (_tvrun * 100) + '/秒。');
+        SB.game.log(tr('ui.log.terra_vat.running_and_demand', {
+          activeCount: _tvrun,
+          totalCount: _tvlv,
+          hydrothermalDemand: _tvrun * 100
+        }));
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -367,13 +399,19 @@
       if (_wsstop !== (s.workshopStop || 0)) {
         s.workshopStop = _wsstop;
         var _wsrun = _wslv - _wsstop;
-        var _wsmsg = '工坊：开 ' + _wsrun + '/' + _wslv + ' 座';
+        var _workshopRoboticsNote = '';
         if (s.upgrades && s.upgrades.upg_indrobot) {
           var _wspct = _wslv > 0 ? Math.round(_wsrun / _wslv * 100) : 0;
-          _wsmsg += '，工业机器人使工艺总产出 +' + _wspct + '%，热液能需求 ' +
-            (_wsrun * (SB.UNIT.robotHydro || 3)).toFixed(2) + '/秒';
+          _workshopRoboticsNote = tr('ui.log.workshop.robotics_note', {
+            outputBonusPercent: _wspct,
+            hydrothermalDemand: (_wsrun * (SB.UNIT.robotHydro || 3)).toFixed(2)
+          });
         }
-        SB.game.log(_wsmsg + '。');
+        SB.game.log(tr('ui.log.workshop.running_and_bonus', {
+          activeCount: _wsrun,
+          totalCount: _wslv,
+          roboticsNote: _workshopRoboticsNote
+        }));
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -391,8 +429,11 @@
       if (_tstop !== (s.turbineStop || 0)) {
         s.turbineStop = _tstop;
         var _trun = _tlv - _tstop;
-        SB.game.log('热液汽轮机：开 ' + _trun + '/' + _tlv + ' 座' +
-          (_trun === 0 ? '（停产，不再消耗暖石、不再产热液能）。' : '。'));
+        activeBuildingLog(
+          buildingName('hydroturbine'), _trun, _tlv,
+          'ui.unit.building_count',
+          _trun === 0 ? 'ui.log.building.turbine.stopped_note' : null
+        );
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -409,8 +450,11 @@
       if (_sstop !== (s.hydroshopStop || 0)) {
         s.hydroshopStop = _sstop;
         var _srun = _slv - _sstop;
-        SB.game.log('热液工坊：开 ' + _srun + '/' + _slv + ' 座' +
-          (_srun === 0 ? '（停产，热液能流让给天穹钻机）。' : '。'));
+        activeBuildingLog(
+          buildingName('hydroshop'), _srun, _slv,
+          'ui.unit.building_count',
+          _srun === 0 ? 'ui.log.building.hydro_workshop.stopped_note' : null
+        );
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -427,8 +471,11 @@
       if (_satstop !== (s.satelliteStop || 0)) {
         s.satelliteStop = _satstop;
         var _satrun = _satlv - _satstop;
-        SB.game.log('轨道卫星：开 ' + _satrun + '/' + _satlv + ' 颗' +
-          (_satrun === 0 ? '（停产，不再贡献星空探索）。' : '。'));
+        activeBuildingLog(
+          buildingName('satellite'), _satrun, _satlv,
+          'ui.unit.satellite_count',
+          _satrun === 0 ? 'ui.log.building.satellite.stopped_note' : null
+        );
         SB.game.syncSpacecraft(s);  // 星图：停几座 ⇒ 移除对应在轨航天器
         SB.game.markDirty(); SB.game.renderAll();
       }
@@ -446,8 +493,11 @@
       if (_ststop !== (s.spacestationStop || 0)) {
         s.spacestationStop = _ststop;
         var _strun = _stlv - _ststop;
-        SB.game.log('空间站：开 ' + _strun + '/' + _stlv + ' 座' +
-          (_strun === 0 ? '（停产，不再贡献星空探索、不再消耗热液能）。' : '。'));
+        activeBuildingLog(
+          buildingName('spacestation'), _strun, _stlv,
+          'ui.unit.building_count',
+          _strun === 0 ? 'ui.log.building.station.stopped_note' : null
+        );
         SB.game.syncSpacecraft(s);  // 星图：停几座 ⇒ 移除对应在轨航天器
         SB.game.markDirty(); SB.game.renderAll();
       }
@@ -462,8 +512,11 @@
       if (_bstop !== (s.biomatlabStop || 0)) {
         s.biomatlabStop = _bstop;
         var _brun = _blv - _bstop;
-        SB.game.log('生物材料研究所：开 ' + _brun + '/' + _blv + ' 座' +
-          (_brun === 0 ? '（停产，不再消耗原料与热液能）。' : '。'));
+        activeBuildingLog(
+          buildingName('biomaterials_research_institute'), _brun, _blv,
+          'ui.unit.building_count',
+          _brun === 0 ? 'ui.log.building.biomaterials_lab.stopped_note' : null
+        );
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -509,7 +562,7 @@
         ? SB.workshop.setSlotBatch(s, d.aslot, parseInt(d.abatch, 10))
         : SB.workshop.setSlot(s, d.aslot, parseFloat(d.apct));
       if (_saved) { SB.game.markDirty(); SB.game.renderAll(); }
-      else SB.game.log('自动槽不够：先装「自动工坊」升级或在轮回商店买槽。');
+      else SB.game.log(tr('ui.workshop.automation_slots.insufficient'));
       return;
     }
     if (d.aoff) {
@@ -610,8 +663,11 @@
       if (_launchStop !== (s.launchStops[_launchId] || 0)) {
         s.launchStops[_launchId] = _launchStop;
         var _launchRun = _launchTotal - _launchStop;
-        SB.game.log(_launchDef.name + '：开 ' + _launchRun + '/' + _launchTotal + ' 级' +
-          (_launchRun === 0 ? '（本场暂停，周期进度保留）。' : '。'));
+        activeBuildingLog(
+          buildingName(_launchId), _launchRun, _launchTotal,
+          'ui.unit.level_count',
+          _launchRun === 0 ? 'ui.log.launch_site.stopped_note' : null
+        );
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -620,7 +676,8 @@
       /* data-company-close="kelp" ⇒ d.companyClose === 'kelp'：只解散这一家。 */
       if (SB.closeCompany && SB.closeCompany(SB.game.run(), d.companyClose)) {
         SB.game.markDirty(); SB.game.renderAll();
-        SB.game.log('已关闭 ' + d.companyClose + ' 公司：其产出加成与奢侈品消耗加成停止，其他公司不受影响。');
+        var _closedCompanyName = (s.companyNames && s.companyNames[d.companyClose]) || d.companyClose;
+        SB.game.log(tr('ui.log.company.closed', { companyName: _closedCompanyName }));
       }
       return;
     }
@@ -628,7 +685,8 @@
       /* data-company-rebuild="coral" ⇒ d.companyRebuild === 'coral'：只重建这一家。 */
       if (SB.rebuildCompany && SB.rebuildCompany(SB.game.run(), d.companyRebuild)) {
         SB.game.markDirty(); SB.game.renderAll();
-        SB.game.log('已重建 ' + d.companyRebuild + ' 公司：从乡镇企业重新开始成长。');
+        var _rebuiltCompanyName = (s.companyNames && s.companyNames[d.companyRebuild]) || d.companyRebuild;
+        SB.game.log(tr('ui.log.company.rebuilt', { companyName: _rebuiltCompanyName }));
       }
       return;
     }
@@ -645,7 +703,10 @@
       var autoState = SB.prestige.toggleAutoResearch(autoKind);
       if (autoState !== null) {
         SB.game.markDirty(); SB.game.renderAll();
-        SB.game.log((autoKind === 'tech' ? '科技' : '市政') + '自动研究已' + (autoState ? '开启' : '关闭') + '。');
+        SB.game.log(tr('ui.log.auto_research.toggled', {
+          researchType: tr(autoKind === 'tech' ? 'ui.research.type.technology' : 'ui.research.type.civics'),
+          automationState: tr(autoState ? 'ui.state.enabled' : 'ui.state.disabled')
+        }));
       }
       return;
     }
@@ -653,8 +714,12 @@
       ? t.closest('[data-auto-locked]') : null;
     if (autoLock && autoLock.dataset && autoLock.dataset.autoLocked) {
       var lockTech = autoLock.dataset.autoLocked === 'tech';
-      SB.game.log('自动研究' + (lockTech ? '科技' : '市政') + '还没解锁：先在顶栏「轮回商店 → ' +
-        (lockTech ? '远见之人' : '政经往来') + '」花 20 点买下「' + (lockTech ? '科技自转' : '市政自转') + '」。');
+      SB.game.log(tr('ui.log.auto_research.locked', {
+        researchType: tr(lockTech ? 'ui.research.type.technology' : 'ui.research.type.civics'),
+        perkName: tr(lockTech ? 'prestige.perk.auto_study.name' : 'prestige.perk.auto_civic.name'),
+        perkBranch: tr(lockTech ? 'ui.prestige.tree.visionaries.name' : 'ui.prestige.tree.political_economy.name'),
+        prestigePointCost: 20
+      }));
       return;
     }
     /* 天赋节点（轮回树 data-perk / 星空树 data-star-perk，2026-10-24 修）。
@@ -756,7 +821,32 @@
         SB.game.markDirty(); SB.game.renderAll();
       } else {
         var _rWhy = SB.civic.cardBlocked(s, null, _rSlot);
-        SB.game.log('政策卡卸下失败：' + (_rWhy || '该槽是空的，无需卸下'));
+        var _removeCardId = s.cards && s.cards[_rSlot];
+        if (!_removeCardId) {
+          SB.game.log(tr('ui.log.policy_card.remove_failed.empty_slot'));
+        } else {
+          var _removePolicy = null;
+          var _policies = SB.POLICIES || [];
+          for (var _pi = 0; _pi < _policies.length; _pi++) {
+            if (_policies[_pi] && _policies[_pi].id === _removeCardId) { _removePolicy = _policies[_pi]; break; }
+          }
+          if (_removePolicy && _removePolicy.locked) {
+            var _removeCardName = tr('policy.card.end_of_prestige.name');
+            SB.game.log(tr('ui.policy_card.remove.locked', { cardName: _removeCardName }));
+          } else {
+            var _removeCost = SB.civic.cardCost(s);
+            var _removeCurrent = Math.floor((s.res && s.res.culture) || 0);
+            if (_removeCost > _removeCurrent && !(s.cardFreeRemoves > 0)) {
+              SB.game.log(tr('ui.policy_card.remove.insufficient_civic_points', {
+                cost: _removeCost,
+                current: _removeCurrent,
+                freeRemovals: s.cardFreeRemoves || 0
+              }));
+            } else {
+              SB.game.log(tr('ui.policy_card.remove_failed.generic'));
+            }
+          }
+        }
       }
       SB.game.pumpCivic(s, emit);
       return;
@@ -772,14 +862,14 @@
           SB.ui.render.disarmCard();
           SB.game.markDirty(); SB.game.renderAll();
         } else {
-          SB.game.log('这张卡装不进这个槽（类型不对、越界，或已装在别的槽里）。');
+          SB.game.log(tr('ui.policy_card.install.rejected'));
         }
       } else {
         /* 2026-10-27 用户要求：**没选中卡时点槽** → 直接弹出「能装进这个槽的卡」，
          * 点一张卡片立刻装上，省掉「先在池子里翻卡再回头点槽」那一步。
          * 两步法完全保留：已 armedCard 时走上面那条直接装（老习惯与回归断言都靠它）。 */
         if (SB.ui.render && SB.ui.render.openPolicyPicker) SB.ui.render.openPolicyPicker(+slotBox.dataset.slot);
-        else SB.game.log('先点池里一张政策卡选中它，再点这里安装。');
+        else SB.game.log(tr('ui.policy_card.install.select_first'));
       }
       SB.game.pumpCivic(s, emit);
       return;
@@ -804,7 +894,24 @@
         /* 2026-10-14：换政体失败（没解锁 / 市政点不够）时给一句理由，
          * 否则按钮静默无反应，玩家以为「政体没法改」却不知是差市政点。 */
         var _gw = SB.civic.govBlocked(s, govId);
-        if (_gw) SB.game.log('政体没法换：' + _gw);
+        if (_gw) {
+          if (govId !== 'tribe' && SB.challenges && SB.challenges.governmentLocked && SB.challenges.governmentLocked(s)) {
+            SB.game.log(tr('ui.log.government.change_failed.challenge_locked'));
+          } else if (SB.civic.govOwned && !SB.civic.govOwned(s, govId)) {
+            SB.game.log(tr('ui.log.government.change_failed.locked'));
+          } else {
+            var _govCost = SB.civic.govCost(s);
+            var _govCurrent = Math.floor((s.res && s.res.culture) || 0);
+            if (_govCost > 0 && (s.res.culture || 0) < _govCost) {
+              SB.game.log(tr('ui.log.government.change_failed.insufficient_civic_points', {
+                cost: _govCost,
+                current: _govCurrent
+              }));
+            } else {
+              SB.game.log(tr('ui.log.government.change_failed.generic'));
+            }
+          }
+        }
       }
       SB.game.pumpCivic(s, emit);
       return;
@@ -826,7 +933,7 @@
     if (!s || !(s.techs && s.techs.thermal)) return false;
     s.warmOn = !s.warmOn;
     SB.game.markDirty(); SB.game.renderAll();
-    SB.game.log(s.warmOn ? '暖石开关拨到「开」：减产季会烧暖石顶回一部分。' : '暖石开关已关。');
+    SB.game.log(tr(s.warmOn ? 'ui.log.warmstone.enabled' : 'ui.log.warmstone.disabled'));
     return true;
   }
 
@@ -840,7 +947,7 @@
      * 下一 tick tickShell 会按真实供需重新落位。 */
     if (s.skydrillOn) s.skydrillStarved = false;
     SB.game.markDirty(); SB.game.renderAll();
-    SB.game.log(s.skydrillOn ? '天穹钻机启动：共振钻头与热液能就位后开始凿壳。' : '天穹钻机已停机。');
+    SB.game.log(tr(s.skydrillOn ? 'ui.wonder.skydrill.started' : 'ui.wonder.skydrill.stopped'));
     return true;
   }
 
@@ -858,10 +965,12 @@
     m.skydrillMul = m.skydrillMul === max ? 1 : max;
     SB.state.saveMeta(m);
     SB.game.markDirty(); SB.game.renderAll();
-    SB.game.log(m.skydrillMul > 1
-      ? '天元突破：钻头倍率切到 ' + max + '×（共振钻头 ' + (SB.CFG.SKYDRILL_DRILL * max) +
-        '/秒、削壳 ' + (SB.CFG.SKYDRILL_RATE * max) + ' 点/秒，热液能不变）。'
-      : '天元突破：钻头倍率切回 1×。');
+    var _drillMul = Math.max(1, Number(m.skydrillMul) || 1);
+    SB.game.log(tr('ui.log.skydrill.overdrive.changed', {
+      multiplier: _drillMul,
+      drillUseRate: SB.CFG.SKYDRILL_DRILL * _drillMul,
+      shellBreakRate: SB.CFG.SKYDRILL_RATE * _drillMul
+    }));
     return m.skydrillMul;
   }
 
@@ -875,7 +984,7 @@
     /* 从「停」拨到「开」的瞬间清一下停摆位：下一 tick tickShell 会按真实供需重新落位。 */
     if (s.geek.geekOn) s.geekStarved = false;
     SB.game.markDirty(); SB.game.renderAll();
-    SB.game.log(s.geek.geekOn ? '星球重构机 G.E.E.K 启动：改造恩克拉多斯星……' : '星球重构机 G.E.E.K 已停机。');
+    SB.game.log(tr(s.geek.geekOn ? 'ui.wonder.geek.started' : 'ui.wonder.geek.stopped'));
     return true;
   }
 
@@ -892,9 +1001,19 @@
     s.launchMode = node ? 'sail' : 'node';
     if (SB.economy.resetLaunchProcs) SB.economy.resetLaunchProcs(s);
     SB.game.markDirty(); SB.game.renderAll();
+    var _launchMaterial = SB.economy.launchMaterialPer ? SB.economy.launchMaterialPer(s) : {};
+    var _launchHydro = SB.economy.launchHydroPer ? SB.economy.launchHydroPer(s) : 4;
+    var _launchParams = {
+      uraniumRate: _launchMaterial.uranium || 0,
+      strongPropellantRate: _launchMaterial.strongProp || 0,
+      adaptiveFilmRate: _launchMaterial.thinafilm || 0,
+      titaniumAlloyRate: _launchMaterial.tiplate || 0,
+      hydrothermalRate: _launchHydro,
+      cycleSeconds: SB.economy.launchCycleOf ? SB.economy.launchCycleOf(s) : 10
+    };
     SB.game.log(node
-      ? '发射场已切回太阳帆模式：每级每秒耗铀 0.5、强工质火箭引擎 0.3、θ金属自适应薄膜 0.3、热液能 4；每座发射场每 ' + (SB.economy.launchCycleOf ? SB.economy.launchCycleOf(s) : 10) + 's 发射该场等级数量的太阳帆。'
-      : '发射场已切换到戴森球节点模式：每级每秒耗铀 5、强工质火箭引擎 3、θ金属自适应薄膜 3、钛合金板 30、热液能 4；每座发射场每个周期发射该场等级数量的节点。');
+      ? tr('ui.log.launch_mode.solar_sail', _launchParams)
+      : tr('ui.log.launch_mode.dyson_node', _launchParams));
     return true;
   }
 

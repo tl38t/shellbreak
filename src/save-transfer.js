@@ -20,6 +20,19 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
     });
   }
+  function formatFallback(value, params) {
+    return String(value == null ? '' : value).replace(/\{([^{}]+)\}/g, function (match, name) {
+      return params && params[name] !== undefined && params[name] !== null ? String(params[name]) : match;
+    });
+  }
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || formatFallback(fallback, params);
+  }
+  function localizedFailure(error, key, fallback) {
+    if (error && error.playerTextLocalized) return errorText(error);
+    return tr(key, { error: errorText(error) }, fallback);
+  }
   function crc32(text) {
     var crc = -1, i, j, c;
     for (i = 0; i < text.length; i++) {
@@ -34,14 +47,18 @@
   }
   function revisionOf(bundle) {
     if (bundle && bundle.revision) return bundle.revision;
-    return { cycle: Number(bundle && bundle.save && bundle.save.meta && bundle.save.meta.cycle) || 0,
+    var _m = bundle && bundle.save && bundle.save.meta;
+    /* runs（局数）优先、cycle 兜底：2026-11-06 起 cycle 只数合格轮回，软重置不推进
+     * ⇒ 判新旧必须看 runs。老包没有 runs 时回落 cycle（历史上 cycle 就是局数）。 */
+    return { cycle: Number(_m && _m.cycle) || 0,
+      runs: Number(_m && (_m.runs === undefined || _m.runs === null ? _m.cycle : _m.runs)) || 0,
       seq: Number(SB.store && SB.store.nativeRevision && SB.store.nativeRevision()) || 0,
       savedAt: Number(bundle && bundle.save && bundle.save.run && bundle.save.run._ts) || Date.now() };
   }
   function currentBundle() {
     var s = SB.game && SB.game.run ? SB.game.run() : null;
     var m = SB.game && SB.game.meta ? SB.game.meta() : null;
-    if (!s || !m) throw new Error('当前存档无法正常载入；可以先导出原始存档救援包。');
+    if (!s || !m) throw new Error(tr('save.export.recovery.when_load_fails', null, '当前存档无法正常载入；可以先导出原始存档救援包。'));
     var bundle = bundleForSave({ meta: m, run: SB.game.snapshot(s) });
     bundle.revision = revisionOf(bundle);
     return bundle;
@@ -59,22 +76,22 @@
   }
   function validateBundle(value) {
     if (!value || value.format !== FORMAT || value.version !== FORMAT_VERSION)
-      throw new Error('这不是受支持的游戏存档文件或存档码。');
+      throw new Error(tr('save.import.error.unsupported_format', null, '这不是受支持的游戏存档文件或存档码。'));
     if (value.recovery) {
       if (!value.raw || typeof value.raw !== 'object'
           || !(value.raw.meta === null || typeof value.raw.meta === 'string')
           || !(value.raw.run === null || typeof value.raw.run === 'string')
           || !(value.raw.metaBackup === null || typeof value.raw.metaBackup === 'string')
           || !(value.raw.runBackup === null || typeof value.raw.runBackup === 'string'))
-        throw new Error('原始救援包格式无效。');
+        throw new Error(tr('save.import.error.invalid_recovery_bundle', null, '原始救援包格式无效。'));
       if (typeof value.checksum === 'string' && value.checksum !== crc32(JSON.stringify(value.raw)))
-        throw new Error('救援包校验失败，内容可能不完整或已损坏。');
+        throw new Error(tr('save.import.error.recovery_checksum', null, '救援包校验失败，内容可能不完整或已损坏。'));
       return value;
     }
-    if (!value.save) throw new Error('存档文件缺少游戏数据。');
+    if (!value.save) throw new Error(tr('save.import.error.missing_game_data', null, '存档文件缺少游戏数据。'));
     if (typeof value.checksum === 'string' && value.checksum !== crc32(JSON.stringify(value.save)))
-      throw new Error('存档校验失败，内容可能不完整或已损坏。');
-    if (!value.save.meta || !value.save.run) throw new Error('存档缺少跨周目或本周目数据。');
+      throw new Error(tr('save.import.error.checksum', null, '存档校验失败，内容可能不完整或已损坏。'));
+    if (!value.save.meta || !value.save.run) throw new Error(tr('save.import.error.missing_progress', null, '存档缺少跨周目或本周目数据。'));
     return value;
   }
   function downloadFile(name, contents) {
@@ -123,12 +140,12 @@
   }
   function decodeSaveCode(code) {
     var match = /^SB1([GJ])\.([A-Za-z0-9_-]+)$/.exec(String(code || '').trim().replace(/\s+/g, ''));
-    if (!match) return Promise.reject(new Error('存档码格式不正确。'));
+    if (!match) return Promise.reject(new Error(tr('save.import.code.invalid_format', null, '存档码格式不正确。')));
     var bytes;
-    try { bytes = unbase64url(match[2]); } catch (e) { return Promise.reject(new Error('存档码无法解码。')); }
+    try { bytes = unbase64url(match[2]); } catch (e) { return Promise.reject(new Error(tr('save.import.code.decode_failed', null, '存档码无法解码。'))); }
     if (match[1] === 'J') return Promise.resolve(textFromBytes(bytes));
     if (typeof root.DecompressionStream !== 'function' || !root.Blob || !root.Response)
-      return Promise.reject(new Error('当前浏览器不支持读取压缩存档码，请在较新的 Chrome 中打开。'));
+      return Promise.reject(new Error(tr('save.import.code.compression_unsupported', null, '当前浏览器不支持读取压缩存档码，请在较新的 Chrome 中打开。')));
     return streamBytes(bytes, new root.DecompressionStream('gzip')).then(textFromBytes);
   }
   function setStatus(message, error) {
@@ -170,14 +187,14 @@
   function saveNow() {
     var s = null;
     try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) { s = null; }
-    if (!s) { saveNowFeedback('当前没有可保存的进度。', true); return false; }
+    if (!s) { saveNowFeedback(tr('save.manual.error.no_progress', null, '当前没有可保存的进度。'), true); return false; }
     /* ⚠️ 2026-11-03：这里原有一条「破壳即存档保护，拒绝保存」。破壳曾是本局终点，
      *   现在它只是里程碑（后面还有整个 ERA10），broken 会一直为真到换局
      *   ⇒ 那条判据会让玩家破壳后**永远存不了档**，还弹「当前进度异常」误导成存档坏了。
      *   真正的异常态判据是「快照生成失败」，由下面那句负责。 */
     var snap = null;
     try { snap = SB.game.snapshot(s); } catch (e) { snap = null; }
-    if (!snap) { saveNowFeedback('保存失败：无法生成进度快照。', true); return false; }
+    if (!snap) { saveNowFeedback(tr('save.manual.error.snapshot_failed', null, '保存失败：无法生成进度快照。'), true); return false; }
     var nativeBefore = (SB.store && SB.store.nativeRevision) ? SB.store.nativeRevision() : 0;
     var ok = false;
     try { ok = SB.state.saveRun(snap); } catch (e) { ok = false; }
@@ -198,7 +215,9 @@
     if (!ok) {
       var why = '';
       try { why = (SB.state.saveStatus() || {}).lastError || ''; } catch (e) {}
-      saveNowFeedback('保存失败：' + (why || '写入被拒绝'), true);
+      saveNowFeedback(tr('save.manual.error.write_failed',
+        { error: why || tr('save.manual.error.write_rejected', null, '写入被拒绝') },
+        '保存失败：' + (why || '写入被拒绝')), true);
       return false;
     }
     /* 写后读回。⚠️ 2026-10-29 实测踩到的坑：**只 parse 一遍是不够的** ——
@@ -215,15 +234,15 @@
     var back = null;
     try { back = txtBack ? JSON.parse(txtBack) : null; } catch (e) { back = null; }
     if (!back || typeof back !== 'object') {
-      saveNowFeedback('保存失败：写入后读不回来（存储异常）。请立刻导出存档文件。', true);
+      saveNowFeedback(tr('save.manual.error.readback_failed', null, '保存失败：写入后读不回来（存储异常）。请立刻导出存档文件。'), true);
       return false;
     }
     if (Number(back._ts) !== Number(snap._ts)) {
-      saveNowFeedback('保存失败：写入后读回来的仍是上次的进度。请立刻导出存档文件。', true);
+      saveNowFeedback(tr('save.manual.error.stale_readback', null, '保存失败：写入后读回来的仍是上次的进度。请立刻导出存档文件。'), true);
       return false;
     }
     var at = Date.now();
-    saveNowFeedback('已保存 · ' + hhmm(at));
+    saveNowFeedback(tr('save.manual.success.time', { time: hhmm(at) }, '已保存 · ' + hhmm(at)));
     /* 底部健康度那行是「上次保存：X 秒前」，手动存完立刻刷新，否则玩家会看到
      * 「已保存」和「12 分钟前」同屏打架。 */
     var health = document.getElementById('saveManagerHealth');
@@ -240,30 +259,44 @@
    * ⚠️ 只含布尔位、计数、版本号与错误串，**不含任何存档内容**。 */
   function diagLine() {
     if (!(SB.store && SB.store.diagBrief)) return '';
-    try { return '存档诊断：' + SB.store.diagBrief(); } catch (e) { return ''; }
+    try {
+      var summary = SB.store.diagBrief();
+      return tr('save.diag.title.prefix', { summary: summary }, '存档诊断：{summary}');
+    } catch (e) { return ''; }
   }
   function diagnosticsText() {
     var parts = [];
     try { if (SB.store && SB.store.diagText) parts.push(SB.store.diagText()); } catch (e) {}
     try {
       var st = SB.state.saveStatus();
-      parts.push('面板 上次保存=' + agoText(st.lastOkAt) + '　拒写=' + (st.skipCount || 0)
+      var english = !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+      parts.push(tr('save.diag.panel.health', {
+        elapsed: agoText(st.lastOkAt), rejectedCount: st.skipCount || 0,
+        failedCount: st.failCount || 0, patchedCount: st.patchCount || 0,
+        rejectedStreak: st.skipAfterOk || 0, failedStreak: st.failAfterOk || 0,
+        lastBadField: st.lastSkipKey ? (english ? ' · bad field=' : ' · 坏键=') + st.lastSkipKey : '',
+        lastError: st.lastError ? (english ? ' · error=' : ' · 错误=') + st.lastError : ''
+      }, '面板 上次保存=' + agoText(st.lastOkAt) + '　拒写=' + (st.skipCount || 0)
         + ' 失败=' + (st.failCount || 0) + ' 补位=' + (st.patchCount || 0)
         + '　连续坏=' + (st.skipAfterOk || 0) + '/' + (st.failAfterOk || 0)
         + (st.lastSkipKey ? '　坏键=' + st.lastSkipKey : '')
-        + (st.lastError ? '　错误=' + st.lastError : ''));
+        + (st.lastError ? '　错误=' + st.lastError : '')));
     } catch (e) {}
     try {
       var objects = null;
       objects = { cloud: cloudAvailable(), local: rawLocal(CFG.RUN_KEY) ? rawLocal(CFG.RUN_KEY).length : 0 };
-      parts.push('云端 ' + (objects.cloud ? '可用' : '不可用') + '　本机存档字节=' + objects.local);
+      parts.push(tr(objects.cloud ? 'save.diag.cloud_available' : 'save.diag.cloud_unavailable',
+        { localBytes: objects.local }, '云端 ' + (objects.cloud ? '可用' : '不可用') + '　本机存档字节=' + objects.local));
     } catch (e) {}
     try {
       var em = SB.store && SB.store.emergencyLoad ? SB.store.emergencyLoad() : null;
-      parts.push('旧档副本 ' + (em ? ('有（' + dateLabel(em.at) + '）') : '无'));
+      parts.push(em
+        ? tr('save.diag.emergency_copy.found', { savedAt: dateLabel(em.at) }, '旧档副本：有（' + dateLabel(em.at) + '）')
+        : tr('save.diag.emergency_copy.none', null, '旧档副本：无'));
     } catch (e) {}
-    parts.push('UA ' + (root.navigator && root.navigator.userAgent
-      ? String(root.navigator.userAgent).slice(0, 140) : '—'));
+    parts.push(tr('save.diag.user_agent', { userAgent: root.navigator && root.navigator.userAgent
+      ? String(root.navigator.userAgent).slice(0, 140) : '—' }, '运行环境：' + (root.navigator && root.navigator.userAgent
+      ? String(root.navigator.userAgent).slice(0, 140) : '—')));
     return parts.join('\n');
   }
   function copyDiag() {
@@ -280,12 +313,12 @@
     var nav = root.navigator;
     if (nav && nav.clipboard && nav.clipboard.writeText) {
       nav.clipboard.writeText(text).then(function () {
-        setStatus('诊断信息已复制到剪贴板，直接粘贴发给开发者即可。');
+        setStatus(tr('save.diag.copied', null, '诊断信息已复制到剪贴板，直接粘贴发给开发者即可。'));
       }, function () {
-        setStatus('浏览器未授权剪贴板：上面文本框里已生成诊断信息，请手动复制。');
+        setStatus(tr('save.diag.clipboard_denied', null, '浏览器未授权剪贴板：上面文本框里已生成诊断信息，请手动复制。'));
       });
     } else {
-      setStatus('上面文本框里已生成诊断信息，请手动复制。');
+      setStatus(tr('save.diag.manual_copy', null, '上面文本框里已生成诊断信息，请手动复制。'));
     }
   }
   /* 尸检副本导出：只在「上次启动读不到存档」时才存在。
@@ -295,16 +328,18 @@
     try { em = SB.store && SB.store.emergencyLoad ? SB.store.emergencyLoad() : null; } catch (e) {}
     if (!em) return '';
     var kb = Math.max(1, Math.round(((em.run || '').length + (em.meta || '').length) / 1024));
-    return '<div class="save-manager-warning">发现一份<b>旧档副本</b>（' + escapeHtml(dateLabel(em.at)) +
-      '，约 ' + kb + ' KB）。它是在上次启动读不到存档时自动留下的，只供导出救援，不会自动恢复。</div>' +
+    return '<div class="save-manager-warning">' + escapeHtml(tr('save.manager.emergency_copy.banner',
+      { savedAt: dateLabel(em.at), sizeKB: kb }, '发现一份旧档副本（' + dateLabel(em.at) + '，约 ' + kb +
+      ' KB）。它是在上次启动读不到存档时自动留下的，只供导出救援，不会自动恢复。')) + '</div>' +
       '<div class="save-manager-actions">' +
-      '<button type="button" class="btn" data-save-action="export-emergency">导出旧档副本</button>' +
+      '<button type="button" class="btn" data-save-action="export-emergency">' +
+      tr('save.emergency_copy.export.action', null, '导出旧档副本') + '</button>' +
       '</div>';
   }
   function exportEmergency() {
     var em = null;
     try { em = SB.store && SB.store.emergencyLoad ? SB.store.emergencyLoad() : null; } catch (e) {}
-    if (!em) { setStatus('没有可导出的旧档副本。', true); return; }
+    if (!em) { setStatus(tr('save.export.no_emergency_copy', null, '没有可导出的旧档副本。'), true); return; }
     try {
       var raw = { meta: em.meta === undefined ? null : em.meta, run: em.run === undefined ? null : em.run,
         metaBackup: null, runBackup: null };
@@ -312,8 +347,8 @@
         recovery: true, raw: raw, checksum: crc32(JSON.stringify(raw)) };
       downloadFile('shellbreak-emergency-' + new Date().toISOString().slice(0, 10) + '.json',
         JSON.stringify(bundle, null, 2));
-      setStatus('旧档副本已导出。把它发给开发者，或从「从文件导入」直接恢复。');
-    } catch (e) { setStatus('导出旧档副本失败：' + (e.message || e), true); }
+      setStatus(tr('save.export.emergency.success', null, '旧档副本已导出。把它发给开发者，或从「从文件导入」直接恢复。'));
+    } catch (e) { setStatus(tr('save.export.emergency.failed', { error: e.message || e }, '导出旧档副本失败：{error}'), true); }
   }
 
   function openPanel() {
@@ -323,36 +358,37 @@
      * 上一张面板的变体类残留会把它压成别人的排版（见 render.js 的 resetModalChrome）。 */
     if (SB.ui && SB.ui.render && SB.ui.render.resetModalChrome) SB.ui.render.resetModalChrome();
     var cloudOK = cloudAvailable();
+    var cloudActions = cloudOK
+      ? '<button type="button" class="btn" data-save-action="cloud-upload">' + tr('save.cloud.upload.action', null, '上传到 TapTap 云存档') + '</button>' +
+        '<button type="button" class="btn" data-save-action="cloud-download">' + tr('save.cloud.download.action', null, '从 TapTap 云存档恢复') + '</button>'
+      : '';
     box.innerHTML =
-      '<div class="modal-hd"><b>存档管理</b><button type="button" class="modal-x" id="saveManagerClose" aria-label="关闭">×</button></div>' +
+      '<div class="modal-hd"><b>' + tr('save.action.manage', null, '存档管理') + '</b><button type="button" class="modal-x" id="saveManagerClose" aria-label="' + tr('save.manager.close', null, '关闭') + '">×</button></div>' +
       '<div id="saveManagerPanel">' +
-        '<p class="save-manager-intro">存档文件和存档码都包含当前周目与跨周目进度。导入会先备份本机现有存档，并在确认后重载游戏。</p>' +
+        '<p class="save-manager-intro">' + escapeHtml(tr('save.manager.intro', null, '存档文件和存档码都包含当前周目与跨周目进度。导入会先备份本机现有存档，并在确认后重载游戏。')) + '</p>' +
         /* 本地 / 云端对比（2026-10-28）：玩家自己决定谁覆盖谁，不弹窗、不打扰。 */
-        cloudCompareHTML() +
+        (cloudOK ? cloudCompareHTML() : '') +
         /* 旧档副本（2026-10-29）：只在「上次启动读不到存档」时才出现，没有就返回空串。 */
         emergencyHTML() +
         '<div class="save-manager-actions">' +
           /* 2026-10-29 手动保存：独占第一行（CSS 里跨两列），因为它是玩家最想点的那个。
            * 「导出存档文件」原先是 `.btn.buy`（只是想让它显眼），现在主位让给「立即保存」，
            * 它退回普通按钮 —— 两个主色按钮并排会互相削弱。 */
-          '<button type="button" class="btn buy save-manager-primary" data-save-action="save-now">立即保存</button>' +
-          '<button type="button" class="btn" data-save-action="export-file">导出存档文件</button>' +
-          '<button type="button" class="btn" data-save-action="export-code">生成并复制存档码</button>' +
-          '<button type="button" class="btn" data-save-action="import-file">从文件导入</button>' +
-          '<button type="button" class="btn" data-save-action="import-code">从存档码导入</button>' +
-          '<button type="button" class="btn" data-save-action="cloud-upload"' + (cloudOK ? '' : ' disabled') + '>上传到 TapTap 云存档</button>' +
-          '<button type="button" class="btn" data-save-action="cloud-download"' + (cloudOK ? '' : ' disabled') + '>从 TapTap 云存档恢复</button>' +
-          '<button type="button" class="btn" data-save-action="copy-diag">复制诊断信息</button>' +
+          '<button type="button" class="btn buy save-manager-primary" data-save-action="save-now">' + tr('save.action.save_now', null, '立即保存') + '</button>' +
+          '<button type="button" class="btn" data-save-action="export-file">' + tr('save.export.file.action', null, '导出存档文件') + '</button>' +
+          '<button type="button" class="btn" data-save-action="export-code">' + tr('save.export.code.action', null, '生成并复制存档码') + '</button>' +
+          '<button type="button" class="btn" data-save-action="import-file">' + tr('save.import.file.action', null, '从文件导入') + '</button>' +
+          '<button type="button" class="btn" data-save-action="import-code">' + tr('save.import.code.action', null, '从存档码导入') + '</button>' +
+          cloudActions +
+          '<button type="button" class="btn" data-save-action="copy-diag">' + tr('save.diag.copy.action', null, '复制诊断信息') + '</button>' +
         '</div>' +
-        '<label class="save-manager-label" for="saveCodeBox">存档码</label>' +
-        '<textarea id="saveCodeBox" rows="4" spellcheck="false" placeholder="生成的存档码会显示在这里；也可以粘贴已有存档码"></textarea>' +
+        '<label class="save-manager-label" for="saveCodeBox">' + tr('save.manager.code.label', null, '存档码') + '</label>' +
+        '<textarea id="saveCodeBox" rows="4" spellcheck="false" placeholder="' + escapeHtml(tr('save.manager.code.placeholder', null, '生成的存档码会显示在这里；也可以粘贴已有存档码')) + '"></textarea>' +
         /* 诊断文本框常驻但为空：点「复制诊断信息」才写入。剪贴板被拒时这里是唯一的手动出口。 */
-        '<label class="save-manager-label" for="saveDiagBox">诊断信息</label>' +
-        '<textarea id="saveDiagBox" rows="5" spellcheck="false" readonly placeholder="点上面的「复制诊断信息」生成；存档出问题时把这段贴给开发者。"></textarea>' +
+        '<label class="save-manager-label" for="saveDiagBox">' + tr('save.manager.diagnostics.label', null, '诊断信息') + '</label>' +
+        '<textarea id="saveDiagBox" rows="5" spellcheck="false" readonly placeholder="' + escapeHtml(tr('save.manager.diagnostics.placeholder', null, '点上面的「复制诊断信息」生成；存档出问题时把这段贴给开发者。')) + '"></textarea>' +
         '<input type="file" id="saveFileInput" accept=".json,application/json" hidden>' +
-        '<p id="saveManagerStatus" class="save-manager-status" role="status">' +
-          (cloudOK ? 'TapTap 云存档已就绪。' : '云存档只在 TapTap 小游戏运行环境可用；当前浏览器仍可导出/导入文件和存档码。') +
-        '</p>' +
+        '<p id="saveManagerStatus" class="save-manager-status" role="status"></p>' +
         /* 存档健康度（2026-10-27）：常显「上次保存 / 云端备份」，写盘被拦或失败就标红。
          * 原先这些失败全被吞掉，玩家唯一的感受就是「存档没了」。 */
         '<p id="saveManagerHealth" class="save-manager-status save-manager-health' +
@@ -399,25 +435,31 @@
        * 不用再教他单独去点「复制诊断信息」，一条文件就是完整证据。 */
       try { bundle.diagnostics = diagnosticsText(); } catch (e) {}
       downloadFile('shellbreak-save-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(bundle, null, 2));
-      setStatus(bundle.recovery ? '游戏读档异常：已导出包含本地原始主档和备份的救援文件。' : '存档文件已导出。建议另存到游戏目录以外的位置。');
-    } catch (e) { setStatus(e.message || String(e), true); }
+      setStatus(tr(bundle.recovery ? 'save.export.file.recovery_success' : 'save.export.file.success', null,
+        bundle.recovery ? '游戏读档异常：已导出包含本地原始主档和备份的救援文件。' : '存档文件已导出。建议另存到游戏目录以外的位置。'));
+    } catch (e) { setStatus(tr('save.export.file.failed', { error: e.message || e }, '导出存档文件失败：{error}'), true); }
   }
   function exportCode() {
     var bundle;
-    try { bundle = exportBundle(); } catch (e) { setStatus(e.message || String(e), true); return; }
-    setBusy(true); setStatus('正在压缩并生成存档码…');
+    try { bundle = exportBundle(); } catch (e) { setStatus(tr('save.export.code.failed', { error: e.message || e }, '生成存档码失败：{error}'), true); return; }
+    setBusy(true); setStatus(tr('save.export.code.progress', null, '正在压缩并生成存档码…'));
     encodeSaveCode(bundle).then(function (code) {
       var box = document.getElementById('saveCodeBox');
       if (box) box.value = code;
       if (root.navigator && root.navigator.clipboard && root.navigator.clipboard.writeText) {
-          return root.navigator.clipboard.writeText(code).then(function () { setStatus(bundle.recovery ? '原始存档救援码已生成并复制到剪贴板。' : '存档码已生成并复制到剪贴板。'); }, function () {
+          return root.navigator.clipboard.writeText(code).then(function () {
+            setStatus(tr(bundle.recovery ? 'save.export.recovery_code.copied' : 'save.export.code.copied', null,
+              bundle.recovery ? '原始存档救援码已生成并复制到剪贴板。' : '存档码已生成并复制到剪贴板。'));
+          }, function () {
           if (box) { box.focus(); box.select(); }
-          setStatus(bundle.recovery ? '原始存档救援码已生成；请手动复制文本框内容。' : '存档码已生成；浏览器未授权剪贴板，请手动复制文本框内容。');
+          setStatus(tr(bundle.recovery ? 'save.export.recovery_code.manual_copy' : 'save.export.code.clipboard_denied', null,
+            bundle.recovery ? '原始存档救援码已生成；请手动复制文本框内容。' : '存档码已生成；浏览器未授权剪贴板，请手动复制文本框内容。'));
         });
       }
       if (box) { box.focus(); box.select(); }
-      setStatus(bundle.recovery ? '原始存档救援码已生成；请手动复制文本框内容。' : '存档码已生成；请手动复制文本框内容。');
-    }).catch(function (e) { setStatus('生成存档码失败：' + (e.message || e), true); })
+      setStatus(tr(bundle.recovery ? 'save.export.recovery_code.manual_copy' : 'save.export.code.manual_copy', null,
+        bundle.recovery ? '原始存档救援码已生成；请手动复制文本框内容。' : '存档码已生成；请手动复制文本框内容。'));
+    }).catch(function (e) { setStatus(tr('save.export.code.failed', { error: e.message || e }, '生成存档码失败：{error}'), true); })
       .then(function () { setBusy(false); });
   }
   function onFileSelected(event) {
@@ -428,50 +470,57 @@
     reader.onload = function () {
       var bundle;
       try { bundle = validateBundle(JSON.parse(String(reader.result || ''))); }
-      catch (e) { setStatus(e.message || String(e), true); return; }
-      confirmImport(bundle, '文件「' + escapeHtml(file.name) + '」');
+      catch (e) { setStatus(tr('save.import.failed', { error: errorText(e) }, '导入失败：{error}'), true); return; }
+      confirmImport(bundle, tr('save.import.source.file', { fileName: file.name }, '文件「{fileName}」'));
     };
-    reader.onerror = function () { setStatus('读取存档文件失败。', true); };
+    reader.onerror = function () { setStatus(tr('save.import.file.read_failed', null, '读取存档文件失败。'), true); };
     reader.readAsText(file, 'utf-8');
   }
   function importCode(text) {
-    setBusy(true); setStatus('正在读取存档码…');
+    setBusy(true); setStatus(tr('save.import.code.progress', null, '正在读取存档码…'));
     decodeSaveCode(text).then(function (json) {
       var bundle = validateBundle(JSON.parse(json));
-      setBusy(false); confirmImport(bundle, '存档码');
+      setBusy(false); confirmImport(bundle, tr('save.import.source.code', null, '存档码'));
     }).catch(function (e) {
-      setBusy(false); setStatus('导入失败：' + (e.message || e), true);
+      setBusy(false); setStatus(tr('save.import.failed', { error: e.message || e }, '导入失败：{error}'), true);
     });
   }
   function confirmImport(bundle, source) {
     var box = document.getElementById('modalBox');
-    var local = localStore(), cycle = bundle.save && bundle.save.meta && bundle.save.meta.cycle;
+    var local = localStore();
+    /* 2026-11-06：这里要显示的是「第几周目」= 局数 runs；meta.cycle 已收紧为「合格轮回次数」，
+     * 拿它当周目号会在软重置过的档上少报。老包无 runs ⇒ 回落 cycle（那时 cycle 就是局数）。 */
+    var _im = bundle.save && bundle.save.meta;
+    var runs = _im ? (_im.runs === undefined || _im.runs === null ? _im.cycle : _im.runs) : 0;
     if (bundle.recovery) {
-      box.innerHTML = '<h3>恢复原始救援包？</h3>' +
-        '<div class="save-manager-warning">救援包保留的是存档原始文本，不保证其中数据能被当前版本读取。恢复前会把这台设备现有的主档另存为本机备份。</div>' +
-        '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="saveImportCancel">取消</button>' +
-        '<button type="button" class="btn" id="saveRestoreMain"' + (bundle.raw.meta === null && bundle.raw.run === null ? ' disabled' : '') + '>还原包内主档</button>' +
-        '<button type="button" class="btn buy" id="saveRestoreBackup"' + (bundle.raw.metaBackup === null && bundle.raw.runBackup === null ? ' disabled' : '') + '>还原包内备份</button></div>';
+      box.innerHTML = '<h3>' + tr('save.import.recovery.confirm.title', null, '恢复原始救援包？') + '</h3>' +
+        '<div class="save-manager-warning">' + escapeHtml(tr('save.import.recovery.confirm.warning', null, '救援包保留的是存档原始文本，不保证其中数据能被当前版本读取。恢复前会把这台设备现有的主档另存为本机备份。')) + '</div>' +
+        '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="saveImportCancel">' + tr('save.action.cancel', null, '取消') + '</button>' +
+        '<button type="button" class="btn" id="saveRestoreMain"' + (bundle.raw.meta === null && bundle.raw.run === null ? ' disabled' : '') + '>' + tr('save.import.recovery.restore_primary', null, '还原包内主档') + '</button>' +
+        '<button type="button" class="btn buy" id="saveRestoreBackup"' + (bundle.raw.metaBackup === null && bundle.raw.runBackup === null ? ' disabled' : '') + '>' + tr('save.import.recovery.restore_backup', null, '还原包内备份') + '</button></div>';
       document.getElementById('saveImportCancel').onclick = openPanel;
       function restorePair(metaRaw, runRaw) {
-        if (!local) { openPanel(); setStatus('本机存储不可用，未恢复。', true); return; }
+        if (!local) { openPanel(); setStatus(tr('save.import.error.local_storage_unavailable.restore', null, '本机存储不可用，未恢复。'), true); return; }
         try { SB.game.restoreRawSave({ meta: metaRaw, run: runRaw }); }
-        catch (e) { openPanel(); setStatus(e.message || String(e), true); }
+        catch (e) { openPanel(); setStatus(localizedFailure(e, 'game.save.restore_write_failed',
+          '恢复原始存档失败，现有数据已另存到本机备份：{error}'), true); }
       }
       document.getElementById('saveRestoreMain').onclick = function () { restorePair(bundle.raw.meta, bundle.raw.run); };
       document.getElementById('saveRestoreBackup').onclick = function () { restorePair(bundle.raw.metaBackup, bundle.raw.runBackup); };
       return;
     }
     box.innerHTML =
-      '<h3>覆盖本地存档？</h3>' +
-      '<div class="save-manager-warning">即将从' + source + '导入' + (cycle ? '第 ' + cycle + ' 周目' : '') + '存档。导入后当前本地进度会被替换；程序会先把当前原始存档保存到本机备份键。</div>' +
-      '<div class="save-manager-status">确认后页面会自动重载。若本机存储无法先备份，导入会中止。</div>' +
-      '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="saveImportCancel">取消</button><button type="button" class="btn buy" id="saveImportConfirm">备份并导入</button></div>';
+      '<h3>' + tr('save.import.confirm.replace_local.title', null, '覆盖本地存档？') + '</h3>' +
+      '<div class="save-manager-warning">' + escapeHtml(tr(runs ? 'save.import.confirm.with_cycle' : 'save.import.confirm.without_cycle',
+        runs ? { cycleNumber: runs, sourceLabel: source } : { sourceLabel: source },
+        runs ? '即将从{sourceLabel}导入第 {cycleNumber} 周目存档。导入后当前本地进度会被替换；程序会先把当前原始存档保存到本机备份键。' : '即将从{sourceLabel}导入存档。导入后当前本地进度会被替换；程序会先把当前原始存档保存到本机备份键。')) + '</div>' +
+      '<div class="save-manager-status">' + tr('save.import.confirm.reload', null, '确认后页面会自动重载。若本机存储无法先备份，导入会中止。') + '</div>' +
+      '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="saveImportCancel">' + tr('save.action.cancel', null, '取消') + '</button><button type="button" class="btn buy" id="saveImportConfirm">' + tr('save.action.backup_and_import', null, '备份并导入') + '</button></div>';
     document.getElementById('saveImportCancel').onclick = openPanel;
     document.getElementById('saveImportConfirm').onclick = function () {
-      if (!local) { openPanel(); setStatus('本机存储不可用，未导入。', true); return; }
+      if (!local) { openPanel(); setStatus(tr('save.import.error.local_storage_unavailable.restore', null, '本机存储不可用，未导入。'), true); return; }
       try { SB.game.installImportedSave(bundle); }
-      catch (e) { openPanel(); setStatus(e.message || String(e), true); }
+      catch (e) { openPanel(); setStatus(localizedFailure(e, 'save.import.failed', '导入失败：{error}'), true); }
     };
   }
 
@@ -481,7 +530,8 @@
       && root.tap.env && root.tap.env.USER_DATA_PATH);
   }
   function cloudObjects() {
-    if (!cloudAvailable()) throw new Error('当前不是 TapTap 小游戏运行环境，云存档接口不可用。');
+    if (!cloudAvailable()) throw new Error(tr('save.cloud.unavailable.error', null,
+      '当前不是 TapTap 小游戏运行环境，云存档接口不可用。'));
     return { cloud: root.tap.getCloudSaveManager(), fs: root.tap.getFileSystemManager(), base: root.tap.env.USER_DATA_PATH };
   }
   function callApi(target, method, options) {
@@ -540,8 +590,17 @@
       || (item.archiveMetadata && item.archiveMetadata.extra) || '{}') || {}; }
     catch (e) { return {}; }
   }
+  /* 取「局数」比较键：新数据有 runs，老数据只有 cycle（那时 cycle 就是局数）⇒ 回落。
+   * ⚠️ 2026-11-06 的坑：cycle 收紧成「合格轮回次数」后，**新旧两份档的 cycle 语义不同**
+   * （老云档的 cycle=20 是第 20 局，新档的 cycle=3 是轮回 3 次）—— 若还拿 cycle 单独比一档，
+   * 自动备份会误判「云端较新」而拒绝覆盖。故这里只比 runs，cycle 不再参与比较。 */
+  function revRuns(r) {
+    if (!r) return 0;
+    return Number(r.runs !== undefined && r.runs !== null ? r.runs : r.cycle) || 0;
+  }
   function compareRevision(a, b) {
-    if (a.cycle && b.cycle && a.cycle !== b.cycle) return a.cycle - b.cycle;
+    var ar = revRuns(a), br = revRuns(b);
+    if (ar && br && ar !== br) return ar - br;
     if (a.seq && b.seq && a.seq !== b.seq) return a.seq - b.seq;
     return (a.savedAt || 0) - (b.savedAt || 0);
   }
@@ -550,12 +609,12 @@
    * ⚠️ 冷却 key 是共享的（平台按账号限流，不是按按钮），所以自动备份成功后
    *    玩家紧接着手动点「上传」会被挡 60 秒，那是**正确**的（TapTap 确实拒）。 */
   function pushCloud(silent) {
-    if (uploadInFlight) return Promise.reject(new Error('已有云存档上传正在进行'));
+    if (uploadInFlight) return Promise.reject(new Error(tr('save.taptap.upload.in_progress', null,
+      '已有云存档上传正在进行')));
     var objects, bundle, filePath;
     try {
       objects = cloudObjects(); bundle = currentBundle(); filePath = objects.base + '/' + CLOUD_FILE;
     } catch (e) {
-      if (!silent) setStatus(e.message || String(e), true);
       return Promise.reject(e);
     }
     var now = Date.now(), ls = localStore(), savedAt = 0;
@@ -566,11 +625,16 @@
      *   玩家在第 60.0 秒点第二次时，平台很可能仍判超频（400001）。
      *   10 秒余量不影响体感，但能消掉这条边界失败。 */
     if (now - savedAt < 70000) {
-      var wait = 'TapTap 限制每分钟最多上传一次，请约 ' + Math.ceil((70000 - (now - savedAt)) / 1000) + ' 秒后重试。';
+      var wait = tr('save.taptap.upload.rate_limited', {
+        waitSeconds: Math.ceil((70000 - (now - savedAt)) / 1000)
+      }, 'TapTap 限制每分钟最多上传一次，请约 {waitSeconds} 秒后重试。');
       if (!silent) setStatus(wait, true);
       return Promise.reject(new Error(wait));
     }
-    if (!silent) { setBusy(true); setStatus('正在写入 TapTap 本地文件并检查云端存档…'); }
+    if (!silent) {
+      setBusy(true);
+      setStatus(tr('save.taptap.upload.checking', null, '正在写入 TapTap 本地文件并检查云端存档…'));
+    }
     uploadInFlight = true;
     return callApi(objects.fs, 'writeFile', { filePath: filePath, data: JSON.stringify(bundle), encoding: 'utf8' })
       .then(function () { return archiveList(objects.cloud); })
@@ -603,7 +667,8 @@
           var localPlay = Math.max(0, Math.floor((bundle.save.run && bundle.save.run.t) || 0));
           if (compareRevision(cloudRevision, localRevision) > 0
               || (!cloudRevision.seq && cloudPlay > localPlay + 60)) {
-            throw new Error('云端存档较新，已停止自动覆盖；请在存档管理中选择使用哪一份');
+            throw new Error(tr('save.taptap.upload.newer_cloud', null,
+              '云端存档较新，已停止自动覆盖；请在存档管理中选择使用哪一份'));
           }
         }
         var current = Date.now(); lastUploadAt = current;
@@ -611,10 +676,11 @@
         var _meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
         var revision = revisionOf(bundle);
         var metadata = { name: targetName, summary: 'Shellbreak save · ' + dateLabel(current),
-          /* extra 官方限 1000 字节；带上周目是为了面板能显示「第 N 周目」——
-           * 旧档没有 cycle，展示层会自然省略这一段。 */
+          /* extra 官方限 1000 字节；带上局数（runs）是为了面板能显示「第 N 周目」——
+           * 2026-11-06 起 cycle 只数合格轮回，不能再拿来当「第几局」显示。老包没有 runs，
+           * 读侧回落 cycle，展示层口径与旧面板一致。 */
           extra: JSON.stringify({ format: FORMAT, version: FORMAT_VERSION,
-            cycle: revision.cycle, seq: revision.seq, savedAt: revision.savedAt,
+            cycle: revision.cycle, runs: revision.runs, seq: revision.seq, savedAt: revision.savedAt,
             /* 2026-10-29：诊断摘要随云档走。本机三处（localStorage / tap.setStorage /
              * tapfile）是同生共死的，云端这条 metadata 是**唯一跨设备**还能带出来的证据：
              * 玩家换机或重装后，`getArchiveList` 仍能把这段读回来显示在面板上。
@@ -629,9 +695,9 @@
   }
   function uploadCloud() {
     pushCloud(false).then(function () {
-      setBusy(false); setStatus('TapTap 云存档上传成功。');
+      setBusy(false); setStatus(tr('save.taptap.upload.success', null, 'TapTap 云存档上传成功。'));
     }, function (e) {
-      setBusy(false); setStatus('云存档上传失败：' + errorText(e), true);
+      setBusy(false); setStatus(tr('save.cloud.upload_failed', { error: errorText(e) }, '云存档上传失败：{error}'), true);
     });
   }
 
@@ -656,7 +722,9 @@
     var now = Date.now();
     if (now - autoState.lastTryAt < AUTO_GAP_MS) return;
     var m = SB.game && SB.game.meta ? SB.game.meta() : null;
-    var mark = String((m && m.cycle) || 0) + ':'
+    /* 去重键用局数（runs）而不是 cycle：2026-11-06 起 cycle 在软重置后不变，同一 cycle 下
+     * 换局不会触发上传。第二分量（nativeRevision / 墙钟分钟）本来就能兜住，但主键正确更省事。 */
+    var mark = String((m && (m.runs === undefined ? m.cycle : m.runs)) || 0) + ':'
       + String((SB.store && SB.store.nativeRevision && SB.store.nativeRevision()) || Math.floor((s.t || 0) / 60));
     if (!autoState.urgent && mark === autoState.lastMark && autoState.lastOkAt) return;
     autoState.lastTryAt = now;
@@ -678,22 +746,28 @@
    * 否则玩家得自己把「11980 秒」和「3 小时 19 分」对上号。 */
   function playtimeText(sec) {
     var s = Math.max(0, Math.floor(Number(sec) || 0));
-    if (s < 60) return s + '秒';
+    if (s < 60) return tr('save.time.duration.seconds', { count: s }, '{count} 秒');
     var m = Math.floor(s / 60);
-    if (m < 60) return m + '分钟';
+    if (m < 60) return tr('save.time.duration.minutes', { count: m }, '{count} 分钟');
     var h = Math.floor(m / 60), rm = m % 60;
     /* 整点也补 00m：与云端的「1h30m」并排时不补会显得缺一位。 */
-    return h + 'h' + String(rm).padStart(2, '0') + 'm';
+    return tr('save.time.duration.hours_minutes', { hours: h, minutesPadded: String(rm).padStart(2, '0') }, '{hours} 小时 {minutesPadded} 分');
   }
   function agoText(ms) {
-    if (!ms) return '尚未';
+    if (!ms) return tr('save.time.ago.not_yet', null, '尚未');
     var d = Date.now() - Number(ms);
     if (!isFinite(d) || d < 0) d = 0;
     var sec = Math.floor(d / 1000);
-    if (sec < 60) return sec + ' 秒前';
-    if (sec < 3600) return Math.floor(sec / 60) + ' 分钟前';
-    if (sec < 86400) return Math.floor(sec / 3600) + ' 小时前';
-    return Math.floor(sec / 86400) + ' 天前';
+    var count, unit;
+    if (sec < 60) { count = sec; unit = 'seconds'; }
+    else if (sec < 3600) { count = Math.floor(sec / 60); unit = 'minutes'; }
+    else if (sec < 86400) { count = Math.floor(sec / 3600); unit = 'hours'; }
+    else { count = Math.floor(sec / 86400); unit = 'days'; }
+    var key = 'save.time.ago.' + unit + (count === 1 ? '.one' : '.other');
+    var paramName = unit;
+    var params = {}; params[paramName] = count;
+    var chineseUnit = unit === 'seconds' ? '秒' : unit === 'minutes' ? '分钟' : unit === 'hours' ? '小时' : '天';
+    return tr(key, params, '{' + paramName + '} ' + chineseUnit + '前');
   }
   /* 健康度是否处于「异常」态（写盘被拦或失败都比最后一次成功更晚）。
    * 面板据此加 .error 标红；不作任何自动修复 —— 只让玩家看得见。 */
@@ -707,21 +781,23 @@
   function saveHealthText() {
     var st = (SB.state && SB.state.saveStatus) ? SB.state.saveStatus() : null;
     if (!st) return '';
-    var parts = ['上次保存：' + agoText(st.lastOkAt)];
+    var parts = [tr('save.health.last_saved', { elapsed: agoText(st.lastOkAt) }, '上次保存：{elapsed}')];
     var bad = false, why = '';
     /* ⚠️ 用「距上次成功之后的坏次数」判定，不用时间戳比较 —— 两者常落在同一毫秒。 */
     if ((st.failAfterOk || 0) > 0) {
       bad = true;
-      why = '存档写入失败：' + (st.lastError || '未知原因') + '（连续 ' + st.failAfterOk + ' 次）';
+      why = tr('save.health.write_failed', { error: st.lastError || '未知原因', count: st.failAfterOk }, '存档写入失败：{error}（连续 {count} 次）');
     } else if ((st.skipAfterOk || 0) > 0) {
       bad = true;
-      why = '存档写入被拦下（' + (st.lastSkipKey || '未知字段') + ' 数值异常），这局进度没有存上';
+      why = tr('save.health.write_blocked', { fieldName: st.lastSkipKey || '未知字段' }, '存档写入被拦下（{fieldName} 数值异常），这局进度没有存上');
     }
     if (bad) parts.push('⚠ ' + why);
     /* 2026-10-29（P0-3）：补位是「部分成功」，不能和上面的整份拒写混为一谈，
      * 也不能标红 —— 玩家看到红色「存档失败」会以为全废了，实际只有那一个资源没涨。 */
     if ((st.patchCount || 0) > 0 && !bad) {
-      parts.push('资源 ' + (st.lastPatchKey || '?') + ' 数值异常，已用上次记录值补位（其余进度正常保存）');
+      var resourceName = SB.i18n && SB.i18n.resourceName
+        ? SB.i18n.resourceName(st.lastPatchKey, st.lastPatchKey || '某项资源') : (st.lastPatchKey || '某项资源');
+      parts.push(tr('save.health.resource_repaired', { resourceName: resourceName }, '资源 {resourceName} 数值异常，已用上次记录值补位（其余进度正常保存）'));
     }
     var au = autoCloudStatus();
     /* ⚠️ 2026-10-28：云端**备份时间**从这里移走了 —— 顶部新增的「本地 / 云端」对比块
@@ -745,7 +821,9 @@
     try { at = Number(rawLocal(CFG.SAVE_AT_KEY)) || 0; } catch (e) {}
     return {
       playtime: Math.max(0, Math.floor((s && s.t) || 0)),
-      cycle: (m && m.cycle) || 1,
+      /* runs = 局数（第几周目）。2026-11-06 起 meta.cycle 只数合格轮回，不能再当「第几局」
+       * 显示；老档无 runs 时回落 cycle（历史上 cycle 就是局数）。 */
+      runs: (m && (m.runs === undefined || m.runs === null ? m.cycle : m.runs)) || 1,
       savedAt: at
     };
   }
@@ -763,7 +841,9 @@
           ok: true,
           playtime: Number(archive.playtime) || 0,
           modifiedTime: Number(archive.modifiedTime) || 0,   /* 官方字段：秒级 */
-          cycle: Number(extra.cycle) || 0,                   /* 旧档没有这一项，显示时省略 */
+          /* runs = 局数（2026-11-06）：优先读 extra.runs，老包只有 extra.cycle（那时 cycle 就是
+           * 局数）⇒ 回落它，展示口径与旧面板一致。 */
+          runs: Number(extra.runs !== undefined && extra.runs !== null ? extra.runs : extra.cycle) || 0,
           /* 2026-10-29：上传时塞进 extra 的诊断摘要（见 pushCloud）。本机三处全空时
            * （重装 / 换机 / 被清缓存），这是**唯一**还能看到「上次是怎么丢的」的地方。 */
           diag: String(extra.d || ''),
@@ -773,31 +853,33 @@
       }).catch(function (e) { resolve({ ok: false, reason: errorText(e) }); });
     });
   }
-  function digestLine(d, tail) {
+  function digestLine(d, cloud) {
     var parts = [];
-    if (d.cycle) parts.push('第 ' + d.cycle + ' 周目');
+    if (d.runs) parts.push(tr('save.digest.cycle', { cycleNumber: d.runs }, '第 {cycleNumber} 周目'));
     parts.push(playtimeText(d.playtime));
     /* 本地是「保存」、云端是「备份」—— 两个动词不能混用，否则玩家会以为自己刚存过云端。 */
-    if (d.at) parts.push(agoText(d.at) + (tail || '保存'));
+    if (d.at) parts.push(tr(cloud ? 'save.digest.cloud_backup' : 'save.digest.local_saved',
+      { timeAgo: agoText(d.at) }, cloud ? '云端备份：{timeAgo}' : '本地保存：{timeAgo}'));
     return parts.join(' · ');
   }
   function cloudCompareHTML() {
     var ok = cloudAvailable();
+    if (!ok) return '';
     return '<div class="cloud-compare" id="cloudCompare">' +
-      '<div class="cc-row"><i class="cc-tag local">本地</i><span class="cc-body" id="ccLocal">—</span></div>' +
-      '<div class="cc-row"><i class="cc-tag cloud">云端</i><span class="cc-body" id="ccCloud">' +
-        (ok ? '读取中…' : '仅 TapTap 小游戏环境可用') + '</span></div>' +
+      '<div class="cc-row"><i class="cc-tag local">' + tr('save.cloud.compare.local', null, '本地') + '</i><span class="cc-body" id="ccLocal">—</span></div>' +
+      '<div class="cc-row"><i class="cc-tag cloud">' + tr('save.cloud.compare.cloud', null, '云端') + '</i><span class="cc-body" id="ccCloud">' +
+        tr('save.cloud.compare.loading', null, '读取中…') + '</span></div>' +
       '<div class="cc-hint" id="ccHint"></div>' +
       '<div class="cc-actions">' +
-        '<button type="button" class="btn" id="ccUseLocal"' + (ok ? '' : ' disabled') + '>用本地覆盖云端</button>' +
-        '<button type="button" class="btn" id="ccUseCloud"' + (ok ? '' : ' disabled') + '>用云端覆盖本地</button>' +
+        '<button type="button" class="btn" id="ccUseLocal"' + (ok ? '' : ' disabled') + '>' + tr('save.cloud.compare.use_local', null, '用本地覆盖云端') + '</button>' +
+        '<button type="button" class="btn" id="ccUseCloud"' + (ok ? '' : ' disabled') + '>' + tr('save.cloud.compare.use_cloud', null, '用云端覆盖本地') + '</button>' +
       '</div></div>';
   }
   function fillCloudCompare() {
     var lc = document.getElementById('ccLocal');
     if (!lc) return;                       /* 面板已关闭 */
     var local = localDigest();
-    lc.textContent = digestLine({ cycle: local.cycle, playtime: local.playtime, at: local.savedAt });
+    lc.textContent = digestLine({ runs: local.runs, playtime: local.playtime, at: local.savedAt });
     var hint = document.getElementById('ccHint');
     var btnLocal = document.getElementById('ccUseLocal');
     var btnCloud = document.getElementById('ccUseCloud');
@@ -805,37 +887,39 @@
       var node = document.getElementById('ccCloud');
       if (!node) return;                   /* 异步回来时面板已被关掉 */
       if (!cloud.ok) {
-        node.textContent = cloud.reason === 'none' ? '还没有云存档' : '读取失败';
+        node.textContent = cloud.reason === 'none'
+          ? tr('save.cloud.none', null, '还没有云存档')
+          : tr('save.cloud.read_failed.short', null, '读取失败');
         /* 云端没档时「用本地覆盖云端」仍然有意义 —— 那等于 createArchive 建第一份。
          * 只有「用云端覆盖本地」必须禁用（没东西可下）。 */
         if (btnCloud) btnCloud.disabled = true;
         if (hint) hint.textContent = cloud.reason === 'none'
-          ? '上传一次即可创建云存档，之后约每 75 秒自动备份。' : '';
+          ? tr('save.cloud.create_hint', { backupIntervalSeconds: AUTO_GAP_MS / 1000 }, '上传一次即可创建云存档，之后约每 {backupIntervalSeconds} 秒自动备份。') : '';
         return;
       }
       node.textContent = digestLine({
-        cycle: cloud.cycle, playtime: cloud.playtime,
+        runs: cloud.runs, playtime: cloud.playtime,
         at: cloud.modifiedTime ? cloud.modifiedTime * 1000 : 0
-      }, '备份');
+      }, true);
       if (btnLocal) btnLocal.disabled = false;
       if (btnCloud) btnCloud.disabled = false;
       if (!hint) return;
       var diff = cloud.playtime - local.playtime;
       /* 阈值 60 秒：小于这个数就是同一份档的正常 tick 漂移，提示「不一致」只会让人困惑。 */
       if (Math.abs(diff) <= 60) {
-        hint.textContent = '两边进度基本一致。';
+        hint.textContent = tr('save.cloud.compare.equal', null, '两边进度基本一致。');
         hint.className = 'cc-hint';
       } else if (diff > 0) {
-        hint.textContent = '云端比本地多 ' + playtimeText(diff) + '（本地这份更旧）';
+        hint.textContent = tr('save.cloud.compare.cloud_ahead', { duration: playtimeText(diff) }, '云端比本地多 {duration}（本地这份更旧）');
         hint.className = 'cc-hint warn';
       } else {
-        hint.textContent = '本地比云端多 ' + playtimeText(-diff) + '（云端那份更旧）';
+        hint.textContent = tr('save.cloud.compare.local_ahead', { duration: playtimeText(-diff) }, '本地比云端多 {duration}（云端那份更旧）');
         hint.className = 'cc-hint warn';
       }
       /* 本机没有本地进度（刚重装 / 换机 / 被清缓存）时，把云档带回的上一会话诊断亮出来：
        * 这是丢档现场唯一还能自证的线索，也是让玩家能一键复制发给我们。 */
       if (hint && cloud.diag && !local.savedAt && !local.playtime) {
-        hint.textContent = '云端带回上次诊断：' + cloud.diag;
+        hint.textContent = tr('save.cloud.diag.returned', { diagnostics: cloud.diag }, '云端带回上次诊断：{diagnostics}');
         hint.className = 'cc-hint warn';
       }
     });
@@ -846,11 +930,11 @@
     if (useLocal) useLocal.onclick = function () {
       /* 手动上传走 pushCloud(false)：会绕开「不许倒退」守卫（那是给自动备份的），
        * 但仍然受 70 秒平台频控约束 —— 被挡时把平台原话交给玩家看。 */
-      setBusy(true); setStatus('正在用本地存档覆盖云端…');
+      setBusy(true); setStatus(tr('save.cloud.uploading_local', null, '正在用本地存档覆盖云端…'));
       pushCloud(false).then(function () {
-        setBusy(false); setStatus('云端已更新为本地进度。');
+        setBusy(false); setStatus(tr('save.cloud.uploaded_local', null, '云端已更新为本地进度。'));
         fillCloudCompare();
-      }, function (e) { setBusy(false); setStatus('覆盖失败：' + errorText(e), true); });
+      }, function (e) { setBusy(false); setStatus(tr('save.cloud.upload_failed', { error: errorText(e) }, '覆盖失败：{error}'), true); });
     };
     if (useCloud) useCloud.onclick = function () {
       if (busy) return;
@@ -860,21 +944,38 @@
 
   function downloadCloud() {
     var objects;
-    try { objects = cloudObjects(); } catch (e) { setStatus(e.message || String(e), true); return; }
-    setBusy(true); setStatus('正在查找 TapTap 云存档…');
+    try { objects = cloudObjects(); } catch (e) {
+      setStatus(tr('save.cloud.read_failed', { error: errorText(e) }, '云存档读取失败：{error}'), true);
+      return;
+    }
+    setBusy(true); setStatus(tr('save.cloud.searching', null, '正在查找 TapTap 云存档…'));
     findOurArchive(objects.cloud).then(function (archive) {
-      if (!archive) throw new Error('云端没有找到游戏存档；先在 TapTap 小游戏里上传一次即可创建。');
-      if (!archive.uuid || !archive.fileId) throw new Error('云存档列表缺少 uuid 或 fileId，无法下载。');
+      if (!archive) {
+        setBusy(false);
+        setStatus(tr('save.cloud.archive.not_found', null,
+          '云端没有找到游戏存档；先在 TapTap 小游戏里上传一次即可创建。'), true);
+        return;
+      }
+      if (!archive.uuid || !archive.fileId) {
+        setBusy(false);
+        setStatus(tr('save.cloud.archive.invalid_id', null,
+          '云存档列表缺少 uuid 或 fileId，无法下载。'), true);
+        return;
+      }
       pendingCloudArchive = { archive: archive, objects: objects };
       setBusy(false);
       var box = document.getElementById('modalBox');
-      box.innerHTML = '<h3>下载并覆盖本地？</h3>' +
-        '<div class="save-manager-warning">将从 TapTap 云端下载存档并覆盖这台设备的本地进度。导入前会先备份当前本地存档。此云存档属于当前 TapTap 账号。</div>' +
-        '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="cloudDownloadCancel">取消</button><button type="button" class="btn buy" id="cloudDownloadConfirm">备份并恢复</button></div>';
+      box.innerHTML = '<h3>' + tr('save.cloud.download.title', null, '下载并覆盖本地？') + '</h3>' +
+        '<div class="save-manager-warning">' + tr('save.cloud.restore.confirm.description', null,
+          '将从 TapTap 云端下载存档并覆盖这台设备的本地进度。导入前会先备份当前本地存档。此云存档属于当前 TapTap 账号。') + '</div>' +
+        '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="cloudDownloadCancel">'
+        + tr('save.action.cancel', null, '取消') + '</button><button type="button" class="btn buy" id="cloudDownloadConfirm">'
+        + tr('save.cloud.restore.action', null, '备份并恢复') + '</button></div>';
       document.getElementById('cloudDownloadCancel').onclick = function () { pendingCloudArchive = null; openPanel(); };
       document.getElementById('cloudDownloadConfirm').onclick = restoreCloud;
     }).catch(function (e) {
-      setBusy(false); setStatus('云存档读取失败：' + errorText(e), true);
+      setBusy(false);
+      setStatus(tr('save.cloud.read_failed', { error: errorText(e) }, '云存档读取失败：{error}'), true);
     });
   }
   /* 覆盖前先把本机这份原样抄一份（面板上承诺过「导入前会先备份当前本地存档」）。
@@ -901,11 +1002,13 @@
     if (!pendingCloudArchive) return;
     pendingCloudArchive = null;
     setBusy(true);
-    setStatus('正在下载 TapTap 云存档…');
+    setStatus(tr('save.cloud.download.progress', null, '正在下载 TapTap 云存档…'));
     restoreFromCloudIfAny(function (cloud) {
       if (!cloud || cloud.status !== 'found' || !cloud.bundle) {
         setBusy(false);
-        setStatus('云存档恢复失败：' + ((cloud && cloud.error) || '没有可用的云存档'), true);
+        setStatus(tr('save.cloud.restore.failed', {
+          error: (cloud && cloud.error) || tr('save.cloud.download.no_save', null, '没有可用的云存档')
+        }, '云存档恢复失败：{error}'), true);
         return;
       }
       backupLocalNow();
@@ -913,24 +1016,33 @@
       try { ok = !!(SB.game && SB.game.adoptBundle && SB.game.adoptBundle(cloud.bundle)); }
       catch (e) {
         setBusy(false);
-        setStatus('云存档覆盖失败：' + (e && e.message ? e.message : e), true);
+        setStatus(tr('save.cloud.restore.failed', {
+          error: e && e.message ? e.message : String(e)
+        }, '云存档覆盖失败：{error}'), true);
         return;
       }
       setBusy(false);
-      if (!ok) { setStatus('云存档覆盖失败：存档不完整，本机进度未改动。', true); return; }
+      if (!ok) {
+        setStatus(tr('save.cloud.restore.incomplete', null,
+          '云存档覆盖失败：存档不完整，本机进度未改动。'), true);
+        return;
+      }
       closePanel();
-      try { if (SB.game && SB.game.log) SB.game.log('已用 TapTap 云存档覆盖本机进度。'); } catch (e) {}
+      try {
+        if (SB.game && SB.game.log)
+          SB.game.log(tr('save.cloud.restore.success', null, '已用 TapTap 云存档覆盖本机进度。'));
+      } catch (e) {}
     });
   }
   function showLoadProblem(problems) {
     openPanel();
     var list = [];
-    if (problems && problems.meta) list.push('跨周目存档读取失败：' + (problems.meta.message || '格式无效'));
-    if (problems && problems.run) list.push('本周目存档读取失败：' + (problems.run.message || '格式无效'));
+    if (problems && problems.meta) list.push(tr('save.load.error.meta', { error: problems.meta.message || '格式无效' }, '跨周目存档读取失败：{error}'));
+    if (problems && problems.run) list.push(tr('save.load.error.current_run', { error: problems.run.message || '格式无效' }, '本周目存档读取失败：{error}'));
     var node = document.getElementById('saveManagerStatus');
     if (node) {
-      node.textContent = '为保护进度，游戏已暂停且没有创建新档。原始存档已尽力备份到本机；请先导出文件或存档码，再尝试导入备份。' +
-        (list.length ? ' 详情：' + list.join('；') : '');
+      var message = tr('save.load.protected', null, '为保护进度，游戏已暂停且没有创建新档。原始存档已尽力备份到本机；请先导出文件或存档码，再尝试导入备份。');
+      node.textContent = message + (list.length ? ' ' + tr('save.load.error.details', { details: list.join('；') }, '详情：{details}') : '');
       node.classList.add('error');
     }
   }
@@ -938,11 +1050,13 @@
     openPanel();
     var node = document.getElementById('saveManagerStatus');
     if (!node) return;
-    node.textContent = '为保护旧档，已暂停开新局。' + message;
+    var isEnglish = !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+    node.textContent = tr('save.load.recovery.paused', null, '为保护旧档，已暂停开新局。')
+      + (isEnglish || !message ? '' : message);
     node.classList.add('error');
     var retry = document.createElement('button');
     retry.type = 'button'; retry.className = 'btn';
-    retry.textContent = '重新检查存档';
+    retry.textContent = tr('save.action.retry_load', null, '重新检查存档');
     retry.onclick = function () { root.location.reload(); };
     node.appendChild(retry);
     /* 逃生出口（2026-10-29）：暂停开新局是为了**不覆盖旧档**，不是要把玩家永久关在
@@ -952,17 +1066,17 @@
      *     暂停期间本机三处都不会被写，所以此刻开新局覆盖不到任何「我们还没看到的」档。 */
     var fresh = document.createElement('button');
     fresh.type = 'button'; fresh.className = 'btn';
-    fresh.textContent = '确认没有旧档，开新局';
+    fresh.textContent = tr('save.action.confirm_fresh_start', null, '确认没有旧档，开新局');
     var armed = false;
     fresh.onclick = function () {
       if (!armed) {
         armed = true;
-        fresh.textContent = '再点一次确认（会以新周目开始，旧档将不再尝试找回）';
+        fresh.textContent = tr('save.action.confirm_fresh_start.armed', null, '再点一次确认（会以新周目开始，旧档将不再尝试找回）');
         return;
       }
       var started = false;
       try { started = !!(SB.game && SB.game.forceFreshBoot && SB.game.forceFreshBoot()); } catch (e) { started = false; }
-      if (!started) { fresh.textContent = '开新局失败，请重新启动游戏'; return; }
+      if (!started) { fresh.textContent = tr('save.action.fresh_start_failed', null, '开新局失败，请重新启动游戏'); return; }
       closePanel();
     };
     node.appendChild(fresh);
@@ -1046,12 +1160,12 @@
     var settingsWipe = document.getElementById('btnSettingsWipe');
     if (settingsWipe) settingsWipe.onclick = function () {
       SB.ui.render.confirmPanel({
-        title: '清空存档？',
-        body: '<div class="warnbox">这会删掉<b>全部跨周目进度</b>：轮回点、破层层级、已购增益、科技记录，以及当前这局的一切。</div>' +
-              '<div class="note">页面会回到第 1 周目的全新状态。此操作不可撤销。</div>',
+        title: tr('save.clear.confirm.title', null, '清空存档？'),
+        body: '<div class="warnbox">' + escapeHtml(tr('save.clear.confirm.warning', null, '这会删掉全部跨周目进度：轮回点、破层层级、已购增益、科技记录，以及当前这局的一切。')) + '</div>' +
+              '<div class="note">' + escapeHtml(tr('save.clear.confirm.irreversible', { cycleNumber: 1 }, '页面会回到第 {cycleNumber} 周目的全新状态。此操作不可撤销。')) + '</div>',
         danger: true,
-        requireCheck: '我明白这会抹掉全部轮回点与破层层级，且无法撤销',
-        ok: '清空存档',
+        requireCheck: tr('save.clear.confirm.checkbox', null, '我明白这会抹掉全部轮回点与破层层级，且无法撤销'),
+        ok: tr('save.clear.confirm.action', null, '清空存档'),
         onOk: function () { SB.game.wipeSave(); }
       });
     };

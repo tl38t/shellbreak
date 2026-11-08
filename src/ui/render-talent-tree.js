@@ -10,6 +10,17 @@
     });
   }
 
+  function formatFallback(value, params) {
+    return String(value == null ? '' : value).replace(/\{([A-Za-z0-9_]+)\}/g, function (match, name) {
+      return params && Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match;
+    });
+  }
+
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : formatFallback(fallback, params);
+  }
+
   function treeMarkup(tree) {
     var nodes = tree.nodes || [], byId = Object.create(null), children = Object.create(null);
     var roots = [], leavesById = Object.create(null), positions = Object.create(null), i;
@@ -115,7 +126,9 @@
       totalRanks += Number(nodes[i].rank) || 0;
       if ((Number(nodes[i].rank) || 0) > 0) active++;
     }
-    html += active + ' / ' + nodes.length + ' 已点亮 · ' + totalRanks + ' 阶</span></header>' +
+    html += escapeHtml(tr('ui.talent_tree.progress.summary', {
+      activatedCount: active, nodeCount: nodes.length, totalLevels: totalRanks
+    }, '{activatedCount}/{nodeCount} 个节点已点亮 · 累计强化 {totalLevels} 阶')) + '</span></header>' +
       '<div class="talent-map-scroll"' + (tree.scrollKey ? ' data-talent-scroll="' + escapeHtml(tree.scrollKey) + '"' : '') + '><div class="talent-map" style="--talent-leaves:' + totalLeaves + ';height:' + mapHeight + 'px">' + svg;
     for (i = 0; i < nodes.length; i++) {
       var n = nodes[i], pos = positions[n.id] || { x: 500, depth: 0 };
@@ -123,14 +136,18 @@
       html += '<article class="talent-slot ' + escapeHtml(n.state || 'is-growing') + '" style="left:' + left + '%;top:' + top + 'px;width:' +
         (100 / totalLeaves).toFixed(4) + '%" data-talent-node="' + escapeHtml(n.id) + '">' +
         '<button type="button" class="talent-node-button" ' + (n.attr || '') + (n.disabled ? ' disabled' : '') +
-        ' title="' + escapeHtml(n.title || n.desc || '') + '" aria-label="' + escapeHtml(n.name + '，' + (n.status || '') + '，' + (n.cost || '')) + '">' +
+        ' title="' + escapeHtml(n.title || n.desc || '') + '" aria-label="' + escapeHtml(tr('ui.talent_tree.node.aria_label', {
+          talentName: n.name, status: n.status || '', cost: n.cost || ''
+        }, '{talentName}，{status}，{cost}')) + '">' +
         (n.iconSrc
           ? '<img class="talent-node-icon" src="' + escapeHtml(n.iconSrc) + '" alt="" aria-hidden="true" decoding="async">'
           : '<span class="talent-node-glyph" aria-hidden="true">' + escapeHtml(n.glyph || '✦') + '</span>') +
         '<span class="talent-node-rank">' + escapeHtml(n.rankText || '') + '</span></button>' +
         '<b class="talent-node-name" title="' + escapeHtml(n.name) + '">' + escapeHtml(n.name) + '</b>' +
         '<small class="talent-node-desc" title="' + escapeHtml(n.desc) + '">' + escapeHtml(n.desc) + '</small>' +
-        (n.nestName ? '<small class="talent-node-prereq">前置：' + escapeHtml(n.nestName) + '</small>' : '') +
+        (n.nestName ? '<small class="talent-node-prereq">' + escapeHtml(tr('ui.talent_tree.node.prerequisite', {
+          prerequisiteNames: n.nestName
+        }, '前置：{prerequisiteNames}')) + '</small>' : '') +
         '<span class="talent-node-state">' + escapeHtml(n.status || '') + '</span>' +
         '<span class="talent-node-cost">' + escapeHtml(n.cost || '') + '</span>' +
         (n.extraHtml || '') + '</article>';

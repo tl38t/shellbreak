@@ -24,6 +24,24 @@
    *  ⚠️ 这类「系数加了却没接线」既不报错也不报警，只会静默返回 0 ⇒ 由 e2e 断言兜（见 e2e 石梁四条）。 */
   var BUILDINGS = SB.BUILDINGS || [];
 
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function infoParts() {
+    return SB.ui && SB.ui.renderParts && SB.ui.renderParts.info || null;
+  }
+  function localizedItemName(type, item) {
+    var info = infoParts();
+    if (info && info.localizedWorkshopItemName) return info.localizedWorkshopItemName(type, item.id, item.name);
+    return SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(item.id, item.name) : item.name;
+  }
+  function localizedItemDescription(type, item) {
+    var info = infoParts();
+    if (info && info.localizedWorkshopItemDescription) return info.localizedWorkshopItemDescription(type, item);
+    return item.desc || '';
+  }
+
   function tools() { return SB.TOOLS || []; }
   function byId(id) {
     var L = tools();
@@ -279,7 +297,14 @@
      *    条件的读端 ⇒ 造 100 条石梁会点亮「累计产出 200」的条件，不报错，就是错。
      *     ⇒ 一个量只该有一个写点，别在调用方再补一笔。 */
     SB.economy.addRes(s, c.res, gain);
-    if (emit) emit('造出 ' + SB.economy.fmtAmt(gain) + ' ' + c.name + '（用了 ' + amt + ' 份材料）。');
+    if (emit) {
+      var outputName = SB.i18n && SB.i18n.resourceName
+        ? SB.i18n.resourceName(c.res, c.name) : c.name;
+      emit(tr('workshop.craft.success_log', {
+        craftedOutput: SB.economy.fmtAmt(gain) + ' ' + outputName,
+        materialAmount: amt
+      }, '造出 ' + SB.economy.fmtAmt(gain) + ' ' + outputName + '（用了 ' + amt + ' 份材料）。'));
+    }
     return gain;
   }
 
@@ -569,7 +594,12 @@
     for (k in cost) s.res[k] -= cost[k];
     s.upgrades = s.upgrades || {};
     s.upgrades[id] = true;
-    if (emit) emit('装上了「' + u.name + '」：' + u.desc + '。');
+    if (emit) {
+      var upgradeName = localizedItemName('upgrade', u);
+      var upgradeDescription = localizedItemDescription('upgrade', u);
+      emit(tr('workshop.upgrade.purchase_log', { upgradeName: upgradeName, description: upgradeDescription },
+        '装上了「' + upgradeName + '」：' + upgradeDescription + '。'));
+    }
     return true;
   }
   /* 升级项页签「有可购买项」红点（2026-10-21 用户）：遍历职业工具 + 工坊升级，
@@ -683,9 +713,17 @@
     var grant = SB.wonder && SB.wonder.oneShot ? SB.wonder.oneShot(s) : null;
     if (grant) {
       for (k in grant) SB.economy.addRes(s, k, grant[k]);
-      if (emit) emit('一次性获得 ' + grant.science + ' 科技点。');
+      if (emit) emit(tr('workshop.wonder.one_time_reward', { amount: grant.science }, '一次性获得 ' + grant.science + ' 科技点。'));
     }
-    if (emit) emit('建成了「' + SB.wonder.displayName(s, id) + '」：' + SB.wonder.displayDesc(s, id));
+    if (emit) {
+      var info = infoParts();
+      var wonderName = info && info.localizedWonderName
+        ? info.localizedWonderName(s, id, SB.wonder.displayName(s, id)) : SB.wonder.displayName(s, id);
+      var wonderDescription = info && info.localizedWonderDescription
+        ? info.localizedWonderDescription(s, id, SB.wonder.displayDesc(s, id)) : SB.wonder.displayDesc(s, id);
+      emit(tr('workshop.wonder.build_log', { wonderName: wonderName, description: wonderDescription },
+        '建成了「' + wonderName + '」：' + wonderDescription));
+    }
     return true;
   }
 
@@ -740,7 +778,12 @@
     for (k in t.cost) s.res[k] -= t.cost[k];
     s.tools = s.tools || {};
     s.tools[id] = true;
-    if (emit) emit('买下了「' + t.name + '」：' + t.desc + '。');
+    if (emit) {
+      var toolName = localizedItemName('tool', t);
+      var toolDescription = localizedItemDescription('tool', t);
+      emit(tr('workshop.tool.purchase_log', { toolName: toolName, description: toolDescription },
+        '买下了「' + toolName + '」：' + toolDescription + '。'));
+    }
     return true;
   }
 

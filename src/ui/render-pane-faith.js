@@ -10,6 +10,15 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+  function formatFallback(value, params) {
+    return String(value == null ? '' : value).replace(/\{([^{}]+)\}/g, function (match, name) {
+      return params && params[name] !== undefined && params[name] !== null ? String(params[name]) : match;
+    });
+  }
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || formatFallback(fallback, params);
+  }
   function faithTenets(s) {
     var F = SB.faith;
     if (!F) return '';
@@ -86,36 +95,71 @@
     var rn = (SB.civic && SB.civic.faithDisplayName) ? SB.civic.faithDisplayName(s) : ((s.religionName || '').trim());
     var rnLocked = !!(SB.civic && SB.civic.faithNameLocked && SB.civic.faithNameLocked(s));
     /* 读数三件同框才叫「一条轴」：存量 / 每秒 / 它换来的全局加成。 */
-    h += '<div class="row faith-resource-row' + (rnLocked ? ' is-void-anchored' : '') + '"><div><div class="nm">' + rn + ' <b>' + SB.economy.fmtAmt(f) + '</b>' +
-      (fr > 0 ? '<i class="rate up">+' + fr.toFixed(3) + '/s</i>' : '') + '</div>' +
-      '<div class="ds">每个族民每秒产 ' + SB.CFG.FAITH_PER_POP + ' 信仰，再乘神庙与政策的乘区' +
-      '（现值 ×' + fm.toFixed(2) + '）。信仰不占仓储，也不会被花掉。</div></div></div>';
-    h += '<div class="row"><div><div class="nm">全产加成 <b>+' +
-      ((fam - 1) * 100).toFixed(0) + '%</b> <span class="tag">按存量</span></div>' +
-      '<div class="ds">按信仰<b>存量</b>的对数刻度给：10 → +1%、100 → +2%、1000 → +3%……' +
-      '每高一个数量级多 1%。这条加成推的是珊瑚 / 石头 / 藻食等全部资源，' +
-      '但<b>不推信仰自己</b>（否则会自激）。</div></div></div>';
-    h += '<div class="row faith-state-row' + (rnLocked ? ' is-void-anchored' : '') + '"><div><div class="nm">你的信仰' +
-      (rnLocked ? ' <span class="faith-void-seal">◈ 虚境锚定</span>' : '') + '</div>' +
-      '<div class="ds">' + (rn ? '当前名为「<b>' + rn + '</b>」，' : '尚未命名，') +
-      (rnLocked ? '已由<b>虚境信仰</b>永恒锚定，不可更改。'
-        : '名字就写在上面那个框里，改名随时可改、无消耗。它会显示在顶栏的信仰资源格上。') +
-      '</div></div></div>';
+    var faithName = tr('content.faith.name', null, '信仰');
+    var faithRateText = fr > 0 ? '<i class="rate up">' + escapeHtml(tr('ui.faith.panel.current_rate', {
+      faithPerSecond: fr.toFixed(3)
+    }, '+{faithPerSecond}/秒')) + '</i>' : '';
+    var generationText = tr('ui.faith.panel.generation_explanation', {
+      faithPerPerson: SB.CFG.FAITH_PER_POP,
+      currentMultiplier: fm.toFixed(2)
+    }, '每个族民每秒产出{faithPerPerson}信仰，再乘以神庙与政策加成（当前乘数：×{currentMultiplier}）。信仰不占仓储，也不会被消耗。');
+    h += '<div class="row faith-resource-row' + (rnLocked ? ' is-void-anchored' : '') + '"><div><div class="nm">' + escapeHtml(rn || faithName) + ' <b>' + SB.economy.fmtAmt(f) + '</b>' +
+      faithRateText + '</div><div class="ds">' + escapeHtml(generationText) + '</div></div></div>';
+
+    var bonusExamples = [];
+    for (var order = 1; order <= 3; order++) {
+      var stock = Math.pow(10, order);
+      var stockMultiplier = SB.economy.faithAllMul({ res: { faith: stock } });
+      bonusExamples.push(new Intl.NumberFormat(SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN').format(stock) +
+        ' → +' + ((stockMultiplier - 1) * 100).toFixed(0) + '%');
+    }
+    var bonusPerMagnitude = ((SB.economy.faithAllMul({ res: { faith: 100 } }) - SB.economy.faithAllMul({ res: { faith: 10 } })) * 100).toFixed(0) + '%';
+    var affectedResources = [
+      tr('content.coral.name', null, '珊瑚'),
+      tr('content.stone.name', null, '石头'),
+      tr('resource.kelp.name', null, '藻食')
+    ].join(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' ? ', ' : ' / ');
+    var bonusText = tr('ui.faith.global_bonus.explanation', {
+      bonusExamples: bonusExamples.join(' · '),
+      bonusPerMagnitude: bonusPerMagnitude,
+      affectedResources: affectedResources
+    }, '按信仰存量的数量级提供全产出加成：{bonusExamples}。每增加一个数量级，加成提高{bonusPerMagnitude}。此加成影响{affectedResources}等全部资源，但不影响信仰本身（避免正反馈）。');
+    h += '<div class="row"><div><div class="nm">' + escapeHtml(tr('ui.faith.global_bonus.title', null, '全产加成')) + ' <b>+' +
+      ((fam - 1) * 100).toFixed(0) + '%</b> <span class="tag">' + escapeHtml(tr('ui.faith.global_bonus.basis_tag', null, '按存量')) + '</span></div>' +
+      '<div class="ds">' + escapeHtml(bonusText) + '</div></div></div>';
+
+    var nameStatusKey = rn
+      ? (rnLocked ? 'ui.faith.name.named_locked' : 'ui.faith.name.named_editable')
+      : (rnLocked ? 'ui.faith.name.empty_locked' : 'ui.faith.name.empty_editable');
+    var nameStatusParams = rn ? { playerFaithName: '<b>' + escapeHtml(rn) + '</b>' } : null;
+    var nameStatusFallback = rn
+      ? (rnLocked
+        ? '当前 Faith 名称：{playerFaithName}。虚境信仰已将名称永久锚定，不可更改。'
+        : '当前 Faith 名称：{playerFaithName}。可在上方输入框随时免费改名；此名称会显示在顶栏信仰资源格。')
+      : (rnLocked
+        ? '尚未命名。虚境信仰已将名称永久锚定，不可更改。'
+        : '尚未命名。请在上方输入框设定名称；之后可随时免费修改，此名称会显示在顶栏信仰资源格。');
+    h += '<div class="row faith-state-row' + (rnLocked ? ' is-void-anchored' : '') + '"><div><div class="nm">' + escapeHtml(tr('ui.faith.panel.your_faith.label', null, '你的信仰')) +
+      (rnLocked ? ' <span class="faith-void-seal">' + escapeHtml(tr('ui.faith.name.anchor_badge', null, '◈ 虚境锚定')) + '</span>' : '') + '</div>' +
+      '<div class="ds">' + tr(nameStatusKey, nameStatusParams, nameStatusFallback) + '</div></div></div>';
     /* 来源与出口：说清信仰从哪来、通往哪里（轮回系统的门就是「建立宗教」）。 */
-    h += '<div class="row"><div><div class="nm">信仰从哪来</div>' +
-      '<div class="ds">人口是它唯一的来源（每人 ' + SB.CFG.FAITH_PER_POP + '/s）——' +
-      '养的人越多、攒得越快；神庙每级 +' +
-      (((SB.BLD && SB.BLD.templeFaithRatio) || 0) * 100).toFixed(0) +
-      '% 是它唯一的建筑乘区。</div></div></div>';
+    h += '<div class="row"><div><div class="nm">' + escapeHtml(tr('ui.faith.source.section_title', null, '信仰从哪来')) + '</div>' +
+      '<div class="ds">' + escapeHtml(tr('ui.faith.source.population_temple', {
+        faithPerPerson: SB.CFG.FAITH_PER_POP,
+        templeBonusPerLevel: (((SB.BLD && SB.BLD.templeFaithRatio) || 0) * 100).toFixed(0)
+      }, '人口是信仰的唯一来源（每人每秒{faithPerPerson}）。人口越多，信仰积累越快。神庙每级使信仰产出增加{templeBonusPerLevel}%；这是唯一的建筑加成。')) + '</div></div></div>';
     h += faithTenets(s);
     return h;
   }
   function paneFaithLocked() {
-    return '<div class="row"><div><div class="nm">信仰页未开启</div>' +
-      '<div class="ds">信仰是第三条文明轴：族民越多、信仰攒得越快，' +
-      '存量按数量级给你全局产出加成。</div></div></div>' +
-      '<div class="note">完成「神学」之后这一页才打开——神学是纪元二的关键节点之一。' +
-      '在那之前，顶栏也不会显示信仰这一格。</div>';
+    var theologyName = tr('civic.data.theology.name', null, '神学');
+    var theologyEra = tr('research.era.name.fallback', { eraId: 2 }, '纪元 {eraId}');
+    return '<div class="row"><div><div class="nm">' + escapeHtml(tr('ui.faith.locked.title', null, '信仰页未开启')) + '</div>' +
+      '<div class="ds">' + escapeHtml(tr('ui.faith.locked.overview', null, '信仰是第三条文明发展支柱：人口越多，信仰积累越快；信仰存量越高，全产加成越强。')) + '</div></div></div>' +
+      '<div class="note">' + escapeHtml(tr('ui.faith.locked.unlock_note', {
+        unlockCivicName: theologyName,
+        unlockEra: theologyEra
+      }, '完成「{unlockCivicName}」后开启此页；它是{unlockEra}的关键节点之一。在那之前，信仰也不会显示在顶栏。')) + '</div>';
   }
 
   parts.paneFaith = paneFaith;

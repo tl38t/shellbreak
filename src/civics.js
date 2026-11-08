@@ -34,6 +34,44 @@
   var GOVS = civicData.GOVS || [];
   var POLICIES = civicData.POLICIES || [];
 
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function trComplete(key, params, fallback) {
+    var value = tr(key, params, '');
+    return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : (fallback || '');
+  }
+  function civicName(civic) {
+    return civic ? tr('civic.data.' + civic.id + '.name', null, civic.name) : '';
+  }
+  function civicDescription(civic) {
+    if (!civic) return '';
+    var key = 'civic.data.' + civic.id + '.description';
+    var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
+    var params = info && info.englishTemplateParams ? info.englishTemplateParams(key, civic.desc) : null;
+    return trComplete(key, params, civic.desc);
+  }
+  function policyName(policy) {
+    if (!policy) return '';
+    var research = SB.ui && SB.ui.renderParts && SB.ui.renderParts.research;
+    if (research && research.policyName) return research.policyName(policy);
+    return policy.name || '';
+  }
+  function governmentSlug(id) {
+    return ({ tribe: 'chiefdom', theo_state: 'theocracy', theocracy: 'theocratic_government',
+      star_sea_coop: 'starsea_cooperative' })[id] || id;
+  }
+  function governmentName(government) {
+    return government ? tr('government.data.' + governmentSlug(government.id) + '.name', null, government.name) : '';
+  }
+  function governmentTitleSuffix(id) {
+    var suffix = { theo_state: 'theocracy', egalitarianism: 'alliance', federalism: 'federation',
+      interstellar_federation: 'interstellar_federation', star_sea_coop: 'starsea_collective',
+      universal_church: 'universal_church' }[id];
+    return suffix ? tr('civic.government.title.' + suffix, null, GOV_TITLE_SUFFIX[id] || '') : '';
+  }
+
   function byId(id) { for (var i = 0; i < CIVICS.length; i++) if (CIVICS[i].id === id) return CIVICS[i]; return null; }
   function govById(id) { for (var i = 0; i < GOVS.length; i++) if (GOVS[i].id === id) return GOVS[i]; return null; }
   var GOV_PASSIVE_CARD_PREFIX = 'card_gov_passive_';
@@ -298,7 +336,9 @@
   function templeFaithMul(s) { return cardFieldMul(s, 'templeFaithMul'); }
   /* 博物馆建筑：官员（书手）市政点产出 +20%/级（museumCivicMul）。economy.cultureRate 的 scribe 段读。
    * ERA6：① 博物学完成后，艺术品效果随轮回 +10%/cycle（落点同为博物馆的市政加成，语义=博物馆即艺术展示口）；
-   *   ② 博物馆管理卡装着时 effect.museumMul(2) 让博物馆效果翻倍。两者乘法叠加。 */
+   *   ② 博物馆管理卡装着时 effect.museumMul(2) 让博物馆效果翻倍。两者乘法叠加。
+   * ⚠️ cycle 自 2026-11-06 起只数「合格轮回」（prestige.doBreak 过资格门），
+   *    「重开本周目」不再推进它 ⇒ 这条 +10%/cycle 不能再被白刷。 */
   function museumCivicMul(s) {
     var museumLv = (s.lvl && s.lvl.museum) || 0;
     var museumRatio = (SB.BLD && SB.BLD.museumCivRatio) || 0.20;
@@ -966,7 +1006,9 @@
       if (!(s.civics[c.id] || boostMet(s, c))) continue;   // ⚠️ 收市政对象，见 boostMet 那条注
       s.civShown[c.id] = 1;
       n++;
-      if (emit && (c.era || 1) <= _visEra) emit('市政已揭示：' + c.name + '（' + c.desc + '）');
+      if (emit && (c.era || 1) <= _visEra) emit(trComplete('civic.reveal.log', {
+        civicName: civicName(c), description: civicDescription(c)
+      }, '市政已揭示：' + c.name + '（' + c.desc + '）'));
     }
     return n;
   }
@@ -1039,12 +1081,16 @@
      * ⚠️ 只数 CIVICS 表（69）——GOVS/POLICIES 是市政的配套分支/政策卡，不计入。 */
     if (SB.achv && SB.achv.checkCivicAll && SB.game && SB.game.meta)
       SB.achv.checkCivicAll(s, SB.game.meta());
-    if (emit) emit('市政完成：' + c.name + '（' + c.desc + '）');
+    if (emit) emit(trComplete('civic.complete.log', {
+      civicName: civicName(c), description: civicDescription(c)
+    }, '市政完成：' + c.name + '（' + c.desc + '）'));
     /* 2026-10-14：每完成一个市政，给 1 次**免费卸下机会**（可累积、无上限）。
      * 动机：让玩家有节奏地调整政策卡，不被「卸下收费」门槛卡死。
      * 消耗点在 setCardAt（卸下时优先扣 1 次令牌，令牌用尽再走市政点收费）。 */
     s.cardFreeRemoves = (s.cardFreeRemoves || 0) + 1;
-    if (emit) emit('获得 1 次免费卸下机会（当前共 ' + s.cardFreeRemoves + ' 次）');
+    if (emit) emit(tr('civic.free_card_removal.reward_log', {
+      gainedCount: 1, totalCount: s.cardFreeRemoves
+    }, '获得 1 次免费卸下机会（当前共 ' + s.cardFreeRemoves + ' 次）'));
     /* 政体随《法典》自带。用 s.gov 是否为 null 判「还没采用过」而不是靠 cost 判——
      * 老档读进来时 gov 可能是 null，这条免费路径必须仍然走得到。 */
     if (c.gov && !s.gov
@@ -1065,7 +1111,7 @@
       for (var si = 0; si < s.cards.length; si++) {
         if (s.cards[si] === pp.id) {
           s.cards[si] = null;
-          if (emit) emit('政策卡「' + pp.name + '」已退役。');
+          if (emit) emit(tr('civic.retired_policy.log', { policyName: policyName(pp) }, '政策卡「' + pp.name + '」已退役。'));
         }
       }
       /* ⚠️ 仅第 0 号槽镜像，**勿读**（读→ cardSlotted / cardCraftRatio），2026-10-14 钉 */
@@ -1182,19 +1228,20 @@
   var GOV_TITLE_SUFFIX = { theo_state: '教权国', egalitarianism: '联盟', federalism: '联邦',
     interstellar_federation: '星际联邦', star_sea_coop: '星海共同体', universal_church: '寰宇教会' };
   var GOV_CASTLE_NAME  = { theo_state: '圣座居所', egalitarianism: '人民大厅', federalism: '国会' };
-  function govTitleSuffix(id) { return GOV_TITLE_SUFFIX[id] || ''; }
+  function govTitleSuffix(id) { return governmentTitleSuffix(id); }
   /* 政体面板 / 顶栏用的「显示名」：新政体且已起名 ⇒ 玩家名 + 后缀；否则数据 name。 */
   function govTitleName(s) {
     var g = govById(s.gov);
-    if (!g) return '酋邦制';
-    var suf = GOV_TITLE_SUFFIX[s.gov];
-    if (suf && s.govName && s.govName.trim()) return s.govName.trim() + suf;
-    return g.name;
+    if (!g) return tr('civic.government.name.chiefdom', null, '酋邦制');
+    var suffix = governmentTitleSuffix(s.gov);
+    if (suffix && s.govName && s.govName.trim()) return s.govName.trim() + suffix;
+    return governmentName(g);
   }
   /* 城堡显示名覆盖：当前政体是新政体之一 ⇒ 返回新名（render 在「城堡/议事厅」之外再判这一层）；
    *   其它政体 ⇒ 返回 null，沿用默认的城堡/议事厅。 */
   function castleDisplayName(s) {
-    if (s.gov && GOV_CASTLE_NAME[s.gov]) return GOV_CASTLE_NAME[s.gov];
+    var keys = { theo_state: 'seat_of_holy_see', egalitarianism: 'peoples_hall', federalism: 'parliament' };
+    if (s.gov && keys[s.gov]) return tr('civic.government.castle.' + keys[s.gov], null, GOV_CASTLE_NAME[s.gov]);
     return null;
   }
 
@@ -1358,6 +1405,7 @@
      *   同次新增：卸下时优先消耗 1 次「免费卸下机会」（s.cardFreeRemoves，每完成一个市政 +1、可累积），
      *   令牌用尽才走市政点收费。安装恒 0。 */
     var fee = 0, usedToken = false;
+    var firstFreeEquip = tid !== null && !s.cardEver;
     if (id === null) {                                 // 卸下
       if (s.cardFreeRemoves > 0) { s.cardFreeRemoves -= 1; fee = 0; usedToken = true; }
       else if (s.cardEver) { fee = cardCost(s); }
@@ -1369,16 +1417,27 @@
     s.card = s.cards[0] || null;
     if (emit) {
       if (tid === null) {
-        var rmMsg = usedToken
-          ? '（用掉 1 次免费卸下机会，剩 ' + s.cardFreeRemoves + ' 次）'
-          : (fee > 0 ? '（花 ' + fee + ' 市政点）' : '（免费）');
-        emit('政策卡已拔下' + rmMsg + '。');
+        emit(usedToken
+          ? tr('civic.policy.removal_log.free_token', { usedCount: 1, remaining: s.cardFreeRemoves },
+            '政策卡已拔下（用掉 1 次免费卸下机会，剩 ' + s.cardFreeRemoves + ' 次）。')
+          : fee > 0
+            ? tr('civic.policy.removal_log.paid', { cost: fee }, '政策卡已拔下（花 ' + fee + ' 市政点）。')
+            : tr('civic.policy.removal_log.free', null, '政策卡已拔下（免费）。'));
       } else {
         var _np = policyById(tid);
-        emit('政策卡换为「' + _np.name + '」' +
-          (fee > 0 ? '（花 ' + fee + ' 市政点）' : '（人生第一次装填，免费）'));
+        var _policyName = policyName(_np);
+        emit(fee > 0
+          ? tr('civic.policy.equip_log.paid', { policyName: _policyName, cost: fee },
+            '政策卡换为「' + _policyName + '」（花 ' + fee + ' 市政点）')
+          : firstFreeEquip
+            ? tr('civic.policy.equip_log.first_free', { policyName: _policyName },
+              '政策卡换为「' + _policyName + '」（人生第一次装填，免费）')
+            : tr('civic.policy.equip_log.free', { policyName: _policyName },
+              '政策卡换为「' + _policyName + '」（免费）'));
         /* ERA9 虚境信仰卡：装填即刻给玩家提示——信仰更名「虚境」并永恒锚定。 */
-        if (_np && _np.locked) emit('✦ 虚境信仰已锚定：信仰更名为「虚境」且<b>不可更改/不可卸下</b>，全产加成翻倍永久生效。');
+        if (_np && _np.locked) emit(tr('civic.policy.locked_faith.anchor_log', {
+          productionMultiplier: '2'
+        }, '✦ 虚境信仰已锚定：信仰更名为「虚境」且<b>不可更改/不可卸下</b>，全产加成翻倍永久生效。'));
       }
     }
     return true;
@@ -1436,11 +1495,16 @@
       if (equipped && equipped.govPassive === id) { s.cards[gci] = null; removedGovCard = true; }
     }
     if (removedGovCard) s.card = s.cards[0] || null;
-    if (emit) emit(s.gov === null
-      ? '政体已撤回。'
-      : '政体换为「' + govById(id).name + '」' +
-        (firstFree ? '（该政体首次采用免费）' : fee > 0 ? '（花 ' + fee + ' 市政点）' : '（免费）') +
-        (removedGovCard ? '；同名政体被动卡已免费卸下' : ''));
+    if (emit) {
+      if (s.gov === null) emit(tr('civic.government.withdrawn', null, '政体已撤回。'));
+      else {
+        var govLogSuffix = removedGovCard ? '_card_removed' : '';
+        var govLogKind = firstFree ? 'first_free' : fee > 0 ? 'paid' : 'free';
+        emit(tr('civic.government.change_log.' + govLogKind + govLogSuffix, {
+          governmentName: governmentName(govById(id)), cost: fee
+        }, '政体换为「' + govById(id).name + '」'));
+      }
+    }
     return true;
   }
 
@@ -1522,10 +1586,13 @@
    * ⚠️ 判据用 boostMet 而不是 condShort 是否为 null —— 后者是「现在算一遍」，
    *    鼓舞一旦达成过就永久算数（rate 类条件会回落），与揭示的判据必须同源。 */
   function boostText(s, c) {
-    if (!c.boost) return '无需鼓舞';
-    if (boostMet(s, c)) return '鼓舞已达成：' + boostDesc(c);
+    if (!c.boost) return tr('civic.boost.not_required', null, '无需鼓舞');
+    var conditionDescription = SB.tech && SB.tech.condText ? SB.tech.condText(c.boost) : boostDesc(c);
+    if (boostMet(s, c)) return tr('civic.boost.achieved', { conditionDescription: conditionDescription },
+      '鼓舞已达成：' + conditionDescription);
     var d = condShort(s, c.boost);
-    return d ? '鼓舞：' + d.txt : '鼓舞条件已达成';
+    var progressDescription = d ? d.txt : conditionDescription;
+    return tr('civic.boost.progress', { progressDescription: progressDescription }, '鼓舞：' + progressDescription);
   }
   /* 鼓舞条件的**目标描述**（不含进度），由 cond 反写一句人话。
    * 加一种 cond 类型时这里要同步补，否则达成后会显示成一句干巴巴的兜底。 */
@@ -1563,15 +1630,20 @@
   }
   function buildingName(id) {
     for (var i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++)
-      if (SB.BUILDINGS[i].id === id) return SB.BUILDINGS[i].name;
+      if (SB.BUILDINGS[i].id === id) return SB.i18n && SB.i18n.buildingName
+        ? SB.i18n.buildingName(id, SB.BUILDINGS[i].name) : SB.BUILDINGS[i].name;
     return '未知建筑';
   }
   function techName(id) {
     for (var i = 0; SB.TECHS && i < SB.TECHS.length; i++)
-      if (SB.TECHS[i].id === id) return SB.TECHS[i].name;
+      if (SB.TECHS[i].id === id) return tr('tech.' + id + '.name', null, SB.TECHS[i].name);
     return '未知科技';
   }
-  function resName(id) { return SB.RESS && SB.RESS[id] ? SB.RESS[id].name : '未知资源'; }
+  function resName(id) {
+    if (!SB.RESS || !SB.RESS[id]) return '未知资源';
+    return SB.i18n && SB.i18n.resourceName
+      ? SB.i18n.resourceName(id, SB.RESS[id].name) : SB.RESS[id].name;
+  }
 
   SB.CIVICS = CIVICS;
   SB.GOVS = GOVS;

@@ -25,6 +25,23 @@
   'use strict';
   var SB = root.SB || (root.SB = {});
 
+  function isEnglishLocale() {
+    return !!(SB.i18n && SB.i18n.isEnabled && SB.i18n.isEnabled() &&
+      SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  }
+  function hasEnglishKey(key) {
+    var english = root.ShellbreakLocales && root.ShellbreakLocales['en-US'];
+    return !!(english && typeof english[key] === 'string');
+  }
+  function tr(key, params, fallback) {
+    var value = isEnglishLocale() && hasEnglishKey(key) && SB.i18n.t
+      ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function localizedName(key, fallback) {
+    return tr(key, null, fallback);
+  }
+
   function byId(id) {
     var T = SB.TECHS || [];
     for (var i = 0; i < T.length; i++) if (T[i].id === id) return T[i];
@@ -329,7 +346,8 @@
         return ((s.res.starExplore || 0) / _capPct * 100) >= (c.n || 0);
       }
       /* `cycle` —— **轮回数 ≥ n**（ERA6 考古学 cycle≥3 / 文明构造 cycle≥7 的 boost 条件）。
-       * ⚠️ 读 SB.game.meta().cycle（跨周目累计的全局轮回计数）；未加载 game 时返回 false 静默降级。 */
+       * ⚠️ 读 SB.game.meta().cycle（**合格轮回次数**，2026-11-06 起只在 prestige.doBreak 过
+       *    资格门时 +1；软重置只涨 meta.runs，不再推高这个门槛）；未加载 game 时返回 false 静默降级。 */
       case 'cycle': {
         var _meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
         return !!_meta && (_meta.cycle || 0) >= c.n;
@@ -397,7 +415,7 @@
   }
 
   // 给 UI 用的「还差多少」文案。返回 null 表示已达成。
-  function condShort(s, c) {
+  function condShortZh(s, c) {
     if (!c || c.t === 'default') return null;
     if ((c.t === 'gov' || c.t === 'govWildSlots' || c.t === 'govId')
         && SB.challenges && SB.challenges.bypassGovernmentGates && SB.challenges.bypassGovernmentGates(s))
@@ -582,25 +600,105 @@
     return null;
   }
 
+  function condShort(s, c) {
+    var old = condShortZh(s, c);
+    if (!old || !isEnglishLocale() || !c) return old;
+    var key = '', params = {}, now = old.now, need = old.need, txt;
+    switch (c.t) {
+      case 'built': key = 'built'; params = { buildingName: bName(c.b), current: now, required: need }; break;
+      case 'all': return { txt: tr('tech.condition.progress.all_needed', { conditions: (c.of || []).map(condText).join('; ') }, old.txt), now: now, need: need };
+      case 'geekTerra': return { txt: tr(s.geek && s.geek.terraDone ? 'tech.condition.geek_terra.complete' : 'tech.condition.geek_terra.required', null, old.txt), now: now, need: need };
+      case 'total': key = 'total_buildings'; params = { current: now, required: need }; break;
+      case 'res': key = 'resource_stock'; params = { resourceName: resName(c.r), current: Math.floor(now), required: need }; break;
+      case 'gathered': key = 'resource_gathered'; params = { resourceName: resName(c.r), current: Math.floor(now), required: need }; break;
+      case 'rate': key = 'production_rate'; params = { outputName: rateOutputName(c.r), currentPerSecond: Number(now).toFixed(2), requiredPerSecond: need }; break;
+      case 'pop': key = 'population'; params = { current: now, required: need }; break;
+      case 'job': key = 'job_population'; params = { jobName: jobName(c.j), current: now, required: need }; break;
+      case 'techs': key = 'technology_count'; params = { current: now, required: need }; break;
+      case 'sunSails': key = 'solar_sails'; params = { current: now, required: need }; break;
+      case 'dysonPct': key = 'dyson_sphere'; params = { currentPercent: Number(now).toFixed(1), requiredPercent: need }; break;
+      case 'pollution': key = 'pollution'; params = { current: Math.floor(now), required: need }; break;
+      case 'pollutionDeaths': key = 'pollution_deaths'; params = { current: now, required: need }; break;
+      case 'tech': key = 'technology'; params = { technologyName: techName(c.id) }; break;
+      case 'wonder': key = 'wonder_count'; params = { current: now, required: need }; break;
+      case 'coef': key = 'shellbreak_coefficient'; params = { current: Number(now).toFixed(1), required: need }; break;
+      case 'eraTechs': key = 'era_technology_count'; params = { eraName: eraName(c.era), current: now, required: need }; break;
+      case 'tools': key = 'iron_tools_missing'; params = { missingCount: (c.ids || []).length - now }; break;
+      case 'gov':
+      case 'govWildSlots': {
+        var gov = SB.civic && SB.civic.govById ? SB.civic.govById(s.gov) : null;
+        var slots = slotCount(gov && gov.slots), requiredSlots = c.t === 'gov' ? (c.wild || 3) : (c.n || 7);
+        var active = !!(s.gov && gov && slots >= requiredSlots);
+        txt = active
+          ? tr('tech.condition.progress.government_slots_active', { slotCount: slots }, old.txt)
+          : tr('tech.condition.progress.government_slots_needed', { slotCount: requiredSlots, governmentNames: governmentsWithSlots(requiredSlots) }, old.txt);
+        return { txt: txt, now: slots, need: requiredSlots };
+      }
+      case 'govId': key = 'government_name'; params = { governmentName: governmentName(c.id, c.id) }; break;
+      case 'anyWonders': key = 'any_wonder'; params = { wonderNames: _wNames(c.ids || []) }; break;
+      case 'upgrade': key = 'workshop_upgrade'; params = { upgradeName: upgradeName(c.id) }; break;
+      case 'religion': return { txt: tr(s.religionName ? 'tech.condition.religion.established' : 'tech.condition.religion.required', null, old.txt), now: now, need: need };
+      case 'zoneLvl': key = 'zone_building_levels'; params = { zoneName: zoneName(c.zone), current: now, required: need }; break;
+      case 'lifetimeCulture': key = 'lifetime_civic_points'; params = { current: Math.floor(now), required: need }; break;
+      case 'cap': key = 'resource_capacity'; params = { resourceName: resName(c.r), current: Math.floor(now), required: need }; break;
+      case 'starPct': key = 'star_exploration'; params = { currentPercent: Number(now).toFixed(1), requiredPercent: need }; break;
+      case 'cycle': key = 'prestige_count'; params = { current: now, required: need }; break;
+      case 'oldFaith': key = 'old_faith'; params = { current: Math.floor(now), required: need }; break;
+      case 'wonderEra': key = 'era_wonder_count'; params = { eraName: eraName(c.era), current: now, required: need }; break;
+      case 'lvlSum': key = 'related_building_levels'; params = { buildingName: bName(c.ids[0]), current: now, required: need }; break;
+      case 'shell': key = 'shell_breakthrough'; params = { percent: ((c.n || 0) * 100).toFixed(0) }; break;
+      case 'wonders': key = 'all_wonders'; params = { wonderNames: _wNames(c.ids || []) }; break;
+      case 'civic': key = 'civic'; params = { civicName: civicName(c.id) }; break;
+      case 'card': return { txt: tr(s.cards && s.cards.indexOf(c.id) >= 0 ? 'tech.condition.progress.policy_equipped' : 'tech.condition.progress.policy_needed', { policyName: policyName(c.id) }, old.txt), now: now, need: need };
+      case 'geekEnceladus': return { txt: tr(s.geek && s.geek.enceladusDone ? 'tech.condition.geek_enceladus.complete' : 'tech.condition.geek_enceladus.required', null, old.txt), now: now, need: need };
+      case 'challenge': {
+        var challenge = SB.challenges && SB.challenges.byId ? SB.challenges.byId(c.id) : null;
+        params = { challengeName: challengeName(c.id, challenge && challenge.name || c.id) };
+        return { txt: tr(s.challenge && s.challenge.id === c.id ? 'tech.condition.progress.challenge_entered' : 'tech.condition.progress.challenge_needed', params, old.txt), now: now, need: need };
+      }
+      default: return old;
+    }
+    return { txt: tr('tech.condition.progress.' + key, params, old.txt), now: now, need: need };
+  }
+  function slotCount(slots) {
+    var count = 0;
+    for (var key in (slots || {})) count += Number(slots[key]) || 0;
+    return count;
+  }
+  function governmentsWithSlots(required) {
+    var names = [], list = SB.GOVS || [];
+    for (var i = 0; i < list.length; i++) if (slotCount(list[i].slots) >= required)
+      names.push(governmentName(list[i].id, list[i].name));
+    return names.join(', ');
+  }
+
   function bName(id) {
-    for (var i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++)
-      if (SB.BUILDINGS[i].id === id) return SB.BUILDINGS[i].name;
+    for (var i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++) {
+      if (SB.BUILDINGS[i].id === id) {
+        return SB.i18n && SB.i18n.buildingName
+          ? SB.i18n.buildingName(id, SB.BUILDINGS[i].name)
+          : localizedName('building.' + (id === 'rheamine' ? 'rhea_mine' : snakeCase(id)) + '.name', SB.BUILDINGS[i].name);
+      }
+    }
     return '未知建筑';
   }
   function upgradeName(id) {
     var upgrades = SB.UPGRADES || [];
-    for (var i = 0; i < upgrades.length; i++)
-      if (upgrades[i].id === id) return upgrades[i].name;
+    for (var i = 0; i < upgrades.length; i++) if (upgrades[i].id === id) {
+      var key = 'upgrade.' + snakeCase(id) + '.name';
+      if (!hasEnglishKey(key)) key = 'content.' + snakeCase(id) + '.name';
+      return localizedName(key, upgrades[i].name);
+    }
     return '未知工坊升级';
   }
   function techName(id) {
     var item = byId(id);
-    return item ? item.name : '未知科技';
+    return item ? localizedName('tech.' + id + '.name', item.name) : '未知科技';
   }
   function civicName(id) {
     var civics = SB.CIVICS || [];
     for (var i = 0; i < civics.length; i++)
-      if (civics[i].id === id) return civics[i].name;
+      if (civics[i].id === id) return localizedName('civic.data.' + id + '.name', civics[i].name);
     return '未知市政';
   }
   /* ERA10（2026-10-20）：政策卡 id → 中文名（`card` 条件用；与 civicName 同构）。
@@ -609,7 +707,7 @@
   function policyName(id) {
     var ps = SB.POLICIES || [];
     for (var i = 0; i < ps.length; i++)
-      if (ps[i].id === id) return ps[i].name;
+      if (ps[i].id === id) return localizedName('policy.card.' + id + '.name', ps[i].name);
     return '未知政策卡';
   }
   /* `wonders` 条件的 id 列表 → 中文名列表。键是完整配置 id（wonder_xxx），
@@ -618,11 +716,28 @@
     var out = [], i, w;
     for (i = 0; i < ids.length; i++) {
       w = (SB.wonder && SB.wonder.byId) ? SB.wonder.byId(ids[i]) : null;
-      out.push(w ? w.name : '未知奇观');
+      out.push(w ? localizedName('wonder.' + snakeCase(ids[i]).replace(/^wonder_/, '') + '.name', w.name) : '未知奇观');
     }
-    return out.join('、');
+    return out.join(isEnglishLocale() ? ', ' : '、');
   }
-  function resName(id) { return SB.RESS && SB.RESS[id] ? SB.RESS[id].name : '未知资源'; }
+  var RESOURCE_NAME_KEYS = {
+    culture: 'resource.civic_points.name', silt: 'resource.metal.name',
+    starExplore: 'resource.star_exploration.name', science: 'content.science.name',
+    coral: 'content.coral.name', stone: 'content.stone.name', steel: 'content.steel.name',
+    titanium: 'content.titanium.name', thetaMetal: 'content.theta_metal.name',
+    rocketFuel: 'content.rocket_fuel.name', rocketEngine: 'content.rocket_engine.name',
+    luxury: 'content.luxury.name', faith: 'content.faith.name', stardust: 'content.stardust.name',
+    calendar: 'content.calendar.name', tidalRecord: 'content.tidal_record.name'
+  };
+  function resName(id) {
+    var item = SB.RESS && SB.RESS[id], fallback = item ? item.name : '未知资源';
+    var key = RESOURCE_NAME_KEYS[id] || 'resource.' + snakeCase(id) + '.name';
+    if (!root.ShellbreakLocales || !root.ShellbreakLocales['en-US'] || !root.ShellbreakLocales['en-US'][key]) {
+      var contentKey = 'content.' + snakeCase(id) + '.name';
+      if (root.ShellbreakLocales && root.ShellbreakLocales['en-US'] && root.ShellbreakLocales['en-US'][contentKey]) key = contentKey;
+    }
+    return localizedName(key, fallback);
+  }
   /* `rate` 类尤里卡条件的读数显示名。
    * ⚠️ rates() 里有些键**不是资源**，而是同一资源的另一种口径：
    *    `hydroSupply` = 热液能**总生产**，而 `hydro` = 净消耗（取负）。它不能进 SB.RESS
@@ -632,10 +747,30 @@
     if (id === 'hydroSupply') return '热液能总产出';
     return resName(id) + ' 产出';
   }
+  function rateOutputName(id) {
+    if (id === 'hydroSupply') return localizedName('resource.hydrothermal_energy.name', 'Hydrothermal Energy') + ' production';
+    return resName(id) + ' production';
+  }
   function eraName(n) {
     var E = SB.ERAS || [];
-    for (var i = 0; i < E.length; i++) if (E[i].id === n) return E[i].name;
+    var slugs = { 1: 'undercurrent', 2: 'coldfire', 3: 'sulfur_vent', 4: 'ocean_current', 5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration', 9: 'seeking_light', 10: 'starforging' };
+    for (var i = 0; i < E.length; i++) if (E[i].id === n)
+      return localizedName('tech.era.' + slugs[n] + '.name', E[i].name);
     return n + ' 纪元';
+  }
+  function snakeCase(value) {
+    return String(value || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+  }
+  function zoneName(id, fallback) {
+    return localizedName('building.zone.' + id + '.name', fallback || id || '未知区域');
+  }
+  function governmentName(id, fallback) {
+    var aliases = { theo_state: 'theocratic_government', star_sea_coop: 'starsea_cooperative' };
+    return localizedName('government.data.' + (aliases[id] || id) + '.name', fallback || id || '未知政体');
+  }
+  function challengeName(id, fallback) {
+    var aliases = { waterpollution: 'challenge.water_pollution.name', drift_terra: 'game.challenge.wandering_terra.name' };
+    return localizedName(aliases[id] || ('challenge.' + id + '.name'), fallback || id || '未知挑战');
   }
 
   function techCount(s) {
@@ -939,10 +1074,10 @@
     if (SB.achv && SB.achv.checkTechAll && SB.game && SB.game.meta)
       SB.achv.checkTechAll(s, SB.game.meta());
     if (emit) {
-      var summary = effectText(t);
-      if (summary === '（无直接效果）') summary = t.effectDesc || '无直接数值加成';
-      if (t.unlockDesc) summary += '；' + t.unlockDesc;
-      emit('研究完成：' + t.name + '（' + summary + '）');
+      var summary = localizedEffectSummary(t);
+      emit(tr('tech.research.complete.log', {
+        technologyName: techName(t.id), effectSummary: summary
+      }, '研究完成：' + techName(t.id) + '（' + summary + '）'));
     }
     return true;
   }
@@ -992,6 +1127,15 @@
    *    原先 effectDesc 只在 eff 为空时被调用方兜底取用（render-info / study 里那句
    *    `=== '（无直接效果）'`）——现在提前到入口 ⇒ 对原有 5 项（eff 全为 {}）输出**不变**，
    *    只是多了一条更早的出口。⇒ 以后「eff 键说不清」的科技写 effectDesc 即可。 */
+  /* 挑战专属建筑角标（静态，不受当前周目限制）—— 用于「解锁建筑」等跨上下文列表。
+   * 直接复用 render-common.challengeTagStatic（同源 tr + .co-tag 视觉），基游戏也要提示。 */
+  function coBuildTagHtml(bid) {
+    var list = SB.BUILDINGS || [], B = null, i;
+    for (i = 0; i < list.length; i++) { if (list[i].id === bid) { B = list[i]; break; } }
+    if (!B) return '';
+    var rc = SB.ui && SB.ui.renderCommon && SB.ui.renderCommon.challengeTagStatic;
+    return rc ? rc(B) : '';
+  }
   function effectText(t) {
     if (t && t.effectDesc) return t.effectDesc;
     var e = t.eff || {}, out = [], k;
@@ -1003,7 +1147,7 @@
           out.push((_rn ? _rn.name : _rid2) + '制造效率 +' + (Math.round(v[_rid2] * 10000) / 100) + '%');
         }
       }
-      else if (k === 'unlockBuild') out.push('解锁建筑 ' + e[k].map(bName).join('、'));
+      else if (k === 'unlockBuild') out.push('解锁建筑 ' + e[k].map(function (b) { return bName(b) + coBuildTagHtml(b); }).join('、'));
       else if (k === 'unlockJob') out.push('解锁职业 ' + e[k].map(jobName).join('、'));
       else if (k === 'season') out.push('季节减产收窄 ' + Math.round(v * 100) + '%');
       else if (k === 'craftRatio') out.push(nm + ' +' + (Math.round(v * 10000) / 100) + '%');
@@ -1012,6 +1156,84 @@
       else out.push(nm + ' ×' + (1 + v));
     }
     return out.join('，') || '（无直接效果）';
+  }
+
+  function translatedTemplate(key, source, special) {
+    if (!isEnglishLocale() || !hasEnglishKey(key)) return '';
+    var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
+    var params = info && info.englishTemplateParams
+      ? info.englishTemplateParams(key, source, special) : (special || {});
+    var value = tr(key, params || {}, '');
+    return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : '';
+  }
+  function localizedEffectSummary(t, includeUnlockDesc) {
+    includeUnlockDesc = includeUnlockDesc !== false;
+    if (!isEnglishLocale()) {
+      var source = effectText(t);
+      if (source === '（无直接效果）') source = t.effectDesc || '无直接数值加成';
+      if (includeUnlockDesc && t.unlockDesc) source += '；' + t.unlockDesc;
+      return source;
+    }
+    var summary = '', key;
+    if (t.effectDesc) summary = translatedTemplate('tech.' + t.id + '.effect_desc', t.effectDesc);
+    if (!summary) {
+      var e = t.eff || {}, out = [], k;
+      var labelKeys = {
+        gather: 'gathering_output', food: 'kelp_production', sci: 'research_point_production',
+        craft: 'processing_output', fuel: 'geothermal_production', smelt: 'metal_to_iron',
+        farm: 'gatherer_kelp_production', coef: 'shellbreak_coefficient', house: 'population_cap',
+        kelpCap: 'kelp_storage_cap', craftRatio: 'workshop_crafting_efficiency', warmMul: 'warmstone_production',
+        titaniumMul: 'titanium_production', scaffoldCostSave: 'scaffolding_requirement_reduction',
+        alienOutMul: 'alien_building_output', steelMul: 'steel_production', bldEff: 'input_consumption',
+        workshopEff: 'workshop_crafting_efficiency', satStar: 'satellite_star_exploration',
+        biomatlabOut: 'biomaterials_lab_output', biomatlabEff: 'biomaterials_lab_efficiency',
+        launchCycle: 'launch_cycle_time'
+      };
+      for (k in e) {
+        var v = e[k];
+        if (k === 'recipeCraft') {
+          for (var recipeId in v) {
+            var recipe = SB.workshop && SB.workshop.craftById ? SB.workshop.craftById(recipeId) : null;
+            var recipeName = recipe && SB.i18n && SB.i18n.contentName
+              ? SB.i18n.contentName(recipe.id, recipe.name) : (recipe ? recipe.name : recipeId);
+            var recipeLine = translatedTemplate('tech.effect.recipe_crafting_efficiency', '', {
+              recipeName: recipeName, percent: Math.round(v[recipeId] * 10000) / 100
+            });
+            if (recipeLine) out.push(recipeLine);
+          }
+        } else if (k === 'unlockBuild') {
+          var buildingNames = (v || []).map(function (b) { return bName(b) + coBuildTagHtml(b); }).join(', ');
+          var buildingLine = translatedTemplate('tech.effect.unlock_buildings', '', { buildingNames: buildingNames });
+          if (!buildingLine) buildingLine = 'Unlocks buildings: ' + buildingNames;
+          if (buildingLine) out.push(buildingLine);
+        } else if (k === 'unlockJob') {
+          var jobNames = (v || []).map(jobName).join(', ');
+          var jobLine = translatedTemplate('tech.effect.unlock_jobs', '', { jobNames: jobNames });
+          if (jobLine) out.push(jobLine);
+        } else if (k === 'season') {
+          var seasonLine = translatedTemplate('tech.effect.seasonal_penalty_reduction', '', {
+            percent: Math.round(v * 100)
+          });
+          if (seasonLine) out.push(seasonLine);
+        } else {
+          key = labelKeys[k] ? 'tech.effect.label.' + labelKeys[k] : '';
+          if (!key || !hasEnglishKey(key)) continue;
+          var effectName = tr(key, null, '');
+          var effectLine = ADD[k]
+            ? tr('tech.effect.additive', { effectName: effectName,
+              amount: (k === 'craftRatio' || k === 'alienOutMul')
+                ? (Math.round(v * 10000) / 100) + '%' : v }, '')
+            : tr('tech.effect.multiplier', { effectName: effectName, multiplier: 1 + v }, '');
+          if (effectLine && !/\{[A-Za-z0-9_]+\}/.test(effectLine)) out.push(effectLine);
+        }
+      }
+      summary = out.join('; ') || tr('tech.effect.none', null, 'No direct effect.');
+    }
+    if (includeUnlockDesc && t.unlockDesc && hasEnglishKey('tech.' + t.id + '.unlock_desc')) {
+      var unlock = translatedTemplate('tech.' + t.id + '.unlock_desc', t.unlockDesc);
+      if (unlock) summary += '; ' + unlock;
+    }
+    return summary || tr('tech.effect.no_direct_numeric_bonus', null, 'No direct numerical bonus.');
   }
 
   // ── 纪元推进 ─────────────────────────────────────────────────────
@@ -1044,8 +1266,24 @@
     revealEra(s, next.id, true);
     /* 下一纪元的揭示不只是「把闸门打开」：这一批节点此刻就转可见（见 revealEra）。
      * 那些条件恰好已经达成的，下一次 pump 的 discover() 会立刻补上掌握。 */
-    if (emit) emit('—— ' + next.name + '（' + next.motto + '）——' + next.desc);
+    if (emit) emit(tr('tech.era.transition.log', {
+      eraName: localizedEraField(next, 'name'),
+      motto: localizedEraField(next, 'motto'),
+      description: localizedEraField(next, 'description')
+    }, '—— ' + next.name + '（' + next.motto + '）——' + next.desc));
     return next.id;
+  }
+
+  function localizedEraField(era, field) {
+    var slugs = { 1: 'undercurrent', 2: 'coldfire', 3: 'sulfur_vent', 4: 'ocean_current',
+      5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration', 9: 'seeking_light', 10: 'starforging' };
+    var slug = slugs[era.id];
+    if (!slug) return era[field] || '';
+    var key = field === 'description' && era.id === 5
+      ? 'research.era.shellbreak.description' : 'tech.era.' + slug + '.' + field;
+    if (!hasEnglishKey(key)) return era[field] || '';
+    var params = era.id === 5 && field === 'description' ? { shellThicknessPercent: 25 } : null;
+    return tr(key, params, era[field] || '');
   }
 
   /* 科技泵：揭示 →（若关键节点全清）推进纪元。
@@ -1075,7 +1313,13 @@
    *    （condText 对 default 返回空串，破折号后面就空了）。没有条件就别留那个破折号。 */
   function eurekaLine(t) {
     var c = condText(t.cond);
-    return '尤里卡：' + t.name + (c ? ' —— ' + c + ' 已达成' : ' 已达成');
+    return c
+      ? tr('tech.eureka.log.with_condition', {
+        technologyName: techName(t.id), conditionDescription: c
+      }, '尤里卡：' + techName(t.id) + ' —— ' + c + ' 已达成')
+      : tr('tech.eureka.log.no_condition', {
+        technologyName: techName(t.id)
+      }, '尤里卡：' + techName(t.id) + ' 已达成');
   }
 
   /* 开门那一刻把「已揭示」的整批摊开（用户要的「一起展示」）。
@@ -1098,7 +1342,7 @@
   /* 尤里卡条件的纯文案——**不碰状态**（不读 s，也不调 rates()）。
    * 播报是在游戏循环里同步发的，那里拿不到一个「稳定可读」的状态快照，
    * 让 condText 去读 s 只会把 UI 那套惰性求值带回循环里。 */
-  function condText(c) {
+  function condTextZh(c) {
     if (!c || c.t === 'default') return '';
     switch (c.t) {
       case 'built': return '建成 ' + bName(c.b) + ' ×' + c.n;
@@ -1156,8 +1400,63 @@
     }
     return '';
   }
+  function condText(c) {
+    var old = condTextZh(c);
+    if (!old || !isEnglishLocale() || !c) return old;
+    var key = '', params = {};
+    switch (c.t) {
+      case 'built': key = 'built'; params = { amount: c.n, buildingName: bName(c.b) }; break;
+      case 'total': key = 'total_buildings'; params = { totalLevels: c.n }; break;
+      case 'res': key = 'resource_stock'; params = { amount: c.n, resourceName: resName(c.r) }; break;
+      case 'gathered': key = 'resource_gathered'; params = { amount: c.n, resourceName: resName(c.r) }; break;
+      case 'sunSails': key = 'solar_sails'; params = { amount: c.n }; break;
+      case 'dysonPct': key = 'dyson_sphere'; params = { percent: c.n }; break;
+      case 'pollution': key = 'pollution'; params = { amount: c.n }; break;
+      case 'pollutionDeaths': key = 'pollution_deaths'; params = { count: c.n || 1 }; break;
+      case 'rate': key = 'production_rate'; params = { rate: c.n, outputName: rateOutputName(c.r) }; break;
+      case 'pop': key = 'population'; params = { count: c.n }; break;
+      case 'job': key = 'job_population'; params = { count: c.n, jobName: jobName(c.j) }; break;
+      case 'techs': key = 'technology_count'; params = { count: c.n }; break;
+      case 'tech': key = 'technology'; params = { technologyName: techName(c.id) }; break;
+      case 'wonder': key = 'wonder_count'; params = { count: c.n }; break;
+      case 'coef': key = 'shellbreak_coefficient'; params = { coefficient: c.n }; break;
+      case 'eraTechs': key = 'era_technology_count'; params = { count: c.n, eraName: eraName(c.era) }; break;
+      case 'shell': key = 'shell_breakthrough'; params = { percent: (c.n || 0) * 100 }; break;
+      case 'tools': key = 'iron_tools'; params = { count: (c.ids || []).length }; break;
+      case 'gov': key = 'government_slots'; params = { slotCount: c.wild || 3 }; break;
+      case 'govWildSlots': key = 'government_slots'; params = { slotCount: c.n || 7 }; break;
+      case 'govId': key = 'government_name'; params = { governmentName: governmentName(c.id, c.id) }; break;
+      case 'anyWonders': key = 'any_wonder'; params = { wonderNames: _wNames(c.ids || []) }; break;
+      case 'upgrade': key = 'workshop_upgrade'; params = { upgradeName: upgradeName(c.id) }; break;
+      case 'religion': key = 'religion'; break;
+      case 'zoneLvl': key = 'zone_building_levels'; params = { totalLevels: c.n, zoneName: zoneName(c.zone) }; break;
+      case 'wonders': key = 'all_wonders'; params = { wonderNames: _wNames(c.ids || []) }; break;
+      case 'lifetimeCulture': key = 'lifetime_civic_points'; params = { amount: c.n }; break;
+      case 'cycle': key = 'prestige_count'; params = { count: c.n }; break;
+      case 'civic': key = 'civic'; params = { civicName: civicName(c.id) }; break;
+      case 'card': key = 'policy_card'; params = { policyName: policyName(c.id) }; break;
+      case 'cap': key = 'resource_capacity'; params = { resourceName: resName(c.r), capacity: c.n }; break;
+      case 'starPct': key = 'star_exploration'; params = { percent: c.n || 0 }; break;
+      case 'oldFaith': key = 'old_faith'; params = { amount: c.n }; break;
+      case 'wonderEra': key = 'era_wonder'; params = { eraName: eraName(c.era) }; break;
+      case 'lvlSum': key = 'related_building_levels'; params = { totalLevels: c.n, buildingName: bName(c.ids[0]) }; break;
+      case 'geekEnceladus': return tr('tech.condition.geek_enceladus.description', null, old);
+      case 'geekTerra': return tr('tech.condition.geek_terra.description', null, old);
+      case 'all': key = 'all'; params = { conditionDescriptions: (c.of || []).map(condText).join('; ') }; break;
+      case 'challenge': {
+        var challenge = SB.challenges && SB.challenges.byId ? SB.challenges.byId(c.id) : null;
+        key = 'challenge'; params = { challengeName: challengeName(c.id, challenge && challenge.name || c.id) }; break;
+      }
+      default: return old;
+    }
+    return tr('tech.condition.description.' + key, params, old);
+  }
   function jobName(id) {
-    for (var i = 0; SB.JOBS && i < SB.JOBS.length; i++) if (SB.JOBS[i].id === id) return SB.JOBS[i].name;
+    for (var i = 0; SB.JOBS && i < SB.JOBS.length; i++) if (SB.JOBS[i].id === id) {
+      var key = 'job.' + id + '.name';
+      if (!hasEnglishKey(key)) key = 'job.name.' + id;
+      return localizedName(key, SB.JOBS[i].name);
+    }
     return '未知职业';
   }
 
@@ -1226,6 +1525,7 @@
     panelOpen: panelOpen, popupSeen: popupSeen, markPopupSeen: markPopupSeen,
     reqsMet: reqsMet, known: known, level: techLevel, maxLevel: maxTechLevel,
     canStudy: canStudy, study: study, studyBlocked: studyBlocked, hasResearchable: hasResearchable, effectText: effectText,
+    effectDisplayText: function (t) { return localizedEffectSummary(t, false); },
     /* researchCost（2026-10-17）：科技消耗的唯一折扣口（科研所 researchLabSave），供 UI 显示与门禁共用。 */
     researchCost: researchCost, resCostList: resCostList, resCostMet: resCostMet, resCostLack: resCostLack,
     keysOf: keysOf, eraProgress: eraProgress, advanceEra: advanceEra, pump: pump,

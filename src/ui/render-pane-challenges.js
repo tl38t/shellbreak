@@ -16,126 +16,314 @@
    *   当时《流浪泰拉》的 50 台发动机整段看不到进度，临时加过一块「壳外推进」只读块。
    *   现在卡片的 if (active) 正常渲染它，那块兜底已无可达路径，随修复一并删除。
    * 兜底不再借用别人的文案：任何未登记分支一律回落到自己的 goalText。 */
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params || {}) : '';
+    return value || fallback || '';
+  }
+  function englishLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  }
+  function definitionId(id) {
+    return id === 'waterpollution' ? 'water_pollution' : id;
+  }
+  function definitionText(def, field, tierIndex) {
+    var id = definitionId(def.id), key = '', fallback = '';
+    if (field === 'kind') {
+      var kinds = {
+        '单次挑战': 'single_tier',
+        '三档挑战': 'three_tier',
+        '三档限时挑战': 'three_tier_timed',
+        '终局挑战': 'endgame',
+        '三档终局挑战': 'three_tier_endgame'
+      };
+      key = 'challenge.definition.kind.' + kinds[def.kind];
+      fallback = def.kind;
+    } else if (field === 'name') {
+      key = def.id === 'waterpollution' ? 'challenge.water_pollution.name' : 'challenge.definition.' + id + '.name';
+      fallback = def.name;
+    } else if (field === 'summary' || field === 'rule') {
+      key = 'challenge.definition.' + id + '.' + field;
+      fallback = def[field] || '';
+      if (def.id === 'science' && !englishLocale()) {
+        var scribeName = SB.folk.jobName(SB.game.run(), 'scribe');
+        key = field === 'summary' ? 'ui.challenge.summary.science' : 'ui.challenge.rule.science';
+        return tr(key, { scribeName: scribeName }, fallback);
+      }
+    } else if (field === 'reward') {
+      if (def.tiers.length === 1) {
+        key = 'challenge.definition.' + id + '.reward';
+        fallback = def.reward || '';
+      } else if (def.id === 'speedrun' || def.id === 'dyson_rush') {
+        var rewardPercent = [5, 10, 15][tierIndex] || 5;
+        key = 'challenge.definition.reward.all_production_' + rewardPercent + '_permanent';
+        fallback = def.rewards[tierIndex] || '';
+      } else {
+        key = 'challenge.definition.' + id + '.reward.tier_' + (tierIndex + 1);
+        fallback = def.rewards[tierIndex] || '';
+      }
+    } else if (field === 'goalText') {
+      fallback = def.goalText || tr('ui.challenge.goal.theology_shellbreak', {}, '完成《神学》并凿穿天壳');
+      if (!def.goalText) return fallback;
+      if (def.id === 'drift_terra') {
+        key = 'game.challenge.wandering_terra.tier1.goal';
+        return tr(key, { engineCount: 50, energyAmount: '50M' }, fallback);
+      }
+      if (def.id === 'three_launch_sites') key = 'challenge.definition.three_launch_sites.goal';
+      else if (def.id === 'anarchy' || def.id === 'good_old_days' || def.id === 'eternity_moment')
+        key = 'challenge.definition.goal.verge_ascent';
+      else key = 'challenge.definition.goal.dyson_verge_ascent';
+    } else if (field === 'tierLabel') {
+      fallback = def.tiers[tierIndex].label;
+      var labels = {
+        '完成挑战': 'challenge.definition.tier.complete',
+        '第一档': 'challenge.definition.tier.tier_1',
+        '第二档': 'challenge.definition.tier.tier_2',
+        '第三档': 'challenge.definition.tier.tier_3',
+        '16 小时档': 'challenge.definition.tier.16_hours',
+        '8 小时档': 'challenge.definition.tier.8_hours',
+        '4 小时档': 'challenge.definition.tier.4_hours',
+        '星际远航': 'game.challenge.wandering_terra.tier1.name',
+        '海渊澄明': 'challenge.definition.water_pollution.tier.label',
+        '无政府纪元': 'challenge.definition.anarchy.tier.label',
+        '旧制永存': 'challenge.definition.good_old_days.tier.label',
+        '三地并举': 'challenge.definition.three_launch_sites.tier.label',
+        '五倍永恒': 'challenge.definition.eternity_moment.tier_5',
+        '十倍永恒': 'challenge.definition.eternity_moment.tier_10',
+        '二十倍永恒': 'challenge.definition.eternity_moment.tier_20'
+      };
+      key = labels[fallback] || '';
+    }
+    return tr(key, {}, fallback);
+  }
+  parts.challengeDefinitionText = definitionText;
+  if (SB.challenges) SB.challenges.displayText = definitionText;
+
+  function prerequisiteText(api, id, meta) {
+    var state = api.prereqState(id, meta);
+    if (!state) return '';
+    var params = {
+      requiredPrestiges: state.need,
+      currentPrestiges: state.now,
+      prestigesAfterStart: state.after,
+      remainingPrestiges: state.lack
+    };
+    return tr(state.ok ? 'challenge.prerequisite.met' : 'challenge.prerequisite.unmet',
+      params, api.prereqText(id, meta));
+  }
+  function challengeStatus(key) {
+    var labels = {
+      timed_out: '已超时',
+      goal_met: '已达成',
+      replay: '重复挑战',
+      replay_in_progress: '重复挑战中',
+      challenge_in_progress: '进行中',
+      all_tiers_complete: '已完成',
+      waiting_for_current: '等待当前挑战结束',
+      locked: '轮回不足',
+      next_tier_available: '下一档可挑战',
+      not_completed: '尚未完成',
+      tier_cleared: '已通关',
+      next_tier: '下一档'
+    };
+    return tr('ui.challenge.status.' + key, {}, labels[key] || '');
+  }
+
   function progressLine(s, api, def, tier) {
+    var completed = tr('ui.challenge.progress.completed', {}, '挑战已达成 · 永久奖励已生效');
+    if (s.challengeDone) return completed;
     var scribeName = SB.folk.jobName(s, 'scribe');
     if (def.id === 'drift_terra') {
-      if (s.challengeDone) return '挑战已达成 · 永久奖励已生效';
-      /* 进行中的档要读 inRunOk：cycle 已在 startRun 加过一次，不能再 +1。 */
-      var _pr = api.prereqState ? api.prereqState(def.id) : null;
-      return '行星发动机 ' + ((s.lvl && s.lvl.terra_engine) || 0) + ' / 50 · 星核炉芯池 ' +
-        SB.economy.fmtAmt((s.res && s.res.coreCharge) || 0) + ' / 50M' +
-        ((_pr && !_pr.inRunOk) ? ' · ⚠ 第 ' + _pr.now + '/' + _pr.need + ' 周目，开启前置未满足，本局无法通关' : '');
+      var prereq = api.prereqState ? api.prereqState(def.id) : null;
+      return tr('ui.challenge.progress.drift_terra', {
+        engineCount: (s.lvl && s.lvl.terra_engine) || 0,
+        engineTarget: 50,
+        coreCharge: SB.economy.fmtAmt((s.res && s.res.coreCharge) || 0),
+        coreChargeTarget: '50M'
+      }, '') + (prereq && !prereq.inRunOk ? tr('ui.challenge.prerequisite.progress_warning', {
+        currentPrestiges: prereq.now,
+        requiredPrestiges: prereq.need
+      }, '') : '');
     }
     if (def.id === 'waterpollution') {
-      if (s.challengeDone) return '挑战已达成 · 永久奖励已生效';
       var pst = (SB.economy.pollutionStage && SB.economy.pollutionStage(s)) || {};
-      return (pst.name || '澄海') + ' · 污染 ' + SB.economy.fmtAmt(s.pollution || 0) +
-        ' · 戴森 ' + Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100) + '%';
+      var stageKeys = ['clear_sea', 'turbid_flow', 'red_tide', 'dead_zone', 'blighted_deep'];
+      var stageName = tr('challenge.pollution_stage.' + (stageKeys[pst.i] || 'clear_sea'), {}, pst.name || '澄海');
+      return tr('ui.challenge.progress.water_pollution', {
+        stageName: stageName,
+        pollutionValue: SB.economy.fmtAmt(s.pollution || 0),
+        dysonProgressPercent: Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100)
+      }, '');
     }
     if (def.id === 'anarchy') {
       var anarchyCards = (s.cards || []).filter(function (id) { return id && id !== 'card_cycle_terminus'; });
-      return anarchyCards.length ? '政策卡违规 ' + anarchyCards.length + ' 张（允许「轮回之终末」）'
-        : '未装备政策卡（「轮回之终末」例外）';
+      return tr(anarchyCards.length ? 'ui.challenge.progress.anarchy.violations' : 'ui.challenge.progress.anarchy.no_cards', {
+        violatingCardCount: anarchyCards.length
+      }, '');
     }
-    if (def.id === 'good_old_days')
-      return '当前政体：' + (SB.civic.govTitleName ? SB.civic.govTitleName(s) : '酋邦制');
+    if (def.id === 'good_old_days') {
+      return tr('ui.challenge.progress.government', {
+        governmentName: SB.civic.govTitleName ? SB.civic.govTitleName(s) : '酋邦制'
+      }, '');
+    }
     if (def.id === 'three_launch_sites') {
-      if (s.challengeDone) return '挑战已达成 · 永久奖励已生效';
-      var launchText = '欧罗巴 ' + ((s.lvl && s.lvl.europa_launch) || 0) + '/11 · 泰拉 ' +
-        ((s.lvl && s.lvl.terra_launch) || 0) + '/11 · 恩克拉多斯 ' + ((s.lvl && s.lvl.enceladus_launch) || 0) + '/11';
-      if (s.dysonDone && !s.dysonLaunchSitesReady) return '戴森球已竣工，但当时发射场未达标 · 本轮需重开';
-      return launchText + ' · 戴森 ' + Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100) + '%';
+      if (s.dysonDone && !s.dysonLaunchSitesReady)
+        return tr('ui.challenge.progress.dyson_missing_launch_sites', {}, '');
+      return tr('ui.challenge.progress.three_launch_sites', {
+        europaLaunchLevel: (s.lvl && s.lvl.europa_launch) || 0,
+        europaLaunchTarget: 11,
+        terraLaunchLevel: (s.lvl && s.lvl.terra_launch) || 0,
+        terraLaunchTarget: 11,
+        enceladusLaunchLevel: (s.lvl && s.lvl.enceladus_launch) || 0,
+        enceladusLaunchTarget: 11,
+        dysonProgressPercent: Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100)
+      }, '');
     }
     if (def.id === 'eternity_moment') {
       var starCap = api.starCap ? api.starCap(s) : SB.CFG.STAR_CAP;
       var sailCap = api.dysonSailCap ? api.dysonSailCap(s) : SB.CFG.DYSON_SAIL_CAP;
       var nodeCap = api.dysonNodeCap ? api.dysonNodeCap(s) : SB.CFG.DYSON_NODE_CAP;
-      return '倍率 ×' + tier.cap + ' · 天壳 ' + Math.round(Math.max(0, s.shell || 0)).toLocaleString() + '/' +
-        api.shellTarget(s).toLocaleString() + ' · 星空 ' + Math.round((s.res && s.res.starExplore) || 0).toLocaleString() + '/' +
-        starCap.toLocaleString() + ' · 太阳帆 ' + Math.floor(s.sunSails || 0).toLocaleString() + '/' +
-        sailCap.toLocaleString() + ' · 戴森节点 ' + Math.floor(s.dysonNodes || 0).toLocaleString() + '/' + nodeCap.toLocaleString();
+      return tr('ui.challenge.progress.eternity_moment', {
+        tierMultiplier: tier.cap,
+        shellProgress: Math.round(Math.max(0, s.shell || 0)).toLocaleString(),
+        shellTarget: api.shellTarget(s).toLocaleString(),
+        starExploration: Math.round((s.res && s.res.starExplore) || 0).toLocaleString(),
+        starExplorationCap: starCap.toLocaleString(),
+        solarSailCount: Math.floor(s.sunSails || 0).toLocaleString(),
+        solarSailCap: sailCap.toLocaleString(),
+        dysonNodeCount: Math.floor(s.dysonNodes || 0).toLocaleString(),
+        dysonNodeCap: nodeCap.toLocaleString()
+      }, '');
     }
-    if (def.id === 'science') return '学者 ' + (s.jobs.scholar || 0) + ' / ' + tier.cap +
-      ' · ' + scribeName + ' ' + (s.jobs.scribe || 0) + ' / ' + tier.cap;
-    if (def.id === 'small') return '当前人口 ' + s.pop + ' / ' + tier.cap;
-    if (def.id === 'abyss') return '全产出 -' + Math.round(tier.cap * 100) + '%';
-    if (def.id === 'speedrun') return api.timedOut(s) ? '已超时 · 本档不能领取奖励' :
-      '剩余 ' + api.formatClock(api.remainingSeconds(s)) + ' · 离线继续计时';
-    if (def.id === 'cold') return api.warmHeatingBlocked(s) ? '寒流季：保温法禁用，产业仍可消耗暖石' : '非寒流季：保温法可正常使用';
-    return def.goalText || '';
+    if (def.id === 'science') return tr('ui.challenge.progress.science', {
+      scholarCount: (s.jobs && s.jobs.scholar) || 0,
+      tierCap: tier.cap,
+      scribeName: scribeName,
+      scribeCount: (s.jobs && s.jobs.scribe) || 0
+    }, '');
+    if (def.id === 'small') return tr('ui.challenge.progress.small_country', {
+      population: s.pop,
+      tierCap: tier.cap
+    }, '');
+    if (def.id === 'abyss') return tr('ui.challenge.progress.abyssal_pressure', {
+      productionPenaltyPercent: Math.round(tier.cap * 100)
+    }, '');
+    if (def.timed) {
+      if (api.timedOut(s)) return tr('ui.challenge.progress.speedrun_timed_out', {}, '已超时 · 本档不能领取奖励');
+      var remainingTime = api.formatClock(api.remainingSeconds(s));
+      if (def.id === 'dyson_rush') return tr('ui.challenge.progress.dyson_rush', {
+        remainingTime: remainingTime,
+        dysonProgressPercent: Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100)
+      }, '');
+      return tr('ui.challenge.progress.speedrun_remaining', { remainingTime: remainingTime }, '');
+    }
+    if (def.id === 'cold') return api.warmHeatingBlocked(s)
+      ? tr('ui.challenge.rule.cold_season_active', {}, '寒流季：保温法禁用，产业仍可消耗暖石')
+      : tr('ui.challenge.rule.cold_season_inactive', {}, '非寒流季：保温法可正常使用');
+    return definitionText(def, 'goalText');
   }
+  parts.challengeProgressLine = progressLine;
 
   function paneChallenges() {
     var s = SB.game.run(), m = SB.game.meta(), api = SB.challenges;
     var list = api.list(), total = api.completedCount(m), active = api.active(s);
+    var bonusPercent = total * 10;
     var h = '<section class="challenge-overview"><div class="challenge-overview-title">' +
-      '<span class="challenge-kicker">PRESTIGE TRIALS</span><h2>挑战</h2>' +
-      '<p>开启挑战会结算当前周目并立即开始新周目。各项挑战有各自的目标，达成后会立即结算永久奖励。</p></div>' +
-      '<div class="challenge-overview-stats"><div><small>挑战通关</small><b>' + total + '</b></div>' +
-      '<div><small>轮回点获取</small><b>+' + (total * 10) + '%</b></div></div></section>';
+      '<span class="challenge-kicker">' + tr('ui.challenge.panel.kicker', {}, 'PRESTIGE TRIALS') + '</span><h2>' +
+      tr('ui.challenge.panel.title', {}, '挑战') + '</h2><p>' +
+      tr('ui.challenge.panel.intro', {}, '开启挑战会结算当前周目并立即开始新周目。各项挑战有各自的目标，达成后会立即结算永久奖励。') +
+      '</p></div><div class="challenge-overview-stats"><div><small>' +
+      tr('ui.challenge.overview.challenges_cleared', {}, '挑战通关') + '</small><b>' + total +
+      '</b></div><div><small>' + tr('ui.challenge.overview.prestige_points', {}, '轮回点获取') +
+      '</small><b>' + tr('ui.challenge.overview.prestige_bonus', { bonusPercent: bonusPercent }, '+' + bonusPercent + '%') +
+      '</b></div></div></section>';
 
     if (active) {
       var activeDef = api.byId(active.id), activeTier = activeDef.tiers[active.tier] || activeDef.tiers[0];
-      var activeTimedOut = active.id === 'speedrun' && api.timedOut(s);
+      var activeTimedOut = api.timedOut(s);
       var progressText = progressLine(s, api, activeDef, activeTier);
+      var activeStatus = activeTimedOut ? 'timed_out' : s.challengeDone ? 'goal_met' :
+        active.replay === true ? 'replay_in_progress' : 'challenge_in_progress';
+      var activeTitle = tr(active.replay === true ? 'ui.challenge.active.replay_title' : 'ui.challenge.active.title', {
+        challengeName: definitionText(activeDef, 'name'),
+        tierName: definitionText(activeDef, 'tierLabel', active.tier)
+      }, definitionText(activeDef, 'name') + ' · ' + definitionText(activeDef, 'tierLabel', active.tier));
+      var activeHint = activeTimedOut ? tr('ui.challenge.timeout.retry_hint', {}, '重开本周目后可再次尝试，不消耗档位') :
+        s.challengeDone && !activeDef.goal ? tr('ui.challenge.result.final_restriction', {}, '成绩已定格；挑战限制仍生效，可在卡片上解除') :
+          tr('ui.challenge.goal.label', {}, '通关目标') + ': ' + definitionText(activeDef, 'goalText');
       h += '<section class="challenge-active' + (activeTimedOut ? ' is-failed' : '') + '"><span class="challenge-active-mark">' +
-        (activeTimedOut ? '已超时' : s.challengeDone ? '已达成' : active.replay === true ? '重复挑战' : '进行中') + '</span>' +
-        '<div><b>' + activeDef.name + ' · ' + activeTier.label + (active.replay === true ? ' · 重复挑战' : '') + '</b><small>' + progressText + '</small></div>' +
-        '<span class="challenge-active-hint">' + (activeTimedOut ? '重开本周目后可再次尝试，不消耗档位' :
-          s.challengeDone && !activeDef.goal ? '成绩已定格；挑战限制仍生效，可在卡片上解除' :
-          (activeDef.goalText || '通关目标：完成《神学》并凿穿天壳')) + '</span></section>';
+        challengeStatus(activeStatus) + '</span><div><b>' + activeTitle + '</b><small>' + progressText +
+        '</small></div><span class="challenge-active-hint">' + activeHint + '</span></section>';
     } else {
       /* 2026-11-04：这里原先还有一块「壳外推进」只读进度（C 方案）。
        * 它是给「破壳后 goal 型 active() 返回 null」打的补丁；该判据已修
        * （challenges.active：goal 型只要未 challengeDone 就返回 a），
        * 未完成的 goal 挑战一定走上面 if (active) 分支 ⇒ 这段已无可达路径，删除。 */
-      h += '<div class="challenge-howto">每档挑战首次通关都会让之后的轮回点获取永久提高 10%。分档挑战必须逐档完成。' +
-        '全部通关后仍可再次挑战：重打已通的最高档，不再重复发奖，只刷新排行榜成绩。</div>';
+      h += '<div class="challenge-howto">' +
+        tr('ui.challenge.overview.bonus_info', { bonusPercent: 10 }, '每档挑战首次通关都会让之后的轮回点获取永久提高 10%。分档挑战必须逐档完成。') +
+        ' ' + tr('ui.challenge.overview.replay_info', {}, '全部通关后仍可再次挑战：重打已通的最高档，不再重复发奖，只刷新排行榜成绩。') +
+        '</div>';
     }
 
     h += '<section class="challenge-grid">';
     for (var i = 0; i < list.length; i++) {
       var d = list[i], done = api.tierDone(d.id, m), isActive = active && active.id === d.id;
       var scribeName = SB.folk.jobName(s, 'scribe');
-      var summary = d.id === 'science' ? '限制学者与' + scribeName + '人数，考验基础经营。' : d.summary;
-      var rule = d.id === 'science' ? '学者与' + scribeName + '岗位人数各不得超过本档上限' : d.rule;
+      var summary = definitionText(d, 'summary');
+      var rule = definitionText(d, 'rule');
+      var challengeName = definitionText(d, 'name');
       var exhausted = done >= d.tiers.length, next = Math.min(done, d.tiers.length - 1);
       var blocked = !!active && !isActive;
       /* 开启前置（2026-11-05）：只挡「还没开始」的入口；已在进行中的档不受影响，
        * 老档 / 改档也要能继续看到自己的进度，而不是被门禁静默抹掉。 */
       var prereq = api.prereqState(d.id, m), gateBlocked = !!prereq && !prereq.ok;
-      var activeTimedOut = isActive && d.id === 'speedrun' && api.timedOut(s);
-      /* 「已达成」判据：goal 型（2026-11-02 推广）+ 破壳型（2026-11-03 破壳即判定）。
-       * 两种挑战的 challengeDone 都在局内就为真，所以这里不再按 d.goal 过滤。 */
-      var status = isActive ? (activeTimedOut ? '已超时' : s.challengeDone ? '已达成' : '进行中') : exhausted ? '已完成' : blocked ? '等待当前挑战结束' : gateBlocked ? '周目不足' : (d.tiers.length > 1 ? '下一档可挑战' : '尚未完成');
+      var activeTimedOut = isActive && api.timedOut(s);
+      var statusKey = isActive ? (activeTimedOut ? 'tier_timed_out' : s.challengeDone ? 'goal_met' :
+        active.replay === true ? 'replay_in_progress' : 'challenge_in_progress') :
+        exhausted ? 'all_tiers_complete' : blocked ? 'waiting_for_current' : gateBlocked ? 'locked' :
+          (d.tiers.length > 1 ? 'next_tier_available' : 'not_completed');
+      var status = challengeStatus(statusKey);
+      var goalText = definitionText(d, 'goalText');
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
       h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + d.badge + '" alt=""></span>' +
-        '<div class="challenge-card-name"><h3>' + d.name + '</h3><small>' + d.kind + ' · ' + summary + '</small></div>' +
+        '<div class="challenge-card-name"><h3>' + challengeName + '</h3><small>' + definitionText(d, 'kind') + ' · ' + summary + '</small></div>' +
         '<span class="challenge-status' + (exhausted ? ' done' : activeTimedOut ? ' failed' : isActive ? ' active' : gateBlocked ? ' locked' : '') + '">' + status + '</span></header>';
-      h += '<div class="challenge-card-rule"><small>本轮限制' +
-        (s.challengeReleased && !d.goal ? ' <em class="challenge-released">已解除</em>' : '') +
+      h += '<div class="challenge-card-rule"><small>' + tr('ui.challenge.run.restrictions', {}, '本轮限制') +
+        (s.challengeReleased && !d.goal ? ' <em class="challenge-released">' + tr('ui.challenge.run.released', {}, '已解除') + '</em>' : '') +
         '</small><p>' + rule + '</p>' +
-        (prereq ? '<small>开启前置</small><p class="challenge-prereq' + (gateBlocked ? ' is-lack' : '') +
-          '">' + api.prereqText(d.id, m) + '</p>' : '') +
-        '<small>通关目标</small><p>' + (d.goalText || '完成《神学》并凿穿天壳') + '</p></div>';
+        (prereq ? '<p class="challenge-prereq' + (gateBlocked ? ' is-lack' : '') + '">' +
+          prerequisiteText(api, d.id, m) + '</p>' : '') +
+        '<small>' + tr('ui.challenge.goal.label', {}, '通关目标') + '</small><p>' + goalText + '</p></div>';
 
       if (d.tiers.length > 1) {
         h += '<div class="challenge-tiers">';
         for (var ti = 0; ti < d.tiers.length; ti++) {
           var td = d.tiers[ti], tierActive = isActive && active.tier === ti;
-          var tierState = tierActive ? (activeTimedOut ? '已超时' : '进行中') : ti < done ? '已通关' : ti === done && !blocked && !exhausted ? '下一档' : '锁定';
-          var tierRule = d.id === 'science' ? '学者、' + scribeName + '各 ≤ ' + td.cap + ' 人' :
-            d.id === 'speedrun' ? '限时 ' + api.formatClock(td.cap) + ' · 离线计时' :
-            d.id === 'eternity_moment' ? '研究成本 ×' + td.cap + ' · 四项终局目标 ×' + td.cap :
-              '本轮全产出 -' + Math.round(td.cap * 100) + '%';
+          var tierState = tierActive ? challengeStatus(activeTimedOut ? 'tier_timed_out' : 'challenge_in_progress') :
+            ti < done ? challengeStatus('tier_cleared') :
+              ti === done && !blocked && !exhausted ? challengeStatus('next_tier') : challengeStatus('locked');
+          var tierRule = d.id === 'science' ? tr('ui.challenge.tier_rule.science', {
+            scribeName: scribeName,
+            staffCap: td.cap
+          }, '') : d.timed ? tr('ui.challenge.tier_rule.speedrun', {
+            timeLimit: api.formatClock(td.cap)
+          }, '') : d.id === 'eternity_moment' ? tr('ui.challenge.tier_rule.eternity_moment', {
+            researchCostMultiplier: td.cap,
+            endgameGoalMultiplier: td.cap
+          }, '') : tr('ui.challenge.tier_rule.production_penalty', {
+            productionPenaltyPercent: Math.round(td.cap * 100)
+          }, '');
+          var tierLabel = definitionText(d, 'tierLabel', ti);
           h += '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? (activeTimedOut ? ' active failed' : ' active') : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
             '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + d.badge + '" alt=""><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
-            '<div><b>' + td.label + '</b><span>' + tierState + '</span></div><small>' + tierRule + '</small>' +
-            '<em>奖励：' + d.rewards[ti] + '</em></div>';
+            '<div><b>' + tierLabel + '</b><span>' + tierState + '</span></div><small>' + tierRule + '</small>' +
+            '<em>' + tr('ui.challenge.reward.tier', {
+              rewardDescription: definitionText(d, 'reward', ti)
+            }, '本档奖励：' + definitionText(d, 'reward', ti)) + '</em></div>';
         }
         h += '</div>';
       } else {
-        h += '<div class="challenge-reward"><small>永久奖励</small><b>' + d.reward + '</b></div>';
+        h += '<div class="challenge-reward"><small>' + tr('ui.challenge.reward.permanent', {}, '永久奖励') +
+          '</small><b>' + definitionText(d, 'reward', 0) + '</b></div>';
       }
 
       /* ⚠️ isActive 必须排在 exhausted 之前：重打已通关的挑战时两个条件同时为真，
@@ -144,40 +332,63 @@
         /* 破壳型挑战已判定（2026-11-03）：成绩定格，但门禁还挂着 —— 解除入口放在这张卡上，
          * 因为破壳结果面板是主路径，玩家关掉面板之后只有这里还找得到。一次性、不可逆。 */
         if (s.challengeDone && !d.goal && !activeTimedOut) {
-          h += '<footer class="challenge-card-foot"><span>成绩已定格；<b>限制生效中</b>，解除后不可再打开。</span>' +
-            '<button class="btn challenge-release" type="button" data-challenge-release="' + d.id + '">解除限制</button></footer>';
+          h += '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.result.final_restriction', {}, '成绩已定格；限制生效中，解除后不可再打开。') + '</span>' +
+            '<button class="btn challenge-release" type="button" data-challenge-release="' + d.id + '">' +
+            tr('ui.challenge.action.release_restriction', {}, '解除限制') + '</button></footer>';
         } else {
-          var activeFoot = activeTimedOut ? '已超时；重开本周目后可重试，档位不会消耗。' :
-            active.replay === true ? '重复挑战：通关不重复发奖，只会把成绩刷进排行榜。' :
-            s.challengeDone && d.goal ? '目标已完成，永久奖励已入账；可以继续发展或开始新周目。' :
-              d.goal ? '达成目标时永久奖励会立即生效；你可以继续发展或开始新周目。' :
-                '本轮限制生效中。通关后领取当前档奖励。';
+          var activeFoot = activeTimedOut ? tr('ui.challenge.timeout.retry_hint', {}, '已超时；重开本周目后可重试，档位不会消耗。') :
+            active.replay === true ? tr('ui.challenge.replay.no_repeat_reward', {}, '重复挑战：通关不重复发奖，只会把成绩刷进排行榜。') :
+            s.challengeDone && d.goal ? tr('ui.challenge.goal.reward_claimed', {}, '目标已完成，永久奖励已入账；可以继续发展或开始新周目。') :
+              d.goal ? tr('ui.challenge.goal.reward_on_completion', {}, '达成目标时永久奖励会立即生效；你可以继续发展或开始新周目。') :
+                tr('ui.challenge.run.reward_on_completion', {}, '本轮限制生效中。通关后领取当前档奖励。');
+          var activeButton = activeTimedOut ? challengeStatus('tier_timed_out') :
+            active.replay === true ? challengeStatus('replay_in_progress') : challengeStatus('challenge_in_progress');
           h += '<footer class="challenge-card-foot"><span>' + activeFoot +
-            '</span><button class="btn" disabled>' + (activeTimedOut ? '本档已超时' : active.replay === true ? '重复挑战中' : '本轮挑战中') + '</button></footer>';
+            '</span><button class="btn" disabled>' + activeButton + '</button></footer>';
         }
       } else if (gateBlocked) {
         /* 门禁与 canStart 同源：按钮不给 data-challenge-start，委托永远不会触发 begin()。
-         * 仍留一颗灰按钮（而不是整行消失），玩家能看见「为什么点不了」和差几周目。 */
+         * 仍留一颗灰按钮（而不是整行消失），玩家能看见「为什么点不了」和差几次轮回。
+         * ⚠️ 2026-11-06：口径从「第 N 周目」改为「N 次轮回」——cycle 现在只数合格轮回，
+         *    「开始后 N 次」也不再一定是 now+1（本局不结算时原地不动）。 */
         h += '<footer class="challenge-card-foot"><span>' +
-          (blocked ? '先结束当前挑战周目；' : '') + '开启前置未满足：当前第 ' + prereq.now +
-          ' 周目，开始后第 ' + prereq.after + ' 周目，还差 ' + prereq.lack + ' 周目。</span>' +
-          '<button class="btn" disabled>需第 ' + prereq.need + ' 周目</button></footer>';
+          (blocked ? tr('ui.challenge.run.must_finish', {}, '先结束当前挑战周目；') + ' ' : '') +
+          tr('ui.challenge.prerequisite.card', {
+            currentPrestiges: prereq.now,
+            prestigesAfterStart: prereq.after,
+            remainingPrestiges: prereq.lack
+          }, '开启前置未满足：当前 ' + prereq.now + ' 次轮回，开始后 ' + prereq.after + ' 次，还差 ' + prereq.lack + ' 次。') +
+          '</span><button class="btn" disabled>' + tr('ui.challenge.prerequisite.required', {
+            requiredPrestiges: prereq.need
+          }, '需 ' + prereq.need + ' 次轮回') + '</button></footer>';
       } else if (exhausted) {
         /* 2026-11-02 玩家反馈「挑战不能反复打」：全部通关后仍留入口，重打最高档。
          * 只刷榜、不再发奖（规则见 SB.challenges 的 startTier / isReplay 注释）。 */
         h += blocked
-          ? '<footer class="challenge-card-foot"><span>永久奖励已生效。先结束当前挑战周目再重打。</span><button class="btn" disabled>暂不可开始</button></footer>'
-          : '<footer class="challenge-card-foot"><span>永久奖励已生效。再次挑战不再发奖，只刷新排行榜成绩。</span>' +
-            '<button class="btn challenge-start" type="button" data-challenge-start="' + d.id + '">再次挑战 · ' + d.tiers[d.tiers.length - 1].label + '</button></footer>';
+          ? '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.replay.must_finish_run', {}, '永久奖励已生效。先结束当前挑战周目再重打。') +
+            '</span><button class="btn" disabled>' + tr('ui.challenge.button.unavailable', {}, '暂不可开始') + '</button></footer>'
+          : '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.replay.no_reward_card', {}, '永久奖励已生效。再次挑战不再发奖，只刷新排行榜成绩。') +
+            '</span><button class="btn challenge-start" type="button" data-challenge-start="' + d.id + '">' +
+            tr('ui.challenge.button.replay_tier', {
+              tierLabel: definitionText(d, 'tierLabel', d.tiers.length - 1)
+            }, '再次挑战 · ' + definitionText(d, 'tierLabel', d.tiers.length - 1)) + '</button></footer>';
       } else if (blocked) {
-        h += '<footer class="challenge-card-foot"><span>先完成或重开当前挑战周目。</span><button class="btn" disabled>暂不可开始</button></footer>';
+        h += '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.run.must_finish', {}, '先完成或重开当前挑战周目。') +
+          '</span><button class="btn" disabled>' + tr('ui.challenge.button.unavailable', {}, '暂不可开始') + '</button></footer>';
       } else {
-        h += '<footer class="challenge-card-foot"><span>首次通关本档：轮回点获取永久 +10%。</span>' +
-          '<button class="btn challenge-start" type="button" data-challenge-start="' + d.id + '">结算并挑战 · ' + d.tiers[next].label + '</button></footer>';
+        h += '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.first_clear_bonus', {
+          bonusPercent: 10
+        }, '首次通关本档：轮回点获取永久 +10%。') + '</span>' +
+          '<button class="btn challenge-start" type="button" data-challenge-start="' + d.id + '">' +
+          tr('ui.challenge.button.settle_and_start', {
+            tierLabel: definitionText(d, 'tierLabel', next)
+          }, '结算并挑战 · ' + definitionText(d, 'tierLabel', next)) + '</button></footer>';
       }
       h += '</article>';
     }
-    h += '</section><div class="challenge-footnote">挑战奖励跨周目保留。挑战失败或主动重开不会消耗档位，也不会领取奖励。已通关的挑战可再次挑战，只刷新排行榜成绩、不重复发奖。</div>';
+    h += '</section><div class="challenge-footnote">' +
+      tr('ui.challenge.footer', {}, '挑战奖励跨周目保留。挑战失败或主动重开不会消耗档位，也不会领取奖励。已通关的挑战可再次挑战，只刷新排行榜成绩、不重复发奖。') +
+      '</div>';
     return h;
   }
 
@@ -208,17 +419,33 @@
   }
   loadAchvFold();
 
+  function achievementText(def, field) {
+    if (!def) return '';
+    var property = field === 'title' ? 'name' : 'desc';
+    var fallback = def[property] || '';
+    if (def.bld) {
+      var buildingName = SB.i18n && SB.i18n.buildingName
+        ? SB.i18n.buildingName(def.bld, def.bldName) : def.bldName;
+      return tr('achievement.building.' + field, { buildingName: buildingName }, fallback);
+    }
+    if (def.key === 'driftTerra' && field === 'title')
+      return tr('challenge.definition.drift_terra.name', {}, fallback);
+    var slug = String(def.key || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+    return tr('achievement.' + slug + '.' + field, {}, fallback);
+  }
+
   function achvItemHTML(def, m, s, ready) {
     var earned = !!(m.achv && m.achv[def.key]);
     var fired = !!(m.achievements && m.achievements[def.key]);
     var hasId = ready.indexOf(def.key) >= 0;
     var prog = earned ? null : SB.achv.progressOf(def.key, m, s);
+    var title = achievementText(def, 'title'), description = achievementText(def, 'description');
     var icon = def.icon
       ? '<img src="' + def.icon + '" alt="">'
       : '<i class="achv-item-badge" aria-hidden="true">' + (def.bld ? '◈' : '★') + '</i>';
     var h = '<div class="achv-item' + (earned ? ' is-earned' : '') + (def.key === 'voidEnd' ? ' is-void-ending' : '') + '">';
     h += '<span class="achv-item-icon">' + icon + '</span>';
-    h += '<div class="achv-item-body"><b>' + def.name + '</b><small>' + (def.desc || '') + '</small>';
+    h += '<div class="achv-item-body"><b>' + title + '</b><small>' + description + '</small>';
     if (prog) {
       var pct = prog.max > 0 ? Math.max(2, Math.min(100, Math.round(prog.cur / prog.max * 100))) : 0;
       h += '<div class="achv-item-prog"><span style="width:' + pct + '%"></span></div><em>' + prog.label + '</em>';
@@ -226,10 +453,10 @@
     h += '</div>';
     if (earned) {
       h += (hasId && !fired)
-        ? '<span class="achv-item-chip" title="已在本机账本登记，平台成就尚未发送；重进游戏或下次破壳会自动补发">待同步</span>'
-        : '<span class="achv-item-state is-done">已获得</span>';
+        ? '<span class="achv-item-chip" title="' + tr('ui.achievement.tooltip.pending_sync', {}, '已在本机账本登记，平台成就尚未发送；重进游戏或下次破壳会自动补发') + '">' + tr('ui.achievement.status.pending_sync', {}, '待同步') + '</span>'
+        : '<span class="achv-item-state is-done">' + tr('ui.achievement.status.earned', {}, '已获得') + '</span>';
     } else {
-      h += '<span class="achv-item-state">未获得</span>';
+      h += '<span class="achv-item-state">' + tr('ui.achievement.status.not_earned', {}, '未获得') + '</span>';
     }
     return h + '</div>';
   }
@@ -250,20 +477,21 @@
     var earned = 0, i;
     for (i = 0; i < defs.length; i++) if (m.achv && m.achv[defs[i].key]) earned++;
     var h = '<section class="achv-wall"><header class="achv-wall-head">' +
-      '<div><span class="achv-kicker">ACHIEVEMENTS</span><h2>成就墙</h2>' +
-      '<p>共 ' + defs.length + ' 项，跨周目保留。「轻车熟路」按建筑分区折叠，进度为跨周目累计等级。</p>' +
+      '<div><span class="achv-kicker">' + tr('ui.achievement.wall.kicker', {}, '成就') + '</span><h2>' + tr('ui.achievement.wall.title', {}, '成就墙') + '</h2>' +
+      '<p>' + tr('ui.achievement.wall.summary', { achievementCount: defs.length }, '共 ' + defs.length + ' 项，跨周目保留。“轻车熟路”按建筑分区折叠，进度为跨周目累计等级。') + '</p>' +
       /* 2026-10-28（用户要求）：把「首建免费」这条福利明写在页面上。
        * ⚠️ 游戏里它只表现为建造按钮变成「免费」，不解释成因 ⇒ 玩家会当成显示 bug；
        *    这里是**唯一讲清因果的地方**，改福利口径（SB.habitat.freeFirstBuild）时同步改这句。 */
-      '<p class="achv-rule">「轻车熟路」成就达成后，该建筑在<b>每个轮回</b>首次建造<b>不花材料</b>。</p></div>' +
-      '<div class="achv-wall-count"><small>已获得</small><b>' + earned + ' / ' + defs.length + '</b></div></header>';
+      '<p class="achv-rule">' + tr('ui.achievement.wall.first_build_rule', {}, '获得建筑“轻车熟路”成就后，该建筑在每个轮回首次建造时不消耗材料。') + '</p></div>' +
+      '<div class="achv-wall-count"><small>' + tr('ui.achievement.status.earned', {}, '已获得') + '</small><b>' +
+      tr('ui.achievement.wall.earned_count', { earnedCount: earned, totalCount: defs.length }, earned + ' / ' + defs.length) + '</b></div></header>';
 
     /* 通用两组：旧 5 条（挑战与轮回）+ 新 12 条（文明里程碑）。DEFS_BASE 顺序即此顺序。 */
     var baseEnd = 0;
     while (baseEnd < defs.length && !defs[baseEnd].bld) baseEnd++;
     var splitAt = 5;   // 前 5 条为旧成就（cold/small/science/abyss/firstRebirth）
-    h += achvGroupHTML('挑战与轮回', defs, 0, splitAt, m, s, ready);
-    h += achvGroupHTML('文明里程碑', defs, splitAt, baseEnd, m, s, ready);
+    h += achvGroupHTML(tr('ui.achievement.group.challenge_prestige', {}, '挑战与轮回'), defs, 0, splitAt, m, s, ready);
+    h += achvGroupHTML(tr('ui.achievement.group.civilization_milestones', {}, '文明里程碑'), defs, splitAt, baseEnd, m, s, ready);
 
     /* 轻车熟路 45 条：按 BUILD_ZONES 分区（顺序即 UI 顺序），空区自动隐藏。
      * 折叠默认策略（设计稿 §六）：**有进度就展开**——该区有任一成就已获得，
@@ -283,10 +511,11 @@
         }
       }
       var folded = (zid in ACHV_FOLD) ? !!ACHV_FOLD[zid] : (zEarned === 0 && !zProgress);
+      var zoneTitle = SB.i18n && SB.i18n.zoneName ? SB.i18n.zoneName(zid, zones[zi].name) : zones[zi].name;
       h += '<section class="achv-zone' + (folded ? ' is-folded' : '') + '" data-achv-zone="' + zid + '">' +
-        '<button class="achv-zone-head" type="button" data-achv-fold="' + zid + '" title="点击折叠 / 展开">' +
+        '<button class="achv-zone-head" type="button" data-achv-fold="' + zid + '" title="' + tr('ui.achievement.zone.toggle_tooltip', {}, '点击折叠 / 展开') + '">' +
         '<span class="achv-zone-caret" aria-hidden="true">' + (folded ? '▸' : '▾') + '</span>' +
-        '<b>' + zones[zi].name + '</b><small>' + zEarned + ' / ' + zdefs.length + '</small></button>';
+        '<b>' + zoneTitle + '</b><small>' + zEarned + ' / ' + zdefs.length + '</small></button>';
       if (!folded) {
         h += '<div class="achv-zone-items">';
         for (i = 0; i < zdefs.length; i++) h += achvItemHTML(zdefs[i], m, s, ready);

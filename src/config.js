@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.0.17',
+    VERSION: 'Ver1.1.0',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,21 +33,35 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.1.0（2026-11-07）：线上从 rc42-v1.0.17 直升。Ver1.0.18 / Ver1.0.19 两个包
+       * 只封包、从未上线，故不单独留段；它们与 Ver1.0.17 段里后来补记的 7 条一起收编到本段。
+       * Ver1.0.17 段保留线上玩家实际看到过的 3 条，逐字不动。 */
+      { v: 'Ver1.1.0', date: '2026-11-07', items: [
+        // —— 新增 ——
+        'changelog.faith.tenet_system',
+        'changelog.talent.stardust_shell_suppression',
+        'changelog.talent.prestige_shellbreak_zeal',
+        'changelog.talent.drill_overdrive',
+        'changelog.challenge.wandering_terra_prerequisite',
+        'changelog.ui.track_dock_craft_jump',
+        'changelog.art.illustrated_icons',
+        // —— 修复 ——
+        'changelog.fix.furnace_blank_screen',
+        'changelog.fix.ad_boost_carry_over',
+        'changelog.fix.cycle_only_on_real_prestige',
+        'changelog.fix.save_pick_by_run_count',
+        'changelog.fix.wandering_terra_prereq_count',
+        'changelog.fix.pollution_building_flavor',
+        // —— 优化 ——
+        'changelog.ui.help_badge_reposition',
+        'changelog.ui.cycle_wording'
+      ] },
       { v: 'Ver1.0.17', date: '2026-11-05', items: [
         // —— 修复 ——
         'changelog.fix.geology_threshold_inverted',
         'changelog.fix.hidden_completed_persistence',
-        'changelog.challenge.wandering_terra_prerequisite',
         // —— 调整 ——
-        'changelog.balance.warmstone_dynamic_rate',
-        // —— 新增 ——
-        'changelog.talent.stardust_shell_suppression',
-        'changelog.talent.prestige_shellbreak_zeal',
-        'changelog.talent.drill_overdrive',
-        'changelog.ui.track_dock_craft_jump',
-        // —— 新增 / 优化 ——
-        'changelog.faith.tenet_system',
-        'changelog.ui.help_badge_reposition'
+        'changelog.balance.warmstone_dynamic_rate'
       ] },
       { v: 'Ver1.0.16', date: '2026-11-04', items: [
         // —— 修复 ——
@@ -306,10 +320,14 @@
       /* 2026-10-31 于 996563 新建（db 15061，create_leaderboard 自动发布）：
        * 流浪泰拉达成那一刻的墙钟秒数（50 座行星发动机 + 星核炉芯池灌满 50M）。 */
       drift: 'jqqgofg5g3tvb1uxwz',       // 最快流浪启程   time / asc / best  (db 15061)
-      /* 水体污染（2026-11-02）：通关瞬间的污染存量，越小越好。
-       * ⚠️ 空串 = **尚未在平台建榜**（`rank.submitRun` 用 `if (lb[k])` 判，空串自动跳过，
-       *   不发请求、不会 500001）。用户建好榜后把「客户端 ID」填进来即可，代码不用再动。 */
-      pollution: ''                      // 最低污染通关   numeric / asc / best  (db 待建)
+      /* 星海竞速（2026-11-07 于 996563 新建，db 17618）：挑战局戴森竣工时的墙钟秒。
+       * ⚠️ 不复用 dyson 全局榜 —— 普通局也提交那条，挑战局带额外时限不可能更快，
+       *    复用等于永远不上榜。 */
+      dysonrush: 'a2bcbiqjfc59e29uel',  // 最快星海竞速   time / asc / best  (db 17618)
+      /* 水体污染（2026-11-02 定义 / 2026-11-07 于 996563 新建，db 17617）：
+       * 通关瞬间的污染存量，越小越好。空串时 rank.submitRun 用 `if (lb[k])` 自动跳过、
+       * 不发请求、不会 500001。 */
+      pollution: 'pqfonhv7uvjrdcxl4e'    // 最低污染通关   numeric / asc / best  (db 17617)
     },
     /* 榜 -> 参数表。与 LB 平行维护，键必须对得上。 */
     MAP: {
@@ -323,6 +341,9 @@
       dyson:    { title: '最快建立戴森球', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
       void:     { title: '最快虚境飞升', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
       drift:    { title: '最快流浪启程', scoreType: 'time',   scoreOrder: 'asc',  calcType: 'best' },
+      /* 星海竞速：只收录挑战周目的戴森竣工成绩。与 dyson 全局榜同用 s.wallT 这把尺子，
+       * 三档时限不同 ⇒ 不按「剩余时间」排（那没法跨档比较）。 */
+      dysonrush: { title: '最快星海竞速', scoreType: 'time', scoreOrder: 'asc', calcType: 'best' },
       /* 水体污染：通关瞬间的污染存量（整数、越小越好）。与 dyson/void 的时间榜并列，
        * 但比的是「你把海留得多干净」，所以是 numeric + asc。 */
       pollution: { title: '最低污染通关', scoreType: 'numeric', scoreOrder: 'asc', calcType: 'best' }
@@ -430,20 +451,42 @@
   // 这条对齐猫国建设者——官方源码里 maxLevel/levelCap/buildMax 全仓库零匹配，
   // 它压住人口的手段是木屋 priceRatio 2.5（"贵"，不是"上限"）。
 
-    // ---- 背景音乐 BGM（2026-10-31 新增）----
+    // ---- 背景音乐 BGM（2026-10-31 新增 / 2026-11-07 改为按纪元分段）----
     // 单一数据源：曲名 / 作者 / 资源路径 / 播放阶段。设置面板「音乐」段只读取这里，不写死字符串。
-    // phase: 'pre' = 破壳前（s.broken === false）播放；'post' = 破壳后（s.broken === true）播放。
-    // file 走相对路径，与 index.html 的脚本/资源同根（TapTap H5 容器内也按此相对根解析）。
-    // ⚠️ author 是固定的「百景乐团」，两首同为这一个作者；以后换曲只改这里。
+    // ⚠️ 2026-11-07 用户拍板：不再按 s.broken 二分「破壳前/后」，改按 s.era 三段分池，
+    //    每段两首、池内播完随机换下一首（shuffle，不是每局抽定一首）：
+    //      era 1-4  → 01 冰壳之下 / 02 向着天穹
+    //      era 5-7  → 03 初见群星 / 04 星间徜徉
+    //      era 8-10 → 05 以星为局 / 06 光辉纪元
+    //    ERA5 仍是壳内「破壳纪」、ERA6 才是壳外「初生纪」（见 techs.js），所以破壳瞬间
+    //    **不单独换曲**，《向着天穹》也会在壳内响 —— 这是有意推翻 docs/BGM_BRIEF_v0.1.md
+    //    的「两首 = 破壳前后」叙事设定，别再拿旧 brief 当判据。
+    // ⚠️ 05 用专门的 Loop 轨（首尾可接），不用含 13.91s 引子 + 9.48s 尾巴的完整曲；
+    //    03/04/06 暂时只有完整曲，loop 接缝由 audio.js 的 0.8s 交叉淡变遮盖。
+    // file 走相对路径，与 index.html 的脚本/资源同根；文件名一律 ASCII
+    //（中文名 + ~ 在 WebView 相对路径有编码风险）。author 统一「百景乐团」。
     AUDIO: {
       enabled: true,                  // 总开关：false 时连 Audio 元素都不创建（极端低端机可关）
+      defaultVolume: 1,               // 默认音量（0~1）；静音由 s.audioMuted / meta.audioMuted 控制
+      crossfadeMs: 800,               // 跨段 / 池内换曲 / 手动切换的交叉淡入淡出时长
+      /* ⚠️ 手动选曲（2026-11-07 用户拍板）：s.audioTrack / meta.audioTrack 存曲目 id，
+       *    空串 / 非法 id = 自动（按纪元分池）；非空且合法 = **锁定该曲**，优先级高于一切自动逻辑：
+       *    跨纪元、破壳、轮回、播完轮换全部短路，直到玩家把下拉改回「自动」或改选另一首。
+       *    两层模型照抄 audioMuted / audioVolume（本局行为 + 跨周目偏好），freshRun 必须登记。
+       * 曲名保留中文基准供未加载词库时兜底；玩家实际看到的曲名、设置标签和阶段名均由 i18n key 提供。 */
+      pools: [
+        { id: 'under_ice',   label: '纪元 1–4', eras: [1, 2, 3, 4], tracks: ['underIce', 'firmament'] },
+        { id: 'first_stars', label: '纪元 5–7', eras: [5, 6, 7],    tracks: ['glance', 'waltz'] },
+        { id: 'star_sea',    label: '纪元 8–10', eras: [8, 9, 10],   tracks: ['celestial', 'radiance'] }
+      ],
       tracks: {
-        underIce:  { id: 'underIce',  name: '冰壳之下', en: 'Under the Ice',       author: '百景乐团', phase: 'pre',  file: 'assets/audio/under_ice_depth_loop_20261030_v9_cq128.m4a' },
-        firmament: { id: 'firmament', name: '向着天穹', en: 'Toward the Firmament', author: '百景乐团', phase: 'post', file: 'assets/audio/toward_the_firmament_loop_20261030_v2_cq128.m4a' }
-      },
-      // 默认音量（0~1），对应设置滑块 100%；静音由 s.audioMuted / meta.audioMuted 控制。
-      defaultVolume: 1,
-      crossfadeMs: 800                // 破壳切换时的交叉淡入淡出时长
+        underIce:  { id: 'underIce',  name: '冰壳之下', author: '百景乐团', file: 'assets/audio/under_ice_depth_loop_20261030_v9_cq128.m4a' },
+        firmament: { id: 'firmament', name: '向着天穹', author: '百景乐团', file: 'assets/audio/toward_the_firmament_loop_20261030_v2_cq128.m4a' },
+        glance:    { id: 'glance',    name: '初见群星', author: '百景乐团', file: 'assets/audio/bgm_03_glance_to_the_stars_cq128.m4a' },
+        waltz:     { id: 'waltz',     name: '星间徜徉', author: '百景乐团', file: 'assets/audio/bgm_04_waltz_among_the_stars_cq128.m4a' },
+        celestial: { id: 'celestial', name: '以星为局', author: '百景乐团', file: 'assets/audio/bgm_05_celestial_game_loop_cq128.m4a' },
+        radiance:  { id: 'radiance',  name: '光辉纪元', author: '百景乐团', file: 'assets/audio/bgm_06_age_of_radiance_cq128.m4a' }
+      }
     },
 
     // ---- 破壳系数（玩家的破壳主指标）----
@@ -831,34 +874,26 @@
     BATCH_MAX: 9007199254740991          // 只接受安全整数，避免超出 JS 精确整数范围
   };
 
-  /* ── 兑换码（2026-10-30 · TapTap TDS 礼包「无服务器兑换」）────────────────
-   * 用途：发放补偿。本次背景 = Ver1.0.5 修 `migratePerks` 幂等哨兵撞名之前，玩家买的潮汐之树
-   *   节点被每次启动静默吞掉、而 `meta.spent` 一分不退。定损取「账本差额上界」（实测样本
-   *   蒸发 104 点，见 tmp/_probe_tide_audit.mjs），故档位取 120 覆盖上界并留余量。
+  /* ── 兑换码（2026-11-07 起：仅本地礼包码）──────────────────────────────
+   * 平台 TDS 通兑码通道已整体下线，当前唯一通道 = `LOCAL_GRANTS`：
+   *   命中即本地入账，全程在本机完成、不访问任何外部接口。
+   *   ⚠️ 代价：后台已上架的活动「深海补偿1030」（通兑码 / 总 500）作废。
    *
-   * ⚠️ 这两个值只能来自开发者后台，**不能猜也不能硬编码**：
-   *   CLIENT_ID   ← 后台「游戏服务 → 应用配置」的 Client ID（签名时替代 Server Secret，
-   *                  所以可以安全地放在客户端；Server Secret 绝不许进包）
-   *   ACTIVITY_ID ← 礼包活动 ID，形如 TDS20220928151122U9H。客户端只认这一个活动，
-   *                  防止玩家拿别的活动的通兑码来这里刷
-   * 任一为空 ⇒ 设置里的「兑换码」按钮整体隐藏（SB.redeem.ready() 为假），
-   *   不给玩家点出一个「功能未开放」的死路。
-   * ⚠️ 礼包活动必须建成**「无服务器礼包」**，否则接口返回 100018（该活动无法使用此兑换接口）。
-   * ⚠️ 平台只负责「码有效吗 / 发过吗」，**不会把点写进存档** —— 入账是 src/redeem.js 自己做的，
-   *   且必须同时写 tide 与 tideEarnedTotal，否则定损方程失衡会把补偿误判成新缺口。 */
+   * ⚠️ CLIENT_ID / ACTIVITY_ID **刻意留空且不许填回**：填回也不会生效
+   *   （`src/redeem.js` 的 `platformReady()` 恒 false），留着只是让回归能钉住
+   *   「平台通道没有偷偷复活」。要恢复平台通道必须同时改四处，清单见 redeem.js 文件头。
+   *
+   *   入账必须同时写 tide 与 tideEarnedTotal，否则定损方程失衡会把补偿误判成新缺口。 */
   CFG.REDEEM = {
-    /* 后台「游戏服务 → 应用配置」的 Client ID（2026-10-30 23:45 用户提供截图抄录）。
-     * 它是 17 位小写字母数字；同一处的 Client Token / Server Secret / Public Key 一律不用，
-     * 尤其 Server Secret **绝不许进包**（签名只用 Client ID，见 redeem.js 的 sign 行）。 */
-    CLIENT_ID: '8vy4lxqqr06s7ppr8g',
-    ACTIVITY_ID: 'TDS20261030232629AIS', // 礼包活动「深海补偿1030」（通兑码 / 总500 / 已上架）
-    /* 每次兑换入账的轮回点。面板文案**不**读它（那是通用兑换页，不写死奖励类型），
-     * 只有入账与成功提示用它。以后发别的奖励 = 改这里 + redeem.js 的 credit()。 */
+    CLIENT_ID: '',
+    ACTIVITY_ID: '',
+    /* 历史补偿档位（TDS 时代每次 120 轮回点）。本地 tide 码不读它、直接读条目的 tide 字段；
+     * `SB.redeem.reward()` 仍导出供回归断言用，别删。 */
     REWARD_NUM: 120,
 
     /* ── 本地礼包码（2026-11-04）：不经过 TapTap 平台，命中即本地入账 ──────────
      * 为什么需要：平台路径要求先在开发者后台建活动、再把活动 ID 填进 ACTIVITY_ID，
-     *   临时给单个玩家补一笔奖励时走不通（后台建活动 + 审核 + 库存都要时间）。
+     *   临时给单个玩家补一笔奖励时走不通（后台建活动 + 配置 + 库存都要时间）。
      *   这里给一条「改配置就能发」的直通车。
      *
      * 每项字段：
@@ -871,8 +906,8 @@
      * ⚠️ 明文码 = 全服可领：包是明文 JS，任何人解包就能读到 code。
      *   只有「发给所有人也无所谓」的福利才用明文；只给某一个人的码必须用 h。
      *   生成哈希：`node tmp/_mkcode.mjs <你的码>`
-     * ⚠️ 本地码与平台码共用 meta.redeemed 防重表 ⇒ 同一个码每档存档只能领一次，
-     *   断网也能领（不发网络请求）。 */
+   * ⚠️ 本地码与平台码共用 meta.redeemed 防重表 ⇒ 同一个码每档存档只能领一次，
+   *   离线也能领（纯本地入账）。 */
     LOCAL_GRANTS: [
       /* 2026-11-04「星屑礼包」= 星屑 ×50。这里存的是**哈希**，明文码不在包里：
        * 包是明文 JS，写 code 就等于把码印发给所有会解包的人。

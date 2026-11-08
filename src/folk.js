@@ -47,6 +47,24 @@
     return n;
   }
 
+  function localizedJobName(s, jid) {
+    var key = 'job.' + jid + '.name';
+    if (jid === FARM_JOB && s && s.techs && s.techs[FARM_TECH]) key = 'job.name.farmer';
+    if (jid === SCHOLAR_JOB) key = s && s.techs && s.techs[SCHOLAR_TECH] ? 'job.name.scientist' : 'job.name.scholar';
+    if (jid === 'scribe') {
+      key = 'job.name.scribe';
+      var civics = SB.CIVICS || [];
+      for (var i = 0; i < civics.length; i++) {
+        if (civics[i].scribeRename && s && s.civics && s.civics[civics[i].id]) {
+          key = 'job.name.official';
+          break;
+        }
+      }
+    }
+    var translated = SB.i18n && SB.i18n.t ? SB.i18n.t(key) : '';
+    return translated || jobName(s, jid);
+  }
+
   /* 职业解锁有**两条通路**（2026-09-28）：① 科技树（techs.js 里各科技 eff.unlockJob，
    * 与建筑同理用反查表）；② 市政（civics 表各项的 `job` 字段，商人走这条）。
    * 反查表各自只服务自己那条通路，不合并——合并会让「谁解锁了它」变得看不出来。
@@ -387,7 +405,7 @@
     sum: sum, idle: idle, IDS: IDS, jobUnlocked: jobUnlocked,
     trimJobsToPop: trimJobsToPop,
     jobTechOf: jobTechOf, jobCivicOf: jobCivicOf,
-    jobName: jobName, jobLimit: jobLimit, jobLimitReason: jobLimitReason,
+    jobName: jobName, localizedJobName: localizedJobName, jobLimit: jobLimit, jobLimitReason: jobLimitReason,
     robotPop: robotPop, robotIdle: robotIdle, robotAssigned: robotAssigned,
     /* ERA10（2026-10-20）：机器人产出倍率读数导出（回归/e2e 直接断言 1.2 vs 1.5，
      * 不必绕 effJobs 反推；robotbay  desc 与信仰口径也读它）。 */

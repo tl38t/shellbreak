@@ -4,6 +4,14 @@
   var SB = root.SB || (root.SB = {});
   var CFG = SB.CFG;
 
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function buildingName(id, fallback) {
+    return SB.i18n && SB.i18n.buildingName ? SB.i18n.buildingName(id, fallback) : (fallback || '');
+  }
+
   function buildingById(id) {
     for (var i = 0; i < SB.BUILDINGS.length; i++) if (SB.BUILDINGS[i].id === id) return SB.BUILDINGS[i];
     return null;
@@ -339,8 +347,17 @@
     if ((id === 'satellite' || id === 'spacestation') && SB.game && SB.game.syncSpacecraft) SB.game.syncSpacecraft(s);
     // 建造不再直接削壳：壳厚只由「系数驱动的持续削壳」表达，
     // 建造的贡献体现在 lvlSum 推高破壳系数上。这样玩家看得到因果，而不是看到一次跳变。
-    if (emit) emit((free ? '「轻车熟路」免费建成 ' : '建成 ') + b.name + ' ×' + s.lvl[id] +
-      '，破壳系数 ' + SB.shell.breakCoef(s).toFixed(2));
+    if (emit) {
+      var buildName = buildingName(id, b.name);
+      var buildParams = {
+        buildingName: buildName,
+        buildingLevel: s.lvl[id],
+        shellBreakCoefficient: SB.shell.breakCoef(s).toFixed(2)
+      };
+      emit(tr(free ? 'building.build.complete.free_first' : 'building.build.complete', buildParams,
+        (free ? '「轻车熟路」免费建成 ' : '建成 ') + buildName + ' ×' + buildParams.buildingLevel +
+          '，破壳系数 ' + buildParams.shellBreakCoefficient));
+    }
     return true;
   }
 
@@ -365,7 +382,10 @@
       /* 2026-10-24「科技大成」：tech.js 未加载的降级路径同样转发（判定在 achv.checkTechAll）。 */
       if (SB.achv && SB.achv.checkTechAll && SB.game && SB.game.meta)
         SB.achv.checkTechAll(s, SB.game.meta());
-      if (emit) emit('研究完成：' + t.name);
+      if (emit) {
+        var technologyName = SB.i18n && SB.i18n.t ? (SB.i18n.t('tech.' + id + '.name') || t.name) : t.name;
+        emit(tr('research.complete.fallback', { technologyName: technologyName }, '研究完成：' + technologyName));
+      }
       return true;
     }
     return SB.tech.study(s, id, emit);

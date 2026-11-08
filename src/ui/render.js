@@ -20,9 +20,39 @@
   function meta() { return SB.game.meta(); }
 
   function el(id) { return document.getElementById(id); }
+  function formatFallback(value, params) {
+    return String(value == null ? '' : value).replace(/\{([^{}]+)\}/g, function (match, name) {
+      return params && params[name] !== undefined && params[name] !== null ? String(params[name]) : match;
+    });
+  }
   function tr(key, params, fallback) {
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
-    return value || fallback || '';
+    return value || formatFallback(fallback, params);
+  }
+  function englishLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  }
+  var STAR_MAP_LOCALE_CACHE = Object.create(null);
+  var STAR_MAP_EXTRA_LOCALE_KEYS = [
+    'resource.hardened_coral.name', 'resource.hydrothermal_energy.name',
+    'resource.star_exploration.name', 'resource.stone_beam.name', 'resource.titanium.name',
+    'resource.uranium.name', 'content.fuel.name', 'content.titanium.name'
+  ];
+  function starMapLocaleStrings() {
+    var locale = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+    if (STAR_MAP_LOCALE_CACHE[locale]) return STAR_MAP_LOCALE_CACHE[locale];
+    var strings = {};
+    var dictionaries = root.ShellbreakLocales || {};
+    var dictionary = dictionaries[locale] || dictionaries['zh-CN'] || {};
+    Object.keys(dictionary).forEach(function (key) {
+      if (key.indexOf('ui.star_map.') === 0) strings[key] = dictionary[key];
+    });
+    STAR_MAP_EXTRA_LOCALE_KEYS.forEach(function (key) {
+      var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key) : '';
+      if (value) strings[key] = value;
+    });
+    STAR_MAP_LOCALE_CACHE[locale] = strings;
+    return strings;
   }
   function htmlText(value) {
     return String(value == null ? '' : value).replace(/[&<>\"']/g, function (ch) {
@@ -51,23 +81,19 @@
    * 【配色】一区一色，只用在标题条上、不铺正文 —— 正文保持单一深海底色，
    *   否则一屏六种底色会把读数淹没。 */
   var CARD_META = {
-    res:      { name: '资源',     color: '#4dd8e6' },
-    env:      { name: '自然环境', color: '#a78bfa' },
-    village:  { name: '巢穴',     color: '#ffb84d' },
-    folk:     { name: '族民',     color: '#4ade80' },
-    tech:     { name: '科技',     color: '#7fb8e6' },
-    civic:    { name: '市政',     color: '#c4a2ff' },
-    faith:    { name: '信仰',     color: '#e691b0' },
-    workshop: { name: '工坊',     color: '#f0a45c' },
-    wonder:   { name: '奇观',     color: '#ffd166' },
-    'star-map': { name: '星图',   color: '#87a7ff' },
-    /* 2026-10-24：挑战与成就拆成两个页签（用户要求）。两个键都补中文名——
-     * 此前 challenges 走的是下面 CARD_META 查找失败的 fallback（name = key），
-     * 标题条一直显示英文「challenges」，本次顺手正过来。
-     * ⚠️ company 同样是 fallback（显示英文「company」），不在本次范围，未动。 */
-    challenges: { name: '挑战',     color: '#f0a45c' },
-    achievements: { name: '成就',   color: '#d7bd80' },
-    meta:     { name: '轮回商店', color: '#9fb4ff' }
+    res:      { color: '#4dd8e6' },
+    env:      { color: '#a78bfa' },
+    village:  { color: '#ffb84d' },
+    folk:     { color: '#4ade80' },
+    tech:     { color: '#7fb8e6' },
+    civic:    { color: '#c4a2ff' },
+    faith:    { color: '#e691b0' },
+    workshop: { color: '#f0a45c' },
+    wonder:   { color: '#ffd166' },
+    'star-map': { color: '#87a7ff' },
+    challenges: { color: '#f0a45c' },
+    achievements: { color: '#d7bd80' },
+    meta:     { color: '#9fb4ff' }
   };
   /* ── 巢穴页内的建筑分区标题配色（2026-09-30 晚，用户：「这里的文字颜色也改了，就是生息区这些」）──
    * 上一步只把最外层卡片标题上了色，页**内部**的区标题（礁栖核心 / 生息区 / 工坊区 …）还是
@@ -111,10 +137,11 @@
   /* 标题条 HTML。sub 是标题右侧的小字（可省）。⚠️ 只给「有 id 的持久卡」用；
    *   信仰页的标题写死在 index.html（它那页要护住命名的输入框，不能整块重画）。 */
   function cardHeadHTML(key, sub) {
-    var m = CARD_META[key] || { name: key, color: 'var(--cyan)' };
+    var m = CARD_META[key] || { color: 'var(--cyan)' };
     /* 巢穴页的名字随纪元演进（家在长大），其余页用固定名。
      * ⚠️ 取活动局 run() 的 era，2 秒面板重画时会自动跟着纪元走。 */
     var titleKeys = {
+      res: 'ui.pane.resources.title', env: 'ui.pane.environment.title',
       folk: 'ui.pane.people.title', tech: 'ui.pane.research.title', civic: 'ui.pane.civics.title',
       faith: 'ui.pane.faith.title', workshop: 'ui.workshop.title', wonder: 'ui.pane.wonders.title',
       'star-map': 'ui.pane.star_map.title', company: 'ui.pane.companies.title',
@@ -122,8 +149,8 @@
       meta: 'ui.pane.prestige_shop.title'
     };
     var nm = (key === 'village')
-      ? (SB.habitat && SB.habitat.habitatName ? SB.habitat.habitatName(SB.game.run()) : m.name)
-      : tr(titleKeys[key], null, m.name);
+      ? (SB.habitat && SB.habitat.habitatName ? SB.habitat.habitatName(SB.game.run()) : tr('ui.habitat.name'))
+      : tr(titleKeys[key]);
     nm = htmlText(nm);
     return '<div class="cardhd" data-fold="' + key + '" style="--hc:' + m.color +
       '" title="' + htmlText(tr('ui.card.collapse_expand.tooltip', null, '点击折叠 / 展开')) + '"><span class="cv">▾</span>' + nm +
@@ -265,11 +292,11 @@
         if (Math.abs(LL.bonus) > 1e-9) {
           /* mechH ≤ 0 时 c(H) 走保底 BASE，那个负数对玩家没有意义，
            * 印出来只会让人以为「按 −1 计价」是更省的事（其实单价已是最低）。 */
-          _luxTip = (LL.mechH > 0
-            ? '按幸福 ' + LL.mechH.toFixed(2) + ' 计，已剔市政/奇观/卡的 ' +
-              (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
-            : '计价已到底线，已剔市政/奇观/卡的 ' +
-              (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2));
+          _luxTip = tr(LL.mechH > 0 ? 'ui.happiness.luxury.tooltip.mechanic' : 'ui.happiness.luxury.tooltip.floor', {
+            mechanicHappiness: LL.mechH.toFixed(2), bonusOffset: (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
+          }, LL.mechH > 0
+            ? '按幸福 ' + LL.mechH.toFixed(2) + ' 计，已剔市政/奇观/卡的 ' + (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
+            : '计价已到底线，已剔市政/奇观/卡的 ' + (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2));
         }
         luxTxt = '<i class="sd"' + (_luxTip ? ' title="' + _luxTip + '"' : '') + '>产 ' +
           '<span class="lux-out">' + LL.out.toFixed(2) + '</span> · 耗 ' +
@@ -344,6 +371,46 @@
     if (a >= 10) return f.toFixed(1);
     return f.toFixed(2);
   }
+  var RES_DETAIL_RATE_LABEL_KEYS = null;
+  var RES_DETAIL_RATE_LABEL_ALIASES = {
+    '马尔斯工造中心': 'building.mars_workshop.name',
+    '瑞亚星矿井': 'building.rhea_mine.name',
+    '老潮石碑': 'legacy.ancient_tide_stele.name',
+    '泰坦气云采集站': 'building.titan_cloud_harvester.name',
+    '生物材料研究所': 'building.biomaterials_research_institute.name',
+    '启蒙沙龙': 'policy.card.enlightenment_salon.name',
+    '寒流季': 'season.cold_season.name',
+    '水体污染': 'challenge.water_pollution.name',
+    '砂矿坑': 'building.sand_pit.name',
+    '阿尔巴达': 'wonder.albada_hydrothermal_university.name',
+    '炉火礼赞': 'faith.tenet.furnace_hymn.name',
+    "哈'利法": 'wonder.khalifa_space_telescope.name',
+    '王座': 'wonder.supreme_throne.name',
+    '星炉献礼': 'faith.tenet.star_forge_offering.name',
+    '政体': 'civic.government.heading'
+  };
+  function rdRateLabel(label) {
+    if (!label) return '';
+    if (!SB.i18n || !SB.i18n.getLocale || SB.i18n.getLocale() !== 'en-US') return label;
+    if (!RES_DETAIL_RATE_LABEL_KEYS) {
+      RES_DETAIL_RATE_LABEL_KEYS = Object.create(null);
+      var dictionaries = root.ShellbreakLocales || {};
+      var zh = dictionaries['zh-CN'] || {};
+      var en = dictionaries['en-US'] || {};
+      Object.keys(zh).forEach(function (key) {
+        if (key.indexOf('ui.economy.rate.source.') !== 0 || typeof en[key] !== 'string') return;
+        var sourceLabel = zh[key];
+        if (Object.prototype.hasOwnProperty.call(RES_DETAIL_RATE_LABEL_KEYS, sourceLabel) &&
+            RES_DETAIL_RATE_LABEL_KEYS[sourceLabel] !== key) {
+          RES_DETAIL_RATE_LABEL_KEYS[sourceLabel] = null;
+        } else {
+          RES_DETAIL_RATE_LABEL_KEYS[sourceLabel] = key;
+        }
+      });
+    }
+    var key = RES_DETAIL_RATE_LABEL_ALIASES[label] || RES_DETAIL_RATE_LABEL_KEYS[label];
+    return key ? tr(key, null, label) : label;
+  }
   function showResDetail(k) {
     var s = res(), modal = el('modal'), box = el('modalBox');
     if (!s || !modal || !box || !SB.RESS[k]) return false;
@@ -353,7 +420,7 @@
 
     function partRow(p) {
       var cls = p.v > 0 ? 'out' : 'in';
-      var html = '<div class="rd-row ' + cls + '"><span class="rd-l">' + p.l + '</span><b class="rd-v">' +
+      var html = '<div class="rd-row ' + cls + '"><span class="rd-l">' + htmlText(rdRateLabel(p.l)) + '</span><b class="rd-v">' +
         rdSigned(p.v) + '</b></div>';
       var chips = '', i;
       if (p.m && p.m.length) {
@@ -362,14 +429,14 @@
           /* ×1.00 的乘区一律不印：那一屏会全是「×1.00」，真加成反而看不见。
            * 隐藏它们不改变结论 —— 被藏的都是恒等乘区，分项值本身照旧是全额。 */
           if (!isFinite(f) || Math.abs(f - 1) < 1e-9) continue;
-          chips += '<i>' + p.m[i][0] + '<em>×' + rdMul(f) + '</em></i>';
+          chips += '<i>' + htmlText(rdRateLabel(p.m[i][0])) + '<em>×' + rdMul(f) + '</em></i>';
         }
         /* 基数必须一起印：只给乘区系数、不给起点，玩家没法把右边的数反推回去
          * （「×1.20 ×1.21 怎么得到 0.79」）。这一格就是算式里那个被乘的底数。 */
-        if (chips) chips = '<i class="rd-b">基数<em>' + rdNum(p.b) + '</em></i>' + chips;
+        if (chips) chips = '<i class="rd-b">' + htmlText(tr('ui.resource.detail.base', null, '基数')) + '<em>' + rdNum(p.b) + '</em></i>' + chips;
       }
       if (chips) html += '<div class="rd-fx">' + chips + '</div>';
-      else if (p.d) html += '<div class="rd-fx"><i>' + p.d + '</i></div>';
+      else if (p.d) html += '<div class="rd-fx"><i>' + htmlText(rdRateLabel(p.d)) + '</i></div>';
       return html;
     }
 
@@ -383,26 +450,29 @@
 
     var cap = SB.economy.capOf(s, k);
     /* 有上限写「/ 200」，无上限只写「无上限」—— 拼成「/ 无上限」读着是病句。 */
-    var capTxt = isFinite(cap) ? '/ ' + SB.economy.fmt(cap) : '无上限';
+    var capTxt = isFinite(cap) ? '/ ' + SB.economy.fmt(cap) : htmlText(tr('ui.resource.detail.unlimited', null, '无上限'));
     var v = s.res[k] || 0;
     var full = isFinite(cap) && cap > 0 && v >= cap;
-    var name = SB.RESS[k].name;
+    var name = SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' && SB.i18n.resourceName
+      ? SB.i18n.resourceName(k, SB.RESS[k].name)
+      : SB.RESS[k].name;
     var netCls = rate > 1e-9 ? 'up' : (rate < -1e-9 ? 'down' : '');
 
     box.innerHTML = '<div class="res-detail">'
       + '<div class="modal-hd"><b><img class="res-icon" src="assets/resource-icons/' + k +
-        '.png?v=2" alt="" aria-hidden="true" width="24" height="24" decoding="async">' + name + '</b>'
-      + '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>'
+        '.png?v=2" alt="" aria-hidden="true" width="24" height="24" decoding="async">' + htmlText(name) + '</b>'
+      + '<button type="button" class="modal-x" data-modal-close="1" aria-label="' + htmlText(tr('ui.action.close', null, '关闭')) + '">×</button></div>'
       + '<div class="rd-head">'
-      +   '<div class="rd-cell"><span>存量</span><b>' + SB.economy.fmtAmt(v) + '</b><i>' + capTxt +
-            (full ? '<em class="rd-full">满</em>' : '') + '</i></div>'
-      +   '<div class="rd-cell rd-net ' + netCls + '"><span>净值</span><b>' + rdSigned(rate) + '<i>/s</i></b></div>'
+      +   '<div class="rd-cell"><span>' + htmlText(tr('ui.resource.detail.stock', null, '存量')) + '</span><b>' + SB.economy.fmtAmt(v) + '</b><i>' + capTxt +
+            (full ? '<em class="rd-full">' + htmlText(tr('ui.resource.detail.full', null, '满')) + '</em>' : '') + '</i></div>'
+      +   '<div class="rd-cell rd-net ' + netCls + '"><span>' + htmlText(tr('ui.resource.detail.net_rate', null, '净值')) + '</span><b>' + rdSigned(rate) + '<i>/s</i></b></div>'
       + '</div>'
-      + (outRows ? '<div class="rd-sec">产出</div>' + outRows : '')
-      + (inRows ? '<div class="rd-sec">消耗</div>' + inRows : '')
-      + (list.length ? '' : '<div class="rd-empty">该资源当前没有任何产出或消耗。</div>')
-      + '<div class="rd-foot"><span>产 ' + rdSigned(sumOut) + ' · 耗 ' + rdSigned(sumIn) +
-        ' · 净 ' + rdSigned(rate) + '</span></div>'
+      + (outRows ? '<div class="rd-sec">' + htmlText(tr('ui.resource.detail.output', null, '产出')) + '</div>' + outRows : '')
+      + (inRows ? '<div class="rd-sec">' + htmlText(tr('ui.resource.detail.consumption', null, '消耗')) + '</div>' + inRows : '')
+      + (list.length ? '' : '<div class="rd-empty">' + htmlText(tr('ui.resource.detail.empty', null, '该资源当前没有任何产出或消耗。')) + '</div>')
+      + '<div class="rd-foot"><span>' + htmlText(tr('ui.resource.detail.summary', {
+        outputRate: rdSigned(sumOut), consumptionRate: rdSigned(sumIn), netRate: rdSigned(rate)
+      }, '产 {outputRate} · 耗 {consumptionRate} · 净 {netRate}')) + '</span></div>'
       + '</div>';
     resetModalChrome();
     modal.classList.remove('hidden');
@@ -547,14 +617,17 @@
     resetModalChrome();
     var cap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
     var cur = (s && s.res && s.res.starExplore) || 0;
+    var progress = tr('ui.shell.star_exploration.complete_modal.progress', {
+      currentProgress: Math.round(cur).toLocaleString(), progressCap: cap.toLocaleString()
+    }, '星空探索已满（{currentProgress} / {progressCap}）。');
     box.innerHTML = '<div class="star-complete-panel">'
-      + '<h2>★ 太空时代达成</h2>'
-      + '<p>星空槽已填满（' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '）。</p>'
+      + '<h2>' + htmlText(tr('ui.shell.star_exploration.complete_modal.title', null, '★ 太空时代达成')) + '</h2>'
+      + '<p>' + htmlText(progress) + '</p>'
       /* 2026-10-28 用户要求删掉「终局奖励与后续内容将在后续更新中开放」这一句：
        * 后半句把「后续内容」当卖点摆给玩家，等于在终局界面承认内容没做完；
        * 留着前半句（越过天壳、望向群星）就够收尾，不解释、不承诺。 */
-      + '<p class="muted">你的文明已越过天壳，望向群星。</p>'
-      + '<div class="break-controls"><button class="btn big" type="button" id="starCompleteClose">继续</button></div>'
+      + '<p class="muted">' + htmlText(tr('ui.shell.star_exploration.complete_modal.note', null, '你的文明已越过天壳，望向群星。')) + '</p>'
+      + '<div class="break-controls"><button class="btn big" type="button" id="starCompleteClose">' + htmlText(tr('ui.action.keep_playing', null, '继续游玩')) + '</button></div>'
       + '</div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
     var btn = el('starCompleteClose');
@@ -574,17 +647,19 @@
      * 挂 meta.challengePopupPending ⇒《水体污染》通关也弹「★ 流浪泰拉 · 挑战完成」，
      * 奖励与日志却是它自己的（账本没错、面板撒谎）。现在一律读 outcome：
      * award() 给的 name / label / goalText / reward 本来就是按定义取的。 */
-    var title = escHtml(outcome.name || '挑战');
     /* 设置栏「回看演出」走同一个面板，但**不能**说「永久奖励已生效」——那次是重播，
      * 一分钱都没发（同上一条注释的同一个坑：面板说的话必须是这次真的发生的事）。 */
     var isReview = outcome.review === true;
+    var titleKey = isReview ? 'ui.challenge.completion.review.title' : 'ui.challenge.completion.title';
+    var title = escHtml(tr(titleKey, { challengeName: outcome.name || '' }, '★ {challengeName} · 挑战完成'));
+    var goal = escHtml(outcome.goalText || tr('ui.challenge.completion.status', null, '挑战完成'));
     box.innerHTML = '<div class="star-complete-panel challenge-complete-panel">' +
-      '<h2>★ ' + title + ' · ' + (isReview ? '通关演出' : '挑战完成') + '</h2>' +
-      '<p>' + escHtml(outcome.goalText || '挑战目标已达成。') + '</p>' +
+      '<h2>' + title + '</h2>' +
+      '<p>' + goal + '</p>' +
       (isReview
-        ? '<p class="muted">这是通关演出的回放，不影响任何进度与奖励。</p>'
-        : '<p class="muted">永久奖励已生效：' + escHtml(outcome.reward || '') + '。本局仍可继续发展。</p>') +
-      '<div class="break-controls"><button class="btn big" type="button" id="challengeCompleteClose">继续</button></div>' +
+        ? '<p class="muted">' + escHtml(tr('ui.challenge.completion.review_note', null, '这是通关演出的回放，不影响任何进度与奖励。')) + '</p>'
+        : '<p class="muted">' + escHtml(tr('ui.challenge.completion.reward_notice', { rewardDescription: outcome.reward || '' }, '永久奖励已生效：{rewardDescription}。本局仍可继续发展。')) + '</p>') +
+      '<div class="break-controls"><button class="btn big" type="button" id="challengeCompleteClose">' + htmlText(tr('ui.action.keep_playing', null, '继续游玩')) + '</button></div>' +
       '</div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
     var btn = el('challengeCompleteClose');
@@ -608,35 +683,30 @@
     clearDysonAnimation();
     var phases = ['impact', 'core', 'gaze', 'departure'];
     var frameFiles = ['frame-01-ignition.webp', 'frame-02-v2.webp', 'frame-03-v2.webp', 'frame-04-v2.webp'];
-    var names = ['发动机点火', '炉芯满载', '全面点火', '驶向深空'];
-    var alts = [
-      '行星发动机点火近景：环形炉芯中喷出垂直火焰，蒸汽与火星翻涌',
-      '轨道视角的冰封泰拉：赤道一带的发动机网被同时点亮，蓝白光柱连成一圈',
-      '泰拉弧面上的行星发动机群依次点火，蓝白尾焰沿地平线升起，远处太阳照亮冰原',
-      '驶向深空的暗色泰拉，行星边缘泛起薄薄的冰蓝色大气辉光，远处恒星在上方闪耀'
-    ];
-    var captions = [
-      '<small>行星发动机 · 点火特写</small><h2>第一束火焰。</h2><p>主喷口点燃，火流穿过冰雾，远航由此开始。</p>',
-      '<small>流浪泰拉 · 星核蓄能</small><h2>炉芯，满载。</h2><p>热液能在冰封之下汇聚</p>',
-      '<small>行星发动机群 · 全面点火</small><h2>泰拉，挣脱旧轨。</h2><p>发动机沿地平线次第亮起，尾焰映出整颗星球的尺度。</p>',
-      '<small>告别太阳 · 深空启程</small><h2>启航</h2><p>摇篮与光被抛于身后，我们驶入茫茫星空</p>'
-    ];
+    var phasePrefix = 'ui.finale.drift_terra.';
+    var names = phases.map(function (phase) { return tr(phasePrefix + 'phase.' + phase); });
+    var alts = phases.map(function (phase) { return tr(phasePrefix + 'alt.' + phase); });
+    var captions = phases.map(function (phase) {
+      var prefix = phasePrefix + 'caption.' + phase + '.';
+      return '<small>' + htmlText(tr(prefix + 'label')) + '</small><h2>' +
+        htmlText(tr(prefix + 'heading')) + '</h2><p>' + htmlText(tr(prefix + 'body')) + '</p>';
+    });
     var framesHtml = '', captionsHtml = '';
     for (var i = 0; i < phases.length; i++) {
-      framesHtml += '<img class="break-frame-' + phases[i] + '" src="assets/backgrounds/sequence/era-10/drift-terra/' + frameFiles[i] + '" alt="' + alts[i] + '">';
+      framesHtml += '<img class="break-frame-' + phases[i] + '" src="assets/backgrounds/sequence/era-10/drift-terra/' + frameFiles[i] + '" alt="' + htmlText(alts[i]) + '">';
       captionsHtml += '<div class="break-caption-text break-cap-' + phases[i] + '">' + captions[i] + '</div>';
     }
     box.innerHTML =
-      '<section class="break-showcase drift-terra-showcase" aria-label="流浪泰拉通关演出">' +
+      '<section class="break-showcase drift-terra-showcase" aria-label="' + htmlText(tr(phasePrefix + 'aria_label')) + '">' +
         '<div class="break-stage" id="terraStage" data-phase="impact">' +
           '<div class="break-scene">' + framesHtml + '</div>' +
           '<div class="terra-ignition" aria-hidden="true"></div>' +
           '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="terraPhaseName">' + names[0] + '</span></span><span id="terraCounter">01 / 04</span></div>' +
           '<div class="break-caption" aria-live="polite">' + captionsHtml + '</div>' +
-          '<div class="break-end-card"><small>' + (outcome.review === true ? '演出回顾' : '挑战完成') + '</small><strong>流浪泰拉 · 星际远航</strong></div>' +
+          '<div class="break-end-card"><small>' + htmlText(tr(outcome.review === true ? 'ui.challenge.completion.replay_label' : 'ui.challenge.completion.status')) + '</small><strong>' + htmlText(tr(phasePrefix + 'end_card.title')) + '</strong></div>' +
           '<div class="terra-progress" aria-hidden="true"><span></span></div>' +
         '</div>' +
-        '<div class="break-controls"><button class="btn" id="terraReplay" type="button">↻ 重播</button><button class="btn big" id="terraContinue" type="button">跳过动画</button></div>' +
+        '<div class="break-controls"><button class="btn" id="terraReplay" type="button">' + htmlText(tr('ui.action.replay', null, '↻ 重播')) + '</button><button class="btn big" id="terraContinue" type="button">' + htmlText(tr('ui.action.skip_animation', null, '跳过动画')) + '</button></div>' +
       '</section>';
     resetModalChrome();
     modal.classList.add('break-modal', 'terra-ending-modal');
@@ -649,7 +719,7 @@
       stage.dataset.phase = phases[index];
       if (phaseName) phaseName.textContent = names[index];
       if (counter) counter.textContent = '0' + (index + 1) + ' / 04';
-      if (continueBtn && index === phases.length - 1) continueBtn.textContent = (outcome.review === true ? '结束回顾' : '查看结局');
+      if (continueBtn && index === phases.length - 1) continueBtn.textContent = tr(outcome.review === true ? 'ui.action.finish_replay' : 'ui.action.view_ending', null, outcome.review === true ? '结束回顾' : '查看结局');
     }
     function play() {
       clearDysonAnimation();
@@ -658,7 +728,7 @@
       if (stage.offsetWidth) stage.offsetWidth;
       stage.classList.add('terra-animate');
       setStep(0);
-      if (continueBtn) continueBtn.textContent = '跳过动画';
+      if (continueBtn) continueBtn.textContent = tr('ui.action.skip_animation', null, '跳过动画');
       for (var j = 1; j < phases.length; j++) {
         (function (index) { _dysonAnimationTimers.push(setTimeout(function () { setStep(index); }, times[index])); })(j);
       }
@@ -741,15 +811,16 @@
     var sailCap = SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(s) : (SB.CFG.DYSON_SAIL_CAP || 10000);
     var nodeCap = SB.challenges && SB.challenges.dysonNodeCap ? SB.challenges.dysonNodeCap(s) : (SB.CFG.DYSON_NODE_CAP || 1000);
     box.innerHTML = '<div class="dyson-complete-panel">'
-      + '<h2>★ 戴森球竣工</h2>'
-      + '<p>太阳帆 <b>' + sails.toLocaleString() + '</b> / ' + sailCap.toLocaleString()
-      + ' ＋ 戴森球节点 <b>' + nodes.toLocaleString() + '</b> / ' + nodeCap.toLocaleString()
-      + ' —— 双达标达成。</p>'
-      + '<p class="muted">母星戴上了一圈星环，文明的火光第一次以恒星计量。'
-      + '你可以立刻轮回结算（轮回点与星屑按现有公式入账），也可以继续留在这一局，攒取更多的轮回点与星屑。</p>'
+      + '<h2>' + htmlText(tr('ui.dyson.completion.title', null, '★ 戴森球竣工')) + '</h2>'
+      + '<p>' + htmlText(tr('ui.dyson.completion.targets', {
+        currentSails: sails.toLocaleString(), sailCap: sailCap.toLocaleString(),
+        currentNodes: nodes.toLocaleString(), nodeCap: nodeCap.toLocaleString()
+      }, '太阳帆 {currentSails} / {sailCap} ＋ 戴森球节点 {currentNodes} / {nodeCap} —— 双项均已达标。')) + '</p>'
+      + '<p class="muted">' + htmlText(tr('ui.dyson.completion.flavor', null, '母星戴上了一圈星环，文明的火光第一次以恒星计量。')) + ' '
+      + htmlText(tr('ui.dyson.completion.next_steps', null, '你可以立刻轮回结算（轮回点与星屑按现有公式入账），也可以继续留在这一局，攒取更多的轮回点与星屑。')) + '</p>'
       + '<div class="break-controls">'
-      + '<button class="btn big" type="button" id="dysonBreakNow">繁星轮回（结算）</button>'
-      + '<button class="btn" type="button" id="dysonKeepPlaying">继续游玩</button>'
+      + '<button class="btn big" type="button" id="dysonBreakNow">' + htmlText(tr('ui.dyson.completion.prestige_action', null, '繁星轮回（结算）')) + '</button>'
+      + '<button class="btn" type="button" id="dysonKeepPlaying">' + htmlText(tr('ui.action.keep_playing', null, '继续游玩')) + '</button>'
       + '</div></div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
     var b1 = el('dysonBreakNow');
@@ -820,16 +891,17 @@
     var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
     resetModalChrome();
     var C = voidCorrupt;
+    function vergePanelText(key, fallback) { return tr('ui.verge.ending.panel.' + key, null, fallback); }
     box.innerHTML = '<div class="void-ascend-panel">'
-      + '<h2 class="void-title">' + C('飞升虚境', 3) + '</h2>'
-      + '<p class="void-line">' + C('戴森球的最后一圈光，照亮了裂隙。', 7) + '</p>'
-      + '<p class="void-line">' + C('旧宇宙正在身后崩解。', 11) + '</p>'
-      + '<p class="void-line void-garbled">' + C('另一重现实，正在展开。', 13) + '</p>'
-      + '<p class="void-line">' + C('我们不再是「我们」。', 17) + '</p>'
-      + '<p class="void-note">' + C('（这一局到此为止。你可以轮回结算，也可以留在这里看着它继续。', 19) + '</p>'
+      + '<h2 class="void-title">' + C(tr('ui.render.show_dyson_ending.ascension_to_the_verge_a_new_universe', null, '飞升虚境'), 3) + '</h2>'
+      + '<p class="void-line">' + C(vergePanelText('line.1', '戴森球的最后一圈光，照亮了裂隙。'), 7) + '</p>'
+      + '<p class="void-line">' + C(vergePanelText('line.2', '旧宇宙正在身后崩解。'), 11) + '</p>'
+      + '<p class="void-line void-garbled">' + C(vergePanelText('line.3', '另一重现实，正在展开。'), 13) + '</p>'
+      + '<p class="void-line">' + C(vergePanelText('line.4', '我们不再是「我们」。'), 17) + '</p>'
+      + '<p class="void-note">' + C(vergePanelText('note', '（这一局到此为止。你可以轮回结算，也可以留在这里看着它继续。'), 19) + '</p>'
       + '<div class="break-controls">'
-      + '<button class="btn big" type="button" id="voidBreakNow">' + C('轮回', 23) + '</button>'
-      + '<button class="btn" type="button" id="voidKeepPlaying">' + C('继续游玩', 29) + '</button>'
+      + '<button class="btn big" type="button" id="voidBreakNow">' + C(tr('ui.action.prestige', null, '轮回'), 23) + '</button>'
+      + '<button class="btn" type="button" id="voidKeepPlaying">' + C(tr('ui.action.keep_playing', null, '继续游玩'), 29) + '</button>'
       + '</div></div>';
     /* 归一化在上面的 resetModalChrome 里做完了（void-civic-modal 等全部清掉），这里只补自己那个。 */
     modal.classList.add('void-ending-modal');
@@ -854,33 +926,48 @@
     var phaseTypes = ['intro', 'impact', 'gaze', 'ending'];
     var fileNames = ['frame-01.webp', 'frame-02.webp', 'frame-03.webp', 'frame-04.webp'];
     var times = [0, 1500, 3200, 4900];
-    var story = ascendVoid ? {
-      aria: '飞升虚境终局演出',
-      root: 'assets/backgrounds/sequence/era-10/ascend-void',
-      phases: ['黑洞初现', '视界生成', '现实崩解', '新宇宙'],
-      alts: ['紫色黑洞在戴森球中心形成，像一道通往虚境的裂隙', '引力将戴森球结构、舰队与母星卷向事件视界', '母星和破碎星环坠入黑洞，旧现实的边界正在崩解', '戴森球文明消失在紫色视界之后，信号延伸向另一重宇宙'],
-      captions: [
-        { small: '飞升虚境 · 现实偏移', title: '现实，开始松动。', body: '戴森球的恒星之力，正撕开通往虚境的裂隙。' },
-        { small: '旧宇宙 · 视界生成', title: '万物，都在奔向视界。', body: '星环、舰队与母星，正在坠向事件视界。' },
-        { small: '大撤离 · 旧现实崩解', title: '把旧世界留在身后。', body: '裂隙另一端，一片尚未定形的宇宙正在等待。' },
-        { small: '飞升虚境 · 新宇宙', title: '旧界已尽，新世初生。', body: '旧宇宙熄灭于身后。我们将在另一重现实中醒来。' }
-      ],
-      cardSmall: '现实迁移',
-      cardTitle: '飞升虚境 · 新宇宙'
-    } : {
-      aria: '戴森球终局演出',
-      root: 'assets/backgrounds/sequence/era-10',
-      phases: ['最后一枚节点', '结构闭合', '恒星戴上星环', '群星之间'],
-      alts: ['轨道工程师将最后一枚戴森球节点送向结构缺口', '最后的轨道结构与太阳帆正在闭合', '完整的戴森球环绕恒星亮起', '鲛人文明在戴森球之外仰望更远的群星'],
-      captions: [
-        '<small>终章 · 戴森球工程</small><h2>最后一枚节点。</h2><p>一颗恒星，将成为文明新的家园。</p>',
-        '<small>结构闭合 · 万帆归轨</small><h2>万帆，归于一处。</h2><p>无数远航的光，织成包裹恒星的轨道。</p>',
-        '<small>戴森球竣工</small><h2>恒星，戴上星环。</h2><p>最后一道弧光闭合，文明第一次拥有恒星的力量。</p>',
-        '<small>文明的新纪元</small><h2>群星之间。</h2><p>曾经仰望的光，如今成为新的家园。</p>'
-      ],
-      cardSmall: '阶段完成',
-      cardTitle: '戴森球工程 · 群星之上'
-    };
+    var vergePrefix = 'ui.finale.verge.';
+    var dysonPrefix = 'ui.render.show_dyson_ending.';
+    var story;
+    if (ascendVoid) {
+      story = {
+        aria: tr(vergePrefix + 'aria_label'),
+        root: 'assets/backgrounds/sequence/era-10/ascend-void',
+        phases: ['intro', 'impact', 'gaze', 'ending'].map(function (phase) { return tr(vergePrefix + 'phase.' + phase); }),
+        alts: ['intro', 'impact', 'gaze', 'ending'].map(function (phase) { return tr(vergePrefix + 'alt.' + phase); }),
+        captions: [
+          { small: tr(vergePrefix + 'caption.1.label'), title: tr(vergePrefix + 'caption.1.heading'), body: tr(vergePrefix + 'caption.1.body') },
+          { small: tr(dysonPrefix + 'old_universe_event_horizon_forms'), title: tr(dysonPrefix + 'everything_is_falling_toward_the_horizon'), body: tr(dysonPrefix + 'the_star_ring_fleet_and_homeworld_are') },
+          { small: tr(dysonPrefix + 'the_great_evacuation_old_reality_unravels'), title: tr(dysonPrefix + 'leave_the_old_world_behind'), body: tr(dysonPrefix + 'beyond_the_rift_a_universe_not_yet') },
+          { small: tr(dysonPrefix + 'ascension_to_the_verge_a_new_universe'), title: tr(dysonPrefix + 'the_old_realm_is_gone_a_new'), body: tr(dysonPrefix + 'the_old_universe_fades_behind_us_we') }
+        ],
+        cardSmall: tr(dysonPrefix + 'reality_shift'),
+        cardTitle: tr(dysonPrefix + 'ascension_to_the_verge_a_new_universe')
+      };
+    } else {
+      story = {
+        aria: tr(dysonPrefix + 'dyson_sphere_finale'),
+        root: 'assets/backgrounds/sequence/era-10',
+        phases: [
+          tr(dysonPrefix + 'the_final_node'), tr(dysonPrefix + 'structure_complete'),
+          tr(dysonPrefix + 'the_star_wears_its_ring'), tr(dysonPrefix + 'among_the_stars')
+        ],
+        alts: [
+          tr(dysonPrefix + 'an_orbital_engineer_guides_the_final_dyson'),
+          tr(dysonPrefix + 'the_final_orbital_structures_and_solar_sails'),
+          tr(dysonPrefix + 'the_completed_dyson_sphere_lights_up_around'),
+          tr(dysonPrefix + 'beyond_the_dyson_sphere_merfolk_look_toward')
+        ],
+        captions: [
+          { small: tr(dysonPrefix + 'finale_dyson_sphere_project'), title: tr(dysonPrefix + 'the_final_node_sb_004798'), body: tr(dysonPrefix + 'a_star_will_become_civilization_s_new') },
+          { small: tr(dysonPrefix + 'structure_complete_a_thousand_sails_in_orbit'), title: tr(dysonPrefix + 'a_thousand_sails_gathered_as_one'), body: tr(dysonPrefix + 'countless_lights_from_distant_voyages_weave_an') },
+          { small: tr(dysonPrefix + 'dyson_sphere_complete'), title: tr(dysonPrefix + 'the_star_wears_its_ring'), body: tr(dysonPrefix + 'the_final_arc_closes_for_the_first') },
+          { small: tr(dysonPrefix + 'a_new_era_for_civilization'), title: tr(dysonPrefix + 'among_the_stars_sb_004806'), body: tr(dysonPrefix + 'the_light_we_once_looked_up_to') }
+        ],
+        cardSmall: tr(dysonPrefix + 'stage_complete'),
+        cardTitle: tr(dysonPrefix + 'the_dyson_sphere_project_beyond_the_stars')
+      };
+    }
     var framesHtml = '', captionsHtml = '', endCardSmall, endCardTitle, i;
     function showResult() {
       if (ascendVoid) showAscendVoidPanel(s);
@@ -895,28 +982,30 @@
     clearBreakAnimation();
     clearDysonAnimation();
     for (i = 0; i < phaseTypes.length; i++) {
-      framesHtml += '<img class="break-frame-' + phaseTypes[i] + '" src="' + story.root + '/' + fileNames[i] + '" alt="' + story.alts[i] + '">';
+      framesHtml += '<img class="break-frame-' + phaseTypes[i] + '" src="' + story.root + '/' + fileNames[i] + '" alt="' + htmlText(story.alts[i]) + '">';
       if (ascendVoid) {
         var caption = story.captions[i];
         captionsHtml += '<div class="break-caption-text break-cap-' + phaseTypes[i] + '">'
-          + '<small>' + voidCorrupt(caption.small, 83 + i * 5, 1) + '</small>'
-          + '<h2>' + voidCorrupt(caption.title, 97 + i * 7, 1) + '</h2>'
-          + '<p>' + voidCorrupt(caption.body, 109 + i * 11, 1) + '</p></div>';
+          + '<small>' + htmlText(voidCorrupt(caption.small, 83 + i * 5, 1)) + '</small>'
+          + '<h2>' + htmlText(voidCorrupt(caption.title, 97 + i * 7, 1)) + '</h2>'
+          + '<p>' + htmlText(voidCorrupt(caption.body, 109 + i * 11, 1)) + '</p></div>';
       } else {
-        captionsHtml += '<div class="break-caption-text break-cap-' + phaseTypes[i] + '">' + story.captions[i] + '</div>';
+        var captionText = story.captions[i];
+        captionsHtml += '<div class="break-caption-text break-cap-' + phaseTypes[i] + '">'
+          + '<small>' + htmlText(captionText.small) + '</small><h2>' + htmlText(captionText.title) + '</h2><p>' + htmlText(captionText.body) + '</p></div>';
       }
     }
-    endCardSmall = ascendVoid ? voidCorrupt(story.cardSmall, 71, 1) : story.cardSmall;
-    endCardTitle = ascendVoid ? voidCorrupt(story.cardTitle, 73, 1) : story.cardTitle;
+    endCardSmall = ascendVoid ? htmlText(voidCorrupt(story.cardSmall, 71, 1)) : htmlText(story.cardSmall);
+    endCardTitle = ascendVoid ? htmlText(voidCorrupt(story.cardTitle, 73, 1)) : htmlText(story.cardTitle);
     box.innerHTML =
-      '<section class="break-showcase' + (ascendVoid ? ' void-ascension-showcase' : '') + '" aria-label="' + story.aria + '">' +
+      '<section class="break-showcase' + (ascendVoid ? ' void-ascension-showcase' : '') + '" aria-label="' + htmlText(story.aria) + '">' +
         '<div class="break-stage" id="dysonStage" data-phase="intro">' +
           '<div class="break-scene">' + framesHtml + '</div>' +
-          '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="dysonPhaseName">' + story.phases[0] + '</span></span><span id="dysonCounter">01 / 04</span></div>' +
+          '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="dysonPhaseName">' + htmlText(story.phases[0]) + '</span></span><span id="dysonCounter">01 / 04</span></div>' +
           '<div class="break-caption" aria-live="polite">' + captionsHtml + '</div>' +
-          '<div class="break-end-card"><small>' + endCardSmall + '</small><strong>' + endCardTitle + '</strong></div>' +
+        '<div class="break-end-card"><small>' + endCardSmall + '</small><strong>' + endCardTitle + '</strong></div>' +
         '</div>' +
-        '<div class="break-controls"><button class="btn" id="dysonReplay" type="button">↻ 重播</button><button class="btn big" id="dysonContinue" type="button">跳过动画</button></div>' +
+        '<div class="break-controls"><button class="btn" id="dysonReplay" type="button">' + htmlText(tr('ui.action.replay', null, '↻ 重播')) + '</button><button class="btn big" id="dysonContinue" type="button">' + htmlText(tr('ui.action.skip_animation', null, '跳过动画')) + '</button></div>' +
       '</section>';
     resetModalChrome();
     if (ascendVoid) modal.classList.add('void-ending-modal');
@@ -933,7 +1022,7 @@
       stage.dataset.phase = step[0];
       if (phaseName) phaseName.textContent = step[1];
       if (counter) counter.textContent = step[2];
-      if (continueBtn && step[0] === 'ending') continueBtn.textContent = '查看结局';
+      if (continueBtn && step[0] === 'ending') continueBtn.textContent = tr('ui.action.view_ending', null, '查看结局');
     }
     function finish() {
       clearDysonAnimation();
@@ -942,7 +1031,7 @@
     function play() {
       clearDysonAnimation();
       setStep(steps[0]);
-      if (continueBtn) continueBtn.textContent = '跳过动画';
+      if (continueBtn) continueBtn.textContent = tr('ui.action.skip_animation', null, '跳过动画');
       for (var i = 1; i < steps.length; i++) {
         (function (step) { _dysonAnimationTimers.push(setTimeout(function () { setStep(step); }, step[3])); })(steps[i]);
       }
@@ -1021,14 +1110,15 @@
     tabs +=
       '<button type="button" class="meta-shop-tab' + (showRebirth ? ' is-active' : '') + (!rebirthOpen ? ' is-locked' : '') +
       '" role="tab" aria-selected="' + showRebirth + '" aria-controls="meta-shop-panel"' +
-      (rebirthOpen ? ' onclick="SB.ui.render.setMetaShopView(\'rebirth\')"' : ' disabled title="完成《神学》并轮回后开放"') + '>' +
-      '<span class="meta-shop-tab-icon" aria-hidden="true">✧</span><span>轮回点商店</span>' +
-      (!rebirthOpen ? '<small>完成《神学》后开放</small>' : '') + '</button>';
+      (rebirthOpen ? ' onclick="SB.ui.render.setMetaShopView(\'rebirth\')"' : ' disabled title="' + htmlText(tr('ui.render.pane_meta_hub.unlocks_after_researching_theology', null, '完成《神学》后开放')) + '"') + '>' +
+      '<span class="meta-shop-tab-icon" aria-hidden="true">✧</span><span>' + htmlText(tr('ui.render.pane_meta_hub.prestige_points_shop', null, '轮回点商店')) + '</span>' +
+      (!rebirthOpen ? '<small>' + htmlText(tr('ui.meta.shop.prestige.locked_hint', null, '完成《神学》并轮回后开放')) + '</small>' : '') + '</button>';
     if (starOpen || rebirthOpen) tabs +=
       '<button type="button" class="meta-shop-tab' + (showStar ? ' is-active' : '') + (!starOpen ? ' is-locked' : '') + '" role="tab" aria-selected="' + showStar + '" aria-controls="meta-shop-panel"' +
-      (starOpen ? ' onclick="SB.ui.render.setMetaShopView(\'stardust\')"' : ' disabled title="建成首座轨道卫星后永久解锁"') + '>' +
-      '<span class="meta-shop-tab-icon" aria-hidden="true">✦</span><span>星屑商店</span>' + (!starOpen ? '<small>首建卫星后永久解锁</small>' : '') + '</button>';
-    var h = '<nav class="meta-shop-tabs" role="tablist" aria-label="商店分类">' + tabs + '</nav>' +
+      (starOpen ? ' onclick="SB.ui.render.setMetaShopView(\'stardust\')"' : ' disabled title="' + htmlText(tr('ui.render.pane_meta_hub.permanently_unlocks_after_building_your_first_sa', null, '首建卫星后永久解锁')) + '"') + '>' +
+      '<span class="meta-shop-tab-icon" aria-hidden="true">✦</span><span>' + htmlText(tr('ui.render.pane_meta_hub.stardust_shop', null, '星屑商店')) + '</span>' +
+      (!starOpen ? '<small>' + htmlText(tr('ui.meta.shop.stardust.locked_hint', null, '建成首座轨道卫星后永久解锁')) + '</small>' : '') + '</button>';
+    var h = '<nav class="meta-shop-tabs" role="tablist" aria-label="' + htmlText(tr('ui.render.pane_meta_hub.shop_categories', null, '商店分类')) + '">' + tabs + '</nav>' +
       '<div id="meta-shop-panel" class="meta-shop-panel" role="tabpanel">' + (showStar ? paneStarDome() : (rebirthOpen ? paneMeta() : '')) + '</div>';
     return h;
   }
@@ -1086,6 +1176,23 @@
     return '';
   }
 
+  function starPerkLocaleKey(id, field) {
+    var slug = String(id || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+    return 'prestige.star_perk.' + slug + '.' + field;
+  }
+  function localizedStarPerk(perk, field) {
+    if (!perk) return '';
+    var source = field === 'name' ? perk.name : perk.desc;
+    var key = starPerkLocaleKey(perk.id, field);
+    var params = null;
+    if (field === 'description') {
+      var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
+      params = info && info.englishTemplateParams ? info.englishTemplateParams(key, source) : null;
+    }
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : source;
+  }
+
   /* 星屑商店：星屑结算、永久强化和轮回点兑换。 */
   function paneStarDome() {
     var s = res(); if (!s) return '';
@@ -1099,35 +1206,48 @@
     var facilityNames = [];
     for (var fi = 0; fi < SB.BUILDINGS.length; fi++) {
       var fb = SB.BUILDINGS[fi], fl = (s.lvl && s.lvl[fb.id]) || 0;
-      if (fb.stardustFacility && fl > 0) facilityNames.push(fb.name + ' ' + fl);
+      if (fb.stardustFacility && fl > 0) {
+        var localizedFacility = SB.i18n && SB.i18n.buildingName ? SB.i18n.buildingName(fb.id, fb.name) : fb.name;
+        facilityNames.push(localizedFacility + ' ' + fl);
+      }
     }
     var starTrees = [
-      { key: 'shell', icon: '◐', accent: '#a8b8f0', title: '天壳压制', subtitle: '削减下一局的天壳厚度 · 局中购买不对本局生效', ids: ['starShellPress1', 'starShellPress2', 'starShellPress3'] },
-      { key: 'civilization', icon: '✦', accent: '#b2a5ff', title: '文明共鸣', subtitle: '强化族民、住房与轮回遗产', ids: ['starFolk1', 'starFolk2', 'starFolk3', 'starInfinite', 'starModuleHousing', 'starFoldableStructure'] },
-      { key: 'enterprise', icon: '⌂', accent: '#d9b878', title: '寰宇巨企', subtitle: '加速企业成长，协同科研产出', ids: ['starCompanyMaturity1', 'starCompanyMaturity2', 'starCompanyMaturity3', 'starCompanyResearchSynergy'] },
-      { key: 'industry', icon: '⚙', accent: '#70d0d9', title: '星际工业', subtitle: '提升星炉、核电、发射与星环制造', ids: ['starSmelt1', 'starSmelt2', 'starSmelt3', 'starLaunchSpeed1', 'starNuclearHydro1', 'starNuclearHydro2', 'starNuclearHydro3', 'starSailHydro1', 'starSailHydro2', 'starSolarRing1', 'starSolarRing2', 'starSolarRing3', 'starRingRocketEngineCraft', 'starRingThetaFilmCraft', 'starRingStrongPropellantCraft'] },
-      { key: 'frontier', icon: '◎', accent: '#83d9ba', title: '星域拓展', subtitle: '观测深空、联通轨道与异星工业', ids: ['starExplore1', 'starExplore2', 'starExplore3', 'starExploreScholar1', 'starExploreScholar2', 'starAlienOutput1', 'starAlienOutput2', 'starAlienOutput3', 'starTerraform1', 'starTerraform2'] },
-      { key: 'automation', icon: '◈', accent: '#dfb879', title: '先行建造协议', subtitle: '提前启动各区自动建造', ids: ['earlyAutoBuildCore', 'earlyAutoBuildFood', 'earlyAutoBuildWorkshop', 'earlyAutoBuildTrade', 'earlyAutoBuildAcademy', 'earlyAutoBuildCivic', 'earlyAutoBuildFaith', 'earlyAutoBuildSpace'] }
+      { key: 'shell', icon: '◐', accent: '#a8b8f0', ids: ['starShellPress1', 'starShellPress2', 'starShellPress3'] },
+      { key: 'civilization', icon: '✦', accent: '#b2a5ff', ids: ['starFolk1', 'starFolk2', 'starFolk3', 'starInfinite', 'starModuleHousing', 'starFoldableStructure'] },
+      { key: 'enterprise', icon: '⌂', accent: '#d9b878', ids: ['starCompanyMaturity1', 'starCompanyMaturity2', 'starCompanyMaturity3', 'starCompanyResearchSynergy'] },
+      { key: 'industry', icon: '⚙', accent: '#70d0d9', ids: ['starSmelt1', 'starSmelt2', 'starSmelt3', 'starLaunchSpeed1', 'starNuclearHydro1', 'starNuclearHydro2', 'starNuclearHydro3', 'starSailHydro1', 'starSailHydro2', 'starSolarRing1', 'starSolarRing2', 'starSolarRing3', 'starRingRocketEngineCraft', 'starRingThetaFilmCraft', 'starRingStrongPropellantCraft'] },
+      { key: 'frontier', icon: '◎', accent: '#83d9ba', ids: ['starExplore1', 'starExplore2', 'starExplore3', 'starExploreScholar1', 'starExploreScholar2', 'starAlienOutput1', 'starAlienOutput2', 'starAlienOutput3', 'starTerraform1', 'starTerraform2'] },
+      { key: 'automation', icon: '◈', accent: '#dfb879', ids: ['earlyAutoBuildCore', 'earlyAutoBuildFood', 'earlyAutoBuildWorkshop', 'earlyAutoBuildTrade', 'earlyAutoBuildAcademy', 'earlyAutoBuildCivic', 'earlyAutoBuildFaith', 'earlyAutoBuildSpace'] }
     ];
+    for (var treeIndex = 0; treeIndex < starTrees.length; treeIndex++) {
+      var starTree = starTrees[treeIndex], starTreeKey = 'ui.star_dome.tree.' + starTree.key + '.';
+      starTree.title = tr(starTreeKey + 'title', null, starTree.key);
+      starTree.subtitle = tr(starTreeKey + 'subtitle', null, '');
+    }
     var litStarNodes = 0, starLevels = 0, totalStarNodes = SB.STAR_PERKS.length;
     for (var si = 0; si < SB.STAR_PERKS.length; si++) {
       var ownedStar = SB.prestige.starPerkState(SB.STAR_PERKS[si].id);
       if (ownedStar.lv > 0) litStarNodes++;
       starLevels += ownedStar.lv;
     }
+    var exchangeParams = { prestigePointsPerExchange: 10, stardustPerExchange: 1 };
+    var facilitySummary = tr('prestige.stardust.facility_yield.summary', {
+      starProgress: Math.floor(starPct * 100),
+      facilityList: facilityNames.length ? facilityNames.map(htmlText).join(englishLocale() ? ', ' : '、') : tr('ui.render.pane_star_dome.none_yet', null, '尚无')
+    }, '星空进度 {starProgress}% · 计入设施：{facilityList}');
+    var settlementFormula = tr('ui.stardust.settlement.formula', { facilityWeight: '0.1', dysonWeight: '50%' },
+      '预计星屑 = floor(设施等级 × {facilityWeight} × (1 + 星空进度) × (1 + 戴森进度 × {dysonWeight}) × 已解锁加成)。戴森进度取太阳帆与戴森节点两者中的较低值；星间遗迹、先民遗产和「继承繁星之人」也会计入。');
     var h = '<div class="cardbody">' +
-      '<div class="meta-overview"><div class="meta-balance"><span class="meta-balance-label"><img class="special-resource-icon" src="assets/resource-icons/stardust.png?v=2" alt="" aria-hidden="true" width="20" height="20">星屑余额</span><strong>' + sd + '</strong><small>累计结算获得 ' + ((m && m.stardustEarned) || 0) + '</small></div>' +
-      '<div class="meta-stats"><div><span>下次结算预计</span><b>' + nextGain + ' 星屑</b></div><div><span>太空与异星设施</span><b>' + facilityLvls + ' 级</b></div><div><span>戴森球进度</span><b>' + Math.floor(dysonPct * 100) + '%</b></div></div></div>' +
-      '<details class="star-yield-details"><summary>星屑结算档案 <span>星空进度 ' + Math.floor(starPct * 100) + '% · 计入设施 ' +
-      (facilityNames.length ? facilityNames.join('、') : '尚无') + '</span></summary><p>预计值 = floor(设施等级 × 0.1 × (1 + 星空进度) × ' +
-      '(1 + 戴森进度 × 50%) × 已解锁加成)。戴森球按太阳帆与戴森节点两者较低进度计算；星间遗迹、先民遗产、继承繁星之人也会计入。</p></details>' +
-      '<section class="meta-tree-intro star-tree-intro"><div><span class="meta-tree-kicker">STARDUST LEGACY · 局外成长</span>' +
-      '<h2>星之至宝</h2><p>沿前置星脉逐层点亮，永久强化后续周目；根节点可独立投资。</p></div>' +
-      '<div class="meta-tree-progress"><span>已点亮节点</span><b>' + litStarNodes + '<i> / ' + totalStarNodes + '</i></b>' +
+      '<div class="meta-overview"><div class="meta-balance"><span class="meta-balance-label"><img class="special-resource-icon" src="assets/resource-icons/stardust.png?v=2" alt="" aria-hidden="true" width="20" height="20">' + htmlText(tr('ui.render.pane_star_dome.stardust_balance', null, '星屑余额')) + '</span><strong>' + sd + '</strong><small>' + htmlText(tr('ui.render.pane_star_dome.earned_from_settlements', null, '累计结算获得')) + ' ' + ((m && m.stardustEarned) || 0) + '</small></div>' +
+      '<div class="meta-stats"><div><span>' + htmlText(tr('ui.render.pane_star_dome.estimated_next_settlement', null, '下次结算预计')) + '</span><b>' + nextGain + ' ' + htmlText(tr('content.stardust.name', null, '星屑')) + '</b></div><div><span>' + htmlText(tr('ui.render.pane_star_dome.space_and_alien_facilities', null, '太空与异星设施')) + '</span><b>' + facilityLvls + ' ' + htmlText(tr('ui.render.pane_star_dome.ranks', null, '阶')) + '</b></div><div><span>' + htmlText(tr('ui.render.pane_star_dome.dyson_sphere_progress', null, '戴森球进度')) + '</span><b>' + Math.floor(dysonPct * 100) + '%</b></div></div></div>' +
+      '<details class="star-yield-details"><summary>' + htmlText(tr('ui.render.pane_star_dome.stardust_settlement_details', null, '星屑结算档案')) + ' <span>' + htmlText(facilitySummary) + '</span></summary><p>' + htmlText(settlementFormula) + '</p></details>' +
+      '<section class="meta-tree-intro star-tree-intro"><div><span class="meta-tree-kicker">' + htmlText(tr('ui.render.pane_star_dome.stardust_legacy_between_run_progression', null, 'STARDUST LEGACY · 局外成长')) + '</span>' +
+      '<h2>' + htmlText(tr('ui.render.pane_star_dome.treasures_of_the_stars', null, '星之至宝')) + '</h2><p>' + htmlText(tr('ui.render.pane_star_dome.unlock_nodes_along_each_star_path_to', null, '沿前置星脉逐层点亮，永久强化后续周目；根节点可独立投资。')) + '</p></div>' +
+      '<div class="meta-tree-progress"><span>' + htmlText(tr('ui.prestige.tree.progress.activated_nodes', null, '已点亮节点')) + '</span><b>' + litStarNodes + '<i> / ' + totalStarNodes + '</i></b>' +
       '<div class="meta-tree-progress-track"><i style="width:' + (totalStarNodes ? litStarNodes / totalStarNodes * 100 : 0) + '%"></i></div>' +
-      '<small>累计强化 ' + starLevels + ' 阶</small></div></section><div class="star-tree-grid">';
+      '<small>' + htmlText(tr('ui.prestige.tree.total_upgrade_levels', { levelCount: starLevels }, '累计强化 {levelCount} 阶')) + '</small></div></section><div class="star-tree-grid">';
     function starPerkName(id) {
-      for (var ni = 0; ni < SB.STAR_PERKS.length; ni++) if (SB.STAR_PERKS[ni].id === id) return SB.STAR_PERKS[ni].name;
+      for (var ni = 0; ni < SB.STAR_PERKS.length; ni++) if (SB.STAR_PERKS[ni].id === id) return localizedStarPerk(SB.STAR_PERKS[ni], 'name');
       return id;
     }
     for (var ti = 0; ti < starTrees.length; ti++) {
@@ -1143,15 +1263,22 @@
         var sp = starItems[si2], ss = SB.prestige.starPerkState(sp.id);
         var starPrerequisites = ss.prerequisites || [];
         var starState = ss.done ? 'is-done' : ss.locked ? 'is-locked' : ss.afford ? 'is-ready' : 'is-growing';
+        var starStatusKey = ss.done ? 'ui.render.star_perk_name.at_maximum' : ss.locked ? 'ui.prestige.talent.status.waiting_prerequisites' :
+          ss.afford ? 'ui.render.star_perk_name.ready_to_unlock' : 'ui.render.star_perk_name.gather_stardust';
+        var starStatusFallback = ss.done ? '已达上限' : ss.locked ? '等待前置' : ss.afford ? '可点亮' : '积攒星屑';
+        var starStatus = tr(starStatusKey, null, starStatusFallback);
+        var starName = localizedStarPerk(sp, 'name');
+        var starCost = ss.done ? tr('ui.render.star_perk_name.at_maximum', null, '已达上限') :
+          tr('prestige.star_perk.cost', { stardustCost: ss.next }, '✧ {stardustCost} 星屑');
         starNodes.push({
-          id: sp.id, name: sp.name, desc: sp.desc, layer: sp.layer,
+          id: sp.id, name: starName, desc: localizedStarPerk(sp, 'description'), layer: sp.layer,
           nests: starPrerequisites, nest: starPrerequisites[0] || '',
-          nestName: starPrerequisites.map(starPerkName).join('、'), rank: ss.lv,
+          nestName: starPrerequisites.map(starPerkName).join(englishLocale() ? ', ' : '、'), rank: ss.lv,
           rankText: ss.lv + '/' + (isFinite(ss.max) ? ss.max : '∞'),
-          status: ss.done ? '已达上限' : ss.locked ? '等待前置' : ss.afford ? '可点亮' : '积攒星屑',
-          cost: ss.done ? '已满级' : '✧ ' + ss.next + ' 星屑',
+          status: starStatus,
+          cost: starCost,
           state: starState, disabled: ss.done || ss.locked || !ss.afford,
-          glyph: tree.icon, iconSrc: starPerkIconSrc(sp), attr: 'data-star-perk="' + sp.id + '"', title: sp.name
+          glyph: tree.icon, iconSrc: starPerkIconSrc(sp), attr: 'data-star-perk="' + sp.id + '"', title: starName
         });
       }
       h += SB.ui.talentTreeMarkup({
@@ -1161,11 +1288,11 @@
         accent: tree.accent, layout: 'layered', nodes: starNodes
       });
     }
-    h += '</div><section class="meta-shop-group star-exchange-group"><div class="meta-section-title"><b>星屑炼金</b><span>双向固定汇率，无手续费</span></div><div class="meta-shop-grid">' +
-      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">10 轮回点 → 1 星屑</div><div class="ds">消耗 10 轮回点，兑换 1 星屑。</div></div><button class="btn buy meta-buy" data-star-exchange="tide-to-stardust"' + ((m.tide || 0) < 10 ? ' disabled' : '') + '>兑换</button></article>' +
-      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">1 星屑 → 10 轮回点</div><div class="ds">消耗 1 星屑，兑换 10 轮回点。</div></div><button class="btn buy meta-buy" data-star-exchange="stardust-to-tide"' + (sd < 1 ? ' disabled' : '') + '>兑换</button></article>' +
+    h += '</div><section class="meta-shop-group star-exchange-group"><div class="meta-section-title"><b>' + htmlText(tr('ui.render.star_perk_name.stardust_exchange', null, '星屑炼金')) + '</b><span>' + htmlText(tr('ui.render.star_perk_name.fixed_exchange_rate_both_ways_with_no', null, '双向固定汇率，无手续费')) + '</span></div><div class="meta-shop-grid">' +
+      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">' + htmlText(tr('ui.stardust.exchange.prestige_to_stardust', exchangeParams, '10 轮回点 → 1 星屑')) + '</div><div class="ds">' + htmlText(tr('ui.stardust.exchange.prestige_to_stardust.description', exchangeParams, '消耗 10 轮回点，兑换 1 星屑。')) + '</div></div><button class="btn buy meta-buy" data-star-exchange="tide-to-stardust"' + ((m.tide || 0) < 10 ? ' disabled' : '') + '>' + htmlText(tr('ui.render.star_perk_name.exchange', null, '兑换')) + '</button></article>' +
+      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">' + htmlText(tr('ui.stardust.exchange.stardust_to_prestige', { stardustPerExchange: 1, prestigePointsPerExchange: 10 }, '1 星屑 → 10 轮回点')) + '</div><div class="ds">' + htmlText(tr('ui.stardust.exchange.stardust_to_prestige.description', { stardustPerExchange: 1, prestigePointsPerExchange: 10 }, '消耗 1 星屑，兑换 10 轮回点。')) + '</div></div><button class="btn buy meta-buy" data-star-exchange="stardust-to-tide"' + (sd < 1 ? ' disabled' : '') + '>' + htmlText(tr('ui.render.star_perk_name.exchange', null, '兑换')) + '</button></article>' +
       '</div></section>' +
-      '<div class="note meta-shop-note">星屑由合格轮回结算发放。强化与兑换后的余额均跨周目保留。</div>' +
+      '<div class="note meta-shop-note">' + htmlText(tr('ui.render.star_perk_name.stardust_is_granted_at_eligible_prestige_settlem', null, '星屑由合格轮回结算发放。强化与兑换后的余额均跨周目保留。')) + '</div>' +
       '</div>';
     return h;
   }
@@ -1187,6 +1314,11 @@
   /* 星图是 iframe 动画组件：记上一次写进 pane-star-map 的 HTML，只有内容真的变化
    * （未破壳的提示 ↔ 已破壳的星图）才重写，否则每 2 秒 PANE_REFRESH 会把 iframe 重载。 */
   var lastStarMapHTML = null;
+  /* 轮回/星屑商店（pane-meta）：与 star-map 同构。内容（余额/节点状态/轮回联动徽标）在两次
+   * PANE_REFRESH 之间几乎不变，但每 2 秒壁钟 + 任意交互置脏都会整块 innerHTML 重写 ⇒ 约 101 张
+   * 天赋图标 (decoding="async") 反复重插入重解码 ⇒ 部分设备/浏览器白闪（"一闪一闪"）。
+   * 记上一次 HTML，指纹没变就跳过重写，根治反复闪；买节点导致内容变化时才重写一次。 */
+  var lastMetaHTML = null;
   /* 市政树（civicScroll）与科技长卷同一个病、同一副药（2026-09-28 用户报：
    * 「市政树界面和之前科技树界面一样，固定时间会被拉到最左边」）。
    * 机制一模一样：PANE_REFRESH 每 2 秒壁钟重画一次 renderPanes，innerHTML 一重写，
@@ -1318,10 +1450,26 @@
           var _ifr = node.querySelector('iframe');
           if (_ifr && _ifr.contentWindow) {
             var _smLvl = _smS.lvl || {};
+            var _smSpacecraft = (_smS.spacecraft || []).map(function (craft) {
+              if (!craft || !SB.i18n || !SB.i18n.t) return craft;
+              var match = typeof craft.name === 'string'
+                ? (craft.type === 'station' ? /^空间站 (\d+)$/.exec(craft.name)
+                  : craft.type === 'satellite' ? /^卫星 (\d+)$/.exec(craft.name) : null) : null;
+              var legacyGeneratedName = !Object.prototype.hasOwnProperty.call(craft, 'generatedName') && !!match;
+              if (craft.generatedName !== true && !legacyGeneratedName) return craft;
+              if (!match) return craft;
+              var nameKey = craft.type === 'station' ? 'game.spacecraft.station_name' : 'game.spacecraft.satellite_name';
+              var copy = {}, key;
+              for (key in craft) copy[key] = craft[key];
+              copy.name = SB.i18n.t(nameKey, { number: Number(match[1]) }) || craft.name || '';
+              return copy;
+            });
             var _smDysonPct = SB.economy && SB.economy.dysonPct ? SB.economy.dysonPct(_smS) : 0;
             _ifr.contentWindow.postMessage({
               type: 'sb-spacecraft',
-              list: _smS.spacecraft || [],
+              locale: SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN',
+              strings: starMapLocaleStrings(),
+              list: _smSpacecraft,
               bodies: SB.STAR_MAP_BODIES || [],
               star: { value: (_smS.res && _smS.res.starExplore) || 0,
                 cap: SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(_smS) : ((SB.CFG && SB.CFG.STAR_CAP) || 0) },
@@ -1354,6 +1502,11 @@
       } else if (k === 'faith' || k === 'company' || k === 'village') {
         var body = el('pane-' + k + '-body');
         if (body) body.innerHTML = PANES[k]();
+      } else if (k === 'meta') {
+        /* 轮回/星屑商店：内容指纹没变就跳过整块重写（见 lastMetaHTML 声明处注释），根治反复闪。
+         * 买节点导致 HTML 变化时仍会重写一次，现有 restoreTalentScroll 会恢复天赋树横向位置。 */
+        var metaHtml = cardHeadHTML(k) + PANES[k]();
+        if (metaHtml !== lastMetaHTML) { node.innerHTML = metaHtml; lastMetaHTML = metaHtml; }
       } else {
         node.innerHTML = cardHeadHTML(k) + PANES[k]();
       }
@@ -1429,9 +1582,13 @@
           ? ((s.civics && s.civics.ascend_void) ? 'void' : 'dyson')
           : (hasSat ? 'star' : 'broken'))
       : (qual ? 'cycle' : 'restart');
-    var LABEL = {
-      'void': '飞升虚境', dyson: '驭星轮回', star: '繁星轮回',
-      broken: '破壳轮回', cycle: '轮回', restart: '重开本周目'
+    var LABEL_KEY = {
+      'void': 'civic.data.ascend_to_the_verge.name',
+      dyson: 'ui.render.render_break_btn.stellar_prestige',
+      star: 'ui.render.render_break_btn.starbound_prestige',
+      broken: 'ui.render.render_break_btn.shellbreak_prestige',
+      cycle: 'ui.action.prestige',
+      restart: 'ui.render.render_break_btn.restart_this_run'
     };
 
     var btn = el('btnBreak'), cyc = el('btnCycle');
@@ -1443,27 +1600,34 @@
        * 「只要已破壳进太空，按钮就保持可点」直接矛盾）。这里按注释的本意收窄到壳归零。
        * breakSettled（已结算但留在本局）同样落在这条判据里，仍然可点，死局不复现。 */
       btn.disabled = !(s.shell <= 0 && s.shellOpened);
-      btn.textContent = opened ? LABEL[mode] : '凿穿冰壳';
+      btn.textContent = tr(opened ? LABEL_KEY[mode] : 'ui.render.render_break_btn.break_through_the_ice_shell');
     }
     if (cyc) {
       cyc.hidden = opened;                 // 破壳后交给 btnBreak，不重复给入口
-      cyc.textContent = qual ? '轮回' : '重开本周目';
-      cyc.title = qual
-        ? '结算本局并发放轮回点（不必凿穿天壳）'
-        : '未研究《神学》：只重开本周目，不发放轮回点';
+      cyc.textContent = tr(qual ? 'ui.action.prestige' : 'ui.render.render_break_btn.restart_this_run');
+      cyc.title = tr(qual
+        ? 'ui.render.render_break_btn.end_this_run_to_earn_prestige_points'
+        : 'ui.render.render_break_btn.theology_isn_t_researched_this_will_restart');
     }
 
     var breakPreview = opened && qual ? SB.prestige.breakReport(s) : null;
     if (el('breakHint')) el('breakHint').textContent = (opened && s.breakSettled)
-      ? '本局已结算，点此按钮开始轮回（或重开本周目）。'
+      ? tr('ui.render.render_break_btn.this_run_is_settled_select_this_button')
       : (opened
         ? breakPreview
-          ? '当前轮回预估：' + breakPreview.tidePoints.toFixed(2) + ' 轮回点、' + breakPreview.stardust + ' 星屑；留在本局继续发展可提高预估。'
-          : '当前轮回预估：0.00 点；留在本局继续发展可提高预估。'
+          ? tr('prestige.break.preview.current', {
+            prestigePoints: breakPreview.tidePoints.toFixed(2), stardust: breakPreview.stardust
+          })
+          : tr('ui.prestige.estimate.status', { prestigePoints: '0.00' })
         : s.shell > 0
-          ? '壳厚还剩 ' + Math.round(s.shell) + '，持续削壳中。' +
-            (qual ? '（也可直接点右侧「轮回」结算本局）' : '')
-          : '冰壳停住了：需要建成「天穹钻机」奇观才能凿穿最后一段。');
+          ? tr('shell.break.progress.hint', {
+            remainingShell: Math.round(s.shell),
+            settleHint: qual
+              ? ((SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US') ? ' ' : '') +
+                tr('ui.render.render_break_btn.you_can_also_settle_this_run_with')
+              : ''
+          })
+          : tr('ui.render.render_break_btn.the_ice_shell_has_stopped_shrinking_build'));
   }
 
   function clock() {
@@ -1493,12 +1657,16 @@
      *   而屏幕上的原因没变（因为它本来就一直写着口粮那条），白跑一趟。 */
     if (SB.economy.isFull(s)) {
       return { blocked: true,
-        txt: '住房住满：人口 ' + s.pop + ' / 人口上限 ' + SB.economy.popCap(s) +
-          '，不再生育——盖住房才能继续（第二档石屋 ratio 更平缓，中期更划算）' };
+        txt: tr('growth.blocked.population_cap', {
+          population: s.pop, populationCap: SB.economy.popCap(s)
+        }, '住房住满：人口 ' + s.pop + ' / 人口上限 ' + SB.economy.popCap(s) +
+          '，不再生育——盖住房才能继续（第二档石屋 ratio 更平缓，中期更划算）') };
     }
     if (!(s.res.kelp > CFG.GROW_KEEP)) {
-      return { blocked: true, txt: '藻食 ' + Math.max(0, s.res.kelp).toFixed(0) +
-        ' ≤ ' + CFG.GROW_KEEP + '，生育停摆——产藻食的人不够，或口粮超了' };
+      return { blocked: true, txt: tr('growth.blocked.kelp_shortage', {
+        kelpAmount: Math.max(0, s.res.kelp).toFixed(0), minimumKelp: CFG.GROW_KEEP
+      }, '藻食 ' + Math.max(0, s.res.kelp).toFixed(0) +
+        ' ≤ ' + CFG.GROW_KEEP + '，生育停摆——产藻食的人不够，或口粮超了') };
     }
     var g = s._grow || 0;
     /* _grow 记的是普通进度（每帧 += dt，见 economy.tick 第 6 步），没有加权，
@@ -1514,14 +1682,18 @@
     var need = SB.economy && SB.economy.growthDuration ? SB.economy.growthDuration(s) : CFG.GROW_NEED;
     var p = st.blocked ? 0 : Math.min(1, g / need);
     var nm = el('growNm'), fill = el('growFill'), why = el('growWhy');
-    if (nm) nm.innerHTML = st.blocked ? '生育 <span class="bad">停摆</span>'
-      : '生育 <b>' + st.left + '</b> 秒后有下一名（' + (p * 100).toFixed(0) + '%）';
+    if (nm) nm.innerHTML = st.blocked
+      ? htmlText(tr('ui.growth.label', null, '生育')) + ' <span class="bad">' + htmlText(tr('ui.render.paint_grow.stalled', null, '停摆')) + '</span>'
+      : htmlText(tr('ui.people.growth.progress', {
+          secondsRemaining: st.left, growthPercent: (p * 100).toFixed(0)
+        }, '距离下一位族民出生还需 {secondsRemaining} 秒（{growthPercent}%）'));
     if (fill) fill.style.width = (p * 100).toFixed(1) + '%';
     if (why) {
       /* 「有空住房才生」在新机制下是**正确**的说法（2026-09-25 那版把硬上限拆了，
        * 于是这句话被删过一次；现在墙回来了，它要回来）。 */
       why.textContent = st.blocked ? st.txt
-        : '需藻食 > ' + CFG.GROW_KEEP + '，每 ' + need + ' 秒出生一名';
+        : tr('growth.requirement_and_interval', { minimumKelp: CFG.GROW_KEEP, growthInterval: need },
+          '需藻食 > {minimumKelp}，每 {growthInterval} 秒出生一名。');
       why.className = 'ds' + (st.blocked ? ' badtxt' : '');
     }
   }
@@ -1535,7 +1707,9 @@
     } else {
       bar.className = 'growbar';
       bar.style.width = (st.p * 100).toFixed(1) + '%';
-      bar.title = '下一名族民还需 ' + st.left + ' 秒（' + (st.p * 100).toFixed(0) + '%）';
+      bar.title = tr('growth.next_person.progress', {
+        remainingSeconds: st.left, progressPercent: (st.p * 100).toFixed(0)
+      }, '下一名族民还需 {remainingSeconds} 秒（{progressPercent}%）。');
     }
     paintGrow(s);
   }
@@ -1571,59 +1745,115 @@
     if (!active || !def || !tier) { notice.hidden = true; return; }
 
     var rule = '', progress = '', cap = tier.cap;
+    var displayText = SB.ui && SB.ui.renderParts && SB.ui.renderParts.challengeDefinitionText;
+    var progressLine = SB.ui && SB.ui.renderParts && SB.ui.renderParts.challengeProgressLine;
+    var theologyStatus = tr(SB.prestige.qualified(s)
+      ? 'ui.render.render_challenge_notice.theology_requirement_met'
+      : 'ui.render.render_challenge_notice.theology_requirement_pending');
+    if (displayText) rule = displayText(def, 'rule') || displayText(def, 'summary');
     if (active.id === 'science') {
       var scribeName = SB.folk.jobName(s, 'scribe');
-      rule = '学者与' + scribeName + '岗位上限 ' + cap;
-      progress = '学者 ' + ((s.jobs && s.jobs.scholar) || 0) + '/' + cap + ' · ' +
-        scribeName + ' ' + ((s.jobs && s.jobs.scribe) || 0) + '/' + cap;
+      rule = tr('challenge.notice.science.rule', { scribeJob: scribeName, jobCap: cap });
+      progress = tr('challenge.notice.science.progress', {
+        scholarCount: (s.jobs && s.jobs.scholar) || 0,
+        jobCap: cap,
+        scribeJob: scribeName,
+        scribeCount: (s.jobs && s.jobs.scribe) || 0
+      });
     } else if (active.id === 'small') {
-      rule = '人口上限 ' + cap;
-      progress = '当前人口 ' + Math.ceil(Number(s.pop) || 0) + '/' + cap;
+      rule = tr('challenge.notice.small.rule', { populationCap: cap });
+      progress = tr('challenge.notice.small.progress', {
+        population: Math.ceil(Number(s.pop) || 0), populationCap: cap
+      });
     } else if (active.id === 'cold') {
-      rule = '寒流季禁用保温法 · 暖石产出 -30%';
-      progress = SB.challenges.warmHeatingBlocked(s) ? '当前：保温禁用' : '当前：保温可用';
+      rule = tr('ui.challenge.notice.cold_rule', { warmstoneOutputPenalty: '−30%' });
+      progress = tr(SB.challenges.warmHeatingBlocked(s)
+        ? 'ui.render.render_challenge_notice.current_status_insulation_disabled'
+        : 'ui.render.render_challenge_notice.current_status_insulation_available');
     } else if (active.id === 'abyss') {
-      rule = '全局产出 -' + Math.round(cap * 100) + '%';
-      progress = (SB.prestige.qualified(s) ? '神学资格 ✓' : '待完成神学') + ' · 剩余壳厚 ' + Math.max(0, Math.round(Number(s.shell) || 0));
-    } else if (active.id === 'speedrun') {
-      var speedTimedOut = SB.challenges.timedOut(s);
-      rule = '限时 ' + SB.challenges.formatClock(cap) + ' · 退出后继续计时';
-      progress = speedTimedOut ? '已超时 · 重开本周目后可重试' :
-        '剩余 ' + SB.challenges.formatClock(SB.challenges.remainingSeconds(s)) + ' · ' +
-        (SB.prestige.qualified(s) ? '神学资格 ✓' : '待完成神学') + ' · 壳厚 ' + Math.max(0, Math.round(Number(s.shell) || 0));
+      rule = tr('challenge.notice.abyss.rule', { penaltyPercent: Math.round(cap * 100) });
+      progress = tr('challenge.notice.abyss.progress', {
+        theologyStatus: theologyStatus,
+        remainingShell: Math.max(0, Math.round(Number(s.shell) || 0))
+      });
+    } else if (def.timed) {
+      rule = tr('challenge.notice.speedrun.rule', { timeLimit: SB.challenges.formatClock(cap) });
+      if (SB.challenges.timedOut(s)) {
+        progress = tr('ui.render.render_challenge_notice.timed_out_restart_this_run_to_try');
+      } else if (def.goal && def.goal.t === 'dyson') {
+        progress = tr('ui.challenge.progress.dyson_rush', {
+          remainingTime: SB.challenges.formatClock(SB.challenges.remainingSeconds(s)),
+          dysonProgressPercent: Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100)
+        });
+      } else {
+        progress = tr('challenge.notice.speedrun.progress', {
+          remainingTime: SB.challenges.formatClock(SB.challenges.remainingSeconds(s)),
+          theologyStatus: theologyStatus,
+          remainingShell: Math.max(0, Math.round(Number(s.shell) || 0))
+        });
+      }
     } else if (active.id === 'anarchy') {
       var disallowed = (s.cards || []).filter(function (id) { return id && id !== 'card_cycle_terminus'; }).length;
-      progress = disallowed ? '违规政策卡 ' + disallowed + ' 张 · 允许「轮回之终末」' : '未装备政策卡 · 「轮回之终末」例外';
+      progress = tr(disallowed ? 'challenge.notice.anarchy.progress.with_violations' : 'ui.challenge.progress.anarchy.no_cards', {
+        violationCount: disallowed
+      });
     } else if (active.id === 'good_old_days') {
-      progress = '当前政体：' + (SB.civic.govTitleName ? SB.civic.govTitleName(s) : '酋邦制');
+      var currentGovernmentName = s.govName && s.govName.trim()
+        ? (SB.civic.govTitleName ? SB.civic.govTitleName(s) : s.govName.trim())
+        : tr('civic.government.name.chiefdom');
+      progress = tr('challenge.notice.good_old_days.government', {
+        governmentName: currentGovernmentName
+      });
     } else if (active.id === 'three_launch_sites') {
-      rule = '戴森球竣工时三座轨道发射场都须达到 11 级';
-      progress = '欧罗巴 ' + ((s.lvl && s.lvl.europa_launch) || 0) + '/11 · 泰拉 ' +
-        ((s.lvl && s.lvl.terra_launch) || 0) + '/11 · 恩克拉多斯 ' + ((s.lvl && s.lvl.enceladus_launch) || 0) + '/11';
-      if (s.dysonDone && !s.dysonLaunchSitesReady) progress += ' · 本轮竣工时未达标，需重开';
+      rule = tr('ui.challenge.notice.launch_site_rule', {
+        requiredLaunchSiteCount: 3, requiredLaunchSiteLevel: 11
+      });
+      progress = s.dysonDone && !s.dysonLaunchSitesReady
+        ? tr('ui.challenge.progress.dyson_missing_launch_sites')
+        : tr('challenge.notice.three_launch_sites.progress', {
+          europaLevel: (s.lvl && s.lvl.europa_launch) || 0,
+          terraLevel: (s.lvl && s.lvl.terra_launch) || 0,
+          enceladusLevel: (s.lvl && s.lvl.enceladus_launch) || 0,
+          completionWarning: ''
+        });
     } else if (active.id === 'eternity_moment') {
       var eternityStarCap = SB.challenges.starCap(s);
       var eternitySailCap = SB.challenges.dysonSailCap(s), eternityNodeCap = SB.challenges.dysonNodeCap(s);
-      rule = '研究成本 ×' + cap + ' · 冰壳、星空、太阳帆、戴森节点目标 ×' + cap;
-      progress = '天壳 ' + Math.round(Math.max(0, s.shell || 0)).toLocaleString() + '/' +
-        SB.challenges.shellTarget(s).toLocaleString() + ' · 星空 ' + Math.round((s.res && s.res.starExplore) || 0).toLocaleString() +
-        '/' + eternityStarCap.toLocaleString() + ' · 太阳帆 ' + Math.floor(s.sunSails || 0).toLocaleString() +
-        '/' + eternitySailCap.toLocaleString() + ' · 戴森节点 ' + Math.floor(s.dysonNodes || 0).toLocaleString() +
-        '/' + eternityNodeCap.toLocaleString();
+      rule = tr('challenge.notice.eternity_moment.rule', { multiplier: cap });
+      progress = tr('challenge.notice.eternity_moment.progress', {
+        shellProgress: Math.round(Math.max(0, s.shell || 0)).toLocaleString(),
+        shellTarget: SB.challenges.shellTarget(s).toLocaleString(),
+        starProgress: Math.round((s.res && s.res.starExplore) || 0).toLocaleString(),
+        starTarget: eternityStarCap.toLocaleString(),
+        sailCount: Math.floor(s.sunSails || 0).toLocaleString(),
+        sailCap: eternitySailCap.toLocaleString(),
+        nodeCount: Math.floor(s.dysonNodes || 0).toLocaleString(),
+        nodeCap: eternityNodeCap.toLocaleString()
+      });
     } else {
-      rule = def.rule || def.summary || '';
-      progress = '挑战限制持续生效';
-      /* 2026-11-05：流浪泰拉的 15 周目前置在此也给一条实时读数 —— 老档 / 改档
-       * 可能在低周目就已经进了挑战，底栏常驻条是玩家唯一一直看得见的地方。 */
-      var _pr = (active.id === 'drift_terra' && SB.challenges.prereqState)
-        ? SB.challenges.prereqState(active.id) : null;
-      if (_pr) progress = _pr.inRunOk
-        ? '开启前置已满足 · 第 ' + _pr.now + ' / ' + _pr.need + ' 周目'
-        : '⚠ 第 ' + _pr.now + ' / ' + _pr.need + ' 周目 · 开启前置未满足，本局无法通关';
+      if (active.id === 'anarchy' || active.id === 'good_old_days') rule = '';
+      progress = progressLine
+        ? progressLine(s, SB.challenges, def, tier)
+        : tr('ui.render.anonymous_function.challenge_restrictions_remain_in_effect');
     }
 
+    /* 状态徽标（2026-11-07）：原先是 index.html 里写死的「挑战进行中」，逐光竞速 /
+     * 星海竞速超时后依旧显示进行中，与挑战页卡片自相矛盾。
+     * ⚠️ 必须同时换 data-i18n：翻译器按这个属性回填文本，只改 textContent 会被覆盖回去。 */
+    var headingNode = el('challengeNoticeHeading');
+    if (headingNode) {
+      var headingKey = (def.timed && SB.challenges.timedOut(s)) ? 'ui.challenge.status.timed_out' :
+        s.challengeDone ? 'ui.challenge.status.goal_met' :
+        active.replay === true ? 'ui.challenge.status.replay' : 'ui.challenge.notice.heading';
+      if (headingNode.getAttribute('data-i18n') !== headingKey)
+        headingNode.setAttribute('data-i18n', headingKey);
+      var headingText = tr(headingKey);
+      if (headingNode.textContent !== headingText) headingNode.textContent = headingText;
+    }
     var titleNode = el('challengeNoticeTitle'), ruleNode = el('challengeNoticeRule'), progressNode = el('challengeNoticeProgress');
-    var title = def.name + ' · ' + tier.label;
+    var challengeName = displayText ? displayText(def, 'name') : tr('challenge.definition.' + def.id + '.name');
+    var tierName = displayText ? displayText(def, 'tierLabel', active.tier) : tier.label;
+    var title = challengeName + ' · ' + tierName;
     if (titleNode && titleNode.textContent !== title) titleNode.textContent = title;
     if (ruleNode && ruleNode.textContent !== rule) ruleNode.textContent = rule;
     if (progressNode && progressNode.textContent !== progress) progressNode.textContent = progress;
@@ -1681,19 +1911,28 @@
     var ad = s.ad || { ms: 0, on: true };
     if (watch) {
       watch.disabled = false;
-      watch.textContent = '看广告 +' + (SB.CFG.AD ? SB.CFG.AD.BOOST_MIN : 30) + 'min ' +
-        (SB.CFG.AD ? SB.CFG.AD.MUL : 2) + '×';
+      var boostMinutes = SB.CFG.AD ? SB.CFG.AD.BOOST_MIN : 30;
+      var multiplier = SB.CFG.AD ? SB.CFG.AD.MUL : 2;
+      var watchParams = { boostMinutes: boostMinutes, multiplier: multiplier };
+      watch.textContent = tr('ui.ad.boost.watch.action', watchParams, '看广告 +{boostMinutes}min {multiplier}×');
+      watch.title = tr('ui.ad.boost.watch.tooltip', watchParams,
+        '看一次广告：获得 {boostMinutes} 分钟 {multiplier} 倍速（墙钟真实时间计时，不受游戏内倍速影响）');
     }
     if (rem) {
       if (ad.ms > 0) {
         var total = ad.ms / 1000, mm = Math.floor(total / 60), ss = Math.floor(total % 60);
-        rem.textContent = (ad.on ? '2× 生效 · ' : '') + '剩 ' + mm + ':' + (ss < 10 ? '0' + ss : ss);
-      } else rem.textContent = '无加速';
+        var duration = mm + ':' + (ss < 10 ? '0' + ss : ss);
+        var remainKey = ad.on ? 'ui.ad.boost.remaining.active' : 'ui.ad.boost.remaining.paused';
+        rem.textContent = tr(remainKey, { duration: duration }, ad.on ? '2× 生效 · 剩 {duration}' : '剩 {duration}');
+      } else rem.textContent = tr('ui.ad.boost.remaining.empty', null, '无加速');
     }
     if (tog) {
       tog.classList.toggle('on', !!ad.on && ad.ms > 0);
       tog.classList.toggle('off', !ad.on && ad.ms > 0);
-      tog.textContent = ad.ms > 0 ? ('2× 加速 ' + (ad.on ? '开' : '关')) : '2× 加速';
+      tog.textContent = ad.ms > 0
+        ? tr(ad.on ? 'ui.ad.boost.toggle.active' : 'ui.ad.boost.toggle.paused', null, ad.on ? '2× 加速 开' : '2× 加速 关')
+        : tr('ui.ad.boost.toggle.default', null, '2× 加速');
+      tog.title = tr('ui.ad.boost.toggle.tooltip', null, '开关 2× 加速（关着时剩余时间不流逝）');
       tog.disabled = ad.ms <= 0;                  // 没余额时开关无意义（中性灰，不显示开/关）
     }
     /* 「看广告 +1 轮回点」：按钮文案固定；副文本显示当日已看次数/上限；达上限禁用并提示。 */
@@ -1703,10 +1942,15 @@
     var st = (SB.game && SB.game.adRebirthState) ? SB.game.adRebirthState(m) : { count: 0 };
     if (rb) {
       rb.disabled = st.count >= max;
-      rb.textContent = '看广告 +1 轮回点';
+      rb.textContent = tr('ui.ad.rebirth.action', null, '看广告 +1 轮回点');
+      rb.title = tr('ui.ad.rebirth.tooltip', { dailyMax: max }, '看一次广告：获得 1 轮回点（每日最多 {dailyMax} 次）');
     }
     if (rbRem) {
-      rbRem.textContent = (st.count >= max) ? ('今日已满 ' + max + '/10') : ('今日 ' + st.count + '/' + max);
+      var atLimit = st.count >= max;
+      rbRem.textContent = tr(atLimit ? 'ui.ad.rebirth.count.limit' : 'ui.ad.rebirth.count.today', {
+        count: st.count,
+        max: max
+      }, atLimit ? '今日已满 {count}/{max}' : '今日 {count}/{max}');
     }
   }
   /* 排行榜入口按钮的可见性（2026-10-10）：榜不可用（无 SDK / 无榜 ID）⇒ 隐藏，不留死按钮。 */
@@ -1723,13 +1967,27 @@
     var map = (SB.CFG && SB.CFG.RANK && SB.CFG.RANK.MAP) || {};
     var keys = (SB.rank.readyKeys && SB.rank.readyKeys()) || [];
     if (!keys.length) return;
+    var titleKeys = {
+      fastest: 'leaderboard.fastest_ice_shellbreak',
+      firstFaith: 'leaderboard.fastest_faith_established',
+      dev: 'leaderboard.highest_development_score',
+      wonder: 'leaderboard.most_legacy_wonders',
+      cycle: 'leaderboard.prestige_count',
+      star: 'leaderboard.most_stardust',
+      tide: 'leaderboard.most_prestige_points',
+      dyson: 'leaderboard.fastest_dyson_sphere',
+      void: 'leaderboard.fastest_verge_ascension',
+      drift: 'leaderboard.fastest_wandering_terra_launch',
+      pollution: 'leaderboard.lowest_pollution_clear'
+    };
     var rows = keys.map(function (k) {
-      var t = (map[k] && map[k].title) || k;
-      return '<button type="button" class="btn rank-open" data-rank-key="' + k + '">' + t + '</button>';
+      var fallback = (map[k] && map[k].title) || k;
+      var title = titleKeys[k] ? tr(titleKeys[k], null, fallback) : fallback;
+      return '<button type="button" class="btn rank-open" data-rank-key="' + k + '">' + htmlText(title) + '</button>';
     }).join('');
     box.innerHTML =
-      '<div class="modal-hd"><b>排行榜</b>' +
-      '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<div class="modal-hd"><b>' + htmlText(tr('ui.footer.leaderboard_button', null, '排行榜')) + '</b>' +
+      '<button type="button" class="modal-x" data-modal-close="1" aria-label="' + htmlText(tr('ui.action.close', null, '关闭')) + '">×</button></div>' +
       '<div class="rank-list">' + rows + '</div>';
     resetModalChrome();
     modal.classList.remove('hidden');
@@ -1771,12 +2029,12 @@
         (e.title ? '<div class="chg-title">' + e.title + '</div>' : '') +
         '<ul class="chg-items">' + items + '</ul></div>';
     }).join('');
-    if (!body) body = '<div class="chg-empty">暂无更新记录。</div>';
+    if (!body) body = '<div class="chg-empty">' + htmlText(tr('ui.render.anonymous_function.no_update_history_yet', null, '暂无更新记录。')) + '</div>';
     box.innerHTML =
-      '<div class="modal-hd"><b>更新日志</b>' +
-      '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<div class="modal-hd"><b>' + htmlText(tr('ui.footer.changelog_button', null, '更新日志')) + '</b>' +
+      '<button type="button" class="modal-x" data-modal-close="1" aria-label="' + htmlText(tr('ui.action.close', null, '关闭')) + '">×</button></div>' +
       '<div class="chg-list">' + body + '</div>' +
-      '<div class="chg-foot"><button type="button" class="btn" data-modal-close="1">知道了</button></div>';
+      '<div class="chg-foot"><button type="button" class="btn" data-modal-close="1">' + htmlText(tr('ui.render.anonymous_function.got_it', null, '知道了')) + '</button></div>';
     /* 归一化（含 gov-picker-modal —— 政体/政策选择器会给 #modal 加宽版排版 + 滚动约束，
      * 残留会让更新日志面板套上别人的皮肤）。见 resetModalChrome 注释。 */
     resetModalChrome();
@@ -1793,14 +2051,14 @@
     }
     var currentName = current
       ? ((SB.civic && SB.civic.govTitleName) ? SB.civic.govTitleName(s) : current.name)
-      : '无';
+      : tr('ui.render.open_gov_picker.none', null, '无');
     box.innerHTML =
-      '<div class="gov-picker-modal-head"><div><span>文明制度</span><h2 id="gov-picker-title">更换政体</h2>' +
-        '<p>当前：' + currentName + ' · 各政体效果与采纳条件如下</p></div>' +
-        '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭政体选择">×</button></div>' +
+      '<div class="gov-picker-modal-head"><div><span>' + htmlText(tr('ui.render.open_gov_picker.government', null, '文明制度')) + '</span><h2 id="gov-picker-title">' + htmlText(tr('civic.government.change.action', null, '更换政体')) + '</h2>' +
+        '<p>' + htmlText(tr('ui.render.open_gov_picker.current', null, '当前：')) + htmlText(currentName) + htmlText(tr('ui.render.open_gov_picker.government_effects_and_adoption_requirements_are', null, '· 各政体效果与采纳条件如下')) + '</p></div>' +
+        '<button type="button" class="modal-x" data-modal-close="1" aria-label="' + htmlText(tr('ui.render.open_gov_picker.close_government_selection', null, '关闭政体选择')) + '">×</button></div>' +
       '<div class="gov-picker-modal-content">' + paneGovPicker(s) + '</div>' +
-      '<div class="gov-picker-modal-foot"><span>政体效果、卡槽与更换费用均显示在卡片中。</span>' +
-        '<button type="button" class="btn" data-modal-close="1">取消</button></div>';
+      '<div class="gov-picker-modal-foot"><span>' + htmlText(tr('ui.render.open_gov_picker.government_effects_policy_card_slots_and_change', null, '政体效果、卡槽与更换费用均显示在卡片中。')) + '</span>' +
+        '<button type="button" class="btn" data-modal-close="1">' + htmlText(tr('save.action.cancel', null, '取消')) + '</button></div>';
     resetModalChrome();
     modal.classList.add('gov-picker-modal');
     if (box.setAttribute) {
@@ -1820,15 +2078,16 @@
     if (!box || !modal || !s || !panePolicyPicker) return;
     var list = (SB.civic && SB.civic.slotList) ? SB.civic.slotList(s) : [];
     var st = (list[slotIdx] || {}).type;
-    var typeName = (st && SB.civic && SB.civic.slotTypeName) ? SB.civic.slotTypeName(st) : '政策卡';
+    var typeName = st ? tr('policy.slot.' + st, null,
+      (SB.civic && SB.civic.slotTypeName) ? SB.civic.slotTypeName(st) : '政策卡') : tr('ui.economy.rate.source.policy_cards', null, '政策卡');
     box.innerHTML =
-      '<div class="gov-picker-modal-head"><div><span>政策卡</span>' +
-        '<h2>第 ' + (slotIdx + 1) + ' 槽 · ' + typeName + '</h2>' +
-        '<p>下面是能装进这个槽、且你已经解锁的政策卡。点一张直接装上。</p></div>' +
-        '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
+      '<div class="gov-picker-modal-head"><div><span>' + htmlText(tr('ui.economy.rate.source.policy_cards', null, '政策卡')) + '</span>' +
+        '<h2>' + htmlText(tr('ui.policy_picker.slot_heading', { slotNumber: slotIdx + 1, slotType: typeName }, '第 {slotNumber} 槽 · {slotType}')) + '</h2>' +
+        '<p>' + htmlText(tr('ui.render.open_policy_picker.these_are_the_policy_cards_you_ve', null, '下面是能装进这个槽、且你已经解锁的政策卡。点一张直接装上。')) + '</p></div>' +
+        '<button type="button" class="modal-x" data-modal-close="1" aria-label="' + htmlText(tr('ui.action.close', null, '关闭')) + '">×</button></div>' +
       '<div class="gov-picker-modal-content">' + panePolicyPicker(s, slotIdx) + '</div>' +
-      '<div class="gov-picker-modal-foot"><span>直接关掉即可，槽里的卡不会变。</span>' +
-        '<button type="button" class="btn" data-modal-close="1">取消</button></div>';
+      '<div class="gov-picker-modal-foot"><span>' + htmlText(tr('ui.render.open_policy_picker.close_this_window_to_leave_the_slot', null, '直接关掉即可，槽里的卡不会变。')) + '</span>' +
+        '<button type="button" class="btn" data-modal-close="1">' + htmlText(tr('save.action.cancel', null, '取消')) + '</button></div>';
     resetModalChrome();
     modal.classList.add('gov-picker-modal');
     if (box.setAttribute) {
@@ -1866,8 +2125,9 @@
             if (content && content.parentNode) content.parentNode.insertBefore(tip, content);
             else box.appendChild(tip);
           }
-          tip.textContent = '装不上：' + why;
-          emit('装不上：' + why);
+          var equipError = tr('ui.policy_picker.equip_error', { reason: why }, '装不上：{reason}');
+          tip.textContent = equipError;
+          emit(equipError);
         };
       })(picks[pi]);
     }
@@ -1878,7 +2138,7 @@
         return function () {
           var idx = +btn.getAttribute('data-remove');
           if (SB.civic.removeCard(res(), idx, emit)) afterChange();
-          else emit('卸下失败：这个槽是空的。');
+          else emit(tr('ui.log.policy_card.remove_failed.empty_slot', null, '该槽是空的，无需卸下。'));
         };
       })(rms[ri]);
     }
@@ -1901,13 +2161,16 @@
       _omenSig = def.id;
       node.hidden = false;
       var nm = el('omenName'), cp = el('omenCopy'), btn = el('omenBtn');
-      if (nm) nm.textContent = def.name;
-      if (cp) cp.textContent = def.copy;
-      if (btn) btn.textContent = '拾取';
+      var eventSlug = String(def.id || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+      if (nm) nm.textContent = tr('event.' + eventSlug + '.name', null, def.name);
+      if (cp) cp.textContent = tr('event.' + eventSlug + '.description', null, def.copy);
+      if (btn) btn.textContent = tr('ui.render.render_event.collect', null, '拾取');
     }
     if (bd) bd.classList.add('omen-open');
     var cd = el('omenCd');
-    if (cd && SB.events.timeLeft) cd.textContent = Math.ceil(SB.events.timeLeft()) + ' 秒后消失';
+    if (cd && SB.events.timeLeft) cd.textContent = tr('ui.event.countdown', {
+      seconds: Math.ceil(SB.events.timeLeft())
+    }, '{seconds} 秒后消失');
   }
 
   function clearBreakAnimation() {
@@ -1932,25 +2195,27 @@
     }
     clearBreakAnimation();
     _breakAnimationReport = r;
+    var animationPrefix = 'ui.render.show_break_animation.';
+    function animText(key, fallback) { return tr(animationPrefix + key, null, fallback); }
     box.innerHTML =
-      '<section class="break-showcase" aria-label="破壳终章动画">' +
+      '<section class="break-showcase" aria-label="' + htmlText(animText('shellbreak_finale', '破壳终章动画')) + '">' +
         '<div class="break-stage" id="breakStage" data-phase="intro">' +
           '<div class="break-scene">' +
-            '<img class="break-frame-intro" src="assets/backgrounds/sequence/era-5/frame-01.webp" alt="天穹钻机蓄力，准备冲击天壳">' +
-            '<img class="break-frame-impact" src="assets/backgrounds/sequence/era-5/frame-02.webp" alt="钻机击中天壳，裂纹与碎冰亮起">' +
-            '<img class="break-frame-gaze" src="assets/backgrounds/sequence/era-5/frame-03.webp" alt="鲛人游近钻机，仰望裂开的天壳">' +
-            '<img class="break-frame-ending" src="assets/backgrounds/breakthrough/end-stars-draft-low.jpg" alt="天壳打开，钻机和鲛人共同仰望星空">' +
+            '<img class="break-frame-intro" src="assets/backgrounds/sequence/era-5/frame-01.webp" alt="' + htmlText(animText('the_sky_drill_charges_ready_to_strike', '天穹钻机蓄力，准备冲击天壳')) + '">' +
+            '<img class="break-frame-impact" src="assets/backgrounds/sequence/era-5/frame-02.webp" alt="' + htmlText(animText('the_drill_strikes_the_shell_cracks_and', '钻机击中天壳，裂纹与碎冰亮起')) + '">' +
+            '<img class="break-frame-gaze" src="assets/backgrounds/sequence/era-5/frame-03.webp" alt="' + htmlText(animText('merfolk_swim_toward_the_drill_and_gaze', '鲛人游近钻机，仰望裂开的天壳')) + '">' +
+            '<img class="break-frame-ending" src="assets/backgrounds/breakthrough/end-stars-draft-low.jpg" alt="' + htmlText(animText('the_shell_opens_the_drill_and_merfolk', '天壳打开，钻机和鲛人共同仰望星空')) + '">' +
           '</div>' +
-          '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="breakPhaseName">钻机蓄力</span></span><span id="breakCounter">01 / 04</span></div>' +
+          '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="breakPhaseName">' + htmlText(animText('drill_charging', '钻机蓄力')) + '</span></span><span id="breakCounter">01 / 04</span></div>' +
           '<div class="break-caption">' +
-            '<div class="break-caption-text break-cap-intro"><small>终章 · 天穹钻机</small><h2>共振，启动。</h2><p>整座海底城市，为这一击积蓄力量。</p></div>' +
-            '<div class="break-caption-text break-cap-impact"><small>突破临界点</small><h2>钻头触壳。</h2><p>共振沿冰层蔓延，第一道裂纹亮起。</p></div>' +
-            '<div class="break-caption-text break-cap-gaze"><small>天壳崩解 · 鲛人仰望</small><h2>裂痕，扩散。</h2><p>鲛人游向钻机，望向逐渐打开的天穹。</p></div>' +
-            '<div class="break-caption-text break-cap-ending"><small>文明的新纪元</small><h2>天壳之外。</h2><p>曾经仰望的边界，如今已在身后。</p></div>' +
+            '<div class="break-caption-text break-cap-intro"><small>' + htmlText(animText('finale_the_sky_drill', '终章 · 天穹钻机')) + '</small><h2>' + htmlText(animText('resonance_engage', '共振，启动。')) + '</h2><p>' + htmlText(animText('the_whole_undersea_city_gathers_strength_for', '整座海底城市，为这一击积蓄力量。')) + '</p></div>' +
+            '<div class="break-caption-text break-cap-impact"><small>' + htmlText(animText('past_the_breaking_point', '突破临界点')) + '</small><h2>' + htmlText(animText('the_drill_meets_the_shell', '钻头触壳。')) + '</h2><p>' + htmlText(animText('resonance_spreads_through_the_ice_the_first', '共振沿冰层蔓延，第一道裂纹亮起。')) + '</p></div>' +
+            '<div class="break-caption-text break-cap-gaze"><small>' + htmlText(animText('the_shell_breaks_merfolk_look_up', '天壳崩解 · 鲛人仰望')) + '</small><h2>' + htmlText(animText('the_fracture_spreads', '裂痕，扩散。')) + '</h2><p>' + htmlText(animText('merfolk_swim_toward_the_drill_and_watch', '鲛人游向钻机，望向逐渐打开的天穹。')) + '</p></div>' +
+            '<div class="break-caption-text break-cap-ending"><small>' + htmlText(animText('a_new_era_for_civilization', '文明的新纪元')) + '</small><h2>' + htmlText(animText('beyond_the_shell', '天壳之外。')) + '</h2><p>' + htmlText(animText('the_boundary_we_once_looked_up_to', '曾经仰望的边界，如今已在身后。')) + '</p></div>' +
           '</div>' +
-          '<div class="break-end-card"><small>阶段完成</small><strong>破壳纪 · 仰望群星</strong></div>' +
+          '<div class="break-end-card"><small>' + htmlText(animText('stage_complete', '阶段完成')) + '</small><strong>' + htmlText(animText('the_shellbreak_era_looking_to_the_stars', '破壳纪 · 仰望群星')) + '</strong></div>' +
         '</div>' +
-        '<div class="break-controls"><button class="btn" id="breakReplay" type="button">↻ 重播</button><button class="btn big" id="breakContinue" type="button">跳过动画</button></div>' +
+        '<div class="break-controls"><button class="btn" id="breakReplay" type="button">' + htmlText(tr('ui.action.replay', null, '↻ 重播')) + '</button><button class="btn big" id="breakContinue" type="button">' + htmlText(tr('ui.action.skip_animation', null, '跳过动画')) + '</button></div>' +
       '</section>';
     resetModalChrome();
     modal.classList.add('break-modal');
@@ -1960,10 +2225,10 @@
     var stage = el('breakStage'), phaseName = el('breakPhaseName'), counter = el('breakCounter');
     var replay = el('breakReplay'), continueBtn = el('breakContinue');
     var steps = [
-      ['intro', '钻机蓄力', '01 / 04', 0],
-      ['impact', '钻头触壳', '02 / 04', 1500],
-      ['gaze', '鲛人仰望', '03 / 04', 3200],
-      ['ending', '阶段完成', '04 / 04', 4900]
+      ['intro', animText('drill_charging', '钻机蓄力'), '01 / 04', 0],
+      ['impact', animText('drill_meets_the_shell', '钻头触壳'), '02 / 04', 1500],
+      ['gaze', animText('merfolk_look_up', '鲛人仰望'), '03 / 04', 3200],
+      ['ending', animText('stage_complete', '阶段完成'), '04 / 04', 4900]
     ];
     function setStep(step) {
       if (!stage) return;
@@ -1971,7 +2236,7 @@
       if (phaseName) phaseName.textContent = step[1];
       if (counter) counter.textContent = step[2];
       /* 2026-11-03：动画结束时不再是「查看结算」—— 破壳不是本局终点 */
-      if (continueBtn && step[0] === 'ending') continueBtn.textContent = '进入壳外时代';
+      if (continueBtn && step[0] === 'ending') continueBtn.textContent = tr('ui.render.set_step.enter_the_beyond_the_shell_era', null, '进入壳外时代');
     }
     function finish() {
       var report = _breakAnimationReport;
@@ -1985,7 +2250,7 @@
       clearBreakAnimation();
       _breakAnimationReport = r;
       setStep(steps[0]);
-      if (continueBtn) continueBtn.textContent = '跳过动画';
+      if (continueBtn) continueBtn.textContent = tr('ui.action.skip_animation', null, '跳过动画');
       for (var i = 1; i < steps.length; i++) {
         (function (step) { _breakAnimationTimers.push(setTimeout(function () { setStep(step); }, step[3])); })(steps[i]);
       }
@@ -2018,29 +2283,41 @@
     var a = s && s.challenge;
     var cd = a && SB.challenges && SB.challenges.byId ? SB.challenges.byId(a.id) : null;
     var qualified = !!(s && SB.prestige && SB.prestige.qualified(s));
-    var acctLabel = qualified ? '结算并轮回' : '结算后重开';
+    var breakResultPrefix = 'ui.render.show_break_result.';
+    function breakResultText(key, fallback, params) { return tr(breakResultPrefix + key, params, fallback); }
+    var acctLabel = breakResultText(qualified ? 'settle_and_begin_prestige' : 'settle_and_restart', qualified ? '结算并轮回' : '结算后重开');
     /* 挑战块：goal 型（流浪泰拉 / 水体污染）终点不在破壳，破壳时不该出块。 */
     var ch = '';
     if (cd && !cd.goal) {
       var tier = Math.max(0, Math.min(cd.tiers.length - 1, a.tier | 0));
       var cls = '', head = '', badge = '', body = '';
       if (r.challengeClear) {
-        cls = ' ok'; head = '挑战达成'; badge = '已达成';
+        cls = ' ok';
+        head = breakResultText('challenge_completed', '挑战达成');
+        badge = tr('ui.challenge.status.tier_cleared', null, '已达成');
         body = r.challengeClear.replay
-          ? '重复挑战不重复发放永久奖励，本局成绩已计入排行榜。'
-          : '永久奖励已生效：<b>' + r.challengeClear.reward + '</b>';
+          ? breakResultText('repeating_a_completed_challenge_grants_no_additi', '重复挑战不重复发放永久奖励，本局成绩已计入排行榜。')
+          : tr('ui.challenge.result.reward_applied', { reward: r.challengeClear.reward || '' }, '永久奖励已生效：{reward}');
       } else if (r.challengeFailure) {
-        cls = ' fail'; head = '挑战未通关'; badge = '已超时';
-        body = '用时 <b>' + SB.challenges.formatClock(r.challengeFailure.elapsed) + '</b>，超过 ' +
-          SB.challenges.formatClock(r.challengeFailure.limit) + ' —— 本档奖励未领取。';
+        cls = ' fail';
+        head = breakResultText('challenge_failed', '挑战未通关');
+        badge = tr('ui.challenge.status.timed_out', null, '已超时');
+        body = tr('ui.challenge.result.time_limit', {
+          elapsedTime: SB.challenges.formatClock(r.challengeFailure.elapsed),
+          timeLimit: SB.challenges.formatClock(r.challengeFailure.limit)
+        }, '用时 {elapsedTime}，超过 {timeLimit} —— 本档奖励未领取。');
       } else if (!qualified) {
         /* 破壳那一刻还没学《神学》：判定挂起，补学后按同一份 seal 补判（challenges.evaluate）。 */
-        cls = ' pending'; head = '挑战判定挂起'; badge = '待补判';
-        body = '本局尚未完成《神学》—— 学完之后按<b>破壳那一刻</b>的成绩补判，不会用之后的数据。';
+        cls = ' pending';
+        head = breakResultText('challenge_evaluation_pending', '挑战判定挂起');
+        badge = breakResultText('awaiting_evaluation', '待补判');
+        body = breakResultText('challenge_evaluation_after_theology', '本局完成《神学》后，会按破壳那一刻的成绩补判挑战。');
       } else {
         /* 快照条件不满足（峰值人口 / 学者书手超档）：判据被绕过才会走到这，别静默成「没反应」。 */
-        cls = ' fail'; head = '挑战未达成'; badge = '条件不符';
-        body = '破壳那一刻的成绩没有满足本档限制，本档奖励未领取。';
+        cls = ' fail';
+        head = breakResultText('challenge_not_completed', '挑战未达成');
+        badge = breakResultText('requirements_not_met', '条件不符');
+        body = breakResultText('your_results_at_shellbreak_did_not_meet', '破壳那一刻的成绩没有满足本档限制，本档奖励未领取。');
       }
       /* 标题行取「判定结果自带的」名称/档位，而不是当前 s.challenge ——
        * 复核老档时两者可能不是同一条（结果来自 s.challengeOutcome，挑战可能是后开的）。 */
@@ -2048,27 +2325,30 @@
       ch = '<div class="bresult' + cls + '">' +
         '<div class="cc-head">' +
         '<span class="cc-icon">' + (cls === ' ok' ? '✓' : (cls === ' fail' ? '✕' : '?')) + '</span>' +
-        '<div class="cc-title"><b>' + head + '</b><small>' + cInfo.name + ' · ' + cInfo.label + '</small></div>' +
-        '<span class="cc-badge">' + badge + '</span></div>' +
-        '<div class="cc-reward">' + body + '</div>' +
-        '<div class="cc-hint">挑战的限制仍然生效 —— 选一项继续：</div>' +
+        '<div class="cc-title"><b>' + htmlText(head) + '</b><small>' + htmlText(cInfo.name) + ' · ' + htmlText(cInfo.label) + '</small></div>' +
+        '<span class="cc-badge">' + htmlText(badge) + '</span></div>' +
+        '<div class="cc-reward">' + htmlText(body) + '</div>' +
+        '<div class="cc-hint">' + htmlText(breakResultText('challenge_restrictions_are_still_active_choose_h', '挑战的限制仍然生效 —— 选一项继续：')) + '</div>' +
         '<div class="cc-actions">' +
-        '<button class="btn" id="mCycle">' + acctLabel + '</button>' +
-        '<button class="btn big" id="mRelease">解除限制，进入壳外时代</button>' +
+        '<button class="btn" id="mCycle">' + htmlText(acctLabel) + '</button>' +
+        '<button class="btn big" id="mRelease">' + htmlText(breakResultText('release_the_restrictions_and_enter_the_beyond', '解除限制，进入壳外时代')) + '</button>' +
         '</div></div>';
     }
     var tideLine = r.locked
-      ? '<div class="note" style="color:var(--red)">本局尚未完成《神学》，现在轮回不发放轮回点。研究完《神学》再结算即可。</div>'
-      : '<div class="note">当前可结算：<b>' + (r.tidePoints || 0).toFixed(2) + '</b> 轮回点 · <b>' +
-        (r.stardust || 0) + '</b> 星屑。随时可在底栏点「轮回」领取。</div>';
+      ? '<div class="note" style="color:var(--red)">' + htmlText(breakResultText('theology_isn_t_complete_this_run_so', '本局尚未完成《神学》，现在轮回不发放轮回点。研究完《神学》再结算即可。')) + '</div>'
+      : '<div class="note">' + htmlText(tr('ui.prestige.result.available_rewards', {
+        prestigePoints: (r.tidePoints || 0).toFixed(2), stardust: r.stardust || 0
+      }, '当前可结算：{prestigePoints} 轮回点 · {stardust} 星屑。随时可领取。')) + '</div>';
     var box = el('modalBox');
     box.innerHTML =
-      '<h3>天壳裂开了</h3>' +
-      '<div class="note">冰壳之外的星空已经打开。<b>本局不会结束</b> —— 轨道发射场、戴森球、星图与星空槽都可以继续建设，发展分和星屑也还能接着攒。</div>' +
+      '<h3>' + htmlText(breakResultText('the_shell_has_broken', '天壳裂开了')) + '</h3>' +
+      '<div class="note">' + htmlText(breakResultText('the_stars_beyond_the_ice_shell_are', '冰壳之外的星空已经打开。')) + ' <b>' +
+        htmlText(breakResultText('this_run_isn_t_over', '本局不会结束')) + '</b> ' +
+        htmlText(breakResultText('you_can_keep_building_launch_sites_and', '轨道发射场、戴森球、星图与星空槽都可以继续建设，发展分和星屑也还能接着攒。')) + '</div>' +
       tideLine + ch +
       (ch ? '' :
         '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
-        '<button class="btn big" id="mGo">进入壳外时代</button></div>');
+        '<button class="btn big" id="mGo">' + htmlText(breakResultText('enter_the_beyond_the_shell_era', '进入壳外时代')) + '</button></div>');
     el('modal').classList.remove('hidden');
     bodyModalClass(true);
     /* 关面板 + 落盘 + 重绘。keepAfter 才接着弹离线明细 ——
@@ -2107,52 +2387,78 @@
     resetModalChrome();
     var m = meta();
     var box = el('modalBox');
+    function breakPanelText(key, fallback, params) { return tr('ui.render.show_break_panel.' + key, params, fallback); }
+    var settled = !!(res() && res().breakSettled);
+    var workshopWeight = (CFG.TIDE && CFG.TIDE.CRAFT_W) || 4;
     var rows =
-      '<div class="kv"><span>峰值族民 P</span><b>' + (r.P || 0) + '</b></div>' +
-      '<div class="kv"><span>人口分</span><b>' + (r.popScore || 0).toFixed(1) + '</b></div>' +
-      '<div class="kv"><span>建筑分（按纪元加权）</span><b>' + (r.buildingScore || 0).toFixed(1) + '</b></div>' +
-      '<div class="kv"><span>工坊解锁项（' + (r.workshopCount || 0) + ' 项 ×' + ((CFG.TIDE && CFG.TIDE.CRAFT_W) || 4) + '）</span><b>' + (r.craftScore || 0).toFixed(1) + '</b></div>' +
-      '<div class="kv"><span>总发展分</span><b>' + (r.developmentScore || 0).toFixed(1) + '</b></div>' +
-      '<div class="kv"><span>破壳进度</span><b>' + (r.q != null ? (r.q * 100).toFixed(0) : '0') + '%</b></div>' +
-      '<div class="kv" style="border:0;margin-top:8px"><span>' + (res() && res().breakSettled ? '本次获得轮回点' : '当前预估轮回点') + '</span><b style="color:var(--amber);font-size:17px">' + (r.tidePoints || 0).toFixed(2) + '</b></div>' +
-      (!r.locked ? '<div class="kv"><span>' + (res() && res().breakSettled ? '本次获得星屑' : '当前预估星屑') + '</span><b style="color:#82ddff;font-size:17px">' + (r.stardust || 0) + '</b></div>' : '');
+      '<div class="kv"><span>' + htmlText(breakPanelText('peak_population_p', '峰值族民 P')) + '</span><b>' + (r.P || 0) + '</b></div>' +
+      '<div class="kv"><span>' + htmlText(breakPanelText('population_score', '人口分')) + '</span><b>' + (r.popScore || 0).toFixed(1) + '</b></div>' +
+      '<div class="kv"><span>' + htmlText(breakPanelText('building_score_weighted_by_era', '建筑分（按纪元加权）')) + '</span><b>' + (r.buildingScore || 0).toFixed(1) + '</b></div>' +
+      '<div class="kv"><span>' + htmlText(tr('ui.prestige.score.workshop_unlocks', { workshopCount: r.workshopCount || 0, workshopWeight: workshopWeight }, '工坊解锁项（{workshopCount} × {workshopWeight}）')) + '</span><b>' + (r.craftScore || 0).toFixed(1) + '</b></div>' +
+      '<div class="kv"><span>' + htmlText(breakPanelText('total_development_score', '总发展分')) + '</span><b>' + (r.developmentScore || 0).toFixed(1) + '</b></div>' +
+      '<div class="kv"><span>' + htmlText(breakPanelText('shellbreak_progress', '破壳进度')) + '</span><b>' + (r.q != null ? (r.q * 100).toFixed(0) : '0') + '%</b></div>' +
+      '<div class="kv" style="border:0;margin-top:8px"><span>' + htmlText(breakPanelText(settled ? 'prestige_points_earned_this_time' : 'estimated_prestige_points', settled ? '本次获得轮回点' : '当前预估轮回点')) + '</span><b style="color:var(--amber);font-size:17px">' + (r.tidePoints || 0).toFixed(2) + '</b></div>' +
+      (!r.locked ? '<div class="kv"><span>' + htmlText(breakPanelText(settled ? 'stardust_earned_this_time' : 'estimated_stardust', settled ? '本次获得星屑' : '当前预估星屑')) + '</span><b style="color:#82ddff;font-size:17px">' + (r.stardust || 0) + '</b></div>' : '');
     var extra = '';
-    if (r.challengePointMul > 1) extra += '<div class="note">挑战通关永久加成：轮回点获取 +' + Math.round((r.challengePointMul - 1) * 100) + '%</div>';
+    if (r.challengePointMul > 1 && !r.challengeClear) extra += '<div class="note">' + htmlText(tr('ui.challenge.result.prestige_bonus', {
+      prestigePointBonus: Math.round((r.challengePointMul - 1) * 100) + '%'
+    }, '挑战通关永久加成：轮回点获取 +{prestigePointBonus}')) + '</div>';
     /* 2026-11-02 挑战可重打：重复通关既没有永久奖励、也不加 +10%，原文案会写出
      * 「永久获得 null」并谎称再加 10%。按 replay 标记分两句。 */
-    if (r.challengeClear) extra += r.challengeClear.replay
-      ? '<div class="note">再次通关：<b>' + r.challengeClear.name + ' · ' + r.challengeClear.label +
-        '</b>。重复挑战不重复发放永久奖励，本局成绩已计入排行榜。</div>'
-      : '<div class="note">挑战通关：<b>' + r.challengeClear.name + ' · ' + r.challengeClear.label + '</b>，永久获得 ' + r.challengeClear.reward + '；之后轮回点获取再 +10%。</div>';
-    var challengeFailureNote = r.challengeFailure ? '<div class="note" style="color:var(--red)">挑战未通关：<b>' + r.challengeFailure.name + ' · ' + r.challengeFailure.label + '</b>已超过 ' +
-      SB.challenges.formatClock(r.challengeFailure.limit) + '（本次用时 ' + SB.challenges.formatClock(r.challengeFailure.elapsed) + '），本档奖励未领取。重开本周目后可重试。</div>' : '';
+    if (r.challengeClear) extra += '<div class="note">' + htmlText(r.challengeClear.replay
+      ? tr('ui.challenge.result.repeated_clear', {
+        challengeName: r.challengeClear.name || '', tierName: r.challengeClear.label || ''
+      }, '再次通关：{challengeName} · {tierName}。重复通关不再发放永久奖励；本局成绩已计入排行榜。')
+      : tr('ui.challenge.result.clear_reward', {
+        challengeName: r.challengeClear.name || '', tierName: r.challengeClear.label || '',
+        reward: r.challengeClear.reward || '', prestigePointBonus: '10%'
+      }, '挑战通关：{challengeName} · {tierName}。永久奖励：{reward}。之后轮回点获取增加 {prestigePointBonus}。')) + '</div>';
+    var challengeFailureNote = r.challengeFailure ? '<div class="note" style="color:var(--red)">' + htmlText(tr('ui.challenge.result.failed_time', {
+      challengeName: r.challengeFailure.name || '', tierName: r.challengeFailure.label || '',
+      elapsedTime: SB.challenges.formatClock(r.challengeFailure.elapsed),
+      timeLimit: SB.challenges.formatClock(r.challengeFailure.limit)
+    }, '挑战未通关：{challengeName} · {tierName} 超时（用时 {elapsedTime}，限时 {timeLimit}），本档奖励未领取。重开本周目后可重试。')) + '</div>' : '';
     if (challengeFailureNote) extra += challengeFailureNote;
-    if (r.relicTourism) extra += '<div class="note">新入藏奇观 ' + r.relicTourism + ' 座（每座 +1% 科技/市政获取）</div>';
-    if (r.oldArtwork) extra += '<div class="note">转入旧日艺术品 ' + r.oldArtwork + ' 件（固定市政点/秒）</div>';
-    if (r.oldTideStele) extra += '<div class="note">转入旧日潮纹碑石 ' + r.oldTideStele + ' 件（固定科技点/秒）</div>';
+    if (r.relicTourism) extra += '<div class="note">' + htmlText(tr('ui.prestige.legacy.wonders', {
+      wonderCount: r.relicTourism, researchBonus: '1%'
+    }, '新入藏奇观 {wonderCount} 座（每座增加科技与市政点获取 {researchBonus}）。')) + '</div>';
+    if (r.oldArtwork) extra += '<div class="note"><b>' + htmlText(tr('ui.prestige.legacy.artworks.name', null, '旧日艺术品')) + '</b>：' +
+      htmlText(tr('ui.prestige.legacy.artworks.count', { artworkCount: r.oldArtwork }, '{artworkCount} 件')) + '。' +
+      htmlText(tr('ui.prestige.legacy.artworks.note', null, '旧日艺术品会持续产出市政点。')) + '</div>';
+    if (r.oldTideStele) extra += '<div class="note"><b>' + htmlText(tr('ui.prestige.legacy.tide_steles.name', null, '旧日潮纹碑石')) + '</b>：' +
+      htmlText(tr('ui.prestige.legacy.tide_steles.count', { steleCount: r.oldTideStele }, '{steleCount} 件')) + '。' +
+      htmlText(tr('ui.prestige.legacy.tide_steles.note', null, '旧日潮纹碑石会持续产出科技点。')) + '</div>';
     var note = r.locked
-      ? '<div class="note" style="color:var(--red)">本局未达《神学》资格门，不发放轮回点、不解锁商店。</div>' + challengeFailureNote
+      ? '<div class="note" style="color:var(--red)">' + htmlText(breakPanelText('theology_requirement_not_met_this_run_no', '本局未达《神学》资格门，不发放轮回点、不解锁商店。')) + '</div>' + challengeFailureNote
       : (res() && !res().breakSettled
-        ? '<div class="note">这只是当前预估，留在本局继续发展后，轮回结算会按最新进度重新计算。</div>'
-        : (extra || '<div class="note">轮回点 = 1 + floor(发展分 × 系数 × 破壳系数)，发展分 = 2×峰值族民 + 建筑纪元分 + 工坊解锁项；下一局继承轮回点、已购增益与旧日遗产账本。</div>'));
+        ? '<div class="note">' + htmlText(breakPanelText('this_is_only_an_estimate_keep_developing', '这只是当前预估，留在本局继续发展后，轮回结算会按最新进度重新计算。')) + '</div>'
+        : (extra || '<div class="note">' + htmlText(tr('ui.prestige.settlement.formula', {
+          prestigePointBase: 1,
+          developmentMultiplier: (CFG.TIDE && CFG.TIDE.LINEAR_K) || 0.04,
+          populationWeight: 2
+        }, '轮回点 = {prestigePointBase} + floor(发展分 × {developmentMultiplier} × 破壳系数)；发展分 = {populationWeight} × 峰值族民 + 建筑纪元分 + 工坊解锁项。')) + '</div>'));
     /* 2026-11-03：这张面板现在只服务「主动轮回」（破壳那一刻走 showBreakResult），
      * 所以标题固定「轮回结算」—— 别再按 shell<=0 叫「冰壳裂开了」，那会让玩家
      * 以为破壳和结算是同一件事。 */
     box.innerHTML =
-      '<h3>轮回结算</h3>' +
+      '<h3>' + htmlText(breakPanelText('prestige_settlement', '轮回结算')) + '</h3>' +
       rows +
       note +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
-      '<button class="btn big" id="mNext">' + (res() && res().breakSettled ? '开始轮回' : '结算并发放轮回点') + '</button></div>';
+      '<button class="btn big" id="mNext">' + htmlText(breakPanelText(settled ? 'begin_prestige' : 'settle_and_claim_prestige_points', settled ? '开始轮回' : '结算并发放轮回点')) + '</button></div>';
     el('modal').classList.remove('hidden'); bodyModalClass(true);
     /* 2026-11-03：删掉「探索壳外的星空」（原 mStay）。
      * 那个按钮的全部作用是把 s.broken 改回 false，让本局继续 —— 破壳不再停摆之后
      * 它既无意义又有害：改回 false 会让挑战限制在破壳后重新生效（active() 的 !s.broken）。 */
     if (res() && res().breakSettled) {
-      el('mNext').textContent = (m && m.religionSeen) ? '开始轮回' : '重开本周目';
+      el('mNext').textContent = (m && m.religionSeen)
+        ? breakPanelText('begin_prestige', '开始轮回')
+        : breakPanelText('restart_this_run', '重开本周目');
       el('mNext').onclick = function () { SB.game.nextCycle(); };
     } else {
-      el('mNext').textContent = SB.prestige.qualified(res()) ? '结算并发放轮回点' : '结算后重开';
+      el('mNext').textContent = SB.prestige.qualified(res())
+        ? breakPanelText('settle_and_claim_prestige_points', '结算并发放轮回点')
+        : breakPanelText('settle_and_restart', '结算后重开');
       el('mNext').onclick = function () { SB.game.settleBreak(); };
     }
   }
@@ -2228,14 +2534,14 @@
   function confirmPanel(o) {
     var box = el('modalBox');
     box.innerHTML =
-      '<h3>' + (o.title || '确认') + '</h3>' + (o.body || '') +
+      '<h3>' + (o.title || tr('ui.render.confirm_panel.confirm', null, '确认')) + '</h3>' + (o.body || '') +
       (o.requireCheck
         ? '<label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:10px 0;color:var(--dim);line-height:1.6">' +
           '<input type="checkbox" id="mChk" style="margin-top:2px">' + o.requireCheck + '</label>'
         : '') +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
-      '<button class="btn" id="mCancel">取消</button>' +
-      '<button class="btn' + (o.danger ? ' danger' : '') + '" id="mOk">' + (o.ok || '确定') + '</button></div>';
+      '<button class="btn" id="mCancel">' + tr('save.action.cancel', null, '取消') + '</button>' +
+      '<button class="btn' + (o.danger ? ' danger' : '') + '" id="mOk">' + (o.ok || tr('ui.render.confirm_panel.confirm', null, '确定')) + '</button></div>';
     resetModalChrome();
     el('modal').classList.remove('hidden'); bodyModalClass(true);
     var okBtn = el('mOk'), chk = el('mChk');
@@ -2255,16 +2561,17 @@
     var box = el('modalBox'), modal = el('modal');
     var current = SB.workshop.slotBatch(s, id);
     var max = (CFG.AUTO && CFG.AUTO.BATCH_MAX) || 9007199254740991;
+    var recipeName = htmlText(SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(id, c.name) : c.name);
     box.innerHTML =
-      '<div class="modal-hd"><b>自动制造批次</b><button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
-      '<p style="color:var(--dim);line-height:1.6;margin:0 0 14px">' + c.name + '：配方含无上限原料，沿用批次自动制造；所有原料足够制造你填写的数量时，自动制造这一整批。</p>' +
-      '<label for="autoBatchInput" style="display:block;margin-bottom:6px">每批制造次数</label>' +
+      '<div class="modal-hd"><b>' + tr('ui.render.open_auto_batch_dialog.automatic_crafting_batch', null, '自动制造批次') + '</b><button type="button" class="modal-x" data-modal-close="1" aria-label="' + tr('ui.action.close', null, '关闭') + '">×</button></div>' +
+      '<p style="color:var(--dim);line-height:1.6;margin:0 0 14px">' + tr('ui.workshop.batch_dialog.description', { recipeName: recipeName }, recipeName + '：配方含无上限原料，沿用批次自动制造；所有原料足够制造你填写的数量时，自动制造这一整批。') + '</p>' +
+      '<label for="autoBatchInput" style="display:block;margin-bottom:6px">' + tr('ui.render.open_auto_batch_dialog.crafts_per_batch', null, '每批制造次数') + '</label>' +
       '<input id="autoBatchInput" type="number" min="1" max="' + max + '" step="1" inputmode="numeric" value="' + current + '"' +
       ' style="box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--text);font:inherit">' +
       '<div id="autoBatchError" role="alert" style="min-height:18px;margin-top:6px;color:var(--red);font-size:12px"></div>' +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px">' +
-      '<button type="button" class="btn" data-modal-close="1">取消</button>' +
-      '<button type="button" class="btn buy" id="autoBatchSave">保存</button></div>';
+      '<button type="button" class="btn" data-modal-close="1">' + tr('save.action.cancel', null, '取消') + '</button>' +
+      '<button type="button" class="btn buy" id="autoBatchSave">' + tr('ui.render.open_auto_batch_dialog.save', null, '保存') + '</button></div>';
     resetModalChrome();
     modal.classList.remove('hidden'); bodyModalClass(true);
     var input = el('autoBatchInput'), save = el('autoBatchSave');
@@ -2273,12 +2580,12 @@
       var batch = Number(raw);
       var error = el('autoBatchError');
       if (!/^\d+$/.test(raw) || !isFinite(batch) || Math.floor(batch) !== batch || batch < 1 || batch > max) {
-        error.textContent = '请输入 1 到 ' + max + ' 之间的整数。';
+        error.textContent = tr('ui.workshop.batch_dialog.invalid_count', { min: 1, max: max }, '请输入 {min} 到 {max} 之间的整数。');
         return;
       }
       var live = res();
       if (!live || !SB.workshop.setSlotBatch(live, id, batch)) {
-        error.textContent = '保存失败：自动槽已不可用，请检查工坊升级与槽位。';
+        error.textContent = tr('ui.render.save_batch.couldn_t_save_this_automation_slot_is', null, '保存失败：自动槽已不可用，请检查工坊升级与槽位。');
         return;
       }
       hideModal();
@@ -2296,24 +2603,39 @@
    * 触发与「面板变亮」是同一时刻的两件事：调用方在 game.maybeSciencePopup，这里只管表现。 */
   function storyPanel(o) {
     var box = el('modalBox'), modal = el('modal'), i;
+    var storySlugs = { tech: 'technology', civic: 'civics', faith: 'faith', workshop: 'workshop',
+      wonder: 'wonder', 'star-map': 'star_map', company: 'company', prestige: 'prestige' };
+    var storySlug = storySlugs[o.kind] || '';
+    function storyText(field, fallback) {
+      return storySlug ? tr('game.story.unlock.' + storySlug + '.' + field, null, fallback) : (fallback || '');
+    }
     var kind = o.kind || 'unlock';
     var isTech = kind === 'tech';
     var icon = o.icon || (isTech ? '⌘' : '✦');
-    var kicker = o.kicker || '新系统解锁';
-    var unlockTitle = o.unlockTitle || (isTech ? '科技树已开放' : '新的系统已开放');
-    var unlockCopy = o.unlockCopy || (isTech ? '现在可以研究科技，并查看每项科技的尤里卡条件。' : '新的内容已经加入你的文明。');
+    var kicker = o.kicker || tr(isTech ? 'ui.render.story_panel.technology_tree_unlocked' : 'ui.render.story_panel.new_system_unlocked', null, isTech ? '科技树已开放' : '新系统解锁');
+    var title = storyText('title', o.title || '');
+    var lines = (o.lines || []).map(function (line, index) {
+      return storyText('line_' + (index + 1), line);
+    });
+    var unlockTitle = storyText('system_title', o.unlockTitle || tr(
+      isTech ? 'ui.render.story_panel.technology_tree_unlocked' : 'ui.render.story_panel.new_system_unlocked',
+      null, isTech ? '科技树已开放' : '新系统解锁'));
+    var unlockCopy = storyText('system_description', o.unlockCopy || tr(
+      isTech ? 'ui.render.story_panel.you_can_now_research_technologies_and_view' : 'ui.render.story_panel.new_content_has_been_added_to_your',
+      null, isTech ? '现在可以研究科技，并查看每项科技的尤里卡条件。' : '新的内容已经加入你的文明。'));
+    var action = storyText('action', o.ok || tr('ui.render.anonymous_function.got_it', null, '知道了'));
     resetModalChrome();
     modal.classList.add('story-modal');
     box.classList.add('story-box');
     box.innerHTML =
-      '<div class="story-kicker"><span class="story-kicker-icon" aria-hidden="true">' + icon + '</span><span>' + kicker + '</span><i aria-hidden="true"></i></div>' +
-      '<div class="story-hero"><div class="story-hero-icon" aria-hidden="true">' + icon + '</div><div class="story-hero-copy"><h3>' + (o.title || '') + '</h3><span class="story-state">已开启</span></div></div>' +
+      '<div class="story-kicker"><span class="story-kicker-icon" aria-hidden="true">' + icon + '</span><span>' + htmlText(kicker) + '</span><i aria-hidden="true"></i></div>' +
+      '<div class="story-hero"><div class="story-hero-icon" aria-hidden="true">' + icon + '</div><div class="story-hero-copy"><h3>' + htmlText(title) + '</h3><span class="story-state">' + htmlText(tr('ui.status.new', null, '新')) + '</span></div></div>' +
       '<div class="story-rule" aria-hidden="true"></div>' +
-      '<div class="story">' + (o.lines || []).map(function (x) {
-        return '<p>' + x + '</p>';
+      '<div class="story">' + lines.map(function (x) {
+        return '<p>' + htmlText(x) + '</p>';
       }).join('') + '</div>' + (o.body || '') +
-      '<div class="story-unlock"><span class="story-unlock-mark" aria-hidden="true">✓</span><div><strong>' + unlockTitle + '</strong><small>' + unlockCopy + '</small></div></div>' +
-      '<div class="foot story-actions"><button class="big" id="mStoryOk">' + (o.ok || '知道了') + '<span aria-hidden="true">→</span></button></div>';
+      (unlockCopy ? '<div class="story-unlock"><span class="story-unlock-mark" aria-hidden="true">✓</span><div><strong>' + htmlText(unlockTitle) + '</strong><small>' + htmlText(unlockCopy) + '</small></div></div>' : '') +
+      '<div class="foot story-actions"><button class="big" id="mStoryOk">' + htmlText(action) + '<span aria-hidden="true">→</span></button></div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
     el('mStoryOk').onclick = function () { hideModal(); if (o.onOk) o.onOk(); };
   }
@@ -2336,7 +2658,7 @@
       if (tabs[i].dataset.tab !== 'tech') continue;
       tabs[i].classList.toggle('locked', !open);
       /* 用赋空串而不是 removeAttribute：前者到处都支持，后者在无 DOM 的验收桩里会炸。 */
-      tabs[i].title = open ? '' : '建成 5 座深海藻场后开启，才知道明天是什么';
+      tabs[i].title = open ? '' : tr('ui.render.sync_tab_locks.build_five_kelp_farms_to_see_what_tomorrow_holds');
     }
     /* 市政页的灰态与科技页是**两件事**：开门条件不同（议事厅 vs 5 座藻场），
      * 所以这里要单独判一次，不能跟着 tech 走——否则玩家建起议事厅、市政页还是灰的。 */
@@ -2344,7 +2666,7 @@
     if (civ) {
       var cs = res(), cop = !!(SB.civic && cs && SB.civic.panelOpen(cs));
       civ.classList.toggle('locked', !cop);
-      civ.title = cop ? '' : '建成议事厅后开启（议事厅由「石工」解锁）';
+      civ.title = cop ? '' : tr('ui.render.sync_tab_locks.unlock_after_building_the_council_hall_unlocked');
     }
     /* 工坊页的灰态同样得单独判：它的门是「建成工坊」这座建筑本身，
      * 与科技页的 5 座藻场、市政页的议事厅都不是一件事。 */
@@ -2352,7 +2674,7 @@
     if (wk) {
       var wop = workshopTabOpen();
       wk.classList.toggle('locked', !wop);
-      wk.title = wop ? '' : '建成工坊后开启';
+      wk.title = wop ? '' : tr('ui.render.sync_tab_locks.build_a_workshop_to_unlock_this_tab');
     }
     /* 奇观页的灰态：**第三个独立门槛** —— 石工那项科技。
      * ⚠️ 它的门是「研究过石工」，与上面三个（5 座藻场 / 议事厅 / 建成工坊）都不相同，
@@ -2361,20 +2683,20 @@
     if (wd) {
       var s = res(), dop = !!(s && s.techs && s.techs.masonry);
       wd.classList.toggle('locked', !dop);
-      wd.title = dop ? '' : '研究「石工」后开启';
+      wd.title = dop ? '' : tr('ui.render.sync_tab_locks.research_masonry_to_unlock_this_tab');
     }
     /* 局外商店（meta 页）的灰态：首次合格轮回开放轮回点区，首座卫星开放星屑区。 */
     var mt = document.querySelector('.tab[data-tab="meta"]');
     if (mt) {
       var mopen = !!((meta() && meta().shopUnlocked) || stardustShopOpen());
       mt.classList.toggle('locked', !mopen);
-      mt.title = mopen ? '' : '首次轮回或建成首座轨道卫星后开启';
+      mt.title = mopen ? '' : tr('ui.render.sync_tab_locks.unlock_after_your_first_prestige_or_after');
     }
     var ch = document.querySelector('.tab[data-tab="challenges"]');
     if (ch) {
       var chopen = !!(meta() && meta().shopUnlocked);
       ch.classList.toggle('locked', !chopen);
-      ch.title = chopen ? '' : '首次轮回后开启挑战';
+      ch.title = chopen ? '' : tr('ui.render.sync_tab_locks.unlocks_after_your_first_prestige');
     }
     /* 成就页签（2026-10-24 从「挑战与成就」拆出）：门与挑战页**同一个**
      * （meta.shopUnlocked = 首次轮回），不另立判据——两个页签本就是一门两页。 */
@@ -2382,7 +2704,7 @@
     if (ac) {
       var acopen = !!(meta() && meta().shopUnlocked);
       ac.classList.toggle('locked', !acopen);
-      ac.title = acopen ? '' : '首次轮回后开启成就';
+      ac.title = acopen ? '' : tr('ui.render.sync_tab_locks.unlocks_after_your_first_prestige_sb_005137');
     }
     /* 信仰页的灰态：**第五个独立门槛** —— 神学（与资源行 / 产出线的 gate 同源：
      *   resUnlocked(s,'faith') ⇔ s.civics.theology），不在这里另立一份判据。 */
@@ -2390,7 +2712,7 @@
     if (ft) {
       var fs2 = res(), fop = !!(SB.economy && fs2 && SB.economy.resUnlocked(fs2, 'faith'));
       ft.classList.toggle('locked', !fop);
-      ft.title = fop ? '' : '研究「神学」后开启信仰页';
+      ft.title = fop ? '' : tr('ui.render.sync_tab_locks.research_theology_to_unlock_the_faith_tab');
     }
     /* 公司页的灰态：**第六个独立门槛** —— 宏观经济学（与 tab 灰态、公司成立触发同源：
      *   s.civics.macroeconomics ⇔ 公司系统解锁），不在这里另立一份判据。 */
@@ -2398,13 +2720,13 @@
     if (cp) {
       var cs2 = res(), copn = !!(cs2 && cs2.civics && cs2.civics.macroeconomics);
       cp.classList.toggle('locked', !copn);
-      cp.title = copn ? '' : '研究「宏观经济学」后开启公司页';
+      cp.title = copn ? '' : tr('ui.render.sync_tab_locks.research_macroeconomics_to_unlock_the_companies_');
     }
     var sm = document.querySelector('.tab[data-tab="star-map"]');
     if (sm) {
       var ss = res(), sop = !!(ss && (ss.shellOpened || ss.breakSettled) && ss.shell <= 0);
       sm.classList.toggle('locked', !sop);
-      sm.title = sop ? '' : '凿穿天壳后开启星图';
+      sm.title = sop ? '' : tr('ui.render.sync_tab_locks.break_through_the_shell_to_unlock_the');
     }
   }
 
@@ -2428,9 +2750,9 @@
       ct.classList.toggle('avail', civOn);
       if (cop) {
         var reasons = [];
-        if (notices.emptySlots > 0) reasons.push('有 ' + notices.emptySlots + ' 个空政策卡槽');
-        if (notices.researchable) reasons.push('有可研究市政');
-        ct.title = reasons.join('；');
+        if (notices.emptySlots > 0) reasons.push(tr('ui.tab.civic.empty_policy_slots', { emptySlotCount: notices.emptySlots }));
+        if (notices.researchable) reasons.push(tr('civic.tab.researchable.status'));
+        ct.title = reasons.join(' · ');
       }
     }
     var ft = doc.querySelector('.tab[data-tab="faith"]');
@@ -2456,7 +2778,7 @@
         }
       }
       wt.classList.toggle('avail', wonderOn);
-      if (wonderOn) wt.title = '有可建造的奇观';
+      if (wonderOn) wt.title = tr('ui.render.sync_tab_research_dots.a_wonder_is_ready_to_build');
     }
     /* 工坊页签「升级项可购买」红点（2026-10-21 用户）：复用 hasPurchasable（与升级项
      * 二级标签同源、与结算同式），仅工坊已建成（解锁）时亮。活指示，每次 PANE_REFRESH 重算。 */
@@ -2465,7 +2787,7 @@
       var wkUnlocked = !!(s && s.lvl && s.lvl.workshop > 0);
       var wkOn = wkUnlocked && SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s);
       wkt.classList.toggle('avail', wkOn);
-      if (wkOn) wkt.title = (wkt.title ? wkt.title + '；' : '') + '有可购买的升级项';
+      if (wkOn) wkt.title = (wkt.title ? wkt.title + ' · ' : '') + tr('ui.tab.workshop.upgrades_available');
     }
   }
 
@@ -2528,7 +2850,7 @@
      *   留着会把离线闸门压成别人的排版。 */
     resetModalChrome();
     if (o.summary) modal.classList.add('offline-summary-modal');
-    var html = o.summary ? (o.body || '') : '<h3>' + (o.title || '离线') + '</h3>' + (o.body || '');
+    var html = o.summary ? (o.body || '') : '<h3>' + (o.title || tr('game.offline.report.title', null, '离线')) + '</h3>' + (o.body || '');
     if (o.showProgress) {
       html += '<div class="prog"><i id="offPr" style="display:block;height:100%;width:0%;' +
         'background:linear-gradient(90deg,#2f9e6e,#5be3a4);border-radius:4px"></i></div>' +
@@ -2554,18 +2876,30 @@
   function setOfflineProgress(p) {
     var pr = el('offPr'), pct = el('offPct');
     if (pr) pr.style.width = Math.max(0, Math.min(100, p * 100)).toFixed(1) + '%';
-    if (pct) pct.textContent = '已完成 ' + (p * 100).toFixed(0) + '%';
+    if (pct) pct.textContent = tr('ui.offline.progress.completed', { progressPercent: (p * 100).toFixed(0) }, '已完成 {progressPercent}%');
   }
 
   var INTRO = SB.ui.renderContent.INTRO;
   function openIntro(key) {
     var d = INTRO[key]; if (!d) return;
     var pop = el('introPop'); if (!pop) return;
+    var token = String(key).replace(/-/g, '_');
+    var prefix = 'ui.intro.' + token;
+    var params = key === 'folk' ? { kelpThreshold: 20 }
+      : key === 'company' ? { eraNumber: 6, luxuryConsumptionIncreasePercent: 10 } : null;
+    var title = tr(prefix + '.title', params, d.ttl || '');
+    var description = tr(prefix + '.description', params, d.def || '');
+    var step = tr(prefix + '.step', params, d.step || '');
+    if (key === 'happy') {
+      title = tr('ui.happiness.help.title', null, d.ttl || '');
+      description = tr('ui.happiness.dynamics.explanation', null, d.def || '');
+      step = '';
+    }
     pop.innerHTML =
-      '<div class="ttl">' + (d.icon || '') + ' ' + (d.ttl || '') + '</div>' +
-      '<div class="def">' + (d.def || '') + '</div>' +
-      '<div class="step">' + (d.step || '') + '</div>' +
-      '<div class="closebar"><button class="btn" onclick="SB.ui.closeIntro()">知道了</button></div>';
+      '<div class="ttl">' + (d.icon || '') + ' ' + title + '</div>' +
+      '<div class="def">' + description + '</div>' +
+      '<div class="step">' + step + '</div>' +
+      '<div class="closebar"><button class="btn" onclick="SB.ui.closeIntro()">' + tr('ui.render.open_intro.got_it', null, '知道了') + '</button></div>';
     var m = el('introMask'); if (m) m.classList.remove('hidden');
     bodyModalClass(true);   /* 弹窗期间禁用 tab 交互（复用 body.modal-open 规则） */
   }
@@ -2644,6 +2978,7 @@
   if (root.addEventListener) root.addEventListener('shellbreak:locale-changed', function () {
     if (!SB.game || !SB.game.run || !SB.game.run()) return;
     _lastIdleTag = -1;
+    _omenSig = '';
     syncBuildingIconToggle();
     renderAll();
   });

@@ -290,19 +290,24 @@ export async function run({ SB, check, makeDoc, loadAll, errors }) {
       const kvRun = tapG.getStorageSync ? tapG.getStorageSync(G.CFG.RUN_KEY) : null;
       check('键值通道里确实有这份主档（不是只返回了 true）',
         !!kvRun && Number(JSON.parse(kvRun).t) >= 0);
+      /* ⚠️ 2026-11-06：诊断文本已 i18n 化（走 save.diag.* 词库），整句措辞不再固定，
+       *   断言改为「按行前缀取行 + 行内查值」——判据意图不变（这一行必须存在、且写明
+       *   实际落盘通道），但不再绑定某一句中文，避免下次改文案又假红。 */
+      const _diagG = G.store.diagText();
+      const _syncLine = _diagG.split('\n').filter((l) => l.indexOf('落盘') === 0).join('');
       check('诊断把通道记成 kv（下次玩家发诊断就能一眼定性）',
-        G.store.diagText().indexOf('落盘 同步=kv') >= 0,
-        G.store.diagText().split('\n').filter((l) => l.indexOf('落盘') === 0).join(''));
+        _syncLine.indexOf('kv') >= 0, _syncLine);
       /* 能力矩阵第②格：有 fs、有异步写、**没有**同步读写。诊断必须自己说出这件事，
        * 不能让下一个人再从返回值反推。 */
       check('接口形态（有 fs 无同步）：wfs0 rfs0 wf1 ud1 kv1',
         G.store.shapeText() === 'wfs0 rfs0 wf1 ud1 kv1', G.store.shapeText());
       /* ⚠️ 这里不能用 `/^接口/` 锚定 —— diagText 是多行拼接的单个字符串，
        *    不带 m 标志时 `^` 只匹配整串开头，永远命中不了第二行（第一版就红在这）。
-       *    用子串匹配，测的是「这一行在不在、值对不对」，不是行首位置。 */
+       *    用子串匹配，测的是「这一行在不在、值对不对」，不是行首位置。
+       *    2026-11-06：同样不再绑定「接口 wfs0」这句字面（文案已 key 化），只认行前缀 + 值。 */
+      const _ifaceLine = _diagG.split('\n').filter((l) => l.indexOf('接口') === 0).join('');
       check('诊断里有「接口」这一行且标明 wfs0',
-        G.store.diagText().indexOf('接口 wfs0') >= 0,
-        G.store.diagText().split('\n').filter((l) => l.indexOf('接口') === 0).join(''));
+        _ifaceLine.indexOf('wfs0') >= 0, _ifaceLine);
 
       /* 2) 导入：旧代码在这台设备上必然回滚 + throw。现在必须成功。 */
       const beforeSeq = Number((G.game.run() || {})._saveSeq) || 0;

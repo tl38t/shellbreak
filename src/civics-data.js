@@ -298,7 +298,7 @@
      *   ⚠️ 热液工坊由纪元三科技《金属精炼》解锁（techs.js:479），纪元四早已能建满 3 座，鼓舞可达。
      * 【cost 为提议值，未标定】量级对齐纪元四中段（探索 20000 / 重商主义 40000）取 30000；
      *   调它 = 标定，会动整局时长，且当前未做总时长核算 ⇒ 暂不调。 */
-    { id: 'civ_steelschool', name: '工坊学校', icon: 'assets/civic-icons/era-4/era4-steelschool.png', cost: 30000, era: 4, layer: 2, reqs: ['guild'],
+    { id: 'civ_steelschool', name: '工坊学校', icon: 'assets/civic-icons/era-4/era4-steelschool-illustrated.png', cost: 30000, era: 4, layer: 2, reqs: ['guild'],
       boost: { t: 'built', b: 'hydroshop', n: 3 },
       desc: '解锁工坊升级「精炼钢厂」：钢产出 +25%。',
       note: '鼓舞：建成 3 座热液工坊。' },

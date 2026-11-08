@@ -24,6 +24,11 @@
   var SB = root.SB || (root.SB = {});
   var CFG = SB.CFG;
 
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+
   /* 建筑 → 起始解锁纪元（metaEra）。按各建筑解锁所依赖的科技/市政纪元反查（见方案文档）：
    *   纪元权重 W: 1/2/3/5/8（暗流/冷焰/硫泉/洋流/破壳纪）。
    * 仅 defaultUnlockable / 仅 unlockRatio 的建筑归纪元 1。 */
@@ -236,7 +241,7 @@
       /* 动画属于「壳归零」事件，由 shell.onShellZero 唯一触发。
        * 手动提前重开/轮回只展示结算，不把它伪装成凿穿天壳。 */
       if (!options.silent) (SB.game.showBreakPanel || SB.game.showBreakAnimation)(r);
-      if (emit) emit('本局未达《神学》资格门，不发放轮回点。');
+      if (emit) emit(tr('ui.log.prestige.not_eligible', null, '本局未达《神学》资格门，不发放轮回点。'));
       return r;
     }
     // ① 轮回点（唯一可消费货币）
@@ -246,10 +251,19 @@
     meta.tide += r.tidePoints;
     meta.tideEarnedTotal = (meta.tideEarnedTotal || 0) + r.tidePoints;
     /* 2026-10-24 成就「十次轮回」（docs/ACHV_DESIGN_v0.3.md §四·4，事项 4 用户拍「只算轮回」）：
-     * rebirths 是合格轮回的**新计数器**（软重置 / 神学前重置 / 未过资格门全不计，
-     * 与 meta.cycle 的「周目」语义故意分开——cycle 对软重置也 +1）。
+     * rebirths 是合格轮回计数器（软重置 / 神学前重置 / 未过资格门全不计）。
      * ⚠️ 老档无此键 ⇒ 从 0 起算，不追溯（历史轮回次数无法从 cycle 反推，见设计稿 §四·4）。 */
     meta.rebirths = (meta.rebirths || 0) + 1;
+    /* 2026-11-06 用户拍板：`meta.cycle` 从「局数」收紧为「**合格轮回次数**」，与 rebirths
+     * 同侧同源 —— 这是它唯一 +1 的地方（startRun 只涨 runs，不再涨 cycle）。
+     * 收紧的原因是 cycle 是老口径下唯一被收益读的点：潮汐之树 dyn:'loop5'（0.05×cycle，
+     * 无上限）、《黑历史蓝图》尤里卡（cycle≥15）、市政鼓舞（3/7/10/15）、艺术品 +10%/cycle、
+     * 「轮回次数」排行榜 —— 而旧 startRun 无条件 +1 ⇒「重开本周目」零成本刷这些。
+     * ⚠️ 位置敏感：必须在下面 `SB.state.saveMeta(meta)` 和 `submitRankOnBreak` 之前，
+     *    否则落盘与榜单会晚一拍（榜单那侧已改成直接报 m.cycle，不再 +1）。
+     * ⚠️ 与 rebirths 保持同值但不合并：rebirths 从 0 起算、老档不追溯，而 cycle 在存量档里
+     *    本来就带历史虚高值；两个字段各自保留才能既不收回既得利益、又保住成就的真实进度。 */
+    meta.cycle = (meta.cycle || 1) + 1;
     /* 挑战必须完成《神学》资格并真正凿穿天壳；普通结算/重开不兑现挑战奖励。 */
     /* 同上：破壳型挑战在破壳那一刻就判完了（2026-11-03），结算只做账本。
      * 这里把结果带回报告，供「轮回结算」面板说明这次挑战赢没赢。 */
@@ -297,7 +311,10 @@
     if (SB.game.submitRankOnBreak) SB.game.submitRankOnBreak(s, r);
     /* 破壳动画已由 shell.onShellZero 播放；这里可能是未破壳就主动轮回，不能再播放动画。 */
     if (!options.silent) (SB.game.showBreakPanel || SB.game.showBreakAnimation)(r);
-    if (emit) emit('轮回结算完成。获得轮回点 ' + r.tidePoints.toFixed(2) + '、星屑 ' + _sd + '。');
+    if (emit) emit(tr('ui.log.prestige.completed', {
+      prestigePoints: r.tidePoints.toFixed(2),
+      stardust: _sd
+    }, '轮回结算完成。获得轮回点 ' + r.tidePoints.toFixed(2) + '、星屑 ' + _sd + '。'));
     return r;
   }
 

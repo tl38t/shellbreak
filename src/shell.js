@@ -16,6 +16,11 @@
   var SB = root.SB || (root.SB = {});
   var CFG = SB.CFG;
 
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+
   function techCount(s) {
     var n = 0;
     for (var k in s.techs) if (s.techs[k]) n++;
@@ -131,7 +136,9 @@
           ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_ENCELADUS_SECONDS) : SB.CFG.GEEK_ENCELADUS_SECONDS;
         if (s.geek.enceladusRun >= _encTime) {
           s.geek.enceladusDone = true;
-          if (emit) emit('星球重构机 G.E.E.K 完成恩克拉多斯星改造：覆盖建筑升级花费下调最多 3 级（廉租社区 1 级）。');
+          if (emit) emit(tr('ui.log.geek.terraforming.enceladus_complete', {
+            maxLevelReduction: 3, lowRentCommunityReduction: 1
+          }, '星球重构机 G.E.E.K 完成恩克拉多斯星改造：覆盖建筑升级花费下调最多 3 级（廉租社区 1 级）。'));
         }
       } else if (s.techs.terraform && !s.geek.terraDone) {
         /* 阶段二：泰拉星改造（需先研究 terraform）。完成 ⇒ 再叠加 COST_OFFSET_COVERED.terra
@@ -141,15 +148,21 @@
           ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
         if (s.geek.terraRun >= _terraTime) {
           s.geek.terraDone = true;
-          if (emit) emit('星球重构机 G.E.E.K 完成泰拉星改造：覆盖建筑升级花费下调最多 8 级（廉租社区合计 3 级）。');
+          if (emit) emit(tr('ui.log.geek.terraforming.terra_complete', {
+            maxLevelReduction: 8, lowRentCommunityTotalReduction: 3
+          }, '星球重构机 G.E.E.K 完成泰拉星改造：覆盖建筑升级花费下调最多 8 级（廉租社区合计 3 级）。'));
         }
       }
       s.geekStarved = false;
     } else if (!s.geekStarved) {
       s.geekStarved = true;
-      var _need = '每 s 需 ' + SB.CFG.GEEK_HYDRO + ' 热液能（剩流）+ ' + SB.CFG.GEEK_KELP + ' 藻食 + ' + SB.CFG.GEEK_METAL +
-        ' 金属 + ' + SB.CFG.GEEK_STONE + ' 石头 + ' + SB.CFG.GEEK_CORAL + ' 珊瑚';
-      if (emit) emit('星球重构机 G.E.E.K 缺少热液能或材料（' + _need + '），停转——补足后自动继续。');
+      if (emit) emit(tr('game.shell.geek.starved', {
+        hydroEnergyPerSecond: SB.CFG.GEEK_HYDRO,
+        kelpPerSecond: SB.CFG.GEEK_KELP,
+        metalPerSecond: SB.CFG.GEEK_METAL,
+        stonePerSecond: SB.CFG.GEEK_STONE,
+        coralPerSecond: SB.CFG.GEEK_CORAL
+      }, '星球重构机 G.E.E.K 缺少热液能或材料，停转——补足后自动继续。'));
     }
   }
 
@@ -211,9 +224,13 @@
         if (emit) {
           var _bitOK = (s.res.resonantDrill || 0) >= dCost;
           emit(_bitOK
-            ? '天穹钻机缺热液能（工坊吃完后剩流不足 ' + SB.CFG.SKYDRILL_HYDRO + '/秒），停转——补足后自动继续。'
-            : '天穹钻机缺共振钻头（现存 ' + (s.res.resonantDrill || 0).toFixed(1) + '，每秒耗 ' +
-              (SB.CFG.SKYDRILL_DRILL * _dm) + '），停转——去工坊补货后自动继续。');
+            ? tr('game.shell.sky_drill.starved.hydro', {
+              requiredHydroPerSecond: SB.CFG.SKYDRILL_HYDRO
+            }, '天穹钻机缺热液能，停转——补足后自动继续。')
+            : tr('game.shell.sky_drill.starved.drills', {
+              currentResonantDrills: (s.res.resonantDrill || 0).toFixed(1),
+              drillsPerSecond: SB.CFG.SKYDRILL_DRILL * _dm
+            }, '天穹钻机缺共振钻头，停转——去工坊补货后自动继续。'));
         }
       }
     }
@@ -271,7 +288,7 @@
         SB.ui.render.showBreakResult(report);
       else if (SB.game.showBreakPanel) SB.game.showBreakPanel(report);
     }
-    if (emit) emit('冰壳裂开了。');
+    if (emit) emit(tr('ui.log.shell.ice_shell_cracked', null, '冰壳裂开了。'));
   }
 
   /* 星空槽推进（2026-10-13 镜像破壳：破壳后把「破壳槽」翻转为「星空槽」）。
@@ -295,7 +312,7 @@
       s.starComplete = true;
       /* 2026-10-24 成就「太空时代」（docs/ACHV_DESIGN_v0.3.md §四·5）：星空槽满槽唯一事件。 */
       if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta) SB.achv.unlockOnce('starComplete', SB.game.meta());
-      if (emit) emit('星空槽已填满——太空时代达成。');
+      if (emit) emit(tr('ui.log.starfield.complete', null, '星空槽已填满——太空时代达成。'));
       if (SB.ui && SB.ui.render && SB.ui.render.showStarComplete) SB.ui.render.showStarComplete(s);
     }
   }

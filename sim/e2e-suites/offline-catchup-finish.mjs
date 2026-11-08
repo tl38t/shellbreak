@@ -95,4 +95,61 @@ export function run({ SB, check }) {
     /* 收尾掉这一批，避免污染后续 suite（下一次 drain 会给足预算） */
     for (let i = 0; i < 400 && s.t - t0 < 7200; i++) SB.game.drainCatchUp(2000);
   }
+
+  /* ── 4. 广告余额 < 离线时长：银行归零后必须回落 1× 并收尾（2026-11-07 客户反馈）──
+   * 事故形态：双倍段扣减 ad.ms 留下 1ulp 正残差 ⇒ adMul() 仍判 2× ⇒ realChunk ≈1e-16
+   * 真实秒 ⇒ 内层一步不进 ⇒ j.left 原样写回 ⇒ 外层每帧空转、闸门永不关、1× 段被吞。
+   * ⚠️ 夹具必须用**会留下正浮点残差**的 ad.ms；整数 3000 精确归零，测不出事故形态。
+   *    在线主循环按 elapsed*1000 扣余额（game.js:1366），真实玩家余额天然带小数。
+   * ⚠️ 本 suite 的 fixture 原本写死 s.ad.on=false / s.ad.ms=0 ⇒ 广告开启的补算零覆盖。
+   * 用 5ms 小预算 + 40 帧上限：活锁时不会把全量回归拖慢。 */
+  {
+    const s = fixture(0.4);
+    s.ad.on = true;
+    s.ad.ms = 3000 - 0.0001;          // 3 秒双倍余额，离线 5 秒
+    SB.game.planCatchUp(s, 5, true);
+    const t0 = s.t;
+    let frames = 0, closed = false, still = 0, prevT = s.t;
+    for (let f = 0; f < 40; f++) {
+      SB.game.drainCatchUp(5);
+      frames++;
+      if (!SB.game.runtimeStatus().catchupActive) { closed = true; break; }
+      if (s.t === prevT) still++; else still = 0;
+      prevT = s.t;
+      if (still >= 5) break;           // 连续 5 帧 s.t 不动 = 活锁实锤
+    }
+    check('广告余额耗尽后离线补算能收尾（残差不得让闸门永开）', closed,
+      'frames=' + frames + ' still=' + still + ' advanced=' + (s.t - t0).toFixed(6));
+    /* 3 秒双倍 = 6 游戏秒 + 剩余 2 秒 1× = 2 游戏秒 ⇒ 共 8 游戏秒（活锁时只有 6） */
+    check('广告余额耗尽后的 1× 段没有被吞掉', Math.abs((s.t - t0) - 8) < 0.2,
+      'advanced=' + (s.t - t0).toFixed(6) + '（期望 8±0.2）');
+    check('广告余额残差被夹零（不再留下 1ulp 假余额）', s.ad.ms === 0,
+      'ad.ms=' + s.ad.ms);
+  }
+
+  /* ── 5. 非静默闸门：进度条必须走到 100%，不能冻结在广告余额占比（本例 60%）── */
+  {
+    const seq = [];
+    const orig = SB.ui.render.setOfflineProgress;
+    SB.ui.render.setOfflineProgress = function (p) {
+      seq.push(p);
+      return orig ? orig.apply(this, arguments) : undefined;
+    };
+    let ok = false, err = '';
+    try {
+      const s = fixture(0.4);
+      s.ad.on = true;
+      s.ad.ms = 3000 - 0.0001;
+      SB.game.planCatchUp(s, 5, false);
+      for (let f = 0; f < 40; f++) {
+        SB.game.drainCatchUp(5);
+        if (!SB.game.runtimeStatus().catchupActive) break;
+      }
+      ok = true;
+    } catch (e) { err = String((e && e.message) || e); }
+    finally { SB.ui.render.setOfflineProgress = orig; }
+    check('离线闸门进度条上报到 100%（不再冻结在 60%）',
+      ok && seq.length > 0 && Math.abs(seq[seq.length - 1] - 1) < 1e-9,
+      'ok=' + ok + ' err=' + err + ' 末3帧=' + seq.slice(-3).map(p => (100 * p).toFixed(2) + '%').join('→'));
+  }
 }

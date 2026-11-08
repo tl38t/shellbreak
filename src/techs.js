@@ -635,7 +635,7 @@
      *   ⚠️ 别写成 `true`（那等于 drift_terra）。
      * ⚠️ `resCost: { silt: 4000 }`：本作第一个「还要掏库存」的科技，走 tech.js 的
      *   resCostList 四同源通道（门禁/实扣/文案/面板）。 */
-    { id: 'canfill', name: '装罐填埋', icon: '', era: 5, cost: 80000, branch: 'survive', key: false,
+    { id: 'canfill', name: '装罐填埋', icon: 'assets/tech-icons/era-5/era5-canfill.png', era: 5, cost: 80000, branch: 'survive', key: false,
       reqs: ['industrialize'], layer: 6, challengeOnly: 'waterpollution',
       resCost: { silt: 4000 },
       eff: {},

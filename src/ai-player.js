@@ -6,8 +6,8 @@
   var SB = root.SB;
   if (!SB || !SB.game || !SB.aiStrategy) return;
   var GAME_SPEED = 30;
-  var AI_PLAYER_VERSION = 22;
-  var REQUESTED_CHALLENGE_ID = 'waterpollution';
+  var AI_PLAYER_VERSION = 24;
+  var REQUESTED_CHALLENGE_IDS = ['anarchy', 'good_old_days', 'three_launch_sites', 'eternity_moment'];
   /* 主模拟与 AI 共用浏览器主线程。30× 时主循环已经要结算约 300 个 0.1s tick/秒；
    * 每 400ms 再跑一次完整策略（里面会多次计算 rates）会把主线程挤满，名义 30×
    * 反而实际不到 1×。策略不需要跟着每个模拟 tick 跑：每秒重规划一次足够及时。 */
@@ -208,7 +208,7 @@
   }
   function nextChallengeId() {
     if (!SB.challenges || !SB.challenges.canStartFresh) return null;
-    var order = ['cold', 'small', 'science', 'abyss', 'speedrun'];
+    var order = REQUESTED_CHALLENGE_IDS;
     var s = SB.game.run(), meta = SB.game.meta();
     /* ⛔ 必须用 canStartFresh（还有未通关档位），不能用 canStart：
      * 2026-11-02 挑战开放「通关后仍可重打」后，canStart 对已通关项恒为真 ⇒
@@ -219,12 +219,12 @@
   }
   function allImplementedChallengesDone(meta) {
     if (!SB.challenges || !SB.challenges.tierDone) return false;
-    return SB.challenges.tierDone('cold', meta) >= 1 &&
-      SB.challenges.tierDone('small', meta) >= 1 &&
-      SB.challenges.tierDone('science', meta) >= 3 &&
-      SB.challenges.tierDone('abyss', meta) >= 3 &&
-      SB.challenges.tierDone('speedrun', meta) >= 3;
+    return REQUESTED_CHALLENGE_IDS.every(function (id) {
+      var challenge = SB.challenges.byId(id);
+      return challenge && SB.challenges.tierDone(id, meta) >= challenge.tiers.length;
+    });
   }
+  function isRequestedChallenge(id) { return REQUESTED_CHALLENGE_IDS.indexOf(id) >= 0; }
   function continueAfterChallengeBreak(s, report) {
     if (!s || !s.challenge || !s.breakSettled) return false;
     var meta = SB.game.meta(), challenge = SB.challenges.byId(s.challenge.id);
@@ -245,20 +245,10 @@
       say('按挑战顺序开始下一项：' + SB.challenges.byId(nextId).name + '。');
       return true;
     }
-    /* 全部已实装挑战奖励均已正式登记后，只启动一次普通周目作为虚境终局局。
-     * nextCycle 复用游戏自己的周目 API；普通局无 challenge 标记，戴森竣工后由
-     * 现有终点守卫暂停，因此不会继续轮回或重复播放结局。 */
-    if (allImplementedChallengesDone(meta) && SB.game.nextCycle) {
-      var cycleBeforeFinal = Number(meta.cycle) || 0;
-      SB.game.nextCycle();
-      var finalRun = SB.game.run();
-      var cycleAfterFinal = Number(SB.game.meta().cycle) || 0;
-      if (finalRun && !finalRun.challenge && cycleAfterFinal === cycleBeforeFinal + 1) {
-        lastRebirth = { state: 'post-challenge-void-ending', cycle: cycleAfterFinal,
-          hours: 0, points: 0 };
-        say('所有已实装挑战均已正式结算；启动唯一一次普通终局周目，目标为「飞升虚境」。');
-        return true;
-      }
+    /* 这次任务只跑新增挑战；完成队列后停在已结算的最后一局，不自动轮回。 */
+    if (allImplementedChallengesDone(meta)) {
+      pause();
+      return true;
     }
     pause();
     say('所有已实装挑战已完成，但无法安全启动虚境终局周目；AI 已停在结算页。');
@@ -354,7 +344,8 @@
     if (!s || s.dysonDone || !(s.techs && s.techs.adiabatic) ||
         !SB.economy || !SB.economy.launchLvl || SB.economy.launchLvl(s) <= 0 ||
         !SB.ui || !SB.ui.input || !SB.ui.input.toggleLaunchMode) return false;
-    var sailCap = Number(SB.CFG.DYSON_SAIL_CAP) || 10000;
+    var sailCap = SB.challenges && SB.challenges.dysonSailCap
+      ? SB.challenges.dysonSailCap(s) : (Number(SB.CFG.DYSON_SAIL_CAP) || 10000);
     var voidRun = SB.aiStrategy.isVoidEndingRun && SB.aiStrategy.isVoidEndingRun(s);
     var voidCivicReady = !!(s.civics && s.civics.ascend_void);
     var desired = (Number(s.sunSails) || 0) >= sailCap && (!voidRun || voidCivicReady)
@@ -373,38 +364,30 @@
     if (SB.game.getSpeed && SB.game.getSpeed() !== GAME_SPEED) SB.game.setSpeed(GAME_SPEED);
     var s = SB.game.run();
     if (!s) { pause(); say('未读到当前周目状态，AI 已暂停以保护存档。'); return; }
-    /* 水体污染以戴森球为正式挑战目标。确保通过原生挑战结算 API 登记胜利后再停机；
-     * 即使主循环刚置 dysonDone，也不让通用戴森终点守卫抢先截断挑战奖励。 */
-    if (s.challenge && s.challenge.id === REQUESTED_CHALLENGE_ID && s.dysonDone && !s.challengeDone &&
+    /* 终局挑战以戴森球为目标。即使主循环刚置 dysonDone，也先由游戏正式挑战 API 结算，
+     * 再决定是否开始队列中的下一档。 */
+    if (s.challenge && isRequestedChallenge(s.challenge.id) && s.dysonDone && !s.challengeDone &&
         SB.challenges && SB.challenges.evaluate) {
       SB.challenges.evaluate(s, SB.game.meta());
       s = SB.game.run();
     }
-    if (s.challenge && s.challenge.id === REQUESTED_CHALLENGE_ID && s.challengeDone) {
-      pause(); say('水体污染挑战已由游戏正式结算；AI 停在通关终点并保留本局。'); return;
+    if (s.challenge && isRequestedChallenge(s.challenge.id) && s.challengeDone) {
+      var completedTier = SB.challenges.tierDone(s.challenge.id, SB.game.meta()) > (s.challenge.tier | 0);
+      if (!completedTier || (s.challengeOutcome && s.challengeOutcome.failed)) {
+        pause(); return;
+      }
+      investTidePoints(s, '挑战通关后');
+      var nextQueuedChallenge = nextChallengeId();
+      if (nextQueuedChallenge && SB.challenges.begin(nextQueuedChallenge)) {
+        investTidePoints(SB.game.run(), '挑战通关后');
+        return;
+      }
+      pause(); return;
     }
     /* 流浪泰拉挑战以发动机和星核能量为终点；若普通戴森链先完成，仍须继续
      * 当前挑战周目，不能让通用戴森终点守卫提前停机。 */
     if (s.dysonDone && !(s.challenge && s.challenge.id === 'drift_terra' && !s.challengeDone)) {
       pause(); say('戴森球已竣工，AI 停在终点；保留本周目和竣工记录。'); return;
-    }
-    /* 用户当前要求用原存档实测「流浪泰拉」，因此保留这一项挑战并让共用策略推进；
-     * 其它已取消的挑战仍通过正式 nextCycle API 退出，不登记奖励。 */
-    if (s.challenge && s.challenge.id !== 'drift_terra' && s.challenge.id !== REQUESTED_CHALLENGE_ID) {
-      var cycleBeforeNormal = Number(SB.game.meta() && SB.game.meta().cycle) || 0;
-      if (SB.game.nextCycle) SB.game.nextCycle();
-      var normalRun = SB.game.run();
-      var cycleAfterNormal = Number(SB.game.meta() && SB.game.meta().cycle) || 0;
-      if (normalRun && !normalRun.challenge && cycleAfterNormal === cycleBeforeNormal + 1) {
-        if (SB.aiStrategy.markVoidEndingRun) SB.aiStrategy.markVoidEndingRun();
-        lastRebirth = { state: 'normal-void-ending-run', cycle: cycleAfterNormal,
-          hours: 0, points: 0 };
-        say('按用户指示退出挑战（不登记奖励），通过正式周目 API 开始普通虚境终局局。');
-      } else {
-        pause();
-        say('未能通过正式周目 API 退出挑战；AI 已暂停，保留当前存档供检查。');
-      }
-      return;
     }
     if (s.challenge && s.challenge.id === 'drift_terra' && s.challengeDone) {
       pause();
@@ -622,6 +605,12 @@
       challengeId: s.challenge && s.challenge.id || null,
       challengeTier: s.challenge ? (Number(s.challenge.tier) || 0) : null,
       challengeDone: !!s.challengeDone,
+      faithEarnedTotal: Number(s.faithEarnedTotal) || 0,
+      faithTenets: (s.faithTenets || []).slice(),
+      faithTenetSelections: result.faithTenetSelections || [],
+      faithTenetDrafts: (s.faithTenetDrafts || []).map(function (draft) {
+        return { threshold: Number(draft.threshold) || 0, options: (draft.options || []).slice(), chosen: draft.chosen || null };
+      }),
       challengeGoalText: s.challenge && SB.challenges && SB.challenges.byId
         ? ((SB.challenges.byId(s.challenge.id) || {}).goalText || null) : null,
       completedChallenges: SB.challenges && SB.challenges.progress
@@ -759,12 +748,17 @@
     summary += '\n页面 ' + (document.hidden ? '后台（浏览器可能节流）' : '前台') +
       (runtime.catchupActive ? ' · 离线补算中' : '') +
       ' · 主循环积压 ' + (Number(runtime.queuedGameSeconds) || 0).toFixed(1) + ' 游戏秒';
+    var starCap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (Number(SB.CFG.STAR_CAP) || 0);
+    var sailCap = SB.challenges && SB.challenges.dysonSailCap
+      ? SB.challenges.dysonSailCap(s) : (Number(SB.CFG.DYSON_SAIL_CAP) || 10000);
+    var nodeCap = SB.challenges && SB.challenges.dysonNodeCap
+      ? SB.challenges.dysonNodeCap(s) : (Number(SB.CFG.DYSON_NODE_CAP) || 1000);
     summary += '\n破壳 ' + (s.shellOpened ? '已开启' : '未开启') + ' · 星空 ' +
       Math.floor(Number(s.res && s.res.starExplore) || 0) + '/' +
-      (Number(SB.CFG.STAR_CAP) || 0) + ' · 戴森球 ' +
+      starCap + ' · 戴森球 ' +
       Math.floor((SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0) * 100) + '% (' +
-      Math.floor(Number(s.sunSails) || 0) + '/10000 帆，' +
-      Math.floor(Number(s.dysonNodes) || 0) + '/1000 节点) · 发射模式 ' +
+      Math.floor(Number(s.sunSails) || 0) + '/' + sailCap + ' 帆，' +
+      Math.floor(Number(s.dysonNodes) || 0) + '/' + nodeCap + ' 节点) · 发射模式 ' +
       (s.launchMode === 'node' ? '节点' : '太阳帆');
     if (lastResult && lastResult.hydroPriority) {
       summary += '\n热液优先天穹钻机 ' + Number(lastResult.hydroPriority.supplyRate || 0).toFixed(1) + '/' +
@@ -954,41 +948,28 @@
       safeRefresh();
     }
   }
-  /* 这次真实挑战目标由用户指定为水体污染。若当前存档仍停在一个已正式完成的
-   * goal 挑战，沿用正式 startRun API 开始下一挑战局（保留 meta/轮回点）；不触碰
-   * 未完成的挑战，也不在水体污染已领过奖励后自动重打。无挑战的普通局走标准 begin。 */
+  /* 只推进四项新增挑战：安那其主义、美好旧日、三地发射网、永恒三档。
+   * 已完成的前一挑战通过正式 begin() 进入下一项；任何未完成的其他挑战都保留原局并暂停队列。 */
   function ensureRequestedChallenge() {
-    var s = SB.game.run(), meta = SB.game.meta(), id = REQUESTED_CHALLENGE_ID;
+    var s = SB.game.run(), meta = SB.game.meta();
     if (!s || !meta || !SB.challenges || !SB.challenges.tierDone) return false;
-    if (s.challenge && s.challenge.id === id) return true;
-    if (SB.challenges.tierDone(id, meta) > 0) {
-      say('水体污染挑战已在永久进度中完成；为避免重复开局，AI 保持暂停。');
-      return false;
-    }
     if (s.challenge) {
       var prior = SB.challenges.byId(s.challenge.id);
       var priorTier = Math.max(0, Number(s.challenge.tier) || 0);
       var priorDone = !!s.challengeDone;
+      if (isRequestedChallenge(s.challenge.id) && !priorDone) return true;
       if (!priorDone && prior && prior.goal && SB.challenges.goalMet(s, prior.goal)) {
         SB.challenges.evaluate(s, meta);
         s = SB.game.run();
         priorDone = !!(s && s.challengeDone);
       }
-      if (!priorDone || SB.challenges.tierDone(s.challenge.id, meta) <= priorTier) {
-        say('当前仍有未完成的 ' + ((prior && prior.name) || '挑战') + '；不切换挑战或丢弃本局。');
+      if (!priorDone || (s.challengeOutcome && s.challengeOutcome.failed) ||
+          SB.challenges.tierDone(s.challenge.id, meta) <= priorTier) {
         return false;
       }
-      var tier = SB.challenges.startTier(id, meta);
-      var replay = SB.challenges.isReplay(id, meta);
-      SB.game.startRun({ challenge: { id: id, tier: tier, replay: replay } });
-      s = SB.game.run();
-      if (!s || !s.challenge || s.challenge.id !== id) return false;
-      if (SB.game.setTab) SB.game.setTab('challenges');
-      if (SB.game.log) SB.game.log('挑战开始：水体污染 · 海渊澄明。');
-      if (SB.game.renderAll) SB.game.renderAll();
-      say('前一挑战已正式完成；通过游戏 startRun API 开始水体污染挑战，保留永久进度。');
-      return true;
     }
+    var id = nextChallengeId();
+    if (!id) return false;
     var began = SB.challenges.begin(id);
     s = SB.game.run();
     return !!(began && s && s.challenge && s.challenge.id === id);
@@ -1021,7 +1002,7 @@
     if (!ensureRequestedChallenge()) {
       started = false;
       syncPanelState();
-      say('没有切换未完成的其他挑战；水体污染挑战不可用或已完成，AI 保持暂停。');
+      say('AI 已暂停；游戏仍按当前速度运行。');
       publishStatus(SB.game.run(), true);
       return;
     }

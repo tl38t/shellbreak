@@ -105,9 +105,12 @@
       if (craft.type !== 'satellite' && craft.type !== 'station') continue;
       if (!Object.prototype.hasOwnProperty.call(knownBodies, craft.body)) continue;
       if (typeof craft.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(craft.id)) continue;
-      out.spacecraft.push({ id: craft.id, type: craft.type, body: craft.body,
+      var normalizedCraft = { id: craft.id, type: craft.type, body: craft.body,
         name: typeof craft.name === 'string' ? craft.name.slice(0, 50) : '',
-        launchedAt: typeof craft.launchedAt === 'number' && isFinite(craft.launchedAt) ? craft.launchedAt : 0 });
+        launchedAt: typeof craft.launchedAt === 'number' && isFinite(craft.launchedAt) ? craft.launchedAt : 0 };
+      if (Object.prototype.hasOwnProperty.call(craft, 'generatedName'))
+        normalizedCraft.generatedName = craft.generatedName === true;
+      out.spacecraft.push(normalizedCraft);
     }
     /* 这是一次性诊断信息，不参与游戏数据，也不落盘。
      * JSON.stringify(NaN) 会把 NaN 写成 null；读档保护只能把它回落到默认值 0，

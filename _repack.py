@@ -43,6 +43,17 @@ _sync_tree(os.path.join(REPO, 'css'), os.path.join(SRC, 'css'))
 _sync_tree(os.path.join(REPO, 'src'), os.path.join(SRC, 'src'))
 print('已自动同步 index.html / css / src -> 包目录')
 
+# ---------- 包体联网特征清理（2026-11-07 · 审核驳回整改）----------
+# src/ai-player.js 是本地 AI 试跑工具，index.html **从未引用**；内含一个死 fetch('/__ai-status')，
+# 会被平台静态扫描判成「联网功能」。源码留在仓库（本地调试还要用），只从包体排除。
+# ⚠️ 排除必须放在 _sync_tree 之后：放前面会被下一轮同步原样复制回来。
+_AI_TOOL = os.path.join(SRC, 'src', 'ai-player.js')
+if os.path.isfile(_AI_TOOL):
+    try: os.remove(_AI_TOOL)
+    except OSError: pass
+assert not os.path.exists(_AI_TOOL), '包内 ai-player.js 没排干净（会被扫成联网功能）'
+print('已排除未被 index.html 引用的 src/ai-player.js（含死 fetch）')
+
 # ---------- 运行时素材 ----------
 # ⚠️ 2026-10-26 修复（严重的静默缺图）：原脚本只同步 tech-icons / civic-icons 两个子树，
 #   导致包内 assets 只有 4 个目录（backgrounds/tech-icons/civic-icons/wonders），
@@ -100,15 +111,17 @@ adjs = os.path.join(SRC, 'src', 'ad.js')
 with open(adjs, encoding='utf-8') as f:
     abody = f.read()
 assert 'adtest\\b(?!=)' in abody, '包内 ad.js 的 devMode 判定被改宽了（应为 adtest 整词 + (?!=)），先同步源码'
-# 排行榜 9 个 ID 必须已回填（2026-10-26 于现行主体 996563 全部重建；
+# 排行榜 12 个 ID 必须已回填（2026-10-26 于现行主体 996563 重建 9 个；
+#   2026-10-31 补 drift；2026-11-07 补 pollution / dysonrush）
 #   旧 963517 的 7 个 ID 已作废——996563 上 list_leaderboards 曾返回 0 条）
 # ⚠️ 同广告位坑：rank.js 无 ID 时不提交且入口隐藏 ⇒ 空串包 = 榜功能静默消失。
 LB_IDS = ('wk8s9lkm23g2eihkz8', 'zgq97kctyiqffhcr9p', 'riikrs1jp5m6a1nyjy',
           'ew5xr8ex1y75ndd9kd', 'dl64gq9ao80hvnn5j8', '3o19a9rpfhm8bnbe94',
-          'peq757lhctr3dqzx8j', 'bvn169c2u30f2xhmqj', '6bi4710gm6oswyed0m')
+          'peq757lhctr3dqzx8j', 'bvn169c2u30f2xhmqj', '6bi4710gm6oswyed0m',
+          'jqqgofg5g3tvb1uxwz', 'a2bcbiqjfc59e29uel', 'pqfonhv7uvjrdcxl4e')
 missing = [i for i in LB_IDS if i not in body]
 assert not missing, f'包内 config.js 的 RANK.LB 缺榜 ID: {missing}，先同步源码'
-print('打包前置检查: OK (500000 + cache-buster + 无手动倍速 + 广告按钮 + 壳厚迁移 + 广告位1054324 + dev口收紧 + 排行榜9ID)')
+print('打包前置检查: OK (500000 + cache-buster + 无手动倍速 + 广告按钮 + 壳厚迁移 + 广告位1054324 + dev口收紧 + 排行榜12ID)')
 
 # ---------- 打包前置检查 ②：Ver1.0.3 的四条 P0 修复必须真的在包里 ----------
 # ⚠️ 2026-10-07 教训的同类：包目录是**拷贝**，只改仓库不改包 = 打出一份没修的版本，
@@ -160,21 +173,22 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.0.17'" in _cfg, '包内 config.js 版本号不是 Ver1.0.17'
+assert "VERSION: 'Ver1.1.0'" in _cfg, '包内 config.js 版本号不是 Ver1.1.0'
 
 # ---------- 更新日志本地化守卫（2026-11-06） ----------
 # CFG.CHANGELOG 的 items 已全部改成 i18n 语义 key：中文基准在
 # src/locales/zh-CN.js（进 TapTap 包），英文在 electron/locales/en-US.js
 #（Electron 专属，按规范不进包，故从 REPO 读）。旧守卫逐字搜中文串，
 # key 化后必然失效，这里改成「结构 + key + 双语资源」四重校验：
-#   ① 17 个版本都在，CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
-#   ② 恰 98 条语义 key、互不重复；
-#   ③ 包内 zh-CN 与仓库 en-US 都含这 98 个 key 且译文非空；
+#   ① 18 个版本都在（Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
+#   ② 恰 106 条语义 key、互不重复；
+#   ③ 包内 zh-CN 与仓库 en-US 都含这 106 个 key 且译文非空；
 #   ④ 中英文都没有未烘焙的 {placeholder}，且废弃的机械 key 不再被引用。
 import re as _re
 import json as _json
 
-_expected_versions = ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
+# Ver1.0.18 / Ver1.0.19 只封包、从未上线，已收编进 Ver1.1.0 段，不再作为独立段存在。
+_expected_versions = ['Ver1.1.0'] + ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
 for _v in _expected_versions:
     assert "v: '%s'" % _v in _cfg, '包内 config.js 更新日志缺 %s 条目' % _v
 
@@ -197,15 +211,23 @@ _chg_code = _re.sub(r'//[^\n]*', '', _chg_code)
 assert not _re.search(r'[\u4e00-\u9fff]', _chg_code), \
     '包内 config.js 的 CHANGELOG 仍残留中文硬编码条目（应先登记再引用 key）'
 _chg_keys = _re.findall(r"'((?:changelog|ui\.footer)\.[a-z0-9_.]+)'", _chg_body)
-assert len(_chg_keys) == 98, '包内 config.js 更新日志 key 数应为 98，实为 %d' % len(_chg_keys)
-assert len(set(_chg_keys)) == 98, '包内 config.js 更新日志有重复 key'
+assert len(_chg_keys) == 106, '包内 config.js 更新日志 key 数应为 106，实为 %d' % len(_chg_keys)
+assert len(set(_chg_keys)) == 106, '包内 config.js 更新日志有重复 key'
 
 def _locale_dict(_path):
     with open(_path, encoding='utf-8') as _f:
         _txt = _f.read()
     _m = _re.search(r'Object\.freeze\((\{.*\})\);', _txt, _re.S)
     assert _m, '词库格式异常（读不到 Object.freeze）: ' + _path
-    return _json.loads(_m.group(1))
+    _body = _m.group(1)
+    try:
+        return _json.loads(_body)
+    except _json.JSONDecodeError:
+        # ⚠️ 2026-11-07：export_i18n_runtime.py 生成的词库是 JS 对象字面量，
+        #    允许「最后一项后多一个逗号」；json.loads 不接受，会直接把封包堵死。
+        #    词库是扁平对象，尾逗号只可能紧邻结尾的 }，只削这一处、不碰字符串内部。
+        #    判据用 Node 真加载交叉验证过（en-US 4225 key / zh-CN 4150 key）。
+        return _json.loads(_re.sub(r',(\s*\})\s*$', r'\1', _body))
 
 _zh_locale = _locale_dict(os.path.join(SRC, 'src', 'locales', 'zh-CN.js'))
 _en_locale = _locale_dict(os.path.join(REPO, 'electron', 'locales', 'en-US.js'))
@@ -222,7 +244,7 @@ for _old_key in ['ui.render.anonymous_function.leaderboard',
 for _new_key in ['ui.footer.leaderboard_button', 'ui.footer.changelog_button']:
     assert _new_key in _idx, '包内 index.html 缺页脚语义 key: ' + _new_key
 assert '活动礼包码直接领取' not in _cfg, '包内 config.js 仍残留礼包码那条公开日志（用户要求删）'
-print('更新日志本地化守卫: OK (17 版本 / 98 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
+print('更新日志本地化守卫: OK (18 版本 / 106 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
 
 # ---------- 存档诊断 + 三个 P0（2026-10-29 / Ver1.0.4）----------
 # 这一批全是「玩家报存档没了」的对策，任何一条漏进包里都等于白改，所以逐条钉死。
@@ -386,8 +408,21 @@ assert '_saveSeq = SB.store.nextNativeRevision()' in _gm7, \
 assert 'adoptBundle' in _read('src/save-transfer.js'), \
     '包内「用云端覆盖本地」没走就地接管'
 # 反向护栏：writeNativeSave 不许再因为「没有文件系统」整个早退 —— 那会把 kv 兜底一起掐死。
-assert "if (!fsAvailable()) {\n      if (!syncStorageAvailable()) return Promise.resolve(false);" in _ss3, \
-    '包内 writeNativeSave 仍因无文件系统早退（kv 兜底永远不会被触发）'
+# ⚠️ 2026-11-08：源码在 !fsAvailable 分支内新增了 Auto-Cloud 优先子分支（L272-275），
+#   导致原本「if (!fsAvailable()) { 紧接 if (!syncStorageAvailable())」的紧挨字符串断言失效。
+#   改用 writeNativeSave 函数体窗口 + 顺序判定：只要 kv 兜底门仍在 !fsAvailable 分支之后即视为
+#   守卫生效，语义不变（fs 不可用时 kv 落盘仍可达，不会整段早退）。
+_wi = _ss3.find('function writeNativeSave(')
+assert _wi >= 0, '包内 save-storage.js 缺 writeNativeSave'
+_wns_end = _ss3.find('function flushNativeSync(')
+assert _wns_end > _wi, '包内 save-storage.js 缺 flushNativeSync（无法界定 writeNativeSave 体）'
+_wns = _ss3[_wi:_wns_end]
+assert 'if (!fsAvailable())' in _wns, '包内 writeNativeSave 缺 !fsAvailable 分支'
+_kv_gate = 'if (!syncStorageAvailable()) return Promise.resolve(false)'
+assert _kv_gate in _wns, \
+    '包内 writeNativeSave 在 !fsAvailable() 分支缺 kv 兜底门（整段早退会掐死 kv 落盘）'
+assert _wns.find(_kv_gate) > _wns.find('if (!fsAvailable())'), \
+    '包内 writeNativeSave 的 kv 兜底门不在 !fsAvailable 分支内'
 assert 'autoPumpTimer' in _read('src/save-transfer.js'), \
     '包内云备份定时器不是幂等的（就绪门重入会装出两个 30 秒定时器）'
 print('就绪门入包检查: OK (三态判别 + 超时暂停/local 放行 + 写保护 + 晚到补偿 + 定时器幂等)')
@@ -402,6 +437,65 @@ for _d in ASSET_DIRS:
 assert not _missing_assets, f'包内 assets 缺目录或为空: {_missing_assets}，先同步素材'
 assert os.path.isfile(os.path.join(SRC, 'assets', 'fonts', 'Ma_Shan_Zheng.woff2')), '包内缺标题字体 Ma_Shan_Zheng.woff2'
 print('素材检查: OK (%d 个子树齐全 + 标题字体在位)' % len(ASSET_DIRS))
+
+# ---------- 包体零外部特征（2026-11-08 收紧口径）----------
+# ⚠️ 2026-11-08 教训：旧守卫只扫 .js/.html/.css/.mjs/.json 的「有效行」并主动剥掉
+#    纯注释行，两处真实残留都漏了 ——
+#      ① assets/ui-era/era5-pipe-header.png 的 caBX 块内嵌 C2PA 证书 URL
+#         （ca.trufo.ai / cv.iptc.org）—— 二进制文件根本没进扫描范围；
+#      ② 注释里「送审包被静态扫描判为含联网功能 → 需办 ICP 核准」这类自述 —— 被剥注释漏掉。
+#    审核侧既不剥注释，也不挑扩展名。故口径收紧为：
+#      ① 扫 SRC 下**所有文件**的原始字节，不限扩展名、不剥注释；
+#      ② 唯一白名单 = http(s)://www.w3.org/2000/svg（SVG 命名空间字符串，不是请求）；
+#      ③ 额外钉死自述字样：包里不许出现会让人以为存在联网能力的说明文本；
+#      ④ tap.* 平台服务 API 只**清点并打印**，不作失败判据（官方口径不算联网游戏）。
+#    收紧 CSP 时仍别把 'unsafe-inline' / blob: data: 删掉 —— 星图有 6 段内联 <script>，
+#    删掉就是 iframe 白屏。
+import re as _re
+_FETCH_B = _re.compile(rb'\bfetch\s*\(')
+_EXTURL_B = _re.compile(rb'https?://(?!www\.w3\.org/2000/svg)')
+_SELF_TELL_B = _re.compile(r'联网功能|ICP\s*核准|静态扫描|网络请求|零网络'.encode('utf-8'))
+_TAP_NET_B = _re.compile(
+    rb'\b(?:root\.)?tap\.(getCloudSaveManager|createAchievementManager|'
+    rb'createRewardedVideoAd|getLeaderboardManager)')
+# ---------- 包体剔除：assets 下的开发文档（.md 文案/填报清单，非运行时资源）----------
+# ⚠️ 2026-11-08：assets/achievements 里混入了 3 份开发文档（Steam 成就填报清单 / 填报清单 /
+#   成就文案），它们不是游戏运行时资源，却被 ASSET_DIRS 白名单整体 sync 进包；其中
+#   Steam成就填报清单_v0.1.md 含 partner.steamgames.com 外部链接，触发「零外部特征」扫描。
+#   这些文档应归位到 docs/，此处仅从包体剔除（不动仓库文件）。
+for _ad in ('Steam成就填报清单_v0.1.md', '填报清单.md', '成就文案_v0.1.md'):
+    _adp = os.path.join(SRC, 'assets', 'achievements', _ad)
+    if os.path.isfile(_adp):
+        try: os.remove(_adp)
+        except OSError: pass
+_net_hits, _self_hits, _tap_net_count = [], [], 0
+for _nroot, _ndirs, _nfiles in os.walk(SRC):
+    for _nfn in _nfiles:
+        _np = os.path.join(_nroot, _nfn)
+        with open(_np, 'rb') as _nf:
+            _blob = _nf.read()
+        _rel = os.path.relpath(_np, SRC).replace(os.sep, '/')
+        for _m in _FETCH_B.finditer(_blob):
+            _net_hits.append('%s@%d fetch(' % (_rel, _m.start()))
+        for _m in _EXTURL_B.finditer(_blob):
+            _sample = _blob[_m.start():_m.start() + 56].decode('latin1').split()[0]
+            _net_hits.append('%s@%d %s' % (_rel, _m.start(), _sample))
+        for _m in _SELF_TELL_B.finditer(_blob):
+            _self_hits.append('%s@%d %s' % (_rel, _m.start(), _m.group().decode('utf-8', 'replace')))
+        _tap_net_count += len(_TAP_NET_B.findall(_blob))
+assert not _net_hits, '包内仍有 fetch / 非白名单外部 URL：%s' % ', '.join(_net_hits[:8])
+assert not _self_hits, '包内仍有联网自述字样：%s' % ', '.join(_self_hits[:8])
+_rd = _read('src/redeem.js')
+assert "api: ''" in _rd, '包内 redeem.js 缺平台通道下线锚点（可能又活了）'
+assert 'function platformReady() { return false; }' in _rd, '包内 redeem.js 的 platformReady 不是恒 false'
+_sm = _read('src/ui/star-map-frame.html')
+assert 'cdnjs.cloudflare.com' not in _sm and 'unpkg.com' not in _sm, '包内星图 CSP 又把 CDN 域名加回来了'
+assert "'unsafe-inline'" in _sm and 'blob: data:' in _sm, \
+    '包内星图 CSP 收紧过头：6 段内联脚本会被禁、iframe 白屏'
+assert not os.path.exists(_AI_TOOL), '包内 ai-player.js 没排干净'
+print('包体零外部特征: OK (全文件类型 / 不剥注释 / fetch=0 / 非白名单URL=0 / 自述=0 '
+      '/ 平台通道锚点 / CSP 必要指令 / ai-player 已排除 / tap 平台服务 %d 处仅清点)'
+      % _tap_net_count)
 
 # ---------- 打包 ----------
 n = 0

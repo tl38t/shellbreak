@@ -65,7 +65,7 @@
      *   （achv.js 无定义 + CFG.ACHV 无键 + waterpollution 定义无 onComplete）⇒
      *   通关能发奖励、能写 meta.challenges.completed，但成就墙与平台都不会亮。
      * icon 复用挑战徽章（64×64 SVG，img 自动缩放），暂不另做 PNG。 */
-    { key: 'pollutionClear', name: '海渊澄明', icon: 'assets/challenges/challenge-waterpollution.svg',
+    { key: 'pollutionClear', name: '海渊澄明', icon: 'assets/challenges/challenge-waterpollution-illustrated.webp',
       desc: '在「水体污染」挑战里让戴森球竣工——带着最脏的海，走到了群星之间。' },
     { key: 'starComplete', name: '太空时代', icon: 'assets/achievements/achv-star-complete.png',
       desc: '破壳之后把星空槽完全填满——深海的族民，终于把目光投向了整片星海。' },
@@ -289,18 +289,22 @@
       var id = key.slice(4);
       var cur = ((meta && meta.buildingLvlTotal && meta.buildingLvlTotal[id]) || 0)
         + ((run && run.buildingLvlRun && run.buildingLvlRun[id]) || 0);
-      return { cur: cur, max: 100, label: '跨周目累计 ' + cur + ' / 100 级' };
+      return { cur: cur, max: 100, label: achvText('achievement.building.progress', { current: cur }, '跨周目累计 ' + cur + ' / 100 级') };
     }
     if (key === 'rebirth10') {
       var rb = (meta && meta.rebirths) || 0;
-      return { cur: rb, max: 10, label: '合格轮回 ' + rb + ' / 10 次' };
+      return { cur: rb, max: 10, label: achvText('achievement.prestige.progress', { current: rb }, '合格轮回 ' + rb + ' / 10 次') };
     }
     if (key === 'relic10' || key === 'relic25') {
       var rw2 = (meta && meta.memorialWonders) ? Object.keys(meta.memorialWonders).length : 0;
       var mx = key === 'relic10' ? 10 : 25;
-      return { cur: rw2, max: mx, label: '入藏奇观 ' + rw2 + ' / ' + mx + ' 座' };
+      return { cur: rw2, max: mx, label: achvText('achievement.wonders.progress', { current: rw2, total: mx }, '入藏奇观 ' + rw2 + ' / ' + mx + ' 座') };
     }
     return null;
+  }
+  function achvText(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params || {}) : '';
+    return value || fallback || '';
   }
 
   /* 破壳结算钩子：由 prestige.doBreak 在「合格轮回」分支调用。

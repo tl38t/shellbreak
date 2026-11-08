@@ -14,12 +14,28 @@
     ring: [],
     enceladus: ['enceladus_launch']
   };
-  var BODY_NAMES = { europa: '欧罗巴', rhea: '瑞亚', titan: '泰坦', ring: '土星环', enceladus: '恩克拉多斯' };
+  var BODY_NAME_KEYS = {
+    europa: 'ui.star_map.body.europa.name',
+    rhea: 'ui.star_map.body.rhea.name',
+    titan: 'ui.star_map.body.titan.name',
+    ring: 'ui.star_map.body.saturn_ring_factory.name',
+    enceladus: 'ui.star_map.body.enceladus.name'
+  };
+
+  function tr(key, params) {
+    return SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+  }
 
   function escapeHtml(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
     });
+  }
+
+  function buildingName(building) {
+    return SB.i18n && SB.i18n.buildingName
+      ? SB.i18n.buildingName(building.id, building.name)
+      : building.name;
   }
 
   function bodyBuildingCounts(s, id) {
@@ -40,30 +56,39 @@
     var canBuy = unlocked && !blocked && SB.economy.canAfford(s, cost);
     /* 成本文案走 SB.economy.buildCostTxt（2026-10-28 轻车熟路首建免费）：与巢穴页同源，
      *   否则卫星/空间站这两行会退化成「建造 」空尾巴。 */
-    var label = !unlocked ? '尚未解锁' : (blocked ? '需先建成' : (count.level > 0 ? '升级 ' : '建造 ') + SB.economy.buildCostTxt(s, id, cost));
+    var label = !unlocked
+      ? tr('ui.status.not_unlocked')
+      : tr(count.level > 0 ? 'ui.star_map.building.action.upgrade' : 'ui.star_map.building.action.build', {
+        buildCostText: SB.economy.buildCostTxt(s, id, cost)
+      });
     if (blocked) {
       var need = SB.habitat.buildingById(b.need);
-      label = '需先建成' + (need ? need.name : '前置建筑');
+      label = need
+        ? tr('ui.star_map.building.prerequisite', { prerequisiteBuildingName: buildingName(need) })
+        : tr('ui.star_map.building.prerequisite.generic');
     }
     var operating = '';
     if (id === 'satellite' && count.level > 0) {
       operating = '<span class="furnctl' + (count.running ? ' on' : '') + '">' +
-        '<button class="fbtn" data-satellite-dec="1" title="少开一颗"' + (count.running <= 0 ? ' disabled' : '') + '>−</button>' +
-        '<b class="fnum">运行 ' + count.running + '/' + count.level + '</b>' +
-        '<button class="fbtn" data-satellite-inc="1" title="多开一颗"' + (count.running >= count.level ? ' disabled' : '') + '>＋</button>' +
+        '<button class="fbtn" data-satellite-dec="1" title="' + escapeHtml(tr('ui.star_map.satellite.stop_one.tooltip')) + '"' + (count.running <= 0 ? ' disabled' : '') + '>−</button>' +
+        '<b class="fnum">' + escapeHtml(tr('ui.star_map.building.running_count', { runningCount: count.running, buildingCount: count.level })) + '</b>' +
+        '<button class="fbtn" data-satellite-inc="1" title="' + escapeHtml(tr('ui.star_map.satellite.start_one.tooltip')) + '"' + (count.running >= count.level ? ' disabled' : '') + '>＋</button>' +
         SB.ui.drawTag(s, 'satellite') + '</span>';
     }
     if (id === 'spacestation' && count.level > 0) {
       operating = '<span class="furnctl' + (count.running ? ' on' : '') + '">' +
-        '<button class="fbtn" data-spacestation-dec="1" title="停一座"' + (count.running <= 0 ? ' disabled' : '') + '>−</button>' +
-        '<b class="fnum">运行 ' + count.running + '/' + count.level + '</b>' +
-        '<button class="fbtn" data-spacestation-inc="1" title="开一座"' + (count.running >= count.level ? ' disabled' : '') + '>＋</button>' +
+        '<button class="fbtn" data-spacestation-dec="1" title="' + escapeHtml(tr('ui.star_map.station.stop_one.tooltip')) + '"' + (count.running <= 0 ? ' disabled' : '') + '>−</button>' +
+        '<b class="fnum">' + escapeHtml(tr('ui.star_map.building.running_count', { runningCount: count.running, buildingCount: count.level })) + '</b>' +
+        '<button class="fbtn" data-spacestation-inc="1" title="' + escapeHtml(tr('ui.star_map.station.start_one.tooltip')) + '"' + (count.running >= count.level ? ' disabled' : '') + '>＋</button>' +
         SB.ui.drawTag(s, id) + '</span>';
     }
+    var localizedName = buildingName(b);
+    var description = (SB.ui && SB.ui.buildingDescText) ? SB.ui.buildingDescText(s, b) : b.desc;
+    if (!unlocked) description += ' · ' + tr('ui.status.not_unlocked');
     return '<div class="row bld-row' + (count.level ? ' is-owned' : '') + '"><div>' +
-      '<div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + id + '">' + escapeHtml(b.name) +
-      '</button> <span class="tag">' + count.level + ' 座</span></span><span class="bld-ops">' + operating + '</span></div>' +
-      '<div class="ds">' + escapeHtml((SB.ui && SB.ui.buildingDescText) ? SB.ui.buildingDescText(s, b) : b.desc) + (!unlocked ? '（尚未解锁）' : '') + '</div></div>' +
+      '<div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + id + '">' + escapeHtml(localizedName) +
+      '</button> <span class="tag">' + escapeHtml(tr('ui.star_map.building.count', { buildingCount: count.level })) + '</span></span><span class="bld-ops">' + operating + '</span></div>' +
+      '<div class="ds">' + escapeHtml(description) + '</div></div>' +
       '<button class="btn buy" data-build="' + id + '"' + (canBuy ? '' : ' disabled') + '>' + escapeHtml(label) + '</button></div>';
   }
 
@@ -75,12 +100,16 @@
     var ids = BODY_BUILDINGS[selectedBody] || [];
     var owned = ids.reduce(function (sum, id) { return sum + ((s.lvl && s.lvl[id]) || 0); }, 0);
     var active = ids.reduce(function (sum, id) { return sum + bodyBuildingCounts(s, id).running; }, 0);
-    var html = '<div class="cardhd" style="--hc:#87a7ff"><span>' + escapeHtml(BODY_NAMES[selectedBody] || '天体') +
-      ' · 建筑管理</span><span class="hcsub">在轨 / 建成 ' + owned + ' · 运转中 ' + active + '</span></div>';
+    var bodyName = tr(BODY_NAME_KEYS[selectedBody] || 'ui.star_map.body.generic.name');
+    var html = '<div class="cardhd" style="--hc:#87a7ff"><span>' + escapeHtml(tr('ui.star_map.building.header', { bodyName: bodyName })) +
+      '</span><span class="hcsub">' + escapeHtml(tr('ui.star_map.building.summary', {
+        builtBuildingCount: owned,
+        runningBuildingCount: active
+      })) + '</span></div>';
     if (ids.length) {
       html += ids.map(function (id) { return drawBodyBuilding(s, id); }).join('');
     } else {
-      html += '<div class="note">这个天体目前还没有接入可建造的游戏建筑。</div>';
+      html += '<div class="note">' + escapeHtml(tr('ui.star_map.building.empty')) + '</div>';
     }
     panel.innerHTML = html;
   }
@@ -111,10 +140,10 @@
   function paneStarMap() {
     var s = SB.game && SB.game.run ? SB.game.run() : null;
     if (!s || !(s.shellOpened || s.breakSettled) || s.shell > 0)
-      return '<div class="note">凿穿天壳后，本周目的星图将在这里解锁。</div>';
+      return '<div class="note">' + escapeHtml(tr('ui.star_map.locked_hint')) + '</div>';
     return '<div class="starmap-frame-wrap">' +
       '<iframe class="starmap-frame" sandbox="allow-scripts" ' +
-      'src="src/ui/star-map-frame.html?v=5" title="壳外星图" ' +
+      'src="src/ui/star-map-frame.html?v=8" title="' + escapeHtml(tr('ui.star_map.frame.title')) + '" ' +
       'style="width:100%;height:780px;border:0;border-radius:12px;background:#07111d"></iframe></div>' +
       '<div id="star-map-buildings" class="star-map-buildings"></div>';
   }

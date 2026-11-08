@@ -885,32 +885,32 @@
      * ⚠️ 洁净源不吃星屑树乘区（它们不在星图里），但吃挑战 productionMul，与核热厂同口径。 */
     { id: 'tidemachine', challengeOnly: 'waterpollution', name: '潮汐往复机', icon: 'assets/building-icons/era-3/era3-tidemachine.png', ratio: 1.5,
       cost: { stone: 100, silt: 100, coral: 200 },
-      desc: '把建设潮道的知识用到热液能的开发上，潮汐推动着精妙的连杆飞速运转：每级 +1 热液能/秒，不产生污染。',
+      desc: '每级 +1 热液能/秒，不产生污染。',
       requiredTech: ['metalrefine'] },
     { id: 'solarstation', challengeOnly: 'waterpollution', name: '太阳能基站', icon: 'assets/building-icons/era-6/era6-solarstation.png', ratio: 1.5,
       cost: { steel: 3500, titanium: 2500 },
-      desc: '凹面收集着来自恒星的永恒热量：每级 +3 热液能/秒，不产生污染。',
+      desc: '每级 +3 热液能/秒，不产生污染。',
       requiredTech: ['chemistry'] },
     { id: 'enladofarm', challengeOnly: 'waterpollution', name: '恩拉多克斯阵列风场', icon: 'assets/building-icons/era-9/era9-enladofarm.png', ratio: 2,
       cost: { thetaMetal: 100, stoneBeam: 10000, tiplate: 3000 },
-      desc: '钢铁的三叶草海在风中摇曳：每级 +15 热液能/秒，不产生污染。',
+      desc: '每级 +15 热液能/秒，不产生污染。',
       requiredTech: ['alien_eng'] },
     /* 【墓地】污染死亡的安息位：每座 +4（CFG.POLLUTION.BURIAL.PER_GRAVE）。
      *   超出安息位的死者把幸福消耗从 0.3%/人 抬到 3%/人 —— 所以「扩建墓地」是
      *   **可逆的止损**（C 定案：按当前配额逐帧重算，不是锁死历史值）。 */
     { id: 'grave', challengeOnly: 'waterpollution', name: '墓地', icon: 'assets/building-icons/era-3/era3-grave.png', ratio: 1.5,
       cost: { stone: 200, coral: 200 },
-      desc: '静谧之地。每座为污染死者提供 4 个安息位；死者超出安息位时，幸福消耗惩罚由每人 0.3% 升至 3%。',
+      desc: '每座为污染死者提供 4 个安息位；死者超出安息位时，幸福消耗惩罚由每人 0.3% 升至 3%。',
       requiredCivic: 'public_grave' },
     /* 【医院】降低污染致死几率：1 − 0.6^(L/15)，15 级到顶 −40%（连续递减，没有白给等级）。 */
     { id: 'hospital', challengeOnly: 'waterpollution', name: '医院', icon: 'assets/building-icons/era-4/era4-hospital.png', ratio: 1.5,
       cost: { steel: 100, stone: 1000 },
-      desc: '死神前的最后一道防线。每级降低污染致死几率，边际递减，15 级到顶 −40%。',
+      desc: '每级降低污染致死几率，边际递减，15 级到顶 −40%。',
       requiredCivic: 'public_health' },
     /* 【保护区】固定净化 8/s/座（CFG.POLLUTION.CLEAN_RESERVE），不受任何乘区放大。 */
     { id: 'reserve', challengeOnly: 'waterpollution', name: '保护区', icon: 'assets/building-icons/era-7/era7-reserve.png', ratio: 2,
       cost: { kelp: 10000, coral: 5000 },
-      desc: '愿我们的后代仍能在水草与珊瑚间嬉戏。每座每秒净化 8 点污染。',
+      desc: '每座每秒净化 8 点污染。',
       requiredCivic: 'protect_earth' }
   ];
 

@@ -10,6 +10,18 @@
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
     return value || fallback || '';
   }
+  function activeLocale() {
+    return SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+  }
+  function resourceName(id, fallback) {
+    return SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(id, fallback) : fallback;
+  }
+  function buildingName(id, fallback) {
+    return SB.i18n && SB.i18n.buildingName ? SB.i18n.buildingName(id, fallback) : fallback;
+  }
+  function contentName(id, fallback) {
+    return SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(id, fallback) : fallback;
+  }
   function seasonName(index, fallback) {
     var keys = ['content.season_warm.name', 'content.season_slack.name', 'content.season_cold.name'];
     return tr(keys[index], null, fallback);
@@ -110,24 +122,28 @@
     var challengeBlocksHeating = !!(SB.challenges && SB.challenges.warmHeatingBlocked(s));
     var burning = SB.economy.warmBurning(s);
     var sig = (s.warmOn ? 'on' : 'off') + '|' + (inCold ? 'c' : 'w') + '|' +
-      (challengeBlocksHeating ? 'x' : '-') + '|' + (burning ? 'b' : '-');
+      (challengeBlocksHeating ? 'x' : '-') + '|' + (burning ? 'b' : '-') + '|' + activeLocale();
     if (sig !== warmSig) {
       warmSig = sig;
-      var live = s.warmOn && (s.res.warmstone || 0) > 0;
-      box.innerHTML = '<div><div class="nm">暖石开关 <span class="tag" id="envWarmWs">0</span></div>' +
-        '<div class="ds">保温法：烧暖石（<span id="envWarmRate">' +
-        warmRateText(SB.economy.warmRate(s)) + '</span>/秒，随文明规模增长）' +
-        '<b>只在寒流季生效</b>——顶回藻场减产（不是全额，留一点残余），' +
-        '寒流季若触发冰封期则冻伤归零。一份暖石两件事都靠它，其余季不耗石。' +
-        (challengeBlocksHeating ? '<br><b>寒流禁火挑战：寒流季保温法停用；热泉炉和热液设备仍照常运行。</b>' : '') +
+      box.innerHTML = '<div><div class="nm">' + tr('environment.warmstone.switch.name', null, '暖石开关') + ' <span class="tag" id="envWarmWs">0</span></div>' +
+        '<div class="ds">' + tr('environment.warmstone.insulation.tip', {
+          warmstoneRate: '<span id="envWarmRate">' + warmRateText(SB.economy.warmRate(s)) + '</span>'
+        }, '保温法：烧暖石（{warmstoneRate}/秒），只在寒流季生效——部分抵消藻场减产（无法完全抵消）。寒流季若触发冰封期，冻伤会归零。暖石同时支撑这两种效果；其他季节不消耗暖石。') +
+        (challengeBlocksHeating ? '<br>' + tr('environment.warmstone.challenge.note', null, '寒流禁火挑战：寒流季保温法停用；热泉炉和热液设备仍照常运行。') : '') +
         '</div></div>' +
         /* 按钮文案 = **当前状态**（底色表态：绿=启用 / 灰=停用），不是「点了会怎样」——
          * 原先写「开/关」两可，玩家读不出此刻到底是开是关（用户 2026-09-30 报）。
          * 正在烧时再加一圈琥珀描边，把「已启用」与「真在烧」两个状态分开。 */
         '<button class="btn tog' + (s.warmOn ? ' on' : '') + (burning ? ' burning' : '') +
         '" data-warm="1"' + (challengeBlocksHeating ? ' disabled' : '') +
-        ' title="' + (challengeBlocksHeating ? '寒流禁火挑战：寒流季禁止保温燃烧' : '点击切换启用 / 停用') + '">' +
-        (challengeBlocksHeating ? '寒流禁用' : s.warmOn ? '启用' : '停用') + '</button>';
+        ' title="' + (challengeBlocksHeating
+          ? tr('environment.warmstone.challenge.toggle_title', null, '寒流禁火挑战：寒流季禁止保温燃烧')
+          : tr('environment.warmstone.toggle_title', null, '点击切换启用 / 停用')) + '">' +
+        (challengeBlocksHeating
+          ? tr('environment.warmstone.status.challenge_disabled', null, '寒流禁用')
+          : s.warmOn
+            ? tr('environment.warmstone.status.enabled', null, '启用')
+            : tr('environment.warmstone.status.disabled', null, '停用')) + '</button>';
     }
     /* 库存数字单独刷：不进签名，所以烧起来时它是唯一在动的节点，按钮不动。
      * 费率同理（随破壳系数变化），也走独立 span，绝不并回签名。 */
@@ -148,10 +164,17 @@
     var net = flow.coreNetRate || 0;
     var sign = net > 0 ? '+' : '';
     var vat = SB.economy.activeTerraVat(s);
-    var html = '<div><div class="nm">' + envWonderIcon('wonder_terra_core') + '泰拉中央星核炉芯' +
+    var coreName = tr('wonder.terra_core.name', null, '泰拉中央星核炉芯');
+    var statusKey = vat ? 'environment.terra_core.status.with_vats' : 'environment.terra_core.status';
+    var statusText = tr(statusKey, {
+      storedEnergy: SB.economy.fmtAmt(charge), capacity: '50M',
+      netRate: sign + net.toFixed(2), vatCount: vat
+    }, vat
+      ? '储能 {storedEnergy} / {capacity} · 净增 {netRate}/秒 · 水舱运行 {vatCount} 座（优先耗池，池空后占热液能流）'
+      : '储能 {storedEnergy} / {capacity} · 净增 {netRate}/秒');
+    var html = '<div><div class="nm">' + envWonderIcon('wonder_terra_core') + coreName +
       '<span class="tag">' + pct.toFixed(2) + '%</span></div>' +
-      '<div class="ds">储能 ' + SB.economy.fmtAmt(charge) + ' / 50M · 净增 ' + sign + net.toFixed(2) + '/秒' +
-      (vat ? ' · 水舱运行 ' + vat + ' 座（优先耗池，池空后占热液能流）' : '') + '</div>' +
+      '<div class="ds">' + statusText + '</div>' +
       '<div class="tree-progress"><i style="width:' + pct.toFixed(2) + '%"></i></div></div>';
     if (box.innerHTML !== html) box.innerHTML = html;
   }
@@ -178,14 +201,17 @@
     }
     box.style.display = '';
     if (SB.wonder.skydrillPostBreak(s)) {
-      var postBreakSig = 'post-break';
+      var postBreakSig = 'post-break|' + activeLocale();
       if (drillSig !== postBreakSig) {
         drillSig = postBreakSig;
         var civicBonus = SB.wonder.skydrillCivic(s);
         var happyBonus = SB.wonder.skydrillHappyOffset(s);
-        box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + '天穹钻机 <span class="tag ok">破壳后奇观效果</span></div>' +
-          '<div class="ds">市政点 +' + civicBonus + '/秒；幸福度 ' + (happyBonus >= 0 ? '+' : '') +
-          happyBonus + '。此处显示的是破壳后的常驻效果。</div></div>';
+        box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + tr('wonder.skydrill.name', null, '天穹钻机') +
+          ' <span class="tag ok">' + tr('wonder.skydrill.post_break.label', null, '破壳后奇观效果') + '</span></div>' +
+          '<div class="ds">' + tr('wonder.skydrill.post_break_effect', {
+            civicPointsPerSecond: civicBonus,
+            happinessChange: (happyBonus >= 0 ? '+' : '') + happyBonus
+          }, '市政点 +{civicPointsPerSecond}/秒；幸福度 {happinessChange}。此处显示的是破壳后的常驻效果。') + '</div></div>';
       }
       return;
     }
@@ -215,41 +241,47 @@
       : (s.res.resonantDrill || 0) < _bitRate);
     var sig = (s.skydrillOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
       (starved ? (_drillNoBit ? 'd' : 'h') : '-') + '|' +
-      Math.min(999, Math.floor(_left)) + '|' + _mul + '|' + (_overdrive ? 'o' : '-');
+      Math.min(999, Math.floor(_left)) + '|' + _mul + '|' + (_overdrive ? 'o' : '-') + '|' + activeLocale();
     if (sig !== drillSig) {
       drillSig = sig;
       var ds;
       if (!s.skydrillOn) {
-        ds = '建成即就绪，尚未启动。点右侧按钮开始凿穿最后 ' + (CFG.FLOOR_AT * 100) +
-          '% 壳厚——运转期间持续吃共振钻头（' + _bitRate + '/秒）与热液能（' +
-          SB.CFG.SKYDRILL_HYDRO + '/秒，从热液工坊吃剩的流里取）。';
+        ds = tr('wonder.skydrill.status.unstarted', {
+          shellPercent: CFG.FLOOR_AT * 100, drillUseRate: _bitRate,
+          hydroUseRate: SB.CFG.SKYDRILL_HYDRO
+        }, '已建成，尚未启动。点击右侧按钮开始凿穿天壳最后 {shellPercent}%——运行期间每秒消耗共振钻头 {drillUseRate} 个及热液能 {hydroUseRate}，热液能取自热液工坊使用后的余流。');
       } else if (starved) {
         if ((s.res.resonantDrill || 0) < _bitRate) {
           /* ⚠️ 不能 Math.floor：库存按 0.1/秒扣，常态是小数（0.4 / 0.9），
            *    floor 会印成「现存 0」——玩家以为自己一个钻头都没有，实际只是不足 1 个。 */
-          ds = '停摆：共振钻头不足（现存 ' + (s.res.resonantDrill || 0).toFixed(1) +
-            '，运转每秒耗 ' + _bitRate + '）。去工坊打「共振钻头」补货，补足后自动恢复，无需重启。';
+          ds = tr('wonder.skydrill.status.drill_shortage', {
+            drillStock: (s.res.resonantDrill || 0).toFixed(1), drillUseRate: _bitRate
+          }, '停摆：共振钻头不足（现存 {drillStock} 个，运行每秒消耗 {drillUseRate} 个）。请到工坊制作共振钻头补货；补足后会自动恢复，无需重启。');
         } else {
           var _tur = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
-          ds = '停摆：热液能剩流 ' + _left.toFixed(1) + '/秒，不足 ' + SB.CFG.SKYDRILL_HYDRO +
-            '/秒——汽轮机运行 ' + _tur + ' 座供 ' + (_HF ? _HF.supplyRate.toFixed(1) : '?') +
-            '/秒，热液工坊吃 ' + (_HF ? _HF.shopRate.toFixed(1) : '?') + '/秒。' +
-            '升汽轮机（每级 +1/秒）或停用热液工坊；暖石断供汽轮机也会停产。补足后自动恢复，无需重启。';
+          ds = tr('wonder.skydrill.status.hydro_shortage', {
+            availableHydro: _left.toFixed(1), requiredHydro: SB.CFG.SKYDRILL_HYDRO,
+            turbineCount: _tur, turbineSupply: _HF ? _HF.supplyRate.toFixed(1) : '?',
+            workshopUse: _HF ? _HF.shopRate.toFixed(1) : '?', hydroPerLevel: 1
+          }, '停摆：热液能余流 {availableHydro}/秒，不足所需的 {requiredHydro}/秒——汽轮机运行 {turbineCount} 座，供给 {turbineSupply}/秒；热液工坊消耗 {workshopUse}/秒。请升级汽轮机（每级 +{hydroPerLevel}/秒）或停用热液工坊；暖石断供时汽轮机也会停产。补足后自动恢复，无需重启。');
         }
       } else {
-        ds = '运转中：钻头以 ' + _cutRate + ' 点/秒削壳（' + _mul + '× 档；轮回「壳层勘探」可再加成），吃完停摆、补足自动续。';
+        ds = tr('wonder.skydrill.status.running', { shellBreakRate: _cutRate },
+          '运转中：钻头以 {shellBreakRate} 点/秒削薄天壳（轮回强化「壳层勘探」还可提高效率）；钻头耗尽后停摆，补足后自动继续。');
       }
-      box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + '天穹钻机' +
-        (starved ? '<b class="lack-tag is-stop">缺' + (_drillNoBit ? '钻头' : '热液能') + ' · 停摆</b>' : '') +
+      var missingResource = _drillNoBit ? resourceName('resonantDrill', '共振钻头') : resourceName('hydro', '热液能');
+      box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + tr('wonder.skydrill.name', null, '天穹钻机') +
+        (starved ? '<b class="lack-tag is-stop">' + tr('wonder.skydrill.status.starved_tag', { missingResourceName: missingResource }, '缺{missingResourceName} · 停摆') + '</b>' : '') +
         ' <span class="tag" id="envDrillCt">0</span></div>' +
         '<div class="ds">' + ds + '</div></div>' +
         /* 天元突破按钮与启动按钮同组：只在已点亮天赋时出现，文案只报当前档，
          * 真实耗率 / 速率在上面的 ds 里（手机端没有 hover 也读得到）。 */
         '<div class="env-drill-ops">' +
         (_overdrive ? '<button class="btn tog' + (_mul > 1 ? ' on' : '') +
-          '" data-drill-mul="1" title="天元突破：点击切换 1× / 2× 钻头倍率">钻头 ' + _mul + '×</button>' : '') +
+          '" data-drill-mul="1">' + tr('wonder.skydrill.overdrive.button', { multiplier: _mul }, '钻头 {multiplier}×') + '</button>' : '') +
         '<button class="btn tog' + (s.skydrillOn ? ' on' : '') +
-        '" data-skydrill="1" title="点击启动 / 停机">' + (s.skydrillOn ? '已启动' : '已停机') + '</button>' +
+        '" data-skydrill="1" title="' + tr('ui.action.start_stop.title', null, '点击启动 / 停机') + '">' +
+        (s.skydrillOn ? tr('environment.machine.switch.enabled', null, '已启动') : tr('environment.machine.switch.disabled', null, '已停机')) + '</button>' +
         '</div>';
     }
     var ct = el('envDrillCt');
@@ -257,7 +289,9 @@
       /* ⚠️ 不能 floor：钻头按 0.1/秒扣，库存常态是小数（0.9 会显示成「0 钻头」）。
        *    ≥10 取整（小数位无意义），否则保留 1 位。 */
       var _bits = s.res.resonantDrill || 0;
-      ct.textContent = (_bits >= 10 ? Math.floor(_bits) : _bits.toFixed(1)) + ' 钻头';
+      ct.textContent = tr('wonder.skydrill.drill_inventory', {
+        drillCount: _bits >= 10 ? Math.floor(_bits) : _bits.toFixed(1)
+      }, '{drillCount} 个共振钻头');
     }
   }
 
@@ -295,72 +329,87 @@
      *     ⇒ 那条 <i> 没有高度/背景，width 设了也**看不见**——用户实测「没有进度条」。修正 = 改用 .prog。
      *   倒计时 = 剩余游戏内秒，每帧实时刷（不进签名、不重建 DOM，平滑且避免点击丢）。 */
     if (!enceladusDone) {
-      phaseKey = 'e'; phaseTxt = '恩克拉多斯星改造';
+      phaseKey = 'enceladus'; phaseTxt = tr('wonder.geek.phase.enceladus', null, '恩克拉多斯星改造');
       prog = s.geek ? s.geek.enceladusRun || 0 : 0;
       total = SB.economy && SB.economy.starTerraformDuration
         ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_ENCELADUS_SECONDS) : SB.CFG.GEEK_ENCELADUS_SECONDS;
     } else if (terraUnlocked) {
-      phaseKey = 't'; phaseTxt = '泰拉星改造';
+      phaseKey = 'terra'; phaseTxt = tr('wonder.geek.phase.terra', null, '泰拉星改造');
       prog = s.geek ? s.geek.terraRun || 0 : 0;
       total = SB.economy && SB.economy.starTerraformDuration
         ? SB.economy.starTerraformDuration(s, SB.CFG.GEEK_TERRA_SECONDS) : SB.CFG.GEEK_TERRA_SECONDS;
-    } else { phaseKey = 'E'; phaseTxt = '恩克拉多斯已完成'; prog = 0; total = 1; }
+    } else { phaseKey = 'enceladus_complete'; phaseTxt = tr('wonder.geek.phase.enceladus_complete', null, '恩克拉多斯已完成'); prog = 0; total = 1; }
     var _pct = total > 0 ? Math.max(0, Math.min(100, 100 * prog / total)) : 0;
     var _pctInt = Math.floor(_pct);
     var _HF = (SB.economy && SB.economy.hydroAlloc) ? SB.economy.hydroAlloc(s, 1) : null;
     var _left = _HF ? Math.max(0, _HF.left) : 0;
-    var _running = !!(s.geek && s.geek.geekOn) && !starved && phaseKey !== 'E';
+    var _running = !!(s.geek && s.geek.geekOn) && !starved && phaseKey !== 'enceladus_complete';
     /* 停摆子因（四样材料见底 / 热液能不足）：与下面 ds 分支**同一条件**，按同一顺序取第一个见底的。
      * 纳入签名让徽标跟着切，避免「补完这样、徽标还写着这样」。 */
     var _geekLackName = '';
     if (starved) {
-      if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP) _geekLackName = '藻食';
-      else if ((s.res.silt || 0) < SB.CFG.GEEK_METAL) _geekLackName = '金属';
-      else if ((s.res.stone || 0) < SB.CFG.GEEK_STONE) _geekLackName = '石头';
-      else if ((s.res.coral || 0) < SB.CFG.GEEK_CORAL) _geekLackName = '珊瑚';
-      else _geekLackName = '热液能';
+      if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP) _geekLackName = resourceName('kelp', '藻食');
+      else if ((s.res.silt || 0) < SB.CFG.GEEK_METAL) _geekLackName = resourceName('silt', '金属');
+      else if ((s.res.stone || 0) < SB.CFG.GEEK_STONE) _geekLackName = resourceName('stone', '石头');
+      else if ((s.res.coral || 0) < SB.CFG.GEEK_CORAL) _geekLackName = resourceName('coral', '珊瑚');
+      else _geekLackName = resourceName('hydro', '热液能');
     }
     var sig = (s.geek && s.geek.geekOn ? 'on' : 'off') + '|' + (starved ? 's' : '-') + '|' +
-      _geekLackName + '|' + phaseKey + '|' + _pctInt;
+      _geekLackName + '|' + phaseKey + '|' + _pctInt + '|' + activeLocale();
     if (sig !== geekSig) {
       geekSig = sig;
       var ds;
       if (!s.geek || !s.geek.geekOn) {
-        ds = '星球重构机已就绪，尚未启动。点右侧按钮开始' + (enceladusDone ? '泰拉星改造' : '恩克拉多斯星改造') +
-          '——运转期间持续吃热液能（' + SB.CFG.GEEK_HYDRO + '/秒，从热液工坊剩流取）+ 藻食(' + SB.CFG.GEEK_KELP +
-          '/秒)+金属(' + SB.CFG.GEEK_METAL + '/秒)+石头(' + SB.CFG.GEEK_STONE + '/秒)+珊瑚(' + SB.CFG.GEEK_CORAL + '/秒)。';
+        ds = tr('wonder.geek.status.unstarted', {
+          terraformingTarget: enceladusDone
+            ? tr('ui.star_map.body.terra.name', null, '泰拉')
+            : tr('ui.star_map.body.enceladus.name', null, '恩克拉多斯'),
+          hydroUse: SB.CFG.GEEK_HYDRO, kelpUse: SB.CFG.GEEK_KELP, metalUse: SB.CFG.GEEK_METAL,
+          stoneUse: SB.CFG.GEEK_STONE, coralUse: SB.CFG.GEEK_CORAL
+        }, '星球重构机 G.E.E.K 已就绪，尚未启动。点击右侧按钮开始{terraformingTarget}改造——运行期间每秒消耗热液能 {hydroUse}、藻食 {kelpUse}、金属 {metalUse}、石头 {stoneUse}、珊瑚 {coralUse}。');
       } else if (starved) {
         if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP || (s.res.silt || 0) < SB.CFG.GEEK_METAL || (s.res.stone || 0) < SB.CFG.GEEK_STONE || (s.res.coral || 0) < SB.CFG.GEEK_CORAL) {
-          ds = '停摆：材料见底（现存 藻食 ' + Math.floor(s.res.kelp || 0) + ' / 金属 ' + Math.floor(s.res.silt || 0) +
-            ' / 石头 ' + Math.floor(s.res.stone || 0) + ' / 珊瑚 ' + Math.floor(s.res.coral || 0) +
-            '，运转每秒耗 ' + SB.CFG.GEEK_KELP + '/' + SB.CFG.GEEK_METAL + '/' + SB.CFG.GEEK_STONE + '/' +
-            SB.CFG.GEEK_CORAL + '）。补足后自动恢复，无需重启。';
+          ds = tr('wonder.geek.status.material_shortage', {
+            kelpStock: Math.floor(s.res.kelp || 0), metalStock: Math.floor(s.res.silt || 0),
+            stoneStock: Math.floor(s.res.stone || 0), coralStock: Math.floor(s.res.coral || 0),
+            kelpUse: SB.CFG.GEEK_KELP, metalUse: SB.CFG.GEEK_METAL,
+            stoneUse: SB.CFG.GEEK_STONE, coralUse: SB.CFG.GEEK_CORAL
+          }, '停摆：材料不足（当前库存：藻食 {kelpStock}、金属 {metalStock}、石头 {stoneStock}、珊瑚 {coralStock}；每秒消耗：藻食 {kelpUse}、金属 {metalUse}、石头 {stoneUse}、珊瑚 {coralUse}）。补足后自动恢复，无需重启。');
         } else {
-          ds = '停摆：热液能剩流 ' + _left.toFixed(1) + '/秒，不足 ' + SB.CFG.GEEK_HYDRO + '/秒——汽轮机供 ' +
-            (_HF ? _HF.supplyRate.toFixed(1) : '?') + '/秒，热液工坊吃 ' + (_HF ? _HF.shopRate.toFixed(1) : '?') +
-            '/秒。升汽轮机或停用热液工坊；补足后自动恢复，无需重启。';
+          ds = tr('wonder.geek.status.hydro_shortage', {
+            availableHydro: _left.toFixed(1), requiredHydro: SB.CFG.GEEK_HYDRO,
+            turbineSupply: _HF ? _HF.supplyRate.toFixed(1) : '?',
+            workshopUse: _HF ? _HF.shopRate.toFixed(1) : '?'
+          }, '停摆：热液能余流 {availableHydro}/秒，不足 {requiredHydro}/秒——汽轮机供给 {turbineSupply}/秒，热液工坊消耗 {workshopUse}/秒。请升级汽轮机或停用热液工坊；补足后会自动恢复，无需重启。');
         }
-      } else if (phaseKey === 'E') {
-        ds = '恩克拉多斯星改造已完成。研究《星球改造》后可启动泰拉星改造。';
+      } else if (phaseKey === 'enceladus_complete') {
+        ds = tr('wonder.geek.status.enceladus_complete', null,
+          '恩克拉多斯星改造已完成。研究《星球改造》后可启动泰拉星改造。');
       } else {
-        ds = '运转中：' + phaseTxt + '。缺料暂停、进度保留，补足自动续。';
+        ds = tr('wonder.geek.status.running', { terraformingPhase: phaseTxt },
+          '运转中：{terraformingPhase}。缺料时会暂停并保留进度，补足后自动继续。');
       }
       var _remTag = _running ? '<span class="tag" id="envGeekRemain"></span>' : '';
-      box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_geek') + '星球重构机 G.E.E.K ' +
-        (starved ? '<b class="lack-tag is-stop">缺' + _geekLackName + ' · 停摆</b>' : '') +
-        (enceladusDone ? '<span class="tag ok">恩克拉多斯已完成</span>' : '') +
-        (terraDone ? '<span class="tag ok">泰拉已完成</span>' : '') + _remTag + '</div>' +
+      box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_geek') + tr('wonder.geek.name', null, '星球重构机 G.E.E.K') + ' ' +
+        (starved ? '<b class="lack-tag is-stop">' + tr('wonder.geek.status.starved_tag', { missingResourceName: _geekLackName }, '缺{missingResourceName} · 停摆') + '</b>' : '') +
+        (enceladusDone ? '<span class="tag ok">' + tr('wonder.geek.phase.enceladus_complete', null, '恩克拉多斯已完成') + '</span>' : '') +
+        (terraDone ? '<span class="tag ok">' + tr('wonder.geek.phase.terra_complete', null, '泰拉已完成') + '</span>' : '') + _remTag + '</div>' +
         '<div class="prog"><i id="envGeekBar" style="width:' + _pct.toFixed(2) + '%"></i></div>' +
         '<div class="ds" id="envGeekDs">' + ds + '</div></div>' +
         '<button class="btn tog' + ((s.geek && s.geek.geekOn) ? ' on' : '') +
-        '" data-geek="1" title="点击启动 / 停机">' + ((s.geek && s.geek.geekOn) ? '已启动' : '已停机') + '</button>';
+        '" data-geek="1" title="' + tr('ui.action.start_stop.title', null, '点击启动 / 停机') + '">' +
+        ((s.geek && s.geek.geekOn)
+          ? tr('environment.machine.switch.enabled', null, '已启动')
+          : tr('environment.machine.switch.disabled', null, '已停机')) + '</button>';
     }
     /* 每帧实时刷新：进度条宽度（Fractional，平滑）+ 倒计时（剩余游戏内秒）。
      * 不进签名 ⇒ 即使 <1% 的细微推进也看得见，倒计时也不跳格。 */
     if (_running) {
       var _bar = el('envGeekBar'); if (_bar) _bar.style.width = _pct.toFixed(2) + '%';
       var _cd = el('envGeekRemain');
-      if (_cd) _cd.textContent = '倒计时 ' + fmtGeekDur(Math.max(0, total - prog));
+      if (_cd) _cd.textContent = tr('wonder.geek.countdown', {
+        remainingTime: fmtGeekDur(Math.max(0, total - prog))
+      }, '倒计时 {remainingTime}');
     }
     /* 每帧实时刷新「停摆原因」文案（材料见底/热液能不足的子因 + 现存数量），
      * 不进签名 ⇒ 即便仍处 starved（签名不变），子因切换 / 现存数值变化也能即时反映。 */
@@ -368,14 +417,18 @@
       var _d = el('envGeekDs');
       if (_d) {
         if ((s.res.kelp || 0) < SB.CFG.GEEK_KELP || (s.res.silt || 0) < SB.CFG.GEEK_METAL || (s.res.stone || 0) < SB.CFG.GEEK_STONE || (s.res.coral || 0) < SB.CFG.GEEK_CORAL) {
-          _d.innerHTML = '停摆：材料见底（现存 藻食 ' + Math.floor(s.res.kelp || 0) + ' / 金属 ' + Math.floor(s.res.silt || 0) +
-            ' / 石头 ' + Math.floor(s.res.stone || 0) + ' / 珊瑚 ' + Math.floor(s.res.coral || 0) +
-            '，运转每秒耗 ' + SB.CFG.GEEK_KELP + '/' + SB.CFG.GEEK_METAL + '/' + SB.CFG.GEEK_STONE + '/' +
-            SB.CFG.GEEK_CORAL + '）。补足后自动恢复，无需重启。';
+          _d.innerHTML = tr('wonder.geek.status.material_shortage', {
+            kelpStock: Math.floor(s.res.kelp || 0), metalStock: Math.floor(s.res.silt || 0),
+            stoneStock: Math.floor(s.res.stone || 0), coralStock: Math.floor(s.res.coral || 0),
+            kelpUse: SB.CFG.GEEK_KELP, metalUse: SB.CFG.GEEK_METAL,
+            stoneUse: SB.CFG.GEEK_STONE, coralUse: SB.CFG.GEEK_CORAL
+          }, '停摆：材料不足（当前库存：藻食 {kelpStock}、金属 {metalStock}、石头 {stoneStock}、珊瑚 {coralStock}；每秒消耗：藻食 {kelpUse}、金属 {metalUse}、石头 {stoneUse}、珊瑚 {coralUse}）。补足后自动恢复，无需重启。');
         } else {
-          _d.innerHTML = '停摆：热液能剩流 ' + _left.toFixed(1) + '/秒，不足 ' + SB.CFG.GEEK_HYDRO + '/秒——汽轮机供 ' +
-            (_HF ? _HF.supplyRate.toFixed(1) : '?') + '/秒，热液工坊吃 ' + (_HF ? _HF.shopRate.toFixed(1) : '?') +
-            '/秒。升汽轮机或停用热液工坊；补足后自动恢复，无需重启。';
+          _d.innerHTML = tr('wonder.geek.status.hydro_shortage', {
+            availableHydro: _left.toFixed(1), requiredHydro: SB.CFG.GEEK_HYDRO,
+            turbineSupply: _HF ? _HF.supplyRate.toFixed(1) : '?',
+            workshopUse: _HF ? _HF.shopRate.toFixed(1) : '?'
+          }, '停摆：热液能余流 {availableHydro}/秒，不足 {requiredHydro}/秒——汽轮机供给 {turbineSupply}/秒，热液工坊消耗 {workshopUse}/秒。请升级汽轮机或停用热液工坊；补足后会自动恢复，无需重启。');
         }
       }
     }
@@ -399,17 +452,22 @@
     box.style.display = '';
     /* 顶栏不再有全局暂停开关（2026-10-17 重构）：基础文明推力始终累积，
      *   卫星/空间站各自的「开几座」开关只控制它们的贡献。本卡只显示速率与说明。 */
-    if (starSig !== 'fixed') {
-      starSig = 'fixed';
-      box.innerHTML = '<div><div class="nm">星空槽 <span class="tag" id="envStarRt">0</span></div>' +
-        '<div class="ds">破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积星空探索，满槽即太空时代达成。' +
-        '卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。</div></div>';
+    var starLocaleSig = 'fixed|' + activeLocale();
+    if (starSig !== starLocaleSig) {
+      starSig = starLocaleSig;
+      box.innerHTML = '<div><div class="nm">' + tr('environment.starfield.slot.name', null, '星空槽') + ' <span class="tag" id="envStarRt">0</span></div>' +
+        '<div class="ds">' + tr('environment.starfield.exploration.description', null,
+          '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积星空探索，满槽即太空时代达成。') + ' ' +
+        tr('environment.starfield.contributor_toggle.description', null,
+          '卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。') + '</div></div>';
     }
     /* 速率单独刷：不进签名，所以文明推力变化时它是唯一在动的节点，按钮不动。 */
     var rt = el('envStarRt');
     if (rt) {
       var _sr = (SB.economy && SB.economy.starRate) ? SB.economy.starRate(s) : 0;
-      rt.textContent = (_sr != null ? _sr : 0).toFixed(2) + '/秒';
+      rt.textContent = tr('environment.starfield.exploration_rate', {
+        rate: (_sr != null ? _sr : 0).toFixed(2)
+      }, '{rate}/秒');
     }
   }
 
@@ -418,31 +476,36 @@
    * 展示总供给、开启负载的总需求与可正可负的净余量；不把流量快照误读成库存。
    * 容器与子节点只在解锁后创建一次，之后仅更新 textContent / 宽度，避免每帧重建。 */
   var hydroBuilt = false;
+  var hydroBuiltLocale = '';
   function renderHydro(s) {
     var box = el('envHydro'); if (!box) return;
     var unlocked = !!(SB.economy && SB.economy.resUnlocked(s, 'hydro'));
     if (!unlocked) { box.style.display = 'none'; return; }
     box.style.display = '';
-    if (!hydroBuilt) {
+    if (!hydroBuilt || hydroBuiltLocale !== activeLocale()) {
       hydroBuilt = true;
+      hydroBuiltLocale = activeLocale();
+      var rateSuffix = tr('environment.hydro.metric.rate_per_second', { rate: '' }, '{rate}/秒').replace('{rate}', '').trim();
       box.innerHTML = '<section class="hydro-panel">' +
         '<div class="hydro-head"><span class="hydro-icon" aria-hidden="true"><img src="assets/resource-icons/hydro.png?v=2" alt="" width="30" height="30"></span>' +
-        '<div class="hydro-title"><b>热液能流</b><span>即产即用 · 净余量 = 供给 − 需求</span></div>' +
-        '<span class="hydro-live" id="hydroLive"><i></i><span id="hydroLiveLabel">实时分配</span></span></div>' +
+        '<div class="hydro-title"><b>' + tr('environment.hydro.title', null, '热液能流') + '</b><span>' +
+        tr('environment.hydro.flow.description', null, '即产即用 · 净余量 = 供给 − 需求') + '</span></div>' +
+        '<span class="hydro-live" id="hydroLive"><i></i><span id="hydroLiveLabel">' +
+        tr('environment.hydro.status.realtime_allocation', null, '实时分配') + '</span></span></div>' +
         '<div class="hydro-metrics">' +
-        '<div class="hydro-metric"><span>总供给</span><b><span id="hydroSupply">0.0</span><small>/秒</small></b></div>' +
-        '<div class="hydro-metric"><span>总需求</span><b><span id="hydroDemand">0.0</span><small>/秒</small></b></div>' +
-        '<div class="hydro-metric hydro-metric-balance" id="hydroBalanceMetric"><span>净余量</span><b><span id="hydroBalance">+0.0</span><small>/秒</small></b></div>' +
+        '<div class="hydro-metric"><span>' + tr('environment.hydro.metric.supply.label', null, '总供给') + '</span><b><span id="hydroSupply">0.0</span><small>' + rateSuffix + '</small></b></div>' +
+        '<div class="hydro-metric"><span>' + tr('environment.hydro.metric.demand.label', null, '总需求') + '</span><b><span id="hydroDemand">0.0</span><small>' + rateSuffix + '</small></b></div>' +
+        '<div class="hydro-metric hydro-metric-balance" id="hydroBalanceMetric"><span>' + tr('environment.hydro.metric.balance.label', null, '净余量') + '</span><b><span id="hydroBalance">+0.0</span><small>' + rateSuffix + '</small></b></div>' +
         '</div>' +
-        '<div class="hydro-track" role="img" aria-label="热液能供给覆盖需求比例">' +
+        '<div class="hydro-track" role="img" aria-label="' + tr('environment.hydro.supply_coverage.aria_label', null, '热液能供给覆盖需求比例') + '">' +
         '<i class="hydro-supply-fill" id="hydroSupplyFill"></i><i class="hydro-deficit-fill" id="hydroDeficitFill"></i></div>' +
         '<div class="hydro-routing">' +
-        '<div class="hydro-route"><b>来处</b><span id="hydroSources">暂无供给来源</span></div>' +
-        '<div class="hydro-route"><b>去处</b><span id="hydroUses">暂无设备取用</span></div>' +
+        '<div class="hydro-route"><b>' + tr('environment.hydro.sources.heading', null, '来处') + '</b><span id="hydroSources">' + tr('environment.hydro.sources.empty', null, '暂无供给来源') + '</span></div>' +
+        '<div class="hydro-route"><b>' + tr('environment.hydro.uses.heading', null, '去处') + '</b><span id="hydroUses">' + tr('environment.hydro.uses.empty', null, '暂无设备取用') + '</span></div>' +
         '</div>' +
         '<div class="hydro-shortage" id="hydroShortage" hidden>' +
         '<b id="hydroShortageTitle"></b><span id="hydroShortageItems"></span></div>' +
-        '<div class="hydro-foot"><span id="hydroFlowHint">余流不会累积到下一秒</span></div>' +
+        '<div class="hydro-foot"><span id="hydroFlowHint">' + tr('environment.hydro.surplus', { surplusRate: '0.0' }, '余流 +{surplusRate}/秒，不会累积到下一秒') + '</span></div>' +
         '</section>';
     }
     var flow = SB.economy.hydroAlloc(s, 1);
@@ -463,47 +526,69 @@
     if (balanceMetric) balanceMetric.classList.toggle('is-negative', inDeficit);
     if (balanceMetric) balanceMetric.classList.toggle('is-positive', !inDeficit);
     if (live) live.classList.toggle('is-deficit', inDeficit);
-    if (liveLabel) liveLabel.textContent = inDeficit ? '供能短缺' : '实时分配';
+    if (liveLabel) liveLabel.textContent = inDeficit
+      ? tr('environment.hydro.status.shortage', null, '供能短缺')
+      : tr('environment.hydro.status.realtime_allocation', null, '实时分配');
     var sources = [
-      ['热液汽轮机', flow.turbineRate], ['高压热机管道', flow.pressRate],
-      ['核热厂', flow.fissionRate], ['泰坦气云采集站', flow.titancloudRate], ['太阳帆', flow.sunSailRate]
+      [buildingName('hydroturbine', '热液汽轮机'), flow.turbineRate],
+      [tr('wonder.high_pressure_thermal_pipe.name', null, '高压热机管道'), flow.pressRate],
+      [buildingName('fissionplant', '核热厂'), flow.fissionRate],
+      [buildingName('titan_cloud_harvester', '泰坦气云采集站'), flow.titancloudRate],
+      [tr('village.launch.target.solar_sails.name', null, '太阳帆'), flow.sunSailRate]
     ].filter(function (item) { return item[1] > 0.005; }).map(function (item) {
-      return item[0] + ' +' + item[1].toFixed(1) + '/秒';
+      return tr('environment.hydro.flow_item', { systemName: item[0], flowSign: '+', rate: item[1].toFixed(1) }, '{systemName} {flowSign}{rate}/秒');
     });
     /* 取用方清单：ERA10（2026-10-20）补齐此前漏列的四路 —— 机器人充能站 / 欧罗巴发射场 /
      *   星球重构机 / 朱庇特质量加速站。它们**本来就在** hydroAlloc 里扣流（所以「已用/余流」总数
      *   一直是对的），只是这一行清单没列出来 ⇒ 玩家看到供给被分配，清单里却找不到是谁吃的。 */
     var consumers = [
-      ['工坊', flow.shopRate], ['天穹钻机', flow.skyRate], ['自动化钻探', flow.drillRate],
-      ['空间站', flow.stationRate], ['生物材料研究所', flow.labRate],
-      ['工业机器人', flow.robotRate], ['机器人充能站', flow.robotbayRate], ['魔鱼世界VR', flow.vrRate],
+      [buildingName('workshop', '工坊'), flow.shopRate], [tr('wonder.skydrill.name', null, '天穹钻机'), flow.skyRate],
+      [tr('automation.autodrill.name', null, '自动化钻探'), flow.drillRate],
+      [buildingName('spacestation', '空间站'), flow.stationRate],
+      [tr('building.biomaterials_research_institute.name', null, '生物材料研究所'), flow.labRate],
+      [tr('content.upg_indrobot.name', null, '工业机器人'), flow.robotRate], [buildingName('robotbay', '机器人充能站'), flow.robotbayRate],
+      [tr('wonder.fish_vr.name', null, '魔鱼世界 VR'), flow.vrRate],
       /* ERA10 市政（2026-10-20）：这里吃的是**三座发射场合计**耗流（欧罗巴 + 泰拉星 + 瑞亚星），
        * 标签必须跟着改——写成「欧罗巴发射场」会让玩家以为多建的两座不耗能。 */
-      ['发射场（三座合计）', flow.europaRate], ['星球重构机', flow.geekRate], ['朱庇特质量加速站', flow.jupitorRate]
+      [tr('environment.hydro.consumer.launch_sites', { siteCount: 3 }, '发射场合计（{siteCount} 座）'), flow.europaRate],
+      [tr('wonder.geek.name', null, '星球重构机 G.E.E.K'), flow.geekRate],
+      [tr('wonder.jupiter_mass_accelerator.name', null, '朱庇特质量加速站'), flow.jupitorRate]
     ].filter(function (item) { return item[1] > 0.005; }).map(function (item) {
-      return item[0] + ' −' + item[1].toFixed(1) + '/秒';
+      return tr('environment.hydro.flow_item', { systemName: item[0], flowSign: '−', rate: item[1].toFixed(1) }, '{systemName} {flowSign}{rate}/秒');
     });
     var sourceLabel = el('hydroSources'), useLabel = el('hydroUses'), hint = el('hydroFlowHint');
-    if (sourceLabel) sourceLabel.textContent = sources.length ? sources.join(' · ') : '暂无供给来源';
-    if (useLabel) useLabel.textContent = consumers.length ? consumers.join(' · ') : '暂无设备取用';
+    if (sourceLabel) sourceLabel.textContent = sources.length ? sources.join(' · ') : tr('environment.hydro.sources.empty', null, '暂无供给来源');
+    if (useLabel) useLabel.textContent = consumers.length ? consumers.join(' · ') : tr('environment.hydro.uses.empty', null, '暂无设备取用');
     var shortages = [];
-    if (flow.shopNeed > flow.shopRate + 0.005) shortages.push('热液工坊：产钢降载，缺 ' + (flow.shopNeed - flow.shopRate).toFixed(1) + '/秒');
+    if (flow.shopNeed > flow.shopRate + 0.005) shortages.push(tr('environment.hydro.shortage.workshop', {
+      shortfallRate: (flow.shopNeed - flow.shopRate).toFixed(1)
+    }, '热液工坊：产钢降载，缺 {shortfallRate}/秒'));
     /* 钻机停摆按引擎给的子因分流：缺钻头不是「热液能缺口」，
      *   旧写法一律印「缺 N/秒」，玩家照它去升汽轮机永远没用（2026-10-29 玩家反馈）。 */
-    if (flow.skyStopWhy === 'bit') shortages.push('天穹钻机：停摆，缺共振钻头（与热液能无关）');
-    else if (flow.skyNeed > flow.skyRate + 0.005) shortages.push('天穹钻机：停摆，缺 ' + (flow.skyNeed - flow.skyRate).toFixed(1) + '/秒');
-    if (flow.europaNeed > flow.europaRate + 0.005) shortages.push('发射场（三座合计）：产线暂停，缺 ' + (flow.europaNeed - flow.europaRate).toFixed(1) + '/秒');
-    if (flow.geekNeed > flow.geekRate + 0.005) shortages.push('星球重构机 G.E.E.K：改造暂停，缺 ' + (flow.geekNeed - flow.geekRate).toFixed(1) + '/秒');
+    if (flow.skyStopWhy === 'bit') shortages.push(tr('environment.hydro.shortage.skydrill.drills', null, '天穹钻机：停摆，缺共振钻头（与热液能无关）'));
+    else if (flow.skyNeed > flow.skyRate + 0.005) shortages.push(tr('environment.hydro.shortage.skydrill', {
+      shortfallRate: (flow.skyNeed - flow.skyRate).toFixed(1)
+    }, '天穹钻机：停摆，缺 {shortfallRate}/秒'));
+    if (flow.europaNeed > flow.europaRate + 0.005) shortages.push(tr('environment.hydro.shortage.launch_sites', {
+      siteCount: 3, shortfallRate: (flow.europaNeed - flow.europaRate).toFixed(1)
+    }, '发射场合计（{siteCount} 座）：产线暂停，缺 {shortfallRate}/秒'));
+    if (flow.geekNeed > flow.geekRate + 0.005) shortages.push(tr('environment.hydro.shortage.geek', {
+      shortfallRate: (flow.geekNeed - flow.geekRate).toFixed(1)
+    }, '星球重构机 G.E.E.K：改造暂停，缺 {shortfallRate}/秒'));
     var shortageBox = el('hydroShortage'), shortageTitle = el('hydroShortageTitle'), shortageItems = el('hydroShortageItems');
     if (shortageBox) shortageBox.hidden = !inDeficit;
-    if (shortageTitle && inDeficit) shortageTitle.textContent = '热液能缺口 −' + Math.abs(balance).toFixed(1) + '/秒';
+    if (shortageTitle && inDeficit) shortageTitle.textContent = tr('environment.hydro.deficit', {
+      deficitRate: Math.abs(balance).toFixed(1)
+    }, '热液能缺口 −{deficitRate}/秒');
     if (shortageItems && inDeficit) shortageItems.textContent = shortages.length
       ? shortages.join(' · ')
-      : '当前无满供即停摆设备；其余负载按优先级限流。';
+      : tr('environment.hydro.shortage.priority_throttle', null, '当前无满供即停摆设备；其余负载按优先级限流。');
     if (hint) hint.textContent = inDeficit
-      ? '补足供给后，停摆设备会自动恢复；净余量按总供给 − 总需求计算。'
-      : supply > demand + 0.005 ? '余流 +' + (supply - demand).toFixed(1) + '/秒，不会累积到下一秒'
-        : '供需平衡；热液能不会存入库存';
+      ? tr('environment.hydro.shortage.auto_resume', null, '补足供给后，停摆设备会自动恢复；净余量按总供给 − 总需求计算。')
+      : supply > demand + 0.005 ? tr('environment.hydro.surplus', {
+        surplusRate: (supply - demand).toFixed(1)
+      }, '余流 +{surplusRate}/秒，不会累积到下一秒')
+        : tr('environment.hydro.status.balanced', null, '供需平衡；热液能不会存入库存');
   }
 
   /* ── 宗教命名框（2026-09-29）────────────────────────────────────
@@ -525,20 +610,22 @@
     box.style.display = '';
     /* ERA9 虚境信仰卡装填后：信仰更名「虚境」并锁死（覆盖玩家自定义名，输入框禁用 + 提示）。 */
     var locked = !!(SB.civic && SB.civic.faithNameLocked && SB.civic.faithNameLocked(s));
-    var sig = locked ? 'open-locked' : 'open';
+    var sig = (locked ? 'open-locked' : 'open') + '|' + activeLocale();
     if (relSig !== sig) {
       relSig = sig;
       var nm = SB.civic && SB.civic.faithDisplayName ? SB.civic.faithDisplayName(s) : ((s.religionName || '').trim());
       if (locked) {
-        box.innerHTML = '<div class="nm">你的信仰</div>' +
+        box.innerHTML = '<div class="nm">' + tr('ui.faith.panel.your_faith.label', null, '你的信仰') + '</div>' +
           '<input class="relname locked" data-religion="1" type="text" maxlength="16" value="' +
             nm.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" disabled>' +
-          '<div class="ds">信仰已更名为「<b>虚境</b>」并<b>锁死</b>（虚境信仰永恒锚定，不可更改）。</div>';
+          '<div class="ds">' + tr('ui.faith.name.named_locked', { playerFaithName: nm }, '当前信仰名称：{playerFaithName}。虚境信仰已永久锚定，无法更改。') + '</div>';
       } else {
-        box.innerHTML = '<div class="nm">你的信仰</div>' +
-          '<input class="relname" data-religion="1" type="text" maxlength="16" placeholder="给信仰起个名字…"' +
+        box.innerHTML = '<div class="nm">' + tr('ui.faith.panel.your_faith.label', null, '你的信仰') + '</div>' +
+          '<input class="relname" data-religion="1" type="text" maxlength="16" placeholder="' +
+            tr('environment.faith_name.placeholder', null, '给信仰起个名字…') + '"' +
           (nm ? ' value="' + nm.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"' : '') + '>' +
-          '<div class="ds">这个名字会显示在你的信仰资源上。改名随时可改，无消耗。</div>';
+          '<div class="ds">' + tr('environment.faith_name.description', null,
+            '这个名字会显示在你的信仰资源上。改名随时可改，无消耗。') + '</div>';
       }
     }
   }
@@ -560,13 +647,16 @@
       return;
     }
     box.style.display = '';
-    if (habSig !== 'open') {
-      habSig = 'open';
+    var currentHabSig = 'open|' + activeLocale();
+    if (habSig !== currentHabSig) {
+      habSig = currentHabSig;
       var nm = (s.habitatName || '').trim();
-      box.innerHTML = '<div class="nm">你的国度</div>' +
-        '<input class="relname" data-habitat="1" type="text" maxlength="16" placeholder="给你的国度起个名字…"' +
+      box.innerHTML = '<div class="nm">' + tr('environment.realm_name.heading', null, '你的国度') + '</div>' +
+        '<input class="relname" data-habitat="1" type="text" maxlength="16" placeholder="' +
+        tr('environment.habitat_name.placeholder', null, '给你的国度起个名字…') + '"' +
         (nm ? ' value="' + nm.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"' : '') + '>' +
-        '<div class="ds">名字会显示在巢穴页签与标题上，本轮回有效、轮回后重新起。改名随时可改，无消耗。</div>';
+        '<div class="ds">' + tr('environment.realm_name.description', null,
+          '名字会显示在巢穴页签与标题上，本轮回有效，轮回后重新起。改名随时可改，无消耗。') + '</div>';
     }
   }
   /* ── 水体污染面板（2026-11-02 · docs/challenge-ocean-pollution-design.md v11）────────
@@ -580,22 +670,38 @@
   var polSig = '';
   function pollutionEtaText(seconds) {
     seconds = Math.max(0, seconds);
-    if (seconds < 60) return '不足 1 分钟';
+    if (seconds < 60) return tr('environment.pollution.eta.under_minute', { minuteLimit: 1 }, '不足 {minuteLimit} 分钟');
     var minutes = Math.ceil(seconds / 60);
-    if (minutes < 60) return minutes + ' 分钟';
+    if (minutes < 60) return tr('environment.pollution.eta.minutes', { minutes: minutes }, '{minutes} 分钟');
     var hours = Math.floor(minutes / 60), remain = minutes % 60;
-    if (hours < 24) return hours + ' 小时' + (remain ? ' ' + remain + ' 分钟' : '');
+    if (hours < 24) return remain
+      ? tr('environment.pollution.eta.hours_minutes', { hours: hours, minutes: remain }, '{hours} 小时 {minutes} 分钟')
+      : tr('environment.pollution.eta.hours', { hours: hours }, '{hours} 小时');
     var days = Math.floor(hours / 24), remHours = hours % 24;
-    return days + ' 天' + (remHours ? ' ' + remHours + ' 小时' : '');
+    return remHours
+      ? tr('environment.pollution.eta.days_hours', { days: days, hours: remHours }, '{days} 天 {hours} 小时')
+      : tr('environment.pollution.eta.days', { days: days }, '{days} 天');
+  }
+  function pollutionStageName(index) {
+    var keys = [
+      'challenge.pollution_stage.clear_sea', 'challenge.pollution_stage.turbid_flow',
+      'challenge.pollution_stage.red_tide', 'challenge.pollution_stage.dead_zone',
+      'challenge.pollution_stage.blighted_deep'
+    ];
+    var fallback = ['澄海', '浊流', '赤潮', '死区', '腐渊'];
+    return tr(keys[index], null, fallback[index] || '');
   }
   function pollutionPercent(fraction) {
     return (Math.max(0, fraction) * 100).toFixed(2).replace(/\.?0+$/, '') + '%';
   }
   function pollutionForecastText(next, pollution, net) {
-    if (!next) return '已达最高阶段：生态产出与人口承受力都处于危险水平';
-    if (net > 0) return '按当前净增速，约 <b>' + pollutionEtaText((next.at - pollution) / net) + '</b>进入' + next.name;
-    if (net < 0) return '当前净化快于排放，污染存量正在回落';
-    return '当前排放与净化持平，污染存量暂时不变';
+    if (!next) return tr('environment.pollution.forecast.highest', null, '已达最高阶段：生态产出与人口承受力都处于危险水平');
+    var nextStage = pollutionStageName((CFG.POLLUTION.STAGES || []).indexOf(next));
+    if (net > 0) return tr('environment.pollution.forecast.rising', {
+      timeToNext: pollutionEtaText((next.at - pollution) / net), nextStage: nextStage
+    }, '按当前净增速，约 {timeToNext} 进入{nextStage}');
+    if (net < 0) return tr('environment.pollution.forecast.falling', null, '当前净化快于排放，污染存量正在回落');
+    return tr('environment.pollution.forecast.stable', null, '当前排放与净化持平，污染存量暂时不变');
   }
   function renderPollution(s) {
     var box = el('envPollution'); if (!box) return;
@@ -614,6 +720,8 @@
     idx = Math.max(0, Math.min(stages.length - 1, idx));
     var current = stages[idx] || {};
     var next = stages[idx + 1];
+    var stageName = pollutionStageName(idx);
+    var nextStageName = next ? pollutionStageName(idx + 1) : '';
     var pollution = Math.max(0, +s.pollution || 0);
     /* 环形进度 = 当前阶段起点 → 下一阶段起点；最高阶段封顶。 */
     var pct = 100;
@@ -626,21 +734,23 @@
     var sig = [idx, Math.round(src.emit * 100), Math.round(src.clean * 100),
       Math.round(src.cleanRate * 100), Math.round(src.turbine * 100), Math.round(src.other * 100),
       src.rateMul, src.canfillMul, deaths, cap, Math.round(burn * 10000), Math.round(pBase * 1000000),
-      st.happy, st.kelpMul, st.coralMul].join('|');
+      st.happy, st.kelpMul, st.coralMul, activeLocale()].join('|');
     if (sig === polSig) {
       /* 小数变化时只增量更新读数与环，不重建整块。 */
       var num = el('polNowNum'), nextNum = el('polNextNum'), progress = el('polProgressValue');
       var score = el('polScoreNow'), ring = el('polRing');
       var eta = el('polEta');
       if (num) num.textContent = fmt(pollution);
-      if (nextNum) nextNum.textContent = next ? fmt(Math.max(0, next.at - pollution)) : '最高阶段';
+      if (nextNum) nextNum.textContent = next ? fmt(Math.max(0, next.at - pollution)) : tr('environment.pollution.highest_stage.value', null, '最高阶段');
       if (progress) progress.textContent = Math.round(pct) + '%';
       if (score) score.textContent = fmt(pollution);
       if (eta && eta.innerHTML !== forecast) eta.innerHTML = forecast;
       if (ring) {
         ring.style.setProperty('--pol-progress', pct.toFixed(1) + '%');
         ring.setAttribute('aria-valuenow', String(Math.round(pct)));
-        ring.setAttribute('aria-valuetext', st.name + '阶段，污染存量 ' + fmt(pollution));
+        ring.setAttribute('aria-valuetext', tr('environment.pollution.progress.aria_value', {
+          stageName: stageName, pollutionStock: fmt(pollution)
+        }, '{stageName}阶段，污染存量 {pollutionStock}'));
       }
       return;
     }
@@ -649,51 +759,93 @@
     var stageColors = ['var(--green)', 'var(--cyan)', 'var(--amber)', '#ff8f4d', 'var(--red)'];
     box.style.setProperty('--pol-stage', stageColors[idx] || 'var(--cyan)');
     var debuff = [];
-    if (st.happy < 0) debuff.push('幸福 −' + Math.abs(st.happy));
-    if (st.kelpMul < 1) debuff.push('藻食 −' + Math.round((1 - st.kelpMul) * 100) + '%');
-    if (st.coralMul < 1) debuff.push('珊瑚 −' + Math.round((1 - st.coralMul) * 100) + '%');
-    if (pBase > 0) debuff.push('死亡概率 ' + pollutionPercent(pBase) + '/秒');
+    if (st.happy < 0) debuff.push({
+      text: tr('environment.pollution.effect.happiness', { happinessPenalty: Math.abs(st.happy) }, '幸福 −{happinessPenalty}')
+    });
+    if (st.kelpMul < 1) debuff.push({
+      text: tr('environment.pollution.effect.kelp', { kelpReduction: Math.round((1 - st.kelpMul) * 100) }, '藻食 −{kelpReduction}%')
+    });
+    if (st.coralMul < 1) debuff.push({
+      text: tr('environment.pollution.effect.coral', { coralReduction: Math.round((1 - st.coralMul) * 100) }, '珊瑚 −{coralReduction}%')
+    });
+    if (pBase > 0) debuff.push({
+      text: tr('environment.pollution.effect.death_risk', { deathProbability: pollutionPercent(pBase) }, '死亡概率 {deathProbability}/秒'),
+      title: tr('environment.pollution.death_risk.tooltip', { populationRolls: 1, maxDeathsPerTick: 1 },
+        '已计入医院与政策卡的减免。每个结算步对整个人口进行 {populationRolls} 次统一判定；每步最多死亡 {maxDeathsPerTick} 人。')
+    });
     var segments = '';
     for (var i = 0; i < stages.length; i++) {
       segments += '<i class="pol-stage-seg' + (i < idx ? ' done' : i === idx ? ' current' : '') + '" aria-hidden="true"></i>';
     }
     var modifiers = [];
-    if (src.rateMul < 1) modifiers.push('政策减排 −' + Math.round((1 - src.rateMul) * 100) + '%');
-    if (src.canfillMul < 1) modifiers.push('装罐填埋：汽轮机排放 −' + Math.round((1 - src.canfillMul) * 100) + '%');
+    if (src.rateMul < 1) modifiers.push(tr('environment.pollution.modifier.policy_reduction', {
+      reductionPercent: Math.round((1 - src.rateMul) * 100)
+    }, '政策减排 −{reductionPercent}%'));
+    if (src.canfillMul < 1) modifiers.push(tr('environment.pollution.modifier.canned_landfill', {
+      reductionPercent: Math.round((1 - src.canfillMul) * 100)
+    }, '装罐填埋：汽轮机排放 −{reductionPercent}%'));
     var netClass = src.net > 0 ? 'up' : src.net < 0 ? 'down' : '';
-    var deathTitle = '此概率已计入医院与政策卡减免；每个结算步对整个人口掷一次，最多死亡 1 人。';
+    var deathCount = Math.floor(deaths);
+    var burialText = overBurial > 0
+      ? tr('environment.pollution.burial.over_capacity', {
+        deathCount: deathCount, burialCapacity: cap, overCapacity: Math.floor(overBurial)
+      }, '污染死亡 {deathCount} 人 · 墓地安息位 {burialCapacity} · 超限 {overCapacity} 人')
+      : tr('environment.pollution.burial.within_capacity', {
+        deathCount: deathCount, burialCapacity: cap
+      }, '污染死亡 {deathCount} 人 · 墓地安息位 {burialCapacity}');
     var alert = idx >= 3
-      ? '<div class="pol-alert" role="status"><b>生态危急 · ' + st.name + '</b>　藻食与珊瑚产出大幅降低，污染死亡风险已启用' +
-        (pBase > 0 ? '（当前 ' + pollutionPercent(pBase) + '/秒）。' : '。') + '</div>'
+      ? '<div class="pol-alert" role="status"><b>' + tr(pBase > 0
+          ? 'environment.pollution.alert.risk_enabled' : 'environment.pollution.alert.risk_enabled_no_current_deaths', {
+            stageName: stageName, deathProbability: pollutionPercent(pBase)
+          }, pBase > 0
+            ? '生态危急 · {stageName}：藻食与珊瑚产出大幅降低，污染死亡风险已启用（当前 {deathProbability}/秒）。'
+            : '生态危急 · {stageName}：藻食与珊瑚产出大幅降低，污染死亡风险已启用。') + '</b></div>'
       : '';
     var html = '<section class="pollution-panel" aria-labelledby="polTitle">' +
       '<header class="pol-head"><div class="pol-title-group"><img class="pol-icon" src="assets/challenges/challenge-waterpollution-illustrated.webp" alt="" aria-hidden="true">' +
-      '<div><div class="pol-title" id="polTitle">海洋污染</div><div class="pol-sub">净污染存量 · 每秒变化</div></div></div>' +
-      '<span class="pol-stage"><i aria-hidden="true"></i>阶段 ' + idx + ' · ' + st.name + '</span></header>' +
-      '<div class="pol-hero"><div class="pol-ring" id="polRing" role="progressbar" aria-label="' + st.name + '阶段进度" aria-valuetext="' + st.name + '阶段，污染存量 ' + fmt(pollution) + '" aria-valuenow="' + Math.round(pct) + '" aria-valuemin="0" aria-valuemax="100" style="--pol-progress:' + pct.toFixed(1) + '%">' +
-      '<div class="pol-ring-core"><b id="polNowNum">' + fmt(pollution) + '</b><span>净污染存量</span></div></div>' +
-      '<div class="pol-progress-copy"><div class="pol-next-label">' + (next ? '距下一阶段 · ' + next.name : '已进入最高阶段') + '</div>' +
-      '<strong class="pol-next-value" id="polNextNum">' + (next ? fmt(Math.max(0, next.at - pollution)) : '最高阶段') + '</strong>' +
-      '<div class="pol-threshold">' + (next ? '阶段阈值 ' + fmt(current.at || 0) + ' → ' + fmt(next.at) : '腐渊 · 污染 ≥ ' + fmt(current.at || 0)) + '</div>' +
+      '<div><div class="pol-title" id="polTitle">' + tr('challenge.water_pollution.name', null, '水体污染') + '</div><div class="pol-sub">' + tr('environment.pollution.subtitle', null, '净污染存量 · 每秒变化') + '</div></div></div>' +
+      '<span class="pol-stage"><i aria-hidden="true"></i>' + tr('environment.pollution.stage.label', {
+        stageNumber: idx, stageName: stageName
+      }, '阶段 {stageNumber} · {stageName}') + '</span></header>' +
+      '<div class="pol-hero"><div class="pol-ring" id="polRing" role="progressbar" aria-label="' + tr('environment.pollution.progress.aria_label', { stageName: stageName }, '{stageName}阶段进度') + '" aria-valuetext="' + tr('environment.pollution.progress.aria_value', {
+        stageName: stageName, pollutionStock: fmt(pollution)
+      }, '{stageName}阶段，污染存量 {pollutionStock}') + '" aria-valuenow="' + Math.round(pct) + '" aria-valuemin="0" aria-valuemax="100" style="--pol-progress:' + pct.toFixed(1) + '%">' +
+      '<div class="pol-ring-core"><b id="polNowNum">' + fmt(pollution) + '</b><span>' + tr('environment.pollution.stock.label', null, '净污染存量') + '</span></div></div>' +
+      '<div class="pol-progress-copy"><div class="pol-next-label">' + (next
+        ? tr('environment.pollution.next_stage.label', { nextStage: nextStageName }, '距下一阶段 · {nextStage}')
+        : tr('environment.pollution.highest_stage.label', null, '已进入最高阶段')) + '</div>' +
+      '<strong class="pol-next-value" id="polNextNum">' + (next ? fmt(Math.max(0, next.at - pollution)) : tr('environment.pollution.highest_stage.value', null, '最高阶段')) + '</strong>' +
+      '<div class="pol-threshold">' + (next
+        ? tr('environment.pollution.threshold.next', { currentThreshold: fmt(current.at || 0), nextThreshold: fmt(next.at) }, '阶段阈值 {currentThreshold} → {nextThreshold}')
+        : tr('environment.pollution.threshold.highest', { threshold: fmt(current.at || 0) }, '腐渊 · 污染 ≥ {threshold}')) + '</div>' +
       '<div class="pol-stage-line" aria-hidden="true">' + segments + '</div>' +
-      '<div class="pol-progress-label"><span>' + st.name + '阶段进度</span><b id="polProgressValue">' + Math.round(pct) + '%</b></div>' +
+      '<div class="pol-progress-label"><span>' + tr('environment.pollution.progress.aria_label', { stageName: stageName }, '{stageName}阶段进度') + '</span><b id="polProgressValue">' + Math.round(pct) + '%</b></div>' +
       '<div class="pol-eta" id="polEta">' + forecast + '</div></div></div>' +
-      '<div class="pol-rates" aria-label="污染收支">' +
-      '<div class="pol-rate"><span>污染排放</span><b class="up">+' + fmt(src.emit) + '<small>/秒</small></b></div>' +
-      '<div class="pol-rate"><span>净化</span><b class="down">−' + fmt(src.clean) + '<small>/秒</small></b></div>' +
-      '<div class="pol-rate"><span>净变化</span><b class="' + netClass + '">' + (src.net > 0 ? '+' : src.net < 0 ? '−' : '') + fmt(Math.abs(src.net)) + '<small>/秒</small></b></div></div>' +
-      '<div class="pol-effects"><span class="pol-effects-label">当前影响</span>' +
+      '<div class="pol-rates" aria-label="' + tr('environment.pollution.rates.aria_label', null, '污染收支') + '">' +
+      '<div class="pol-rate"><span>' + tr('environment.pollution.rate.emissions.label', null, '污染排放') + '</span><b class="up">' + tr('environment.pollution.rate.value', { signedRate: '+' + fmt(src.emit) }, '{signedRate}/秒') + '</b></div>' +
+      '<div class="pol-rate"><span>' + tr('environment.pollution.rate.purification.label', null, '净化') + '</span><b class="down">' + tr('environment.pollution.rate.value', { signedRate: '−' + fmt(src.clean) }, '{signedRate}/秒') + '</b></div>' +
+      '<div class="pol-rate"><span>' + tr('environment.pollution.rate.net_change.label', null, '净变化') + '</span><b class="' + netClass + '">' + tr('environment.pollution.rate.value', {
+        signedRate: (src.net > 0 ? '+' : src.net < 0 ? '−' : '') + fmt(Math.abs(src.net))
+      }, '{signedRate}/秒') + '</b></div></div>' +
+      '<div class="pol-effects"><span class="pol-effects-label">' + tr('environment.pollution.effects.heading', null, '当前影响') + '</span>' +
       (debuff.length ? debuff.map(function (item) {
-        var title = item.indexOf('死亡概率 ') === 0 ? ' title="' + deathTitle + '"' : '';
-        return '<span class="pol-effect"' + title + '>' + item + '</span>';
-      }).join('') : '<span class="pol-effect neutral">暂无阶段惩罚</span>') + '</div>' + alert +
-      '<div class="pol-burial"><span>污染死亡 <b>' + deaths + '</b> 人 · 墓地安息位 <b>' + cap + '</b>' +
-      (overBurial ? ' <em>超限 ' + overBurial + ' 人</em>' : '') + '</span>' +
-      '<strong title="限额内每名死者增加 0.3% 幸福消耗，超限部分每人增加 3%；墓地扩建后按当前限额重算">幸福消耗 +' + Math.max(0, (burn - 1) * 100).toFixed(1) + '%</strong></div>' +
-      '<div class="pol-source"><div><b>热液能流</b><span>脏源排放 ' + fmt(src.emit) + '/秒 · 洁净源供给 ' + fmt(src.cleanRate) + '/秒</span></div>' +
-      '<div class="pol-source-detail">汽轮机 ' + fmt(src.turbine) + '/秒 · 其他脏源 ' + fmt(src.other) + '/秒' +
+        var title = item.title ? ' title="' + item.title + '"' : '';
+        return '<span class="pol-effect"' + title + '>' + item.text + '</span>';
+      }).join('') : '<span class="pol-effect neutral">' + tr('environment.pollution.effects.none', null, '暂无阶段惩罚') + '</span>') + '</div>' + alert +
+      '<div class="pol-burial"><span>' + burialText + '</span>' +
+      '<strong title="' + tr('environment.pollution.burial.tooltip', {
+        withinCapacityPenalty: pollutionPercent(CFG.POLLUTION.BURIAL.IN_CAP),
+        overCapacityPenalty: pollutionPercent(CFG.POLLUTION.BURIAL.OVER_CAP)
+      }, '限额内每名死者增加 {withinCapacityPenalty} 幸福消耗，超限部分每人增加 {overCapacityPenalty}；墓地扩建后按当前限额重算。') + '">' +
+      tr('environment.pollution.happiness_cost', { happinessIncrease: Math.max(0, (burn - 1) * 100).toFixed(1) }, '幸福消耗 +{happinessIncrease}%') + '</strong></div>' +
+      '<div class="pol-source"><div><b>' + tr('environment.hydro.title', null, '热液能流') + '</b><span>' +
+      tr('environment.pollution.source.polluting_emissions', { emissions: fmt(src.emit) }, '脏源排放 {emissions}/秒') + ' · ' +
+      tr('environment.pollution.source.clean_supply', { cleanSupply: fmt(src.cleanRate) }, '洁净源供给 {cleanSupply}/秒') + '</span></div>' +
+      '<div class="pol-source-detail">' + tr('environment.pollution.source.turbine_and_other', {
+        turbineSupply: fmt(src.turbine), otherEmissions: fmt(src.other)
+      }, '汽轮机 {turbineSupply}/秒 · 其他脏源 {otherEmissions}/秒') +
       (modifiers.length ? ' · ' + modifiers.join(' · ') : '') + '</div></div>' +
-      '<div class="pol-score"><span>若此刻完成戴森球 · 通关污染存量（越低越好）</span><b id="polScoreNow">' + fmt(pollution) + '</b></div></section>';
+      '<div class="pol-score"><span>' + tr('environment.pollution.score_if_clear_now', null, '若此刻完成戴森球 · 通关污染存量（越低越好）') + '</span><b id="polScoreNow">' + fmt(pollution) + '</b></div></section>';
     box.innerHTML = html;
   }
   parts.renderEnv = renderEnv;

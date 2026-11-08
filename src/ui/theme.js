@@ -156,6 +156,29 @@
       var t = event.target && event.target.closest ? event.target.closest('[data-ui-resolution]') : null;
       if (t) applyResolution(t.value, true);
     });
+
+    // ---- 大数字显示格式（紧凑 K/M/B/T ↔ 科学计数法；localStorage 跨周目保留，默认 compact） ----
+    var NF_KEY = 'shellbreak.numberFormat';
+    function currentNumberFormat() {
+      var stored = root.localStorage && root.localStorage.getItem(NF_KEY);
+      return (stored === 'sci') ? 'sci' : 'compact';
+    }
+    function setNumberFormatMode(mode, persist) {
+      mode = (mode === 'sci') ? 'sci' : 'compact';
+      if (SB.economy && SB.economy.setNumberFormat) SB.economy.setNumberFormat(mode);
+      if (persist && root.localStorage) { try { root.localStorage.setItem(NF_KEY, mode); } catch (e) {} }
+    }
+    var nf0 = currentNumberFormat();
+    setNumberFormatMode(nf0, false);
+    var nfSelect = root.document.querySelector('[data-ui-number-format]');
+    if (nfSelect) nfSelect.value = nf0;
+    root.document.addEventListener('change', function (event) {
+      var t = event.target && event.target.closest ? event.target.closest('[data-ui-number-format]') : null;
+      if (!t) return;
+      setNumberFormatMode(t.value, true);
+      // 立即刷新可见数字（顶栏存量/上限、成本等），不必等下一 tick
+      if (SB.ui && SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+    });
     function recomputeResolution() { applyResolution(currentResolution(), false); }
     root.addEventListener('resize', recomputeResolution);
     var orientQuery = root.matchMedia ? root.matchMedia('(orientation: landscape)') : null;

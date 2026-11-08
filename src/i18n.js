@@ -91,7 +91,7 @@
     return String(value || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
   }
   function buildingName(id, fallback) {
-    var name = snakeCase(id);
+    var name = String(id || '') === 'rheamine' ? 'rhea_mine' : snakeCase(id);
     return mappedName('building.' + name + '.name', fallback);
   }
   function zoneName(id, fallback) {

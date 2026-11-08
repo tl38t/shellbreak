@@ -965,6 +965,16 @@
     if (availableBuilding(s, 'hall') && !s.lvl.hall) return 'hall';
     /* 工坊是后续制作的系统入口；议事厅已建后优先补工坊，避免工艺链缺位。 */
     if (availableBuilding(s, 'workshop') && !s.lvl.workshop) return 'workshop';
+    /* 「三地发射网」的等级会在戴森球竣工瞬间冻结；三个发射场都要先升到 11 级，
+     * 否则竣工后再补等级也不能通过正式挑战判定。只选已解锁的目标，缺前置时继续常规科技链。 */
+    if (s.challenge && s.challenge.id === 'three_launch_sites' && !s.dysonDone &&
+        SB.economy && SB.economy.launchBids) {
+      var launchSiteIds = SB.economy.launchBids();
+      for (var lsi = 0; lsi < launchSiteIds.length; lsi++) {
+        var launchSiteId = launchSiteIds[lsi];
+        if ((s.lvl[launchSiteId] || 0) < 11 && availableBuilding(s, launchSiteId)) return launchSiteId;
+      }
+    }
     /* 《绝热材料》的尤里卡就是太阳帆数量。不能等通用「新建筑」回退队列碰巧轮到
      * 发射场；先建第一座欧罗巴/已解锁发射场，策略才能合法地产帆并开启戴森科技。 */
     var firstDysonPad = dysonLaunchTarget(s, goal);
@@ -1453,6 +1463,155 @@
     if (resource === 'kelp') return 'gather';
     return null;
   }
+  function faithGoalUsesResource(goal, civicGoal, resource) {
+    var techCondition = goal && goal.cond;
+    var civicCondition = civicGoal && civicGoal.boost;
+    return !!((techCondition && techCondition.r === resource) ||
+      (civicCondition && civicCondition.r === resource));
+  }
+  function faithGoalUsesJob(goal, civicGoal, job) {
+    var techCondition = goal && goal.cond;
+    var civicCondition = civicGoal && civicGoal.boost;
+    return !!((techCondition && techCondition.j === job) ||
+      (civicCondition && civicCondition.j === job));
+  }
+  function faithTenetScore(s, id, threshold, goal, civicGoal, rates) {
+    var jobs = s.jobs || {}, levels = s.lvl || {}, res = s.res || {};
+    var pop = Number(s.pop) || 0, cap = SB.economy.popCap(s);
+    var techsLeft = (SB.TECHS || []).filter(function (tech) {
+      return tech && !s.techs[tech.id] && tech.era <= (Number(s.era) || 0);
+    }).length;
+    var civicsLeft = (SB.CIVICS || []).filter(function (civic) {
+      return civic && !s.civics[civic.id] && (!civic.era || civic.era <= (Number(s.era) || 0)) &&
+        (!SB.civic.challengeAllows || SB.civic.challengeAllows(s, civic));
+    }).length;
+    var workshopActive = (levels.hydroshop || 0) > 0 || (levels.workshop || 0) > 0;
+    var wonderPending = !s.dysonDone && (SB.WONDERS || []).some(function (wonder) {
+      return wonder && !isOwned(s, wonder.id);
+    });
+    var lateFaithDraft = Number(threshold) >= 1000000000;
+    var jobInfo = {
+      gather: { resource: 'kelp', level: levels.kelp || 0 },
+      coralwright: { resource: 'coral', level: levels.coralpit || 0 },
+      quarrier: { resource: 'stone', level: levels.quarry || 0 },
+      miner: { resource: 'iron', level: levels.siltpit || 0 },
+      scholar: { resource: 'science', level: 0 },
+      scribe: { resource: 'culture', level: 0 },
+      merchant: { resource: 'luxury', level: levels.luxuryshop || 0 },
+      soldier: { resource: 'might', level: levels.barracks || 0 }
+    };
+    var professionIds = {
+      fertile_rite: 'gather', coral_labor: 'coralwright', stone_circle_rite: 'quarrier',
+      vein_covenant: 'miner', divine_doctrine: 'scholar', scripture_copying: 'scribe',
+      tithe_offering: 'merchant'
+    };
+    if (professionIds[id]) {
+      var job = professionIds[id], info = jobInfo[job], count = Number(jobs[job]) || 0;
+      var score = 8 + count * 3 + (info.level > 0 ? 8 : 0);
+      if (faithGoalUsesResource(goal, civicGoal, info.resource) || faithGoalUsesJob(goal, civicGoal, job) ||
+          (job === 'miner' && ['iron', 'silt', 'warmstone', 'titanium', 'uranium'].some(function (resource) {
+            return faithGoalUsesResource(goal, civicGoal, resource);
+          }))) score += 48;
+      if (job === 'gather') {
+        var foodRate = SB.economy.foodRate(s), foodUse = SB.economy.foodUse(s);
+        if (foodRate + 1e-9 < foodUse) score += 35;
+        var foodCap = SB.economy.capOf(s, 'kelp');
+        if (foodCap > 0 && (Number(res.kelp) || 0) < foodCap * 0.25) score += 24;
+      } else {
+        var resource = info.resource, storageCap = SB.economy.capOf(s, resource);
+        if ((Number(rates[resource]) || 0) < 0) score += 18;
+        if (storageCap > 0 && (Number(res[resource]) || 0) < storageCap * 0.25) score += 10;
+      }
+      if (job === 'miner' && (levels.biolab || 0) + (levels.biomatlab || 0) > 0) score += 12;
+      if (job === 'scholar' && goal && goal.tech) score += 12;
+      if (job === 'scribe' && civicGoal) score += 12;
+      if (job === 'soldier' && !levels.barracks) score -= 18;
+      return score;
+    }
+    switch (id) {
+      case 'sanctuary_protection':
+        return lateFaithDraft ? 12 : 92 + ((SB.economy.faithRate && SB.economy.faithRate(s) > 0) ? 8 : 0);
+      case 'workshop_ethic':
+        return 12 + (Number(levels.temple) || 0) * 5 + (workshopActive ? 12 : 0);
+      case 'nourish_world':
+        return (cap > 0 && pop >= cap - 2 ? 78 : 12) +
+          (civicGoal && civicGoal.boost && civicGoal.boost.t === 'pop' ? 35 : 0);
+      case 'scripture_legacy':
+        return 18 + (civicGoal ? 20 : 0) + Math.min(24, civicsLeft * 2);
+      case 'school_of_revelation':
+        return 18 + (goal && goal.tech ? 24 : 0) + Math.min(24, techsLeft * 2);
+      case 'winter_watch':
+        return (SB.economy.isCold(s) && s.techs && s.techs.thermal ? 62 : 5) +
+          ((Number(rates.warmstone) || 0) < 0 ? 18 : 0);
+      case 'church_alms':
+        return (SB.economy.luxuryUse && SB.economy.luxuryUse(s) > 0 ? 35 : 8) +
+          ((Number(rates.luxury) || 0) < 0 ? 18 : 0);
+      case 'ancient_covenant':
+        return s.challenge ? 8 : 22;
+      case 'shellbreaking_covenant':
+        return !s.broken ? 76 + ((s.wonders && s.wonders.wonder_skydrill) ? 14 : 0) : 4;
+      case 'furnace_hymn':
+        return (levels.furnace > 0 ? 46 : 5) +
+          (faithGoalUsesResource(goal, civicGoal, 'iron') || (Number(rates.iron) || 0) < 0 ? 26 : 0);
+      case 'furnace_tithe_rule':
+        return (levels.furnace > 0 ? 44 : 5) +
+          ((Number(rates.silt) || 0) < 0 || faithGoalUsesResource(goal, civicGoal, 'iron') ? 24 : 0);
+      case 'iron_altar':
+        return (levels.hydroshop > 0 ? 46 : 6) +
+          (faithGoalUsesResource(goal, civicGoal, 'steel') || (Number(rates.steel) || 0) < 0 ? 24 : 0);
+      case 'star_forge_offering':
+        return (levels.biomatlab > 0 ? 70 : 8) +
+          (goal && goal.cond && goal.cond.r === 'thetaMetal' ? 24 : 0) + (wonderPending ? 12 : 0);
+      case 'turbine_psalm':
+        return (levels.hydroturbine > 0 ? 52 : 6) +
+          ((Number(rates.hydroSupply) || 0) <= 0 && levels.hydroturbine > 0 ? 18 : 0);
+      case 'artisan_guild':
+        return workshopActive ? 34 : 10;
+      case 'material_exemption':
+        return s.dysonDone ? 12 : 72;
+      case 'scholasticism':
+        return s.dysonDone ? 12 : 62 + (goal && goal.tech ? 18 : 0);
+      case 'church_codex':
+        return s.dysonDone ? 12 : 58 + (civicGoal ? 20 : 0);
+      case 'sacred_monument':
+        return wonderPending ? 84 : 10;
+      case 'faith_guard':
+        return (Number(jobs.soldier) || 0) > 0 ? 45 : 6;
+      case 'holy_see_edict':
+        return (Number(s.militaryScale) || 0) > 0 ? 38 : 5;
+      case 'expedition_blessing':
+        return (Number(s.militaryScale) || 0) > 0 ? 36 : 4;
+      case 'martyr_oath':
+      case 'triumph_hymn':
+        return (Number(s.militaryScale) || 0) > 0 ? 30 : 3;
+      default:
+        return 0;
+    }
+  }
+  function chooseFaithTenets(s, goal, civicGoal) {
+    if (!SB.faith || !SB.faith.syncRun || !SB.faith.choose)
+      return { changed: false, selections: [] };
+    var changed = SB.faith.syncRun(s), selections = [];
+    var rates = SB.economy && SB.economy.rates ? SB.economy.rates(s) : {};
+    var drafts = (s.faithTenetDrafts || []).slice().sort(function (a, b) {
+      return (Number(a && a.threshold) || 0) - (Number(b && b.threshold) || 0);
+    });
+    for (var i = 0; i < drafts.length; i++) {
+      var draft = drafts[i];
+      if (!draft || draft.chosen || !Array.isArray(draft.options) || !draft.options.length) continue;
+      var bestId = null, bestScore = -Infinity;
+      for (var j = 0; j < draft.options.length; j++) {
+        var id = draft.options[j];
+        var score = faithTenetScore(s, id, draft.threshold, goal, civicGoal, rates);
+        if (score > bestScore) { bestId = id; bestScore = score; }
+      }
+      if (bestId && SB.faith.choose(s, draft.threshold, bestId)) {
+        changed = true;
+        selections.push({ threshold: Number(draft.threshold) || 0, id: bestId });
+      }
+    }
+    return { changed: changed, selections: selections };
+  }
   function nextScienceCost(s, goal) {
     var ordered = [], seen = [];
     function add(id) {
@@ -1655,6 +1814,8 @@
     if (neededScienceCost && (s.res.science || 0) < neededScienceCost)
       weights.scholar = Math.max(weights.scholar, 0.90);
     var civicCost = nextCivicCost(s), civicGoal = nextCivicGoal(s), civicBoost = civicGoal && civicGoal.boost;
+    var faithSelection = chooseFaithTenets(s, goal, civicGoal);
+    if (faithSelection.changed) { changed = true; actions += faithSelection.selections.length || 1; }
     if (civicBoost && civicBoost.t === 'pop' && !SB.civic.boostMet(s, civicGoal))
       options = Object.assign({}, options, { targetPopulation: Math.max(options.targetPopulation || 0, civicBoost.n) });
     if (civicCost && (s.res.culture || 0) < civicCost) weights.scribe = Math.max(weights.scribe, 0.52);
@@ -2711,6 +2872,11 @@
     if ((s.hydroshopStop || 0) < finalShopStop) { s.hydroshopStop = finalShopStop; changed = true; actions++; }
     if (changed && SB.game.markDirty) SB.game.markDirty();
     return { changed: changed, actions: actions, goal: goal.id || null, condition: cond && cond.t || null,
+      faithTenetSelections: faithSelection.selections,
+      faithTenets: (s.faithTenets || []).slice(),
+      faithTenetDrafts: (s.faithTenetDrafts || []).map(function (draft) {
+        return { threshold: Number(draft.threshold) || 0, options: (draft.options || []).slice(), chosen: draft.chosen || null };
+      }),
       thetaProduction: thetaPlan,
       thetaDemandActive: thetaProductionPriority,
       thetaBoostCard: thetaBoostCardId,
@@ -2794,7 +2960,7 @@
       build: nextBuild || null, wonder: nextWonder || null };
   }
 
-  SB.aiStrategy = { version: 107, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
+  SB.aiStrategy = { version: 108, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
     markVoidEndingRun: markVoidEndingRun,
     isVoidEndingRun: isVoidEndingRun,
     drillStockTarget: drillStockTarget };

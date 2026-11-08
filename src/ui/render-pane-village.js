@@ -14,6 +14,9 @@
   function zoneName(id, fallback) {
     return SB.i18n && SB.i18n.zoneName ? SB.i18n.zoneName(id, fallback) : fallback;
   }
+  function resourceName(id, fallback) {
+    return SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(id, fallback) : fallback;
+  }
   function htmlText(value) {
     return String(value == null ? '' : value).replace(/[&<>\"']/g, function (ch) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' })[ch];
@@ -91,11 +94,16 @@
     var kelpBuilding = SB.habitat.buildingById('kelp') || {};
     var coralCost = nestBuilding.cost && nestBuilding.cost.coral || 0;
     var kelpCost = kelpBuilding.cost && kelpBuilding.cost.kelp || 0;
-    var startingCap = SB.BLD.houseBase || startupPopulation;
+    /* 2026-11-07：开局人口上限必须与 economy.popCap 同源。旧写法取 houseBase=1，
+     * 挑战奖励生效时教程会变成「开局 6 人…人口上限 1 → 3」，与族民页的 6 / 6 打架。
+     * 这里只算**裸开局**上限（houseBase + 挑战奖励增量），不带玩家后来盖的房 ——
+     * 这句文案讲的是开局路径，不是当前状态；增量读的是同一个 startingPopulation()。 */
+    var startingCap = (SB.BLD.houseBase || 0) + (startupPopulation - SB.CFG.POP_START);
     var startupHint = tr('village.startup.housing_food_hint', {
       startingPopulation: startupPopulation, passiveIncome: 0, coralCost: coralCost,
       oldPopulationCap: startingCap, newPopulationCap: startingCap + (SB.BLD.house || 0), kelpCost: kelpCost
-    }, '开局 1 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢（人口上限 1 → 3），再攒 15 藻食建深海菌圃让口粮跟上。');
+    }, '开局 ' + startupPopulation + ' 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢（人口上限 ' +
+      startingCap + ' → ' + (startingCap + (SB.BLD.house || 0)) + '），再攒 15 藻食建深海菌圃让口粮跟上。');
     var growthHint = tr('village.population.growth.kelp_threshold', { kelpThreshold: SB.CFG.GROW_KEEP },
       '人口要涨得同时满足两条：住房没住满，且藻食高于 ' + SB.CFG.GROW_KEEP + '（低于此值会一直停摆）。');
     h += '<div class="row gather-row"><div><div class="nm">' + htmlText(tr('village.gather.manual.heading', null, '手动采集')) + _acTag + '</div>' +
@@ -236,7 +244,7 @@
             ' data-track="bld:' + b.id + '" aria-pressed="' + (_ton ? 'true' : 'false') + '"' +
             ' title="' + htmlText(tr(_ton ? 'village.building.track.tracked.tooltip' : 'village.building.track.action.tooltip', null,
               _ton ? '已追踪：材料够了会在屏幕角落提示，点提示框可直接跳回来' : '追踪这个建筑：材料够了在屏幕角落提示你')) + '">' +
-            htmlText(tr(_ton ? 'village.building.track.tracked.button' : 'village.building.track.action.button', null, _ton ? '已追踪' : '追踪')) + '</button>';
+            htmlText(tr(_ton ? 'ui.track_dock.button.stop_tracking' : 'village.building.track.action.button', null, _ton ? '停止追踪' : '追踪')) + '</button>';
         }
         /* 区域建筑自动建造/升级开关：权限由已完成市政的 autoBuildZones 决定，
          * 生息区归封建主义、贸易区域归重商主义；仍复用 s.autoUpg 与 data-auto。 */
@@ -264,10 +272,10 @@
         if (b.id === 'furnace' && lv > 0) {
           var _frun = Math.max(0, lv - Math.max(0, s.furnaceStop || 0));
           furnBtn = '<span class="furnctl' + (_frun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-furnace-dec="1" title="少开一座"' +
+            '<button class="fbtn" data-furnace-dec="1" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_frun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _frun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-furnace-inc="1" title="多开一座"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _frun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-furnace-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_frun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* 金属 + 暖石 两样都标（2026-10-17）：原来只标暖石，玩家会以为炉子只烧石头。 */
             SB.ui.drawTag(s, 'furnace') +
@@ -287,14 +295,14 @@
           if (_spAuto) {
             var _spPct = lv > 0 ? Math.round(_sprun / lv * 100) : 0;
             var _spHydro = _sprun * (SB.UNIT.drillHydro || 0.3);
-            _spExtra = '<span class="fdraw" title="自动化钻探按运行矿坑占比增加钛与铀总产出">钛/铀总产出 +' +
-              _spPct + '% · 热液能 −' + _spHydro.toFixed(2) + '/秒</span>';
+            _spExtra = '<span class="fdraw" title="' + htmlText(tr('village.drilling.titanium_uranium.tooltip')) + '">' +
+              htmlText(tr('village.drilling.output_and_cost', { outputBonusPercent: _spPct, hydrothermalEnergyUse: _spHydro.toFixed(2) })) + '</span>';
           }
           siltpitBtn = '<span class="furnctl' + (_sprun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-siltpit-dec="1" title="停用一座矿坑"' +
+            '<button class="fbtn" data-siltpit-dec="1" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_sprun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _sprun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-siltpit-inc="1" title="启用一座矿坑"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _sprun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-siltpit-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_sprun >= lv ? ' disabled' : '') + '>＋</button>' + _spExtra +
             '</span>';
         }
@@ -303,12 +311,17 @@
           var _tvstop = Math.max(0, Math.min(lv, Math.floor(s.terraVatStop || 0)));
           var _tvrun = lv - _tvstop;
           terraVatBtn = '<span class="furnctl' + (_tvrun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-terra-vat-dec="1" title="停用一座水舱：立刻 −20 人口上限，超出的人口会陆续离开"' +
+            '<button class="fbtn" data-terra-vat-dec="1" title="' + htmlText(tr('village.terra_vat.disable.tooltip', { populationCapReduction: SB.BLD.terraVatPop || 20 })) + '"' +
             (_tvrun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _tvrun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-terra-vat-inc="1" title="启用一座水舱：+20 人口上限，每秒耗 100 热液能"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _tvrun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-terra-vat-inc="1" title="' + htmlText(tr('village.terra_vat.enable.tooltip', {
+              populationCapIncrease: SB.BLD.terraVatPop || 20,
+              hydrothermalEnergyCost: SB.BLD.terraVatHydro || 100
+            })) + '"' +
             (_tvrun >= lv ? ' disabled' : '') + '>＋</button>' +
-            '<span class="fdraw" title="先从星核炉芯池取能，池空后再用热液能流">需求 ' + (_tvrun * 100) + '/秒</span>' +
+            '<span class="fdraw" title="' + htmlText(tr('village.terra_vat.energy_source.tooltip')) + '">' + htmlText(tr('village.terra_vat.hydrothermal_demand.label', {
+              hydrothermalEnergyDemand: _tvrun * (SB.BLD.terraVatHydro || 100)
+            })) + '</span>' +
             '</span>';
         }
         /* 工坊「开几座」：基础工艺效率、工业机器人加成与耗流都按运行的工坊数量计算。 */
@@ -322,14 +335,14 @@
           if (s.upgrades && s.upgrades.upg_indrobot) {
             var _wsPct = lv > 0 ? Math.round(_wsrun / lv * 100) : 0;
             var _wsHydro = _wsrun * (SB.UNIT.robotHydro || 3);
-            _wsExtra = '<span class="fdraw" title="工业机器人按运行工坊占比增加工艺总产出">工艺总产出 +' +
-              _wsPct + '% · 热液能 −' + _wsHydro.toFixed(2) + '/秒</span>';
+            _wsExtra = '<span class="fdraw" title="' + htmlText(tr('village.workshop.robotics.tooltip')) + '">' +
+              htmlText(tr('village.workshop.output_and_cost', { outputBonusPercent: _wsPct, hydrothermalEnergyUse: _wsHydro.toFixed(2) })) + '</span>';
           }
           workshopBtn = '<span class="furnctl' + (_wsrun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-workshop-dec="1" title="停用一座工坊"' +
+            '<button class="fbtn" data-workshop-dec="1" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_wsrun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _wsrun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-workshop-inc="1" title="启用一座工坊"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _wsrun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-workshop-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_wsrun >= lv ? ' disabled' : '') + '>＋</button>' + _wsExtra +
             '</span>';
         }
@@ -341,10 +354,10 @@
         if (b.id === 'hydroturbine' && lv > 0) {
           var _trun = Math.max(0, lv - Math.max(0, s.turbineStop || 0));
           turbBtn = '<span class="furnctl' + (_trun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-turbine-dec="1" title="停一座"' +
+            '<button class="fbtn" data-turbine-dec="1" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_trun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _trun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-turbine-inc="1" title="开一座"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _trun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-turbine-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_trun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* 汽轮机只烧暖石，走同一条 drawTag（口径统一：以后它若多吃一样不用再改这里）。 */
             SB.ui.drawTag(s, 'hydroturbine') +
@@ -357,10 +370,10 @@
         if (b.id === 'hydroshop' && lv > 0) {
           var _srun = Math.max(0, lv - Math.max(0, s.hydroshopStop || 0));
           shopBtn = '<span class="furnctl' + (_srun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-shop-dec="1" title="停一座"' +
+            '<button class="fbtn" data-shop-dec="1" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_srun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _srun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-shop-inc="1" title="开一座"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _srun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-shop-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_srun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* 工坊原先一个消耗都没标（用户 2026-10-17 截图指出）：它吃 热液能 + 金属 两样。 */
             SB.ui.drawTag(s, 'hydroshop') +
@@ -373,10 +386,10 @@
         if (b.id === 'satellite' && lv > 0) {
           var _satrun = Math.max(0, lv - Math.max(0, s.satelliteStop || 0));
           satBtn = '<span class="furnctl' + (_satrun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-satellite-dec="1" title="少开一颗"' +
+            '<button class="fbtn" data-satellite-dec="1" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_satrun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _satrun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-satellite-inc="1" title="多开一颗"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _satrun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-satellite-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_satrun >= lv ? ' disabled' : '') + '>＋</button>' +
             /* ERA7（2026-10-18 · 用户纠正补）：卫星每级耗 1 热液能/秒，与空间站同口径，
              * 走 drawTag 显示总额（drawTag 读 BUILDING_CONSUME + consumeRates 同式）。 */
@@ -391,10 +404,10 @@
         if (b.id === 'spacestation' && lv > 0) {
           var _ssrun = Math.max(0, lv - Math.max(0, s.spacestationStop || 0));
           ssBtn = '<span class="furnctl' + (_ssrun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-spacestation-dec="1" title="停一座"' +
+            '<button class="fbtn" data-spacestation-dec="1" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_ssrun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _ssrun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-spacestation-inc="1" title="开一座"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _ssrun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-spacestation-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_ssrun >= lv ? ' disabled' : '') + '>＋</button>' +
             SB.ui.drawTag(s, 'spacestation') +
             '</span>';
@@ -404,10 +417,10 @@
         if (b.id === 'biomatlab' && lv > 0) {
           var _blrun = Math.max(0, lv - Math.max(0, s.biomatlabStop || 0));
           biomatlabBtn = '<span class="furnctl' + (_blrun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-biomatlab-dec="1" title="停一座"' +
+            '<button class="fbtn" data-biomatlab-dec="1" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_blrun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _blrun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-biomatlab-inc="1" title="开一座"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _blrun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-biomatlab-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_blrun >= lv ? ' disabled' : '') + '>＋</button>' +
             SB.ui.drawTag(s, 'biomatlab') + '</span>';
         }
@@ -424,19 +437,36 @@
           var _launchRun = SB.economy && SB.economy.launchActiveLvl
             ? SB.economy.launchActiveLvl(s, b.id) : lv;
           launchCtl = '<span class="furnctl launch-count' + (_launchRun > 0 ? ' on' : '') + '">' +
-            '<button class="fbtn" data-launch-dec="' + b.id + '" title="停用本场一级"' +
+            '<button class="fbtn" data-launch-dec="' + b.id + '" title="' + htmlText(tr('village.active_units.decrease_one')) + '"' +
             (_launchRun <= 0 ? ' disabled' : '') + '>−</button>' +
-            '<b class="fnum">开 ' + _launchRun + '/' + lv + '</b>' +
-            '<button class="fbtn" data-launch-inc="' + b.id + '" title="启用本场一级"' +
+            '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _launchRun, totalLevels: lv })) + '</b>' +
+            '<button class="fbtn" data-launch-inc="' + b.id + '" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_launchRun >= lv ? ' disabled' : '') + '>＋</button></span>';
         }
         if (b.launchpad && lv > 0 && s.techs && s.techs.adiabatic) {
           var _nodeOn = (s.launchMode === 'node');
+          var _launchUnit = SB.UNIT || {};
+          var _sailModeParams = {
+            uraniumRate: _launchUnit.launchSailUranium || 0.5,
+            strongPropellantRate: _launchUnit.launchSailStrongProp || 0.3,
+            adaptiveFilmRate: _launchUnit.launchSailThinafilm || 0.3,
+            hydrothermalRate: _launchUnit.launchSailHydro || 4
+          };
+          var _nodeModeParams = {
+            uraniumRate: _launchUnit.dysonNodeUranium || 5,
+            strongPropellantRate: _launchUnit.dysonNodeStrongProp || 3,
+            adaptiveFilmRate: _launchUnit.dysonNodeThinafilm || 3,
+            titaniumAlloyRate: _launchUnit.dysonNodeTiplate || 30,
+            hydrothermalRate: _launchUnit.dysonNodeHydro || 4
+          };
           elBtn = '<span class="furnctl launch-mode' + (_nodeOn ? ' on' : '') + '">' +
             '<button class="fbtn launch-mode-toggle" data-launch-mode="1" title="' +
-            (_nodeOn ? '点击切换到「太阳帆」（每级每秒耗铀 0.5、火箭引擎 0.3、θ金属薄膜 0.3、热液能 4；周期完成时按本场等级同时发射）'
-                     : '点击切换到「戴森球节点」（每级每秒耗铀 5、火箭引擎 3、θ金属薄膜 3、钛合金板 30、热液能 4；周期完成时按本场等级同时发射）') +
-            '"><span class="launch-mode-text">' + (_nodeOn ? '制造节点' : '制造太阳帆') + '</span>' +
+            htmlText(_nodeOn
+              ? tr('village.launch.mode.solar_sail.tooltip', _sailModeParams)
+              : tr('village.launch.mode.dyson_node.tooltip', _nodeModeParams)) +
+            '"><span class="launch-mode-text">' + htmlText(_nodeOn
+              ? tr('village.launch.target.dyson_nodes.name')
+              : tr('village.launch.target.solar_sails.name')) + '</span>' +
             '<span class="launch-mode-swap" aria-hidden="true">⇄</span></button></span>';
         }
         // 等级标签显式标注“等级”，避免孤立数字被误认成其他状态。
@@ -473,20 +503,31 @@
           var _lpPct = launchProgressPct(s, b.id);
           var _lpCosts = SB.economy && SB.economy.launchMaterialPer ? SB.economy.launchMaterialPer(s) : {};
           var _lpHydroPer = SB.economy && SB.economy.launchHydroPer ? SB.economy.launchHydroPer(s) : 4;
+          var _lpNames = {
+            uranium: resourceName('uranium', '铀'),
+            strongProp: resourceName('strongProp', '强工质火箭引擎'),
+            thinafilm: resourceName('thinafilm', 'θ金属自适应薄膜'),
+            tiplate: resourceName('tiplate', '钛合金板'),
+            hydro: resourceName('hydro', '热液能')
+          };
           var _lpCostRows = [
-            { key: 'uranium', short: '铀', full: '铀', per: _lpCosts.uranium || 0 },
-            { key: 'strongProp', short: '引擎', full: '强工质火箭引擎', per: _lpCosts.strongProp || 0 },
-            { key: 'thinafilm', short: 'θ薄膜', full: 'θ金属自适应薄膜', per: _lpCosts.thinafilm || 0 },
-            { key: 'tiplate', short: '钛板', full: '钛合金板', per: _lpCosts.tiplate || 0 },
-            { key: 'hydro', short: '热液能', full: '热液能', per: _lpHydroPer }
+            { key: 'uranium', name: _lpNames.uranium, per: _lpCosts.uranium || 0 },
+            { key: 'strongProp', name: _lpNames.strongProp, per: _lpCosts.strongProp || 0 },
+            { key: 'thinafilm', name: _lpNames.thinafilm, per: _lpCosts.thinafilm || 0 },
+            { key: 'tiplate', name: _lpNames.tiplate, per: _lpCosts.tiplate || 0 },
+            { key: 'hydro', name: _lpNames.hydro, per: _lpHydroPer }
           ];
           var _lpCostShort = [], _lpCostFull = [];
           for (var _lpc = 0; _lpc < _lpCostRows.length; _lpc++) {
             var _lpCost = _lpCostRows[_lpc];
             if (_lpCost.per <= 0) continue;
             var _lpTotal = _lpCost.per * _launchRun;
-            _lpCostShort.push(_lpCost.short + ' −' + _lpTotal.toFixed(2) + '/秒');
-            _lpCostFull.push(_lpCost.full + ' −' + _lpTotal.toFixed(2) + '/秒');
+            var _lpRate = tr('village.launch.resource_rate.item', {
+              resourceName: _lpCost.name,
+              resourceAmount: _lpTotal.toFixed(2)
+            });
+            _lpCostShort.push(_lpRate);
+            _lpCostFull.push(_lpRate);
           }
           /* ── 缺料 / 断流状态徽标（2026-10-28）──────────────────────────
            * 【为什么需要】三座发射场缺料时进度条就是不走，而「为什么」原本只写在
@@ -507,26 +548,32 @@
           var _lpSt = (SB.economy && SB.economy.launchStatus) ? SB.economy.launchStatus(s, b.id) : null;
           if (_lpSt && _lpSt.lack) {
             for (var _lpl = 0; _lpl < _lpCostRows.length; _lpl++) {
-              if (_lpCostRows[_lpl].key === _lpSt.lack) { _lpLackName = _lpCostRows[_lpl].short; break; }
+              if (_lpCostRows[_lpl].key === _lpSt.lack) { _lpLackName = _lpCostRows[_lpl].name; break; }
             }
             if (_lpLackName) {
               /* 发射场是**全有或全无**的门（够则满速、不够则整场停），所以恒为 is-stop；
                * 不给「开工 N%」——那是比例型建筑（工坊/研究所）的说法，用在这里就是撒谎。 */
-              _lpLackHTML = '<b class="lack-tag is-stop">缺' + _lpLackName + ' · 暂停</b>';
+              _lpLackHTML = '<b class="lack-tag is-stop">' + htmlText(tr('village.launch.resource_shortage.badge', { resourceName: _lpLackName })) + '</b>';
             }
           }
-          var _lpCostTitle = '本场当前启用等级的额定每秒需求；缺料或热液能不足时制造暂停：' + _lpCostFull.join(' · ');
-          if (_lpLackName) _lpCostTitle += '。当前状态：缺' + _lpLackName + '，本场已暂停，补足后自动继续';
-          var _lpCostHTML = '<span class="launch-consumption" title="' + _lpCostTitle + '">' + _lpCostShort.join(' · ') + '</span>';
-          launchProgressHTML = '<div class="launch-progress" id="launch-progress-' + b.id + '" data-launch-progress="' + b.id + '" title="本场按制造周期独立推进；停用时保留进度。' + _lpCostTitle + '" role="progressbar" aria-label="' +
-            (_lpNodeMode ? '戴森球节点' : '太阳帆') + '发射进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + _lpPct + '" data-pct="' + _lpPct + '">' +
-            '<span class="launch-progress-label">发射</span><div class="launch-progress-track"><i style="width:' + _lpPct + '%"></i></div>' +
+          var _lpCostTitle = tr('village.launch.resource_demand.tooltip', { resourceCostList: _lpCostFull.join(' · ') });
+          if (_lpLackName) _lpCostTitle += ' ' + tr('village.launch.resource_shortage.status', { missingResource: _lpLackName });
+          var _lpCostHTML = '<span class="launch-consumption" title="' + htmlText(_lpCostTitle) + '">' + htmlText(_lpCostShort.join(' · ')) + '</span>';
+          var _lpTargetName = tr(_lpNodeMode ? 'village.launch.target.dyson_nodes.name' : 'village.launch.target.solar_sails.name');
+          launchProgressHTML = '<div class="launch-progress" id="launch-progress-' + b.id + '" data-launch-progress="' + b.id + '" title="' + htmlText(tr('village.launch.progress.tooltip', { resourceDemandTooltip: _lpCostTitle })) + '" role="progressbar" aria-label="' +
+            htmlText(tr('village.launch.progress.aria_label', { launchTarget: _lpTargetName })) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + _lpPct + '" data-pct="' + _lpPct + '">' +
+            '<span class="launch-progress-label">' + htmlText(tr('village.launch.progress.label')) + '</span><div class="launch-progress-track"><i style="width:' + _lpPct + '%"></i></div>' +
             '<span class="launch-progress-value">' + _lpPct + '%</span>' + _lpCostHTML + '</div>';
         }
+        /* 角标必须包一层 wrapper：.bld-label 是「minmax(0,1fr) 64px」两列 grid，
+         * 直接塞第三个子元素会被 1fr 拉成整条横幅（本文件 :540-546 的既有病历）。 */
+        var _coTagHTML = (SB.ui.renderCommon && SB.ui.renderCommon.challengeTag)
+          ? SB.ui.renderCommon.challengeTag(s, b) : '';
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
           '" aria-haspopup="dialog" title="' + htmlText(tr('village.building.info.tooltip', { buildingName: dispName }, '查看' + dispName + '的效果与建造信息')) + '">' + htmlText(dispName) + '</button>' +
           ' <span class="tag" data-lv="' + b.id + '" title="' + htmlText(lvTitle) + '">' + htmlText(tr('village.building.level.label', { levelText: lvValueTxt }, '等级 ' + lvValueTxt)) + '</span>' +
+          (_coTagHTML ? '<span class="co-tag-wrap">' + _coTagHTML + '</span>' : '') +
           (elBtn ? '<span class="launch-mode-anchor">' + elBtn + '</span>' : '') +
           '</span><span class="bld-ops">' + _lpLackHTML + siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
           '<div class="ds">' + dispDesc + (blocked ? htmlText(tr('village.building.prerequisite.note', { requiredBuilding: neededName }, '（需先建成' + neededName + '）')) : '') +
@@ -544,7 +591,7 @@
         h += '<div class="bzone' + (SB.ui.render.isZoneFolded(z.id) ? ' folded' : '') +
           '" data-zone="' + z.id + '">' +
           '<div class="bztitle" data-zfold="' + z.id + '" style="--hc:' +
-          (SB.ui.render.zoneColor(z.id) || 'var(--dim)') + '" title="点击折叠 / 展开">' +
+          (SB.ui.render.zoneColor(z.id) || 'var(--dim)') + '" title="' + htmlText(tr('village.zone.collapse_expand.tooltip')) + '">' +
           '<span class="bzcv">▾</span>' + htmlText(zoneName(z.id, z.name)) + '</div>' +
           '<div class="bzbody">' + zRows + '</div></div>';
       }

@@ -37,6 +37,19 @@
   var rng = mulberry32(0x5E11B00D);
 
   function fmt(n) { return Math.round(n).toLocaleString('en-US'); }
+  function tr(key, params, fallback) {
+    var translated = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return translated || String(fallback == null ? '' : fallback).replace(/\{([A-Za-z0-9_]+)\}/g, function (match, name) {
+      return params && Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match;
+    });
+  }
+  function eventSlug(id) {
+    return String(id || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+  }
+  function eventName(id, fallback) {
+    var slug = eventSlug(id);
+    return tr('event.' + slug + '.name', null, fallback);
+  }
 
   /* ---- 事件定义表（共享骨架 + 各自奖励）----
    *   unlock(s) —— 解锁门槛（返回 bool）
@@ -53,7 +66,9 @@
       unlock: function (s) { return true; },
       reward: function (s, r) {
         var amt = Math.max(0, r.science) * 600;   // ≈10 游戏分钟科技点
-        return { res: { science: amt }, msg: '天壳震动：获得 ' + fmt(amt) + ' 科技点（约 10 分钟产出）。' };
+        return { res: { science: amt }, msg: tr('event.reward.sky_tremor', {
+          eventName: eventName('skyTremor', '天壳震动'), researchPoints: fmt(amt), productionWindowMinutes: 10
+        }, '{eventName}：获得 {researchPoints} 科技点（约 {productionWindowMinutes} 分钟产出）。') };
       }
     },
     {
@@ -67,7 +82,8 @@
         var stone = Math.max(0, r.stone) * 120;   // ≈2 分钟石头产出
         var silt = Math.max(0, r.silt) * 120;      // ≈2 分钟金属产出
         return { res: { stone: stone, silt: silt },
-          msg: '深海火喷泉：石头 +' + fmt(stone) + '，金属 +' + fmt(silt) + '。' };
+          msg: tr('event.reward.fire_vent', { eventName: eventName('fireVent', '深海火喷泉'), stoneAmount: fmt(stone), metalAmount: fmt(silt) },
+            '{eventName}：石头 +{stoneAmount}，金属 +{metalAmount}。') };
       }
     },
     {
@@ -80,7 +96,10 @@
       reward: function (s, r) {
         var faith = Math.max(0, r.faith) * 600;    // ≈10 分钟信仰产出
         return { res: { faith: faith }, buffMul: 0.10, buffSec: 30,
-          msg: '信仰显圣：信仰 +' + fmt(faith) + '，全产 +10%（30 秒）。' };
+          msg: tr('event.reward.faith_vision', {
+            eventName: eventName('faithVision', '信仰显圣'), faithAmount: fmt(faith),
+            globalProductionBonusPercent: 10, buffDurationSeconds: 30
+          }, '{eventName}：信仰 +{faithAmount}，全产 +{globalProductionBonusPercent}%（{buffDurationSeconds} 秒）。') };
       }
     },
     {
@@ -92,7 +111,9 @@
       unlock: function (s) { return !!(s.techs && s.techs.calendar && s.techs.tiddivine); },
       reward: function (s, r) {
         var culture = Math.max(0, r.culture) * 300; // ≈5 分钟市政点产出
-        return { res: { culture: culture }, msg: '潮信石：市政点 +' + fmt(culture) + '。' };
+        return { res: { culture: culture }, msg: tr('event.reward.tide_stone', {
+          eventName: eventName('tideStone', '潮信石'), civicPoints: fmt(culture)
+        }, '{eventName}：市政点 +{civicPoints}。') };
       }
     }
   ];
@@ -125,7 +146,8 @@
         for (i = 0; i < pool.length; i++) { pick -= pool[i].weight; if (pick <= 0) { chosen = pool[i]; break; } }
         active = { def: chosen, expireWall: now + WINDOW * 1000 };
         markDirty();
-        if (emit) emit(chosen.name + '：鲛人聚居地上演异象，点击拾取。');
+        if (emit) emit(tr('event.spawn.notification', { eventName: eventName(chosen.id, chosen.name) },
+          '「{eventName}」在鲛人聚居地出现异象，点击拾取奖励。'));
       }
     }
   }

@@ -44,6 +44,20 @@
   function el(id) { var d = doc(); return d ? d.getElementById(id) : null; }
   function run() { return (SB.game && SB.game.run) ? SB.game.run() : null; }
   function cls(node, s) { if (node && node.classList) node.classList.toggle('hidden', s); }
+  function formatFallback(value, params) {
+    return String(value == null ? '' : value).replace(/\{([A-Za-z0-9_]+)\}/g, function (match, name) {
+      return params && Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match;
+    });
+  }
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || formatFallback(fallback, params);
+  }
+  function resourceName(id, fallback) {
+    if (id === 'pop') return SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName('population', fallback) : fallback;
+    return SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(id, fallback) : fallback;
+  }
+  function infoParts() { return SB.ui && SB.ui.renderParts && SB.ui.renderParts.info || {}; }
   function esc(t) {
     return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -84,7 +98,7 @@
       }
       out.push({
         k: k,
-        name: k === 'pop' ? '人口' : ((SB.RESS && SB.RESS[k] && SB.RESS[k].name) || k),
+        name: resourceName(k, k === 'pop' ? '人口' : ((SB.RESS && SB.RESS[k] && SB.RESS[k].name) || k)),
         have: have,
         need: need,
         short: !(SB.economy && SB.economy.enough ? SB.economy.enough(have, need) : have >= need - 1e-9)
@@ -97,9 +111,14 @@
    * 不共用的话会出现「小框写砂矿坑、列表面写着鱼骨矿井」，玩家会当成两个东西。 */
   function bldName(s, b) {
     var name = b.name;
+    var info = infoParts();
+    if (SB.i18n && SB.i18n.buildingName) name = SB.i18n.buildingName(b.id, name);
     for (var i = 0; SB.UPGRADES && i < SB.UPGRADES.length; i++) {
       var u = SB.UPGRADES[i];
-      if (u.upgradesBuilding === b.id && s.upgrades && s.upgrades[u.id]) name = u.name;
+      if (u.upgradesBuilding === b.id && s.upgrades && s.upgrades[u.id]) {
+        name = info.localizedWorkshopItemName ? info.localizedWorkshopItemName('upgrade', u.id, u.name) :
+          (SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(u.id, u.name) : u.name);
+      }
     }
     return name;
   }
@@ -152,14 +171,19 @@
       if (SB.wonder.buildCostNeed) {
         var bneed = SB.wonder.buildCostNeed(s, id);
         if (bneed) {
+          var wonderInfoForCost = infoParts();
+          var buildingCostText = wonderInfoForCost.localizedWonderBuildCost
+            ? wonderInfoForCost.localizedWonderBuildCost(s, id) : SB.wonder.buildCostText(s, id);
           for (var bk in bneed) {
             var bhave = (s.lvl && s.lvl[bk]) || 0;
-            rowsW.push({ name: (SB.wonder.buildCostText(s, id) || bk), have: bhave, need: bneed[bk], short: bhave < bneed[bk] });
+            rowsW.push({ name: buildingCostText || bk, have: bhave, need: bneed[bk], short: bhave < bneed[bk] });
           }
         }
       }
+      var wonderTitle = SB.wonder.displayName(s, id), wonderInfo = infoParts();
+      if (wonderInfo.localizedWonderName) wonderTitle = wonderInfo.localizedWonderName(s, id, wonderTitle);
       return {
-        kind: kind, id: id, title: SB.wonder.displayName(s, id),
+        kind: kind, id: id, title: wonderTitle,
         rows: rowsW, ready: allOk(rowsW)
       };
     }
@@ -173,7 +197,11 @@
         if (why2 && /^需要先/.test(why2)) return null;     // 未解锁
       }
       var rowsC = costRows(s, c.in);
-      return { kind: kind, id: id, title: c.name, rows: rowsC, ready: allOk(rowsC) };
+      var craftInfo = infoParts();
+      var craftName = craftInfo.localizedWorkshopItemName
+        ? craftInfo.localizedWorkshopItemName('craft', c.id, c.name)
+        : (SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(c.id, c.name) : c.name);
+      return { kind: kind, id: id, title: craftName, rows: rowsC, ready: allOk(rowsC) };
     }
 
     /* ── 尤里卡 / 鼓舞 ──────────────────────────────────────────
@@ -206,10 +234,17 @@
       if (!sh) return null;                                /* condShort 对少数类型返回 null
                                                             * （default / 挑战忽略人口门槛时的 pop）
                                                             * ⇒ 宁可不出这一行，也不印一句假进度。 */
+      var targetTitle;
+      if (revealed) {
+        targetTitle = tr(isTech ? 'tech.' + id + '.name' : 'civic.data.' + id + '.name', null, def.name);
+      } else {
+        var nodeType = tr(isTech ? 'ui.research.type.technology' : 'ui.research.type.civics', null, isTech ? '科技' : '市政');
+        targetTitle = tr('tree.detail.unrevealed.title', { nodeType: nodeType }, '未揭露的' + nodeType);
+      }
+      var conditionType = tr(isTech ? 'ui.track_dock.target.eureka' : 'ui.track_dock.target.inspiration', null, isTech ? '尤里卡' : '鼓舞');
       return {
         kind: kind, id: id,
-        title: (isTech ? '尤里卡 · ' : '鼓舞 · ') +
-          (revealed ? def.name : (isTech ? '未揭露的科技' : '未揭露的市政')),
+        title: tr('ui.track_dock.title.condition', { conditionType: conditionType, targetTitle: targetTitle }, conditionType + ' · ' + targetTitle),
         rows: [{ txt: sh.txt, short: true }],
         ready: false
       };
@@ -287,15 +322,21 @@
       r = info.rows[i];
       if (r.k && r.short && crset[r.k]) {
         if (builtW) {
-          craftLinks.push('<a class="td-goto-craft" data-goto-craft="' + esc(r.k) + '" title="去工坊制作 ' + esc(r.name) + '">去制造 ' + esc(r.name) + '</a>');
+          craftLinks.push('<a class="td-goto-craft" data-goto-craft="' + esc(r.k) + '" title="' +
+            esc(tr('ui.track_dock.craft.goto.tooltip', { resourceName: r.name }, '去工坊制作 {resourceName}')) + '">' +
+            esc(tr('ui.track_dock.craft.goto.action', { resourceName: r.name }, '去制造 {resourceName}')) + '</a>');
         } else {
-          craftLinks.push('<span class="td-goto-craft is-locked" title="未建成工坊，无法前往制作">去制造 ' + esc(r.name) + '</span>');
+          craftLinks.push('<span class="td-goto-craft is-locked" title="' +
+            esc(tr('ui.track_dock.craft.locked.tooltip', null, '未建成工坊，无法前往制作')) + '">' +
+            esc(tr('ui.track_dock.craft.goto.action', { resourceName: r.name }, '去制造 {resourceName}')) + '</span>');
         }
       }
     }
-    var verb = (info.kind === 'bld' && info.lv > 0) ? '升级 ' : '';
-    var title = verb + info.title;
-    if (info.ready) title += ' · 可以' + (info.kind === 'craft' ? '制作' : '建造');
+    var title = (info.kind === 'bld' && info.lv > 0)
+      ? tr('ui.track_dock.title.build_upgrade', { targetName: info.title }, '升级 {targetName}')
+      : info.title;
+    if (info.ready) title += tr(info.kind === 'craft' ? 'ui.track_dock.status.ready_to_craft' : 'ui.track_dock.status.ready_to_build', null,
+      info.kind === 'craft' ? ' · 可以制作' : ' · 可以建造');
     return '<div class="td-row' + (info.ready ? ' is-ready' : '') + '" data-track-go="' + esc(item.key) + '">' +
       '<div class="td-row-main">' +
         '<span class="td-title">' + esc(title) + '</span>' +
@@ -303,7 +344,8 @@
         (craftLinks.length ? '<span class="td-craft">' + craftLinks.join('') + '</span>' : '') +
       '</div>' +
       '<button type="button" class="td-x" data-track-drop="' + esc(item.key) + '" ' +
-        'aria-label="取消追踪 ' + esc(title) + '" title="取消追踪">×</button>' +
+        'aria-label="' + esc(tr('ui.track_dock.button.stop_tracking.aria_label', { targetTitle: title }, '取消追踪 {targetTitle}')) + '"' +
+        ' title="' + esc(tr('ui.track_dock.button.stop_tracking', null, '取消追踪')) + '">×</button>' +
       '</div>';
   }
 
@@ -445,13 +487,16 @@
       var spec = ((nodes[i].dataset && nodes[i].dataset.trackToggle) || '').split(':');
       if (spec.length < 2) continue;
       var kind = spec[0], on = isTracked(kind, spec.slice(1).join(':'));
-      var what = kind === 'tech' ? '尤里卡' : kind === 'civic' ? '鼓舞' : '目标';
+      var what = tr(kind === 'tech' ? 'ui.track_dock.target.eureka' : kind === 'civic' ? 'ui.track_dock.target.inspiration' : 'ui.track_dock.target.generic', null,
+        kind === 'tech' ? '尤里卡' : kind === 'civic' ? '鼓舞' : '目标');
+      var label = tr(on ? 'ui.track_dock.toggle.stop' : 'ui.track_dock.toggle.track', { trackableType: what }, on ? '取消追踪{trackableType}' : '追踪{trackableType}');
       if (nodes[i].classList) nodes[i].classList.toggle('on', on);
       /* 树节点那颗是纯图标（★），详情面板那颗是有字的按钮 —— 只有后者要换文案。 */
       if (nodes[i].dataset && nodes[i].dataset.trackKind === 'btn') {
-        nodes[i].textContent = on ? '取消追踪' : '追踪' + what;
+        nodes[i].textContent = label;
       }
-      nodes[i].setAttribute('title', (on ? '取消追踪' : '追踪') + what);
+      nodes[i].setAttribute('title', label);
+      nodes[i].setAttribute('aria-label', label);
     }
   }
 

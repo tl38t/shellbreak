@@ -31,10 +31,34 @@
         { label: '第二档', cap: 0.40 },
         { label: '第三档', cap: 0.60 }
       ] },
-    { id: 'speedrun', name: '逐光竞速', icon: '⏱', badge: 'assets/challenges/challenge-speedrun.svg', kind: '三档限时挑战',
+    { id: 'speedrun', name: '逐光竞速', icon: '⏱', badge: 'assets/challenges/challenge-speedrun-illustrated.webp', kind: '三档限时挑战',
+      timed: true,
       summary: '与时间赛跑，在期限内完成《神学》并凿穿天壳；退出游戏后计时仍继续。',
       rule: '从开始挑战起按现实时间计时，离线时间也计入；超时后本轮不能领取竞速奖励。',
       rewards: ['永久全产出 +5%', '永久全产出 +10%', '永久全产出 +15%'],
+      tiers: [
+        { label: '16 小时档', cap: 16 * 60 * 60 },
+        { label: '8 小时档', cap: 8 * 60 * 60 },
+        { label: '4 小时档', cap: 4 * 60 * 60 }
+      ] },
+    /* 星海竞速（2026-11-07）：逐光竞速的终局延长版 —— 终点从「破壳」推到「戴森球竣工」。
+     * ⚠️ goal 型挑战不走 resolveRun 的超时分支（那段是破壳型专用 d.id === 'speedrun'），
+     *    所以限时判据统一收在 award() 的 `d.timed && timedOut(s)` 早退里；
+     *    goal 只写终点 { t:'dyson' }，三档时限由 tiers[].cap 经 timedOut() 通用求值 ——
+     *    把秒数写进 goal 就没法分档（goalMet 只收 s 和 goal，读不到当前档位）。
+     * ⚠️ 计时口径与竞速完全一致：startedAt 由 game.startRun 统一写 Date.now()，
+     *    elapsedSeconds 读现实秒、离线照计入；不引入第二套计时。
+     * ⚠️ 榜单（2026-11-07 于 996563 建，db 17618）：独立 `dysonrush` 榜，不复用 dyson
+     *    全局榜 —— 普通局也提交那条，挑战局带额外时限不可能更快，复用等于永远不上榜。
+     *    成绩取 s.wallT，与 fastest / dyson / void / drift 同一把尺子（不吃广告倍速）；
+     *    不按「剩余时间」排：三档上限不同，跨档没法比。 */
+    { id: 'dyson_rush', name: '星海竞速', icon: '⌛', badge: 'assets/challenges/challenge-speedrun.svg', kind: '三档限时挑战',
+      timed: true,
+      summary: '在计时归零前建成戴森球；退出游戏后计时仍继续。',
+      rule: '从开始挑战起按现实时间计时，离线时间也计入；超时后本档不能领取竞速奖励。',
+      rewards: ['永久全产出 +5%', '永久全产出 +10%', '永久全产出 +15%'],
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成飞升虚境亦算）',
+      rankKey: 'dysonrush', rankValue: function (s) { return s.wallT; },
       tiers: [
         { label: '16 小时档', cap: 16 * 60 * 60 },
         { label: '8 小时档', cap: 8 * 60 * 60 },
@@ -48,7 +72,8 @@
       goalText: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能',
       /* 2026-11-05：开启前置（不是「本轮限制」）。winter 的 reqs 是 blackhistory，
        *   而 blackhistory 的尤里卡是 cycle>=15（techs.js:950-952 / tech.js:333-336）。
-       *   cycle 只在 startRun 时 +1（game.js:159）⇒ 低周目进了挑战，本局再也涨不上去，
+       *   cycle 只在 prestige.doBreak 过资格门（已建《神学》）时 +1，startRun 只涨 runs
+       *   （2026-11-06 口径）⇒ 低轮回数进了挑战，本局再也涨不上去，
        *   整条《严冬计划》链研究不了、50 座行星发动机永远解锁不了。
        *   数字只在**这一处**写，门禁 / 卡片 / 确认面板 / 通知条全读它。 */
       prereq: { t: 'cycle', n: 15 },
@@ -67,7 +92,7 @@
      * ⚠️ 通用奖励「每档 +10% 轮回点获取」不在 reward 文案里（用户定案 R）：那是六项挑战
      *   共享的规则，由 prestige.breakReport 的 challengePointMul 统一给，写进单项文案会让人
      *   以为只有这项才给。 */
-    { id: 'waterpollution', name: '水体污染', icon: '☣', badge: 'assets/challenges/challenge-waterpollution.svg', kind: '单次挑战',
+    { id: 'waterpollution', name: '水体污染', icon: '☣', badge: 'assets/challenges/challenge-waterpollution-illustrated.webp', kind: '单次挑战',
       summary: '热液能产出即排污，五个阶段逐级侵蚀幸福、藻食与人口。',
       rule: '热液能建筑每秒排放与产出等值的污染（星屑树乘区不计）；污染达 1000 / 4 万 / 16 万 / 640 万依次进入浊流、赤潮、死区、腐渊，逐级扣幸福、削藻食与珊瑚，并按秒掷死亡；每名死者永久提高幸福消耗（墓地限额内 0.3%、超限 3%）。',
       reward: '永久星屑产出 +10% · 商人奢侈品产出 +50% · 初始人口 +2',
@@ -125,7 +150,7 @@
   /* ⚠️ 这个对象是**进度白名单**：`state-migrate` 与 `progress()` 都靠它兜底，新增挑战
    *   漏登记 ⇒ 老档读回来的 completed 里没有这个键 ⇒ tierDone 恒 0 ⇒ 每次进游戏都像没通过、
    *   重打还能再领一次奖（2026-11-02 加 waterpollution 时同步补上）。 */
-  function emptyProgress() { return { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false, waterpollution: false,
+  function emptyProgress() { return { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, dyson_rush: 0, drift_terra: false, waterpollution: false,
     anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0 } }; }
   function progress(meta) {
     var c = meta && meta.challenges && meta.challenges.completed;
@@ -175,7 +200,9 @@
     if (!d || s.challengeReleased) return false;
     s.challengeReleased = true;
     if (SB.game && SB.game.log)
-      SB.game.log('已解除「' + d.name + '」的限制，本局按正常规则继续（之后无法再打开）。');
+      SB.game.log(challengeTr('challenge.release.log', {
+        challengeName: challengeDisplayText(d, 'name')
+      }, '已解除「' + d.name + '」的限制，本局按正常规则继续（之后无法再打开）。'));
     return true;
   }
   function activeTier(s) {
@@ -240,8 +267,10 @@
   function jobLimitReason(s, job) {
     var cap = jobLimit(s, job), count = s && s.jobs ? (s.jobs[job] || 0) : 0;
     if (count < cap) return null;
-    var label = SB.folk && SB.folk.jobName ? SB.folk.jobName(s, job) : job === 'scholar' ? '学者' : '书手';
-    return '忽视科文挑战限制：' + label + '已达 ' + cap + ' 人上限';
+    var label = SB.folk && SB.folk.localizedJobName ? SB.folk.localizedJobName(s, job)
+      : SB.folk && SB.folk.jobName ? SB.folk.jobName(s, job) : job === 'scholar' ? '学者' : '书手';
+    return challengeTr('challenge.job_limit.reason', { jobName: label, cap: cap },
+      '忽视科文挑战限制：' + label + '已达 ' + cap + ' 人上限');
   }
   function jobLimitExceeded(s, capOverride) {
     var cap = capOverride === undefined ? jobLimit(s, 'scholar') : capOverride;
@@ -253,6 +282,10 @@
     if (done) m *= 1 + [0, 0.2, 0.4, 0.6][done];
     var speedDone = tierDone('speedrun', meta);
     if (speedDone) m *= 1 + [0, 0.05, 0.10, 0.15][speedDone];
+    /* 星海竞速奖励与逐光竞速同款、独立叠加（2026-11-07）：三档各 +5/10/15% 全产出。
+     * 不复用 speedDone 那一档账本 —— 两项挑战各有自己的 completed 计数。 */
+    var rushDone = tierDone('dyson_rush', meta);
+    if (rushDone) m *= 1 + [0, 0.05, 0.10, 0.15][rushDone];
     if (a && a.id === 'abyss') m *= 1 - activeTier(s).cap;
     return m;
   }
@@ -320,6 +353,11 @@
   function award(s, meta) {
     var ch = s && s.challenge, d = ch && BY_ID[ch.id];
     if (!d || !d.goal || s.challengeDone) return null;
+    /* 限时 goal 型（星海竞速）：超时即本档失败 —— 不发奖、不写账本、不上榜、不弹完成面板。
+     * ⚠️ 破壳型的超时在 resolveRun 里判（d.id === 'speedrun'），goal 型根本不走那段；
+     *    少了这一行，超时后 goalMet(dyson) 仍可能成立 ⇒ 玩家超时通关照样领奖。
+     *    判据与那处同源：tiers[当前档].cap，由 timedOut() 统一读。 */
+    if (d.timed && timedOut(s)) return null;
     var tier = Math.max(0, Math.min(d.tiers.length - 1, ch.tier | 0));
     var replay = ch.replay === true || tierDone(d.id, meta) >= d.tiers.length;
     if (replay) {
@@ -335,8 +373,10 @@
       /* ⛔ 不写 meta.challengePopupPending：那会重播四段分镜，并弹出「永久奖励已生效」——
        *   重复挑战根本没发奖，那句话是假的。 */
       if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
-      if (SB.game && SB.game.log)
-        SB.game.log('再次达成' + d.name + '：' + d.goalText + '。本局不重复发奖，成绩已提交排行榜。');
+      if (SB.game && SB.game.log) SB.game.log(challengeTr('challenge.award.replay_log', {
+        challengeName: challengeDisplayText(d, 'name'),
+        goalText: challengeDisplayText(d, 'goalText')
+      }, '再次达成' + d.name + '：' + d.goalText + '。本局不重复发奖；如有对应排行榜，则会更新成绩。'));
       return replayOutcome;
     }
     if (tier !== tierDone(d.id, meta) || !goalMet(s, d.goal)) return null;
@@ -356,7 +396,10 @@
      * 而 resumeRun 只在 seasonLengthsVersion 缺失时重算 ⇒ 寒流 600→300 这条奖励静默丢失
      * （2026-10-31 检查发现）。这一行是奖励入账的一部分，不是可选的保险。 */
     if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
-    if (SB.game && SB.game.log) SB.game.log(d.name + '挑战达成：' + d.goalText + '。永久奖励已生效。');
+    if (SB.game && SB.game.log) SB.game.log(challengeTr('challenge.award.success_log', {
+      challengeName: challengeDisplayText(d, 'name'),
+      goalText: challengeDisplayText(d, 'goalText')
+    }, d.name + '挑战达成：' + d.goalText + '。永久奖励已生效。'));
     return outcome;
   }
   /* 破壳瞬间的判定入口（2026-11-03）：由 shell.onShellZero 在壳归零那一刻调用。
@@ -375,9 +418,22 @@
     if (SB.state && SB.state.saveRun && SB.game && SB.game.run && SB.game.run() === s)
       SB.state.saveRun(SB.game.snapshot(s));
     if (SB.game && SB.game.log) {
-      SB.game.log(out.failed
-        ? out.name + '挑战未通关：已超过 ' + formatClock(out.limit) + '，本档奖励未领取。'
-        : out.name + '挑战达成：' + out.label + (out.replay ? '（重复挑战，仅刷新排行榜）。' : '，永久奖励已生效。'));
+      var def = BY_ID[out.id], challengeName = challengeDisplayText(def, 'name');
+      var message = out.failed
+        ? challengeTr('challenge.seal.failure_log', {
+            challengeName: challengeName,
+            limit: formatClock(out.limit)
+          }, out.name + '挑战未通关：已超过 ' + formatClock(out.limit) + '，本档奖励未领取。')
+        : out.replay
+          ? challengeTr('challenge.seal.replay_success_log', {
+              challengeName: challengeName,
+              tierName: challengeDisplayText(def, 'tierLabel', out.tier)
+            }, out.name + '挑战达成：' + out.label + '（重复挑战不再发奖；如有对应排行榜，则会更新成绩）。')
+          : challengeTr('challenge.seal.success_log', {
+              challengeName: challengeName,
+              tierName: challengeDisplayText(def, 'tierLabel', out.tier)
+            }, out.name + '挑战达成：' + out.label + '，永久奖励已生效。');
+      SB.game.log(message);
     }
     return out;
   }
@@ -403,19 +459,22 @@
     if (!(started > 0) || !isFinite(started)) return Infinity;
     return Math.max(0, (Date.now() - started) / 1000);
   }
+  /* 2026-11-07 泛化：判据从「id === speedrun」改为「定义带 timed」，让限时 goal 型
+   * （星海竞速）与破壳型（逐光竞速）共用同一套计时。⛔ 不能改成「tiers[].cap 是数字」——
+   * eternity_moment 的 cap 是 5/10/20 倍率，会被当成秒数立刻判超时。 */
   function remainingSeconds(s) {
-    var a = active(s), tier = activeTier(s);
-    if (!a || a.id !== 'speedrun' || !tier) return null;
+    var a = active(s), tier = activeTier(s), d = a && BY_ID[a.id];
+    if (!a || !d || !d.timed || !tier) return null;
     return Math.max(0, tier.cap - elapsedSeconds(s));
   }
   function timedOut(s) {
     var challenge = s && s.challenge, d = challenge && BY_ID[challenge.id];
-    if (!challenge || !d || d.id !== 'speedrun') return false;
+    if (!challenge || !d || !d.timed) return false;
     var tier = d.tiers[Math.max(0, Math.min(d.tiers.length - 1, challenge.tier | 0))];
     return elapsedSeconds(s) >= tier.cap;
   }
   function formatClock(seconds) {
-    if (!isFinite(seconds)) return '计时数据无效';
+    if (!isFinite(seconds)) return challengeTr('challenge.timer.invalid', {}, '计时数据无效');
     var whole = Math.max(0, Math.ceil(seconds));
     var hours = Math.floor(whole / 3600), minutes = Math.floor((whole % 3600) / 60), secs = whole % 60;
     return hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (secs < 10 ? '0' : '') + secs;
@@ -438,47 +497,74 @@
     var d = BY_ID[id];
     return !!d && tierDone(id, meta) >= d.tiers.length;
   }
-  /* ── 挑战开启前置（2026-11-05 · 流浪泰拉第 15 周目）────────────────────────
-   * ⚠️ 口径：点「结算并挑战」→ begin() 先 doBreak（不动 cycle）→ startRun()
-   *    meta.cycle++（game.js:159）⇒ 玩家**进局后**是 now+1；tech.condMet 的
-   *    case 'cycle' 读的就是那个值（tech.js:333-336）。门禁必须按 now+1 判，
-   *    写成 now>=15 会把第 14 周目（进局即达标）误挡在外面。
+  /* ── 挑战开启前置（2026-11-05 · 流浪泰拉第 15 次轮回）──────────────────────
+   * ⚠️ 口径（2026-11-06 改）：点「结算并挑战」→ begin() 先 doBreak → startRun()。
+   *    doBreak 只在**过资格门（已建《神学》）**时让 meta.cycle +1；未研究《神学》时走
+   *    locked 分支，cycle 不动。startRun 现在只涨 meta.runs（局数），不碰 cycle。
+   *    ⇒ 「进局后的轮回次数」= now + (本次会结算 ? 1 : 0)，不能再无条件 +1。
+   *    旧口径是「startRun 必 +1 ⇒ after = now+1」，cycle 收紧后那条推导已失效。
    * ⚠️ ok / lack 给「还没开始」的卡片与门禁用；inRunOk / lackInRun 给「进行中」
    *    的通知条用（那时 cycle 已经加过了，不能再 +1，否则面板会撒谎）。
+   * ⚠️ willBreak 是可选第三参：纯函数调用方（回归夹具）显式传 true/false，免得被当前
+   *    真实局的状态污染；不传时按当前局推算（!breakSettled && qualified）。
    * ⚠️ 只对 DEFINITIONS 里带 prereq 的挑战生效，其余十项一行都不碰。 */
-  function prereqState(id, meta) {
+  function willBreakFrom(s) {
+    return !!(s && !s.breakSettled && SB.prestige && SB.prestige.qualified && SB.prestige.qualified(s));
+  }
+  function prereqState(id, meta, willBreak) {
     var d = BY_ID[id], p = d && d.prereq;
     if (!p || p.t !== 'cycle') return null;
     var m = meta || (SB.game && SB.game.meta ? SB.game.meta() : null);
     var now = (m && Number(m.cycle)) || 0;
     var need = Number(p.n) || 0;
-    var after = now + 1;
+    if (willBreak === undefined) willBreak = willBreakFrom(SB.game && SB.game.run ? SB.game.run() : null);
+    var after = now + (willBreak ? 1 : 0);
     return { need: need, now: now, after: after,
       ok: after >= need, lack: Math.max(0, need - after),
       inRunOk: now >= need, lackInRun: Math.max(0, need - now) };
   }
-  function prereqText(id, meta) {
-    var st = prereqState(id, meta);
-    if (!st) return '';
-    if (st.ok) return '需达到第 ' + st.need + ' 周目：已满足（当前第 ' + st.now +
-      ' 周目，开始挑战后第 ' + st.after + ' 周目）。';
-    return '需达到第 ' + st.need + ' 周目（当前第 ' + st.now + ' 周目，开始挑战后第 ' +
-      st.after + ' 周目，还差 ' + st.lack + ' 周目）。周目不足时《严冬计划》科技链的' +
-      '前置《黑历史蓝图》不会揭露，本局无法通关。';
+  function challengeTr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params || {}) : '';
+    return value || fallback || '';
   }
-  function prereqOk(id, meta) {
-    var st = prereqState(id, meta);
+  function challengeDisplayText(def, field, tierIndex) {
+    var renderParts = SB.ui && SB.ui.renderParts;
+    if (renderParts && typeof renderParts.challengeDefinitionText === 'function')
+      return renderParts.challengeDefinitionText(def, field, tierIndex);
+    if (!def) return '';
+    if (field === 'tierLabel' && def.tiers[tierIndex]) return def.tiers[tierIndex].label;
+    if (field === 'reward' && def.tiers.length > 1) return def.rewards[tierIndex] || '';
+    return def[field] || '';
+  }
+  function prereqText(id, meta, willBreak) {
+    var st = prereqState(id, meta, willBreak);
+    if (!st) return '';
+    var params = {
+      requiredPrestiges: st.need,
+      currentPrestiges: st.now,
+      prestigesAfterStart: st.after,
+      remainingPrestiges: st.lack
+    };
+    /* cycle 现在数已结算轮回次数；中英文提示都沿用同一组判据。 */
+    return challengeTr(st.ok ? 'challenge.prerequisite.met' : 'challenge.prerequisite.unmet',
+      params, st.ok
+        ? '需完成 ' + st.need + ' 次轮回：已满足（当前 ' + st.now + ' 次，开始挑战后 ' + st.after + ' 次）。'
+        : '需完成 ' + st.need + ' 次轮回（当前 ' + st.now + ' 次，开始挑战后 ' + st.after +
+          ' 次，还差 ' + st.lack + ' 次）。轮回不足时《严冬计划》科技链的前置《黑历史蓝图》不会揭露，本局无法通关。');
+  }
+  function prereqOk(id, meta, willBreak) {
+    var st = prereqState(id, meta, willBreak);
     return !st || st.ok;
   }
   function canStart(id, s, meta) {
     var d = BY_ID[id];
     if (!d || active(s)) return false;
-    return prereqOk(id, meta);
+    return prereqOk(id, meta, willBreakFrom(s));
   }
   function canStartFresh(id, s, meta) {
     var d = BY_ID[id];
     if (!d || active(s)) return false;
-    return tierDone(id, meta) < d.tiers.length && prereqOk(id, meta);
+    return tierDone(id, meta) < d.tiers.length && prereqOk(id, meta, willBreakFrom(s));
   }
   function begin(id) {
     var s = SB.game.run(), meta = SB.game.meta(), d = BY_ID[id];
@@ -496,8 +582,12 @@
       SB.prestige.doBreak(s, SB.game.emit, { silent: true, challengeStart: true });
     SB.game.startRun({ challenge: { id: id, tier: tier, replay: replay } });
     SB.game.setTab('challenges');
-    SB.game.log((replay ? '再次挑战：' : '挑战开始：') + d.name + ' · ' + d.tiers[tier].label +
-      (replay ? '（重复挑战不发奖，成绩计入排行榜）。' : '。'));
+    SB.game.log(challengeTr(replay ? 'challenge.begin.replay_log' : 'challenge.begin.start_log', {
+      challengeName: challengeDisplayText(d, 'name'),
+      tierName: challengeDisplayText(d, 'tierLabel', tier)
+    }, replay
+      ? '再次挑战：' + d.name + ' · ' + d.tiers[tier].label + '（不重复发放奖励；如有对应排行榜，则会更新成绩）。'
+      : '挑战开始：' + d.name + ' · ' + d.tiers[tier].label));
     SB.game.renderAll();
     return true;
   }
@@ -507,21 +597,48 @@
     var tier = startTier(id, meta), replay = isReplay(id, meta), t = d.tiers[tier];
     var qualified = SB.prestige.qualified(s), report = qualified ? SB.prestige.breakReport(s) : null;
     var payout = report ? report.tidePoints : 0;
-    var selectedRule = d.id === 'speedrun' ? '必须在 ' + formatClock(t.cap) + ' 内完成《神学》并凿穿天壳；离线时间也计入。' :
-      d.id === 'science' ? '学者与书手岗位人数各不得超过 ' + t.cap + ' 人。' :
-        d.id === 'abyss' ? '本轮全产出 -' + Math.round(t.cap * 100) + '%。' : d.rule;
+    /* 2026-11-07 泛化：两项限时挑战共用「必须在 X 内 + 各自终点」；
+     * 破壳型（逐光竞速）没有 goalText ⇒ 回落原文案，goal 型（星海竞速）读自己的 goalText。 */
+    var selectedRule = d.timed
+      ? challengeTr('ui.challenge.tier_rule.speedrun', { timeLimit: formatClock(t.cap) },
+          '限时 ' + formatClock(t.cap) + ' · 离线计时') + '. ' + challengeDisplayText(d, 'goalText')
+      : d.id === 'science'
+        ? challengeTr('ui.challenge.tier_rule.science', {
+            scribeName: SB.folk.jobName(s, 'scribe'),
+            staffCap: t.cap
+          }, '学者与书手各不得超过 ' + t.cap + ' 人')
+        : d.id === 'abyss'
+          ? challengeTr('ui.challenge.tier_rule.production_penalty', {
+              productionPenaltyPercent: Math.round(t.cap * 100)
+            }, '本轮全产出 -' + Math.round(t.cap * 100) + '%')
+          : challengeDisplayText(d, 'rule');
     var prereqLine = prereqText(id, meta);
+    var challengeName = challengeDisplayText(d, 'name');
+    var tierName = challengeDisplayText(d, 'tierLabel', tier);
+    var currentRunNotice = challengeTr('ui.challenge.start.confirm.current_run_notice', {},
+      '当前周目将自动结算并重开。');
+    var rewardNotice = qualified
+      ? challengeTr('ui.challenge.start.confirm.estimated_prestige_reward', {
+          prestigePointPayout: payout.toFixed(2)
+        }, '预计获得 <b>' + payout.toFixed(2) + ' 轮回点</b>。')
+      : challengeTr('ui.challenge.start.confirm.theology_required', {},
+          '尚未完成《神学》，本次不会获得轮回点。');
+    var resetNotice = challengeTr('ui.challenge.start.confirm.reset_notice', {},
+      '本局进度会重置；轮回点、已完成挑战与永久奖励保留。');
+    var replayNotice = replay
+      ? '<br>' + challengeTr('ui.challenge.start.confirm.replay_notice', {},
+          '本次为重复挑战：通关不再发放永久奖励，也不会再次提高轮回点获取，只刷新排行榜成绩。')
+      : '';
     SB.ui.render.confirmPanel({
-      title: replay ? '再次开始这项挑战？' : '结算并开始挑战？',
-      body: '<div class="warnbox">当前周目将自动结算并重开。' +
-        (qualified ? '预计获得 <b>' + payout.toFixed(2) + ' 轮回点</b>。' : '尚未完成《神学》，本次不会获得轮回点。') +
-        '</div><div class="note"><b>' + d.name + ' · ' + t.label + (replay ? ' · 重复挑战' : '') + '</b><br>' +
-        selectedRule +
-        (prereqLine ? '</div><div class="note"><b>开启前置</b><br>' + prereqLine : '') +
-        '</div><div class="note">本局进度会重置；轮回点、已完成挑战与永久奖励保留。' +
-        (replay ? '<br>本次为重复挑战：通关不再发放永久奖励，也不会再次提高轮回点获取，只刷新排行榜成绩。' : '') +
-        '</div>',
-      ok: replay ? '再次挑战' : '结算并开始',
+      title: challengeTr(replay ? 'ui.challenge.start.confirm.title.replay' : 'ui.challenge.start.confirm.title.fresh', {},
+        replay ? '再次开始这项挑战？' : '结算并开始挑战？'),
+      body: '<div class="warnbox">' + currentRunNotice + ' ' + rewardNotice +
+        '</div><div class="note"><b>' + challengeName + ' · ' + tierName +
+        (replay ? challengeTr('ui.challenge.start.confirm.replay_tag', {}, ' · 重复挑战') : '') + '</b><br>' +
+        selectedRule + (prereqLine ? '<br>' + prereqLine : '') + '</div>' +
+        '<div class="note">' + resetNotice + replayNotice + '</div>',
+      ok: challengeTr(replay ? 'ui.challenge.start.confirm.button.replay' : 'ui.challenge.start.confirm.button.settle_and_start', {},
+        replay ? '再次挑战' : '结算并开始'),
       onOk: function () { begin(id); }
     });
     return true;

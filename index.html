@@ -8,9 +8,9 @@
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
-  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=3"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=4"><\/script>' : '') + '<script src="src/i18n.js?v=2"><\/script>');
+  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=22"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=23"><\/script>' : '') + '<script src="src/i18n.js?v=2"><\/script>');
 </script>
-<link rel="stylesheet" href="css/main.css?v=293" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=296" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -52,6 +52,13 @@
               <option value="2K" data-i18n="ui.settings.resolution.2k">2K（2048×1080）</option>
             </select>
           </label>
+          <label class="ui-setting-row ui-setting-row--select">
+            <span><b data-i18n="ui.settings.number_format.label">大数字显示格式</b><small data-i18n="ui.settings.number_format.hint">资源与成本数值过大时的缩写方式：紧凑（K/M/B/T）或科学计数法。</small></span>
+            <select data-ui-number-format class="ui-resolution-select" data-i18n-aria-label="ui.settings.number_format.label">
+              <option value="compact" data-i18n="ui.settings.number_format.compact">紧凑 (K/M/B/T)</option>
+              <option value="sci" data-i18n="ui.settings.number_format.sci">科学计数法</option>
+            </select>
+          </label>
           <div class="ui-settings-title" data-i18n="ui.settings.automation.title">自动</div>
           <!-- 自动点击开关（2026-10-28 用户要求「设置栏里也加一个自动点击开关，没有研究就提示在轮回商店购买」）。
                ⚠️ 结构**静态**，状态全部由 game.js 的 syncAutoClickSetting() 用 textContent / checked /
@@ -79,11 +86,19 @@
             <span><b data-i18n="ui.settings.audio.volume.label">BGM 音量</b></span>
             <input type="range" id="audioVolume" min="0" max="100" value="100" step="1" class="audio-volume-slider" aria-label="BGM 音量" data-i18n-aria-label="ui.settings.audio.volume.accessible_label">
           </label>
+          <!-- 手动选曲（2026-11-07）：锁定某首即压过一切自动切歌，直到改回「自动」。
+               ⚠️ 结构静态、option 由 game.js 的 bindAudioSetting() 一次性建（曲名来自 CFG.AUDIO），
+                  syncAudioSetting() 只增量刷 value / textContent —— 与音量滑块同一纪律。
+               标题来自登记表语义 key；选项在首次绑定时创建，之后由 syncAudioTrackSelect() 按当前 locale 刷新。 -->
+          <label class="ui-setting-row ui-setting-row--select">
+            <span><b id="audioTrackLabel" data-i18n="game.audio.track_select.label">曲目选择</b></span>
+            <select id="audioTrackSelect" class="ui-resolution-select" aria-label="曲目选择" data-i18n-aria-label="game.audio.track_select.label"></select>
+          </label>
           <small class="ui-setting-hint" id="audioNowPlaying" data-i18n="ui.settings.audio.now_playing.loading">读取中…</small>
-          <!-- TapTap 兑换码（2026-10-30 · TDS 无服务器礼包）。
+          <!-- 兑换码（2026-11-07 起：本地礼包码，全程本机入账；TDS 平台通道已下线）。
                ⚠️ 这是**通用**兑换入口，以后办别的活动还用它 ⇒ 文案不写奖励类型、不写「补偿」。
-               ⚠️ 整块由 src/redeem.js 的 boot() 控制显隐：CFG.REDEEM 的 CLIENT_ID / ACTIVITY_ID
-                  任一为空就把整块 display:none（连标题一起），不留一个空标题或死按钮。 -->
+               ⚠️ 整块由 src/redeem.js 的 boot() 控制显隐：CFG.REDEEM.LOCAL_GRANTS 为空
+                  就把整块 display:none（连标题一起），不留一个空标题或死按钮。 -->
           <div id="redeemSettingBlock">
             <div class="ui-settings-title" data-i18n="ui.settings.redeem.title">兑换码</div>
             <div class="ui-settings-actions">
@@ -135,7 +150,7 @@
     <div class="cardhd" data-fold="res" style="--hc:#4dd8e6" title="点击折叠 / 展开" data-i18n-title="ui.card.collapse_expand.tooltip"><span class="cv">▾</span><span data-i18n="ui.pane.resources.title">资源</span></div>
     <div class="grid" id="res" data-page-node-id="7G9KZbNOPP20HFvS1BGVPa"></div>
     <div id="res-craft-wrap" hidden>
-      <div class="restitle">工艺资源</div>
+      <div class="restitle" data-i18n="ui.resources.crafting_materials.title">工艺资源</div>
       <div class="grid" id="res-craft"></div>
     </div>
   </div>
@@ -187,29 +202,29 @@
   <div class="tabs" data-page-node-id="Iwq243yLf7atqw3YKGoPWL">
     <div class="tab on" data-tab="village"><span id="villageTabName" data-i18n="ui.habitat.name" data-page-node-id="BSR2cRGflazOwzxnhvPnJ3">巢穴</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('village')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <div class="tab" data-tab="folk" data-page-node-id="S1PgmZRsoxXJOq6GZkGuGV"><span id="folkTabName" data-i18n="ui.pane.people.title">族民</span><i class="growbar" id="growbar" title=""></i><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('folk')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-tech" data-tab="tech" title="建成 5 座深海藻场后开启" data-page-node-id="rILZuBt5zAaFz2Kz16ijXA"><span data-i18n="ui.pane.research.title">科技</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('tech')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-civic" data-tab="civic" title="建成议事厅后开启" data-page-node-id="CivTab01CivicLocks"><span data-i18n="ui.pane.civics.title">市政</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('civic')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-tech" data-tab="tech" title="建成 5 座深海藻场后开启，才知道明天是什么" data-i18n-title="ui.render.sync_tab_locks.build_five_kelp_farms_to_see_what_tomorrow_holds" data-page-node-id="rILZuBt5zAaFz2Kz16ijXA"><span data-i18n="ui.pane.research.title">科技</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('tech')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-civic" data-tab="civic" title="建成议事厅后开启（议事厅由「石工」解锁）" data-i18n-title="ui.render.sync_tab_locks.unlock_after_building_the_council_hall_unlocked" data-page-node-id="CivTab01CivicLocks"><span data-i18n="ui.pane.civics.title">市政</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('civic')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <!-- 信仰页签（2026-09-30 用户：「单独起一个信仰面板」）：与巢穴/科技/市政并列。
          门 = 完成《神学》，与资源行 / 产出线同源（resUnlocked(s,'faith') ⇔ s.civics.theology）。 -->
-    <div class="tab locked" id="tab-faith" data-tab="faith" title="研究「神学」后开启" data-page-node-id="FaithTab01Faith"><span data-i18n="ui.pane.faith.title">信仰</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('faith')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-page-node-id="WrkTab01Workshop"><span data-i18n="ui.workshop.title">工坊</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-page-node-id="WdrTab01Wonder"><span data-i18n="ui.pane.wonders.title">奇观</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-star-map" data-tab="star-map" title="凿穿天壳后开启"><span data-i18n="ui.pane.star_map.title">星图</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('star-map')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-faith" data-tab="faith" title="研究「神学」后开启信仰页" data-i18n-title="ui.render.sync_tab_locks.research_theology_to_unlock_the_faith_tab" data-page-node-id="FaithTab01Faith"><span data-i18n="ui.pane.faith.title">信仰</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('faith')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-i18n-title="ui.render.sync_tab_locks.build_a_workshop_to_unlock_this_tab" data-page-node-id="WrkTab01Workshop"><span data-i18n="ui.workshop.title">工坊</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-i18n-title="ui.render.sync_tab_locks.research_masonry_to_unlock_this_tab" data-page-node-id="WdrTab01Wonder"><span data-i18n="ui.pane.wonders.title">奇观</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-star-map" data-tab="star-map" title="凿穿天壳后开启星图" data-i18n-title="ui.render.sync_tab_locks.break_through_the_shell_to_unlock_the"><span data-i18n="ui.pane.star_map.title">星图</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('star-map')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <!-- 公司页签（ERA6 市政《宏观经济学》解锁）：与科技/市政并列，门 = 拥有《宏观经济学》。 -->
-    <div class="tab locked" id="tab-company" data-tab="company" title="研究「宏观经济学」后开启" data-page-node-id="CmpTab01Company"><span data-i18n="ui.pane.companies.title">公司</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('company')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab" data-tab="meta" data-page-node-id="SAoezNHHudwE2etBXXpCrl"><span data-i18n="ui.pane.prestige_shop.title">轮回商店</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" data-tab="challenges" title="首次轮回后开启挑战"><span data-i18n="ui.pane.challenges.title">挑战</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('challenges')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-company" data-tab="company" title="研究「宏观经济学」后开启公司页" data-i18n-title="ui.render.sync_tab_locks.research_macroeconomics_to_unlock_the_companies_" data-page-node-id="CmpTab01Company"><span data-i18n="ui.pane.companies.title">公司</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('company')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab" data-tab="meta" title="首次轮回或建成首座轨道卫星后开启" data-i18n-title="ui.render.sync_tab_locks.unlock_after_your_first_prestige_or_after" data-page-node-id="SAoezNHHudwE2etBXXpCrl"><span data-i18n="ui.pane.prestige_shop.title">轮回商店</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" data-tab="challenges" title="首次轮回后开启挑战" data-i18n-title="ui.render.sync_tab_locks.unlocks_after_your_first_prestige"><span data-i18n="ui.pane.challenges.title">挑战</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('challenges')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <!-- 成就独立页签（2026-10-24 用户要求）：门与挑战同为首次轮回。 -->
-    <div class="tab locked" data-tab="achievements" title="首次轮回后开启成就"><span data-i18n="ui.pane.achievements.title">成就</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('achievements')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" data-tab="achievements" title="首次轮回后开启成就" data-i18n-title="ui.render.sync_tab_locks.unlocks_after_your_first_prestige_sb_005137"><span data-i18n="ui.pane.achievements.title">成就</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('achievements')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
   </div>
 
-  <section class="challenge-notice" id="challengeNotice" hidden aria-label="当前挑战">
+  <section class="challenge-notice" id="challengeNotice" hidden aria-label="当前挑战" data-i18n-aria-label="ui.challenge.notice.aria_label">
     <span class="challenge-notice-mark" aria-hidden="true">⚑</span>
     <div class="challenge-notice-copy">
-      <div class="challenge-notice-heading"><span>挑战进行中</span><strong id="challengeNoticeTitle"></strong></div>
+      <div class="challenge-notice-heading"><span id="challengeNoticeHeading" data-i18n="ui.challenge.notice.heading">挑战进行中</span><strong id="challengeNoticeTitle"></strong></div>
       <div class="challenge-notice-detail"><span id="challengeNoticeRule"></span><span class="challenge-notice-progress" id="challengeNoticeProgress"></span></div>
     </div>
-    <button class="challenge-notice-link" type="button" onclick="SB.game.setTab('challenges')">挑战详情 <span aria-hidden="true">↗</span></button>
+    <button class="challenge-notice-link" type="button" onclick="SB.game.setTab('challenges')"><span data-i18n="ui.challenge.notice.details_button">挑战详情</span> <span aria-hidden="true">↗</span></button>
   </section>
 
   <!-- 巢穴页（2026-10-17）：静态标题 + 持久命名框 #habitatBox + 可重写正文 #pane-village-body。
@@ -227,7 +242,7 @@
        ⚠️ 命名框必须留在持久节点（不进 2 秒刷新的正文），否则每敲一字丢焦点；
           正文另放 body 容器，renderPanes 只写 body，不碰标题与命名框。 -->
   <div class="card hidden" id="pane-faith" data-page-node-id="PaneFaith001Faith">
-    <div class="cardhd" data-fold="faith" style="--hc:#e691b0" title="点击折叠 / 展开"><span class="cv">▾</span>信仰</div>
+    <div class="cardhd" data-fold="faith" style="--hc:#e691b0" title="点击折叠 / 展开" data-i18n-title="ui.card.collapse_expand.tooltip"><span class="cv">▾</span><span data-i18n="ui.pane.faith.title">信仰</span></div>
     <div class="card" id="religionBox" style="display:none" data-page-node-id="ReligionBox01"></div>
     <div id="pane-faith-body"></div>
   </div>
@@ -236,7 +251,7 @@
   <div class="card hidden" id="pane-star-map"></div>
   <!-- 公司页（ERA6 市政《宏观经济学》解锁）：静态标题 + 可重写正文 #pane-company-body（仿信仰页，避免 2 秒刷新冲掉标题）。 -->
   <div class="card hidden" id="pane-company" data-page-node-id="PaneCmp01Company">
-    <div class="cardhd" data-fold="company" style="--hc:#6fa8dc" title="点击折叠 / 展开"><span class="cv">▾</span>公司</div>
+    <div class="cardhd" data-fold="company" style="--hc:#6fa8dc" title="点击折叠 / 展开" data-i18n-title="ui.card.collapse_expand.tooltip"><span class="cv">▾</span><span data-i18n="ui.pane.companies.title">公司</span></div>
     <div id="pane-company-body"></div>
   </div>
   <div class="card hidden" id="pane-meta" data-page-node-id="OsoF8zzJJXG46B5FmuHcwv"></div>
@@ -247,23 +262,23 @@
   <div class="card" data-page-node-id="v486295fD7Ww5xIRjRWFIF">
     <div class="foot" data-page-node-id="Mup8CMe6kDpRa78GiFXAQ6">
       <span class="ad-ctrl" id="adCtrl" data-page-node-id="AdCtrl01">
-        <button class="btn ad-watch" id="btnAd" data-page-node-id="AdWatch01" title="看一次广告：获得 30 分钟 2 倍速（墙钟真实时间计时，不受游戏内倍速影响）">看广告 +30min 2×</button>
-        <button class="btn ad-toggle on" id="btnAdToggle" data-page-node-id="AdToggle01" title="开关 2× 加速（关着时剩余时间不流逝）">2× 加速 开</button>
-        <span class="ad-remain" id="adRemain" data-page-node-id="AdRemain01">无加速</span>
-        <button class="btn ad-watch ad-rebirth" id="btnAdRebirth" data-page-node-id="AdRebirth01" title="看一次广告：获得 1 轮回点（每日最多 10 次）">看广告 +1 轮回点</button>
-        <span class="ad-remain" id="adRebirthRemain" data-page-node-id="AdRebirthRemain01">今日 0/10</span>
+        <button class="btn ad-watch" id="btnAd" data-page-node-id="AdWatch01" data-i18n="ui.ad.boost.watch.initial" data-i18n-title="ui.ad.boost.watch.tooltip">看广告</button>
+        <button class="btn ad-toggle on" id="btnAdToggle" data-page-node-id="AdToggle01" data-i18n="ui.ad.boost.toggle.default" data-i18n-title="ui.ad.boost.toggle.tooltip">2× 加速</button>
+        <span class="ad-remain" id="adRemain" data-page-node-id="AdRemain01" data-i18n="ui.ad.boost.remaining.empty">无加速</span>
+        <button class="btn ad-watch ad-rebirth" id="btnAdRebirth" data-page-node-id="AdRebirth01" data-i18n="ui.ad.rebirth.action" data-i18n-title="ui.ad.rebirth.tooltip">看广告 +1 轮回点</button>
+        <span class="ad-remain" id="adRebirthRemain" data-page-node-id="AdRebirthRemain01" data-i18n="ui.ad.rebirth.count.initial">今日 0/10</span>
       </span>
       <button class="btn" id="btnRank" data-page-node-id="RankBtn01View" title="查看 TapTap 排行榜（共 9 个榜单：通关用时 / 发展 / 奇观 / 轮回 / 星屑 / 轮回点 / 戴森球 / 虚境）" data-i18n="ui.footer.leaderboard_button">排行榜</button>
-      <button class="btn" id="btnChangelog" data-page-node-id="ChgLog01View" title="查看游戏更新日志（本次及历史更新内容）" data-i18n="ui.footer.changelog_button">更新日志</button>
-      <button class="btn" id="btnSaveManager" title="导出、导入或同步存档" data-i18n="save.action.manage">存档管理</button>
+      <button class="btn" id="btnChangelog" data-page-node-id="ChgLog01View" title="查看游戏更新日志（本次及历史更新内容）" data-i18n-title="ui.footer.changelog_button.tooltip" data-i18n="ui.footer.changelog_button">更新日志</button>
+      <button class="btn" id="btnSaveManager" title="导出、导入或同步存档" data-i18n-title="save.action.manage.tooltip" data-i18n="save.action.manage">存档管理</button>
       <button class="btn danger" id="btnWipe" data-page-node-id="WipeBtn01Danger" data-i18n="save.action.erase">清空存档</button>
       <span id="clock" style="margin-left:auto;color:var(--dim);font-size:12px" data-page-node-id="1A5pLAjiAdlCtbmGV6OJtE"></span>
     </div>
     <div class="foot" data-page-node-id="ZNV0CXzr3oW6dMIZCrEVYF">
-      <button class="big" id="btnBreak" disabled data-page-node-id="sc3WiBhKuDYmDEddAM85xY">凿穿冰壳</button>
+      <button class="big" id="btnBreak" disabled data-i18n="ui.render.render_break_btn.break_through_the_ice_shell" data-page-node-id="sc3WiBhKuDYmDEddAM85xY">凿穿冰壳</button>
       <!-- 破壳前的「轮回 / 重开本周目」出口（2026-10-27）：2026-10-21 合并双按钮时被 btnBreak 的 disabled 吞掉，
            导致「研究完神学但没凿穿」的局无路可走。默认隐藏，由 renderBreakBtn 按状态显示。 -->
-      <button class="btn" id="btnCycle" hidden title="结算本局并发放轮回点（不必凿穿天壳）">轮回</button>
+      <button class="btn" id="btnCycle" hidden title="结算本局并发放轮回点（不必凿穿天壳）" data-i18n-title="ui.render.render_break_btn.end_this_run_to_earn_prestige_points" data-i18n="ui.action.prestige">轮回</button>
       <span id="breakHint" style="font-size:12px;color:var(--dim)" data-page-node-id="d8HcLfglHR68VzJOqVA6LG"></span>
     </div>
     <div class="log" id="log" data-page-node-id="IX7irOvtve8VlhblV4gx2P"></div>
@@ -274,11 +289,11 @@
      ⚠️ 必须是**常驻节点**、绝不能放进 #pane-*：那些面板每 2 秒整块重画，放进去会被连节点换掉。
      ⚠️ 外层用 div 不用 button：里面还有一个「×」，button 不能嵌套 button。
      ⚠️ 位置/拖动/跳转全在 src/ui/track-dock.js；这里只留骨架与文案占位。 -->
-<div class="track-dock hidden" id="trackDock" role="region" aria-label="建造追踪">
+<div class="track-dock hidden" id="trackDock" role="region" aria-label="建造追踪" data-i18n-aria-label="ui.track_dock.region.aria_label">
   <!-- 2026-10-30 多目标：行由 track-dock.js 的 paint() 生成（每行 = 一个目标 + 自己的 ×）。
        这里只留容器，不写死任何一行 —— 上限 4 个的裁剪与失效剔除都在 js 侧收口。 -->
   <div class="td-rows" id="trackRows"></div>
-  <button type="button" class="td-close" data-track-clear="1" aria-label="取消全部追踪" title="取消全部追踪">×</button>
+  <button type="button" class="td-close" data-track-clear="1" aria-label="取消全部追踪" title="取消全部追踪" data-i18n-aria-label="ui.track_dock.clear_all.label" data-i18n-title="ui.track_dock.clear_all.label">×</button>
 </div>
 <div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
   <!-- 2026-10-05 系统指引弹窗：点页签旁的「?」打开；内容由 SB.ui.openIntro 从 INTRO 表填入 #introPop。
@@ -291,76 +306,76 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=219"></script>
+<script src="src/config.js?v=229"></script>
 <script src="src/config-catalog.js?v=15"></script>
 <script src="src/config-content.js?v=39"></script>
-<script src="src/config-buildings.js?v=48"></script>
+<script src="src/config-buildings.js?v=49"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=151"></script>
-<script src="src/tech.js?v=127"></script>
+<script src="src/techs.js?v=152"></script>
+<script src="src/tech.js?v=132"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=32"></script>
-<script src="src/civics.js?v=137"></script>
+<script src="src/civics-data.js?v=33"></script>
+<script src="src/civics.js?v=138"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
-<script src="src/save-storage.js?v=8"></script>
-<script src="src/state-migrate.js?v=28"></script>
-<script src="src/state.js?v=176"></script>
-<script src="src/workshop.js?v=127"></script>
+<script src="src/save-storage.js?v=11"></script>
+<script src="src/state-migrate.js?v=29"></script>
+<script src="src/state.js?v=180"></script>
+<script src="src/workshop.js?v=128"></script>
 <script src="src/wonder.js?v=115"></script>
 <script src="src/economy-social.js?v=11"></script>
-<script src="src/economy.js?v=212"></script>
+<script src="src/economy.js?v=216"></script>
 <script src="src/faith-text.js?v=2"></script>
 <script src="src/faith.js?v=1"></script>
 <script src="src/economy-rates.js?v=35"></script>
-<script src="src/economy-tick.js?v=30"></script>
-<script src="src/offline-scheduler.js?v=4"></script>
+<script src="src/economy-tick.js?v=31"></script>
+<script src="src/offline-scheduler.js?v=5"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
-<script src="src/events.js?v=1"></script>
+<script src="src/events.js?v=2"></script>
 <script src="src/autoplay.js?v=4"></script>
-<script src="src/audio.js?v=1"></script>
-<script src="src/shell.js?v=118"></script>
-<script src="src/habitat.js?v=115"></script>
+<script src="src/audio.js?v=3"></script>
+<script src="src/shell.js?v=119"></script>
+<script src="src/habitat.js?v=116"></script>
 <script src="src/folk.js?v=107"></script>
-<script src="src/prestige.js?v=135"></script>
-<script src="src/challenges.js?v=22"></script>
+<script src="src/prestige.js?v=137"></script>
+<script src="src/challenges.js?v=28"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=21"></script>
-<script src="src/ui/render-common.js?v=6"></script>
-<script src="src/ui/render-info.js?v=38"></script>
-<script src="src/ui/render-pane-research.js?v=37"></script>
-<script src="src/ui/render-pane-village.js?v=42"></script>
-<script src="src/ui/render-pane-folk.js?v=5"></script>
-<script src="src/ui/render-talent-tree.js?v=5"></script>
-<script src="src/ui/render-pane-meta.js?v=14"></script>
-<script src="src/ui/render-pane-challenges.js?v=22"></script>
-<script src="src/ui/render-pane-company.js?v=4"></script>
-<script src="src/ui/render-pane-faith.js?v=3"></script>
-<script src="src/ui/render-pane-wonder.js?v=6"></script>
-<script src="src/ui/render-pane-star-map.js?v=9"></script>
-<script src="src/ui/render-pane-workshop.js?v=18"></script>
-<script src="src/ui/render-environment.js?v=26"></script>
-<script src="src/ui/render.js?v=280"></script>
-<script src="src/ui/track-dock.js?v=7"></script>
-<script src="src/onboarding.js?v=1"></script>
-<script src="src/game.js?v=184"></script>
-<script src="src/save-transfer.js?v=16"></script>
-<script src="src/redeem.js?v=3"></script>
-<script src="src/ui/input.js?v=182"></script>
-<script src="src/ai-strategy.js?v=91"></script>
-<script src="src/ui/theme.js?v=5"></script>
+<script src="src/ui/render-content.js?v=22"></script>
+<script src="src/ui/render-common.js?v=9"></script>
+<script src="src/ui/render-info.js?v=45"></script>
+<script src="src/ui/render-pane-research.js?v=42"></script>
+<script src="src/ui/render-pane-village.js?v=45"></script>
+<script src="src/ui/render-pane-folk.js?v=6"></script>
+<script src="src/ui/render-talent-tree.js?v=6"></script>
+<script src="src/ui/render-pane-meta.js?v=16"></script>
+<script src="src/ui/render-pane-challenges.js?v=27"></script>
+<script src="src/ui/render-pane-company.js?v=5"></script>
+<script src="src/ui/render-pane-faith.js?v=4"></script>
+<script src="src/ui/render-pane-wonder.js?v=8"></script>
+<script src="src/ui/render-pane-star-map.js?v=12"></script>
+<script src="src/ui/render-pane-workshop.js?v=20"></script>
+<script src="src/ui/render-environment.js?v=28"></script>
+<script src="src/ui/render.js?v=295"></script>
+<script src="src/ui/track-dock.js?v=8"></script>
+<script src="src/onboarding.js?v=2"></script>
+<script src="src/game.js?v=196"></script>
+<script src="src/save-transfer.js?v=20"></script>
+<script src="src/redeem.js?v=6"></script>
+<script src="src/ui/input.js?v=183"></script>
+<script src="src/ai-strategy.js?v=92"></script>
+<script src="src/ui/theme.js?v=6"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=1"></script>
-<script src="src/achv.js?v=12"></script>
+<script src="src/achv.js?v=14"></script>
 <script src="src/main.js?v=101"></script>
 <!-- 现场诊断浮层（2026-10-27）：连点标题 5 次开启，或 URL 带 ?diag。默认零风险、不进任何正常路径。 -->
 <script src="src/ui/diag.js?v=2"></script>

@@ -1,10 +1,17 @@
-/* 本地礼包码回归（2026-11-04）：给客户发的「星屑 ×50」走的是不走网络的那条通道。
- * 钉住四件事：
+/* 本地礼包码回归（2026-11-04 建 / 2026-11-07 改为唯一通道）
+ *
+ * 2026-11-07：TapTap TDS 平台通兑码通道整体下线（送审包被静态扫描判「含联网功能 →
+ * 需办 ICP 核准」）。本地礼包码现在是**唯一**通道，所以本探针除了原有四条，还要钉住
+ * 「平台通道没有偷偷复活」。
+ *
+ * 钉住六件事：
  *   ① 命中即入账，且**一个网络请求都不发**（没有 fetch 也能领）；
  *   ② 星屑只加余额、**不加 stardustEarned** —— 否则白送的星屑会同时抬高
  *      排行榜「最多星屑」与超古代科技/市政的「星屑累积」尤里卡进度；
- *   ③ 防重与平台码共用 meta.redeemed：换大小写/加连字符仍是同一个码；
- *   ④ 只配本地码、平台两项留空时，入口**不能**消失（ready() 必须为真）。
+ *   ③ 防重走 meta.redeemed：换大小写/加连字符仍是同一个码；
+ *   ④ 配了本地码时入口**不能**消失（ready() 必须为真）；
+ *   ⑤ api === '' 且 platformReady() 恒 false —— 即使把 CLIENT_ID / ACTIVITY_ID 填回去也不复活；
+ *   ⑥ 未命中的码判「无效」，绝不落到平台。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,8 +28,8 @@ function ok(name, cond, extra) {
   else { fail++; console.log('FAIL ' + name + (extra !== undefined ? '  [' + extra + ']' : '')); }
 }
 
-/* 夹具：星屑从 0 起、平台通道留着但**不允许联网**（装一个会抛的 fetch，
- * 一旦有人偷偷走平台路径就立刻炸出来）。 */
+/* 夹具：星屑从 0 起，装一个「一被调用就抛 + 计数」的 fetch 桩。
+ * 平台通道已下线，任何一次调用都说明有人把联网请求加回来了。 */
 const meta = {
   tide: 0, tideEarnedTotal: 0, spent: 0, compensationTotal: 0,
   stardust: 0, stardustEarned: 0, stardustShopUnlocked: false, redeemed: {}
@@ -44,9 +51,10 @@ ok('localGrants() 认出了 config 里的哈希项', R.localGrants().length >= 2
 ok('哈希项没有明文 code 字段（包里不该出现明文）',
   R.localGrants().every(g => !g.h || !g.code || true) && savedLocal[0].code === undefined,
   JSON.stringify(savedLocal[0]));
-ok('ready() 为真（平台 + 本地码至少一条通）', R.ready() === true);
-ok('platformReady() 与 ready() 分开（只配本地码时入口也不能消失）',
-  typeof R.platformReady === 'function' && R.platformReady() === true);
+ok('ready() 为真（本地码至少一条）', R.ready() === true);
+ok('★ api 为空串（不再有外部接口地址）', R.api === '', String(R.api));
+ok('★ platformReady() 恒 false（平台通道已下线）',
+  typeof R.platformReady === 'function' && R.platformReady() === false, String(R.platformReady()));
 
 /* ── ① 明文码：命中即入账，不联网 ── */
 let r = await R.redeem(PLAIN);
@@ -63,7 +71,7 @@ r = await R.redeem(' probe-star-50 ');
 ok('同一码换大小写加连字符 ⇒ 拒绝', r.ok === false && /领过/.test(r.msg), r.msg);
 ok('拒绝时余额没变', meta.stardust === 50, String(meta.stardust));
 
-/* ── ③ 哈希码：走 config 里那条真实条目（明文码不在包里） ── */
+/* ── ③ 哈希码：走 config 里那条真实条目（明文码不在包里）── */
 const hashed = savedLocal[0];
 const plainOfHashed = 'SHELLSTAR50';        /* 只在探针里出现，包里只有它的 sha1 */
 ok('哈希项 h 与 localHash(明文) 一致', R.localHash(plainOfHashed) === hashed.h, R.localHash(plainOfHashed));
@@ -74,29 +82,37 @@ ok('stardustEarned 仍然是 0', meta.stardustEarned === 0, String(meta.stardust
 r = await R.redeem('SHELL-STAR-50');
 ok('哈希码防重同样生效', r.ok === false && /领过/.test(r.msg), r.msg);
 
-/* ── ④ 未命中的码不许被本地路径吞掉 ── */
+/* ── ④ 未命中的码判「无效」，不许落到平台 ── */
 r = await R.redeem('NOPE1234');
-ok('未命中的码 ⇒ 拒绝（走平台/或判无效）', r.ok === false, r.msg);
+ok('未命中的码 ⇒ 判「无效」', r.ok === false && /无效/.test(r.msg), r.msg);
 ok('未命中时余额没动', meta.stardust === 100, String(meta.stardust));
+ok('未命中也不发请求', netCalls === 0, String(netCalls));
 
-/* ── ⑤ 只配本地码、平台留空：入口必须还在 ── */
+/* ── ⑤ 平台通道已下线：即使把两个 ID 填回去也不复活，入口只看本地码 ── */
 const savedC = { CLIENT_ID: RC.CLIENT_ID, ACTIVITY_ID: RC.ACTIVITY_ID };
-RC.CLIENT_ID = ''; RC.ACTIVITY_ID = '';
-ok('平台留空 ⇒ platformReady() 为假', R.platformReady() === false);
-ok('★ 平台留空但配了本地码 ⇒ ready() 仍为真（入口不消失）', R.ready() === true);
+RC.CLIENT_ID = 'probe_client_1'; RC.ACTIVITY_ID = 'act_probe';
+ok('★ 平台两项填回也不能让 platformReady() 变真', R.platformReady() === false,
+  String(R.platformReady()));
+ok('★ 配了本地码 ⇒ ready() 仍为真（入口不消失）', R.ready() === true);
 r = await R.redeem('SHELLSTAR50');
-ok('平台留空时哈希码照样能领（纯本地，不依赖网络）',
+ok('平台配置齐全时哈希码照样能领（纯本地，不依赖网络）',
   r.ok === true || /领过/.test(r.msg), r.msg);
 RC.CLIENT_ID = savedC.CLIENT_ID; RC.ACTIVITY_ID = savedC.ACTIVITY_ID;
 
-/* ── ⑥ 空奖励项不发空气 ── */
+/* ── ⑥ 连 fetch 能力都没有：照样能领 ── */
+RC.LOCAL_GRANTS = [{ code: 'NOFETCH50', stardust: 5, label: '无网络能力档' }];
+delete ctx.fetch;
+r = await R.redeem('NOFETCH50');
+ok('★ 环境完全没有 fetch ⇒ 本地码仍然能领', r.ok === true && r.stardust === 5, r.msg);
+
+/* ── ⑦ 空奖励项不发空气 ── */
 RC.LOCAL_GRANTS = [{ code: 'EMPTY001', label: '空' }];
 ok('奖励为 0 的条目被忽略', R.localGrants().length === 0, R.localGrants().length);
 r = await R.redeem('EMPTY001');
 ok('空条目不产生成功', r.ok === false, r.msg);
 RC.LOCAL_GRANTS = savedLocal;
 
-/* ── ⑦ creditStar 对脏数据不崩 ── */
+/* ── ⑧ creditStar 对脏数据不崩 ── */
 const dirty = { stardust: NaN };
 R.creditStar(dirty, 50);
 ok('creditStar 对 NaN 余额按 0 处理', dirty.stardust === 50, String(dirty.stardust));

@@ -32,6 +32,11 @@
   // 与 tick 第 5 步(口粮)同口径： famine 以 0.1s 为单位累计；冻伤 perStepRisk 也乘 0.1。
   var STEP = 0.1;
 
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+
   /* =========================================================================
    * 1. 子系统契约（Subsystem Contract）
    * =========================================================================
@@ -177,7 +182,7 @@
       if (s.famine >= 60 && s.pop > 1) {
         s.pop--; s.famine = 0; s.famineDeaths++;
         if (SB.folk && SB.folk.reconcile) SB.folk.reconcile(s);
-        if (emit) emit('藻食耗尽，有人饿死了。', at + mdt);
+        if (emit) emit(tr('ui.log.famine.death', null, '藻食耗尽，有人饿死了。'), at + mdt);
       }
     } else {
       s.famine = 0;
@@ -186,7 +191,7 @@
     if (!SB.economy.isFull(s) && s.res.kelp > CFG.GROW_KEEP) {
       s._grow = (s._grow || 0) + mdt;
       var growNeed = SB.economy.growthDuration(s);
-      if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit('生育：一名族民降生。', at + mdt); }
+      if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit(tr('ui.log.population.birth', null, '生育：一名族民降生。'), at + mdt); }
     } else {
       s._grow = 0;
     }
@@ -198,7 +203,7 @@
       if (risk > 0 && (SB.rng ? SB.rng() : Math.random()) < risk) {
         s.pop--; s.frostDeaths++;
         if (SB.folk && SB.folk.reconcile) SB.folk.reconcile(s);
-        if (emit) emit('冰封期冻死了一名族民。', at + mdt);
+        if (emit) emit(tr('ui.log.frostbite.death', null, '冰封期冻死了一名族民。'), at + mdt);
       }
     }
     /* ---- 水体污染死亡（2026-11-02）----------------------------------------

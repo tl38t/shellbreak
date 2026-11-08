@@ -49,6 +49,20 @@
       return (t && t.dataset) ? t.dataset.tab : '';
     } catch (e) { return ''; }
   }
+  function formatFallback(value, params) {
+    return String(value == null ? '' : value).replace(/\{([^{}]+)\}/g, function (match, name) {
+      return params && params[name] !== undefined && params[name] !== null ? String(params[name]) : match;
+    });
+  }
+  function tr(key, fallback, params) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || formatFallback(fallback, params);
+  }
+  function htmlText(value) {
+    return String(value == null ? '' : value).replace(/[&<>\"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' })[ch];
+    });
+  }
 
   /* ---------------- 设置开关 / 已展示标记 ---------------- */
   function isEnabled() {
@@ -78,23 +92,27 @@
   }
 
   /* ---------------- 欢迎层文案（用户定稿，2026-10-25） ---------------- */
-  var WELCOME =
-    '<p>你是深海无光海渊中的一只鲛人。</p>' +
-    '<p>你抬起头来，幽深的重重海水之上，头顶的「天壳」隔绝了群星，也挡住了文明向上的途径。</p>' +
-    '<p>你的目标只有一个：一路向上，凿穿天壳，带文明升上星空。</p>' +
-    '<div class="ob-howto"><span class="ob-howto-h">── 具体怎么做 ──</span><ul>' +
-      '<li>建造建筑 —— 它们有的会自动产出资源，有的能提高人口上限，有的能提高资源产出，有的能用低级资源制造高级资源；</li>' +
-      '<li>为族民分配工作，生产所需的资源；</li>' +
-      '<li>研究科技、市政，获取加成，解锁新的建筑、新的奇观、新的政体、新的政策卡；</li>' +
-      '<li>政体具有政策槽，可以选择需要的政策卡加入政策槽中，获取加成；越后期解锁的政体，拥有越多的政策槽；</li>' +
-      '<li>某些奇观会提供永久政策槽；</li>' +
-      '<li>某些政策卡将会在研究市政后得到升级；</li>' +
-      '<li>游戏中期的目标是打破冰壳，你需要建设奇观钻机，将之击碎；</li>' +
-      '<li>游戏的最终目标是建设戴森球——当然，你还有另一个选择…</li>' +
-    '</ul></div>' +
-    '<p class="ob-note">注意：如果您觉得进度推进有些困难，那可以在研究完「神学」市政后选择重启轮回，通过获取的轮回点与星屑购买局外加成，并投身新的轮回。</p>' +
-    '<p class="ob-note">另外，您还可以在新的轮回中启用带着各式限制条件的挑战模式，一旦挑战成功，您在之后的轮回中也会获得相应的加成。</p>' +
-    '<p class="ob-cta">那么，就让我们从建造第一个深海藻场开始吧…</p>';
+  function welcomeHtml() {
+    function p(key, fallback, cls) {
+      return '<p' + (cls ? ' class="' + cls + '"' : '') + '>' + htmlText(tr(key, fallback)) + '</p>';
+    }
+    return p('ui.onboarding.welcome.identity', '你是深海无光海渊中的一只鲛人。') +
+      p('ui.onboarding.welcome.world', '你抬起头来，幽深的重重海水之上，头顶的「天壳」隔绝了群星，也挡住了文明向上的途径。') +
+      p('ui.onboarding.welcome.goal', '你的目标只有一个：一路向上，凿穿天壳，带文明升上星空。') +
+      '<div class="ob-howto"><span class="ob-howto-h">' + htmlText(tr('ui.onboarding.welcome.how_to_play.heading', '── 具体怎么做 ──')) + '</span><ul>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.buildings', '建造建筑 —— 它们有的会自动产出资源，有的能提高人口上限，有的能提高资源产出，有的能用低级资源制造高级资源；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.jobs', '为族民分配工作，生产所需的资源；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.research', '研究科技、市政，获取加成，解锁新的建筑、新的奇观、新的政体、新的政策卡；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.governments', '政体具有政策槽，可以选择需要的政策卡加入政策槽中，获取加成；越后期解锁的政体，拥有越多的政策槽；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.wonders', '某些奇观会提供永久政策槽；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.policy_upgrades', '某些政策卡将会在研究市政后得到升级；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.midgame', '游戏中期的目标是打破冰壳，你需要建设奇观钻机，将之击碎；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.endgame', '游戏的最终目标是建设戴森球——当然，你还有另一个选择…')) + '</li>' +
+      '</ul></div>' +
+      p('ui.onboarding.welcome.prestige_note', '注意：如果您觉得进度推进有些困难，那可以在研究完「神学」市政后选择重启轮回，通过获取的轮回点与星屑购买局外加成，并投身新的轮回。', 'ob-note') +
+      p('ui.onboarding.welcome.challenge_note', '另外，您还可以在新的轮回中启用带着各式限制条件的挑战模式，一旦挑战成功，您在之后的轮回中也会获得相应的加成。', 'ob-note') +
+      p('ui.onboarding.welcome.call_to_action', '那么，就让我们从建造第一个深海藻场开始吧…', 'ob-cta');
+  }
 
   /* ---------------- 走查步（§2.2，1 基） ----------------
    * 每步 resolve(S) 返回：
@@ -110,7 +128,7 @@
         if (kelpBase === null) kelpBase = S.res.kelp || 0;
         return {
           targets: ['[data-gather="kelp"]'],
-          tip: '手动采集一些藻食',
+          tip: tr('ui.onboarding.step.gather_kelp', '手动采集一些藻食'),
           advance: (S.res.kelp || 0) > kelpBase + 1e-9
         };
       }
@@ -120,7 +138,7 @@
         return {
           targets: ['[data-build="kelp"]'],
           fallback: '[data-tab="village"]',
-          tip: '建造深海藻场，自动生产藻食',
+          tip: tr('ui.onboarding.step.build_kelp_farm', '建造深海藻场，自动生产藻食'),
           advance: (S.lvl.kelp || 0) >= 1
         };
       }
@@ -129,7 +147,7 @@
       resolve: function (S) {
         return {
           targets: ['[data-tab="folk"]'],
-          tip: '分配族民工作',
+          tip: tr('ui.onboarding.step.assign_jobs', '分配族民工作'),
           advance: curTab() === 'folk'
         };
       }
@@ -139,7 +157,7 @@
         return {
           targets: ['.folk-job-row[data-job-row="gather"] .folk-job-controls button:last-child'],
           fallback: '[data-tab="folk"]',
-          tip: '将族民分配至采集工作，快速获取藻食',
+          tip: tr('ui.onboarding.step.assign_gatherer', '将族民分配至采集工作，快速获取藻食'),
           advance: (S.jobs.gather || 0) > 0
         };
       }
@@ -149,7 +167,7 @@
         return {
           targets: ['[data-gather="coral"]'],
           fallback: '[data-tab="village"]',
-          tip: '暂时手动采集一些珊瑚',
+          tip: tr('ui.onboarding.step.gather_coral', '暂时手动采集一些珊瑚'),
           advance: (S.res.coral || 0) > 0
         };
       }
@@ -167,14 +185,14 @@
           return {
             targets: ['[data-gather="coral"]'],
             fallback: '[data-tab="village"]',
-            tip: '继续采集珊瑚，攒够 5 个建造礁口巢',
+            tip: tr('ui.onboarding.step.gather_coral_for_nest', '继续采集珊瑚，攒够 {coralCount} 个建造礁口巢', { coralCount: 5 }),
             advance: false
           };
         }
         return {
           targets: ['[data-build="nest"]'],
           fallback: '[data-tab="village"]',
-          tip: '建造一个礁口巢，提高人口上限',
+          tip: tr('ui.onboarding.step.build_reef_nest', '建造一个礁口巢，提高人口上限'),
           advance: (S.lvl.nest || 0) >= 1
         };
       }
@@ -184,7 +202,7 @@
         return {
           targets: ['[data-build="kelp"]'],
           fallback: '[data-tab="folk"]',
-          tip: '生产新的族民需要一些时间，你可以趁这个时间再升级一下深海藻场',
+          tip: tr('ui.onboarding.step.upgrade_kelp_farm', '生产新的族民需要一些时间，你可以趁这个时间再升级一下深海藻场'),
           /* ⚠️ 放行条件：新族民已产出（pop>1，本步设计的「等族民」意图）为主；
            *    藻场数量兜底从旧版 >=2 提到 >=5——旧版 ==2 会在「才建第 2 座藻场」时
            *    就放行第 7 步，导致第 8 步提前激活、引导高亮被顶到科技页
@@ -213,7 +231,7 @@
         return {
           targets: ['#mStoryOk'],
           fallback: '[data-tab="tech"]',
-          tip: '建造五座深海藻场，触发了结绳科技的尤里卡',
+          tip: tr('ui.onboarding.step.cordage_eureka', '建造 {farmCount} 座深海藻场，触发了结绳科技的尤里卡', { farmCount: 5 }),
           advance: done
         };
       }
@@ -228,7 +246,7 @@
         if (detailOpen) {
           return {
             targets: ['[data-tree-study="tech"][data-tech="writing"]'],
-            tip: '点击「免费研究」，正式掌握结绳、解锁学者职业',
+            tip: tr('ui.onboarding.step.free_research', '点击「免费研究」，正式掌握结绳、解锁学者职业'),
             /* 掌握即放行（writing 写入 = 点了免费研究）。 */
             advance: !!S.techs.writing
           };
@@ -236,7 +254,7 @@
         return {
           targets: ['#techrow-writing'],
           fallback: '[data-tab="tech"]',
-          tip: '点开「结绳」科技，看看它的尤里卡与效果',
+          tip: tr('ui.onboarding.step.open_cordage', '点开「结绳」科技，看看它的尤里卡与效果'),
           /* 详情已打开（下一步跳到免费研究钮）或已掌握（异常路径）即放行。 */
           advance: !!S.techs.writing
         };
@@ -246,7 +264,7 @@
       resolve: function (S) {
         return {
           targets: ['[data-tab="folk"]'],
-          tip: '结绳已研究，回去分配学者吧',
+          tip: tr('ui.onboarding.step.return_to_people', '结绳已研究，回去分配学者吧'),
           advance: curTab() === 'folk'
         };
       }
@@ -256,7 +274,7 @@
         return {
           targets: ['.folk-job-row[data-job-row="scholar"] .folk-job-controls button:last-child'],
           fallback: '[data-tab="folk"]',
-          tip: '分配族民，获取科技点',
+          tip: tr('ui.onboarding.step.assign_scholar', '分配族民，获取科技点'),
           advance: (S.jobs.scholar || 0) > 0
         };
       }
@@ -306,7 +324,7 @@
       var x = document.createElement('button');
       x.type = 'button';
       x.className = 'ob-tip-x';
-      x.setAttribute('aria-label', '跳过新手教程');
+      x.setAttribute('aria-label', tr('ui.onboarding.skip.aria_label', '跳过新手教程'));
       x.textContent = '×';
       x.onclick = askSkip;
       tipEl.appendChild(x);
@@ -372,9 +390,9 @@
     welcomeEl.className = 'ob-welcome';
     welcomeEl.innerHTML =
       '<div class="ob-welcome-card">' +
-        '<div class="ob-welcome-hd">天壳 · 从深海望向群星</div>' +
-        '<div class="ob-welcome-bd">' + WELCOME + '</div>' +
-        '<div class="ob-welcome-ft"><button type="button" class="btn buy ob-start" id="obStart">开始探索</button></div>' +
+        '<div class="ob-welcome-hd">' + htmlText(tr('ui.onboarding.welcome.title', '天壳 · 从深海望向群星')) + '</div>' +
+        '<div class="ob-welcome-bd">' + welcomeHtml() + '</div>' +
+        '<div class="ob-welcome-ft"><button type="button" class="btn buy ob-start" id="obStart">' + htmlText(tr('ui.onboarding.welcome.start', '开始探索')) + '</button></div>' +
       '</div>';
     layer.appendChild(welcomeEl);
     var btn = null;
@@ -389,9 +407,9 @@
   function askSkip() {
     if (SB.ui && SB.ui.render && SB.ui.render.confirmPanel) {
       SB.ui.render.confirmPanel({
-        title: '是否跳过新手教程？',
-        body: '<div class="note">跳过后将不再显示首局引导；可在「设置 → 新手引导」中重新开启。</div>',
-        ok: '跳过教程',
+        title: tr('ui.onboarding.skip.confirm.title', '是否跳过新手教程？'),
+        body: '<div class="note">' + htmlText(tr('ui.onboarding.skip.confirm.body', '跳过后将不再显示首局引导；可在「设置 → 新手引导」中重新开启。')) + '</div>',
+        ok: tr('ui.onboarding.skip.confirm.action', '跳过教程'),
         onOk: function () { finish(); }
       });
     } else { finish(); }

@@ -100,14 +100,25 @@
     S.ad.ms = Math.min(cap, S.ad.ms + add);
     S.ad.on = true;
     dirty = true; renderAll();
-    log('看广告获得 ' + (C.BOOST_MIN || 30) + ' 分钟 2× 加速（累计 ' + fmtDur(S.ad.ms / 1000) + '）。');
+    log(gameText('game.ad_boost.granted.log', {
+      boostMinutes: C.BOOST_MIN || 30,
+      bankDuration: fmtDur(S.ad.ms / 1000)
+    }, '看广告获得 {boostMinutes} 分钟 2× 加速（累计 {bankDuration}）。'));
   }
   /* 顶栏「2× 加速」开关：只切 S.ad.on，不碰余额。关着时余额冻结（不流逝），等于囤着以后用。 */
   function toggleAdBoost() {
     if (!S || !S.ad) return;
     S.ad.on = !S.ad.on;
     dirty = true; renderAll();
-    log('2× 加速已' + (S.ad.on ? '开启' : '关闭') + (S.ad.ms > 0 ? '（剩余 ' + fmtDur(S.ad.ms / 1000) + '）' : '（无剩余时间）') + '。');
+    var hasTime = S.ad.ms > 0;
+    var toggleKey = S.ad.on
+      ? (hasTime ? 'game.ad_boost.toggle.enabled.remaining.log' : 'game.ad_boost.toggle.enabled.empty.log')
+      : (hasTime ? 'game.ad_boost.toggle.disabled.remaining.log' : 'game.ad_boost.toggle.disabled.empty.log');
+    var toggleParams = hasTime ? { duration: fmtDur(S.ad.ms / 1000) } : null;
+    var toggleFallback = S.ad.on
+      ? (hasTime ? '2× 加速已开启（剩余 {duration}）。' : '2× 加速已开启（无剩余时间）。')
+      : (hasTime ? '2× 加速已关闭（剩余 {duration}）。' : '2× 加速已关闭（无剩余时间）。');
+    log(gameText(toggleKey, toggleParams, toggleFallback));
   }
 
   /* 「看广告 +1 轮回点」用的本地日期键（YYYY-M-D），跨天自动重置当日计数。 */
@@ -131,7 +142,10 @@
     if (!m) return false;
     var max = (SB.CFG && SB.CFG.AD && SB.CFG.AD.REBIRTH_DAILY_MAX) || 10;
     var st = adRebirthState(m);
-    if (st.count >= max) { log('今日「看广告 +1 轮回点」已看满 ' + max + ' 次，明天再来。'); return false; }
+    if (st.count >= max) {
+      log(gameText('game.ad_rebirth.limit_reached.log', { dailyMax: max }, '今日「看广告 +1 轮回点」已看满 {dailyMax} 次，明天再来。'));
+      return false;
+    }
     st.count += 1;
     st.date = todayKey();
     m.adRebirth = st;
@@ -139,7 +153,11 @@
     m.tideEarnedTotal = (m.tideEarnedTotal || 0) + 1;
     SB.state.saveMeta(m);
     dirty = true; renderAll();
-    log('看广告获得 1 轮回点（今日第 ' + st.count + '/' + max + ' 次，累计 ' + m.tide + '）。');
+    log(gameText('game.ad_rebirth.reward.log', {
+      claimCount: st.count,
+      dailyMax: max,
+      totalPrestigePoints: m.tide
+    }, '看广告获得 1 轮回点（今日第 {claimCount}/{dailyMax} 次，累计 {totalPrestigePoints}）。'));
     return true;
   }
 
@@ -156,10 +174,23 @@
   function startRun(options) {
     /* 旧版本中尚未写入永久解锁旗的存档，也在离开已建卫星的周目时补记。 */
     if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
-    meta.cycle++;
+    /* 局数 / 轮回两个计数在这里彻底分开（2026-11-06 用户拍板）：
+     *   · `runs`  每开一局 +1（软重置、开挑战、真轮回都算）——只服务「第几局」显示与
+     *             存档新旧比较，**不参与任何收益计算**；
+     *   · `cycle` 合格轮回次数，只在 prestige.doBreak 过资格门时 +1（见 prestige.js）。
+     * 旧口径只有 cycle，且这里无条件 +1 ⇒ 玩家连点「重开本周目」就能零成本涨周目数，
+     * 而下列读点全读 cycle：潮汐之树 dyn:'loop5'（0.05×cycle，无上限）、《黑历史蓝图》
+     * 尤里卡（cycle≥15）、市政鼓舞（3/7/10/15）、艺术品 +10%/cycle、「轮回次数」排行榜
+     * （submitRankPeriodic 每 5 分钟把 m.cycle 报上去）⇒ 重开 20 次白拿 +100% 工坊/炉火产出、
+     * 重开 15 次白拿一张 1470 万科技点的尤里卡。天赋文案「+5%×轮回次数」承诺的本来就是
+     * 轮回次数，实现此前读局数。
+     * ⛔ 存量档不回溯：老 cycle 已被软重置推高，保留原值（既得利益不收回，也不再继续涨）。 */
+    meta.runs = (meta.runs || 0) + 1;
+    if (!meta.cycle) meta.cycle = 1;   // 全新档（emptyMeta 给 0）首局 = 第 1 次轮回之前
     /* 轮回商店只在「第一次真正的轮回」后解锁——即【建立宗教】（religionSeen）之后的那次
-     * 破冰结算 doBreak。未建立宗教时玩家只能「重开本周目」（普通重置，cycle 同样 +1），
-     * 但那不是轮回：doBreak 发 0 点，且 shopUnlocked 保持 false，轮回商店整页锁死。
+     * 破冰结算 doBreak。未建立宗教时玩家只能「重开本周目」（普通重置，此时只有 runs+1、
+     * cycle 不动，见本函数开头），那本来就不是轮回：doBreak 发 0 点，且 shopUnlocked
+     * 保持 false，轮回商店整页锁死。
      * 故 startRun 此处不碰 shopUnlocked；它的解锁由 prestige.doBreak 在真实轮回发生时置位，
      * 旧档（已有跨周目进度）由 loadMeta 迁移补双解锁。 */
     var prev = S;
@@ -170,6 +201,20 @@
       if (prev.gov) SB.civic.recordGovAdoption(prev.gov, meta);
     }
     S = SB.state.freshRun(true);
+    /* 看广告的时间银行跨周目继承（2026-11-06 用户拍板 A 方案）：
+     * `s.ad.ms` 是玩家花真实时间看激励视频换来的余额，换局（轮回 / 重开本周目 / 开挑战）
+     * 不该把它抹掉 —— 此前 freshRun 硬编码 `ad:{ms:0}` 且 startRun 无任何搬运，等于每次都作废，
+     * 最多白丢 BOOST_CAP_MIN（6 小时）。同一次 startRun 里 autoClickOn / audioMuted /
+     * audioVolume 都有显式继承，只有这条没有 ⇒ 属遗漏，不是设计。
+     * ⚠️ 必须新建对象，不能 `S.ad = prev.ad` —— 两局共用一个引用会互相改余额。
+     * ⚠️ 旧档的 ms 可能是 NaN / 负数 / 字符串：非有限值一律不回填。`Math.min(cap, NaN)` = NaN，
+     *   会把面板显示与 adMul 一起污染成「有余额但永远 1×」。
+     * ⚠️ 硬重置「清空存档」走 wipeSave 的 freshRun(false)，不经这里 ⇒ 清档仍会清余额（预期）。 */
+    var _prevAdMs = (prev && prev.ad) ? Number(prev.ad.ms) : 0;
+    if (isFinite(_prevAdMs) && _prevAdMs > 0) {
+      var _adCapMs = ((SB.CFG.AD && SB.CFG.AD.BOOST_CAP_MIN) || 360) * 60000;
+      S.ad = { ms: Math.min(_adCapMs, _prevAdMs), on: prev.ad.on !== false };
+    }
     /* 2026-10-24 轻车熟路记账（docs/ACHV_DESIGN_v0.3.md §四·1）：离开本周目前，把本周目
      * 各建筑已购等级增量并入跨周目账本。唯一写入漏斗 = habitat.build 的 s.lvl[id]++，
      * 故这里只合并增量、不碰 lvl 本体；startRun 是周目切换唯一入口（nextCycle /
@@ -205,9 +250,24 @@
     applyAudioPref(S);   // 背景音乐偏好跨周目继承（2026-10-31，同 autoClick 两层范式）
     SB.state.saveMeta(meta);
     clearLog();
-    log('第 ' + meta.cycle + ' 周目开始。冰封壳厚度 ' + S.iceShell + '。');
-    log('提示：开局 ' + S.pop + ' 名族民、0 资源。在「' + SB.habitat.habitatName(S) + '」页点采集攒 15 藻食建第一座藻场，再回「族民」页雇佣。');
-    log('壳薄到 25% 会停手；凿穿最后一段要建成天穹钻机，并在自然环境卡里启动它。');
+    /* 2026-11-06：cycle 收紧为「合格轮回次数」⇒ 这句话不再能说「第 N 周目」（软重置不会推进
+     * cycle，玩家会看到同一个数字重复出现）。改用 runs 报局数，轮回次数单独标出来。 */
+    log(gameText('game.run.started.log', {
+      runNumber: meta.runs,
+      prestigeCount: meta.cycle,
+      shellThickness: S.iceShell
+    }, '第 {runNumber} 局开始 · 已轮回 {prestigeCount} 次。冰封壳厚度 {shellThickness}。'));
+    log(gameText('game.run.opening_tip.log', {
+      population: S.pop,
+      habitatTab: gameText('ui.habitat.name', null, '巢穴'),
+      kelpNeeded: 15,
+      kelpFarmName: SB.i18n && SB.i18n.buildingName
+        ? SB.i18n.buildingName('kelp', '藻场') : '藻场',
+      peopleTab: gameText('ui.pane.people.title', null, '族民')
+    }, '提示：开局有 {population} 名族民和 0 资源。在「{habitatTab}」页采集 {kelpNeeded} 藻食建第一座{kelpFarmName}，再回「{peopleTab}」页雇佣。'));
+    log(gameText('game.shell.final_layer.hint', {
+      shellStopPercent: Math.round(((SB.CFG && SB.CFG.SHELL && SB.CFG.SHELL.FLOOR_AT) || 0.25) * 100)
+    }, '壳薄到 {shellStopPercent}% 会停手；凿穿最后一段要建成天穹钻机，并在自然环境卡里启动它。'));
     dirty = true;
     renderAll();
     if (tab === 'star-map') setTab('village');
@@ -247,7 +307,9 @@
       for (var _bid in S.lvl) if (S.lvl[_bid] > 0) _t[_bid] = S.lvl[_bid];
       if (Object.keys(_t).length) {
         meta.buildingLvlTotal = _t;
-        log('检测到早期存档：已将现有建筑等级登记入成就进度（共 ' + Object.keys(_t).length + ' 座）。');
+        log(gameText('game.save.achievement_seed.log', {
+          buildingTypeCount: Object.keys(_t).length
+        }, '检测到早期存档：已将现有建筑等级登记入成就进度（共 {buildingTypeCount} 类）。'));
       }
       meta.bldLvlSeeded = true;
       SB.state.saveMeta(meta);
@@ -279,12 +341,19 @@
     if (S._repairedResources && S._repairedResources.length) {
       var repairedNames = S._repairedResources.map(function (id) {
         var def = SB.RESS && SB.RESS[id];
-        return def && def.name ? def.name : id;
+        var fallback = def && def.name ? def.name : id;
+        return SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(id, fallback) : fallback;
       });
-      log('检测到旧存档中的资源数值损坏，已保护性回落为 0：' + repairedNames.join('、') + '。旧数值无法从存档反推。');
+      var resourceSeparator = SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' ? ', ' : '、';
+      log(gameText('game.save.corrupt_resources_repaired.log', {
+        resetValue: 0,
+        resourceNames: repairedNames.join(resourceSeparator)
+      }, '检测到旧存档中的资源数值损坏，已保护性重置为 {resetValue}：{resourceNames}。旧数值无法从存档反推。'));
       delete S._repairedResources;
     }
-    if (!S.broken) log('已恢复上次进度：' + (S.t / 3600).toFixed(2) + ' 小时，壳厚 ' + Math.round(S.shell) + '。');
+    if (!S.broken) log(gameText('game.run.resumed.log', {
+      hours: (S.t / 3600).toFixed(2), shellThickness: Math.round(S.shell)
+    }, '已恢复上次进度：已游玩 {hours} 小时，壳厚 {shellThickness}。'));
     renderAll();
   }
 
@@ -317,13 +386,15 @@
     if (SB.state.clearMeta) SB.state.clearMeta();
     else { try { root.localStorage && root.localStorage.removeItem(SB.CFG.SAVE_KEY); } catch (e) {} }
     meta = SB.state.emptyMeta();
-    meta.cycle = 1;
+    meta.cycle = 1;   // 清档后回到「第 1 次轮回之前」
+    meta.runs = 1;    // 且是第 1 局（freshRun 不经 startRun，故这里显式给）
     SB.state.saveMeta(meta);
     S = SB.state.freshRun(false);
     applyAutoClickPref(S);   // meta 已重置 ⇒ 偏好归「开」，这里只是让本局与之一致
     applyAudioPref(S);   // 背景音乐偏好：meta 重置后归默认（开 + 满音量）
     clearLog();
-    log('存档已清空，回到第 1 周目。轮回点与破层层级一并抹去。');
+    log(gameText('game.save.cleared.log', { cycleNumber: 1 },
+      '存档已清空，回到第 {cycleNumber} 周目。轮回点与破层层级一并抹去。'));
     dirty = true;
     renderAll();
     if (tab === 'star-map') setTab('village');
@@ -387,10 +458,16 @@
     if (existSat === satRun && existSta === staRun) return false;  // 已对齐，幂等早退
     var seq = s.spacecraft.length || 0, ns = 0, nt = 0, list = [];
     function newId() { return 'craft-' + (++seq); }
-    for (var a = 0; a < satRun; a++)
-      list.push({ id: newId(), type: 'satellite', body: 'europa', name: '卫星 ' + (++ns), launchedAt: s.t || 0 });
-    for (var b = 0; b < staRun; b++)
-      list.push({ id: newId(), type: 'station', body: 'europa', name: '空间站 ' + (++nt), launchedAt: s.t || 0 });
+    for (var a = 0; a < satRun; a++) {
+      ns++;
+      list.push({ id: newId(), type: 'satellite', body: 'europa', name: '卫星 ' + ns,
+        generatedName: true, launchedAt: s.t || 0 });
+    }
+    for (var b = 0; b < staRun; b++) {
+      nt++;
+      list.push({ id: newId(), type: 'station', body: 'europa', name: '空间站 ' + nt,
+        generatedName: true, launchedAt: s.t || 0 });
+    }
     s.spacecraft = list;
     SB.state.saveRun(snapshot(S));
     dirty = true;
@@ -410,9 +487,10 @@
     var seq = S.spacecraft.length + 1, id;
     do { id = 'craft-' + seq++; }
     while (S.spacecraft.some(function (x) { return x && x.id === id; }));
+    var generatedName = !(typeof name === 'string' && name.trim());
     var item = { id: id, type: type, body: body,
-      name: (typeof name === 'string' && name.trim() ? name.trim().slice(0, 50)
-        : (type === 'station' ? '空间站 ' : '卫星 ') + (seq - 1)), launchedAt: S.t || 0 };
+      name: generatedName ? (type === 'station' ? '空间站 ' : '卫星 ') + (seq - 1) : name.trim().slice(0, 50),
+      generatedName: generatedName, launchedAt: S.t || 0 };
     S.spacecraft.push(item);
     SB.state.saveRun(snapshot(S));
     dirty = true; renderAll();
@@ -420,7 +498,18 @@
   }
 
   function render() { if (dirty) { dirty = false; SB.ui.render.renderAll(); } }
-  function renderAll() { dirty = false; SB.ui.render.renderAll(); syncAutoClickSetting(); syncAudioSetting(); }
+  /* ⚠️ 2026-11-07：SB.audio.sync() 是 BGM 的唯一驱动，此前**全仓库零调用** ⇒
+   *  跨纪元后音乐永远不换，只有重开游戏重新 init 才会重新选曲（玩家报「第一首切第二首
+   *  要重开游戏才行」）。renderAll 由任意交互触发，loop 里 PANE_REFRESH 每 2 秒置脏兜底，
+   *  足够驱动阶段切换、池内 shuffle 与后台 ended 被吞掉的补刀。
+   *  ⚠️ 必须在 syncAudioSetting() **之前**调：面板读 currentTrack()，顺序反了会晚一帧。 */
+  function renderAll() {
+    dirty = false;
+    SB.ui.render.renderAll();
+    if (SB.audio && SB.audio.sync) SB.audio.sync();
+    syncAutoClickSetting();
+    syncAudioSetting();
+  }
   function markDirty() { dirty = true; }
 
   /* ══ 设置栏「自动点击」开关（2026-10-28 用户要求）════════════════════════════
@@ -470,7 +559,9 @@
     if (row) row.classList.toggle('is-locked', !owned);
     var hint = document.getElementById('autoClickHint');
     if (hint) {
-      var i18n = SB.i18n && SB.i18n.t ? SB.i18n : null, branch = i18n ? i18n.t('ui.prestige.tree.remnants.name') : '先人孑遗', perk = i18n ? i18n.t('prestige.perk.tidal_auto_click.name') : '潮讯自拾';
+      var i18n = SB.i18n && SB.i18n.t ? SB.i18n : null;
+      var branch = gameText('ui.prestige.tree.remnants.name', null, '先人孑遗');
+      var perk = gameText('prestige.perk.tidal_auto_click.name', null, '潮讯自拾');
       var next = !owned
         ? (shopOpen() ? (i18n ? i18n.t('game.autoclick.not_owned.shop_open_hint', { perkName: perk, perkBranch: branch }) : '未拥有 —— 到「轮回商店 · 先人孑遗」购买「潮讯自拾」（点此行直达）')
           : (i18n ? i18n.t('game.autoclick.not_owned.shop_locked_hint', { perkName: perk, perkBranch: branch }) : '未拥有 —— 首次破壳后商店开放，届时在「轮回商店 · 先人孑遗」购买「潮讯自拾」'))
@@ -493,7 +584,8 @@
        * （acc 是按 dt×rate 累积的，停用期间不再累加，这里清零只为让开关边界干净）。 */
       S.autoClickAcc = 0;
       dirty = true; renderAll();
-      log(S.autoClickOn ? '自动点击已开启。' : '自动点击已暂停（手动采集照旧）。');
+      log(gameText(S.autoClickOn ? 'game.autoclick.enabled.log' : 'game.autoclick.paused.log', null,
+        S.autoClickOn ? '自动点击已开启。' : '自动点击已暂停（手动采集照旧）。'));
     };
     var row = document.getElementById('autoClickRow');
     if (row) row.addEventListener('click', function () {
@@ -502,12 +594,14 @@
       if (autoClickOwned(S)) return;
       var det = document.querySelector('.ui-settings');
       if (!shopOpen()) {
-        log('「潮讯自拾」在「轮回商店 · 先人孑遗」；首次破壳后商店才会开放。');
+        log(gameText('game.autoclick.shop_locked.log', { perkName: perk, perkBranch: branch },
+          '「{perkName}」在「轮回商店 · {perkBranch}」；首次破壳后商店才会开放。'));
         return;
       }
       if (det && det.open) det.open = false;
       setTab('meta');
-      log('已跳到轮回商店：在「先人孑遗」里购买「潮讯自拾」即可自动点击。');
+      log(gameText('game.autoclick.shop_open.navigate.log', { perkBranch: branch, perkName: perk },
+        '已跳到轮回商店：在「{perkBranch}」里购买「{perkName}」即可自动点击。'));
     });
   }
 
@@ -524,17 +618,50 @@
     if (meta && typeof meta.audioVolume === 'number') return meta.audioVolume;
     return (SB.CFG && SB.CFG.AUDIO) ? SB.CFG.AUDIO.defaultVolume : 1;
   }
+  /* ⚠️ 手动选曲偏好（2026-11-07）必须先过白名单：meta 来自存档，改档 / 版本回退留下的
+   *    任意串若直接播种进 s.audioTrack，下拉框会找不到 option 而显示空白，且 audio.js 的
+   *    manualId() 会把它降级成自动 ⇒ 面板与引擎口径不一致。非法值一律当 ''（自动）。 */
+  function audioTrackPref() {
+    var v = meta && meta.audioTrack, c = SB.CFG && SB.CFG.AUDIO;
+    if (!c || !c.tracks || typeof v !== 'string' || !v || v === 'auto') return '';
+    return Object.prototype.hasOwnProperty.call(c.tracks, v) ? v : '';
+  }
   function applyAudioPref(s) {
-    if (s) { s.audioMuted = audioMutedPref(); s.audioVolume = audioVolPref(); }
+    if (s) { s.audioMuted = audioMutedPref(); s.audioVolume = audioVolPref(); s.audioTrack = audioTrackPref(); }
     return s;
   }
   function setAudioPref() {
     if (!meta) return;
     // 以「本局当前值」为准回写 meta（只有玩家真的拨过才落键；S 初值已由 applyAudioPref 铺好）
-    if (S) { meta.audioMuted = !!S.audioMuted; meta.audioVolume = (typeof S.audioVolume === 'number') ? S.audioVolume : 1; }
+    if (S) {
+      meta.audioMuted = !!S.audioMuted;
+      meta.audioVolume = (typeof S.audioVolume === 'number') ? S.audioVolume : 1;
+      meta.audioTrack = (typeof S.audioTrack === 'string') ? S.audioTrack : '';
+    }
     SB.state.saveMeta(meta);
   }
 
+  function audioTrackName(track) {
+    if (!track) return '';
+    var keys = {
+      underIce: 'music.track.under_the_ice.title',
+      firmament: 'music.track.toward_the_firmament.title',
+      glance: 'music.track.glance_to_the_stars.title',
+      waltz: 'music.track.waltz_among_the_stars.title',
+      celestial: 'music.track.celestial_game.title',
+      radiance: 'music.track.age_of_radiance.title'
+    };
+    return gameText(keys[track.id], null, track.name);
+  }
+  function audioPoolLabel(pool) {
+    if (!pool) return '';
+    var keys = {
+      under_ice: 'game.audio.phase.era_1_4',
+      first_stars: 'game.audio.phase.era_5_7',
+      star_sea: 'game.audio.phase.era_8_10'
+    };
+    return gameText(keys[pool.id], null, pool.label);
+  }
   function syncAudioSetting() {
     if (!document) return;
     var s = S;
@@ -547,15 +674,111 @@
     }
     var np = document.getElementById('audioNowPlaying');
     if (np && SB.audio && SB.audio.currentTrack) {
-      var t = SB.audio.currentTrack(), i18n = SB.i18n && SB.i18n.t ? SB.i18n : null, trackName = t && i18n && i18n.getLocale && i18n.getLocale() === 'en-US' ? (t.en || t.name) : t && t.name, artistName = t && t.author === '百景乐团' && i18n && i18n.getLocale && i18n.getLocale() === 'en-US' ? i18n.t('music.artist.baijing_ensemble') : t && t.author;
-      var phase = i18n ? i18n.t((s && s.broken) ? 'game.audio.phase.after_shellbreak' : 'game.audio.phase.before_shellbreak') : (s && s.broken) ? '破壳后' : '破壳前';
-      var next = t ? (i18n ? i18n.t('game.audio.now_playing', { trackName: trackName, artistName: artistName, audioPhase: phase }) : ('《' + t.name + '》— ' + t.author + '（' + phase + '）')) : (i18n ? i18n.t('game.audio.track_not_configured') : '（未配置曲目）');
+      var t = SB.audio.currentTrack();
+      var trackName = audioTrackName(t);
+      var artistName = t && t.author === '百景乐团'
+        ? gameText('music.artist.baijing_ensemble', null, t.author) : (t && t.author);
+      /* ⚠️ 2026-11-07：阶段文案跟着**纪元段池**走，不再按 s.broken 写死「破壳前/后」。
+       *  旧写法是纯函数按 broken 算，破壳后面板显示《向着天穹》、声音却仍是《冰壳之下》
+       *  —— 那个「假切换」正是靠文案掩盖的。现在 currentTrack() 返回真实在播曲目，
+       *  phase 取同一份 pool，两者同源。 */
+      var pool = SB.audio.currentPool ? SB.audio.currentPool() : null;
+      /* ⚠️ 手动锁定时不能显示纪元段：锁的可能是 era8 的曲、当前却在 era1，
+       *    面板写「纪元 1–4」就是上一轮刚修掉的同类假信息。这里改显示「手动锁定」。 */
+      var locked = SB.audio.manualTrack ? SB.audio.manualTrack() : null;
+      var phase = locked
+        ? gameText('game.audio.track_select.manual_lock', null, '手动锁定')
+        : audioPoolLabel(pool);
+      var next = t
+        ? gameText('game.audio.now_playing', {
+          trackName: trackName, artistName: artistName, audioPhase: phase
+        }, '《{trackName}》— {artistName}（{audioPhase}）')
+        : gameText('game.audio.track_not_configured', null, '（未配置曲目）');
       if (np.textContent !== next) np.textContent = next;
     }
+    syncAudioTrackSelect();
+  }
+
+  /* 手动选曲下拉（2026-11-07）：选项只在首次绑定时建一次，之后每次刷新只做**增量**
+   * 更新（select.value + option 文案）。⚠️ 与自动点击/音量同一纪律：绝不重建节点，
+   * 否则玩家正展开的下拉会被换掉、这一下选择丢失。名称由音频曲目语义 key 提供。 */
+  function audioTrackOptions() {
+    var c = SB.CFG && SB.CFG.AUDIO;
+    if (!c || !c.tracks || !c.pools) return [];
+    var out = [], seen = {};
+    (c.pools || []).forEach(function (p) {
+      (p.tracks || []).forEach(function (id) {
+        var t = c.tracks[id];
+        if (t && !seen[id]) { seen[id] = 1; out.push({ id: id, t: t, pool: p }); }
+      });
+    });
+    return out;
+  }
+  function syncAudioTrackSelect() {
+    if (!document) return;
+    var sel = document.getElementById('audioTrackSelect');
+    if (!sel) return;
+    if (sel.options.length) {
+      var autoTxt = gameText('game.audio.track_select.auto', null, '自动（按纪元）');
+      if (sel.options[0].textContent !== autoTxt) sel.options[0].textContent = autoTxt;
+      var list = audioTrackOptions();
+      for (var i = 0; i < list.length && i + 1 < sel.options.length; i++) {
+        var o = list[i], nm = audioTrackName(o.t);
+        /* ⚠️ 只放曲名，别拼段名：select 的 min-content 宽度由最长 option 决定，
+         *   390px 设置面板里「《星间徜徉》· 纪元 5–7」会把整行撑出横向滚动。
+         *   段名信息已经在「正在播放」那行里了。 */
+        var txt = nm;
+        if (sel.options[i + 1].textContent !== txt) sel.options[i + 1].textContent = txt;
+      }
+      var lbl = document.getElementById('audioTrackLabel');
+      if (lbl) {
+        var lt = gameText('game.audio.track_select.label', null, '曲目选择');
+        if (lbl.textContent !== lt) lbl.textContent = lt;
+        if (sel.getAttribute('aria-label') !== lt) sel.setAttribute('aria-label', lt);
+      }
+    }
+    /* 以本局 S.audioTrack 为准（玩家刚拨过、还没落盘时 meta 还是旧值）；
+     * 非法值归一到 ''，否则 select.value 赋值失败会显示空白。 */
+    var raw = (S && typeof S.audioTrack === 'string') ? S.audioTrack : audioTrackPref();
+    var ids = audioTrackOptions().map(function (o) { return o.id; });
+    var want = (raw && ids.indexOf(raw) >= 0) ? raw : '';
+    if (sel.value !== want) sel.value = want;
   }
 
   function bindAudioSetting() {
     if (!document) return;
+    /* ⚠️ 语言切换必须重刷音频段（2026-11-07 真实浏览器抓到）：i18n.refresh() 的 apply()
+     *    会把带 data-i18n 的「正在播放」直接写成 Loading…/读取中…，而 render.js 的
+     *    locale-changed 监听只调 SB.ui.render.renderAll()，不碰设置栏的音频段 ⇒
+     *    下拉 option 文案还是上一语言、「正在播放」卡在 Loading…。这里补一次同源重刷。 */
+    if (root.addEventListener) {
+      root.addEventListener('shellbreak:locale-changed', function () { syncAudioSetting(); }, false);
+    }
+    /* 选项只在这里建一次（曲名来自 CFG.AUDIO，不在 HTML 里写死）。之后 syncAudioSetting
+     * 每次只增量刷 value 与 option 文案，绝不重建节点 —— 否则玩家正展开的下拉会被换掉。 */
+    var sel = document.getElementById('audioTrackSelect');
+    if (sel && !sel.options.length) {
+      var opts = audioTrackOptions();
+      var autoOpt = document.createElement('option');
+      autoOpt.value = '';
+      autoOpt.textContent = gameText('game.audio.track_select.auto', null, '自动（按纪元）');
+      sel.appendChild(autoOpt);
+      opts.forEach(function (o) {
+        var op = document.createElement('option');
+        op.value = o.id;
+        op.textContent = audioTrackName(o.t);
+        sel.appendChild(op);
+      });
+      sel.onchange = function () {
+        if (!S) return;
+        /* 写运行态 → 引擎立即生效（audio.js 的 setTrack 内部会 sync()）→ 落盘跨周目偏好。
+         * setTrack 会做白名单归一化，所以 S.audioTrack 用它的返回值，别直接信 DOM。 */
+        var v = (SB.audio && SB.audio.setTrack) ? SB.audio.setTrack(sel.value) : (S.audioTrack = sel.value, sel.value);
+        S.audioTrack = v;
+        setAudioPref();
+        syncAudioSetting();
+      };
+    }
     var muteBox = document.getElementById('audioMuteToggle');
     if (muteBox) muteBox.onchange = function () {
       if (!S) return;
@@ -863,7 +1086,7 @@
     SB.state.saveMeta(meta);
     markDirty();
     queueStory({
-      title: '轮回系统解锁',
+      kind: 'prestige', title: '轮回系统解锁',
       lines: [
         '鲛人的诵经声伴随深海的浪潮传遍王国的角落，',
         '祭司们说周期性的暖流与浪潮象征着文明的轮回……',
@@ -902,11 +1125,15 @@
     pendingGovName = { s: s, gov: govId };
     var suf = (SB.civic && SB.civic.govTitleSuffix) ? SB.civic.govTitleSuffix(govId) : '';
     box.innerHTML =
-      '<div class="modal-hd"><b>命名你的' + suf + '</b>' +
-        '<button type="button" class="modal-x" data-modal-close="1" aria-label="关闭">×</button></div>' +
-      '<div class="modal-bd"><p>为你的' + suf + '起一个名字（最多 16 字）：</p>' +
-        '<input id="govNameInput" type="text" maxlength="16" placeholder="如：深渊" autocomplete="off" />' +
-        '<div class="chg-foot"><button type="button" class="btn" id="govNameOk">确定</button></div></div>';
+      '<div class="modal-hd"><b>' + gameHtml(gameText('game.government.naming.title', {
+        governmentTitle: suf
+      }, '命名你的' + suf)) + '</b>' +
+        '<button type="button" class="modal-x" data-modal-close="1" aria-label="' + gameHtml(gameText('ui.action.close', null, '关闭')) + '">×</button></div>' +
+      '<div class="modal-bd"><p>' + gameHtml(gameText('game.government.naming.prompt', {
+        governmentTitle: suf, maxCharacters: 16
+      }, '为你的' + suf + '起一个名字（最多 16 字）：')) + '</p>' +
+        '<input id="govNameInput" type="text" maxlength="16" placeholder="' + gameHtml(gameText('game.government.naming.placeholder', null, '如：深渊')) + '" autocomplete="off" />' +
+        '<div class="chg-foot"><button type="button" class="btn" id="govNameOk">' + gameHtml(gameText('game.government.naming.confirm', null, '确定')) + '</button></div></div>';
     var ok = document.getElementById('govNameOk');
     if (ok) ok.onclick = confirmGovName;
     if (SB.ui.render.resetModalChrome) SB.ui.render.resetModalChrome();
@@ -922,7 +1149,7 @@
     var nm = inp ? (inp.value || '').trim() : '';
     if (!nm) {
       var suf = (SB.civic && SB.civic.govTitleSuffix) ? SB.civic.govTitleSuffix(t.gov) : '';
-      nm = '无名' + (suf || '之国');
+      nm = gameText('game.government.default_name', { governmentTitleSuffix: suf }, '无名' + (suf || '之国'));
     }
     t.s.govName = nm.slice(0, 16);
     markDirty();
@@ -970,7 +1197,8 @@
    *           ② 值比上次实发的高才发（三个口径都单调不减），零变化不发请求。
    * rankLast 与破壳上报共用：submitRankOnBreak 发出的值也记进来，避免结算后重复发。
    * 口径：dev/wonder 与破壳完全一致（breakReport 复算 / countWonders）；
-   *   cycle 用 m.cycle（当前周目编号，= 破壳时上报值 −1 的同一把尺子，玩家破壳后自然对齐）。 */
+   *   cycle 用 m.cycle（= 合格轮回次数，2026-11-06 起与破壳上报同口径：doBreak 先 +1 再上报，
+   *   所以这条定期上报不再需要 +1，也不会被「重开本周目」推高）。 */
   var RANK_PERIOD = 5 * 60 * 1000;   // 5 分钟墙钟
   var rankLast = {};                 // key -> 上次实发的整数值（floor 后，与 toScore 同规）
 
@@ -1019,7 +1247,10 @@
     }
     /* 这三个不依赖「有效通关」：建成即算，锁不锁都有意义。 */
     entries.push({ key: 'wonder', value: countWonders(s) });
-    entries.push({ key: 'cycle', value: (m.cycle || 0) + 1 });
+    /* 2026-11-06：cycle 的 +1 已挪进 prestige.doBreak（过资格门那一刻），这里直接报现值。
+     * 旧写法 `(m.cycle||0)+1` 依赖「startRun 时才涨」，收紧后若再 +1 会让本榜单虚高 1。
+     * ⚠️ 不合格局也会走到这里（r.locked 分支），此时 cycle 未涨、报的是旧值 ⇒ best 榜不动。 */
+    entries.push({ key: 'cycle', value: (m.cycle || 0) });
     entries.push({ key: 'star', value: Math.floor((m.stardustEarned || 0)) });   // 最多星屑：累计获得量（与「最多轮回点」用 tideEarnedTotal 同口径）；calcType:best 自动取历史最大
     /* 最多轮回点：累计获得量单独记账，兑出再兑回不改变总获得数。占满第 5 条配额。 */
     entries.push({ key: 'tide', value: Math.floor(m.tideEarnedTotal || 0) });
@@ -1251,9 +1482,29 @@
     var lv = (s && s.perk && s.perk.offline) || 0;
     return SB.CFG.OFFLINE_CAP * (1 + step * lv);
   }
+  function gameText(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    if (value) return value;
+    return String(fallback == null ? '' : fallback).replace(/\{([^{}]+)\}/g, function (match, name) {
+      return params && params[name] !== undefined && params[name] !== null ? String(params[name]) : match;
+    });
+  }
+  function gameError(key, params, fallback) {
+    var error = new Error(gameText(key, params, fallback));
+    error.playerTextLocalized = true;
+    return error;
+  }
+  function gameHtml(value) {
+    return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
   function fmtDur(sec) {
     var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
-    return h > 0 ? h + ' 小时 ' + m + ' 分' : m + ' 分 ' + Math.floor(sec % 60) + ' 秒';
+    var seconds = Math.floor(sec % 60);
+    var key = h > 0 ? 'game.duration.hours_minutes' : 'game.duration.minutes_seconds';
+    var params = h > 0 ? { hours: h, minutes: m } : { minutes: m, seconds: seconds };
+    var fallback = h > 0 ? h + ' 小时 ' + m + ' 分' : m + ' 分 ' + seconds + ' 秒';
+    return gameText(key, params, fallback);
   }
   function RESS_KEYS() { return SB.RESS ? Object.keys(SB.RESS) : []; }
 
@@ -1291,22 +1542,34 @@
      * ⚠️ 破壳 / 戴森这类终局事件照弹（finishCatchUp 的 breakReport 分支不读 silent）——
      *    那是里程碑时刻，不是「离开汇报」。 */
     if (loop.job.silent) {
-      log('离开 ' + fmtDur(secs) + '，正在后台补算…' + (adActive ? '（双倍加速覆盖时段按 2×）' : ''));
-      if (secs < gap) log('补算有上限（' + fmtDur(cap) + '），剩余 ' + fmtDur(gap - secs) + ' 不计。');
+      log(gameText('game.offline.catchup.started_log', { duration: fmtDur(secs), boostNote: '' }, '离开 {duration}，正在后台补算…{boostNote}'));
+      if (adActive) log(gameText('game.offline.settlement.ad_boost_applied', null, '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。'));
+      if (secs < gap) log(gameText('game.offline.catchup.cap_notice', {
+        capDuration: fmtDur(cap), uncountedDuration: fmtDur(gap - secs)
+      }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。'));
       return;
     }
     /* 离线闸门：补算期间锁住整个界面（#modal 全屏遮罩挡点击），不给确认按钮，
      * 强制等算完（用户 2026-09-29：「离线回来先算完才能操作」）。 */
     SB.ui.render.showOfflineModal({
-      title: '离线进度补算中…',
-      body: '<div class="note">正在补算你离开期间的进度（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，长时段按分段方式近似推进）。</div>' +
-            '<div class="note" style="margin-top:8px;color:var(--dim)">离线时长 ' + fmtDur(secs) +
-            (secs < gap ? '（封顶 ' + fmtDur(cap) + '，超出部分不计）' : '') +
-            (adActive ? '（双倍加速生效中，覆盖时段按 2× 结算）' : '') + '</div>',
+      title: gameText('game.offline.catchup.progress_label', null, '离线进度补算中…'),
+      body: '<div class="note">' + gameText('game.offline.catchup.modal_description', null,
+        '正在补算你离开期间的进度（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，长时段按分段方式近似推进）。') + '</div>' +
+            '<div class="note" style="margin-top:8px;color:var(--dim)">' + gameText('game.offline.modal.duration_summary', {
+              duration: fmtDur(secs), capNote: '', boostNote: ''
+            }, '离线时长 {duration}') + '</div>' +
+            (secs < gap ? '<div class="note">' + gameText('game.offline.catchup.cap_notice', {
+              capDuration: fmtDur(cap), uncountedDuration: fmtDur(gap - secs)
+            }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。') + '</div>' : '') +
+            (adActive ? '<div class="note is-boost">' + gameText('game.offline.settlement.ad_boost_applied', null,
+              '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。') + '</div>' : ''),
       showProgress: true
     });
-    log('离线 ' + fmtDur(secs) + '，正在补算…' + (adActive ? '（双倍加速覆盖时段按 2×）' : ''));
-    if (secs < gap) log('补算有上限（' + fmtDur(cap) + '），剩余 ' + fmtDur(gap - secs) + ' 不计。');
+    log(gameText('game.offline.catchup.started_log', { duration: fmtDur(secs), boostNote: '' }, '离开 {duration}，正在后台补算…{boostNote}'));
+    if (adActive) log(gameText('game.offline.settlement.ad_boost_applied', null, '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。'));
+    if (secs < gap) log(gameText('game.offline.catchup.cap_notice', {
+      capDuration: fmtDur(cap), uncountedDuration: fmtDur(gap - secs)
+    }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。'));
   }
   /* 分段快进：稳定区间最多跨过一个 2 秒泵周期；事件跨越点提前切开。
    * 暖石还会被熔炉等系统消耗。若本块其他暖石净消耗可能让保温库存跨过阈值，
@@ -1359,6 +1622,12 @@
      * 旧循环每次只推进 1 个真实秒，导致 1× 时 dt 永远 <=1 秒；现在可跨真实秒批量结算。 */
     while (j.left > CATCHUP_EPS && !j.breakReached && Date.now() - tStart < budgetMs) {
       var mul = adMul();
+      /* ⚠️ 2026-11-07 客户「离线结算进度条卡死」：双倍段把银行扣到只剩 1ulp 正残差时
+       *   （实测 1e-13 ms 量级），adMul() 仍判 2×，realChunk ≈1e-16 真实秒 ⇒ gameLeft ≤ 1e-9
+       *   ⇒ 内层一步不进 ⇒ realDone=0 ⇒ j.left 原样写回 ⇒ 外层每帧空转、闸门永不关、
+       *   余额耗尽后的 1× 段整段被吞。CATCHUP_EPS 只夹 j.left、管不到银行，故在此用
+       *   与收尾容差同源的真实秒判活：残差对应 1e-16 秒，远小于 1 微秒，夹零不损失任何收益。 */
+      if (mul > 1 && j.s.ad.ms / 1000 <= CATCHUP_EPS) { j.s.ad.ms = 0; mul = 1; }
       var realChunk = j.left;
       if (mul > 1) realChunk = Math.min(realChunk, j.s.ad.ms / 1000); // 银行归零处切开
       var gameLeft = realChunk * mul;
@@ -1394,6 +1663,12 @@
         if ((++inner & 63) === 0 && Date.now() - tStart >= budgetMs) break;
       }
       j.left = Math.max(0, j.left - realDone);
+      /* 通用护栏（2026-11-07）：本轮没推进出任何有意义的真实秒，说明切段口径把
+       * gameLeft 压到 < 1e-9（残差可能来自银行、dt 切分或未来新增的别的时间源）。
+       * 强制归零银行 ⇒ 下一轮 adMul() 回落 1×、realChunk = j.left，外层必有进展，
+       * 杜绝「每帧 0 tick、离线闸门永不关」的活锁。只在 mul>1 时生效：
+       * 玩家关掉开关囤着的余额（ad.on=false）不能在这里被误清。 */
+      if (mul > 1 && realDone <= CATCHUP_EPS && !j.breakReached && j.left > CATCHUP_EPS) j.s.ad.ms = 0;
     }
     /* 残渣夹零：不收这一下，进度条会停在 99.99999999% 而不是 100%。 */
     if (j.left <= CATCHUP_EPS) j.left = 0;
@@ -1434,12 +1709,18 @@
    * （drainCatchUp 里 pumpTech/pumpCivic 传 emit=null、dysonPopupPending 只挂旗），
    * 静默模式没有遮罩会盖它们，补算完立即补播，不等下一趟泵自愈。 */
   function silentCatchUpSummary(j) {
-    var s = j.s, txt = '后台补算完成（离开 ' + fmtDur(j.secs) + '）';
-    if (j.uncountedSecs > 0) txt += '，另有 ' + fmtDur(j.uncountedSecs) + ' 超出补算上限未计入';
-    if (s.pop !== j.bPop) txt += ' · 族民 ' + j.bPop + '→' + s.pop;
-    if (s.famineDeaths > j.bFam) txt += ' · 饿死 ' + (s.famineDeaths - j.bFam) + ' 人';
-    if (s.frostDeaths > j.bFrost) txt += ' · 冻死 ' + (s.frostDeaths - j.bFrost) + ' 人';
-    log(txt + '。');
+    var s = j.s;
+    var separator = SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' ? ' · ' : '，';
+    var params = {
+      duration: fmtDur(j.secs),
+      uncountedNotice: j.uncountedSecs > 0 ? separator + gameText('game.offline.catchup.cap_notice', {
+        capDuration: fmtDur(j.cap), uncountedDuration: fmtDur(j.uncountedSecs)
+      }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。') : '',
+      populationChange: s.pop !== j.bPop ? separator + gameText('game.offline.population_change', { before: j.bPop, after: s.pop }, '族民 {before}→{after}') : '',
+      famineDeaths: s.famineDeaths > j.bFam ? separator + gameText('game.offline.starvation_summary', { count: s.famineDeaths - j.bFam }, '饿死 {count}') : '',
+      frostDeaths: s.frostDeaths > j.bFrost ? separator + gameText('game.offline.frost_deaths_summary', { count: s.frostDeaths - j.bFrost }, '冻死 {count}') : ''
+    };
+    log(gameText('game.offline.silent_summary.log', params, '后台补算完成（离开 {duration}）{uncountedNotice}{populationChange}{famineDeaths}{frostDeaths}。'));
     maybeSciencePopup(s); maybeReligionPopup(s); maybeTabUnlockPopups(s); markDirty(); fireDysonPending(j);
   }
   function fireDysonPending(j) {
@@ -1473,79 +1754,93 @@
   }
   function showOfflineSettlement(j, breakReport) {
     var lines = [], resourceRows = [], overviewCards = '', incidentRows = '', any = false, rk = RESS_KEYS(), i, k, d;
+    function text(key, params, fallback) { return gameText(key, params, fallback); }
+    function html(value) {
+      return String(value == null ? '' : value).replace(/[&<>\"']/g, function (ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' })[ch];
+      });
+    }
     for (i = 0; i < rk.length; i++) {
       k = rk[i]; d = j.s.res[k] - j.before[k];
       if (Math.abs(d) >= 0.5) {
-        var resourceName = SB.RESS[k].name, resourceDelta = (d >= 0 ? '+' : '') + d.toFixed(0);
+        var resourceName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
+        var resourceDelta = (d >= 0 ? '+' : '') + d.toFixed(0);
         lines.push(resourceName + ' ' + resourceDelta);
         resourceRows.push('<div class="offline-resource-row ' + (d >= 0 ? 'is-gain' : 'is-loss') + '">' +
-          '<span class="offline-resource-mark" aria-hidden="true"></span><span class="offline-resource-name">' + resourceName + '</span>' +
+          '<span class="offline-resource-mark" aria-hidden="true"></span><span class="offline-resource-name">' + html(resourceName) + '</span>' +
           '<strong>' + resourceDelta + '</strong></div>');
         any = true;
       }
     }
     if (j.s.pop !== j.bPop) {
       var popDelta = j.s.pop - j.bPop;
-      lines.push('族民 ' + j.bPop + '→' + j.s.pop);
-      overviewCards += '<article class="offline-stat-card"><span>族民</span><strong>' + j.s.pop + '</strong>' +
-        '<small>离线前 ' + j.bPop + ' <b class="' + (popDelta >= 0 ? 'is-positive' : 'is-negative') + '">' +
+      lines.push(text('game.offline.population_change', { before: j.bPop, after: j.s.pop }, '族民 {before}→{after}'));
+      overviewCards += '<article class="offline-stat-card"><span>' + html(text('resource.population.name', null, '族民')) + '</span><strong>' + j.s.pop + '</strong>' +
+        '<small>' + html(text('game.offline.before.label', null, '离线前')) + ': ' + j.bPop + ' <b class="' + (popDelta >= 0 ? 'is-positive' : 'is-negative') + '">' +
         (popDelta >= 0 ? '+' : '') + popDelta + '</b></small></article>';
       any = true;
     }
     if (j.s.shell !== j.bShell) {
       var shellDelta = Math.round(j.s.shell) - Math.round(j.bShell);
-      lines.push('壳厚 ' + Math.round(j.bShell) + '→' + Math.round(j.s.shell));
-      overviewCards += '<article class="offline-stat-card"><span>壳厚</span><strong>' + Math.round(j.s.shell) + '</strong>' +
-        '<small>离线前 ' + Math.round(j.bShell) + ' <b class="' + (shellDelta <= 0 ? 'is-positive' : 'is-negative') + '">' +
+      lines.push(text('game.offline.shell_change', { before: Math.round(j.bShell), after: Math.round(j.s.shell) }, '壳厚 {before}→{after}'));
+      overviewCards += '<article class="offline-stat-card"><span>' + html(text('game.offline.shell_thickness.label', null, '壳厚')) + '</span><strong>' + Math.round(j.s.shell) + '</strong>' +
+        '<small>' + html(text('game.offline.before.label', null, '离线前')) + ': ' + Math.round(j.bShell) + ' <b class="' + (shellDelta <= 0 ? 'is-positive' : 'is-negative') + '">' +
         (shellDelta > 0 ? '+' : '') + shellDelta + '</b></small></article>';
       any = true;
     }
     if (!overviewCards) overviewCards = '<div class="offline-stable-card"><span class="offline-stable-mark">✓</span>' +
-      '<div><strong>人口与壳体保持稳定</strong><small>离线期间没有明显变化</small></div></div>';
+      '<div><strong>' + html(text('game.offline.stable.population_shell', null, '人口与壳体保持稳定')) + '</strong><small>' +
+      html(text('game.offline.stable.no_visible_change', null, '离线期间没有明显变化')) + '</small></div></div>';
     if (j.s.famineDeaths > j.bFam) {
       var famineDelta = j.s.famineDeaths - j.bFam;
-      lines.push('饿死 ' + famineDelta);
-      incidentRows += '<span class="offline-incident is-warning">口粮不足 · ' + famineDelta + ' 人</span>';
+      lines.push(text('game.offline.starvation_summary', { count: famineDelta }, '饿死 {count}'));
+      incidentRows += '<span class="offline-incident is-warning">' + html(text('game.offline.incident.starvation', { personCount: famineDelta }, '口粮不足 · {personCount} 人')) + '</span>';
       any = true;
     }
     if (j.s.frostDeaths > j.bFrost) {
       var frostDelta = j.s.frostDeaths - j.bFrost;
-      lines.push('冻死 ' + frostDelta);
-      incidentRows += '<span class="offline-incident is-cold">冻死 · ' + frostDelta + ' 人</span>';
+      lines.push(text('game.offline.frost_deaths_summary', { count: frostDelta }, '冻死 {count}'));
+      incidentRows += '<span class="offline-incident is-cold">' + html(text('game.offline.incident.frost_deaths', { personCount: frostDelta }, '冻死 · {personCount} 人')) + '</span>';
       any = true;
     }
     var noteRows = '';
-    if (j.uncountedSecs > 0) noteRows += '<div class="offline-footnote">超出单次离线上限的 ' + fmtDur(j.uncountedSecs) + ' 未计入本次结算。</div>';
+    if (j.uncountedSecs > 0) noteRows += '<div class="offline-footnote">' + html(text('game.offline.settlement.uncounted_note', {
+      uncountedDuration: fmtDur(j.uncountedSecs)
+    }, '超出单次离线上限的 {uncountedDuration} 未计入本次结算。')) + '</div>';
     var settledSecs = j.breakReached ? Math.max(0, j.secs - j.left) : j.secs;
-    if (j.breakReached && j.left > 0) noteRows += '<div class="offline-footnote">破壳后剩余 ' + fmtDur(j.left) + ' 未继续补算。</div>';
-    if (j.adActive) noteRows += '<div class="offline-footnote is-boost">双倍加速在离线期间生效，覆盖时段已按 2× 结算。</div>';
+    if (j.breakReached && j.left > 0) noteRows += '<div class="offline-footnote">' + html(text('game.offline.settlement.break_remaining_note', {
+      remainingDuration: fmtDur(j.left)
+    }, '破壳后剩余 {remainingDuration} 未继续补算。')) + '</div>';
+    if (j.adActive) noteRows += '<div class="offline-footnote is-boost">' + html(text('game.offline.settlement.ad_boost_applied', null,
+      '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。')) + '</div>';
     var resourceContent = resourceRows.length ? resourceRows.join('') :
-      '<div class="offline-empty-state">资源几乎没有变化</div>';
-    var summaryText = any ? lines.join('，') : '资源几乎没变（没人干活，或产出被口粮吃光）';
+      '<div class="offline-empty-state">' + html(text('game.offline.resources.no_change.label', null, '资源几乎没有变化')) + '</div>';
+    var summaryText = any ? lines.join(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' ? ', ' : '，')
+      : text('game.offline.resources.no_change.log', null, '资源几乎没变（没人干活，或产出被口粮吃光）');
     var summary = '<div class="offline-report">' +
       '<header class="offline-report-hero"><div class="offline-report-emblem" aria-hidden="true"><span>✦</span></div>' +
-      '<div class="offline-report-heading"><span class="offline-report-kicker">ABYSSAL LOG · 离线记录</span>' +
-      '<h2>离线结算</h2><p>你离开期间，文明仍在持续运转</p></div>' +
-      '<div class="offline-duration-card"><span>离线结算时长</span><strong>' + fmtDur(settledSecs) + '</strong></div></header>' +
+      '<div class="offline-report-heading"><span class="offline-report-kicker">' + html(text('game.offline.report.kicker', null, 'ABYSSAL LOG · 离线记录')) + '</span>' +
+      '<h2>' + html(text('game.offline.report.title', null, '离线结算')) + '</h2><p>' + html(text('game.offline.report.subtitle', null, '你离开期间，文明仍在持续运转')) + '</p></div>' +
+      '<div class="offline-duration-card"><span>' + html(text('game.offline.report.duration.heading', null, '离线结算时长')) + '</span><strong>' + html(fmtDur(settledSecs)) + '</strong></div></header>' +
       '<div class="offline-report-scroll"><section class="offline-report-section"><div class="offline-section-heading">' +
-      '<div><span class="offline-section-kicker">WORLD STATUS</span><h3>世界变化</h3></div>' +
-      '<span class="offline-report-badge">' + (any ? '结算完成' : '平稳度过') + '</span></div>' +
+      '<div><span class="offline-section-kicker">' + html(text('game.offline.report.world_status.kicker', null, '世界状态')) + '</span><h3>' + html(text('game.offline.report.world_changes.heading', null, '世界变化')) + '</h3></div>' +
+      '<span class="offline-report-badge">' + html(text(any ? 'game.offline.report.status.completed' : 'game.offline.report.status.stable', null, any ? '结算完成' : '平稳度过')) + '</span></div>' +
       '<div class="offline-stat-grid">' + overviewCards + '</div>' +
       (incidentRows ? '<div class="offline-incidents">' + incidentRows + '</div>' : '') + '</section>' +
       '<section class="offline-report-section"><div class="offline-section-heading">' +
-      '<div><span class="offline-section-kicker">RESOURCE FLOW</span><h3>资源变化</h3></div>' +
-      '<span class="offline-resource-count">' + resourceRows.length + ' 项</span></div>' +
+      '<div><span class="offline-section-kicker">' + html(text('game.offline.report.resource_flow.kicker', null, '资源流动')) + '</span><h3>' + html(text('game.offline.report.resource_changes.heading', null, '资源变化')) + '</h3></div>' +
+      '<span class="offline-resource-count">' + html(text('game.offline.report.resource_count', { resourceCount: resourceRows.length }, '{resourceCount} 项')) + '</span></div>' +
       '<div class="offline-resource-list">' + resourceContent + '</div></section>' + noteRows +
       '</div></div>';
-    log('离线结算：' + summaryText + '。');
+    log(text('game.offline.settlement_log', { summary: summaryText }, '离线结算：{summary}。'));
     /* 离线闸门第二阶段：把「补算中」换成结算面板，只有点「继续」才解锁界面
      * （否则玩家边补算边点建造，就会看到材料飞快被灌满）。科研 / 宗教开门弹窗
      * 顺延到关掉本面板之后，否则会被本面板覆盖、玩家看不到。 */
     var modalShown = SB.ui.render.showOfflineModal({
-      title: '离线结算',
+      title: text('game.offline.report.title', null, '离线结算'),
       body: summary,
       summary: true,
-      ok: '继续',
+      ok: text('game.offline.report.continue.action', null, '继续'),
       onOk: function () {
         /* 2026-11-03：破壳结果已经在这张面板之前播过（finishCatchUp：动画 → 结果窗 → 本面板），
          * 这里不再重复弹结算面板，只补播被离线遮罩盖住的叙事与终局事件。 */
@@ -1583,7 +1878,7 @@
   }
   function installImportedSave(bundle) {
     if (!bundle || bundle.format !== 'shellbreak-save' || bundle.version !== 1 || !bundle.save)
-      throw new Error('存档文件格式或版本不受支持。');
+      throw gameError('game.save.import.unsupported_format', null, '存档文件格式或版本不受支持。');
     var incomingMeta = SB.state.normalizeMeta(bundle.save.meta);
     var incomingRunRaw = bundle.save.run;
     if (!incomingRunRaw || typeof incomingRunRaw !== 'object' || Array.isArray(incomingRunRaw)
@@ -1591,7 +1886,7 @@
         || !incomingRunRaw.lvl || typeof incomingRunRaw.lvl !== 'object'
         || !incomingRunRaw.jobs || typeof incomingRunRaw.jobs !== 'object'
         || typeof incomingRunRaw.shell !== 'number' || !isFinite(incomingRunRaw.shell))
-      throw new Error('周目存档缺少必要数据，未修改本地存档。');
+      throw gameError('game.save.import.missing_run_data', null, '周目存档缺少必要数据，未修改本地存档。');
     var oldMeta = meta, incomingRun;
     try { meta = incomingMeta; incomingRun = SB.state.migrateRun(incomingRunRaw); }
     finally { meta = oldMeta; }
@@ -1601,15 +1896,22 @@
      *   导入后立刻取一个新号，让这份在所有通道里都赢。 */
     stampFreshSeq(incomingRun);
     var serializedMeta = JSON.stringify(incomingMeta), serializedRun = JSON.stringify(incomingRun);
-    if (!root.localStorage) throw new Error('浏览器本地存储不可用。');
-    var oldMetaRaw = root.localStorage.getItem(CFG.SAVE_KEY);
-    var oldRunRaw = root.localStorage.getItem(CFG.RUN_KEY);
+    if (!root.localStorage) throw gameError('save.import.error.local_storage_unavailable.restore', null,
+      '本机存储不可用，未恢复。');
+    var oldMetaRaw, oldRunRaw;
+    try {
+      oldMetaRaw = root.localStorage.getItem(CFG.SAVE_KEY);
+      oldRunRaw = root.localStorage.getItem(CFG.RUN_KEY);
+    } catch (readError) {
+      throw gameError('save.import.error.local_storage_unavailable.restore', null, '本机存储不可用，未恢复。');
+    }
     try {
       /* 必须先备份两份旧值；任一备份失败时不动主存档。 */
       if (oldMetaRaw !== null) root.localStorage.setItem(CFG.SAVE_BACKUP_KEY, oldMetaRaw);
       if (oldRunRaw !== null) root.localStorage.setItem(CFG.RUN_BACKUP_KEY, oldRunRaw);
     } catch (backupError) {
-      throw new Error('无法先备份当前存档，导入已取消：' + (backupError.message || backupError));
+      throw gameError('game.save.import_backup_failed', { error: backupError.message || String(backupError) },
+        '无法先备份当前存档，导入已取消：{error}');
     }
     try {
       root.localStorage.setItem(CFG.SAVE_KEY, serializedMeta);
@@ -1622,7 +1924,8 @@
         if (oldRunRaw === null) root.localStorage.removeItem(CFG.RUN_KEY);
         else root.localStorage.setItem(CFG.RUN_KEY, oldRunRaw);
       } catch (rollbackError) {}
-      throw new Error('导入写入失败，已尝试恢复当前存档：' + (writeError.message || writeError));
+      throw gameError('game.save.import_write_failed', { error: writeError.message || String(writeError) },
+        '导入写入失败，已尝试恢复当前存档：{error}');
     }
     /* ⚠️⚠️ 2026-10-28 P0：**写完必须读回校验**。
      *   小游戏容器对 localStorage 没有任何持久承诺（官方只对 tapfile://usr 承诺），
@@ -1642,7 +1945,8 @@
         if (oldRunRaw === null) root.localStorage.removeItem(CFG.RUN_KEY);
         else root.localStorage.setItem(CFG.RUN_KEY, oldRunRaw);
       } catch (rollbackError2) {}
-      throw new Error('本机存储不可靠：写入后读回的内容不一致，导入已中止（原存档未改动）。');
+      throw gameError('game.save.import.local_storage_unreliable', null,
+        '本机存储不可靠：写入后读回的内容不一致，导入已中止（原存档未改动）。');
     }
     /* 原生落盘**尽力而为，不再当门槛**（2026-10-30 玩家实测 P0）。
      * 【旧行为为什么必须废】条件里那句「同步写失败就回滚 + throw」在**没有同步文件
@@ -1666,7 +1970,8 @@
         if (SB.store.writeNativeSave) SB.store.writeNativeSave(serializedMeta, serializedRun, true);
       } catch (e2) {}
       if (SB.store.diagSet) {
-        try { SB.store.diagSet({ err: '导入已落 localStorage，原生同步落盘未确认（已排队异步 + 键值镜像）' }, true); } catch (e3) {}
+        try { SB.store.diagSet({ err: gameText('game.save.import.native_sync_unconfirmed', null,
+          '导入已落 localStorage，原生同步落盘未确认（已排队异步 + 键值镜像）') }, true); } catch (e3) {}
       }
     }
     suppressExitSave = true;
@@ -1684,7 +1989,8 @@
    *   「会再弹一次更新日志但是又不掉、什么都点不动、重启也一样」正是这个环的外在表现。
    * 【本函数的口径】写盘只是**尽力而为**（成功则下次启动直接 resumed），真正的状态直接
    *   进内存 ⇒「本次会话能不能玩」与「存储持不持久」彻底解耦，环在物理上无法形成。
-   * ⚠️ 与 startRun 的区别：**不**动 `meta.cycle`（那会平白多算一个周目），也**不**做
+   * ⚠️ 与 startRun 的区别：**不**动 `meta.runs` / `meta.cycle`（接管已有的局，不是开新局；
+   *   2026-11-06 起 startRun 只涨 runs，cycle 由 prestige.doBreak 管），也**不**做
    *   startRun 的「建筑等级并入跨周目账本」—— 这是「接管已有的局」，不是「开新局」。
    * ⚠️ 故意**不**设 `loop._lastWall`：恢复路径不该顺手给玩家补一笔离线结算（可能为负），
    *   等同「刚上线」。`_ts` 一并删掉，避免残留在下次快照里。 */
@@ -1732,15 +2038,22 @@
         || !(raw.meta === null || typeof raw.meta === 'string')
         || !(raw.run === null || typeof raw.run === 'string')
         || (raw.meta === null && raw.run === null))
-      throw new Error('原始救援包无效，未修改本地存档。');
-    if (!root.localStorage) throw new Error('浏览器本地存储不可用。');
-    var oldMetaRaw = root.localStorage.getItem(CFG.SAVE_KEY);
-    var oldRunRaw = root.localStorage.getItem(CFG.RUN_KEY);
+      throw gameError('save.import.error.invalid_recovery_bundle', null, '原始救援包格式无效。');
+    if (!root.localStorage) throw gameError('save.import.error.local_storage_unavailable.restore', null,
+      '本机存储不可用，未恢复。');
+    var oldMetaRaw, oldRunRaw;
+    try {
+      oldMetaRaw = root.localStorage.getItem(CFG.SAVE_KEY);
+      oldRunRaw = root.localStorage.getItem(CFG.RUN_KEY);
+    } catch (readError) {
+      throw gameError('save.import.error.local_storage_unavailable.restore', null, '本机存储不可用，未恢复。');
+    }
     try {
       if (oldMetaRaw !== null) root.localStorage.setItem(CFG.SAVE_BACKUP_KEY, oldMetaRaw);
       if (oldRunRaw !== null) root.localStorage.setItem(CFG.RUN_BACKUP_KEY, oldRunRaw);
     } catch (backupError) {
-      throw new Error('无法先备份当前原始存档，恢复已取消：' + (backupError.message || backupError));
+      throw gameError('game.save.restore_backup_failed', { error: backupError.message || String(backupError) },
+        '无法先备份当前原始存档，恢复已取消：{error}');
     }
     try {
       if (raw.meta === null) root.localStorage.removeItem(CFG.SAVE_KEY);
@@ -1754,7 +2067,28 @@
         if (oldRunRaw === null) root.localStorage.removeItem(CFG.RUN_KEY);
         else root.localStorage.setItem(CFG.RUN_KEY, oldRunRaw);
       } catch (rollbackError) {}
-      throw new Error('恢复原始存档失败，现有数据已另存到本机备份：' + (writeError.message || writeError));
+      throw gameError('game.save.restore_write_failed', { error: writeError.message || String(writeError) },
+        '恢复原始存档失败，现有数据已另存到本机备份：{error}');
+    }
+    if (SB.store && SB.store.autoCloudAvailable && SB.store.autoCloudAvailable()) {
+      var restoredMeta = SB.store.readLocal(CFG.SAVE_KEY);
+      var restoredRun = SB.store.readLocal(CFG.RUN_KEY);
+      var validPair = false;
+      try {
+        var parsedMeta = restoredMeta && JSON.parse(restoredMeta);
+        var parsedRun = restoredRun && JSON.parse(restoredRun);
+        validPair = !!(parsedMeta && typeof parsedMeta === 'object' && !Array.isArray(parsedMeta)
+          && parsedRun && typeof parsedRun === 'object' && !Array.isArray(parsedRun)
+          && parsedRun.res && typeof parsedRun.res === 'object'
+          && parsedRun.lvl && typeof parsedRun.lvl === 'object'
+          && parsedRun.jobs && typeof parsedRun.jobs === 'object'
+          && typeof parsedRun.shell === 'number' && isFinite(parsedRun.shell));
+      } catch (e) { validPair = false; }
+      var autoCloudSaved = false;
+      if (validPair && SB.store.writeNativeSaveSync)
+        autoCloudSaved = !!SB.store.writeNativeSaveSync(restoredMeta, restoredRun);
+      if (!autoCloudSaved && SB.store.removeAutoCloudSave)
+        SB.store.removeAutoCloudSave();
     }
     suppressExitSave = true;
     root.location.reload();
@@ -1792,8 +2126,8 @@
           try { SB.store.diagSet({ boot: 'meta-missing', bootAt: Date.now() }, true); } catch (e) {}
         }
         if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-          SB.saveTransfer.showRecoveryPending('本机找到了周目存档，但跨周目存档（轮回点 / 已买强化 / 旧日遗产）缺失。'
-            + '为避免把这些成绩清零，已暂停载入 —— 请先「重新检查存档」，或从云端恢复 / 导入你导出的存档文件。');
+          SB.saveTransfer.showRecoveryPending(gameText('game.save.cross_run_data_missing.check_again', null,
+            '本机找到了周目存档，但跨周目存档（轮回点 / 已买强化 / 旧日遗产）缺失。为避免把这些成绩清零，已暂停载入——请先「重新检查存档」，或从云端恢复 / 导入你导出的存档文件。'));
         return 'blocked';
       }
     }
@@ -1810,7 +2144,9 @@
       return 'resumed';
     }
     if (saved) {
-      var invalidRun = { message: '本周目状态不完整，未自动创建新周目。', raw: null };
+      var invalidRun = {
+        message: gameText('game.save.run_incomplete.blocked', null, '本周目状态不完整，未自动创建新周目。'), raw: null
+      };
       if (SB.saveTransfer && SB.saveTransfer.showLoadProblem)
         SB.saveTransfer.showLoadProblem({ meta: null, run: invalidRun });
       return 'blocked';
@@ -1831,8 +2167,8 @@
         if (!best.metaRaw) {
           if (SB.store.diagSet) SB.store.diagSet({ boot: 'meta-missing:' + best.source, bootAt: Date.now() }, true);
           if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-            SB.saveTransfer.showRecoveryPending('本机找到了周目存档，但跨周目存档（轮回点 / 已买强化 / 旧日遗产）缺失。'
-              + '为避免把这些数据清零，已暂停载入 —— 请在存档管理里从云端恢复或导入备份。');
+          SB.saveTransfer.showRecoveryPending(gameText('game.save.cross_run_data_missing.manage', null,
+            '本机找到了周目存档，但跨周目存档（轮回点 / 已买强化 / 旧日遗产）缺失。为避免把这些数据清零，已暂停载入——请在存档管理里从云端恢复或导入备份。'));
           return;
         }
         /* 所有本机落点读完后，才选最新有效快照。只在确认选中后回填浏览器缓存。 */
@@ -1841,6 +2177,9 @@
         var wroteRun = SB.store.writeLocal(CFG.RUN_KEY, best.runRaw);
         if (wroteMeta && wroteRun && SB.store.readLocal(CFG.RUN_KEY) === best.runRaw
             && SB.store.readLocal(CFG.SAVE_KEY) === mRaw) {
+          if (best.source !== 'electronAutoCloud' && SB.store.autoCloudAvailable
+              && SB.store.autoCloudAvailable() && SB.store.writeNativeSave)
+            SB.store.writeNativeSave(mRaw, best.runRaw);
           meta = SB.state.loadMeta();
           var outcome = decideRun();
           if (outcome === 'resumed') {
@@ -1856,13 +2195,16 @@
           bootUi(); return;
         } catch (e) {
           if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-            SB.saveTransfer.showRecoveryPending('本机存档存在，但载入失败：' + (e && e.message || e));
+            SB.saveTransfer.showRecoveryPending(gameText('game.save.local_load_failed', {
+              error: e && e.message ? e.message : String(e)
+            }, '本机存档存在，但载入失败：{error}'));
           return;
         }
       }
       if (result.status === 'uncertain') {
         if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-          SB.saveTransfer.showRecoveryPending('本机存档读取超时、失败或内容不完整。请重试或从云端手动恢复。');
+          SB.saveTransfer.showRecoveryPending(gameText('game.save.local_read.uncertain', null,
+            '本机存档读取超时、失败或内容不完整。请重试或从云端手动恢复。'));
         return;
       }
       /* 本机已确认「三处都没有有效档」，剩下唯一可能的数据来源是云端。
@@ -1880,7 +2222,9 @@
           try { adoptBundle(cloud.bundle); bootUi(); }
           catch (e) {
             if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-              SB.saveTransfer.showRecoveryPending('云存档找到但无法载入：' + (e && e.message || e));
+              SB.saveTransfer.showRecoveryPending(gameText('game.save.cloud_load_failed', {
+                error: e && e.message ? e.message : String(e)
+              }, '云存档找到但无法载入：{error}'));
           }
           return;
         }
@@ -1890,11 +2234,15 @@
           openFreshRun(); bootUi(); return;
         }
         if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-          SB.saveTransfer.showRecoveryPending((cloud && cloud.error) || '云存档检查失败；为保护旧档，已暂停开新局。');
+          SB.saveTransfer.showRecoveryPending(cloud && cloud.error
+            ? gameText('game.save.cloud_load_failed', { error: cloud.error }, '云存档检查失败：{error}')
+            : gameText('game.save.recovery.uncertain', null, '存档检查没有得到确定结果。'));
       });
     }).catch(function (e) {
       if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-        SB.saveTransfer.showRecoveryPending('本机存档检查失败：' + (e && e.message || e));
+        SB.saveTransfer.showRecoveryPending(gameText('game.save.local_check_failed', {
+          error: e && e.message ? e.message : String(e)
+        }, '本机存档检查失败：{error}'));
     });
   }
   /* ══ 运行时就绪门（2026-10-30）════════════════════════════════════════
@@ -1929,6 +2277,7 @@
     if (!SB.store || !SB.store.scanSaveCandidates) return false;
     return !!((SB.store.envAvailable && SB.store.envAvailable())
       || (SB.store.fsAvailable && SB.store.fsAvailable())
+      || (SB.store.autoCloudAvailable && SB.store.autoCloudAvailable())
       || (SB.saveTransfer && SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable()));
   }
   function runtimeHinted() {
@@ -1955,20 +2304,22 @@
           + 'padding:24px;text-align:center;background:rgba(6,12,20,.94);color:#e8eef6;'
           + 'font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;'
           + 'pointer-events:auto;-webkit-user-select:none;user-select:none;';
-        gateEl.innerHTML = '<div id="bootGateMsg">正在连接 TapTap…</div>'
+        gateEl.innerHTML = '<div id="bootGateMsg">' + gameHtml(gameText('game.boot_gate.connecting', null, '正在连接 TapTap…')) + '</div>'
           + '<div id="bootGateSub" style="font-size:13px;opacity:.66;min-height:1.4em"></div>'
           + '<button type="button" id="bootGateSkip" style="display:none;margin-top:6px;'
           + 'padding:9px 18px;border:1px solid rgba(232,238,246,.34);border-radius:8px;'
           + 'background:transparent;color:#e8eef6;font-size:13px;cursor:pointer;">'
-          + '跳过等待，直接进入</button>';
+          + gameHtml(gameText('game.boot_gate.skip_wait', null, '跳过等待，直接进入')) + '</button>';
         document.body.appendChild(gateEl);
         gateSkipBtn = gateEl.querySelector('#bootGateSkip');
         if (gateSkipBtn) gateSkipBtn.onclick = function () { gateFinish('skip'); };
       }
       var msg = gateEl.querySelector('#bootGateMsg');
-      if (msg) msg.textContent = '正在连接 TapTap…';
+      if (msg) msg.textContent = gameText('game.boot_gate.connecting', null, '正在连接 TapTap…');
       var sub = gateEl.querySelector('#bootGateSub');
-      if (sub) sub.textContent = '已等待 ' + Math.floor(waited / 1000) + ' 秒';
+      if (sub) sub.textContent = gameText('game.boot_gate.waited', {
+        waitSeconds: Math.floor(waited / 1000)
+      }, '已等待 {waitSeconds} 秒');
       if (gateSkipBtn) gateSkipBtn.style.display = waited >= gateCfg('SKIP_MS', 3000) ? 'block' : 'none';
     } catch (e) {
       /* 遮罩画不出来也不能拦住启动 —— 等待逻辑与 UI 必须解耦。 */
@@ -2008,9 +2359,9 @@
       /* 唯一的「不确定」出口：绝不开新档（见上方判据）。给玩家的动作是明确的 —— 
        * 退出重开；连续几次都这样就把诊断信息发给我们。 */
       if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-        SB.saveTransfer.showRecoveryPending('没能连上 TapTap 运行环境（已等待 '
-          + Math.round(gateCfg('WAIT_MS', 8000) / 1000) + ' 秒）。为保护旧档，已暂停开新局 —— '
-          + '请退出游戏重新打开；如果连续几次都这样，请把存档面板里的诊断信息发给我们。');
+        SB.saveTransfer.showRecoveryPending(gameText('game.boot_gate.timeout.recovery_pending', {
+          waitSeconds: Math.round(gateCfg('WAIT_MS', 8000) / 1000)
+        }, '没能连上 TapTap 运行环境（已等待 {waitSeconds} 秒）。为保护旧档，已暂停开新局——请退出游戏重新打开；如果连续几次都这样，请把存档面板里的诊断信息发给我们。'));
       return;
     }
     bootStage2();
@@ -2083,9 +2434,10 @@
       var rescueGate = !!(SB.store && SB.state.recoverAsync) && !!(
         (SB.store.envAvailable && SB.store.envAvailable())
         || (SB.store.fsAvailable && SB.store.fsAvailable())
+        || (SB.store.autoCloudAvailable && SB.store.autoCloudAvailable())
         || (SB.saveTransfer && SB.saveTransfer.cloudAvailable && SB.saveTransfer.cloudAvailable()));
       if (rescueGate) {
-        try { log('未读到浏览器存档，正在检查本机备份…'); } catch (e) {}
+        try { log(gameText('game.save.local_backup.checking', null, '未读到浏览器存档，正在检查本机备份…')); } catch (e) {}
         /* ⚠️⚠️ 2026-10-28 P0：异步恢复必须有**硬超时**，而且超时要**逐段推进**而不是直接放弃。
          *   事故：玩家报「从存档码导入后卡在更新日志，什么都点不动，重启也一样」。
          *   旧写法只靠回调推进 boot：`recoverAsync` 或云端救援任一环**不回调**
@@ -2116,7 +2468,9 @@
            *   ⚠️ 它读备份**不经过**上面那道门 —— 那道门正是 P0-1 的 bug 所在。 */
           var go = function (pres) {
             if (pres) {
-              try { log('已保留一份旧档副本（' + pres.bytes + ' 字节，来源 ' + pres.source + '），可在存档面板导出。'); } catch (e) {}
+              try { log(gameText('game.save.emergency_copy_saved.log', {
+                bytes: pres.bytes, source: pres.source
+              }, '已保留一份旧档副本（{bytes} 字节，来源 {source}），可在存档面板导出。')); } catch (e) {}
             }
             openFreshRun();
             bootUi();
@@ -2139,7 +2493,8 @@
           if (proceeded) return;
           proceeded = true; stopTimer();
           if (SB.saveTransfer && SB.saveTransfer.showRecoveryPending)
-            SB.saveTransfer.showRecoveryPending(why || '存档检查没有得到确定结果。');
+            SB.saveTransfer.showRecoveryPending(why || gameText('game.save.recovery.uncertain', null,
+              '存档检查没有得到确定结果。'));
         }
         /* 第二段：问一次 TapTap 云存档。
          * ★★ 2026-10-28 第四路 —— 本机三层（localStorage / tap.setStorage / tapfile://usr）
@@ -2153,28 +2508,32 @@
         function toCloud() {
           if (proceeded) return;
           if (SB.saveTransfer && SB.saveTransfer.restoreFromCloudIfAny) {
-            try { log('本机备份也没有，正在检查 TapTap 云存档…'); } catch (e) {}
+            try { log(gameText('game.save.cloud_restore.checking', null, '本机备份也没有，正在检查 TapTap 云存档…')); } catch (e) {}
             /* 云端自身有 8 秒内部超时；这里给 12 秒外层兜底（含解码/校验耗时）。 */
-            arm(12000, function () { pauseRecovery('云端检查超时，请重试。'); });
+            arm(12000, function () { pauseRecovery(gameText('game.save.recovery.uncertain', null, '云端检查超时，请重试。')); });
             SB.saveTransfer.restoreFromCloudIfAny(function (cloud) {
               if (proceeded) return;
               if (cloud && cloud.bundle) {
                 try {
                   adoptBundle(cloud.bundle);
-                  finishResumed('已从 TapTap 云存档恢复进度：' +
-                    ((S && S.t) ? (S.t / 3600).toFixed(2) : '0') + ' 小时。');
+                  finishResumed(gameText('game.run.resumed.log', {
+                    hours: (S && S.t) ? (S.t / 3600).toFixed(2) : '0',
+                    shellThickness: Math.round((S && S.shell) || 0)
+                  }, '已恢复上次进度：已游玩 {hours} 小时，壳厚 {shellThickness}。'));
                   return;
                 } catch (e) {
-                  try { log('云存档无法载入：' + (e && e.message ? e.message : e)); } catch (e2) {}
+                  try { log(gameText('game.save.cloud_load_failed', {
+                    error: e && e.message ? e.message : String(e)
+                  }, '云存档无法载入：{error}')); } catch (e2) {}
                 }
               } else if (cloud && cloud.error) {
-                try { log('云存档恢复失败：' + cloud.error); } catch (e) {}
+                try { log(gameText('game.save.cloud_load_failed', { error: cloud.error }, '云存档恢复失败：{error}')); } catch (e) {}
               }
-              pauseRecovery('本机或云端没有得到可确认的空档结果，请重试。');
+              pauseRecovery(gameText('game.save.recovery.uncertain', null, '本机或云端没有得到可确认的空档结果，请重试。'));
             });
             return;
           }
-          pauseRecovery('云存档接口不可用，请稍后重试。');
+          pauseRecovery(gameText('game.save.cloud_restore.unavailable', null, '云存档接口不可用，请稍后重试。'));
         }
         arm(8000, function () { toCloud(); });
         SB.state.recoverAsync(function (hit) {
@@ -2187,7 +2546,10 @@
                * 那时 localStorage 还是空的（否则根本走不到这个分支）—— 不重载等于把刚恢复的
                * 跨周目进度又丢一次；更不能 saveMeta(旧 meta) 反写回去覆盖掉刚恢复的备份。 */
               try { meta = SB.state.loadMeta(); } catch (e) {}
-              finishResumed('已从本机备份恢复存档（来源：' + hit + '）。');
+              finishResumed(gameText('game.run.resumed.log', {
+                hours: (S && S.t) ? (S.t / 3600).toFixed(2) : '0',
+                shellThickness: Math.round((S && S.shell) || 0)
+              }, '已恢复上次进度：已游玩 {hours} 小时，壳厚 {shellThickness}。'));
               return;
             }
           }
@@ -2273,22 +2635,25 @@
     scan.then(function (res) {
       /* ⚠️ 不能只看 res.best：best 是按 seq 排的第一名，而当前这局的 seq 最新
        *   ⇒ best 恒等于「我们自己刚写的这份」，永远判不出「有更早但更完整的档」。
-       *   必须把**全部候选**按（周目, 时长）取最大，再跟内存档比。 */
+       *   必须把**全部候选**按（局数, 时长）取最大，再跟内存档比。 */
       var pick = null;
       (res && res.candidates ? res.candidates : []).forEach(function (c) {
         if (!c || !c.metaRaw) return;          /* 缺 meta 不许接管，见 bootTap 同款判据 */
         var t = 0;
         try { t = Number(JSON.parse(c.runRaw).t) || 0; } catch (e) { return; }
-        var rank = (Number(c.cycle) || 0) * 1e9 + t;
-        if (!pick || rank > pick.rank) pick = { rank: rank, cand: c, t: t, cycle: Number(c.cycle) || 0 };
+        /* 2026-11-06：比较维度从 cycle 换成 runs（局数）。cycle 收紧成「合格轮回次数」后，
+         * 软重置不再让它 +1 ⇒ 若继续用 cycle 排序，「刚重开的新局」与「重开前那局」会同 cycle，
+         * 只能靠时长判新旧 ⇒ 本机会把重开前那局判成「更完整」并弹出恢复条，把玩家拽回去。 */
+        var rank = (Number(c.runs) || 0) * 1e9 + t;
+        if (!pick || rank > pick.rank) pick = { rank: rank, cand: c, t: t, runs: Number(c.runs) || 0 };
       });
       if (!pick) { releaseNativeHold(); return; }
       var myT = (S && typeof S.t === 'number') ? S.t : 0;
-      var myCycle = (meta && meta.cycle) || 0;
-      /* 「更完整」= 周目更高，或同周目且时长多出 60 秒以上（刚起来那几个 tick 不算）。 */
-      var better = pick.cycle > myCycle || (pick.cycle === myCycle && pick.t > myT + 60);
+      var myRuns = (meta && meta.runs) || 1;
+      /* 「更完整」= 局数更高，或同局数且时长多出 60 秒以上（刚起来那几个 tick 不算）。 */
+      var better = pick.runs > myRuns || (pick.runs === myRuns && pick.t > myT + 60);
       if (!better) { releaseNativeHold(); return; }
-      offerLateRescue(pick.cand, pick.t, pick.cycle);
+      offerLateRescue(pick.cand, pick.t, pick.runs);
     }, function () { releaseNativeHold(); });
   }
   function offerLateRescue(hit, hitT, hitCycle) {
@@ -2305,12 +2670,16 @@
       + 'border:1px solid rgba(214,178,94,.55);color:#e8eef6;'
       + 'font:13px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;'
       + 'box-shadow:0 6px 24px rgba(0,0,0,.45);';
-    bar.innerHTML = '<span>找到一份更完整的存档（第 ' + (hitCycle || 1) + ' 周目 · '
-      + (hitT / 3600).toFixed(2) + ' 小时），要载入吗？</span>'
+    bar.innerHTML = '<span>' + gameHtml(gameText('game.save.late_complete_save_found.prompt', {
+      cycle: hitCycle || 1,
+      hours: (hitT / 3600).toFixed(2)
+    }, '找到一份更完整的存档（第 {cycle} 周目 · 已游玩 {hours} 小时），要载入吗？')) + '</span>'
       + '<button type="button" id="lateSaveUse" style="' + btn
-      + 'border:0;background:#d6b25e;color:#10202f;font-weight:600;">载入这份</button>'
+      + 'border:0;background:#d6b25e;color:#10202f;font-weight:600;">'
+      + gameHtml(gameText('game.save.late_save.load.action', null, '载入这份')) + '</button>'
       + '<button type="button" id="lateSaveKeep" style="' + btn
-      + 'border:1px solid rgba(232,238,246,.34);background:transparent;color:#e8eef6;">继续当前</button>';
+      + 'border:1px solid rgba(232,238,246,.34);background:transparent;color:#e8eef6;">'
+      + gameHtml(gameText('game.save.late_save.keep_current.action', null, '继续当前')) + '</button>';
     try { document.body.appendChild(bar); } catch (e) { releaseNativeHold(); return; }
     function dismiss(msg) {
       try { if (bar.parentNode) bar.parentNode.removeChild(bar); } catch (e) {}
@@ -2318,7 +2687,9 @@
       if (msg) { try { log(msg); } catch (e) {} }
     }
     var keep = document.getElementById('lateSaveKeep');
-    if (keep) keep.onclick = function () { dismiss('已忽略本机找到的旧档，继续当前这一局。'); };
+    if (keep) keep.onclick = function () {
+      dismiss(gameText('game.save.late_save.ignored.log', null, '已忽略本机找到的旧档，继续当前这一局。'));
+    };
     var use = document.getElementById('lateSaveUse');
     if (use) use.onclick = function () {
       /* 先解保护再接管：adoptBundle 会走 writeNativeSaveSync，保护开着等于白写。 */
@@ -2327,7 +2698,9 @@
         adoptBundle({ format: 'shellbreak-save', version: 1,
           save: { meta: JSON.parse(hit.metaRaw), run: JSON.parse(hit.runRaw) } });
       } catch (e) {
-        dismiss('旧档载入失败：' + (e && e.message ? e.message : e));
+        dismiss(gameText('game.save.late_save_load_failed.log', {
+          error: e && e.message ? e.message : String(e)
+        }, '旧档载入失败：{error}'));
         return;
       }
       /* ⚠️ 这里**不能**再调 bootUi()：主循环已经在跑，重复调用会二次 setInterval(loop)
@@ -2336,7 +2709,7 @@
       if (SB.store && SB.store.diagSet) {
         try { SB.store.diagSet({ boot: 'late-rescue:' + hit.source, bootAt: Date.now() }, true); } catch (e) {}
       }
-      dismiss('已载入本机找到的旧档（来源：' + hit.source + '）。');
+      dismiss(gameText('game.save.late_save_loaded.log', null, '已载入本机找到的旧档。'));
     };
   }
   /* boot 的第二段：从「S 已就绪」到「主循环起来」的全部 UI 接线。
@@ -2371,7 +2744,8 @@
       SB.ui.render.showBreakResult(pendingReport);
     } else {
       if (S && S.broken && S.shellOpened && !S.breakSettled) {
-        log('天壳已破。发射场、戴森球、星图与星空槽可以继续建设；想结算时点底栏「轮回」。');
+        log(gameText('game.run.shell_broken.continue.log', null,
+          '天壳已破。发射场、戴森球、星图与星空槽可以继续建设；想结算时点底栏「轮回」。'));
       }
       /* 启动自动弹窗（2026-10-28 恢复原样）：解锁叙事×3 + 新手引导层。
        * ⚠️ 只弹「启动时该弹的那些」，各功能自己的入口（页签、设置里的更新日志按钮）
@@ -2411,12 +2785,15 @@
     if (_btnCycle) _btnCycle.onclick = function () { askResetRun(); };
     document.getElementById('btnWipe').onclick = function () {
       SB.ui.render.confirmPanel({
-        title: '清空存档？',
-        body: '<div class="warnbox">这会删掉<b>全部跨周目进度</b>：轮回点、破层层级、已购增益、科技记录，以及当前这局的一切。</div>' +
-              '<div class="note">页面会回到第 1 周目的全新状态。此操作不可撤销。</div>',
+        title: gameText('save.clear.confirm.title', null, '清空存档？'),
+        body: '<div class="warnbox">' + gameHtml(gameText('save.clear.confirm.warning', null,
+          '这会删掉全部跨周目进度：轮回点、破层层级、已购增益、科技记录，以及当前这局的一切。')) + '</div>' +
+              '<div class="note">' + gameHtml(gameText('save.clear.confirm.irreversible', { cycleNumber: 1 },
+                '页面会回到第 {cycleNumber} 周目的全新状态。此操作不可撤销。')) + '</div>',
         danger: true,
-        requireCheck: '我明白这会抹掉全部轮回点与破层层级，且无法撤销',
-        ok: '清空存档',
+        requireCheck: gameText('save.clear.confirm.checkbox', null,
+          '我明白这会抹掉全部轮回点与破层层级，且无法撤销'),
+        ok: gameText('save.clear.confirm.action', null, '清空存档'),
         onOk: function () { SB.game.wipeSave(); }
       });
     };
@@ -2424,20 +2801,32 @@
     if (btnAd) btnAd.onclick = function () {
       /* ⚠️ 不可白送：只有 SB.ad.show 判定「看完」才发奖。
        * 原先这里有 `if (!SB.ad) grantAdBoost()` 的兜底，等于没广告也能拿加速，已删。 */
-      if (!SB.ad || !SB.ad.available || !SB.ad.available()) { log('广告暂不可用。'); return; }
+      if (!SB.ad || !SB.ad.available || !SB.ad.available()) {
+        log(gameText('game.ad.error.unavailable.log', null, '广告暂不可用。'));
+        return;
+      }
       SB.ad.show(
         function () { grantAdBoost(); },
-        function (why) { log(why === 'unavailable' ? '广告暂不可用。' : '广告未看完，未发放加速。'); }
+        function (why) {
+          log(gameText(why === 'unavailable' ? 'game.ad.error.unavailable.log' : 'game.ad.error.incomplete.boost.log', null,
+            why === 'unavailable' ? '广告暂不可用。' : '广告未看完，未发放加速。'));
+        }
       );
     };
     var btnAdTog = document.getElementById('btnAdToggle');
     if (btnAdTog) btnAdTog.onclick = function () { toggleAdBoost(); };
     var btnAdRebirth = document.getElementById('btnAdRebirth');
     if (btnAdRebirth) btnAdRebirth.onclick = function () {
-      if (!SB.ad || !SB.ad.available || !SB.ad.available()) { log('广告暂不可用。'); return; }
+      if (!SB.ad || !SB.ad.available || !SB.ad.available()) {
+        log(gameText('game.ad.error.unavailable.log', null, '广告暂不可用。'));
+        return;
+      }
       SB.ad.show(
         function () { grantRebirthAd(); },
-        function (why) { log(why === 'unavailable' ? '广告暂不可用。' : '广告未看完，未发放轮回点。'); }
+        function (why) {
+          log(gameText(why === 'unavailable' ? 'game.ad.error.unavailable.log' : 'game.ad.error.incomplete.rebirth.log', null,
+            why === 'unavailable' ? '广告暂不可用。' : '广告未看完，未发放轮回点。'));
+        }
       );
     };
     var btnRank = document.getElementById('btnRank');
@@ -2495,7 +2884,6 @@
    *    e2e 报「启动即抛错」，整局回归一条都没跑）。 */
   function askResetRun() {
     var S0 = SB.game.run();
-    var t = S0 ? (S0.t / 3600).toFixed(2) + ' 小时 · 峰值族民 ' + S0.peak + ' · 建筑 ' + SB.economy.lvlSum(S0) + ' 级' : '';
     /* 结算分流（2026-10-05 拍板）：本局研究完《神学》⇒ 走真正轮回结算 doBreak
      * （发点 + 并入旧日遗产账本）；未研究 ⇒ 仅软重置 resetRun，不结算、不发点。
      * 分流判据与 prestige.qualified 同源（本局 civics.theology 真值），不另写第二份。 */
@@ -2515,20 +2903,42 @@
         for (var wid in S0.wonders)
           if (S0.wonders[wid] && !meta0.memorialWonders[wid]) newW++;
     }
+    var resetSummary = gameText('game.reset.run_summary', {
+      hours: S0 ? (S0.t / 3600).toFixed(2) : '0',
+      peakPopulation: S0 ? S0.peak : 0,
+      buildingLevels: S0 ? SB.economy.lvlSum(S0) : 0
+    }, '{hours} 小时 · 峰值族民 {peakPopulation} · 建筑 {buildingLevels} 级');
+    var resetBody = '<div class="warnbox">' + gameHtml(gameText('game.reset.progress_lost.warning', {
+      runSummary: resetSummary
+    }, '当前这局的进度会全部作废：{runSummary}。')) + '</div>';
+    if (qual) {
+      resetBody += '<div class="note">' + gameText('game.reset.prestige.reward_summary', {
+        prestigePointReward: gained.toFixed(2), stardustReward: stardustGained
+      }, '本次轮回将结算并发放：<b>{prestigePointReward} 轮回点</b>、<b>{stardustReward} 星屑</b>。') + '</div>' +
+        '<div class="note">' + gameText('game.reset.legacy.old_faith', {
+          remainingFaith: SB.economy.fmtAmt(faithAmt)
+        }, '旧日遗产入账：剩余信仰 <b>{remainingFaith}</b>。') + '<br>' +
+        gameText('game.reset.legacy.wonders', {
+          newWonderCount: newW, researchBonusPerWonderPercent: 1
+        }, '纪念奇观新入藏 <b>{newWonderCount}</b> 座。') + '<br>' +
+        gameText('game.reset.legacy.artworks', { artworkCount: artN }, '旧日艺术品 <b>{artworkCount}</b> 件。') + '<br>' +
+        gameText('game.reset.legacy.tide_steles', { steleCount: steleN }, '旧日潮纹碑石 <b>{steleCount}</b> 件。') + '</div>' +
+        '<div class="note">' + gameText('game.reset.meta_assets_preserved.detailed', { cycleIncrement: 1 },
+          '已持有的跨周目资产继续保留。周目计数会 +{cycleIncrement}。') + '</div>';
+    } else {
+      var theologyName = SB.i18n && SB.i18n.t ? SB.i18n.t('civic.data.theology.name') : '神学';
+      resetBody += '<div class="note">' + gameHtml(gameText('game.reset.run_only.warning', {
+        technologyName: theologyName
+      }, '（未研究《{technologyName}》）此次仅重开本周目：不结算、不发放轮回点、不入账旧日遗产。')) + '</div>' +
+        '<div class="note">' + gameText('game.reset.meta_assets_preserved.brief', { cycleIncrement: 1 },
+          '已持有的跨周目资产继续保留。周目计数会 +{cycleIncrement}。') + '</div>';
+    }
     SB.ui.render.confirmPanel({
-      title: qual ? '轮回（结算并发放轮回点）？' : '重开本周目？',
-      body: '<div class="warnbox">当前这局的进度会全部作废：' + t + '。</div>' +
-        (qual
-          ? '<div class="note">本次轮回将结算并发放：<b>' + gained.toFixed(2) + ' 轮回点</b>、<b>' + stardustGained + ' 星屑</b>' +
-            '（轮回点按峰值族民、建筑纪元、工坊解锁项与破壳进度计算；星屑按太空设施、星空探索与戴森球进度计算）。</div>' +
-            '<div class="note">旧日遗产入账：剩余信仰 <b>' + SB.economy.fmtAmt(faithAmt) + '</b>' +
-            '（并入跨周目总量，按数量级给全产加成）；纪念奇观新入藏 <b>' + newW + '</b> 座' +
-            '（每座 +1% 科技/市政获取）；旧日艺术品 <b>' + artN + '</b> 件（固定市政点/秒）；' +
-            '旧日潮纹碑石 <b>' + steleN + '</b> 件（固定科技点/秒）。</div>' +
-            '<div class="note">已持有的跨周目资产（轮回点、破层层级、已购增益、科技记录）继续保留。周目计数会 +1。</div>'
-          : '<div class="note">（未研究《神学》）此次仅重开本周目：不结算、不发放轮回点、不入账旧日遗产。</div>' +
-            '<div class="note">已持有的跨周目资产继续保留。周目计数会 +1。</div>'),
-      ok: qual ? '轮回' : '重开',
+      title: gameText(qual ? 'game.reset.prestige.title' : 'game.reset.run_only.title', null,
+        qual ? '轮回（结算并发放轮回点）？' : '重开本周目？'),
+      body: resetBody,
+      ok: gameText(qual ? 'game.reset.prestige.action' : 'game.reset.run_only.action', null,
+        qual ? '轮回' : '重开'),
       onOk: function () {
         if (!S0) return;
         /* 已结算但留在本局（breakSettled=true：选过「探索壳外的星空」/ 刷新过 / 戴森竣工窗入口）的局：

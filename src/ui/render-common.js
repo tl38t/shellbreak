@@ -5,6 +5,40 @@
   SB.ui = SB.ui || {};
   var common = SB.ui.renderCommon || (SB.ui.renderCommon = {});
 
+  function formatFallback(value, params) {
+    return String(value == null ? '' : value).replace(/\{([^{}]+)\}/g, function (match, name) {
+      return params && params[name] !== undefined && params[name] !== null ? String(params[name]) : match;
+    });
+  }
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || formatFallback(fallback, params);
+  }
+
+  var HAPPY_TIER_KEYS = {
+    '动荡': 'happiness.tier.turmoil',
+    '不满': 'happiness.tier.discontent',
+    '安定': 'happiness.tier.stable',
+    '愉悦': 'happiness.tier.content',
+    '欢欣': 'happiness.tier.joyful',
+    '欣喜若狂': 'happiness.tier.ecstatic',
+    '兴盛': 'happiness.tier.thriving',
+    '繁荣': 'happiness.tier.prosperous',
+    '黄金时代': 'happiness.tier.golden_age'
+  };
+  var HAPPY_BONUS_DISPLAY_KEYS = {
+    '政体': 'civic.government.heading',
+    '王国大交易所': 'wonder.kingdom_grand_exchange.name',
+    '政策卡': 'ui.economy.rate.source.policy_cards',
+    '天穹钻机': 'content.wonder_skydrill.name',
+    '安乐之治': 'prestige.perk.blissful_reign.name',
+    '水体污染': 'challenge.water_pollution.name'
+  };
+  function localizedHappyTier(name) {
+    var key = HAPPY_TIER_KEYS[name];
+    return key ? tr(key, null, name) : name;
+  }
+
   /* ── 幸福度常驻偏移量的「就地说明」（2026-10-05 用户「都补上」）──
    * 【为什么顶栏已经列了还要在各自面板再列一遍】顶栏那行给的是**汇总**（谁给了多少一目了然），
    *   但玩家是在**奇观页/政策卡页/钻机页**做决策的 —— 那一页不写「它 +1 幸福度」，
@@ -41,8 +75,14 @@
     }
     /* ⚠️ 措辞分方向：policy card「工业化配给」是 **−1**（压低），
      *   若统一写「抬高全产乘区档位」，玩家读到「−1 · 抬高」会以为抵消不了。 */
-    return '<i class="cap">幸福度 ' + (v > 0 ? '+' : '') + (+v.toFixed(2)) +
-      '（常驻，' + (v > 0 ? '抬高' : '压低') + '全产乘区档位）</i>';
+    var locale = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+    var direction = locale === 'en-US'
+      ? (v > 0 ? 'raises' : 'lowers')
+      : (v > 0 ? '抬高' : '压低');
+    return '<i class="cap">' + tr('ui.happiness.bonus_offset', {
+      happinessOffset: (v > 0 ? '+' : '') + (+v.toFixed(2)),
+      effectDirection: direction
+    }, '幸福度效果 {happinessOffset}（常驻，{effectDirection}全产乘区档位）') + '</i>';
   }
 
   function treeIconHTML(t, lit, cls) {
@@ -57,7 +97,7 @@
   function happyHelpBtnHTML() {
     return '<button type="button" class="qbtn happy-help"' +
       ' onclick="event.stopPropagation();SB.ui.openIntro(\'happy\')"' +
-      ' title="幸福度是怎么变化的">?</button>';
+      ' title="' + tr('ui.happiness.help.title', null, '幸福度是怎么变化的') + '">?</button>';
   }
 
   function happyPanelHTML(s) {
@@ -70,36 +110,55 @@
     var tiers = SB.economy.happyTierList ? SB.economy.happyTierList(s) : (SB.economy.HAPPY_TIERS || []);
     var low = SB.CFG.HAPPY_FLOOR, high = tiers.length ? tiers[tiers.length - 1].lo : 3;
     var pct = Math.max(0, Math.min(100, (L.H - low) / (high - low) * 100));
-    var flow = '奢侈品供给 ' + L.out.toFixed(2) + '/秒 · 居民消耗 ' + L.burn.toFixed(2) + '/秒 · ' +
-      (Math.abs(L.net) < 0.0005 ? '幸福度持平' : '幸福度' + (L.net > 0 ? ' +' : ' ') + L.net.toFixed(3) + '/秒');
+    var flow = Math.abs(L.net) < 0.0005
+      ? tr('ui.happiness.flow.stable', {
+        luxurySupplyRate: L.out.toFixed(2), residentConsumptionRate: L.burn.toFixed(2)
+      }, '奢侈品供给 {luxurySupplyRate}/秒 · 居民消耗 {residentConsumptionRate}/秒 · 幸福度持平')
+      : tr('ui.happiness.flow.net_change', {
+        luxurySupplyRate: L.out.toFixed(2), residentConsumptionRate: L.burn.toFixed(2),
+        netHappinessRate: (L.net > 0 ? '+' : '') + L.net.toFixed(3)
+      }, '奢侈品供给 {luxurySupplyRate}/秒 · 居民消耗 {residentConsumptionRate}/秒 · 幸福度净变化 {netHappinessRate}/秒');
     var bonus = '';
     if (L.bonusParts && L.bonusParts.length) {
       var parts = [];
       for (var i = 0; i < L.bonusParts.length; i++) {
         var bp = L.bonusParts[i];
-        parts.push(bp.label + (bp.v > 0 ? ' +' : ' ') + (+bp.v.toFixed(2)));
+        var labelKey = HAPPY_BONUS_DISPLAY_KEYS[bp.label];
+        var label = labelKey ? tr(labelKey, null, bp.label) : bp.label;
+        parts.push(label + (bp.v > 0 ? ' +' : ' ') + (+bp.v.toFixed(2)));
       }
       /* ⚠️ 2026-10-06 用户报 bug：消耗的单价里曾把下面这些「固定加成」也算进去
        *   （等于加成自己把居民养贵 ⇒ 政体 +1 幸福真实是负收益）。已修：消耗按 `mechH`
        *   计价。把这句明写出来，玩家才知道加成只是补贴、不会被反向征税。 */
-      bonus = '<div class="happy-bonus">固定加成：' + parts.join(' · ') +
-        (L.mechH > 0
-          ? '　（不计入消耗单价 —— 居民消耗按幸福 ' + L.mechH.toFixed(2) + ' 计）'
-          : '　（不计入消耗单价 —— 计价已落到保底）') +
-        '</div>';
+      var note = L.mechH > 0
+        ? tr('ui.happiness.fixed_bonus.excluded_mechanic_cost', {
+          mechanicHappinessRate: L.mechH.toFixed(2)
+        }, '（不计入消耗单价；居民消耗按幸福度 {mechanicHappinessRate} 计）')
+        : tr('ui.happiness.fixed_bonus.excluded_floor_cost', null, '（不计入消耗单价；幸福度计价已降至保底）');
+      bonus = '<div class="happy-bonus">' + tr('ui.happiness.fixed_bonus_list', {
+        bonusList: parts.join(' · ')
+      }, '固定加成：{bonusList}') + note + '</div>';
     }
-    var next = L.toNext == null ? '幸福度已达最高档' : L.toNext > 0
-      ? '距「' + L.tier.nextName + '」还差 ' + L.toNext.toFixed(2)
-      : '再下降 ' + Math.abs(L.toNext).toFixed(2) + ' 将跌至「' + L.tier.nextName + '」';
-    return '<section class="happy-panel" id="happyPanel" aria-label="幸福度">' +
-      '<div class="happy-head"><div class="happy-reading"><span>幸福度</span> <b id="happyValue">' + L.H.toFixed(2) +
-      '</b><i id="happyTier">' + L.tier.name + '</i>' + happyHelpBtnHTML() +
-      '</div><span class="happy-effect" id="happyEffect">全产 ×' +
-      SB.economy.happyMul(s).toFixed(2) + '</span></div>' +
-      '<div class="happy-meter" role="meter" aria-label="幸福度等级" aria-valuemin="' + low + '" aria-valuemax="' + high +
+    var next = L.toNext == null
+      ? tr('ui.happiness.next_tier.max', null, '幸福度已达最高档')
+      : L.toNext > 0
+        ? tr('ui.happiness.next_tier.remaining', {
+          nextTierName: localizedHappyTier(L.tier.nextName), happinessToNext: L.toNext.toFixed(2)
+        }, '距「{nextTierName}」还差 {happinessToNext}')
+        : tr('ui.happiness.next_tier.drop_to', {
+          nextTierName: localizedHappyTier(L.tier.nextName), happinessDrop: Math.abs(L.toNext).toFixed(2)
+        }, '再下降 {happinessDrop} 将跌至「{nextTierName}」');
+    var happinessName = tr('ui.happiness.name', null, '幸福度');
+    return '<section class="happy-panel" id="happyPanel" aria-label="' + happinessName + '">' +
+      '<div class="happy-head"><div class="happy-reading"><span>' + happinessName + '</span> <b id="happyValue">' + L.H.toFixed(2) +
+      '</b><i id="happyTier">' + localizedHappyTier(L.tier.name) + '</i>' + happyHelpBtnHTML() +
+      '</div><span class="happy-effect" id="happyEffect">' + tr('ui.happiness.global_production_multiplier', {
+        globalProductionMultiplier: SB.economy.happyMul(s).toFixed(2)
+      }, '全产 ×{globalProductionMultiplier}') + '</span></div>' +
+      '<div class="happy-meter" role="meter" aria-label="' + tr('ui.happiness.meter.aria_label', null, '幸福度等级') + '" aria-valuemin="' + low + '" aria-valuemax="' + high +
       '" aria-valuenow="' + L.H.toFixed(2) + '"><div class="happy-meter-fill"></div>' +
       '<i class="happy-marker" id="happyMarker" style="left:' + pct.toFixed(2) + '%"></i></div>' +
-      '<div class="happy-labels">' + tiers.map(function (t) { return '<span>' + t.name + '</span>'; }).join('') + '</div>' +
+      '<div class="happy-labels">' + tiers.map(function (t) { return '<span>' + localizedHappyTier(t.name) + '</span>'; }).join('') + '</div>' +
       '<div class="happy-flow" id="happyFlow">' + flow + '</div>' + bonus +
       '<div class="happy-next" id="happyNext">' + next + '</div></section>';
   }
@@ -117,15 +176,29 @@
     var tier = root.document.getElementById('happyTier');
     var effect = root.document.getElementById('happyEffect');
     if (value) value.textContent = L.H.toFixed(2);
-    if (tier) tier.textContent = L.tier.name;
-    if (effect) effect.textContent = '全产 ×' + SB.economy.happyMul(s).toFixed(2);
+    if (tier) tier.textContent = localizedHappyTier(L.tier.name);
+    if (effect) effect.textContent = tr('ui.happiness.global_production_multiplier', {
+      globalProductionMultiplier: SB.economy.happyMul(s).toFixed(2)
+    }, '全产 ×{globalProductionMultiplier}');
     var flow = root.document.getElementById('happyFlow');
-    if (flow) flow.textContent = '奢侈品供给 ' + L.out.toFixed(2) + '/秒 · 居民消耗 ' + L.burn.toFixed(2) + '/秒 · ' +
-      (Math.abs(L.net) < 0.0005 ? '幸福度持平' : '幸福度' + (L.net > 0 ? ' +' : ' ') + L.net.toFixed(3) + '/秒');
+    if (flow) flow.textContent = Math.abs(L.net) < 0.0005
+      ? tr('ui.happiness.flow.stable', {
+        luxurySupplyRate: L.out.toFixed(2), residentConsumptionRate: L.burn.toFixed(2)
+      }, '奢侈品供给 {luxurySupplyRate}/秒 · 居民消耗 {residentConsumptionRate}/秒 · 幸福度持平')
+      : tr('ui.happiness.flow.net_change', {
+        luxurySupplyRate: L.out.toFixed(2), residentConsumptionRate: L.burn.toFixed(2),
+        netHappinessRate: (L.net > 0 ? '+' : '') + L.net.toFixed(3)
+      }, '奢侈品供给 {luxurySupplyRate}/秒 · 居民消耗 {residentConsumptionRate}/秒 · 幸福度净变化 {netHappinessRate}/秒');
     var next = root.document.getElementById('happyNext');
-    if (next) next.textContent = L.toNext == null ? '幸福度已达最高档' : L.toNext > 0
-      ? '距「' + L.tier.nextName + '」还差 ' + L.toNext.toFixed(2)
-      : '再下降 ' + Math.abs(L.toNext).toFixed(2) + ' 将跌至「' + L.tier.nextName + '」';
+    if (next) next.textContent = L.toNext == null
+      ? tr('ui.happiness.next_tier.max', null, '幸福度已达最高档')
+      : L.toNext > 0
+        ? tr('ui.happiness.next_tier.remaining', {
+          nextTierName: localizedHappyTier(L.tier.nextName), happinessToNext: L.toNext.toFixed(2)
+        }, '距「{nextTierName}」还差 {happinessToNext}')
+        : tr('ui.happiness.next_tier.drop_to', {
+          nextTierName: localizedHappyTier(L.tier.nextName), happinessDrop: Math.abs(L.toNext).toFixed(2)
+        }, '再下降 {happinessDrop} 将跌至「{nextTierName}」');
     var meter = root.document.getElementById('happyPanel');
     if (meter) {
       var bar = meter.querySelector('.happy-meter');
@@ -133,6 +206,104 @@
     }
   }
 
+  /* ── 挑战专属内容角标（2026-11-08 · 方案 B）──────────────────────────────
+   * 背景：challengeOnly 内容在挑战周目里**静默混入**主线条目，玩家看不出它们
+   *   是「本局临时工具」（habitat.js:135-137：通关回基游戏就该消失），容易砸满
+   *   资源后换局发现全没了，第一反应是「存档丢了」。信息必须落在决策点。
+   * ⚠️ 三态归一化抄 JUDGMENTS 五点三十三现有六处（habitat / civics / tech /
+   *   workshop / ai-strategy / render-pane-wonder），**不新增第 7 份独立判定**。
+   *   字符串形态必须先包成数组，否则 'waterpollution' 会被按字符拆成
+   *   「w / a / t / e / r… 限定」——2026-11-02 那次事故的原件。
+   * ⚠️ 间接专属：6 项（2 工艺升级 / 2 建筑 / 2 奇观）自己没有 challengeOnly，
+   *   靠解锁门挂在流浪泰拉专属科技上。这里**反查门背后的科技/市政**，绝不
+   *   给它们补字段 —— 补 'drift_terra' 会撞上 workshop.js:660 硬编码的
+   *   「仅限水体污染挑战期间建造」错误文案，并改动既有 lockReason 口径。
+   *   探针 tmp/_probe_challenge_tag_resolve.mjs 实证：恰好 6 项，零误伤零漏。
+   * ⚠️ 基游戏（s.challenge=null）不挂角标：专属条目在该周目整行不出现。
+   * ⚠️ ⓘ 复用 render.js showHoverInfo + 00-core.css 的 @media (hover:none)
+   *   既有约定；内联 onclick 里 stopPropagation 是必须的 —— 科技/市政节点本身
+   *   是 <button>，点 ⓘ 会冒泡成「打开节点详情」（render-common.js:99 同款写法）。 */
+  function challengeTagResolve(item) {
+    if (!item) return null;
+    if (item.challengeOnly) return item.challengeOnly;
+    var gates = [];
+    function add(v) {
+      if (!v) return;
+      if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) gates.push(v[i]); }
+      else gates.push(v);
+    }
+    add(item.requiredTech); add(item.requiredCivic); add(item.need); add(item.needCivic);
+    for (var g = 0; g < gates.length; g++) {
+      var T = SB.TECHS || [], k;
+      for (k = 0; k < T.length; k++)
+        if (T[k] && T[k].id === gates[g] && T[k].challengeOnly) return T[k].challengeOnly;
+      var C = SB.CIVICS || [];
+      for (k = 0; k < C.length; k++)
+        if (C[k] && C[k].id === gates[g] && C[k].challengeOnly) return C[k].challengeOnly;
+    }
+    return null;
+  }
+  /* 归一化只有一个落点：角标文案与科技树 CSS 分类都读它，不各写一份。 */
+  function challengeTagIds(item) {
+    var co = challengeTagResolve(item);
+    if (!co) return [];
+    return (co === true) ? ['drift_terra'] : (typeof co === 'string' ? [co] : co);
+  }
+  function challengeTag(s, item) {
+    var list = challengeTagIds(item);
+    if (!list.length) return '';
+    var cur = s && s.challenge && s.challenge.id;
+    if (!cur) return '';
+    var allowed = false, i;
+    for (i = 0; i < list.length; i++) if (list[i] === cur) allowed = true;
+    if (!allowed) return '';
+    var names = [];
+    for (i = 0; i < list.length; i++) {
+      var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
+      names.push(c ? c.name : list[i]);
+    }
+    var name = names.join(' / '), p = { challengeName: name };
+    var badge = tr('content.tag.challenge_only', p, '{challengeName}限定');
+    var tip = tr('content.tag.challenge_only.tip', p,
+      '{challengeName} · 挑战专属内容，仅在当前周目出现；通关或重开后不再保留。');
+    function esc(v) {
+      return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    var t = esc(tip);
+    return '<span class="co-tag" title="' + t + '">' + esc(badge) + '</span>' +
+      '<i class="hover-info-btn co-info" title="' + t + '"' +
+      ' onclick="event.preventDefault();event.stopPropagation();SB.ui.showHoverInfo(this.getAttribute(\'title\'))">ⓘ</i>';
+  }
+
+  /* 静态角标：与 challengeTag 同款视觉/文案，但**不判当前周目**。
+   * 用于科技「解锁建筑」等跨上下文列表 —— 基游戏（没打挑战）也要提示「此建筑还需先打某挑战」，
+   * 否则研究普通科技后在解锁列表看到专属建筑却建不出来。复用本模块 tr（正确查 zh-CN 并替换 {challengeName}）。 */
+  function challengeTagStatic(item) {
+    var list = challengeTagIds(item);
+    if (!list.length) return '';
+    var names = [], i;
+    for (i = 0; i < list.length; i++) {
+      var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
+      names.push(c ? c.name : list[i]);
+    }
+    var name = names.join(' / '), p = { challengeName: name };
+    var badge = tr('content.tag.challenge_only', p, '{challengeName}限定');
+    var tip = tr('content.tag.challenge_only.tip', p,
+      '{challengeName} · 挑战专属内容，仅在对应挑战周目可在建筑页建造；通关或重开后不再保留。');
+    function esc(v) {
+      return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    var t = esc(tip);
+    return '<span class="co-tag" title="' + t + '">' + esc(badge) + '</span>' +
+      '<i class="hover-info-btn co-info" title="' + t + '"' +
+      ' onclick="event.preventDefault();event.stopPropagation();SB.ui.showHoverInfo(this.getAttribute(\'title\'))">ⓘ</i>';
+  }
+  common.challengeTag = challengeTag;
+  common.challengeTagStatic = challengeTagStatic;
+  common.challengeTagIds = challengeTagIds;
+  common.challengeTagResolve = challengeTagResolve;
   common.happyBonusNote = happyBonusNote;
   common.treeIconHTML = treeIconHTML;
   common.happyPanelHTML = happyPanelHTML;

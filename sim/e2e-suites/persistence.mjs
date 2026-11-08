@@ -159,21 +159,31 @@ rBtn.onclick();
  * 里的 document 不一致（confirmPanel 在真实浏览器里确实挂了 mOk.onclick，见 render.js:1405），
  * 故这里仅当 handler 存在时才调用，避免桩侧取不到节点导致整条 e2e 崩在重置套件、后续套件跑不到。
  * 上面的 `确认框给出确认按钮` 断言仍如实记录桩侧能否识别 mOk.onclick（预存脚手架局限，非游戏 bug）。 */
+/* 2026-11-06：cycle 口径变了 —— 「重开本周目」只涨 meta.runs（局数），**不再涨 cycle**
+ * （cycle 收紧为「合格轮回次数」，只在 prestige.doBreak 过资格门时 +1）。
+ * 判据改成「相对软重置前那一刻」取，不依赖上面 114 行 cyclePre 的时间点。 */
+const cycleBeforeReset = SB.game.meta().cycle, runsBeforeReset = SB.game.meta().runs;
 var _mOkReset = doc.getElementById('mOk');
 if (_mOkReset && typeof _mOkReset.onclick === 'function') _mOkReset.onclick();
+/* 桩侧拿不到 mOk 时（confirmPanel 把按钮注进 innerHTML，桩的 getElementById 不解析），
+ * 直接走生产入口 resetRun()：它与「确认按钮」等价（hideModal + startRun），
+ * 这样「软重置不涨 cycle」这条新锁才真的在跑 —— 否则整块断言是空的（一直是红的假覆盖）。 */
+else if (SB.game.resetRun) SB.game.resetRun();
 const sReset = SB.game.run();
 check('未研究神学：软重置清空本局进度',
   SB.economy.lvlSum(sReset) === 0 && sReset.res.coral === 0 && sReset.pop === SB.CFG.POP_START);
-check('未研究神学：软重置保留轮回点、cycle+1（不结算、不发点）',
-  SB.game.meta().tide === 12.5 && SB.game.meta().cycle === cyclePre + 1,
-  'tide=' + SB.game.meta().tide + ' cycle=' + SB.game.meta().cycle);
+check('未研究神学：软重置保留轮回点、cycle 不变、局数+1（重开本周目不是轮回）',
+  SB.game.meta().tide === 12.5 && SB.game.meta().cycle === cycleBeforeReset &&
+  SB.game.meta().runs === runsBeforeReset + 1,
+  'tide=' + SB.game.meta().tide + ' cycle=' + SB.game.meta().cycle +
+  ' runs=' + SB.game.meta().runs + '（重置前 cycle=' + cycleBeforeReset + ' runs=' + runsBeforeReset + '）');
 check('软重置后立即落盘新局', !!sandbox.localStorage.getItem(SB.CFG.RUN_KEY));
 
 /* 6b) 已研究《神学》⇒ 真正轮回结算（选项 B）：走 doBreak 发点 + 入账旧日遗产，弹结算面板，
  *     点「开始轮回」后才进下一周目（cycle+1、本局清空）。 */
 const sQ = SB.game.run();
 sQ.civics = { theology: true }; sQ.peak = 50; sQ.lvl.kelp = 5; sQ.religionName = '深渊教';
-const tideQ = SB.game.meta().tide, cycleQ = SB.game.meta().cycle;
+const tideQ = SB.game.meta().tide;
 rBtn.onclick();
 check('已研究神学：确认框标题为「轮回（结算并发放轮回点）」',
   doc.getElementById('modalBox').innerHTML.indexOf('结算并发放轮回点') >= 0);
@@ -188,10 +198,15 @@ check('已研究神学：点击后进入真实轮回结算（doBreak 发放轮�
  * e2e 硬崩在 getElementById('breakContinue').onclick —— 动画本体改由下方定向块单独覆盖。 */
 check('已研究神学：确认后直接出结算面板且「开始轮回」已接线（手动轮回不播动画）',
   typeof doc.getElementById('mNext').onclick === 'function');
+/* 2026-11-06：这条原来判 `cycle === cycleQ + 1`，在旧口径下靠「换局必 +1」恒真 ——
+ * 于是上面那条「doBreak 真的发了轮回点」失败时它照样 ✓（实测：tide 12.5→12.50 时仍绿），
+ * 属**假绿**：它把「换局成功」当成了「轮回成功」。新口径下 cycle 只在 doBreak 合格时 +1，
+ * 换局不动它，故改判「新局已就位 + 局数+1」，轮回是否真的发生由上面那条负责。 */
+const runsBeforeNext = SB.game.meta().runs;
 doc.getElementById('mNext').onclick();              // 开始轮回 ⇒ nextCycle ⇒ startRun
-check('已研究神学：轮回后进下一周目（cycle+1、本局清空）',
-  SB.game.meta().cycle === cycleQ + 1 && SB.economy.lvlSum(SB.game.run()) === 0,
-  'cycle=' + SB.game.meta().cycle);
+check('已研究神学：轮回后进下一周目（本局清空、局数+1）',
+  SB.game.meta().runs === runsBeforeNext + 1 && SB.economy.lvlSum(SB.game.run()) === 0,
+  'runs ' + runsBeforeNext + '→' + SB.game.meta().runs + ' lvlSum=' + SB.economy.lvlSum(SB.game.run()));
 
 /* 破壳终章动画定向断言：动画的归属是 shell.onShellZero / 离线补算 finishCatchUp（game.js:956）。
  * 这里直接驱动真实 showBreakAnimation（不 stub），验证四段分镜 DOM 上屏、「跳过动画」接线、

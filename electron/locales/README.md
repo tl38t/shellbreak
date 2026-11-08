@@ -23,11 +23,10 @@ Simplified Chinese source to `zh-CN.js` but no English value, so
 `SB.i18n.valueFor()` falls back to Chinese at runtime. Unreviewed
 translations are never shipped silently.
 
-As of 2026-11-06 the 73 `faith.tenet*` / `faith.tenets*` strings have been
-proofread and approved against terminology already used in the reviewed rows,
-so `en-US.js` now carries all 3841 keys present in `zh-CN.js`. Nine entries
-were reworded during that review; each correction is recorded in the
-registry's `复核备注` column.
+As of 2026-11-06, `en-US.js` carries all 3885 approved keys present in
+`zh-CN.js`. The registry includes the reviewed faith strings, home screen,
+onboarding, and Save Manager copy; English changes are loaded only by
+Steam/Electron builds.
 
 Register each player-facing string and its semantic key in the inventory before
 changing code. English resources stay under `electron/locales`, a directory

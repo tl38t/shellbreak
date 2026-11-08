@@ -4,6 +4,39 @@
   var SB = root.SB || (root.SB = {});
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function englishLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  }
+  function infoParts() { return SB.ui && SB.ui.renderParts && SB.ui.renderParts.info; }
+  function localizedItemName(type, item) {
+    var info = infoParts();
+    return info && info.localizedWorkshopItemName
+      ? info.localizedWorkshopItemName(type, item.id, item.name) : item.name;
+  }
+  function localizedItemDescription(type, item) {
+    var info = infoParts();
+    return info && info.localizedWorkshopItemDescription
+      ? info.localizedWorkshopItemDescription(type, item) : (item.desc || '');
+  }
+  function localizedWhy(type, item, s, why) {
+    var info = infoParts();
+    return info && info.localizedWorkshopRequirement
+      ? info.localizedWorkshopRequirement(item, s, type, why) : (why || '');
+  }
+  function requirementBlocked(type, item, s) {
+    var info = infoParts();
+    return info && info.workshopHasRequirementBlock
+      ? info.workshopHasRequirementBlock(item, s, type)
+      : !!(item && item.need && !(s.techs && s.techs[item.need]));
+  }
+  function localizedResourceName(id) {
+    var fallback = SB.RESS && SB.RESS[id] ? SB.RESS[id].name : id;
+    return SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(id, fallback) : fallback;
+  }
 
   /* ── 工坊「隐藏已完成」（2026-10-05 用户「工坊要能隐藏显示已经完成项目」）──
    * 【为什么是「全局一个开关」而不是「每条已完成项各自可折」】
@@ -48,8 +81,10 @@
     var n = doneCount(s);
     if (!n) return '';
     return '<button class="tgl" data-hidedone="1" aria-pressed="' + (hideDone() ? 'true' : 'false') +
-      '" title="点击切换是否显示已完成的项目（工具与升级项）">' +
-      (hideDone() ? '显示已完成（' + n + '）' : '隐藏已完成（' + n + '）') + '</button>';
+      '" title="' + tr('ui.workshop.hide_completed.tooltip', null, '点击切换是否显示已完成的项目（工具与升级项）') + '">' +
+      tr(hideDone() ? 'ui.workshop.hide_completed.show_button' : 'ui.workshop.hide_completed.hide_button', {
+        completedCount: n
+      }, (hideDone() ? '显示已完成（' : '隐藏已完成（') + n + '）') + '</button>';
   }
 
   /* ── 「升级项」页签的进度与未读 NEW（2026-10-17 用户）────────────────────
@@ -132,7 +167,7 @@
     var done = doneCount(s);
     var total = revealedItemCount(s);
     return {
-      cnt: '已完成 ' + done + ' / 已揭晓 ' + total,
+      cnt: tr('ui.workshop.tab.upgrade_progress', { completedCount: done, revealedCount: total }, '已完成 ' + done + ' / 已揭晓 ' + total),
       fresh: unseenCount() > 0 && workshopView !== 'upgrades',
       avail: !!(SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s)) && workshopView !== 'upgrades'
     };
@@ -159,35 +194,34 @@
     var s = SB.game.run();
     if (!s || !s.lvl || !(s.lvl.workshop > 0)) return paneWorkshopLocked();
     var tm = upgradeTabMeta(s);
-    var tabs = '<div class="panel-subtabs workshop-subtabs" role="group" aria-label="工坊分区">' +
+    var tabs = '<div class="panel-subtabs workshop-subtabs" role="group" aria-label="' + tr('ui.workshop.subtabs.aria_label', null, '工坊分区') + '">' +
       '<button type="button" class="subtab' + (workshopView === 'making' ? ' on' : '') +
-      '" data-workshop-view="making" aria-pressed="' + (workshopView === 'making') + '">制造</button>' +
+      '" data-workshop-view="making" aria-pressed="' + (workshopView === 'making') + '">' + tr('ui.workshop.tab.crafting', null, '制造') + '</button>' +
       '<button type="button" class="subtab' + (workshopView === 'upgrades' ? ' on' : '') + (tm.avail ? ' avail' : '') +
-      '" data-workshop-view="upgrades" aria-pressed="' + (workshopView === 'upgrades') + '">升级项' +
+      '" data-workshop-view="upgrades" aria-pressed="' + (workshopView === 'upgrades') + '">' + tr('ui.workshop.tab.upgrades', null, '升级项') +
       '<span class="subcnt">' + tm.cnt + '</span>' +
-      (tm.fresh ? '<span class="subnew" title="有升级项你还没看过">NEW</span>' : '') +
+      (tm.fresh ? '<span class="subnew" title="' + tr('ui.workshop.tab.upgrades.new_tooltip', null, '有升级项你还没看过') + '">NEW</span>' : '') +
       '</button></div>';
     /* 已完成数走 doneCount(s) 现算；控件仍使用原 data-hidedone 委托，不改变刷新行为。 */
     var overview = '<div class="workshop-overview"><div class="workshop-efficiency">' +
-      '<span class="workshop-mark" aria-hidden="true">⚒</span><div><small>CRAFT · 工坊</small>' +
-      '<strong>工艺制作效率 <b>+' + (((SB.workshop.craftMul(s, {id:'__global__'}) || 1) - 1) * 100).toFixed(0) + '%</b></strong></div>' +
+      '<span class="workshop-mark" aria-hidden="true">⚒</span><div><small>' + tr('ui.workshop.crafting.eyebrow', null, 'CRAFT · 工坊') + '</small>' +
+      '<strong>' + tr('ui.workshop.crafting.efficiency_label', null, '工艺制作效率') + ' <b>+' + (((SB.workshop.craftMul(s, {id:'__global__'}) || 1) - 1) * 100).toFixed(0) + '%</b></strong></div>' +
       '<div class="workshop-done-toggle">' + hideDoneBtn(s) + '</div></div></div>';
     if (workshopView === 'upgrades') {
-      return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>职业工具</b>' +
-        '<small>买断后持续生效；每件工具只作用于对应职业。</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
-        '<section class="workshop-section"><header class="workshop-section-title"><b>工坊升级</b>' +
-        '<small>一次装填，永久生效。</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
-        (hideDone() ? '<div class="note">已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。</div>' : '') +
-        '<div class="note">工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。</div>';
+      return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.tools.section_title', null, '职业工具') + '</b>' +
+        '<small>' + tr('ui.workshop.tools.section_note', null, '买断后持续生效；每件工具只作用于对应职业。') + '</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
+        '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.upgrades.section_title', null, '工坊升级') + '</b>' +
+        '<small>' + tr('ui.workshop.upgrades.section_note', null, '一次装填，永久生效。') + '</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
+        (hideDone() ? '<div class="note">' + tr('ui.workshop.hide_completed.upgrades_note', null, '已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。') + '</div>' : '') +
+        '<div class="note">' + tr('ui.workshop.upgrades.management_note', null, '工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。') + '</div>';
     }
-    return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>工艺制作</b>' +
-      '<small>查看每次投入、当前产出与批量选项。</small></header>' +
+    return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.crafting.section_title', null, '工艺制作') + '</b>' +
+      '<small>' + tr('ui.workshop.crafting.section_note', null, '查看每次投入、当前产出与批量选项。') + '</small></header>' +
       autoSlotSummary(s) + '<div class="workshop-grid workshop-crafts">' + paneCraftRows(s) + '</div></section>' +
-      (hideDone() ? '<div class="note">已完成的项目当前被隐藏' +
-        '（' + doneCount(s) + ' 项）——点上方「显示已完成」把它们放回来。</div>' : '') +
-      '<div class="note">这里的配方可以反复制造，石梁是当前奇观的主要建材。' +
-      '（礁石平台、深潜那一类通用采集加成，仍然会一并作用在职业产出上。）' +
-      '工具与永久升级请切换到「升级项」。<\/div>';
+      (hideDone() ? '<div class="note">' + tr('ui.workshop.hide_completed.crafting_note', {
+        completedCount: doneCount(s)
+      }, '已完成的项目当前被隐藏（' + doneCount(s) + ' 项）——点上方「显示已完成」把它们放回来。') + '</div>' : '') +
+      '<div class="note">' + tr('ui.workshop.crafting.context_note', null, '这里的配方可以反复制造，石梁是当前奇观的主要建材。工具与永久升级请切换到「升级项」。') + '</div>';
   }
 
   var workshopView = 'making';
@@ -215,7 +249,7 @@
    * （craftFixed 1/25/100 + craftPercent 0.01/0.05/0.1/1，取大）。 */
   function paneCraftRows(s) {
     var L = SB.workshop.crafts(), h = '', i, j, shown = 0;
-    if (!L.length) return '<div class="row"><div class="nm">（还没有配方）</div></div>';
+    if (!L.length) return '<div class="row"><div class="nm">' + tr('ui.workshop.crafting.empty', null, '（还没有配方）') + '</div></div>';
     for (i = 0; i < L.length; i++) {
       var c = L[i];
       var why = SB.workshop.craftBlocked(s, c.id);
@@ -227,12 +261,15 @@
       shown++;
       var mul = SB.workshop.craftMul(s, c);
       var productIcon = c.res ? '<img class="craft-icon" src="assets/resource-icons/' + c.res + '.png?v=2" alt="" aria-hidden="true" width="36" height="36" decoding="async">' : '';
-      var cost = [], k;
-      for (k in c.in) cost.push(SB.RESS[k].name + ' ' + c.in[k]);
-      h += '<div class="row" data-craft-res="c.res"><div class="nm">' + productIcon + '<button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + c.name + '</button></div>' +
-        '<div class="ds">每次：' + cost.join(' + ') +
+      var costParts = [], costKey;
+      for (costKey in c.in) costParts.push(SB.RESS[costKey].name + ' ' + c.in[costKey]);
+      var cost = englishLocale() ? SB.economy.costTxt(c.in) : costParts.join(' + ');
+      h += '<div class="row" data-craft-res="c.res"><div class="nm">' + productIcon + '<button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + localizedItemName('craft', c) + '</button></div>' +
+        '<div class="ds">' + tr('ui.workshop.crafting.cost_label', null, '每次：') + ' ' + cost +
         ' ⇒ <b>' + SB.economy.fmtAmt(c.out * mul) + '</b>' +
-        '（效率 +' + ((mul - 1) * 100).toFixed(0) + '%）</div>';
+        tr('ui.workshop.craft.efficiency_bonus', {
+          efficiencyBonusPercent: ((mul - 1) * 100).toFixed(0)
+        }, '（效率 +' + ((mul - 1) * 100).toFixed(0) + '%）') + '</div>';
       h += '<div class="craftbtns">';
       for (j = 0; j < SB.workshop.steps.length; j++) {
         var st = SB.workshop.steps[j];
@@ -257,15 +294,25 @@
         var _cton = s.track === 'craft:' + c.id;
         h += '<button type="button" class="btn track-toggle' + (_cton ? ' on' : '') + '"' +
           ' data-track="craft:' + c.id + '" aria-pressed="' + (_cton ? 'true' : 'false') + '"' +
-          ' title="' + (_cton ? '已追踪：材料够了会在屏幕角落提示' : '追踪这个配方：材料够了在屏幕角落提示你') + '">' +
-          (_cton ? '已追踪' : '追踪') + '</button>';
+          ' title="' + (_cton
+            ? tr('ui.workshop.crafting.track.tracked_tooltip', null, '已追踪：材料够了会在屏幕角落提示')
+            : tr('ui.workshop.crafting.track.action_tooltip', null, '追踪这个配方：材料够了在屏幕角落提示你')) + '">' +
+          tr(_cton ? 'wonder.track.tracked.button' : 'village.building.track.action.button', null, _cton ? '已追踪' : '追踪') + '</button>';
       }
       h += '</div>' + autoSlotCtl(s, c) + '</div>';
     }
-    if (!shown) return '<div class="row"><div class="nm">（还没有配方）</div></div>';
-    return h + '<div class="note">四颗按钮是**同一份材料换不同份数**：+1 就是造 1 份，' +
+    if (!shown) return '<div class="row"><div class="nm">' + tr('ui.workshop.crafting.empty', null, '（还没有配方）') + '</div></div>';
+    var steps = SB.workshop.steps || [], smallOption = steps[0] ? steps[0].label : '+1';
+    var largeOption = steps[2] ? steps[2].label : '+100';
+    var fullOption = steps.length ? steps[steps.length - 1].label : '100%';
+    var help = englishLocale() ? tr('ui.workshop.craft.amount_help', {
+      smallBatchOption: smallOption,
+      largeBatchOption: largeOption,
+      fullMaterialsPercent: fullOption
+    }, '') : '四颗按钮是**同一份材料换不同份数**：+1 就是造 1 份，' +
       '+100 就是造 100 份（不是「库存的 100%」）；「100%」是把当前材料**全造完**，' +
-      '按钮后面的 → 就是按当前材料与效率实际到手的成品量。效率和材料够了就更划算。</div>';
+      '按钮后面的 → 就是按当前材料与效率实际到手的成品量。效率和材料够了就更划算。';
+    return h + '<div class="note">' + help + '</div>';
   }
 
   /* ── 自动制作槽控件 ────────────────────────────────────────────────
@@ -286,38 +333,52 @@
     var limitedInputs = [], unlimitedInputs = [], inputId;
     for (inputId in c.in) {
       var inputCap = SB.economy.capOf(s, inputId);
-      var inputName = (SB.RESS[inputId] && SB.RESS[inputId].name) || inputId;
+      var inputName = localizedResourceName(inputId);
       (isFinite(inputCap) ? limitedInputs : unlimitedInputs).push(inputName);
     }
     var mixedInputs = limitedInputs.length > 0 && unlimitedInputs.length > 0;
     var on = assigned;
-    var h = '<div class="craftauto"><span class="asl">自动</span>';
+    var h = '<div class="craftauto"><span class="asl">' + tr('ui.workshop.automation.label', null, '自动') + '</span>';
     if (!on) {
       var full = !assigned && ((s.autoSlots && s.autoSlots.length) || 0) >= cap;
       h += '<button class="btn tog" data-aslot="' + c.id + '" ' + (batchRequired ? 'data-abatch="' + batch + '"' : 'data-apct="0.5"') +
-        (full ? ' disabled title="自动槽已用完（' + cap + '/' + cap + '）"' : '') + '>' +
-        (full ? '槽位已满' : '＋自动') + '</button>';
+        (full ? ' disabled title="' + (englishLocale() ? tr('ui.workshop.automation_slots.full_tooltip', {
+          autoSlotCapacity: cap
+        }, '') : '自动槽已用完（' + cap + '/' + cap + '）') + '"' : '') + '>' +
+        tr(full ? 'ui.workshop.automation_slots.full_button' : 'ui.workshop.automation_slots.add_button', null, full ? '槽位已满' : '＋自动') + '</button>';
     } else {
       if (!batchRequired) {
         var P = SB.workshop.pcts(), i;
         for (i = 0; i < P.length; i++) {
           var p = P[i];
           h += '<button class="btn tog' + (!batchMode && p === pct ? ' on' : '') + '" data-aslot="' + c.id + '"' +
-            ' data-apct="' + p + '" title="任一有上限原料满仓后，转制当时可造量的 ' + (p * 100) + '%">' +
+            ' data-apct="' + p + '" title="' + (englishLocale() ? tr('ui.workshop.automation_slots.percent_tooltip', {
+              conversionPercent: p * 100
+            }, '') : '任一有上限原料满仓后，转制当时可造量的 ' + (p * 100) + '%') + '">' +
             (p * 100) + '%</button>';
         }
       }
       if (batchRequired) {
         h += '<button class="btn tog' + (batchMode ? ' on' : '') + '" data-abatch-edit="' + c.id + '"' +
-          ' title="库存够造一整批时自动制造；多出的材料保留">批次 ' + batch + ' 次 · 点击填写次数</button>';
+          ' title="' + tr('ui.workshop.automation_slots.batch_tooltip', null, '库存够造一整批时自动制造；多出的材料保留') + '">' +
+          (englishLocale() ? tr('ui.workshop.automation_slots.batch_button', { batchCount: batch }, '')
+            : '批次 ' + batch + ' 次 · 点击填写次数') + '</button>';
       }
-      h += '<button class="btn tog" data-aoff="' + c.id + '" title="腾出这个自动槽">停用</button>';
+      h += '<button class="btn tog" data-aoff="' + c.id + '" title="' + tr('ui.workshop.automation_slots.disable.tooltip', null, '腾出这个自动槽') + '">' +
+        tr('ui.workshop.automation_slots.disable.button', null, '停用') + '</button>';
     }
     if (mixedInputs) {
-      h += '<small class="craftauto-hint" role="note">本配方含有上限原料（' + limitedInputs.join('、') + '）和无上限原料（' + unlimitedInputs.join('、') + '），因此沿用批次自动制造：所有原料够一批时制造。</small>';
+      h += '<small class="craftauto-hint" role="note">' + tr('ui.workshop.automation_slots.mixed_inputs_note', {
+        limitedInputs: limitedInputs.join(englishLocale() ? ', ' : '、'),
+        unlimitedInputs: unlimitedInputs.join(englishLocale() ? ', ' : '、')
+      }, '本配方含有上限原料（' + limitedInputs.join('、') + '）和无上限原料（' + unlimitedInputs.join('、') + '），因此沿用批次自动制造：所有原料够一批时制造。') + '</small>';
     }
     if (c.id === 'craft_rocketfuel') {
-      h += '<small class="craftauto-hint" role="note">暖石会被保温法、熔炉和热液汽轮机消耗；自动制造需等暖石满仓。建议选 25% / 50% / 75%，不要选 100%，以保留暖石。</small>';
+      var pctLabels = SB.workshop.pcts().map(function (percent) { return percent * 100 + '%'; });
+      h += '<small class="craftauto-hint" role="note">' + tr('ui.workshop.automation_slots.warmstone_warning', {
+        recommendedPercentages: pctLabels.slice(0, pctLabels.length - 1).join(' / '),
+        maxPercent: pctLabels[pctLabels.length - 1] || '100%'
+      }, '暖石会被保温法、熔炉和热液汽轮机消耗；自动制造需等暖石满仓。') + '</small>';
     }
     return h + '</div>';
   }
@@ -326,19 +387,26 @@
   function autoSlotSummary(s) {
     var cap = SB.workshop.slotCap(s);
     if (cap <= 0) {
-      return '<div class="note">自动制作槽：未解锁。' +
-        '装上工坊升级项「自动工坊」自带 1 个，轮回商店可再买 3 个。</div>';
+      var lockedSummary = englishLocale() ? tr('ui.workshop.automation_slots.locked_summary', {
+        automaticWorkshopSlots: 1, prestigeShopSlots: 3
+      }, '') : '自动制作槽：未解锁。装上工坊升级项「自动工坊」自带 1 个，轮回商店可再买 3 个。';
+      return '<div class="note">' + lockedSummary + '</div>';
     }
     var used = (s.autoSlots && s.autoSlots.length) || 0;
-    return '<div class="note">自动制作槽 <b>' + used + '/' + cap + '</b>：' +
+    var percentageOptions = SB.workshop.pcts().map(function (percent) { return percent * 100 + '%'; }).join(' / ');
+    var summary = englishLocale() ? tr('ui.workshop.automation_slots.summary', {
+      usedSlots: used, slotCapacity: cap, percentageOptions: percentageOptions
+    }, '') : '自动制作槽 <b>' + used + '/' + cap + '</b>：' +
       '全部原料有上限的配方：任一原料满仓后按 25 / 50 / 75 / 100% 转制；' +
-      '含无上限原料的配方：沿用批次自动制造，库存够造指定数量时造一整批，多出的材料保留。</div>';
+      '含无上限原料的配方：沿用批次自动制造，库存够造指定数量时造一整批，多出的材料保留。';
+    return '<div class="note">' + summary + '</div>';
   }
 
   function paneWorkshopLocked() {
-    return '<div class="secttl">工坊</div>' +
-      '<div class="row"><div class="nm">工坊尚未建成</div>' +
-      '<div class="ds">先把工坊立起来（' + SB.habitat.habitatName(SB.game.run()) + '页那一座），这里才会给出加工线。</div></div>';
+    return '<div class="secttl">' + tr('ui.workshop.title', null, '工坊') + '</div>' +
+      '<div class="row"><div class="nm">' + tr('ui.workshop.not_built.heading', null, '工坊尚未建成') + '</div>' +
+      '<div class="ds">' + (englishLocale() ? tr('ui.workshop.locked.description', null, '')
+        : '先把工坊立起来（' + SB.habitat.habitatName(SB.game.run()) + '页那一座），这里才会给出加工线。') + '</div></div>';
   }
 
   function paneToolRows(s) {
@@ -362,19 +430,30 @@
       /* 按钮的文案要说清「现在是什么状态」，而不只是「买」——
        * 灰着还写「买」会让玩家以为点了会发生什么，实际什么都没发生。 */
       var ctxt = SB.economy.costOwnedTxt(s, t.cost);
-      var label = owned ? '已拥有'
-        : why ? (/^需要先/.test(why) ? '未解锁' : '买不起 ' + ctxt)
-          : '买下 ' + ctxt;
+      var whyText = localizedWhy('tool', t, s, why);
+      var reqBlocked = requirementBlocked('tool', t, s);
+      var label = englishLocale()
+        ? owned ? tr('ui.workshop.tool.status.owned', null, '')
+          : why ? (t.wip ? tr('workshop.tool.work_in_progress', null, '')
+            : reqBlocked ? tr('ui.status.not_unlocked', null, '')
+              : tr('ui.workshop.tool.buy.unaffordable', { costSummary: ctxt }, ''))
+            : tr('ui.workshop.tool.buy', { costSummary: ctxt }, '')
+        : owned ? '已拥有'
+          : why ? (/^需要先/.test(why) ? '未解锁' : '买不起 ' + ctxt)
+            : '买下 ' + ctxt;
       h += '<div class="row"' + (owned ? ' data-owned="1"' : '') + '>' +
-        '<div class="nm"><button type="button" class="building-name" data-info-item="tool" data-info-id="' + t.id + '" aria-haspopup="dialog">' + t.name + '</button>' + (isNewItem('t', t.id) ? ' <span class="tag new">NEW</span>' : '') + (owned ? ' <span class="tag ok">已买下</span>' : '') + '</div>' +
-        '<div class="ds">' + t.desc + '（成本 ' + SB.economy.costTxt(t.cost) + '）</div>' +
+        '<div class="nm"><button type="button" class="building-name" data-info-item="tool" data-info-id="' + t.id + '" aria-haspopup="dialog">' + localizedItemName('tool', t) + '</button>' + (isNewItem('t', t.id) ? ' <span class="tag new">NEW</span>' : '') + (owned ? ' <span class="tag ok">' + tr('ui.workshop.tool.status.purchased', null, '已买下') + '</span>' : '') + '</div>' +
+        '<div class="ds">' + localizedItemDescription('tool', t) + tr('ui.workshop.item.cost_note', {
+          costSummary: SB.economy.costTxt(t.cost)
+        }, '（成本 ' + SB.economy.costTxt(t.cost) + '）') + '</div>' +
         '<button class="btn' + (owned || why ? '' : ' buy') + '" data-tool="' + t.id + '"' +
-        (owned || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button></div>';
+        (owned || why ? ' disabled' : '') + ' title="' + (whyText || '') + '">' + label + '</button></div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
-      (hideDone() && doneCount(s) > 0 ? '（可买的都买完了）' : '（还没有可买的工具）') + '</div></div>';
-    return h + '<div class="note">门槛是建成工坊本身，不是青铜术——青铜术是纪元一最贵的科技，' +
-      '等它解锁工具就晚到了。</div>';
+      tr(hideDone() && doneCount(s) > 0 ? 'ui.workshop.tool.empty.completed' : 'ui.workshop.tool.empty.available', null,
+        hideDone() && doneCount(s) > 0 ? '（可买的都买完了）' : '（还没有可买的工具）') + '</div></div>';
+    return h + '<div class="note">' + (englishLocale() ? tr('ui.workshop.tools.requirement_note', null, '')
+      : '门槛是建成工坊本身，不是青铜术——青铜术是纪元一最贵的科技，等它解锁工具就晚到了。') + '</div>';
   }
 
   /* ── 工坊的**第三块**：工艺升级项（2026-09-28 · era2 第三层）──────────
@@ -399,19 +478,30 @@
       /* 与工具同口径：灰着还写「装上」会让玩家以为点了会怎样，实际什么都没有。 */
       var cost = W.upgradeCost(s, u.id);
       var ctxt = SB.economy.costOwnedTxt(s, cost);
-      var label = on ? '已装上'
-        : why ? (/^需要先/.test(why) ? '未解锁' : '材料不够 ' + ctxt)
-          : '装上 ' + ctxt;
-      var _ds = u.desc + '（成本 ' + SB.economy.costTxt(cost) + '）';
+      var whyText = localizedWhy('upgrade', u, s, why);
+      var reqBlocked = requirementBlocked('upgrade', u, s);
+      var label = englishLocale()
+        ? on ? tr('ui.workshop.upgrade.status.installed', null, '')
+          : why ? (reqBlocked ? tr('ui.status.not_unlocked', null, '')
+            : tr('ui.workshop.upgrade.install.unaffordable', { costSummary: ctxt }, ''))
+            : tr('ui.workshop.upgrade.install', { costSummary: ctxt }, '')
+        : on ? '已装上'
+          : why ? (/^需要先/.test(why) ? '未解锁' : '材料不够 ' + ctxt)
+            : '装上 ' + ctxt;
+      var _ds = localizedItemDescription('upgrade', u) + tr('ui.workshop.item.cost_note', {
+        costSummary: SB.economy.costTxt(cost)
+      }, '（成本 ' + SB.economy.costTxt(cost) + '）');
       var _buyBtn = '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
-        (on || why ? ' disabled' : '') + ' title="' + (why || '') + '">' + label + '</button>';
+        (on || why ? ' disabled' : '') + ' title="' + (whyText || '') + '">' + label + '</button>';
       h += '<div class="row"' + (on ? ' data-owned="1"' : '') + '>' +
-        '<div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="' + u.id + '" aria-haspopup="dialog">' + u.name + '</button>' + (isNewItem('u', u.id) ? ' <span class="tag new">NEW</span>' : '') + (on ? ' <span class="tag ok">已装填</span>' : '') + '</div>' +
+        '<div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="' + u.id + '" aria-haspopup="dialog">' + localizedItemName('upgrade', u) + '</button>' + (isNewItem('u', u.id) ? ' <span class="tag new">NEW</span>' : '') + (on ? ' <span class="tag ok">' + tr('ui.workshop.upgrade.status.installed', null, '已装填') + '</span>' : '') +
+          (SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, u) : '') + '</div>' +
         '<div class="ds">' + _ds + '</div>' +
         '<div class="upgrade-actions">' + _buyBtn + '</div></div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
-      (hideDone() && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';
+      tr(hideDone() && doneCount(s) > 0 ? 'ui.workshop.upgrade.empty.completed' : 'ui.workshop.upgrade.empty.available', null,
+        hideDone() && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';
     return h;
   }
 

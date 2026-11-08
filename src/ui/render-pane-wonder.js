@@ -4,6 +4,35 @@
   var SB = root.SB || (root.SB = {});
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
+  function englishLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  }
+  function tr(key, params, fallback) {
+    if (!englishLocale()) return fallback || '';
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function infoParts() { return SB.ui && SB.ui.renderParts && SB.ui.renderParts.info || {}; }
+  function wonderName(s, id, fallback) {
+    var info = infoParts();
+    return info.localizedWonderName ? info.localizedWonderName(s, id, fallback) : fallback;
+  }
+  function wonderDescription(s, id, fallback) {
+    var info = infoParts();
+    return info.localizedWonderDescription ? info.localizedWonderDescription(s, id, fallback) : fallback;
+  }
+  function wonderRequirement(s, id, item, why) {
+    var info = infoParts();
+    return info.localizedWonderRequirement ? info.localizedWonderRequirement(s, id, item, why) : why;
+  }
+  function hasRequirementBlock(s, item) {
+    var info = infoParts();
+    return info.wonderHasRequirementBlock ? info.wonderHasRequirementBlock(s, item) : false;
+  }
+  function wonderBuildCost(s, id) {
+    var info = infoParts();
+    return info.localizedWonderBuildCost ? info.localizedWonderBuildCost(s, id) : SB.wonder.buildCostText(s, id);
+  }
   /* 「隐藏已建成」的持久化口径与工坊完全一致（2026-11-05）：设备级、独立键、
    * 三通道镜像、默认不隐藏、清档不清。⚠️ 不缓存布尔 —— 读的是 SB.store 权威态，
    * 启动异步回填晚到时下一次 PANE_REFRESH 自然跟上，也不会顶掉玩家刚按下的值。 */
@@ -20,9 +49,11 @@
 
   function hideDoneButton(completed) {
     if (!completed) return '';
-    return '<button class="tgl" data-wonder-hidedone="1" aria-pressed="' + (hideDone() ? 'true' : 'false') +
-      '" title="点击切换是否显示已建成的奇观">' +
-      (hideDone() ? '显示已完成（' + completed + '）' : '隐藏已完成（' + completed + '）') + '</button>';
+    var hidden = hideDone();
+    return '<button class="tgl" data-wonder-hidedone="1" aria-pressed="' + (hidden ? 'true' : 'false') +
+      '" title="' + tr('wonder.filter.hide_done.title', null, '点击切换是否显示已建成的奇观') + '">' +
+      (hidden ? tr('wonder.filter.show_done.button', { completedCount: completed }, '显示已完成（' + completed + '）')
+        : tr('wonder.filter.hide_done.button', { completedCount: completed }, '隐藏已完成（' + completed + '）')) + '</button>';
   }
 
   function paneWonder() {
@@ -46,8 +77,8 @@
     for (i = 0; i < L.length; i++) {
       var w = L[i];
       var done = !!(s.wonders && s.wonders[w.id]);
-      var wonderName = SB.wonder.displayName(s, w.id);
-      var wonderDesc = SB.wonder.displayDesc(s, w.id);
+      var wonderName = wonderNameForPane(s, w.id);
+      var wonderDesc = wonderDescription(s, w.id, SB.wonder.displayDesc(s, w.id));
       var why = done ? null : SB.workshop.wonderBlocked(s, w.id);
       if (!done && why && /^需要先/.test(why)) continue;   // 未解锁 ⇒ 整行不显示
       /* 挑战专属奇观（2026-11-02）：不在本局就整行不显示。
@@ -59,31 +90,41 @@
       if (done) completed++;
       if (hideDone() && done) continue;
       visible++;
+      var whyText = why ? wonderRequirement(s, w.id, w, why) : '';
+      var locked = why ? hasRequirementBlock(s, w) : false;
       var art = SB.ui.renderContent && SB.ui.renderContent.WONDER_ART && SB.ui.renderContent.WONDER_ART[w.id];
       var icon = art ? '<img class="wonder-icon" src="' + art + '" alt="" aria-hidden="true" width="36" height="36" loading="lazy" decoding="async">' :
         '<span class="wonder-icon wonder-icon-fallback" aria-hidden="true">✦</span>';
       cards += '<div class="row' + (done ? ' is-owned' : '') + '"' + (done ? ' data-owned="1"' : '') + '>' +
-        '<div class="nm">' + icon + '<div class="wonder-name-copy"><div class="wonder-name-line"><button type="button" class="building-name" data-wonder-info="' + w.id + '" aria-haspopup="dialog" title="查看奇观效果与建造条件">' + wonderName + '</button>' + (done ? ' <span class="tag ok">已建成</span>' : '') + '</div>' +
+        '<div class="nm">' + icon + '<div class="wonder-name-copy"><div class="wonder-name-line"><button type="button" class="building-name" data-wonder-info="' + w.id + '" aria-haspopup="dialog" title="' + tr('wonder.info.view.title', null, '查看奇观效果与建造条件') + '">' + wonderName + '</button>' + (done ? ' <span class="tag ok">' + tr('wonder.status.built', null, '已建成') + '</span>' : '') +
+          (SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, w) : '') + '</div>' +
         (done ? SB.ui.renderCommon.happyBonusNote(s, 'wonder', w.id) : '') + '</div></div>' +
-        '<div class="ds">' + wonderDesc + '<span class="wonder-cost">建造材料：' + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) +
+        '<div class="ds">' + wonderDesc + '<span class="wonder-cost">' + tr('wonder.cost.materials.label', null, '建造材料：') +
+          (englishLocale() ? ' ' : '') + SB.economy.costTxt(SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost) +
           /* 建筑等级成分（2026-11-02 · costBuild）：与材料分开写，因为它不是库存、
            * 也吃不到任何折扣（且 costTxt 只认资源名）。 */
           (function () {
-            var bt = (SB.wonder && SB.wonder.buildCostText) ? SB.wonder.buildCostText(s, w.id) : '';
-            return bt ? '<span class="wonder-cost">消耗建筑：' + bt + '</span>' : '';
+            var bt = (SB.wonder && SB.wonder.buildCostText) ? wonderBuildCost(s, w.id) : '';
+            return bt ? '<span class="wonder-cost">' + tr('wonder.cost.buildings_consumed.label', null, '消耗建筑：') +
+              (englishLocale() ? ' ' : '') + bt + '</span>' : '';
           })() + '</div>' +
-        (!done ? '<span class="wonder-state ' + (why ? 'waiting' : 'ready') + '">' + (why ? '材料不足' : '可建造') + '</span>' : '') +
+        (!done ? '<span class="wonder-state ' + (why ? 'waiting' : 'ready') + '">' +
+          (why ? tr(locked ? 'wonder.status.locked' : 'wonder.status.materials_missing', null, locked ? '未解锁' : '材料不足')
+            : tr('wonder.status.ready_to_build', null, '可建造')) + '</span>' : '') +
         '<span class="wonder-actions">' +
         '<button class="btn' + (done || why ? '' : ' buy') + '" data-wonder="' + w.id + '"' +
-        (done || why ? ' disabled' : '') + ' title="' + (why || '') + '">' +
+        (done || why ? ' disabled' : '') + ' title="' + (whyText || '') + '">' +
         (function () {
           var wcost = SB.wonder ? SB.wonder.discountedCost(s, w.id) : w.cost;
           var wtxt = SB.economy.costOwnedTxt(s, wcost);
           /* 建筑等级也算在「建不起」里（2026-11-02）：否则玩家会看到
            * 「建成（材料全齐）」而按钮是灰的 —— why 里写着缺建筑等级。 */
           var btxt = (SB.wonder && SB.wonder.buildCostLack && SB.wonder.buildCostLack(s, w.id).length)
-            ? '＋' + SB.wonder.buildCostText(s, w.id) : '';
-          return done ? '已建成' : why ? (/^需要先|^仅限/.test(why) ? '未解锁' : '建不起 ' + wtxt + btxt) : '建成 ' + wtxt + btxt;
+            ? (englishLocale() ? ' + ' : '＋') + wonderBuildCost(s, w.id) : '';
+          if (done) return tr('wonder.status.built', null, '已建成');
+          if (why && locked) return tr('wonder.status.locked', null, '未解锁');
+          if (why) return tr('wonder.button.cost_unavailable', { costSummary: wtxt + btxt }, '建不起 ' + wtxt + btxt);
+          return tr('wonder.button.build', { costSummary: wtxt + btxt }, '建成 ' + wtxt + btxt);
         })() + '</button>' +
         /* 建造追踪（2026-10-29）：只在「材料不足」时给。未解锁的不给（连材料清单都还看不到），
          * 已建成的也不给。与巢穴建筑行同一个 s.track 与同一个 data-track 委托。
@@ -93,22 +134,30 @@
           var on = s.track === 'wonder:' + w.id;
           return '<button type="button" class="btn track-toggle' + (on ? ' on' : '') +
             '" data-track="wonder:' + w.id + '" aria-pressed="' + (on ? 'true' : 'false') + '"' +
-            ' title="' + (on ? '已追踪：材料够了会在屏幕角落提示' : '追踪这座奇观：材料够了在屏幕角落提示你') + '">' +
-            (on ? '已追踪' : '追踪') + '</button>';
+            ' title="' + (on ? tr('wonder.track.tracked.title', null, '已追踪：材料够了会在屏幕角落提示')
+              : tr('wonder.track.action.title', null, '追踪这座奇观：材料够了在屏幕角落提示你')) + '">' +
+            (on ? tr('wonder.track.tracked.button', null, '已追踪') : tr('wonder.track.action.button', null, '追踪')) + '</button>';
         })() : '') +
         '</span></div>';
     }
     /* 一座都还没解锁时给一句说明，别留一个只有表头的空面板。
      *（末座奇观解锁后必然有一座可建，所以这里只在开局那段时间出现。） */
-    var h = '<div class="wonder-overview"><div><small>WONDERS · 里程碑</small><h2>奇观</h2>' +
-      '<p>建成后永久留存的独特建筑；名称可点开查看完整效果与条件。</p></div>' +
-      '<div class="wonder-overview-side"><div class="wonder-count"><b>' + completed + '<i> / </i>' + shown + '</b><small>已建成 / 已揭晓</small></div>' +
+    var h = '<div class="wonder-overview"><div><small>' + tr('wonder.page.heading.kicker', null, 'WONDERS · 里程碑') + '</small><h2>' +
+      tr('wonder.page.heading.title', null, '奇观') + '</h2><p>' +
+      tr('wonder.page.intro', null, '建成后永久留存的独特建筑；名称可点开查看完整效果与条件。') + '</p></div>' +
+      '<div class="wonder-overview-side"><div class="wonder-count"><b>' + completed + '<i> / </i>' + shown + '</b><small>' +
+      tr('wonder.page.progress.label', null, '已建成 / 已揭晓') + '</small></div>' +
       hideDoneButton(completed) + '</div></div>' +
-      '<div class="wonder-intro">奇观不会重复建造或消耗维护。石梁是当前主要建造材料，例如海潮方碑需要 20 根。</div>' +
+      '<div class="wonder-intro">' + tr('wonder.page.construction_note', null, '奇观不会重复建造或消耗维护。石梁是当前主要建造材料，例如海潮方碑需要 20 根。') + '</div>' +
       '<div class="wonder-grid">' + (visible ? cards : hideDone() && completed
-        ? '<div class="note">已完成的奇观当前被隐藏（' + completed + ' 座）——点上方「显示已完成」把它们放回来。</div>'
-        : '<div class="note">还没有任何奇观向你揭开。</div>') + '</div>';
+        ? '<div class="note">' + tr('wonder.page.empty.hidden_completed', { completedCount: completed }, '已完成的奇观当前被隐藏（' + completed + ' 座）——点上方「显示已完成」把它们放回来。') + '</div>'
+        : '<div class="note">' + tr('wonder.page.empty.revealed', null, '还没有任何奇观向你揭开。') + '</div>') + '</div>';
     return h;
+  }
+
+  function wonderNameForPane(s, id) {
+    var fallback = SB.wonder.displayName(s, id);
+    return wonderName(s, id, fallback);
   }
 
   parts.paneWonder = paneWonder;

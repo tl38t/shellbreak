@@ -31,7 +31,17 @@
      *   memorialWonders          已入藏独特奇观 id 表（每座 +1% 科技/市政获取；观光点=其计数）
      *   oldArtworkEarnedTotal    旧日艺术品累计获得总数（固定市政点/秒，递减曲线）
      *   oldTideStelesEarnedTotal 旧日潮纹碑石累计获得总数（固定科技点/秒，递减曲线） */
-    return { tide: 0, spent: 0, tideEarnedTotal: 0, perks: {}, cycle: 0, layers: 0, techLog: {}, lastRun: null,
+    /* cycle / runs 两个计数（2026-11-06 用户拍板拆分，别再合并回去）：
+     *   · cycle = **合格轮回次数**——只在 prestige.doBreak 过资格门（已建《神学》）时 +1，
+     *     软重置 / 神学前重开 / 未过资格门的结算一律不涨。所有「轮回收益」读它：
+     *     潮汐之树 dyn:'loop5'（0.05×cycle）、黑历史蓝图尤里卡（cycle≥15）、
+     *     市政鼓舞（3/7/10/15）、艺术品 +10%/cycle、「轮回次数」排行榜。
+     *   · runs  = **局数**——startRun 每开一局 +1（软重置也计），只服务于「第几局」显示
+     *     与存档新旧比较（lateRescue / 云存档摘要 / 导入冲突）。绝不可用于给收益。
+     * 旧口径只有 cycle 且 startRun 无条件 +1 ⇒「重开本周目」零成本涨周目，可无限刷上面的
+     * 加成与榜单。⛔ 存量档不回溯：老 cycle 已被软重置推高，保留原值（不再继续涨）。
+     * ⚠️ cycle 初值 0 是给「全新档」用的：startRun 首局会把它抬到 1（此时还没轮回过一次）。 */
+    return { tide: 0, spent: 0, tideEarnedTotal: 0, perks: {}, cycle: 0, runs: 0, layers: 0, techLog: {}, lastRun: null,
       religionSeen: false, shopUnlocked: false, stardustShopUnlocked: false,
       /* 新手引导「已完整播过」标记（docs/ONBOARDING_DESIGN_v0.1.md）：跨周目永久。
        * 与 religionSeen 同侧——一旦置真，本安装二周目不再弹欢迎层 / 走查脚本。
@@ -415,7 +425,11 @@
       skydrillOn: false,
       /* 看广告加速（TapTap 激励视频）：`ms` = 剩余加速时间（墙钟真实毫秒），`on` = 2× 开关。
        * 默认 on=true：看完广告立即生效；玩家可在顶栏拨开关暂停（暂停时 ms 不流逝 = 囤着不用）。
-       * 不进离线补算：离线只回放产出，不替玩家消耗广告时间银行。 */
+       * ⚠️ 2026-11-06 更正：本条原写「不进离线补算，不替玩家消耗广告时间银行」，与实现相反 ——
+       *   game.js 的 drainCatchUp 对覆盖到的真实秒吃 adMul()，并在银行归零处切段扣减
+       *   （`realChunk = min(realChunk, ad.ms/1000)` / `ad.ms -= dt/mul*1000`），即**离线也流逝**，
+       *   只是那段时间按 2× 结算产出。只有玩家把开关拨到 off，余额才真的冻结。
+       * 跨周目：startRun 继承上一局余额（2026-11-06 用户拍板 A 方案），封顶 BOOST_CAP_MIN。 */
       ad: { ms: 0, on: true },
       /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）。
        *   存的是**停了几座** `furnaceStop`，不是「开了几座」——因为「开几座」的默认值
@@ -636,6 +650,12 @@
        *    resumeRun 才能靠它区分「从未设置」与「显式设过」来给老档做一次性认领。 */
       audioMuted: false,
       audioVolume: 1,
+      /* 手动选曲（2026-11-07）：'' / 非法 id = 自动按纪元分池；合法曲目 id = 锁定该曲，
+       * 优先级高于跨段换池与池内 shuffle（audio.js 的 sync() 顶部短路）。
+       * ⚠️ 必须登记在基础表里，否则 migrateRun 的 `for (k in base)` 白名单会把读档值丢掉
+       *    ⇒ 玩家选的曲一读档就失效。meta 侧刻意不进 emptyMeta：只有玩家真的选过才落键，
+       *    老存档缺字段 = '' = 自动，零迁移成本。 */
+      audioTrack: '',
       _grow: 0,
       /* 超额人口离场累加器（2026-10-31）：pop > popCap 时按整数秒离开 1..n 人。
        * 必须登记在基础表里，否则 migrateRun 的 `for (k in base)` 会把它丢掉 ⇒ 读档后
@@ -819,6 +839,17 @@
     if (!m.achievements || typeof m.achievements !== 'object' || Array.isArray(m.achievements)) m.achievements = {};
     if (!(typeof m.rebirths === 'number' && isFinite(m.rebirths))) m.rebirths = 0;
     m.rebirths = Math.max(0, Math.floor(m.rebirths));
+    /* cycle / runs 强清洗（2026-11-06 拆分后新增）：
+     *   · cycle 缺键/非数值 ⇒ 1（全新档 emptyMeta 给 0，startRun 首局抬到 1；这里兜的是
+     *     「读到一份既没有 cycle 也没有 runs 的残缺 meta」）。
+     *   · runs 缺键 ⇒ 用 cycle 近似（老档只有 cycle 这一个「局数」计数）。⚠️ 老档 cycle 可能
+     *     被软重置推高，近似值同样偏高 —— **这是接受的**：runs 只喂显示与存档比较，
+     *     不参与任何收益计算，偏高不会给玩家多算一分加成。
+     *   · 绝不把 cycle 拉回 runs：那是回溯，用户 2026-11-06 明确否掉（见 emptyMeta 注释）。 */
+    if (!(typeof m.cycle === 'number' && isFinite(m.cycle)) || m.cycle < 1) m.cycle = 1;
+    m.cycle = Math.floor(m.cycle);
+    if (!(typeof m.runs === 'number' && isFinite(m.runs)) || m.runs < 1) m.runs = m.cycle;
+    m.runs = Math.floor(m.runs);
     if (!m.buildingLvlTotal || typeof m.buildingLvlTotal !== 'object' || Array.isArray(m.buildingLvlTotal)) m.buildingLvlTotal = {};
     for (var _bltId in m.buildingLvlTotal) {
       var _bltVal = m.buildingLvlTotal[_bltId];
@@ -1121,7 +1152,8 @@
         diagSet({ lastPatchKey: badKeys[0], skipKey: badKeys[0] }, false);
         diagBump('patch', badKeys.length, false);
       }
-      if (SB.store && SB.store.fsAvailable && SB.store.fsAvailable()
+      if (SB.store && ((SB.store.fsAvailable && SB.store.fsAvailable())
+          || (SB.store.autoCloudAvailable && SB.store.autoCloudAvailable()))
           && SB.store.nextNativeRevision) {
         var numbered = {};
         for (key in payload) if (Object.prototype.hasOwnProperty.call(payload, key)) numbered[key] = payload[key];
@@ -1211,6 +1243,7 @@
     if (SB.store) {
       SB.store.removeLocal(CFG.SAVE_KEY);
       SB.store.mirrorRemove(CFG.SAVE_KEY);
+      if (SB.store.removeAutoCloudSave) SB.store.removeAutoCloudSave();
     } else {
       try { root.localStorage && root.localStorage.removeItem(CFG.SAVE_KEY); } catch (e) {}
     }

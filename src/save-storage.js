@@ -1,8 +1,8 @@
 /* 天壳 / SHELLBREAK — 本机存档后端。
- * 网页继续使用 localStorage。TapTap 同时写入原生用户目录的双版本完整快照；
- * 每次快照包含 meta/run、序号和校验值，写入排队并读回验证。旧版的
- * tap.setStorage 与分键文件保留作迁移来源。启动时各来源并行读取，
- * 任何读取失败都不能被当成“确认没有存档”。 */
+ * 网页继续使用 localStorage。TapTap 写入原生用户目录的双版本完整快照；
+ * Electron 另写一个稳定的 .sav 文件供 Steam Auto-Cloud 同步。快照都包含
+ * meta/run、序号和校验值。旧版 TapTap 键值与分键文件保留作迁移来源。
+ * 启动时各来源并行读取，任何读取失败都不能被当成“确认没有存档”。 */
 (function (root) {
   'use strict';
   var SB = root.SB || (root.SB = {});
@@ -19,12 +19,64 @@
   function localStore() {
     try { return root.localStorage || null; } catch (e) { return null; }
   }
+  function autoCloudAvailable() {
+    try {
+      var platform = root.shellbreakPlatform;
+      return !!(platform && platform.runtime === 'electron'
+        && typeof platform.readAutoCloudSave === 'function'
+        && typeof platform.writeAutoCloudSave === 'function'
+        && typeof platform.removeAutoCloudSave === 'function');
+    } catch (e) { return false; }
+  }
+  function readAutoCloudSave() {
+    if (!autoCloudAvailable()) return { status: 'absent' };
+    try { return root.shellbreakPlatform.readAutoCloudSave() || { status: 'error' }; }
+    catch (e) { return { status: 'error' }; }
+  }
 
   var st = {
     writeOk: 0, writeFail: 0, lastError: '',
     tapOk: 0, tapFail: 0, fileOk: 0, fileFail: 0, lastMirrorAt: 0,
     lastRestoreSource: '', lastRestoreAt: 0
   };
+
+  function persistAutoCloudRecord(record) {
+    if (!autoCloudAvailable() || !record) return false;
+    try {
+      var result = root.shellbreakPlatform.writeAutoCloudSave(JSON.stringify(record));
+      if (!result || !result.ok) {
+        st.fileFail++;
+        st.lastError = (result && result.code) || 'auto_cloud_write_failed';
+        syncLastState = 'electron-file-fail';
+        return false;
+      }
+      st.fileOk++;
+      st.lastMirrorAt = Date.now();
+      syncLastState = 'electron-file';
+      return true;
+    } catch (e) {
+      st.fileFail++;
+      st.lastError = String(e && e.message || e);
+      syncLastState = 'electron-file-fail';
+      return false;
+    }
+  }
+  function removeAutoCloudSave() {
+    if (!autoCloudAvailable()) return true;
+    try {
+      var result = root.shellbreakPlatform.removeAutoCloudSave();
+      if (!result || !result.ok) {
+        st.fileFail++;
+        st.lastError = (result && result.code) || 'auto_cloud_remove_failed';
+        return false;
+      }
+      return true;
+    } catch (e) {
+      st.fileFail++;
+      st.lastError = String(e && e.message || e);
+      return false;
+    }
+  }
 
   /* localStorage 的 key 形如 `shellbreak.run.v2`，落成文件名时只留安全字符。
    * ⚠️ 先剥掉开头的 `shellbreak.` —— key 本身已带前缀，不剥会得到
@@ -202,15 +254,25 @@
       });
   }
   function writeNativeSave(metaRaw, runRaw, forceNew) {
-    /* ⚠️ 不能因为「没有文件系统」就整个早退（2026-10-30，Ver1.0.7 修）。
+    /* ⚠️ 不能因为「没有 TapTap 文件系统」就整个早退（2026-10-30，Ver1.0.7 修）。
      *   旧写法 `if (nativeHold || !fsAvailable() || …) return` 会让 nativeLatest
      *   **永远是 null** ⇒ flushNativeSync 只能返回 nolatest ⇒ 降级到
      *   tap.setStorageSync 的那条兜底一次都不会被触发。而在没有文件系统的机器上，
      *   kv 恰恰是唯一能真正落地的通道 —— 门槛把兜底和主路一起掐死了。
-     *   正确形状：有 fs 走异步队列；只有 kv 时只留一份快照，交给 flushNativeSync 同步写。
+     *   Electron 的独立 Auto-Cloud 文件会在这里同步提交；TapTap 有 fs 走异步队列，
+     *   只有 kv 时只留一份快照，交给 flushNativeSync 同步写。
      *   返回值 false = 「没有异步落盘确认」，三处调用点都不看它，语义安全。 */
     if (nativeHold || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return Promise.resolve(false);
+    var autoCloudOk = false;
+    if (autoCloudAvailable()) {
+      nativeLatest = nativeRecord(metaRaw, runRaw, !!forceNew);
+      autoCloudOk = persistAutoCloudRecord(nativeLatest);
+    }
     if (!fsAvailable()) {
+      if (autoCloudAvailable()) {
+        nativeLastPromise = Promise.resolve(autoCloudOk);
+        return nativeLastPromise;
+      }
       if (!syncStorageAvailable()) return Promise.resolve(false);
       nativeLatest = nativeRecord(metaRaw, runRaw, !!forceNew);
       return Promise.resolve(false);
@@ -247,6 +309,11 @@
     var rec = nativeLatest;
     if (nativeHold) { syncLastState = 'hold'; return false; }
     if (!rec) { syncLastState = 'nolatest'; return false; }
+    if (autoCloudAvailable()) {
+      var autoCloudOk = persistAutoCloudRecord(rec);
+      syncLastState = autoCloudOk ? 'electron-file' : 'electron-file-fail';
+      return autoCloudOk;
+    }
     if (fsAvailable()) {
       var fs = root.tap.getFileSystemManager(), path = nativePath('hide');
       if (typeof fs.writeFileSync === 'function' && typeof fs.readFileSync === 'function') {
@@ -279,6 +346,12 @@
      *   还能退到 tap.setStorageSync 同步落盘。旧判据把这条路一起掐了，
      *   于是「用云端覆盖本地」在所有没有同步文件 API 的机器上必然中止。 */
     if (nativeHold || typeof metaRaw !== 'string' || typeof runRaw !== 'string') return false;
+    if (autoCloudAvailable()) {
+      nativeLatest = nativeRecord(metaRaw, runRaw, true);
+      var autoCloudOk = persistAutoCloudRecord(nativeLatest);
+      syncLastState = autoCloudOk ? 'electron-file' : 'electron-file-fail';
+      return autoCloudOk;
+    }
     var previous = nativeLatest;
     nativeLatest = nativeRecord(metaRaw, runRaw, true);
     if (flushNativeSync()) return true;
@@ -319,6 +392,11 @@
           || (metaRaw && (!meta || typeof meta !== 'object' || Array.isArray(meta)))) return null;
       return { source: source, runRaw: runRaw, metaRaw: metaRaw,
         cycle: Number(meta && meta.cycle) || 0,
+        /* 2026-11-06：局数（meta.runs）单独带出来给「存档新旧比较」用。cycle 已收紧为
+         * 「合格轮回次数」，软重置不再推进它 ⇒ 不能拿它判两份档谁更靠后。
+         * ⚠️ 老档无 runs ⇒ 回落 cycle（历史上 cycle 就是局数），这里的近似是有意的：
+         *    读的是**原始 meta 文本**，还没过 normalizeMeta，不能指望那边补。 */
+        runs: Number(meta && (meta.runs === undefined || meta.runs === null ? meta.cycle : meta.runs)) || 0,
         savedAt: Number(savedAt || run._ts) || 0,
         seq: Number(seq || run._saveSeq) || 0 };
     } catch (e) { return null; }
@@ -335,6 +413,20 @@
     var local = parsedPair(localMeta, localRun, 'localStorage');
     if (local) candidates.push(local);
     else if (hadData) uncertain = true;
+    if (autoCloudAvailable()) {
+      var autoCloud = readAutoCloudSave();
+      if (autoCloud.status === 'ok' && typeof autoCloud.raw === 'string') {
+        hadData = true;
+        var autoCloudRecord = validNative(autoCloud.raw);
+        if (autoCloudRecord) {
+          nativeSeq = Math.max(nativeSeq, Number(autoCloudRecord.seq) || 0);
+          var autoCloudPair = parsedPair(autoCloudRecord.meta, autoCloudRecord.run,
+            'electronAutoCloud', autoCloudRecord.seq, autoCloudRecord.savedAt);
+          if (autoCloudPair) candidates.push(autoCloudPair);
+          else uncertain = true;
+        } else uncertain = true;
+      } else if (autoCloud.status === 'error') uncertain = true;
+    }
     var tasks = [];
     if (envAvailable()) tasks.push(Promise.all([runKey, metaKey].map(function (key) {
       return bounded(call(root.tap, 'getStorage', { key: key }).then(function (r) {
@@ -598,30 +690,41 @@
   /* 完整多行文本（面板「复制诊断信息」用）。不含任何存档内容。 */
   function diagText() {
     var d = diagGet();
+    function tr(key, params, fallback) {
+      var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+      if (value) return value;
+      return String(fallback == null ? '' : fallback).replace(/\{([A-Za-z0-9_]+)\}/g, function (match, name) {
+        return params && params[name] !== undefined && params[name] !== null ? String(params[name]) : match;
+      });
+    }
     var t = function (ms) {
       if (!ms) return '—';
       try { return new Date(ms).toLocaleString(); } catch (e) { return String(ms); }
     };
+    var gate = d.gate || '未走门';
+    var gateLine = d.gateMs
+      ? tr('save.diag.ready.waited', { gateState: gate, waitMilliseconds: d.gateMs }, '就绪：{gateState} · 等待 {waitMilliseconds} 毫秒')
+      : tr('save.diag.ready', { gateState: gate }, '就绪：{gateState}');
     return [
-      '天壳 SHELLBREAK 存档诊断',
-      '版本 ' + (d.ver || '?') + '　生成 ' + t(Date.now()),
-      '能力 ' + capText() + '　(ls=localStorage ts=tap.setStorage fs=用户目录文件 cl=云存档)',
+      tr('save.diag.title', null, '天壳 SHELLBREAK 存档诊断'),
+      tr('save.diag.version_generated', { version: d.ver || '?', generatedAt: t(Date.now()) }, '版本 {version}　生成 {generatedAt}'),
+      tr('save.diag.storage_capabilities', { capabilityFlags: capText() }, '能力 {capabilityFlags}（ls=localStorage；ts=TapTap 存储；fs=用户目录文件；cl=云存档）'),
       /* 接口形态（2026-10-30）：与上一行「能力」的区别 —— 能力答「有没有这条通道」，
        * 接口答「这条通道到底能做什么」。玩家报「导入点不动 / 切后台丢一段」时，
        * 先看这行有没有 wfs0（= 无同步写接口），能一句话定性，不必再靠返回值反推。 */
-      '接口 ' + shapeText() + '　(wfs/rfs=文件同步读写 wf=异步写 ud=用户目录 kv=tap.setStorageSync)',
-      '启动 本次=' + (d.boot || '?') + '　累计=' + (d.boots || 0) + '　时刻=' + t(d.bootAt),
-      '就绪 ' + (d.gate || '未走门') + (d.gateMs ? '　等待 ' + d.gateMs + 'ms' : ''),
-      '恢复 最近来源=' + (d.recover || '—') + '　丢档(localStorage空但有备份)=' + (d.lost || 0) + ' 次',
-      '写盘 成功=' + (d.ok || 0) + ' 失败=' + (d.fail || 0) + ' 拒写=' + (d.skip || 0)
-        + ' 补位=' + (d.patch || 0) + '　最近坏键=' + (d.skipKey || '—'),
-      '读回 一致=' + (d.rbOk || 0) + ' 空=' + (d.rbEmpty || 0) + ' 不一致=' + (d.rbMismatch || 0),
+      tr('save.diag.api_shape', { interfaceFlags: shapeText() }, '接口形态 {interfaceFlags}（wfs/rfs=文件同步写入/读取；wf=异步写入；ud=用户目录；kv=tap.setStorageSync）'),
+      tr('save.diag.startup', { currentBootState: d.boot || '?', bootCount: d.boots || 0, bootTime: t(d.bootAt) }, '启动 本次={currentBootState}　累计={bootCount}　时刻={bootTime}'),
+      gateLine,
+      tr('save.diag.recovery', { lastSource: d.recover || '—', lostSaveCount: d.lost || 0 }, '恢复：最近来源 {lastSource} · 丢档次数（localStorage 为空但存在备份）：{lostSaveCount}'),
+      tr('save.diag.write_counts', { successfulWrites: d.ok || 0, failedWrites: d.fail || 0, rejectedWrites: d.skip || 0,
+        patchedWrites: d.patch || 0, rejectedKey: d.skipKey || '—' }, '写盘：成功 {successfulWrites} · 失败 {failedWrites} · 拒写 {rejectedWrites} · 补位 {patchedWrites} · 最近拒写键 {rejectedKey}'),
+      tr('save.diag.readback_counts', { readbackMatches: d.rbOk || 0, readbackEmpty: d.rbEmpty || 0, readbackMismatches: d.rbMismatch || 0 }, '读回：一致 {readbackMatches} · 为空 {readbackEmpty} · 不一致 {readbackMismatches}'),
       /* 同步落盘走的是哪条通道：file=用户目录同步写 / kv=tap.setStorageSync /
        * nosync=没有同步写接口 / nolatest=还没有可写快照。玩家报「切后台丢一段」
        * 时先看这一行，它是唯一能区分「没写」与「写了没落地」的现场证据。 */
-      '落盘 同步=' + (syncLastState || '未试'),
-      '尸检 已保留=' + (d.emerg || 0) + ' 次　最近=' + t(d.emergAt),
-      '错误 ' + (d.err || '—'),
+      tr('save.diag.sync_persistence', { syncState: syncLastState || '未试' }, '落盘同步状态：{syncState}'),
+      tr('save.diag.emergency_snapshots', { snapshotCount: d.emerg || 0, latestSnapshotAt: t(d.emergAt) }, '紧急副本：已保留 {snapshotCount} 次 · 最近 {latestSnapshotAt}'),
+      tr('save.diag.save_error', { errorSummary: d.err || '—' }, '存档错误：{errorSummary}'),
       /* 前端报错（2026-10-31）：见 src/ui/error-log.js 头注。
        * 上一行「错误」是**存档层**的（导入/云同步失败），这一块是**JS 运行期**的 ——
        * 玩家报「某个面板没加载出来」时，只有这一块能给出文件与行号。
@@ -635,8 +738,12 @@
   function frontErrText(d) {
     var live = '';
     try { live = (SB.errs && SB.errs.text) ? SB.errs.text() : ''; } catch (e) {}
-    return (live || '前端 无报错（本次会话）')
-      + '\n前端 上次 ' + ((d && d.jsErr) || '—');
+    var current = live || (SB.i18n && SB.i18n.t ? SB.i18n.t('save.diag.frontend_no_errors') : '')
+      || '前端无报错（本次会话）';
+    var previous = (SB.i18n && SB.i18n.t
+      ? SB.i18n.t('save.diag.frontend_previous_error', { errorSummary: (d && d.jsErr) || '—' }) : '')
+      || ('前端上次错误：' + ((d && d.jsErr) || '—'));
+    return current + '\n' + previous;
   }
 
   /* 尸检副本（2026-10-29）：开新档**之前**，把 ②③ 里那份旧档原样抄一份存进 ④。
@@ -811,7 +918,9 @@
     mirrorWrite: mirrorWrite, mirrorRemove: mirrorRemove,
     writeNativeSave: writeNativeSave, flushNativeSync: flushNativeSync,
     writeNativeSaveSync: writeNativeSaveSync,
-    /* 诊断用：上一次同步落盘走的是哪条通道（file / kv / nosync / nolatest / hold）。 */
+    autoCloudAvailable: autoCloudAvailable,
+    removeAutoCloudSave: removeAutoCloudSave,
+    /* 诊断用：上一次同步落盘走的是哪条通道（electron-file / file / kv / nosync / nolatest / hold）。 */
     syncState: function () { return syncLastState; },
     syncStorageAvailable: syncStorageAvailable,
     /* 接口形态探测（2026-10-30）：导出是为了让 e2e 能直接断言「这格必须是什么」，

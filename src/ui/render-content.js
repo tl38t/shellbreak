@@ -57,7 +57,15 @@
       /* 2026-10-31 流浪泰拉批次（用户表格「引文」列原文）。建筑表惯例**不带书名号**，
        * 与上面 44 条一致；带「」的只有 TECH_FLAVOR。 */
       terra_vat:        '城市规模的小小水族箱。',
-      terra_engine:     '今晚我就要远航。'
+      terra_engine:     '今晚我就要远航。',
+      /* 2026-11-06 水体污染挑战批次：docs/challenge-ocean-pollution-design.md §3.1「文案」列原文，
+       * 一字不动。此前被误并入 config-buildings.js 的 desc，现归位到建筑信息卡风味段。 */
+      tidemachine:      '将建设潮道的相关知识运用到热液能的开发上，潮汐推动着精妙的连杆飞速运转',
+      solarstation:     '凹面收集着来自恒星的永恒热量。',
+      enladofarm:       '钢铁的三叶草海在风中摇曳……',
+      grave:            '静谧之地。',
+      hospital:         '死神前的最后一道防线。',
+      reserve:          '愿我们的后代仍能在水草与珊瑚间嬉戏。'
     },
     TECH_FLAVOR: {
       writing: '「Ⅰ代表今天，Ⅰ•代表明天，•Ⅰ则是昨天，这就是我们最早的文字。」——后世的教科书',

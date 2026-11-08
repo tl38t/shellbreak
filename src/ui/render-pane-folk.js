@@ -5,6 +5,14 @@
   SB.ui = SB.ui || {};
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
 
+  function tr(key, params) {
+    return SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+  }
+
+  function jobDescription(job) {
+    return tr('job.' + job.id + '.description') || job.desc;
+  }
+
   function paneFolk() {
     var s = SB.game.run();
     var T = SB.CFG.TIDE;
@@ -12,9 +20,10 @@
      * （2026-09-25 那版软容量会打出「族民 7（人口上限 2）」，玩家报过一次 bug）。
      * 但光看数字，玩家仍会问「那为什么不再生人」⇒ 顶到时直接标红「住满」，
      * 下一行的生育进度条会写明原因（缺住房）。 */
-    var h = '<div class="row folk-summary"><div><div class="nm">族民 ' + s.pop + '（人口上限 ' + SB.economy.popCap(s) + '）' +
-      (SB.economy.isFull(s) ? '<span class="bad">住满</span>' : '') + '</div>' +
-      '<div class="ds">藻场见底会饿死；冰封期会冻死。保温巢能省口粮，藻场不够就先补场。</div></div></div>';
+    var h = '<div class="row folk-summary"><div><div class="nm">' + tr('ui.folk.population_summary', {
+      populationCount: s.pop, populationCap: SB.economy.popCap(s)
+    }) + (SB.economy.isFull(s) ? '<span class="bad">' + tr('ui.folk.population.status.full') + '</span>' : '') + '</div>' +
+      '<div class="ds">' + tr('ui.folk.population.survival_hint') + '</div></div></div>';
     h += SB.ui.renderCommon.happyPanelHTML(s);
     /* 生育状态常驻一行：进度条只有 3px，且停摆时空着和漏存长得一样，
      * 这里用文字把「还需几秒」和「为什么走不动」摊开，手机上不靠 hover 也能看见。
@@ -28,16 +37,17 @@
     /* 峰值族民是破冰结算的主指标之一：人口越深、工坊解锁越多、破壳越彻底，轮回点越多。
      * 直接把 breakReport 的实时预计摆出来，避免再显示已废弃的 POP_GATE / POP_SLOPE 旧口径。 */
     var br = SB.prestige.breakReport(s);
-    h += '<div class="row folk-peak"><div><div class="nm">峰值族民 <b>' + s.peak + '</b> ' +
-      '<span class="tag ok">预计轮回点 ' + br.tidePoints.toFixed(2) + '</span></div>' +
-      '<div class="ds">轮回点 = 1 + floor(发展分 × ' + (T.LINEAR_K) + ' × 破壳系数)，' +
-      '发展分 = 2×峰值 + 建筑纪元分 + 工坊解锁项（' + br.workshopCount + ' 项）。' +
-      '养人口、破壳、开工坊三条线都给点。</div></div></div>';
+    h += '<div class="row folk-peak"><div><div class="nm">' + tr('ui.folk.peak.summary', {
+      peakPopulation: s.peak, estimatedPrestigePoints: br.tidePoints.toFixed(2)
+    }) + '</div><div class="ds">' + tr('ui.folk.peak.prestige_formula', {
+      linearMultiplier: T.LINEAR_K, workshopUnlockCount: br.workshopCount
+    }) + '</div></div></div>';
     /* 照猫国：族民默认闲置，＋ 雇 / − 退。没有闲置时 ＋ 禁用，
      * 职业总和永远 ≤ pop——不搞「减 A 立刻补给 B」的转移制。 */
     var idle = SB.folk.idle(s);
-    h += '<div class="row folk-idle"><div><div class="nm">闲置 <b>' + idle + '</b></div>' +
-      '<div class="ds">没活干的族民。点职业行的 ＋ 雇佣，− 退回闲置。</div></div></div>';
+    h += '<div class="row folk-idle"><div><div class="nm">' + tr('ui.folk.idle_people.summary', {
+      idlePeopleCount: idle
+    }) + '</div><div class="ds">' + tr('ui.folk.idle_people.hint') + '</div></div></div>';
     /* ⚠️ 未解锁的职业**整行不渲染**（用户 2026-09-26：「一开始不要把这些职业显示出来，
      *   解锁一个显示一个」）。判据只有一处：`SB.folk.jobUnlocked`，它反查 techs.js 的
      *   eff.unlockJob。开局族民页上有「采集者」与「珊瑚匠」两张脸
@@ -49,6 +59,7 @@
      * 【为什么带 `s.jobs[j.id] > 0`】防御老档：若某人卡在未解锁职业上（早期版本的档），
      *   行必须留下来，否则那个人从界面上凭空消失、玩家只能在闲置池里看到总数对不上。 */
     h += '<div class="folk-job-grid">';
+    var stepSizeOptions = '×1 → ×5 → ×10';
     for (var i = 0; i < SB.JOBS.length; i++) {
       var j = SB.JOBS[i];
       /* ⚠️ `|| 0` 不是可省的小节：它是**根因侧的第二道闸**。2026-09-28 加商人时，
@@ -68,20 +79,20 @@
       var jobLimit = SB.folk.jobLimit(s, j.id);
       var atJobLimit = s.jobs[j.id] >= jobLimit;
       var jobLimitReason = SB.folk.jobLimitReason(s, j.id);
-      h += '<div class="row folk-job-row" data-job-row="' + j.id + '"><div><div class="nm">' + SB.folk.jobName(s, j.id) +
+      h += '<div class="row folk-job-row" data-job-row="' + j.id + '"><div><div class="nm">' + SB.folk.localizedJobName(s, j.id) +
         ' <b id="j-' + j.id + '">' + s.jobs[j.id] + '</b>' + (isFinite(jobLimit) ? ' / ' + jobLimit : '') + '</div>' +
-        '<div class="ds">' + j.desc + '</div></div>' +
+        '<div class="ds">' + jobDescription(j) + '</div></div>' +
         '<div class="folk-job-controls">' +
         /* 2026-10-14 方案 B（猫国式极简 + 步长胶囊）：可见 UI 只有一对 −/＋ 小按钮，
          * ±5/±10 收进「×N」胶囊（点击循环 ×1→×5→×10，全局记忆不每行一份）。
          * 大步长是交互问题不是按钮问题——修「8 个 40px 按钮喧宾夺主」。
          * 步长仍由 folk.assign 双向钳制（加钳到 idle、减钳到在岗数）。
          * ⚠️ 2026-10-16 用户：取消「双击 = 最大/最小」——容易误触整职业清零/塞满。 */
-        '<button class="btn fc-step" data-step="1" title="点击切换步长：×1 → ×5 → ×10（所有职业共用）">×' + stp + '</button>' +
+        '<button class="btn fc-step" data-step="1" title="' + tr('ui.folk.assignment.step.tooltip', { stepSizeOptions: stepSizeOptions }) + '">×' + stp + '</button>' +
         '<button class="btn" data-job="' + j.id + '" data-d="-' + stp + '"' + (s.jobs[j.id] <= 0 ? ' disabled' : '') +
-          ' title="−' + stp + '（不足则全退）">−</button>' +
+          ' title="' + tr('ui.folk.assignment.decrease.tooltip', { stepSize: stp }) + '">−</button>' +
         '<button class="btn" data-job="' + j.id + '" data-d="' + stp + '"' + (idle <= 0 || atJobLimit ? ' disabled' : '') +
-          ' title="' + (jobLimitReason || ('＋' + stp + '（不足则加全部闲置）')) + '">＋</button>' +
+          ' title="' + (jobLimitReason || tr('ui.folk.job.assign.tooltip', { stepSize: stp })) + '">＋</button>' +
         '</div></div>';
     }
     h += '</div>';
@@ -97,10 +108,12 @@
        *   与 assignRobot 的 `if (!s.robotJobs) s.robotJobs = {}` 同源：读侧先兜底成空对象，
        *   迁移（state-migrate.js）再补种子，双闸防这一种「看得见但点了全没反应」的哑崩。 */
       var rjobs = s.robotJobs || {};
-      h += '<div class="row folk-summary"><div><div class="nm">机器人 <b>' + rpop + '</b>（产出 ×1.2，不占人口/不影响信仰）</div>' +
-        '<div class="ds">机器人仅能担任非书手/学者的岗位。</div></div></div>';
-      h += '<div class="row folk-idle"><div><div class="nm">闲置机器人 <b>' + ridle + '</b></div>' +
-        '<div class="ds">未分配的机器人。点岗位行的 ＋ 分配、− 退回闲置。</div></div></div>';
+      h += '<div class="row folk-summary"><div><div class="nm">' + tr('ui.folk.robot_population.summary', {
+        robotPopulationCount: rpop, robotOutputMultiplier: 1.2
+      }) + '</div><div class="ds">' + tr('ui.folk.robot_job.restriction') + '</div></div></div>';
+      h += '<div class="row folk-idle"><div><div class="nm">' + tr('ui.folk.idle_robots.summary', {
+        idleRobotCount: ridle
+      }) + '</div><div class="ds">' + tr('ui.folk.idle_robots.hint') + '</div></div></div>';
       h += '<div class="folk-job-grid">';
       var rstep = SB.ui.render.jobStep();
       for (var ri = 0; ri < SB.JOBS.length; ri++) {
@@ -111,15 +124,15 @@
         var ratJobLimit = (rjobs[rj.id] || 0) >= rjobLimit;
         var rjobLimitReason = SB.folk.jobLimitReason(s, rj.id);
         h += '<div class="row folk-job-row" data-robot-job-row="' + rj.id + '"><div><div class="nm">' +
-          SB.folk.jobName(s, rj.id) + '（机器人） <b id="rj-' + rj.id + '">' + (rjobs[rj.id] || 0) + '</b>' +
+          tr('ui.folk.robot_job.label', { jobName: SB.folk.localizedJobName(s, rj.id) }) + ' <b id="rj-' + rj.id + '">' + (rjobs[rj.id] || 0) + '</b>' +
           (isFinite(rjobLimit) ? ' / ' + rjobLimit : '') + '</div>' +
-          '<div class="ds">' + rj.desc + '</div></div>' +
+          '<div class="ds">' + jobDescription(rj) + '</div></div>' +
           '<div class="folk-job-controls">' +
-          '<button class="btn fc-step" data-step="1" title="点击切换步长：×1 → ×5 → ×10（所有职业共用）">×' + rstep + '</button>' +
+          '<button class="btn fc-step" data-step="1" title="' + tr('ui.folk.assignment.step.tooltip', { stepSizeOptions: stepSizeOptions }) + '">×' + rstep + '</button>' +
           '<button class="btn" data-robot-job="' + rj.id + '" data-d="-' + rstep + '"' + ((rjobs[rj.id] || 0) <= 0 ? ' disabled' : '') +
-            ' title="−' + rstep + '（不足则全退）">−</button>' +
+            ' title="' + tr('ui.folk.assignment.decrease.tooltip', { stepSize: rstep }) + '">−</button>' +
           '<button class="btn" data-robot-job="' + rj.id + '" data-d="' + rstep + '"' + (ridle <= 0 || ratJobLimit ? ' disabled' : '') +
-            ' title="' + (rjobLimitReason || ('＋' + rstep + '（不足则加全部闲置机器人）')) + '">＋</button>' +
+            ' title="' + (rjobLimitReason || tr('ui.folk.robot_job.assign.tooltip', { stepSize: rstep })) + '">＋</button>' +
           '</div></div>';
       }
       h += '</div>';
@@ -127,8 +140,9 @@
     /* ⚠️ 硬上限之后开局的**第一步是珊瑚不是藻食**（2026-09-26）：那 1 名族民顶着
      * 人口上限 1，先把藻食堆到 20 以上也生不出人——必须先有礁口巢才有空位。
      * 旧文案只教「攒藻食建菌圃」，玩家照做会发现人口纹丝不动。 */
-    h += '<div class="note">开局 1 名族民顶着人口上限：先在「' + SB.habitat.habitatName(SB.game.run()) + '」页点「采珊瑚」攒 5 建礁口巢' +
-      '（上限 1 → 3），再让藻食超过 ' + SB.CFG.GROW_KEEP + '，才生得下第二人。</div>';
+    h += '<div class="note">' + tr('ui.folk.opening.growth_tip', {
+      habitatName: SB.habitat.habitatName(s), kelpThreshold: SB.CFG.GROW_KEEP
+    }) + '</div>';
     return h;
   }
 
