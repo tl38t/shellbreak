@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.1.0',
+    VERSION: 'Ver1.1.1',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,6 +33,18 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.1.1（2026-11-09）：1.1.0 之后的未发布改动合集。两条显示类优化 + 三条真实 bug 修复，
+       * 其中「退役市政卡仍在生效」与「挑战竣工分母塌陷」都是玩家直接报过的现象。
+       * 升版四步已补齐（VERSION / CHANGELOG / index.html ?v / _repack.py 断言）；2026-11-10 封包。 */
+      { v: 'Ver1.1.1', date: '2026-11-09', items: [
+        // —— 优化 ——
+        'changelog.ui.number_units',
+        'changelog.settings.ui_scale',
+        // —— 修复 ——
+        'changelog.fix.retired_policy_still_active',
+        'changelog.fix.challenge_progress_denominator',
+        'changelog.fix.pollution_policy_supersede'
+      ] },
       /* Ver1.1.0（2026-11-07）：线上从 rc42-v1.0.17 直升。Ver1.0.18 / Ver1.0.19 两个包
        * 只封包、从未上线，故不单独留段；它们与 Ver1.0.17 段里后来补记的 7 条一起收编到本段。
        * Ver1.0.17 段保留线上玩家实际看到过的 3 条，逐字不动。 */

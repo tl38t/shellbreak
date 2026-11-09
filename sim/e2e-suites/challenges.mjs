@@ -1007,6 +1007,33 @@ export function run({ SB, check, noop }) {
       check('未学《神学》仍走普通重开：不发点、不写 breakSettled',
         D.fm.tide === 0 && D.fm.stardust === 0 && D.rs.breakSettled === false);
     }
+
+    /* ── 2026-11-09 「永远与须臾」竣工面板分母塌陷（玩家报「怎么没有翻倍」）────
+     * goal 型一达成 active() 返回 null ⇒ multiplier 掉回 1 ⇒ 帆/节点/星空三个目标分母
+     * 在 4 段分镜结束、showDysonCompletePanel 渲染时早已塌回基础值（截图 258,358 / 10,000）。
+     * 目标分母属于「本局档位快照」，必须达成前后恒等；研究成本属于「限制」，达成后解除。
+     * 这里直接切 challengeDone 模拟 award() 之后的状态，读真实 production 函数，不 mock。 */
+    {
+      const em = SB.state.freshRun(false);
+      em.challenge = { id: 'eternity_moment', tier: 0, replay: false };
+      em.challengeDone = false;
+      const sailBefore = api.dysonSailCap(em), nodeBefore = api.dysonNodeCap(em),
+        starBefore = api.starCap(em), shellBefore = api.shellTarget(em);
+      const limitBefore = api.multiplier(em);
+      em.challengeDone = true;
+      check('★ 永远与须臾：达成后目标分母仍是本局 ×5 快照，不随挑战完成塌陷',
+        api.dysonSailCap(em) === sailBefore && api.dysonNodeCap(em) === nodeBefore &&
+        api.starCap(em) === starBefore && api.shellTarget(em) === shellBefore &&
+        api.runMultiplier(em) === 5 &&
+        sailBefore === (Number(SB.CFG.DYSON_SAIL_CAP) || 10000) * 5 &&
+        nodeBefore === (Number(SB.CFG.DYSON_NODE_CAP) || 1000) * 5 &&
+        starBefore === Number(SB.CFG.STAR_CAP || 0) * 5,
+        '帆 ' + sailBefore + ' / 节点 ' + nodeBefore + ' / 星空 ' + starBefore);
+      check('★ 永远与须臾：研究成本属限制口径，达成后解除；目标分母不受影响',
+        limitBefore === 5 && api.multiplier(em) === 1 &&
+        api.dysonSailCap(em) === sailBefore,
+        '限制倍率 ' + limitBefore + ' → ' + api.multiplier(em));
+    }
   } finally {
     meta.challenges = savedProgress;
     meta.achv = savedAchv;

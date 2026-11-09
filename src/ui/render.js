@@ -253,8 +253,10 @@
       var rateTxt = '';
       if (Math.abs(r) >= 0.005) {
         var sign = r > 0 ? '+' : '';
+        /* 计数单位与存量/上限同源（2026-11-09）：≥1e4 走 economy.fmtAbbr 的 k/M/B/T 阶梯，
+         * 回落仍用原来的两档精度（≥100 取整、否则两位小数）—— +0.03/s 不能被压成 +0.0/s。 */
         rateTxt = '<i class="rate' + (r > 0 ? ' up' : ' down') + '">' + sign +
-          (Math.abs(r) >= 100 ? Math.round(r) : r.toFixed(2)) + '/s</i>';
+          SB.economy.fmtAbbr(r, Math.abs(r) >= 100 ? Math.round(r) : r.toFixed(2)) + '/s</i>';
       }
       var faithBonusTxt = '';
       if (k === 'faith') {
@@ -357,9 +359,10 @@
   function rdNum(v) {
     var a = Math.abs(v);
     if (!isFinite(v)) return '∞';
-    if (a >= 10000) return Math.round(v).toLocaleString();
-    if (a >= 100) return v.toFixed(1);
-    return v.toFixed(2);
+    /* 详情面板的净值 / 分项 / 汇总 / 基数与资源卡速率共用同一套计数单位；
+     * 未达档时保留原来的一档一位、两档两位（原来这里 ≥10000 只加千分位，
+     * 一亿仍会印成 100,000,000 撑破格子）。 */
+    return SB.economy.fmtAbbr(v, a >= 100 ? v.toFixed(1) : v.toFixed(2));
   }
   function rdSigned(v) {
     if (!isFinite(v)) return '∞';
@@ -808,6 +811,9 @@
     var modal = el('modal'), box = el('modalBox'); if (!modal || !box) return;
     resetModalChrome();
     var sails = (s && s.sunSails) || 0, nodes = (s && s.dysonNodes) || 0;
+    /* ⚠️ 分母必须走 challenges.dysonSailCap / dysonNodeCap（本局档位快照），不可退回
+     * CFG.DYSON_*_CAP：本面板在 4 段分镜结束后才渲染，此时 challengeDone 已是 true、
+     * 限制已撤，但「五倍永恒」这一局的目标仍是 50,000 / 5,000（2026-11-09 面板撒谎修复）。 */
     var sailCap = SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(s) : (SB.CFG.DYSON_SAIL_CAP || 10000);
     var nodeCap = SB.challenges && SB.challenges.dysonNodeCap ? SB.challenges.dysonNodeCap(s) : (SB.CFG.DYSON_NODE_CAP || 1000);
     box.innerHTML = '<div class="dyson-complete-panel">'

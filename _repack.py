@@ -62,10 +62,14 @@ print('已排除未被 index.html 引用的 src/ai-player.js（含死 fetch）')
 #   company-icons、brand、dyson —— 线上是 404 缺图，而封包断言只查 config.js 文本、
 #   完全查不出来。改为按白名单遍历，**排除 assets/store（66M 本地商店素材，不上传）**。
 ASSET_DIRS = ['achievements', 'audio', 'backgrounds', 'brand', 'building-icons', 'challenges',
-              'civic-icons', 'company-icons', 'dyson', 'fonts', 'resource-icons',
+              'civic-icons', 'company-icons', 'dyson', 'faith-tenets', 'fonts', 'resource-icons',
               'talent-icons', 'tech-icons', 'ui-era', 'wonders']
 # ⚠️ 2026-10-31 新增 audio（BGM 压缩包，见 src/audio.js + CFG.AUDIO）。漏进白名单 = 线上静默缺音乐，
 #    与 2026-10-26「静默缺图」同类事故：封包断言只查 config 文本，查不出缺整个文件夹。
+# ⚠️ 2026-11-09 新增 faith-tenets（31 张信条图标 / 0.9 MB，见 src/faith.js + docs/FAITH_TENET_ICONS.md）。
+#    11-06 信条系统入库时漏登记本白名单 ⇒ rc43~rc47 五个包全部缺整个目录、31 个图标全 404；
+#    玩家看到「图标一直闪」（renderPanes 每 2 秒整块重写 innerHTML，img 反复重建反复 404）。
+#    这是 10-26 的同构复发第二次，光加白名单只修当前一次，下方守卫已同步改成反向校验。
 for _d in ASSET_DIRS:
     _sync_tree(os.path.join(REPO, 'assets', _d), os.path.join(SRC, 'assets', _d))
 print('已自动同步 assets/ 的 %d 个子树 -> 包目录（store 本地素材除外）' % len(ASSET_DIRS))
@@ -173,22 +177,22 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.1.0'" in _cfg, '包内 config.js 版本号不是 Ver1.1.0'
+assert "VERSION: 'Ver1.1.1'" in _cfg, '包内 config.js 版本号不是 Ver1.1.1'
 
 # ---------- 更新日志本地化守卫（2026-11-06） ----------
 # CFG.CHANGELOG 的 items 已全部改成 i18n 语义 key：中文基准在
 # src/locales/zh-CN.js（进 TapTap 包），英文在 electron/locales/en-US.js
 #（Electron 专属，按规范不进包，故从 REPO 读）。旧守卫逐字搜中文串，
 # key 化后必然失效，这里改成「结构 + key + 双语资源」四重校验：
-#   ① 18 个版本都在（Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
-#   ② 恰 106 条语义 key、互不重复；
-#   ③ 包内 zh-CN 与仓库 en-US 都含这 106 个 key 且译文非空；
+#   ① 19 个版本都在（Ver1.1.1 + Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
+#   ② 恰 111 条语义 key、互不重复；
+#   ③ 包内 zh-CN 与仓库 en-US 都含这 111 个 key 且译文非空；
 #   ④ 中英文都没有未烘焙的 {placeholder}，且废弃的机械 key 不再被引用。
 import re as _re
 import json as _json
 
 # Ver1.0.18 / Ver1.0.19 只封包、从未上线，已收编进 Ver1.1.0 段，不再作为独立段存在。
-_expected_versions = ['Ver1.1.0'] + ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
+_expected_versions = ['Ver1.1.1', 'Ver1.1.0'] + ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
 for _v in _expected_versions:
     assert "v: '%s'" % _v in _cfg, '包内 config.js 更新日志缺 %s 条目' % _v
 
@@ -211,8 +215,8 @@ _chg_code = _re.sub(r'//[^\n]*', '', _chg_code)
 assert not _re.search(r'[\u4e00-\u9fff]', _chg_code), \
     '包内 config.js 的 CHANGELOG 仍残留中文硬编码条目（应先登记再引用 key）'
 _chg_keys = _re.findall(r"'((?:changelog|ui\.footer)\.[a-z0-9_.]+)'", _chg_body)
-assert len(_chg_keys) == 106, '包内 config.js 更新日志 key 数应为 106，实为 %d' % len(_chg_keys)
-assert len(set(_chg_keys)) == 106, '包内 config.js 更新日志有重复 key'
+assert len(_chg_keys) == 111, '包内 config.js 更新日志 key 数应为 111，实为 %d' % len(_chg_keys)
+assert len(set(_chg_keys)) == 111, '包内 config.js 更新日志有重复 key'
 
 def _locale_dict(_path):
     with open(_path, encoding='utf-8') as _f:
@@ -244,7 +248,7 @@ for _old_key in ['ui.render.anonymous_function.leaderboard',
 for _new_key in ['ui.footer.leaderboard_button', 'ui.footer.changelog_button']:
     assert _new_key in _idx, '包内 index.html 缺页脚语义 key: ' + _new_key
 assert '活动礼包码直接领取' not in _cfg, '包内 config.js 仍残留礼包码那条公开日志（用户要求删）'
-print('更新日志本地化守卫: OK (18 版本 / 106 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
+print('更新日志本地化守卫: OK (19 版本 / 111 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
 
 # ---------- 存档诊断 + 三个 P0（2026-10-29 / Ver1.0.4）----------
 # 这一批全是「玩家报存档没了」的对策，任何一条漏进包里都等于白改，所以逐条钉死。
@@ -427,16 +431,48 @@ assert 'autoPumpTimer' in _read('src/save-transfer.js'), \
     '包内云备份定时器不是幂等的（就绪门重入会装出两个 30 秒定时器）'
 print('就绪门入包检查: OK (三态判别 + 超时暂停/local 放行 + 写保护 + 晚到补偿 + 定时器幂等)')
 
-# 包内素材必须齐全（2026-10-26 补：rc15 及之前只同步两个 icons 子树，
-# 线上缺 fonts / building-icons / resource-icons / achievements 等 ⇒ 静默 404 缺图）
-_missing_assets = []
-for _d in ASSET_DIRS:
-    _p = os.path.join(SRC, 'assets', _d)
-    if not os.path.isdir(_p) or not os.listdir(_p):
-        _missing_assets.append(_d)
-assert not _missing_assets, f'包内 assets 缺目录或为空: {_missing_assets}，先同步素材'
-assert os.path.isfile(os.path.join(SRC, 'assets', 'fonts', 'Ma_Shan_Zheng.woff2')), '包内缺标题字体 Ma_Shan_Zheng.woff2'
-print('素材检查: OK (%d 个子树齐全 + 标题字体在位)' % len(ASSET_DIRS))
+# ---------- 包内素材必须齐全 ----------
+# 2026-10-26：白名单逐个同步，加「白名单内目录存在且非空」的正向检查。
+# ⚠️ 2026-11-09：正向守卫只自查 ASSET_DIRS，漏登记的新目录根本不在检查集合里 ⇒
+#    rc43~rc47 五个包全打印「素材检查: OK」而线上 31 个信条图标全 404（同构复发第二次）。
+#    故补**反向校验**：从包内源码实际引用的 assets/<dir>/ 反推「应该有哪几个目录」，
+#    再逐个断言包内存在且非空。漏登记 / 没同步 / 空目录，三者任一都当场封包失败。
+#    口径：扫包内 index.html + src/**/*.{js,html} + css/**/*.css（这才是真正发出去的代码）；
+#          先剥块注释与整行 // 注释（防文档里的路径造成假警报），不剥行内 // 以免误伤字符串。
+#    ⚠️ assets/store 是本地商店素材、故意排除；若哪天代码引用了它，本守卫会**正确报错**——
+#       那意味着线上必然 404，该修的是引用，不是把 store 塞进包（410 MB）。
+def _assert_assets(_src_root, _whitelist):
+    """反向校验包内源码引用的每个 assets 一级目录都已登记且真的在包里。
+    写成具名函数，便于 tmp/ 下的探针直接 exec 生产函数本体做回归，不复制逻辑。"""
+    import os as _os, re as _re, glob as _glob
+    _src_files = []
+    for _pat in ('index.html', 'src/**/*.js', 'src/**/*.html', 'css/**/*.css'):
+        _src_files += _glob.glob(_os.path.join(_src_root, _pat), recursive=True)
+    assert _src_files, '包内找不到待扫描的源码文件（assets 反向校验无法执行）'
+    _ref_dirs = set()
+    for _p in _src_files:
+        with open(_p, encoding='utf-8', errors='replace') as _f:
+            _txt = _f.read()
+        _txt = _re.sub(r'/\*.*?\*/', '', _txt, flags=_re.S)
+        _txt = _re.sub(r'(?m)^\s*//.*$', '', _txt)
+        _ref_dirs |= set(_re.findall(r'assets/([A-Za-z0-9_-]+)/', _txt))
+    _unlisted = sorted(_ref_dirs - set(_whitelist))
+    assert not _unlisted, (
+        '包内源码引用了未登记进 ASSET_DIRS 的 assets 目录: %s —— '
+        '漏登记 = 线上静默 404 缺图，先把目录加进白名单再封包' % _unlisted)
+    _missing_assets = []
+    for _d in sorted(_ref_dirs | set(_whitelist)):
+        _p = _os.path.join(_src_root, 'assets', _d)
+        if not _os.path.isdir(_p) or not _os.listdir(_p):
+            _missing_assets.append(_d)
+    assert not _missing_assets, f'包内 assets 缺目录或为空: {_missing_assets}，先同步素材'
+    assert _os.path.isfile(_os.path.join(_src_root, 'assets', 'fonts', 'Ma_Shan_Zheng.woff2')), \
+        '包内缺标题字体 Ma_Shan_Zheng.woff2'
+    return {'scanned': len(_src_files), 'refDirs': sorted(_ref_dirs), 'whitelist': len(_whitelist)}
+
+_asset_report = _assert_assets(SRC, ASSET_DIRS)
+print('素材检查: OK (白名单 %d 个子树 + 源码反向引用 %d 个目录全部在位 + 标题字体在位，扫 %d 个源码文件)'
+      % (len(ASSET_DIRS), len(_asset_report['refDirs']), _asset_report['scanned']))
 
 # ---------- 包体零外部特征（2026-11-08 收紧口径）----------
 # ⚠️ 2026-11-08 教训：旧守卫只扫 .js/.html/.css/.mjs/.json 的「有效行」并主动剥掉

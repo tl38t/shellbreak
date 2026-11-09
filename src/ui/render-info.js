@@ -825,9 +825,15 @@
       return false;
     }
     switch (id) {
-      case 'kelp':         return tr('building.effect.kelp_farm', {
-        perLevelProduction: B.food.toFixed(2), currentProduction: (B.food * L).toFixed(2)
-      }, '自动产藻食 +' + B.food.toFixed(2) + '/级/秒（当前 +' + (B.food * L).toFixed(2) + '）；吃季节减产');
+      /* 计数单位（2026-11-09）：等级 L 一大，当前产出就是十位数裸数字。
+       * ⚠️ 词库参数 + 中文回退串成对改（本文件 tr 不插值 fallback）。 */
+      case 'kelp': {
+        var _kPer = SB.economy.fmtAbbr(B.food, B.food.toFixed(2));
+        var _kCur = SB.economy.fmtAbbr(B.food * L, (B.food * L).toFixed(2));
+        return tr('building.effect.kelp_farm', {
+          perLevelProduction: _kPer, currentProduction: _kCur
+        }, '自动产藻食 +' + _kPer + '/级/秒（当前 +' + _kCur + '）；吃季节减产');
+      }
       case 'weir':         return pct(effectLabel('kelp_output', '藻食产出'), B.foodWeir * 100, B.foodWeir * 100 * L);
       case 'warmnest':     return pct(effectLabel('people_food_consumption', '族民口粮消耗'), B.foodSave * 100, B.foodSave * 100 * L, 1, '−');
       case 'kelpstore':    return add(effectLabel('kelp_storage_cap', '藻食上限'), B.kelpCap, B.kelpCap * L, '', 0);
@@ -904,12 +910,18 @@
         var _fUr = (B.fissionUranium || 0) * (_nfz ? 2 : 1);
         var _fLux = (B.fissionLuxAdd || 0) * 100;
         var _luxPer = Math.round(_fLux * 100) / 100, _luxCur = Math.round(_fLux * L * 100) / 100;
+        /* 计数单位（2026-11-09）：四个 /秒 读数同源；两个 %/级 是百分比不是产出，保持原样。
+         * ⚠️ 词库参数 + 中文回退串成对改（本文件 tr 不插值 fallback）。 */
+        var _hydPer = SB.economy.fmtAbbr(_fHyd, _fHyd);
+        var _hydCur = SB.economy.fmtAbbr(_fHyd * L, _fHyd * L);
+        var _urPer = SB.economy.fmtAbbr(_fUr, _fUr.toFixed(2));
+        var _urCur = SB.economy.fmtAbbr(_fUr * L, (_fUr * L).toFixed(2));
         return tr('building.effect.fission_plant', {
-          hydroPerSecond: _fHyd, hydroCurrentPerSecond: _fHyd * L,
-          uraniumPerSecond: _fUr.toFixed(2), uraniumCurrentPerSecond: (_fUr * L).toFixed(2),
+          hydroPerSecond: _hydPer, hydroCurrentPerSecond: _hydCur,
+          uraniumPerSecond: _urPer, uraniumCurrentPerSecond: _urCur,
           luxuryIncrease: _luxPer, luxuryCurrentIncrease: _luxCur,
           fusionNote: _nfz ? tr('building.effect.fission_plant.fusion_note', null, '。核聚变已研究，上列数已含其加成。') : ''
-        }, '热液能 +' + _fHyd + '/秒/级（当前 +' + (_fHyd * L) + '/秒，不烧暖石）；耗铀 ' + _fUr.toFixed(2) + '/秒/级（当前 −' + (_fUr * L).toFixed(2) + '/秒）；居民奢侈品消耗 +' + _luxPer + '%/级（当前 +' + _luxCur + '%，负面）' + (_nfz ? '。核聚变已研究，上列数已含其加成。' : ''));
+        }, '热液能 +' + _hydPer + '/秒/级（当前 +' + _hydCur + '/秒，不烧暖石）；耗铀 ' + _urPer + '/秒/级（当前 −' + _urCur + '/秒）；居民奢侈品消耗 +' + _luxPer + '%/级（当前 +' + _luxCur + '%，负面）' + (_nfz ? '。核聚变已研究，上列数已含其加成。' : ''));
       }
       case 'hydroshop':    return tr('building.effect.hydroshop', null, '吃金属产钢（产钢量随热液能供给浮动）');
       case 'furnace':      return tr('building.effect.metal_to_iron', null, '解锁 金属 → 精铁（一次性效果，不随等级递增）');
@@ -1028,7 +1040,9 @@
     return tr('building.consume.idle.' + suffix, null, CONSUME_IDLE[key]);
   }
   function consumeRateText(key, rate) {
-    var resourceName = consumeResourceName(key), amount = rate.toFixed(2);
+    /* 计数单位（2026-11-09）：消耗速率与资源卡 /s 同源；一处改动同时供词库参数与中文回退串。 */
+    var resourceName = consumeResourceName(key);
+    var amount = SB.economy.fmtAbbr(rate, rate.toFixed(2));
     return tr('building.consume.rate_item', { resourceName: resourceName, rate: amount },
       resourceName + ' −' + amount + '/秒');
   }
@@ -1287,12 +1301,16 @@
   function showPolicyInfo(id) {
     var s = res(), p = SB.civic && SB.civic.policyById(id);
     if (!s || !p) return;
-    var owned = SB.civic.cardOwned(s, id), slotted = !!(s.cards && s.cards.indexOf(id) >= 0);
-    var state = slotted ? { cls: 'done', text: tr('policy.info.status.slotted_active', null, '已装填 · 正在生效') }
-      : owned ? { cls: 'ready', text: tr('policy.info.status.unlocked_unslotted', null, '已解锁 · 尚未装填') }
-        : { cls: 'locked', text: p.retiredBy
-          ? tr('policy.info.status.retired', null, '已退役')
-          : tr('ui.status.not_unlocked', null, '尚未解锁') };
+    /* ⚠️ 2026-11-09：「在 s.cards 里」只是物理槽位，不等于正在生效；
+     *   retiredBy 字段只说明「将来会被取代」，只有后继市政**已完成**才是真退役。
+     *   此前无条件用 p.retiredBy 标「已退役」，玩家刚看到一张未解锁的旧卡就被判了死刑。 */
+    var owned = SB.civic.cardOwned(s, id);
+    var effective = SB.civic.cardEffective(s, id);
+    var retired = SB.civic.cardRetired(s, p);
+    var state = retired ? { cls: 'locked', text: tr('policy.info.status.retired', null, '已退役') }
+      : effective ? { cls: 'done', text: tr('policy.info.status.slotted_active', null, '已装填 · 正在生效') }
+        : owned ? { cls: 'ready', text: tr('policy.info.status.unlocked_unslotted', null, '已解锁 · 尚未装填') }
+          : { cls: 'locked', text: tr('ui.status.not_unlocked', null, '尚未解锁') };
     var slotTypeKeys = { grow: 'growth', prod: 'production', sci: 'research', relig: 'religion' };
     var slot = p.type
       ? tr('policy.slot.' + (slotTypeKeys[p.type] || p.type), null, SB.civic.slotTypeName(p.type))
@@ -1306,7 +1324,7 @@
     var body = '<section class="tree-detail-section"><h4>' + tr('ui.section.effects', null, '效果') + '</h4><p>' + linkInfoNames(policyDesc) + '</p></section>' +
       '<section class="tree-detail-section"><h4>' + tr('policy.info.heading.compatible_slot', null, '适配槽位') + '</h4><p>' + slot + '</p></section>' +
       '<section class="tree-detail-section"><h4>' + tr('policy.info.heading.how_it_works', null, '生效方式') + '</h4><p>' +
-      (p.retiredBy ? tr('policy.info.retired_cannot_slot', null, '此卡已退役，不能再装填。')
+      (retired ? tr('policy.info.retired_cannot_slot', null, '此卡已退役，不能再装填。')
         : tr('policy.info.unlock_and_slot_note', null, '研究解锁后，还需装填到适配槽位才会生效。')) + '</p></section>';
     openInfoCard(policyName, '▤', state, body, '');
   }

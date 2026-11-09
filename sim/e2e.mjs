@@ -832,6 +832,126 @@ console.log('\n=== 开局解锁链 ===');
     check('资源上限异常时仍能入账，不把 NaN 伪装成 0',
       badCapProbe.res.coral === 1, 'coral=' + badCapProbe.res.coral);
 
+    /* ── ★ 2026-11-09「计数单位」回归锁 ────────────────────────────────
+     * 用户截图：资源卡 +2527311530/s、升级浮层 388712908556/4.89T —— 存量/上限早有
+     * k/M/B/T，速率与「已拥有」还是裸长数字。四处读数统一走 economy.fmtAbbr。
+     * ⚠️ 小数值必须一字不变（+0.03/s、珊瑚 0/12.5），否则会盖掉 economy.js:751
+     *    那次「显示与扣费同源」的修复。 */
+    const E = SB.economy;
+    const unitSmall = SB.state.freshRun(false);
+    const unitBig = SB.state.freshRun(false);
+    unitBig.res.kelp = 3.88712908556e11;
+    const bigOwned = E.costOwnedTxt(unitBig, { kelp: 4.89e12 });
+    const smallOwned = E.costOwnedTxt(unitSmall, { coral: 12.5 });
+    check('★ 计数单位①：建造/升级按钮「已拥有」≥1e9 带单位，小数值一字不变',
+      bigOwned === '藻食 388.71B/4.89T' && smallOwned === '珊瑚 0/12.5',
+      'big="' + bigOwned + '" small="' + smallOwned + '"');
+    const sciRate = (function () {
+      const prev = E.getNumberFormat();
+      E.setNumberFormat('sci');
+      const v = E.fmtAbbr(2527311530, 0);
+      E.setNumberFormat(prev);
+      return v;
+    })();
+    check('★ 计数单位②：fmtAbbr 阶梯 / 负号 / 随 numberFormatMode 切换',
+      E.fmtAbbr(0.03, '0.03') === '0.03' && E.fmtAbbr(1320, 1320) === '1320' &&
+      E.fmtAbbr(12345, 12345) === '12.3k' && E.fmtAbbr(2527311530, 0) === '2.53B' &&
+      E.fmtAbbr(-2527311530, 0) === '-2.53B' && sciRate === '2.53e9' &&
+      E.fmtAbbr(2527311530, 0) === '2.53B',
+      'sci="' + sciRate + '" compact="' + E.fmtAbbr(2527311530, 0) + '"');
+    /* 真实 rates() → renderRes：藻场 5.6e9 级 × BLD.food 0.45 ≈ 2.5e9/s。
+     * 不 stub rates，走的是生产公式本身。改完立刻把 s 还原回本块的夹具值。 */
+    s.lvl.kelp = 5.6e9; s.res.kelp = 1.196e10;
+    SB.game.renderAll();
+    const resHtml = g('res');
+    const rateM = resHtml.match(/data-res-detail="kelp"[\s\S]*?<i class="rate[^>]*>([^<]*)<\/i>/);
+    const kelpRate = rateM ? rateM[1] : '(无速率节点)';
+    check('★ 计数单位③：资源卡 /s 速率带单位，不再印十位数长数字',
+      kelpRate.indexOf('/s') > 0 && /[kMBTQ]/.test(kelpRate) && !/\d{7,}/.test(kelpRate),
+      'kelp rate="' + kelpRate + '"');
+    SB.ui.render.showResDetail('kelp');
+    const detailHtml = g('modalBox');
+    check('★ 计数单位④：资源详情面板净值/分项也走同一套单位',
+      /rd-net[^>]*>[\s\S]{0,140}<b>[-+][\d.]+[kMBTQ]/.test(detailHtml) &&
+      !/\+\d{7,}/.test(detailHtml),
+      'detail head="' + detailHtml.replace(/\s+/g, ' ').slice(0, 150) + '"');
+    s.lvl.kelp = bak.lv; s.res.kelp = bak.kelp;
+
+    /* ── ★ 计数单位⑤~⑧：①③④（2026-11-09 用户「1、3、4 补」）─────────────
+     * 用户上一轮截图的同类裸数散在三个面板：科技/市政页速率、建筑详情每级与当前、
+     * 传承页遗产速率。全部复用 economy.fmtAbbr，不另造第二套格式。
+     * ⚠️ 三个文件的 tr 口径不同：render-pane-research / render-info 的 fallback 是
+     *    拼好的中文串（不插值）⇒ 词库参数 + 中文回退串必须成对改；render-pane-meta
+     *    的 fallback 带占位符会被 params 插值 ⇒ 只改参数即可。少改一条通道就漏一半。
+     * ⚠️ ④ 的 legacy 速率 = LEGACY_RATE × harmonic(n)，对数增长，n 取 Number.MAX_VALUE
+     *    也只有 1065.54 ⇒ 永远够不到 1e4，compact 下必然一字不变。用 sci 模式切换
+     *    证明它确实走 fmtAbbr 而非 toFixed（sci 下 1065.54 → 1,065.54）。 */
+    const uBak = {
+      scholar: s.jobs.scholar, scribe: s.jobs.scribe, science: s.res.science,
+      kelpLv: s.lvl.kelp, hall: s.lvl.hall, fissionLv: s.lvl.fissionplant,
+      furnaceLv: s.lvl.furnace
+    };
+    const uMeta = SB.game.meta();
+    const uMetaBak = { art: uMeta.oldArtworkEarnedTotal, stele: uMeta.oldTideStelesEarnedTotal };
+    const uFmt = E.getNumberFormat();
+    const uRP = SB.ui.renderParts.research;
+    const plain = (x) => String(x || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+    const rateBad = (x) => /\d{7,}\s*\/\s*(秒|sec|s)/.test(plain(x));
+    try {
+      s.jobs.scholar = 5.6e9; s.jobs.scribe = 5.6e9;
+      s.res.science = 2.52731153e11;
+      s.lvl.kelp = 5.6e9;      // 兼作科技页开门（writing 要 5 座藻场）
+      s.lvl.hall = 1;          // 兼作市政页开门（coreLvl ≥ 1）
+      uRP.setCivicView('tree'); // 速率注脚在「市政树」子页，不在默认「政体」页
+      const techHtml = uRP.paneTech(), civicHtml = uRP.paneCivic();
+      const techSeg = plain(techHtml.slice(techHtml.indexOf('现有科技'), techHtml.indexOf('现有科技') + 90));
+      const civicSeg = plain(civicHtml.slice(civicHtml.indexOf('市政点 '), civicHtml.indexOf('市政点 ') + 120));
+      check('★ 计数单位⑤：①科技页存量/速率 + 市政页速率都带单位（词库参数与中文回退串成对）',
+        /现有科技 [\d.]+[kMBTQ]/.test(techSeg) && /\+[\d.]+[kMBTQ]\/\s*秒/.test(techSeg) &&
+        /\+[\d.]+[kMBTQ]\/秒/.test(civicSeg) && !rateBad(techSeg),
+        'tech="' + techSeg.slice(0, 46) + '" civic="' + civicSeg.slice(0, 46) + '"');
+
+      s.lvl.fissionplant = 5.6e9;
+      SB.ui.render.showBuildingInfo('fissionplant');
+      const fissionSeg = plain(doc.getElementById('modalBox').innerHTML);
+      s.lvl.furnace = 5.6e9;
+      SB.ui.render.showBuildingInfo('furnace');
+      const furnaceSeg = plain(doc.getElementById('modalBox').innerHTML);
+      SB.ui.render.showBuildingInfo('kelp');
+      const kelpSeg = plain(doc.getElementById('modalBox').innerHTML);
+      check('★ 计数单位⑥：③建筑详情每级/当前/消耗速率带单位，小数值一字不变',
+        /自动产藻食 \+0\.45\/级\/秒（当前 \+[\d.]+[kMBTQ]/.test(kelpSeg) &&
+        /当前 \+[\d.]+[kMBTQ]\/秒/.test(fissionSeg) &&
+        /当前 −[\d.]+[kMBTQ]\/秒/.test(fissionSeg) &&
+        /−[\d.]+[kMBTQ]\/秒/.test(furnaceSeg) && !rateBad(kelpSeg),
+        'kelp="' + kelpSeg.slice(0, 70) + '"');
+
+      uMeta.oldArtworkEarnedTotal = Number.MAX_VALUE;
+      uMeta.oldTideStelesEarnedTotal = Number.MAX_VALUE;
+      E.setNumberFormat('compact');
+      const metaCompact = SB.ui.render.paneMeta();
+      E.setNumberFormat('sci');
+      const metaSci = SB.ui.render.paneMeta();
+      check('★ 计数单位⑦：④传承速率走 fmtAbbr —— compact 小数值原样、sci 模式可切换',
+        /市政点 \+[\d.]+\/秒/.test(metaCompact) && /科技点 \+[\d.]+\/秒/.test(metaCompact) &&
+        /市政点 \+1,[\d.]+\/秒/.test(metaSci) && /Research Points|科技点/.test(metaSci) &&
+        metaCompact !== metaSci,
+        'compact="' + (/(?:市政点| Civic Points)[^<]{0,24}/.exec(metaCompact) || [''])[0] +
+        '" sci="' + (/(?:市政点| Civic Points)[^<]{0,24}/.exec(metaSci) || [''])[0] + '"');
+      check('★ 计数单位⑧：①③④ 全部渲染无 NaN / undefined',
+        !/NaN|undefined/.test([techSeg, civicSeg, kelpSeg, fissionSeg, furnaceSeg, metaCompact, metaSci].join(' ')),
+        '');
+    } finally {
+      s.jobs.scholar = uBak.scholar; s.jobs.scribe = uBak.scribe;
+      s.res.science = uBak.science; s.lvl.kelp = uBak.kelpLv;
+      s.lvl.hall = uBak.hall; s.lvl.fissionplant = uBak.fissionLv;
+      s.lvl.furnace = uBak.furnaceLv;
+      uRP.setCivicView('government');
+      uMeta.oldArtworkEarnedTotal = uMetaBak.art;
+      uMeta.oldTideStelesEarnedTotal = uMetaBak.stele;
+      E.setNumberFormat(uFmt);
+    }
+
     const metaProbe = SB.game.meta();
     const oldMatStore = metaProbe.perks.matStore1;
     metaProbe.perks.matStore1 = {};

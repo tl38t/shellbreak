@@ -221,6 +221,19 @@
     var a = active(s);
     return !!(a && a.id === 'good_old_days' && s.gov !== 'tribe');
   }
+  /* ══ 两个倍率读数，绝不可混用（2026-11-09 用户拍板 #1）═══════════════════
+   * recordedMultiplier(s) ——「本局档位快照」，只依赖 s.challenge.id / tier。
+   *   ⚠️ 不看 active()：goal 型一达成 active() 立刻返回 null（它的终点是 challengeDone），
+   *      但本局依然是「五倍永恒」这一局。冰壳 / 星空 / 太阳帆 / 戴森节点是**目标分母**，
+   *      与限制撤不撤无关。达成瞬间塌回基础值会造成两处可见错误：
+   *        · 竣工面板显示 258,358 / 10,000（本该 / 50,000）—— 玩家报「怎么没翻倍」；
+   *        · starPct 凭空变大 ⇒ 星屑结算、群星与神明信仰、星空尤里卡全被重算。
+   *      ⚠️ 判定与面板之间还隔着 4 段分镜（render.showDysonEnding 0/1500/3200/4900ms），
+   *          showDysonCompletePanel 读分母时 challengeDone 早已是 true，塌陷必然发生。
+   *   ⇒ 目标类（shellTarget / starCap / dysonSailCap / dysonNodeCap）一律读这里。
+   * multiplier(s) ——「限制是否仍生效」，依赖 active()，达成/解除后掉回 1。
+   *   供限制类使用（researchCostMul）；研究成本 ×5 在达成后解除并叠加永久折扣是设计意图。
+   * ⚠️ 禁止把任一出口改成直接乘 CFG 常量、或换用另一个读数 —— 口径分裂正是本次 bug 根因。 */
   function recordedMultiplier(s) {
     var a = s && s.challenge, d = a && BY_ID[a.id];
     if (!d || d.id !== 'eternity_moment') return 1;
@@ -231,9 +244,11 @@
     var a = active(s);
     return a && a.id === 'eternity_moment' ? recordedMultiplier(s) : 1;
   }
-  function starCap(s) { return (SB.CFG.STAR_CAP || 0) * multiplier(s); }
-  function dysonSailCap(s) { return (SB.CFG.DYSON_SAIL_CAP || 10000) * multiplier(s); }
-  function dysonNodeCap(s) { return (SB.CFG.DYSON_NODE_CAP || 1000) * multiplier(s); }
+  /* 目标分母 = 基础常量 × 本局档位快照。竣工面板 / 挑战页进度 / 星屑结算 / 信仰加成 /
+   * 星空尤里卡 / 戴森竣工判据 / AI bot 全部经由这三个函数，达成前后必须恒等。 */
+  function starCap(s) { return (SB.CFG.STAR_CAP || 0) * recordedMultiplier(s); }
+  function dysonSailCap(s) { return (SB.CFG.DYSON_SAIL_CAP || 10000) * recordedMultiplier(s); }
+  function dysonNodeCap(s) { return (SB.CFG.DYSON_NODE_CAP || 1000) * recordedMultiplier(s); }
   function shellTarget(s) {
     var base = Number(s && s.baseShell) || Number(SB.CFG.ICE_SHELL) || 0;
     var thin = (s && s.perk && s.perk.thin) || 0;
@@ -248,6 +263,9 @@
   function researchCostMul(s) {
     var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
     var done = tierDone('eternity_moment', meta);
+    /* ⚠️ 这里**故意**读 multiplier（限制口径），不是档位快照：研究点成本 ×5 是挑战期间的
+     * 限制，达成后解除并叠加永久 -5%/-10%/-15% 奖励。与三个 cap 的口径分裂是设计意图，
+     * 不是遗漏；把这一行改成 recordedMultiplier 会让通关后研究成本永远卡在 5 倍。 */
     return multiplier(s) * Math.max(0, 1 - 0.05 * done);
   }
   function stardustRewardMul(meta) {
@@ -716,7 +734,9 @@
     progress: progress, tierDone: tierDone, completedCount: completedCount,
     active: active, activeTier: activeTier, ignorePopulationGates: ignorePopulationGates,
     bypassGovernmentGates: bypassGovernmentGates, governmentLocked: governmentLocked,
-    multiplier: multiplier, shellMultiplier: recordedMultiplier,
+    /* 限制口径 / 档位快照口径。shellMultiplier 是历史别名（壳厚目标最早只用在这一处），
+     * 保留不删；新代码请用语义明确的 runMultiplier。 */
+    multiplier: multiplier, runMultiplier: recordedMultiplier, shellMultiplier: recordedMultiplier,
     starCap: starCap, dysonSailCap: dysonSailCap, dysonNodeCap: dysonNodeCap,
     shellTarget: shellTarget, applyShellTarget: applyShellTarget,
     researchCostMul: researchCostMul, stardustRewardMul: stardustRewardMul,

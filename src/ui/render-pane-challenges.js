@@ -179,6 +179,9 @@
       }, '');
     }
     if (def.id === 'eternity_moment') {
+      /* ⚠️ 三个分母走 api.*Cap（本局档位快照），不要用 SB.CFG.* 兜底值替代：
+       * 达成后限制虽撤，本局仍是该档难度，进度文案与竣工面板必须同口径。
+       * 2026-11-09 面板撒谎修复，口径集中定义在 challenges.js 的 recordedMultiplier。 */
       var starCap = api.starCap ? api.starCap(s) : SB.CFG.STAR_CAP;
       var sailCap = api.dysonSailCap ? api.dysonSailCap(s) : SB.CFG.DYSON_SAIL_CAP;
       var nodeCap = api.dysonNodeCap ? api.dysonNodeCap(s) : SB.CFG.DYSON_NODE_CAP;

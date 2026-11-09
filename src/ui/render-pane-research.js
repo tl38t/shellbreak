@@ -274,6 +274,7 @@
   function policyBlockedText(s, policy, why) {
     if (!why) return '';
     var C = SB.civic;
+    if (why.indexOf('不能再装填') >= 0) return tr('policy.info.retired_cannot_slot', null, why);
     if (why.indexOf('安那其主义挑战只允许') >= 0) return tr('civic.policy.anarchism_challenge_only', null, why);
     if (why.indexOf('已锁死') >= 0 && policy) return tr('civic.policy.locked_removal', { policyName: policyName(policy) }, why);
     if (why.indexOf('拔下需') >= 0) return tr('civic.policy.removal_cost.blocked', {
@@ -638,9 +639,15 @@
         }, '本纪元关键节点 ' + prog.keysDone + ' / ' + prog.keysTotal + '。全部掌握即进入下一纪元——越纪元研究是不可能的，这是硬闸门。') + '</div>';
       }
       var next = era < (SB.ERAS || []).length ? eraOf(era + 1) : null;
+      /* 计数单位（2026-11-09）：sci 可达 1e11/s，存量与速率一起走 economy.fmtAbbr，
+       * 否则同一行会出现「现有科技 200000000000（+200.00B/ 秒）」这种半边缩写。
+       * ⚠️ 词库参数 + 中文回退串必须成对改：本文件 tr 不对 fallback 插值。 */
+      var _sciHave = Math.floor(s.res.science);
+      var _sciHaveTxt = SB.economy.fmtAbbr(_sciHave, _sciHave);
+      var _sciRateTxt = SB.economy.fmtAbbr(sci, sci.toFixed(2));
       h += '<div class="teaser">' + tr('research.era.current.science_summary', {
-        researchPoints: Math.floor(s.res.science), researchPerSecond: sci.toFixed(2)
-      }, '现有科技 ' + Math.floor(s.res.science) + '（+' + sci.toFixed(2) + '/ 秒）');
+        researchPoints: _sciHaveTxt, researchPerSecond: _sciRateTxt
+      }, '现有科技 ' + _sciHaveTxt + '（+' + _sciRateTxt + '/ 秒）');
       h += next ? '<br>' + tr('research.era.current.next_preview', {
         nextEraName: next.name, nextEraMotto: next.motto, nextEraDescription: next.desc
       }, '下一纪元：' + next.name + '「' + next.motto + '」' + next.desc)
@@ -1134,7 +1141,9 @@
         '<div class="policy-group-title"><span>' + groupName + '</span><span class="policy-group-count">' + group.length + '</span></div>' +
         '<div class="policy-card-grid">';
       for (var j = 0; j < group.length; j++) {
-        var q = group[j], why = C.cardBlocked(s, q.id), on = (s.cards && s.cards.indexOf(q.id) >= 0);
+        /* ⚠️ 2026-11-09：与效果层共用「此刻是否生效」判据；卡库只列 cardOwned 的卡，
+         *   但老档里退役残留仍可能在槽中，不能只凭 indexOf 就标「已装填」。 */
+        var q = group[j], why = C.cardBlocked(s, q.id), on = C.cardEffective(s, q.id);
         var fits = C.cardFits(q, C.currentSlotType(s));
         /* ERA9 虚境信仰卡（q.locked）：紫红色卡面 + 眼睛图标，池里标「永恒卡」，装填后仍不可卸下。 */
         var _qlocked = !!q.locked;
@@ -1263,12 +1272,15 @@
       : _coreName === '圣座居所' ? tr('civic.government.castle.seat_of_holy_see', null, _coreName)
       : _coreName === '人民大厅' ? tr('civic.government.castle.peoples_hall', null, _coreName)
       : _coreName === '国会' ? tr('civic.government.castle.parliament', null, _coreName) : _coreName;
+    /* 计数单位（2026-11-09）：rate 与上面 sci 同源。存量已经走 fmtAmt，只补速率；
+     * scribeCount / hallLevel / 两个每单位系数都是小整数或常数，保持原样不套单位。 */
+    var _culRateTxt = SB.economy.fmtAbbr(rate, rate.toFixed(2));
     h += '<div class="note">' + tr('civic.points.rate_breakdown', {
-      civicPoints: SB.economy.fmtAmt(s.res.culture), civicPointsPerSecond: rate.toFixed(2),
+      civicPoints: SB.economy.fmtAmt(s.res.culture), civicPointsPerSecond: _culRateTxt,
       scribeCount: s.jobs.scribe || 0, scribeJob: tr('job.name.scribe', null, SB.folk.jobName(s, 'scribe')),
       civicPointsPerScribe: SB.UNIT.culture, hallName: localizedHallName,
       hallLevel: SB.economy.coreLvl(s), civicPointsPerHallLevel: SB.CFG.CIVIC.HALL_RATE
-    }, '市政点 ' + SB.economy.fmtAmt(s.res.culture) + '（+' + rate.toFixed(2) + '/秒 ＝ ' +
+    }, '市政点 ' + SB.economy.fmtAmt(s.res.culture) + '（+' + _culRateTxt + '/秒 ＝ ' +
       SB.folk.jobName(s, 'scribe') + ' ' + (s.jobs.scribe || 0) + ' × ' + SB.UNIT.culture + ' ＋ ' + _coreName + ' ' +
       SB.economy.coreLvl(s) + ' 级 × ' + SB.CFG.CIVIC.HALL_RATE + '）。鼓舞只揭示这条路，不替你付市政点。') + '</div>';
     return h;

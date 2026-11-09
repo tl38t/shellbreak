@@ -8,7 +8,7 @@
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
-  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=22"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=23"><\/script>' : '') + '<script src="src/i18n.js?v=2"><\/script>');
+  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=26"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=27"><\/script>' : '') + '<script src="src/i18n.js?v=2"><\/script>');
 </script>
 <link rel="stylesheet" href="css/main.css?v=296" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
@@ -43,13 +43,13 @@
           </label>
           <div class="ui-settings-title" data-i18n="ui.settings.display.title">显示</div>
           <label class="ui-setting-row ui-setting-row--select">
-            <span><b data-i18n="ui.settings.resolution.label">游戏分辨率</b><small data-i18n="ui.settings.resolution.hint">仅桌面/横屏生效；移动端始终自适应。较低档位可减轻 GPU 负担与发热。</small></span>
-            <select data-ui-resolution class="ui-resolution-select" data-i18n-aria-label="ui.settings.resolution.label">
-              <option value="auto" data-i18n="ui.settings.resolution.auto">自适应（默认）</option>
-              <option value="720p" data-i18n="ui.settings.resolution.720p">720p（1280×720）</option>
-              <option value="1080p" data-i18n="ui.settings.resolution.1080p">1080p（1920×1080）</option>
-              <option value="1440p" data-i18n="ui.settings.resolution.1440p">1440p（2560×1440）</option>
-              <option value="2K" data-i18n="ui.settings.resolution.2k">2K（2048×1080）</option>
+            <span><b data-i18n="ui.settings.ui_scale.label">界面缩放</b><small data-i18n="ui.settings.ui_scale.hint">仅桌面横屏生效；文字与图标同比例放大，页面会变长。不影响游戏进度。</small></span>
+            <select data-ui-resolution class="ui-resolution-select" data-i18n-aria-label="ui.settings.ui_scale.label">
+              <option value="auto" data-i18n="ui.settings.ui_scale.auto">自适应（默认）</option>
+              <option value="s100" data-i18n="ui.settings.ui_scale.s100">100%（原生）</option>
+              <option value="s115" data-i18n="ui.settings.ui_scale.s115">115%（略放大）</option>
+              <option value="s130" data-i18n="ui.settings.ui_scale.s130">130%（明显放大）</option>
+              <option value="s150" data-i18n="ui.settings.ui_scale.s150">150%（最大）</option>
             </select>
           </label>
           <label class="ui-setting-row ui-setting-row--select">
@@ -306,7 +306,7 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=229"></script>
+<script src="src/config.js?v=231"></script>
 <script src="src/config-catalog.js?v=15"></script>
 <script src="src/config-content.js?v=39"></script>
 <script src="src/config-buildings.js?v=49"></script>
@@ -317,8 +317,8 @@
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=33"></script>
-<script src="src/civics.js?v=138"></script>
+<script src="src/civics-data.js?v=34"></script>
+<script src="src/civics.js?v=139"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
@@ -329,7 +329,7 @@
 <script src="src/workshop.js?v=128"></script>
 <script src="src/wonder.js?v=115"></script>
 <script src="src/economy-social.js?v=11"></script>
-<script src="src/economy.js?v=216"></script>
+<script src="src/economy.js?v=218"></script>
 <script src="src/faith-text.js?v=2"></script>
 <script src="src/faith.js?v=1"></script>
 <script src="src/economy-rates.js?v=35"></script>
@@ -344,34 +344,34 @@
 <script src="src/habitat.js?v=116"></script>
 <script src="src/folk.js?v=107"></script>
 <script src="src/prestige.js?v=137"></script>
-<script src="src/challenges.js?v=28"></script>
+<script src="src/challenges.js?v=29"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
 <script src="src/ui/render-content.js?v=22"></script>
 <script src="src/ui/render-common.js?v=9"></script>
-<script src="src/ui/render-info.js?v=45"></script>
-<script src="src/ui/render-pane-research.js?v=42"></script>
+<script src="src/ui/render-info.js?v=47"></script>
+<script src="src/ui/render-pane-research.js?v=44"></script>
 <script src="src/ui/render-pane-village.js?v=45"></script>
 <script src="src/ui/render-pane-folk.js?v=6"></script>
 <script src="src/ui/render-talent-tree.js?v=6"></script>
-<script src="src/ui/render-pane-meta.js?v=16"></script>
-<script src="src/ui/render-pane-challenges.js?v=27"></script>
+<script src="src/ui/render-pane-meta.js?v=17"></script>
+<script src="src/ui/render-pane-challenges.js?v=28"></script>
 <script src="src/ui/render-pane-company.js?v=5"></script>
 <script src="src/ui/render-pane-faith.js?v=4"></script>
 <script src="src/ui/render-pane-wonder.js?v=8"></script>
 <script src="src/ui/render-pane-star-map.js?v=12"></script>
 <script src="src/ui/render-pane-workshop.js?v=20"></script>
 <script src="src/ui/render-environment.js?v=28"></script>
-<script src="src/ui/render.js?v=295"></script>
-<script src="src/ui/track-dock.js?v=8"></script>
+<script src="src/ui/render.js?v=297"></script>
+<script src="src/ui/track-dock.js?v=9"></script>
 <script src="src/onboarding.js?v=2"></script>
 <script src="src/game.js?v=196"></script>
 <script src="src/save-transfer.js?v=20"></script>
 <script src="src/redeem.js?v=6"></script>
 <script src="src/ui/input.js?v=183"></script>
 <script src="src/ai-strategy.js?v=92"></script>
-<script src="src/ui/theme.js?v=6"></script>
+<script src="src/ui/theme.js?v=7"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=1"></script>

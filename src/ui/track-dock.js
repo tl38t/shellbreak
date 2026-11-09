@@ -310,8 +310,12 @@
      * 统一在渲染处收口，resolve 不做字符串拼接 —— 免得两处各拼一份又漂。 */
     for (i = 0; i < info.rows.length; i++) {
       r = info.rows[i];
+      /* 「已拥有/需要」两端都要带计数单位（2026-11-09）：分母早已走 fmtAmt，
+       * 分子还是裸整数 ⇒ 玩家看到「火箭引擎 388712908556/4.89T」。
+       * 未达档时回落成原整数（如 30/50.0），小数值一字不变。 */
       var txt = r.txt ? r.txt
-        : r.name + ' ' + r.have + '/' + (SB.economy.fmtAmt ? SB.economy.fmtAmt(r.need) : r.need);
+        : r.name + ' ' + (SB.economy.fmtAbbr ? SB.economy.fmtAbbr(r.have, r.have) : r.have) +
+          '/' + (SB.economy.fmtAmt ? SB.economy.fmtAmt(r.need) : r.need);
       parts.push('<span class="td-item' + (r.short ? ' is-short' : '') + '">' + esc(txt) + '</span>');
     }
     /* 工坊产物 + 不足 ⇒ 给一个「去制造」链接，点它跳工坊制造页并滚到对应配方。

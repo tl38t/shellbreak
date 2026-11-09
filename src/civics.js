@@ -225,7 +225,7 @@
   function mulOfField(s, field) {
     var arr = (s && s.cards) || [], m = 1, id, cd;
     for (var i = 0; i < arr.length; i++) {
-      id = arr[i]; if (!id) continue;
+      id = arr[i]; if (!cardEffective(s, id)) continue;
       var _f = MUL_FIELD[id];
       if (!_f) continue;
       /* 一卡可带多个乘区字段（ERA9 联邦枢密院：squareMul + theaterMul）。
@@ -251,6 +251,22 @@
    * 所以各自一个函数，判「装没装」用 inSlot（s.cards 数组逐槽查，与 flow 同口径）。
    * ⚠️ 只在卡装着时才生效——研究出市政只是拿到卡，没装 = 恒 1，别在这儿放宽。 */
   function cardSlotted(s, id) { return !!(s && s.cards && s.cards.indexOf(id) >= 0); }
+  /* ⚠️ 2026-11-09 统一口径：「装在 s.cards 里」≠「正在生效」。
+   *   s.cards 只是**物理槽位**。完成 p.retiredBy 指向的市政后旧卡即退役，
+   *   而真取代（污染治理/隔离病患）之前的老档、云存档、手改状态都可能把退役卡留在槽里。
+   *   此前 22 处效果出口各自扫 s.cards，只有 cardCraftRatio 查所有权 ⇒ 退役残留会
+   *   继续乘 storeMul（集市 ×2 / 物流 ×3 / 洲际 ×5 叠加到 ×30），UI 还标「正在生效」。
+   *   ⇒ 判据只封「退役残留」这一条**真实会出现**的脏路径：未解锁 / 非本挑战卡根本写不进
+   *     s.cards（写入侧 setCard → cardBlocked → cardOwned，读档侧 migrateRun 清理），
+   *     在每个每帧读点重复做完整所有权校验既无收益，也会把只测乘区的夹具语义改掉。
+   *   ⇒ UI（render-info / render-pane-research）、civics 全部效果出口、economy.polHasCard
+   *     **共用本判据**，不许再各自写 s.cards.indexOf。 */
+  function cardRetired(s, p) {
+    return !!(p && p.retiredBy && s && s.civics && s.civics[p.retiredBy]);
+  }
+  function cardEffective(s, id) {
+    return !!(id && cardSlotted(s, id) && !cardRetired(s, policyById(id)));
+  }
   function installedGovPassiveSources(s) {
     var out = [], arr = (s && s.cards) || [];
     for (var i = 0; i < arr.length; i++) {
@@ -271,7 +287,7 @@
    *   `upg_castle` 之后的新名字 ⇒ 这里的「城堡等级」就是 `s.lvl.hall`（经济层的
    *   `coreLvl` 同源）。此前误读成独立的 `s.lvl.castle`，那座建筑已从 BUILDINGS 删除。 */
   function castleFaithMul(s) {
-    if (!cardSlotted(s, 'card_sovereign')) return 1;
+    if (!cardEffective(s, 'card_sovereign')) return 1;
     var r = (SB.BLD && SB.BLD.castleFaithRatio) || 0.10;
     return 1 + (SB.economy && SB.economy.coreLvl ? SB.economy.coreLvl(s) : (s.lvl.hall || 0)) * r;
   }
@@ -279,12 +295,12 @@
    * 藻场效果 = foodRate 建筑侧（economy.foodRate 读 serfKelpMul）；
    * 牧场效果 = 口粮减免 foodSave（economy.foodUse 读 serfWarmMul，减免封顶 100% 不变）。 */
   function serfKelpMul(s) {
-    if (!cardSlotted(s, 'card_serfdom')) return 1;
+    if (!cardEffective(s, 'card_serfdom')) return 1;
     var r = (SB.BLD && SB.BLD.serfCrossRatio) || 0.01;
     return 1 + (s.lvl.warmnest || 0) * r;
   }
   function serfWarmMul(s) {
-    if (!cardSlotted(s, 'card_serfdom')) return 1;
+    if (!cardEffective(s, 'card_serfdom')) return 1;
     var r = (SB.BLD && SB.BLD.serfCrossRatio) || 0.01;
     return 1 + (s.lvl.kelp || 0) * r;
   }
@@ -299,7 +315,7 @@
   }
   /* 三角贸易卡：王国潮道（运河）奢侈消耗减免额外 +100%。economy 的 _canalSave 段读。 */
   function canalSaveMul(s) {
-    if (!cardSlotted(s, 'card_triangular')) return 1;
+    if (!cardEffective(s, 'card_triangular')) return 1;
     var cd = policyById('card_triangular');
     return (cd && typeof cd.canalMul === 'number') ? cd.canalMul : 1;
   }
@@ -320,7 +336,7 @@
       if (SB.BUILDINGS[_i].zone === 'core') lv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
     var ratio = 0, arr = (s && s.cards) || [], _j, cd;
     for (_j = 0; _j < arr.length; _j++) {
-      if (!arr[_j]) continue;
+      if (!cardEffective(s, arr[_j])) continue;
       cd = policyById(arr[_j]);
       if (cd && typeof cd.coreFaithMul === 'number') ratio += cd.coreFaithMul;
     }
@@ -347,7 +363,7 @@
       var _cyc = (SB.game && SB.game.meta) ? (SB.game.meta().cycle || 0) : 0;
       m *= (1 + 0.10 * _cyc);
     }
-    if (cardSlotted(s, 'card_museum')) {
+    if (cardEffective(s, 'card_museum')) {
       var cd = policyById('card_museum');
       m *= (cd && typeof cd.museumMul === 'number') ? cd.museumMul : 1;
     }
@@ -374,7 +390,7 @@
   function cardFieldMul(s, field) {
     var m = 1, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && typeof cd[field] === 'number') m *= cd[field];
     }
@@ -385,7 +401,7 @@
   function cardFieldSum(s, field) {
     var m = 0, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && typeof cd[field] === 'number') m += cd[field];
     }
@@ -395,7 +411,7 @@
   function cardSciOutMul(s)   { return cardFieldMul(s, 'sciOutMul'); }
   function cardHydroMul(s)    { return cardFieldMul(s, 'hydroSupplyMul'); }
   function cardHappyOffsetFor(s, id) {
-    if (!id || !cardSlotted(s, id)) return 0;
+    if (!id || !cardEffective(s, id)) return 0;
     var cd = policyById(id);
     return cd && typeof cd.happyOffset === 'number' ? cd.happyOffset : 0;
   }
@@ -425,7 +441,7 @@
 
   /* 大众传媒卡：每名鲛人 +0.5 市政点/秒（绝对量，加在 cultureRate 末尾）。economy.cultureRate 读。 */
   function civicPerPop(s) {
-    if (!cardSlotted(s, 'card_massmedia')) return 0;
+    if (!cardEffective(s, 'card_massmedia')) return 0;
     var cd = policyById('card_massmedia');
     var per = (cd && typeof cd.civicPerPop === 'number') ? cd.civicPerPop : 0;
     return per * (s.pop || 0);
@@ -450,7 +466,7 @@
   /* 直播竞技卡：体育场额外产出 = 人口 × 体育场等级 × liveCompCivic /秒（仅建体育场且装卡时生效）。
    * economy.cultureRate 加在总量上（绝对量，独立于乘区）。 */
   function stadiumCivic(s) {
-    if (!cardSlotted(s, 'card_live_comp')) return 0;
+    if (!cardEffective(s, 'card_live_comp')) return 0;
     var lv = (s.lvl && s.lvl.stadium) || 0;
     if (lv < 1) return 0;
     var cd = policyById('card_live_comp');
@@ -464,7 +480,7 @@
   }
   /* 旅游观光卡：每座已建奇观额外 −3% 奢侈品消耗（wonderLuxSave × 奇观数）。economy.luxSaveAll 加进减耗和。 */
   function cardWonderLuxSaveMul(s) {
-    if (!cardSlotted(s, 'card_tourism')) return 0;
+    if (!cardEffective(s, 'card_tourism')) return 0;
     var cd = policyById('card_tourism');
     var per = (cd && typeof cd.wonderLuxSave === 'number') ? cd.wonderLuxSave : 0;
     return per * builtWonderCount(s);
@@ -481,7 +497,7 @@
     var m = 1, arr = (s && s.cards) || [], i, cd;
     var _csLv = null;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (!cd) continue;
       if (typeof cd.faithSatMul === 'number')
@@ -502,7 +518,7 @@
   function cardFeverStarMul(s) {
     var m = 1, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && typeof cd.starPerPop === 'number') m *= 1 + cd.starPerPop * 0.01 * (s.pop || 0);
     }
@@ -534,7 +550,7 @@
   function cardResOutMul(s, res) {
     var m = 1, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && cd.resOutMul && typeof cd.resOutMul[res] === 'number') m *= cd.resOutMul[res];
     }
@@ -544,7 +560,7 @@
   function cardPopFaithMul(s) {
     var m = 1, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && typeof cd.popFaithMul === 'number') m *= cd.popFaithMul;
     }
@@ -560,7 +576,7 @@
     var idle = (SB.folk && SB.folk.idle) ? SB.folk.idle(s) : 0;
     if (!(idle > 0)) return 1;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && typeof cd.shellSpeedPerIdle === 'number') m *= 1 + cd.shellSpeedPerIdle * idle;
     }
@@ -574,7 +590,7 @@
   function cardWonderBuildSaveEra(s, era) {
     var sum = 0, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && typeof cd.wonderBuildSaveEra === 'number'
           && (cd.wonderEraCap == null || era <= cd.wonderEraCap)) sum += cd.wonderBuildSaveEra;
@@ -593,7 +609,7 @@
   function cardSciToCivic(s) { return cardFieldSum(s, 'sciToCivic'); }
   /* 轮回之终末卡：信仰全产加成翻倍（faithAllProdDouble）。economy.baseMul 旧日信仰段 ×2（装卡才生效）。 */
   function cardFaithAllProdDouble(s) {
-    return (cardSlotted(s, 'card_cycle_terminus')) ? 2 : 1;
+    return (cardEffective(s, 'card_cycle_terminus')) ? 2 : 1;
   }
   /* ── ERA10 市政政策卡（2026-10-20 用户规格 · 实装）· 读数 ──
    * 统一纪律：只读 s.cards，没装 = 基准值（乘区 1 / 加值 0），绝不污染产线。
@@ -621,7 +637,7 @@
   function cardCraftRatioRecipes(s, recipeId) {
     var add = 0, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && cd.craftRatioRecipes && typeof cd.craftRatioRecipes[recipeId] === 'number') add += cd.craftRatioRecipes[recipeId];
     }
@@ -644,7 +660,7 @@
   /* 虚境信仰（card_cycle_terminus，locked 卡）：信仰更名「虚境」并锁死。
    * 装填该卡后，信仰资源名强制为「虚境」，玩家改名框失效（覆盖并锁死，不可逆）。 */
   function faithNameLocked(s) {
-    return cardSlotted(s, 'card_cycle_terminus');
+    return cardEffective(s, 'card_cycle_terminus');
   }
   function faithDisplayName(s) {
     return faithNameLocked(s) ? '虚境' : ((s && s.religionName) || '').trim();
@@ -654,7 +670,7 @@
   function cardVrCraftRatio(s) {
     var arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!arr[i]) continue;
+      if (!cardEffective(s, arr[i])) continue;
       cd = policyById(arr[i]);
       if (cd && typeof cd.craftRatioPerPop === 'number')
         return -cd.craftRatioPerPop * 0.01 * (s.pop || 0);
@@ -1156,8 +1172,9 @@
     if (!p) return false;
     if (p.govPassive) return govPassiveUnlocked(currentMeta(), p.govPassive);
     /* 退役（2026-09-30）：技艺卡被职业行会取代。retiredBy 指向**市政 id**，
-     * 那项市政完成后卡即不可再装（已装的由 research 顺手拔下）。 */
-    if (p.retiredBy && s.civics && s.civics[p.retiredBy]) return false;
+     * 那项市政完成后卡即不可再装（已装的由 research 顺手拔下）。
+     * ⚠️ 与效果层/UI 共用 cardRetired 同一判据，别在这儿另写一遍 s.civics 判断。 */
+    if (cardRetired(s, p)) return false;
     /* 挑战专属卡（2026-11-02）：借道既有的 urbanization/enlightenment/globalization 三条市政，
      * 但那三条在基游戏也会完成 ⇒ 不加这道门，三张污染卡会在正常周目里冒出来（效果恒 0，
      * 玩家读到的是一张没有作用的坏卡）。 */
@@ -1193,7 +1210,9 @@
     for (var i = 0; i < arr.length; i++) {
       id = arr[i]; if (!id) continue;
       cd = policyById(id);
-      /* 旧存档/手改状态即使残留已退役卡，也不能继续叠加工坊效率。 */
+      /* 旧存档/手改状态即使残留已退役卡，也不能继续叠加工坊效率。
+       * ⚠️ 唯一刻意保留**完整** cardOwned 的出口（比通用 cardEffective 更严）：
+       *   工坊效率是加法轴，脏卡叠上去最隐蔽；此处只更严、不会更松，不会让退役残留漏过。 */
       if (cd && cardOwned(s, id)) {
         if (typeof cd.craftRatio === 'number') m += cd.craftRatio;
         if (typeof cd.craftPerPop === 'number') m += cd.craftPerPop * (s.pop || 0);
@@ -1300,6 +1319,12 @@
         return '安那其主义挑战只允许装备「轮回之终末」';
       if (inSlot(s, id)) return null;                 // 已经在某槽里 ⇒ 幂等
       if (!cardOwned(s, id)) {
+        /* ⚠️ 退役卡被拒装时不能报「需先完成市政「启蒙运动」」——玩家明明早完成了，
+         *   真正原因是后继市政完成后本卡已退役（2026-11-09 真取代后更容易撞见）。 */
+        if (cardRetired(s, p)) {
+          var rc = byId(p.retiredBy);
+          return '此卡已随市政「' + (rc ? rc.name : p.retiredBy) + '」完成而退役，不能再装填';
+        }
         if (p.govPassive) return '需先通关「美好旧日」并采用过「' + (govById(p.govPassive).name) + '」';
         var c = byId(p.civic);
         return '需先完成市政「' + (c ? c.name : '相关市政') + '」';
@@ -1565,6 +1590,7 @@
       /* 卡只在**装着**时生效：逐槽扫 s.cards（多槽升维后 s.card 只是第 0 号槽镜像，
        * 不是事实来源）。研究出市政只是拿到这张卡，没装上就是没选它。 */
       if (s.cards) for (var ci = 0; ci < s.cards.length; ci++) {
+        if (!cardEffective(s, s.cards[ci])) continue;   // 退役残留不得进平坦加值/秒
         var cd = policyById(s.cards[ci]);
         if (cd && cd.effect) for (k in cd.effect) if (typeof cd.effect[k] === 'number') out[k] = (out[k] || 0) + cd.effect[k];
       }
@@ -1662,6 +1688,8 @@
     recordGovAdoption: recordGovAdoption,
     unlockGovPassiveCard: unlockGovPassiveCard, unlockAdoptedGovPassiveCards: unlockAdoptedGovPassiveCards,
     cardOwned: cardOwned, govOwned: govOwned,
+    /* 2026-11-09：效果层与 UI 共用的「此刻是否生效 / 是否已退役」两个权威判据。 */
+    cardEffective: cardEffective, cardRetired: cardRetired,
     cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
     removeCard: removeCard,
     govFirstAdoptionFree: govFirstAdoptionFree,

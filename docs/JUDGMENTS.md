@@ -1509,3 +1509,28 @@ meta.tide + meta.spent === meta.tideEarnedTotal
    `=== DEFINITIONS.length` 让它永远真。
 7. 新套件必须在 `sim/e2e.mjs` **注册两次**：全量调用点 + 一个 `--xxx-only` 快入口
    （全量两分半，改一行也要等它，等于没有回归环路）。快入口**不复制实现**，只提前跑同一个 `run`。
+
+## 五点三十四、`s.cards` 是**物理槽位**，不等于「此刻生效」；退役残留只能靠单一判据挡（2026-11-09 · 玩家「这两张政策卡为什么同时出现了」）
+
+1. `s.cards.indexOf(id) >= 0` 只说明卡占着槽。完成 `p.retiredBy` 指向的市政后旧卡即退役，
+   但老档 / 云存档 / 手改状态都可能把退役卡留在数组里。此前 `civics.js` 的 22 个效果出口
+   各自扫 `s.cards`（只有 `cardCraftRatio` 查 `cardOwned`）、`economy.polHasCard` 裸 `indexOf`、
+   `render-info.js` 把「在槽里」直接标「已装填 · 正在生效」⇒ 退役残留继续乘
+   `storeMul`（集市 ×2 / 物流 ×3 / 洲际 ×5 叠到 ×30），UI 还一起撒谎。
+2. **唯一权威判据**：`cardEffective(s,id) = cardSlotted ∧ !cardRetired(s,p)`，
+   `cardRetired(s,p) = !!(p.retiredBy && s.civics[p.retiredBy])`。
+   ⚠️ 别在每帧读点重复做完整 `cardOwned`：它含挑战门 / 政体被动门，而写入侧
+   `setCard → cardBlocked → cardOwned`、读档侧 `migrateRun` 已保证「未解锁的卡进不了槽」；
+   效果层收紧会改掉只测乘区的夹具语义。`cardCraftRatio` 保留更严的 `cardOwned` 是允许的（只更严、不会更松）。
+3. **UI 与效果共用同一判据**。`showPolicyInfo` 的顺序必须是
+   `已退役 → 生效中 → 已解锁未装填 → 尚未解锁`；只凭 `p.retiredBy` 就判「已退役」，
+   会让玩家刚看到一张未解锁的旧卡就被判死刑。卡库 `pool()` 的 `is-installed` 标同理。
+   ⚠️ `cardBlocked()` 对「已在某槽」幂等返回 `null`，要验拒装文案必须先把卡从槽里拿掉。
+4. **`policyKey()` 按中文卡名反查语义 key，不是按 id**：`craftsmanship` / `mysticism` /
+   `historical_records` / `medieval_market` / `industrial_rationing` / `general_mobilization` /
+   `mass_media` 七个 key 与 id 不同名。`index.html` 只在 Electron 运行时加载 `en-US.js`
+   ⇒ **TapTap 中文走 `civics-data.js` 硬编码 desc，Electron 英文走词库**。
+   改政策卡文案必须「硬编码 + zh-CN + en-US + 文案底表」四处同改，再用注入
+   `shellbreakPlatform` 的真浏览器页验英文通道；只验 `file://` 默认页会漏掉 7 张卡。
+5. 回归锁：`sim/e2e-suites/waterpollution.mjs` ⑮（真取代 4 条）/ ⑯（生效口径 6 条）。
+   改过的 js 各自 bump `?v=`，否则浏览器静默吃旧版。

@@ -186,9 +186,15 @@
       '<article class="meta-legacy-card"><span class="meta-legacy-icon">◇</span><div><b>' + tr('ui.prestige.legacy.wonders.name', null, '纪念奇观') + '</b><strong>' + tr('ui.prestige.legacy.wonders.count', { wonderCount: lg.relicCount }, '{wonderCount} 座') + '</strong></div>' +
       '<small>' + tr('ui.prestige.legacy.wonders.research_civic_bonus', { bonusPercent: ((lg.relicCultureMul - 1) * 100).toFixed(0) }, '科技与市政 +{bonusPercent}%') + '</small><p>' + tr('ui.prestige.legacy.wonders.note', null, '首次建成的独特奇观收入藏') + '</p></article>' +
       '<article class="meta-legacy-card"><span class="meta-legacy-icon">▧</span><div><b>' + tr('ui.prestige.legacy.artworks.name', null, '旧日艺术品') + '</b><strong>' + tr('ui.prestige.legacy.artworks.count', { artworkCount: fmtCount(m.oldArtworkEarnedTotal) }, '{artworkCount} 件') + '</strong></div>' +
-      '<small>' + tr('ui.prestige.legacy.artworks.civic_points_rate', { ratePerSecond: lg.oldArtworkCultureRate.toFixed(2) }, '市政点 +{ratePerSecond}/秒') + '</small><p>' + tr('ui.prestige.legacy.artworks.note', null, '累积收藏，提供持续市政点') + '</p></article>' +
+      /* 计数单位（2026-11-09）：本文件 tr 会对 fallback 插值 ⇒ 只改 params 即同时覆盖
+       * 词库通道与中文回退通道（与本轮另两个 UI 文件的「成对改」不同，别照抄）。 */
+      '<small>' + tr('ui.prestige.legacy.artworks.civic_points_rate', {
+        ratePerSecond: SB.economy.fmtAbbr(lg.oldArtworkCultureRate, lg.oldArtworkCultureRate.toFixed(2))
+      }, '市政点 +{ratePerSecond}/秒') + '</small><p>' + tr('ui.prestige.legacy.artworks.note', null, '累积收藏，提供持续市政点') + '</p></article>' +
       '<article class="meta-legacy-card"><span class="meta-legacy-icon">⌁</span><div><b>' + tr('ui.prestige.legacy.tide_steles.name', null, '旧日潮纹碑石') + '</b><strong>' + tr('ui.prestige.legacy.tide_steles.count', { steleCount: fmtCount(m.oldTideStelesEarnedTotal) }, '{steleCount} 件') + '</strong></div>' +
-      '<small>' + tr('ui.prestige.legacy.tide_steles.research_points_rate', { ratePerSecond: lg.oldTideSteleScienceRate.toFixed(2) }, '科技点 +{ratePerSecond}/秒') + '</small><p>' + tr('ui.prestige.legacy.tide_steles.note', null, '累积收藏，提供持续科技点') + '</p></article></div></section>';
+      '<small>' + tr('ui.prestige.legacy.tide_steles.research_points_rate', {
+        ratePerSecond: SB.economy.fmtAbbr(lg.oldTideSteleScienceRate, lg.oldTideSteleScienceRate.toFixed(2))
+      }, '科技点 +{ratePerSecond}/秒') + '</small><p>' + tr('ui.prestige.legacy.tide_steles.note', null, '累积收藏，提供持续科技点') + '</p></article></div></section>';
     h += '<section class="meta-tree-intro"><div><span class="meta-tree-kicker">' + tr('ui.prestige.tree.kicker', null, 'PERMANENT LEGACY · 轮回天赋') + '</span>' +
       '<h2>' + tr('ui.prestige.tree.title', null, '潮汐之树') + '</h2><p>' + tr('ui.prestige.tree.prerequisite_note', null, '前置连线表示真实解锁条件；没有前置的天赋可独立点亮。') + '</p></div>' +
       '<div class="meta-tree-progress"><span>' + tr('ui.prestige.tree.progress.activated_nodes', null, '已点亮节点') + '</span><b>' + ownedNodes + '<i> / ' + totalNodes + '</i></b>' +

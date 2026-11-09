@@ -153,12 +153,15 @@ export function run({ SB, check, noop, dom }) {
       'hydroSupply ' + supNo.toFixed(2) + '→' + supTree.toFixed(2) +
       ' · other ' + hNo.other.toFixed(2) + '→' + hTree.other.toFixed(2));
 
-    /* ── ⑦ 政策卡的排放乘区：绿色运动替代污染治理 ───────────────── */
+    /* ── ⑦ 政策卡的排放乘区：效果层第二道防线（真取代见 ⑮）───────────
+     * ⚠️ 2026-11-09：装填层已由 retiredBy 保证两卡不可能共存，这里的 if-else
+     *    只剩「老档 / 手改状态残留」的兜底职责；断言仍要守住，但别再拿它当
+     *    「已经替代了」的证据（那正是玩家反馈被糊弄过去的根因）。 */
     const pc = polRun(s => { s.lvl.hydroturbine = 10; s.cards = ['card_pollution_control']; });
     const pcRate = E.pollutionSources(pc).emit;
     pc.cards = ['card_pollution_control', 'card_green_movement'];
     const gmRate = E.pollutionSources(pc).emit;
-    check('污染治理 −20% / 绿色运动 −40% 且后者替代前者（两张都装 = 只按 40% 算）',
+    check('效果层兜底：脏状态两张都装仍只按 40% 算（治理 −20% / 绿色 −40%）',
       Math.abs(pcRate - d0.turbine * 0.8) < 1e-9 && Math.abs(gmRate - d0.turbine * 0.6) < 1e-9,
       'base=' + d0.turbine.toFixed(2) + ' 治理=' + pcRate.toFixed(2) + ' 绿色=' + gmRate.toFixed(2));
 
@@ -242,14 +245,32 @@ export function run({ SB, check, noop, dom }) {
       !SB.civic.cardOwned(cardBase, 'card_green_movement'),
       'owned=' + ['card_disease_control', 'card_pollution_control', 'card_green_movement']
         .map(id => SB.civic.cardOwned(cardBase, id)).join(','));
+    /* ⚠️ 2026-11-09 真取代后「完成全部市政」不再等于「四张卡全可得」：
+     *    旧卡在完成后继市政的那一刻退役 ⇒ 夹具必须分「后继市政前 / 后」两段，
+     *    否则会把设计变更误读成回归（夹具口径必须与生产写入路径逐字一致）。 */
+    const cardEarly = polRun(s => {
+      s.civics.enlightenment = true; s.civics.sanitation_act = true;
+    });
+    check('政策卡门控：挑战周目 + 后继市政未完成 ⇒ 两张旧卡可得、两张新卡未解锁',
+      SB.civic.cardOwned(cardEarly, 'card_pollution_control') &&
+      SB.civic.cardOwned(cardEarly, 'card_quarantine') &&
+      !SB.civic.cardOwned(cardEarly, 'card_green_movement') &&
+      !SB.civic.cardOwned(cardEarly, 'card_disease_control'),
+      ['card_pollution_control', 'card_quarantine', 'card_green_movement', 'card_disease_control']
+        .map(id => id + ':' + SB.civic.cardOwned(cardEarly, id)).join(' '));
     const cardPol = polRun(s => {
       s.civics.urbanization = true; s.civics.enlightenment = true; s.civics.globalization = true;
       s.civics.sanitation_act = true;
+      /* 给足 9 槽：cardBlocked 还要过 hasFitSlot，freshRun 默认政体槽不够会让
+       * 「新卡可装」被「装不下」掩盖（夹具口径必须与生产写入路径逐字一致）。 */
+      s.gov = 'interstellar_federation';
     });
-    check('政策卡门控：进入挑战周目 + 完成市政 ⇒ 七张卡可得',
-      ['card_disease_control', 'card_pollution_control', 'card_green_movement', 'card_quarantine']
-        .every(id => SB.civic.cardOwned(cardPol, id)),
-      ['card_disease_control', 'card_pollution_control', 'card_green_movement', 'card_quarantine']
+    check('政策卡门控：后继市政完成 ⇒ 两张新卡可得、两张旧卡已退役',
+      SB.civic.cardOwned(cardPol, 'card_disease_control') &&
+      SB.civic.cardOwned(cardPol, 'card_green_movement') &&
+      !SB.civic.cardOwned(cardPol, 'card_pollution_control') &&
+      !SB.civic.cardOwned(cardPol, 'card_quarantine'),
+      ['card_disease_control', 'card_green_movement', 'card_pollution_control', 'card_quarantine']
         .map(id => id + ':' + SB.civic.cardOwned(cardPol, id)).join(' '));
 
     /* ── ⑪ 奇观 costBuild 通道（S 定案：拆卫星不补星空）────────────── */
@@ -370,6 +391,125 @@ export function run({ SB, check, noop, dom }) {
         polHtml.indexOf('每人增加 3%') >= 0 && polHtml.indexOf('超限') >= 0, '死亡 3 人 / 安息位 0 ⇒ 超限');
       rp(baseRun());
     }
+
+    /* ── ⑮ 真取代：两对卡复用 retiredBy 退役链（2026-11-09 玩家反馈后定案）──
+     * 玩家问「污染治理 / 绿色运动 为什么同时出现，不是替代了吗」：
+     * 此前「取代」只落在效果层 if-else，装填层两卡可共存、被压制卡白占槽、
+     * UI 还标「正在生效」。这里四条分别锁：数据字段 / 真实 research() 免费拔卡 /
+     * 退役后拒装 / 老档读档清理。效果层 if-else 的兜底断言仍在 ⑦，别重复也不许删。 */
+    const P = id => SB.POLICIES.find(p => p.id === id);
+    check('★ 真取代①：两张旧卡的 retiredBy = 后继卡的 civic，链尾卡不带该字段',
+      P('card_quarantine').retiredBy === 'urbanization' &&
+      P('card_pollution_control').retiredBy === 'globalization' &&
+      P('card_disease_control').civic === 'urbanization' &&
+      P('card_green_movement').civic === 'globalization' &&
+      !P('card_disease_control').retiredBy && !P('card_green_movement').retiredBy,
+      ['card_quarantine', 'card_pollution_control', 'card_disease_control', 'card_green_movement']
+        .map(id => id + ':' + (P(id).retiredBy || 'chain-tail')).join(' '));
+
+    /* 走**真实** research()：把除目标外所有市政置为已完成 + 全表已揭示 +
+     * 纪元拉满 + 足量市政点，让 blocked() 的四道门真的通过；不 mock 研究函数。
+     * ⚠️ 夹具必须给 9 槽政体：ensureCards() 会按 slotList(s).length 重建 s.cards，
+     *    freshRun 默认政体槽不够会把第三张无关卡吃掉（夹具口径要与生产一致）。 */
+    function researchableRun(target) {
+      return polRun(s => {
+        s.era = 99;
+        s.res.culture = 1e9;
+        s.gov = 'interstellar_federation';
+        for (const c of SB.CIVICS) {
+          s.civShown[c.id] = true;
+          if (c.id !== target) s.civics[c.id] = 1;
+        }
+        s.cards = ['card_pollution_control', 'card_quarantine', 'card_protect_planet'];
+      });
+    }
+    const rUrb = researchableRun('urbanization');
+    const urbOk = SB.civic.research(rUrb, 'urbanization', noop);
+    const rGlo = researchableRun('globalization');
+    const gloOk = SB.civic.research(rGlo, 'globalization', noop);
+    check('★ 真取代②：真实 research() 完成后继市政时免费拔掉对应旧卡，无关卡保留',
+      urbOk && gloOk &&
+      rUrb.cards.indexOf('card_quarantine') < 0 && rUrb.cards.indexOf('card_pollution_control') >= 0 &&
+      rGlo.cards.indexOf('card_pollution_control') < 0 && rGlo.cards.indexOf('card_quarantine') >= 0 &&
+      rUrb.cards.indexOf('card_protect_planet') >= 0 && rGlo.cards.indexOf('card_protect_planet') >= 0,
+      'urbanization=' + urbOk + ' cards=' + JSON.stringify(rUrb.cards) +
+      ' | globalization=' + gloOk + ' cards=' + JSON.stringify(rGlo.cards));
+
+    const blk = id => SB.civic.cardBlocked(cardPol, id) || 'OK';
+    check('★ 真取代③：后继市政完成后旧卡被 cardBlocked 拦下、两张新卡可正常装填',
+      blk('card_pollution_control') !== 'OK' && blk('card_quarantine') !== 'OK' &&
+      blk('card_green_movement') === 'OK' &&
+      blk('card_disease_control') === 'OK',
+      ['card_pollution_control', 'card_quarantine', 'card_green_movement', 'card_disease_control']
+        .map(id => id + ':' + blk(id)).join(' '));
+
+    const dirtyRaw = JSON.parse(JSON.stringify(cardPol));
+    dirtyRaw.cards = ['card_pollution_control', 'card_quarantine', 'card_protect_planet'];
+    const migrated = SB.state.migrateRun(dirtyRaw);
+    check('★ 真取代④：老档读档清理两张退役卡、无关卡原槽保留、s.card 镜像同步',
+      !!migrated && migrated.cards[0] === null && migrated.cards[1] === null &&
+      migrated.cards[2] === 'card_protect_planet' && migrated.card === null,
+      migrated ? 'cards=' + JSON.stringify(migrated.cards) + ' card=' + migrated.card : 'migrateRun 不可用');
+
+    /* ── ⑯ 「装在槽里 ≠ 正在生效」：效果层与 UI 共用单一权威判据 ──────────
+     * 真取代落地后，老档 / 云存档 / 手改状态仍可能把退役卡留在 s.cards。
+     * 此前 civics 的 22 处效果出口各自扫 s.cards（只有 cardCraftRatio 查所有权），
+     * 退役残留会继续乘 storeMul / 进 flow；economy.polHasCard 也是裸 indexOf。
+     * 本组锁：判据本身 + 乘区 + 平坦加值 + 污染排放 + 拒装文案 + 全表退役提示。 */
+    const C = SB.civic;
+    const effS = polRun(s => { s.cards = ['card_market']; });
+    const effBefore = C.cardEffective(effS, 'card_market');
+    effS.civics.urbanization = true;                 // 后继市政完成 ⇒ 真退役
+    check('★ 生效口径①：cardEffective = 已装填 ∧ 未退役；retiredBy 只表示「将来会被取代」',
+      effBefore === true && C.cardEffective(effS, 'card_logistics') === false &&
+      C.cardRetired(effS, P('card_market')) === true &&
+      C.cardEffective(effS, 'card_market') === false &&
+      C.cardRetired(polRun(), P('card_market')) === false,
+      '装填未退役=' + effBefore + ' 完成城市化后=' + C.cardEffective(effS, 'card_market') +
+      ' 未装填卡=' + C.cardEffective(effS, 'card_logistics'));
+
+    const mulS = polRun(s => { s.cards = ['card_market', 'card_logistics', 'card_interlog']; });
+    const mulDirty = C.storeMul(mulS);              // 2 × 3 × 5 = 30（后继市政未完成，三张都有效）
+    mulS.civics.urbanization = true;
+    mulS.civics.globalization = true;               // 集市、基础物流退役，洲际物流是链尾不受影响
+    const mulClean = C.storeMul(mulS);
+    check('★ 生效口径②：退役残留不再进 storeMul（×30 → 只剩链尾 ×5），未退役时不过滤',
+      Math.abs(mulDirty - 30) < 1e-9 && Math.abs(mulClean - 5) < 1e-9,
+      '未完成市政=' + mulDirty + ' 完成后=' + mulClean);
+
+    const flowS = polRun(s => { s.cards = ['card_mystic']; });
+    const flowBefore = C.flow(flowS).science || 0;
+    flowS.civics.sacred_path = true;
+    const flowAfter = C.flow(flowS).science || 0;
+    check('★ 生效口径③：退役残留不再进 flow() 的平坦加值/秒（科学 +0.3 被移除，政体基底不动）',
+      Math.abs((flowBefore - flowAfter) - 0.3) < 1e-9,
+      'science ' + flowBefore.toFixed(3) + ' → ' + flowAfter.toFixed(3));
+
+    const emitS = polRun(s => { s.lvl.hydroturbine = 10; s.cards = ['card_pollution_control']; });
+    const emitOwned = E.pollutionSources(emitS).emit;
+    emitS.civics.globalization = true;              // 只让治理卡退役，槽里还没装绿色运动
+    const emitRetired = E.pollutionSources(emitS).emit;
+    emitS.cards = ['card_pollution_control', 'card_green_movement'];
+    const emitGreen = E.pollutionSources(emitS).emit;
+    check('★ 生效口径④：economy.polHasCard 走 cardEffective，退役残留不再给 −20% 排放减免',
+      Math.abs(emitOwned - d0.turbine * 0.8) < 1e-9 &&
+      Math.abs(emitRetired - d0.turbine) < 1e-9 &&
+      Math.abs(emitGreen - d0.turbine * 0.6) < 1e-9,
+      'base=' + d0.turbine.toFixed(2) + ' 治理=' + emitOwned.toFixed(2) +
+      ' 治理已退役=' + emitRetired.toFixed(2) + ' 装上绿色=' + emitGreen.toFixed(2));
+
+    const rejS = polRun(s => { s.civics.globalization = true; });
+    const rejWhy = C.cardBlocked(rejS, 'card_pollution_control', 0) || 'OK';
+    check('★ 生效口径⑤：退役卡被拒装时提示「已退役」，不再误报「需先完成市政」',
+      rejWhy.indexOf('退役') >= 0 && rejWhy.indexOf('需先完成市政') < 0,
+      rejWhy);
+
+    const retiredCards = SB.POLICIES.filter(p => p.retiredBy);
+    const noHint = retiredCards.filter(p => !/取代|替代|退役|互斥/.test(p.desc || ''));
+    check('★ 生效口径⑥：全部退役链旧卡的 desc 都写明「会退役」，玩家不会看到一张突然消失的卡',
+      retiredCards.length >= 22 && noHint.length === 0,
+      '旧卡=' + retiredCards.length + ' 缺提示=' + noHint.length +
+      (noHint.length ? ' → ' + noHint.map(p => p.id).join(',') : ''));
   } finally {
     meta.challenges = savedChallenge;
     SB.state.saveMeta(meta);

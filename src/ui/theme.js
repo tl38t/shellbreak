@@ -8,8 +8,16 @@
   var choices = ['day', 'night'];
 
   var RES_KEY = 'shellbreak.uiResolution';
-  var RES_OPTIONS = ['auto', '720p', '1080p', '1440p', '2K'];
-  var DESIGN_WIDTH = { '720p': 1280, '1080p': 1920, '1440p': 2560, '2K': 2048 };
+  /* 档位语义（2026-11-08 改）：不再是「固定设计宽度」，而是「界面放大倍率」。
+     旧实现用 scale = innerWidth / DESIGN_WIDTH[res]，视口窄于设计宽时 scale 恒 < 1，
+     把 7–9px 小字压到中文可读下限以下；且倍率只有上限没有下限（首帧 innerWidth=0 会 zoom:0 白屏）。
+     新实现 scale 恒 ≥ 1，由倍率表直接给出，布局宽度反而是因变量。数值为待标定档位，改这里即可。 */
+  var RES_OPTIONS = ['auto', 's100', 's115', 's130', 's150'];
+  var UI_SCALE = { s100: 1.00, s115: 1.15, s130: 1.30, s150: 1.50 };
+  /* 旧档位值已从设置面板移除，但老 localStorage 里可能还有。
+     ⚠️ 不写映射会让老玩家的设置静默掉回 auto（界面从「铺满视口」变成 1080px 居中窄栏）。
+     统一迁到 100%：保持「铺满视口」的既有观感，只去掉 zoom<1 压小字体的行为。 */
+  var LEGACY_RES = { '720p': 's100', '1080p': 's100', '1440p': 's100', '2K': 's100' };
 
   function translated(key, fallback) {
     var i18n = root.SB && root.SB.i18n;
@@ -65,16 +73,23 @@
   }
 
   function currentResolution() {
-    try {
-      var v = root.localStorage.getItem(RES_KEY);
-      if (RES_OPTIONS.indexOf(v) >= 0) return v;
-    } catch (e) {}
+    var v = null;
+    try { v = root.localStorage.getItem(RES_KEY); } catch (e) {}
+    if (RES_OPTIONS.indexOf(v) >= 0) return v;
+    if (v && Object.prototype.hasOwnProperty.call(LEGACY_RES, v)) {
+      var migrated = LEGACY_RES[v];
+      /* 一次性写回，避免每次 resize / orientation 变更都要重做映射。
+         只写 UI 偏好键，不触碰周目存档。 */
+      try { root.localStorage.setItem(RES_KEY, migrated); } catch (e) {}
+      return migrated;
+    }
     return 'auto';
   }
 
-  /* 游戏整体分辨率：桌面（fine pointer）且横屏时，把 .wrap 锁定到所选档位的设计宽度，
-   * 再用 CSS zoom 等比缩放进视口宽度（contain-by-width）；竖屏/触摸/auto 下恢复自然响应式布局
-   * （max-width:1080px 居中）。zoom 不创建包含块、不困住 position:fixed 的弹窗/常驻卡，且保留页面滚动。 */
+  /* 界面缩放：桌面（fine pointer）且横屏时，按所选倍率用 CSS zoom 放大整页 UI；
+   * 竖屏 / 触屏 / auto 下不施加 zoom，恢复自然响应式布局（max-width:1080px 居中）。
+   * ⚠️ zoom 只是布局级缩放，不改变 canvas backing store / dpr，因此与「游戏分辨率」「省 GPU」无关。
+   * zoom 不创建包含块、不困住 position:fixed 的弹窗/常驻卡，且保留页面滚动。 */
   function applyResolution(res, persist) {
     res = RES_OPTIONS.indexOf(res) >= 0 ? res : 'auto';
     var wrap = root.document.querySelector ? root.document.querySelector('.wrap') : null;
@@ -85,17 +100,22 @@
     var mq = root.matchMedia || function () { return { matches: false }; };
     var isTouch = mq('(pointer: coarse)').matches;
     var isLandscape = mq('(orientation: landscape)').matches;
-    var useFixed = res !== 'auto' && !isTouch && isLandscape;
+    var scale = UI_SCALE[res];
+    var useFixed = !!scale && !isTouch && isLandscape;
     if (!useFixed) {
       wrap.style.width = '';
       wrap.style.maxWidth = '';
       wrap.style.zoom = '';
       root.document.documentElement.dataset.uiResolution = 'auto';
     } else {
-      var w = DESIGN_WIDTH[res] || 1920;
-      var scale = root.innerWidth / w;
-      if (!(scale <= 2.5)) scale = 2.5;
-      wrap.style.width = w + 'px';
+      /* ⚠️ width:100% 是 headless Chrome 五场景实测量出来的写法，三种替代都有实测反例：
+         · Chromium 的 zoom 会把百分比基数按 1/zoom 处理 ⇒ 100% 布局宽 = clientWidth/scale，
+           zoom 后视觉宽恰为 clientWidth（已扣垂直滚动条），横向不溢出。
+         · calc(100% / scale) 多除一次：1707 宽下视觉宽只剩 1484px（右留白 222px）。
+         · innerWidth / scale 含垂直滚动条：900 窄横屏实测 +15px 横向溢出。
+         全程不读 innerWidth ⇒ 首帧 innerWidth=0 也不会写出 zoom:0 白屏。
+         前提：三端（TapTap WebView / Electron / 桌面浏览器）均为 Chromium；换宿主内核须重验。 */
+      wrap.style.width = '100%';
       wrap.style.maxWidth = 'none';
       wrap.style.zoom = String(scale);
       root.document.documentElement.dataset.uiResolution = res;
@@ -147,13 +167,18 @@
       motionQuery.addListener(function () { applyBubbles(savedBubblesPreference(), false); });
     }
 
-    // ---- 游戏分辨率（桌面/横屏固定渲染宽度，contain 缩放进视口；移动端/竖屏始终自适应） ----
+    // ---- 界面缩放（桌面/横屏按倍率放大 UI；触屏 / 竖屏 / auto 始终走自然响应式） ----
     var res0 = currentResolution();
     applyResolution(res0, false);
-    var resSelect = root.document.querySelector('[data-ui-resolution]');
+    /* ⚠️ 必须限定 select：applyResolution 会把档位写进 documentElement.dataset.uiResolution，
+       也就是给 <html> 加了 data-ui-resolution 属性。不带标签名的 querySelector 会先命中 <html>
+       （文档顺序在前），导致启动时写的是 <html>.value、下拉框初值永远停在第一个 option；
+       且任何控件的 change 事件都会经 closest 误命中 <html> 触发一次多余的 applyResolution。
+       2026-11-08 真 DOM 验证抓到，属既有 bug。 */
+    var resSelect = root.document.querySelector('select[data-ui-resolution]');
     if (resSelect) resSelect.value = res0;
     root.document.addEventListener('change', function (event) {
-      var t = event.target && event.target.closest ? event.target.closest('[data-ui-resolution]') : null;
+      var t = event.target && event.target.closest ? event.target.closest('select[data-ui-resolution]') : null;
       if (t) applyResolution(t.value, true);
     });
 
@@ -179,11 +204,13 @@
       // 立即刷新可见数字（顶栏存量/上限、成本等），不必等下一 tick
       if (SB.ui && SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
     });
-    function recomputeResolution() { applyResolution(currentResolution(), false); }
-    root.addEventListener('resize', recomputeResolution);
+    /* width 用百分比后 resize 由浏览器自动重算，这里重跑一次主要是为了让
+       orientation 切换时重判 useFixed 门控；applyResolution 幂等，重设 inline style 无副作用。 */
+    function recomputeUiScale() { applyResolution(currentResolution(), false); }
+    root.addEventListener('resize', recomputeUiScale);
     var orientQuery = root.matchMedia ? root.matchMedia('(orientation: landscape)') : null;
-    if (orientQuery && orientQuery.addEventListener) orientQuery.addEventListener('change', recomputeResolution);
-    else if (orientQuery && orientQuery.addListener) orientQuery.addListener(recomputeResolution);
+    if (orientQuery && orientQuery.addEventListener) orientQuery.addEventListener('change', recomputeUiScale);
+    else if (orientQuery && orientQuery.addListener) orientQuery.addListener(recomputeUiScale);
   }
 
   if (root.document) boot();

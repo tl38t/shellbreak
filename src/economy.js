@@ -77,6 +77,18 @@
     return whole.toLocaleString('en-US') + '.' + dec;
   }
 
+  /* 「计数单位」通用出口（2026-11-09 用户：产出速率、建筑升级的「已拥有/需要」也要带 k/M/B/T）。
+   * 与 fmt / fmtAmt 共用 abbreviate ⇒ 同一套阶梯、同一个 numberFormatMode（compact / sci），
+   * 不再出现「存量写 11.96B、旁边速率写 2527311530」这种半边缩写。
+   * ⚠️ 未达 1e4 时回落文本**由调用方给**，本函数不猜精度：速率要保留 +0.03/s 的两位小数，
+   *    「已有/需要」要保持 30/50.0 的整数分子；直接套 fmtAmt 会把 0.03 压成 0.0，
+   *    套 fmt 会把浮点造价 2.3 截成 2（economy.js:751 那次修过的显示/扣费不一致）。
+   * ⚠️ sci 模式下 abbreviate 对 <1e4 也返回本地化数字串，回落分支自然不会走到。 */
+  function fmtAbbr(n, fallback) {
+    var ab = abbreviate(+n || 0, numberFormatMode);
+    return ab !== null ? ab : String(fallback);
+  }
+
   // ---- 派生量（只读） ----
   function rOf(s) { return s.iceShell > 0 ? s.shell / s.iceShell : 0; }
   /* ── 冰封期（2026-09-27 改成随机触发）──
@@ -774,18 +786,20 @@
        * 否则玩家只看到「建造 是」却不知道这一步要吃 30 人（按钮标签 = 唯一的成本提示）。 */
       if (k === 'pop') {
         var populationName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName('population', '人口') : '人口';
-        out.push(populationName + ' ' + Math.floor((typeof s.pop === 'number' && isFinite(s.pop)) ? s.pop : 0) + '/' + fmtAmt(c.pop));
+        var popHave = Math.floor((typeof s.pop === 'number' && isFinite(s.pop)) ? s.pop : 0);
+        out.push(populationName + ' ' + fmtAbbr(popHave, popHave) + '/' + fmtAmt(c.pop));
         continue;
       }
       var rawHave = s.res && s.res[k];
       /* 存档迁移会清洗旧 NaN，但面板也必须防住当前运行态的坏值：
        *    这里显示的是「已有 / 需要」，坏的已有值应回落为 0，绝不能把 NaN 印给玩家。 */
       var have = (typeof rawHave === 'number' && isFinite(rawHave)) ? Math.floor(rawHave) : 0;
+      var haveText = fmtAbbr(have, have);   // 大数带计数单位；小数保持原整数外观
       var resourceName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
       var itemText = SB.i18n && SB.i18n.t ? SB.i18n.t('ui.build.cost.item_amount', {
-        resourceName: resourceName, owned: have, required: fmtAmt(c[k])
+        resourceName: resourceName, owned: haveText, required: fmtAmt(c[k])
       }) : '';
-      out.push(itemText || (resourceName + ' ' + have + '/' + fmtAmt(c[k])));
+      out.push(itemText || (resourceName + ' ' + haveText + '/' + fmtAmt(c[k])));
     }
     return out.join(' ');
   }
@@ -2183,7 +2197,13 @@
    *   economy.js 在 index.html 里排在 challenges.js **之前**，虽然加载期不执行，
    *   但直接读 s.challenge 也少一层跨模块依赖。 */
   function pollutionOn(s) { return !!(s && s.challenge && s.challenge.id === 'waterpollution'); }
-  function polHasCard(s, id) { return !!(s && s.cards && s.cards.indexOf(id) >= 0); }
+  /* ⚠️ 2026-11-09：与 civics.cardEffective 共用同一判据 —— 退役卡残留在槽里（真取代前的老档）
+   *   不该继续给污染乘区 / 净化速率 / 致死率加成。函数运行时才读 SB.civic，与加载顺序无关。 */
+  function polHasCard(s, id) {
+    return (SB.civic && SB.civic.cardEffective)
+      ? SB.civic.cardEffective(s, id)
+      : !!(s && s.cards && s.cards.indexOf(id) >= 0);
+  }
   /* 阶段号（0..4）。阈值是**绝对存量**，阶段只决定 debuff 强度，不参与评分。 */
   function pollutionStageIndex(s) {
     if (!pollutionOn(s)) return 0;
@@ -2874,7 +2894,7 @@
     sciOut: sciOut
   };
   SB.economy = {
-    fmt: fmt, fmtAmt: fmtAmt,
+    fmt: fmt, fmtAmt: fmtAmt, fmtAbbr: fmtAbbr,
     setNumberFormat: setNumberFormat, getNumberFormat: getNumberFormat,
     /* ── 水体污染（2026-11-02）─────────────────────────────────────────────
      * 全部集中导出口：UI 面板、challenges（阶段名/评分）、economy-tick、offline-scheduler、
