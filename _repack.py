@@ -221,20 +221,54 @@ _chg_keys = _re.findall(r"'((?:changelog|ui\.footer)\.[a-z0-9_.]+)'", _chg_body)
 assert len(_chg_keys) == 111, '包内 config.js 更新日志 key 数应为 111，实为 %d' % len(_chg_keys)
 assert len(set(_chg_keys)) == 111, '包内 config.js 更新日志有重复 key'
 
+def _strip_js_block_comments(_txt):
+    """词库是 JS 对象字面量，允许 /* */ 注释；json.loads 不接受。
+    只在字符串外剥注释（扫描时跟踪引号与反斜杠转义），避免误伤文案里出现的 '/*'。
+    ⚠️ 2026-11-12：战争/传承批次在两本词库的 Object.freeze 体内插了 14 处口径注释，
+       rc49 首次封包当场被 JSONDecodeError 拦下。这些注释是合法 JS、且是有价值的判据，
+       该改的是解析假设（与 11-07 尾逗号同类），不是删注释、也不是放宽断言。"""
+    _out, _i, _n, _quote = [], 0, len(_txt), None
+    while _i < _n:
+        _c = _txt[_i]
+        if _quote:
+            _out.append(_c)
+            if _c == '\\' and _i + 1 < _n:
+                _out.append(_txt[_i + 1])
+                _i += 2
+                continue
+            if _c == _quote:
+                _quote = None
+            _i += 1
+            continue
+        if _c in ('"', "'"):
+            _quote = _c
+            _out.append(_c)
+            _i += 1
+            continue
+        if _c == '/' and _i + 1 < _n and _txt[_i + 1] == '*':
+            _j = _txt.find('*/', _i + 2)
+            _i = _n if _j < 0 else _j + 2
+            continue
+        _out.append(_c)
+        _i += 1
+    return ''.join(_out)
+
+
 def _locale_dict(_path):
     with open(_path, encoding='utf-8') as _f:
         _txt = _f.read()
     _m = _re.search(r'Object\.freeze\((\{.*\})\);', _txt, _re.S)
     assert _m, '词库格式异常（读不到 Object.freeze）: ' + _path
-    _body = _m.group(1)
+    _body = _strip_js_block_comments(_m.group(1))
     try:
-        return _json.loads(_body)
+        _d = _json.loads(_body)
     except _json.JSONDecodeError:
         # ⚠️ 2026-11-07：export_i18n_runtime.py 生成的词库是 JS 对象字面量，
         #    允许「最后一项后多一个逗号」；json.loads 不接受，会直接把封包堵死。
         #    词库是扁平对象，尾逗号只可能紧邻结尾的 }，只削这一处、不碰字符串内部。
-        #    判据用 Node 真加载交叉验证过（en-US 4225 key / zh-CN 4150 key）。
-        return _json.loads(_re.sub(r',(\s*\})\s*$', r'\1', _body))
+        _d = _json.loads(_re.sub(r',(\s*\})\s*$', r'\1', _body))
+    print('  词库解析 %s -> %d keys' % (os.path.basename(_path), len(_d)))
+    return _d
 
 _zh_locale = _locale_dict(os.path.join(SRC, 'src', 'locales', 'zh-CN.js'))
 _en_locale = _locale_dict(os.path.join(REPO, 'electron', 'locales', 'en-US.js'))
