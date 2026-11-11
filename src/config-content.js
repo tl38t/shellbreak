@@ -616,7 +616,40 @@
      *      （没买升级前机器人仍不进信仰基项，robotbay 原 desc「不影响信仰点」随之改口径）。 */
     { id: 'upg_strongai', name: '强人工智能', need: 'strong_ai',
       cost: { thetaMetal: 1000 },
-      desc: '机器人产出 ×1.2 → ×1.5，且机器人按人口数量产出信仰（消耗 1000 θ金属）。' }
+      desc: '机器人产出 ×1.2 → ×1.5，且机器人按人口数量产出信仰（消耗 1000 θ金属）。' },
+
+    /* ── 军事线工坊升级（战争系统实装）──
+     * 军人产出加成由 war.rate 统一汇总；战争规模损耗加成由 war.executeAction 统一读取。
+     * 军用马具同时依赖马具工具与马镫升级；成本里的 science 是科技点。 */
+    { id: 'upg_military_harness', name: '军用马具', need: 'horsemanship',
+      requiresTools: ['tool_harnes'], requiresUpgrades: ['upg_horseshoe'],
+      militarySoldierBonus: 0.80,
+      cost: { rope: 400, silt: 1000, science: 3000 },
+      desc: '军人军力产出 +80%。' },
+    { id: 'upg_iron_weapons', name: '铁质武器', need: 'ironwork',
+      militarySoldierBonus: 0.80,
+      cost: { iron: 150 },
+      desc: '军人军力产出 +80%。' },
+    { id: 'upg_steel_weapons', name: '钢质武器', need: 'metalrefine',
+      militarySoldierBonus: 1.00,
+      cost: { steel: 100 },
+      desc: '军人军力产出 +100%。' },
+    { id: 'upg_theta_weapons', name: 'θ武器', need: 'biomat',
+      militarySoldierBonus: 2.00,
+      cost: { thetaMetal: 100 },
+      desc: '军人军力产出 +200%。' },
+    { id: 'upg_trebuchet', name: '回旋迸石机', need: 'siegeT',
+      militaryEnemyScaleDamageBonus: 0.10,
+      cost: { rope: 100, stone: 300, coral: 500 },
+      desc: '战争行动对敌国规模损耗 +10%。' },
+    { id: 'upg_metal_projectile', name: '金属弹丸', need: 'ballistics',
+      militaryEnemyScaleDamageBonus: 0.30,
+      cost: { steel: 200, science: 10000 },
+      desc: '战争行动对敌国规模损耗 +30%。' },
+    { id: 'upg_hydrologic_military_assist', name: '全水文军事辅助机械', need: 'protoai',
+      militaryEnemyScaleDamageBonus: 0.70,
+      cost: { thetaMetal: 500, tiplate: 5000 },
+      desc: '战争行动对敌国规模损耗 +70%。' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
@@ -752,6 +785,10 @@
       cost: { stoneBeam: 300, hardCoral: 300 },
       effect: { religSlot: 1 },
       desc: '信仰的丰碑：额外提供 1 个宗教政策卡槽。' },
+    { id: 'wonder_victory_monument', name: '胜利纪念碑', era: 4, needCivic: 'professional_army',
+      cost: { stoneBeam: 500 },
+      effect: { soldierOutputBonus: 0.10, militaryFailureChanceChange: -0.05, militaryGreatSuccessChanceChange: 0.05 },
+      desc: '军人产出 +10%；战争失败率 −5 个百分点，大成功率 +5 个百分点。' },
 
     /* ── ERA5 三座奇观（2026-10-02 实装）──
      * 【卢\'卢卡工坊】need=industrialize（工业化）。效果 craftRatio:0.5 —— 复用既有加法乘区
@@ -803,6 +840,10 @@
       cost: { scaffold: 300, steelPart: 400 },
       effect: { happyConsume: 0.10 },
       desc: '立法的丰碑：鲛人幸福度消耗 −10%。' },
+    { id: 'wonder_military_intelligence_bureau', name: '军事情报总局', era: 5, needCivic: 'mobilization',
+      cost: { scaffold: 200, steelPart: 500 },
+      effect: { militaryActionCostMul: 0.80 },
+      desc: '战争行动军力消耗 −20%。' },
 
     /* ── ERA6 奇观（2026-10 实装 · 现代化交通 解锁）──
      * 【总物流站】need=现代化交通（modtrans，尤里卡=王国潮道 20 级）。
@@ -846,6 +887,10 @@
       cost: { tiplate: 1000, sealbin: 80 },
       effect: { mannedRocket: 1.0 },
       desc: '载人火箭工艺效率 +100%（工艺制作乘区 ×2，economy 载人火箭工艺段读 wonder.mannedRocketMul）。' },
+    { id: 'wonder_goddard_rod', name: '上帝之杖', era: 7, need: 'crewed',
+      cost: { tiplate: 4000, rocketEngine: 50 },
+      effect: { soldierOutputBonus: 0.10, spacecraftSoldierOutputBonus: 0.05 },
+      desc: '军人产出 +10%；每座人造卫星或空间站额外 +5%。' },
 
     /* ── ERA8 奇观两座（2026-10-18 实装 · spec §4）──
      * 【旅行者1号】need=深空力学（deepspace）。效果**随星空进度切换两档**，不能写成静态
@@ -883,6 +928,10 @@
       cost: { thinafilm: 10 },
       effect: { happyBonus: 1 },
       desc: '全域沉浸幻境：幸福度 +1；运转持续消耗热液能 5/秒（断流只停幻境，幸福加成照旧，与空间站规则一致）。' },
+    { id: 'wonder_sun_mirror_array', name: '太阳镜反射阵列', era: 8, needCivic: 'space_politics',
+      cost: { rocketEngine: 400, sealbin: 100 },
+      effect: { annexPowerCostMultiplier: 3 },
+      desc: '吞并消耗倍率从 ×5 降至 ×3。' },
 
     /* ── ERA10（2026-10-20 实装 · 用户 ERA10 表「引力弹弓」解锁）──
      * 【朱庇特质量加速站】need=引力弹弓（gravity_sling）。建造 20 强工质火箭引擎 + 100 θ金属自适应薄膜（用户表原值）。

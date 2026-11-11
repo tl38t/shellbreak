@@ -229,6 +229,127 @@
       out.lvl.castle = 0;
     }
     out.jobs = fixTable(raw.jobs, base.jobs);
+    var rawWar = raw.war && typeof raw.war === 'object' ? raw.war : {};
+    out.war = Object.assign({}, base.war, rawWar);
+    /* 传承（2026-11-11）：上面的 Object.assign 会把 rawWar.heritage 原样带出、零校验。
+     * 脏档可注入任意 policy id / 任意 stage ⇒ 逐条按 68 张池白名单过滤 + clamp + 去重。 */
+    var _rawH = rawWar.heritage && typeof rawWar.heritage === 'object' ? rawWar.heritage : {};
+    var _hOK = !!(SB.heritage && typeof SB.heritage.isPoolCard === 'function'
+      && typeof SB.heritage.policyById === 'function');
+    var _validId = function (id) {
+      if (typeof id !== 'string') return false;
+      if (!_hOK) return true; /* 模块未加载时降级为只做结构校验，不因缺模块丢档 */
+      var _p = SB.heritage.policyById(id);
+      return !!( _p && SB.heritage.isPoolCard(_p));
+    };
+    var _hOwned = [], _hSeen = {};
+    if (Array.isArray(_rawH.owned)) {
+      for (var _hi = 0; _hi < _rawH.owned.length; _hi++) {
+        var _hr = _rawH.owned[_hi], _hid = typeof _hr === 'string' ? _hr : (_hr && _hr.id);
+        if (!_validId(_hid) || _hSeen[_hid]) continue;
+        _hSeen[_hid] = true;
+        var _hst = _hr && typeof _hr.stage === 'number' && isFinite(_hr.stage)
+          ? Math.max(1, Math.min(7, Math.floor(_hr.stage))) : Math.min(7, _hi + 1);
+        _hOwned.push({ id: _hid, stage: _hst });
+      }
+    }
+    var _hPending = [];
+    if (Array.isArray(_rawH.pending)) {
+      for (var _hj = 0; _hj < _rawH.pending.length; _hj++) {
+        var _hd = _rawH.pending[_hj];
+        if (!_hd || !Array.isArray(_hd.options)) continue;
+        var _hOpts = [], _hOptSeen = {};
+        for (var _hk = 0; _hk < _hd.options.length; _hk++) {
+          var _oid = _hd.options[_hk];
+          if (!_validId(_oid) || _hOptSeen[_oid] || _hSeen[_oid]) continue;
+          _hOptSeen[_oid] = true; _hOpts.push(_oid);
+        }
+        if (!_hOpts.length) continue;
+        var _hdst = typeof _hd.stage === 'number' && isFinite(_hd.stage)
+          ? Math.max(1, Math.min(7, Math.floor(_hd.stage))) : Math.min(7, _hPending.length + 1);
+        _hPending.push({ stage: _hdst, options: _hOpts });
+        for (var _hq = 0; _hq < _hOpts.length; _hq++) _hSeen[_hOpts[_hq]] = true;
+      }
+    }
+    out.war.heritage = { owned: _hOwned, pending: _hPending };
+    out.war.power = typeof rawWar.power === 'number' && isFinite(rawWar.power)
+      ? Math.max(0, rawWar.power) : base.war.power;
+    out.war.popCap = typeof rawWar.popCap === 'number' && isFinite(rawWar.popCap)
+      ? Math.max(0, rawWar.popCap) : base.war.popCap;
+    out.war.campaignStage = typeof rawWar.campaignStage === 'number' && isFinite(rawWar.campaignStage)
+      ? Math.max(0, Math.min(7, Math.floor(rawWar.campaignStage))) : base.war.campaignStage;
+    out.war.tradeRouteLevel = typeof rawWar.tradeRouteLevel === 'number' && isFinite(rawWar.tradeRouteLevel)
+      ? Math.max(0, Math.min(3, Math.floor(rawWar.tradeRouteLevel))) : base.war.tradeRouteLevel;
+    out.war.invasionThreat = typeof rawWar.invasionThreat === 'number' && isFinite(rawWar.invasionThreat)
+      ? Math.max(0, Math.min(1800, rawWar.invasionThreat)) : base.war.invasionThreat;
+    out.war.invasionCooldown = typeof rawWar.invasionCooldown === 'number' && isFinite(rawWar.invasionCooldown)
+      ? Math.max(0, Math.min(1800, rawWar.invasionCooldown)) : base.war.invasionCooldown;
+    out.war.invasionWarning = typeof rawWar.invasionWarning === 'number' && isFinite(rawWar.invasionWarning)
+      ? Math.max(0, Math.min(300, rawWar.invasionWarning)) : base.war.invasionWarning;
+    out.war.invasionWarningPending = rawWar.invasionWarningPending === true;
+    out.war.offlineInvasionResolved = rawWar.offlineInvasionResolved === true;
+    out.war.invasionReports = [];
+    if (Array.isArray(rawWar.invasionReports)) for (var reportIndex = 0; reportIndex < Math.min(rawWar.invasionReports.length, 1); reportIndex++) {
+      var rawReport = rawWar.invasionReports[reportIndex];
+      if (!rawReport || (rawReport.type !== 'repelled' && rawReport.type !== 'success')) continue;
+      var report = {
+        type: rawReport.type,
+        enemyNameKey: typeof rawReport.enemyNameKey === 'string' ? rawReport.enemyNameKey : '',
+        enemySuccessPercent: typeof rawReport.enemySuccessPercent === 'number' && isFinite(rawReport.enemySuccessPercent)
+          ? Math.max(0, Math.min(80, rawReport.enemySuccessPercent)) : 0
+      };
+      if (report.type === 'repelled') {
+        report.scaleLoss = typeof rawReport.scaleLoss === 'number' && isFinite(rawReport.scaleLoss)
+          ? Math.max(0, rawReport.scaleLoss) : 0;
+      } else {
+        report.scaleLoss = typeof rawReport.scaleLoss === 'number' && isFinite(rawReport.scaleLoss)
+          ? Math.max(0, rawReport.scaleLoss) : 0;
+        var rawPenalty = rawReport.penalty && typeof rawReport.penalty === 'object' ? rawReport.penalty : {};
+        if (rawPenalty.kind === 'material') report.penalty = {
+          kind: 'material', resourceId: typeof rawPenalty.resourceId === 'string' ? rawPenalty.resourceId : '',
+          amount: typeof rawPenalty.amount === 'number' && isFinite(rawPenalty.amount) ? Math.max(0, rawPenalty.amount) : 0
+        };
+        else if (rawPenalty.kind === 'population') report.penalty = {
+          kind: 'population', amount: typeof rawPenalty.amount === 'number' && isFinite(rawPenalty.amount)
+            ? Math.max(0, Math.floor(rawPenalty.amount)) : 0
+        };
+        else if (rawPenalty.kind === 'building') report.penalty = {
+          kind: 'building', buildingId: typeof rawPenalty.buildingId === 'string' ? rawPenalty.buildingId : ''
+        };
+        else report.penalty = { kind: 'none' };
+      }
+      out.war.invasionReports.push(report);
+    }
+    out.war.enemies = {};
+    var rawEnemies = rawWar.enemies && typeof rawWar.enemies === 'object' && !Array.isArray(rawWar.enemies) ? rawWar.enemies : {};
+    for (var enemyId in rawEnemies) if (Object.prototype.hasOwnProperty.call(rawEnemies, enemyId)) {
+      var rawEnemy = rawEnemies[enemyId];
+      if (!rawEnemy || typeof rawEnemy !== 'object') continue;
+      var enemyBaseScale = typeof rawEnemy.baseScale === 'number' && isFinite(rawEnemy.baseScale) ? Math.max(0, rawEnemy.baseScale) : 0;
+      if (!(enemyBaseScale > 0)) continue;
+      var faithReduction = typeof rawEnemy.faithReduction === 'number' && isFinite(rawEnemy.faithReduction)
+        ? Math.max(0, Math.min(0.30, rawEnemy.faithReduction)) : 0;
+      var cultureReduction = typeof rawEnemy.cultureReduction === 'number' && isFinite(rawEnemy.cultureReduction)
+        ? Math.max(0, Math.min(0.30, rawEnemy.cultureReduction)) : 0;
+      var enemyMaxScale = enemyBaseScale * Math.max(0.40, 1 - faithReduction - cultureReduction);
+      var rawPopCapPool = typeof rawEnemy.popCapPool === 'number' && isFinite(rawEnemy.popCapPool) ? Math.max(0, rawEnemy.popCapPool) : 0;
+      var rawPopCapClaimed = typeof rawEnemy.popCapClaimed === 'number' && isFinite(rawEnemy.popCapClaimed) ? Math.max(0, rawEnemy.popCapClaimed) : 0;
+      out.war.enemies[enemyId] = {
+        id: typeof rawEnemy.id === 'string' ? rawEnemy.id : enemyId,
+        nameKey: typeof rawEnemy.nameKey === 'string' ? rawEnemy.nameKey : 'enemy.' + enemyId + '.name',
+        stage: typeof rawEnemy.stage === 'number' && isFinite(rawEnemy.stage) ? Math.max(1, Math.min(7, Math.floor(rawEnemy.stage))) : 1,
+        baseScale: enemyBaseScale,
+        currentScale: typeof rawEnemy.currentScale === 'number' && isFinite(rawEnemy.currentScale)
+          ? Math.max(0, Math.min(enemyMaxScale, rawEnemy.currentScale)) : enemyMaxScale,
+        faithReduction: faithReduction,
+        cultureReduction: cultureReduction,
+        faithActions: typeof rawEnemy.faithActions === 'number' && isFinite(rawEnemy.faithActions) ? Math.max(0, Math.floor(rawEnemy.faithActions)) : 0,
+        cultureActions: typeof rawEnemy.cultureActions === 'number' && isFinite(rawEnemy.cultureActions) ? Math.max(0, Math.floor(rawEnemy.cultureActions)) : 0,
+        popCapPool: rawPopCapPool,
+        popCapClaimed: Math.min(rawPopCapPool, rawPopCapClaimed),
+        status: rawEnemy.status === 'annexed' ? 'annexed' : 'active'
+      };
+    }
     /* 市政台账加固。⚠️ 这里**不能**用上面的 fixTable：那是按 `ref` 的键遍历的，
      *    而 base.civics 是空表 `{}` ⇒ 遍历出空对象 ⇒ **所有已完成的市政被清空**，
      *    症状是「刷新之后市政树重置了，政体却还在」（政体/政策卡是标量、走的是
@@ -380,6 +501,12 @@
       out.workshopPopup = !!(raw.lvl && raw.lvl.workshop > 0);
     if (!Object.prototype.hasOwnProperty.call(raw, 'wonderPopup'))
       out.wonderPopup = !!(raw.techs && raw.techs.masonry);
+    /* 外交页（2026-11-11）：战争系统是新上线的，老档即使早已研究《导航》也从没见过
+     * 这个页签，故此处**不套用**上面「已跨过门槛 ⇒ 视为已见过」的惯例：缺字段一律
+     * 置 false，让已跨门的老档在下次 tick 补播一次开门叙事（产品决策 B）。
+     * 未跨过门的存档由 maybeDiplomacyPopup 自身的门挡住，等真正解锁时才播。 */
+    if (!Object.prototype.hasOwnProperty.call(raw, 'diplomacyPopup'))
+      out.diplomacyPopup = false;
 
     /* ⚠️ 上限必须跟着 ERAS 走（2026-11-03 修）：原先写死 `Math.min(7, …)`，而现在是 10 个纪元
      *   ⇒ 读一张 era 9 的档，纪元被夹回 7，随后靠 advanceEra 两拍「7→8→9」自己爬回来。

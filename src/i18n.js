@@ -74,6 +74,7 @@
     strongProp: 'resource.strong_propellant_rocket_engine.name',
     starExplore: 'resource.star_exploration.name', science: 'content.science.name',
     fuel: 'content.fuel.name', culture: 'resource.civic_points.name', luxury: 'content.luxury.name',
+    militaryPower: 'resource.military_power.name',
     faith: 'content.faith.name', stoneBeam: 'resource.stone_beam.name',
     ironBracket: 'content.iron_bracket.name', rope: 'content.rope.name',
     hardCoral: 'resource.hardened_coral.name', hydro: 'resource.hydrothermal_energy.name',

@@ -648,6 +648,7 @@
      * 状态已自洽的时机调用 seasonGrant 发放（见 seasonGrant 注）。 */
     if (_seasonChanged && s.civics && s.civics.explore && (s.lvl.caravanserai || 0) >= 1)
       s._seasonGrantPending = true;
+    if (SB.war && SB.war.tick) SB.war.tick(s, dt, emit, opts);
   }
 
   /* 每种资源的**净**速率（/秒），给 UI 显示总获得速率用。

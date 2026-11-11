@@ -1089,6 +1089,7 @@
     var c = byId(id);
     s.res.culture -= researchCost(s, c);
     s.civics[id] = 1;
+    if (id === 'military_training' && SB.war && SB.war.syncCampaign) SB.war.syncCampaign(s);
     /* 2026-10-26 排行榜「最快虚境飞升」：research 已防重采（s.civics[id] 已置位即 return），
      * 天然只报一次；仅在采用 ascend_void 那一刻提交墙钟秒（与 firstFaith 同口径）。 */
     if (id === 'ascend_void' && SB.rank) SB.rank.submitRun([{ key: 'void', value: s.wallT }]);
@@ -1548,6 +1549,8 @@
     for (k in g.slots) {
       for (var i = 0; i < (g.slots[k] || 0); i++) out.push({ type: k });
     }
+    /* 军事训练开门时追加 1 个专用军事槽；不替换政体槽，保证军力政策不会占用民生/科研卡位。 */
+    if (s.civics && s.civics.military_training) out.push({ type: 'military' });
     /* 安那其主义通关奖励：所有政体的配方都额外获得一个万能槽。 */
     var _meta = currentMeta();
     if (SB.challenges && SB.challenges.tierDone && SB.challenges.tierDone('anarchy', _meta) > 0)

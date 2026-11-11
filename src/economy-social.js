@@ -102,6 +102,7 @@
       + tenementLuxAdd(s) + fissionLuxAdd(s);
     var net = 1 + inc - luxSaveAll(s);
     if (SB.faith && SB.faith.luxuryUseMul) net *= SB.faith.luxuryUseMul(s);
+    if (SB.war && SB.war.tradeRouteLuxuryUseMul) net *= SB.war.tradeRouteLuxuryUseMul(s);
     return net < 0 ? 0 : net;      // 护栏：极端减耗下净需求不为负
   }
   function happyBurn(s) {

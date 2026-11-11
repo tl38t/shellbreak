@@ -182,6 +182,7 @@
       + (p.housePlan || 0) * popBuildLev
       + (SB.civic && SB.civic.popCapPerPopBldg ? SB.civic.popCapPerPopBldg(s) * popBuildLev : 0)  // ERA7 公摊面积卡：人口建筑每级 +0.5 上限
       + (SB.civic && SB.civic.cardPopCapFlat ? SB.civic.cardPopCapFlat(s) : 0) // 人口政策卡：固定上限加值
+      + (SB.war && SB.war.populationCapBonus ? SB.war.populationCapBonus(s) : 0) // 战役中获得的人口上限储备
       + (SB.faith && SB.faith.popCapBonus ? SB.faith.popCapBonus(s) : 0);
     /* 人口按完整个体计数。公摊面积等效果可能给出 x.5 床位，按要求向上取整；
      * 挑战人口硬上限仍在取整后钳制（当前挑战上限均为整数）。 */
@@ -1173,6 +1174,8 @@
     m *= (SB.civic && SB.civic.govOldFaithMul) ? SB.civic.govOldFaithMul(s) : 1;
     m *= (SB.civic && SB.civic.cardFaithAllProdDouble) ? SB.civic.cardFaithAllProdDouble(s) : 1;
     if (SB.challenges) m *= SB.challenges.productionMul(s);
+    /* Annexing enemy nations grants a permanent production bonus for this run only. */
+    if (SB.war && SB.war.conquestProductionMultiplier) m *= SB.war.conquestProductionMultiplier(s);
     return m;
   }
   function globalMul(s) {
@@ -2748,7 +2751,8 @@
       + (SB.civic && SB.civic.theoFaithBonus ? SB.civic.theoFaithBonus(s) : 0)
       + (SB.civic && SB.civic.faithPerBuildingBonus ? SB.civic.faithPerBuildingBonus(s) : 0))
       * (SB.challenges ? SB.challenges.productionMul(s) : 1)
-      * (SB.faith && SB.faith.faithOutputMul ? SB.faith.faithOutputMul(s) : 1);   // ERA6 教权国：所有建筑每级 +1 信仰/秒
+      * (SB.faith && SB.faith.faithOutputMul ? SB.faith.faithOutputMul(s) : 1)
+      * (SB.war && SB.war.conquestProductionMultiplier ? SB.war.conquestProductionMultiplier(s) : 1);   // 本周目征服收益同样作用于信仰产出
   }
 
   /* ⚠️ 全文件单位铁律：凡是「每秒速率」，写进资源池时必须 × dt。

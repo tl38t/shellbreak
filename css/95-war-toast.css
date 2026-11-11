@@ -1,0 +1,112 @@
+/* 天壳 / SHELLBREAK — 战争结果轻量提示（toast）与外交页「上一次结果」常驻行。
+ * 2026-11-11：战争行动 / 入侵防御此前只写一行会滚走的事件日志，代价（军人阵亡、
+ * 材料扣除、建筑降级）极易漏看。这里补一层不抢焦点的 toast + 可回看的常驻行。
+ *
+ * ⚠️ 与 #modal 完全无关：独立常驻容器 #warToastStack，z-index 1200 高于 modal(50)
+ *    与底部事件卡 / 建造追踪(46)，因此离线结算报表弹出期间也能看到入侵结果。
+ * ⚠️ 颜色全部走 :root 变量（--panel2/--line/--txt/--dim/--red/--green/--amber），
+ *    日间主题由下方显式规则接管（与 offline-summary-modal 的 day 配色同源）。
+ * ⚠️ 纯 hover 装饰收进 @media (hover:hover)；关闭按钮常显，触屏无需 hover 等价物。
+ */
+
+.war-toast-stack{
+  position:fixed;
+  top:calc(12px + env(safe-area-inset-top, 0px));
+  left:50%;transform:translateX(-50%);
+  z-index:1200;
+  display:flex;flex-direction:column;gap:10px;
+  width:min(94vw,400px);
+  pointer-events:none;
+}
+
+.war-toast{
+  pointer-events:auto;position:relative;overflow:hidden;
+  padding:10px 13px 11px 14px;
+  background:var(--panel2);color:var(--txt);
+  border:1px solid var(--line);border-left:4px solid var(--cyan);
+  border-radius:10px;
+  box-shadow:0 7px 22px rgba(0,0,0,.55);
+  animation:warToastIn .26s ease both;
+}
+.war-toast.is-out{animation:warToastOut .3s ease forwards}
+@keyframes warToastIn{from{opacity:0;transform:translateY(-14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes warToastOut{to{opacity:0;transform:translateY(-14px) scale(.98)}}
+
+.war-toast-hd{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;letter-spacing:.3px}
+.war-toast-ico{
+  width:16px;height:16px;flex:0 0 16px;border-radius:4px;
+  display:grid;place-items:center;font-size:11px;font-weight:900;
+  color:#06121f;background:var(--cyan);
+}
+.war-toast-title{flex:1;min-width:0;overflow-wrap:anywhere}
+.war-toast-x{
+  flex:0 0 auto;margin-left:auto;padding:0 2px;
+  border:0;background:none;color:var(--dim);
+  font:inherit;font-size:16px;line-height:1;cursor:pointer;
+}
+@media (hover:hover){.war-toast-x:hover{color:var(--txt)}}
+.war-toast-x:active{color:var(--txt)}
+
+.war-toast-body{margin-top:5px;font-size:12px;font-variant-numeric:tabular-nums}
+.war-toast-line{overflow-wrap:anywhere}
+.war-toast-line + .war-toast-line{margin-top:2px}
+.war-toast-line.is-pos{color:var(--green)}
+.war-toast-line.is-neg{color:var(--red)}
+.war-toast-line.is-cost{color:var(--amber)}
+.war-toast-line.is-neu{color:var(--dim)}
+.war-toast-line.is-minor{font-size:11px;opacity:.85}
+
+/* 变体：失败=红、成功=绿、大成功=金、被攻入=红+脉冲描边 */
+.war-toast.is-fail{border-left-color:var(--red)}        .war-toast.is-fail .war-toast-ico{background:var(--red)}
+.war-toast.is-success{border-left-color:var(--green)}   .war-toast.is-success .war-toast-ico{background:var(--green)}
+.war-toast.is-great{border-left-color:var(--amber)}     .war-toast.is-great .war-toast-ico{background:var(--amber)}
+.war-toast.is-breach{
+  border-left-color:var(--red);
+  box-shadow:0 0 0 1px var(--red) inset,0 7px 22px rgba(255,95,109,.28);
+  animation:warToastIn .26s ease both,warToastBreachPulse 1.1s ease 2;
+}
+.war-toast.is-breach .war-toast-ico{background:var(--red)}
+@keyframes warToastBreachPulse{
+  0%,100%{box-shadow:0 0 0 1px var(--red) inset,0 7px 22px rgba(255,95,109,.28)}
+  50%{box-shadow:0 0 0 2px var(--red) inset,0 0 18px rgba(255,95,109,.45)}
+}
+
+/* 自动消退进度条：纯 CSS 动画，JS 只设 animationDuration，不依赖 requestAnimationFrame */
+.war-toast-bar{
+  position:absolute;left:0;bottom:0;width:100%;height:2px;
+  background:currentColor;opacity:.5;transform-origin:left;
+  animation:warToastBar linear forwards;
+}
+@keyframes warToastBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+
+/* 外交页行动区底部常驻「上一次结果」行：toast 消失后仍可回看 */
+.war-last-result{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin:10px 0 2px;padding:8px 11px;
+  background:var(--panel);border:1px dashed var(--line);border-radius:9px;
+  font-size:12px;color:var(--dim);
+}
+.war-last-result b{min-width:0;color:var(--txt);font-weight:600;overflow-wrap:anywhere}
+.war-last-result.is-fail b,.war-last-result.is-breach b{color:var(--red)}
+.war-last-result.is-great b{color:var(--amber)}
+.war-last-result.is-success b{color:var(--green)}
+
+/* 日间主题：与离线结算报表同一套浅色板，避免暗底浅字对比不足 */
+html[data-ui-theme="day"] .war-toast{
+  background:#f0f6f1;border-color:rgba(48,111,122,.33);color:#193944;
+  box-shadow:0 8px 24px rgba(34,70,75,.22);
+}
+html[data-ui-theme="day"] .war-toast.is-breach{border-color:rgba(168,52,62,.55)}
+html[data-ui-theme="day"] .war-last-result{background:#eef4ef;border-color:rgba(48,111,122,.3)}
+html[data-ui-theme="day"] .war-last-result b{color:#193944}
+
+@media (max-width:420px){
+  .war-toast{font-size:12px;padding:9px 11px 10px 12px}
+  .war-toast-hd{font-size:12px}
+  .war-toast-body{font-size:11px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .war-toast,.war-toast.is-out,.war-toast.is-breach{animation:none}
+  .war-toast-bar{display:none}
+}

@@ -43,6 +43,7 @@ import { run as runTechUnlockTag } from './e2e-suites/tech-unlock-tag.mjs';
 /* 2026-11-05：追踪坞工坊产物「去制造」跳转（用户反馈）。 */
 import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
 import { run as runMetaRenderGuard } from './e2e-suites/meta-render-guard.mjs';
+import { run as runWarCampaign } from './e2e-suites/war-campaign.mjs';
 
 const errors = [];
 const checks = [];
@@ -175,7 +176,9 @@ function makeDoc() {
          *        （表里从来没有，于是「挑战页 locked 断言」一写就崩：querySelector
          *        返回 null，不是测试失败而是整个 e2e 断掉）；achievements 是本次
          *        从「挑战与成就」拆出的新页签。三个都补上，表与 index.html 对齐。 */
-        out = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'company', 'meta', 'challenges', 'star-map', 'achievements'].map((t, i) => {
+        /* 2026-11-11 补 diplomacy：战争系统开发线新增页签时漏进这张硬编码表，
+         * 于是 syncTabLocks 的外交锁态在 e2e 里永远测不到（夹具与 index.html 不同步）。 */
+        out = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'company', 'meta', 'challenges', 'star-map', 'achievements'].map((t, i) => {
           const e = mkEl('tab-' + t); e.dataset.tab = t; e._tab = i; return e;
         });
       } else if (sel === '.spd') {
@@ -265,6 +268,15 @@ if (process.argv.includes('--offline-only')) {
   const failedOffline = checks.filter(c => !c.ok);
   console.log(`\n离线快进测试：${checks.length - failedOffline.length}/${checks.length} 通过`);
   process.exit(failedOffline.length ? 1 : 0);
+}
+
+/* 战争结果提示（2026-11-11）：toast 三处触发点 + 军力储备/军人口径 + 真 DOM 上屏取证。
+ * 沿用其它 --xxx-only 惯例，单独跑免得每次都等整局 bot。 */
+if (process.argv.includes('--war-only')) {
+  runWarCampaign({ SB, check, noop, doc });
+  const failedWar = checks.filter(c => !c.ok);
+  console.log(`\n战争系统测试：${checks.length - failedWar.length}/${checks.length} 通过`);
+  process.exit(failedWar.length || errors.length ? 1 : 0);
 }
 
 /* 设备级 UI 偏好（2026-11-05）：单独验证偏好层与两个面板开关，不必跑完整整局 bot。 */
@@ -2995,6 +3007,8 @@ runMetaRenderGuard({ SB, check, doc });
 /* 2026-11-05：追踪坞「去制造」跳转。放全量最尾部，临时替换 setTab / setWorkshopView /
  * renderPanes 等并在 finally 还原，不压在整局 bot 前面。 */
 runTrackCraftJump({ SB, check, g, sandbox });
+/* 战争系统回归放在最尾部：每项都用独立周目，不依赖整局 bot 状态。 */
+runWarCampaign({ SB, check, noop, doc });
 console.log('\n================ 汇总 ================');
 // B 档基线：首局（原始时代 → 破冰重置）挂机 8-14 小时 —— 全局标定，默认挂起
 defer('单局时长落在 8-14 小时', runHours >= 8 && runHours <= 14, runHours.toFixed(2) + 'h');

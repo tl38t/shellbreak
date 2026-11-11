@@ -316,6 +316,8 @@
        * ⚠️ 三处登记缺一不可（condMet / condShort / condText）——漏 condShort 会让
        *    市政面板的「还差什么」显示成空白（条件文案的默认分支），玩家不知道要装哪张卡。 */
       case 'card': return !!(s.cards && s.cards.indexOf(c.id) >= 0);
+      case 'campaignStage': return !!(s.war && s.war.campaignStage >= (c.n || 1));
+      case 'warPower': return !!(s.war && Number(s.war.power) >= (c.n || 0));
       /* `zoneLvl` —— **某个建筑分区的合计等级**（2026-09-30 ERA3 市政鼓舞）。
        * ⚠️ 分区归属唯一来源是 config 的 BUILD_ZONE_OF（已经挂在每座建筑的 .zone 上），
        *    这里逐座建筑对 zone 求和，不许另写一份「分区名 → 建筑 id 清单」——
@@ -585,6 +587,14 @@
         var _cd = !!(s.cards && s.cards.indexOf(c.id) >= 0);
         return { txt: (_cd ? '已装备' : '需装备') + '政策卡「' + policyName(c.id) + '」', now: _cd ? 1 : 0, need: 1 };
       }
+      case 'campaignStage': {
+        var _cs = s.war && s.war.campaignStage || 0;
+        return { txt: tr('tech.condition.progress.campaign_stage', { current: _cs, required: c.n || 1 }, ''), now: _cs, need: c.n || 1 };
+      }
+      case 'warPower': {
+        var _wp = s.war && Number(s.war.power) || 0;
+        return { txt: tr('tech.condition.progress.war_power', { current: Math.floor(_wp), required: c.n || 0 }, ''), now: _wp, need: c.n || 0 };
+      }
       /* geekEnceladus / challenge 的「还差多少」，与 condMet 同口径。 */
       case 'geekEnceladus': {
         var _gr = !!(s.geek && s.geek.enceladusDone);
@@ -650,6 +660,8 @@
       case 'wonders': key = 'all_wonders'; params = { wonderNames: _wNames(c.ids || []) }; break;
       case 'civic': key = 'civic'; params = { civicName: civicName(c.id) }; break;
       case 'card': return { txt: tr(s.cards && s.cards.indexOf(c.id) >= 0 ? 'tech.condition.progress.policy_equipped' : 'tech.condition.progress.policy_needed', { policyName: policyName(c.id) }, old.txt), now: now, need: need };
+      case 'campaignStage': key = 'campaign_stage'; params = { current: now, required: need }; break;
+      case 'warPower': key = 'war_power'; params = { current: Math.floor(now), required: need }; break;
       case 'geekEnceladus': return { txt: tr(s.geek && s.geek.enceladusDone ? 'tech.condition.geek_enceladus.complete' : 'tech.condition.geek_enceladus.required', null, old.txt), now: now, need: need };
       case 'challenge': {
         var challenge = SB.challenges && SB.challenges.byId ? SB.challenges.byId(c.id) : null;
@@ -1383,6 +1395,8 @@
       case 'cycle': return '轮回数 ' + c.n + ' 周目';
       case 'civic': return '完成市政「' + civicName(c.id) + '」';
       case 'card': return '装备政策卡「' + policyName(c.id) + '」';
+      case 'campaignStage': return tr('tech.condition.description.campaign_stage', { required: c.n || 1 }, '');
+      case 'warPower': return tr('tech.condition.description.war_power', { required: c.n || 0 }, '');
       /* ERA8 新条件类型的纯文案（不碰状态）。 */
       case 'cap': return resName(c.r) + '上限达到 ' + c.n;
       case 'starPct': return '星空探索进度 ' + (c.n || 0) + '%';
@@ -1435,6 +1449,8 @@
       case 'cycle': key = 'prestige_count'; params = { count: c.n }; break;
       case 'civic': key = 'civic'; params = { civicName: civicName(c.id) }; break;
       case 'card': key = 'policy_card'; params = { policyName: policyName(c.id) }; break;
+      case 'campaignStage': key = 'campaign_stage'; params = { required: c.n || 1 }; break;
+      case 'warPower': key = 'war_power'; params = { required: c.n || 0 }; break;
       case 'cap': key = 'resource_capacity'; params = { resourceName: resName(c.r), capacity: c.n }; break;
       case 'starPct': key = 'star_exploration'; params = { percent: c.n || 0 }; break;
       case 'oldFaith': key = 'old_faith'; params = { amount: c.n }; break;

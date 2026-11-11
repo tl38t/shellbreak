@@ -14,7 +14,7 @@
 
   /* 页签 / 面板键顺序（也是 renderPanes 的遍历顺序）。faith 紧挨 civic：
    *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'challenges', 'achievements'];
+  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'challenges', 'achievements'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
@@ -143,7 +143,7 @@
     var titleKeys = {
       res: 'ui.pane.resources.title', env: 'ui.pane.environment.title',
       folk: 'ui.pane.people.title', tech: 'ui.pane.research.title', civic: 'ui.pane.civics.title',
-      faith: 'ui.pane.faith.title', workshop: 'ui.workshop.title', wonder: 'ui.pane.wonders.title',
+      faith: 'ui.pane.faith.title', diplomacy: 'ui.pane.diplomacy.title', workshop: 'ui.workshop.title', wonder: 'ui.pane.wonders.title',
       'star-map': 'ui.pane.star_map.title', company: 'ui.pane.companies.title',
       challenges: 'ui.pane.challenges.title', achievements: 'ui.pane.achievements.title',
       meta: 'ui.pane.prestige_shop.title'
@@ -329,6 +329,22 @@
         SB.economy.fmtAmt(v) + capTxt + '</b><span class="res-details"><span class="res-label"><span class="res-name">' + rowName + '</span></span>' + luxTxt + (hideRate ? '' : rateTxt) +
         faithBonusTxt + tipBtn + '</span></div></div>';
       if (isCraft) htmlCraft += row; else htmlBase += row;
+    }
+    /* 军力储备存在 s.war.power，不在普通库存 s.res / RESS 中；职业解锁后单独加入资源栏。 */
+    if (SB.war && SB.war.power && SB.war.rate && SB.folk && SB.folk.jobUnlocked(s, 'soldier')) {
+      var power = SB.war.power(s), powerRate = SB.war.rate(s);
+      var powerRateTxt = '';
+      if (Math.abs(powerRate) >= 0.005) {
+        var powerRateSign = powerRate > 0 ? '+' : '';
+        powerRateTxt = '<i class="rate' + (powerRate > 0 ? ' up' : ' down') + '">' + powerRateSign +
+          SB.economy.fmtAbbr(powerRate, Math.abs(powerRate) >= 100 ? Math.round(powerRate) : powerRate.toFixed(2)) + '/s</i>';
+      }
+      var powerName = SB.i18n && SB.i18n.resourceName
+        ? SB.i18n.resourceName('militaryPower', tr('resource.military_power.name'))
+        : tr('resource.military_power.name');
+      htmlBase += '<div class="res"><img class="res-icon" src="assets/resource-icons/militaryPower.png?v=2" alt="" aria-hidden="true" width="48" height="48" decoding="async">' +
+        '<div class="res-content"><b>' + SB.economy.fmtAmt(power) + '</b><span class="res-details"><span class="res-label"><span class="res-name">' + htmlText(powerName) +
+        '</span></span>' + powerRateTxt + '</span></div></div>';
     }
     g.innerHTML = htmlBase;
     /* 工艺资源独立分区：解锁前不显示（resUnlocked），且无任何可见项时整段隐藏。 */
@@ -1073,7 +1089,8 @@
 
   var metaShopView = 'rebirth';
   var PANES = { village: paneVillage, folk: paneFolk, tech: paneTech, civic: paneCivic,
-    faith: SB.ui.renderParts.paneFaith, workshop: SB.ui.renderParts.paneWorkshop, wonder: SB.ui.renderParts.paneWonder,
+    faith: SB.ui.renderParts.paneFaith, diplomacy: SB.ui.renderParts.paneWar,
+    workshop: SB.ui.renderParts.paneWorkshop, wonder: SB.ui.renderParts.paneWonder,
     'star-map': SB.ui.renderParts.paneStarMap, meta: paneMetaHub,
     challenges: SB.ui.renderParts.paneChallenges,
     /* 2026-10-24：成就独立页签。与 challenges 同一个渲染部件文件、同一道门
@@ -2610,7 +2627,8 @@
   function storyPanel(o) {
     var box = el('modalBox'), modal = el('modal'), i;
     var storySlugs = { tech: 'technology', civic: 'civics', faith: 'faith', workshop: 'workshop',
-      wonder: 'wonder', 'star-map': 'star_map', company: 'company', prestige: 'prestige' };
+      wonder: 'wonder', 'star-map': 'star_map', company: 'company', prestige: 'prestige',
+      diplomacy: 'diplomacy' };
     var storySlug = storySlugs[o.kind] || '';
     function storyText(field, fallback) {
       return storySlug ? tr('game.story.unlock.' + storySlug + '.' + field, null, fallback) : (fallback || '');
@@ -2719,6 +2737,14 @@
       var fs2 = res(), fop = !!(SB.economy && fs2 && SB.economy.resUnlocked(fs2, 'faith'));
       ft.classList.toggle('locked', !fop);
       ft.title = fop ? '' : tr('ui.render.sync_tab_locks.research_theology_to_unlock_the_faith_tab');
+    }
+    /* 外交页在「导航」后开放；旧存档若已完成军事训练，也保留入口。 */
+    var dp = document.querySelector('.tab[data-tab="diplomacy"]');
+    if (dp) {
+      var ds = res(), dop = !!(ds && ((ds.techs && ds.techs.navigation) ||
+        (ds.civics && ds.civics.military_training)));
+      dp.classList.toggle('locked', !dop);
+      dp.title = dop ? '' : tr('ui.war.campaign.locked');
     }
     /* 公司页的灰态：**第六个独立门槛** —— 宏观经济学（与 tab 灰态、公司成立触发同源：
      *   s.civics.macroeconomics ⇔ 公司系统解锁），不在这里另立一份判据。 */

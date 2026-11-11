@@ -65,7 +65,12 @@
       enladofarm:       '钢铁的三叶草海在风中摇曳……',
       grave:            '静谧之地。',
       hospital:         '死神前的最后一道防线。',
-      reserve:          '愿我们的后代仍能在水草与珊瑚间嬉戏。'
+      reserve:          '愿我们的后代仍能在水草与珊瑚间嬉戏。',
+      /* 2026-11-11 战争批次（用户规格「引文」列原文，一字未改）。
+       * 建筑表惯例不带「」：这三句用户原文即裸文本，与上面 51 条同形。 */
+      barracks:         '铁甲依然在。',
+      fortress:         '潮水抚过水底的重重石墙。',
+      military_academy: '女武神在飞翔。'
     },
     TECH_FLAVOR: {
       writing: '「Ⅰ代表今天，Ⅰ•代表明天，•Ⅰ则是昨天，这就是我们最早的文字。」——后世的教科书',
@@ -158,6 +163,10 @@
       reheavfusion: '「就算是石头，也能用来发电。」',
       supercrit: '「可以慢慢来，但一定要快。」',
       drift_tech: '「直至东方再次出现霞光。」',
+      /* 2026-11-11 战争批次（用户规格「引文」列原文，一字未改）。
+       * ⚠️ 本表缺键 = 详情卡静默少一段 b-flavor，不报错、不占位，最容易被漏掉。 */
+      siegeT: '「掘之字形壕沟，大炮抵近射击！」——沃邦攻城法',
+      ballistics: '「舰船不要和岸防炮台对射——布吕歇尔。」'
     },
     /* 市政文案：与 TECH_FLAVOR 同口径，放在同一份纯展示文案文件里，
      * 由 render-info.js 的 showTreeDetail 在市政详情「效果」段之后渲染（class=b-flavor）。
@@ -227,6 +236,9 @@
       void_explore: '祂在等待我们',
       ascend_void: '我们来了',
       our_sea: '「直抵群星。」',
+      /* 2026-11-11 战争批次（用户规格「引文」列原文，一字未改）。 */
+      military_training: '「方阵列队紧密，步伐行进整齐。」',
+      professional_army: '「你没有陆战队员了吗？！」'
     },
   };
   SB.ui.renderContent.WONDER_ART = {
@@ -248,6 +260,8 @@
     wonder_olo_wa_cathedral: 'assets/wonders/generated-v2/wonder-olo-wa-cathedral.webp',
     wonder_shadow_theater: 'assets/wonders/generated-v2/wonder-shadow-theater.webp',
     wonder_congress: 'assets/wonders/generated-v2/wonder-congress.webp',
+    wonder_victory_monument: 'assets/wonders/generated-v2/wonder-victory-monument.jpg',
+    wonder_military_intelligence_bureau: 'assets/wonders/generated-v2/wonder-military-intelligence-bureau.jpg',
     /* ERA6–10 补齐：按各自纪元的技术阶段绘制，880² WebP。 */
     wonder_logistics: 'assets/wonders/generated-v2/wonder-logistics.webp',
     wonder_national_logistics: 'assets/wonders/generated-v2/wonder-national-logistics.webp',
@@ -258,11 +272,13 @@
     wonder_saturn: 'assets/wonders/generated-v2/wonder-saturn.webp?v=2',
     wonder_khalifa: 'assets/wonders/generated-v2/wonder-khalifa.webp?v=2',
     wonder_fishvr: 'assets/wonders/generated-v2/wonder-fishvr.webp?v=3',
+    wonder_goddard_rod: 'assets/wonders/generated-v2/wonder-goddard-rod.jpg',
     wonder_geek: 'assets/wonders/generated-v2/wonder-geek.webp?v=2',
     wonder_jupitor_mas: 'assets/wonders/generated-v2/wonder-jupitor-mas.webp',
     wonder_terra_core: 'assets/wonders/generated-v2/wonder-terra-central-furnace.jpg?v=1',
      wonder_crustplate: 'assets/wonders/generated-v2/wonder-crustplate-v2.png?v=2',
-     wonder_climatesat: 'assets/wonders/generated-v2/wonder-climate-regulator-network.png?v=2'
+     wonder_climatesat: 'assets/wonders/generated-v2/wonder-climate-regulator-network.png?v=2',
+    wonder_sun_mirror_array: 'assets/wonders/generated-v2/wonder-sun-mirror-array.jpg'
   };
   SB.ui.renderContent.WONDER_FLAVOR = {
     wonder_tide_stele: '镌刻着贤王的丰功伟绩，直至他的王国崩塌',
@@ -294,7 +310,14 @@
      * render-info 的 `WONDER_FLAVOR[id] || '这座奇观正在等待一段属于它自己的历史。'`
      * ⇒ 玩家会以为这两座新奇的文案「还没实装」。 */
     wonder_terra_core: '星核炉芯已点亮。',
-    wonder_crustplate: '银灰色的架构体深深扎入大陆板块中，直至无垠的远方……'
+    wonder_crustplate: '银灰色的架构体深深扎入大陆板块中，直至无垠的远方……',
+    /* 2026-11-11 战争批次（用户规格「引文」列原文，一字未改）。
+     * ⚠️ 用户原文自带「」：与上面 30 条裸文本不同形，按「原文不动」纪律保留。
+     *    缺键的后果不是空白，而是渲染出占位句「这座奇观正在等待一段属于它自己的历史。」 */
+    wonder_goddard_rod: '「浪漫，但愚蠢。」',
+    wonder_victory_monument: '「万岁胜利者之桂冠。」',
+    wonder_military_intelligence_bureau: '「我们不仅是情报的邮箱和传递站，我们自己就应该成为情报的来源。」',
+    wonder_sun_mirror_array: '「所罗门哟，我又回来了！」'
   };
 
   /* 2026-10-05 系统指引：页签「?」按钮点击后弹出的简介（def=定义，step=第一步）。
@@ -316,6 +339,11 @@
     faith: { icon:'🕯️', ttl:'这是什么 · 信仰',
       def:'信仰系统：研究《神学》后开放，信仰点驱动宗教加成。',
       step:'1. 每个轮回的信仰存量会积累为旧日信仰，在每个轮回都会发挥作用。<br>2. 在解锁神学，建立宗教后，轮回可以获得轮回点。' },
+    /* 外交页（2026-11-11 用户定稿）：⚠️ def/step 与 zh-CN 的 ui.intro.diplomacy.* 逐字一致，
+     * 两份必须同步改；只讲机制方向，不写死待标定的百分比（沿用 happy 条目的约定）。 */
+    diplomacy: { icon:'⚔️', ttl:'这是什么 · 外交',
+      def:'完成《导航》科技后开放，与其他国家进行交流。',
+      step:'1. 用<b>劫掠 / 入侵 / 全面战争</b>削减敌国规模，行动消耗<b>军力储备</b>，军人可能阵亡。<br>2. 规模归零即可<b>吞并</b>；敌国也会反过来入侵，被攻入会损失材料、人口或建筑等级。' },
     workshop: { icon:'🔨', ttl:'这是什么 · 工坊',
       def:'把原料加工成进阶物资，以及购买永久工艺升级。',
       step:'工艺效率越高，消耗同样材料获得的进阶物资就越多。' },

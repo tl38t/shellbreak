@@ -375,7 +375,8 @@
          * ⚠️ 这 6 座在**非挑战周目**永远建不起来（habitat.unlocked 的挑战白名单），
          *   但状态表的键必须一直在 —— fixTable 以本 seed 为 ref，缺键会让
          *   「挑战周目建了墓地 → 回基游戏 → 再进挑战」时等级静默归零。 */
-        tidemachine: 0, solarstation: 0, enladofarm: 0, grave: 0, hospital: 0, reserve: 0 },
+        tidemachine: 0, solarstation: 0, enladofarm: 0, grave: 0, hospital: 0, reserve: 0,
+        barracks: 0, fortress: 0, military_academy: 0 },
       terraVatStop: 0,
       /* 2026-10-24 成就系统（轻车熟路记账）：本周目各建筑已购买等级的增量账本。
        * 写入点唯一 = habitat.build 的 s.lvl[id]++（手动/自动建造/AI bot 全走它）；
@@ -403,7 +404,15 @@
       /* ⚠️ 2026-10-04：`craft`（匠人）键已随职业删除（用户「根本没有这个职业」）——
        *    职业表必须与 SB.JOBS 一一对应，同步删这一键即可；老档多出的 `jobs.craft`
        *    由 migrateRun 的 fixTable 按 ref 键遍历自动丢弃。 */
-      jobs: { gather: 0, coralwright: 0, quarrier: 0, miner: 0, scholar: 0, scribe: 0, merchant: 0 },
+      jobs: { gather: 0, coralwright: 0, quarrier: 0, miner: 0, scholar: 0, scribe: 0, merchant: 0, soldier: 0 },
+      /* 周目内战争状态：军力储备、战争获得的人口上限、已解锁阶段与敌国进度。 */
+      war: { power: 0, popCap: 0, campaignStage: 0, tradeRouteLevel: 0, enemies: {},
+        invasionThreat: 0, invasionCooldown: 0, invasionWarning: 0, invasionWarningPending: false,
+        offlineInvasionResolved: false, invasionReports: [],
+        /* 传承（2026-11-11）：本局收录的卡与待选三选一榜。轮回由 freshRun 自动清零。
+         * ⚠️ 必须登记在此 —— migrateRun 的读档白名单 `for (k in raw) if (k in base)`
+         *    会把未登记字段直接丢掉。 */
+        heritage: { owned: [], pending: [] } },
       /* ERA8（2026-10-19 · B7 机器人机制）：机器人分配表，与 jobs 平行但**不进 s.pop**
        *   ⇒ 不影响信仰点（faithRate 直读 s.pop）。键 = 职业 id，值 = 该职业的机器人数量；
        *   仅能担任非书手/学者的岗位（folk.robotJobAllowed）。robotPop = 4 × lvl.robotbay。 */
@@ -519,6 +528,8 @@
        * state-migrate.js 读档白名单只保留 base 里已有的键，不登记 = 刷新即丢 = 弹窗每次重播。 */
       starMapPopup: false,
       companyPopup: false,
+      /* 外交页解锁叙事旗（2026-11-11）：同样必须登记在 freshRun，否则读档白名单会丢。 */
+      diplomacyPopup: false,
       era: 1,
       eureka: {},
       eurekaMet: {},

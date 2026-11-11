@@ -63,13 +63,16 @@ print('已排除未被 index.html 引用的 src/ai-player.js（含死 fetch）')
 #   完全查不出来。改为按白名单遍历，**排除 assets/store（66M 本地商店素材，不上传）**。
 ASSET_DIRS = ['achievements', 'audio', 'backgrounds', 'brand', 'building-icons', 'challenges',
               'civic-icons', 'company-icons', 'dyson', 'faith-tenets', 'fonts', 'resource-icons',
-              'talent-icons', 'tech-icons', 'ui-era', 'wonders']
+              'talent-icons', 'tech-icons', 'ui-era', 'war', 'wonders']
 # ⚠️ 2026-10-31 新增 audio（BGM 压缩包，见 src/audio.js + CFG.AUDIO）。漏进白名单 = 线上静默缺音乐，
 #    与 2026-10-26「静默缺图」同类事故：封包断言只查 config 文本，查不出缺整个文件夹。
 # ⚠️ 2026-11-09 新增 faith-tenets（31 张信条图标 / 0.9 MB，见 src/faith.js + docs/FAITH_TENET_ICONS.md）。
 #    11-06 信条系统入库时漏登记本白名单 ⇒ rc43~rc47 五个包全部缺整个目录、31 个图标全 404；
 #    玩家看到「图标一直闪」（renderPanes 每 2 秒整块重写 innerHTML，img 反复重建反复 404）。
 #    这是 10-26 的同构复发第二次，光加白名单只修当前一次，下方守卫已同步改成反向校验。
+# ⚠️ 2026-11-12 新增 war（7 张敌国肖像，见 src/ui/render-pane-war.js:36 enemyPortraitUrl）。
+#    战争系统 11-11 入库时又漏登记本白名单 ⇒ 反向校验会当场拦下封包（rc49 之前没打过含战争的包）。
+#    这是同构复发第三次：反向守卫正确报错，修法是补白名单，不是放宽守卫。
 for _d in ASSET_DIRS:
     _sync_tree(os.path.join(REPO, 'assets', _d), os.path.join(SRC, 'assets', _d))
 print('已自动同步 assets/ 的 %d 个子树 -> 包目录（store 本地素材除外）' % len(ASSET_DIRS))

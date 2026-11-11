@@ -579,6 +579,10 @@
       if (SB.CIVICS) for (var _ui = 0; _ui < SB.CIVICS.length; _ui++) if (SB.CIVICS[_ui].id === u.needCivic) { un = SB.CIVICS[_ui].name; break; }
       return '需要先完成市政「' + un + '」';
     }
+    if ((u.requiresTools && u.requiresTools.some(function (toolId) { return !(s.tools && s.tools[toolId]); })) ||
+        (u.requiresUpgrades && u.requiresUpgrades.some(function (upgradeId) { return !(s.upgrades && s.upgrades[upgradeId]); }))) {
+      return tr('workshop.upgrade.military_harness.requirement');
+    }
     var lack = lackText(s, upgradeCost(s, id));
     if (lack) return '还缺 ' + lack;
     return null;

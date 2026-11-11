@@ -67,7 +67,7 @@
        * ⚠️ 这个字段不产生任何资源效果，它只是「放出一个人」——与上面 `gov`/`card`
        *    同型：效果由别处读走，这里只登记「本项送的是什么」。 */
       job: 'merchant',
-      desc: '解锁职业「商人」——奢侈品的唯一进项。',
+      desc: '解锁职业「商人」——奢侈品的唯一进项；解锁外交行动「建立商路」与军事政策卡「贸易情报」。',
       note: '鼓舞：完成科技「照明」。' },
 
     { id: 'drama', name: '戏剧与诗歌', icon: 'assets/civic-icons/era-2/era2-drama.png', cost: 900, era: 2, layer: 3, reqs: ['laws'],
@@ -75,7 +75,7 @@
        *    原先 12 种类型里没有「建成一座奇观」，写进去会静默永远达不成。 */
       boost: { t: 'wonder', n: 1 },
       card: 'card_drama',
-      desc: '解锁建筑「广场」，以及政策卡「戏剧与诗歌」。',
+      desc: '解锁建筑「广场」、政策卡「戏剧与诗歌」及外交行动「传播文化」。',
       note: '鼓舞：建成一座奇观。' },
 
     /* ══ 纪元二 · 第二层（2026-09-28 用户规格）════════════════════════
@@ -143,8 +143,12 @@
       boost: { t: 'gathered', r: 'faith', n: 10000 },
       card: 'card_sovereign',
       wonder: 'wonder_stt_abbey',
-      desc: '解锁政策卡「王权神授」「修道院」，以及奇观「圣泰坦尼克修道院」；开放信仰区建筑自动建造/升级（逐建筑开关）。',
+      desc: '解锁政策卡「王权神授」「修道院」、奇观「圣泰坦尼克修道院」与外交行动「传道信仰」；开放信仰区建筑自动建造/升级（逐建筑开关）。',
       note: '鼓舞：累计信仰产出达 10000。' },
+    { id: 'military_training', name: '军事训练', icon: 'assets/civic-icons/era-3/era3-military-training.png', cost: 4500, era: 3, layer: 1,
+      reqs: ['political'], boost: { t: 'built', b: 'barracks', n: 2 },
+      desc: '解锁外交行动「劫掠」、1 个军事槽，以及政策卡「扫荡」「演练」。',
+      note: '鼓舞：军营达到 2 级。' },
     { id: 'feudalism', name: '封建主义', icon: 'assets/civic-icons/era-3/era3-feudalism.png', cost: 3000, era: 3, layer: 1,
       reqs: ['records'],
       boost: { t: 'zoneLvl', zone: 'food', n: 100 },
@@ -211,6 +215,11 @@
       seasonGrant: true,
       desc: '解锁建筑「商队驿站」、政策卡「三角贸易」、政体「商人共和国」；每季节判定一次，获得任意资源 1 分钟产量。',
       note: '鼓舞：完成钢铁仓库升级（压舱库扩容 II）。' },
+    { id: 'professional_army', name: '职业军队', icon: 'assets/civic-icons/era-4/era4-professional-army.png', cost: 20000, era: 4, layer: 1,
+      reqs: ['department'], boost: { t: 'campaignStage', n: 1 },
+      wonder: 'wonder_victory_monument',
+      desc: '解锁外交行动「入侵」、奇观「胜利纪念碑」，以及军事政策卡「雇佣兵」「胜利日阅兵」。',
+      note: '鼓舞：吞并 1 个敌国。' },
     { id: 'mineral_charter', name: '矿物章程', icon: 'assets/civic-icons/era-4/era4-explore.png', cost: 30000, era: 4, layer: 3, reqs: ['explore'],
       boost: { t: 'gathered', r: 'iron', n: 1000 },
       card: 'card_mineral_charter',
@@ -248,7 +257,7 @@
       boost: { t: 'job', j: 'merchant', n: 20 },
       card: 'card_mercantilism',
       autoBuildZones: ['trade'],
-      desc: '解锁政策卡「重商主义」（银行的商人产出加成 +100%），以及贸易区域建筑自动建造/升级（逐建筑开关）。',
+      desc: '解锁政策卡「重商主义」「官商」（银行的商人产出加成 +100%），以及贸易区域建筑自动建造/升级（逐建筑开关）。',
       note: '鼓舞：同时拥有 20 名商人。' },
     { id: 'enlightenment', name: '启蒙运动', icon: 'assets/civic-icons/era-4/era4-enlightenment.png', cost: 50000, era: 4, layer: 2,
       reqs: ['department'],
@@ -277,7 +286,7 @@
        *   ⇒ 改成 30（实测进度条卡在 31/50 ≈ 62% 就推不动，同期市政区总量远不到 50 级）。 */
       boost: { t: 'zoneLvl', zone: 'civic', n: 30 },
       wonder: 'wonder_shadow_theater', building: 'theater',
-      desc: '解锁奇观「夏\'多桑大剧院」（+5 市政点/秒、+1 政策卡槽），以及建筑「歌剧院」。',
+      desc: '解锁奇观「夏\'多桑大剧院」（+5 市政点/秒、+1 政策卡槽）、建筑「歌剧院」及政策卡「巡回演出」。',
       note: '鼓舞：市政区建筑合计等级达 30。' },
     { id: 'rationing', name: '工业化配给', icon: 'assets/civic-icons/era-5/era5-rationing.png', cost: 90000, era: 5, layer: 1, reqs: ['enlightenment'],
       boost: { t: 'gathered', r: 'steel', n: 10000 },
@@ -320,7 +329,7 @@
     { id: 'mobilization', name: '国民动员', icon: 'assets/civic-icons/era-5/era5-mobilization.png', cost: 150000, era: 5, layer: 3, reqs: ['socialscience', 'urbanization'],
       boost: { t: 'wonders', ids: ['wonder_shellcutter', 'wonder_presspipe'] },
       card: 'card_heat_priority',
-      desc: '解锁政策卡「热能优先」「总动员令」。',
+      desc: '解锁政策卡「热能优先」「总动员令」、外交行动「全面战争」，以及奇观「军事情报总局」。',
       note: '鼓舞：建成奇观「天壳切削器」与「高压热机管道」。' },
 
     /* ══ ERA6 市政（2026-10-12 用户规格表 · 实装）══
@@ -331,7 +340,7 @@
     { id: 'massmedia', name: '大众传媒', icon: 'assets/civic-icons/era-6/era6-massmedia.png', cost: 200000, era: 6, layer: 1,
       reqs: ['mobilization'], boost: { t: 'built', b: 'tenement', n: 3 },
       card: 'card_massmedia',
-      desc: '解锁政策卡「大众传媒」；拓展幸福度等级（兴盛/繁荣/黄金时代）。',
+      desc: '解锁政策卡「大众传媒」「海外宣传」；拓展幸福度等级（兴盛/繁荣/黄金时代）。',
       note: '鼓舞：廉租社区达 3 级。' },
     { id: 'naturalhistory', name: '博物学', icon: 'assets/civic-icons/era-6/era6-naturalhistory.png', cost: 220000, era: 6, layer: 1,
       reqs: ['mobilization'], boost: { t: 'built', b: 'museum', n: 3 },
@@ -349,7 +358,7 @@
     { id: 'ideology', name: '意识形态', icon: 'assets/civic-icons/era-6/era6-ideology.png', cost: 380000, era: 6, layer: 2,
       reqs: ['massmedia', 'naturalhistory'], boost: { t: 'lifetimeCulture', n: 900000 },
       card: 'card_national_solidarity',
-      desc: '解锁政策卡「国家凝聚力」。',
+      desc: '解锁政策卡「国家凝聚力」「焦土战略」。',
       note: '鼓舞：累计市政产出达 900000。' },
     { id: 'civilization', name: '文明构造', icon: 'assets/civic-icons/era-6/era6-civilization.png', cost: 500000, era: 6, layer: 3,
       reqs: ['archaeology'], boost: { t: 'cycle', n: 7 },
@@ -461,7 +470,7 @@
     { id: 'space_politics', name: '星际政治', icon: 'assets/civic-icons/era-8/era8-spacepol.png', cost: 3000000, era: 8, layer: 3,
       reqs: ['cosmic_indifference', 'social_network'], boost: { t: 'lvlSum', ids: ['rheamine', 'titancloud'], n: 5 },
       card: 'card_space_net',
-      desc: '解锁政策卡「星际物流网」：异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +30%。',
+      desc: '解锁政策卡「星际物流网」（异星建筑产出 +30%）、「观舰式」，以及奇观「太阳镜反射阵列」。',
       note: '鼓舞：异星建筑（瑞亚/泰坦）合计等级超过 5。' },
     { id: 'far_sight', name: '远见主义哲学', icon: 'assets/civic-icons/era-8/era8-farsight.png', cost: 3200000, era: 8, layer: 3,
       reqs: ['cosmic_indifference'], boost: { t: 'starPct', n: 25 },
@@ -612,10 +621,14 @@
       note: '鼓舞：污染存量达 6400000（腐渊）。' }
   ];
 
-  /* 槽位类型。Civ6 是 军事 / 经济 / 外交 / 万能；本作按约束 §2 砍掉军事（没有军事单位）、
-   * 外交（没有城邦）⇒ 只剩这三类 + 万能。
-   * ⚠️ 本作是纯放置经营、产出线只有「人口 × 职业 × 建筑」⇒ 槽位类型按**经济职能**分，
-   *    不按资源分：给了「珊瑚 +X%」这种分类，玩家一眼能看出该塞哪张，反而是好事。 */
+  /* 槽位类型。Civ6 是 军事 / 经济 / 外交 / 万能；本作早期砍掉军事（当时没有军事系统）、
+   * 外交（没有城邦）⇒ 只剩经济职能三类 + 万能。
+   * ⚠️ 战争系统实装后**军事已回归**：ERA3《军事训练》完成即追加 1 个军事槽
+   *    （civics.js slotList），下面 8 张 type:'military' 的卡只进这个槽或万能槽。
+   *    ⚠️ 加新类型时，UI 分组表（render-pane-research.js pool 的 categories）、
+   *    槽位配色（50-module-polish.css .slotbox.slot-type-*）与标签配色要一起补，
+   *    否则新卡会静默落进「万能类」。
+   * ⚠️ 经济职能分类按职能不按资源：给了「珊瑚 +X%」这种分类，玩家一眼能看出该塞哪张。 */
   var SLOT_TYPES = {
     wild: { name: '万能槽', desc: '可装填任意类型的政策卡。' },
     prod: { name: '工造槽', desc: '只吃工造类政策卡——加工与建造。' },
@@ -623,7 +636,8 @@
     grow: { name: '民生槽', desc: '只吃民生类政策卡——人口与饮食。' },
     /* relig：宗教槽（ERA4 市政《归正会》解锁）。只吃 relig 类政策卡（天赋神权）。
      * 来源有二：神权政体自带 1 个 + 奇观「欧'洛瓦宗座教堂」再送 1 个（wonder.religSlotBonus）。 */
-    relig: { name: '宗教槽', desc: '只吃宗教类政策卡——信仰相关。' }
+    relig: { name: '宗教槽', desc: '只吃宗教类政策卡——信仰相关。' },
+    military: { name: '军事槽', desc: '只装军事类政策卡。' }
   };
 
   /* 政体。effect 是**平坦加值/秒**（不乘季节、不吃采集倍率——它是制度给的，不是人给的）。
@@ -842,6 +856,30 @@
       /* 银行的商人产出加成 +100%：bankMerchantMul(s) 读它，乘在 bankLux 那一段上。 */
       bankMerchantMul: 2,
       desc: '银行的商人产出加成 +100%。完成《星球村》后退役。', flavor: '魁奈是个外行！'},
+    /* 2026-11-11 战争批次 8 张军事卡的风味文案：用户规格「引文」列原文，一字未改。
+     * ⚠️ 这 8 条原先 flavor:'' ⇒ 卡库那一整块 policy-card-flavor 不渲染（不是空白占位，
+     *    是整段消失）；policyFlavor() 先查字典 policy.card.<slug>.flavor 再回落本字段。 */
+    { id: 'card_trade_intelligence', name: '贸易情报', civic: 'trade', type: 'military', effect: {},
+      tradeRouteWarCostDiscounts: [0, 0.03, 0.08, 0.15], retiredBy: 'mercantilism',
+      desc: '根据商路等级降低战争行动的军力消耗。', flavor: '「德\'罗丽丝女王陛下有令，所有病人必须集中居住。」'},
+    { id: 'card_sweep', name: '扫荡', civic: 'military_training', type: 'military', effect: {},
+      desc: '提高劫掠行动的成功与大成功概率，降低失败概率。', flavor: '「把水抽干，鱼自然无法生存。」'},
+    { id: 'card_drill', name: '演练', civic: 'military_training', type: 'military', effect: {},
+      barracksBonusMul: 0.5, retiredBy: 'professional_army',
+      desc: '军营提供的军力加成 +50%。', flavor: '「EXP+1」'},
+    { id: 'card_mercenary', name: '雇佣兵', civic: 'professional_army', type: 'military', effect: {},
+      barracksBonusMul: 1.0, retiredBy: 'space_politics',
+      desc: '军营提供的军力加成 +100%，取代「演练」。', flavor: '「我就是要点数量理念。」'},
+    { id: 'card_victory_day_parade', name: '胜利日阅兵', civic: 'professional_army', type: 'military', effect: {},
+      desc: '成功的战争行动不会造成军人阵亡。', flavor: '「双鹰旗下。」'},
+    { id: 'card_fleet_review', name: '观舰式', civic: 'space_politics', type: 'military', effect: {},
+      barracksBonusMul: 1.5,
+      desc: '军营提供的军力加成 +150%，取代「雇佣兵」。', flavor: '「不好，皇家舰队倾巢而出了！」'},
+    { id: 'card_scorched_earth', name: '焦土战略', civic: 'ideology', type: 'military', effect: {},
+      desc: '提高全面战争的成功与大成功概率，降低失败概率。', flavor: '「我来自布列斯特。」'},
+    { id: 'card_official_business', name: '官商', civic: 'mercantilism', type: 'military', effect: {},
+      tradeRouteWarCostDiscounts: [0, 0.06, 0.16, 0.30],
+      desc: '根据商路等级大幅降低战争行动的军力消耗，取代「贸易情报」。', flavor: '「两枚金币，哪枚卑劣，哪枚高尚？」'},
     { id: 'card_enlightenment', name: '启蒙运动', civic: 'enlightenment', type: 'sci', effect: {},
       /* 被《太空竞赛》市政完成后退役（由 card_no_god_here 完全上位替代：潮纹馆/大学科技 ×3、神庙信仰 −50%、观测站 ×1.5）。 */
       retiredBy: 'space_race',
@@ -883,6 +921,9 @@
        *   闲置口径 = folk.idle(s) = pop − 各职业在岗人数（人类，不含机器人）。 */
       shellSpeedPerIdle: 0.01,
       desc: '每点闲置鲛人 +1% 破壳系数（破壳速度随之提升）。完成《远见主义哲学》后退役。', flavor: '循此苦旅……'},
+    { id: 'card_tour_performance', name: '巡回演出', civic: 'sharksong', effect: {},
+      cultureCostDiscountPerMuseumLevel: 0.01,
+      desc: '每级博物馆使传播文化消耗降低 1%。', flavor: '山啊，银河啊，来听我唱歌！'},
 
     /* ── ERA6 政策卡（2026-10-12 用户规格）──
      * 字段沿用既有通道：civicPerPop / luxConsumeMul（大众传媒卡）、museumMul（博物馆管理卡）、craftRatio（国家凝聚力卡）。 */
@@ -892,6 +933,9 @@
        *      不在卡上 ⇒ 卡退役不影响档位，只换 civicPerPop/luxConsumeMul 这组数值。 */
       retiredBy: 'social_network', civicPerPop: 0.5, luxConsumeMul: 0.5,
       desc: '每名鲛人 +0.5 市政点/秒；但奢侈品消耗 +50%。完成《社交网络》后退役。', flavor: '号外！号外！'},
+    { id: 'card_overseas_advertising', name: '海外宣传', civic: 'massmedia', effect: {},
+      cultureCostDiscountPerWonder: 0.01,
+      desc: '每座已建奇观使传播文化消耗降低 1%。', flavor: '巴黎综合征。'},
     { id: 'card_museum', name: '博物馆管理', civic: 'naturalhistory', type: 'wild', effect: {},
       museumMul: 2,
       desc: '博物馆效果翻倍（书手市政点 +40% 而非 +20%）；艺术品效果随轮回额外放大。', flavor: '博物馆奇妙夜。'},

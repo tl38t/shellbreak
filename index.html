@@ -8,9 +8,9 @@
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
-  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=26"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=27"><\/script>' : '') + '<script src="src/i18n.js?v=2"><\/script>');
+  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=40"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=42"><\/script>' : '') + '<script src="src/i18n.js?v=3"><\/script>');
 </script>
-<link rel="stylesheet" href="css/main.css?v=296" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=303" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -207,6 +207,7 @@
     <!-- 信仰页签（2026-09-30 用户：「单独起一个信仰面板」）：与巢穴/科技/市政并列。
          门 = 完成《神学》，与资源行 / 产出线同源（resUnlocked(s,'faith') ⇔ s.civics.theology）。 -->
     <div class="tab locked" id="tab-faith" data-tab="faith" title="研究「神学」后开启信仰页" data-i18n-title="ui.render.sync_tab_locks.research_theology_to_unlock_the_faith_tab" data-page-node-id="FaithTab01Faith"><span data-i18n="ui.pane.faith.title">信仰</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('faith')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-diplomacy" data-tab="diplomacy" title="完成「导航」或「军事训练」后开放外交。" data-i18n-title="ui.war.campaign.locked"><span data-i18n="ui.pane.diplomacy.title">外交</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('diplomacy')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-i18n-title="ui.render.sync_tab_locks.build_a_workshop_to_unlock_this_tab" data-page-node-id="WrkTab01Workshop"><span data-i18n="ui.workshop.title">工坊</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-i18n-title="ui.render.sync_tab_locks.research_masonry_to_unlock_this_tab" data-page-node-id="WdrTab01Wonder"><span data-i18n="ui.pane.wonders.title">奇观</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <div class="tab locked" id="tab-star-map" data-tab="star-map" title="凿穿天壳后开启星图" data-i18n-title="ui.render.sync_tab_locks.break_through_the_shell_to_unlock_the"><span data-i18n="ui.pane.star_map.title">星图</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('star-map')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
@@ -246,6 +247,7 @@
     <div class="card" id="religionBox" style="display:none" data-page-node-id="ReligionBox01"></div>
     <div id="pane-faith-body"></div>
   </div>
+  <div class="card hidden" id="pane-diplomacy"></div>
   <div class="card hidden" id="pane-workshop" data-page-node-id="PaneWrk01Workshop"></div>
   <div class="card hidden" id="pane-wonder" data-page-node-id="PaneWdr01Wonder"></div>
   <div class="card hidden" id="pane-star-map"></div>
@@ -295,6 +297,15 @@
   <div class="td-rows" id="trackRows"></div>
   <button type="button" class="td-close" data-track-clear="1" aria-label="取消全部追踪" title="取消全部追踪" data-i18n-aria-label="ui.track_dock.clear_all.label" data-i18n-title="ui.track_dock.clear_all.label">×</button>
 </div>
+<!-- 战争结果轻量提示（2026-11-11）：独立常驻容器，必须留在 .wrap 之外、与 #modal 同级。
+     ⚠️ 绝不能放进 #pane-diplomacy —— 那些面板每 2 秒整块重画，会把在场的 toast 连节点换掉。
+     ⚠️ 空容器常驻，由 src/ui/war-toast.js 动态 append/remove；z-index 高于 #modal。 -->
+<div class="war-toast-stack" id="warToastStack" role="status" aria-live="polite" aria-atomic="false"></div>
+<!-- 传承「三选一」浮层（2026-11-11）：与 #modal 完全解耦的常驻层。
+     ⚠️ 不复用 warToastStack（role=status 是播报层，塞可交互控件语义不对）；
+     ⚠️ 不内嵌 #pane-diplomacy（每 2 秒整块重画会冲掉玩家正在选的榜）。
+     榜单状态只存 s.war.heritage.pending，本容器只是渲染层，关掉重开不丢。 -->
+<div class="heritage-draft-layer hidden" id="heritageDraftLayer" role="dialog" aria-modal="false" aria-label="择取传承"></div>
 <div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
   <!-- 2026-10-05 系统指引弹窗：点页签旁的「?」打开；内容由 SB.ui.openIntro 从 INTRO 表填入 #introPop。
        复用 body.modal-open 的「弹窗期间禁用 tab 交互」规则（见 main.css），避免背后切页。 -->
@@ -307,33 +318,36 @@
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
 <script src="src/config.js?v=231"></script>
-<script src="src/config-catalog.js?v=15"></script>
-<script src="src/config-content.js?v=39"></script>
-<script src="src/config-buildings.js?v=49"></script>
+<script src="src/config-catalog.js?v=16"></script>
+<script src="src/config-content.js?v=40"></script>
+<script src="src/config-buildings.js?v=50"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=152"></script>
-<script src="src/tech.js?v=132"></script>
+<script src="src/techs.js?v=154"></script>
+<script src="src/tech.js?v=133"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=34"></script>
-<script src="src/civics.js?v=139"></script>
+<script src="src/civics-data.js?v=40"></script>
+<script src="src/civics.js?v=140"></script>
+<!-- 传承（2026-11-11）：必须在 civics.js 之后（install() 运行时包装 SB.civic 的效果出口），
+     且早于 state-migrate.js（读档白名单校验要用 isPoolCard）与 war.js（吞并发榜）。 -->
+<script src="src/heritage.js?v=2"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/save-storage.js?v=11"></script>
-<script src="src/state-migrate.js?v=29"></script>
-<script src="src/state.js?v=180"></script>
-<script src="src/workshop.js?v=128"></script>
+<script src="src/state-migrate.js?v=35"></script>
+<script src="src/state.js?v=185"></script>
+<script src="src/workshop.js?v=129"></script>
 <script src="src/wonder.js?v=115"></script>
-<script src="src/economy-social.js?v=11"></script>
-<script src="src/economy.js?v=218"></script>
+<script src="src/economy-social.js?v=12"></script>
+<script src="src/economy.js?v=220"></script>
 <script src="src/faith-text.js?v=2"></script>
 <script src="src/faith.js?v=1"></script>
 <script src="src/economy-rates.js?v=35"></script>
-<script src="src/economy-tick.js?v=31"></script>
+<script src="src/economy-tick.js?v=33"></script>
 <script src="src/offline-scheduler.js?v=5"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
@@ -343,34 +357,41 @@
 <script src="src/shell.js?v=119"></script>
 <script src="src/habitat.js?v=116"></script>
 <script src="src/folk.js?v=107"></script>
+<script src="src/war.js?v=19"></script>
 <script src="src/prestige.js?v=137"></script>
 <script src="src/challenges.js?v=29"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=22"></script>
+<script src="src/ui/render-content.js?v=25"></script>
 <script src="src/ui/render-common.js?v=9"></script>
-<script src="src/ui/render-info.js?v=47"></script>
-<script src="src/ui/render-pane-research.js?v=44"></script>
+<script src="src/ui/render-info.js?v=49"></script>
+<script src="src/ui/render-pane-research.js?v=45"></script>
 <script src="src/ui/render-pane-village.js?v=45"></script>
-<script src="src/ui/render-pane-folk.js?v=6"></script>
+<script src="src/ui/render-pane-folk.js?v=7"></script>
 <script src="src/ui/render-talent-tree.js?v=6"></script>
 <script src="src/ui/render-pane-meta.js?v=17"></script>
 <script src="src/ui/render-pane-challenges.js?v=28"></script>
 <script src="src/ui/render-pane-company.js?v=5"></script>
 <script src="src/ui/render-pane-faith.js?v=4"></script>
+<script src="src/ui/render-pane-war.js?v=14"></script>
+<!-- 传承三选一浮层：状态只在 s.war.heritage，容器独立于 2 秒重画的面板。 -->
+<script src="src/ui/heritage-draft.js?v=1"></script>
+<!-- 战争结果轻量提示（2026-11-11）：纯 UI 组件，只被结算点在运行期调用，
+     不依赖加载顺序；放在战争面板之后便于对照。无 DOM 环境自动 no-op。 -->
+<script src="src/ui/war-toast.js?v=1"></script>
 <script src="src/ui/render-pane-wonder.js?v=8"></script>
 <script src="src/ui/render-pane-star-map.js?v=12"></script>
 <script src="src/ui/render-pane-workshop.js?v=20"></script>
 <script src="src/ui/render-environment.js?v=28"></script>
-<script src="src/ui/render.js?v=297"></script>
+<script src="src/ui/render.js?v=299"></script>
 <script src="src/ui/track-dock.js?v=9"></script>
 <script src="src/onboarding.js?v=2"></script>
-<script src="src/game.js?v=196"></script>
+<script src="src/game.js?v=198"></script>
 <script src="src/save-transfer.js?v=20"></script>
 <script src="src/redeem.js?v=6"></script>
-<script src="src/ui/input.js?v=183"></script>
-<script src="src/ai-strategy.js?v=92"></script>
+<script src="src/ui/input.js?v=187"></script>
+<script src="src/ai-strategy.js?v=93"></script>
 <script src="src/ui/theme.js?v=7"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>

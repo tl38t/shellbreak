@@ -62,6 +62,14 @@
      *   ⚠️【均为待标定值，数值等用户拍。】
      * hotforgeCraft：热锻工厂每级 +7% 工艺制作效率（加法乘区，与工坊级/奇观/科技同一条轴）。 */
     schoolMermanSci: 0.1, schoolMermanCivic: 0.1, hotforgeCraft: 0.07,
+    /* 军事发展第一段：军人基础产出、军营职业加成、要塞概率调整与士官学院人口产出。
+     * 要塞的成功/失败调整以百分点计，最终概率结算由 war.js 处理。 */
+    soldierMilitaryPower: 0.3,
+    barracksMilitaryBonusPerLevel: 0.20,
+    fortressFailureChanceChangePerLevel: 0.003,
+    fortressSuccessChanceChangePerLevel: 0.003,
+    fortressFailureChanceFloor: 0.05,
+    militaryAcademyPowerPerPopulationPerLevel: 0.1,
     /* ── ERA5 市政建筑（2026-10-02 实装）──
      * theaterCivRatio：歌剧院每级给官员（书手）市政点产出 +15%（economy.cultureRate 的 theaterCivicMul 读）。
      * tenementPop：廉租社区每级给人口上限 +10（economy.popCap 读 s.lvl.tenement * 此值）。 */
@@ -505,6 +513,8 @@
      *      112 珊瑚变成 112 珊瑚 + 50 金属，压力加在材料线而不是把珊瑚线压掉。 */
     { id: 'furnace', icon: 'assets/building-icons/era-2/era2-furnace.png',  name: '热泉炉',   ratio: 1.15, cost: {stone: 60, silt: 100},  desc: '解锁 金属→精铁',
       need: 'workshop', requiredTech: ['ironwork'] },
+    { id: 'barracks', icon: 'assets/building-icons/era-2/era2-barracks.png', name: '军营', ratio: 2, cost: {kelp: 600, silt: 100, stone: 100},
+      desc: '', requiredTech: ['ironwork'] },
     /* ⚠️ 2026-09-27 删骨材：这三处的 `bone:` 成本**落到珊瑚上**（不是精铁），原总量不变：
      *   热泉炉 bone 112 → coral 112；热泉井 bone 175+iron 62 → coral 175+iron 62；
      *   破冰祭坛 bone 400 → coral 400。
@@ -649,6 +659,8 @@
     { id: 'civichall', icon: 'assets/building-icons/era-3/era3-civichall.svg', name: '公民会堂', ratio: 1.5, cost: { stone: 500, steel: 20 },
       desc: '议事厅／城堡市政点产出 +50%/级。',
       requiredCivic: 'department' },
+    { id: 'fortress', icon: 'assets/building-icons/era-3/era3-fortress.png', name: '要塞', ratio: 1.5, cost: {stoneBeam: 100, ironBracket: 10},
+      desc: '', requiredTech: ['castle'] },
 
     /* ── ERA4 三座建筑（2026-09-30 用户规格表）──
      * ⚠️【解锁双写】每座都在 techs.js 那一项写了 `eff.unlockBuild`，这里再写一次
@@ -730,6 +742,8 @@
     { id: 'school', icon: 'assets/building-icons/era-5/era5-school.png', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 200 },
       desc: '每名鲛人 +0.1 科技/s、+0.1 市政点/s（每级；由 BLD.schoolMermanSci/schoolMermanCivic 读）',
       requiredTech: ['pubedu'] },
+    { id: 'military_academy', icon: 'assets/building-icons/era-5/era5-military-academy.png', name: '王立士官学院', ratio: 1.5, cost: {steel: 300, titanium: 200},
+      desc: '', requiredTech: ['pubedu'] },
 
     /* ── ERA5 两座建筑（2026-10-02 实装 · 渊潜鲛歌/城市化 解锁）──
      * 【歌剧院】requiredCivic='sharksong'。效果 = 官员（书手）市政点产出 +15%/级
@@ -940,6 +954,7 @@
     castle: 'core',
     kelp: 'food', weir: 'food', warmnest: 'food',
     siltpit: 'workshop', furnace: 'workshop', workshop: 'workshop',
+    barracks: 'core', fortress: 'core',
     hydroturbine: 'workshop', hydroshop: 'workshop',
     /* 热锻工厂（2026-10-07 用户拍板）：归工坊区 —— 它是工艺制作效率建筑（与工坊/炉/汽轮机同区）。 */
     hotforge: 'workshop',
@@ -962,7 +977,7 @@
      *   zone 走了 `|| 'core'` 兜底掉进礁栖核心。学校归学术区（教育类）；
      *   歌剧院归市政区（效果就是官员市政点产出 +15%/级，且《渊潜鲛歌》鼓舞
      *   数的「市政区合计等级 30」理应把它算进去）。 */
-    school: 'academy', theater: 'civic',
+    school: 'academy', military_academy: 'academy', theater: 'civic',
     /* 体育场（2026-10 实装 · 竞技体育 解锁）：归市政区（官员/行政/民生相关建筑同区）。 */
     stadium: 'civic',
     /* 廉租社区（2026-10-07 用户拍板）：就放礁栖核心（住房类，与巢/珊瑚屋同区）。 */

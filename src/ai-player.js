@@ -6,7 +6,7 @@
   var SB = root.SB;
   if (!SB || !SB.game || !SB.aiStrategy) return;
   var GAME_SPEED = 30;
-  var AI_PLAYER_VERSION = 24;
+  var AI_PLAYER_VERSION = 26;
   var REQUESTED_CHALLENGE_IDS = ['anarchy', 'good_old_days', 'three_launch_sites', 'eternity_moment'];
   /* 主模拟与 AI 共用浏览器主线程。30× 时主循环已经要结算约 300 个 0.1s tick/秒；
    * 每 400ms 再跑一次完整策略（里面会多次计算 rates）会把主线程挤满，名义 30×
@@ -14,6 +14,7 @@
   var AI_TIMER_MS = 250, DECISION_INTERVAL_MS = 1000, PANEL_REFRESH_MS = 2000;
   var panel, timer, lastDecision = 0, lastPanelRefresh = 0, started = false, logNode, lastResult = null;
   var lastStatusSent = 0, statusPostPending = false, lastError = null;
+  var lastWarAction = null, warActionCounts = {};
   var lastRebirth = null;
   var lastInvestment = null;
   var legacyPrep = null;
@@ -421,6 +422,18 @@
       var dysonBufferSeconds = Math.max(90, Math.min(180, measuredSpeed * 3));
       var result = SB.aiStrategy.step(s, { dysonBufferSeconds: dysonBufferSeconds });
       lastResult = result;
+      if (result.war && result.war.action) {
+        var warAction = result.war.action;
+        var warActionKey = [warAction.type || 'unknown', warAction.id || 'unknown',
+          warAction.outcome || ''].join(':');
+        warActionCounts[warActionKey] = (Number(warActionCounts[warActionKey]) || 0) + 1;
+        lastWarAction = Object.assign({}, warAction, {
+          gameHours: (Number(s.t) || 0) / 3600,
+          enemyId: result.war.enemyId || null,
+          currentScale: Number(result.war.currentScale) || 0,
+          effectiveMaxScale: Number(result.war.maxScale) || 0
+        });
+      }
       lastError = null;
       if (result.changed) SB.game.renderAll();
     } catch (e) { lastError = e && e.message ? e.message : String(e); say('策略异常：' + lastError); }
@@ -442,6 +455,30 @@
     var result = lastResult || {};
     var runtime = SB.game.runtimeStatus ? SB.game.runtimeStatus() : {};
     var economyRates = cachedRates || SB.economy.rates(s);
+    var warEnemy = SB.war && SB.war.currentEnemy ? SB.war.currentEnemy(s) : null;
+    var warStatus = SB.war ? {
+      power: SB.war.power(s),
+      powerRate: SB.war.rate(s),
+      expectedScaleDamageRate: Number(result.war && result.war.expectedScaleDamageRate) || 0,
+      enemyRecoveryRate: Number(result.war && result.war.enemyRecoveryRate) || 0,
+      expectedAnnexProgressRate: Number(result.war && result.war.expectedAnnexProgressRate) || 0,
+      holdingForAnnex: !!(result.war && result.war.holdingForAnnex),
+      campaignStage: Number(s.war && s.war.campaignStage) || 0,
+      tradeRouteLevel: Number(s.war && s.war.tradeRouteLevel) || 0,
+      soldierJobs: Number(s.jobs && s.jobs.soldier) || 0,
+      soldierTarget: Number(result.warForceTarget) || 0,
+      enemy: warEnemy ? {
+        id: warEnemy.id,
+        currentScale: SB.war.currentScale(warEnemy),
+        effectiveMaxScale: SB.war.effectiveMaxScale(warEnemy),
+        cultureReduction: Number(warEnemy.cultureReduction) || 0,
+        faithReduction: Number(warEnemy.faithReduction) || 0,
+        cultureActions: Number(warEnemy.cultureActions) || 0,
+        faithActions: Number(warEnemy.faithActions) || 0
+      } : null,
+      lastAction: lastWarAction || result.war && result.war.action || null,
+      actionCounts: Object.assign({}, warActionCounts)
+    } : null;
     var thetaInputRates = SB.economy.thetaInputRates ? SB.economy.thetaInputRates(s) : {};
     var miningTools = (SB.workshop.tools ? SB.workshop.tools() : []).filter(function (tool) {
       return tool.target && tool.target.indexOf('miner') >= 0;
@@ -563,6 +600,7 @@
       techConditionProgress: targetConditionProgress,
       population: Number(s.pop) || 0,
       populationCap: SB.economy.popCap(s),
+      war: warStatus,
       scienceRate: Number(economyRates.science) || 0,
       stoneRate: Number(economyRates.stone) || 0,
       warmstoneRate: Number(economyRates.warmstone) || 0,

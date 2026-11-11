@@ -23,6 +23,9 @@ const NO_DOM = [
   'src/tech.js',
   'src/civics-data.js',
   'src/civics.js',
+  /* 传承必须在 civics.js 之后（包装效果出口）、state-migrate.js 之前（读档白名单）。
+   * 与 index.html 的 <script> 顺序逐字一致，分叉会造成「e2e 绿而页面上白」。 */
+  'src/heritage.js',
   'src/save-storage.js',
   'src/state-migrate.js',
   'src/state.js',

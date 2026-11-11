@@ -1058,6 +1058,28 @@
     });
   }
 
+  /* 外交页开门叙事（2026-11-11 用户补：此前外交虽拆出页签 + 门，却无解锁弹窗）。
+   * 门 = syncTabLocks / render-pane-war 同源的双门：《导航》或《军事训练》。
+   * 台词由用户当次给定，只作单一一段（storyPanel 按 lines 索引取 line_N，
+   * wonder / company 也是单行先例）；一次性旗标存 run，离线/读档靠
+   * maybeTabUnlockPopups 兜底补播。老档补播口径见 state-migrate.js。 */
+  function maybeDiplomacyPopup(s) {
+    if (!s || s.diplomacyPopup) return;
+    if (!((s.techs && s.techs.navigation) || (s.civics && s.civics.military_training))) return;
+    s.diplomacyPopup = true;
+    markDirty();
+    queueStory({
+      kind: 'diplomacy', icon: '⚔️', title: '外交页解锁',
+      lines: [
+        '军事上得不到的，也休想在谈判桌上得到。'
+      ],
+      unlockTitle: '七阶敌国战役已开放',
+      unlockCopy: '现在可以劫掠、入侵、发动全面战争；逐阶吞并七个敌国，每吞并一国，本局全局产出都会永久提升。',
+      ok: '进入外交页',
+      onOk: function () { if (S === s) setTab('diplomacy'); }
+    });
+  }
+
   function maybeTabUnlockPopups(s) {
     maybeCivicPopup(s);
     maybeFaithPopup(s);
@@ -1065,6 +1087,7 @@
     maybeWonderPopup(s);
     maybeStarMapPopup(s);
     maybeCompanyPopup(s);
+    maybeDiplomacyPopup(s);
   }
 
   /* 宗教弹窗（用户 2026-09-29）：建立宗教（神学完成）那一刻播一次叙事弹窗，
@@ -1677,6 +1700,11 @@
   }
   function finishCatchUp(j) {
     loop.job = null;
+    if (SB.war && SB.war.drainInvasionReports) {
+      var invasionMessages = SB.war.drainInvasionReports(j.s);
+      for (var invasionMessageIndex = 0; invasionMessageIndex < invasionMessages.length; invasionMessageIndex++)
+        log(invasionMessages[invasionMessageIndex]);
+    }
     var breakReport = null;
     /* 2026-11-03：只认「本次补算期间破的壳」（j.brokeDuring）。
      * 原判据看的是当前状态（broken && shellOpened && !breakSettled），在新流程下
@@ -2984,6 +3012,7 @@
     log: log, emit: emit, markDirty: markDirty, pumpTech: pumpTech, pumpCivic: pumpCivic,
     fmtDur: fmtDur,
     maybeReligionPopup: maybeReligionPopup,
+    maybeDiplomacyPopup: maybeDiplomacyPopup,   /* 供 e2e 直接钉住双门与一次性旗标 */
     maybeGovNamingPopup: maybeGovNamingPopup, confirmGovName: confirmGovName,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
     installImportedSave: installImportedSave, restoreRawSave: restoreRawSave,

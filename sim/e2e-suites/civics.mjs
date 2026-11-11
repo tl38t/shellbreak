@@ -681,6 +681,131 @@ console.log('\n=== 市政 ===');
   check('未标类型的政策卡按万能类归组，不再显示 undefined',
     /data-policy-category="wild"/.test(policyPoolHtml) && /data-card="card_serfdom"/.test(policyPoolHtml) &&
     !/undefined/.test(policyPoolHtml), '农奴制万能类归组=' + /data-card="card_serfdom"/.test(policyPoolHtml));
+
+  /* ── 军事政策卡独立成组（2026-11-11）─────────────────────────────────
+   * 玩家报「军事政策卡怎么变成万能卡了？」根因：pool() 的 categories 只有
+   * prod/sci/grow/relig/wild，type:'military' 的卡被 `categories[p.type] ? … : 'wild'`
+   * 静默塞进万能组，卡面标签也跟着写「万能槽」；数据层其实早有 SLOT_TYPES.military
+   * 与《军事训练》追加的军事槽。下面走**真实渲染 paneCivicSlot**，不复制分组实现，
+   * 再钉住 CSS 契约（vm 不执行 CSS，只能读源码，且先剥注释再 grep）。 */
+  {
+    const milUi = SB.state.freshRun(false);
+    milUi.gov = 'tribe';
+    /* 点亮这几条市政但不点 mercantilism：card_drill / card_mercenary 的 retiredBy
+     * 分别是 professional_army / space_politics，legacy 卡合法退役不该算「分组失败」；
+     * 而 card_trade_intelligence 的 retiredBy 是 mercantilism，不设它才留在池里。 */
+    milUi.civics.trade = 1;
+    milUi.civics.military_training = 1;
+    milUi.civics.professional_army = 1;
+    milUi.civics.space_politics = 1;
+    milUi.civics.ideology = 1;
+    const milHtml = SB.ui.render.paneCivicSlot(milUi);
+    const milPolicies = SB.POLICIES.filter(p => p.type === 'military');
+    const ownedMil = milPolicies.filter(p => SB.civic.cardOwned(milUi, p.id));
+    const sectionOf = cat => {
+      const m = milHtml.match(new RegExp('<section class="policy-group policy-group-' + cat + '"[\\s\\S]*?</section>'));
+      return m ? m[0] : '';
+    };
+    const milSection = sectionOf('military'), wildSection = sectionOf('wild');
+    const inMil = ownedMil.filter(p => milSection.indexOf('data-card="' + p.id + '"') >= 0);
+    const inWild = ownedMil.filter(p => wildSection.indexOf('data-card="' + p.id + '"') >= 0);
+    check('军事政策卡独立成组（military），不再落进万能组',
+      milPolicies.length > 0 && ownedMil.length > 0 && !!milSection &&
+      inMil.length === ownedMil.length && inWild.length === 0,
+      '军事卡共 ' + milPolicies.length + ' 张 / 本夹具拥有 ' + ownedMil.length +
+      ' 张 / military 组收 ' + inMil.length + ' 张 / wild 组误收 ' + inWild.length + ' 张');
+    check('军事组卡面标签是「军事槽」而非「万能槽」，组标题也不叫万能类',
+      /class="tag tmilitary"/.test(milSection) && /军事/.test(milSection) &&
+      milSection.indexOf('万能槽') < 0 && !/万能类/.test(milSection),
+      'tmilitary=' + /class="tag tmilitary"/.test(milSection) +
+      ' 误写万能槽=' + (milSection.indexOf('万能槽') >= 0));
+    check('军事卡不是万能卡：只进军事槽/万能槽，装不进工造槽（cardFits 与分组同源）',
+      ownedMil.every(p => SB.civic.cardFits(p, 'military') && SB.civic.cardFits(p, 'wild') &&
+        !SB.civic.cardFits(p, 'prod')),
+      ownedMil.map(p => p.id + ':' + ['prod', 'military', 'wild'].map(t => SB.civic.cardFits(p, t) ? 1 : 0).join('')).join(' '));
+    check('《军事训练》追加的军事槽有专属类名、槽名与图符（不再掉成默认造型）',
+      /slotbox slot-type-military/.test(milHtml) && /军事槽/.test(milHtml) && /⚔/.test(milHtml) &&
+      SB.civic.slotList(milUi).filter(v => v.type === 'military').length === 1,
+      'slot-type-military=' + /slotbox slot-type-military/.test(milHtml) +
+      ' 图符⚔=' + /⚔/.test(milHtml));
+    /* CSS 不进 vm 沙箱，只能读源码核实；剥注释是为了避免「注释里写了就算数」的假绿。 */
+    const stripCssComments = t => t.replace(/\/\*[\s\S]*?\*\//g, '');
+    const css20 = stripCssComments(fs.readFileSync(path.join(ROOT, 'css', '20-panels.css'), 'utf8'));
+    const css50 = stripCssComments(fs.readFileSync(path.join(ROOT, 'css', '50-module-polish.css'), 'utf8'));
+    check('军事类配色契约齐全：暗色标签/组、日间组/标签、槽位 --slot-accent-rgb',
+      /\.tag\.tmilitary\{/.test(css20) && /\.policy-group-military\{/.test(css20) &&
+      /html\[data-ui-theme="day"\] \.policy-group-military\{/.test(css50) &&
+      /html\[data-ui-theme="day"\] \.policy-card \.tag\.tmilitary\{/.test(css50) &&
+      /\.slotbox\.slot-type-military\{[^}]*--slot-accent-rgb:/.test(css50),
+      '20-panels: tag=' + /\.tag\.tmilitary\{/.test(css20) +
+      ' group=' + /\.policy-group-military\{/.test(css20) +
+      ' / 50-polish: dayGroup=' + /html\[data-ui-theme="day"\] \.policy-group-military\{/.test(css50) +
+      ' dayTag=' + /html\[data-ui-theme="day"\] \.policy-card \.tag\.tmilitary\{/.test(css50) +
+      ' slot=' + /\.slotbox\.slot-type-military\{[^}]*--slot-accent-rgb:/.test(css50));
+
+    /* ── 战争批次风味文案（2026-11-11）───────────────────────────────────
+     * 玩家报「新科技、市政、政策卡、奇观，一个风味文案都没填」。实测这一批
+     * 2 科技 / 2 市政 / 8 政策卡 / 4 奇观 / 3 建筑共 19 条全空；缺键不报错：
+     * 科技/市政是 b-flavor 整段不渲染，政策卡是 policy-card-flavor 整块消失，
+     * 奇观更会渲染占位句「这座奇观正在等待一段属于它自己的历史。」
+     * 判据三层：① 源表非空 ② 双语字典键齐全且中文与源表逐字一致 ③ 真实卡库出块。 */
+    const RC = SB.ui.renderContent;
+    const warTech = ['siegeT', 'ballistics'];
+    const warCivic = ['military_training', 'professional_army'];
+    const warWonder = ['wonder_goddard_rod', 'wonder_victory_monument', 'wonder_military_intelligence_bureau', 'wonder_sun_mirror_array'];
+    const warBuilding = ['barracks', 'fortress', 'military_academy'];
+    const warPolicy = milPolicies.map(p => p.id);
+    const nonEmpty = v => !!(v && String(v).trim());
+    const tablePairs = [
+      ['TECH_FLAVOR', warTech], ['CIVIC_FLAVOR', warCivic],
+      ['WONDER_FLAVOR', warWonder], ['BUILDING_FLAVOR', warBuilding]
+    ];
+    const missingTable = [];
+    for (const [table, ids] of tablePairs)
+      for (const id of ids) if (!nonEmpty(RC[table][id])) missingTable.push(table + '.' + id);
+    const missingPolicy = warPolicy.filter(id => !nonEmpty((SB.POLICIES.find(p => p.id === id) || {}).flavor));
+    check('战争批次 19 条风味文案已进源表（科技2/市政2/奇观4/建筑3/政策卡8）',
+      missingTable.length === 0 && missingPolicy.length === 0 && warPolicy.length === 8,
+      '源表缺=' + (missingTable.join(',') || '无') + ' 政策卡缺=' + (missingPolicy.join(',') || '无') +
+      ' 军事卡数=' + warPolicy.length);
+
+    const zhSrc = fs.readFileSync(path.join(ROOT, 'src/locales/zh-CN.js'), 'utf8');
+    const enSrc = fs.readFileSync(path.join(ROOT, 'electron/locales/en-US.js'), 'utf8');
+    const keyOf = (cat, id) => cat === 'policy'
+      ? 'policy.card.' + id.replace(/^card_/, '') + '.flavor'
+      : 'ui.content.' + { tech: 'tech_flavor', civic: 'civic_flavor', wonder: 'wonder_flavor', building: 'building_flavor' }[cat] + '.' + id;
+    const expectZh = [
+      ...warTech.map(id => [keyOf('tech', id), RC.TECH_FLAVOR[id]]),
+      ...warCivic.map(id => [keyOf('civic', id), RC.CIVIC_FLAVOR[id]]),
+      ...warWonder.map(id => [keyOf('wonder', id), RC.WONDER_FLAVOR[id]]),
+      ...warBuilding.map(id => [keyOf('building', id), RC.BUILDING_FLAVOR[id]]),
+      ...warPolicy.map(id => [keyOf('policy', id), (SB.POLICIES.find(p => p.id === id) || {}).flavor])
+    ];
+    const esc = k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const zhValue = k => {
+      const m = zhSrc.match(new RegExp('^\\s*"' + esc(k) + '"\\s*:\\s*"([^"]*)"', 'm'));
+      return m ? m[1] : null;
+    };
+    const hasKey = (src, k) => new RegExp('^\\s*"' + esc(k) + '"\\s*:', 'm').test(src);
+    const zhMissing = expectZh.filter(([k]) => !hasKey(zhSrc, k)).map(([k]) => k);
+    const enMissing = expectZh.filter(([k]) => !hasKey(enSrc, k)).map(([k]) => k);
+    const mismatch = expectZh.filter(([k, v]) => zhValue(k) !== v).map(([k]) => k);
+    check('战争批次风味文案双语字典键齐全（19×2），且中文与源表逐字一致',
+      expectZh.length === 19 && zhMissing.length === 0 && enMissing.length === 0 && mismatch.length === 0,
+      '应登记=' + expectZh.length + ' zh缺=' + (zhMissing.join(',') || '无') +
+      ' en缺=' + (enMissing.join(',') || '无') + ' 中文被改写=' + (mismatch.join(',') || '无'));
+
+    /* 真实卡库：每张当前拥有的军事卡块都要有 .policy-card-flavor，
+     * 而不是只看数据字段（数据有值但渲染漏拼是本项目踩过的坑）。 */
+    const milBlocks = milHtml.match(/<article class="policy-card[\s\S]*?<\/article>/g) || [];
+    const noFlavor = ownedMil.filter(p => {
+      const block = milBlocks.find(b => b.indexOf('data-card="' + p.id + '"') >= 0) || '';
+      return !/class="policy-card-flavor"/.test(block);
+    });
+    check('8 张军事政策卡在真实卡库里渲染出 policy-card-flavor 段',
+      ownedMil.length > 0 && noFlavor.length === 0,
+      '本夹具拥有=' + ownedMil.length + ' 张 / 缺 flavor 块=' + (noFlavor.map(p => p.id).join(',') || '无'));
+  }
   const happyCardUi = SB.state.freshRun(false);
   happyCardUi.gov = 'autocracy';
   happyCardUi.civics.craft = 1; happyCardUi.civics.rationing = 1;

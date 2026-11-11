@@ -1534,3 +1534,27 @@ meta.tide + meta.spent === meta.tideEarnedTotal
    `shellbreakPlatform` 的真浏览器页验英文通道；只验 `file://` 默认页会漏掉 7 张卡。
 5. 回归锁：`sim/e2e-suites/waterpollution.mjs` ⑮（真取代 4 条）/ ⑯（生效口径 6 条）。
    改过的 js 各自 bump `?v=`，否则浏览器静默吃旧版。
+
+## 五点三十五、军力储备 ≠ 军人：写战争 UI 前先回查 `war.js:104-129 / 785-837`（2026-11-11 · 战争结果 toast 实装）
+
+1. **两个量绝不可混**。`state.power` / `cost` = 军力储备，`war.js:800` **无条件先扣、与成败无关**，
+   是「入场费」（敌国有效规模上限 × 5%/15%/30%），游戏文案叫「军力储备」（`ui.war.power.summary`）；
+   `s.jobs.soldier` / `soldiersLost`（`:815`）才是**随成败变化的代价**（失败最重：劫掠 50%、
+   入侵/全面战争 100% 全灭；成功 20/50/50%；大成功 0/20/20%），文案叫「军人阵亡」。
+   ⚠️ 曾把 demo 写成「军力损失 −X / 失败代价 = 军力成本」，被用户当场纠正。
+2. 失败**也**削敌国规模（`scaleLoss = cost × 0.30/0.50/0.70`，`:806`）；失败 `loot = 0`；
+   人口上限只在大成功给（`+1/+2/+3`）。**被动入侵**（`:468-488`）完全不扣军力储备，
+   只改敌国规模 + 三类惩罚。⇒ 凡 UI/demo/断言出现「军力损失」「失败不削规模」
+   「被动入侵扣军力」即为错。
+3. **回归锁口径**：toast 成本行必须在三档 outcome 下**逐字相同**，军人阵亡另起一行；
+   见 `sim/e2e-suites/war-campaign.mjs` 的「军力储备（入场费）三档逐字相同，军人阵亡是独立一行」。
+   期望文案一律用 `SB.i18n.t(key, params)` 现算（与 locale 无关、不假绿），别写死中文。
+4. `ui/war-toast.js` 所有系数从 `SB.war.ACTIONS` / 结算结果读取，禁止硬编码；
+   `war.js` 导出 `invasionReportMessages` 供 toast 复用，保证提示与事件日志是同一份译文。
+   ⚠️ sim 假 DOM 的 `removeChild` 是空实现、`children` 不缩短 ⇒ 堆叠只能用组件自维护 `active[]`，
+   绝不 `while (children.length)`；`getElementById` 永远返回桩 ⇒ `render()` 在 e2e 里会真跑，
+   `setTimeout` / `classList` / `appendChild` 都要有守卫。
+5. ⚠️ **两条假警报**（别改被测代码迎合）：① `tmp/_vcheck.py` 比 HEAD 必须先做 CRLF 归一化，
+   否则 git autocrlf 会报满屏「内容变 ?v 没 bump」；② 日间主题核验页必须加载
+   `40-atmosphere-theme.css`（日间 `--green/#347a59`、`--red/#b74753`、`--amber/#a66b27`
+   由它覆盖 `:root`），只加载 `00-core.css` 会把「亮绿字压浅底」误判成生产 bug。

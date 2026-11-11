@@ -127,6 +127,14 @@
       SB.ui.render.hideModal();
       return;
     }
+    /* 传承浮层「暂不择取 / ×」：纯界面动作，不读游戏状态 ⇒ 与上面同一条 P0 纪律，
+     * 必须排在 `var s = run(); if (!s) return;` 之前。榜单仍在 s 里，下次可重开。 */
+    var heritageClose = d.heritageClose !== undefined ? t
+      : (t.closest ? t.closest('[data-heritage-close]') : null);
+    if (heritageClose) {
+      if (SB.ui && SB.ui.closeHeritageDraft) SB.ui.closeHeritageDraft();
+      return;
+    }
     /* 点弹窗外的遮罩关闭：只对树图 / 政体选择器开放（破壳结算、离线总结、终局演出
      * 都**不许**点外面就关 —— 那是需要玩家明确选择的)。这条策略与搬动前完全一致，
      * 只换了位置，没改语义。 */
@@ -138,6 +146,109 @@
 
     var s = run();
     if (!s) return;
+
+    /* 传承（2026-11-11）：待选常驻条 → 打开独立浮层；卡面「择取」→ 单一逻辑入口。
+     * ⚠️ 浮层不在 #pane-diplomacy 内（面板每 2 秒整块重画），榜单状态只在 s.war.heritage。 */
+    var heritageOpen = d.heritageOpen !== undefined ? t
+      : (t.closest ? t.closest('[data-heritage-open]') : null);
+    if (heritageOpen) {
+      if (SB.ui && SB.ui.showHeritageDraft) SB.ui.showHeritageDraft(s);
+      return;
+    }
+    var heritagePick = d.heritagePick !== undefined ? t
+      : (t.closest ? t.closest('[data-heritage-pick]') : null);
+    if (heritagePick && heritagePick.dataset) {
+      var hpIdx = Number(heritagePick.dataset.heritagePick);
+      var hpId = heritagePick.dataset.heritageCard;
+      var hpName = SB.heritage && SB.heritage.nameOf ? SB.heritage.nameOf(hpId) : hpId;
+      var hpOk = SB.war && SB.war.chooseHeritage ? SB.war.chooseHeritage(s, hpIdx, hpId) : false;
+      if (hpOk) {
+        SB.game.markDirty(); SB.game.renderAll();
+        SB.game.log(tr('ui.heritage.picked', { name: hpName }));
+      }
+      /* 还有榜就画下一张，无榜则关浮层；renderAll 只重画面板，不影响独立浮层。 */
+      if (SB.ui && SB.ui.afterHeritagePick) SB.ui.afterHeritagePick(s);
+      return;
+    }
+
+    /* 外交与战役页：事件委托处理敌国行动、软实力、商路和吞并。结算始终由 war.js 执行。 */
+    var warActionButton = d.warAction !== undefined ? t
+      : (t.closest ? t.closest('[data-war-action]') : null);
+    if (warActionButton && warActionButton.dataset && warActionButton.dataset.warAction) {
+      var activeEnemy = SB.war && SB.war.currentEnemy ? SB.war.currentEnemy(s) : null;
+      var warActionId = warActionButton.dataset.warAction;
+      var actionResult = activeEnemy && SB.war.executeAction(s, activeEnemy.id, warActionId);
+      if (actionResult && actionResult.ok) {
+        var actionNameKey = warActionId === 'raid' ? 'ui.war.action.raid'
+          : warActionId === 'invasion' ? 'ui.war.action.invasion' : 'ui.war.action.total_war';
+        var outcomeKey = actionResult.outcome === 'greatSuccess' ? 'ui.war.outcome.great_success'
+          : actionResult.outcome === 'success' ? 'ui.war.outcome.success' : 'ui.war.outcome.failure';
+        var resourceFallback = SB.RESS && SB.RESS[actionResult.resourceId] ? SB.RESS[actionResult.resourceId].name : actionResult.resourceId;
+        var localizedResourceName = SB.i18n && SB.i18n.resourceName
+          ? SB.i18n.resourceName(actionResult.resourceId, resourceFallback) : resourceFallback;
+        SB.game.markDirty(); SB.game.renderAll();
+        SB.game.log(tr('ui.war.result.action', {
+          actionName: tr(actionNameKey), outcomeName: tr(outcomeKey),
+          scaleLoss: SB.economy.fmtAmt(actionResult.scaleLoss),
+          soldiersLost: SB.economy.fmtAmt(actionResult.soldiersLost),
+          lootAmount: SB.economy.fmtAmt(actionResult.lootAmount),
+          resourceName: localizedResourceName,
+          populationCapAward: actionResult.populationCapAward
+        }));
+      } else SB.game.log(tr('ui.war.action.unavailable'));
+      return;
+    }
+    var warSoftButton = d.warSoft !== undefined ? t
+      : (t.closest ? t.closest('[data-war-soft]') : null);
+    if (warSoftButton && warSoftButton.dataset && warSoftButton.dataset.warSoft) {
+      var softEnemy = SB.war && SB.war.currentEnemy ? SB.war.currentEnemy(s) : null;
+      var softId = warSoftButton.dataset.warSoft;
+      var softResult = softEnemy && SB.war.executeSoftPowerAction(s, softEnemy.id, softId);
+      if (softResult && softResult.ok) {
+        var softActionName = tr(softId === 'faith' ? 'ui.war.soft_power.faith' : 'ui.war.soft_power.culture');
+        var softOutcomeName = tr(softResult.outcome === 'greatSuccess' ? 'ui.war.outcome.great_success'
+          : softResult.outcome === 'success' ? 'ui.war.outcome.success' : 'ui.war.outcome.failure');
+        SB.game.markDirty(); SB.game.renderAll();
+        SB.game.log(tr('ui.war.result.soft_power', {
+          actionName: softActionName, outcomeName: softOutcomeName,
+          reductionPercent: (softResult.appliedReduction * 100).toFixed(1)
+        }));
+      } else SB.game.log(tr('ui.war.action.unavailable'));
+      return;
+    }
+    var warRouteButton = d.warRoute !== undefined ? t
+      : (t.closest ? t.closest('[data-war-route]') : null);
+    if (warRouteButton) {
+      var routeQuote = SB.war && SB.war.tradeRouteQuote ? SB.war.tradeRouteQuote(s) : null;
+      var routeResult = SB.war && SB.war.establishTradeRoute ? SB.war.establishTradeRoute(s) : null;
+      if (routeResult && routeResult.ok) {
+        SB.game.markDirty(); SB.game.renderAll();
+        SB.game.log(tr('ui.war.trade_route.establish', {
+          nextLevel: routeResult.level, stoneCost: SB.economy.fmtAmt(routeResult.cost)
+        }));
+      } else SB.game.log(tr('ui.war.action.unavailable'));
+      return;
+    }
+    var warAnnexButton = d.warAnnex !== undefined ? t
+      : (t.closest ? t.closest('[data-war-annex]') : null);
+    if (warAnnexButton) {
+      var annexTarget = SB.war && SB.war.currentEnemy ? SB.war.currentEnemy(s) : null;
+      var annexResult = annexTarget && SB.war.annexEnemy(s, annexTarget.id);
+      if (annexResult && annexResult.ok) {
+        SB.game.pumpCivic(s, emit);
+        SB.game.markDirty(); SB.game.renderAll();
+        SB.game.log(tr('ui.war.annex.success', {
+          enemyName: tr(annexTarget.nameKey),
+          populationCapAward: annexResult.populationCapAward,
+          productionBonusPercent: annexResult.productionBonusPercent,
+          totalProductionBonusPercent: annexResult.totalProductionBonusPercent
+        }));
+        /* 吞并当下自动弹一次三选一；关掉后由收藏墙常驻条重开。
+         * 上线 / 离线补算不自动弹（只留角标），避免糊脸与撞非空闲 modal。 */
+        if (annexResult.heritageDraft && SB.ui && SB.ui.showHeritageDraft) SB.ui.showHeritageDraft(s);
+      } else SB.game.log(tr('ui.war.action.unavailable'));
+      return;
+    }
 
     var faithChoice = t.closest && t.closest('[data-faith-tenet]');
     if (!faithChoice && d.faithTenet !== undefined) faithChoice = t;

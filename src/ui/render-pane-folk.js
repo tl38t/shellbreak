@@ -10,7 +10,9 @@
   }
 
   function jobDescription(job) {
-    return tr('job.' + job.id + '.description') || job.desc;
+    var params = job.id === 'soldier' && SB.war
+      ? { baseMilitaryPower: SB.war.soldierBaseRate().toFixed(1) } : null;
+    return tr('job.' + job.id + '.description', params) || job.desc;
   }
 
   function paneFolk() {
@@ -42,6 +44,16 @@
     }) + '</div><div class="ds">' + tr('ui.folk.peak.prestige_formula', {
       linearMultiplier: T.LINEAR_K, workshopUnlockCount: br.workshopCount
     }) + '</div></div></div>';
+    if (SB.war && SB.folk.jobUnlocked(s, 'soldier')) {
+      var militaryPower = SB.war.power(s), militaryRate = SB.war.rate(s);
+      var powerText = SB.economy && SB.economy.fmtAbbr
+        ? SB.economy.fmtAbbr(militaryPower, militaryPower.toFixed(2)) : militaryPower.toFixed(2);
+      var rateText = SB.economy && SB.economy.fmtAbbr
+        ? SB.economy.fmtAbbr(militaryRate, militaryRate.toFixed(2)) : militaryRate.toFixed(2);
+      h += '<div class="row folk-summary"><div><div class="nm">' + tr('ui.war.power.summary', {
+        power: powerText, rate: rateText
+      }) + '</div></div></div>';
+    }
     /* 照猫国：族民默认闲置，＋ 雇 / − 退。没有闲置时 ＋ 禁用，
      * 职业总和永远 ≤ pop——不搞「减 A 立刻补给 B」的转移制。 */
     var idle = SB.folk.idle(s);
@@ -81,7 +93,7 @@
       var jobLimitReason = SB.folk.jobLimitReason(s, j.id);
       h += '<div class="row folk-job-row" data-job-row="' + j.id + '"><div><div class="nm">' + SB.folk.localizedJobName(s, j.id) +
         ' <b id="j-' + j.id + '">' + s.jobs[j.id] + '</b>' + (isFinite(jobLimit) ? ' / ' + jobLimit : '') + '</div>' +
-        '<div class="ds">' + jobDescription(j) + '</div></div>' +
+        '<div class="ds">' + jobDescription(j, s) + '</div></div>' +
         '<div class="folk-job-controls">' +
         /* 2026-10-14 方案 B（猫国式极简 + 步长胶囊）：可见 UI 只有一对 −/＋ 小按钮，
          * ±5/±10 收进「×N」胶囊（点击循环 ×1→×5→×10，全局记忆不每行一份）。

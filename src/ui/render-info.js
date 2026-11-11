@@ -150,6 +150,10 @@
         civicName: localizedTreeNodeName('civic', item.needCivic, civic ? civic.name : item.needCivic)
       }, why);
     }
+    if ((item.requiresTools && item.requiresTools.some(function (toolId) { return !(s.tools && s.tools[toolId]); })) ||
+        (item.requiresUpgrades && item.requiresUpgrades.some(function (upgradeId) { return !(s.upgrades && s.upgrades[upgradeId]); }))) {
+      return tr('workshop.upgrade.military_harness.requirement', null, why);
+    }
     var cost = type === 'craft' ? item.in
       : type === 'upgrade' ? SB.workshop.upgradeCost(s, item.id) : item.cost;
     return localizedMissingMaterials(s, cost) || why;
@@ -159,7 +163,10 @@
     if (type === 'tool' && item.wip) return true;
     if (!(s.lvl && s.lvl.workshop > 0)) return true;
     if (item.need && !(s.techs && s.techs[item.need])) return true;
-    return !!(item.needCivic && !(s.civics && s.civics[item.needCivic]));
+    if (item.needCivic && !(s.civics && s.civics[item.needCivic])) return true;
+    if (item.requiresTools && item.requiresTools.some(function (toolId) { return !(s.tools && s.tools[toolId]); })) return true;
+    if (item.requiresUpgrades && item.requiresUpgrades.some(function (upgradeId) { return !(s.upgrades && s.upgrades[upgradeId]); })) return true;
+    return false;
   }
   function localizedWonderRequirement(s, id, w, why) {
     if (!englishLocale() || !w || !why) return why || '';
@@ -689,6 +696,23 @@
   function buildingDescText(s, b) {
     if (!b) return '';
     var _id = String(b.id || '');
+    if (_id === 'barracks') {
+      return tr('building.barracks.description', {
+        militaryPowerBonusPerLevel: ((SB.BLD && SB.BLD.barracksMilitaryBonusPerLevel) || 0) * 100
+      }, b.desc || '');
+    }
+    if (_id === 'fortress') {
+      return tr('building.fortress.description', {
+        successRateChangePerLevel: (((SB.BLD && SB.BLD.fortressSuccessChanceChangePerLevel) || 0) * 100).toFixed(1),
+        failureRateChangePerLevel: (((SB.BLD && SB.BLD.fortressFailureChanceChangePerLevel) || 0) * 100).toFixed(1),
+        minimumFailureRate: (((SB.BLD && SB.BLD.fortressFailureChanceFloor) || 0) * 100).toFixed(0)
+      }, b.desc || '');
+    }
+    if (_id === 'military_academy') {
+      return tr('building.military_academy.description', {
+        militaryPowerPerPopulationPerLevel: (SB.BLD && SB.BLD.militaryAcademyPowerPerPopulationPerLevel) || 0
+      }, b.desc || '');
+    }
     /* Water Pollution challenge descriptions use live rule/config values so the translated
      * card stays in sync with production and challenge balance settings. */
     var _cleanHydroKey = {
@@ -875,6 +899,9 @@
       case 'school':       return joinInfoText(
         add(effectLabel('merfolk_research_output', '每名鲛人科技产出'), B.schoolMermanSci, B.schoolMermanSci * L, tr('ui.unit.per_second.short', null, '/秒'), 1),
         add(effectLabel('merfolk_civic_output', '每名鲛人市政产出'), B.schoolMermanCivic, B.schoolMermanCivic * L, tr('ui.unit.per_second.short', null, '/秒'), 1));
+      case 'barracks':
+      case 'fortress':
+      case 'military_academy': return buildingDescText(s, b);
       case 'theater':      return tr('building.effect.theater', {
         scribeJob: localizedJobName(s, 'scribe'),
         perLevelPct: (B.theaterCivRatio * 100).toFixed(0),

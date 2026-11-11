@@ -662,9 +662,12 @@
   }
   function civicNeedsWonder(s, civicGoal) {
     var boost = civicGoal && civicGoal.boost;
-    if (!boost || ['anyWonders', 'wonders', 'wonderEra'].indexOf(boost.t) < 0 || SB.civic.boostMet(s, civicGoal)) return false;
+    if (!boost || ['wonder', 'anyWonders', 'wonders', 'wonderEra'].indexOf(boost.t) < 0 || SB.civic.boostMet(s, civicGoal)) return false;
     if (boost.t === 'wonderEra') return (SB.WONDERS || []).some(function (wonder) {
       return wonder && wonder.era === boost.era && wonderEligible(s, wonder);
+    });
+    if (boost.t === 'wonder' || boost.t === 'anyWonders') return (SB.WONDERS || []).some(function (wonder) {
+      return wonder && wonderEligible(s, wonder);
     });
     return (boost.ids || []).some(function (id) {
       var wonder = SB.workshop.wonderById(id);
@@ -794,11 +797,12 @@
      * 所以星球村/全球化等市政虽然已经成为当前目标，AI 却把所需奇观当可选项；
      * 原料还没齐时连建造计划和岗位都不排，顺带错过奇观带来的铁/钢产能加成。 */
     var civicWonderBoost = civicGoal && civicGoal.boost;
-    if (civicWonderBoost && ['anyWonders', 'wonders', 'wonderEra'].indexOf(civicWonderBoost.t) >= 0 &&
+    if (civicWonderBoost && ['wonder', 'anyWonders', 'wonders', 'wonderEra'].indexOf(civicWonderBoost.t) >= 0 &&
         !SB.civic.boostMet(s, civicGoal)) {
       var civicWonderCandidates = (SB.WONDERS || []).filter(function (wonder) {
         if (!wonder || !wonderEligible(s, wonder)) return false;
         if (civicWonderBoost.t === 'wonderEra') return wonder.era === civicWonderBoost.era;
+        if (civicWonderBoost.t === 'wonder' || civicWonderBoost.t === 'anyWonders') return true;
         return (civicWonderBoost.ids || []).indexOf(wonder.id) >= 0;
       }).map(function (wonder) {
         var cost = wonder.cost || {}, score = 0, ready = SB.workshop.wonderBlocked(s, wonder.id) === null;
@@ -1306,6 +1310,8 @@
       var storage = storageBuild(s);
       if (storage) return storage;
     }
+    var warAcademy = warAcademyBuildTarget(s);
+    if (warAcademy) return warAcademy;
     /* 先铺稳定口粮与储存，再解锁新系统；战时（寒流）不强行开保温法。 */
     if (availableBuilding(s, 'weir') && s.lvl.kelp > 0 && s.lvl.weir < 4) return 'weir';
     if (availableBuilding(s, 'warmnest') && s.pop >= 6 && s.lvl.warmnest < 8) return 'warmnest';
@@ -1652,6 +1658,17 @@
         return wc;
       }
     }
+    /* 先打通战争系统自身的门槛，避免更早排列的《王权神授》等可选市政挡在前面。
+     * 《军事训练》只要求政治哲学与军营 2 级；首敌被吞并后，《职业军队》的战役门槛
+     * 已满足，可继续解锁入侵。两者都走同一套正式 req/boost 判定，不绕过市政规则。 */
+    var warCivicPriority = ['military_training', 'professional_army', 'mobilization'];
+    for (var wci = 0; wci < warCivicPriority.length; wci++) {
+      var warCivic = SB.civic.byId ? SB.civic.byId(warCivicPriority[wci]) : null;
+      if (!warCivic || (warCivic.era && warCivic.era > s.era) || s.civics[warCivic.id] ||
+          !SB.civic.reqsMet(s, warCivic) || !warCivic.boost || SB.civic.boostMet(s, warCivic) ||
+          (SB.civic.challengeAllows && !SB.civic.challengeAllows(s, warCivic))) continue;
+      return warCivic;
+    }
     for (var i = 0; i < SB.CIVICS.length; i++) {
       var c = SB.CIVICS[i];
       if (c.era && c.era > s.era || s.civics[c.id] || !SB.civic.reqsMet(s, c)) continue;
@@ -1675,6 +1692,184 @@
   function nextCivicBoost(s) {
     var goal = nextCivicGoal(s);
     return goal && goal.boost || null;
+  }
+  function preferredWarAction(s) {
+    if (!SB.war || !s || !s.civics || !SB.war.ACTIONS) return null;
+    var ids = ['totalWar', 'invasion', 'raid'];
+    for (var i = 0; i < ids.length; i++) {
+      var action = SB.war.ACTIONS[ids[i]];
+      if (action && s.civics[action.unlockCivic]) return ids[i];
+    }
+    return null;
+  }
+  function warPowerRateTarget(s) {
+    if (!SB.war || !s || !s.civics || !s.civics.military_training) return null;
+    var enemy = SB.war.currentEnemy(s), actionId = preferredWarAction(s);
+    if (!enemy || !actionId) return null;
+    var odds = SB.war.actionProbabilities(s, actionId), spec = SB.war.ACTIONS[actionId];
+    var actionCost = SB.war.actionCost(s, enemy, actionId), expectedScaleFactor = 0;
+    if (!odds || !spec || !(actionCost > 0)) return null;
+    ['failure', 'success', 'greatSuccess'].forEach(function (outcome) {
+      var item = spec.outcomes[outcome];
+      if (item) expectedScaleFactor += (Number(odds[outcome]) || 0) * (Number(item.scaleLoss) || 0);
+    });
+    /* scaleLoss = actionCost * outcome.scaleLoss. Dividing the weighted loss
+     * coefficient by actionCost here counted the enemy scale twice and inflated
+     * the target military rate by the action cost (often hundreds of times).
+     * The expected scale loss per point of military power is just this weighted
+     * coefficient; the quote is only needed above to reject unavailable actions. */
+    var damagePerPower = expectedScaleFactor;
+    if (!(damagePerPower > 0)) return null;
+    var recovery = Number(SB.war.RECOVERY_PER_SECOND) || 0.0005;
+    var currentPowerRate = SB.war.rate(s);
+    var requiredPowerRate = SB.war.effectiveMaxScale(enemy) * recovery * 1.25 / damagePerPower;
+    return { enemy: enemy, actionId: actionId, actionCost: actionCost,
+      damagePerPower: damagePerPower, currentPowerRate: currentPowerRate,
+      requiredPowerRate: requiredPowerRate };
+  }
+  function desiredWarForce(s, foodNeed) {
+    var target = warPowerRateTarget(s);
+    if (!target || !SB.folk || !SB.folk.jobUnlocked(s, 'soldier')) return 0;
+    var workers = Math.max(0, (Number(s.pop) || 0) - (Number(foodNeed) || 0));
+    if (workers <= 0) return 0;
+    var soldiers = Number(s.jobs && s.jobs.soldier) || 0;
+    var original = Number(s.jobs.soldier) || 0, rateWithOneMore = target.currentPowerRate;
+    try {
+      s.jobs.soldier = original + 1;
+      rateWithOneMore = SB.war.rate(s);
+    } finally {
+      s.jobs.soldier = original;
+    }
+    var perSoldier = Math.max(0, rateWithOneMore - target.currentPowerRate);
+    if (!(perSoldier > 0)) return Math.min(1, workers);
+    var academyRate = Math.max(0, target.currentPowerRate - soldiers * perSoldier);
+    var required = Math.max(0, Math.ceil((target.requiredPowerRate - academyRate) / perSoldier));
+    var baseline = Math.max(1, Math.ceil(workers * 0.15));
+    var forceLimit = workers > 5 ? Math.max(1, Math.floor(workers * 0.45)) : Math.max(1, workers - 1);
+    var jobLimit = SB.folk.jobLimit ? SB.folk.jobLimit(s, 'soldier') : forceLimit;
+    return Math.min(Math.max(baseline, required), forceLimit, jobLimit);
+  }
+  function warAcademyBuildTarget(s) {
+    var target = warPowerRateTarget(s);
+    var perLevel = (Number(s && s.pop) || 0) *
+      (Number(SB.BLD && SB.BLD.militaryAcademyPowerPerPopulationPerLevel) || 0.1);
+    if (!target || !(perLevel > 0) || !availableBuilding(s, 'military_academy') ||
+        target.currentPowerRate + 1e-9 >= target.requiredPowerRate) return null;
+    return 'military_academy';
+  }
+  function runWarDiplomacyAndCampaign(s, civicCost) {
+    var result = { action: null, enemyId: null, currentScale: 0, maxScale: 0,
+      power: 0, powerRate: 0, annexCost: 0, tradeRouteLevel: 0,
+      cultureReduction: 0, faithReduction: 0,
+      expectedScaleDamageRate: 0, enemyRecoveryRate: 0,
+      expectedAnnexProgressRate: 0, holdingForAnnex: false };
+    if (!SB.war || !s || !s.civics || !s.civics.military_training) return result;
+    if (SB.war.syncCampaign) SB.war.syncCampaign(s);
+    var enemy = SB.war.currentEnemy(s);
+    result.power = SB.war.power(s);
+    result.powerRate = SB.war.rate(s);
+    result.tradeRouteLevel = Number(s.war && s.war.tradeRouteLevel) || 0;
+    if (!enemy) return result;
+    result.enemyId = enemy.id;
+    result.currentScale = SB.war.currentScale(enemy);
+    result.maxScale = SB.war.effectiveMaxScale(enemy);
+    result.cultureReduction = Number(enemy.cultureReduction) || 0;
+    result.faithReduction = Number(enemy.faithReduction) || 0;
+    var warTarget = warPowerRateTarget(s);
+    if (warTarget) {
+      result.expectedScaleDamageRate = warTarget.currentPowerRate * warTarget.damagePerPower;
+      result.enemyRecoveryRate = SB.war.effectiveMaxScale(warTarget.enemy) *
+        (Number(SB.war.RECOVERY_PER_SECOND) || 0.0005);
+      var annexMultiplier = SB.war.annexMultiplier ? SB.war.annexMultiplier(s) : 5;
+      result.expectedAnnexProgressRate =
+        (result.expectedScaleDamageRate - result.enemyRecoveryRate) * annexMultiplier - result.powerRate;
+    }
+    result.annexCost = SB.war.annexCost(enemy, SB.war.mirrorBuilt(s));
+
+    /* Soft power lowers the durable enemy cap. Keep enough culture for the next civic,
+     * but spend genuine surplus before committing military power. */
+    var softPower = [];
+    if (s.civics.drama && result.cultureReduction < 0.30 - 1e-9)
+      softPower.push({ id: 'culture', resource: 'culture', reduction: result.cultureReduction });
+    if (s.civics.sovereign && result.faithReduction < 0.30 - 1e-9)
+      softPower.push({ id: 'faith', resource: 'faith', reduction: result.faithReduction });
+    softPower.sort(function (a, b) { return a.reduction - b.reduction; });
+    for (var si = 0; si < softPower.length; si++) {
+      var channel = softPower[si], cost = SB.war.softPowerCost(s, enemy, channel.id);
+      var reserve = channel.resource === 'culture' ? Math.max(1000, Number(civicCost) || 0) : 0;
+      if ((Number(s.res[channel.resource]) || 0) + 1e-9 < cost + reserve) continue;
+      var softResult = SB.war.executeSoftPowerAction(s, enemy.id, channel.id);
+      if (softResult.ok) {
+        result.action = { type: 'softPower', id: channel.id, outcome: softResult.outcome,
+          cost: softResult.cost, appliedReduction: softResult.appliedReduction };
+        result.currentScale = SB.war.currentScale(enemy);
+        result.maxScale = SB.war.effectiveMaxScale(enemy);
+        result.cultureReduction = Number(enemy.cultureReduction) || 0;
+        result.faithReduction = Number(enemy.faithReduction) || 0;
+        return result;
+      }
+    }
+
+    /* Annex immediately once the real power quote is met, before buying another attack. */
+    if (result.power + 1e-9 >= result.annexCost) {
+      var annexed = SB.war.annexEnemy(s, enemy.id);
+      if (annexed.ok) {
+        result.action = { type: 'annex', cost: annexed.cost,
+          campaignStage: annexed.campaignStage, populationCapAward: annexed.populationCapAward };
+        result.enemyId = enemy.id;
+        result.currentScale = SB.war.currentScale(enemy);
+        result.maxScale = SB.war.effectiveMaxScale(enemy);
+        result.power = SB.war.power(s);
+        result.tradeRouteLevel = Number(s.war && s.war.tradeRouteLevel) || 0;
+        return result;
+      }
+    }
+
+    var selected = preferredWarAction(s), selectedCost = selected
+      ? SB.war.actionCost(s, enemy, selected) : 0;
+    if (!(selectedCost > 0) || result.power + 1e-9 < selectedCost) selected = null;
+
+    /* Judge attacks by progress toward the actual annex quote, not enemy damage alone.
+     * A battle can outpace recovery yet still spend more power than it saves from the
+     * quote. In that case, preserve power and soldiers; direct annexation takes priority. */
+    if (selected && result.expectedAnnexProgressRate <= 1e-9) {
+      selected = null;
+      result.holdingForAnnex = true;
+    }
+
+    /* The route is consumed by any attack. Build it only when a larger campaign action
+     * is within one decision window and stone is comfortably above the route's price. */
+    if (selected && selectedCost >= 1000 && s.civics.trade && result.tradeRouteLevel < 3) {
+      var routeQuote = SB.war.tradeRouteQuote(s);
+      var routeCost = Number(routeQuote && routeQuote.cost) || 0;
+      var routeDiscountPolicy = SB.civic && SB.civic.cardEffective &&
+        (SB.civic.cardEffective(s, 'card_official_business') ||
+          SB.civic.cardEffective(s, 'card_trade_intelligence'));
+      if (routeDiscountPolicy && routeCost > 0 &&
+          (Number(s.res.stone) || 0) >= routeCost * 3) {
+        var route = SB.war.establishTradeRoute(s);
+        if (route.ok) {
+          result.action = { type: 'tradeRoute', level: route.level, cost: route.cost };
+          result.tradeRouteLevel = route.level;
+          return result;
+        }
+      }
+    }
+
+    if (selected && SB.war.lootResourceCandidates(s).length) {
+      var actionResult = SB.war.executeAction(s, enemy.id, selected);
+      if (actionResult.ok) {
+        result.action = { type: 'military', id: selected, outcome: actionResult.outcome,
+          cost: actionResult.cost, resourceId: actionResult.resourceId,
+          lootAmount: actionResult.lootAmount, soldiersLost: actionResult.soldiersLost,
+          scaleLoss: actionResult.scaleLoss, populationCapAward: actionResult.populationCapAward };
+        result.currentScale = SB.war.currentScale(enemy);
+        result.maxScale = SB.war.effectiveMaxScale(enemy);
+        result.power = SB.war.power(s);
+        result.tradeRouteLevel = Number(s.war && s.war.tradeRouteLevel) || 0;
+      }
+    }
+    return result;
   }
   function step(s, options) {
     options = options || {};
@@ -1814,6 +2009,23 @@
     if (neededScienceCost && (s.res.science || 0) < neededScienceCost)
       weights.scholar = Math.max(weights.scholar, 0.90);
     var civicCost = nextCivicCost(s), civicGoal = nextCivicGoal(s), civicBoost = civicGoal && civicGoal.boost;
+    var warForceTarget = 0;
+    if (s.civics && s.civics.military_training && SB.war && SB.war.syncCampaign) {
+      SB.war.syncCampaign(s);
+      warForceTarget = desiredWarForce(s, foodNeed);
+      var warAvailableWorkers = Math.max(0, s.pop - foodNeed);
+      if (warForceTarget > 0 && warForceTarget < warAvailableWorkers) {
+        var otherWarWeight = 0;
+        for (var wj = 0; wj < (SB.folk.IDS || []).length; wj++) {
+          var warJob = SB.folk.IDS[wj];
+          if (warJob !== 'gather' && warJob !== 'soldier' && SB.folk.jobUnlocked(s, warJob))
+            otherWarWeight += Number(weights[warJob]) || 0;
+        }
+        if (otherWarWeight > 0)
+          weights.soldier = Math.max(weights.soldier || 0,
+            warForceTarget * otherWarWeight / (warAvailableWorkers - warForceTarget));
+      }
+    }
     var faithSelection = chooseFaithTenets(s, goal, civicGoal);
     if (faithSelection.changed) { changed = true; actions += faithSelection.selections.length || 1; }
     if (civicBoost && civicBoost.t === 'pop' && !SB.civic.boostMet(s, civicGoal))
@@ -2394,6 +2606,35 @@
         }
       }
     }
+    if (warForceTarget > (Number(s.jobs && s.jobs.soldier) || 0) && SB.folk.jobUnlocked(s, 'soldier')) {
+      var soldierLimit = SB.folk.jobLimit ? SB.folk.jobLimit(s, 'soldier') : warForceTarget;
+      var soldierTarget = Math.min(warForceTarget, soldierLimit,
+        Math.max(0, s.pop - Math.max(foodNeed, Number(s.jobs.gather) || 0)) +
+          (Number(s.jobs.soldier) || 0));
+      var warDonorFloors = { gather: Math.max(foodNeed, Number(s.jobs.gather) || 0), scholar: 1,
+        scribe: civicCost && (Number(s.res.culture) || 0) < civicCost ? 1 : 0,
+        miner: Math.min(Number(s.jobs.miner) || 0, Number(productionMinerTarget) || 0) };
+      Object.keys(reservedMaterialJobs).forEach(function (job) {
+        warDonorFloors[job] = Math.max(Number(warDonorFloors[job]) || 0, 1);
+      });
+      if (civicBoost && civicBoost.t === 'job' && civicBoost.j)
+        warDonorFloors[civicBoost.j] = Math.max(Number(warDonorFloors[civicBoost.j]) || 0, 1);
+      if (cond && cond.t === 'job' && cond.j)
+        warDonorFloors[cond.j] = Math.max(Number(warDonorFloors[cond.j]) || 0, 1);
+      var warDonors = ['merchant', 'scribe', 'scholar', 'quarrier', 'coralwright', 'miner', 'gather'];
+      var warMoveGuard = 0;
+      while ((Number(s.jobs.soldier) || 0) < soldierTarget && warMoveGuard++ < s.pop) {
+        var warMoved = false;
+        for (var wd = 0; wd < warDonors.length; wd++) {
+          var donor = warDonors[wd];
+          if ((Number(s.jobs[donor]) || 0) <= (Number(warDonorFloors[donor]) || 0)) continue;
+          if (SB.folk.assign(s, donor, -1) && SB.folk.assign(s, 'soldier', 1)) {
+            changed = true; actions++; warMoved = true; break;
+          }
+        }
+        if (!warMoved) break;
+      }
+    }
     if (JSON.stringify(s.jobs) !== jobsBefore) { changed = true; actions++; }
     /* 现有汽轮机若超过暖石的可持续净产量就停一部分；热液工坊也不能运行得多过
      * 可用供给。按等价于 UI 停/开按钮的停用计数调整，不改建筑或资源，防止扩产反过来
@@ -2870,6 +3111,8 @@
       isWaterPollutionRun(s) ? (s.lvl.hydroshop || 0) : Math.min(s.lvl.hydroturbine || 0, sustainableTurbines));
     var finalShopStop = Math.max(0, (Number(s.lvl.hydroshop) || 0) - finalShopRun);
     if ((s.hydroshopStop || 0) < finalShopStop) { s.hydroshopStop = finalShopStop; changed = true; actions++; }
+    var warCampaign = runWarDiplomacyAndCampaign(s, civicCost);
+    if (warCampaign.action) { changed = true; actions++; }
     if (changed && SB.game.markDirty) SB.game.markDirty();
     return { changed: changed, actions: actions, goal: goal.id || null, condition: cond && cond.t || null,
       faithTenetSelections: faithSelection.selections,
@@ -2912,6 +3155,7 @@
           ? SB.workshop.upgradeBlocked(s, 'upg_autodrill') : null
       }) : null,
       civic: civicGoal && civicGoal.id || null, civicCondition: civicBoost && civicBoost.t || null,
+      war: warCampaign, warForceTarget: warForceTarget,
       zoneJobs: Object.keys(requiredZoneJobs), zoneJobCounts: Object.keys(requiredZoneJobs).map(function (job) {
         return job + ':' + (s.jobs[job] || 0);
       }),
@@ -2960,7 +3204,7 @@
       build: nextBuild || null, wonder: nextWonder || null };
   }
 
-  SB.aiStrategy = { version: 108, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
+  SB.aiStrategy = { version: 115, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
     markVoidEndingRun: markVoidEndingRun,
     isVoidEndingRun: isVoidEndingRun,
     drillStockTarget: drillStockTarget };

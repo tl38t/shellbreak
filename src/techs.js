@@ -380,7 +380,7 @@
 
     { id: 'ironwork',  name: '铁器',   icon: 'assets/tech-icons/era-2/era2-ironwork.png', era: 2, cost: 800, branch: 'survive', key: false, reqs: [], layer: 1,
       cond: { t: 'res', r: 'silt', n: 60 },
-      eff: { smelt: 0.40, unlockBuild: ['furnace'] },
+      eff: { smelt: 0.40, unlockBuild: ['furnace', 'barracks'], unlockJob: ['soldier'] },
       note: 'Civ6: Iron Working 位 · 金属第一次不只是存货，是能敲出东西的材料。' },
 
     /* ⚠️ 「御寒术」（原 id `insulation`，Civ6 Construction 位，解锁保温巢 + 抗寒上限）
@@ -522,8 +522,12 @@
      * 城堡(工坊升级 upg_castle) 解锁权写在工坊表。 */
     { id: 'castle',     name: '城堡',   icon: 'assets/tech-icons/era-3/era3-castle.png', era: 3, cost: 10000, branch: 'live', key: false, reqs: ['engineeringT'], layer: 3,
       cond: { t: 'gov', wild: 3 },
-      eff: {},
+      eff: { unlockBuild: ['fortress'] },
       unlockDesc: '解锁议事厅升级「城堡」；购买后降低建筑造价，每级为纪元三及之前有上限资源 +50 容量、市政点 +0.05/秒。' },
+    { id: 'siegeT', name: '攻城学', icon: 'assets/tech-icons/era-3/era3-siegecraft.png', era: 3, cost: 7500, branch: 'know', key: false, reqs: ['horseshoe'], layer: 3,
+      cond: { t: 'warPower', n: 1000 },
+      eff: {},
+      unlockDesc: '解锁工坊升级「回旋迸石机」（战争行动对敌国规模损耗 +10%）。' },
 
     /* ═════════ 纪元四 · 天壳工程（6 项 · 2万~7.5万） ═════════
      * ⚠️ 2026-09-30 用户重设计：旧五项（点火术/涡轮/测壳/洋流/壳铸）**整体删除**，换成下面六项。
@@ -603,6 +607,11 @@
       eff: { scaffoldCostSave: 0.25 },
       effectDesc: '所有建筑、工坊升级与奇观的脚手架需求 −25%；不影响其他材料。',
       unlockDesc: '解锁奇观「天壳切削器」；建成后科技与市政产出各增加相当于天壳观测站等级的百分比。' },
+    { id: 'ballistics', name: '弹道学', icon: 'assets/tech-icons/era-4/era4-ballistics.png', era: 4, cost: 40000, branch: 'survive', key: false,
+      reqs: ['physics'], layer: 5,
+      cond: { t: 'campaignStage', n: 1 },
+      eff: {},
+      unlockDesc: '解锁工坊升级「金属弹丸」（战争行动对敌国规模损耗 +30%）。' },
 
     /* ═════════ 纪元五 · 破壳（6 项 · layer 5/5/5/6/6/7） ═════════
      * 工业化。破冰祭坛（奇迹装置）的解锁仍走 config 的 miracle.requiredTech（见下方别处），
@@ -645,7 +654,7 @@
     { id: 'pubedu', name: '普及教育', icon: 'assets/tech-icons/era-5/era5-public-schooling.png', era: 5, cost: 90000, branch: 'know', key: false,
       reqs: ['printing', 'physics'], layer: 5,
       cond: { t: 'rate', r: 'science', n: 100 },
-      eff: { unlockBuild: ['school'] },
+      eff: { unlockBuild: ['school', 'military_academy'] },
       note: 'Civ6: Public Schooling · 科学产出达到 100/s。解锁学校（每名鲛人 +0.1 科技/秒、+0.1 市政/秒，每级）。' },
 
     { id: 'abyssgeo', name: '渊海地质学', icon: 'assets/tech-icons/era-5/era5-abyssal-geology.png', era: 5, cost: 100000, branch: 'know', key: false,
@@ -893,7 +902,7 @@
       /* B7（2026-10-19 实装）：唯一解锁「机器人充能站」落地 ⇒ 补 unlockBuild:['robotbay']。
        * 机器人机制（robotbay 建筑 + folk.js 人口子系统）随本波一并实装。 */
       eff: { unlockBuild: ['robotbay'] },
-      unlockDesc: '解锁建筑「机器人充能站」（维持 4 机器人人口/级：仅担任非书手/学者岗位，产出 +20%、不影响信仰点）。' },
+      unlockDesc: '解锁建筑「机器人充能站」（维持 4 机器人人口/级：仅担任非书手/学者岗位，产出 +20%、不影响信仰点）；解锁工坊升级「全水文军事辅助机械」（战争行动对敌国规模损耗 +70%）。' },
 
     { id: 'nanotech', name: '纳米技术', icon: 'assets/tech-icons/era-8/era8-nanotech.png', era: 8, cost: 4400000, branch: 'know', key: false, reqs: ['robotics'], layer: 16,
       /* 尤里卡依赖 θ金属产线（thetaRate 进 rates().thetaMetal）——产线随 biomatlab 先落地。 */

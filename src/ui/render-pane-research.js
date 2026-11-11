@@ -107,7 +107,11 @@
     }, why);
     return why;
   }
-  var SLOT_LOCALE_KEYS = { wild: 'universal', prod: 'production', sci: 'research', grow: 'growth', relig: 'religion' };
+  var SLOT_LOCALE_KEYS = {
+    wild: 'universal', prod: 'production', sci: 'research', grow: 'growth', relig: 'religion',
+    /* 军事槽与 policy.slot.military 同名，显式列出，别靠 `|| type` 的隐式回落。 */
+    military: 'military'
+  };
   function slotName(type) {
     var fallback = SB.civic && SB.civic.slotTypeName ? SB.civic.slotTypeName(type) : type;
     return tr('policy.slot.' + (SLOT_LOCALE_KEYS[type] || type), null, fallback);
@@ -976,7 +980,7 @@
       return h + pool(s, armedCard);
     }
     h += '<div class="policy-slot-grid">';
-    var slotGlyphs = { wild: '◇', prod: '⚙', sci: '✦', grow: '♧', relig: '☼' };
+    var slotGlyphs = { wild: '◇', prod: '⚙', sci: '✦', grow: '♧', relig: '☼', military: '⚔' };
     for (i = 0; i < list.length; i++) {
       var st = list[i].type, filled = (s.cards && s.cards[i]) ? C.policyById(s.cards[i]) : null;
       var _terminusSlot = !!(filled && filled.id === 'card_cycle_terminus');
@@ -1115,8 +1119,11 @@
   function pool(s, armedCard) {
     var C = SB.civic, h = '';
     var own = [], i, p;
-    var categoryOrder = ['prod', 'sci', 'grow', 'relig', 'wild'];
-    var categories = { prod: [], sci: [], grow: [], relig: [], wild: [] };
+    /* ⚠️ 分组表必须与 civics-data.js 的 SLOT_TYPES 同步：2026-11-11 之前这里漏了 military，
+     *    8 张 type:'military' 的卡全部被 `categories[p.type] ? ... : 'wild'` 塞进万能组，
+     *    卡面标签也跟着写成「万能槽」——数据层其实早有军事槽（军事训练追加）。 */
+    var categoryOrder = ['prod', 'sci', 'grow', 'relig', 'military', 'wild'];
+    var categories = { prod: [], sci: [], grow: [], relig: [], military: [], wild: [] };
     var policies = C.policyList ? C.policyList(s) : (SB.POLICIES || []);
     for (i = 0; i < policies.length; i++) {
       p = policies[i];
@@ -1162,9 +1169,11 @@
           /* 幸福度提示按当前卡自己的 happyOffset 显示；不能把所有已装卡的合计重复贴到每张卡上。 */
           (on ? SB.ui.renderCommon.happyBonusNote(s, 'card', q.id) : '') +
           '<div class="policy-card-desc">' + policyDesc(q, s) +
+          /* 警告读卡自己的 type，不读分组回落值：分组遇到未知类型会落 wild，
+           * 那时写「需要 万能槽」会与 cardFits 的真实判定对不上。 */
           (on ? '' : fits ? '' : '<br><span class="policy-card-warning">' + tr('civic.policy.card.slot_mismatch.warning', {
-            slotType: slotName(groupType)
-          }, '⚠ 与当前槽型不对口：需要 ' + C.slotTypeName(groupType)) + '</span>') +
+            slotType: slotName(q.type || 'wild')
+          }, '⚠ 与当前槽型不对口：需要 ' + C.slotTypeName(q.type || 'wild')) + '</span>') +
           '</div>' +
           (qFlavor ? '<div class="policy-card-flavor' + (voidCard ? ' void-flavor' : '') + '">' + qFlavor + '</div>' : '') +
           '<button class="btn' + (on || why ? '' : ' buy') + '" data-card="' + q.id + '"' +
