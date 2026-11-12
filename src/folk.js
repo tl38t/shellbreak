@@ -411,6 +411,6 @@
      * 不必绕 effJobs 反推；robotbay  desc 与信仰口径也读它）。 */
     robotMult: robotMult,
     robotJobAllowed: robotJobAllowed, assignRobot: assignRobot, reconcileRobot: reconcileRobot,
-    effJobs: effJobs
+    effJobs: effJobs, trimJobsToPop: trimJobsToPop
   };
 })(typeof window !== 'undefined' ? window : globalThis);

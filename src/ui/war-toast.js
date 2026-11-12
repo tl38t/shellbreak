@@ -4,7 +4,7 @@
  *
  * 【口径纪律】war.js:104-129 / 785-837
  *   · state.power = 军力储备；cost = 有效规模上限 × costShare，L800 无条件先扣，与成败无关。
- *   · s.jobs.soldier = 军人；soldiersLost 才是随成败变化的代价（失败最重，入侵/全面战争全灭）。
+ *   · s.jobs.soldier = 军人；popLost 才是随成败变化的代价（按国家人口比率 ceil 计，不可被调岗规避）。
  *   · scaleLoss = cost × 系数，失败也会削减敌国规模。
  *   · 被动入侵完全不扣军力储备，只改敌国规模 + 三类惩罚。
  *   ⇒ 本组件所有系数一律从 SB.war.ACTIONS / war.js 的结算结果读取，禁止硬编码。
@@ -66,12 +66,12 @@
     var isFailure = result.outcome === 'failure';
     var isGreat = result.outcome === 'greatSuccess';
     var cost = Number(result.cost) || 0;
-    var soldiersLost = Number(result.soldiersLost) || 0;
+    var popLost = Number(result.popLost) || 0;
     var lootAmount = Number(result.lootAmount) || 0;
     var popCap = Number(result.populationCapAward) || 0;
     var refund = Number(result.refund) || 0;
-    /* 全灭判据读源码系数，不写死「入侵/全面战争」名单 */
-    var wiped = soldiersLost > 0 && !!outcomeSpec && Number(outcomeSpec.soldierLoss) >= 1;
+    /* 人口损失不再有「全灭」概念（popLoss 最高 0.08，不会 100%），原 wiped 判据作废 */
+    var wiped = false;
     var failureStillHits = isFailure && !!outcomeSpec && Number(outcomeSpec.scaleLoss) > 0;
 
     var lines = [];
@@ -80,12 +80,12 @@
     lines.push(line(tr(failureStillHits ? 'ui.war.toast.scale_loss_failure' : 'ui.war.toast.scale_loss',
       { scaleLoss: fmt(result.scaleLoss) },
       '敌国规模 −' + fmt(result.scaleLoss) + (failureStillHits ? '（失败仍有削减）' : '')), 'is-pos'));
-    if (soldiersLost > 0) {
-      lines.push(line(tr(wiped ? 'ui.war.toast.soldiers_wipe' : 'ui.war.toast.soldiers',
-        { soldiersLost: fmt(soldiersLost) },
-        '军人阵亡 ' + fmt(soldiersLost) + ' 人' + (wiped ? '（全灭）' : '')), 'is-neg'));
+    if (popLost > 0) {
+      lines.push(line(tr('ui.war.toast.pop_loss',
+        { popLost: fmt(popLost) },
+        '人口损失 ' + fmt(popLost) + ' 人'), 'is-neg'));
     } else {
-      lines.push(line(tr('ui.war.toast.soldiers_none', null, '军人无阵亡'), 'is-neu'));
+      lines.push(line(tr('ui.war.toast.pop_loss_none', null, '人口无损失'), 'is-neu'));
     }
     if (lootAmount > 0) {
       lines.push(line(tr('ui.war.toast.loot', {
@@ -102,7 +102,7 @@
     /* 常驻行复用现有完整日志文案（已含全部字段），不另造一条口径 */
     var lastText = tr('ui.war.result.action', {
       actionName: actionName(result.action), outcomeName: outcomeName(result.outcome),
-      scaleLoss: fmt(result.scaleLoss), soldiersLost: fmt(soldiersLost),
+      scaleLoss: fmt(result.scaleLoss), popLost: fmt(popLost),
       lootAmount: fmt(lootAmount), resourceName: resourceName(result.resourceId),
       populationCapAward: popCap
     }, '');

@@ -1861,7 +1861,7 @@
       if (actionResult.ok) {
         result.action = { type: 'military', id: selected, outcome: actionResult.outcome,
           cost: actionResult.cost, resourceId: actionResult.resourceId,
-          lootAmount: actionResult.lootAmount, soldiersLost: actionResult.soldiersLost,
+          lootAmount: actionResult.lootAmount, popLost: actionResult.popLost,
           scaleLoss: actionResult.scaleLoss, populationCapAward: actionResult.populationCapAward };
         result.currentScale = SB.war.currentScale(enemy);
         result.maxScale = SB.war.effectiveMaxScale(enemy);

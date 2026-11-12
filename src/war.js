@@ -101,29 +101,33 @@
     { id: 'enemy_6', stage: 6, baseScale: 3125000, popCapPool: 25 },
     { id: 'enemy_7', stage: 7, baseScale: 15625000, popCapPool: 35 }
   ];
+  /* 2026-11-12：soldierLoss（军人比率损失）改为 popLoss（国家人口比率损失）。
+   * 目的：失败/成功的损失不再可被「行动前把军人调去别的岗位」规避 —— 损失按总人口 ceil(pop × popLoss) 计，
+   *   无论军人怎么调配都发生。数值由用户拍板：8% 对应最危险档（invasion/totalWar 失败，原 soldierLoss=1.0），
+   *   其余按原 success/greatSuccess 比例等比缩放（缩放因子 0.08）。 */
   var ACTIONS = {
     raid: {
       costShare: 0.05, lootSeconds: 60, unlockCivic: 'military_training',
       outcomes: {
-        failure: { chance: 0.25, scaleLoss: 0.30, soldierLoss: 0.50, popCap: 0 },
-        success: { chance: 0.70, scaleLoss: 0.70, soldierLoss: 0.20, popCap: 0 },
-        greatSuccess: { chance: 0.05, scaleLoss: 1.00, soldierLoss: 0, popCap: 1 }
+        failure: { chance: 0.25, scaleLoss: 0.30, popLoss: 0.04, popCap: 0 },
+        success: { chance: 0.70, scaleLoss: 0.70, popLoss: 0.016, popCap: 0 },
+        greatSuccess: { chance: 0.05, scaleLoss: 1.00, popLoss: 0, popCap: 1 }
       }
     },
     invasion: {
       costShare: 0.15, lootSeconds: 300, unlockCivic: 'professional_army',
       outcomes: {
-        failure: { chance: 0.35, scaleLoss: 0.50, soldierLoss: 1, popCap: 0 },
-        success: { chance: 0.60, scaleLoss: 0.80, soldierLoss: 0.50, popCap: 0 },
-        greatSuccess: { chance: 0.05, scaleLoss: 1.20, soldierLoss: 0.20, popCap: 2 }
+        failure: { chance: 0.35, scaleLoss: 0.50, popLoss: 0.08, popCap: 0 },
+        success: { chance: 0.60, scaleLoss: 0.80, popLoss: 0.04, popCap: 0 },
+        greatSuccess: { chance: 0.05, scaleLoss: 1.20, popLoss: 0.016, popCap: 2 }
       }
     },
     totalWar: {
       costShare: 0.30, lootSeconds: 600, unlockCivic: 'mobilization',
       outcomes: {
-        failure: { chance: 0.40, scaleLoss: 0.70, soldierLoss: 1, popCap: 0 },
-        success: { chance: 0.55, scaleLoss: 1.20, soldierLoss: 0.50, popCap: 0 },
-        greatSuccess: { chance: 0.05, scaleLoss: 1.50, soldierLoss: 0.20, popCap: 3 }
+        failure: { chance: 0.40, scaleLoss: 0.70, popLoss: 0.08, popCap: 0 },
+        success: { chance: 0.55, scaleLoss: 1.20, popLoss: 0.04, popCap: 0 },
+        greatSuccess: { chance: 0.05, scaleLoss: 1.50, popLoss: 0.016, popCap: 3 }
       }
     }
   };
@@ -195,6 +199,61 @@
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var total = (soldierOutput + academyOutput) * conquestProductionMultiplier(s);
     return isFinite(total) ? Math.max(0, total) : 0;
+  }
+  /* 军力来源分项（顶栏资源详情弹窗用）。格式与 economy.ratesParts 的 parts 对齐：
+   * 每项 { l:来源名, v:最终值, b:基数, m:[[乘区名,倍率],...] }；partRow 据此渲染「基数 × 各乘区」。
+   * 军力无逐 tick 消耗分项（只在战争行动中一次性扣减），故只返回产出分项；
+   * 两项 v 均已含征服生产乘区，使「分项之和 === 净值(rate)」结构一致。
+   * ⚠️ 整段复刻 rate() 的算式（不调用 rate()，以免把 soldierOutput 拆开）；
+   *   若将来 rate() 改军工力公式，此处须同步。 */
+  function powerParts(s) {
+    if (!s) return [];
+    var B = SB.BLD || {};
+    var jobs = SB.folk && SB.folk.effJobs ? SB.folk.effJobs(s) : (s.jobs || {});
+    var soldiers = nonNegative(jobs.soldier);
+    var barracksLevel = nonNegative(s.lvl && s.lvl.barracks);
+    var academyLevel = nonNegative(s.lvl && s.lvl.military_academy);
+    var baseSoldierRate = nonNegative(B.soldierMilitaryPower);
+    var barracksBonus = nonNegative(B.barracksMilitaryBonusPerLevel);
+    var barracksBonusMul = policyEquipped(s, 'card_fleet_review') ? policyNumber(s, 'card_fleet_review', 'barracksBonusMul', 1.5)
+      : policyEquipped(s, 'card_mercenary') ? policyNumber(s, 'card_mercenary', 'barracksBonusMul', 1)
+        : policyEquipped(s, 'card_drill') ? policyNumber(s, 'card_drill', 'barracksBonusMul', 0.5) : 0;
+    var soldierBase = soldiers * baseSoldierRate;
+    var barracksFactor = 1 + barracksLevel * barracksBonus * (1 + barracksBonusMul);
+    var soldierOutput = soldierBase * barracksFactor;
+    var soldierChallengeMul = (SB.challenges && SB.challenges.soldierOutputMul) ? SB.challenges.soldierOutputMul(s) : 1;
+    soldierOutput *= soldierChallengeMul;
+    var soldierUpgradeBonus = SB.economy && SB.economy.upgSum ? nonNegative(SB.economy.upgSum(s, 'militarySoldierBonus')) : 0;
+    var soldierWonderBonus = 0;
+    if (wonderOwned(s, 'wonder_goddard_rod')) {
+      var spacecraftCount = 0;
+      if (Array.isArray(s.spacecraft)) for (var si = 0; si < s.spacecraft.length; si++) {
+        var craft = s.spacecraft[si];
+        if (craft && (craft.type === 'satellite' || craft.type === 'station')) spacecraftCount++;
+      }
+      soldierWonderBonus = wonderEffectValue('wonder_goddard_rod', 'soldierOutputBonus', 0.10)
+        + spacecraftCount * wonderEffectValue('wonder_goddard_rod', 'spacecraftSoldierOutputBonus', 0.05);
+    }
+    /* 工坊升级(加成)与上帝之杖(奇观)同为加法叠加，合成一个乘区 chip，保证 b×m===v。 */
+    var soldierBonusFactor = 1 + soldierUpgradeBonus + soldierWonderBonus;
+    soldierOutput *= soldierBonusFactor;
+    var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
+    var conquestMul = conquestProductionMultiplier(s);
+    var parts = [];
+    if (soldierBase > 0) {
+      var sm = [];
+      if (barracksFactor !== 1) sm.push([tr('building.barracks.name'), barracksFactor]);
+      if (soldierChallengeMul !== 1) sm.push([tr('challenge.definition.totalwar_doctrine.name'), soldierChallengeMul]);
+      if (soldierBonusFactor !== 1) sm.push([tr('ui.resource.detail.power.soldier_bonus'), soldierBonusFactor]);
+      if (conquestMul !== 1) sm.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
+      parts.push({ l: tr('job.soldier.name'), v: soldierOutput * conquestMul, b: soldierBase, m: sm });
+    }
+    if (academyOutput > 0) {
+      var am = [];
+      if (conquestMul !== 1) am.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
+      parts.push({ l: tr('building.military_academy.name'), v: academyOutput * conquestMul, b: academyOutput, m: am });
+    }
+    return parts;
   }
   function tick(s, dt, emit, opts) {
     var state = ensureState(s);
@@ -331,6 +390,11 @@
   function translated(key, params) {
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
     return value || '';
+  }
+  /* 与全工程其他模块同款的 tr（带 fallback）；本模块原本只有 translated，powerParts 弹窗需要它。 */
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
   }
   function randomValue() {
     var value = SB.rng ? Number(SB.rng()) : Math.random();
@@ -865,13 +929,18 @@
     scaleLoss *= 1 + enemyScaleDamageBonus;
     var scaleBefore = currentScale(enemy);
     enemy.currentScale = Math.max(0, scaleBefore - scaleLoss);
-    var soldiersBefore = nonNegative(s.jobs && s.jobs.soldier);
-    var soldierLossRate = outcomeId !== 'failure' && policyEquipped(s, 'card_victory_day_parade')
-      ? 0 : result.soldierLoss;
-    var soldiersLost = Math.min(soldiersBefore, Math.round(soldiersBefore * soldierLossRate));
-    if (soldiersLost > 0) {
-      s.jobs.soldier = soldiersBefore - soldiersLost;
-      s.pop = Math.max(0, nonNegative(s.pop) - soldiersLost);
+    /* 2026-11-12：损失从「军人比率」改为「国家人口比率」，不可被调岗规避。
+     * popLoss 为人口损失比率（向上取整）；优先减军人岗位，剩余落普通人口由 trimJobsToPop 兜底。
+     * 胜利日游行卡（card_victory_day_parade）豁免成功时的人口损失，与原「豁免军人损失」口径一致。 */
+    var popLossRate = outcomeId !== 'failure' && policyEquipped(s, 'card_victory_day_parade')
+      ? 0 : (result.popLoss || 0);
+    var lostPop = Math.ceil(nonNegative(s.pop) * popLossRate);
+    if (lostPop > 0) {
+      var soldierBefore = nonNegative(s.jobs && s.jobs.soldier);
+      var soldierPart = Math.min(soldierBefore, lostPop);
+      if (soldierPart > 0) s.jobs.soldier = soldierBefore - soldierPart;   // 优先减军人
+      s.pop = Math.max(0, nonNegative(s.pop) - lostPop);                   // 总减 lostPop
+      if (SB.folk && typeof SB.folk.trimJobsToPop === 'function') SB.folk.trimJobsToPop(s);  // 兜底 jobs ≤ pop
     }
     var capAward = Math.min(result.popCap, Math.max(0, nonNegative(enemy.popCapPool) - nonNegative(enemy.popCapClaimed)));
     enemy.popCapClaimed = nonNegative(enemy.popCapClaimed) + capAward;
@@ -889,7 +958,7 @@
     var result = {
       ok: true, action: actionId, outcome: outcomeId, cost: cost, refund: refund,
       probabilities: odds, scaleBefore: scaleBefore, scaleLoss: scaleLoss,
-      scaleAfter: enemy.currentScale, soldiersLost: soldiersLost,
+      scaleAfter: enemy.currentScale, popLost: lostPop,
       populationCapAward: capAward, resourceId: resourceId,
       resourceRate: resourceRate, lootAmount: actualLoot
     };
@@ -914,6 +983,7 @@
     INVASION_COOLDOWN_SECONDS: INVASION_COOLDOWN_SECONDS,
     power: power,
     rate: rate,
+    powerParts: powerParts,
     lootResourceCandidates: lootResourceCandidates,
     conquestBonusPercent: conquestBonusPercent,
     conquestProductionMultiplier: conquestProductionMultiplier,

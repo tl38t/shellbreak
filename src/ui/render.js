@@ -342,7 +342,7 @@
       var powerName = SB.i18n && SB.i18n.resourceName
         ? SB.i18n.resourceName('militaryPower', tr('resource.military_power.name'))
         : tr('resource.military_power.name');
-      htmlBase += '<div class="res"><img class="res-icon" src="assets/resource-icons/militaryPower.png?v=2" alt="" aria-hidden="true" width="48" height="48" decoding="async">' +
+      htmlBase += '<div class="res" data-res-detail="militaryPower"><img class="res-icon" src="assets/resource-icons/militaryPower.png?v=2" alt="" aria-hidden="true" width="48" height="48" decoding="async">' +
         '<div class="res-content"><b>' + SB.economy.fmtAmt(power) + '</b><span class="res-details"><span class="res-label"><span class="res-name">' + htmlText(powerName) +
         '</span></span>' + powerRateTxt + '</span></div></div>';
     }
@@ -432,10 +432,21 @@
   }
   function showResDetail(k) {
     var s = res(), modal = el('modal'), box = el('modalBox');
-    if (!s || !modal || !box || !SB.RESS[k]) return false;
+    if (!s || !modal || !box) return false;
+    /* 军力（militaryPower）储备在 s.war.power，不在 SB.RESS / s.res；
+     * 它的存量/净值/分项由 war.power / war.rate / war.powerParts 提供，单独走分支。 */
+    var isWarPower = (k === 'militaryPower');
     var detail = (SB.economy && SB.economy.ratesParts) ? SB.economy.ratesParts(s) : null;
-    var rate = detail ? (detail.rate[k] || 0) : ((SB.economy.rates(s) || {})[k] || 0);
-    var list = (detail && detail.parts && detail.parts[k]) || [];
+    var rate, list;
+    if (isWarPower) {
+      if (!SB.war || !SB.war.power || !SB.war.rate || !SB.war.powerParts) return false;
+      rate = SB.war.rate(s);
+      list = SB.war.powerParts(s) || [];
+    } else {
+      if (!SB.RESS[k]) return false;
+      rate = detail ? (detail.rate[k] || 0) : ((SB.economy.rates(s) || {})[k] || 0);
+      list = (detail && detail.parts && detail.parts[k]) || [];
+    }
 
     function partRow(p) {
       var cls = p.v > 0 ? 'out' : 'in';
@@ -467,14 +478,21 @@
       else { inRows += partRow(p2); sumIn += p2.v; }
     }
 
-    var cap = SB.economy.capOf(s, k);
+    var cap, v, name;
+    if (isWarPower) {
+      cap = Infinity;                 /* 军力无逐 tick 上限（只在战争行动中一次性扣减）。 */
+      v = SB.war.power(s);
+      name = tr('resource.military_power.name');
+    } else {
+      cap = SB.economy.capOf(s, k);
+      v = s.res[k] || 0;
+      name = SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' && SB.i18n.resourceName
+        ? SB.i18n.resourceName(k, SB.RESS[k].name)
+        : SB.RESS[k].name;
+    }
     /* 有上限写「/ 200」，无上限只写「无上限」—— 拼成「/ 无上限」读着是病句。 */
     var capTxt = isFinite(cap) ? '/ ' + SB.economy.fmt(cap) : htmlText(tr('ui.resource.detail.unlimited', null, '无上限'));
-    var v = s.res[k] || 0;
     var full = isFinite(cap) && cap > 0 && v >= cap;
-    var name = SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' && SB.i18n.resourceName
-      ? SB.i18n.resourceName(k, SB.RESS[k].name)
-      : SB.RESS[k].name;
     var netCls = rate > 1e-9 ? 'up' : (rate < -1e-9 ? 'down' : '');
 
     box.innerHTML = '<div class="res-detail">'

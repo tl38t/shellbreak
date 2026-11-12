@@ -178,7 +178,10 @@ export function run({ SB, check, noop, doc }) {
 
     const combatState = fixture();
     combatState.jobs.soldier = 10;
-    combatState.pop = 10;
+    combatState.pop = 11;
+    // 现实状态：jobs(军人10+采集1)=11 = pop11；损失后 pop10、军人9、jobs10=pop10，
+    // trim 不会多裁军人，断言 soldier===9 才成立。采集=1 保证掠获资源费率>0
+    // （否则行动在 loot 门禁提前退，损失根本不发生）。
     combatState.jobs.gather = 1;
     combatState.res.kelp = 0;
     combatState.war.power = 1000;
@@ -188,11 +191,11 @@ export function run({ SB, check, noop, doc }) {
     SB.rng = () => 0;
     const failedAction = SB.war.executeAction(combatState, 'enemy_1', 'raid', { random: () => 0 });
     check('战利品候选只含已解锁的非工艺、非流动资源', eligibleLoot, candidates.join(','));
-    check('行动失败不发战利品，并按比例损失军人',
+    check('行动失败不发战利品，并按国家人口比率损失人口（不可被调岗规避）',
       failedAction.ok && failedAction.outcome === 'failure' && failedAction.lootAmount === 0 &&
-      failedAction.soldiersLost === 5 && combatState.pop === 5 && combatState.jobs.soldier === 5,
+      failedAction.popLost === 1 && combatState.pop === 10 && combatState.jobs.soldier === 9,
       JSON.stringify({ outcome: failedAction.outcome, loot: failedAction.lootAmount,
-        soldiersLost: failedAction.soldiersLost, population: combatState.pop }));
+        popLost: failedAction.popLost, population: combatState.pop }));
 
     const rewardState = fixture();
     rewardState.jobs.gather = 1;
@@ -318,9 +321,9 @@ export function run({ SB, check, noop, doc }) {
       const ACTIONS = SB.war.ACTIONS;
       const outcomeLine = (key, o, lootMinutes) => tz(key, {
         scaleLossPercent: Math.round(o.scaleLoss * 100),
-        soldierText: o.soldierLoss > 0
-          ? tz('ui.war.action.soldiers', { soldierLossPercent: Math.round(o.soldierLoss * 100) })
-          : tz('ui.war.action.no_soldiers'),
+        soldierText: o.popLoss > 0
+          ? tz('ui.war.action.pop_loss', { popLossPercent: Math.round(o.popLoss * 100) })
+          : tz('ui.war.action.no_pop_loss'),
         lootMinutes: lootMinutes,
         popCap: Number(o.popCap) || 0
       });
@@ -345,7 +348,7 @@ export function run({ SB, check, noop, doc }) {
         html.indexOf('heritage-flavor') >= 0 && html.indexOf(HERITAGE_LINE) >= 0,
         'flavor');
       const newKeys = ['ui.heritage.flavor', 'ui.war.soft_power.effect', 'ui.war.soft_power.limit',
-        'ui.war.action.common_note', 'ui.war.action.soldiers', 'ui.war.action.no_soldiers',
+        'ui.war.action.common_note', 'ui.war.action.pop_loss', 'ui.war.action.no_pop_loss',
         'ui.war.action.outcome.failure', 'ui.war.action.outcome.success',
         'ui.war.action.outcome.great_success'];
       check('本批 9 个新增文案键双语齐全（含英文登记）',
@@ -354,15 +357,16 @@ export function run({ SB, check, noop, doc }) {
     }
 
     /* ── 战争结果轻量提示（toast）回归锁 · 2026-11-11 ─────────────────────
-       口径纪律：军力储备(state.power / cost) ≠ 军人(s.jobs.soldier / soldiersLost)。
-         · cost 是无条件「入场费」，war.js:800 三档都一样，与成败无关；
-         · 军人阵亡才是随成败变化的代价（失败最重，入侵/全面战争全灭）；
+       口径纪律：军力储备(state.power / cost) ≠ 人口损失(popLost)。
+         · cost 是无条件「入场费」，war.js 三档都一样，与成败无关；
+         · 人口损失才是随成败变化的代价（按国家人口比率 ceil 计，不可被调岗规避）；
          · 被动入侵完全不扣军力储备，只改敌国规模 + 三类惩罚。
        期望文案一律用 SB.i18n.t 现算 ⇒ 与 e2e 当前 locale 无关，不会假绿/假红。 */
     if (SB.ui && typeof SB.ui.showWarToast === 'function') {
       const realToast = SB.ui.showWarToast;
       const expectCostLine = SB.i18n.t('ui.war.toast.power_cost', { cost: SB.economy.fmtAmt(50) });
-      const expectSoldierLine = SB.i18n.t('ui.war.toast.soldiers', { soldiersLost: SB.economy.fmtAmt(5) });
+      // 用真实 failedAction.popLost 现算，避免写死 5 与实际 1 不匹配（损失比率改后漂移）
+      const expectSoldierLine = SB.i18n.t('ui.war.toast.pop_loss', { popLost: SB.economy.fmtAmt(failedAction.popLost) });
       const expectNoPower = SB.i18n.t('ui.war.toast.no_power_loss');
       const expectOfflineTag = SB.i18n.t('ui.war.toast.offline_tag');
       const expectNoLoot = SB.i18n.t('ui.war.toast.no_loot');

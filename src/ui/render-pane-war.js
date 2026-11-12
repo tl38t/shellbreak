@@ -223,7 +223,7 @@
         /* 2026-11-11 用户要求「写清楚后果，失败会如何、成功会如何」。
          * ⚠️ 数值一律现读 SB.war.ACTIONS（war.js 唯一权威规则表），绝不写死：
          *    scaleLoss 是「军力成本 × 倍率」造成的敌国规模损失，不是减少我方军力；
-         *    soldierLoss 是军人阵亡比例；失败无战利品、大成功额外给人口上限。
+         *    popLoss 是人口损失比例（失败不可被调岗规避）；失败无战利品、大成功额外给人口上限。
          *    政策卡 / 奇观 / 信仰带来的加成属于局内修正，说明写基础规则即可。 */
         var spec = (SB.war.ACTIONS && SB.war.ACTIONS[action.id]) || null;
         var outcomeHtml = '';
@@ -237,10 +237,10 @@
           outcomeHtml = '<div class="war-action-outcomes">';
           for (var ti = 0; ti < tiers.length; ti++) {
             var tier = tiers[ti], tierOut = tier.o || {};
-            var soldierRate = Number(tierOut.soldierLoss) || 0;
-            var soldierText = soldierRate > 0
-              ? tr('ui.war.action.soldiers', { soldierLossPercent: Math.round(soldierRate * 100) })
-              : (tr('ui.war.action.no_soldiers') || '无人阵亡');
+            var popLossRate = Number(tierOut.popLoss) || 0;
+            var soldierText = popLossRate > 0
+              ? tr('ui.war.action.pop_loss', { popLossPercent: Math.round(popLossRate * 100) })
+              : (tr('ui.war.action.no_pop_loss') || '无人口损失');
             outcomeHtml += '<div class="ds is-' + tier.id + '">' + esc(tr(tier.key, {
               scaleLossPercent: Math.round((Number(tierOut.scaleLoss) || 0) * 100),
               soldierText: soldierText,

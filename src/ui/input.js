@@ -218,7 +218,7 @@
         SB.game.log(tr('ui.war.result.action', {
           actionName: tr(actionNameKey), outcomeName: tr(outcomeKey),
           scaleLoss: SB.economy.fmtAmt(actionResult.scaleLoss),
-          soldiersLost: SB.economy.fmtAmt(actionResult.soldiersLost),
+          popLost: SB.economy.fmtAmt(actionResult.popLost),
           lootAmount: SB.economy.fmtAmt(actionResult.lootAmount),
           resourceName: localizedResourceName,
           populationCapAward: actionResult.populationCapAward

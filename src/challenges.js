@@ -153,7 +153,7 @@
      *    正常游玩不可能违规，故不像 anarchy 那样需要「违规计数」兜底。
      * ⚠️ 奖励沿用终局挑战惯例基线「永久星屑获取 +10%」+ 自选副奖 C「软实力成本 -20%」
      *    （softPowerCost 读 tierDone('pacifist') 永久生效，见 war.js）。 */
-    { id: 'pacifist', name: '批判的武器', icon: '🕊', badge: 'assets/challenges/challenge-pacifist.webp', kind: '终局挑战',
+    { id: 'pacifist', name: '批判的武器', icon: '🕊', badge: 'assets/challenges/challenge-pacifist-illustrated.webp', kind: '终局挑战',
       summary: '整局不发动任何战争行动，以和平手段推进文明。',
       rule: '全程不得进行劫掠 / 入侵 / 全面战争；吞并与软实力（传播文化、传道信仰）不受限制，可照常使用。',
       reward: '永久星屑获取 +10% · 软实力（信仰 / 文化渗透）成本 -20%',
@@ -166,7 +166,7 @@
      *    顶部直接 return 拦截；UI 对应按钮也禁用并提示原因。
      * ⚠️ 奖励沿用终局挑战惯例基线「永久星屑获取 +10%」+ 副奖「战争行动军力消耗 -10%」
      *    （actionCost 读 tierDone('weapon_critique') 永久生效，见 war.js）。 */
-    { id: 'weapon_critique', name: '武器的批判', icon: '⚔', badge: 'assets/challenges/challenge-weapon-critique.webp', kind: '终局挑战',
+    { id: 'weapon_critique', name: '武器的批判', icon: '⚔', badge: 'assets/challenges/challenge-weapon-critique-illustrated.webp', kind: '终局挑战',
       summary: '以武力推进文明，拒绝文化与信仰的渗透，也拒绝商路贸易。',
       rule: '全程不得进行传播文化 / 传道信仰（软实力），也不得修建贸易路线；战争行动与吞并不受限制。',
       reward: '永久星屑获取 +10% · 战争行动军力消耗 -10%',
@@ -175,7 +175,7 @@
     /* ── 早打，大打，打核大战（2026-11-12 实装）────────────────────────────
      * 与批判的武器 / 武器的批判正交：只许发动「全面战争」，劫掠与入侵被禁。
      * 约束在整局（含破壳后）生效，goal 型 active 一直返回到 challengeDone。 */
-    { id: 'totalwar_doctrine', name: '早打，大打，打核大战', icon: '☢', badge: 'assets/challenges/challenge-totalwar-doctrine.webp', kind: '终局挑战',
+    { id: 'totalwar_doctrine', name: '早打，大打，打核大战', icon: '☢', badge: 'assets/challenges/challenge-totalwar-doctrine-illustrated.webp', kind: '终局挑战',
       summary: '只许发动全面战争，以最猛烈的手段碾碎一切。',
       rule: '全程只能进行「全面战争」；劫掠与入侵被禁止。',
       reward: '永久星屑获取 +10% · 士兵职业产出 +15%',
@@ -183,7 +183,7 @@
       tiers: [{ label: '核平', cap: null }] },
     /* ── grubby（2026-11-12 实装）──────────────────────────────────────────
      * 只许劫掠，入侵与全面战争被禁。与批判的武器 / 武器的批判正交。 */
-    { id: 'raider', name: 'grubby', icon: '🪙', badge: 'assets/challenges/challenge-raider.webp', kind: '终局挑战',
+    { id: 'raider', name: 'grubby', icon: '🪙', badge: 'assets/challenges/challenge-raider-illustrated.webp', kind: '终局挑战',
       summary: '只许劫掠，绝不做长期占领。',
       rule: '全程只能进行「劫掠」；入侵与全面战争被禁止。',
       reward: '永久星屑获取 +10% · 战利品产出 +20%',
@@ -195,7 +195,7 @@
      *    status==='annexed' 的数量 ≥ 7。这是 goal 引擎的唯一改动，其它 goal 型
      *    （drift_terra / waterpollution / dyson_rush / 批判的武器 / 武器的批判）不受影响。
      * ⚠️ 敌方恢复倍率由 enemyRecoveryMul 在 war.js 的 recoverEnemy 应用，读 activeTier(s).cap。 */
-    { id: 'conqueror', name: '征服者', icon: '👑', badge: 'assets/challenges/challenge-conqueror.webp', kind: '三档挑战',
+    { id: 'conqueror', name: '征服者', icon: '👑', badge: 'assets/challenges/challenge-conqueror-illustrated.webp', kind: '三档挑战',
       summary: '吞并全部七个敌国，以铁蹄踏平星海。',
       rule: '戴森球竣工时，必须已吞并全部 7 个敌国；本挑战敌方规模恢复速度按档位 ×1.5 / ×2 / ×3。',
       rewards: [
