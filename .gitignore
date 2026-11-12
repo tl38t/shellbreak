@@ -12,3 +12,23 @@ TAPTAP-H5-OUTPUT/
 node_modules/
 dist/electron/
 截图/
+
+# ===== 本地/商店素材：非运行时，_repack.py 已明确排除（assets/store 不上传）=====
+assets/store/
+
+# ===== 破壳背景草稿：未被任何代码引用（orphan 美术稿），不参与 H5/Electron 运行时 =====
+assets/backgrounds/breakthrough/engraved-*/
+
+# ===== 本机调试 / 导出中间产物（不入库）=====
+demo_*.html
+*_demo.html
+outputs/
+__pycache__/
+_build_*.py
+_catalog_*.json
+_probe_*.html
+_tt-*
+_chatgpt_*.txt
+_shopzone*.html
+_cdp.mjs
+.workbuddy/memory/
