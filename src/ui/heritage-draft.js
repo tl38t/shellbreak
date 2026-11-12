@@ -60,7 +60,21 @@
   function clearNodes() {
     var L = layer();
     for (var i = 0; i < nodes.length; i++) {
-      if (L && L.removeChild) L.removeChild(nodes[i]);
+      var n = nodes[i];
+      if (!n) continue;
+      /* ⚠️ 2026-11-12 修：nodes[] 含嵌套元素（.heritage-draft-hd / cards / 按钮…），
+       *   它们不是 LAYER 的直接子节点，唯独根 .heritage-draft 盒子才是。
+       *   用 L.removeChild(嵌套节点) 在真实 DOM 会抛 NotFoundError，且因异常在
+       *   `nodes=[]` 重置之前中断，nodes 残留脏引用 ⇒ 下次 render 在 index 0 即抛、
+       *   面板再也建不起来（「择取无反应」）。改按「节点自身父节点」删除，
+       *   与本作 onboarding/diag/game 的 `node.parentNode.removeChild(node)` 同口径。
+       *   假 DOM 桩无 parentNode / removeChild 时为 no-op ⇒ 走兜底 L.removeChild。 */
+      var p = n.parentNode;
+      if (p && p.removeChild) {
+        try { p.removeChild(n); } catch (e) { /* 已脱离文档，忽略 */ }
+      } else if (L && L.removeChild) {
+        try { L.removeChild(n); } catch (e) { /* 同上 */ }
+      }
     }
     nodes = [];
   }

@@ -1342,6 +1342,16 @@
    * 天赋图标 (decoding="async") 反复重插入重解码 ⇒ 部分设备/浏览器白闪（"一闪一闪"）。
    * 记上一次 HTML，指纹没变就跳过重写，根治反复闪；买节点导致内容变化时才重写一次。 */
   var lastMetaHTML = null;
+  /* 市政树（pane-civic）：与 meta 同构。civicTree 每 2 秒壁钟被整块 innerHTML 重写 ⇒
+   * civicScroll 的 scrollLeft 归零 + 整棵重排重绘 ⇒ 周期性肉眼闪动（用户 2026-11-12 报「市政卷轴闪动」）。
+   * 记上一次 HTML，指纹没变就跳过重写，根治反复闪；市政可研究/空槽红点等状态变化导致 HTML 变化时才重写一次，
+   * 现有 civicScrollLeft 恢复逻辑照旧（内容没变时连节点都不换，自然也不闪、也不丢位置）。 */
+  var lastCivicHTML = null;
+  /* 科技树（pane-tech）：与 civic 同构（方案 A，用户 2026-11-12 拍板）。techTree 每 2 秒壁钟整块 innerHTML 重写 ⇒
+   * techScroll 的 scrollLeft 归零弹回 + 节点 <img> 图标反复重插重解码（meta 同款白闪，玩家报「科技也闪」）。
+   * 记上一次 HTML，指纹没变就跳过重写。⚠️ 已知局限：尤里卡进度条随资源每帧变，
+   * 含进度条的节点会使整块 HTML 变化、指纹不命中（方案 A 治标，根治见方案 B 局部更新）。 */
+  var lastTechHTML = null;
   /* 市政树（civicScroll）与科技长卷同一个病、同一副药（2026-09-28 用户报：
    * 「市政树界面和之前科技树界面一样，固定时间会被拉到最左边」）。
    * 机制一模一样：PANE_REFRESH 每 2 秒壁钟重画一次 renderPanes，innerHTML 一重写，
@@ -1530,6 +1540,15 @@
          * 买节点导致 HTML 变化时仍会重写一次，现有 restoreTalentScroll 会恢复天赋树横向位置。 */
         var metaHtml = cardHeadHTML(k) + PANES[k]();
         if (metaHtml !== lastMetaHTML) { node.innerHTML = metaHtml; lastMetaHTML = metaHtml; }
+      } else if (k === 'civic') {
+        /* 市政卷轴闪动修复（见 lastCivicHTML 声明处注释）：内容指纹没变就跳过整块重写。 */
+        var civicHtml = cardHeadHTML(k) + PANES[k]();
+        if (civicHtml !== lastCivicHTML) { node.innerHTML = civicHtml; lastCivicHTML = civicHtml; }
+      } else if (k === 'tech') {
+        /* 科技树闪动修复（方案 A，见 lastTechHTML 声明处注释）：内容指纹没变就跳过整块重写。
+         * ⚠️ 尤里卡进度条每帧变会导致指纹不命中（治标），根治需局部更新（方案 B）。 */
+        var techHtml = cardHeadHTML(k) + PANES[k]();
+        if (techHtml !== lastTechHTML) { node.innerHTML = techHtml; lastTechHTML = techHtml; }
       } else {
         node.innerHTML = cardHeadHTML(k) + PANES[k]();
       }

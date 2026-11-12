@@ -213,9 +213,13 @@
         visibleActions++;
         var cost = SB.war.actionCost(s, enemy, action.id);
         var odds = SB.war.actionProbabilities(s, action.id) || { failure: 0, success: 0, greatSuccess: 0 };
-        var canAct = currentScale > 0 && lootResources.length > 0 && power + 1e-9 >= cost;
-        var blockedKey = currentScale <= 0 || !lootResources.length
-          ? 'ui.war.action.unavailable' : 'ui.war.action.power_shortage';
+        /* 战争动作按挑战细粒度禁用（2026-11-12）：批判的武器禁全部、早打大打打核大战只许全面战争、
+         * grubby 只许劫掠。按钮逐键置灰并给出原因，与 anarchy 禁用政策卡槽同一套路。 */
+        var warActionReason = SB.challenges && SB.challenges.warActionBlockedReason ? SB.challenges.warActionBlockedReason(s, action.id) : null;
+        var canAct = !warActionReason && currentScale > 0 && lootResources.length > 0 && power + 1e-9 >= cost;
+        var blockedKey = warActionReason ? ('ui.war.action.blocked_' + warActionReason)
+          : (currentScale <= 0 || !lootResources.length
+          ? 'ui.war.action.unavailable' : 'ui.war.action.power_shortage');
         /* 2026-11-11 用户要求「写清楚后果，失败会如何、成功会如何」。
          * ⚠️ 数值一律现读 SB.war.ACTIONS（war.js 唯一权威规则表），绝不写死：
          *    scaleLoss 是「军力成本 × 倍率」造成的敌国规模损失，不是减少我方军力；
@@ -283,7 +287,9 @@
     for (var si = 0; si < softActions.length; si++) {
       var soft = softActions[si], softCost = SB.war.softPowerCost(s, enemy, soft.id);
       var reduction = soft.id === 'faith' ? (enemy.faithReduction || 0) : (enemy.cultureReduction || 0);
-      var available = currentScale > 0 && reduction < 0.30 && Number(s.res[soft.resource] || 0) + 1e-9 >= softCost;
+      /* 武器的批判挑战（2026-11-12）：软实力按钮置灰并提示原因。 */
+      var softBlocked = !!(SB.challenges && SB.challenges.softPowerBlocked && SB.challenges.softPowerBlocked(s));
+      var available = !softBlocked && currentScale > 0 && reduction < 0.30 && Number(s.res[soft.resource] || 0) + 1e-9 >= softCost;
       var capReached = reduction >= 0.30;
       h += '<article class="war-action-card war-soft-action-card"><div class="war-action-copy"><div class="nm">' + esc(tr(soft.key)) + '</div>' +
         '<div class="ds">' + esc(tr('ui.war.soft_power.cost', {
@@ -294,7 +300,7 @@
         '<div class="ds">' + esc(tr('ui.war.soft_power.effect')) + '</div>' +
         '<div class="ds">' + esc(tr('ui.war.soft_power.limit')) + '</div>' +
         '</div><button type="button" class="btn' + (available ? ' buy' : '') + '" data-war-soft="' +
-        esc(soft.id) + '"' + (available ? '' : ' disabled' + (capReached ? ' title="' + esc(tr('ui.war.soft_power.cap')) + '"' : currentScale <= 0 ? ' title="' + esc(tr('ui.war.action.unavailable')) + '"' : '')) + '>' +
+        esc(soft.id) + '"' + (available ? '' : ' disabled' + (softBlocked ? ' title="' + esc(tr('ui.war.soft_power.blocked_weapon_critique')) + '"' : (capReached ? ' title="' + esc(tr('ui.war.soft_power.cap')) + '"' : currentScale <= 0 ? ' title="' + esc(tr('ui.war.action.unavailable')) + '"' : ''))) + '>' +
         esc(tr(soft.key)) + '</button></article>';
     }
     if (softActions.length) h += '</div>';
@@ -307,8 +313,10 @@
       luxuryReductionPercent: Math.round((1 - SB.war.tradeRouteLuxuryUseMul(s)) * 100)
     })) + '</div>';
     if (s.civics.trade && route.level < 3) {
-      h += '<button type="button" class="btn' + ((s.res.stone || 0) >= route.cost ? ' buy' : '') +
-        '" data-war-route="1"' + ((s.res.stone || 0) >= route.cost ? '' : ' disabled') + '>' +
+      /* 武器的批判挑战（2026-11-12）：商路按钮置灰并提示原因。 */
+      var routeBlocked = !!(SB.challenges && SB.challenges.tradeRouteBlocked && SB.challenges.tradeRouteBlocked(s));
+      h += '<button type="button" class="btn' + ((s.res.stone || 0) >= route.cost && !routeBlocked ? ' buy' : '') +
+        '" data-war-route="1"' + ((s.res.stone || 0) >= route.cost && !routeBlocked ? '' : ' disabled' + (routeBlocked ? ' title="' + esc(tr('ui.war.trade_route.blocked_weapon_critique')) + '"' : '')) + '>' +
         esc(tr('ui.war.trade_route.establish', { nextLevel: route.nextLevel, stoneCost: amount(route.cost) })) + '</button>';
     } else if (s.civics.trade) h += '<span class="tag">' + esc(tr('ui.war.trade_route.max')) + '</span>';
     h += '</div></section>';

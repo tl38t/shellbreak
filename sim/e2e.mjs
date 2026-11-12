@@ -44,6 +44,10 @@ import { run as runTechUnlockTag } from './e2e-suites/tech-unlock-tag.mjs';
 import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
 import { run as runMetaRenderGuard } from './e2e-suites/meta-render-guard.mjs';
 import { run as runWarCampaign } from './e2e-suites/war-campaign.mjs';
+/* 2026-11-12：clearNodes 嵌套节点 bug 的防回归锁。自带 faithful DOM 桩加载真实
+ * heritage-draft.js，不依赖 e2e 共享的 no-op 假 DOM（那个桩的 removeChild 是空实现，
+ * 正是当初漏掉本 bug 的原因）。 */
+import { run as runHeritageClearNodes } from './e2e-suites/heritage-clearnodes.mjs';
 
 const errors = [];
 const checks = [];
@@ -3004,7 +3008,7 @@ runTechUnlockTag({ SB, check });
 /* 2026-11-08：轮回商店渲染守卫（"一闪一闪" 闪烁回归锁）。放全量最尾部：hook 假 DOM
  * #pane-meta 的 innerHTML setter 计数，断言「静止态不重写 / 变化后恰好重写 1 次」。 */
 runMetaRenderGuard({ SB, check, doc });
-/* 2026-11-05：追踪坞「去制造」跳转。放全量最尾部，临时替换 setTab / setWorkshopView /
+runHeritageClearNodes({ SB, check });/* 2026-11-05：追踪坞「去制造」跳转。放全量最尾部，临时替换 setTab / setWorkshopView /
  * renderPanes 等并在 finally 还原，不压在整局 bot 前面。 */
 runTrackCraftJump({ SB, check, g, sandbox });
 /* 战争系统回归放在最尾部：每项都用独立周目，不依赖整局 bot 状态。 */

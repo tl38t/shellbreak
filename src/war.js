@@ -176,6 +176,9 @@
       : policyEquipped(s, 'card_mercenary') ? policyNumber(s, 'card_mercenary', 'barracksBonusMul', 1)
         : policyEquipped(s, 'card_drill') ? policyNumber(s, 'card_drill', 'barracksBonusMul', 0.5) : 0;
     var soldierOutput = soldiers * baseSoldierRate * (1 + barracksLevel * barracksBonus * (1 + barracksBonusMul));
+    /* 早打大打打核大战通关奖励（2026-11-12）：士兵职业产出 +15% 永久生效。 */
+    var soldierChallengeMul = (SB.challenges && SB.challenges.soldierOutputMul) ? SB.challenges.soldierOutputMul(s) : 1;
+    soldierOutput *= soldierChallengeMul;
     var soldierUpgradeBonus = SB.economy && SB.economy.upgSum
       ? nonNegative(SB.economy.upgSum(s, 'militarySoldierBonus')) : 0;
     var soldierWonderBonus = 0;
@@ -267,19 +270,22 @@
     enemy.currentScale = Math.min(currentScale(enemy), effectiveMaxScale(enemy));
     return next - previous;
   }
-  function recoverEnemy(enemy, dt) {
+  function recoverEnemy(enemy, dt, mul) {
     var elapsed = Number(dt), maxScale = effectiveMaxScale(enemy);
+    var recoveryMul = (typeof mul === 'number' && isFinite(mul) && mul > 0) ? mul : 1;
     if (!enemy || !isFinite(elapsed) || elapsed <= 0 || maxScale <= 0 || enemy.status === 'annexed') return 0;
     var before = currentScale(enemy);
-    enemy.currentScale = Math.min(maxScale, before + maxScale * RECOVERY_PER_SECOND * elapsed);
+    enemy.currentScale = Math.min(maxScale, before + maxScale * RECOVERY_PER_SECOND * elapsed * recoveryMul);
     return enemy.currentScale - before;
   }
   function recoverEnemies(s, dt) {
     var state = ensureState(s), key;
     if (!state) return 0;
+    /* 征服者三档（2026-11-12）：敌方规模恢复速度按档位 ×1.5 / ×2 / ×3。 */
+    var mul = (SB.challenges && SB.challenges.enemyRecoveryMul) ? SB.challenges.enemyRecoveryMul(s) : 1;
     var total = 0;
     for (key in state.enemies) if (Object.prototype.hasOwnProperty.call(state.enemies, key))
-      total += recoverEnemy(state.enemies[key], dt);
+      total += recoverEnemy(state.enemies[key], dt, mul);
     return total;
   }
   function enemyOf(s, enemyId) {
@@ -672,11 +678,17 @@
     var intelligenceMul = wonderOwned(s, 'wonder_military_intelligence_bureau')
       ? wonderEffectValue('wonder_military_intelligence_bureau', 'militaryActionCostMul', 0.80) : 1;
     var extra = (typeof extraCostMul === 'number' && isFinite(extraCostMul) && extraCostMul >= 0) ? extraCostMul : 1;
-    return maxScale * spec.costShare * faithMul * routeMul * intelligenceMul * extra;
+    /* 武器的批判通关奖励（2026-11-12）：战争行动军力消耗 -10% 永久生效。 */
+    var challengeWarCostMul = (SB.challenges && SB.challenges.warCostMul) ? SB.challenges.warCostMul(s) : 1;
+    return maxScale * spec.costShare * faithMul * routeMul * intelligenceMul * extra * challengeWarCostMul;
   }
   function establishTradeRoute(s) {
     var state = ensureState(s);
     if (!state || !s.civics || !s.civics.trade) return { ok: false, reason: 'locked' };
+    /* 武器的批判挑战（2026-11-12）：整局禁止修建贸易路线。预防性拦截——UI 按钮已禁用，
+     * 这里兜底 aibot / 任何旁路调用。 */
+    if (SB.challenges && SB.challenges.tradeRouteBlocked && SB.challenges.tradeRouteBlocked(s))
+      return { ok: false, reason: 'weapon_critique' };
     if (state.tradeRouteLevel >= 3) return { ok: false, reason: 'max_level' };
     var cost = 300 * Math.pow(3, state.tradeRouteLevel);
     if (!s.res || nonNegative(s.res.stone) < cost) return { ok: false, reason: 'insufficient_resource', cost: cost };
@@ -711,10 +723,18 @@
       }
       cost *= Math.max(0, 1 - discount);
     }
+    /* 和平主义者通关奖励（2026-11-12）：软实力（信仰 / 文化渗透）成本 -20%，永久生效。
+     * 仅读账本 tierDone，不在挑战进行中生效——与其它终局挑战的永久奖励口径一致。 */
+    if (SB.challenges && SB.challenges.tierDone &&
+      SB.challenges.tierDone('pacifist', SB.game && SB.game.meta ? SB.game.meta() : null) >= 1) cost *= 0.8;
     return cost;
   }
   function executeSoftPowerAction(s, enemyId, actionId, options) {
     var state = ensureState(s), enemy = enemyOf(s, enemyId), opts = options || {};
+    /* 武器的批判挑战（2026-11-12）：整局禁止软实力（传播文化 / 传道信仰）。预防性拦截——
+     * UI 按钮已禁用，这里兜底 aibot / 任何旁路调用。 */
+    if (SB.challenges && SB.challenges.softPowerBlocked && SB.challenges.softPowerBlocked(s))
+      return { ok: false, reason: 'weapon_critique' };
     var isFaith = actionId === 'faith', isCulture = actionId === 'culture';
     if (!enemyAvailable(state, enemy) || currentScale(enemy) <= 0 || (!isFaith && !isCulture))
       return { ok: false, reason: 'unavailable' };
@@ -811,6 +831,12 @@
   function executeAction(s, enemyId, actionId, options) {
     var state = ensureState(s), enemy = enemyOf(s, enemyId), spec = ACTIONS[actionId];
     var opts = options || {};
+    /* 战争行动被挑战禁用（2026-11-12）：细粒度预防性拦截。批判的武器禁全部；
+     * 早打大打打核大战只许全面战争；grubby 只许劫掠。UI 已禁用对应按钮，这里兜底
+     * aibot / 任何旁路调用，确保不可能真的发动被禁动作。 */
+    var warActionReason = SB.challenges && SB.challenges.warActionBlockedReason
+      ? SB.challenges.warActionBlockedReason(s, actionId) : null;
+    if (warActionReason) return { ok: false, reason: warActionReason };
     if (!enemyAvailable(state, enemy) || currentScale(enemy) <= 0 || !spec) return { ok: false, reason: 'unavailable' };
     if (!s.civics || !s.civics[spec.unlockCivic]) return { ok: false, reason: 'locked' };
     var cost = actionCost(s, enemy, actionId, opts.costMultiplier);
@@ -848,6 +874,9 @@
     state.popCap += capAward;
     var resourceRate = outcomeId === 'failure' && opts.lootOnFailure !== true ? 0 : lootRateBeforeAction;
     var lootAmount = resourceRate * spec.lootSeconds;
+    /* grubby 通关奖励（2026-11-12）：战利品产出 +20% 永久生效。 */
+    var lootYieldMul = (SB.challenges && SB.challenges.lootYieldMul) ? SB.challenges.lootYieldMul(s) : 1;
+    lootAmount *= lootYieldMul;
     var resourceBefore = nonNegative(s.res && s.res[resourceId]);
     if (lootAmount > 0 && SB.economy.addRes) SB.economy.addRes(s, resourceId, lootAmount);
     var actualLoot = Math.max(0, nonNegative(s.res && s.res[resourceId]) - resourceBefore);

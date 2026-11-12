@@ -21,7 +21,9 @@ export function run({ SB, check, noop }) {
      *   实装 ⇒ 7 → 11。它们的定义、assets、civics 与 economy-tick 配套同批落地；
      *   断言的其余条件（canStart/canStartFresh 两路）不受数量影响。 */
     /* 2026-11-07：星海竞速（限时戴森）⇒ 11 → 12。 */
-    check('十二类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 12 &&
+    /* 2026-11-12：和平主义者（终局挑战）实装 ⇒ 12 → 13。 */
+    /* 2026-11-12：批判的武器（原名和平主义者）+ 武器的批判 + 早打大打打核大战 + grubby + 征服者 ⇒ 13 → 17。 */
+    check('十七类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 17 &&
       api.canStartFresh('science', s, meta) && api.canStart('science', s, meta) &&
       !api.canStartFresh('science', s, { challenges: { completed: { science: 3 } } }) &&
       api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
@@ -30,8 +32,8 @@ export function run({ SB, check, noop }) {
     /* 2026-11-05：流浪泰拉加了「第 15 周目」开启前置 ⇒ 前置未满足时它不给开始按钮，
      * 入口数是 10 而不是 11。这是规格变更，不是把断言放宽：仍逐项点名 11 个挑战，
      * 期望值由生产门禁同源给出（不许在这里再写死一个数字掩盖分叉）。 */
-    const expectedStarts = api.prereqOk('drift_terra', meta) ? 12 : 11;
-    check('挑战独立页展示十二项挑战与首次开始入口',
+    const expectedStarts = api.prereqOk('drift_terra', meta) ? 17 : 16;
+    check('挑战独立页展示十六项挑战与首次开始入口',
       ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉', '水体污染'].every(name => pane.includes(name)) &&
       pane.includes('暖石产出 -30%') && pane.includes('学者、书手各 ≤ 15 人') &&
       pane.includes('总人口、职业人数门槛豁免') &&
@@ -924,6 +926,121 @@ export function run({ SB, check, noop }) {
       cur.challenge = snap.challenge; cur.challengeDone = snap.done; cur.broken = snap.broken;
       cur.shell = snap.shell; cur.shellOpened = snap.opened; cur.pollution = snap.pollution;
       cur.lvl.terra_engine = snap.engines;
+    }
+    {
+      /* 2026-11-12：和平主义者挑战。与 anarchy / good_old_days 同构的终局挑战
+       * （goal=dyson），整局禁止战争行动（war.js executeAction 预防性拦截），吞并 /
+       * 软实力不受限；通关奖励 = 终局挑战 +10% 星屑基线 + 软实力成本 -20%。 */
+      const def = api.byId('pacifist');
+      check('和平主义者：终局挑战、goal=dyson、单档',
+        !!def && def.kind === '终局挑战' && def.goal && def.goal.t === 'dyson' && def.tiers.length === 1,
+        'kind=' + (def && def.kind));
+      const ps = SB.state.freshRun(false);
+      ps.challenge = { id: 'pacifist', tier: 0 }; ps.challengeDone = false;
+      check('和平主义者：active 期内 warBlocked 为真', api.warBlocked(ps) === true);
+      const blockedAct = SB.war.executeAction(ps, 'europa', 'raid');
+      check('和平主义者：executeAction 被拦截（reason=pacifist）',
+        blockedAct && blockedAct.ok === false && blockedAct.reason === 'pacifist',
+        JSON.stringify(blockedAct));
+      /* 软实力折扣：pacifist 通关后 softPowerCost ×0.8（吞并 / 软实力本就不受限）。 */
+      const enemyStub = { faithActions: 0, cultureActions: 0 };
+      const baseCost = SB.war.softPowerCost({}, enemyStub, 'faith');
+      meta.challenges.completed.pacifist = true;
+      const discCost = SB.war.softPowerCost({}, enemyStub, 'faith');
+      meta.challenges.completed.pacifist = false;
+      check('和平主义者：通关后软实力成本 -20%（1000→800）',
+        baseCost === 1000 && discCost === 800, 'base=' + baseCost + ' disc=' + discCost);
+      /* 星屑基线计入：与其它终局挑战共享 +10%。 */
+      const mulBefore = api.stardustRewardMul({ challenges: { completed: {} } });
+      const mulAfter = api.stardustRewardMul({ challenges: { completed: { pacifist: true } } });
+      check('和平主义者：计入终局挑战 +10% 星屑基线',
+        mulBefore === 1 && Math.abs(mulAfter - 1.1) < 1e-9, 'before=' + mulBefore + ' after=' + mulAfter);
+      ps.challenge = savedLiveChallenge; ps.challengeDone = savedLiveChallengeDone;
+    }
+    {
+      /* 2026-11-12：军事挑战系列（批判的武器改名 + 武器的批判 + 早打大打打核大战 +
+       * grubby + 征服者）。与 pacifist 同构的终局挑战 / 三档挑战，约束走预防性拦截。 */
+      const pac = api.byId('pacifist');
+      check('批判的武器（原和平主义者）：显示名已改为「批判的武器」',
+        !!pac && pac.name === '批判的武器', 'name=' + (pac && pac.name));
+      const ids = ['weapon_critique', 'totalwar_doctrine', 'raider', 'conqueror'];
+      check('新增四项军事挑战已注册', ids.every(id => !!api.byId(id)), ids.join(','));
+      const wc = api.byId('weapon_critique'), tw = api.byId('totalwar_doctrine'),
+        rd = api.byId('raider'), cq = api.byId('conqueror');
+      check('武器的批判 / 早打大打打核大战 / grubby：终局挑战、goal=dyson、单档',
+        wc.kind === '终局挑战' && wc.goal.t === 'dyson' && wc.tiers.length === 1 &&
+        tw.kind === '终局挑战' && tw.goal.t === 'dyson' && tw.tiers.length === 1 &&
+        rd.kind === '终局挑战' && rd.goal.t === 'dyson' && rd.tiers.length === 1,
+        'kinds');
+      check('征服者：三档挑战、goal=戴森+吞并7、档位倍率 1.5/2/3',
+        cq.kind === '三档挑战' && cq.goal.t === 'all' &&
+        cq.goal.of[0].t === 'dyson' && cq.goal.of[1].t === 'annex' && cq.goal.of[1].n === 7 &&
+        cq.tiers.length === 3 && cq.tiers[0].cap === 1.5 && cq.tiers[1].cap === 2 && cq.tiers[2].cap === 3,
+        'goal=' + JSON.stringify(cq.goal));
+      /* 细粒度战争动作拦截：批判的武器禁全部；早打只许全面战争；grubby 只许劫掠。 */
+      const mk = (id, tier) => { const s = SB.state.freshRun(false); s.challenge = { id, tier: tier || 0 }; s.challengeDone = false; return s; };
+      const wpcs = mk('weapon_critique'), tws = mk('totalwar_doctrine'), rds = mk('raider');
+      check('武器的批判：战争动作不在此列（warActionBlockedReason 为 null）',
+        api.warActionBlockedReason(wpcs, 'raid') === null &&
+        api.warActionBlockedReason(wpcs, 'totalWar') === null, 'wc');
+      check('早打大打打核大战：只许全面战争（raid/invasion 被拦，totalWar 放行）',
+        api.warActionBlockedReason(tws, 'raid') === 'totalwar_only' &&
+        api.warActionBlockedReason(tws, 'invasion') === 'totalwar_only' &&
+        api.warActionBlockedReason(tws, 'totalWar') === null, 'tw');
+      check('grubby：只许劫掠（invasion/totalWar 被拦，raid 放行）',
+        api.warActionBlockedReason(rds, 'invasion') === 'raider_only' &&
+        api.warActionBlockedReason(rds, 'totalWar') === 'raider_only' &&
+        api.warActionBlockedReason(rds, 'raid') === null, 'rd');
+      /* 武器的批判：禁软实力 + 禁商路（预防性拦截）。 */
+      const softS = SB.state.freshRun(false);
+      softS.challenge = { id: 'weapon_critique', tier: 0 }; softS.challengeDone = false;
+      softS.war.enemies.europa = { id: 'europa', nameKey: 'x', stage: 1, baseScale: 1000,
+        currentScale: 100, faithReduction: 0, cultureReduction: 0, faithActions: 0, cultureActions: 0, status: 'active' };
+      softS.civics.sovereign = true;
+      check('武器的批判：softPowerBlocked 为真', api.softPowerBlocked(softS) === true);
+      const softRes = SB.war.executeSoftPowerAction(softS, 'europa', 'faith');
+      check('武器的批判：executeSoftPowerAction 被拦截（reason=weapon_critique）',
+        softRes && softRes.ok === false && softRes.reason === 'weapon_critique', JSON.stringify(softRes));
+      const routeS = SB.state.freshRun(false);
+      routeS.challenge = { id: 'weapon_critique', tier: 0 }; routeS.challengeDone = false;
+      routeS.civics.trade = true; routeS.war.tradeRouteLevel = 0; routeS.res.stone = 999999;
+      check('武器的批判：tradeRouteBlocked 为真', api.tradeRouteBlocked(routeS) === true);
+      const routeRes = SB.war.establishTradeRoute(routeS);
+      check('武器的批判：establishTradeRoute 被拦截（reason=weapon_critique）',
+        routeRes && routeRes.ok === false && routeRes.reason === 'weapon_critique', JSON.stringify(routeRes));
+      /* 征服者：敌方恢复倍率读档位 cap。 */
+      const cqS1 = mk('conqueror', 0), cqS3 = mk('conqueror', 2);
+      check('征服者：enemyRecoveryMul 读档位（一档 1.5 / 三档 3）',
+        Math.abs(api.enemyRecoveryMul(cqS1) - 1.5) < 1e-9 && api.enemyRecoveryMul(cqS3) === 3,
+        'r1=' + api.enemyRecoveryMul(cqS1) + ' r3=' + api.enemyRecoveryMul(cqS3));
+      /* goalMet 新增 annex 分支：统计已吞并敌国数。 */
+      const annexS = { dysonDone: true, war: { enemies: { e1: { status: 'annexed' }, e2: { status: 'annexed' }, e3: { status: 'annexed' } } } };
+      check('goalMet(annex,7)：不足 7 为 false', api.goalMet(annexS, { t: 'annex', n: 7 }) === false);
+      annexS.war.enemies.e4 = { status: 'annexed' }; annexS.war.enemies.e5 = { status: 'annexed' };
+      annexS.war.enemies.e6 = { status: 'annexed' }; annexS.war.enemies.e7 = { status: 'annexed' };
+      check('goalMet(annex,7)：满 7 为 true', api.goalMet(annexS, { t: 'annex', n: 7 }) === true);
+      check('goalMet(all[dyson+annex7])：戴森+吞并7 同时满足才 true',
+        api.goalMet(annexS, { t: 'all', of: [{ t: 'dyson' }, { t: 'annex', n: 7 }] }) === true);
+      /* 永久奖励基线：四项终局挑战各 +10%，征服者三档再 +10%/档。 */
+      const mulBase = api.stardustRewardMul({ challenges: { completed: {} } });
+      const mulAll = api.stardustRewardMul({ challenges: { completed: {
+        pacifist: true, weapon_critique: true, totalwar_doctrine: true, raider: true, conqueror: 3 } } });
+      check('星屑基线：四项单档 + 征服者三档 = 1 + 0.7 = 1.7',
+        mulBase === 1 && Math.abs(mulAll - 1.7) < 1e-9, 'base=' + mulBase + ' all=' + mulAll);
+      /* 永久奖励 hook：武器行动 -10% / 士兵 +15% / 战利品 +20%（tierDone 后生效）。 */
+      const enemyStub = { faithActions: 0, cultureActions: 0 };
+      meta.challenges.completed.weapon_critique = true;
+      const wcCost = SB.war.actionCost({}, enemyStub, 'raid');
+      meta.challenges.completed.weapon_critique = false;
+      check('武器的批判：通关后战争行动成本 -10%（基线 ×0.9）', wcCost > 0 && Math.abs(wcCost / (1000 * 0.05) - 0.9) < 1e-6, 'cost=' + wcCost);
+      meta.challenges.completed.totalwar_doctrine = true;
+      const soldierMul = api.soldierOutputMul({});
+      meta.challenges.completed.totalwar_doctrine = false;
+      check('早打大打打核大战：通关后士兵产出 +15%', Math.abs(soldierMul - 1.15) < 1e-9, 'mul=' + soldierMul);
+      meta.challenges.completed.raider = true;
+      const lootMul = api.lootYieldMul({});
+      meta.challenges.completed.raider = false;
+      check('grubby：通关后战利品产出 +20%', Math.abs(lootMul - 1.2) < 1e-9, 'mul=' + lootMul);
     }
 
     /* ── 2026-11-04：挑战页「结算并挑战」必须真的结算本局 ──────────────────

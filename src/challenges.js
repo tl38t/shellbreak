@@ -142,6 +142,73 @@
         { label: '五倍永恒', cap: 5 },
         { label: '十倍永恒', cap: 10 },
         { label: '二十倍永恒', cap: 20 }
+      ] },
+    /* ── 批判的武器（2026-11-12 实装，原名和平主义者）────────────────────────
+     * 与 anarchy / good_old_days / three_launch_sites 同构的**终局挑战**（goal 型，
+     * 终点 = 戴森球竣工），约束在整局（含破壳后，goal 型 active 一直返回到 challengeDone）内生效。
+     * ⚠️ 约束范围：只禁「战争行动」三项（war.js 的 ACTIONS：劫掠 / 入侵 / 全面战争）——
+     *    那是 executeAction 唯一执行入口。吞并（annexEnemy）与软实力（executeSoftPowerAction）
+     *    不算战争行动，用户拍板不拦。
+     * ⚠️ 强制走「预防性拦截」：war.js 的 executeAction 顶部直接 return 拦截；
+     *    正常游玩不可能违规，故不像 anarchy 那样需要「违规计数」兜底。
+     * ⚠️ 奖励沿用终局挑战惯例基线「永久星屑获取 +10%」+ 自选副奖 C「软实力成本 -20%」
+     *    （softPowerCost 读 tierDone('pacifist') 永久生效，见 war.js）。 */
+    { id: 'pacifist', name: '批判的武器', icon: '🕊', badge: 'assets/challenges/challenge-pacifist.webp', kind: '终局挑战',
+      summary: '整局不发动任何战争行动，以和平手段推进文明。',
+      rule: '全程不得进行劫掠 / 入侵 / 全面战争；吞并与软实力（传播文化、传道信仰）不受限制，可照常使用。',
+      reward: '永久星屑获取 +10% · 软实力（信仰 / 文化渗透）成本 -20%',
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成虚境飞升亦算）',
+      tiers: [{ label: '永久和平', cap: null }] },
+    /* ── 武器的批判（2026-11-12 实装）──────────────────────────────────────
+     * 与「批判的武器」（原和平主义者）正好相反：放开战争动作与吞并，但禁止一切软实力
+     * （传播文化 / 传道信仰）与贸易路线。约束在整局（含破壳后）生效。
+     * ⚠️ 强制走预防性拦截：war.js 的 executeSoftPowerAction / establishTradeRoute
+     *    顶部直接 return 拦截；UI 对应按钮也禁用并提示原因。
+     * ⚠️ 奖励沿用终局挑战惯例基线「永久星屑获取 +10%」+ 副奖「战争行动军力消耗 -10%」
+     *    （actionCost 读 tierDone('weapon_critique') 永久生效，见 war.js）。 */
+    { id: 'weapon_critique', name: '武器的批判', icon: '⚔', badge: 'assets/challenges/challenge-weapon-critique.webp', kind: '终局挑战',
+      summary: '以武力推进文明，拒绝文化与信仰的渗透，也拒绝商路贸易。',
+      rule: '全程不得进行传播文化 / 传道信仰（软实力），也不得修建贸易路线；战争行动与吞并不受限制。',
+      reward: '永久星屑获取 +10% · 战争行动军力消耗 -10%',
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成虚境飞升亦算）',
+      tiers: [{ label: '以武止戈', cap: null }] },
+    /* ── 早打，大打，打核大战（2026-11-12 实装）────────────────────────────
+     * 与批判的武器 / 武器的批判正交：只许发动「全面战争」，劫掠与入侵被禁。
+     * 约束在整局（含破壳后）生效，goal 型 active 一直返回到 challengeDone。 */
+    { id: 'totalwar_doctrine', name: '早打，大打，打核大战', icon: '☢', badge: 'assets/challenges/challenge-totalwar-doctrine.webp', kind: '终局挑战',
+      summary: '只许发动全面战争，以最猛烈的手段碾碎一切。',
+      rule: '全程只能进行「全面战争」；劫掠与入侵被禁止。',
+      reward: '永久星屑获取 +10% · 士兵职业产出 +15%',
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成虚境飞升亦算）',
+      tiers: [{ label: '核平', cap: null }] },
+    /* ── grubby（2026-11-12 实装）──────────────────────────────────────────
+     * 只许劫掠，入侵与全面战争被禁。与批判的武器 / 武器的批判正交。 */
+    { id: 'raider', name: 'grubby', icon: '🪙', badge: 'assets/challenges/challenge-raider.webp', kind: '终局挑战',
+      summary: '只许劫掠，绝不做长期占领。',
+      rule: '全程只能进行「劫掠」；入侵与全面战争被禁止。',
+      reward: '永久星屑获取 +10% · 战利品产出 +20%',
+      goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成虚境飞升亦算）',
+      tiers: [{ label: '蝇营狗苟', cap: null }] },
+    /* ── 征服者（2026-11-12 实装）──────────────────────────────────────────
+     * 三档挑战：戴森球竣工时须已吞并全部 7 个敌国；敌方规模恢复速度按档位 ×1.5 / ×2 / ×3。
+     * ⚠️ goal 含 annex 类型：goalMet 新增 `annex` 分支统计 s.war.enemies 中
+     *    status==='annexed' 的数量 ≥ 7。这是 goal 引擎的唯一改动，其它 goal 型
+     *    （drift_terra / waterpollution / dyson_rush / 批判的武器 / 武器的批判）不受影响。
+     * ⚠️ 敌方恢复倍率由 enemyRecoveryMul 在 war.js 的 recoverEnemy 应用，读 activeTier(s).cap。 */
+    { id: 'conqueror', name: '征服者', icon: '👑', badge: 'assets/challenges/challenge-conqueror.webp', kind: '三档挑战',
+      summary: '吞并全部七个敌国，以铁蹄踏平星海。',
+      rule: '戴森球竣工时，必须已吞并全部 7 个敌国；本挑战敌方规模恢复速度按档位 ×1.5 / ×2 / ×3。',
+      rewards: [
+        '永久星屑获取 +10% · 初始人口上限 +5',
+        '永久星屑获取 +10% · 初始人口上限 +10',
+        '永久星屑获取 +10% · 初始人口上限 +20'
+      ],
+      goal: { t: 'all', of: [{ t: 'dyson' }, { t: 'annex', n: 7 }] },
+      goalText: '完成戴森球工程（虚境飞升亦算），并已吞并全部 7 个敌国',
+      tiers: [
+        { label: '一档', cap: 1.5 },
+        { label: '二档', cap: 2 },
+        { label: '三档', cap: 3 }
       ] }
   ];
   var BY_ID = {};
@@ -151,7 +218,8 @@
    *   漏登记 ⇒ 老档读回来的 completed 里没有这个键 ⇒ tierDone 恒 0 ⇒ 每次进游戏都像没通过、
    *   重打还能再领一次奖（2026-11-02 加 waterpollution 时同步补上）。 */
   function emptyProgress() { return { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, dyson_rush: 0, drift_terra: false, waterpollution: false,
-    anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0 } }; }
+    anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0, pacifist: false,
+    weapon_critique: false, totalwar_doctrine: false, raider: false, conqueror: 0 } }; }
   function progress(meta) {
     var c = meta && meta.challenges && meta.challenges.completed;
     return c || emptyProgress().completed;
@@ -221,6 +289,57 @@
     var a = active(s);
     return !!(a && a.id === 'good_old_days' && s.gov !== 'tribe');
   }
+  /* 战争行动是否被挑战禁用（2026-11-12）：细粒度拦截，返回禁用原因或 null。
+   * · pacifist（批判的武器）        → 全部战争行动被禁（reason='pacifist'）
+   * · totalwar_doctrine（早打…）    → 只许全面战争，劫掠/入侵被禁（reason='totalwar_only'）
+   * · raider（grubby）             → 只许劫掠，入侵/全面战争被禁（reason='raider_only'）
+   * war.js 的 executeAction 顶部据此预防性拦截；UI 三按钮也按 action.id 逐键禁用并提示。
+   * ⚠️ 吞并 / 软实力不在此列（各有独立拦截点）。 */
+  function warActionBlockedReason(s, actionId) {
+    var a = active(s);
+    if (!a) return null;
+    if (a.id === 'pacifist') return 'pacifist';
+    if (a.id === 'totalwar_doctrine' && actionId !== 'totalWar') return 'totalwar_only';
+    if (a.id === 'raider' && actionId !== 'raid') return 'raider_only';
+    return null;
+  }
+  /* 战争动作整组被禁（批判的武器）。保留给 UI「全部按钮禁用」与既有 e2e 断言。 */
+  function warBlocked(s) {
+    var a = active(s);
+    return !!(a && a.id === 'pacifist');
+  }
+  /* 软实力（传播文化 / 传道信仰）是否被挑战禁用（武器的批判）。war.js 的
+   * executeSoftPowerAction 顶部据此拦截；UI 软实力按钮也禁用。 */
+  function softPowerBlocked(s) {
+    var a = active(s);
+    return !!(a && a.id === 'weapon_critique');
+  }
+  /* 贸易路线是否被挑战禁用（武器的批判）。war.js 的 establishTradeRoute 顶部据此拦截；
+   * UI 商路按钮也禁用。 ⚠️ 战争页商路按钮用的是 civics.trade 门，本函数只在已解锁后追加禁。 */
+  function tradeRouteBlocked(s) {
+    var a = active(s);
+    return !!(a && a.id === 'weapon_critique');
+  }
+  /* 敌方规模恢复倍率（征服者三档）。recoverEnemy 据此放大恢复速度；
+   * 读 activeTier(s).cap（1.5 / 2 / 3）。非征服者或破壳后返回 1。 */
+  function enemyRecoveryMul(s) {
+    var a = active(s);
+    if (!a || a.id !== 'conqueror') return 1;
+    var tier = activeTier(s);
+    return tier && typeof tier.cap === 'number' && tier.cap > 0 ? tier.cap : 1;
+  }
+  /* 战争行动军力消耗倍率（武器的批判通关奖励 -10%）。actionCost 据此永久生效。 */
+  function warCostMul(s) {
+    return tierDone('weapon_critique', SB.game && SB.game.meta ? SB.game.meta() : null) >= 1 ? 0.9 : 1;
+  }
+  /* 士兵职业产出倍率（早打大打打核大战通关奖励 +15%）。war.js 的 rate 据此永久生效。 */
+  function soldierOutputMul(s) {
+    return tierDone('totalwar_doctrine', SB.game && SB.game.meta ? SB.game.meta() : null) >= 1 ? 1.15 : 1;
+  }
+  /* 战利品产出倍率（grubby 通关奖励 +20%）。war.js 的 executeAction 据此永久生效。 */
+  function lootYieldMul(s) {
+    return tierDone('raider', SB.game && SB.game.meta ? SB.game.meta() : null) >= 1 ? 1.2 : 1;
+  }
   /* ══ 两个倍率读数，绝不可混用（2026-11-09 用户拍板 #1）═══════════════════
    * recordedMultiplier(s) ——「本局档位快照」，只依赖 s.challenge.id / tier。
    *   ⚠️ 不看 active()：goal 型一达成 active() 立刻返回 null（它的终点是 challengeDone），
@@ -270,7 +389,10 @@
   }
   function stardustRewardMul(meta) {
     var count = tierDone('anarchy', meta) + tierDone('good_old_days', meta) +
-      tierDone('three_launch_sites', meta) + tierDone('eternity_moment', meta);
+      tierDone('three_launch_sites', meta) + tierDone('eternity_moment', meta) +
+      tierDone('pacifist', meta) + tierDone('weapon_critique', meta) +
+      tierDone('totalwar_doctrine', meta) + tierDone('raider', meta) +
+      tierDone('conqueror', meta);
     return 1 + 0.10 * count;
   }
   function launchHydroRewardMul(meta) {
@@ -328,7 +450,9 @@
   function startingPopulation() {
     var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
     var done = tierDone('small', meta), pol = tierDone('waterpollution', meta);
-    return SB.CFG.POP_START + (done ? 3 : 0) + (pol ? 2 : 0);
+    /* 征服者三档永久奖励：初始人口上限 +5 / +10 / +20（按已通档位）。 */
+    var conq = tierDone('conqueror', meta), conqBonus = ([0, 5, 10, 20])[conq] || 0;
+    return SB.CFG.POP_START + (done ? 3 : 0) + (pol ? 2 : 0) + conqBonus;
   }
   function warmHeatingBlocked(s) {
     var a = active(s);
@@ -349,6 +473,15 @@
      *   dysonPct(s) >= 1 时置位的一次性旗；飞升虚境（civics.ascend_void）也收敛到它，
      *   所以这里不需要额外的 `|| s.ascendVoidDone` 分支。 */
     if (goal.t === 'dyson') return !!s.dysonDone;
+    /* 吞并计数（2026-11-12 征服者）：统计本局已吞并（status==='annexed'）的敌国数 ≥ n。
+     * ⚠️ 只影响带 `annex` 的 goal；其余 goal 型（drift_terra / waterpollution /
+     *    dyson_rush / 批判的武器 / 武器的批判）走各自既有分支，互不影响。 */
+    if (goal.t === 'annex') {
+      var enemies = s && s.war && s.war.enemies, annexed = 0, ek;
+      if (!enemies) return false;
+      for (ek in enemies) if (Object.prototype.hasOwnProperty.call(enemies, ek) && enemies[ek] && enemies[ek].status === 'annexed') annexed++;
+      return annexed >= goal.n;
+    }
     if (goal.t === 'wonders') {
       var ow = SB.wonder && SB.wonder.owned ? SB.wonder.owned(s) : {};
       return (goal.ids || []).every(function (id) { return !!ow[id]; });
@@ -732,8 +865,12 @@
   SB.challenges = {
     list: function () { return DEFINITIONS; }, byId: function (id) { return BY_ID[id] || null; },
     progress: progress, tierDone: tierDone, completedCount: completedCount,
-    active: active, activeTier: activeTier, ignorePopulationGates: ignorePopulationGates,
+    active: active, activeTier: activeTier,     ignorePopulationGates: ignorePopulationGates,
     bypassGovernmentGates: bypassGovernmentGates, governmentLocked: governmentLocked,
+    warBlocked: warBlocked, warActionBlockedReason: warActionBlockedReason,
+    softPowerBlocked: softPowerBlocked, tradeRouteBlocked: tradeRouteBlocked,
+    enemyRecoveryMul: enemyRecoveryMul, warCostMul: warCostMul,
+    soldierOutputMul: soldierOutputMul, lootYieldMul: lootYieldMul,
     /* 限制口径 / 档位快照口径。shellMultiplier 是历史别名（壳厚目标最早只用在这一处），
      * 保留不删；新代码请用语义明确的 runMultiplier。 */
     multiplier: multiplier, runMultiplier: recordedMultiplier, shellMultiplier: recordedMultiplier,

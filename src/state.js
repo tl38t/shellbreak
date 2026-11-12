@@ -54,7 +54,8 @@
       skydrillMul: 1,
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
       challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false,
-        waterpollution: false, anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0 } },
+        waterpollution: false, anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0, pacifist: false,
+        weapon_critique: false, totalwar_doctrine: false, raider: false, conqueror: 0 } },
       /* 美好旧日解锁后，首次采用的各政体会永久生成对应被动政策卡。 */
       govPassiveCards: {},
       govEverAdopted: {},
@@ -821,9 +822,12 @@
      *   抹掉 ⇒ 玩家重启游戏就丢永久奖励（本表是「三处同源」的第三处，另两处 =
      *   challenges.emptyProgress 与 state-migrate 的 challengeDone 判据）。 */
     var challengeIds = { cold: true, small: true, science: true, abyss: true, speedrun: true, drift_terra: true, waterpollution: true,
-      anarchy: true, good_old_days: true, three_launch_sites: true, eternity_moment: true };
+      anarchy: true, good_old_days: true, three_launch_sites: true, eternity_moment: true, pacifist: true,
+      weapon_critique: true, totalwar_doctrine: true, raider: true, conqueror: true };
+    /* ⚠️ conqueror 是三档挑战，不入 singleTier，completed 走数值夹取（0/1/2/3）。 */
     var singleTierChallenges = { cold: true, small: true, drift_terra: true, waterpollution: true,
-      anarchy: true, good_old_days: true, three_launch_sites: true };
+      anarchy: true, good_old_days: true, three_launch_sites: true, pacifist: true,
+      weapon_critique: true, totalwar_doctrine: true, raider: true };
     for (var challengeId in challengeIds) {
       var completed = m.challenges.completed[challengeId];
       if (singleTierChallenges[challengeId]) m.challenges.completed[challengeId] = completed === true;

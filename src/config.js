@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.1.1',
+    VERSION: 'Ver1.2.1',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,6 +33,27 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.2.1（2026-11-12）：三处玩家直接报障修复 —— 外交页「择取区域」按钮首次关闭/择卡后无反应、
+       * 市政面板卷轴闪动、科技面板周期性闪动。升版四步中本次仅做 VERSION / CHANGELOG 两项；
+       * index.html ?v= 与 _repack.py 断言待用户授权发布时再做。 */
+      { v: 'Ver1.2.1', date: '2026-11-12', items: [
+        // —— 修复 ——
+        'changelog.fix.heritage_draft_unresponsive',
+        'changelog.fix.civic_scroll_flicker',
+        'changelog.fix.tech_panel_flicker'
+      ] },
+      /* Ver1.2.0（2026-11-12）：战争系统整体落地 —— 外交页与七阶敌国战役、三种战争行动与军力系统、
+       * 敌国主动入侵、配套军事科技/工坊升级/建筑/奇观、战争与入侵结果提示。升版四步已补齐
+       * （VERSION / CHANGELOG / index.html ?v / _repack.py 断言）。 */
+      { v: 'Ver1.2.0', date: '2026-11-12', items: [
+        // —— 新增：战争系统 ——
+        'changelog.war.diplomacy_pane',
+        'changelog.war.actions_and_power',
+        'changelog.war.enemy_invasion',
+        'changelog.war.military_tech_civics',
+        'changelog.war.military_buildings_wonders',
+        'changelog.war.result_feedback'
+      ] },
       /* Ver1.1.1（2026-11-09）：1.1.0 之后的未发布改动合集。两条显示类优化 + 三条真实 bug 修复，
        * 其中「退役市政卡仍在生效」与「挑战竣工分母塌陷」都是玩家直接报过的现象。
        * 升版四步已补齐（VERSION / CHANGELOG / index.html ?v / _repack.py 断言）；2026-11-10 封包。 */
@@ -926,7 +947,13 @@
        * 明文码由开发者自行保管；要换码就跑 `node tmp/_mkcode.mjs <新码>` 换掉这个 h。
        * 明文写法（仅供本地调试，**发版前必须换回 h**）：
        *   { code: 'YOUR-CODE-HERE', stardust: 50, label: '星屑礼包' } */
-      { h: 'fe97c807f70f509ea85b8f3b3a340535951baede', stardust: 50, label: '星屑礼包' }
+      { h: 'fe97c807f70f509ea85b8f3b3a340535951baede', stardust: 50, label: '星屑礼包' },
+      /* 2026-11-12 追加三条 100 星屑乱码码（仅开发者私下持有明文，包内只存哈希）。
+       * 明文码：XQ7K-2MP9-D4RT-V8LZ / B6NH-3WC8-Y1F5-S2KE / V9ZR-4TD7-L6QM-5XPB
+       * 换码就跑 `node tmp/_mkcode.mjs <新码>` 把对应 h 换掉即可。 */
+      { h: '5e26a421982e561596e1eddd85c0aa5b41af6920', stardust: 100, label: '星屑礼包' },
+      { h: '3dbd9f2adb8016eeaabaaeca34a51da00e4f8dab', stardust: 100, label: '星屑礼包' },
+      { h: 'f6ff4232fc87ea28e07da661c6ded4878f2a08f4', stardust: 100, label: '星屑礼包' }
     ]
 
     /* ⚠️ 这里**故意不设 CHARACTER_ID**：TDS 的 character_id 是「游戏用户 ID」，平台按
