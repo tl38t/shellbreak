@@ -22,6 +22,7 @@ assets/backgrounds/breakthrough/engraved-*/
 # ===== 本机调试 / 导出中间产物（不入库）=====
 demo_*.html
 *_demo.html
+*-demo.html
 outputs/
 __pycache__/
 _build_*.py
@@ -31,4 +32,11 @@ _tt-*
 _chatgpt_*.txt
 _shopzone*.html
 _cdp.mjs
+registry-before.png
+shots/
+tmp/
+tools/
+sim/_*.mjs
+sim/probe*.mjs
 .workbuddy/memory/
+.workbuddy/_*.py
