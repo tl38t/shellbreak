@@ -2752,7 +2752,7 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "tech.protoai.name": "初级人工智能",
   "tech.protoai.unlock_desc": "解锁建筑「机器人充能站」（维持 {robotPopulation} 机器人人口/级：仅担任非书手/学者岗位，产出 +{robotOutputBonus}、不影响信仰点）；解锁工坊升级「全水文军事辅助机械」（战争行动敌国规模损耗 +70%）。",
   "tech.pubedu.name": "普及教育",
-  "tech.pubedu.note": "Civ VI: Public Schooling · 科学产出达到{researchRate}/s。解锁学校（每名鲛人 {researchPerPerson}科技/秒、{civicPerPerson}市政/秒，每级）。",
+  "tech.pubedu.note": "Civ VI: Public Schooling · 科学产出达到{researchRate}/s。解锁学校（每名鲛人 {researchPerPerson}科技/秒、{civicPerPerson}市政/秒，每级）与王立士官学院（按人口追加军力产出）。",
   "tech.quarry.name": "采石",
   "tech.quarry.note": "采石工产「石头」。cond 用珊瑚存量而不是时间：玩家攒够了自然会去凿石头， * 这也是石头这条线第一次在树上露面（它后面要养石屋）。",
   "tech.refine.effect_desc": "生产精铁和钢时，暖石消耗 {effectPercent1}。",

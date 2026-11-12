@@ -22,6 +22,34 @@
   var FOLK_POINTER_GUARD_MS = 1500;
   var folkControlPointerDeadline = 0;
 
+  /* §1 B1：移动端触点竞态防护（全局版，覆盖所有 pane）。
+   * 机制：PANE_REFRESH 每 2 秒把 pane 整块 innerHTML 重写；移动端点按 = touchstart→touchend→合成 click，
+   *   若重写发生在「按下」与「抬起」之间，目标节点被替换 → 浏览器不合成 click → 本文件的委托处理器收不到 → 「摁住无响应」。
+   * 修复：pane 2 秒重写门前加「指针按下中不重写」闸门（game.js 的 PANE_REFRESH 分支读本函数）。
+   * 与族民面板已有的 folkControlPointerActive 同构，但提升到全局、覆盖全部 pane；
+   * 同样用墙钟兜底（PANE_POINTER_GUARD_MS）自愈，避免 pointerup 丢失导致标志卡死、pane 永不刷新。
+   * 仅监听 pointer* 事件（覆盖 touch+mouse+pen）；window blur / 页面隐藏时清标记做二级兜底。 */
+  var PANE_POINTER_GUARD_MS = 1500;
+  var panePointerUntil = 0;
+  function _panePointerDown() { panePointerUntil = Date.now() + PANE_POINTER_GUARD_MS; }
+  function _panePointerUp() { panePointerUntil = 0; }
+  function isPanePointerInteracting() {
+    if (panePointerUntil && Date.now() > panePointerUntil) panePointerUntil = 0; // 墙钟兜底自愈
+    return !!panePointerUntil;
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', _panePointerDown, true);
+    document.addEventListener('pointerup', _panePointerUp, true);
+    document.addEventListener('pointercancel', _panePointerUp, true);
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('blur', _panePointerUp);
+      window.addEventListener('pagehide', _panePointerUp);
+      document.addEventListener('visibilitychange', function () { if (document.hidden) panePointerUntil = 0; });
+    }
+  }
+  SB.ui = SB.ui || {};
+  SB.ui.isPanePointerInteracting = isPanePointerInteracting;
+
   function run() { return SB.game.run(); }
   function emit(msg) { SB.game.emit(msg); }
   function tr(key, params) {

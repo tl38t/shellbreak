@@ -1480,7 +1480,12 @@
        * 这里用 now（帧钟）而不是逻辑时间：倍速只该加快世界，不该加快 UI 重建。
        * renderTick 仍然是每帧（100ms）走的便宜通道：顶栏、天壳、环境卡、生育条。 */
       if (!dirty && now - (loop._lastPane || 0) >= PANE_REFRESH) {
-        loop._lastPane = now; dirty = true;
+        /* §1 B1：移动端触点竞态闸门。指针按下中（触摸/鼠标/笔）跳过本次 2 秒重写，
+         * 避免 innerHTML 替换掉正在被按的节点导致 click 不被合成、委托处理器收不到（「摁住无响应」）。
+         * 不更新 _lastPane ⇒ 抬起后下一帧自然补刷；PANE_POINTER_GUARD_MS 兜底防止标志卡死。 */
+        if (!SB.ui || !SB.ui.isPanePointerInteracting || !SB.ui.isPanePointerInteracting()) {
+          loop._lastPane = now; dirty = true;
+        }
       }
       if (dirty) renderAll(); else SB.ui.render.renderTick();
       /* 自动采集点击（轮回商店 autoClick，N 次/真实秒）：只在线（!loop.job），用帧钟 elapsed 累计，

@@ -2752,7 +2752,7 @@ window.ShellbreakLocales["en-US"] = Object.freeze({
   "tech.protoai.name": "Basic Artificial Intelligence",
   "tech.protoai.unlock_desc": "Unlocks the Robot Charging Station (supports {robotPopulation} robot population per level; robots fill jobs other than Scribe or Scholar, produce +{robotOutputBonus}, and do not produce Faith) and the Full Hydrologic Military Support Machine workshop upgrade (war actions deal +70% enemy-scale damage).",
   "tech.pubedu.name": "Public Schooling",
-  "tech.pubedu.note": "Inspired by Civ VI’s Public Schooling. Reach {researchRate} Research Points/sec to unlock the School. Each level produces {researchPerPerson} Research Points/sec and {civicPerPerson} Civic Points/sec per Merfolk.",
+  "tech.pubedu.note": "Inspired by Civ VI’s Public Schooling. Reach {researchRate} Research Points/sec to unlock the School and the Royal Military Academy (adds Military Power per population). Each level of the School produces {researchPerPerson} Research Points/sec and {civicPerPerson} Civic Points/sec per Merfolk.",
   "tech.quarry.name": "Quarrying",
   "tech.quarry.note": "Unlocks the Quarrier, who produces Stone. Eureka is based on your Coral stock rather than elapsed time: once you have enough Coral, you are ready to start quarrying. This is the first Stone node in the tree; Stone will later be used to build the Stone House.",
   "tech.refine.effect_desc": "Reduces Warmstone consumption by {effectPercent1} when producing Iron and Steel.",
