@@ -432,9 +432,15 @@
     out.techs = {};
     var rawTechs = (raw.techs && typeof raw.techs === 'object') ? raw.techs : {};
     var legacy = SB.LEGACY_MAP || {};
+    // 预建「当前仍存活的科技 id」集合，用于下文绕过 legacy 映射：
+    // 否则会出现 siegeT（攻城学，现纪元三存活 id）被 legacy 误迁成 skydrill（天穹钻机），
+    // 读档后攻城学变回未研究、红点重亮、玩家重复研究（客户反馈 2026-11-12）。
+    var _curTechIds = {};
+    if (SB.TECHS) for (var _cti = 0; _cti < SB.TECHS.length; _cti++) _curTechIds[SB.TECHS[_cti].id] = true;
     for (k in rawTechs) {
       if (!rawTechs[k]) continue;
-      var nid = legacy[k] || k;
+      // 当前存活 id 不被 legacy 迁走；只有真正已删除的旧 id 才走映射。
+      var nid = _curTechIds[k] ? k : (legacy[k] || k);
       if (SB.TECHS) {
         var hit = false;
         for (var ti = 0; ti < SB.TECHS.length; ti++) if (SB.TECHS[ti].id === nid) hit = true;

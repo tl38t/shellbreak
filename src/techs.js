@@ -1098,7 +1098,10 @@
      *    老档里若有人研究过它，那项知识在新树里无处落 —— 按丢弃处理，不断链。
      * ⚠️ `heat: 'hearthfire'` 亦已删除（2026-09-28，同纪元二重排）：老档里的 heat 一律
      *    视为没研究过（等价物不存在 ⇒ 折算会凭空造出一个新科技）。 */
-    dive: 'deepsea', siegeT: 'skydrill', pick: 'skydrill'  // 旧纪元五 siegeT/工程兵团 已随本轮重做删除，迁到新 key 天穹钻机
+    dive: 'deepsea', pick: 'skydrill'  // 旧纪元五 工程兵团→天穹钻机（pick/dive 是已删除旧 id，才走映射）
+    // ⚠️ siegeT 不再进 legacy：它现在是世界树纪元三存活节点「攻城学」。
+    //    留在这里会把研究过攻城学的存档误迁走（红点复燃 / 重复研究，客户反馈 2026-11-12）。
+    //    当前存活 id 由 state-migrate.js 的 _curTechIds 守卫拦截，不依赖本表。
   };
 
   NS.ERAS = ERAS;

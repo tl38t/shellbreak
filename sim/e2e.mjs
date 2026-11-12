@@ -12,6 +12,7 @@ import { run as runClickEvents } from './e2e-suites/click-events.mjs';
 import { run as runAutoPlay } from './e2e-suites/autoplay.mjs';
 import { run as runAutoResearch } from './e2e-suites/auto-research.mjs';
 import { run as runTechShape } from './e2e-suites/tech-shape.mjs';
+import { run as runTechMigrate } from './e2e-suites/tech-migrate.mjs';
 import { run as runEra3Content } from './e2e-suites/era3-content.mjs';
 import { run as runPersistence } from './e2e-suites/persistence.mjs';
 import { run as runBootGate } from './e2e-suites/boot-gate.mjs';
@@ -281,6 +282,14 @@ if (process.argv.includes('--war-only')) {
   const failedWar = checks.filter(c => !c.ok);
   console.log(`\n战争系统测试：${checks.length - failedWar.length}/${checks.length} 通过`);
   process.exit(failedWar.length || errors.length ? 1 : 0);
+}
+
+/* 科技读档迁移（2026-11-12 攻城学重复研究回归）：单独跑，秒级，不必跑整局 bot。 */
+if (process.argv.includes('--tech-migrate-only')) {
+  runTechMigrate({ SB, check });
+  const failedMig = checks.filter(c => !c.ok);
+  console.log(`\n科技迁移回归：${checks.length - failedMig.length}/${checks.length} 通过`);
+  process.exit(failedMig.length || errors.length ? 1 : 0);
 }
 
 /* 设备级 UI 偏好（2026-11-05）：单独验证偏好层与两个面板开关，不必跑完整整局 bot。 */
@@ -1100,6 +1109,7 @@ console.log('\n=== 开局解锁链 ===');
 }
 
 runTechShape({ SB, check });
+runTechMigrate({ SB, check });
 runEra3Content({ SB, check });
 
 
