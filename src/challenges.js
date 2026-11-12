@@ -199,9 +199,9 @@
       summary: '吞并全部七个敌国，以铁蹄踏平星海。',
       rule: '戴森球竣工时，必须已吞并全部 7 个敌国；本挑战敌方规模恢复速度按档位 ×1.5 / ×2 / ×3。',
       rewards: [
-        '永久星屑获取 +10% · 初始人口上限 +5',
-        '永久星屑获取 +10% · 初始人口上限 +10',
-        '永久星屑获取 +10% · 初始人口上限 +20'
+        '永久星屑获取 +10% · 敌国规模上限 −5%',
+        '永久星屑获取 +10% · 敌国规模上限 −10%',
+        '永久星屑获取 +10% · 敌国规模上限 −15%'
       ],
       goal: { t: 'all', of: [{ t: 'dyson' }, { t: 'annex', n: 7 }] },
       goalText: '完成戴森球工程（虚境飞升亦算），并已吞并全部 7 个敌国',
@@ -340,6 +340,15 @@
   function lootYieldMul(s) {
     return tierDone('raider', SB.game && SB.game.meta ? SB.game.meta() : null) >= 1 ? 1.2 : 1;
   }
+  /* 敌国规模上限永久乘区（征服者三档通关奖励）。
+   * effectiveMaxScale 据此永久生效；读 tierDone('conqueror')（0/1/2/3）→ 1 / 0.95 / 0.90 / 0.85（−5%/−10%/−15%）。
+   * 与 faith/culture/soft_power 对「单个敌国」按敌国累积的削减是不同轴：本函数是全局永久乘区，
+   * 不写入 enemy.faithReduction 等字段。不放 s 参数——它只依赖 profile 的已完成档位。 */
+  function enemyScaleCapMul() {
+    var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
+    var conq = tierDone('conqueror', meta);
+    return ([1, 0.95, 0.90, 0.85])[conq] || 1;
+  }
   /* ══ 两个倍率读数，绝不可混用（2026-11-09 用户拍板 #1）═══════════════════
    * recordedMultiplier(s) ——「本局档位快照」，只依赖 s.challenge.id / tier。
    *   ⚠️ 不看 active()：goal 型一达成 active() 立刻返回 null（它的终点是 challengeDone），
@@ -446,13 +455,13 @@
     var done = tierDone('small', SB.game && SB.game.meta ? SB.game.meta() : null);
     return SB.CFG.GROW_NEED * (done ? 0.5 : 1);
   }
-  /* 起始人口：小国寡民 +3、水体污染 +2（两项都通过则叠加）。 */
+  /* 起始人口：小国寡民 +3、水体污染 +2（两项都通过则叠加）。
+   * ⚠️ 征服者奖励已改为「敌国规模上限 −5/−10/−15%」（永久全局乘区，见 enemyScaleCapMul），
+   * 不再加起始人口，故此处不再读 conqueror 档位。 */
   function startingPopulation() {
     var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
     var done = tierDone('small', meta), pol = tierDone('waterpollution', meta);
-    /* 征服者三档永久奖励：初始人口上限 +5 / +10 / +20（按已通档位）。 */
-    var conq = tierDone('conqueror', meta), conqBonus = ([0, 5, 10, 20])[conq] || 0;
-    return SB.CFG.POP_START + (done ? 3 : 0) + (pol ? 2 : 0) + conqBonus;
+    return SB.CFG.POP_START + (done ? 3 : 0) + (pol ? 2 : 0);
   }
   function warmHeatingBlocked(s) {
     var a = active(s);
@@ -871,6 +880,7 @@
     softPowerBlocked: softPowerBlocked, tradeRouteBlocked: tradeRouteBlocked,
     enemyRecoveryMul: enemyRecoveryMul, warCostMul: warCostMul,
     soldierOutputMul: soldierOutputMul, lootYieldMul: lootYieldMul,
+    enemyScaleCapMul: enemyScaleCapMul,
     /* 限制口径 / 档位快照口径。shellMultiplier 是历史别名（壳厚目标最早只用在这一处），
      * 保留不删；新代码请用语义明确的 runMultiplier。 */
     multiplier: multiplier, runMultiplier: recordedMultiplier, shellMultiplier: recordedMultiplier,

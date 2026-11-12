@@ -214,7 +214,11 @@
     var base = nonNegative(enemy.baseScale);
     var faithReduction = clamp(nonNegative(enemy.faithReduction), 0, 0.30);
     var cultureReduction = clamp(nonNegative(enemy.cultureReduction), 0, 0.30);
-    return base * Math.max(0.40, 1 - faithReduction - cultureReduction);
+    var cap = base * Math.max(0.40, 1 - faithReduction - cultureReduction);
+    /* 征服者三档永久奖励：敌国规模上限 ×0.95/×0.90/×0.85（−5%/−10%/−15%）。
+     * 与 faith/culture/soft_power 按敌国累积的削减是不同轴，此处叠加为全局永久乘区。 */
+    if (SB.challenges && SB.challenges.enemyScaleCapMul) cap *= SB.challenges.enemyScaleCapMul();
+    return cap;
   }
   function currentScale(enemy) {
     return enemy ? Math.min(effectiveMaxScale(enemy), nonNegative(enemy.currentScale)) : 0;
