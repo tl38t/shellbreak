@@ -1,13 +1,14 @@
 # Steam 上架准备清单
 
-更新日期：2026-11-04  
-状态：准备阶段；商店素材 v1 已制作，Steam 桌面包尚未完成。
+更新日期：2026-11-13
+状态：准备阶段；商店素材 v1 与 Windows x64 Steam depot 候选包已制作，Steam 客户端验收尚未完成。
 
 ## 项目现状
 
 - 当前入口是纯前端网页 `index.html`，README 描述为双击运行、无构建步骤；尚未看到 Steam 可上传的桌面发行包。
 - 已生成本地化开发用 Electron Windows x64 安装器 `dist/electron/Shellbreak-Desktop-1.0.17-Setup.exe`。当前接入首批 en-US 静态界面、设置内语言切换与 Steam 游戏语言读取；其余游戏文本仍在迁移，Steam 功能适配与发行验收未完成。
-- 代码中接有 TapTap 专属能力：激励广告、排行榜、成就、兑换码、TapTap 云存档。Steam 版需要决定逐项替换成 Steamworks、本地功能，还是从该版本移除。
+- 已生成 SteamPipe 用 Windows x64 内容目录 `dist/steam-depot/win-unpacked/`；Steam depot 内容根目录使用该文件夹，启动项为 `Shellbreak.exe`。它不是 NSIS 安装器，也不包含开发用 `steam_appid.txt`；尚未通过 Steam 客户端做真实启动验收。
+- 代码中仍有 TapTap 专属能力：激励广告、排行榜、成就、兑换码、TapTap 云存档。Electron 已将当前运行时 85 项成就全部映射到 Steamworks API Name 并接入统一解锁桥；Steamworks 后台创建/图标/发布和真实客户端验收尚未完成，其他 TapTap 专属功能仍需逐项迁移、替换或移除。
 - Steam 素材按「渊海群星：深海文明建设」制作；`index.html` 浏览器标题与页头主标题已同步为新名。README、TapTap 物料和部分历史文档仍保留旧名，后续如统一改名需逐项核对。
 - 用户确认首发包含全部当前可玩内容，后续不计划追加游戏内容；商店描述按完整单人作品表述，不承诺未来扩展。
 - 已有一套 TapTap 宣传物料和 25 秒实机录屏；当前 Steam 候选截图只有 3 张，尺寸均为 1600×900，不符合 Steam 截图最低尺寸和数量要求。
@@ -29,7 +30,7 @@
 - [ ] 在干净 Windows 环境验证首次启动、重启、存档读写、窗口缩放、分辨率和退出恢复。
 - [ ] 明确 TapTap 专属功能在 Steam 版的行为：
   - 激励广告加速 / 奖励：移除或改为无需广告的游戏内机制。
-  - **首发硬门槛：成就迁移并接入 Steamworks。** 配置正式成就，在发行构建中验证解锁、重复启动后的状态同步及 Steam 客户端展示。
+  - **首发硬门槛：成就迁移并接入 Steamworks。** Electron 代码已映射当前运行时 85 项；Steamworks 后台 85 项定义及图标仍需补齐并发布，然后在发行构建中验证解锁、重启同步及 Steam 客户端展示。
   - **首发硬门槛：排行榜迁移并接入 Steamworks。** 配置排行榜，在发行构建中验证成绩提交、读取和 Steam 客户端展示。
   - TapTap 兑换码：移除或设计 Steam 版可用的发放方式。
   - **首发硬门槛：实现 Steam 云存档。** 使用正式 Steam 存档路径，验证上传、下载、跨设备同步及冲突处理；不得只依赖浏览器缓存或本地存档。

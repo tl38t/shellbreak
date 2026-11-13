@@ -2,7 +2,7 @@
 
 (function (root) {
   var LOCALE_KEY = 'shellbreak.locale';
-  var SUPPORTED_PREFERENCES = ['steam', 'zh-CN', 'en-US'];
+  var SUPPORTED_PREFERENCES = ['steam', 'zh-CN', 'en-US', 'zh-TW'];
   var platform = root.shellbreakPlatform;
   var canLocalize = !!(
     platform &&
@@ -22,8 +22,23 @@
     }
   }
 
+  function isLocaleComplete(code) {
+    var dictionary = dictionaries[code];
+    var coverage = root.ShellbreakLocaleCoverage && root.ShellbreakLocaleCoverage[code];
+    return !!(
+      dictionary &&
+      coverage &&
+      coverage.complete === true &&
+      Number(coverage.activeKeys) > 0 &&
+      Object.keys(dictionary).length >= Number(coverage.activeKeys)
+    );
+  }
+
   function localeForSteamLanguage(language) {
     var code = String(language || '').trim().toLowerCase().replace(/_/g, '-');
+    if (code === 'tchinese' || code === 'zh-tw' || code === 'zh-hant' || code.indexOf('zh-tw-') === 0) {
+      return isLocaleComplete('zh-TW') ? 'zh-TW' : 'zh-CN';
+    }
     return code === 'english' || code === 'en' || code.indexOf('en-') === 0
       ? 'en-US'
       : 'zh-CN';
@@ -33,6 +48,7 @@
     if (!canLocalize) return 'zh-CN';
     if (value === 'en-US') return dictionaries['en-US'] ? 'en-US' : 'zh-CN';
     if (value === 'zh-CN') return 'zh-CN';
+    if (value === 'zh-TW') return isLocaleComplete('zh-TW') ? 'zh-TW' : 'zh-CN';
     return localeForSteamLanguage(steamLanguage());
   }
 
@@ -40,6 +56,7 @@
     try {
       var saved = root.localStorage.getItem(LOCALE_KEY);
       preference = SUPPORTED_PREFERENCES.indexOf(saved) >= 0 ? saved : 'steam';
+      if (preference === 'zh-TW' && !isLocaleComplete('zh-TW')) preference = 'steam';
     } catch (e) {
       preference = 'steam';
     }
@@ -154,6 +171,7 @@
 
   function setLocale(value) {
     if (!canLocalize || SUPPORTED_PREFERENCES.indexOf(value) < 0) return false;
+    if (value === 'zh-TW' && !isLocaleComplete('zh-TW')) return false;
     preference = value;
     try {
       root.localStorage.setItem(LOCALE_KEY, preference);
@@ -165,7 +183,8 @@
   function mountLanguageSelector() {
     var block = root.document && root.document.getElementById('localeSettingBlock');
     if (!block) return;
-    if (!canLocalize || !dictionaries['en-US']) {
+    var traditionalChineseAvailable = isLocaleComplete('zh-TW');
+    if (!canLocalize || (!dictionaries['en-US'] && !traditionalChineseAvailable)) {
       block.hidden = true;
       return;
     }
@@ -183,11 +202,15 @@
     select.setAttribute('aria-label', translate('ui.settings.language.title'));
     select.setAttribute('data-i18n-aria-label', 'ui.settings.language.title');
     select.setAttribute('data-language-selector', '');
-    [
+    var options = [
       ['steam', 'ui.settings.language.follow_steam'],
       ['zh-CN', 'ui.settings.language.simplified_chinese'],
       ['en-US', 'ui.settings.language.english']
-    ].forEach(function (item) {
+    ];
+    if (traditionalChineseAvailable) options.push(['zh-TW', 'ui.settings.language.traditional_chinese']);
+    options.filter(function (item) {
+      return item[0] !== 'en-US' || dictionaries['en-US'];
+    }).forEach(function (item) {
       var option = root.document.createElement('option');
       option.value = item[0];
       option.setAttribute('data-i18n', item[1]);

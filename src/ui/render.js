@@ -2696,9 +2696,13 @@
         return '<p>' + htmlText(x) + '</p>';
       }).join('') + '</div>' + (o.body || '') +
       (unlockCopy ? '<div class="story-unlock"><span class="story-unlock-mark" aria-hidden="true">✓</span><div><strong>' + htmlText(unlockTitle) + '</strong><small>' + htmlText(unlockCopy) + '</small></div></div>' : '') +
-      '<div class="foot story-actions"><button class="big" id="mStoryOk">' + htmlText(action) + '<span aria-hidden="true">→</span></button></div>';
+      '<div class="foot story-actions"><button type="button" class="btn story-close" id="mStoryClose">' + htmlText(tr('ui.action.close', null, '关闭')) + '</button><button class="big" id="mStoryOk">' + htmlText(action) + '<span aria-hidden="true">→</span></button></div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
     el('mStoryOk').onclick = function () { hideModal(); if (o.onOk) o.onOk(); };
+    /* 关闭键：只收尾叙事队列、不执行切页导航（o.dismiss），让玩家连续建造时
+     * 不必被解锁弹窗强行拽去新页签（客户反馈 2026-11-13）。 */
+    var _close = el('mStoryClose');
+    if (_close) _close.onclick = function () { hideModal(); if (o.dismiss) o.dismiss(); };
   }
 
   /* 页签的解锁态：只服务于「科技面板未开门」这一次性 gate（其余 tab 一律可点）。

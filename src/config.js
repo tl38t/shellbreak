@@ -418,7 +418,18 @@
     halfDyson: '0',           // 半程星环（占位）
     driftTerra: '0',          // 流浪泰拉挑战完成
     pollutionClear: '0',      // 水体污染挑战完成（占位）
-    /* —— 轻车熟路 45 条（bld_* 从 SB.BUILDINGS 派生，键与建筑 id 一一对应）——
+    /* —— 2026-11-12：其余挑战专属成就；Steam API Name 单独登记，不回填到 TapTap ID —— */
+    challengeDysonRush: '0',          // 星海竞速 — 三档全通
+    challengeAnarchy: '0',            // 安那其主义 — 挑战完成
+    challengeGoodOldDays: '0',        // 美好旧日 — 挑战完成
+    challengeThreeLaunchSites: '0',   // 三地发射网 — 挑战完成
+    challengeEternityMoment: '0',     // 永恒与须臾 — 三档全通
+    challengePacifist: '0',           // 批判的武器 — 挑战完成
+    challengeWeaponCritique: '0',     // 武器的批判 — 挑战完成
+    challengeTotalWarDoctrine: '0',   // 核战教条 — 挑战完成
+    challengeRaider: '0',             // 劫掠成性 — 挑战完成
+    challengeConqueror: '0',          // 征服者 — 三档全通
+    /* —— 轻车熟路 53 条（bld_* 从 SB.BUILDINGS 派生，键与建筑 id 一一对应）——
      * 口径：该建筑跨周目累计购买等级 ≥100（唯一购买漏斗 habitat.build 的 s.lvl[id]++）。 */
     bld_kelp: '0',            // 深海藻场：轻车熟路
     bld_nest: '0',            // 礁口巢：轻车熟路

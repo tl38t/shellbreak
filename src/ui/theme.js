@@ -150,6 +150,18 @@
         if (SB.onboarding && SB.onboarding.setEnabled) SB.onboarding.setEnabled(on);
       });
     }
+    // ---- 标签页解锁叙事开关（localStorage 'shellbreak.tabUnlockStories'，默认开）----
+    var tusToggle = root.document.querySelector('[data-tab-unlock-stories-toggle]');
+    if (tusToggle) {
+      var tusStored = root.localStorage && root.localStorage.getItem('shellbreak.tabUnlockStories');
+      tusToggle.checked = (tusStored !== '0');
+      root.document.addEventListener('change', function (event) {
+        var t = event.target && event.target.closest
+          ? event.target.closest('[data-tab-unlock-stories-toggle]') : null;
+        if (!t) return;
+        try { if (root.localStorage) root.localStorage.setItem('shellbreak.tabUnlockStories', t.checked ? '1' : '0'); } catch (e) {}
+      });
+    }
     root.document.addEventListener('click', function (event) {
       var button = event.target && event.target.closest
         ? event.target.closest('[data-ui-theme-choice]') : null;

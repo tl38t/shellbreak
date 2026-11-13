@@ -301,7 +301,7 @@
     if (s.got) s.got.stardust = meta.stardustEarned;
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
-    /* TapTap 成就：合格破壳时解锁「首次轮回」与挑战通关（幂等，靠 meta.achievements 去重）。 */
+    /* 平台成就：合格破壳时解锁「首次轮回」与挑战通关（幂等，由 achv.js 的平台账本去重）。 */
     if (SB.achv && SB.achv.onBreak) SB.achv.onBreak(r, meta);
     SB.state.saveMeta(meta);
     if (SB.state && SB.game.snapshot && SB.game.run && SB.game.run() === s)

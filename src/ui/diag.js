@@ -25,7 +25,7 @@
   var TAP_NEED = 5;
   var SAMPLE = 200;
 
-  var box = null, timer = 0, taps = [];
+  var box = null, timer = 0, taps = [], bootLine = null;
   var stat = { min: Infinity, max: -Infinity, jumps: 0, lastH: -1 };
   var cells = {};
 
@@ -49,6 +49,17 @@
     var ts = doc.querySelectorAll('.tabs .tab'), tops = {}, n = 0;
     for (var i = 0; i < ts.length; i++) { var y = ts[i].offsetTop; if (!tops[y]) { tops[y] = 1; n++; } }
     return n;
+  }
+  /* 启动诊断（2026-11-12）：把「有没有这一局 / 启动走到了哪个分支 / 是不是旧缓存」一次性亮出来。
+   * 客户在 TapTap 容器里报「整屏内容全空」——那是 boot 没把 run 建起来（S 为 null），只剩静态骨架。
+   * 这一行能在设备上立刻区分：run=NULL 即空骨架；boot/gate 出口码指出卡在哪；版本差暴露 TapTap 旧缓存。 */
+  function bootStatus() {
+    var SB = root.SB || {}, run = (SB.game && SB.game.run) ? SB.game.run() : null;
+    var d = (SB.store && SB.store.diagGet && SB.store.diagGet()) || {};
+    var ver = (SB.CFG && SB.CFG.VERSION) || '?';
+    return (run ? '有局OK' : 'NULL→空骨架!')
+      + '  boot=' + (d.boot || '-') + '  gate=' + (d.gate || '-')
+      + '  版本 ' + ver + '/diag.' + (d.ver || '-');
   }
 
   /* ---------------- 实时浮层 ---------------- */
@@ -85,6 +96,10 @@
     row('vtab', '巢穴页签');
     row('ftab', '族民页签');
     row('idle', '闲置族民');
+
+    bootLine = el('div', 'margin-top:5px;padding-top:5px;border-top:1px solid #2a5a7d;color:#dff;'
+      + 'word-break:break-all;line-height:14px', '本局/启动：检测中…');
+    box.appendChild(bootLine);
 
     var btn = el('button', [
       'margin-top:6px', 'width:100%', 'padding:5px', 'border-radius:6px',
@@ -127,6 +142,11 @@
     cells.vtab.textContent = txt('villageTabName');
     cells.ftab.textContent = txt('folkTabName');
     cells.idle.textContent = idleNow();
+    if (bootLine) {
+      var rb = (root.SB && root.SB.game && root.SB.game.run) ? root.SB.game.run() : null;
+      bootLine.textContent = '本局/启动：' + bootStatus();
+      bootLine.style.color = rb ? '#5be3a4' : '#ff8b6b';
+    }
   }
 
   function destroy() {
@@ -180,6 +200,7 @@
       'touch      ' + mq('(pointer: coarse)').matches + '  横屏 ' + mq('(orientation: landscape)').matches,
       '减弱动效   ' + mq('(prefers-reduced-motion: reduce)').matches,
       'body溢流   ' + getComputedStyle(doc.body).overflowX + '/' + getComputedStyle(doc.body).overflowY,
+      '本局/启动  ' + bootStatus(),
     ].join('\n');
   }
 

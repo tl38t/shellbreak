@@ -844,7 +844,20 @@
   /* 多个系统可能在同一轮同时跨过门槛（例如离线补算一次完成了议事厅与石工）。
    * 叙事弹窗不能互相覆盖，所以统一进一个小队列；当前卡片关闭后再开下一张。 */
   var storyQueue = [], storyQueueBusy = false;
+  /* 设置开关「标签页解锁介绍与跳转」（2026-11-13）：玩家可在设置里关闭所有系统页签
+   * 解锁叙事弹窗及其自动跳转。存 localStorage shellbreak.tabUnlockStories，默认开（v!=='0'）。
+   * 关掉后 queueStory 直接早退——各 maybeXxxPopup 在 queueStory 之前已置位的记账 flag 仍生效
+   * （不会重复触发），只是不再弹窗、不再切页。 */
+  function tabUnlockStoriesEnabled() {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage) {
+        return localStorage.getItem('shellbreak.tabUnlockStories') !== '0';
+      }
+    } catch (e) {}
+    return true;
+  }
   function queueStory(o) {
+    if (!tabUnlockStoriesEnabled()) return;   // 设置关：不弹解锁叙事、不切页
     /* 详情卡、离线面板等旧路径可能直接调用 hideModal()，没有机会经过
      * 叙事按钮的 onOk。看到覆盖层已经关掉，就把队列从这个中间态解开。 */
     var modal = document.getElementById('modal');
@@ -858,6 +871,12 @@
     var o = storyQueue.shift(), done = o.onOk;
     o.onOk = function () {
       if (done) done();
+      storyQueueBusy = false;
+      openNextStory();
+    };
+    /* 关闭键专用：只收尾队列、不执行 o.onOk（不切页）。避免「连着修建筑」时
+     * 解锁叙事弹窗把玩家强制拽去新页签（客户反馈 2026-11-13）。 */
+    o.dismiss = function () {
       storyQueueBusy = false;
       openNextStory();
     };

@@ -18,6 +18,8 @@
 - 平台判断必须使用明确的构建/运行时标记；不能只靠浏览器语言或 UA 推断。平台缺失、未知或无法确认时一律回退简体中文，不能误把翻译带到 TapTap。
 - 文案底表里的译文列是 Steam/Electron 资源；规则和回归检查要覆盖「Steam/Electron 可切换、TapTap 固定中文」两种路径。
 - TapTap 专属且 Steam/Electron 不提供的功能不需要英文译文：英文单元格留空，英文状态标为「平台不适用」，并在上下文注明 TapTap 专属；Steam/Electron 界面不得引用这类文案。
+- 游戏内繁体中文（zh-TW）单独维护在「繁體中文（zh-TW，游戏内）」及其状态列中；Steam 商店繁体中文列只用于商店文案，不能代替游戏内译文。
+- 目标语言只有在所有当前有效的语义 key 都有「已校对」译文后才算可发布。缺译在运行时回退简体中文；繁中选项仅在繁中词典完整时显示。上包前运行 `python scripts/export_i18n_runtime.py --check --require-complete`。
 
 ## 英文风格与首轮术语
 
@@ -294,7 +296,7 @@
   | 轮回挑战 | Prestige Trials | 挑战面板的小标题 |
   | 安那其主义 | Anarchy | 终局挑战名称 |
   | 三地发射网 | Three-World Launch Network | 终局挑战名称 |
-  | 掌控永远与须臾程度的能力 | Mastery of Eternity and the Moment | 三档终局挑战名称 |
+  | 掌控永远与须臾程度的能力 | Ability to Manipulate Eternity and the Instantaneous | 三档终局挑战名称；《东方Project》梗，沿用辉夜姬能力的英文识别词 Instantaneous |
   | 澄海 | Clear Sea | 水体污染挑战的最低污染阶段 |
   | 浊流 | Turbid Flow | 水体污染阶段名 |
   | 赤潮 | Red Tide | 水体污染阶段名 |

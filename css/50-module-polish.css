@@ -28,6 +28,12 @@
 .story-actions{justify-content:flex-end;margin-top:18px;padding-top:15px;border-top:1px solid rgba(105,226,223,.13)}
 .story-actions .big{display:flex;align-items:center;justify-content:center;gap:18px;min-width:176px;border:1px solid rgba(169,255,247,.28);background:linear-gradient(135deg,#248d92,#21617d);box-shadow:0 8px 22px rgba(30,151,158,.2);transition:transform .18s ease,box-shadow .18s ease}
 .story-actions .big span{font-size:18px;line-height:1;transition:transform .18s ease}.story-actions .big:hover{transform:translateY(-1px);box-shadow:0 11px 28px rgba(30,151,158,.34)}.story-actions .big:hover span{transform:translateX(3px)}
+/* 关闭键（2026-11-13 客户反馈）：次级幽灵按钮，只关闭、不切页，避免连着建造时被拽去新页签 */
+.story-actions .story-close{flex:0 0 auto;min-width:84px;background:transparent;border:1px solid rgba(169,255,247,.18);color:rgba(214,241,239,.78);box-shadow:none;padding:7px 16px;font-size:13px;transition:background .18s ease,border-color .18s ease}
+.story-actions .story-close:hover:not(:disabled){background:rgba(122,236,231,.08);border-color:rgba(169,255,247,.34);color:#dff6f3;transform:none}
+.story-actions .story-close:active:not(:disabled){background:rgba(122,236,231,.14)}
+html[data-ui-theme="day"] .story-actions .story-close{border-color:rgba(40,132,137,.26);color:#3a6b72}
+html[data-ui-theme="day"] .story-actions .story-close:hover:not(:disabled){background:rgba(40,132,137,.08);border-color:rgba(40,132,137,.4);color:#2b565c}
 @keyframes storyCardIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
 @keyframes storySheen{to{transform:translateX(100%)}}
 @keyframes storyIconPulse{0%,100%{box-shadow:0 0 0 6px rgba(105,226,223,.045),0 0 30px rgba(105,226,223,.18)}50%{box-shadow:0 0 0 10px rgba(105,226,223,.075),0 0 42px rgba(105,226,223,.32)}}

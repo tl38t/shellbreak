@@ -333,6 +333,7 @@
       var _m = (SB.game && SB.game.meta && SB.game.meta()) || null;
       if (_m) {
         var _tot = ((_m.buildingLvlTotal && _m.buildingLvlTotal[id]) || 0) + s.buildingLvlRun[id];
+        if (SB.achv.syncBuildingProgress) SB.achv.syncBuildingProgress(id, _tot);
         if (_tot >= 100) SB.achv.unlockOnce('bld_' + id, _m);
       }
     }

@@ -397,11 +397,11 @@
 
   /* ── 成就墙（2026-10-24 · docs/ACHV_DESIGN_v0.3.md）────────────────────────
    * 数据层全在 SB.achv：DEFS（allDefs）/ 本地账本 meta.achv（成就墙真源）/
-   * 平台账本 meta.achievements / 进度 progressOf。本文件只做呈现，不写第二份口径。
+   * 平台账本 meta.achievements 或 meta.achievementsSteam / 进度 progressOf。本文件只做呈现。
    * 折叠态是纯视图状态：模块级 ACHV_FOLD + localStorage 持久化，每次重画从状态
    * **重拼进 HTML**——本 pane 每 2 秒被 PANE_REFRESH 整块重画，落 DOM 类会被冲掉
    * （与 render.js 的 ZONE_FOLDED 同款判据，见那里 110-116 行的注）。
-   * 默认策略：有进度的区展开、零进度的区折叠——45 条轻车熟路全铺开会把页面撑爆。
+   * 默认策略：有进度的区展开、零进度的区折叠——53 条轻车熟路全铺开会把页面撑爆。
    * 「待同步」chip = 本地已挣、平台 ID 已回填但尚未发过（下次 boot 的 syncMeta 补发）；
    *   ID 全未回填时不显示（否则每条都挂 chip，只是噪音）。 */
   var ACHV_FOLD = {};
@@ -439,7 +439,9 @@
 
   function achvItemHTML(def, m, s, ready) {
     var earned = !!(m.achv && m.achv[def.key]);
-    var fired = !!(m.achievements && m.achievements[def.key]);
+    var fired = SB.achv.platformSynced
+      ? SB.achv.platformSynced(def.key, m)
+      : !!(m.achievements && m.achievements[def.key]);
     var hasId = ready.indexOf(def.key) >= 0;
     var prog = earned ? null : SB.achv.progressOf(def.key, m, s);
     var title = achievementText(def, 'title'), description = achievementText(def, 'description');
@@ -489,14 +491,18 @@
       '<div class="achv-wall-count"><small>' + tr('ui.achievement.status.earned', {}, '已获得') + '</small><b>' +
       tr('ui.achievement.wall.earned_count', { earnedCount: earned, totalCount: defs.length }, earned + ' / ' + defs.length) + '</b></div></header>';
 
-    /* 通用两组：旧 5 条（挑战与轮回）+ 新 12 条（文明里程碑）。DEFS_BASE 顺序即此顺序。 */
+    /* 将全部挑战专属成就放入挑战组，首次轮回仍与它们并列；其他静态成就归入里程碑。 */
     var baseEnd = 0;
     while (baseEnd < defs.length && !defs[baseEnd].bld) baseEnd++;
-    var splitAt = 5;   // 前 5 条为旧成就（cold/small/science/abyss/firstRebirth）
-    h += achvGroupHTML(tr('ui.achievement.group.challenge_prestige', {}, '挑战与轮回'), defs, 0, splitAt, m, s, ready);
-    h += achvGroupHTML(tr('ui.achievement.group.civilization_milestones', {}, '文明里程碑'), defs, splitAt, baseEnd, m, s, ready);
+    var challengeDefs = [], milestoneDefs = [];
+    for (i = 0; i < baseEnd; i++) {
+      if (defs[i].challengeAchievement || defs[i].key === 'firstRebirth') challengeDefs.push(defs[i]);
+      else milestoneDefs.push(defs[i]);
+    }
+    h += achvGroupHTML(tr('ui.achievement.group.challenge_prestige', {}, '挑战与轮回'), challengeDefs, 0, challengeDefs.length, m, s, ready);
+    h += achvGroupHTML(tr('ui.achievement.group.civilization_milestones', {}, '文明里程碑'), milestoneDefs, 0, milestoneDefs.length, m, s, ready);
 
-    /* 轻车熟路 45 条：按 BUILD_ZONES 分区（顺序即 UI 顺序），空区自动隐藏。
+    /* 轻车熟路 53 条：按 BUILD_ZONES 分区（顺序即 UI 顺序），空区自动隐藏。
      * 折叠默认策略（设计稿 §六）：**有进度就展开**——该区有任一成就已获得，
      * 或任一建筑累计等级 > 0（玩家正在养成），都默认铺开；全白区才折叠。 */
     var zones = SB.BUILD_ZONES || [];

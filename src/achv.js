@@ -1,21 +1,21 @@
-/* 天壳 / SHELLBREAK — TapTap 成就封装 + 游戏内成就墙数据层
+/* 天壳 / SHELLBREAK — TapTap / Steamworks 成就适配 + 游戏内成就墙数据层
  *
  * 环境内置全局对象 `tap`（TapTap 运行时自带，无需引入 SDK）。
  * 关键 API：tap.createAchievementManager({ toastEnable }) → 实例；
  *   mgr.registerListener({ onAchievementSuccess, onAchievementFailure })；
  *   mgr.unlockAchievement({ achievementId }) —— 解锁（平台侧幂等，重复调用不报错）。
  *
- * 成就 ID 由 TapTap 后台「游戏服务 → 成就」创建后回填到 SB.CFG.ACHV
- *   （MCP 无建成就工具，只能后台手建；见 assets/achievements/ 的填报清单）。
+ * TapTap 成就 ID 由后台创建后回填到 SB.CFG.ACHV；Steam 成就通过 Electron preload
+ *   的白名单桥接发送 API Name。两类 ID 不共用，见 assets/achievements/ 的填报清单。
  *
  * ── 与 rank.js / ad.js 同一套边界纪律（2026-10-15）──────────────────────
- *   生产环境**无 tap 或成就 ID 为空 ⇒ 不调用、绝不"假装成功"**。
+ *   生产环境**缺少当前平台的 SDK / API Name ⇒ 不调用、绝不"假装成功"**。
  *   降级只发生在 URL 显式带 ?achvtest 时（与 ?ranktest / ?adtest 同一约定）。
  *
  * ── 两层记账（2026-10-24 成就墙实装，设计稿 docs/ACHV_DESIGN_v0.3.md）────
  *   meta.achv        **本地账本**：游戏内成就墙的唯一真源。条件达成即写，
  *                    与平台 ID 是否回填无关（无 tap 的 Web/开发构建也照常记账）。
- *   meta.achievements 平台账本：只有 unlock() 真的向 tap 发出请求才写。
+ *   meta.achievements / meta.achievementsSteam：分别记录 TapTap / Steam 的已确认解锁。
  *                    ⇒ 「ID 未回填不假装成功」纪律原样保留；ID 回填后由
  *                    boot 的 syncMeta 逐个补发（老玩家宽限）。
  *   解锁一律走 unlockOnce(key, meta)：本地记账 + 平台尝试 + 按需落盘，一处收口。
@@ -35,70 +35,104 @@
   var inited = false;
   var derivedCache = null;
 
-  /* 17 条静态成就定义（5 旧 + 12 新）。键必须与 SB.CFG.ACHV 一致（改键名两处同改）。
-   * name / desc 是**游戏内成就墙**的展示文案（平台侧名称/简介以 TapTap 后台为准，
-   *   来源《assets/achievements/成就文案_v0.1.md》，待用户评审）。
-   * icon 为 assets/achievements/ 下 512×512 PNG；12 条文明里程碑均已配置专属图标。
+  /* 29 条静态成就定义（17 项挑战专属 + 12 项轮回/文明里程碑）。
+   * 键必须与 SB.CFG.ACHV 一致（改键名两处同改）。
+   * name / desc 是旧条目的回退文案，游戏内当前展示文案来自 i18n 语义键。
+   * icon 为游戏内成就墙用图；12 条文明里程碑有专属图标，挑战成就复用挑战徽章。
    *   后续新定义若没有 icon，成就墙才会显示徽记占位（render-pane-challenges.js）。 */
   var DEFS_BASE = [
-    { key: 'cold',         name: '寒流禁火', icon: 'assets/achievements/achv-cold.png',
+    { key: 'cold',         challengeAchievement: true, steamApiName: 'SHELLBREAK_COLD', name: '寒流禁火', icon: 'assets/achievements/achv-cold.png',
       desc: '在「寒流禁火」的限制下完成一次轮回。' },
-    { key: 'small',        name: '小国寡民', icon: 'assets/achievements/achv-small.png',
+    { key: 'small',        challengeAchievement: true, steamApiName: 'SHELLBREAK_SMALL', name: '小国寡民', icon: 'assets/achievements/achv-small.png',
       desc: '在「小国寡民」的限制下完成一次轮回。' },
-    { key: 'science',      name: '忽视科文', icon: 'assets/achievements/achv-science.png',
+    { key: 'science',      challengeAchievement: true, steamApiName: 'SHELLBREAK_SCIENCE', name: '忽视科文', icon: 'assets/achievements/achv-science.png',
       desc: '三档全通——把学者与抄写员的人数一路压到最低。' },
-    { key: 'abyss',        name: '深渊重压', icon: 'assets/achievements/achv-abyss.png',
+    { key: 'abyss',        challengeAchievement: true, steamApiName: 'SHELLBREAK_ABYSS', name: '深渊重压', icon: 'assets/achievements/achv-abyss.png',
       desc: '三档全通——在全产出大幅削减下走完整局。' },
-    { key: 'firstRebirth', name: '首次轮回', icon: 'assets/achievements/achv-first-rebirth.png',
+    { key: 'firstRebirth', steamApiName: 'SHELLBREAK_FIRST_REBIRTH', name: '首次轮回', icon: 'assets/achievements/achv-first-rebirth.png',
       desc: '第一次完成真正的轮回结算——推倒重来，是深渊文明的成人礼。' },
-    { key: 'shellBreak',   name: '首次破壳', icon: 'assets/achievements/achv-shell-break.png',
+    { key: 'shellBreak',   steamApiName: 'SHELLBREAK_SHELL_BREAK', name: '首次破壳', icon: 'assets/achievements/achv-shell-break.png',
       desc: '第一次真正凿穿天壳。冰层崩塌的那一刻，深海之上第一次照进星光。' },
-    { key: 'dysonEnd',     name: '控星之人', icon: 'assets/achievements/achv-dyson-end.png',
+    { key: 'dysonEnd',     steamApiName: 'SHELLBREAK_DYSON_END', name: '控星之人', icon: 'assets/achievements/achv-dyson-end.png',
       desc: '建成完整的戴森球，把整颗恒星纳入掌心——在未飞升虚境的那条路上，这就是文明的顶点。' },
-    { key: 'voidEnd',      name: '虚境飞升', icon: 'assets/achievements/achv-void-end.png',
+    { key: 'voidEnd',      steamApiName: 'SHELLBREAK_VOID_END', name: '虚境飞升', icon: 'assets/achievements/achv-void-end.png',
       desc: '掌握《飞升虚境》之后竣工戴森球——文明没有停步星海，而是跃入了虚境之中。' },
-    { key: 'speedrun',     name: '逐光竞速', icon: 'assets/achievements/achv-speedrun.png',
+    { key: 'speedrun',     challengeAchievement: true, steamApiName: 'SHELLBREAK_SPEEDRUN', name: '逐光竞速', icon: 'assets/achievements/achv-speedrun.png',
       desc: '在「逐光竞速」挑战的 4 小时档内凿穿天壳——与时间赛跑，并且跑赢。' },
-    { key: 'driftTerra',   name: '流浪泰拉', icon: 'assets/achievements/achv-drift-terra.png?v=2',
+    { key: 'driftTerra',   challengeAchievement: true, steamApiName: 'SHELLBREAK_DRIFT_TERRA', name: '流浪泰拉', icon: 'assets/achievements/achv-drift-terra.png?v=2',
       desc: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能。' },
     /* 2026-11-03 补登记：水体污染 2026-11-02 实装时只做了挑战定义，**漏了成就条目**
      *   （achv.js 无定义 + CFG.ACHV 无键 + waterpollution 定义无 onComplete）⇒
      *   通关能发奖励、能写 meta.challenges.completed，但成就墙与平台都不会亮。
      * icon 复用挑战徽章（64×64 SVG，img 自动缩放），暂不另做 PNG。 */
-    { key: 'pollutionClear', name: '海渊澄明', icon: 'assets/challenges/challenge-waterpollution-illustrated.webp',
+    { key: 'pollutionClear', challengeAchievement: true, steamApiName: 'SHELLBREAK_POLLUTION_CLEAR', name: '海渊澄明', icon: 'assets/challenges/challenge-waterpollution-illustrated.webp',
       desc: '在「水体污染」挑战里让戴森球竣工——带着最脏的海，走到了群星之间。' },
-    { key: 'starComplete', name: '太空时代', icon: 'assets/achievements/achv-star-complete.png',
+    /* 新增的挑战专属成就，文案由 i18n 词条提供；图标复用对应挑战徽章。 */
+    { key: 'challengeDysonRush', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_DYSON_RUSH', icon: 'assets/challenges/challenge-speedrun.svg' },
+    { key: 'challengeAnarchy', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_ANARCHY', icon: 'assets/challenges/challenge-anarchy.png' },
+    { key: 'challengeGoodOldDays', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_GOOD_OLD_DAYS', icon: 'assets/challenges/challenge-good-old-days.png' },
+    { key: 'challengeThreeLaunchSites', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_THREE_LAUNCH_SITES', icon: 'assets/challenges/challenge-three-launch-sites.png' },
+    { key: 'challengeEternityMoment', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_ETERNITY_MOMENT', icon: 'assets/challenges/challenge-eternity-moment.png' },
+    { key: 'challengePacifist', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_PACIFIST', icon: 'assets/challenges/challenge-pacifist-illustrated.webp' },
+    { key: 'challengeWeaponCritique', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_WEAPON_CRITIQUE', icon: 'assets/challenges/challenge-weapon-critique-illustrated.webp' },
+    { key: 'challengeTotalWarDoctrine', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_TOTALWAR_DOCTRINE', icon: 'assets/challenges/challenge-totalwar-doctrine-illustrated.webp' },
+    { key: 'challengeRaider', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_RAIDER', icon: 'assets/challenges/challenge-raider-illustrated.webp' },
+    { key: 'challengeConqueror', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_CONQUEROR', icon: 'assets/challenges/challenge-conqueror-illustrated.webp' },
+    { key: 'starComplete', steamApiName: 'SHELLBREAK_STAR_COMPLETE', name: '太空时代', icon: 'assets/achievements/achv-star-complete.png',
       desc: '破壳之后把星空槽完全填满——深海的族民，终于把目光投向了整片星海。' },
-    { key: 'religion',     name: '立教', icon: 'assets/achievements/achv-religion.png',
+    { key: 'religion',     steamApiName: 'SHELLBREAK_RELIGION', name: '立教', icon: 'assets/achievements/achv-religion.png',
       desc: '第一次为你的文明命名——从这一刻起，轮回之门为之开启。' },
-    { key: 'rebirth10',    name: '十次轮回', icon: 'assets/achievements/achv-rebirth-10.png',
+    { key: 'rebirth10',    steamApiName: 'SHELLBREAK_REBIRTH_10', name: '十次轮回', icon: 'assets/achievements/achv-rebirth-10.png',
       desc: '完成十次真正的轮回结算——每一次推倒重来，都比上一次走得更远。' },
-    { key: 'relic10',      name: '旧日遗珍', icon: 'assets/achievements/achv-relic-10.png',
+    { key: 'relic10',      steamApiName: 'SHELLBREAK_RELIC_10', name: '旧日遗珍', icon: 'assets/achievements/achv-relic-10.png',
       desc: '让十座独特奇观跨周目入藏纪念馆——旧日的辉煌，没有被遗忘。' },
-    { key: 'relic25',      name: '遗珍全集', icon: 'assets/achievements/achv-relic-25.png',
+    { key: 'relic25',      steamApiName: 'SHELLBREAK_RELIC_25', name: '遗珍全集', icon: 'assets/achievements/achv-relic-25.png',
       desc: '二十五座独特奇观全部入藏——整部文明史，都收进了这座纪念馆。' },
-    { key: 'techAll',      name: '科技大成', icon: 'assets/achievements/achv-tech-all.png',
+    { key: 'techAll',      steamApiName: 'SHELLBREAK_TECH_ALL', name: '科技大成', icon: 'assets/achievements/achv-tech-all.png',
       desc: '在同一个周目内掌握全部 83 项科技——从结绳记事到大统一方程，一条路走到头。' },
-    { key: 'civicAll',     name: '市政大成', icon: 'assets/achievements/achv-civic-all.png',
+    { key: 'civicAll',     steamApiName: 'SHELLBREAK_CIVIC_ALL', name: '市政大成', icon: 'assets/achievements/achv-civic-all.png',
       desc: '在同一个周目内完成全部 69 项市政——从法典到神们自己，一个都不落下。' },
-    { key: 'halfDyson',    name: '半程星环', icon: 'assets/achievements/achv-half-dyson.png',
+    { key: 'halfDyson',    steamApiName: 'SHELLBREAK_HALF_DYSON', name: '半程星环', icon: 'assets/achievements/achv-half-dyson.png',
       desc: '戴森球进度达到 50%——半个恒星已经属于你，剩下的只是时间问题。' }
   ];
 
-  /* 45 条「<建筑名>：轻车熟路」从 SB.BUILDINGS 自动派生——新增建筑自动获得成就槽位，
+  /* 56 条「<建筑名>：轻车熟路」从 SB.BUILDINGS 自动派生——新增建筑自动获得成就槽位，
    * ID 未回填则自动跳过（idOf 防线），不必改本文件。
    * ⚠️ config-buildings.js 先于本文件加载（index.html 顺序控制），SB.BUILDINGS 在此可用；
-   *    派生结果缓存，_reset 时清（测试重建用）。
+   *    派生结果缓存，_reset 时清（测试重建用）。Steam API Name 单独登记，避免依赖运行时拼接。
    * ⚠️ `desc` 里那句「达成后每个轮回首次建造免材料」不是装饰（2026-10-28 用户要求
    *    「在成就页面说明」）：它是**唯一会把这条福利讲给玩家听的地方**——首建免费在游戏里
    *    只表现为按钮变成「免费」，不解释成因，玩家会当成显示 bug。改福利口径时两处一起改
    *    （判据在 SB.habitat.freeFirstBuild）。 */
+  var STEAM_BUILDING_API_NAMES = {
+    kelp: 'SHELLBREAK_BLD_KELP', nest: 'SHELLBREAK_BLD_NEST', coralhouse: 'SHELLBREAK_BLD_CORALHOUSE',
+    siltpit: 'SHELLBREAK_BLD_SILTPIT', hall: 'SHELLBREAK_BLD_HALL', weir: 'SHELLBREAK_BLD_WEIR',
+    warmnest: 'SHELLBREAK_BLD_WARMNEST', kelpstore: 'SHELLBREAK_BLD_KELPSTORE', ballast: 'SHELLBREAK_BLD_BALLAST',
+    lighthouse: 'SHELLBREAK_BLD_LIGHTHOUSE', workshop: 'SHELLBREAK_BLD_WORKSHOP', furnace: 'SHELLBREAK_BLD_FURNACE',
+    barracks: 'SHELLBREAK_BLD_BARRACKS', library: 'SHELLBREAK_BLD_LIBRARY', institute: 'SHELLBREAK_BLD_INSTITUTE',
+    square: 'SHELLBREAK_BLD_SQUARE', temple: 'SHELLBREAK_BLD_TEMPLE', hydroturbine: 'SHELLBREAK_BLD_HYDROTURBINE',
+    hydroshop: 'SHELLBREAK_BLD_HYDROSHOP', canal: 'SHELLBREAK_BLD_CANAL', civichall: 'SHELLBREAK_BLD_CIVICHALL',
+    fortress: 'SHELLBREAK_BLD_FORTRESS', observatory: 'SHELLBREAK_BLD_OBSERVATORY', coralfarm: 'SHELLBREAK_BLD_CORALFARM',
+    bank: 'SHELLBREAK_BLD_BANK', caravanserai: 'SHELLBREAK_BLD_CARAVANSERAI', museum: 'SHELLBREAK_BLD_MUSEUM',
+    black_monolith: 'SHELLBREAK_BLD_BLACK_MONOLITH', hotforge: 'SHELLBREAK_BLD_HOTFORGE', school: 'SHELLBREAK_BLD_SCHOOL',
+    military_academy: 'SHELLBREAK_BLD_MILITARY_ACADEMY', theater: 'SHELLBREAK_BLD_THEATER', tenement: 'SHELLBREAK_BLD_TENEMENT',
+    researchlab: 'SHELLBREAK_BLD_RESEARCHLAB', satellite: 'SHELLBREAK_BLD_SATELLITE', spacestation: 'SHELLBREAK_BLD_SPACESTATION',
+    fissionplant: 'SHELLBREAK_BLD_FISSIONPLANT', stadium: 'SHELLBREAK_BLD_STADIUM', biomatlab: 'SHELLBREAK_BLD_BIOMATLAB',
+    rheamine: 'SHELLBREAK_BLD_RHEAMINE', titancloud: 'SHELLBREAK_BLD_TITANCLOUD', robotbay: 'SHELLBREAK_BLD_ROBOTBAY',
+    mars_workshop: 'SHELLBREAK_BLD_MARS_WORKSHOP', europa_launch: 'SHELLBREAK_BLD_EUROPA_LAUNCH', solar_ring: 'SHELLBREAK_BLD_SOLAR_RING',
+    terra_launch: 'SHELLBREAK_BLD_TERRA_LAUNCH', enceladus_launch: 'SHELLBREAK_BLD_ENCELADUS_LAUNCH', void_altar: 'SHELLBREAK_BLD_VOID_ALTAR',
+    terra_vat: 'SHELLBREAK_BLD_TERRA_VAT', terra_engine: 'SHELLBREAK_BLD_TERRA_ENGINE', tidemachine: 'SHELLBREAK_BLD_TIDEMACHINE',
+    solarstation: 'SHELLBREAK_BLD_SOLARSTATION', enladofarm: 'SHELLBREAK_BLD_ENLADOFARM', grave: 'SHELLBREAK_BLD_GRAVE',
+    hospital: 'SHELLBREAK_BLD_HOSPITAL', reserve: 'SHELLBREAK_BLD_RESERVE'
+  };
+
   function allDefs() {
     if (derivedCache) return derivedCache;
     var out = DEFS_BASE.slice();
     var B = SB.BUILDINGS || [];
     for (var i = 0; i < B.length; i++) {
-      out.push({ key: 'bld_' + B[i].id, name: B[i].name + '：轻车熟路', bld: B[i].id, bldName: B[i].name,
+      out.push({ key: 'bld_' + B[i].id, steamApiName: STEAM_BUILDING_API_NAMES[B[i].id] || '',
+        name: B[i].name + '：轻车熟路', bld: B[i].id, bldName: B[i].name,
         zone: B[i].zone, icon: B[i].icon,
         desc: '把' + B[i].name + '的等级累计建到 100 级（跨周目合计）。达成后，每个轮回首次建造这座建筑不花材料。' });
     }
@@ -130,14 +164,22 @@
     if (typeof v !== 'string' || !v || v === '0') return '';
     return v;
   }
+  function platformLedger(meta) {
+    var field = root.shellbreakPlatform && root.shellbreakPlatform.runtime === 'electron'
+      ? 'achievementsSteam' : 'achievements';
+    if (!meta[field] || typeof meta[field] !== 'object' || Array.isArray(meta[field])) meta[field] = {};
+    return meta[field];
+  }
   function readyKeys() {
     var out = [], d = allDefs();
-    for (var i = 0; i < d.length; i++) if (idOf(d[i].key)) out.push(d[i].key);
+    var steam = root.shellbreakPlatform && root.shellbreakPlatform.runtime === 'electron';
+    for (var i = 0; i < d.length; i++) if (steam ? !!d[i].steamApiName : !!idOf(d[i].key)) out.push(d[i].key);
     return out;
   }
   function missingKeys() {
     var out = [], d = allDefs();
-    for (var i = 0; i < d.length; i++) if (!idOf(d[i].key)) out.push(d[i].key);
+    var steam = root.shellbreakPlatform && root.shellbreakPlatform.runtime === 'electron';
+    for (var i = 0; i < d.length; i++) if (!(steam ? d[i].steamApiName : idOf(d[i].key))) out.push(d[i].key);
     return out;
   }
 
@@ -167,15 +209,29 @@
     }
   }
 
-  /* 控件/上报是否可用：dev 恒真；生产环境需 tap + 至少一个合法 ID。 */
+  /* 控件/上报是否可用：dev 恒真；生产环境需可用的平台适配器与成就定义。 */
   function available() {
     if (devMode()) return true;
+    if (root.shellbreakPlatform && root.shellbreakPlatform.runtime === 'electron')
+      return typeof root.shellbreakPlatform.unlockSteamAchievement === 'function';
     return !!(haveTap() && readyKeys().length > 0);
   }
 
-  /* 解锁单条成就（只发平台，不碰本地账本）。
+  /* 解锁单条成就（只发当前平台，不碰本地账本）。
    * 返回 true = 本次真的发出（或 dev 模拟发出）；false = 未回填 / 无 SDK / 异常 ⇒ 调用方可重试。 */
   function unlock(key) {
+    var platform = root.shellbreakPlatform;
+    if (platform && platform.runtime === 'electron') {
+      var def = defOf(key);
+      if (!def || !def.steamApiName || typeof platform.unlockSteamAchievement !== 'function') return false;
+      if (devMode()) { if (root.console) root.console.log('[achv] (?achvtest) 模拟 Steam 解锁', key, def.steamApiName); return true; }
+      try {
+        var result = platform.unlockSteamAchievement(def.steamApiName);
+        if (result && result.ok) return true;
+        if (root.console) root.console.warn('[achv] Steam 解锁未确认', key, result && result.code);
+        return false;
+      } catch (e) { if (root.console) root.console.warn('[achv] Steam 解锁异常', key, e); return false; }
+    }
     var id = idOf(key);
     if (!id) return false;
     if (devMode()) { if (root.console) root.console.log('[achv] (?achvtest) 模拟解锁', key, id); return true; }
@@ -194,7 +250,7 @@
 
   /* 解锁单条成就并记本地账（全库统一入口）。
    * ① meta.achv[key] = true（本地账本，成就墙真源；条件达成即记，与 ID 无关）；
-   * ② 若平台尚未发过且 unlock() 真发出 ⇒ meta.achievements[key] = true（平台账本）；
+   * ② 若平台尚未发过且 unlock() 真发出 ⇒ 写入对应平台账本；
    * ③ 任一发生变化才 saveMeta（无 ID 时后续重复调用零写盘）。
    * 返回 true = 本次是首次记本地账（调用方可据此弹提示/计数）。 */
   function unlockOnce(key, meta) {
@@ -202,7 +258,7 @@
     var local = meta.achv || (meta.achv = {});
     var fresh = !local[key];
     if (fresh) local[key] = true;
-    var fired = meta.achievements || (meta.achievements = {});
+    var fired = platformLedger(meta);
     var platformNew = false;
     if (!fired[key] && unlock(key)) { fired[key] = true; platformNew = true; }
     if (fresh || platformNew) saveMeta(meta);
@@ -216,14 +272,19 @@
   function syncMeta(meta) {
     if (!meta) return;
     var local = meta.achv || (meta.achv = {});
-    var fired = meta.achievements || (meta.achievements = {});
+    var fired = platformLedger(meta);
     var migrated = false;
-    for (var k in fired) if (!local[k]) { local[k] = true; migrated = true; }
+    var oldTapTap = meta.achievements || {};
+    for (var k in oldTapTap) if (!local[k]) { local[k] = true; migrated = true; }
+    if (fired !== oldTapTap) {
+      for (var k2 in fired) if (!local[k2]) { local[k2] = true; migrated = true; }
+    }
     if (migrated) saveMeta(meta);
+    syncAllBuildingProgress(meta, SB.game && SB.game.run ? SB.game.run() : null);
     var retried = false;
-    for (var k2 in local) {
-      if (fired[k2]) continue;
-      if (unlock(k2)) { fired[k2] = true; retried = true; }
+    for (var k3 in local) {
+      if (fired[k3]) continue;
+      if (unlock(k3)) { fired[k3] = true; retried = true; }
     }
     if (retried) saveMeta(meta);
     sweepMeta(meta);
@@ -240,7 +301,20 @@
     var rw = meta.memorialWonders ? Object.keys(meta.memorialWonders).length : 0;
     if (rw >= 10) unlockOnce('relic10', meta);
     if (rw >= 25) unlockOnce('relic25', meta);
+    sweepChallengeAchievements(meta);
     recheckBuildings(meta);
+  }
+
+  /* 已完成挑战的旧存档也补上专属成就；多档挑战只认最高档完成。 */
+  function sweepChallengeAchievements(meta) {
+    var C = SB.challenges;
+    if (!meta || !C || !C.list || !C.tierDone) return;
+    var defs = C.list();
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i];
+      if (d.achievementKey && C.tierDone(d.id, meta) >= d.tiers.length)
+        unlockOnce(d.achievementKey, meta);
+    }
   }
 
   /* 跨周目账本里累计 ≥100 的建筑逐个补发（startRun 合并后 / resumeRun seed 后调用）。
@@ -302,6 +376,38 @@
     }
     return null;
   }
+  function syncBuildingProgress(id, total) {
+    var platform = root.shellbreakPlatform;
+    if (!platform || platform.runtime !== 'electron'
+        || typeof platform.syncSteamBuildingProgress !== 'function') return false;
+    var def = defOf('bld_' + id);
+    if (!def || !def.steamApiName || devMode()) return false;
+    var value = Number(total);
+    if (!isFinite(value)) return false;
+    value = Math.max(0, Math.min(100, Math.floor(value)));
+    try {
+      platform.syncSteamBuildingProgress(def.steamApiName, value);
+      return true;
+    } catch (e) {
+      if (root.console) root.console.warn('[achv] Steam 建筑进度同步异常', id, e);
+      return false;
+    }
+  }
+  function syncAllBuildingProgress(meta, run) {
+    if (!meta) return;
+    var defs = allDefs();
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i];
+      if (!d || !d.bld || !d.steamApiName) continue;
+      var progress = progressOf(d.key, meta, run);
+      if (progress) syncBuildingProgress(d.bld, progress.cur);
+    }
+  }
+  function platformSynced(key, meta) {
+    var field = root.shellbreakPlatform && root.shellbreakPlatform.runtime === 'electron'
+      ? 'achievementsSteam' : 'achievements';
+    return !!(meta && meta[field] && meta[field][key]);
+  }
   function achvText(key, params, fallback) {
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params || {}) : '';
     return value || fallback || '';
@@ -316,7 +422,7 @@
     var clr = report && report.challengeClear;
     if (clr && SB.challenges) {
       var d = SB.challenges.byId(clr.id);
-      if (d && clr.tier === d.tiers.length - 1) unlockOnce(clr.id, meta);
+      if (d && clr.tier === d.tiers.length - 1) unlockOnce(d.achievementKey || clr.id, meta);
     }
     sweepMeta(meta);
   }
@@ -325,8 +431,10 @@
     init: init, unlock: unlock, unlockOnce: unlockOnce, onBreak: onBreak,
     syncMeta: syncMeta, sweepMeta: sweepMeta, recheckBuildings: recheckBuildings,
     checkTechAll: checkTechAll, checkCivicAll: checkCivicAll,
+    syncBuildingProgress: syncBuildingProgress,
     available: available, readyKeys: readyKeys, missingKeys: missingKeys, devMode: devMode,
     allDefs: allDefs, defOf: defOf, progressOf: progressOf,
+    platformSynced: platformSynced,
     _reset: function () { mgr = null; inited = false; derivedCache = null; }
   };
 })(typeof window !== 'undefined' ? window : globalThis);

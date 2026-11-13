@@ -1,49 +1,45 @@
 # Electron locale resources
 
-The approved English dictionary lives in `electron/locales/en-US.js`.
-Its **single source of truth** is `outputs/01a1a5d6-2784-7eb0-9310-cc0f0d8bb4b9/i18n_text_inventory.xlsx`
-(sheet `文案底表`). Proofread conclusions from the earlier proofread workbooks
-have been merged back into that sheet by registration ID, together with the
-`校对问题` / `术语定稿` / `术语表去重` / `游戏梗校对` worksheets. No second
-workbook is read at build time, and no machine-only file is required: the
-registry, the exporter and both generated bundles are checked into this repo.
+Runtime locale resources are generated from the `文案底表` sheet in
+`outputs/01a1a5d6-2784-7eb0-9310-cc0f0d8bb4b9/i18n_text_inventory.xlsx`:
 
-Regenerate both locale bundles after approved registry changes:
+- `src/locales/zh-CN.js` is the Simplified Chinese baseline and is used by all
+  builds, including TapTap.
+- `electron/locales/en-US.js` is the English runtime dictionary.
+- `electron/locales/zh-TW.js` is the Traditional Chinese runtime dictionary.
 
-    python scripts/export_i18n_runtime.py
+The registry's Steam Store Traditional Chinese columns are separate from the
+game runtime columns. Do not copy store copy into the runtime dictionary.
+
+Regenerate a reviewed locale after updating its registry rows:
+
+    python scripts/export_i18n_runtime.py --locale en-US
+    python scripts/export_i18n_runtime.py --locale zh-TW
+
+Check bundle drift with:
+
     python scripts/export_i18n_runtime.py --check
 
-`--check` fails when regeneration would change either bundle, so it can be used
-to assert that the checked-in `zh-CN.js` / `en-US.js` are up to date. Generation
-is deterministic (sorted keys, LF newlines); running it twice produces no diff.
+The check also scans literal translation calls and static `data-i18n` attributes
+for keys missing from the registry. TapTap-only keys marked `平台不适用` remain
+Simplified Chinese and are reported separately from Steam/Electron blockers.
 
-Only rows whose English status is `已校对` are exported to `en-US.js`. Rows
-marked `待校对` or any other non-approved status still export their
-Simplified Chinese source to `zh-CN.js` but no English value, so
-`SB.i18n.valueFor()` falls back to Chinese at runtime. Unreviewed
-translations are never shipped silently.
+Before packaging, require approved translations for every active semantic key:
 
-As of 2026-11-06, `en-US.js` carries all 3885 approved keys present in
-`zh-CN.js`. The registry includes the reviewed faith strings, home screen,
-onboarding, and Save Manager copy; English changes are loaded only by
-Steam/Electron builds.
+    python scripts/export_i18n_runtime.py --check --require-complete
 
-Register each player-facing string and its semantic key in the inventory before
-changing code. English resources stay under `electron/locales`, a directory
-excluded by the TapTap upload builder; `src/locales/zh-CN.js` is the Chinese
-baseline and **is** included in TapTap builds.
+Only rows marked `已校对` are included in a translated dictionary. Other rows
+fall back to Simplified Chinese at runtime. The Traditional Chinese selector
+is shown only when the generated `zh-TW` coverage metadata confirms that every
+active key has an approved translation. Steam language `tchinese` also falls
+back to Simplified Chinese until that condition is met.
 
-The renderer enables translated UI only when the explicit Electron platform
-marker is present and `localizationEnabled` is true. The Electron main process
-reads Steam's current game language through Steamworks and passes the language
-code to the renderer. In Settings, players can follow Steam, choose Simplified
-Chinese, or choose English; the choice is stored in Electron local storage
-only. Unsupported Steam languages and Steam API failures use Simplified
-Chinese.
+The exporter refuses to overwrite a bundle if that would delete an
+unregistered key, an active but unapproved translation, or a key still
+referenced by application source. Resolve such keys in the registry before
+exporting; this preserves translations that have not yet been reconciled.
 
-If the runtime marker is absent or unknown, the renderer uses `zh-CN`, does not
-read locale preferences, hides the language selector, and never loads
-`en-US.js`. The connected home screen includes the header and settings,
-resource and environment cards, navigation tabs, starting guidance, gathering
-controls, and the visible building list. Other gameplay panes and later
-era-specific controls still need to be connected to translation keys.
+Translated resources are loaded only in an Electron runtime with the explicit
+`localizationEnabled` platform marker. The TapTap packaging script does not copy
+the `electron/` directory. When the marker is absent or unknown, the game keeps
+Simplified Chinese, ignores saved locale preferences, and hides the selector.

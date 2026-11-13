@@ -852,6 +852,7 @@
      * 「平台发了但本地漏记」的脏状态静默抹平。rebirths / buildingLvlTotal 做强清洗。 */
     if (!m.achv || typeof m.achv !== 'object' || Array.isArray(m.achv)) m.achv = {};
     if (!m.achievements || typeof m.achievements !== 'object' || Array.isArray(m.achievements)) m.achievements = {};
+    if (!m.achievementsSteam || typeof m.achievementsSteam !== 'object' || Array.isArray(m.achievementsSteam)) m.achievementsSteam = {};
     if (!(typeof m.rebirths === 'number' && isFinite(m.rebirths))) m.rebirths = 0;
     m.rebirths = Math.max(0, Math.floor(m.rebirths));
     /* cycle / runs 强清洗（2026-11-06 拆分后新增）：

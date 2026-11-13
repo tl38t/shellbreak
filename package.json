@@ -1,0 +1,79 @@
+{
+  "name": "shellbreak-electron",
+  "version": "1.0.17",
+  "private": true,
+  "description": "Electron desktop shell for 渊海群星",
+  "main": "electron/main.cjs",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "start": "electron .",
+    "package:win": "electron-builder --win nsis --x64",
+    "package:dir": "electron-builder --dir --win --x64",
+    "package:steam": "electron-builder --dir --win --x64 --config.directories.output=dist/steam-depot --config.win.signAndEditExecutable=false"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.1"
+  },
+  "build": {
+    "appId": "com.shellbreak.deepsea",
+    "productName": "渊海群星",
+    "asar": true,
+    "directories": {
+      "output": "dist/electron"
+    },
+    "extraFiles": [
+      {
+        "from": "node_modules/steamworks.js/dist/win64/steam_api64.dll",
+        "to": "steam_api64.dll"
+      }
+    ],
+    "files": [
+      "electron/**/*",
+      "index.html",
+      "src/**/*",
+      "css/**/*",
+      "assets/achievements/**/*",
+      "assets/audio/**/*",
+      "assets/backgrounds/**/*",
+      "assets/brand/**/*",
+      "assets/building-icons/**/*",
+      "assets/challenges/**/*",
+      "assets/civic-icons/**/*",
+      "assets/company-icons/**/*",
+      "assets/dyson/**/*",
+      "assets/fonts/**/*",
+      "assets/resource-icons/**/*",
+      "assets/talent-icons/**/*",
+      "assets/tech-icons/**/*",
+      "assets/ui-era/**/*",
+      "assets/war/**/*",
+      "assets/wonders/**/*",
+      "!assets/store/**/*",
+      "!assets/backgrounds/breakthrough/engraved-v*/**"
+    ],
+    "win": {
+      "icon": "assets/store/icon-shellbreak-512.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Shellbreak-Desktop-${version}-Setup.${ext}",
+      "executableName": "Shellbreak"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "渊海群星"
+    }
+  },
+  "dependencies": {
+    "steamworks.js": "0.4.0"
+  }
+}
