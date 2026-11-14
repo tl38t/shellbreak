@@ -143,7 +143,7 @@
       return '<div class="note">' + escapeHtml(tr('ui.star_map.locked_hint')) + '</div>';
     return '<div class="starmap-frame-wrap">' +
       '<iframe class="starmap-frame" sandbox="allow-scripts" ' +
-      'src="src/ui/star-map-frame.html?v=8" title="' + escapeHtml(tr('ui.star_map.frame.title')) + '" ' +
+      'src="src/ui/star-map-frame.html?v=9" title="' + escapeHtml(tr('ui.star_map.frame.title')) + '" ' +
       'style="width:100%;height:780px;border:0;border-radius:12px;background:#07111d"></iframe></div>' +
       '<div id="star-map-buildings" class="star-map-buildings"></div>';
   }

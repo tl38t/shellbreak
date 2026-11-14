@@ -204,6 +204,29 @@
       return { kind: kind, id: id, title: craftName, rows: rowsC, ready: allOk(rowsC) };
     }
 
+    /* ── 工坊升级项（UPGRADES，买断一次）────────────────────────
+     * 与 craft 同属工坊面板，但 craft 是「可反复制造」不自动解除，
+     * 升级项是「买断一次」⇒ 装上即解除（与 bld/wonder 同族）。
+     * 已装上 / 未解锁（upgradeBlocked 以「需要先」开头）⇒ 解除。
+     * 造价与面板同源：upgradeCost 已含 scaffoldAdjustedCost，与按钮灰态一致。 */
+    if (kind === 'upgrade') {
+      if (!SB.workshop || !SB.workshop.upgrades) return null;
+      var U = SB.workshop.upgrades(), u = null;
+      for (var ui = 0; ui < U.length; ui++) if (U[ui].id === id) { u = U[ui]; break; }
+      if (!u) return null;
+      if (s.upgrades && s.upgrades[id]) return null;            // 已装上
+      if (SB.workshop.upgradeBlocked) {
+        var uwhy = SB.workshop.upgradeBlocked(s, id);
+        if (uwhy && /^需要先/.test(uwhy)) return null;          // 未解锁（需求未达成）
+      }
+      var rowsU = costRows(s, SB.workshop.upgradeCost(s, id));
+      var upInfo = infoParts();
+      var upName = upInfo.localizedWorkshopItemName
+        ? upInfo.localizedWorkshopItemName('upgrade', u.id, u.name)
+        : (SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(u.id, u.name) : u.name);
+      return { kind: kind, id: id, title: upName, rows: rowsU, ready: allOk(rowsU) };
+    }
+
     /* ── 尤里卡 / 鼓舞 ──────────────────────────────────────────
      * 判据与文案**全部**走 tech.js：condMet（达成没有）/ condShort（差多少，含 now/need）。
      * ⚠️ 三条不能省的守卫：
@@ -339,8 +362,11 @@
     var title = (info.kind === 'bld' && info.lv > 0)
       ? tr('ui.track_dock.title.build_upgrade', { targetName: info.title }, '升级 {targetName}')
       : info.title;
-    if (info.ready) title += tr(info.kind === 'craft' ? 'ui.track_dock.status.ready_to_craft' : 'ui.track_dock.status.ready_to_build', null,
-      info.kind === 'craft' ? ' · 可以制作' : ' · 可以建造');
+    var _readyKey = info.kind === 'craft' ? 'ui.track_dock.status.ready_to_craft'
+      : info.kind === 'upgrade' ? 'ui.track_dock.status.ready_to_install'
+      : 'ui.track_dock.status.ready_to_build';
+    var _readyDef = info.kind === 'craft' ? ' · 可以制作' : info.kind === 'upgrade' ? ' · 可以装填' : ' · 可以建造';
+    if (info.ready) title += tr(_readyKey, null, _readyDef);
     return '<div class="td-row' + (info.ready ? ' is-ready' : '') + '" data-track-go="' + esc(item.key) + '">' +
       '<div class="td-row-main">' +
         '<span class="td-title">' + esc(title) + '</span>' +
@@ -577,6 +603,16 @@
       }
       if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
       raf(function () { raf(function () { scrollTo('#pane-workshop [data-craft="' + info.id + '"]'); }); });
+      return;
+    }
+    if (info.kind === 'upgrade') {
+      if (SB.game && SB.game.setTab) SB.game.setTab('workshop');
+      /* 升级项在「升级项」子视图，停在「制造」时切过去，否则滚不到对应行、像点了没反应。 */
+      if (SB.ui.render && SB.ui.render.setWorkshopView) {
+        try { SB.ui.render.setWorkshopView('upgrades'); } catch (e2) {}
+      }
+      if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+      raf(function () { raf(function () { scrollTo('#pane-workshop [data-upgrade="' + info.id + '"]'); }); });
       return;
     }
     if (info.kind === 'tech' || info.kind === 'civic') {

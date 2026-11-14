@@ -43,6 +43,7 @@ import { run as runChallengePrereq } from './e2e-suites/challenge-prereq.mjs';
 import { run as runTechUnlockTag } from './e2e-suites/tech-unlock-tag.mjs';
 /* 2026-11-05：追踪坞工坊产物「去制造」跳转（用户反馈）。 */
 import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
+import { run as runTrackUpgrade } from './e2e-suites/track-upgrade.mjs';
 import { run as runMetaRenderGuard } from './e2e-suites/meta-render-guard.mjs';
 import { run as runWarCampaign } from './e2e-suites/war-campaign.mjs';
 /* 2026-11-12：clearNodes 嵌套节点 bug 的防回归锁。自带 faithful DOM 桩加载真实
@@ -340,6 +341,13 @@ if (process.argv.includes('--track-craft-jump-only')) {
   const failedJump = checks.filter(c => !c.ok);
   console.log(`\n追踪坞去制造跳转测试：${checks.length - failedJump.length}/${checks.length} 通过`);
   process.exit(failedJump.length || errors.length ? 1 : 0);
+}
+
+if (process.argv.includes('--track-upgrade-only')) {
+  runTrackUpgrade({ SB, check, sandbox });
+  const failedUp = checks.filter(c => !c.ok);
+  console.log(`\n追踪坞升级项测试：${checks.length - failedUp.length}/${checks.length} 通过`);
+  process.exit(failedUp.length || errors.length ? 1 : 0);
 }
 
 /* 2026-11-08：科技「解锁建筑」列表挑战专属标注（金属精炼/外星工程混解锁反例）。
@@ -2958,6 +2966,7 @@ console.log('\n=== era1 专项核算：真实开局，科技全部研究完 ==='
 runClickEvents({ SB, check, noop });
 runSaveMigrate({ SB, check, sandbox });   // 2026-10-29：perks 迁移幂等（P0 事故回归锁）
 runTrackMulti({ SB, check });              // 2026-10-30：多目标追踪 / 尤里卡·鼓舞
+runTrackUpgrade({ SB, check, sandbox });    // 2026-11-14：工坊升级项追踪（upgrade kind）
 /* 2026-10-30：兑换码（TDS 无服务器礼包）。**必须 await** —— 它装 fetch 桩并验证
  * Promise 链上的入账与失败分支，不 await 就只跑完同步段，后面全是假绿。 */
 await runRedeem({ SB, check, sandbox, doc, g });

@@ -274,32 +274,135 @@
   };
   register('food', food);
 
+  /* 距 kelp 净消耗穿零的秒数（仅当 consume > produce 且 kelp > 0 时有意义）。
+   * 暖期宏步推进必须切在穿零点之前——否则一整块宏步会把 kelp 推成负、饥荒起点被吞。
+   * 暖期（cold>=1）暖石顶回恒为 0，故 produce 用 foodRate(s,1,0) 直接算，不调 warmRelief
+   * （warmRelief 带扣石副作用，边界探测里调它会污染暖石存量）。 */
+  function kelpZeroLeft(s) {
+    if (s.res.kelp <= 0) return 0;
+    var produce = P.foodRate(s, 1, 0);
+    var consume = P.foodUse(s);
+    var net = consume - produce;
+    if (net <= 1e-12) return Infinity;                     // 净产出非负：kelp 不会穿零
+    return s.res.kelp / net;
+  }
+
+  /* 距下一个会改写食物/人口离散状态事件的秒数（>0）。暖期宏步只推进到这个边界之前。
+   * 覆盖：kelp 穿零（饥荒起点）、下次饿死、下次生育阈值、kelp 跌穿 GROW_KEEP（生育门控翻转）、
+   *       季节切换（frozen 翻转）。
+   * 冻伤（概率性）与污染死亡（挑战周目概率性）不在这里——它们只在 cold<1 / challenge 时
+   * 发生，而暖期快速通道已用 cold>=1 + !challenge 两道闸排除，故暖期宏步内根本不掷骰。 */
+  function foodEventLeft(s) {
+    var CFG = SB.CFG;
+    var b = foodNextBoundary(s);          // 饿死（kelp<=0 时）/ 生育阈值
+    var kz = kelpZeroLeft(s);            // kelp 穿零（饥荒起点）
+    if (kz < b) b = kz;
+    /* kelp 跌穿 GROW_KEEP：生育门控 `kelp > GROW_KEEP` 会翻转（>则累计 _grow，≤则清零）。
+     * 宏步用「步首 kelp」判门控，若步内跌穿会因近似而错判 ⇒ 在跌穿点前切回 0.1s 细步。 */
+    if (!SB.economy.isFull(s) && s.res.kelp > CFG.GROW_KEEP) {
+      var produce = P.foodRate(s, 1, 0);
+      var consume = P.foodUse(s);
+      var net = consume - produce;
+      if (net > 1e-12) {
+        var dk = (s.res.kelp - CFG.GROW_KEEP) / net;
+        if (dk > 1e-9 && dk < b) b = dk;
+      }
+    }
+    if (SB.economy.seasonLeftTicks) {
+      var sl = SB.economy.seasonLeftTicks(s);
+      if (sl < b) b = sl;                // 季节切换：切换后可能进入冰封期，必须切回细步
+    }
+    return b;
+  }
+
+  /* 暖期稳定段的「粗栅格」推进（cold>=1 + 非挑战 + kelp>0 已由调用方保证）。
+   * 不处理任何离散事件（kelp 穿零累计 famine / 冻伤 / 污染死亡）——那些只在 0.1s 细步里发生，
+   * 调用方保证宏步内不存在这些事件。本函数只做：
+   *   happyStep(dt)（dt 感知，与逐 0.1s 调用逐位等价）+ 单次 foodRate 推进 kelp + 生育阈值累计。
+   * 仍走与 foodAdvanceMicro 完全相同的子函数（happyStep / foodRate / foodUse），
+   * 只是把 0.1s 微步合并成至多 WARM_STEP 秒的一段，调用次数减少 WARM_STEP/0.1。 */
+  function foodAdvanceWarm(s, mdt, at, emit) {
+    var CFG = SB.CFG;
+    s._happySnap = s.happy;                                  // 与 foodAdvanceMicro 同语义
+    /* 暖期快速通道：用「步中 happy」估算 foodRate，抵消 happy 在宏步内漂移造成的系统性偏差。
+     * happyStep 对 dt 线性：先走半步（s.happy 现为步中），按步中 happy 算产出，再走半步到步末，
+     * 与单次 happyStep(mdt) 等价（总漂移相同），但 foodRate 取的是时间中点的 happy ≈ 时间均值，
+     * 大幅压低「用步末 happy 高估产出」带来的 kelp 累积偏差（从而不级联改写下个周期的离散事件）。 */
+    if (SB.economy.happyStep) SB.economy.happyStep(s, mdt * 0.5);
+    var warm = 0;                                            // 暖期 cold>=1 ⇒ warmBurningNow=false，恒为 0（不调 warmRelief 避免扣石副作用）
+    s.warmBurning = false;
+    var produce = P.foodRate(s, 1, warm);                    // 暖期 cold=1，用步中 happy
+    if (SB.economy.happyStep) SB.economy.happyStep(s, mdt * 0.5);  // 推进到步末
+    var consume = P.foodUse(s);                              // 只依赖 pop（宏步内恒定），与 happy 无关
+    P.addRes(s, 'kelp', produce * mdt);
+    s.res.kelp -= consume * mdt;
+    if (s.res.kelp < 0) s.res.kelp = 0;                     // 兜底；foodEventLeft 已切在穿零前
+    s.famine = 0;                                           // 暖期非饥荒入口（kelp>0 保证），宏步内恒为 0
+    // ---- 生育（与 tick 第 6 步同；事件边界已切在 _grow 阈值前，故跨阈值也安全）----
+    if (!SB.economy.isFull(s) && s.res.kelp > CFG.GROW_KEEP) {
+      s._grow = (s._grow || 0) + mdt;
+      var growNeed = SB.economy.growthDuration(s);
+      if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit(tr('ui.log.population.birth', null, '生育：一名族民降生。'), at + mdt); }
+    } else if (s.res.kelp <= CFG.GROW_KEEP) {
+      s._grow = 0;
+    }
+    s.peak = Math.max(s.peak || 0, s.pop);
+    s.warmBurning = P.warmBurningNow(s);
+  }
+
   /* =========================================================================
    * 5. 对外 API
    * =========================================================================
    * integrateFoodPop(s, dt, opts, emit):
-   *   在不超过 dt 的范围内，用固定 0.1s 微步推进食物/人口子系统。
-   *   - 饥荒、生育和冻伤均在固定栅格上处理，不在事件阈值处切成任意小数步。
-   *   - 冻伤概率锚定全局 0.1s 栅格，结果不随子步数量变化。
-   *   - 不推进 s.t（由调用方——调度器或 drainCatchUp——统一推进，满足“仅调度器推进全局时间”）。
-   *   - opts.t0：本段开始的绝对逻辑秒（冻伤栅格对齐用）；省略时回退 s.t。
-   *   返回实际消费的逻辑秒（通常 == dt；若触发内部边界且调用方需要分段，可据此拆分剩余）。
+   *   在不超过 dt 的范围内，推进食物/人口子系统。
+   *   - 默认在 0.1s 栅格上重采样 happy 并重放（与「逐 0.1s tick」参考路径逐位一致）。
+   *   - 暖期稳定段（cold>=1 + 非挑战 + 非饥荒）走「粗栅格」快速通道：合并成至多
+   *     OFFLINE_FOOD_WARM_STEP 秒的宏步一次推进，仍调同一个 foodRate/happyStep，
+   *     只减少调用次数；离散事件边界（foodEventLeft）前切回 0.1s 细步，保证
+   *     饥荒死亡/生育/冻死/污染死亡计数严格 0.1s 精确。
+   *   - 冻伤与污染死亡是概率性的，只在 cold<1 / challenge 时掷骰，恒走 0.1s 细步（锚定全局栅格）。
+   *   - 不推进 s.t（由调用方——调度器或 drainCatchUp——统一推进）。
+   *   - opts.t0：本段开始的绝对逻辑秒；省略时回退 s.t。
+   *   返回实际消费的逻辑秒。
    */
-  /* 在不超过 dt 的范围内，用事件边界闭式积分推进食物/人口子系统。
-   * - 饥荒、生育和冻伤都在全局 0.1s 栅格上处理。
-   * - 每个子步内再按 STEP=0.1s 微步：happyStep 在 0.1s 栅格上重采样 happy（foodRate 依赖
-   *   happy），使结果与「逐 0.1s tick」参考路径逐位一致（架构目标 8：不随步长变化）。
-   * - 冻伤概率锚定全局 0.1s 栅格，每微步掷一次，结果不随子步数量变化。
-   * - 不推进 s.t（由调用方——调度器或 drainCatchUp——统一推进）。
-   * - opts.t0：本段开始的绝对逻辑秒（冻伤栅格对齐用）；省略时回退 s.t。 */
   function integrateFoodPop(s, dt, opts, emit) {
     opts = opts || {};
     P.seasonTurn(s);                 // 确保 s.frozen 反映当前 s.t（与 tick 开头同）
     var at = (typeof opts.t0 === 'number') ? opts.t0 : s.t;
     var remaining = dt, guard = 0;
+    var WARM_STEP = (SB.CFG && SB.CFG.OFFLINE_FOOD_WARM_STEP) || 1.0;
     while (remaining > 1e-9 && guard++ < 1000000) {
-      // 对齐全局 0.1s 栅格。不要在生育/饥荒的阈值时刻切断微步：在线 tick
-      // 只在每个 0.1s 步末检查这些阈值，切成任意小数步会改变饥荒累计与随机数序列。
+      // 暖期快速通道：cold>=1（无冻伤）+ 非挑战（无污染概率死亡）+ kelp>0（非饥荒，famine 恒 0）。
+      // 三条保证宏步内无概率/离散死亡事件，可安全用单次 foodRate 推进整段；
+      // 唯一离散事件（kelp 穿零 / 生育阈值 / 季节切换）由 foodEventLeft 切在 0.1s 栅格前。
+      var cold = P.isCold(s) ? P.coldSeasonMul(s) : 1;
+      var challenge = !!(s.challenge);
+      /* 暖期快速通道：cold>=1（无冻伤）+ 非挑战（无污染概率死亡）+ kelp>0（非饥荒，famine 恒 0）。
+       * 三条保证宏步内无概率/离散死亡事件，可安全用单次 foodRate 推进整段。
+       * 仅当距最近事件边界 evLeft 严格大于 WARM_STEP 才进宏步：保证「事件前整整一个 WARM_STEP
+       * 都是 0.1s 细步」，事件（饥荒/生育/季节）由细步精确处理，离散计数逐位等价。
+       * 否则（evLeft 小，说明 kelp 正逼近 0 / GROW_KEEP / 季节边界，处于 contested 区）
+       * 直接走细步，牺牲速度换精确，避免连续量近似级联改写下个周期的离散事件。 */
+      if (cold >= 1 && !challenge && s.res.kelp > 1e-9) {
+        var evLeft = foodEventLeft(s);
+        /* 宏步资格只看「是否还在事件边界附近（evLeft>STEP 即可）」，绝不能被 WARM_STEP 卡。
+         * 原写法 `evLeft > WARM_STEP` 会导致：当 evLeft 落在 (旧档,新档] 区间时，小步长走宏步、
+         * 大步长反被逼回细步 → 步子越大「被迫细步」的带宽越宽 → 细步迭代越多 → foodRate
+         * 调用越多（foodEventLeft 每次含 2 次 foodRate）→ 实测 ws=8 比 ws=4 还慢 58%。
+         * 改后：WARM_STEP 只限制「单步最大尺寸」，资格与步长无关；adv ≤ evLeft 仍保证
+         * 宏步永不跨事件边界，离散计数逐位精确不变。 */
+        if (evLeft > STEP + 1e-9) {
+          var adv = Math.min(remaining, evLeft, WARM_STEP);
+          if (adv > STEP + 1e-9) {
+            foodAdvanceWarm(s, adv, at, emit);
+            at += adv; remaining -= adv;
+            continue;
+          }
+        }
+      }
+      // 细步（现有逻辑）：对齐 0.1s 栅格，推进到本栅格边界或剩余量取小。
+      // 不要在生育/饥荒的阈值时刻切断微步：在线 tick 只在每个 0.1s 步末检查这些阈值，
+      // 切成任意小数步会改变饥荒累计与随机数序列。
       var gridIndex = Math.floor(at / STEP + 1e-8) + 1;
       var toGrid = gridIndex * STEP - at;
       if (toGrid <= 1e-9) toGrid = STEP;

@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.2.1',
+    VERSION: 'Ver1.2.2',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,6 +33,27 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.2.2（2026-11-13）：1.2.1 之后的战争系统补完、存档修复与挑战奖励；
+       * 并补记 2026-11-14 三处玩家直接报障/反馈：离线加载提速、星图页发热、工坊升级项追踪（不另升版）。
+       * ⚠️ 补记「批判的武器」：与「武器的批判」同批实装（2026-11-12）却漏写进日志，2026-11-14 补上。
+       * 新增挑战类条目置于段首（玩家要求）；两条互为正反的挑战相邻排列。 */
+      { v: 'Ver1.2.2', date: '2026-11-13', items: [
+        // —— 新增终局挑战 ——
+        'changelog.war.challenge_pacifist',
+        'changelog.war.challenge_weapon_critique',
+        'changelog.war.challenge_totalwar_doctrine',
+        'changelog.war.challenge_raider',
+        'changelog.war.challenge_conqueror',
+        // —— 修复 / 界面 ——
+        'changelog.fix.siege_research_repeat_on_reload',
+        'changelog.fix.war_loss_population_ratio',
+        'changelog.ui.military_power_popup',
+        // —— 性能优化（离线补算 / 星图发热）——
+        'changelog.performance.offline_food_speedup',
+        'changelog.performance.starmap_60fps',
+        // —— 工坊 ——
+        'changelog.workshop.upgrade_tracking'
+      ] },
       /* Ver1.2.1（2026-11-12）：三处玩家直接报障修复 —— 外交页「择取区域」按钮首次关闭/择卡后无反应、
        * 市政面板卷轴闪动、科技面板周期性闪动。升版四步中本次仅做 VERSION / CHANGELOG 两项；
        * index.html ?v= 与 _repack.py 断言待用户授权发布时再做。 */
@@ -380,6 +401,22 @@
       /* 水体污染：通关瞬间的污染存量（整数、越小越好）。与 dyson/void 的时间榜并列，
        * 但比的是「你把海留得多干净」，所以是 numeric + asc。 */
       pollution: { title: '最低污染通关', scoreType: 'numeric', scoreOrder: 'asc', calcType: 'best' }
+    },
+    /* Steamworks 按内部 Name 查找榜单；与 TapTap 的 ID 独立维护。
+     * 这些 Name 同时列在 docs/STEAM_LEADERBOARD_SETUP.md，平台侧必须逐字创建。 */
+    STEAM: {
+      fastest: 'shellbreak_fastest_ice_shellbreak',
+      firstFaith: 'shellbreak_fastest_faith',
+      dev: 'shellbreak_development_score',
+      wonder: 'shellbreak_legacy_wonders',
+      cycle: 'shellbreak_prestige_count',
+      star: 'shellbreak_stardust',
+      tide: 'shellbreak_prestige_points',
+      dyson: 'shellbreak_fastest_dyson_sphere',
+      void: 'shellbreak_fastest_verge_ascension',
+      drift: 'shellbreak_fastest_wandering_terra',
+      dysonrush: 'shellbreak_fastest_starsea_race',
+      pollution: 'shellbreak_lowest_pollution_clear'
     },
     /* 时间榜的显示单位（分数仍是整秒，这里只管 UI 上怎么写）。
      *⛔ 不做「毫秒榜」：score 必须是整数，秒以下精度平台存不了。 */
@@ -768,6 +805,17 @@
     OFFLINE_CAP: 8 * 3600,        // 单次补算上限 8 小时（超出部分按 0 计）
     OFFLINE_PERK_STEP: 0.25,      // 轮回商店「离潮计时」每级给单次离线上限 +25%（ perk.offline 由商店购买）
     OFFLINE_STEP: 2,              // 离线分段快进最大步长（逻辑秒）。单一来源：game.js / 离线调度器均只读此处，避免两套常量漂移
+    /* 2026-11-13 离线食物积分提速（安全栅格版，替换已废弃的闭式大步 OFFLINE_FOOD_CHUNK）：
+     * 暖期稳定段（cold>=1 + 非挑战 + 非饥荒）合并成至多 WARM_STEP 秒的「宏步」一次推进，
+     * 仍调同一个 foodRate / happyStep，只把调用次数从 0.1s 粒度降到 WARM_STEP 粒度。
+     * 离散事件（kelp 穿零→饥荒 / 生育阈值 / 季节切换 / 暖石缓冲耗尽）在 foodEventLeft 切回
+     * 0.1s 细步前，故饥荒死亡 / 生育 / 冻死 / 污染死亡计数与逐 0.1s 微步逐位一致（硬纪律）。
+     * 唯一近似是「happy 漂移对 foodRate 的二阶效应」——落在离线分段近似容差内，不改任何确定性结算。
+     * 【2026-11-14 用户拍板 8.0】：把暖期 0.1s 微步数压到 1/80。比默认 1.0 更快，但 happy 阈值跨越的
+     * 连续误差更大（实测平衡档 kelp 末值约 -48%、离散死亡 +2）；用户明确接受此近似、越过 20% 容差上限。
+     * 宏步资格闸已修为 `evLeft > STEP`（与步长无关），故 ws 越大越纯单调提速、不再有「越大越慢」病态。
+     * ⚠️ 这是性能/近似的调参，不是经济标定；标定权在用户。 */
+    OFFLINE_FOOD_WARM_STEP: 8.0,
 
     // ---- 季节 ----
     /* 【2026-10-06 用户拍板：一季 = 10 分钟】SEASON_TICKS 由 6000 改为 **600 逻辑秒**。

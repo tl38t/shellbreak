@@ -493,11 +493,22 @@
       }, '（成本 ' + SB.economy.costTxt(cost) + '）');
       var _buyBtn = '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
         (on || why ? ' disabled' : '') + ' title="' + (whyText || '') + '">' + label + '</button>';
+      /* 建造追踪（2026-10-29 同族）：材料不足的升级项给一个「追踪」。
+       * ⚠️ 未解锁项已被 itemRevealed（upgradeBlocked 以「需要先」开头）整行跳过，
+       *    这里 `why` 只剩「材料不够」，与 craft 那段同构。
+       * ⚠️ 升级项是买断一次，装上即自动解除（track-dock.resolve 里查 s.upgrades[id]）。 */
+      var _uton = (SB.ui.track && SB.ui.track.isTracked) ? SB.ui.track.isTracked('upgrade', u.id) : false;
+      var _trackBtn = why ? '<button type="button" class="btn track-toggle' + (_uton ? ' on' : '') + '"' +
+        ' data-track="upgrade:' + u.id + '" aria-pressed="' + (_uton ? 'true' : 'false') + '"' +
+        ' title="' + (_uton
+          ? tr('ui.workshop.crafting.track.tracked_tooltip', null, '已追踪：材料够了会在屏幕角落提示')
+          : tr('ui.workshop.upgrades.track.action_tooltip', null, '追踪这个升级项：材料够了在屏幕角落提示你')) + '">' +
+        tr(_uton ? 'wonder.track.tracked.button' : 'village.building.track.action.button', null, _uton ? '已追踪' : '追踪') + '</button>' : '';
       h += '<div class="row"' + (on ? ' data-owned="1"' : '') + '>' +
         '<div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="' + u.id + '" aria-haspopup="dialog">' + localizedItemName('upgrade', u) + '</button>' + (isNewItem('u', u.id) ? ' <span class="tag new">NEW</span>' : '') + (on ? ' <span class="tag ok">' + tr('ui.workshop.upgrade.status.installed', null, '已装填') + '</span>' : '') +
           (SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, u) : '') + '</div>' +
         '<div class="ds">' + _ds + '</div>' +
-        '<div class="upgrade-actions">' + _buyBtn + '</div></div>';
+        '<div class="upgrade-actions">' + _buyBtn + _trackBtn + '</div></div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
       tr(hideDone() && doneCount(s) > 0 ? 'ui.workshop.upgrade.empty.completed' : 'ui.workshop.upgrade.empty.available', null,
