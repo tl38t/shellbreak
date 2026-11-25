@@ -40,11 +40,16 @@ export function run({ SB, check }) {
     Object.keys(sUpgOff.autoUpg).length === 0, JSON.stringify(sUpgOff.autoUpg));
 
   /* ── ③ 工坊自动槽：开 ⇒ 按新局 slotCap 截断、逐项浅拷；关 ⇒ 保持空 ── */
+  /* ⚠️ 2026-11-25 夹具口径修正：必须用 CRAFTS 表里真实存在、且无 need/needCivic
+   * 前置门的配方。旧夹具用 raft/plank（生产表里根本不存在）—— HEAD 版
+   * applyAutoMemory 不校验 id 所以假绿；工作树新增 craftUnlocked 门后正确丢弃，
+   * 夹具却在断言里访问 slots[0].pct ⇒ 空数组越界崩溃。craft_stonebeam /
+   * craft_hardcoral 是两条无前置门的真实配方，与生产写入路径同口径。 */
   const prevSlots = [
-    { id: 'raft', pct: 0.5 },
-    { id: 'plank', batch: 20 },
-    { id: 'dirty' },                 // 无 pct / batch ⇒ 无效槽
-    { id: 'over', pct: 1 },          // 超过新局槽位上限 ⇒ 截断
+    { id: 'craft_stonebeam', pct: 0.5 },
+    { id: 'craft_hardcoral', batch: 20 },
+    { id: 'craft_rope' },            // 无 pct / batch ⇒ 无效槽（有前置门也不影响这条判据）
+    { id: 'craft_scaffold', pct: 1 },// 超过新局槽位上限 ⇒ 截断
     null
   ];
   /* 造两个不同 slotCap 的新局 s：给 upg_autoshop（+SLOT_BASE）并按需追加 perk.autoCraft 槽。
@@ -61,8 +66,8 @@ export function run({ SB, check }) {
   const sSlots = G.applyAutoMemory(capOneS(), { autoSlots: JSON.parse(JSON.stringify(prevSlots)) });
   check('工坊自动槽·开：只保留有效槽、按新局 slotCap 截断、逐项浅拷',
     sSlots.autoSlots.length === Math.min(cap, 2) &&
-    sSlots.autoSlots[0].id === 'raft' && sSlots.autoSlots[0].pct === 0.5 &&
-    (cap >= 2 ? sSlots.autoSlots[1].id === 'plank' && sSlots.autoSlots[1].batch === 20 : true),
+    sSlots.autoSlots[0].id === 'craft_stonebeam' && sSlots.autoSlots[0].pct === 0.5 &&
+    (cap >= 2 ? sSlots.autoSlots[1].id === 'craft_hardcoral' && sSlots.autoSlots[1].batch === 20 : true),
     JSON.stringify({ cap, slots: sSlots.autoSlots }));
   /* 浅拷断言：改新局槽不该改到 prev（用同一 prev 再 apply 一次，prev 仍是原值）。 */
   sSlots.autoSlots[0].pct = 0.99;
@@ -100,9 +105,9 @@ export function run({ SB, check }) {
   liveMeta.memAuto = {};
   check('缺字段的旧档按「全开」处理',
     G.autoMemoryPref('upg') === true && G.autoMemoryPref('slots') === true && G.autoMemoryPref('research') === true);
-  const sLegacy = G.applyAutoMemory(mkUpgS(), { autoUpg: { kelp: true }, autoSlots: [{ id: 'raft', pct: 0.5 }] });
+  const sLegacy = G.applyAutoMemory(mkUpgS(), { autoUpg: { kelp: true }, autoSlots: [{ id: 'craft_stonebeam', pct: 0.5 }] });
   check('旧档（无 memAuto）轮回后照样带上自动开关与工坊槽',
-    sLegacy.autoUpg.kelp === true && sLegacy.autoSlots.some(x => x.id === 'raft'));
+    sLegacy.autoUpg.kelp === true && sLegacy.autoSlots.some(x => x.id === 'craft_stonebeam'));
 
   /* ── 还原现场 ── */
   liveMeta.memAuto = savedMemAuto;

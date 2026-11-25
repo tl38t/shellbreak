@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 140" fill="none">
+  <defs>
+    <linearGradient id="vapor" x1="48" y1="8" x2="48" y2="136" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#dbe4e1" stop-opacity=".22"/>
+      <stop offset=".58" stop-color="#d8d9d1" stop-opacity=".52"/>
+      <stop offset="1" stop-color="#dfa36c" stop-opacity=".18"/>
+    </linearGradient>
+  </defs>
+  <path d="M40 136c-10-10-4-21 7-31 12-11 15-21 6-31-8-9-7-20 1-31 6-8 10-15 8-24-1-5-4-9-8-11 14 2 22 13 19 26-2 10-9 17-13 26-5 10 4 17 9 25 9 15 2 30-12 43-9 8-12 14-9 22l-8 6Z" fill="url(#vapor)"/>
+  <path d="M32 125c-12-9-10-21 0-31 8-8 10-15 6-23-4-8-2-17 6-24-4 10 0 17 5 24 7 10 5 20-4 30-7 8-10 15-6 24l-7 0Z" fill="url(#vapor)" fill-opacity=".7"/>
+  <path d="M64 130c-5-8-1-16 8-23 8-7 10-14 6-21-4-7-3-14 3-21-2 9 2 14 6 21 6 11 1 22-8 30-6 5-8 10-6 15l-9-1Z" fill="url(#vapor)" fill-opacity=".55"/>
+</svg>

@@ -47,8 +47,8 @@
   function habitatName(s) {
     var e = (s && s.era) || 1;
     if (e >= 6) {
-      /* 政体后缀：只有三新政体（教权国/联盟/联邦）带后缀，其余政体（酋邦制/独裁/
-       * 寡头/古典共和/神权）返回 ''。 */
+      /* 政体后缀：只有三新政体（圣座国/联盟/同盟）带后缀，其余政体（酋邦制/独裁/
+       * 寡头/古典共治/神权）返回 ''。 */
       var suf = (SB.civic && SB.civic.govTitleSuffix) ? SB.civic.govTitleSuffix(s && s.gov) : '';
       /* 基础名：巢穴页「你的国度」输入框优先；没填时用政体弹窗起的名字（s.govName）。
        * 两者都算「玩家自己起的名字」，区别只是入口。
@@ -57,13 +57,13 @@
       var base = (s && s.habitatName && ('' + s.habitatName).trim()) ||
                  (s && s.govName && ('' + s.govName).trim()) || '';
       if (base) {
-        /* 玩家可能把后缀一起写进名字（如「深渊联邦」），再拼一次会变「深渊联邦联邦」。
+        /* 玩家可能把后缀一起写进名字（如「深渊同盟」），再拼一次会变「深渊同盟同盟」。
          * 末尾已带该后缀 ⇒ 原样返回。 */
         if (suf && base.slice(-suf.length) !== suf) return base + suf;
         return base;
       }
       /* 一次都没起名 ⇒ 沿用纪元五末档「渊海之国」，不加政体后缀
-       * （默认演进名不是玩家起的名字，拼上「联邦」反而像 bug）。 */
+       * （默认演进名不是玩家起的名字，拼上「同盟」反而像 bug）。 */
       var defaultName = SB.i18n && SB.i18n.t ? SB.i18n.t(HABITAT_NAME_KEYS[5]) : '';
       return defaultName || HABITAT_DEFAULT_ERA6;
     }

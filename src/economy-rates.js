@@ -23,6 +23,9 @@
   /* ERA10 市政（2026-10-20）：发射场读数与 tick 同源（三座合计等级 / 节律 / 每级耗流）。 */
   var launchRunLvl = P.launchRunLvl, launchNodeMode = P.launchNodeMode, launchMaterialPer = P.launchMaterialPer;
   var launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
+  /* ERA11 探针 / 暗物质（2026-11-23 · spec §3.1/§4）：与 tick 2f/2f2 同源。 */
+  var launchProbeMode = P.launchProbeMode, launchModeOf = P.launchModeOf, darkmatterOutMul = P.darkmatterOutMul;
+  var solarRingDarkRate = P.solarRingDarkRate;
   /* ERA2-7 扩卡（2026-10-22）：科技产出读数（启蒙沙龙卡把 15% 科技转市政点，与 tick 同源）。 */
   var sciOut = P.sciOut;
   /* 水体污染（2026-11-02）：三处乘区必须与 tick 同源 ——
@@ -133,7 +136,9 @@
      * 否则玩家会看到「停着还在扣铀」。判据与 tick 2f / hydroAlloc 同源（economy.dysonFull）。
      * ⚠️ 只归零**速率**，不动 _elR 本身：下面 part 的算式说明还要用它写「N 级 ÷ 节律」。 */
     var _elStopR = (SB.economy && SB.economy.dysonFull) ? SB.economy.dysonFull(s) : false;
-    var _elRunR2 = _elStopR ? 0 : _elR;
+    /* ERA11：探针模式竣工后仍发射（与 tick 2f 同判据）⇒ 探针档不因竣工停机而速率归零。 */
+    var _probeR = launchProbeMode(s);
+    var _elRunR2 = (_elStopR && !_probeR) ? 0 : _elR;
     var _nodeR = launchNodeMode(s);
     var _cycR = launchCycleOf(s);
     var _elHydNeedR = _elRunR2 * launchHydroPer(s);
@@ -150,8 +155,9 @@
     var _elTpRate = _elRunR ? _elRunR2 * _elTpUnitR : 0;
     /* 产出速率（/秒）：满供满料时 = 启用等级总和 ÷ 节律（每场独立累加周期）。 */
     var _elOutRate = _elRunR ? _elRunR2 / _cycR : 0;
-    var _elSailRate = _nodeR ? 0 : _elOutRate;
+    var _elSailRate = (_nodeR || _probeR) ? 0 : _elOutRate;
     var _elNodeRate = _nodeR ? _elOutRate : 0;
+    var _elProbeRate = _probeR ? _elOutRate : 0;
     /* ── ERA9-GEEK（2026-10-21 · 用户报 bug）：「珊瑚明明在减少，速率却写 +450/s」。 ──
      * GEEK 运转时在 shell.tickShell ③段**直扣**四样库存（藻食/金属(silt)/石头/珊瑚），
      * 而 rates() 一直只写产出、一分没减 ⇒ 面板 = 毛产，不是净额。珊瑚是唯一「毛产 < 500」
@@ -286,6 +292,8 @@
         _elStopR ? '已竣工停机' : (_elR + ' 级 ÷ ' + _cycR + 's')),
       dysonNodeRate: part('dysonNodeRate', '节点建造', _elNodeRate, null,
         _elStopR ? '已竣工停机' : (_elR + ' 级 ÷ ' + _cycR + 's')),
+      /* ERA11 探针发射进度（/秒）：竣工后照常发射（与 tick 2f 同源，不受 _elStopR 归零）。 */
+      probeRate: part('probeRate', '探针发射', _elProbeRate, null, (_elR + ' 级 ÷ ' + _cycR + 's')),
       /* ERA7（2026-10-17 · spec §2）：铀 —— 与 tick 的 uranium 行逐字同构（同一批
        *   mineBonus・gatherMul・toolMul・cold・globalMul），门=科技 autodrill（面板路与结算路同源）。 */
       uranium: ((s.techs && s.techs.autodrill)
@@ -429,7 +437,9 @@
                + part('rocketFuel', '奇观加成', SB.wonder ? SB.wonder.wonderFuelBonus(s) : 0),
       /* ERA8：θ生物金属产线（thetaRate 与 thetaFlow 同式不扣料，开工率按当前库存现算）。 */
       thetaMetal: (function () {
-        var thetaParts = SB.economy.thetaRateParts(s);
+        /* 2026-11-24：传 _sr（steelRate 的 hydroAlloc 快照）——恒星锻炉暗物质档「缺料退回 θ」
+         * 面板读的 ring 行与 tick 的 thetaFlow 共用同一份满供判据，避免面板说停了实际在产。 */
+        var thetaParts = SB.economy.thetaRateParts(s, _sr);
         return part('thetaMetal', '生物材料研究所', thetaParts.base,
                     [[SB.i18n && SB.i18n.t ? SB.i18n.t('ui.resource.detail.factor.metal_recipe') : '', thetaParts.craftMul]])
           + part('thetaMetal', SB.i18n && SB.i18n.t ? SB.i18n.t('building.solar_ring.name') : '', thetaParts.ring);
@@ -442,6 +452,18 @@
                ['全局产出', globalMulX(s)], ['矿工契', minerPactMul(s)],
                ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)], ['自动钻机', autoDrillOutputMul(s)],
                ['星炉献礼', (SB.faith && SB.faith.thetaOutputMul ? SB.faith.thetaOutputMul(s) : 1)]]) : 0),
+      /* ERA11/12 暗物质（2026-11-23 · spec §3.1/§4）：与 tick 2f2 逐字同构。
+       * 探针：累计枚数 × 单枚产率 × 船团/透孔仪乘区；星环档：满供满料时的暗物质率（函数已判门）。 */
+      darkmatter: (function () {
+        var dmMul = darkmatterOutMul(s), total = 0;
+        if ((s.probes || 0) > 0) {
+          total += part('darkmatter', '深空探针', (s.probes || 0) * (SB.CFG.PROBE_DARK || 0.005),
+            [['船团与透孔仪', dmMul]]);
+        }
+        var _ring = solarRingDarkRate(s, _sr);
+        if (_ring > 0) total += part('darkmatter', '恒星锻炉·太阳星环', _ring);
+        return total;
+      }()),
       /* ERA6→ERA7：星空探索每秒产出。基础文明推力 + 星空观测站升级（upg_starscope）+ 太空建筑运行座数贡献，
        *   读 economy.starRate（与 tick 同口径；太空建筑的「开几座」开关在此生效）。 */
       starExplore: part('starExplore', '星空槽累积', SB.economy.starRate(s)),
@@ -473,6 +495,11 @@
           (j.merchant || 0) * SB.UNIT.luxury,
           [['商人工具', toolMul(s, 'merchant')],
            ['海潮基准', baseMul(s)],
+           [SB.i18n && SB.i18n.t ? SB.i18n.t('tech.unified_field.name') || '大统一方程' : '大统一方程',
+             SB.economy.unifiedMul ? SB.economy.unifiedMul(s) : 1],
+           [SB.civic && SB.civic.galacticCouncilAllOutMul
+             ? (SB.i18n && SB.i18n.t ? SB.i18n.t('civic.data.galactic_council.name') || '银河议会' : '银河议会') : '',
+             SB.civic && SB.civic.galacticCouncilAllOutMul ? SB.civic.galacticCouncilAllOutMul(s) : 1],
            /* 2026-09-29 马具 +50%、寡头 +20%，与 tick 同式 */
            ['政体', SB.civic ? SB.civic.govLuxuryMul(s) : 1],
            /* 马镫工坊升级 +50%（与马具独立相乘 ⇒ +100%） */
@@ -484,13 +511,15 @@
            ['银行', bankMul(s)],
            /* 大巴扎：每名鲛人 +1% 奢侈品获取 */
            ['大巴扎', SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1],
+           [SB.i18n && SB.i18n.t ? SB.i18n.t('policy.card.overtime.name') || '延长工时' : '延长工时',
+             SB.civic && SB.civic.cardJobOutMul ? SB.civic.cardJobOutMul(s) : 1],
            /* 水体污染通关奖励 +50%（2026-11-02）：跨周目永久，与上面各项独立相乘。
             * ⚠️ economy-social.happySupply / economy.js 的 _S / 本行 三处必须同一个函数，
             *   e2e 有一条断言钉「happySupply === tick 毛产出」。 */
            ['挑战·水体污染', luxuryOutMul(s)]]);
         if (S <= 0) return 0;
         /* ⚠️ 2026-10-14 双修：① 需求换 luxDemandMul 净系数（增耗三项 − 居民减耗单括号抵消）；
-         *   ② **补齐此前漏乘的政体/奇观两项**（商人共和国 0.7 / 国会 0.9）——
+         *   ② **补齐此前漏乘的政体/奇观两项**（商贸同盟 0.7 / 共鸣议事堂 0.9）——
          *      旧式只有 (1−luxSaveAll)×(1+tenement)，与 tick 的 _D 不同式，
          *      装政体/奇观后顶栏净速率与真实扣费对不上（面板撒谎家族）。 */
         var D = (s.pop || 0) * SOCIAL.happyCost(SOCIAL.happyMech(s))

@@ -646,12 +646,13 @@ console.log('\n=== 工坊：青铜工具 ===');
         (g1[key] / (g0[key] || 1)).toFixed(6)).join('、')
         : before.join('/') + ' 与面板同比例');
 
-    /* ④ 容量侧：灯塔 +120/级（与压舱仓并列相加，不是相乘）。 */
+    /* ④ 容量侧（2026-11-21 全局修正）：灯塔**本身不产仓储**（lighthouseCap=0）。
+     *    旧断言「灯塔 +120/级」是对「大灯塔上限为其一半」的误读——「其」指压舱仓。
+     *    未建大灯塔时，灯塔 0 级与 1 级的材料上限必须完全相同。 */
     const cap0 = SB.economy.capOf(A, 'coral'), cap1 = SB.economy.capOf(B, 'coral');
-    check('灯塔给材料仓储 +120/级（与压舱仓并列相加，不叠乘）',
-      Math.abs((cap1 - cap0) - SB.BLD.lighthouseCap) < 1e-9,
-      cap0 + ' → ' + cap1 + '（+'
-      + (cap1 - cap0).toFixed(0) + '，ballastCap=' + SB.BLD.ballastCap + '）');
+    check('灯塔本身不给材料仓储（建成大灯塔前 0/级，与压舱仓无关）',
+      Math.abs(cap1 - cap0) < 1e-9 && SB.BLD.lighthouseCap === 0,
+      cap0 + ' → ' + cap1 + '（Δ=' + (cap1 - cap0).toFixed(0) + '，lighthouseCap=' + SB.BLD.lighthouseCap + '）');
 
     /* ⑤ 大灯塔：两笔效果各走各的通道，量纲不同，分别钉。 */
     /* ⚠️ 奇观是**买断**的：civicBonus 读的是 s.wonders，跟有没有灯塔建筑无关 ——
@@ -665,19 +666,20 @@ console.log('\n=== 工坊：青铜工具 ===');
       SB.wonder.civicBonus(mk(3)) === 0,
       '灯塔 3 级时 civicBonus=' + SB.wonder.civicBonus(mk(3)));
 
-    /* ⚠️ 2026-10-06 机制变更：大灯塔不再给「所有材料一次性 +60」，改为「建成后每座灯塔
-     *   +60/级」（= 压舱仓一半），随灯塔数量/等级缩放。旧的 flat +60 断言作废。 */
+    /* ⚠️ 2026-11-21 全局修正：灯塔仓储**全部**挂在大灯塔建成之后，按「该资源压舱仓每级量
+     *   的一半」派生（普通资源 ballastCap 120/2=60）。断言量纲从「在灯塔 120 之上额外 +60」
+     *   改成「灯塔从 0 变 60/级」，数值 Δ 不变但语义不同；0 座灯塔仍不加任何仓储。 */
     const wCap0 = SB.economy.capOf(mk(0), 'coral');
     const wCap0w = mk(0); wCap0w.wonders = { wonder_great_lighthouse: true };
-    check('大灯塔：0 座灯塔时不加任何仓储（旧 flat+60 已取消，避免重复计价）',
+    check('大灯塔：0 座灯塔时不加任何仓储（派生按灯塔级数，无级数则 0）',
       Math.abs(SB.economy.capOf(wCap0w, 'coral') - wCap0) < 1e-9,
       'Δ=' + (SB.economy.capOf(wCap0w, 'coral') - wCap0).toFixed(0));
     const cL1 = mk(1), cL1w = mk(1); cL1w.wonders = { wonder_great_lighthouse: true };
-    check('大灯塔：1 座灯塔 → 仓储额外 +60/级（= 压舱仓一半），灯塔变 180/级',
+    check('大灯塔：1 座灯塔 → 仓储从 0 变 +60/级（= 压舱仓一半，灯塔总计 60/级）',
       Math.abs(SB.economy.capOf(cL1w, 'coral') - SB.economy.capOf(cL1, 'coral') - 60) < 1e-9,
       'Δ=' + (SB.economy.capOf(cL1w, 'coral') - SB.economy.capOf(cL1, 'coral')).toFixed(0));
     const cL5 = mk(5), cL5w = mk(5); cL5w.wonders = { wonder_great_lighthouse: true };
-    check('大灯塔：5 座灯塔 → 额外 +300（5×60，随灯塔数量缩放，非固定）',
+    check('大灯塔：5 座灯塔 → +300（5×60，随灯塔数量缩放，非固定）',
       Math.abs(SB.economy.capOf(cL5w, 'coral') - SB.economy.capOf(cL5, 'coral') - 300) < 1e-9,
       'Δ=' + (SB.economy.capOf(cL5w, 'coral') - SB.economy.capOf(cL5, 'coral')).toFixed(0));
   }

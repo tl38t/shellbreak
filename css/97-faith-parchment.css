@@ -38,14 +38,14 @@
 }
 
 #pane-faith .faith-tenet-options {
-  row-gap: 70px;
-  padding-bottom: 70px;
+  row-gap: 124px;
+  padding-bottom: 124px;
 }
 
 #pane-faith .faith-tenet-choice::after {
   position: absolute;
   z-index: 1;
-  bottom: -88px;
+  bottom: -124px;
   left: 50%;
   width: 124px;
   height: 248px;
@@ -245,8 +245,8 @@
 
 @media (max-width: 600px) {
   #pane-faith .faith-tenet-options {
-    row-gap: 80px;
-    padding-bottom: 80px;
+    row-gap: 110px;
+    padding-bottom: 110px;
   }
 
   #pane-faith .faith-tenet-choice {
@@ -309,7 +309,7 @@
   }
 
   #pane-faith .faith-tenet-choice::after {
-    bottom: -80px;
+    bottom: -110px;
     width: 76px;
     height: 152px;
   }

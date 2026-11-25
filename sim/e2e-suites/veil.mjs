@@ -69,8 +69,8 @@ export function run({ SB, check }) {
     const pv0 = SB.prestige.veilPreview(sNo);
     check('首次掀幕也能拿到预览（此前 veilPreview 返回 null ⇒ 整条路走不通）',
       !!pv0 && pv0.hasLedger === false && pv0.nextPath === 'si', pv0 ? 'nextPath=' + pv0.nextPath : 'null');
-    check('预览给出「玩家可选池」selectable：当前只实装 si，玩家只能选机械飞升',
-      !!pv0 && pv0.selectable && pv0.selectable.join() === 'si', pv0 ? 'selectable=' + (pv0.selectable || []).join() : 'null');
+    check('预览给出「玩家可选池」selectable：硅基与生命织章均可选择',
+      !!pv0 && pv0.selectable && pv0.selectable.join() === 'si,gn', pv0 ? 'selectable=' + (pv0.selectable || []).join() : 'null');
 
     /* ---------------- ③ 门槛：周期星屑 < 1000 ⇒ 拒绝且不改任何状态 ---------------- */
     const sLow = SB.state.freshRun(false);
@@ -109,7 +109,7 @@ export function run({ SB, check }) {
       'pending=' + pv1.pendingTide + '/' + pv1.pendingStar + ' cycleStar=' + pv1.cycleStar);
 
     const gained = pv1.points;
-    /* 玩家自选：首掀显式传 'si'（当前唯一可选）。不传也能掀幕，但按「没选就不开」不开路径。 */
+    /* 玩家自选：首掀显式传 'si'；未选择时仍按「没选就不开」处理。 */
     const r1 = SB.prestige.doVeil(s1, () => {}, 'si');
     check('首飞：第 1 重帷幕 / 玩家选 si ⇒ 开 si / newPath=si / 实发点数 === 预览点数',
       r1.count === 1 && r1.opened.join() === 'si' && r1.newPath === 'si'
@@ -143,10 +143,8 @@ export function run({ SB, check }) {
     check('新局 got.stardust 也走新口径（=0），不会开局白送尤里卡',
       SB.game.run().got.stardust === 0, 'got.stardust=' + SB.game.run().got.stardust);
 
-    /* ---------------- ⑥ 自选解锁：仅 si 可选，之后掀幕「没可选就不开」 ---------------- */
-    /* 2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」：可选池现在只有 si，
-     * 首掀已开掉 ⇒ 第 2 次起 selectable 为空 ⇒ 不传 chooseId 的新掀幕一律不开新路径，
-     * 但照常给点、count 照涨。vo/gn 的 WIP 门与 OPENABLE_IDS 解耦，实装时加 id 即回归多选。 */
+    /* ---------------- ⑥ 自选解锁：si / gn 可选，已开启路径会退出可选池 ----------------
+     * 玩家未选择时仍可照常掀幕、获得飞升点；可选路径保持可选，不会被默认开启。 */
     const prime = () => {
       const s = SB.game.run();
       s.techs.beyond_veil = true;
@@ -155,19 +153,19 @@ export function run({ SB, check }) {
       M.veil.cycleTide = 0;
     };
     const pv2 = (prime(), SB.prestige.veilPreview(SB.game.run()));
-    check('第 2 次掀幕前可选池已空（si 已开，vo/gn 未实装 ⇒ selectable=[]）',
-      !!pv2 && pv2.selectable.length === 0, pv2 ? 'selectable=' + pv2.selectable.join() : 'null');
+    check('第 2 次掀幕前仅生命织章仍可选（si 已开，vo 仍为预览）',
+      !!pv2 && pv2.selectable.join() === 'gn', pv2 ? 'selectable=' + pv2.selectable.join() : 'null');
     prime(); const r2 = SB.prestige.doVeil(SB.game.run(), () => {});
     check('第 2 重帷幕：没选路径 ⇒ 不开新路径（opened 仍 si），但 count 照涨到 2 且给出点数',
       r2.opened.join() === 'si' && r2.newPath === null && r2.count === 2 && r2.points > 0,
       'opened=' + r2.opened.join() + ' newPath=' + r2.newPath + ' count=' + r2.count + ' points=' + r2.points);
-    prime(); const r3 = SB.prestige.doVeil(SB.game.run(), () => {});
-    check('第 3 重帷幕（没选）count 继续涨到 3，opened 保持 si',
-      r3.count === 3 && r3.opened.join() === 'si' && r3.newPath === null,
+    prime(); const r3 = SB.prestige.doVeil(SB.game.run(), () => {}, 'gn');
+    check('第 3 重帷幕：选择 gn 后生命织章开启并写入路径账本',
+      r3.count === 3 && r3.opened.join() === 'si,gn' && r3.newPath === 'gn',
       'count=' + r3.count + ' opened=' + r3.opened.join() + ' newPath=' + r3.newPath);
     prime(); const r4 = SB.prestige.doVeil(SB.game.run(), () => {});
-    check('第 4 次同样不开新路径（count 照涨、不重复解锁）',
-      r4.opened.join() === 'si' && r4.count === 4, 'opened=' + r4.opened.join() + ' count=' + r4.count);
+    check('第 4 次无可选路径（si / gn 均已开），只涨 count、不重复解锁',
+      r4.opened.join() === 'si,gn' && r4.count === 4, 'opened=' + r4.opened.join() + ' count=' + r4.count);
 
     /* 重复选已开启的 si ⇒ 必须抛错、账本一字不动（校验在算账前，原子性）。
      * 另造一个达标局，避免复用被上面掀幕 startRun 换掉的本局。 */
@@ -181,6 +179,80 @@ export function run({ SB, check }) {
       !!dupErr && M.veil.paths.opened.join() === openedBeforeDup.join() && M.veil.cycleStar === 1000,
       (dupErr ? dupErr.message : '没有抛错') + ' opened=' + M.veil.paths.opened.join()
         + ' cycleStar=' + M.veil.cycleStar);
+
+    /* ---------------- ⑥.5 飞升不清挑战：档位 / 永久奖励 / 轻车熟路累计全留 ----------------
+     * 2026-11-22 用户改判（推翻同日早先的「飞升清普通挑战档位」）：
+     *   档位是所有挑战永久奖励的唯一真源，清档位 = 连奖励一起撤；成就墙的章却保留，
+     *   会造成「章在效果没了」。现口径：普通 / 飞升挑战的档位与奖励一律跨幕保留。
+     * ⚠️ 这组断言锁两条边界：
+     *    ① 挑战档位 + 由 tierDone 派生的永久效果（初始人口）跨幕不变；
+     *    ② 轻车熟路（bld_* 成就）跨周目累计账 meta.buildingLvlTotal 不被清。 */
+    const C = SB.challenges;
+    M.challenges = M.challenges || { completed: {} };
+    M.challenges.completed = {};
+    M.challenges.completed.waterpollution = true;    // 普通·单档
+    M.challenges.completed.good_old_days = true;     // 普通·单档
+    M.challenges.completed.small = true;             // 普通·单档
+    M.challenges.completed.veil_rush = 2;            // 飞升·三档
+    M.challenges.completed.veil_cramped = 1;         // 飞升·三档
+    M.buildingLvlTotal = { kelp: 99, hall: 120 };     // 轻车熟路跨周目累计账
+    M.achv = M.achv || {};
+    M.achv.pollutionClear = true;
+    M.achv.challengeGoodOldDays = true;
+    M.achv.challengeVeilRush = true;
+    M.achv.firstRebirth = true;
+    M.achievements = M.achievements || {};
+    M.achievements.pollutionClear = true;
+    M.achievementsSteam = M.achievementsSteam || {};
+    M.achievementsSteam.challengeGoodOldDays = true;
+    const countBeforeClear = C.completedCount(M);
+    const popBeforeClear = C.startingPopulation();
+    prime();
+    SB.prestige.doVeil(SB.game.run(), () => {});
+    check('飞升保留普通挑战：水体污染 / 美好旧日 / 小国寡民档位原样（挑战页仍标已完成）',
+      C.tierDone('waterpollution', M) === 1 && C.tierDone('good_old_days', M) === 1
+        && C.tierDone('small', M) === 1,
+      'water=' + C.tierDone('waterpollution', M) + ' good=' + C.tierDone('good_old_days', M)
+        + ' small=' + C.tierDone('small', M));
+    check('飞升保留飞升挑战：veil_rush 2 档 / veil_cramped 1 档原样',
+      C.tierDone('veil_rush', M) === 2 && C.tierDone('veil_cramped', M) === 1,
+      'veil_rush=' + C.tierDone('veil_rush', M) + ' veil_cramped=' + C.tierDone('veil_cramped', M));
+    check('挑战永久奖励随档位保留：初始人口仍为基础 +5（污染 +2 / 小国 +3）',
+      popBeforeClear === SB.CFG.POP_START + 5 && C.startingPopulation() === SB.CFG.POP_START + 5,
+      popBeforeClear + ' → ' + C.startingPopulation() + '（基准 ' + SB.CFG.POP_START + '）');
+    check('完成数不变（6 → 6）：普通 + 飞升档位都不因飞升增减',
+      countBeforeClear === 6 && C.completedCount(M) === 6,
+      countBeforeClear + ' → ' + C.completedCount(M));
+    check('轻车熟路累计账不清：buildingLvlTotal kelp=99 / hall=120 原样，成就墙进度读数不变',
+      M.buildingLvlTotal.kelp === 99 && M.buildingLvlTotal.hall === 120
+        && SB.achv.progressOf('bld_kelp', M, null).cur === 99,
+      'kelp=' + M.buildingLvlTotal.kelp + ' hall=' + M.buildingLvlTotal.hall
+        + ' progress=' + SB.achv.progressOf('bld_kelp', M, null).cur);
+    check('成就不撤：本地成就墙 + 平台两本账的挑战章全部保留',
+      !!M.achv.pollutionClear && !!M.achv.challengeGoodOldDays
+        && !!M.achievements.pollutionClear && !!M.achievementsSteam.challengeGoodOldDays,
+      'achv.p=' + !!M.achv.pollutionClear + ' achv.g=' + !!M.achv.challengeGoodOldDays
+        + ' tap.p=' + !!M.achievements.pollutionClear
+        + ' steam.g=' + !!M.achievementsSteam.challengeGoodOldDays);
+    check('不乱清：飞升挑战章与非挑战成就（firstRebirth）保留',
+      !!M.achv.challengeVeilRush && !!M.achv.firstRebirth,
+      'veilRush=' + !!M.achv.challengeVeilRush + ' firstRebirth=' + !!M.achv.firstRebirth);
+    check('飞升点乘区不受影响：ascensionTierCount 只数飞升挑战（2+1=3）',
+      C.ascensionTierCount(M) === 3, 'ascensionTierCount=' + C.ascensionTierCount(M));
+    /* 边界：玩家在**普通挑战进行中**飞升，且本局已达成其 goal（dysonDone）——
+     * ⑤.5 现在全量 evaluate：已通关档位走 replay 分支，只刷榜、不写账、不重复发奖；
+     * 档位保持原值（既不清零，也不凭空 +1）。 */
+    M.challenges.completed.waterpollution = true;
+    const sMid = SB.game.run();
+    sMid.challenge = { id: 'waterpollution', tier: 0, startedAt: Date.now() };
+    sMid.dysonDone = true;
+    sMid.techs.beyond_veil = true;
+    sMid.civics.theology = false;
+    M.veil.cycleStar = 1000; M.veil.cycleTide = 0;
+    SB.prestige.doVeil(sMid, () => {});
+    check('边界：普通挑战进行中飞升 ⇒ 已通关档位保持 1，replay 不写账不重复发奖',
+      C.tierDone('waterpollution', M) === 1 && !!M.achv.pollutionClear,
+      'tierDone=' + C.tierDone('waterpollution', M) + ' achv=' + !!M.achv.pollutionClear);
 
     /* ---------------- ⑦ 已掀幕档：doBreak 增量累加周期账 ---------------- */
     M.veil.cycleStar = 0;

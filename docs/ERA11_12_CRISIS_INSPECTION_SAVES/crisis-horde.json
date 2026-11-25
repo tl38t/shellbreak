@@ -1,0 +1,91 @@
+{
+  "format": "shellbreak-save",
+  "version": 1,
+  "createdAt": 1795518204654,
+  "save": {
+    "meta": {
+      "cycle": 11,
+      "runs": 12,
+      "veil": null
+    },
+    "run": {
+      "t": 86400,
+      "wallT": 86400,
+      "_ts": 1795518204654,
+      "era": 11,
+      "shell": 400000,
+      "iceShell": 500000,
+      "baseShell": 500000,
+      "pop": 200,
+      "peak": 200,
+      "res": {
+        "kelp": 1000000,
+        "coral": 1000000,
+        "stone": 1000000,
+        "silt": 1000000,
+        "warmstone": 1000000000,
+        "iron": 1000000,
+        "science": 10000000000,
+        "fuel": 1000000,
+        "culture": 10000000000,
+        "steel": 1000000,
+        "hydro": 0,
+        "titanium": 1000000,
+        "thetaMetal": 1000000,
+        "rocketEngine": 1000000,
+        "darkmatter": 1000000
+      },
+      "lvl": {
+        "nest": 60,
+        "barracks": 10,
+        "military_academy": 5,
+        "rheamine": 20,
+        "titancloud": 20,
+        "mars_workshop": 10
+      },
+      "jobs": {
+        "gather": 0,
+        "coralwright": 0,
+        "quarrier": 0,
+        "miner": 50,
+        "scholar": 0,
+        "scribe": 0,
+        "merchant": 0,
+        "soldier": 100
+      },
+      "robotJobs": {},
+      "techs": {
+        "beyond_veil": true,
+        "alien_eng": true
+      },
+      "civics": {
+        "military_training": true,
+        "professional_army": true,
+        "mobilization": true
+      },
+      "war": {
+        "power": 1000000000,
+        "popCap": 0,
+        "campaignStage": 7,
+        "tradeRouteLevel": 0,
+        "enemies": {}
+      },
+      "crisis": {
+        "id": "horde",
+        "currentScale": 234375000,
+        "defeated": false,
+        "storySeen": false
+      },
+      "techPopup": true,
+      "civicPopup": true,
+      "faithPopup": true,
+      "workshopPopup": true,
+      "wonderPopup": true,
+      "starMapPopup": true,
+      "companyPopup": true,
+      "diplomacyPopup": true,
+      "challenge": null
+    }
+  },
+  "checksum": "1f07de0c"
+}

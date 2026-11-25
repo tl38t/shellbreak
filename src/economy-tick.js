@@ -22,6 +22,9 @@
   var launchProcOf = P.launchProcOf;
   var setLaunchProc = P.setLaunchProc, launchNodeMode = P.launchNodeMode, launchMaterialPer = P.launchMaterialPer;
   var launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
+  /* ERA11 探针模式 + 暗物质产量乘区（2026-11-23 · spec §3.1/§4）。 */
+  var launchProbeMode = P.launchProbeMode, launchModeOf = P.launchModeOf, darkmatterOutMul = P.darkmatterOutMul;
+  var solarRingDarkRate = P.solarRingDarkRate, solarRingDarkThetaNeed = P.solarRingDarkThetaNeed;
   /* 2026-11-21 竣工自动停机：dysonFull = 双达标（pct>=1）⇒ 发射场全停的唯一判据；
    * dysonPct 供 2g 竣工/半程判定用。两者都从 internals 取（不在本文件重算公式）。 */
   var dysonFull = P.dysonFull, dysonPct = P.dysonPct;
@@ -242,7 +245,9 @@
 
     // 2c) ERA8 θ生物金属（生物材料研究所：耗 藻食/精铁/钛/铀 ⇒ 产 θ；开工率=最紧原料）。
     //     ⚠️ 在 steelFlow 之后调：hydroAlloc 的 labDraw（研究所耗流）已在同一 tick 分配好。
-    SB.economy.thetaFlow(s, dt);
+    //     2026-11-24：第三参传 s._hydroFlow —— 恒星锻炉暗物质档「缺料退回 θ」与 2f2 的
+    //     solarRingDarkRate 共用同一份快照，保证「停 θ ⟺ 产暗物质」不出现两边都不产。
+    SB.economy.thetaFlow(s, dt, s._hydroFlow);
 
     // 2d) ERA8 瑞亚星矿井（星海区在地开采）：每级 石梁/硬化珊瑚/铀 三行，吃 globalMul。
     //     石梁/硬化珊瑚是无上限 craft 资源（capOf 恒 Infinity），addRes 直进不钳。
@@ -307,12 +312,17 @@
      * ⚠️ 竣工判定**不留在**这个块里（见下面 2g）：pct 已满时本段进不来，
      *   判定留在块内会让「pct 满、旗未置」的档永久卡在「已停机、未竣工」。 */
     var _dysonFull = dysonFull(s);
-    if (_el > 0 && !_dysonFull) {
+    /* ERA11（2026-11-23 · spec §3.1）：探针模式**竣工后仍可继续发射**——戴森球造好后玩家
+     * 拍板「造好之后可以继续发射」，探针独立于戴森竣工门。帆/节点维持原停机纪律。
+     * ⚠️ 探针科技门未过（或 launchMode 被写坏）时 launchProbeMode 恒假 ⇒ 仍按原停机走。 */
+    var _probeMode = launchProbeMode(s);
+    if (_el > 0 && (!_dysonFull || _probeMode)) {
       var _elHydroNeed = _el * launchHydroPer(s);
       /* 满供判据：hydroAlloc 给到足额 europaRate（最低优先级，剩流够才满）。与 hydroAlloc 同源 ⇒ 面板===结算。 */
       var _elRunning = (s._hydroFlow && s._hydroFlow.europaRate >= _elHydroNeed - 1e-6);
-      /* 节点模式科技门：没完成《绝热材料》恒按帆模式走（防改档把 launchMode 写坏后凭空产节点）。 */
+      /* 模式科技门：没完成对应科技恒按低优先模式走（防改档把 launchMode 写坏后凭空产）。 */
       var _nodeMode = launchNodeMode(s);
+      var _mode = launchModeOf(s);
       var _cyc = launchCycleOf(s);
       var _elCosts = launchMaterialPer(s);
       var _uNeed = _el * _elCosts.uranium * dt;
@@ -329,16 +339,38 @@
         for (var _li = 0; _li < _launchIds.length; _li++) {
           var _lid = _launchIds[_li], _padLvl = launchActiveLvl(s, _lid);
           if (!_padLvl) continue;
-          var _padProc = launchProcOf(s, _lid, _nodeMode) + dt;
+          var _padProc = launchProcOf(s, _lid, _mode) + dt;
           var _padCycles = Math.floor(_padProc / _cyc);
           if (_padCycles > 0) {
             _padProc -= _padCycles * _cyc;
-            if (_nodeMode) s.dysonNodes = (s.dysonNodes || 0) + _padCycles * _padLvl;
+            if (_probeMode) s.probes = (s.probes || 0) + _padCycles * _padLvl;
+            else if (_nodeMode) s.dysonNodes = (s.dysonNodes || 0) + _padCycles * _padLvl;
             else s.sunSails = (s.sunSails || 0) + _padCycles * _padLvl;
           }
-          setLaunchProc(s, _lid, _nodeMode, _padProc);
+          setLaunchProc(s, _lid, _mode, _padProc);
         }
       }
+    }
+
+    /* ── 2f2) ERA11/12 暗物质产出（2026-11-23 · spec §3.1/§4）──────────────────
+     * 两条源，都吃同一条 darkmatterOutMul（船团跨轮回 +10%/座 × 透孔仪 +30%）：
+     *   ① 探针：每枚每秒 CFG.PROBE_DARK，按本局累计枚数 s.probes 持续产（像太阳帆供热那样
+     *      「已在轨的一直产」，不随发射模式切换而停）；轮回清零见 freshRun。
+     *   ② 太阳星环暗物质档：装了恒星锻炉 upg_stellar_forge 且 s.solarRingOn=true 时，
+     *      改烧热液能 + θ 产暗物质（原 θ 产出停）；热液/θ 的扣减见 2f3，守恒见 rates 同构。
+     * ⚠️ addRes 自动记 s.got.darkmatter 台账（单轮回累计，cond gathered{n} 读它）。 */
+    var _dmMul = darkmatterOutMul(s);
+    if ((s.probes || 0) > 0 && _dmMul > 0) {
+      addRes(s, 'darkmatter', (s.probes || 0) * (SB.CFG.PROBE_DARK || 0.005) * _dmMul * dt);
+    }
+    var _ringDark = solarRingDarkRate(s, s._hydroFlow);
+    if (_ringDark > 0) {
+      /* 满供才扣 θ（与 solarRingDarkRate 的同源判据：rate>0 ⟺ 热液满供且 θ 够）；
+       * 用 min 钳底防浮点扣负。原 θ 产出由 thetaFlow 的 solarRingOut 决定——
+       * 暗物质档开启时不额外产原 θ（改在 rates 的 thetaMetal 行按开关归零）。 */
+      var _ringTheta = solarRingDarkThetaNeed(s) * dt;
+      s.res.thetaMetal = Math.max(0, (s.res.thetaMetal || 0) - _ringTheta);
+      addRes(s, 'darkmatter', _ringDark * dt);
     }
 
     /* ── 2g) 戴森竣工 / 半程判定（2026-11-21 从 2f 的 running 块移出）────────────
@@ -497,7 +529,7 @@
      * ⚠️ 无贸易产能（商人=0）⇒ 民生轴中性（H=0 安定），不惩罚——与「神学前信仰不生效」同源：
      *    贸易系统不存在时，幸福度不应凭空扣全产。 */
     {
-      /* 政体（2026-09-29）：寡头统治 +20% 奢侈品产出。与马具 toolMul **独立相乘**
+      /* 政体（2026-09-29）：少数共治 +20% 奢侈品产出。与马具 toolMul **独立相乘**
        * （工具是职业乘区、政体是制度乘区），且**不含 happyMul**（防自激，见 happyMul 注）。 */
       /* ERA4（2026-09-30）：奇观「王国大交易所」的幸福度 +1 —— 与政体那条**同一类**：
        *    它是**常驻偏移量**，必须一并剥掉再算机制值，否则每帧累进 ⇒ 幸福度无限上漂。

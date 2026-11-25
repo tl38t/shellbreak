@@ -239,26 +239,64 @@ html[data-ui-theme="day"] .void-dialog-text.is-meta-copy{color:#b4232f;backgroun
 .gene-demo-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(265px,.8fr);gap:14px;align-items:stretch}
 .gene-sequence-panel,.gene-inspector{min-width:0;border:1px solid var(--line,#20344a);border-radius:12px;background:linear-gradient(145deg,rgba(16,28,41,.96),rgba(7,14,23,.97))}
 .gene-sequence-panel{overflow:hidden}
-.gene-branch-tabs{display:flex;gap:6px;padding:9px;border-bottom:1px solid rgba(127,165,181,.17)}
+.gene-branch-tabs{position:relative;display:flex;align-items:center;justify-content:center;padding:9px;border-bottom:1px solid rgba(127,165,181,.17)}
+.gene-branch-tablist{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);align-items:center;width:min(100%,320px)}
 .gene-branch-tab{display:flex;align-items:center;gap:8px;min-height:38px;padding:7px 12px;border:1px solid transparent;border-radius:7px;
   background:transparent;color:var(--dim,#8fa9bd);font:inherit;font-size:13px;cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease}
-.gene-tab-mark{position:relative;width:13px;height:13px;flex:none;border:1px solid currentColor;border-radius:50%;opacity:.82}
-.gene-tab-mark:before,.gene-tab-mark:after{content:"";position:absolute;left:2px;width:7px;height:2px;border-radius:2px;background:currentColor}
-.gene-tab-mark:before{top:3px;transform:rotate(25deg)}
-.gene-tab-mark:after{bottom:3px;transform:rotate(-25deg)}
+.gene-branch-tab:first-child{grid-column:1;justify-self:stretch;justify-content:center}
+.gene-branch-tab:last-child{grid-column:3;justify-self:stretch;justify-content:center}
+.gene-branch-icon{display:block;width:16px;height:16px;flex:none}
+.gene-branch-icon-supreme{color:#e39a87}
+.gene-branch-icon-pure{color:#7fc9c2}
 .gene-branch-tab.is-active{border-color:var(--gene-border);background:var(--gene-soft);color:var(--gene-accent)}
-.gene-branch-tab:focus-visible,.gene-locus:focus-visible,.gene-demo-upgrade:focus-visible{outline:2px solid #fff1c4;outline-offset:3px}
+.gene-branch-tab:focus-visible,.gene-locus:focus-visible,.gene-demo-upgrade:focus-visible,.gene-resonance-trigger:focus-visible{outline:2px solid #fff1c4;outline-offset:3px}
+.gene-resonance-trigger{--gene-taiji-supreme:#e39a87;--gene-taiji-pure:#7fc9c2;--gene-taiji-supreme-light:.48;--gene-taiji-pure-light:.48;
+  position:absolute;left:50%;top:50%;z-index:1;display:grid;place-items:center;width:32px;height:32px;flex:none;padding:4px;border:1px solid rgba(127,165,181,.24);border-radius:50%;transform:translate(-50%,-50%);
+  background:rgba(4,12,19,.48);color:var(--dim,#8fa9bd);cursor:pointer;transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease}
+.gene-resonance-trigger:hover{transform:translate(-50%,-50%) scale(1.08);border-color:rgba(213,225,218,.62);background:rgba(13,27,35,.8)}
+.gene-taiji-glyph{display:block;width:22px;height:22px;overflow:visible}
+.gene-taiji-pure{fill:var(--gene-taiji-pure);filter:brightness(var(--gene-taiji-pure-light))}
+.gene-taiji-supreme{fill:var(--gene-taiji-supreme);filter:brightness(var(--gene-taiji-supreme-light))}
+.gene-taiji-pure-dot{fill:var(--gene-taiji-supreme);filter:brightness(var(--gene-taiji-supreme-light))}
+.gene-taiji-supreme-dot{fill:var(--gene-taiji-pure);filter:brightness(var(--gene-taiji-pure-light))}
+.gene-taiji-outline{fill:none;stroke:rgba(235,245,239,.78);stroke-width:.8}
+.gene-resonance-trigger.is-supreme-leading{--gene-taiji-supreme-light:1.22;--gene-taiji-pure-light:.34;border-color:rgba(227,154,135,.6);box-shadow:0 0 8px rgba(227,154,135,.17)}
+.gene-resonance-trigger.is-pure-leading{--gene-taiji-supreme-light:.34;--gene-taiji-pure-light:1.22;border-color:rgba(127,201,194,.6);box-shadow:0 0 8px rgba(127,201,194,.17)}
+.gene-resonance-trigger.is-harmony{--gene-taiji-supreme-light:1.24;--gene-taiji-pure-light:1.24;border-color:rgba(220,204,156,.72);box-shadow:0 0 10px rgba(220,204,156,.28)}
+.gene-resonance-trigger.is-dormant{--gene-taiji-supreme-light:.38;--gene-taiji-pure-light:.38}
+.gene-resonance-dialog{box-sizing:border-box;width:min(460px,calc(100vw - 24px));max-width:none;padding:0;border:1px solid rgba(136,177,185,.4);border-radius:14px;
+  background:linear-gradient(145deg,rgba(17,32,43,.99),rgba(5,13,21,.99));color:var(--txt,#e6f2f8);box-shadow:0 24px 80px rgba(0,0,0,.55)}
+.gene-resonance-dialog::backdrop{background:rgba(1,7,12,.58);backdrop-filter:blur(1px)}
+.gene-resonance-dialog-card{padding:18px}
+.gene-resonance-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.gene-resonance-dialog-head h3{flex:1;min-width:0;margin:0;color:#eaf5f4;font-size:14px;line-height:1.55;font-variant-numeric:tabular-nums}
+.gene-resonance-dialog-head form{flex:none}
+.gene-resonance-close{min-height:32px;padding:5px 10px;border:1px solid rgba(127,165,181,.28);border-radius:7px;background:rgba(4,12,19,.4);color:var(--dim,#8fa9bd);font:inherit;font-size:12px;cursor:pointer}
+.gene-resonance-close:focus-visible{outline:2px solid #fff1c4;outline-offset:3px}
+.gene-resonance-close:hover{border-color:rgba(127,201,194,.6);color:var(--txt,#e6f2f8)}
+.gene-resonance-dialog-stats{display:flex;align-items:center;gap:16px;margin-top:16px;padding:13px 15px;border:1px solid rgba(127,165,181,.2);border-radius:10px;background:rgba(3,10,16,.46)}
+.gene-resonance-stat{display:flex;flex:1;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.gene-resonance-stat span{color:var(--dim,#8fa9bd);font-size:12px}
+.gene-resonance-stat b{font-size:20px;font-variant-numeric:tabular-nums;transition:filter .18s ease}
+.gene-resonance-stat.is-supreme b{color:#e39a87;filter:brightness(var(--gene-taiji-supreme-light,.48))}
+.gene-resonance-stat.is-pure b{color:#7fc9c2;filter:brightness(var(--gene-taiji-pure-light,.48))}
+.gene-resonance-dialog-stats.is-supreme-leading{--gene-taiji-supreme-light:1.2;--gene-taiji-pure-light:.45}
+.gene-resonance-dialog-stats.is-pure-leading{--gene-taiji-supreme-light:.45;--gene-taiji-pure-light:1.2}
+.gene-resonance-dialog-stats.is-harmony{--gene-taiji-supreme-light:1.2;--gene-taiji-pure-light:1.2}
+.gene-resonance-dialog-stats.is-dormant{--gene-taiji-supreme-light:.58;--gene-taiji-pure-light:.58}
+.gene-resonance-divider{width:1px;height:27px;flex:none;background:rgba(151,177,183,.28)}
+.gene-resonance-dialog-rule{margin:14px 1px 0;color:var(--dim,#a2b5c0);font-size:12px;line-height:1.7}
+.gene-branch-description{margin:0;padding:8px 12px 0;color:var(--dim,#8fa9bd);font-size:11px;line-height:1.45}
 .gene-sequence{position:relative;width:100%;aspect-ratio:1672 / 941;overflow:hidden;isolation:isolate;background:#04121d}
 .gene-sequence-art{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;object-position:center;pointer-events:none;user-select:none}
 .gene-loci{position:absolute;inset:0;overflow:hidden}
 .gene-locus{position:absolute;left:var(--gene-x);top:var(--gene-y);z-index:1;display:flex;flex-direction:column;align-items:center;width:22%;max-width:140px;
   min-width:56px;min-height:44px;padding:0 2px;border:0;background:transparent;color:var(--txt,#e6f2f8);font:inherit;text-align:center;cursor:pointer;transform:translate(-50%,-50%);touch-action:manipulation}
 .gene-locus-stem{display:none}
-.gene-locus-core{position:relative;z-index:1;display:grid;place-content:center;gap:5px;width:42px;height:42px;box-sizing:border-box;
+.gene-locus-core{position:relative;z-index:1;display:grid;place-items:center;width:42px;height:42px;box-sizing:border-box;
   border:1px solid var(--gene-border);border-radius:50%;background:rgba(7,15,23,.68);box-shadow:0 0 14px rgba(8,21,31,.65);
   transition:transform .18s ease,background .18s ease,border-color .18s ease}
-.gene-locus-core i{display:block;width:17px;height:3px;border-radius:3px;background:var(--gene-accent);transform:translateX(-2px) rotate(18deg)}
-.gene-locus-core i+i{background:var(--gene-accent-alt);transform:translateX(2px) rotate(18deg)}
+.gene-locus-core img{display:block;width:35px;height:35px;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.65));pointer-events:none;user-select:none}
 .gene-locus-name{display:block;max-width:100%;margin-top:6px;overflow:hidden;color:#effcff;font-size:12px;font-weight:700;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 5px #00101b,0 1px 2px #00101b}
 .gene-locus-ranks{display:flex;gap:3px;margin-top:6px}
 .gene-locus-ranks i{display:block;width:11px;height:3px;border-radius:3px;background:rgba(133,157,171,.24)}
@@ -271,10 +309,15 @@ html[data-ui-theme="day"] .void-dialog-text.is-meta-copy{color:#b4232f;backgroun
 .gene-inspector-head{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(127,165,181,.17)}
 .gene-inspector-mark{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:34px;height:34px;flex:none;
   border:1px solid var(--gene-border);border-radius:50%;background:var(--gene-soft)}
-.gene-inspector-mark i{width:14px;height:3px;border-radius:3px;background:var(--gene-accent)}
-.gene-inspector-mark i+i{background:var(--gene-accent-alt);transform:translateX(3px)}
+.gene-inspector-mark img{display:block;width:30px;height:30px;object-fit:contain}
 .gene-inspector-head h3{margin:0;color:var(--txt,#e6f2f8);font-size:16px}
 .gene-inspector-level{color:var(--dim2,#64809a);font-size:11px}
+.gene-node-description{padding:9px 10px;border:1px solid rgba(127,165,181,.17);border-radius:8px;background:rgba(4,10,17,.24)}
+.gene-node-description p{margin:0;color:var(--dim,#8fa9bd);font-size:11px;line-height:1.6}
+.gene-node-description p+p{margin-top:6px}
+.gene-node-description .is-level3{color:var(--gene-accent-alt)}
+.gene-node-meta{margin:0;padding:9px 10px;border-left:2px solid var(--gene-accent);border-radius:0 7px 7px 0;
+  background:var(--gene-soft);color:var(--gene-accent);font-size:11px;font-style:italic;line-height:1.55}
 .gene-effect-block{padding:9px 10px;border:1px solid rgba(127,165,181,.17);border-radius:8px;background:rgba(4,10,17,.36)}
 .gene-effect-block.is-next{border-style:dashed;border-color:var(--gene-border)}
 .gene-effect-heading{display:block;margin-bottom:6px;color:var(--dim2,#64809a);font-size:10px;letter-spacing:.04em}
@@ -291,8 +334,16 @@ html[data-ui-theme="day"] .void-dialog-text.is-meta-copy{color:#b4232f;backgroun
 html[data-ui-theme="day"] .gene-sequence-panel,html[data-ui-theme="day"] .gene-inspector{background:rgba(242,247,249,.96);border-color:#c9d7df}
 html[data-ui-theme="day"] .gene-demo-banner{background:rgba(229,239,242,.9)}
 html[data-ui-theme="day"] .gene-locus-core{background:rgba(247,250,251,.96)}
+html[data-ui-theme="day"] .gene-node-description{background:rgba(255,255,255,.72)}
+html[data-ui-theme="day"] .gene-node-description p{color:#526572}
 html[data-ui-theme="day"] .gene-effect-block{background:rgba(255,255,255,.72)}
 html[data-ui-theme="day"] .gene-effect-row p{color:#293b47}
+html[data-ui-theme="day"] .gene-resonance-trigger{background:rgba(248,251,252,.9);border-color:rgba(77,111,124,.32)}
+html[data-ui-theme="day"] .gene-resonance-dialog{background:linear-gradient(145deg,rgba(250,253,254,.99),rgba(234,243,246,.99));color:#293b47;border-color:#b8cbd2}
+html[data-ui-theme="day"] .gene-resonance-dialog-head h3{color:#293b47}
+html[data-ui-theme="day"] .gene-resonance-close{background:rgba(255,255,255,.74);color:#526572}
+html[data-ui-theme="day"] .gene-resonance-dialog-stats{background:rgba(255,255,255,.72)}
+html[data-ui-theme="day"] .gene-resonance-stat span,html[data-ui-theme="day"] .gene-resonance-dialog-rule{color:#526572}
 @media(max-width:760px){
   .gene-demo-layout{grid-template-columns:1fr}
   .gene-locus{width:22%;min-width:56px}
@@ -302,11 +353,15 @@ html[data-ui-theme="day"] .gene-effect-row p{color:#293b47}
   .gene-demo-balance{padding-left:9px}
   .gene-demo-balance b{font-size:14px}
   .gene-branch-tabs{padding:7px}
+  .gene-branch-tab{gap:5px;padding:7px 8px;font-size:12px}
+  .gene-resonance-trigger{width:29px;height:29px;padding:3px}
+  .gene-taiji-glyph{width:21px;height:21px}
   .gene-locus{padding:0 1px}
   .gene-locus-core{width:34px;height:34px}
+  .gene-locus-core img{width:29px;height:29px}
   .gene-locus-name{font-size:11px}
   .gene-locus-state{min-height:0;margin-top:2px;font-size:9px}
 }
 @media(prefers-reduced-motion:reduce){
-  .gene-branch-tab,.gene-locus-core,.gene-demo-upgrade{transition:none}
+  .gene-branch-tab,.gene-locus-core,.gene-demo-upgrade,.gene-resonance-trigger,.gene-resonance-stat b{transition:none}
 }

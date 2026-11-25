@@ -152,9 +152,16 @@
       meta: 'ui.pane.prestige_shop.title',
       veil: 'ui.pane.veil.title'
     };
+    var titleKey = titleKeys[key];
+    if (key === 'diplomacy') {
+      var titleState = SB.game && SB.game.run ? SB.game.run() : null;
+      if (titleState && SB.war && SB.war.hasCrisis && SB.war.hasCrisis(titleState)) {
+        titleKey = 'ui.pane.crisis.title';
+      }
+    }
     var nm = (key === 'village')
       ? (SB.habitat && SB.habitat.habitatName ? SB.habitat.habitatName(SB.game.run()) : tr('ui.habitat.name'))
-      : tr(titleKeys[key]);
+      : tr(titleKey);
     nm = htmlText(nm);
     return '<div class="cardhd" data-fold="' + key + '" style="--hc:' + m.color +
       '" title="' + htmlText(tr('ui.card.collapse_expand.tooltip', null, '点击折叠 / 展开')) + '"><span class="cv">▾</span>' + nm +
@@ -678,6 +685,27 @@
     if (btn) btn.onclick = hideModal;
   }
 
+  /* 2026-11-25 验收 PR#1：结算快照存的是当时的中文原文，切英文/繁中后三处面板仍是中文。
+   * 这里按 def/tier 现取译文，但奖励与目标只在快照与现行定义**逐字相等**时才替换——
+   * 历史成绩若与当前规则不同，宁可保留旧文案，也不能让面板「说」新奖励而账本记旧奖励。 */
+  function challengeOutcomeText(outcome) {
+    var api = SB.challenges, def = outcome && api && api.byId(outcome.id);
+    if (!def || !api.displayText) return outcome || {};
+    var tier = outcome.tier;
+    if (!Number.isInteger(tier) || !def.tiers[tier]) {
+      tier = def.tiers.findIndex(function (item) { return item.label === outcome.label; });
+      if (tier < 0 && def.tiers.length === 1) tier = 0;
+    }
+    return {
+      name: api.displayText(def, 'name'),
+      label: tier >= 0 ? api.displayText(def, 'tierLabel', tier) : outcome.label,
+      reward: outcome.reward && tier >= 0 && outcome.reward === api.rewardFor(def, tier)
+        ? api.displayText(def, 'reward', tier) : outcome.reward,
+      goalText: outcome.goalText && outcome.goalText === def.goalText
+        ? api.displayText(def, 'goalText') : outcome.goalText
+    };
+  }
+
   function showChallengeCompletePanel(outcome) {
     var modal = el('modal'), box = el('modalBox');
     if (!modal || !box || !outcome) return false;
@@ -695,14 +723,15 @@
      * 一分钱都没发（同上一条注释的同一个坑：面板说的话必须是这次真的发生的事）。 */
     var isReview = outcome.review === true;
     var titleKey = isReview ? 'ui.challenge.completion.review.title' : 'ui.challenge.completion.title';
-    var title = escHtml(tr(titleKey, { challengeName: outcome.name || '' }, '★ {challengeName} · 挑战完成'));
-    var goal = escHtml(outcome.goalText || tr('ui.challenge.completion.status', null, '挑战完成'));
+    var copy = challengeOutcomeText(outcome);
+    var title = escHtml(tr(titleKey, { challengeName: copy.name || '' }, '★ {challengeName} · 挑战完成'));
+    var goal = escHtml(copy.goalText || tr('ui.challenge.completion.status', null, '挑战完成'));
     box.innerHTML = '<div class="star-complete-panel challenge-complete-panel">' +
       '<h2>' + title + '</h2>' +
       '<p>' + goal + '</p>' +
       (isReview
         ? '<p class="muted">' + escHtml(tr('ui.challenge.completion.review_note', null, '这是通关演出的回放，不影响任何进度与奖励。')) + '</p>'
-        : '<p class="muted">' + escHtml(tr('ui.challenge.completion.reward_notice', { rewardDescription: outcome.reward || '' }, '永久奖励已生效：{rewardDescription}。本局仍可继续发展。')) + '</p>') +
+        : '<p class="muted">' + escHtml(tr('ui.challenge.completion.reward_notice', { rewardDescription: copy.reward || '' }, '永久奖励已生效：{rewardDescription}。本局仍可继续发展。')) + '</p>') +
       '<div class="break-controls"><button class="btn big" type="button" id="challengeCompleteClose">' + htmlText(tr('ui.action.keep_playing', null, '继续游玩')) + '</button></div>' +
       '</div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
@@ -1385,8 +1414,12 @@
           rankText: ss.lv + '/' + (isFinite(ss.max) ? ss.max : '∞'),
           status: starStatus,
           cost: starCost,
-          state: starState, disabled: ss.done || ss.locked || !ss.afford,
-          glyph: tree.icon, iconSrc: starPerkIconSrc(sp), attr: 'data-star-perk="' + sp.id + '"', title: starName
+          /* 2026-11-25：所有星屑节点都要能点开详情（已达上限 / 等待前置 / 星屑不足也一样），
+           * 所以不再给 button 加 disabled；购买入口移到气泡内的 [data-star-perk-buy]。
+           * e2e 靠 data-star-perk 选节点，这个属性保持原样。 */
+          state: starState, disabled: false,
+          glyph: tree.icon, iconSrc: starPerkIconSrc(sp),
+          attr: 'data-star-perk="' + sp.id + '" aria-haspopup="dialog"', title: starName
         });
       }
       h += SB.ui.talentTreeMarkup({
@@ -1422,6 +1455,119 @@
       '<div class="note meta-shop-note">' + htmlText(tr('ui.render.star_perk_name.stardust_is_granted_at_eligible_prestige_settlem', null, '星屑由合格轮回结算发放。强化与兑换后的余额均跨周目保留。')) + '</div>' +
       '</div>';
     return h;
+  }
+
+  /* 星屑天赋节点详情气泡（2026-11-25，玩家反馈「节点描述看不清」）。
+   * 【为什么单独做】talentTreeMarkup 的 .talent-node-desc 被 -webkit-line-clamp:2 截断，
+   *   手机端字号 7~8px 更看不全；而完整 desc / 等级 / 花费 / 前置本来就就在数据里。
+   * 【交互】input.js 把 [data-star-perk] 的点击改到这里；购买移进气泡内 [data-star-perk-buy]。
+   *   于是已达上限 / 等待前置 / 星屑不足的节点也能点开看（原来那些 button 是 disabled）。
+   * 【不新增字典键】名字/描述复用 paneStarDome 的 localizedStarPerk；状态、成本、分区标题
+   *   全部复用既有 i18n key，en-US / zh-TW 缺键时由 i18n 的 zh-CN 基线兜底，不会冒出新英文。
+   * 【外壳】复用 render-info.js 的 openInfoCard / #modal，只加 star-perk-modal 变体类；
+   *   resetModalChrome 已把两个变体类纳入清单，关掉后不会污染下一张弹窗。 */
+  function showStarPerkInfo(id, anchor) {
+    var perk = null, i;
+    for (i = 0; i < SB.STAR_PERKS.length; i++) {
+      if (SB.STAR_PERKS[i].id === id) { perk = SB.STAR_PERKS[i]; break; }
+    }
+    if (!perk) return;
+    var st = SB.prestige.starPerkState(id);
+    if (!st) return;
+    function nameOf(pid) {
+      for (var j = 0; j < SB.STAR_PERKS.length; j++) {
+        if (SB.STAR_PERKS[j].id === pid) return localizedStarPerk(SB.STAR_PERKS[j], 'name');
+      }
+      return pid;
+    }
+    var name = localizedStarPerk(perk, 'name');
+    var desc = localizedStarPerk(perk, 'description');
+    var stateKey = st.done ? 'ui.render.star_perk_name.at_maximum'
+      : st.locked ? 'ui.prestige.talent.status.waiting_prerequisites'
+      : st.afford ? 'ui.render.star_perk_name.ready_to_unlock'
+      : 'ui.render.star_perk_name.gather_stardust';
+    var stateFallback = st.done ? '已达上限' : st.locked ? '等待前置' : st.afford ? '可点亮' : '积攒星屑';
+    var stateText = tr(stateKey, null, stateFallback);
+    var stateCls = st.done ? 'done' : st.locked ? 'locked' : 'ready';
+    var rankText = st.lv + '/' + (isFinite(st.max) ? st.max : '∞');
+    var costText = st.done ? stateText
+      : tr('prestige.star_perk.cost', { stardustCost: st.next }, '✧ {stardustCost} 星屑');
+    var prereqNames = (st.prerequisites || []).map(nameOf).join(englishLocale() ? ', ' : '、');
+    var body = '<div class="tree-cost"><span>' + htmlText(tr('ui.section.current_level', null, '当前等级')) +
+      '</span><b>' + htmlText(rankText) + '</b></div>' +
+      '<div class="tree-cost"><span>' + htmlText(tr('tree.detail.heading.research_cost', null, '本次研究成本')) +
+      '</span><b>' + htmlText(costText) + '</b></div>' +
+      '<section class="tree-detail-section"><h4>' + htmlText(tr('ui.section.effects', null, '效果')) +
+      '</h4><p>' + htmlText(desc) + '</p></section>' +
+      (prereqNames ? '<section class="tree-detail-section"><h4>' +
+        htmlText(tr('tree.detail.heading.prerequisites', null, '前置节点')) + '</h4><p>' +
+        htmlText(prereqNames) + '</p></section>' : '');
+    /* 已满级时 costText 就是 stateText，别拼成「已达上限 · 已达上限」；
+     * 其余状态保留「状态 · ✧N」，让玩家知道差多少星屑。 */
+    var buyLabel = st.done ? stateText : stateText + ' · ' + costText;
+    var action = '<button class="btn buy" type="button" data-star-perk-buy="' + htmlText(id) + '"' +
+      (st.done || st.locked || !st.afford ? ' disabled' : '') + '>' +
+      htmlText(buyLabel) + '</button>';
+    var info = SB.ui.renderParts && SB.ui.renderParts.info;
+    if (!info || !info.openInfoCard) return;
+    var iconSrc = starPerkIconSrc(perk);
+    var mark = iconSrc
+      ? '<img src="' + htmlText(iconSrc) + '" alt="" aria-hidden="true" decoding="async">' : '✧';
+    info.openInfoCard(htmlText(name), mark, { cls: stateCls, text: htmlText(stateText) },
+      body, action, iconSrc ? 'has-image' : '', 'star-perk-modal');
+    var modal = el('modal'), box = el('modalBox');
+    if (!modal || !box) return;
+    modal.classList.add('star-perk-modal');
+    box.classList.add('star-perk-box');
+    if (starPerkAnchor && starPerkAnchor.classList) starPerkAnchor.classList.remove('is-anchor');
+    starPerkAnchor = anchor || null;
+    if (starPerkAnchor && starPerkAnchor.classList) starPerkAnchor.classList.add('is-anchor');
+    positionStarPerkPop();
+  }
+
+  /* 气泡定位：右 → 左 → 下 → 上，最后夹在视口内。箭头用 #modal 的伪元素画，
+   * 不放在 .box 里——.box 有 overflow:auto，箭头会被裁掉。 */
+  function positionStarPerkPop() {
+    var modal = el('modal'), box = el('modalBox');
+    if (!modal || !box || !starPerkAnchor || !starPerkAnchor.getBoundingClientRect) return;
+    var r = starPerkAnchor.getBoundingClientRect();
+    var w = box.offsetWidth || 360, h = box.offsetHeight || 400;
+    var vw = root.innerWidth || 0, vh = root.innerHeight || 0;
+    if (!vw || !vh) return;
+    var gap = 10, m = 8, side, left, top;
+    if (r.right + gap + w <= vw - m) {
+      side = 'right'; left = r.right + gap; top = r.top - 8;
+    } else if (r.left - gap - w >= m) {
+      side = 'left'; left = r.left - gap - w; top = r.top - 8;
+    } else if (r.bottom + gap + h <= vh - m) {
+      side = 'below'; left = r.left + r.width / 2 - w / 2; top = r.bottom + gap;
+    } else if (r.top - gap - h >= m) {
+      side = 'above'; left = r.left + r.width / 2 - w / 2; top = r.top - gap - h;
+    } else {
+      side = r.top > vh / 2 ? 'above' : 'below';
+      left = r.left + r.width / 2 - w / 2;
+      top = side === 'above' ? r.top - gap - h : r.bottom + gap;
+    }
+    left = Math.max(m, Math.min(left, vw - w - m));
+    top = Math.max(m, Math.min(top, vh - h - m));
+    box.style.left = left + 'px';
+    box.style.top = top + 'px';
+    modal.setAttribute('data-star-pop-side', side);
+    modal.style.setProperty('--star-pop-left', left + 'px');
+    modal.style.setProperty('--star-pop-top', top + 'px');
+    /* 左 / 上两个方向的箭头贴的是气泡右边 / 下边，不能拿宽度上限硬猜，写实测值。 */
+    modal.style.setProperty('--star-pop-right', (left + w) + 'px');
+    modal.style.setProperty('--star-pop-bottom', (top + h) + 'px');
+    var horizontal = side === 'right' || side === 'left';
+    var arrow = horizontal ? r.top + r.height / 2 - top : r.left + r.width / 2 - left;
+    var span = horizontal ? h : w;
+    modal.style.setProperty('--star-pop-arrow', Math.max(16, Math.min(arrow, span - 16)) + 'px');
+  }
+  if (root.addEventListener) {
+    root.addEventListener('resize', function () {
+      var modal = el('modal');
+      if (starPerkAnchor && modal && !modal.classList.contains('hidden')) positionStarPerkPop();
+    });
   }
 
   /* ── pane 重写会换掉里面的元素，于是「活在 DOM 上的滚动位置」归零 ──
@@ -2697,7 +2843,7 @@
       }
       /* 标题行取「判定结果自带的」名称/档位，而不是当前 s.challenge ——
        * 复核老档时两者可能不是同一条（结果来自 s.challengeOutcome，挑战可能是后开的）。 */
-      var cInfo = r.challengeClear || r.challengeFailure || { name: cd.name, label: cd.tiers[tier].label };
+      var cInfo = challengeOutcomeText(r.challengeClear || r.challengeFailure || { id: cd.id, tier: tier });
       ch = '<div class="bresult' + cls + '">' +
         '<div class="cc-head">' +
         '<span class="cc-icon">' + (cls === ' ok' ? '✓' : (cls === ' fail' ? '✕' : '?')) + '</span>' +
@@ -2781,16 +2927,18 @@
     }, '挑战通关永久加成：轮回点获取 +{prestigePointBonus}')) + '</div>';
     /* 2026-11-02 挑战可重打：重复通关既没有永久奖励、也不加 +10%，原文案会写出
      * 「永久获得 null」并谎称再加 10%。按 replay 标记分两句。 */
+    var clearText = challengeOutcomeText(r.challengeClear);
     if (r.challengeClear) extra += '<div class="note">' + htmlText(r.challengeClear.replay
       ? tr('ui.challenge.result.repeated_clear', {
-        challengeName: r.challengeClear.name || '', tierName: r.challengeClear.label || ''
+        challengeName: clearText.name || '', tierName: clearText.label || ''
       }, '再次通关：{challengeName} · {tierName}。重复通关不再发放永久奖励；本局成绩已计入排行榜。')
       : tr('ui.challenge.result.clear_reward', {
-        challengeName: r.challengeClear.name || '', tierName: r.challengeClear.label || '',
-        reward: r.challengeClear.reward || '', prestigePointBonus: '10%'
+        challengeName: clearText.name || '', tierName: clearText.label || '',
+        reward: clearText.reward || '', prestigePointBonus: '10%'
       }, '挑战通关：{challengeName} · {tierName}。永久奖励：{reward}。之后轮回点获取增加 {prestigePointBonus}。')) + '</div>';
+    var failureText = challengeOutcomeText(r.challengeFailure);
     var challengeFailureNote = r.challengeFailure ? '<div class="note" style="color:var(--red)">' + htmlText(tr('ui.challenge.result.failed_time', {
-      challengeName: r.challengeFailure.name || '', tierName: r.challengeFailure.label || '',
+      challengeName: failureText.name || '', tierName: failureText.label || '',
       elapsedTime: SB.challenges.formatClock(r.challengeFailure.elapsed),
       timeLimit: SB.challenges.formatClock(r.challengeFailure.limit)
     }, '挑战未通关：{challengeName} · {tierName} 超时（用时 {elapsedTime}，限时 {timeLimit}），本档奖励未领取。重开本周目后可重试。')) + '</div>' : '';
@@ -2861,11 +3009,14 @@
    * 【纪律】凡是往 #modal 里写内容的函数，写之前先 resetModalChrome()，再 add 自己的变体类。
    *   不许再靠「记得删掉哪几个类」——漏删 offline-summary-modal 正是这样发生的。 */
   var MODAL_VARIANT_CLASSES = ['offline-summary-modal', 'tree-modal', 'tree-tech', 'tree-civic',
-    'break-modal', 'void-ending-modal', 'terra-ending-modal', 'void-civic-modal', 'story-modal', 'gov-picker-modal',
+    'break-modal', 'void-ending-modal', 'terra-ending-modal', 'void-civic-modal', 'story-modal', 'story-crisis', 'gov-picker-modal',
+    /* 星屑天赋详情气泡（2026-11-25）：锚定被点节点，必须随归一化一起清掉，
+     *   否则下一张普通弹窗会继承 fixed 定位和箭头伪元素。 */
+    'star-perk-modal',
     /* 2026-11-17：补算闸门专用。见 showOfflineModal 里的 is-catchup 注 —— 它是唯一
      * 会在**每 250ms 改一次 DOM**的面板，必须能单独关掉 backdrop-filter。 */
     'is-catchup'];
-  var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box', 'steam-rank-box'];
+  var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box', 'steam-rank-box', 'star-perk-box'];
   function resetModalChrome() {
     var modal = el('modal'), box = el('modalBox'), i;
     if (modal && modal.classList) {
@@ -2882,9 +3033,15 @@
     }
   }
 
+  /* 星屑天赋详情气泡当前锚点（2026-11-25）：只存 DOM 引用，不进存档。
+   * 关弹窗时必须摘掉高亮并清空，否则下次 resize 会给已经关掉的按钮重新定位。 */
+  var starPerkAnchor = null;
+
   function hideModal() {
     clearBreakAnimation();
     clearDysonAnimation();
+    if (starPerkAnchor && starPerkAnchor.classList) starPerkAnchor.classList.remove('is-anchor');
+    starPerkAnchor = null;
     var modal = el('modal');
     resetModalChrome();
     modal.classList.add('hidden');
@@ -2991,6 +3148,8 @@
     }
     var kind = o.kind || 'unlock';
     var isTech = kind === 'tech';
+    var crisisArtwork = kind === 'crisis' && SB.ui && SB.ui.renderParts && SB.ui.renderParts.crisisArtwork
+      ? SB.ui.renderParts.crisisArtwork(o.crisisId) : '';
     var icon = o.icon || (isTech ? '⌘' : '✦');
     var kicker = o.kicker || tr(isTech ? 'ui.render.story_panel.technology_tree_unlocked' : 'ui.render.story_panel.new_system_unlocked', null, isTech ? '科技树已开放' : '新系统解锁');
     var title = storyText('title', o.title || '');
@@ -3006,10 +3165,12 @@
     var action = storyText('action', o.ok || tr('ui.render.anonymous_function.got_it', null, '知道了'));
     resetModalChrome();
     modal.classList.add('story-modal');
+    if (kind === 'crisis') modal.classList.add('story-crisis');
     box.classList.add('story-box');
     box.innerHTML =
       '<div class="story-kicker"><span class="story-kicker-icon" aria-hidden="true">' + icon + '</span><span>' + htmlText(kicker) + '</span><i aria-hidden="true"></i></div>' +
       '<div class="story-hero"><div class="story-hero-icon" aria-hidden="true">' + icon + '</div><div class="story-hero-copy"><h3>' + htmlText(title) + '</h3><span class="story-state">' + htmlText(tr('ui.status.new', null, '新')) + '</span></div></div>' +
+      (crisisArtwork ? '<div class="story-crisis-art" aria-hidden="true"><img src="' + htmlText(crisisArtwork) + '" alt="" decoding="async"></div>' : '') +
       '<div class="story-rule" aria-hidden="true"></div>' +
       '<div class="story">' + lines.map(function (x) {
         return '<p>' + htmlText(x) + '</p>';
@@ -3111,8 +3272,18 @@
     if (dp) {
       var ds = res(), dop = !!(ds && ((ds.techs && ds.techs.navigation) ||
         (ds.civics && ds.civics.military_training)));
+      var crisisTab = !!(ds && SB.war && SB.war.hasCrisis && SB.war.hasCrisis(ds));
+      if (crisisTab) dop = true;
       dp.classList.toggle('locked', !dop);
       dp.title = dop ? '' : tr('ui.war.campaign.locked');
+      var dpLabel = dp.querySelector('[data-i18n]');
+      if (dpLabel) {
+        var dpLabelKey = crisisTab ? 'ui.pane.crisis.title' : 'ui.pane.diplomacy.title';
+        dpLabel.setAttribute('data-i18n', dpLabelKey);
+        dpLabel.textContent = tr(dpLabelKey);
+      }
+      var dpIntro = dp.querySelector('.qbtn');
+      if (dpIntro) dpIntro.hidden = crisisTab;
     }
     /* 公司页的灰态：**第六个独立门槛** —— 宏观经济学（与 tab 灰态、公司成立触发同源：
      *   s.civics.macroeconomics ⇔ 公司系统解锁），不在这里另立一份判据。 */
@@ -3412,6 +3583,8 @@
      * 只读 economy.ratesParts，不写游戏状态。 */
     showResDetail: showResDetail,
     showBreakPanel: showBreakPanel, showBreakResult: showBreakResult, showBreakAnimation: showBreakAnimation, hideModal: hideModal, confirmPanel: confirmPanel,
+    /* 星屑天赋详情气泡：input.js 的 [data-star-perk] 委托调它；只读渲染，不写状态。 */
+    showStarPerkInfo: showStarPerkInfo,
     /* 2026-11-05：导出供回归直接断言挑战开启前置的常驻条文案（与 paneChallenges 同手法）。 */
     renderChallengeNotice: renderChallengeNotice,
     /* 弹窗外壳归一化（2026-10-29）：导出给 render-info.js（树图详情卡）/ game.js（政体命名框）/
@@ -3422,6 +3595,8 @@
      * 导出是因为 shell.tickStar 通过 SB.ui.render.showStarComplete 调用（与 showBreakPanel 同源）。 */
     showStarComplete: showStarComplete,
     showChallengeComplete: showChallengeComplete,
+    /* 2026-11-25：导出供回归断言「当前译文 / 旧快照文案」的取舍（与 showHoverInfo 同手法）。 */
+    challengeOutcomeText: challengeOutcomeText,
     /* 设置栏「通关演出回看」（2026-11-03）：bindSettingsExtras 由 game.bootUi 调一次接线，
      * replayTerraSequence 与 canReplayTerra 另外导出供回归直接断言（不依赖真实 DOM）。 */
     bindSettingsExtras: bindSettingsExtras,
@@ -3451,6 +3626,9 @@
     cycleJobStep: cycleJobStep, jobStep: getJobStep, paintGrow: paintGrow,
     cycleExchangeStep: cycleExchangeStep, exchangeStep: exchangeStep, exchangeStepLabel: exchangeStepLabel,
     setWorkshopView: SB.ui.renderParts.setWorkshopView,
+    /* 挑战页二级分区（轮回挑战 / 飞升挑战）的视图切换，与 setWorkshopView 同一手法：
+     * 状态存在 render-pane-challenges.js 的模块变量里，跨 2 秒重绘保留。 */
+    setChallengeView: SB.ui.renderParts.setChallengeView,
     showBuildingInfo: showBuildingInfo,
     openWorkshopFromInfo: openWorkshopFromInfo,
     showWonderInfo: showWonderInfo,

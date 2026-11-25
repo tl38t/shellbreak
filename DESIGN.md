@@ -1,6 +1,6 @@
 # 天壳 UI 设计基线
 
-Updated: 2026-11-17
+Updated: 2026-11-21
 
 ## Direction
 
@@ -46,11 +46,23 @@ Updated: 2026-11-17
 
 对比度（WCAG 相对亮度计算）：夜间正文 / 画布 14.8:1，夜间辅助文字 / 画布 5.34:1；日间正文 / 画布 9.76:1，成就页辅助文字 / 面板 5.26:1，日间交互强调 / 面板 4.55:1。状态同时使用文字、边框或图标，不只靠颜色表达。
 
+## Era material identity
+
+- The active era is carried by `html[data-era]`; its accent, panel shape, and material textures come from `css/70-era-skins.css` and `assets/ui-era/`, with its field illustration in `assets/backgrounds/sequence/`.
+- The resource archive keeps its compact grid and active era's field illustration. Surface accents, textures, and panel shapes follow the era skin; Eras 3 and 4 intentionally share one skin.
+- Era 2 draws from its early undersea settlement: charcoal basalt shelves, sparse amber lamplight, and broad broken strata. Use `assets/backgrounds/sequence/era-2/technology-field.webp` as the image reference and `assets/ui-era/era2-strata.svg` for low-contrast surface lines; keep vertical grid seams and dense hatching out of resource tiles.
+- Era 3 draws from an undersea sulfur forge: soot-dark hammered iron, poured bronze edges, and concentrated orange heat at the kiln. Use `assets/ui-era/forge.jpg` for the worked metal surface and keep the heat marks around panel edges and open field areas, leaving resource values clear.
+- Eras 3 and 4 share the same forged-metal skin: soot-dark worked metal, bevelled copper edges, warm accent, and restrained kiln glow. Use the same palette, texture, panel shapes, and resource-row treatment in both eras; do not use cyan accents or chart/current overlays for Era 4.
+- Era 5 is a deep-sea heavy-industry skin, distinct from the shared Era 3–4 forge treatment: pressure-rated machine plates, dark steel, aged brass, and localized furnace glow. Let exposed panel backgrounds show joined hull plates, captive bolts, and cooling louvers through `assets/ui-era/era5-industrial-field.svg`; keep the drawing faint behind cards and controls. Keep black-yellow warning paint sparse on resource and building-module edges; do not stripe panel borders, title markers, buttons, or the natural-environment meter. Preserve the 25% shell-thickness limit as a narrow amber tick. Avoid adding the pipe-header illustration to the interface; use the Era 5 field illustration as the atmospheric art anchor and keep values readable.
+- Era 11 (α / 帷幕之后) uses pale veil lavender `#E8D9FF` with spectral cyan `#80DFCF` and `assets/ui-era/era11-veil.svg`; the split curtain seam and scattered lights should remain subtle behind resource values.
+
 ## Spacing, alignment, and shape
 
 - 常用间距：4、6、8、10、12、14、16、20、24、32px；列表由 grid / flex 容器统一排列。
 - 面板沿用 12px 内边距；主要交互触控区保持至少 38px 高。
 - 常用圆角：6px 控件、8px 紧凑条目、10px 卡片、12px 弹层、14px 页面容器、999px 胶囊。
+- 纪元 1 的礁生资源条目与采集、建造按钮使用 `css/70-era-skins.css` 中的非对称圆角 token，作为海底材质形状；按钮仍保持至少 38px 高。
+- 纪元 2 的资源板与操作按钮使用同文件中的非对称短切角，表现玄武岩台地；琥珀色只标出少量灯火和关键边缘，按钮仍保持至少 38px 高，绿色购买状态继续表达可建造。
 - 卡片使用 1px 边线和轻表面差；阴影用于需要浮起的弹层，不给普通列表逐行加重投影。
 - 计数和资源数值右对齐时使用等宽数字；标题、描述、状态共享图标后的文字起始线。
 

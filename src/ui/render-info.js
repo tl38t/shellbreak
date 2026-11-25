@@ -254,6 +254,13 @@
       wonder_void_mars_foundry: 'wonder.void_mars_foundry.description'
     };
     if (voidWonderDescriptions[id]) return tr(voidWonderDescriptions[id], null, fallback || '');
+    if (id === 'synaptic_ganglion_modification') {
+      var bonusPercent = SB.wonder && SB.wonder.darkmatterBonusPercent
+        ? SB.wonder.darkmatterBonusPercent(s) : 0;
+      var bonusText = (Math.round(bonusPercent * 10) / 10).toString();
+      return tr('content.' + id + '.description', { bonusPercent: bonusText },
+        String(fallback || '').replace('{bonusPercent}', bonusText));
+    }
     if (!englishLocale()) return fallback || '';
     if (id === 'wonder_throne') {
       var branch = s && s.gov === 'theo_state' ? 'faith'
@@ -360,10 +367,18 @@
     }
     return null;
   }
-  function localizedCivicDescription(item) {
+  function localizedCivicDescription(item, s) {
     if (!item) return '';
     var key = 'civic.data.' + item.id + '.description', special = {};
-    if (item.id !== 'supreme_directive') return localizedStaticText(key, item.desc || '');
+    if (item.id !== 'supreme_directive') {
+      var description = localizedStaticText(key, item.desc || '');
+      if (item.id === 'unity' && s && s.civics && s.civics.unity
+          && SB.state && SB.state.ascendProgress && SB.game && SB.game.meta) {
+        var progress = SB.state.ascendProgress(s, SB.game.meta());
+        description += ' · ' + tr('ui.veil.hub.ascend.progress', { current: progress, total: 10 }, '第 ' + progress + '/10 次');
+      }
+      return description;
+    }
     var directCard = null, savingCard = null, policies = SB.POLICIES || [];
     for (var i = 0; i < policies.length; i++) {
       if (policies[i].id === 'card_supreme_directive') directCard = policies[i];
@@ -494,9 +509,11 @@
       ? '<div class="tree-reqs building-requirements">' + items.join('') + '</div>'
       : '<p>' + tr('building.info.requirement.none', null, '无额外建筑前置') + '</p>';
   }
-  function localizedStaticText(key, fallback) {
+  /* params 可选：译文里含占位符时填入字面值（如 kelp_prod 变量名不写进译文串，
+   * 词典只留 {codeVar}，运行时把真值填回）。不传参数时行为与旧版完全一致。 */
+  function localizedStaticText(key, fallback, params) {
     if (!englishLocale()) return fallback || '';
-    var value = tr(key, null, '');
+    var value = tr(key, params || null, '');
     return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : (fallback || '');
   }
   function localizedJobName(s, id) {
@@ -683,7 +700,7 @@
     var effect = tech
       ? (SB.tech.effectDisplayText ? SB.tech.effectDisplayText(item) : SB.tech.effectText(item))
       : item.desc;
-    if (!tech) effect = localizedCivicDescription(item);
+    if (!tech) effect = localizedCivicDescription(item, s);
     var unlockText = tech && item.unlockDesc
       ? localizedContentDescription('tech.' + id + '.unlock_desc', item.unlockDesc,
         englishTemplateParams('tech.' + id + '.unlock_desc', item.unlockDesc))
@@ -804,7 +821,7 @@
       (revealed ? linkInfoNames(effect, !tech && /工坊配方/.test(effect)) : tr('tree.detail.hidden_content_hint', null, '达成揭示条件后显示。')) + '</p></section>' +
       unlockSection +
       '<section class="tree-detail-section"><h4>' + tr('tree.detail.heading.prerequisites', null, '前置节点') + '</h4><div class="tree-reqs">' + reqHtml + '</div></section>' +
-      (tech && revealed && TECH_FLAVOR[id] ? '<p class="b-flavor">' + localizedStaticText('ui.content.tech_flavor.' + id, TECH_FLAVOR[id]) + '</p>' : '') +
+      (tech && revealed && TECH_FLAVOR[id] ? '<p class="b-flavor">' + localizedStaticText('ui.content.tech_flavor.' + id, TECH_FLAVOR[id], TECH_FLAVOR_PARAMS[id]) + '</p>' : '') +
       (civicFlavor ? '<p class="b-flavor' + (voidCivic ? ' void-flavor' : '') + '">' + civicFlavor + '</p>' : '') +
       '<div class="tree-detail-actions"><button class="btn buy" type="button" data-tree-study="' + (tech ? 'tech' : 'civic') + '" data-' + (tech ? 'tech' : 'civic') + '="' + id + '"' +
       (done || blocked ? ' disabled' : '') + (blocked ? ' title="' + (englishLocale() ? state : blocked) + '"' : '') + '>' + buttonText + '</button>' +
@@ -1019,9 +1036,16 @@
       case 'warmnest':     return pct(effectLabel('people_food_consumption', '族民口粮消耗'), B.foodSave * 100, B.foodSave * 100 * L, 1, '−');
       case 'kelpstore':    return add(effectLabel('kelp_storage_cap', '藻食上限'), B.kelpCap, B.kelpCap * L, '', 0);
       case 'ballast':      return add(effectLabel('other_resources_cap', '其余资源上限'), B.ballastCap, B.ballastCap * L, '', 0);
-      case 'lighthouse':   return joinInfoText(
-        pct(effectLabel('global_production', '全资源产出'), B.lighthouseProd * 100, B.lighthouseProd * 100 * L, 0),
-        add(effectLabel('other_resources_cap', '其余资源上限'), B.lighthouseCap, B.lighthouseCap * L, '', 0));
+      /* ⚠️ 2026-11-21 全局修正：灯塔本身不产仓储，`B.lighthouseCap` 恒 0（不再显示 +0/级）。
+       *   只有建成大灯塔后灯塔才按「该资源压舱仓每级量的一半」给容量；这里按普通资源现值
+       *   `lighthouseCapGreat`(=ballastCap/2=60) 展示，与 capOf 的派生口径同源。 */
+      case 'lighthouse': {
+        var _lhOut = pct(effectLabel('global_production', '全资源产出'), B.lighthouseProd * 100, B.lighthouseProd * 100 * L, 0);
+        var _lhGreat = (s && SB.wonder && SB.wonder.owned(s).wonder_great_lighthouse) ? B.lighthouseCapGreat : 0;
+        return _lhGreat
+          ? joinInfoText(_lhOut, add(effectLabel('other_resources_cap', '其余资源上限'), _lhGreat, _lhGreat * L, '', 0))
+          : _lhOut;
+      }
       case 'workshop':     return pct(effectLabel('crafting_efficiency', '工艺制作效率'), (b.craftRatio || 0) * 100, (b.craftRatio || 0) * 100 * L, 0);
       case 'siltpit':      return pct(effectLabel('miner_quarry_output', '矿工与采石工产出'), B.siltBonus * 100, B.siltBonus * 100 * L, 0);
       case 'library':      return pct(effectLabel('scholar_research_output', '学者科技产出'), B.sciRatio * 100, B.sciRatio * 100 * L, 0);
@@ -1160,21 +1184,36 @@
           if (_capEra >= 0 && _capEra < _eraNames.length) _capEraLabel = _eraNames[_capEra];
         }
         var _capacity = _castle && _castle.castleCap != null ? Number(_castle.castleCap) : 50;
-        var _capParams = { capEra: _capEraLabel, capacityPerLevel: _capacity };
+        var _dmCapacity = _castle && _castle.castleCapDarkMatter != null
+          ? Number(_castle.castleCapDarkMatter) : 2;
+        var _capParams = {
+          capEra: _capEraLabel, capacityPerLevel: _capacity,
+          darkMatterCapacityPerLevel: _dmCapacity
+        };
+        /* ⚠️ 2026-11-22（论坛「议事厅 +50 容量未生效」）：原先这三条正常路径都写
+         * 「另给纪元三及之前有上限资源 +50 容量/级」，**漏了「升级为城堡后」这个前提**
+         * ——纪元一玩家看到承诺却一分不给。只有 fallback 那条写了前提，而正常路径走不到。
+         * 现在四条口径统一：容量必须装了 upg_castle 才有，且暗物质单独 +2/级。 */
+        var _capSuffix = '；升级为城堡后，纪元' + _capEraLabel + '及之前有上限资源 +' +
+          _capacity + ' 容量/级、暗物质 +' + _dmCapacity + ' 容量/级';
         if (!_hi) return tr('building.effect.hall.fallback', _capParams,
-          '随等级降低所有建筑下一级造价，但越升省得越少；升级为城堡后减得更多，并额外给纪元' + _capEraLabel + '及之前有上限资源 +' + _capacity + ' 容量/级');
+          '随等级降低所有建筑下一级造价，但越升省得越少；升级为城堡后减得更多，并额外给纪元' +
+          _capEraLabel + '及之前有上限资源 +' + _capacity + ' 容量/级、暗物质 +' + _dmCapacity + ' 容量/级');
         if (_hi.lvl <= 0) {
           return tr('building.effect.hall.unbuilt', Object.assign({
             firstLevelSaving: (_hi.nextGain * 100).toFixed(1)
-          }, _capParams), '建成后每级降低所有建筑下一级造价，第 1 级省 ' + (_hi.nextGain * 100).toFixed(1) + '%，之后越升省得越少；另给纪元' + _capEraLabel + '及之前有上限资源 +' + _capacity + ' 容量/级');
+          }, _capParams), '建成后每级降低所有建筑下一级造价，第 1 级省 ' + (_hi.nextGain * 100).toFixed(1) +
+            '%，之后越升省得越少' + _capSuffix);
         }
         if (_hi.nextGain > 0.0002) return tr('building.effect.hall.current_discount', Object.assign({
           currentDiscount: (_hi.discount * 100).toFixed(1),
           nextLevelSaving: (_hi.nextGain * 100).toFixed(2)
-        }, _capParams), '所有建筑下一级造价 −' + (_hi.discount * 100).toFixed(1) + '%；再升 1 级多省 ' + (_hi.nextGain * 100).toFixed(2) + '%；另给纪元' + _capEraLabel + '及之前有上限资源 +' + _capacity + ' 容量/级');
+        }, _capParams), '所有建筑下一级造价 −' + (_hi.discount * 100).toFixed(1) + '%；再升 1 级多省 ' +
+          (_hi.nextGain * 100).toFixed(2) + '%' + _capSuffix);
         return tr('building.effect.hall.near_limit', Object.assign({
           currentDiscount: (_hi.discount * 100).toFixed(1)
-        }, _capParams), '所有建筑下一级造价 −' + (_hi.discount * 100).toFixed(1) + '%，再升级几乎不再降低造价；另给纪元' + _capEraLabel + '及之前有上限资源 +' + _capacity + ' 容量/级');
+        }, _capParams), '所有建筑下一级造价 −' + (_hi.discount * 100).toFixed(1) +
+          '%，再升级几乎不再降低造价' + _capSuffix);
       }
       default:             return buildingDescText(s, b);
     }
@@ -1359,6 +1398,7 @@
   // 展示文案由 render-content.js 提供，集中维护且不进入存档。
   var BUILDING_FLAVOR = SB.ui.renderContent.BUILDING_FLAVOR;
   var TECH_FLAVOR = SB.ui.renderContent.TECH_FLAVOR;
+  var TECH_FLAVOR_PARAMS = SB.ui.renderContent.TECH_FLAVOR_PARAMS || {};
 
   function showBuildingInfo(id) {
     var s = res(), b = SB.habitat && SB.habitat.buildingById ? SB.habitat.buildingById(id) : null;
@@ -1574,6 +1614,7 @@
   SB.ui.renderParts = SB.ui.renderParts || {};
   SB.ui.renderParts.info = {
     linkInfoNames: linkInfoNames,
+    openInfoCard: openInfoCard,
     showTreeDetail: showTreeDetail,
     showBuildingInfo: showBuildingInfo,
     showWonderInfo: showWonderInfo,

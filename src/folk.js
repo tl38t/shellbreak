@@ -394,7 +394,8 @@
     var r = {}, k;
     for (k in s.jobs) r[k] = s.jobs[k];
     var rj = s.robotJobs || {};
-    var _rm = robotMult(s);
+    var _robotCrisisMul = (SB.war && SB.war.crisisRobotOutputMul) ? SB.war.crisisRobotOutputMul(s) : 1;
+    var _rm = robotMult(s) * _robotCrisisMul;
     for (k in rj) {
       if (robotJobAllowed(k)) r[k] = (r[k] || 0) + _rm * (rj[k] || 0);
     }

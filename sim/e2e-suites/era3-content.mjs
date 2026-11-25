@@ -121,6 +121,24 @@ console.log('\n=== 纪元三 · 资源/建筑/升级/奇观 落地 ===');
     um.upg_castle && um.upg_castle.need === 'castle' &&
     um.upg_castle.hallSaveMul === 0.5 && um.upg_castle.castleCap === 50,
     'castle=' + JSON.stringify(um.upg_castle));
+  check('upg_castle.castleCapDarkMatter = 2（暗物质单独 +2/级，不套通用 +50）',
+    um.upg_castle.castleCapDarkMatter === 2,
+    'castleCapDarkMatter=' + um.upg_castle.castleCapDarkMatter);
+
+  /* 2026-11-22 用户拍板：城堡容量对暗物质 +2/级并放通 capEra 3（storageEra 11）。
+   * 用 capOf 的装前/装后差值间接验（castleCapBonus 是内部函数，不经 SB.economy 导出）。 */
+  {
+    const cs = SB.state.freshRun(false);
+    cs.lvl = cs.lvl || {}; cs.lvl.hall = 10;
+    const dmBefore = SB.economy.capOf(cs, 'darkmatter');
+    const coralBefore = SB.economy.capOf(cs, 'coral');
+    cs.upgrades = cs.upgrades || {}; cs.upgrades.upg_castle = true;
+    const dmAfter = SB.economy.capOf(cs, 'darkmatter');
+    const coralAfter = SB.economy.capOf(cs, 'coral');
+    check('城堡容量：10 级议事厅给暗物质 +20、普通材料 +500（各按 +2 / +50 每级）',
+      dmAfter - dmBefore === 20 && coralAfter - coralBefore === 500,
+      '暗物质 ' + dmBefore + '→' + dmAfter + ' / 珊瑚 ' + coralBefore + '→' + coralAfter);
+  }
 
   /* ⭐ 议价曲线 = **等比递减**（2026-10-29 用户拍板「改成真边际效益」，上限 60%）。
    * 这里钉的是**曲线形状**，不是具体数值：rate / 上限属标定，用户随时可能调档；

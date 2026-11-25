@@ -40,18 +40,39 @@
 .teaser{font-size:11px;color:var(--dim);margin-top:8px;padding-top:7px;border-top:1px dashed #1c3350;line-height:1.6}
 .teaser b{color:var(--amber)}
 
-/* 政策卡库：Civ6 式分类卡牌——彩色类型饰边、分类分组、纵向卡面与底部操作位。 */
-.policy-group{--policy-accent:#72b8e8;--policy-border:#31516d;--policy-wash:rgba(114,184,232,.12);margin-top:14px}
+/* 政策卡库：按已解锁卡牌类型生成筛选页签；卡片继续按实际槽型保留各自配色。 */
+.policy-group{--policy-accent:#72b8e8;--policy-border:#31516d;--policy-wash:rgba(114,184,232,.12);margin-top:0}
 .policy-group-prod{--policy-accent:#ffb84d;--policy-border:#705427;--policy-wash:rgba(255,184,77,.12)}
 .policy-group-sci{--policy-accent:#7fb8e6;--policy-border:#315571;--policy-wash:rgba(127,184,230,.12)}
 .policy-group-grow{--policy-accent:#e691b0;--policy-border:#633b4b;--policy-wash:rgba(230,145,176,.12)}
 .policy-group-relig{--policy-accent:#c4a7ff;--policy-border:#554477;--policy-wash:rgba(196,167,255,.12)}
 .policy-group-military{--policy-accent:#e8705f;--policy-border:#6e3b34;--policy-wash:rgba(232,112,95,.12)}
 .policy-group-wild{--policy-accent:#4ade80;--policy-border:#2e6446;--policy-wash:rgba(74,222,128,.12)}
-.policy-group-title{display:flex;align-items:center;gap:8px;margin:0 0 8px;padding-left:9px;
-  border-left:3px solid var(--policy-accent);color:var(--policy-accent);font-size:12px;font-weight:700;letter-spacing:.5px}
-.policy-group-count{display:inline-grid;place-items:center;min-width:20px;height:18px;padding:0 5px;
-  border-radius:9px;background:var(--policy-wash);font-size:10px}
+.policy-library-tabs{display:flex;align-items:stretch;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;
+  padding:2px 2px 9px;margin:7px 0 12px;border-bottom:1px solid rgba(130,160,184,.2);scrollbar-width:thin}
+.policy-library-tab{--tab-accent:#a9b8c5;--tab-wash:rgba(169,184,197,.11);display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 auto;gap:7px;min-height:36px;padding:6px 12px;border:1px solid rgba(130,160,184,.24);border-bottom:2px solid transparent;
+  border-radius:7px 7px 3px 3px;background:rgba(255,255,255,.025);color:var(--dim);font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+.policy-library-tab[data-policy-tab="prod"]{--tab-accent:#ffb84d;--tab-wash:rgba(255,184,77,.13)}
+.policy-library-tab[data-policy-tab="sci"]{--tab-accent:#7fb8e6;--tab-wash:rgba(127,184,230,.13)}
+.policy-library-tab[data-policy-tab="grow"]{--tab-accent:#e691b0;--tab-wash:rgba(230,145,176,.13)}
+.policy-library-tab[data-policy-tab="relig"]{--tab-accent:#c4a7ff;--tab-wash:rgba(196,167,255,.13)}
+.policy-library-tab[data-policy-tab="military"]{--tab-accent:#e8705f;--tab-wash:rgba(232,112,95,.13)}
+.policy-library-tab[data-policy-tab="wild"]{--tab-accent:#4ade80;--tab-wash:rgba(74,222,128,.13)}
+.policy-library-tab:hover:not(:disabled){border-color:var(--tab-accent);color:var(--txt)}
+.policy-library-tab[aria-selected="true"]{border-color:var(--tab-accent);border-bottom-color:var(--tab-accent);background:var(--tab-wash);color:var(--txt);box-shadow:inset 0 -1px var(--tab-accent)}
+.policy-library-tab:focus-visible{outline:2px solid var(--tab-accent);outline-offset:2px}
+.policy-library-tab:disabled{opacity:.42;cursor:not-allowed}
+.policy-tab-count{display:inline-grid;place-items:center;min-width:19px;height:18px;padding:0 5px;border-radius:9px;
+  background:var(--tab-wash);color:var(--tab-accent);font-size:10px;font-variant-numeric:tabular-nums}
+.policy-library-panel[hidden]{display:none!important}
+.policy-card.policy-card-prod{--policy-accent:#ffb84d;--policy-border:#705427;--policy-wash:rgba(255,184,77,.12)}
+.policy-card.policy-card-sci{--policy-accent:#7fb8e6;--policy-border:#315571;--policy-wash:rgba(127,184,230,.12)}
+.policy-card.policy-card-grow{--policy-accent:#e691b0;--policy-border:#633b4b;--policy-wash:rgba(230,145,176,.12)}
+.policy-card.policy-card-relig{--policy-accent:#c4a7ff;--policy-border:#554477;--policy-wash:rgba(196,167,255,.12)}
+.policy-card.policy-card-military{--policy-accent:#e8705f;--policy-border:#6e3b34;--policy-wash:rgba(232,112,95,.12)}
+.policy-card.policy-card-wild{--policy-accent:#4ade80;--policy-border:#2e6446;--policy-wash:rgba(74,222,128,.12)}
+.policy-library-panel .policy-card-grid{margin:0}
 .policy-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:10px;align-items:stretch}
 .policy-card{position:relative;display:flex;flex-direction:column;min-height:190px;overflow:hidden;
   padding:12px;border:1px solid var(--policy-border);

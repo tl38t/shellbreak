@@ -36,6 +36,30 @@
     return !!(meta && meta.stardustShopUnlocked);
   }
   function getTab() { return tab; }
+  /* 省电（2026-11-24）：挂机无操作超过 UI_IDLE_MS 就暂停所有装饰动画。
+   * 判据收在一处：当前页签 + 页面可见性 + 玩家是否挂机。只发 UI 信号
+   * （html 的 ui-idle 类 / 星图 iframe 的 active 消息），不读写任何游戏状态字段，
+   * 不触发 dirty 与存档；经济推进、离线补算、排行榜上报一概不受影响。 */
+  var UI_IDLE_MS = 120000;
+  var uiIdle = false;
+  var uiIdleTimer = 0;
+  function syncMotion() {
+    var html = document && document.documentElement;
+    if (html && html.classList) html.classList.toggle('ui-idle', !!uiIdle);
+    if (SB.ui.renderParts && SB.ui.renderParts.setStarMapActive)
+      SB.ui.renderParts.setStarMapActive(getTab() === 'star-map' && !document.hidden && !uiIdle);
+  }
+  function markActive() {
+    if (uiIdleTimer && root.clearTimeout) root.clearTimeout(uiIdleTimer);
+    if (uiIdle) { uiIdle = false; syncMotion(); }
+    if (!root.setTimeout) return;   /* 无计时器的假环境不启用 idle，保持与 setInterval 守卫同风格 */
+    uiIdleTimer = root.setTimeout(function () {
+      uiIdleTimer = 0;
+      if (document.hidden) return;   /* 后台由 vis-hidden 负责，不叠两层 */
+      uiIdle = true;
+      syncMotion();
+    }, UI_IDLE_MS);
+  }
   function setTab(k) {
     /* 旧版 / 外部入口仍可能请求 star-dome；导向轮回商店内的星屑二级页签。 */
     if (k === 'star-dome') {
@@ -85,6 +109,8 @@
     for (i = 0; i < tabs.length; i++)
       tabs[i].classList.toggle('on', tabs[i].dataset.tab === k);
     render();
+    /* 动画启停统一走 syncMotion（页签 / 前后台 / 挂机三态），只发 UI 信号，不碰存档。 */
+    syncMotion();
   }
   function setSpeed(v) { speed = v; }
   /* 看广告加速倍率：玩家所选档位（speed）× 这个系数。广告时间银行（S.ad.ms）>0 且开关打开时 = MUL，否则 1。
@@ -412,6 +438,7 @@
       }, '检测到旧存档中的资源数值损坏，已保护性重置为 {resetValue}：{resourceNames}。旧数值无法从存档反推。'));
       delete S._repairedResources;
     }
+    reportUnseatedChallengeCards(S);
     if (!S.broken) log(gameText('game.run.resumed.log', {
       hours: (S.t / 3600).toFixed(2), shellThickness: Math.round(S.shell)
     }, '已恢复上次进度：已游玩 {hours} 小时，壳厚 {shellThickness}。'));
@@ -638,7 +665,10 @@
         s.autoUpg = upg;
       }
     } // 关 ⇒ 保持 freshRun 给的 {}
-    /* ② 工坊自动制作槽：新周目科技/升级树重置 ⇒ 按新局 slotCap 截断，空槽 / 脏项丢弃。
+    /* ② 工坊自动制作槽：新周目科技/升级树重置 ⇒ 按新局 slotCap 截断，空槽 / 脏项 /
+     *   新局永远造不了的后期配方一律丢弃（2026-11-24「轮回自动栏被占满」bug）。
+     *   ⚠️ 判据走 workshop.craftUnlocked（只判 need/needCivic、不判工坊）—— 不能拿
+     *   craftBlocked 当门：新局工坊还没建，那道门会把所有配方判死、自动栏全空。
      *   逐项浅拷，防两局共用同一个槽对象引用（否则改动会串到上一局的存档快照）。 */
     if (autoMemoryPref('slots')) {
       if (prev && Array.isArray(prev.autoSlots) && prev.autoSlots.length) {
@@ -647,6 +677,11 @@
         for (var i = 0; i < prev.autoSlots.length && slots.length < cap; i++) {
           var sl = prev.autoSlots[i];
           if (!sl || typeof sl !== 'object' || typeof sl.id !== 'string') continue;
+          /* 不存在的配方 id / 新局未解锁的配方都不带过去：它们占着槽不产，
+           * 还会让工坊页的「槽满」判据把新配方按钮禁掉。 */
+          var rc = SB.workshop && SB.workshop.craftById ? SB.workshop.craftById(sl.id) : null;
+          if (!rc) continue;
+          if (SB.workshop.craftUnlocked && !SB.workshop.craftUnlocked(s, rc)) continue;
           var copy = { id: sl.id };
           if (typeof sl.pct === 'number' && isFinite(sl.pct)) copy.pct = sl.pct;
           else if (sl.batch && typeof sl.batch === 'number' && isFinite(sl.batch)) copy.batch = sl.batch;
@@ -1261,6 +1296,33 @@
     });
   }
 
+  /* ERA11/12：研究《掀起帘幕》后，每局只抽定一种终末危机。
+   * 危机类型与弹窗已读状态写进本局存档；读档只补播未读序幕，不重新抽签。 */
+  function maybeCrisisPopup(s) {
+    if (!s || !(s.techs && s.techs.beyond_veil) || !SB.war || !SB.war.startCrisis) return;
+    var crisis = SB.war.startCrisis(s);
+    if (!crisis || crisis.storySeen) return;
+    crisis.storySeen = true;
+    markDirty();
+    var title = gameText('ui.crisis.name.' + crisis.id);
+    var shared = gameText('ui.crisis.story.shared');
+    var branchKey = 'ui.crisis.story.' + crisis.id;
+    var branchParams = crisis.id === 'machine' ? { variable: 'all_prod' } : null;
+    var branch = gameText(branchKey, branchParams);
+    queueStory({
+      kind: 'crisis',
+      crisisId: crisis.id,
+      icon: '⚠',
+      kicker: gameText('ui.crisis.story.kicker'),
+      title: title,
+      lines: (shared + '\n' + branch).split(/\r?\n/).filter(function (line) { return !!line; }),
+      unlockTitle: gameText('ui.crisis.story.system_title'),
+      unlockCopy: gameText('ui.crisis.story.system_description'),
+      ok: gameText('ui.crisis.story.enter'),
+      onOk: function () { if (S === s) setTab('diplomacy'); }
+    });
+  }
+
   function maybeTabUnlockPopups(s) {
     maybeCivicPopup(s);
     maybeFaithPopup(s);
@@ -1269,6 +1331,7 @@
     maybeStarMapPopup(s);
     maybeCompanyPopup(s);
     maybeDiplomacyPopup(s);
+    maybeCrisisPopup(s);
   }
 
   /* 宗教弹窗（用户 2026-09-29）：建立宗教（神学完成）那一刻播一次叙事弹窗，
@@ -1316,7 +1379,7 @@
   }
 
   /* 命名政体（ERA6 · 神恩与威权 / 层级理论 / 权责对等）：采用这三个新政体之一且尚未起名时，
-   *   弹窗让玩家给政体起名（显示名 = 玩家名 + 后缀：教权国 / 联盟 / 联邦；城堡随之更名）。
+   *   弹窗让玩家给政体起名（显示名 = 玩家名 + 后缀：圣座国 / 联盟 / 同盟；城堡随之更名）。
    * ⚠️ 无 DOM 环境（e2e 沙箱）直接 return —— 不写 govName、不报错，命名是纯 UI 行为。
    * ⚠️ 复用 #modal / #modalBox 遮罩 + data-modal-close 关闭通道（与排行榜选择面板同款）。 */
   var pendingGovName = null;
@@ -1729,6 +1792,23 @@
       return params && params[name] !== undefined && params[name] !== null ? String(params[name]) : match;
     });
   }
+  /* 2026-11-25：读档/导入迁移卸下安那其禁装卡后的玩家可见说明。
+   * 临时字段由 state.migrateRun 包装器挂上，所有入口统一在这里消费并删除，
+   * 避免它跟着 JSON.stringify 落进存档（下一轮读档的白名单也会过滤它）。 */
+  function reportUnseatedChallengeCards(run) {
+    if (!run || !run._unseatedChallengeCards || !run._unseatedChallengeCards.length) return false;
+    var names = run._unseatedChallengeCards.map(function (id) {
+      var def = null, list = SB.POLICIES || [];
+      for (var i = 0; i < list.length; i++) if (list[i].id === id) { def = list[i]; break; }
+      return (def && SB.civic && SB.civic.policyName)
+        ? SB.civic.policyName(def) : ((def && def.name) || id);
+    });
+    var sep = (SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US') ? ', ' : '、';
+    log(gameText('game.save.challenge_cards_unseated.log', { cardNames: names.join(sep) },
+      '安那其挑战禁用的卡已从政策槽卸下：' + names.join(sep) + '。卡仍在卡池中，可重新装备。'));
+    delete run._unseatedChallengeCards;
+    return true;
+  }
   function gameError(key, params, fallback) {
     var error = new Error(gameText(key, params, fallback));
     error.playerTextLocalized = true;
@@ -2103,7 +2183,7 @@
    * `_cutBase` / `_cutMir` 是削壳累计量（漏存会让破壳面板少算刷新前的部分）。
    * 真正需要排除的临时字段请显式写进 TEMP_KEYS；未登记的字段一律落盘
    * （migrateRun 会按 freshRun 的键过滤未知顶层字段，写进去也不会污染下次读取）。 */
-  var TEMP_KEYS = ['_ts', '_repairedResources'];   // 诊断字段只在本次读档提示，不进入存档
+  var TEMP_KEYS = ['_ts', '_repairedResources', '_unseatedChallengeCards'];   // 诊断字段只在本次读档提示，不进入存档
   function snapshot(s) {
     var o = {}, k;
     for (k in s) if (TEMP_KEYS.indexOf(k) < 0) o[k] = s[k];
@@ -2138,6 +2218,7 @@
     var oldMeta = meta, incomingRun;
     try { meta = incomingMeta; incomingRun = SB.state.migrateRun(incomingRunRaw); }
     finally { meta = oldMeta; }
+    reportUnseatedChallengeCards(incomingRun);
     /* 打新 seq（2026-10-30）：云档里的 `_saveSeq` 是**上一台设备 / 上一次会话**的号，
      *   而本机此刻那份「4 分钟新档」原生槽里的 seq 是后生成的、更大。启动时三源按
      *   seq 比新旧 ⇒ 刚导入的好档会输给刚把它顶掉的那个新档，等于白导。
@@ -2257,6 +2338,7 @@
     var oldMeta = meta, inRun;
     try { meta = inMeta; inRun = SB.state.migrateRun(rawRun); }
     finally { meta = oldMeta; }
+    reportUnseatedChallengeCards(inRun);
     if (!inRun || typeof inRun !== 'object') throw new Error('云存档迁移失败。');
     delete inRun._ts;
     /* 换本机最大号：云档的 seq 属于来源设备，不换就可能输给刚被顶掉的那份新档
@@ -3153,9 +3235,18 @@
        * （atmosphere-drift / p0-tide 等），GPU 合成线程随之 idle，不再空转发热。 */
       if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!document.hidden);
       if (document.hidden) flushOnExit();
+      if (!document.hidden) markActive();   /* 回前台重开挂机计时器，否则 idle 永不再触发 */
+      syncMotion();
     });
     /* 初始态同步一次（极端情况：页面在 hidden 状态下完成首次渲染）。 */
     if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!(document && document.hidden));
+    /* 挂机 idle：真实输入事件重置计时器。passive 监听，不拦滚动/触摸。 */
+    if (root.addEventListener) {
+      var _wakeEvents = ['pointerdown', 'touchstart', 'keydown', 'wheel'];
+      for (var _wi = 0; _wi < _wakeEvents.length; _wi++)
+        root.addEventListener(_wakeEvents[_wi], markActive, { passive: true });
+    }
+    markActive();
     if (root.setInterval) root.setInterval(loop, TICK_MS);
   }
 
@@ -3193,6 +3284,12 @@
     var resetBody = '<div class="warnbox">' + gameHtml(gameText('game.reset.progress_lost.warning', {
       runSummary: resetSummary
     }, '当前这局的进度会全部作废：{runSummary}。')) + '</div>';
+    /* ERA11 逆时屋（2026-11-23 · spec §0 拍板 3 第 4 步）：携带的失能逆时屋未重新激活就轮回 ⇒ 丢失。
+     * 只在真轮回（qual）且确有失能未激活单位时提示，纯展示不改账本。 */
+    if (qual && S0 && S0.chrono && S0.chrono.disabled && !S0.chrono.reactivated) {
+      resetBody += '<div class="warnbox">' + gameHtml(gameText('game.reset.chrono.disabled_warning', {},
+        '失能逆时屋未激活，本次轮回后不会保留。')) + '</div>';
+    }
     if (qual) {
       resetBody += '<div class="note">' + gameText('game.reset.prestige.reward_summary', {
         prestigePointReward: gained.toFixed(2), stardustReward: stardustGained
@@ -3259,8 +3356,8 @@
       var p = (SB.ui.veilHub && SB.ui.veilHub.PATHS ? SB.ui.veilHub.PATHS : []).filter(function (x) { return x.id === id; })[0];
       return p ? gameText('ui.veil.path.name.' + p.id, null, p.name) : id;
     };
-    /* 路径选择区（2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」）：
-     * 有可选 → 原生 radio 单选，默认选中第一项（当前只有 si）；其余未实装项置灰不可选。
+    /* 路径选择区（2026-11-18 用户拍板「玩家自己选」）：
+     * 有可选 → 原生 radio 单选，默认选中第一项；其余未实装项置灰不可选。
      * 池空（第 2 次起，si 已开）→ 不开新路径、不放单选区，只写一行灰字说明，飞升点照给。*/
     var pickBlock = '';
     var sel = pv.selectable || [];
@@ -3315,6 +3412,8 @@
   }
 
   SB.game = {
+    /* 2026-11-25：导出供回归断言读档提示的一次性消费（与 showHoverInfo 同手法）。 */
+    reportUnseatedChallengeCards: reportUnseatedChallengeCards,
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
     stardustShopUnlocked: stardustShopUnlocked, unlockStardustShop: unlockStardustShop,
     getSpeed: function () { return speed; },

@@ -99,8 +99,17 @@
       var outputName = industryText(c, 'output');
 
       if (active) {
-        var elapsed = Math.max(0, (s.t || 0) - st.epoch);
-        var idx = SB.companyTierIndex ? SB.companyTierIndex(elapsed, tiers, s) : 0;
+        /* 2026-11-25 修：等级/进度与真实结算同源 —— 必须走 economySocial 的 perk 折算。
+         * 旧版这里用原始 s.t−epoch 自己算，而 companyTierIndex 会把时长按
+         * 1/(1−快速扩张) 放大 ⇒ 买满 perk 后真实已升到全国级、面板仍显示地方级。 */
+        var rawElapsed = Math.max(0, (s.t || 0) - st.epoch);
+        var effectiveElapsed = (SB.economySocial && SB.economySocial.companyEffectiveElapsed)
+          ? SB.economySocial.companyEffectiveElapsed(s, c.res) : rawElapsed;
+        if (!(typeof effectiveElapsed === 'number' && isFinite(effectiveElapsed))) effectiveElapsed = rawElapsed;
+        /* 等级判定直接复用结算函数，杜绝两套口径漂移。 */
+        var idx = (SB.economySocial && SB.economySocial.companyTierIndex)
+          ? SB.economySocial.companyTierIndex(s, c.res)
+          : (SB.companyTierIndex ? SB.companyTierIndex(effectiveElapsed, tiers, s) : 0);
         var tier = (idx >= 0 && tiers[idx]) ? tiers[idx] : tiers[0];
         var nextTier = (idx >= 0 && idx + 1 < tiers.length) ? tiers[idx + 1] : null;
         var companyBonusMul = (SB.civic && SB.civic.cardCompanyBonusMul) ? SB.civic.cardCompanyBonusMul(s) : 1;
@@ -122,14 +131,15 @@
           '</div>';
 
         if (nextTier) {
-          var remain = Math.max(0, nextTier.unlockSec - elapsed);
+          /* 剩余时间/进度条同样按 perk 折算后的等效时长算，与等级同步。 */
+          var remain = Math.max(0, nextTier.unlockSec - effectiveElapsed);
           var remainText = SB.game && SB.game.fmtDur ? SB.game.fmtDur(remain) : tr('company.progress.duration.fallback', { durationSeconds: remain }, remain + ' 秒');
           var civicMet = !nextTier.unlockCivic || !!(s.civics && s.civics[nextTier.unlockCivic]);
           var civicName = nextTier.unlockCivic
             ? nodeName('civic', nextTier.unlockCivic, SB.companyTierUnlockName ? SB.companyTierUnlockName(nextTier) : nextTier.unlockCivic)
             : '';
           var range = Math.max(1, nextTier.unlockSec - ((tier && tier.unlockSec) || 0));
-          var progress = Math.max(0, Math.min(1, (elapsed - ((tier && tier.unlockSec) || 0)) / range));
+          var progress = Math.max(0, Math.min(1, (effectiveElapsed - ((tier && tier.unlockSec) || 0)) / range));
           var progressPct = Math.round(progress * 100);
           var progressText = remain > 0
             ? (civicMet

@@ -567,10 +567,143 @@
   var LIVE_COND_TYPES = {
     res: 1, gathered: 1, sunSails: 1, dysonPct: 1, pollution: 1, pollutionDeaths: 1
   };
+  var ascendCurtainTexture = null;
+  var ascendCurtainTextureState = 'idle';
+  var ascendCurtainLastState = null;
+  var ascendCurtainLastProgress = null;
+  var ascendCurtainCurrentOpen = 0;
+  var ascendCurtainResizeBound = false;
+  var ASCEND_CURTAIN_OPENINGS = [0, .035, .09, .16, .245, .35, .47, .60, .73, .87, 1];
+
+  function drawAscendCurtain(canvas, open) {
+    if (!canvas) return;
+    var rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
+    var w = Math.max(1, Math.round((rect && rect.width) || canvas.clientWidth || 1));
+    var h = Math.max(1, Math.round((rect && rect.height) || canvas.clientHeight || 1));
+    var dpr = Math.max(1, Number(root.devicePixelRatio) || 1);
+    var ctx;
+    try { ctx = canvas.getContext && canvas.getContext('2d'); } catch (e) { return; }
+    if (!ctx) return;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    if (ctx.setTransform) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (open >= .999) return;
+
+    var texture = ascendCurtainTextureState === 'loaded' ? ascendCurtainTexture : null;
+    if (!texture || !texture.naturalWidth || !texture.naturalHeight) {
+      /* 母图加载失败时仍遮住卡片：用褶皱渐变布面兜底，不留破图或露底。 */
+      var half = w / 2;
+      for (var y = 0; y < h; y++) {
+        var t = y / Math.max(1, h - 1), phase = t * Math.PI * 2;
+        var rowOpen = Math.max(0, Math.min(1, open * (.90 + .12 * (1 - t) + .018 * Math.sin(phase + .4) + .009 * Math.sin(phase * 2 + 1.6))));
+        var leftWidth = half * (1 - Math.max(0, Math.min(1, rowOpen * (.99 + .012 * Math.sin(phase * 1.4 + .5)))));
+        var rightWidth = half * (1 - Math.max(0, Math.min(1, rowOpen * (1.01 + .012 * Math.sin(phase * 1.7 + 2.1)))));
+        var left = ctx.createLinearGradient(0, y, Math.max(1, leftWidth), y);
+        left.addColorStop(0, '#10232f'); left.addColorStop(.42, '#31515e'); left.addColorStop(.7, '#182d3a'); left.addColorStop(1, '#0c1b26');
+        ctx.fillStyle = left; ctx.fillRect(0, y, leftWidth, 1);
+        var rightX = w - rightWidth;
+        var right = ctx.createLinearGradient(rightX, y, w, y);
+        right.addColorStop(0, '#0c1b26'); right.addColorStop(.32, '#203d4b'); right.addColorStop(.66, '#365663'); right.addColorStop(1, '#10232f');
+        ctx.fillStyle = right; ctx.fillRect(rightX, y, rightWidth, 1);
+      }
+      return;
+    }
+
+    var sourceAspect = texture.naturalWidth / texture.naturalHeight, targetAspect = w / h;
+    var sx = 0, sy = 0, sw = texture.naturalWidth, sh = texture.naturalHeight;
+    if (sourceAspect > targetAspect) { sw = Math.round(sh * targetAspect); sx = Math.round((texture.naturalWidth - sw) / 2); }
+    else { sh = Math.round(sw / targetAspect); sy = Math.round((texture.naturalHeight - sh) / 2); }
+    var sourceMid = sx + sw / 2, halfWidth = w / 2, sourceRow = sh / h;
+    for (var row = 0; row < h; row++) {
+      var rowT = row / Math.max(1, h - 1), rowPhase = rowT * Math.PI * 2;
+      var rowOpen2 = Math.max(0, Math.min(1, open * (.90 + .12 * (1 - rowT) + .018 * Math.sin(rowPhase + .4) + .009 * Math.sin(rowPhase * 2 + 1.6))));
+      var leftOpen = Math.max(0, Math.min(1, rowOpen2 * (.99 + .012 * Math.sin(rowPhase * 1.4 + .5))));
+      var rightOpen = Math.max(0, Math.min(1, rowOpen2 * (1.01 + .012 * Math.sin(rowPhase * 1.7 + 2.1))));
+      var leftW = Math.max(0, halfWidth * (1 - leftOpen)), rightW = Math.max(0, halfWidth * (1 - rightOpen));
+      var sourceY = sy + rowT * Math.max(0, sh - sourceRow), sourceH = Math.min(sourceRow, sy + sh - sourceY);
+      if (leftW > .1) ctx.drawImage(texture, sx, sourceY, sourceMid - sx, sourceH, 0, row, leftW, 1);
+      if (rightW > .1) ctx.drawImage(texture, sourceMid, sourceY, sx + sw - sourceMid, sourceH, w - rightW, row, rightW, 1);
+    }
+  }
+
+  function ensureAscendCurtainTexture() {
+    if (ascendCurtainTexture || ascendCurtainTextureState !== 'idle') return;
+    var ImageCtor = root.Image || (typeof Image !== 'undefined' ? Image : null);
+    if (!ImageCtor) { ascendCurtainTextureState = 'failed'; return; }
+    ascendCurtainTextureState = 'loading';
+    ascendCurtainTexture = new ImageCtor();
+    ascendCurtainTexture.onload = function () {
+      ascendCurtainTextureState = 'loaded';
+      paintAscendCurtains(ascendCurtainLastState, true);
+    };
+    ascendCurtainTexture.onerror = function () {
+      ascendCurtainTextureState = 'failed';
+      paintAscendCurtains(ascendCurtainLastState, true);
+    };
+    ascendCurtainTexture.src = 'assets/veil/ascend-card-curtain-master.png';
+  }
+
+  function paintAscendCurtains(s, force) {
+    if (s) ascendCurtainLastState = s;
+    var doc = root.document;
+    if (!doc || typeof doc.querySelectorAll !== 'function') return;
+    var canvases;
+    try { canvases = doc.querySelectorAll('canvas[data-ascend-curtain]'); } catch (e) { return; }
+    if (!canvases || !canvases.length) return;
+    ensureAscendCurtainTexture();
+    if (!ascendCurtainResizeBound && root.addEventListener) {
+      ascendCurtainResizeBound = true;
+      root.addEventListener('resize', function () { paintAscendCurtains(ascendCurtainLastState, true); });
+    }
+    var progress = Number(canvases[0].getAttribute('data-ascend-progress')) || 0;
+    progress = Math.max(0, Math.min(10, Math.floor(progress)));
+    var targetOpen = ASCEND_CURTAIN_OPENINGS[progress];
+    var changed = ascendCurtainLastProgress !== null && progress !== ascendCurtainLastProgress;
+    var shouldAnimate = changed && !force && root.requestAnimationFrame &&
+      !(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var fromOpen = ascendCurtainCurrentOpen;
+    for (var i = 0; i < canvases.length; i++) {
+      var canvas = canvases[i];
+      var rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
+      var canvasWidth = (rect && rect.width) || canvas.clientWidth || 0;
+      var canvasHeight = (rect && rect.height) || canvas.clientHeight || 0;
+      if (!(canvasWidth > 0 && canvasHeight > 0)) continue;
+      var sizeKey = Math.round(canvasWidth) + 'x' + Math.round(canvasHeight);
+      var stamp = progress + ':' + sizeKey + ':' + ascendCurtainTextureState;
+      var paintedStamp = canvas.getAttribute('data-curtain-stamp');
+      if (!force && (paintedStamp === stamp || paintedStamp === 'anim:' + stamp)) continue;
+      canvas.setAttribute('data-curtain-stamp', shouldAnimate ? 'anim:' + stamp : stamp);
+      if (!shouldAnimate) { drawAscendCurtain(canvas, targetOpen); continue; }
+      (function (targetCanvas, startOpen, endOpen, targetStamp) {
+        var startedAt = Date.now(), duration = 1250;
+        function frame() {
+          if (targetCanvas.getAttribute('data-curtain-stamp') !== 'anim:' + targetStamp) return;
+          var elapsed = Math.max(0, Date.now() - startedAt);
+          var t = Math.max(0, Math.min(1, elapsed / duration));
+          var eased = 1 - Math.pow(1 - t, 2.2);
+          drawAscendCurtain(targetCanvas, startOpen + (endOpen - startOpen) * eased);
+          if (t < 1) root.requestAnimationFrame(frame);
+          else targetCanvas.setAttribute('data-curtain-stamp', targetStamp);
+        }
+        root.requestAnimationFrame(frame);
+      })(canvas, fromOpen, targetOpen, stamp);
+    }
+    ascendCurtainLastProgress = progress;
+    ascendCurtainCurrentOpen = targetOpen;
+  }
+
   function techNode(s, t, cell, w, hh, G, desktop) {
     var lv = SB.tech.level(s, t.id), maxLv = SB.tech.maxLevel(t);
     var done = lv >= maxLv;
     var partial = lv > 0 && !done;
+    var isAscendCard = t.id === 'ascend_dimension';
+    var ascendProgress = 0;
+    if (isAscendCard && SB.game && SB.game.meta && SB.state && SB.state.ascendProgress) {
+      ascendProgress = SB.state.ascendProgress(s, SB.game.meta());
+    }
+    var ascendProgressText = isAscendCard
+      ? tr('ui.veil.hub.ascend.progress', { current: ascendProgress, total: 10 }, '第 ' + ascendProgress + '/10 次') : '';
     var lit = SB.tech.metOf(s, t);          // 已掌握 / 达成过尤里卡 = 亮出内容
     var localizedName = techName(t);
     /* 追踪尤里卡（2026-10-30 用户拍板「两处都放」）：只在**未揭示**时给 ——
@@ -579,7 +712,7 @@
      *   点击由 input.js 的 document 委托拾取，且必须**先于** `[data-tree-node]` 判断，
      *   否则点 ★ 会先冒泡成「打开详情」。 */
     var trackStar = '';
-    if (!lit && t.cond && t.cond.t !== 'default') {
+    if (!lit && !isAscendCard && t.cond && t.cond.t !== 'default') {
       var _tk = (SB.ui.track && SB.ui.track.isTracked) ? SB.ui.track.isTracked('tech', t.id) : false;
       trackStar = '<span class="tree-track' + (_tk ? ' on' : '') + '" role="button"' +
         ' data-track-toggle="tech:' + t.id + '" aria-label="' + tr('research.tech.track_eureka.aria_label', null, '追踪尤里卡条件') + '"' +
@@ -597,6 +730,7 @@
     var fut = t.era > (s.era || 1);
     var status = done ? tr('tree.detail.status.mastered', null, '已掌握')
       : partial ? tr('research.tech.partial_level.status', { level: lv, maxLevel: maxLv }, '等级 ' + lv + '/' + maxLv)
+      : isAscendCard ? tr('tree.detail.status.unavailable', null, '暂不可研究')
       : !lit ? tr('tree.detail.status.unrevealed', null, '未揭示')
       : scienceShort ? scienceStatus
       : why ? tr('tree.detail.status.unavailable', null, '暂不可研究')
@@ -621,30 +755,31 @@
     /* Six supplied frame artworks distinguish era groups; layout, state, and hidden-node rules stay unchanged. */
     var frameFamily = eraNo <= 2 ? 1 : eraNo === 3 ? 2 : eraNo === 4 ? 3 : eraNo <= 6 ? 4 : eraNo <= 8 ? 5 : 6;
     var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') +
-      (scienceShort ? ' science-short' : '') + (!lit ? ' unrevealed' : '') + (partial ? ' partial' : '') + (fut ? ' fut' : '') +
+      (scienceShort ? ' science-short' : '') + (!lit && !isAscendCard ? ' unrevealed' : '') + (partial ? ' partial' : '') + (fut ? ' fut' : '') +
       ' era-frame-' + frameFamily +
       (_coActive ? ' co-node' : '') +
       (_coActive && _coIds.indexOf('drift_terra') >= 0 ? ' terra-tech-node' : '') + ' tree-node';
     var ariaStatus = partial && scienceShort ? status + '，' + scienceStatus : status;
+    if (isAscendCard) ariaStatus += '，' + ascendProgressText;
     /* ⚠️ 实时科技点**不再写进 aria-label**（2026-11-16）：它会让整块 HTML 每 tick 变一次，
      *    指纹恒不命中。屏幕阅读器听到「科技点不足」就够，精确数字在卡面的进度条里。 */
     var unlockPreview = lit ? techUnlockIcons(s, t) : { html: '', describedBy: '' };
     var nodeAriaLabel = tr('research.tree.node.aria_label', {
-      nodeName: lit ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技'),
+      nodeName: lit || isAscendCard ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技'),
       nodeStatus: ariaStatus
-    }, (lit ? localizedName : '未揭露的科技') + '，' + ariaStatus + '，打开详情');
+    }, (lit || isAscendCard ? localizedName : '未揭露的科技') + '，' + ariaStatus + '，打开详情');
     var unlockDescriptionAttr = unlockPreview.describedBy
       ? ' aria-describedby="' + unlockPreview.describedBy + '"' : '';
     var h = '<button type="button" class="' + cls + '" id="techrow-' + t.id + '"' +
       ' data-node="' + t.id + '" data-x="' + cell.x + '" data-y="' + cell.y + '"' +
       ' data-layer="' + cell.layer + '"' +
-      ' data-state="' + (done ? 'mastered' : !lit ? 'unrevealed' : scienceShort ? 'science-short' : why ? 'blocked' : 'researchable') + '"' +
+      ' data-state="' + (done ? 'mastered' : isAscendCard ? 'blocked' : !lit ? 'unrevealed' : scienceShort ? 'science-short' : why ? 'blocked' : 'researchable') + '"' +
       ' data-lit="' + (lit ? 1 : 0) + '"' +
       ' data-tree-node="1" data-tree-type="tech" data-tree-id="' + t.id + '"' +
       ' aria-label="' + nodeAriaLabel + '"' + unlockDescriptionAttr +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w + 'px;height:' + hh + 'px">';
-    var iconHTML = SB.ui.renderCommon.treeIconHTML(t, lit, 'tree-node-icon branch-' + (t.branch || 'know'));
-    var nodeTitle = lit ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技');
+    var iconHTML = SB.ui.renderCommon.treeIconHTML(t, lit || isAscendCard, 'tree-node-icon branch-' + (t.branch || 'know'));
+    var nodeTitle = lit || isAscendCard ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技');
     /* 活数值标记：只有「会持续增长的计数器」才打，rate 等事件型条件保持原样进指纹。 */
     var _lk = 'tech:' + t.id;
     var _liveCond = !!(t.cond && LIVE_COND_TYPES[t.cond.t]);
@@ -658,7 +793,10 @@
       ? '<span class="tree-eureka"' + _attrCond + '>' + tr('tree.condition.eureka.heading', null, '尤里卡') + ' · ' + (eureka ? eureka.txt : tr('tree.condition.eureka.default', null, '达成条件后揭示')) + '</span>' +
         (eureka && eureka.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i data-live-bar style="width:' + eurekaPct.toFixed(1) + '%"></i></span><b' + _attrPct + '>' + eurekaPct.toFixed(0) + '%</b></span>' : '')
       : (!_coActive && eureka ? '<span class="tree-eureka">' + tr('tree.condition.eureka.heading', null, '尤里卡') + ' · ' + eureka.txt + '</span>' : '');
-    if (lit) {
+    if (isAscendCard) {
+      eurekaHTML = '<span class="ascend-veil-progress">' + ascendProgressText + '</span>' +
+        '<span class="ascend-veil-track" aria-hidden="true"><i style="width:' + (ascendProgress * 10) + '%"></i></span>';
+    } else if (lit) {
       eurekaHTML = unlockPreview.html + (scienceShort ? scienceMeterHTML : '');
     }
     if (_coActive) {
@@ -675,7 +813,9 @@
       '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
       '<span class="tree-node-status">' + status + '</span>' +
       (partial && scienceShort ? '<span class="tree-node-status-detail">' + scienceStatus + '</span>' : '') + trackStar +
-      '<span class="tree-open-hint">' + tr('tree.detail.open_hint', null, '查看详情　›') + '</span></span></button>';
+      '<span class="tree-open-hint">' + tr('tree.detail.open_hint', null, '查看详情　›') + '</span></span>';
+    if (isAscendCard) h += '<canvas class="ascend-curtain-canvas" data-ascend-curtain="1" data-ascend-progress="' + ascendProgress + '" aria-hidden="true"></canvas>';
+    h += '</button>';
     return h;
   }
 
@@ -1194,22 +1334,73 @@
    * 用户 2026-09-30：没解锁就不要显示。
    * ⚠️ 代价：玩家失去「我还差哪条市政能拿到下一张卡」的预览——这正是要的克制。
    *   卡是否解锁仍由 cardOwned（= 对应市政已完成）判定，与装填、政体、槽类型都无关。 */
+  var POLICY_LIBRARY_CATEGORIES = ['prod', 'sci', 'grow', 'relig', 'military', 'wild'];
+  var activePolicyCategory = 'all';
+  function policyCardType(type) {
+    return POLICY_LIBRARY_CATEGORIES.indexOf(type) >= 0 ? type : 'wild';
+  }
+  function policyLibraryCategory(type) {
+    return policyCardType(type);
+  }
+  function activatePolicyTab(tab) {
+    if (!tab || tab.disabled) return;
+    var library = tab.closest('[data-policy-library]');
+    if (!library) return;
+    var category = tab.getAttribute('data-policy-tab');
+    var tabs = library.querySelectorAll('[role="tab"][data-policy-tab]');
+    var panels = library.querySelectorAll('[data-policy-panel]');
+    for (var i = 0; i < tabs.length; i++) {
+      var selected = tabs[i] === tab;
+      tabs[i].setAttribute('aria-selected', selected ? 'true' : 'false');
+      tabs[i].tabIndex = selected ? 0 : -1;
+    }
+    for (var j = 0; j < panels.length; j++) {
+      panels[j].hidden = panels[j].getAttribute('data-policy-panel') !== category;
+    }
+    activePolicyCategory = category;
+  }
+  if (root.document && !SB._policyLibraryTabsBound) {
+    root.document.addEventListener('click', function (event) {
+      var tab = event.target && event.target.closest
+        ? event.target.closest('[role="tab"][data-policy-tab]') : null;
+      if (tab) activatePolicyTab(tab);
+    });
+    root.document.addEventListener('keydown', function (event) {
+      var tab = event.target && event.target.closest
+        ? event.target.closest('[role="tab"][data-policy-tab]') : null;
+      if (!tab) return;
+      var key = event.key, list = tab.closest('[role="tablist"]');
+      if (!list) return;
+      var tabs = list.querySelectorAll('[role="tab"][data-policy-tab]:not(:disabled)');
+      if (!tabs.length) return;
+      var index = Array.prototype.indexOf.call(tabs, tab), next = null;
+      if (key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
+      else if (key === 'ArrowLeft') next = tabs[(index + tabs.length - 1) % tabs.length];
+      else if (key === 'Home') next = tabs[0];
+      else if (key === 'End') next = tabs[tabs.length - 1];
+      if (next) {
+        event.preventDefault();
+        activatePolicyTab(next);
+        next.focus();
+      }
+    });
+    SB._policyLibraryTabsBound = true;
+  }
   function pool(s, armedCard) {
     var C = SB.civic, h = '';
     var own = [], i, p;
-    /* ⚠️ 分组表必须与 civics-data.js 的 SLOT_TYPES 同步：2026-11-11 之前这里漏了 military，
-     *    8 张 type:'military' 的卡全部被 `categories[p.type] ? ... : 'wild'` 塞进万能组，
-     *    卡面标签也跟着写成「万能槽」——数据层其实早有军事槽（军事训练追加）。 */
-    var categoryOrder = ['prod', 'sci', 'grow', 'relig', 'military', 'wild'];
-    var categories = { prod: [], sci: [], grow: [], relig: [], military: [], wild: [] };
+    /* 卡库按实际卡型生成筛选页签；「全部」显示完整卡库，分类页签只显示该类型卡片。 */
+    var categoryOrder = ['all'];
+    var categories = { all: [], prod: [], sci: [], grow: [], relig: [], military: [], wild: [] };
     var policies = C.policyList ? C.policyList(s) : (SB.POLICIES || []);
     for (i = 0; i < policies.length; i++) {
       p = policies[i];
       if (C.cardOwned(s, p.id)) {
         own.push(p);
-        /* 老卡未标 type 时按规则视为万能卡；未知类型也安全回落，避免 UI 出现 undefined。 */
-        var category = categories[p.type] ? p.type : 'wild';
+        /* 老卡未标 type 时按规则视为万能卡；未知类型归入万能类，卡面安全回落为万能槽。 */
+        var category = policyLibraryCategory(p.type);
         categories[category].push(p);
+        categories.all.push(p);
       }
     }
     h += '<div class="secttl">' + tr('civic.policy.library.heading', null, '政策卡库') + ' <span class="tag">' + own.length + '</span></div>';
@@ -1217,18 +1408,40 @@
       h += '<div class="row"><div class="ds">' + tr('civic.policy.library.empty', null, '尚未解锁任何政策卡——完成市政树上的条目即可解锁对应卡片。') + '</div></div>';
       return h;
     }
+    for (var a = 0; a < POLICY_LIBRARY_CATEGORIES.length; a++) {
+      if (categories[POLICY_LIBRARY_CATEGORIES[a]].length) categoryOrder.push(POLICY_LIBRARY_CATEGORIES[a]);
+    }
+    var activeCategory = categories[activePolicyCategory] && categories[activePolicyCategory].length
+      ? activePolicyCategory : 'all';
+    activePolicyCategory = activeCategory;
+    var libraryLabel = tr('civic.policy.library.heading', null, '政策卡库');
+    h += '<div class="policy-library" data-policy-library>' +
+      '<div class="policy-library-tabs" role="tablist" aria-label="' + escapeHTML(libraryLabel) + '" aria-orientation="horizontal">';
     for (var g = 0; g < categoryOrder.length; g++) {
       var groupType = categoryOrder[g], group = categories[groupType];
-      if (!group.length) continue;
-      var groupName = tr('civic.policy.category_label', { policyCategory: slotTypeLabel(groupType) },
-        (groupType === 'wild' ? '万能类' : C.slotTypeName(groupType).replace(/槽$/, '') + '类'));
-      h += '<section class="policy-group policy-group-' + groupType + '" data-policy-category="' + groupType + '">' +
-        '<div class="policy-group-title"><span>' + groupName + '</span><span class="policy-group-count">' + group.length + '</span></div>' +
-        '<div class="policy-card-grid">';
+      var tabName = groupType === 'all'
+        ? tr('civic.policy.library.filter.all', null, '全部')
+        : tr('civic.policy.category_label', { policyCategory: slotTypeLabel(groupType) },
+          C.slotTypeName(groupType).replace(/槽$/, '') + '类');
+      var selectedTab = groupType === activeCategory;
+      h += '<button type="button" class="policy-library-tab" data-policy-tab="' + groupType + '" role="tab"' +
+        ' id="policy-library-tab-' + groupType + '" aria-controls="policy-library-panel-' + groupType + '"' +
+        ' aria-selected="' + (selectedTab ? 'true' : 'false') + '" tabindex="' + (selectedTab ? '0' : '-1') + '"' +
+        (!group.length ? ' disabled' : '') + '>' + tabName +
+        '<span class="policy-tab-count">' + group.length + '</span></button>';
+    }
+    h += '</div>';
+    for (var g = 0; g < categoryOrder.length; g++) {
+      var groupType = categoryOrder[g], group = categories[groupType];
+      var selectedPanel = groupType === activeCategory;
+      h += '<section class="policy-group policy-group-' + groupType + ' policy-library-panel" data-policy-panel="' + groupType + '"' +
+        ' role="tabpanel" id="policy-library-panel-' + groupType + '" aria-labelledby="policy-library-tab-' + groupType + '"' +
+        ' tabindex="0"' + (selectedPanel ? '' : ' hidden') + '><div class="policy-card-grid">';
       for (var j = 0; j < group.length; j++) {
         /* ⚠️ 2026-11-09：与效果层共用「此刻是否生效」判据；卡库只列 cardOwned 的卡，
          *   但老档里退役残留仍可能在槽中，不能只凭 indexOf 就标「已装填」。 */
         var q = group[j], why = C.cardBlocked(s, q.id), on = C.cardEffective(s, q.id);
+        var cardType = policyCardType(q.type);
         var fits = C.cardFits(q, C.currentSlotType(s));
         /* ERA9 虚境信仰卡（q.locked）：紫红色卡面 + 眼睛图标，池里标「永恒卡」，装填后仍不可卸下。 */
         var _qlocked = !!q.locked;
@@ -1237,10 +1450,10 @@
         if (voidCard && qFlavor && SB.ui.render && typeof SB.ui.render.voidCorrupt === 'function') {
           qFlavor = SB.ui.render.voidCorrupt(qFlavor, 127, 1);
         }
-        h += '<article class="policy-card policy-card-' + groupType + (on ? ' is-installed' : '') +
+        h += '<article class="policy-card policy-card-' + cardType + (on ? ' is-installed' : '') +
           (_qlocked ? ' is-locked-vr' : '') +
-          (armedCard === q.id ? ' is-armed' : '') + '">' +
-          '<div class="policy-card-top"><span class="tag t' + groupType + '">' + slotName(groupType) + '</span>' +
+          (armedCard === q.id ? ' is-armed' : '') + '" data-policy-category="' + cardType + '" data-policy-bucket="' + cardType + '">' +
+          '<div class="policy-card-top"><span class="tag t' + cardType + '">' + slotName(cardType) + '</span>' +
           (_qlocked ? '<span class="tag vr">' + tr('civic.policy.tag.eternal', null, '👁 永恒卡') + '</span>' : (on ? '<span class="tag ok">' + tr('civic.policy.status.installed', null, '已装填') + '</span>' : '')) +
           (SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, q) : '') + '</div>' +
           '<div class="policy-card-name">' + policyName(q) + '</div>' +
@@ -1268,7 +1481,7 @@
       }
       h += '</div></section>';
     }
-    return h;
+    return h + '</div>';
   }
 
   /* 市政树 —— **与科技树同一张横卷**（用户 2026-09-27：「市政树要做成科技树这样」）。
@@ -1450,7 +1663,7 @@
     /* ⚠️ 2026-10-06 城堡「真升级」：注脚里这座建筑在买下 `upg_castle` 之后**改叫城堡**，
      *   等级是同一个 `coreLvl`（= lvl.hall）。切名判据与建筑行那处同源（同一个 upgrades 键）。 */
     var coreName = (s.upgrades && s.upgrades.upg_castle) ? '城堡' : '议事厅';
-    /* ERA6（2026-10-12）：采用三个新政体之一 ⇒ 城堡随政体更名（圣座居所/人民大厅/国会）。 */
+    /* ERA6（2026-10-12）：采用三个新政体之一 ⇒ 城堡随政体更名（圣座居所/众生大厅/共鸣议事堂）。 */
     if (SB.civic && SB.civic.castleDisplayName) {
       var castleOverride = SB.civic.castleDisplayName(s);
       if (castleOverride) coreName = castleOverride;
@@ -1458,8 +1671,8 @@
     var hallName = coreName === '议事厅' ? tr('building.hall.name', null, coreName)
       : coreName === '城堡' ? tr('building.upgrade.name.castle', null, coreName)
       : coreName === '圣座居所' ? tr('civic.government.castle.seat_of_holy_see', null, coreName)
-      : coreName === '人民大厅' ? tr('civic.government.castle.peoples_hall', null, coreName)
-      : coreName === '国会' ? tr('civic.government.castle.parliament', null, coreName) : coreName;
+      : coreName === '众生大厅' ? tr('civic.government.castle.peoples_hall', null, coreName)
+      : coreName === '共鸣议事堂' ? tr('civic.government.castle.parliament', null, coreName) : coreName;
     /* 计数单位（2026-11-09）：rate 与科技页 sci 同源。存量已经走 fmtAmt，只补速率。 */
     var culRateTxt = SB.economy.fmtAbbr(rate, rate.toFixed(2));
     return tr('civic.points.rate_breakdown', {
@@ -1484,6 +1697,7 @@
     if (!s) return;
     var doc = (typeof document !== 'undefined') ? document : null;
     if (!doc || typeof doc.querySelectorAll !== 'function') return;
+    paintAscendCurtains(s);
     var els;
     try { els = doc.querySelectorAll('[data-live-cond],[data-live-pct],[data-live-num],[data-live-sci]'); }
     catch (e) { return; }

@@ -22,6 +22,15 @@
   }
   function outcomePercent(value) { return (Math.max(0, Number(value) || 0) * 100).toFixed(1); }
 
+  function crisisArtwork(crisisId) {
+    var filenames = {
+      horde: 'crisis-horde.png',
+      machine: 'crisis-machine.png',
+      voidwalker: 'crisis-voidwalker.png'
+    };
+    return filenames[crisisId] ? 'assets/war/crises/' + filenames[crisisId] : '';
+  }
+
   function enemyArtwork(stage) {
     var stageNumber = Math.max(1, Math.min(7, Math.floor(Number(stage) || 1)));
     var filenames = {
@@ -84,9 +93,138 @@
     return out + '</section>';
   }
 
+  function paneCrisis(s) {
+    var crisis = SB.war.crisisOf ? SB.war.crisisOf(s) : s.crisis;
+    var definition = crisis && SB.war.crisisDefinition ? SB.war.crisisDefinition(crisis.id) : null;
+    var enemy = SB.war.crisisEnemy ? SB.war.crisisEnemy(s) : null;
+    if (!crisis || !definition || !enemy) return '';
+    var active = !!(SB.war.crisisActive && SB.war.crisisActive(s));
+    var currentScale = SB.war.currentScale(enemy), maxScale = SB.war.effectiveMaxScale(enemy);
+    var scalePct = maxScale > 0 ? Math.max(0, Math.min(100, currentScale / maxScale * 100)) : 0;
+    var power = SB.war.power(s), powerRate = SB.war.rate(s);
+    var crisisName = tr(definition.nameKey);
+    var artwork = crisisArtwork(crisis.id);
+    var scaleLabel = tr('ui.crisis.scale.current', {
+      currentScale: amount(currentScale), maxScale: amount(maxScale)
+    });
+    var effects = [tr('ui.crisis.effect.global_output', {
+      percent: Math.round((1 - SB.war.CRISIS_PRODUCTION_MUL) * 100)
+    })];
+    if (crisis.id === 'horde') effects.push(tr('ui.crisis.effect.alien_output'));
+    if (crisis.id === 'machine') {
+      effects.push(tr('ui.crisis.effect.robot_output'));
+      effects.push(tr('ui.crisis.effect.hydro_output', {
+        percent: Math.round((1 - SB.war.CRISIS_HYDRO_ADDITIONAL_MUL) * 100)
+      }));
+    }
+    if (crisis.id === 'voidwalker') effects.push(tr('ui.crisis.effect.population_cap', {
+      percent: Math.round((1 - SB.war.CRISIS_POPULATION_CAP_MUL) * 100)
+    }));
+    var powerHtml = '<article class="war-overview-card war-power-card crisis-power">' +
+      '<span class="war-power-emblem" aria-hidden="true"></span><div class="war-power-summary">' +
+      esc(tr('ui.crisis.military_power')) + '：' + amount(power) + ' · ' +
+      esc(tr('ui.crisis.military_rate', { rate: amount(powerRate) })) + '</div></article>';
+    var h = '<section class="war-campaign war-archive crisis-archive ' + (active ? 'is-active' : 'is-defeated') + '"><div class="war-archive-grid">' +
+      '<aside class="war-archive-cover" aria-label="' + esc(crisisName) + '">' +
+      '<div class="war-portrait-window">' + (artwork ? '<img class="war-archive-art" src="' + esc(artwork) + '" alt="" decoding="async">' : '') +
+      '<span class="war-archive-shade" aria-hidden="true"></span></div>' +
+      '<div class="war-archive-name">' + esc(crisisName) + '</div>' +
+      '<div class="war-archive-stage">' + esc(tr(active ? 'ui.crisis.status.active' : 'ui.crisis.status.defeated')) + '</div>' +
+      '</aside><article class="war-archive-record crisis-readout">' +
+      '<div class="crisis-scale-readout"><div class="crisis-scale-head"><div class="crisis-scale-title">' +
+      esc(tr('ui.crisis.scale.title')) + '</div><div class="war-archive-current">' + esc(scaleLabel) + '</div></div>' +
+      '<div class="war-archive-current-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' +
+      scalePct.toFixed(1) + '" aria-label="' + esc(tr('ui.crisis.scale.title') + '：' + scaleLabel) + '"><i style="width:' + scalePct.toFixed(2) + '%"></i></div>';
+    if (active) h += '<div class="crisis-recovery">' + esc(tr('ui.crisis.scale.recovery', {
+      scalePerSecond: amount(maxScale * SB.war.RECOVERY_PER_SECOND)
+    })) + '</div>';
+    else h += '<div class="war-threat-copy crisis-defeated-copy">' + esc(tr('ui.crisis.defeated.copy')) + '</div>';
+    h += '</div><div class="crisis-effects"><div class="war-record-head"><h2>' +
+      esc(tr('ui.crisis.effects.title')) + '</h2></div><div class="war-archive-details">';
+    for (var ei = 0; ei < effects.length; ei++) h += '<div class="war-archive-detail">' + esc(effects[ei]) + '</div>';
+    h += '</div></div></article></div>';
+    if (!active) h += '<div class="war-archive-status-row">' + powerHtml + '</div>';
+    if (active) {
+      if (s.civics && s.civics.military_training && SB.war.invasionStatus) {
+        var invasion = SB.war.invasionStatus(s);
+        var formatDuration = function (seconds) {
+          return SB.game && SB.game.fmtDur ? SB.game.fmtDur(Math.max(0, seconds)) : '';
+        };
+        var threatPercent = Math.max(0, Math.min(100, Number(invasion.threatPercent) || 0));
+        var threatStatusText = tr('ui.crisis.attack.threat_status', {
+          threatPercent: threatPercent.toFixed(1)
+        });
+        h += '<article class="war-threat-card crisis-threat-card"><div class="war-threat-head"><div class="secttl">' +
+          esc(tr('ui.crisis.attack.title')) + '</div><div class="war-threat-copy">' + esc(threatStatusText) +
+          '</div></div><div class="war-threat-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' +
+          threatPercent.toFixed(1) + '" aria-label="' + esc(threatStatusText) + '"><i style="width:' +
+          threatPercent.toFixed(2) + '%"></i></div>';
+        if (invasion.cooldownRemaining > 0) h += '<div class="war-threat-cooldown">' + esc(tr('ui.war.invasion.cooldown_status', {
+          cooldown: formatDuration(invasion.cooldownRemaining)
+        })) + '</div>';
+        if (invasion.warningPending) h += '<div class="war-warning">' + esc(tr('ui.war.invasion.warning', {
+          enemyName: crisisName,
+          countdown: formatDuration(invasion.countdownRemaining),
+          enemySuccessPercent: Math.round(invasion.enemySuccessChance * 100)
+        })) + '</div>';
+        h += '</article>';
+      }
+      var actionRows = [
+        { id: 'raid', civic: 'military_training', key: 'ui.crisis.action.name.skirmish' },
+        { id: 'invasion', civic: 'professional_army', key: 'ui.crisis.action.name.main_counterattack' },
+        { id: 'totalWar', civic: 'mobilization', key: 'ui.crisis.action.name.full_counteroffensive' }
+      ];
+      var visibleActions = 0;
+      h += '<section class="war-section war-actions-section"><div class="crisis-defense-head"><div class="secttl">' +
+        esc(tr('ui.crisis.actions.title')) + '</div>' + powerHtml + '</div><div class="war-action-grid">';
+      for (var ai = 0; ai < actionRows.length; ai++) {
+        var action = actionRows[ai];
+        if (!s.civics || !s.civics[action.civic]) continue;
+        visibleActions++;
+        var spec = SB.war.ACTIONS[action.id];
+        var cost = SB.war.actionCost(s, enemy, action.id);
+        var odds = SB.war.actionProbabilities(s, action.id) || { failure: 0, success: 0, greatSuccess: 0 };
+        var blockedReason = SB.challenges && SB.challenges.warActionBlockedReason
+          ? SB.challenges.warActionBlockedReason(s, action.id) : null;
+        var canAct = !blockedReason && currentScale > 0 && power + 1e-9 >= cost;
+        var blockedText = blockedReason ? tr('ui.war.action.blocked_' + blockedReason)
+          : tr('ui.crisis.action.power_shortage');
+        var tiers = [
+          { id: 'failure', key: 'ui.war.outcome.failure', data: spec.outcomes.failure },
+          { id: 'success', key: 'ui.war.outcome.success', data: spec.outcomes.success },
+          { id: 'great', key: 'ui.war.outcome.great_success', data: spec.outcomes.greatSuccess }
+        ];
+        h += '<article class="war-action-card war-action-row crisis-action-card"><div class="war-action-copy"><div class="nm">' +
+          esc(tr(action.key)) + '</div><div class="ds">' +
+          esc(tr('ui.war.action.cost', { militaryPowerCost: amount(cost) })) + '</div><div class="ds">' +
+          esc(tr('ui.war.action.odds', {
+            failureChance: outcomePercent(odds.failure), successChance: outcomePercent(odds.success),
+            greatSuccessChance: outcomePercent(odds.greatSuccess)
+          })) + '</div><div class="war-action-outcomes">';
+        for (var oi = 0; oi < tiers.length; oi++) {
+          var displayTier = tiers[oi];
+          var displayText = tr('ui.crisis.action.outcome', {
+            outcomeName: tr(displayTier.key),
+            scaleLossPercent: Math.round((Number((displayTier.data || {}).scaleLoss) || 0) * 100),
+            popLossPercent: Math.round((Number((displayTier.data || {}).popLoss) || 0) * 100)
+          });
+          h += '<div class="ds is-' + (displayTier.id === 'great' ? 'great' : displayTier.id) + '">' + esc(displayText) + '</div>';
+        }
+        h += '</div></div><button type="button" class="btn' + (canAct ? ' buy' : '') + '" data-crisis-action="' +
+          esc(action.id) + '"' + (canAct ? '' : ' disabled title="' + esc(blockedText) + '"') + '>' +
+          esc(tr('ui.crisis.action.execute')) + '</button></article>';
+      }
+      if (!visibleActions) h += '<div class="note">' + esc(tr('ui.crisis.action.unavailable')) + '</div>';
+      h += '</div><div class="war-action-outcomes"><div class="ds">' +
+        esc(tr('ui.crisis.action.no_rewards')) + '</div></div></section>';
+    }
+    return h + '</section>';
+  }
+
   function paneWar() {
     var s = SB.game && SB.game.run ? SB.game.run() : null;
     if (!s || !SB.war) return '';
+    if (SB.war.hasCrisis && SB.war.hasCrisis(s)) return paneCrisis(s);
     if (SB.war.syncCampaign) SB.war.syncCampaign(s);
     var hasWarCivic = !!(s.civics && s.civics.military_training);
     var hasDiplomacy = !!((s.techs && s.techs.navigation) || hasWarCivic);
@@ -335,4 +473,5 @@
   }
 
   parts.paneWar = paneWar;
+  parts.crisisArtwork = crisisArtwork;
 })(typeof window !== 'undefined' ? window : globalThis);

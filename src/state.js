@@ -88,6 +88,19 @@
        * 同样跨周目保留、按本地日期重置；脏值由 game.adVeilState() 运行时兜底。
        * ⚠️ 飞升点本身存在 meta.veil.points（未掀幕为 null），这里只存「今天看了几次」。 */
       adVeil: { date: '', count: 0 },
+      /* ERA11/12 跨局权威账本（2026-11-21 · spec docs/ERA11_12_SPEC_v0.1.md §0 状态归属表）。
+       * chrono / armada 只由 prestige.doBreak（真轮回）写入；激活逆时屋/建船团只写局内态，
+       *    软重置两者都不写。veil.ascendBaseline 是例外，由 ensureAscendBaseline 首次写入。
+       *    局内 s.chrono 与 s.armadaNo 全是这里派生的缓存，不参与累加。
+       * chrono.carried  = 是否有携带中的失能逆时屋（bool，不存等级/人口值）
+       * armada.count    = 恒星际船团累计建造数（决定下一座编号）
+       * armada.cycleCount = 本次飞升中已完成普通轮回的船团数
+       * armada.bonusTenths = 累计暗物质产量加成，单位 0.1%（+10% = 100）
+       * veil.ascendBaseline = 首次建成现实透孔仪时的飞升次数快照（见 veil 段，null=未达成） */
+      chrono: { carried: false },
+      armada: { count: 0, cycleCount: 0, bonusTenths: 0 },
+      /* 升维终局 meta 记账：用户「以后做、先占位」——只留字段与注释，不接线（pending P5）。 */
+      ascendDone: false,
       /* 更新日志（2026-10-27 恢复）：上次看过弹窗的版本号。空串 / 缺键 = 从未看过 ⇒ 首次进入会弹。
        * 存 meta（跨周目保留），软重置不触发重复弹；清空存档会归零 ⇒ 重装后还会弹一次。
        * ⚠️ 老存档无此键 ⇒ normalizeMeta 的 Object.assign(emptyMeta(), parsed) 补成 ''，
@@ -350,7 +363,19 @@
          *   stardust 波次4 起由 meta 存档 seed 进来（freshRun(false) 时保持 0）。 */
         uranium: 0, rocketFuel: 0, rocketEngine: 0, strongProp: 0,
         /* got.stardust 记结算实际发放累计值；商店兑换不增加该尤里卡台账。 */
-        stardust: 0, thetaMetal: 0, thinafilm: 0 },
+        stardust: 0, thetaMetal: 0, thinafilm: 0,
+        /* ERA11 暗物质：有 CAP_BASE 上限（10），seed 只防 addRes 漏键染 NaN（同族事故）。 */
+        darkmatter: 0,
+        /* ERA11/12 工艺制品（2026-11-22 补）：冷冻仓 / 相对论引擎，kind:'craft'，
+         * 无 CAP_BASE（capOf 恒 Infinity），由 CRAFTS 配方产出、作 ERA11 建筑造价材料。
+         * ⚠️ 必须登记在这里，且比「addRes 漏键染 NaN」更凶：saveRun 的坏值校验遍历
+         *    SB.RESS **全表**（state.js 坏键循环），模板缺键 ⇒ run.res[key] 恒 undefined
+         *    ⇒ 每一次存盘都进 patchBadRes；而本机已有旧档、lastGoodRes 里又没有该键时，
+         *    patchBadRes 直接 `return null` ⇒ **整份拒写**（不是只丢这一项）。
+         *    后果：这局从此永不落盘，snapshot 的 _ts 冻在最后一份成功存档上，每次刷新
+         *    都重放同一段离线结算（2026-11-22 玩家实测：每次刷新稳定弹 8 小时离线，
+         *    真实间隙 13h55m 被 OFFLINE_CAP 截断）。诊断里的 `坏键=cryoPod` 就是它。 */
+        cryoPod: 0, relativisticEngine: 0 },
       /* lvl 的键必须与 SB.BUILDINGS 的 id 一一对应（quarry 已随「采石场改职业」移除）。
        * ⚠️ 漏一个键 = 一次 NaN 事故：`undefined * 0.12` 经 addRes 的 Math.min
        * 污染资源池，再顺着 lvlSum 污染破壳系数。与「加职业漏加表」「存档缺键」同类。 */
@@ -438,7 +463,12 @@
          *   但状态表的键必须一直在 —— fixTable 以本 seed 为 ref，缺键会让
          *   「挑战周目建了墓地 → 回基游戏 → 再进挑战」时等级静默归零。 */
         tidemachine: 0, solarstation: 0, enladofarm: 0, grave: 0, hospital: 0, reserve: 0,
-        barracks: 0, fortress: 0, military_academy: 0 },
+        barracks: 0, fortress: 0, military_academy: 0,
+        /* ERA11/12（2026-11-21 · spec §3）：逆时屋（core 区，requiredTech: reverse_time）。
+         * 漏键 = 读档静默丢 + costOf 读到 undefined ⇒ 全表造价 NaN（与上面每一条同源）。
+         * 2026-11-22 补：加建筑时漏登记这一条，建成升级后存档再读回来等级会被
+         * fixTable 以 seed 为底静默抹回 0 —— 正是本段多条注释反复警告的那类事故。 */
+        chrono_house: 0 },
       terraVatStop: 0,
       /* 2026-10-24 成就系统（轻车熟路记账）：本周目各建筑已购买等级的增量账本。
        * 写入点唯一 = habitat.build 的 s.lvl[id]++（手动/自动建造/AI bot 全走它）；
@@ -468,6 +498,8 @@
        *    由 migrateRun 的 fixTable 按 ref 键遍历自动丢弃。 */
       jobs: { gather: 0, coralwright: 0, quarrier: 0, miner: 0, scholar: 0, scribe: 0, merchant: 0, soldier: 0 },
       /* 周目内战争状态：军力储备、战争获得的人口上限、已解锁阶段与敌国进度。 */
+      /* ERA11/12 终末危机：每局抽定一种危机，规模与叙事状态随本局存档。 */
+      crisis: null,
       war: { power: 0, popCap: 0, campaignStage: 0, tradeRouteLevel: 0, enemies: {},
         invasionThreat: 0, invasionCooldown: 0, invasionWarning: 0, invasionWarningPending: false,
         offlineInvasionResolved: false, invasionReports: [],
@@ -610,7 +642,10 @@
         tiplate: 0, starExplore: 0, sealbin: 0,
         /* 星屑尤里卡读累计结算发放量；兑换只改余额，不影响这份台账。
          * ⚠️ 2026-11-17：口径收口到 starEarnedSeed()——掀幕后切本帷幕周期累计（ERA11 #4 口径 A）。 */
-        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: starEarnedSeed(_meta), thetaMetal: 0, thinafilm: 0 },
+        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: starEarnedSeed(_meta), thetaMetal: 0, thinafilm: 0,
+        /* ERA11 暗物质累计产出台账（单轮回，随 startRun 归零）：《相对论动能武器》尤里卡
+         * 「累计生产 50」读这里。与 res 那批同口径 seed，防 addRes 漏键染 NaN。 */
+        darkmatter: 0 },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
        *   civBoost —— 鼓舞条件**达成过**的台账（与技术树的 eurekaMet 同构：
@@ -687,6 +722,13 @@
        *    工具在工坊上半区（买断，改职业产出）；奇观在「奇观」栏（买断，改全局效率与仓储）。
        * ⚠️ 老档靠 migrateRun 补（tools 那条注的 fixTable 口径，这里同样按 ref 遍历兜底）。 */
       wonders: {},
+      /* ERA11/12 本局派生态（2026-11-21 · spec §0 状态归属表）：由 meta 权威账本派生，
+       *   换局按这里重建；激活逆时屋/建船团只改这些局内字段，绝不回写 meta。
+       * chrono.disabled   本局是否存在携带的失能逆时屋（= meta.chrono.carried）
+       * chrono.reactivated 本局是否已花 1/3 资源重新激活（激活后允许建造 + 可再携带一局）
+       * armadaNo          本局船团显示编号（十六进制串，仅显示；加成读 meta.armada.bonusTenths） */
+      chrono: { disabled: !!( _meta && _meta.chrono && _meta.chrono.carried ), reactivated: false },
+      armadaNo: '',
       /* 工艺升级项（2026-09-28 · era2 第三层）：`{ upg_ballast_1: true }`，键是 config.UPGRADES 的 id。
        * ⚠️ 与 tools / wonders 同属「买断表」，但**形态又不同**：工具改职业产出、奇观改全局效率，
        *    而这里改的是仓储上限（economy.capOf 里那条唯一的乘法轴）。
@@ -757,15 +799,27 @@
        *                    enceladusRun / terraRun = 改造进度秒数（自然环境卡 UI 读它）。
        *   ⚠️ 旧档无这些键 ⇒ 走 migrateRun 的 base 兜底（state-migrate.js 的 geek 深合并），自动带出默认值。 */
       sunSails: 0,
-      /* 三座发射场的独立周期余数，sail / node 各自保存；等级只决定周期完成时的产出数量。 */
+      /* ERA11 探针累加器（2026-11-23 · spec §3.1）：发射场第三模式每成功发射 +1，
+       * 随轮回清零（与 sunSails/dysonNodes 同构，startRun 搬运清单不含它）。
+       * 每枚持续产 CFG.PROBE_DARK 暗物质/秒；cond `probes{n}` 与《近光速航行》门槛读它。 */
+      probes: 0,
+      /* 三座发射场的独立周期余数，sail / node / probe 各自保存；等级只决定周期完成时的产出数量。
+       * probe 键为 ERA11 第三模式新增，旧档由 launchProcTable 按-key 兜底自动带出 0。 */
       launchProcs: {
-        europa_launch: { sail: 0, node: 0 },
-        terra_launch: { sail: 0, node: 0 },
-        enceladus_launch: { sail: 0, node: 0 }
+        europa_launch: { sail: 0, node: 0, probe: 0 },
+        terra_launch: { sail: 0, node: 0, probe: 0 },
+        enceladus_launch: { sail: 0, node: 0, probe: 0 }
       },
       /* 三座发射场各自保存停用等级数；默认 0 = 每座场建成的等级全部运行。 */
       launchStops: { europa_launch: 0, terra_launch: 0, enceladus_launch: 0 },
       geek: { geekOn: false, enceladusDone: false, terraDone: false, enceladusRun: 0, terraRun: 0 },
+      /* ERA11 恒星锻炉（2026-11-23 · spec §4）：太阳星环改造为暗物质模式的开关。
+       * false/缺键 = 原 θ 产出照旧；装了 upg_stellar_forge 且此键 true = 改烧热液+θ 产暗物质。
+       * 局内状态，随轮回清零；旧档缺键 ⇒ 视为 false（沿用原 θ 产出，零行为变化）。 */
+      solarRingOn: false,
+      /* ERA12 现实透孔仪（2026-11-23 · spec §4）：每 30 分钟自动对敌国规模造成 5% 打击的累计计时器（秒）。
+       * 局内状态，随轮回清零；旧档缺键按 0 起算。 */
+      apertureStrikeAcc: 0,
       /* ERA10（驭星纪 · 2026-10-20 实装）：戴森球子系统状态。
        *   dysonNodes     —— 戴森球节点总数（发射场节点模式每座场每运行满 1 节律，按该场等级发射，无限）。
        *   launchMode     —— 发射场制造模式：'sail'（太阳帆，默认）/ 'node'（戴森球节点）；
@@ -808,6 +862,9 @@
         var v = m.veil;
         v.count = (typeof v.count === 'number' && isFinite(v.count)) ? Math.max(1, Math.floor(v.count)) : 1;
         v.points = (typeof v.points === 'number' && isFinite(v.points)) ? Math.max(0, v.points) : 0;
+        v.spentPoints = (typeof v.spentPoints === 'number' && isFinite(v.spentPoints)) ? Math.max(0, v.spentPoints) : 0;
+        v.answerMachinePending = v.answerMachinePending === true;
+        v.answerMachineActive = v.answerMachineActive === true;
         v.cycleTide = (typeof v.cycleTide === 'number' && isFinite(v.cycleTide)) ? Math.max(0, v.cycleTide) : 0;
         v.cycleStar = (typeof v.cycleStar === 'number' && isFinite(v.cycleStar)) ? Math.max(0, v.cycleStar) : 0;
         v.lifetimePoints = (typeof v.lifetimePoints === 'number' && isFinite(v.lifetimePoints)) ? Math.max(0, v.lifetimePoints) : 0;
@@ -853,6 +910,28 @@
         });
       }
     } else m.veil = null;
+    /* ERA11/12 跨局账本清洗（2026-11-21）：脏值一律丢弃/归零，不污染产量结算。
+     * veil.ascendBaseline 住在 veil 对象里（未掀幕 veil=null 时无处存，按 null 处理）。 */
+    if (!m.chrono || typeof m.chrono !== 'object' || Array.isArray(m.chrono)) m.chrono = { carried: false };
+    m.chrono.carried = m.chrono.carried === true;
+    if (!m.armada || typeof m.armada !== 'object' || Array.isArray(m.armada)) m.armada = { count: 0, cycleCount: 0, bonusTenths: 0 };
+    var _ac = Number(m.armada.count);
+    m.armada.count = (isFinite(_ac) && _ac >= 0) ? Math.floor(_ac) : 0;
+    var _acc = Number(m.armada.cycleCount);
+    m.armada.cycleCount = (isFinite(_acc) && _acc >= 0) ? Math.floor(_acc) : 0;
+    var _ab = Number(m.armada.bonusTenths);
+    m.armada.bonusTenths = (isFinite(_ab) && _ab >= 0) ? _ab : 0;
+    m.ascendDone = m.ascendDone === true;
+    if (m.veil) {
+      /* ⚠️ null/undefined 必须保持 null（= 尚未首次建成透孔仪）；Number(null)=0 会误判成
+       *   「飞升 0 次时已建成」，进度差分从 0 起算虽同值，但语义错且将来接判定时会出错。 */
+      var _rawBaseline = m.veil.ascendBaseline;
+      if (_rawBaseline === null || _rawBaseline === undefined) m.veil.ascendBaseline = null;
+      else {
+        var _baseline = Number(_rawBaseline);
+        m.veil.ascendBaseline = (isFinite(_baseline) && _baseline >= 0) ? Math.floor(_baseline) : null;
+      }
+    }
     /* 天元突破的倍率档只认 1 / SKYDRILL_OVERDRIVE_MUL，脏档（改档 / 旧版本）一律回落 1×：
      * 否则 meta 里一个任意数会直接乘进钻头消耗与削壳速率，属于无上限数值注入。
      * 倍率数值只在 config.js 定义，这里不写死 2。 */
@@ -1142,9 +1221,51 @@
       } else if (root.localStorage) root.localStorage.setItem(SB.CFG.SAVE_KEY, txt);
     } catch (e) {}
   }
+  /* ERA12 升维基准的唯一幂等入口。
+   * 新档在建成现实透孔仪后调用；老档在进度读取时调用并惰性补写。
+   * 必须先确认本周目已建透孔仪，不能让早于奇观的飞升次数进入基准。 */
+  function ensureAscendBaseline(s, meta) {
+    var veil = meta && meta.veil;
+    var baseline = veil && veil.ascendBaseline;
+    if (!s || !s.wonders || s.wonders.reality_aperture !== true) return baseline == null ? null : baseline;
+    if (!veil || typeof veil !== 'object' || Array.isArray(veil)) return null;
+    if (veil.ascendBaseline == null) {
+      var count = Number(veil.count);
+      veil.ascendBaseline = Math.max(0, Math.floor(isFinite(count) ? count : 0));
+      saveMeta(meta);
+    }
+    return veil.ascendBaseline;
+  }
+  /* 升维进度与科技门禁共用本基准之后的飞升次数。 */
+  function ascendProgress(s, meta) {
+    var veil = meta && meta.veil;
+    var baseline = ensureAscendBaseline(s, meta);
+    if (baseline == null || !veil || typeof veil !== 'object') return 0;
+    var count = Number(veil.count), base = Number(baseline);
+    if (!isFinite(count) || !isFinite(base)) return 0;
+    return Math.max(0, Math.min(10, Math.floor(count) - Math.floor(base)));
+  }
   /* 迁移算法拆在 state-migrate.js；freshRun / emptyPerks 通过参数注入，避免重复维护默认模板。 */
   function migrateRun(raw) {
-    return SB.stateMigrations.migrateRun(raw, freshRun, emptyPerks);
+    var out = SB.stateMigrations.migrateRun(raw, freshRun, emptyPerks);
+    /* 2026-11-25：迁移会把安那其挑战禁装的卡从 s.cards 卸下。记一份临时清单给调用方
+     * 写一次性读档提示（玩家否则只看到槽空了，不知道卡没丢）。⚠️ 只记挑战禁装、不记
+     * 退役卡；字段不在 freshRun 白名单里，下次读档自动丢弃，消费方仍需 delete 防落盘。 */
+    if (out && Array.isArray(out.cards)) {
+      var rawCards = (raw && Array.isArray(raw.cards)) ? raw.cards
+        : ((raw && raw.card) ? [raw.card] : []);
+      var unseated = [], seen = {};
+      for (var i = 0; i < rawCards.length; i++) {
+        var before = rawCards[i];
+        if (!before || out.cards[i] === before || seen[before]) continue;
+        if (SB.civic && SB.civic.cardBlockedByChallenge && SB.civic.cardBlockedByChallenge(out, before)) {
+          seen[before] = true;
+          unseated.push(before);
+        }
+      }
+      if (unseated.length) out._unseatedChallengeCards = unseated;
+    }
+    return out;
   }
   function loadRun() {
     var raw = null;
@@ -1442,6 +1563,8 @@
     loadMeta: loadMeta,
     normalizeMeta: normalizeMeta,
     saveMeta: saveMeta,
+    ensureAscendBaseline: ensureAscendBaseline,
+    ascendProgress: ascendProgress,
     loadRun: loadRun,
     loadProblems: loadProblems,
     saveRun: saveRun,

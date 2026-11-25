@@ -91,7 +91,7 @@
      *    壳铸 +30%），那两处读的是 T.craft，与这条轴互不干涉 —— 键名都带 craft。 */
     var T = SB.tech ? SB.tech.mul(s) : null;
     if (T) m += T.craftRatio || 0;
-    /* ④ 政体（2026-09-29）：独裁统治 +10% 工坊效率。走与建筑级/科技/奇观**同一条加法乘区**，
+    /* ④ 政体（2026-09-29）：铁腕统治 +10% 工坊效率。走与建筑级/科技/奇观**同一条加法乘区**，
      *    所以三个 +5% + 独裁 +10% = 25%，不是 1.05³×1.10。读当前采用的政体，没采用 = 0。
      *    ⚠️ 接法同构于上面三源：数据在政体表、读在这里，每加一个效果键都要问「谁在读它」。
      *    ⚠️ `SB.civic` 可能晚加载，用存在判保护（craftRatio 在结算时才调用，模块顶层不碰它）。 */
@@ -521,18 +521,17 @@
     return made;
   }
 
-  /* 为什么造不了 —— 与 blocked 同口径，要说得出该做什么。 */
-  function craftBlocked(s, id) {
-    var c = craftById(id);
-    if (!c) return '没有这道配方';
-    if (!(s.lvl && s.lvl.workshop > 0)) return '需要先建成工坊';
+  /* 配方「解锁门」的唯一判据（2026-11-24 补）：只判 need / needCivic，**不判工坊、不判材料**。
+   * ⚠️ 为什么不含工坊：新周目工坊必未建成，把工坊算进「这配方在新局可不可用」会把所有
+   *    配方一律判死，轮回自动栏就全空了。工坊门留在 craftBlocked 里单独报。
+   * ⚠️ 为什么要抽出来：craftBlocked 报「为什么造不了」、applyAutoMemory 判「要不要带进新局」，
+   *    两处必须同一口径，否则会出现「面板说没解锁、播种却带过去占槽」。 */
+  function craftUnlockBlocked(s, c) {
     /* ── `c.need` 这道门（2026-09-28 补）──
      * ⚠️ 读之前它是个**死字段**：craftBlocked 从头到尾不读 need，所以 CRAFTS 表上
      *    写着 need 也不会有任何作用 —— 与 TOOLS[].need 那次是同一种病（见 blocked 那条注）。
      *    本条把它接通，两道新配方（铁制支架 / 绳）的「研究工程学或构架术之前造不出来」
      *    就靠这道门落地。
-     * ⚠️ 顺序刻意排在「建成工坊」之后：工坊没建连页面都进不去，先报工坊，
-     *    玩家才不会在工坊页里撞见一条看不懂的科技提示。
      * ⚠️ 报科技**名**而不是 id，与 tool 那条同口径（玩家认识「工程学」，不认识 `engineeringT`）。
      * ⚠️ 顺带一提：石梁原来的 `need:'workshop'` 已删（见 config 那条注）—— 它指向的
      *    科技在 techs.js 里不存在，这道门一起就会把石梁永久锁死。 */
@@ -549,6 +548,28 @@
       if (SB.CIVICS) for (var _ci = 0; _ci < SB.CIVICS.length; _ci++) if (SB.CIVICS[_ci].id === c.needCivic) { cn = SB.CIVICS[_ci].name; break; }
       return '需要先完成市政「' + cn + '」';
     }
+    return null;
+  }
+  function craftUnlocked(s, c) { return craftUnlockBlocked(s, c) === null; }
+
+  /* 2026-11-25 验收 PR#1：占槽清单只列「本周目确实造不了」的配方，判据与 craftBlocked
+   * 的前置门同源（工坊未建 / 科技 / 市政），抽出来供渲染层与清单共用。 */
+  function craftHasPrereqBlock(s, c) {
+    if (!c) return true;
+    if (!(s.lvl && s.lvl.workshop > 0)) return true;
+    if (c.need && !(s.techs && s.techs[c.need])) return true;
+    if (c.needCivic && !(s.civics && s.civics[c.needCivic])) return true;
+    return false;
+  }
+  /* 为什么造不了 —— 与 blocked 同口径，要说得出该做什么。 */
+  function craftBlocked(s, id) {
+    var c = craftById(id);
+    if (!c) return '没有这道配方';
+    if (!(s.lvl && s.lvl.workshop > 0)) return '需要先建成工坊';
+    /* 顺序刻意排在「建成工坊」之后：工坊没建连页面都进不去，先报工坊，
+     * 玩家才不会在工坊页里撞见一条看不懂的科技提示。 */
+    var locked = craftUnlockBlocked(s, c);
+    if (locked) return locked;
     var lack = lackText(s, c.in);
     if (lack) return '还缺 ' + lack;
     return null;
@@ -742,6 +763,14 @@
     }
     s.wonders = s.wonders || {};
     s.wonders[id] = true;
+    if (SB.wonder && SB.wonder.onBuilt && SB.wonder.onBuilt(s, id)) {
+      var answerMachineMeta = SB.game && SB.game.meta ? SB.game.meta() : null;
+      if (answerMachineMeta && SB.state && SB.state.saveMeta) SB.state.saveMeta(answerMachineMeta);
+    }
+    if (id === 'reality_aperture' && SB.state && SB.state.ensureAscendBaseline) {
+      var apertureMeta = SB.game && SB.game.meta ? SB.game.meta() : null;
+      SB.state.ensureAscendBaseline(s, apertureMeta);
+    }
     if (SB.voidFx && SB.voidFx.recordWonderBuild && SB.voidFx.recordWonderBuild(id)) {
       var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
       if (meta && SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
@@ -842,6 +871,8 @@
     crafts: craftRows, craftById: craftById,
     craftRatio: craftRatio, craftMul: craftMul, craftCostMul: craftCostMul,
     maxCraftable: maxCraftable, stepAmt: stepAmt, stepOut: stepOut, craftBlocked: craftBlocked,
+    craftUnlocked: craftUnlocked, craftUnlockBlocked: craftUnlockBlocked,
+    craftHasPrereqBlock: craftHasPrereqBlock,
     craft: craft, steps: CRAFT_STEPS,
     /* 自动制作槽（2026-10-07）：槽数 / 占槽 / 改档 / 释放 / 满仓判定 / 泵 */
     pcts: pcts, slotCap: slotCap, slotPct: slotPct,

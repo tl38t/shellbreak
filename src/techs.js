@@ -116,12 +116,20 @@
     { id: 10, name: '驭星纪', motto: '以星为盾', color: '#4FD1C9', glyph: '十',
       desc: '以星为炉' },
     /* ERA11（2026-11-16 用户拍板 · spec docs/ERA11_VEIL_SPEC_v0.1.md §6）：纪元名「α」。
-     * 关键节点 = 终极科技《掀起帘幕》（beyond_veil），研成即抵达帷幕之后——本期不做 ERA12，
-     *   靠 beyond_veil 自身 key:true 让 eraProgress(11).done 后 advanceEra 自然停住。
+     * 《掀起帘幕》（beyond_veil）原是唯一 key；2026-11-21 加 ERA12 后 key 后移到本纪元
+     *   最后一项科技（relativistic_weapon）——beyond_veil 若仍是 key，学完它即 done ⇒
+     *   advanceEra 把玩家瞬推到 era12，跳过 era11 六项科技（见 ERA11_12_SPEC §1）。
      * ⚠️ 必须与 ERA10 的 unified_field 同设 key:true，否则停在 ERA10 的存量档在加本项后
      *    会因 keysOf(10) 空 ⇒ done 恒真而瞬跳两级（见 ERA11 spec §7 #1 硬阻塞）。 */
     { id: 11, name: 'α', motto: '帷幕之后', color: '#E8D9FF', glyph: 'Α',
-      desc: '以轮回为阶' }
+      desc: '以轮回为阶' },
+    /* ERA12（Ω，2026-11-21 · spec docs/ERA11_12_SPEC_v0.1.md §1）：名称/口号/配色为提议值，待用户拍。
+     * 六项科技（starfrontier → ascend_dimension，layer 26–28）全在掀幕清档后从 era1 重爬至此。
+     * ⚠️ era11 的 key 已从 beyond_veil 后移到 era11 最后一项（relativistic_weapon，见 P2）——
+     *    否则加本纪元后 E.length=12，学完 beyond_veil 会被 advanceEra 瞬间推到 era12，
+     *    跳过 era11 六项科技阶段。era12 本身零 key ⇒ 抵达即终点（p.era>=E.length 自然停）。 */
+    { id: 12, name: 'Ω', motto: '边界之外', color: '#FFE9A8', glyph: 'Ω',
+      desc: '向帷幕之外' }
   ];
 
   var TECHS = [
@@ -1096,11 +1104,53 @@
      *   · 尤里卡 = 本帷幕周期累计星屑 ≥ 1000（cond gathered/stardust，复用现成类型，
      *     读 s.got.stardust——#4 口径 A：掀幕后归零、只记本周期）；
      *   · 前置 unified_field 的戴森 80% 尤里卡不动，与本项形成两道独立门槛；
-     *   · key:true + ERA12 不存在 ⇒ 学完即停在 ERA11，掀幕按钮由 s.techs.beyond_veil 点亮。 */
-    { id: 'beyond_veil', name: '掀起帘幕', icon: 'assets/tech-icons/era-10/era10-unified-field.png?v=2', era: 11, cost: 447000000, branch: 'know', key: true, reqs: ['unified_field'], layer: 23, treeRow: 0,
+     *   · ⚠️ 2026-11-21 加 ERA12 后 key 已移除，后移到 era11 最后一项 relativistic_weapon；
+     *     掀幕按钮仍由 s.techs.beyond_veil 点亮（按钮门与 key 无关）。 */
+    { id: 'beyond_veil', name: '掀起帘幕', icon: 'assets/tech-icons/era-10/era10-unified-field.png?v=2', era: 11, cost: 447000000, branch: 'know', reqs: ['unified_field'], layer: 23, treeRow: 0,
       cond: { t: 'gathered', r: 'stardust', n: 1000 },
       eff: {},
-      unlockDesc: '学成即可在底栏「掀起帘幕」：结算本帷幕周期的飞升点，清空轮回点与星屑，带着飞升点从 ERA1 重开。' }
+      unlockDesc: '学成即可在底栏「掀起帘幕」：结算本帷幕周期的飞升点，清空轮回点与星屑，带着飞升点从 ERA1 重开。' },
+
+    /* ═════════ 纪元十一 · α · 深空科技（2026-11-21 · spec docs/ERA11_12_SPEC_v0.1.md §2）═════════
+     * 六项接在《掀起帘幕》之后（layer 24–25）。⚠️ key 从 beyond_veil **后移到最后一项**
+     *   relativistic_weapon：加了 ERA12 后若 beyond_veil 仍是 key，学完它即 done ⇒ 瞬推 era12。
+     *   成本全部按用户原表原样抄录、标「待标定」——标定权在用户，这里不动数。 */
+    { id: 'deep_space', name: '深空探索', icon: 'assets/tech-icons/era-11/era11-deep-space.png', era: 11, cost: 10000000000, branch: 'know', reqs: ['beyond_veil'], layer: 24, treeRow: 0,
+      cond: { t: 'pathOpened' },
+      eff: {}, unlockDesc: '解锁建筑：深空探针；解锁工艺制造：相对论引擎。（成本 1E10 待标定）' },
+    { id: 'omnitemporal_freeze', name: '全相多时态冷冻', icon: 'assets/tech-icons/era-11/era11-omnitemporal-freeze.png', era: 11, cost: 10000000000, branch: 'live', reqs: ['beyond_veil'], layer: 24, treeRow: 1,
+      cond: { t: 'pathOpened' },
+      eff: {}, unlockDesc: '解锁工坊制造：冷冻仓。（成本 1E10 待标定）' },
+    { id: 'stellar_smelting', name: '恒星冶炼', icon: 'assets/tech-icons/era-11/era11-stellar-smelting.png', era: 11, cost: 10000000000, branch: 'live', reqs: ['beyond_veil'], layer: 24, treeRow: 2,
+      cond: { t: 'pathOpened' },
+      eff: {}, unlockDesc: '解锁工坊升级：恒星锻炉。（成本 1E10 待标定）' },
+    { id: 'near_light_speed', name: '近光速航行', icon: 'assets/tech-icons/era-11/era11-near-light-speed.png', era: 11, cost: 100000000000, branch: 'know', reqs: ['deep_space'], layer: 25, treeRow: 0,
+      cond: { t: 'probes', n: 4 },
+      eff: {}, unlockDesc: '解锁奇观：恒星际移民船团。（成本 1E11 待标定）' },
+    { id: 'reverse_time', name: '逆时技术', icon: 'assets/tech-icons/era-11/era11-reverse-time.png', era: 11, cost: 100000000000, branch: 'live', reqs: ['omnitemporal_freeze'], layer: 25, treeRow: 1,
+      cond: { t: 'pop', n: 400 },
+      eff: {}, unlockDesc: '解锁建筑：逆时屋。（成本 1E11 待标定）' },
+    /* ⚠️ era11 的 key 在这里（不在 beyond_veil）——学完本项才推进 era12，六项 era11 科技不会
+     *   被 advanceEra 跳过。cond「累计生产暗物质 50」读单轮回 got.darkmatter（用户拍板）。 */
+    { id: 'relativistic_weapon', name: '相对论动能武器', icon: 'assets/tech-icons/era-11/era11-relativistic-weapon.png', era: 11, cost: 100000000000, branch: 'live', key: true, reqs: ['stellar_smelting'], layer: 25, treeRow: 2,
+      cond: { t: 'gathered', r: 'darkmatter', n: 50 },
+      eff: {}, unlockDesc: '解锁工坊升级：朱庇特大炮。（成本 1E11 待标定）' },
+
+    /* ═════════ 纪元十二 · Ω · 边界科技（2026-11-21 · spec §2）═════════
+     * 三项接在 era11 六项之后（layer 26–28）。era12 零 key ⇒ 抵达即终点（p.era>=E.length 自然停）。 */
+    { id: 'starfrontier', name: '星海边疆', icon: 'assets/tech-icons/era-12/era12-star-frontier.png', era: 12, cost: 1000000000000, branch: 'know',
+      reqs: ['near_light_speed', 'reverse_time', 'relativistic_weapon'], layer: 26, treeRow: 0,
+      cond: { t: 'cataclysm' },
+      eff: {}, unlockDesc: '解锁奇观：现实透孔仪。（成本待标定）' },
+    { id: 'constant_edit', name: '宇宙常数编辑', icon: 'assets/tech-icons/era-12/era12-constant-edit.png', era: 12, cost: 10000000000000, branch: 'know', reqs: ['starfrontier'], layer: 27, treeRow: 0,
+      cond: { t: 'wonders', ids: ['reality_aperture'] },
+      eff: {}, unlockDesc: '解锁因果律打击、自然对数常数化、时隙殖民地。（成本 1E13 待标定）' },
+    /* 升维：隐藏前置 = 建成透孔仪后飞升 10 次，cond 与进度共用 state.ascendProgress。
+     * 原表此条不设 flavor（「之后做结局动图」）；含 kelp_prod 变量名的 flavor 属上一条《宇宙常数编辑》，
+     * 已按用户 2026-11-23 拍板走非译文通道 → src/ui/render-content.js 的 TECH_FLAVOR.constant_edit，不建 i18n key。 */
+    { id: 'ascend_dimension', name: '升维', icon: 'assets/tech-icons/era-12/era12-ascend-dimension.png', era: 12, cost: 100000000000000, branch: 'know', reqs: ['constant_edit'], layer: 28, treeRow: 0,
+      cond: { t: 'ascendReady' },
+      eff: {}, unlockDesc: '游戏通关演出（占位，预留 meta 记账）。（成本 1E14 待标定）' }
   ];
 
   var BRANCHES = [

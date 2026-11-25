@@ -344,6 +344,20 @@
             (_wsrun >= lv ? ' disabled' : '') + '>＋</button>' + _wsExtra +
             '</span>';
         }
+        /* ERA11 恒星锻炉（2026-11-24 用户拍板）：太阳星环「暗物质档」开关。
+         * 门控与 economy.solarRingDarkActive 三件套同源（升级 + 有等级）——装了恒星锻炉且有星环才出钮；
+         * 复用现成 .btn.tog（与暖石/天穹钻机/G.E.E.K 同一套 on 高亮 + 已停机/已启动文案），不造新控件。
+         * 按钮只反映手动开关态 s.solarRingOn；「是否真在烧」由 rates 面板的暗物质行体现，钮不再加侧标。 */
+        var ringToggleBtn = '';
+        if (b.id === 'solar_ring' && lv > 0 && s.upgrades && s.upgrades.upg_stellar_forge) {
+          var _ringOn = !!s.solarRingOn;
+          ringToggleBtn = '<button type="button" class="btn tog' + (_ringOn ? ' on' : '') +
+            '" data-solar-ring="1" aria-pressed="' + (_ringOn ? 'true' : 'false') +
+            '" title="' + htmlText(tr('village.solar_ring.dark.toggle.tooltip', null,
+              '点击切换暗物质档：启动后太阳星环改烧 100 热液能 + 200 θ金属/秒，产 0.01 暗物质/秒，原 θ 产出停止；缺料时自动退回原 θ 产出。')) + '">' +
+            htmlText(tr(_ringOn ? 'environment.machine.switch.enabled' : 'environment.machine.switch.disabled',
+              null, _ringOn ? '已启动' : '已停机')) + '</button>';
+        }
         /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
          * 汽轮机每台恒烧暖石 5/s、产热液能流 1/s；玩家要省暖石（或没工坊/钻机吃流）时按下几座。
          * 运行座数 = lv − 停用数（s.turbineStop），结算在 economy.hydroAlloc（供给）/ steelFlow（暖石扣费）。
@@ -442,7 +456,13 @@
             (_launchRun >= lv ? ' disabled' : '') + '>＋</button></span>';
         }
         if (b.launchpad && lv > 0 && s.techs && s.techs.adiabatic) {
-          var _nodeOn = (s.launchMode === 'node');
+          /* ERA11（2026-11-24）：复用原单钮，三态循环。按钮文字写「当前档」，title 写「点下去切到哪档」
+           * （与旧行为一致）。当前档走 economy.launchModeOf，下一档走 economy.launchNextMode——
+           * 与 input.toggleLaunchMode 同源，绝不各写一份循环顺序。 */
+          var _curMode = SB.economy && SB.economy.launchModeOf ? SB.economy.launchModeOf(s)
+            : (s.launchMode === 'node' ? 'node' : (s.launchMode === 'probe' ? 'probe' : 'sail'));
+          var _nextMode = SB.economy && SB.economy.launchNextMode ? SB.economy.launchNextMode(s)
+            : (_curMode === 'sail' ? 'node' : 'sail');
           var _launchUnit = SB.UNIT || {};
           var _sailModeParams = {
             uraniumRate: _launchUnit.launchSailUranium || 0.5,
@@ -457,14 +477,31 @@
             titaniumAlloyRate: _launchUnit.dysonNodeTiplate || 30,
             hydrothermalRate: _launchUnit.dysonNodeHydro || 4
           };
-          elBtn = '<span class="furnctl launch-mode' + (_nodeOn ? ' on' : '') + '">' +
+          var _probeModeParams = {
+            uraniumRate: _launchUnit.probeUranium || (10000 / 600),
+            strongPropellantRate: _launchUnit.probeStrongProp || 10,
+            adaptiveFilmRate: _launchUnit.probeThinafilm || 10,
+            hydrothermalRate: _launchUnit.probeHydro || 4,
+            cycleSeconds: SB.CFG && SB.CFG.PROBE_CYCLE || 600
+          };
+          var _curNameKey = _curMode === 'probe' ? 'village.launch.target.probes.name'
+            : _curMode === 'node' ? 'village.launch.target.dyson_nodes.name'
+            : 'village.launch.target.solar_sails.name';
+          var _curNameFallback = _curMode === 'probe' ? '深空探针' : (_curMode === 'node' ? '戴森球节点' : '太阳帆');
+          var _nextTipKey = _nextMode === 'probe' ? 'village.launch.mode.probe.tooltip'
+            : _nextMode === 'node' ? 'village.launch.mode.dyson_node.tooltip'
+            : 'village.launch.mode.solar_sail.tooltip';
+          var _nextTipFallback = _nextMode === 'probe'
+            ? '切换到深空探针模式。每级每秒消耗 {uraniumRate} 铀、{strongPropellantRate} 强工质火箭引擎、{adaptiveFilmRate} θ金属自适应薄膜和 {hydrothermalRate} 热液能；每 {cycleSeconds} 秒发射与本场等级相同数量的探针。'
+            : (_nextMode === 'node'
+              ? '切换到戴森节点模式。每级每秒消耗 {uraniumRate} 铀、{strongPropellantRate} 强工质火箭引擎、{adaptiveFilmRate} θ金属自适应薄膜、{titaniumAlloyRate} 钛合金板和 {hydrothermalRate} 热液能。'
+              : '切换到太阳帆模式。每级每秒消耗 {uraniumRate} 铀、{strongPropellantRate} 强工质火箭引擎、{adaptiveFilmRate} θ金属自适应薄膜和 {hydrothermalRate} 热液能。');
+          var _nextTipParams = _nextMode === 'probe' ? _probeModeParams
+            : (_nextMode === 'node' ? _nodeModeParams : _sailModeParams);
+          elBtn = '<span class="furnctl launch-mode' + (_curMode === 'node' || _curMode === 'probe' ? ' on' : '') + '">' +
             '<button class="fbtn launch-mode-toggle" data-launch-mode="1" title="' +
-            htmlText(_nodeOn
-              ? tr('village.launch.mode.solar_sail.tooltip', _sailModeParams)
-              : tr('village.launch.mode.dyson_node.tooltip', _nodeModeParams)) +
-            '"><span class="launch-mode-text">' + htmlText(_nodeOn
-              ? tr('village.launch.target.dyson_nodes.name')
-              : tr('village.launch.target.solar_sails.name')) + '</span>' +
+            htmlText(tr(_nextTipKey, _nextTipParams, _nextTipFallback)) +
+            '"><span class="launch-mode-text">' + htmlText(tr(_curNameKey, null, _curNameFallback)) + '</span>' +
             '<span class="launch-mode-swap" aria-hidden="true">⇄</span></button></span>';
         }
         // 等级标签显式标注“等级”，避免孤立数字被误认成其他状态。
@@ -617,7 +654,7 @@
           ? SB.ui.renderCommon.challengeTag(s, b) : '';
         /* 运行数量控制和建筑名/等级共用标题行，避免把控制器单独撑成一整行。
          * 进度条/缺料状态仍留在 bld-ops；仅移动已有的 ± 控件，不更改事件委托。 */
-        var _inlineRunControlsHTML = siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl;
+        var _inlineRunControlsHTML = siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + ringToggleBtn;
         var _bldOpsHTML = _lpLackHTML + launchProgressHTML;
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +

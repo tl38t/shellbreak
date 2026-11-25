@@ -16,40 +16,48 @@
   --era-button-lo: #123d42;
 }
 :root[data-era="2"] {
-  --era-accent: #e5c17d;
-  --era-accent-soft: #b7a47f;
-  --era-line: rgba(213, 186, 132, .38);
-  --era-edge: rgba(229, 193, 125, .23);
-  --era-glow: rgba(229, 193, 125, .16);
-  --era-texture: url("../assets/ui-era/era2-iron.svg");
-  --era-button-hi: #6f6650;
+  --era-accent: #c8c9bc;
+  --era-accent-soft: #d7bd80;
+  --era-flame: #e5c17d;
+  --era-wash: rgba(229, 193, 125, .075);
+  --era-line: rgba(169, 180, 179, .34);
+  --era-edge: rgba(229, 193, 125, .17);
+  --era-glow: rgba(229, 193, 125, .11);
+  --era-texture: url("../assets/ui-era/era2-strata.svg");
+  --era-panel-radius: 22px 3px 14px 4px;
+  --era-button-radius: 13px 2px 8px 3px;
+  --era-resource-radius: 13px 2px 8px 3px;
+  --era-resource-radius-alt: 2px 13px 3px 8px;
+  --era-gather-button-radius: 16px 2px 8px 3px;
+  --era-gather-button-radius-alt: 2px 16px 3px 8px;
+  --era-build-button-radius: 2px 16px 4px 9px;
+  --era-button-base: rgba(44, 49, 48, .96);
+  --era-button-hi: #776949;
+  --era-button-lo: #303334;
+}
+:root[data-era="1"] {
+  --era-button-radius: 22px 8px 19px 11px / 13px 20px 9px 18px;
+  --era-resource-radius: 23px 8px 18px 7px / 14px 21px 10px 19px;
+  --era-resource-radius-alt: 9px 22px 11px 18px / 19px 12px 20px 10px;
+  --era-gather-button-radius: 24px 8px 16px 10px / 14px 18px 9px 20px;
+  --era-gather-button-radius-alt: 8px 21px 10px 22px / 19px 12px 20px 9px;
+  --era-build-button-radius: 7px 22px 10px 19px / 18px 12px 20px 9px;
 }
 :root[data-era="3"],
 :root[data-era="4"] {
-  --era-accent: #e6a66b;
-  --era-accent-soft: #91a99a;
-  --era-wash: rgba(190, 113, 63, .15);
-  --era-line: rgba(216, 158, 100, .43);
-  --era-glow: rgba(220, 126, 66, .12);
-  --era-texture: url("../assets/ui-era/era3-sulfur.svg");
+  --era-accent: #f0ad60;
+  --era-accent-soft: #c98758;
+  --era-flame: #ff7944;
+  --era-wash: rgba(190, 101, 48, .14);
+  --era-line: rgba(216, 151, 100, .5);
+  --era-glow: rgba(235, 112, 48, .18);
+  --era-texture: url("../assets/ui-era/forge.jpg");
   --era-panel-radius: 5px;
   --era-button-radius: 4px;
-  --era-edge: rgba(245, 202, 149, .25);
-  --era-button-base: rgba(74, 49, 38, .96);
-  --era-button-hi: #9b603e;
-  --era-button-lo: #50352b;
-}
-:root[data-era="4"] {
-  --era-accent: #72c8dc;
-  --era-accent-soft: #d1a35c;
-  --era-wash: rgba(62, 143, 169, .15);
-  --era-line: rgba(111, 194, 213, .42);
-  --era-glow: rgba(72, 178, 209, .13);
-  --era-edge: rgba(198, 233, 232, .24);
-  --era-texture: url("../assets/ui-era/era4-current.svg");
-  --era-button-base: rgba(24, 64, 77, .96);
-  --era-button-hi: #397d8c;
-  --era-button-lo: #1b465c;
+  --era-edge: rgba(255, 199, 130, .3);
+  --era-button-base: rgba(42, 31, 29, .97);
+  --era-button-hi: #a9653d;
+  --era-button-lo: #452b28;
 }
 :root[data-era="5"],
 :root[data-era="6"] {
@@ -58,16 +66,17 @@
   --era-edge: rgba(237, 220, 174, .23);
 }
 :root[data-era="5"] {
-  --era-accent: #e7bc5e;
-  --era-accent-soft: #c77843;
-  --era-wash: rgba(168, 123, 48, .16);
-  --era-line: rgba(213, 170, 75, .46);
-  --era-glow: rgba(227, 165, 59, .13);
+  --era-accent: #e6a66b;
+  --era-accent-soft: #c98758;
+  --era-flame: #ff7543;
+  --era-wash: rgba(154, 83, 49, .13);
+  --era-line: rgba(210, 145, 99, .48);
+  --era-glow: rgba(236, 112, 58, .14);
   --era-texture: url("../assets/ui-era/era5-industry.svg");
-  --era-edge: rgba(255, 223, 137, .27);
-  --era-button-base: rgba(66, 53, 32, .97);
-  --era-button-hi: #94703a;
-  --era-button-lo: #594126;
+  --era-edge: rgba(244, 188, 133, .28);
+  --era-button-base: rgba(42, 31, 29, .97);
+  --era-button-hi: #9a5b38;
+  --era-button-lo: #452b28;
 }
 :root[data-era="6"] {
   --era-accent: #b9dce9;
@@ -142,6 +151,20 @@
   --era-button-base: rgba(39, 61, 48, .97);
   --era-button-hi: #88723d;
   --era-button-lo: #345846;
+}
+:root[data-era="11"] {
+  --era-accent: #e8d9ff;
+  --era-accent-soft: #80dfcf;
+  --era-wash: rgba(151, 119, 202, .16);
+  --era-line: rgba(194, 163, 235, .46);
+  --era-glow: rgba(173, 143, 255, .16);
+  --era-texture: url("../assets/ui-era/era11-veil.svg");
+  --era-panel-radius: 17px 4px 17px 4px;
+  --era-button-radius: 9px 3px 9px 3px;
+  --era-edge: rgba(224, 212, 255, .26);
+  --era-button-base: rgba(47, 38, 72, .97);
+  --era-button-hi: #826ba8;
+  --era-button-lo: #3f365b;
 }
 
 /* Shared hierarchy and readable state colors. */
@@ -265,26 +288,39 @@ html[data-era] .shellwrap {
 }
 html[data-era] .shellfill { background: linear-gradient(90deg,var(--era-button-hi),var(--era-accent)); box-shadow: 0 0 12px var(--era-glow); }
 
-/* I · Era 1–2: a living reef slowly gains hand-built edges and light. */
-html[data-era="1"] .card,
-html[data-era="2"] .card { border-width: 1px; box-shadow: inset 0 0 22px rgba(74,216,191,.055), inset 0 1px var(--era-edge), 0 12px 32px rgba(0,0,0,.18); }
-html[data-era="1"] .cardhd::before,
-html[data-era="2"] .cardhd::before { width: 5px; border-radius: 99px; }
+/* I · Era 1: a living reef slowly gains hand-built edges and light. */
+html[data-era="1"] .card { border-width: 1px; box-shadow: inset 0 0 22px rgba(74,216,191,.055), inset 0 1px var(--era-edge), 0 12px 32px rgba(0,0,0,.18); }
+html[data-era="1"] .cardhd::before { width: 5px; border-radius: 99px; }
 html[data-era="1"] .res,
-html[data-era="1"] .bzone .row,
+html[data-era="1"] .bzone .row { box-shadow: inset 0 0 18px rgba(63,201,176,.07); }
+html[data-era="1"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) { border-width: 1px; box-shadow: inset 0 1px rgba(179,255,226,.18), 0 0 12px rgba(61,219,192,.08); }
+/* Era 2: the first settlement follows volcanic shelves, lit by a few warm seams. */
+html[data-era="2"] .card { border-width: 1px; box-shadow: inset 0 0 22px rgba(177,189,184,.045), inset 0 1px var(--era-edge), 0 12px 32px rgba(0,0,0,.18); }
+html[data-era="2"] .cardhd::before { width: 4px; border-radius: 1px; background: linear-gradient(180deg, var(--era-accent), var(--era-flame)); }
 html[data-era="2"] .res,
-html[data-era="2"] .bzone .row { box-shadow: inset 0 0 18px rgba(63,201,176,.07); }
-html[data-era="1"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on),
-html[data-era="2"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) { border-width: 1px; box-shadow: inset 0 1px rgba(179,255,226,.18), 0 0 12px rgba(61,219,192,.08); }
+html[data-era="2"] .bzone .row { box-shadow: inset 0 1px rgba(222,231,226,.09), inset 0 -2px rgba(0,0,0,.28); }
+html[data-era="2"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) { border-width: 1px 1px 2px; box-shadow: inset 0 1px rgba(222,231,226,.13), inset 0 -2px rgba(0,0,0,.3); }
 html[data-era="1"] .tag { border-radius: 999px; }
 html[data-era="2"] .tab.on,
-html[data-era="2"] .erabtn.cur { text-shadow: 0 0 10px rgba(229,193,125,.3); }
+html[data-era="2"] .erabtn.cur {
+  color: var(--era-flame);
+  border-color: color-mix(in srgb, var(--era-flame) 64%, var(--era-line));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--era-flame) 28%, transparent);
+}
 html[data-era="1"] .shellwrap { border-radius: 11px 999px 8px 999px; border-color: rgba(97,210,189,.4); }
 html[data-era="1"] .shellfill { background: linear-gradient(90deg,#268b7d,#79e8c9); }
 
-/* II · Era 3–4: cast metal control surfaces; Era 4 adds measured current and pressure marks. */
+/* II · Era 3–4 share the same forged-metal skin, palette, and heat treatment. */
 html[data-era="3"] .card,
 html[data-era="4"] .card { border-width: 2px; box-shadow: inset 0 0 0 1px rgba(239,220,176,.13), inset 0 0 0 4px rgba(142,119,79,.08), inset 0 1px var(--era-edge), 0 12px 28px rgba(0,0,0,.2); }
+html[data-era="3"] .card,
+html[data-era="4"] .card {
+  border-color: rgba(218, 137, 83, .58);
+  background-image: radial-gradient(ellipse at 4% 96%,rgba(255,119,68,.2),transparent 56%),
+    linear-gradient(145deg,rgba(139,79,48,.24),rgba(29,27,28,.7) 76%),var(--era-texture);
+  background-size: auto,auto,320px 320px;
+  background-repeat: no-repeat,no-repeat,repeat;
+}
 html[data-era="3"] .cardhd::before,
 html[data-era="4"] .cardhd::before { width: 4px; border-radius: 1px; }
 html[data-era="3"] .res,
@@ -293,10 +329,18 @@ html[data-era="4"] .res,
 html[data-era="4"] .bzone .row { box-shadow: inset 0 1px rgba(240,220,176,.12), inset 0 -2px rgba(0,0,0,.2); }
 html[data-era="3"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on),
 html[data-era="4"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) { border-width: 2px; box-shadow: inset 0 1px rgba(245,226,190,.26), inset 0 -3px rgba(0,0,0,.31), 0 2px 0 rgba(0,0,0,.2); }
-html[data-era="3"] .card { border-top-width: 3px; }
-html[data-era="3"] .bztitle::before { width: 4px; background: linear-gradient(180deg,#e5bd6f,#a05f3c); }
-html[data-era="4"] .res { background-image: repeating-linear-gradient(90deg,transparent 0 20px,rgba(114,200,220,.15) 20px 21px),linear-gradient(120deg,var(--era-wash),var(--panel2) 78%),var(--era-texture); }
-html[data-era="4"] .cardhd::before { border-radius: 0; }
+html[data-era="3"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on),
+html[data-era="4"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) {
+  border-color: rgba(235, 148, 88, .76);
+  background-image: linear-gradient(180deg,rgba(255,167,91,.22),rgba(49,32,29,.78)),var(--era-texture);
+  background-size: auto,320px 320px;
+  background-repeat: no-repeat,repeat;
+  box-shadow: inset 0 1px rgba(255,226,183,.5), inset 0 -3px rgba(9,9,11,.48), 0 2px 0 rgba(8,7,7,.5), 0 0 8px rgba(250,113,57,.2);
+}
+html[data-era="3"] .card,
+html[data-era="4"] .card { border-top-width: 3px; }
+html[data-era="3"] .bztitle::before,
+html[data-era="4"] .bztitle::before { width: 5px; background: linear-gradient(180deg,#ffe0a0 0%,#ff9b52 48%,#783d32 100%); box-shadow: 0 0 9px rgba(255,125,62,.28); }
 html[data-era="3"] .shellwrap,
 html[data-era="4"] .shellwrap { border-radius: 4px; box-shadow: inset 0 1px rgba(245,226,190,.15), inset 0 -2px rgba(0,0,0,.28); }
 
@@ -388,6 +432,24 @@ html[data-era="9"] .shellfill { background:linear-gradient(90deg,#4d9b70,#a8d48c
 html[data-era="10"] .shellfill { background: linear-gradient(90deg,#78bc9d,#e7c66e,#fff0b0); box-shadow: 0 0 12px rgba(231,213,138,.2); }
 html[data-era="10"] .shellwrap { height: 16px; border-radius: 3px; background: repeating-linear-gradient(90deg,rgba(240,217,139,.2) 0 1px,transparent 1px 8px),var(--panel2); }
 html[data-era="10"] .shellfill { border-radius: 2px; }
+html[data-era="11"] .card {
+  border-radius: 17px 4px 17px 4px;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(188, 157, 255, .1), transparent 66%),
+    linear-gradient(145deg, var(--era-wash), var(--panel) 76%),
+    var(--era-texture);
+  background-size: auto, auto, 320px 240px;
+  box-shadow: inset 0 0 0 1px rgba(224, 212, 255, .1), inset 0 1px var(--era-edge), 0 12px 30px var(--era-glow);
+}
+html[data-era="11"] .cardhd::before {
+  width: 4px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, var(--era-accent), var(--era-accent-soft));
+  box-shadow: 0 0 9px var(--era-glow);
+}
+html[data-era="11"] .tab.on {
+  box-shadow: inset 0 -2px var(--era-accent), 0 0 14px var(--era-glow);
+}
 html[data-era="10"] .shellwrap.dyson-progress { border-color: rgba(79,209,201,.45); background: #092326; box-shadow: inset 0 0 8px rgba(24,102,96,.32),0 0 11px rgba(48,168,154,.1); }
 html[data-era="10"] .shellwrap.dyson-progress #shellFill { display: none; }
 html[data-era="10"] .dyson-stages { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 3px; padding: 2px; }
@@ -410,15 +472,16 @@ html[data-era="10"] .dyson-stages.is-finished .dyson-stage.is-complete { animati
 
 /* Daylight keeps each era's identity but switches its accent text to ink-dark hues. */
 html[data-ui-theme="day"][data-era="1"] { --era-accent:#176b60; --era-accent-soft:#4d7067; --era-line:rgba(23,107,96,.4); --era-edge:rgba(23,107,96,.22); --era-wash:rgba(23,107,96,.085); --era-glow:rgba(23,107,96,.1); --era-button-hi:#347568; --era-button-lo:#24564f; }
-html[data-ui-theme="day"][data-era="2"] { --era-accent:#71521b; --era-accent-soft:#78653a; --era-line:rgba(113,82,27,.4); --era-edge:rgba(113,82,27,.22); --era-wash:rgba(113,82,27,.09); --era-glow:rgba(113,82,27,.1); --era-button-hi:#8b6d2e; --era-button-lo:#60491c; }
-html[data-ui-theme="day"][data-era="3"] { --era-accent:#88451f; --era-accent-soft:#80634c; --era-line:rgba(136,69,31,.42); --era-edge:rgba(136,69,31,.24); --era-wash:rgba(136,69,31,.09); --era-glow:rgba(136,69,31,.1); --era-button-hi:#9a5b31; --era-button-lo:#663719; }
-html[data-ui-theme="day"][data-era="4"] { --era-accent:#176478; --era-accent-soft:#58757a; --era-line:rgba(23,100,120,.4); --era-edge:rgba(23,100,120,.22); --era-wash:rgba(23,100,120,.085); --era-glow:rgba(23,100,120,.1); --era-button-hi:#397b88; --era-button-lo:#285662; }
-html[data-ui-theme="day"][data-era="5"] { --era-accent:#71520f; --era-accent-soft:#76613a; --era-line:rgba(113,82,15,.42); --era-edge:rgba(113,82,15,.24); --era-wash:rgba(113,82,15,.09); --era-glow:rgba(113,82,15,.1); --era-button-hi:#8b6a22; --era-button-lo:#604817; }
+html[data-ui-theme="day"][data-era="2"] { --era-accent:#56615e; --era-accent-soft:#80704a; --era-flame:#805b17; --era-line:rgba(86,97,94,.36); --era-edge:rgba(128,91,23,.18); --era-wash:rgba(77,87,83,.06); --era-glow:rgba(128,91,23,.07); --era-button-hi:#82704a; --era-button-lo:#57534a; }
+html[data-ui-theme="day"][data-era="3"],
+html[data-ui-theme="day"][data-era="4"] { --era-accent:#88451f; --era-accent-soft:#80634c; --era-line:rgba(136,69,31,.42); --era-edge:rgba(136,69,31,.24); --era-wash:rgba(136,69,31,.09); --era-glow:rgba(136,69,31,.1); --era-button-hi:#9a5b31; --era-button-lo:#663719; }
+html[data-ui-theme="day"][data-era="5"] { --era-accent:#88451f; --era-accent-soft:#80634c; --era-flame:#a94f2d; --era-line:rgba(136,69,31,.42); --era-edge:rgba(136,69,31,.24); --era-wash:rgba(136,69,31,.09); --era-glow:rgba(136,69,31,.1); --era-button-hi:#9a5b31; --era-button-lo:#663719; }
 html[data-ui-theme="day"][data-era="6"] { --era-accent:#3b6575; --era-accent-soft:#6f7771; --era-line:rgba(59,101,117,.4); --era-edge:rgba(59,101,117,.22); --era-wash:rgba(59,101,117,.085); --era-glow:rgba(59,101,117,.1); --era-button-hi:#547d8b; --era-button-lo:#35515e; }
 html[data-ui-theme="day"][data-era="7"] { --era-accent:#1c5d74; --era-accent-soft:#55727e; --era-led:#16738a; --era-led-secondary:#2886a0; --era-line:rgba(28,93,116,.4); --era-edge:rgba(28,93,116,.22); --era-wash:rgba(28,93,116,.085); --era-glow:rgba(28,93,116,.1); --era-button-hi:#3a7588; --era-button-lo:#285364; }
 html[data-ui-theme="day"][data-era="8"] { --era-accent:#584b91; --era-accent-soft:#547771; --era-led:#65549c; --era-led-secondary:#28796c; --era-line:rgba(88,75,145,.4); --era-edge:rgba(88,75,145,.22); --era-wash:rgba(88,75,145,.085); --era-glow:rgba(88,75,145,.1); --era-button-hi:#7165a7; --era-button-lo:#494174; }
 html[data-ui-theme="day"][data-era="9"] { --era-accent:#285b3d; --era-accent-soft:#526e45; --era-line:rgba(48,105,66,.38); --era-edge:rgba(55,112,71,.2); --era-wash:rgba(105,153,87,.09); --era-glow:rgba(59,126,77,.08); --era-button-hi:#3c7651; --era-button-lo:#28583d; }
 html[data-ui-theme="day"][data-era="10"] { --era-accent:#76551b; --era-accent-soft:#386d4b; --era-line:rgba(119,88,31,.4); --era-edge:rgba(119,88,31,.2); --era-wash:rgba(176,144,64,.085); --era-glow:rgba(140,106,38,.08); --era-button-hi:#82602a; --era-button-lo:#4a603f; }
+html[data-ui-theme="day"][data-era="11"] { --era-accent:#604a88; --era-accent-soft:#28796c; --era-line:rgba(96,74,136,.4); --era-edge:rgba(96,74,136,.2); --era-wash:rgba(117,87,159,.09); --era-glow:rgba(96,74,136,.08); --era-button-hi:#74609b; --era-button-lo:#4d456c; }
 
 html[data-ui-theme="day"][data-era] .card,
 html[data-ui-theme="day"][data-era] .modal .box,
@@ -440,6 +503,7 @@ html[data-ui-theme="day"][data-era="10"] .card { background-image:linear-gradien
 html[data-ui-theme="day"][data-era="10"] .card { background-image:radial-gradient(ellipse at 100% 0%,rgba(165,133,56,.08),transparent 42%),repeating-linear-gradient(60deg,transparent 0 34px,rgba(98,112,64,.045) 34px 35px),linear-gradient(145deg,var(--era-wash),var(--panel) 78%),var(--era-texture); }
 html[data-ui-theme="day"][data-era="9"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) { background-image:linear-gradient(135deg,rgba(105,153,87,.11),#e6eddf),var(--era-texture); }
 html[data-ui-theme="day"][data-era="10"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) { background-image:repeating-linear-gradient(90deg,transparent 0 12px,rgba(119,88,31,.045) 12px 13px),linear-gradient(135deg,rgba(176,144,64,.09),#f0ebdd),var(--era-texture); }
+html[data-ui-theme="day"][data-era="11"] .card { background-image: radial-gradient(ellipse at 50% 0%,rgba(96,74,136,.08),transparent 66%),linear-gradient(145deg,var(--era-wash),var(--panel) 76%),var(--era-texture); }
 @media (prefers-reduced-motion: reduce) {
   html[data-era] .card, html[data-era] .btn, html[data-era] .tab { transition: none; }
   html[data-era="7"] .cardhd::before, html[data-era="8"] .cardhd::before,
@@ -830,21 +894,31 @@ html[data-era] #card-res .res {
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 0 11px;
   overflow: hidden;
-  border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--pilot-edge) 48%, transparent);
-  border-radius: 0;
-  background: linear-gradient(90deg,
-    color-mix(in srgb, var(--era-accent) 7%, var(--pilot-surface-item)),
-    color-mix(in srgb, var(--pilot-surface-item) 72%, transparent) 76%, transparent);
-  box-shadow: inset 2px 0 color-mix(in srgb, var(--era-accent) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--era-accent) 19%, var(--pilot-edge));
+  border-bottom-color: color-mix(in srgb, var(--era-accent) 34%, var(--pilot-edge));
+  border-radius: var(--era-panel-radius);
+  background-color: var(--pilot-surface-item);
+  background-image:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--era-accent) 14%, transparent),
+      color-mix(in srgb, var(--era-accent) 5%, transparent) 76%, transparent),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  background-repeat: no-repeat, repeat;
+  box-shadow: inset 2px 0 color-mix(in srgb, var(--era-accent) 34%, transparent), inset 0 1px var(--era-edge);
   transition: background .18s, transform .18s, box-shadow .18s;
 }
 html[data-era] #card-res .res:hover {
   transform: translateX(2px);
   border-bottom-color: color-mix(in srgb, var(--era-accent) 50%, var(--pilot-edge));
-  background: linear-gradient(90deg,
-    color-mix(in srgb, var(--era-accent) 15%, var(--pilot-surface-item)),
-    color-mix(in srgb, var(--pilot-surface-item) 82%, transparent) 76%, transparent);
+  background-color: var(--pilot-surface-item);
+  background-image:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--era-accent) 18%, transparent),
+      color-mix(in srgb, var(--era-accent) 7%, transparent) 76%, transparent),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  background-repeat: no-repeat, repeat;
   box-shadow: inset 3px 0 var(--era-accent);
 }
 html[data-era] #card-res .res.neg {
@@ -878,6 +952,44 @@ html[data-era] #card-res .res-details {
 html[data-era] #card-res .res-label .res-name { color: var(--pilot-copy); }
 html[data-era] #card-res .res i.cap { color: var(--dim); font-size: 11px; }
 html[data-era] #card-res .res i.rate { font-size: 11px; font-weight: 650; }
+
+/* Resource rows keep the compact archive geometry, while each era retains its own material mark. */
+html[data-era="5"] #card-res .res,
+html[data-era="6"] #card-res .res { padding-top: 16px; }
+html[data-era="8"] #card-res .res {
+  background-image:
+    radial-gradient(circle at 12px 12px, rgba(185, 168, 255, .2) 0 1px, transparent 2px),
+    linear-gradient(90deg, color-mix(in srgb, var(--era-accent) 12%, transparent), transparent 76%),
+    var(--era-texture);
+  background-size: 24px 24px, auto, 320px 240px;
+}
+html[data-era="10"] #card-res .res {
+  background-image:
+    repeating-linear-gradient(60deg, transparent 0 26px, rgba(218, 195, 128, .04) 26px 27px),
+    linear-gradient(90deg, color-mix(in srgb, var(--era-accent) 12%, transparent), transparent 76%),
+    var(--era-texture);
+  background-size: auto, auto, 320px 240px;
+}
+html[data-era="11"] #card-res .res {
+  border-color: color-mix(in srgb, var(--era-accent) 31%, var(--pilot-edge));
+  border-radius: 15px 3px 15px 3px;
+  background-image:
+    linear-gradient(90deg, rgba(128, 223, 207, .09), rgba(232, 217, 255, .055) 52%, transparent 82%),
+    var(--era-texture);
+  box-shadow: inset 2px 0 rgba(128, 223, 207, .42), inset 0 1px rgba(232, 217, 255, .22), 0 0 12px rgba(153, 119, 207, .06);
+}
+html[data-era="11"] .overview-grid > .card {
+  border-radius: 17px 4px 17px 4px;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--era-accent) 9%, transparent), transparent 66%),
+    linear-gradient(145deg, var(--era-wash), var(--pilot-surface-card) 76%),
+    var(--era-texture);
+  background-size: auto, auto, 320px 240px;
+}
+html[data-era="11"] #card-res .res:hover {
+  border-color: color-mix(in srgb, var(--era-accent) 52%, var(--pilot-edge));
+  box-shadow: inset 3px 0 var(--era-accent), 0 0 12px var(--era-glow);
+}
 
 /* Keep the resource archive at three columns at every window size.
  * Compact the resource rows against the actual panel width so a narrow window
@@ -1531,4 +1643,848 @@ html[data-era] #pane-village .bzone .bzbody > .row.is-maxed .btn.buy:disabled {
     border-radius: 50%;
     background: radial-gradient(circle, currentColor 0 26%, transparent 29%);
   }
+}
+
+/* Resource archive era art.
+ * P1's shared #card-res .res rule intentionally owns the grid geometry, but its
+ * specificity hid the earlier era-specific material art. Keep the compact grid
+ * and restore a visible, era-specific surface on the archive itself and tiles. */
+html[data-era="1"] { --era-archive-art: url("../assets/backgrounds/sequence/era-1/technology-field.webp"); }
+html[data-era="2"] { --era-archive-art: url("../assets/backgrounds/sequence/era-2/technology-field.webp"); }
+html[data-era="3"] { --era-archive-art: url("../assets/backgrounds/sequence/era-3/technology-field.webp"); }
+html[data-era="4"] { --era-archive-art: url("../assets/backgrounds/sequence/era-4/technology-field.webp?v=2"); }
+html[data-era="5"] { --era-archive-art: url("../assets/backgrounds/sequence/era-5/technology-field.webp?v=2"); }
+html[data-era="6"] { --era-archive-art: url("../assets/backgrounds/sequence/era-6/technology-field.webp?v=2"); }
+html[data-era="7"] { --era-archive-art: url("../assets/backgrounds/sequence/era-7/technology-field.webp?v=2"); }
+html[data-era="8"] { --era-archive-art: url("../assets/backgrounds/sequence/era-8/technology-field.webp?v=2"); }
+html[data-era="9"] { --era-archive-art: url("../assets/backgrounds/sequence/era-9/technology-field.webp?v=2"); }
+html[data-era="10"] { --era-archive-art: url("../assets/backgrounds/sequence/era-10/technology-field.webp?v=2"); }
+html[data-era="11"] { --era-archive-art: url("../assets/ui-era/era11-veil.svg"); }
+
+html[data-era] .overview-grid > #card-res {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background-color: var(--pilot-surface-card);
+  background-image:
+    linear-gradient(105deg,
+      color-mix(in srgb, var(--pilot-surface-card) 95%, transparent) 0%,
+      color-mix(in srgb, var(--pilot-surface-card) 86%, transparent) 47%,
+      color-mix(in srgb, var(--pilot-surface-card) 58%, transparent) 100%),
+    radial-gradient(ellipse at 91% 82%, color-mix(in srgb, var(--era-accent) 22%, transparent), transparent 43%),
+    var(--era-archive-art);
+  background-size: auto, auto, cover;
+  background-position: center, right bottom, center;
+  background-repeat: no-repeat;
+  border-top-width: 4px;
+  box-shadow: inset 0 1px var(--era-edge), inset 0 0 42px color-mix(in srgb, var(--era-accent) 7%, transparent), 0 12px 28px var(--pilot-shadow);
+}
+html[data-ui-theme="day"][data-era] .overview-grid > #card-res {
+  background-image:
+    linear-gradient(105deg,
+      color-mix(in srgb, var(--pilot-surface-card) 94%, transparent) 0%,
+      color-mix(in srgb, var(--pilot-surface-card) 82%, transparent) 47%,
+      color-mix(in srgb, var(--pilot-surface-card) 48%, transparent) 100%),
+    radial-gradient(ellipse at 91% 82%, color-mix(in srgb, var(--era-accent) 19%, transparent), transparent 43%),
+    var(--era-archive-art);
+}
+html[data-era] #card-res .res {
+  border: 1px solid color-mix(in srgb, var(--era-accent) 42%, var(--pilot-edge));
+  border-radius: var(--era-panel-radius);
+  background-color: color-mix(in srgb, var(--pilot-surface-item) 91%, var(--era-accent) 9%);
+  background-image:
+    linear-gradient(115deg,
+      color-mix(in srgb, var(--era-accent) 17%, transparent),
+      color-mix(in srgb, var(--pilot-surface-item) 84%, transparent) 74%),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  background-repeat: no-repeat, repeat;
+  box-shadow: inset 3px 0 color-mix(in srgb, var(--era-accent) 78%, transparent), inset 0 1px var(--era-edge);
+}
+html[data-era] #card-res .res:hover {
+  background-image:
+    linear-gradient(115deg,
+      color-mix(in srgb, var(--era-accent) 23%, transparent),
+      color-mix(in srgb, var(--pilot-surface-item) 78%, transparent) 74%),
+    var(--era-texture);
+  box-shadow: inset 4px 0 var(--era-accent), 0 0 16px var(--era-glow);
+}
+
+/* Era 1: reef-born materials, with visible tide lines and bioluminescent spores. */
+html[data-era="1"] #card-res .res {
+  border-radius: var(--era-resource-radius);
+  background-image:
+    radial-gradient(circle at 88% 26%, rgba(133, 255, 222, .36) 0 1px, transparent 2px),
+    radial-gradient(circle at 76% 70%, rgba(84, 222, 204, .25) 0 1.5px, transparent 2.5px),
+    repeating-radial-gradient(ellipse at 100% 115%, transparent 0 15px, rgba(78, 199, 182, .10) 16px 17px, transparent 18px 29px),
+    linear-gradient(112deg, rgba(36, 143, 131, .24), rgba(13, 37, 48, .8) 76%),
+    var(--era-texture);
+  background-size: 38px 38px, 52px 52px, 210px 120px, auto, 320px 240px;
+  background-repeat: repeat, repeat, no-repeat, no-repeat, repeat;
+  border-color: rgba(105, 226, 201, .56);
+  box-shadow: inset 4px 0 rgba(105, 226, 201, .82), inset 0 1px rgba(175, 255, 229, .23), 0 3px 12px rgba(16, 119, 109, .12);
+}
+html[data-era="1"] .overview-grid > #card-res {
+  border-color: rgba(105, 226, 201, .72);
+  border-radius: 28px 13px 25px 15px / 19px 25px 17px 23px;
+  box-shadow: inset 0 1px rgba(175, 255, 229, .35), inset 0 0 46px rgba(74, 216, 191, .10), 0 12px 30px rgba(0, 0, 0, .24);
+}
+html[data-era="1"] #card-res .res:nth-child(even) {
+  border-radius: var(--era-resource-radius-alt);
+}
+
+/* Era 2: volcanic strata and the first lamp-lit settlement; Era 3: a newly opened sulfur forge. */
+html[data-era="2"] #card-res .res {
+  border-radius: var(--era-resource-radius);
+  background-color: color-mix(in srgb, var(--pilot-surface-item) 95%, #89918f 5%);
+  background-image:
+    var(--era-texture),
+    linear-gradient(112deg, rgba(224, 231, 227, .055), rgba(7, 13, 18, .13) 72%);
+  background-size: 480px 180px, auto;
+  background-position: 0 0, 0 0;
+  background-repeat: repeat, no-repeat;
+  border-color: color-mix(in srgb, #aeb8b4 34%, var(--pilot-edge));
+  box-shadow: inset 3px 0 rgba(177, 189, 184, .32), inset 0 1px rgba(233, 240, 234, .08);
+}
+html[data-era="2"] #pane-village .bzone .bzbody > .row {
+  border-radius: var(--era-panel-radius);
+}
+html[data-era="2"] #card-res .res:nth-child(3n + 2) {
+  border-radius: var(--era-resource-radius-alt);
+  background-position: 112px 36px, 0 0;
+}
+html[data-era="2"] #card-res .res:nth-child(3n) {
+  border-radius: 4px 2px 8px 3px;
+  background-position: 248px 82px, 0 0;
+}
+html[data-era="2"] #card-res .res:hover {
+  border-color: color-mix(in srgb, #d1d6cf 46%, var(--pilot-edge));
+  background-image:
+    var(--era-texture),
+    linear-gradient(112deg, rgba(224, 231, 227, .08), rgba(7, 13, 18, .1) 72%);
+  background-size: 480px 180px, auto;
+  background-repeat: repeat, no-repeat;
+  box-shadow: inset 3px 0 rgba(208, 217, 211, .52), 0 0 10px rgba(9, 15, 19, .24);
+}
+html[data-era="2"] #pane-village .gather-row .gather-btns > .btn.buy {
+  border-width: 1px 1px 2px;
+}
+html[data-era="2"] #pane-village .gather-row .gather-btns > .btn.buy:first-child {
+  border-radius: var(--era-gather-button-radius);
+}
+html[data-era="2"] #pane-village .gather-row .gather-btns > .btn.buy:last-child {
+  border-radius: var(--era-gather-button-radius-alt);
+}
+html[data-era="2"] #pane-village .bzone .bzbody > .row .buy-actions:not(.has-auto-toggle):not(.has-track) > .btn.buy {
+  border-radius: var(--era-build-button-radius);
+  border-width: 1px 1px 2px;
+}
+html[data-era="3"] .overview-grid > #card-res,
+html[data-era="4"] .overview-grid > #card-res {
+  background-image: linear-gradient(105deg, rgba(35, 22, 20, .74), rgba(39, 25, 22, .56) 48%, rgba(39, 22, 18, .22)),
+    radial-gradient(ellipse at 82% 88%, rgba(255, 94, 37, .48), transparent 50%), var(--era-archive-art);
+  border-color: rgba(238, 157, 96, .72);
+  box-shadow: inset 0 2px rgba(255, 216, 166, .42), inset 0 -5px rgba(15, 13, 14, .4), inset 0 0 50px rgba(255, 113, 51, .14), 0 12px 28px var(--pilot-shadow);
+}
+html[data-era="3"] #card-res .res,
+html[data-era="4"] #card-res .res {
+  border-radius: 3px;
+  background-color: #282321;
+  background-image: radial-gradient(circle at 12px 11px,rgba(255,218,174,.28) 0 1px,transparent 2px),
+    radial-gradient(circle at 30px 27px,rgba(8,10,11,.42) 0 1.5px,transparent 2.5px),
+    linear-gradient(110deg, rgba(156, 89, 53, .32), rgba(37, 30, 29, .68) 78%), var(--era-texture);
+  background-size: 42px 38px, 42px 38px, auto, 320px 320px;
+  background-repeat: repeat, repeat, no-repeat, repeat;
+  border-color: rgba(238, 153, 91, .78);
+  border-top-color: rgba(255, 202, 135, .88);
+  box-shadow: inset 5px 0 rgba(255, 137, 62, .96), inset 0 2px rgba(255, 217, 164, .42), inset 0 -4px rgba(8, 10, 11, .46), 0 0 10px rgba(255, 114, 54, .12);
+}
+html[data-era="3"] #pane-village .bzone .bzbody > .row,
+html[data-era="4"] #pane-village .bzone .bzbody > .row {
+  border-radius: 4px;
+  border-color: rgba(230, 150, 91, .68);
+  background-color: #272524;
+  background-image: radial-gradient(ellipse at 0% 50%,rgba(255,126,61,.3),transparent 54%),
+    linear-gradient(118deg,rgba(112,70,48,.42),rgba(32,34,35,.72) 72%),var(--era-texture);
+  background-size: auto,auto,320px 320px;
+  background-repeat: no-repeat,no-repeat,repeat;
+  box-shadow: inset 5px 0 rgba(255, 137, 62, .94), inset 0 2px rgba(255, 214, 160, .38), inset 0 -4px rgba(8, 10, 11, .48), 0 0 9px rgba(255, 116, 54, .14);
+}
+html[data-ui-theme="day"][data-era="3"] #card-res .res,
+html[data-ui-theme="day"][data-era="4"] #card-res .res,
+html[data-ui-theme="day"][data-era="3"] #pane-village .bzone .bzbody > .row,
+html[data-ui-theme="day"][data-era="4"] #pane-village .bzone .bzbody > .row {
+  background-color: #e8ded3;
+  background-image: radial-gradient(ellipse at 0% 50%,rgba(220,112,61,.2),transparent 54%),
+    linear-gradient(118deg,rgba(255,248,237,.72),rgba(158,111,82,.05) 72%),var(--era-texture);
+  background-size: auto,auto,320px 320px;
+  background-repeat: no-repeat,no-repeat,repeat;
+  border-color: rgba(171, 91, 53, .64);
+  box-shadow: inset 5px 0 rgba(198, 99, 55, .94), inset 0 2px rgba(255, 255, 255, .84), inset 0 -4px rgba(82, 57, 43, .2), 0 0 8px rgba(204, 103, 58, .13);
+}
+/* Era 5–6: riveted hull plates; Era 7–8: orbital telemetry and star maps. */
+html[data-era="5"] #card-res .res,
+html[data-era="6"] #card-res .res {
+  border-radius: 3px;
+  background-image: repeating-linear-gradient(135deg, transparent 0 22px, rgba(238, 199, 87, .095) 22px 23px),
+    linear-gradient(110deg, rgba(193, 145, 53, .23), rgba(27, 31, 34, .84) 78%), var(--era-texture);
+  background-size: auto, auto, 320px 240px;
+  box-shadow: inset 3px 0 rgba(231, 188, 94, .82), inset 0 1px rgba(255, 229, 166, .2);
+}
+html[data-era="7"] #card-res .res {
+  border-radius: 4px;
+  background-image: linear-gradient(rgba(116, 194, 230, .12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(116, 194, 230, .12) 1px, transparent 1px),
+    linear-gradient(115deg, rgba(53, 137, 185, .22), rgba(11, 29, 49, .82) 78%), var(--era-texture);
+  background-size: 18px 18px, 18px 18px, auto, 320px 240px;
+}
+html[data-era="8"] #card-res .res {
+  border-radius: 8px 2px;
+  background-image: radial-gradient(circle at 12px 12px, rgba(195, 180, 255, .34) 0 1.2px, transparent 2px),
+    radial-gradient(ellipse at 100% 0%, rgba(91, 79, 181, .25), transparent 58%),
+    linear-gradient(115deg, rgba(101, 87, 189, .2), rgba(17, 24, 49, .8) 78%), var(--era-texture);
+  background-size: 28px 28px, auto, auto, 320px 240px;
+}
+
+/* Era 9–10: living solar arrays and deliberate orbital geometry. */
+html[data-era="9"] #card-res .res {
+  border-radius: 14px 6px 14px 6px;
+  background-image: repeating-radial-gradient(ellipse at 100% 50%, transparent 0 13px, rgba(166, 207, 139, .14) 14px 15px, transparent 16px 26px),
+    linear-gradient(110deg, rgba(125, 183, 104, .2), rgba(19, 41, 34, .82) 78%), var(--era-texture);
+  background-size: 190px 120px, auto, 320px 240px;
+  background-repeat: no-repeat, no-repeat, repeat;
+}
+html[data-era="10"] #card-res .res {
+  border-radius: 3px;
+  background-image: radial-gradient(circle at 100% 50%, rgba(255, 222, 128, .2), transparent 38%),
+    repeating-linear-gradient(60deg, transparent 0 20px, rgba(229, 200, 121, .1) 20px 21px),
+    linear-gradient(110deg, rgba(200, 166, 78, .2), rgba(19, 39, 42, .83) 78%), var(--era-texture);
+  background-size: auto, auto, auto, 320px 240px;
+}
+html[data-era="11"] .overview-grid > #card-res {
+  background-image: linear-gradient(105deg, rgba(18, 25, 43, .92), rgba(25, 24, 44, .78) 48%, rgba(25, 24, 44, .52)),
+    radial-gradient(ellipse at 88% 78%, rgba(128, 223, 207, .16), transparent 42%), var(--era-archive-art);
+}
+html[data-era="11"] #card-res .res {
+  border-radius: 15px 3px 15px 3px;
+  background-image: linear-gradient(90deg, rgba(128, 223, 207, .14), rgba(232, 217, 255, .13) 52%, rgba(19, 26, 43, .72) 86%), var(--era-texture);
+  box-shadow: inset 3px 0 rgba(128, 223, 207, .62), inset 0 1px rgba(232, 217, 255, .24);
+}
+
+/* Era 5 base surfaces. The full heavy-industry skin is defined at the end of this file;
+ * the shell meter below remains a localized ice-and-fracture treatment. */
+html[data-era="5"] .card {
+  border-color: color-mix(in srgb, var(--era-accent) 56%, var(--pilot-edge));
+  box-shadow: inset 0 1px rgba(255, 220, 184, .16), inset 0 -2px rgba(0, 0, 0, .24), 0 12px 28px rgba(0, 0, 0, .22);
+}
+html[data-era="5"] .cardhd { min-height: 18px; padding-left: 24px; }
+html[data-era="5"] .cardhd::before {
+  left: 0; width: 4px; border: 0; border-radius: 1px;
+  background: linear-gradient(180deg, #f0c28b, #b56e45 58%, #633b2f);
+  box-shadow: inset 0 0 0 1px rgba(255, 231, 198, .16);
+}
+html[data-era="5"] .cardhd::after {
+  left: 7px; width: 11px; height: 11px;
+  background: url("../assets/ui-era/rivet.svg") center / contain no-repeat;
+}
+html[data-era="5"] .res::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 10px;
+  left: auto;
+  width: 38px;
+  height: 7px;
+  border-radius: 0 0 2px 2px;
+  background: repeating-linear-gradient(135deg, #efad67 0 4px, #302825 4px 8px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .42);
+  opacity: .95;
+  pointer-events: none;
+}
+html[data-era="5"] #card-res .res {
+  padding-top: 9px;
+  border-color: color-mix(in srgb, var(--era-accent) 40%, var(--pilot-edge));
+  border-bottom-color: color-mix(in srgb, var(--era-accent) 50%, var(--pilot-edge));
+  background-color: var(--pilot-surface-item);
+  background-image:
+    linear-gradient(112deg, color-mix(in srgb, #995c41 15%, transparent), transparent 72%),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  background-repeat: no-repeat, repeat;
+  box-shadow: inset 4px 0 color-mix(in srgb, var(--era-accent) 72%, transparent), inset 0 1px var(--era-edge);
+}
+html[data-era="5"] #card-res .res:hover {
+  background-image:
+    linear-gradient(112deg, color-mix(in srgb, #b36946 21%, transparent), transparent 72%),
+    var(--era-texture);
+  box-shadow: inset 4px 0 var(--era-accent), 0 0 12px var(--era-glow);
+}
+html[data-era="5"] .bzone .row {
+  border-color: color-mix(in srgb, var(--era-accent) 35%, var(--pilot-edge));
+  border-radius: 3px;
+  background-image:
+    linear-gradient(105deg, color-mix(in srgb, #8e573d 12%, transparent), transparent 68%),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  background-repeat: no-repeat, repeat;
+  box-shadow: inset 0 1px rgba(255, 222, 187, .1), inset 0 -2px rgba(0, 0, 0, .2);
+}
+html[data-era="5"] .bzone .row::before {
+  width: 8px; opacity: .98;
+  background: repeating-linear-gradient(135deg, #e8a260 0 4px, #302725 4px 8px);
+  box-shadow: inset -1px 0 rgba(255, 211, 160, .26);
+}
+html[data-era="5"] #pane-village .bzone .row::before { width: 8px; }
+html[data-era="5"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on):not(.buy) {
+  border-color: color-mix(in srgb, var(--era-accent) 56%, var(--pilot-edge));
+  border-radius: 3px;
+  background-color: var(--era-button-base);
+  background-image:
+    linear-gradient(180deg, rgba(203, 132, 83, .17), rgba(31, 25, 24, .5)),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  box-shadow: inset 0 1px rgba(255, 225, 192, .2), inset 0 -2px rgba(0, 0, 0, .32), 0 2px 0 rgba(0, 0, 0, .18);
+}
+html[data-ui-theme="day"][data-era="5"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on):not(.buy) {
+  color: #63402d;
+  border-color: rgba(136, 69, 31, .5);
+  background-color: #e6d9ce;
+  background-image:
+    linear-gradient(180deg, rgba(255, 249, 240, .84), rgba(164, 108, 76, .1)),
+    var(--era-texture);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .82), inset 0 -2px rgba(91, 58, 40, .16), 0 2px 0 rgba(71, 47, 36, .14);
+}
+html[data-era="5"] .overview-grid > #card-res {
+  background-image:
+    linear-gradient(105deg, rgba(24, 26, 29, .9), rgba(37, 28, 25, .74) 52%, rgba(36, 27, 24, .44)),
+    radial-gradient(ellipse at 82% 92%, rgba(255, 111, 56, .22), transparent 38%),
+    var(--era-archive-art);
+}
+html[data-ui-theme="day"][data-era="5"] .overview-grid > #card-res {
+  background-image:
+    linear-gradient(105deg, rgba(235, 226, 216, .91), rgba(232, 215, 198, .78) 52%, rgba(225, 203, 183, .55)),
+    radial-gradient(ellipse at 82% 92%, rgba(197, 98, 55, .2), transparent 38%),
+    var(--era-archive-art);
+}
+html[data-era="5"] #card-env .shellwrap:not(.dyson-progress) {
+  height: 16px;
+  border: 2px solid color-mix(in srgb, var(--era-accent-soft) 62%, var(--pilot-edge));
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .24), rgba(255, 255, 255, .025)), var(--pilot-surface-item);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, .3), 0 1px rgba(0, 0, 0, .16);
+}
+html[data-era="5"] #card-env .shellwrap:not(.dyson-progress) .shellfill {
+  border-radius: 0;
+  background: linear-gradient(180deg, #d2d2cc 0%, #a9aaa5 42%, #777a78 78%, #5f6262 100%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .48), inset 0 -1px rgba(28, 30, 31, .34);
+}
+html[data-era="5"] #card-env .shellwrap:not(.dyson-progress)::before {
+  content: ""; position: absolute; z-index: 3; top: -1px; bottom: -1px; left: calc(25% - 4px); width: 9px;
+  border: 1px solid rgba(255, 208, 153, .7);
+  background: repeating-linear-gradient(135deg, #f07a43 0 3px, #302725 3px 6px);
+  box-shadow: 0 0 6px rgba(255, 117, 67, .6);
+  pointer-events: none;
+}
+html[data-era="5"] #card-env .shellwrap:not(.dyson-progress)::after {
+  background: repeating-linear-gradient(180deg, transparent 0 4px, rgba(255, 246, 228, .18) 4px 5px, transparent 5px 8px);
+}
+
+/* Era 1 controls should feel shaped by reef growth, with enough flat edge for clear labels and taps. */
+html[data-era="1"] #pane-village .gather-row .gather-btns > .btn.buy {
+  border-radius: 22px 7px 18px 12px / 13px 20px 10px 18px;
+  border-width: 1px 1px 2px;
+  box-shadow: inset 0 1px rgba(191, 255, 234, .22), inset 1px 0 rgba(105, 226, 201, .2), inset 0 -2px rgba(3, 24, 32, .22);
+}
+html[data-era="1"] #pane-village .gather-row .gather-btns > .btn.buy:first-child {
+  border-radius: var(--era-gather-button-radius);
+}
+html[data-era="1"] #pane-village .gather-row .gather-btns > .btn.buy:last-child {
+  border-radius: var(--era-gather-button-radius-alt);
+}
+html[data-era="1"] #pane-village .bzone .bzbody > .row .buy-actions:not(.has-auto-toggle):not(.has-track) > .btn.buy {
+  border-radius: var(--era-build-button-radius);
+  border-width: 1px 1px 2px;
+  box-shadow: inset 0 1px rgba(191, 255, 234, .2), inset 1px 0 rgba(105, 226, 201, .18), inset 0 -2px rgba(3, 24, 32, .22);
+}
+
+/* Era 5 · subsea heavy industry. The cracked-shell motif stays in the environment meter. */
+:root[data-era="5"] {
+  --era-accent: #e6b653;
+  --era-accent-soft: #a9764b;
+  --era-flame: #ef7839;
+  --era-wash: rgba(193, 143, 62, .085);
+  --era-line: rgba(181, 145, 87, .54);
+  --era-glow: rgba(238, 116, 50, .13);
+  --era-edge: rgba(245, 205, 130, .24);
+  --era-texture: url("../assets/ui-era/era5-industry.svg");
+  --era-panel-radius: 4px 2px 4px 2px;
+  --era-button-radius: 2px;
+  --era-button-base: #222729;
+  --era-button-hi: #725535;
+  --era-button-lo: #24292a;
+  --era-hazard: #e4b33f;
+  --era-iron: #252b2e;
+  --era-iron-light: #394044;
+}
+
+/* Outer panels read as pressure-rated housings, with the safety stripe as a real trim piece. */
+html[data-era="5"] .overview-grid > .card,
+html[data-era="5"] #pane-village {
+  position: relative;
+  border: 1px solid rgba(166, 132, 82, .72);
+  border-top: 6px solid #252a2c;
+  border-radius: 4px 2px 4px 2px;
+  background-color: #202628;
+  background-image:
+    linear-gradient(145deg, rgba(60, 65, 64, .55), rgba(25, 30, 32, .92) 58%, rgba(36, 30, 26, .82)),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  box-shadow: inset 0 1px rgba(255, 226, 170, .2), inset 0 -8px 18px rgba(0, 0, 0, .2), 0 12px 30px rgba(0, 0, 0, .28);
+}
+html[data-era="5"] .card {
+  position: relative;
+  border-color: rgba(143, 126, 92, .68);
+  border-radius: 3px 1px 3px 1px;
+  background-color: #252b2e;
+  background-image: linear-gradient(145deg, rgba(65, 69, 66, .44), rgba(25, 30, 32, .9) 68%), var(--era-texture);
+  background-size: auto, 320px 240px;
+  box-shadow: inset 0 1px rgba(239, 218, 167, .14), inset 0 -3px rgba(0, 0, 0, .2), 0 6px 16px rgba(0, 0, 0, .2);
+}
+html[data-era="5"] .card::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: repeating-linear-gradient(135deg, #d9aa3c 0 8px, #232729 8px 16px);
+  box-shadow: 0 1px rgba(255, 221, 135, .32);
+  pointer-events: none;
+}
+html[data-era="5"] .overview-grid > .card::before,
+html[data-era="5"] #pane-village::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: -6px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: repeating-linear-gradient(135deg, #e4b33f 0 10px, #232729 10px 20px);
+  box-shadow: 0 1px rgba(255, 221, 135, .38), 0 2px 5px rgba(0, 0, 0, .35);
+  pointer-events: none;
+}
+html[data-era="5"] .overview-grid > #card-res {
+  background-image:
+    linear-gradient(110deg, rgba(22, 27, 30, .91), rgba(34, 36, 35, .79) 58%, rgba(40, 30, 24, .67)),
+    radial-gradient(ellipse at 86% 100%, rgba(238, 105, 42, .2), transparent 37%),
+    var(--era-archive-art);
+  background-size: auto, auto, cover;
+  background-position: center;
+}
+html[data-era="5"] .overview-grid > #card-env {
+  background-image:
+    linear-gradient(120deg, rgba(20, 26, 29, .91), rgba(26, 31, 33, .88)),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+}
+html[data-era="5"] #pane-village {
+  border-left: 1px solid rgba(166, 132, 82, .72);
+}
+
+/* Main overview and active-era headers use the same machinery-panel title treatment. */
+html[data-era="5"] .overview-grid > .card > .cardhd,
+html[data-era="5"] #pane-village > .cardhd {
+  position: relative;
+  z-index: 0;
+  min-height: 32px;
+  margin-bottom: 16px;
+  padding-left: 29px;
+  padding-right: 0;
+  color: #edc46d;
+  font-size: 14px;
+  letter-spacing: .035em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .7);
+}
+html[data-era="5"] .card > .cardhd {
+  min-height: 24px;
+  padding-left: 24px;
+  color: #d7b66e;
+  letter-spacing: .035em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .65);
+}
+html[data-era="5"] .card > .cardhd::before {
+  top: 1px;
+  bottom: 1px;
+  left: 0;
+  width: 10px;
+  border: 1px solid rgba(255, 220, 127, .52);
+  border-radius: 1px;
+  background: repeating-linear-gradient(135deg, #e0b044 0 4px, #24282a 4px 8px);
+}
+html[data-era="5"] .overview-grid > .card > .cardhd::before,
+html[data-era="5"] #pane-village > .cardhd::before {
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  width: 12px;
+  border: 1px solid rgba(255, 220, 127, .62);
+  border-radius: 1px;
+  background: repeating-linear-gradient(135deg, #e4b33f 0 4px, #232729 4px 8px);
+  box-shadow: inset 0 0 0 1px rgba(255, 235, 190, .14), 0 0 8px rgba(218, 162, 57, .16);
+}
+/* Resource readouts: machined steel plates with a visible caution tag at the upper corner. */
+html[data-era="5"] #card-res .res {
+  position: relative;
+  padding-top: 12px;
+  border: 1px solid rgba(151, 137, 105, .78);
+  border-left: 4px solid #8d7951;
+  border-radius: 2px;
+  background-color: #252c2f;
+  background-image:
+    linear-gradient(112deg, rgba(111, 119, 112, .15), rgba(25, 31, 34, .48) 62%),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  box-shadow: inset 0 1px rgba(255, 227, 170, .16), inset 0 -3px rgba(0, 0, 0, .26), 0 2px 5px rgba(0, 0, 0, .18);
+}
+html[data-era="5"] #card-res .res::before {
+  top: 0;
+  right: 0;
+  left: auto;
+  width: 62px;
+  height: 9px;
+  border-left: 1px solid rgba(255, 225, 144, .72);
+  border-bottom: 1px solid rgba(0, 0, 0, .6);
+  border-radius: 0;
+  background: repeating-linear-gradient(135deg, #e4b33f 0 5px, #232729 5px 10px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .4);
+  opacity: .96;
+}
+html[data-era="5"] #card-res .res:hover {
+  border-color: #d5a64d;
+  background-image: linear-gradient(112deg, rgba(192, 139, 59, .2), rgba(25, 31, 34, .48) 62%), var(--era-texture);
+  box-shadow: inset 0 1px rgba(255, 227, 170, .22), inset 4px 0 #d8a843, 0 0 12px rgba(224, 148, 52, .18);
+}
+html[data-era="5"] #card-res .res b { color: #eef0e9; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+html[data-era="5"] #card-res .res span,
+html[data-era="5"] #card-res .res i.cap { color: #c0c5c3; }
+html[data-era="5"] #card-res .restitle {
+  color: #d5ad62;
+  border-color: rgba(189, 148, 77, .4);
+}
+
+/* Navigation is a row of bolted control plates; the active station gets a striped lock bar. */
+html[data-era="5"] .tabs {
+  border: 1px solid rgba(148, 121, 77, .68);
+  border-top: 4px solid #292d2f;
+  border-radius: 3px;
+  background-color: #202628;
+  background-image: linear-gradient(180deg, rgba(63, 67, 64, .72), rgba(24, 29, 31, .96)), var(--era-texture);
+  background-size: auto, 320px 240px;
+  box-shadow: inset 0 1px rgba(255, 223, 151, .15), 0 5px 14px rgba(0, 0, 0, .22);
+}
+html[data-era="5"] .tab {
+  position: relative;
+  border: 1px solid rgba(147, 132, 103, .38);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(69, 73, 70, .35), rgba(18, 23, 25, .44));
+  color: #aeb4b2;
+}
+html[data-era="5"] .tab:hover {
+  border-color: rgba(224, 177, 80, .68);
+  background: linear-gradient(180deg, rgba(111, 89, 49, .36), rgba(31, 32, 30, .72));
+  color: #e2c27c;
+}
+html[data-era="5"] .tab.on {
+  border-color: #d2a94f;
+  background-image: repeating-linear-gradient(135deg, #e4b33f 0 5px, #232729 5px 10px), linear-gradient(180deg, rgba(112, 84, 42, .46), rgba(33, 32, 29, .88));
+  background-size: 100% 5px, auto;
+  background-repeat: no-repeat;
+  background-position: top left, center;
+  box-shadow: inset 0 1px rgba(255, 231, 171, .26), inset 0 -2px #bd873c, 0 0 10px rgba(219, 166, 57, .14);
+  color: #f0cc78;
+}
+html[data-era="5"] .tab:focus-visible,
+html[data-era="5"] .btn:focus-visible,
+html[data-era="5"] .erabtn:focus-visible { outline-color: #f0c259; }
+
+/* Building rows resemble replaceable machine modules, not soft floating cards. */
+html[data-era="5"] #pane-village .bzone .bztitle {
+  color: #d9b264;
+  letter-spacing: .06em;
+}
+html[data-era="5"] #pane-village .bzone .bztitle .bzcv {
+  border-color: rgba(209, 166, 76, .58);
+  border-radius: 2px;
+  background: linear-gradient(145deg, rgba(151, 107, 43, .24), rgba(27, 31, 32, .8));
+  color: #e7bd5b;
+}
+html[data-era="5"] #pane-village .bzone .row {
+  border: 1px solid rgba(136, 125, 99, .66);
+  border-radius: 2px;
+  background-color: #293033;
+  background-image: linear-gradient(110deg, rgba(98, 104, 97, .15), rgba(20, 26, 29, .3) 72%), var(--era-texture);
+  background-size: auto, 320px 240px;
+  box-shadow: inset 0 1px rgba(239, 218, 167, .12), inset 0 -3px rgba(0, 0, 0, .24), 0 3px 8px rgba(0, 0, 0, .17);
+}
+html[data-era="5"] #pane-village .bzone .row::before {
+  width: 12px;
+  opacity: .98;
+  background: repeating-linear-gradient(135deg, #e4b33f 0 6px, #232729 6px 12px);
+  box-shadow: inset -1px 0 rgba(255, 223, 132, .34), 1px 0 rgba(0, 0, 0, .38);
+}
+html[data-era="5"] #pane-village .bzone .row:hover {
+  border-color: #d5a849;
+  background-image: linear-gradient(110deg, rgba(168, 123, 49, .18), rgba(20, 26, 29, .3) 72%), var(--era-texture);
+  box-shadow: inset 0 1px rgba(255, 226, 165, .2), inset 0 -3px rgba(0, 0, 0, .24), 0 5px 14px rgba(0, 0, 0, .24);
+}
+html[data-era="5"] #pane-village .building-icon {
+  border: 1px solid rgba(180, 148, 89, .68);
+  border-radius: 2px;
+  background: #1b2225;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .4), 0 2px 5px rgba(0, 0, 0, .35);
+}
+
+/* Era 5 controls use solid worn-metal plates; warning paint stays off button faces. */
+html[data-era="5"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) {
+  position: relative;
+  border-color: rgba(171, 140, 84, .72);
+  border-radius: 2px;
+  background-color: #293033;
+  background-image: linear-gradient(180deg, rgba(128, 112, 79, .2), rgba(20, 26, 28, .6)), var(--era-texture);
+  background-size: auto, 320px 240px;
+  box-shadow: inset 0 1px rgba(255, 229, 176, .2), inset 0 -2px rgba(0, 0, 0, .34), 0 2px 0 rgba(0, 0, 0, .26);
+  color: #e4c47d;
+}
+html[data-era="5"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 30px;
+  height: 5px;
+  background: repeating-linear-gradient(135deg, #e4b33f 0 4px, #232729 4px 8px);
+  opacity: .9;
+  pointer-events: none;
+}
+html[data-era="5"] .btn:hover:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) {
+  border-color: #e4b653;
+  background-image: linear-gradient(180deg, rgba(173, 121, 48, .34), rgba(25, 28, 28, .64)), var(--era-texture);
+  box-shadow: inset 0 1px rgba(255, 231, 174, .26), inset 0 -2px rgba(0, 0, 0, .34), 0 0 12px rgba(227, 166, 53, .2);
+  color: #ffe2a0;
+}
+html[data-era="5"] #pane-village .gather-row .gather-btns > .btn.buy,
+html[data-era="5"] #pane-village .bzone .row .btn.buy {
+  border-color: rgba(206, 160, 72, .82);
+  background: linear-gradient(180deg, rgba(114, 91, 49, .44), rgba(34, 37, 35, .96));
+  color: #edc875;
+}
+html[data-era="5"] #pane-village .bzone .row.is-ready .btn.buy:not(:disabled) {
+  border-color: rgba(116, 173, 129, .76);
+  background: linear-gradient(180deg, rgba(76, 120, 78, .45), rgba(27, 44, 36, .96));
+  color: #a9d9a9;
+}
+
+/* Day mode keeps the industrial metal and warning paint instead of reverting to cream UI. */
+html[data-ui-theme="day"][data-era="5"] .overview-grid > .card,
+html[data-ui-theme="day"][data-era="5"] #pane-village {
+  background-color: #d0c8b8;
+  background-image: linear-gradient(145deg, rgba(219, 215, 203, .94), rgba(155, 153, 143, .94) 62%, rgba(166, 144, 119, .88)), var(--era-texture);
+  border-color: rgba(107, 84, 54, .72);
+  box-shadow: inset 0 1px rgba(255, 246, 220, .84), inset 0 -5px 12px rgba(76, 66, 51, .12), 0 8px 22px rgba(57, 49, 38, .18);
+}
+html[data-ui-theme="day"][data-era="5"] .card {
+  background-color: #d0c8b8;
+  background-image: linear-gradient(145deg, rgba(224, 220, 207, .96), rgba(165, 162, 150, .94) 68%), var(--era-texture);
+  border-color: rgba(107, 84, 54, .68);
+  box-shadow: inset 0 1px rgba(255, 250, 232, .84), inset 0 -3px rgba(76, 66, 51, .12), 0 6px 16px rgba(57, 49, 38, .14);
+}
+html[data-ui-theme="day"][data-era="5"] .card > .cardhd,
+html[data-ui-theme="day"][data-era="5"] .bztitle,
+html[data-ui-theme="day"][data-era="5"] .secttl { color: #725624; text-shadow: none; }
+html[data-ui-theme="day"][data-era="5"] .overview-grid > #card-env,
+html[data-ui-theme="day"][data-era="5"] #card-res .res,
+html[data-ui-theme="day"][data-era="5"] #pane-village .bzone .row {
+  background-color: #d4d0c4;
+  background-image: linear-gradient(110deg, rgba(255, 249, 231, .52), rgba(115, 116, 108, .16) 72%), var(--era-texture);
+  border-color: rgba(105, 90, 63, .66);
+  color: #303435;
+}
+html[data-ui-theme="day"][data-era="5"] #card-res .res b { color: #273033; }
+html[data-ui-theme="day"][data-era="5"] #card-res .res span,
+html[data-ui-theme="day"][data-era="5"] #card-res .res i.cap { color: #4f5655; }
+html[data-ui-theme="day"][data-era="5"] .tabs {
+  background-image: linear-gradient(180deg, rgba(220, 214, 199, .96), rgba(151, 151, 142, .96)), var(--era-texture);
+  border-color: rgba(113, 91, 58, .62);
+}
+html[data-ui-theme="day"][data-era="5"] .tab { color: #515653; }
+html[data-ui-theme="day"][data-era="5"] .tab.on {
+  background-image: repeating-linear-gradient(135deg, #e4b33f 0 5px, #232729 5px 10px), linear-gradient(180deg, #bba876, #81765b);
+  color: #fff1c3;
+}
+html[data-ui-theme="day"][data-era="5"] .btn:not(.danger):not(.ad-watch):not(.tog.on) {
+  background-color: #b9b4a5;
+  background-image: linear-gradient(180deg, rgba(255, 247, 221, .8), rgba(108, 106, 96, .18)), var(--era-texture);
+  color: #4d3b21;
+}
+
+/* Large exposed surfaces read as a working hull: joined plates, cooling louvers, and furnace spill. */
+html[data-era="5"] .overview-grid > #card-res {
+  background-image:
+    url("../assets/ui-era/era5-industrial-field.svg?v=2"),
+    radial-gradient(ellipse at 84% 94%, rgba(238, 105, 42, .18), transparent 39%),
+    linear-gradient(105deg, rgba(22, 27, 30, .91), rgba(34, 36, 35, .78) 58%, rgba(40, 30, 24, .62)),
+    var(--era-archive-art);
+  background-size: auto 100%, auto, auto, cover;
+  background-position: right center, 84% 100%, center, center;
+  background-repeat: no-repeat;
+}
+html[data-era="5"] #pane-village {
+  background-image:
+    url("../assets/ui-era/era5-industrial-field.svg?v=2"),
+    radial-gradient(ellipse at 82% 92%, rgba(226, 102, 52, .12), transparent 43%),
+    linear-gradient(120deg, rgba(20, 26, 29, .93), rgba(26, 31, 33, .88) 62%, rgba(34, 29, 26, .78)),
+    var(--era-texture);
+  background-size: auto 100%, auto, auto, 320px 240px;
+  background-position: right center, 84% 100%, center, center;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+}
+html[data-ui-theme="day"][data-era="5"] .overview-grid > #card-res {
+  background-image:
+    url("../assets/ui-era/era5-industrial-field.svg?v=2"),
+    radial-gradient(ellipse at 84% 94%, rgba(197, 98, 55, .14), transparent 39%),
+    linear-gradient(105deg, rgba(219, 215, 203, .94), rgba(188, 184, 173, .8) 58%, rgba(166, 144, 119, .62)),
+    var(--era-texture);
+  background-size: auto 100%, auto, auto, 320px 240px;
+  background-position: right center, 84% 100%, center, center;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+}
+html[data-ui-theme="day"][data-era="5"] #pane-village {
+  background-image:
+    url("../assets/ui-era/era5-industrial-field.svg?v=2"),
+    radial-gradient(ellipse at 82% 92%, rgba(197, 98, 55, .1), transparent 43%),
+    linear-gradient(120deg, rgba(219, 215, 203, .95), rgba(185, 183, 173, .84) 62%, rgba(166, 144, 119, .72)),
+    var(--era-texture);
+  background-size: auto 100%, auto, auto, 320px 240px;
+  background-position: right center, 84% 100%, center, center;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+}
+@media (max-width: 760px) {
+  html[data-era="5"] .overview-grid > #card-res,
+  html[data-ui-theme="day"][data-era="5"] .overview-grid > #card-res {
+    background-size: 100% auto, auto, auto, cover;
+    background-position: right top, 84% 100%, center, center;
+  }
+  html[data-era="5"] #pane-village,
+  html[data-ui-theme="day"][data-era="5"] #pane-village {
+    background-size: 100% auto, auto, auto, 320px 240px;
+    background-position: right top, 84% 100%, center, center;
+  }
+}
+html[data-era="5"] #card-res.era5-steam-active {
+  position: relative;
+  isolation: isolate;
+}
+html[data-era="5"] #card-res.era5-steam-active::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  right: 5.5%;
+  bottom: 12%;
+  width: 156px;
+  height: 234px;
+  background: url("../assets/ui-era/era5-steam.svg?v=1") center bottom / contain no-repeat;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 10px rgba(218, 226, 222, .18));
+  transform: translate3d(0, 14px, 0) scale(.86);
+  animation: era5-steam-puff 9s ease-out infinite;
+}
+html[data-era="5"] #card-res.era5-steam-active > * {
+  z-index: 1;
+}
+@keyframes era5-steam-puff {
+  0%, 100% { opacity: 0; transform: translate3d(0, 14px, 0) scale(.86); }
+  2% { opacity: .68; transform: translate3d(0, 8px, 0) scale(.94); }
+  8% { opacity: .48; transform: translate3d(0, -6px, 0) scale(1); }
+  20% { opacity: 0; transform: translate3d(0, -34px, 0) scale(1.12); }
+}
+@media (max-width: 760px) {
+  html[data-era="5"] #card-res.era5-steam-active::after {
+    right: 4%;
+    top: 132px;
+    bottom: auto;
+    width: 88px;
+    height: 132px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-era="5"] #card-res.era5-steam-active::after {
+    animation: none;
+    opacity: .34;
+    transform: none;
+  }
+}
+
+@media (max-width: 600px) {
+  html[data-era="5"] .overview-grid > .card > .cardhd,
+  html[data-era="5"] #pane-village > .cardhd { padding-right: 0; }
+  html[data-era="5"] .overview-grid > .card::before,
+  html[data-era="5"] #pane-village::before { height: 5px; top: -5px; }
+}
+
+/* ERA5 warning paint is a sparse component accent, not a frame around every surface. */
+html[data-era="5"] .overview-grid > .card::before,
+html[data-era="5"] #pane-village::before,
+html[data-era="5"] .card::before { display: none; }
+html[data-era="5"] .overview-grid > .card > .cardhd,
+html[data-era="5"] #pane-village > .cardhd { padding-right: 0; }
+html[data-era="5"] .overview-grid > .card > .cardhd::before,
+html[data-era="5"] #pane-village > .cardhd::before,
+html[data-era="5"] .card > .cardhd::before {
+  width: 4px;
+  border: 0;
+  border-radius: 1px;
+  background: linear-gradient(180deg, #e0c17c, #997044 58%, #574330);
+  box-shadow: 0 0 5px rgba(205, 161, 87, .12);
+}
+html[data-era="5"] .tab.on {
+  background-image: linear-gradient(180deg, rgba(112, 84, 42, .46), rgba(33, 32, 29, .88));
+  background-size: auto;
+  box-shadow: inset 0 1px rgba(255, 231, 171, .18), inset 0 -3px #bd873c;
+}
+html[data-ui-theme="day"][data-era="5"] .tab.on {
+  background-image: linear-gradient(180deg, #bba876, #81765b);
+}
+html[data-era="5"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on)::before { content: none; }
+html[data-era="5"] #card-res .res::before {
+  width: 34px;
+  height: 4px;
+  border: 0;
+  opacity: .68;
+}
+html[data-era="5"] #pane-village .bzone .row::before {
+  width: 5px;
+  background: repeating-linear-gradient(135deg, #c79d46 0 3px, #292b2b 3px 6px);
+  box-shadow: inset -1px 0 rgba(255, 223, 132, .18);
+}
+html[data-era="5"] #card-env .shellwrap:not(.dyson-progress)::before {
+  display: block;
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: -3px;
+  bottom: -3px;
+  left: calc(25% - 1px);
+  width: 2px;
+  border: 0;
+  background: #e5b84e;
+  box-shadow: 0 0 5px rgba(229, 184, 78, .58);
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  html[data-era="5"] .overview-grid > .card > .cardhd,
+  html[data-era="5"] #pane-village > .cardhd { padding-right: 0; }
 }

@@ -204,13 +204,16 @@
         { label: '二档', cap: 2 },
         { label: '三档', cap: 3 }
       ] },
-    /* ── 飞升挑战系列（2026-11-20 实装，docs/CHALLENGE_VEIL_RUSH_DESIGN v0.4 + CHALLENGE_ASCENSION_POOL v0.7）──
-     * 三项共同：终点 = 研成《掀起帘幕》科技（goal {t:'tech',id:'beyond_veil'}），
-     *   由主循环 evaluate() 每帧判定 —— 研成瞬间落账到 meta.challenges，零 doVeil 插桩。
-     *   ❌ 虚境飞升（ascend_void → s.dysonDone）不算；终点只读 s.techs.beyond_veil。
+    /* ── 飞升挑战系列（2026-11-20 实装；2026-11-21 用户拍板终点改回「掀幕」）──
+     * 六项共同：终点 = 玩家**点底栏「掀起帘幕」按钮成功掀幕**（goal {t:'veil'}），
+     *   由 prestige.doVeil() 在重建本局前显式调 evaluate(s, meta, true) 判定 ——
+     *   研成《掀起帘幕》科技本身不再自动通关（v0.3 的 {t:'tech'} 判定已废）。
+     *   判据走 evaluate 第三参 veilJustDone，不写本局旗 ⇒ 不落盘、主循环每帧 evaluate
+     *   不传该参（= false），绝不会「研成科技就自动通关」或读档误判。
+     *   ❌ 虚境飞升（ascend_void → s.dysonDone）不算；终点只认 doVeil 成功。
      *   「飞升后不消失」= 完成记录写在 meta（doVeil 清场不碰 meta.challenges）+ 奖励读 tierDone(meta)，
-     *   玩家之后掀幕重建本局都不掉档位/奖励。
-     *   三项都带 ascension:true，供 ascensionTierCount 计入「每档 +10% 飞升点」通用奖励
+     *   掀幕重建本局都不掉档位/奖励。
+     *   六项都带 ascension:true，供 ascensionTierCount 计入「每档 +10% 飞升点」通用奖励
      *   （挂 prestige.veilPeriod().points，绝不碰轮回点的 challengePointMul）。
      *   平台榜单 / 成就 ID 均暂不建：不填 rankKey（不提交不存在的榜）；achievementKey 只记本地账本。 */
     { id: 'veil_rush', achievementKey: 'challengeVeilRush', name: '飞升竞速', icon: '⏳', badge: 'assets/challenges/challenge-veil-sprint-illustrated.png', kind: '三档限时挑战',
@@ -218,7 +221,7 @@
       summary: '在计时归零前研成《掀起帘幕》；退出游戏后计时仍继续。',
       rule: '从开始挑战起按现实时间计时，离线时间也计入；超时后本档不能领取竞速奖励。',
       rewards: ['永久星屑获取 +10%', '永久星屑获取 +20%', '永久星屑获取 +30%'],
-      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
       tiers: [
         { label: '32 小时档', cap: 32 * 60 * 60 },
         { label: '16 小时档', cap: 16 * 60 * 60 },
@@ -229,7 +232,7 @@
       summary: '全产出被压低，仍需一路研成《掀起帘幕》。',
       rule: '本轮全产出降低，直至研成《掀起帘幕》。',
       rewards: ['全产出 +20%', '全产出 +40%', '全产出 +60%'],
-      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
       tiers: [
         { label: '第一档', cap: 0.20 },
         { label: '第二档', cap: 0.40 },
@@ -240,7 +243,7 @@
       summary: '星屑结算收益被压低，仍需一路研成《掀起帘幕》。',
       rule: '本轮破壳星屑结算收益降低，直至研成《掀起帘幕》。',
       rewards: ['每次飞升初始给 20 星屑', '每次飞升初始给 40 星屑', '每次飞升初始给 60 星屑'],
-      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
       tiers: [
         { label: '第一档', cap: 0.20 },
         { label: '第二档', cap: 0.40 },
@@ -258,21 +261,21 @@
       summary: '弃绝一切信条与信仰之助，以无神之身抵达帘幕之后。',
       rule: '全程不得装备任何信条；信仰的两条全产加成（局内存量档 + 跨局旧日信仰档）均失效。',
       reward: '永久信仰产出 +50% · 信条抽选多一个候选（三选一变四选一）',
-      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
       tiers: [{ label: '完成挑战', cap: null }] },
     { id: 'veil_turmoil', achievementKey: 'challengeVeilTurmoil', name: '动荡年代', icon: '🌊', badge: 'assets/challenges/challenge-veil-turmoil-illustrated.png', kind: '终局挑战',
       ascension: true,
       summary: '在最深的动荡里，依然把文明推向群星。',
       rule: '幸福度恒为最低档（动荡 ×0.80），奢侈品与奇观均无法抬升；直至研成《掀起帘幕》。',
       reward: '永久幸福度 +1',
-      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
       tiers: [{ label: '完成挑战', cap: null }] },
     { id: 'veil_cramped', achievementKey: 'challengeVeilCramped', name: '繁盛市场今在此', icon: '🏪', badge: 'assets/challenges/challenge-veil-cramped-illustrated.png', kind: '三档挑战',
       ascension: true,
       summary: '仓廪逼仄偏要开成繁盛市场，把有限空间用到极致。',
       rule: '全部有上限资源的仓储上限 −30% / −50% / −70%（科研点等无上限资源不受影响）。',
       rewards: ['仓储上限 +30%', '仓储上限 +50%', '仓储上限 +70%'],
-      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
       tiers: [
         { label: '第一档', cap: 0.30 },
         { label: '第二档', cap: 0.50 },
@@ -311,6 +314,19 @@
     var n = 0;
     for (var j = 0; j < DEFINITIONS.length; j++)
       if (DEFINITIONS[j].ascension) n += tierDone(DEFINITIONS[j].id, meta);
+    return n;
+  }
+  /* 轮回挑战专属档位计数（2026-11-22 用户拍板选项 4B）：只数**不带** ascension 的挑战
+   * （17 项 / 29 档），供「每档 +10% 轮回点获取」用（prestige.breakReport 的
+   * challengePointMul）。
+   * ⚠️ 与 ascensionTierCount 互补：两者相加才等于 completedCount。
+   * ⚠️ 改前 pointMul 走 completedCount，把飞升挑战的 14 档也数进去了 ⇒ 飞升挑战通关会
+   *   同时领「飞升点 +10%/档」和「轮回点 +10%/档」两份。用户拍板拆开：轮回点只认轮回
+   *   挑战，飞升点只认飞升挑战，两条账互不串味。 */
+  function prestigeTierCount(meta) {
+    var n = 0;
+    for (var j = 0; j < DEFINITIONS.length; j++)
+      if (!DEFINITIONS[j].ascension) n += tierDone(DEFINITIONS[j].id, meta);
     return n;
   }
   /* 挑战限制「是否仍生效」。2026-11-03 用户拍板：破壳不再自动解除限制 ——
@@ -552,10 +568,14 @@
     if (!a || a.id !== 'cold' || !SB.economy || !SB.economy.season) return false;
     return SB.economy.season(s).mult < 1;
   }
-  function goalMet(s, goal) {
+  /* veilDone（第三参）：仅由 prestige.doVeil() 掀幕成功那一瞬间显式传 true —— 表示
+   * 「玩家刚点了《掀起帘幕》按钮」。主循环 / 离线补算 / AI 都只传两参 ⇒ 恒 false。
+   * ⚠️ 绝不写进 s：award() 内部会 saveRun(s)，落盘的旗会在读档后让旧目标继续成立。 */
+  function goalMet(s, goal, veilDone) {
     if (!goal) return false;
     if (goal.t === 'all') {
-      for (var i = 0; i < (goal.of || []).length; i++) if (!goalMet(s, goal.of[i])) return false;
+      for (var i = 0; i < (goal.of || []).length; i++)
+        if (!goalMet(s, goal.of[i], veilDone)) return false;
       return true;
     }
     if (goal.t === 'built') return !!(s.lvl && (s.lvl[goal.b] || 0) >= goal.n);
@@ -579,10 +599,11 @@
       var ow = SB.wonder && SB.wonder.owned ? SB.wonder.owned(s) : {};
       return (goal.ids || []).every(function (id) { return !!ow[id]; });
     }
-    /* 飞升挑战终点（2026-11-20）：读本局科技旗 s.techs[id]，研成瞬间即成立。
-     * ⚠️ 只读 s.techs，不读 s.dysonDone —— 虚境飞升不算本系列终点。
-     * ⚠️ 这是 goal 引擎新增的唯一分支，现有 7 种 goal 求值未变。 */
-    if (goal.t === 'tech') return !!(s.techs && s.techs[goal.id]);
+    /* 飞升挑战终点（2026-11-21 用户拍板改回掀幕）：只有玩家点《掀起帘幕》按钮
+     * 成功掀幕、doVeil() 显式传 veilDone=true 时才成立。研成科技本身不再是终点
+     * （v0.3 的 {t:'tech',id:'beyond_veil'} 判定已废）。
+     * ⚠️ 不读 s.dysonDone —— 虚境飞升不算；研成但没掀幕也不算。 */
+    if (goal.t === 'veil') return veilDone === true;
     return false;
   }
   /* ── goal 型挑战的通用结算（2026-11-02 泛化）────────────────────────────────
@@ -598,7 +619,7 @@
    * ⚠️ 副作用若写在**本局**（s.xxx）上，onComplete 里还得自己 saveRun —— 见下面那段注。
    * ⚠️ 重复达成（replay）分支**一个字都不写账本**：meta.challenges.completed 保持原值
    *   ⇒ completedCount() 不变 ⇒「每档 +10% 轮回点获取」不会被重复领取（用户定案 R）。 */
-  function award(s, meta) {
+  function award(s, meta, veilDone) {
     var ch = s && s.challenge, d = ch && BY_ID[ch.id];
     if (!d || !d.goal || s.challengeDone) return null;
     /* 限时 goal 型（星海竞速）：超时即本档失败 —— 不发奖、不写账本、不上榜、不弹完成面板。
@@ -609,7 +630,7 @@
     var tier = Math.max(0, Math.min(d.tiers.length - 1, ch.tier | 0));
     var replay = ch.replay === true || tierDone(d.id, meta) >= d.tiers.length;
     if (replay) {
-      if (!goalMet(s, d.goal)) return null;
+      if (!goalMet(s, d.goal, veilDone)) return null;
       var replayOutcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
         reward: null, goalText: d.goalText, replay: true };
       s.challengeDone = true;
@@ -627,7 +648,7 @@
       }, '再次达成' + d.name + '：' + d.goalText + '。本局不重复发奖；如有对应排行榜，则会更新成绩。'));
       return replayOutcome;
     }
-    if (tier !== tierDone(d.id, meta) || !goalMet(s, d.goal)) return null;
+    if (tier !== tierDone(d.id, meta) || !goalMet(s, d.goal, veilDone)) return null;
     if (!meta.challenges) meta.challenges = emptyProgress();
     meta.challenges.completed = meta.challenges.completed || {};
     meta.challenges.completed[d.id] = d.tiers.length === 1 ? true : tier + 1;
@@ -688,9 +709,9 @@
     }
     return out;
   }
-  function evaluate(s, meta) {
+  function evaluate(s, meta, veilDone) {
     if (!s || !s.challenge || !meta) return null;
-    var out = award(s, meta);
+    var out = award(s, meta, veilDone);
     if (out) return out;
     /* 破壳型补判（2026-11-03）：破壳那一刻还没学《神学》⇒ resolveRun 直接返回 null，
      *   判定被挂起。补学之后在这里按破壳时冻下的 seal 补判一次 —— 判据仍是破壳瞬间的
@@ -965,7 +986,7 @@
   SB.challenges = {
     list: function () { return DEFINITIONS; }, byId: function (id) { return BY_ID[id] || null; },
     progress: progress, tierDone: tierDone, completedCount: completedCount,
-    ascensionTierCount: ascensionTierCount,
+    ascensionTierCount: ascensionTierCount, prestigeTierCount: prestigeTierCount,
     active: active, activeTier: activeTier,     ignorePopulationGates: ignorePopulationGates,
     bypassGovernmentGates: bypassGovernmentGates, governmentLocked: governmentLocked,
     warBlocked: warBlocked, warActionBlockedReason: warActionBlockedReason,

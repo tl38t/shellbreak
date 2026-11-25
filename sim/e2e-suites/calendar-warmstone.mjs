@@ -77,6 +77,19 @@ console.log('\n=== 历法读数与暖石开关 ===');
     check('暖石顶回减产（warmRelief 与 tech 收窄相加而非互斥，历法已不参与）',
       bothCh > withTech + 1e-9 && bothCh <= 1,
       '裸倍率 ' + withTech.toFixed(6) + ' → 暖石顶回 ' + bothCh.toFixed(6));
+
+    /* ④ 2026-11-22 论坛 bug：海潮占卜（relief 0.18）把暖流季 1.5 倍压成 1.41。
+     *    relief 的语义是「顶回多少减产」，只对 mult<1 有意义；原先对称套在两侧。
+     *    这里直接喂极端 relief（0.9）钉住：增产季无论 relief 多大都原样返回。 */
+    const warmIdx = SB.SEASONS.findIndex(x => x.mult > 1);
+    if (warmIdx >= 0) {
+      ss.t = SB.CFG.SEASON_TICKS * warmIdx;
+      const warmBare = SB.economy.season(ss.t).mult;
+      check('暖流季增产不被 relief 收窄（1.5 不得变 1.41）',
+        Math.abs(SB.economy.seasonMul(ss, 0) - warmBare) < 1e-12 &&
+        Math.abs(SB.economy.seasonMul(ss, 0.9) - warmBare) < 1e-12,
+        '裸=' + warmBare + ' / relief=0.9 → ' + SB.economy.seasonMul(ss, 0.9).toFixed(6));
+    }
   }
 
   /* 掌握之后同一格要换成有内容的读数（换的是文案，不是换一格）。

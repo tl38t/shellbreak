@@ -236,10 +236,45 @@
   }
   parts.challengeProgressLine = progressLine;
 
+  /* ── 二级分区：轮回挑战 / 飞升挑战（2026-11-22 用户拍板 1A·2A·3A）──────────
+   * 轮回挑战 = 不带 ascension 的 17 项 / 29 档；飞升挑战 = ascension:true 的 6 项 / 14 档。
+   * 痛点来源：页面 kicker 一直印着「轮回挑战」，网格里却混着 6 项终点为终局科技
+   * 《掀起帘幕》的飞升挑战 —— 玩家会误开「飞升苦旅」白打一整局（论坛 2026-11-21）。
+   * ⚠️ 视图状态必须存模块变量：面板每 2 秒被 PANE_REFRESH 整块重写 innerHTML，
+   *   存 DOM 上会被冲掉（与 civicView / workshopView 同一手法）。
+   * ⚠️ 默认停在「轮回挑战」（1A）：飞升挑战是进阶内容，不该抢首屏。 */
+  var challengeView = 'prestige';
+  function setChallengeView(view) {
+    if (view !== 'prestige' && view !== 'ascension') return false;
+    if (challengeView === view) return false;
+    challengeView = view;
+    return true;
+  }
+  function challengeGroupOf(def) { return def && def.ascension ? 'ascension' : 'prestige'; }
+  parts.setChallengeView = setChallengeView;
+
   function paneChallenges() {
     var s = SB.game.run(), m = SB.game.meta(), api = SB.challenges;
-    var list = api.list(), total = api.completedCount(m), active = api.active(s);
-    var orderedList = list.slice();
+    var list = api.list(), active = api.active(s);
+    var activeGroup = active ? challengeGroupOf(api.byId(active.id)) : null;
+    /* 两组各算一份：已通关档数 / 总档数。徽标与概览统计都吃这一份，避免两套口径。 */
+    var groups = {
+      prestige: { done: 0, total: 0 },
+      ascension: { done: 0, total: 0 }
+    };
+    var gi;
+    for (gi = 0; gi < list.length; gi++) {
+      var gdef = list[gi], gk = challengeGroupOf(gdef);
+      groups[gk].total += gdef.tiers.length;
+      groups[gk].done += api.tierDone(gdef.id, m);
+    }
+    var view = challengeView === 'ascension' ? 'ascension' : 'prestige';
+    var cur = groups[view], isAsc = view === 'ascension';
+
+    /* 排序列：进行中 → 可开 → 已完成（组内同序，不跨组比较）。 */
+    var orderedList = [];
+    for (gi = 0; gi < list.length; gi++)
+      if (challengeGroupOf(list[gi]) === view) orderedList.push(list[gi]);
     orderedList.sort(function (a, b) {
       function phase(def) {
         if (active && active.id === def.id) return 0;
@@ -251,21 +286,61 @@
       }
       return phase(a) - phase(b);
     });
-    var bonusPercent = total * 10;
+
+    var bonusPercent = cur.done * 10;
+    var ratioText = tr('ui.challenge.overview.tier_ratio', { done: cur.done, total: cur.total },
+      cur.done + ' / ' + cur.total + ' 档');
+    var rateLabel = isAsc ? tr('ui.challenge.overview.ascension_points', {}, '飞升点获取')
+      : tr('ui.challenge.overview.prestige_points', {}, '轮回点获取');
     var h = '<section class="challenge-overview"><div class="challenge-overview-title">' +
-      '<span class="challenge-kicker">' + tr('ui.challenge.panel.kicker', {}, 'PRESTIGE TRIALS') + '</span><h2>' +
+      '<span class="challenge-kicker">' + tr('ui.challenge.panel.kicker', {}, '挑战总览') + '</span><h2>' +
       tr('ui.challenge.panel.title', {}, '挑战') + '</h2><p>' +
       tr('ui.challenge.panel.intro', {}, '开启挑战会结算当前周目并立即开始新周目。各项挑战有各自的目标，达成后会立即结算永久奖励。') +
       '</p></div><div class="challenge-overview-stats"><div><small>' +
-      tr('ui.challenge.overview.challenges_cleared', {}, '挑战通关') + '</small><b>' + total +
-      '</b></div><div><small>' + tr('ui.challenge.overview.prestige_points', {}, '轮回点获取') +
+      tr('ui.challenge.overview.challenges_cleared', {}, '挑战通关') + '</small><b>' + ratioText +
+      '</b></div><div><small>' + rateLabel +
       '</small><b>' + tr('ui.challenge.overview.prestige_bonus', { bonusPercent: bonusPercent }, '+' + bonusPercent + '%') +
       '</b></div></div></section>';
 
+    /* 子标签：标签上带「已通关档数 / 总档数」（2A）。**另一个**标签里若有进行中的挑战
+     * 就亮红点（3A，沿用工坊页 .subtab.avail 的现成样式）——否则玩家切过去就找不到自己的局。
+     * ⚠️ 红点条件是 `activeGroup === v && !on`：只点「不住当前视图、但装着那局」的标签。
+     *   写成 `activeGroup !== v` 会把红点点在当前标签上，正是要避免的反向错误。 */
+    h += '<div class="panel-subtabs challenge-subtabs" role="group" aria-label="' +
+      tr('ui.challenge.subtabs.aria_label', {}, '挑战分区') + '">';
+    var views = ['prestige', 'ascension'];
+    for (gi = 0; gi < views.length; gi++) {
+      var v = views[gi], vc = groups[v], on = view === v;
+      h += '<button type="button" class="subtab' + (on ? ' on' : '') +
+        (activeGroup === v && !on ? ' avail' : '') +
+        '" data-challenge-view="' + v + '" aria-pressed="' + on + '">' +
+        (v === 'ascension' ? tr('ui.challenge.subtab.ascension', {}, '飞升挑战')
+          : tr('ui.challenge.subtab.prestige', {}, '轮回挑战')) +
+        '<span class="subcnt">' + vc.done + ' / ' + vc.total + '</span></button>';
+    }
+    h += '</div>';
+
+    /* 跨分区提示（3A）：进行中的挑战在另一组时，本组顶部给一条窄条 + 「查看」直达，
+     * 解决「切过去看不到自己那局」的困惑。 */
+    if (active && activeGroup && activeGroup !== view) {
+      var ad = api.byId(active.id);
+      var adTier = Math.max(0, Math.min(Number(active.tier) || 0, ad.tiers.length - 1));
+      var adName = definitionText(ad, 'name'), adTierName = definitionText(ad, 'tierLabel', adTier);
+      h += '<div class="challenge-cross"><span>' +
+        tr('ui.challenge.cross.active_notice', { challengeName: adName, tierName: adTierName },
+          '进行中：' + adName + ' · ' + adTierName) + '</span>' +
+        '<button type="button" class="btn challenge-cross-view" data-challenge-view="' + activeGroup + '">' +
+        tr('ui.challenge.cross.view', {}, '查看') + '</button></div>';
+    }
+
     if (!active) {
-      /* 当前进度只显示在对应挑战卡中；没有进行中的挑战时，保留一次性规则说明。 */
-      h += '<div class="challenge-howto">' +
-        tr('ui.challenge.overview.bonus_info', { bonusPercent: 10 }, '每档挑战首次通关都会让之后的轮回点获取永久提高 10%。分档挑战必须逐档完成。') +
+      /* 当前进度只显示在对应挑战卡中；没有进行中的挑战时，保留一次性规则说明。
+       * 两个分区的通用奖励口径不同（轮回点 vs 飞升点），文案必须跟着切。 */
+      h += '<div class="challenge-howto">' + (isAsc
+        ? tr('ui.challenge.overview.bonus_info_ascension', { bonusPercent: 10 },
+          '每档飞升挑战首次通关都会让之后的飞升点获取永久提高 10%。分档挑战必须逐档完成。')
+        : tr('ui.challenge.overview.bonus_info', { bonusPercent: 10 },
+          '每档挑战首次通关都会让之后的轮回点获取永久提高 10%。分档挑战必须逐档完成。')) +
         '</div>';
     }
 

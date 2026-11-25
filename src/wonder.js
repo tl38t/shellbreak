@@ -22,6 +22,10 @@
     for (i = 0; i < L.length; i++) if (L[i].id === id) return L[i];
     return null;
   }
+  function translate(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
   var THRONE_GOV = {
     theo_state: { name: '至高圣座', effect: '信仰产出 +10%' },
     egalitarianism: { name: '太空共同体', effect: '工坊工艺效率 +10%' },
@@ -35,14 +39,84 @@
   }
   function displayDesc(s, id) {
     var w = byId(id);
+    if (w && id === 'synaptic_ganglion_modification') {
+      var bonus = darkmatterBonusPercent(s);
+      var value = (Math.round(bonus * 10) / 10).toString();
+      return translate('content.synaptic_ganglion_modification.description', { bonusPercent: value },
+        '暗物质产出 +' + value + '%；加成百分比为当前人口的十分之一。');
+    }
     if (!w || id !== 'wonder_throne') return w ? w.desc : '';
     var branch = s && THRONE_GOV[s.gov];
     if (!branch) return '空间站有效等级 +3（免费、不收差价）；当前政体未提供额外分支加成。';
     return '空间站有效等级 +3（免费、不收差价）；' + branch.effect + '。';
   }
   function owned(s) { return (s.wonders && typeof s.wonders === 'object') ? s.wonders : {}; }
+  function darkmatterBonusPercent(s) {
+    var w = byId('synaptic_ganglion_modification'), ratio = w && w.effect && Number(w.effect.darkmatterPerPopulation) || 0;
+    return Math.max(0, Number(s && s.pop) || 0) * ratio * 100;
+  }
+  function synapticDarkmatterMul(s) {
+    return owned(s).synaptic_ganglion_modification ? 1 + darkmatterBonusPercent(s) / 100 : 1;
+  }
+  function ringWarCostMul(s) {
+    var w = byId('era12_ring');
+    return owned(s).era12_ring && w && w.effect && typeof w.effect.militaryActionCostMul === 'number'
+      ? w.effect.militaryActionCostMul : 1;
+  }
+  function incomingInvasionSuccessMul(s) {
+    var w = byId('era12_ring');
+    return owned(s).era12_ring && w && w.effect && typeof w.effect.incomingInvasionSuccessMul === 'number'
+      ? w.effect.incomingInvasionSuccessMul : 1;
+  }
+  function researchCostMul() {
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var veil = meta && meta.veil;
+    if (!veil || !veil.answerMachineActive) return 1;
+    var w = byId('answer_machine');
+    return w && w.effect && typeof w.effect.researchCostMul === 'number' ? w.effect.researchCostMul : 1;
+  }
+  function onBuilt(s, id) {
+    if (id !== 'answer_machine') return false;
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    if (!meta || !meta.veil || typeof meta.veil !== 'object') return false;
+    if (meta.veil.answerMachinePending) return false;
+    meta.veil.answerMachinePending = true;
+    return true;
+  }
+  function onOrdinaryBreak(meta) {
+    var veil = meta && meta.veil;
+    if (!veil || typeof veil !== 'object') return false;
+    if (veil.answerMachinePending) {
+      veil.answerMachinePending = false;
+      veil.answerMachineActive = true;
+      return true;
+    }
+    if (veil.answerMachineActive) {
+      veil.answerMachineActive = false;
+      return true;
+    }
+    return false;
+  }
   function crustplateMineMul(s) { return owned(s).wonder_crustplate ? 1.3 : 1; }
   function terraCoreOwned(s) { return !!owned(s).wonder_terra_core; }
+
+  /* ERA11/12 恒星际移民船团 · 显示编号（2026-11-23 · spec §0 拍板 3）。
+   * 权威账本 = meta.armada.count（累计建造数，**真轮回 doBreak 才 +1**）；
+   * 本局编号 = hex(count + (本局已建?1:0))，16 进制递增（1,2,…,9,A,B,…）。
+   * ⚠️ 为什么实时从 meta 派生而不读 s.armadaNo：s.armadaNo 是**局内派生缓存**，
+   *    老档/软重置/读档回填都可能让它落后或为空（白名单重建只保类型不重算），
+   *    显示若读它会撒谎。这里从唯一真源现算，顺手把缓存回写（给存档/外部读），
+   *    显示只认本函数返回值 —— 与「清空式缓存必须能从权威态重建」纪律一致。
+   * ⚠️ 加成不读本函数、也不读 s.armadaNo：暗物质加成只读 meta.armada.bonusTenths
+   *    （见 economy.darkmatterOutMul），编号纯粹是给玩家看的字符串。 */
+  function armadaNoOf(s) {
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var count = (meta && meta.armada && Number(meta.armada.count)) || 0;
+    var builtThisRun = !!(s && owned(s).starship_armada);
+    var no = (Math.floor(count) + (builtThisRun ? 1 : 0)).toString(16).toUpperCase();
+    if (s) s.armadaNo = no;   // 回写缓存字段（仅显示用途，绝不当乘区源）
+    return no;
+  }
 
   /* ③ 奇观给市政点的那一截（**每秒绝对量**，不是乘区）。
    *    ⚠️ 为什么是绝对量而不是「市政点 +20%」：市政点总量很小（书手 0.15/人/秒），
@@ -253,7 +327,7 @@
     return m;
   }
 
-  /* ⑩ 国会大厦（ERA5 · 2026-10-02）：鲛人幸福度消耗 −10%（effect.happyConsume 求和后取 1−）。
+  /* ⑩ 共鸣议事堂（ERA5 · 2026-10-02）：鲛人幸福度消耗 −10%（effect.happyConsume 求和后取 1−）。
    *   与政体 govHappyConsumeMul（乘整段）同乘区，economy.happyBurn 读。多座叠加时 Math.max 防负。 */
   function happyConsumeMul(s) {
     var m = 0, i, o = owned(s), L = list();
@@ -489,7 +563,11 @@
 
   SB.wonder = {
     list: list, byId: byId, owned: owned, count: count,
+    armadaNoOf: armadaNoOf,
     displayName: displayName, displayDesc: displayDesc,
+    darkmatterBonusPercent: darkmatterBonusPercent, synapticDarkmatterMul: synapticDarkmatterMul,
+    ringWarCostMul: ringWarCostMul, incomingInvasionSuccessMul: incomingInvasionSuccessMul,
+    researchCostMul: researchCostMul, onBuilt: onBuilt, onOrdinaryBreak: onOrdinaryBreak,
     wonderCraftRatio: wonderCraftRatio, matMaxBonus: matMaxBonus,
     logisticsCraftRatio: logisticsCraftRatio, nationalLogisticsMul: nationalLogisticsMul,
     civicBonus: civicBonus, globalBonus: globalBonus,

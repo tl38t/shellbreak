@@ -3,22 +3,22 @@
  * 仅负责按原有层叠顺序加载模块；具体样式分布在同目录的分层文件中。
  * 修改任意模块后，请同步更新下方版本号和 HTML 的 main.css 版本号。
  */
-@import url("./00-core.css?v=141");
+@import url("./00-core.css?v=142");
 @import url("./10-tech-tree.css?v=140");
-@import url("./20-panels.css?v=141");
+@import url("./20-panels.css?v=142");
 @import url("./30-visual-polish.css?v=171");
 @import url("./40-atmosphere-theme.css?v=146");
-@import url("./50-module-polish.css?v=241");
+@import url("./50-module-polish.css?v=251");
 @import url("./60-star-map.css?v=1");
-@import url("./70-era-skins.css?v=19");
+@import url("./70-era-skins.css?v=43");
 @import url("./80-save-manager.css?v=8");
 @import url("./90-res-detail.css?v=1");
 /* 战争结果轻量提示（2026-11-11）：新增模块，排在 90 之后、onboarding 之前。 */
 @import url("./95-war-toast.css?v=1");
 @import url("./96-heritage.css?v=3");
-@import url("./97-faith-parchment.css?v=13");
+@import url("./97-faith-parchment.css?v=14");
 /* 随行资源面板（2026-11-16）：常驻 FAB + 常驻弹窗，放在 onboarding 之前，保持引导层最高。 */
 @import url("./98-walk-panel.css?v=7");
 /* 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层操作弹窗 + 硅基装配台。 */
-@import url("./99-veil.css?v=17");
+@import url("./99-veil.css?v=18");
 @import url("./onboarding.css?v=2");

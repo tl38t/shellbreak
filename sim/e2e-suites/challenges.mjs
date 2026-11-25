@@ -576,6 +576,26 @@ export function run({ SB, check, noop }) {
     check('三次挑战通关会让轮回点获取永久 +30%',
       SB.prestige.breakReport(SB.state.freshRun(false)).challengePointMul === 1.3);
 
+    /* 4B（2026-11-22 用户拍板）：轮回点只认**轮回挑战**，飞升挑战档位不进 challengePointMul。
+     * 改前 challengePointMul 走 completedCount，把飞升挑战的 14 档也数进去 ⇒ 飞升挑战通关
+     * 会同时领「飞升点 +10%/档」和「轮回点 +10%/档」两份。这里锁三件事：
+     *   ① 两个计数互补且等于 completedCount；
+     *   ② 加上飞升档位后 completedCount 上升，但 challengePointMul 一动不动；
+     *   ③ 轮回点倍率确实由 prestigeTierCount 驱动（不是碰巧相等）。 */
+    const mulNonAsc = SB.prestige.breakReport(SB.state.freshRun(false)).challengePointMul;
+    meta.challenges.completed.veil_rush = 2;
+    meta.challenges.completed.veil_abyss = 1;
+    const preCnt = SB.challenges.prestigeTierCount(meta);
+    const ascCnt = SB.challenges.ascensionTierCount(meta);
+    const allCnt = SB.challenges.completedCount(meta);
+    const mulWithAsc = SB.prestige.breakReport(SB.state.freshRun(false)).challengePointMul;
+    check('4B 拆分：轮回点倍率只数轮回挑战，飞升挑战档位不计入（两条账不串味）',
+      preCnt === 3 && ascCnt === 3 && allCnt === 6
+        && mulNonAsc === 1.3 && mulWithAsc === 1.3
+        && Math.abs(mulWithAsc - (1 + 0.1 * preCnt)) < 1e-9,
+      'prestigeTier=' + preCnt + ' ascensionTier=' + ascCnt + ' completed=' + allCnt
+        + ' mul=' + mulNonAsc + '→' + mulWithAsc);
+
     meta.challenges = empty();
     const trial = SB.state.freshRun(false);
     trial.challenge = { id: 'abyss', tier: 0 };
@@ -877,6 +897,56 @@ export function run({ SB, check, noop }) {
         challenge: { id: 'small', tier: 0 }, broken: false });
       check('迁移：还在挑战途中的老档保持受限', midRun.challengeReleased === false,
         'released=' + midRun.challengeReleased);
+    }
+    {
+      /* 2026-11-25 验收 PR#1：安那其禁装卡读档清槽 + 一次性提示。 */
+      const anarchyRaw = SB.state.freshRun(false);
+      anarchyRaw.gov = 'theocracy';
+      anarchyRaw.civics.mobilization = true;
+      anarchyRaw.civics.void_faith = true;
+      anarchyRaw.cards = ['card_heat_priority', 'card_cycle_terminus'];
+      anarchyRaw.challenge = { id: 'anarchy', tier: 0 };
+      const active = SB.state.migrateRun(JSON.parse(JSON.stringify(anarchyRaw)));
+      const single = SB.state.migrateRun({ ...anarchyRaw, cards: undefined, card: 'card_heat_priority' });
+      const completed = SB.state.migrateRun({ ...anarchyRaw, challengeDone: true });
+      const other = SB.state.migrateRun({ ...anarchyRaw, challenge: { id: 'pacifist', tier: 0 } });
+      const normal = SB.state.migrateRun({ ...anarchyRaw, challenge: null });
+      /* 夹具口径照 PR 原测试：生产写入 freshRun + civics 旗，效果乘区直接从权威态读。 */
+      check('★ 安那其旧档读档卸下禁装卡、保留终末卡且加成随之失效',
+        active.cards[0] === null && active.card === null &&
+        active.cards[1] === 'card_cycle_terminus' && single.cards[0] === null &&
+        SB.civic.cardHydroMul(active) === 1 && SB.civic.cardFaithAllProdDouble(active) === 2 &&
+        SB.civic.cardHydroMul(completed) === 2,
+        'cards=' + JSON.stringify(active.cards));
+      check('迁移只记录真正被挑战禁装卸下的卡',
+        active._unseatedChallengeCards && active._unseatedChallengeCards.length === 1 &&
+        active._unseatedChallengeCards[0] === 'card_heat_priority' &&
+        single._unseatedChallengeCards && single._unseatedChallengeCards[0] === 'card_heat_priority' &&
+        [completed, other, normal].every(x => !x._unseatedChallengeCards),
+        'unseated=' + JSON.stringify(active._unseatedChallengeCards));
+      check('读档清槽提示一次性消费且不留临时字段',
+        SB.game.reportUnseatedChallengeCards(active) === true &&
+        !active._unseatedChallengeCards &&
+        SB.game.reportUnseatedChallengeCards(active) === false &&
+        [single, completed, other, normal].every(x => !SB.game.reportUnseatedChallengeCards(x)));
+      /* 结算快照文案的「当前译文 / 旧文案」取舍：严格相等守卫保护历史成绩。 */
+      const outcomeText = SB.ui.render.challengeOutcomeText;
+      SB.i18n.setLocale('en-US');
+      const def = api.byId('conqueror');
+      const current = outcomeText({ id: def.id, tier: 0, label: def.tiers[0].label,
+        reward: api.rewardFor(def, 0), goalText: def.goalText });
+      check('结算快照与现行定义一致时套用当前译文',
+        current.name === SB.challenges.displayText(def, 'name') &&
+        current.reward === SB.challenges.displayText(def, 'reward', 0) &&
+        current.goalText === SB.challenges.displayText(def, 'goalText') &&
+        !/[\u4e00-\u9fff]/.test(current.reward + current.goalText),
+        'reward=' + current.reward + ' goal=' + current.goalText);
+      const stale = outcomeText({ id: def.id, tier: 0, label: def.tiers[0].label,
+        reward: '旧版奖励 +999%', goalText: '旧版通关条件' });
+      check('旧快照与现行定义不符时保留旧文案（历史成绩不被改写）',
+        stale.reward === '旧版奖励 +999%' && stale.goalText === '旧版通关条件',
+        'reward=' + stale.reward + ' goal=' + stale.goalText);
+      SB.i18n.setLocale('zh-CN');
     }
     {
       /* 2026-11-03：水体污染 2026-11-02 实装时**漏了成就条目**（achv.js 无定义 + CFG.ACHV 无键

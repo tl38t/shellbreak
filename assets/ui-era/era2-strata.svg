@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="180" viewBox="0 0 480 180" fill="none">
+  <!-- broad basalt shelves: uneven slabs and their chipped, broken edges -->
+  <g>
+    <path d="M0 0h480v17l-34 6-39-5-28 12-46-4-31 11-44-7-38 10-42-4-29 8-44-8-34 5-38-8-31 7-33-6V0Z" fill="#89938e" fill-opacity=".14"/>
+    <path d="m0 46 34-6 30 8 46-5 29 7 39-10 44 4 38-8 46 6 33-11 47 3 36-10 38 4 40-7v33l-38 7-33-5-31 10-44-5-35 11-44-7-37 9-36-6-30 9-44-7-37 7-34-8-41 5-34-7V46Z" fill="#5a6562" fill-opacity=".12"/>
+    <path d="m0 81 36 5 33-8 42 6 34-9 42 5 35-11 40 8 34-6 36 10 39-8 43 7 32-9 34 6v42l-32 5-41-8-37 7-35-9-38 10-44-5-30 9-45-8-37 7-38-9-36 8-34-8-35 5V81Z" fill="#89938e" fill-opacity=".105"/>
+    <path d="m0 133 34-7 38 8 34-6 37 8 43-10 36 7 35-9 40 7 39-11 38 8 35-5 39 8 32-7v64H0v-47Z" fill="#080f14" fill-opacity=".16"/>
+  </g>
+  <g stroke="#c4cec8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m0 47 34-6 30 8 46-5 29 7 39-10 44 4 38-8 46 6" stroke-opacity=".30" stroke-width="1.6"/>
+    <path d="m336 43 33-11 47 3 36-10 28 3" stroke-opacity=".25" stroke-width="1.6"/>
+    <path d="m0 82 36 5 33-8 42 6 34-9 42 5" stroke-opacity=".22" stroke-width="1.4"/>
+    <path d="m244 81 34-6 36 10 39-8 43 7 32-9 52 8" stroke-opacity=".23" stroke-width="1.4"/>
+    <path d="m0 132 34-6 38 8 34-6" stroke-opacity=".20" stroke-width="1.3"/>
+    <path d="m206 133 36-9 40 7 39-11 38 8" stroke-opacity=".21" stroke-width="1.3"/>
+    <path d="m119 28 13 8-8 11 12 8-7 12" stroke-opacity=".24" stroke-width="1.5"/>
+    <path d="m363 91-12 9 8 10-11 9" stroke-opacity=".20" stroke-width="1.4"/>
+    <path d="m83 145 10 7-7 10 9 8" stroke-opacity=".17" stroke-width="1.2"/>
+  </g>
+  <g stroke="#d9b56a" stroke-linecap="round" stroke-width="1.5" stroke-opacity=".30">
+    <path d="M75 45c17-3 28 1 42-2"/>
+    <path d="M339 128c13-2 22 1 34-1"/>
+  </g>
+  <g fill="#f0c875" fill-opacity=".48">
+    <circle cx="119" cy="43" r="1.7"/>
+    <circle cx="374" cy="126" r="1.6"/>
+  </g>
+</svg>

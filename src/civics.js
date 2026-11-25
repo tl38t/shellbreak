@@ -21,7 +21,7 @@
  *   必须有取舍，换卡收费才不是收了个寂寞。
  * · 树形：《法典》无 cost、无鼓舞，是根；《技艺》《神秘主义》《乡镇集会》都以它为前置，
  *   「珊瑚培育」挂在《技艺》下。新增支线不作为后续市政的前置，避免锁住主树。
- * · 政体：酋邦制（法典自带）+ 独裁/寡头/古典共和（由《政治哲学》解锁，三选一采用）。
+ * · 政体：酋邦制（法典自带）+ 独裁/寡头/古典共治（由《政治哲学》解锁，三选一采用）。
  *   换政体机制（统一 1/5 收费、越权拦截、槽位配方）已落地，三种新政体立即生效，无需返工。
  */
 (function (root) {
@@ -209,18 +209,19 @@
   var MUL_FIELD = {
     card_drama: 'squareMul', card_theology: 'templeMul', card_records: 'libraryMul',
     /* 仓储容量链：中世纪集市 ×2 → 基础物流建设 ×3 → 洲际物流 ×5。 */
-    card_market: 'storeMul', card_logistics: 'storeMul', card_interlog: 'storeMul',
+    card_market: 'storeMul', card_logistics: 'storeMul', card_interlog: 'storeMul', card_brain_in_net: 'storeMul',
     /* 启蒙运动（2026-10-01 ERA4）：潮纹馆科技 +100%，与《历史记录》同字段（卡退役后不冲突）。 */
     card_enlightenment: 'libraryMul',
     /* ERA7（2026-10 实装）：神不在此卡——潮纹馆科技 ×3（替代启蒙运动的 ×2，启蒙退役后不冲突）。 */
     card_no_god_here: 'libraryMul',
     /* ERA5（2026-10-02）：政治经济学卡——歌剧院的官员市政点乘区 ×2.5（theaterMul）。 */
     card_political_econ: 'theaterMul',
-    /* ERA9（2026-10-20）：联邦枢密院卡**同时**给两个乘区（广场市政 ×4 + 歌剧院官员市政 ×4）。
+    /* ERA9（2026-10-20）：星海枢政院卡**同时**给两个乘区（广场市政 ×4 + 歌剧院官员市政 ×4）。
      * ⚠️ 这是本表唯一一张「一卡两乘区」的卡：原表强制一卡一字段（见 mulOfField 上方注：
      *   「squareMul 只乘带 squareMul 字段的卡」），单字段会让其中一个乘区**静默为 1**。
      *   故值允许数组，mulOfField 按请求的 field 逐项匹配，两区各自独立相乘互不串扰。 */
-    card_federal_privy: ['squareMul', 'theaterMul']
+    card_federal_privy: ['squareMul', 'theaterMul'],
+    card_pan_galactic_market: 'bankMerchantMul'
   };
   function policyMul(s, cardId) {
     if (!cardId) return 1;                       // 槽是空的（或还没这一项）⇒ 没有乘区
@@ -228,7 +229,7 @@
     if (!cd) return 1;                           // 装了一张不存在的卡：当没有，别让 NaN 往下走
     var f = MUL_FIELD[cardId];
     if (!f) return 1;
-    /* 与 mulOfField 同构：值可为单字段或字段数组（ERA9 联邦枢密院一卡两乘区）。
+    /* 与 mulOfField 同构：值可为单字段或字段数组（ERA9 星海枢政院一卡两乘区）。
      * 单卡语义下取第一个真正有数值的字段（缺失该字段的卡退化成 1，不产生 NaN）。 */
     var fl = (typeof f === 'string') ? [f] : f;
     for (var i = 0; i < fl.length; i++)
@@ -245,7 +246,7 @@
       id = arr[i]; if (!cardEffective(s, id)) continue;
       var _f = MUL_FIELD[id];
       if (!_f) continue;
-      /* 一卡可带多个乘区字段（ERA9 联邦枢密院：squareMul + theaterMul）。
+      /* 一卡可带多个乘区字段（ERA9 星海枢政院：squareMul + theaterMul）。
        * 值是字符串还是数组都要认：只有请求的 field 命中才乘，两区不互相串。 */
       var _fl = (typeof _f === 'string') ? [_f] : _f;
       if (_fl.indexOf(field) >= 0) {
@@ -325,7 +326,7 @@
   /* ── ERA4（2026-10-01 用户设计稿）· 各动态效果读数 ──
    * 统一纪律：只读 s.cards / s.gov / s.civics，没装/没采用 = 返回基准值（1 或 0），绝不污染产线。
    * 与 castleFaithMul / serfKelpMul 同构。 */
-  /* 商人共和国：幸福度消耗 −30%（happyConsumeMul 0.7）。economy.happyBurn 读。 */
+  /* 商贸同盟：幸福度消耗 −30%（happyConsumeMul 0.7）。economy.happyBurn 读。 */
   function govHappyConsumeMul(s) {
     var g = govById(s.gov);
     return (g && typeof g.happyConsumeMul === 'number') ? g.happyConsumeMul : 1;
@@ -437,8 +438,8 @@
     for (i = 0; i < arr.length; i++) o += cardHappyOffsetFor(s, arr[i]);
     return o;
   }
-  /* 神权政体：每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰（加在人口基础产出之上）。
-   * 仅当采用神权政体时生效。返回**绝对量**（与 FAITH_PER_POP 同单位，信仰/秒）。 */
+  /* 神权治理：每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰（加在人口基础产出之上）。
+   * 仅当采用神权治理时生效。返回**绝对量**（与 FAITH_PER_POP 同单位，信仰/秒）。 */
   function theoFaithBonus(s) {
     var g = govById(s.gov);
     var perAcademy = (g && typeof g.faithPerAcademy === 'number' ? g.faithPerAcademy : 0) + govPassiveCardSum(s, 'faithPerAcademy');
@@ -549,15 +550,29 @@
   function cardPlanetOutMul(s) { return cardFieldMul(s, 'planetOutMul'); }
   /* ── ERA9 市政（2026-10-20 实装）· 各动态效果读数 ──
    * 统一纪律：只读 s.cards / s.gov / s.civics，没装/没采用 = 返回基准值，绝不污染产线。 */
-  /* 星际联邦政体：全产 +10%（allOutMul）。economy.globalMul 末尾乘，覆盖珊瑚/石/金属/暖石/精铁/科技/市政点/藻食/地热/奢侈品。 */
+  /* 银河议会市政：全产 +20%（allOutMul）。globalMul 覆盖常规资源；奢侈品与信仰由各自结算口显式读取。 */
+  function galacticCouncilAllOutMul(s) {
+    var council = byId('galactic_council');
+    return (s && s.civics && s.civics.galactic_council && council
+      && typeof council.allOutMul === 'number') ? council.allOutMul : 1;
+  }
   function govAllOutMul(s) {
     var g = govById(s.gov);
-    return ((g && typeof g.allOutMul === 'number') ? g.allOutMul : 1) * cardFieldMul(s, 'allOutMul');
+    return galacticCouncilAllOutMul(s)
+      * ((g && typeof g.allOutMul === 'number') ? g.allOutMul : 1) * cardFieldMul(s, 'allOutMul');
+  }
+  function militaryOutputMul(s) {
+    var council = byId('galactic_council');
+    return (s && s.civics && s.civics.galactic_council && council
+      && typeof council.militaryOutputMul === 'number') ? council.militaryOutputMul : 1;
   }
   /* 寰宇教会政体：信仰产出 ×(faithMul) + 旧日信仰全产档 ×(oldFaithMul)。economy.faithRate / baseMul 读。 */
   function govFaithMul(s) {
     var g = govById(s.gov);
-    return ((g && typeof g.faithMul === 'number') ? g.faithMul : 1) * cardFieldMul(s, 'faithMul');
+    var council = byId('galactic_council');
+    var councilAllOut = s && s.civics && s.civics.galactic_council && council
+      && typeof council.allOutMul === 'number' ? council.allOutMul : 1;
+    return councilAllOut * ((g && typeof g.faithMul === 'number') ? g.faithMul : 1) * cardFieldMul(s, 'faithMul');
   }
   function govOldFaithMul(s) {
     var g = govById(s.gov);
@@ -696,7 +711,7 @@
     }
     return 0;
   }
-  /* 教权国：所有建筑每级 +1 信仰/秒（绝对量，加在 faithRate 末尾）。仅采用该政体时生效。 */
+  /* 圣座国：所有建筑每级 +1 信仰/秒（绝对量，加在 faithRate 末尾）。仅采用该政体时生效。 */
   function faithPerBuildingBonus(s) {
     var g = govById(s.gov);
     var per = (g && typeof g.faithPerBuilding === 'number' ? g.faithPerBuilding : 0) + govPassiveCardSum(s, 'faithPerBuilding');
@@ -706,23 +721,23 @@
       lv += (s.lvl[SB.BUILDINGS[_i].id] || 0);
     return lv * per;
   }
-  /* 平等主义：每名鲛人 +0.1% 工坊效率（加法乘区，叠进 govCraftRatio）。 */
+  /* 平权共治：每名鲛人 +0.1% 工坊效率（加法乘区，叠进 govCraftRatio）。 */
   function govCraftPerPop(s) {
     var g = govById(s.gov);
     return (g && typeof g.craftPerPop === 'number') ? g.craftPerPop * (s.pop || 0) : 0;
   }
-  /* 平等主义：每名鲛人 +0.1% 热液能产出（乘在 hydroAlloc 的 supply 上，返回乘区基准 1）。 */
+  /* 平权共治：每名鲛人 +0.1% 热液能产出（乘在 hydroAlloc 的 supply 上，返回乘区基准 1）。 */
   function govHydroPerPop(s) {
     var g = govById(s.gov);
     return 1 + ((g && typeof g.hydroPerPop === 'number' ? g.hydroPerPop : 0) + govPassiveCardSum(s, 'hydroPerPop')) * (s.pop || 0);
   }
-  /* 平等主义：每名鲛人 +0.1% 矿井产出（叠进 mineTaxMul，tick/rates 同源，返回乘区基准 1）。 */
+  /* 平权共治：每名鲛人 +0.1% 矿井产出（叠进 mineTaxMul，tick/rates 同源，返回乘区基准 1）。 */
   function govMinePerPop(s) {
     var g = govById(s.gov);
     var m = ((g && typeof g.minePerPop === 'number' ? g.minePerPop : 0) + govPassiveCardSum(s, 'minePerPop')) * (s.pop || 0);
     return 1 + m;
   }
-  /* 联邦制：科技/市政产出 +10%（乘区，与 cardOutMul 同乘区相乘返回基准 1）。 */
+  /* 盟约制：科技/市政产出 +10%（乘区，与 cardOutMul 同乘区相乘返回基准 1）。 */
   function govCivicOutMul(s) {
     var g = govById(s.gov);
     return (g && typeof g.civicOutMul === 'number') ? g.civicOutMul : 1;
@@ -731,7 +746,7 @@
     var g = govById(s.gov);
     return (g && typeof g.sciOutMul === 'number') ? g.sciOutMul : 1;
   }
-  /* 联邦制：鲛人食物消耗 −10%（返回减耗比例，foodUse 乘以 (1 − 此值)）。 */
+  /* 盟约制：鲛人食物消耗 −10%（返回减耗比例，foodUse 乘以 (1 − 此值)）。 */
   function govMermanFoodMul(s) {
     var g = govById(s.gov);
     var keep = 1 - (g && typeof g.mermanFoodMul === 'number' ? g.mermanFoodMul : 0);
@@ -959,9 +974,8 @@
   /* 树形揭示按市政研究推进：完成某纪元任意一项市政，即展开下一纪元的节点骨架。
    * 这是显示范围，不替代 civic.blocked() 的科技纪元门槛，也不代替 boost 对名称/效果的揭示。 */
   function visibleEra(s) {
-    /* ERA11（α）只有终极科技、无市政树——若按 SB.ERAS.length=11 循环会渲染出空的
-     * 「第 11 纪元」分页（ERA11 spec §6）。上限夹到「有市政的最大纪元」= 10。 */
-    var maxEra = Math.min(10, (SB.ERAS || []).length || 1), era = 1, hasCompleted;
+    /* 市政树随内容最多展开到 ERA12；旧存档只会推进到其已研究过的时代。 */
+    var maxEra = Math.min(12, (SB.ERAS || []).length || 1), era = 1, hasCompleted;
     while (era < maxEra) {
       hasCompleted = false;
       for (var i = 0; i < CIVICS.length; i++) {
@@ -1089,7 +1103,8 @@
     var mul = SB.challenges && SB.challenges.researchCostMul ? SB.challenges.researchCostMul(s) : 1;
     return (c && c.cost || 0) * mul
       * (SB.faith && SB.faith.civicCostMul ? SB.faith.civicCostMul(s) : 1)
-      * (SB.voidFx && SB.voidFx.domainCivicCostMul ? SB.voidFx.domainCivicCostMul() : 1);
+      * (SB.voidFx && SB.voidFx.domainCivicCostMul ? SB.voidFx.domainCivicCostMul() : 1)
+      * (SB.wonder && SB.wonder.researchCostMul ? SB.wonder.researchCostMul(s) : 1);
   }
   /* 返回 null 表示可以研究，否则返回「为什么不行」——这句会挂成灰按钮的 title。 */
   function blocked(s, c) {
@@ -1240,7 +1255,7 @@
     for (var i = 0; i < CIVICS.length; i++) {
       var c = CIVICS[i];
       /* ⚠️ 单值 `gov` 与复数 `govs` 都认：一个市政解锁一条政体（法典→酋邦制）
-       *    或多条政体（政治哲学→独裁/寡头/古典共和）。没解锁 = false，setGov 会拦。 */
+       *    或多条政体（政治哲学→独裁/寡头/古典共治）。没解锁 = false，setGov 会拦。 */
       if (c.gov === id) return !!(s.civics && s.civics[c.id]);
       if (c.govs && c.govs.indexOf(id) >= 0) return !!(s.civics && s.civics[c.id]);
     }
@@ -1275,7 +1290,7 @@
   }
   function govLuxuryMul(s)  { var g = govById(s.gov); return (g && typeof g.luxuryMul === 'number' ? g.luxuryMul : 1) * cardFieldMul(s, 'luxuryMul'); }
   function govHappyBonus(s) { var g = govById(s.gov); return (g && typeof g.happyBonus === 'number' ? g.happyBonus : 0) + cardFieldSum(s, 'happyBonus'); }
-  /* 君主制（2026-09-30）：礁栖核心建筑建造消耗 −10%。返回的是**乘数**（没采用 = 1），
+  /* 王权制（2026-09-30）：礁栖核心建筑建造消耗 −10%。返回的是**乘数**（没采用 = 1），
    * economy.costOf 对 zone==='core' 的建筑乘上它——显示与扣费同走 costOf，天然同源。 */
   function govBuildCostMul(s, bid) {
     var g = govById(s.gov);
@@ -1293,13 +1308,13 @@
     return (1 - currentSave) * Math.max(0, 1 - cardSave);
   }
 
-  /* ERA6（2026-10-12 实装）：三个新政体（教权国 / 平等主义 / 联邦制）采用时弹窗让玩家起名，
-   *   政体显示名 = 玩家起的名 + 后缀；城堡随政体更名（圣座居所 / 人民大厅 / 国会）。
-   *   ⚠️ 这套只认这三个 id，其它政体（酋邦制 / 独裁 / 寡头 / 古典共和 / 神权）不沾，
+  /* ERA6（2026-10-12 实装）：三个新政体（圣座国 / 平权共治 / 盟约制）采用时弹窗让玩家起名，
+   *   政体显示名 = 玩家起的名 + 后缀；城堡随政体更名（圣座居所 / 众生大厅 / 共鸣议事堂）。
+   *   ⚠️ 这套只认这三个 id，其它政体（酋邦制 / 独裁 / 寡头 / 古典共治 / 神权）不沾，
    *       它们的名字就是数据里的 name，没有「玩家起名」这一步。 */
-  var GOV_TITLE_SUFFIX = { theo_state: '教权国', egalitarianism: '联盟', federalism: '联邦',
-    interstellar_federation: '星际联邦', star_sea_coop: '星海共同体', universal_church: '寰宇教会' };
-  var GOV_CASTLE_NAME  = { theo_state: '圣座居所', egalitarianism: '人民大厅', federalism: '国会' };
+  var GOV_TITLE_SUFFIX = { theo_state: '圣座国', egalitarianism: '联盟', federalism: '同盟',
+    interstellar_federation: '群星盟约', star_sea_coop: '星海共融体', universal_church: '寰宇教会' };
+  var GOV_CASTLE_NAME  = { theo_state: '圣座居所', egalitarianism: '众生大厅', federalism: '共鸣议事堂' };
   function govTitleSuffix(id) { return governmentTitleSuffix(id); }
   /* 政体面板 / 顶栏用的「显示名」：新政体且已起名 ⇒ 玩家名 + 后缀；否则数据 name。 */
   function govTitleName(s) {
@@ -1446,13 +1461,19 @@
     return false;
   }
 
+  /* 2026-11-25 验收 PR#1：安那其挑战禁装判据抽出来供读档迁移复用（原来只写在 cardBlocked
+   * 里管「新装卡」，已在槽里的旧卡没人管 ⇒ 读档后禁装卡继续生效）。单一判据，两处共用。 */
+  function cardBlockedByChallenge(s, id) {
+    var active = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
+    return !!(active && active.id === 'anarchy' && id !== 'card_cycle_terminus');
+  }
+
   function cardBlocked(s, id, slot) {
     var clear = (id === null || id === undefined);
     if (!clear) {
       var p = policyById(id);
       if (!p) return '没有这张卡';
-      var activeChallenge = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
-      if (activeChallenge && activeChallenge.id === 'anarchy' && id !== 'card_cycle_terminus')
+      if (cardBlockedByChallenge(s, id))
         return '安那其主义挑战只允许装备「轮回之终末」';
       if (inSlot(s, id)) return null;                 // 已经在某槽里 ⇒ 幂等
       if (!cardOwned(s, id)) {
@@ -1465,6 +1486,13 @@
         if (p.govPassive) return '需先通关「美好旧日」并采用过「' + (govById(p.govPassive).name) + '」';
         var c = byId(p.civic);
         return '需先完成市政「' + (c ? c.name : '相关市政') + '」';
+      }
+      if (p.mutexGroup && s.cards) for (var mi = 0; mi < s.cards.length; mi++) {
+        if (mi === slot || !s.cards[mi] || s.cards[mi] === id) continue;
+        var selectedPolicy = policyById(s.cards[mi]);
+        if (selectedPolicy && selectedPolicy.mutexGroup === p.mutexGroup)
+          return tr('civic.policy.mutex.selected', { policyName: policyName(selectedPolicy) },
+            '已永久选择「' + policyName(selectedPolicy) + '」，不能装备互斥政策。');
       }
       if (p.govPassive && s.gov === p.govPassive)
         return '不能装备与当前政体同名的被动卡';
@@ -1648,7 +1676,7 @@
     s.govAdopted[id] = true;
     recordGovAdoption(id);
     /* ERA6（2026-10-12）：采用三个新政体之一且尚未起名 ⇒ 弹窗命名（采用 = 命名时机，
-     *   与用户规格「采用时弹窗命名、更名为 XX 教权国/联盟/联邦」一致）。无 DOM 环境
+     *   与用户规格「采用时弹窗命名、更名为 XX 圣座国/联盟/同盟」一致）。无 DOM 环境
      *   （e2e 沙箱）直接跳过，govName 留空不报错。采用其它政体不触发。 */
     if ((id === 'theo_state' || id === 'egalitarianism' || id === 'federalism')
         && !(s.govName && s.govName.trim())
@@ -1844,7 +1872,8 @@
     cardOwned: cardOwned, govOwned: govOwned,
     /* 2026-11-09：效果层与 UI 共用的「此刻是否生效 / 是否已退役」两个权威判据。 */
     cardEffective: cardEffective, cardRetired: cardRetired,
-    cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
+    cardBlocked: cardBlocked, cardBlockedByChallenge: cardBlockedByChallenge,
+    canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
     removeCard: removeCard, ensureCards: ensureCards, reseatCards: reseatCards,
     govFirstAdoptionFree: govFirstAdoptionFree,
     govBlocked: govBlocked, canSetGov: canSetGov, setGov: setGov,
@@ -1855,7 +1884,7 @@
     currentSlotType: currentSlotType,
     flow: flow, effectText: effectText, boostText: boostText,
     govCraftRatio: govCraftRatio, cardCraftRatio: cardCraftRatio, govLuxuryMul: govLuxuryMul, govHappyBonus: govHappyBonus,
-    /* ERA3（2026-09-30）：君主制的建造消耗乘数、仓储乘区、王权神授/农奴制的动态乘区。 */
+    /* ERA3（2026-09-30）：王权制的建造消耗乘数、仓储乘区、王权神授/农奴制的动态乘区。 */
     govBuildCostMul: govBuildCostMul, storeMul: storeMul,
     castleFaithMul: castleFaithMul, serfKelpMul: serfKelpMul, serfWarmMul: serfWarmMul,
     /* 三个乘区出口：政策卡的「效果 +100%」各自挂在卡的一个字段上，
@@ -1867,7 +1896,9 @@
     /* ERA8 市政（2026-10-18）：动态卡读数五件（见各函数头注）。 */
     dynFaithCardMul: dynFaithCardMul, cardFeverStarMul: cardFeverStarMul,
     civicFarsightStarMul: civicFarsightStarMul, cardPlanetOutMul: cardPlanetOutMul,
-    govAllOutMul: govAllOutMul, govFaithMul: govFaithMul, govOldFaithMul: govOldFaithMul,
+    govAllOutMul: govAllOutMul, galacticCouncilAllOutMul: galacticCouncilAllOutMul,
+    militaryOutputMul: militaryOutputMul,
+    govFaithMul: govFaithMul, govOldFaithMul: govOldFaithMul,
     cardResOutMul: cardResOutMul, cardPopFaithMul: cardPopFaithMul, cardWonderBuildSave: cardWonderBuildSave,
     cardBreakCoefMul: cardBreakCoefMul,
     cardWonderBuildSaveEra: cardWonderBuildSaveEra, cardFoodOutMul: cardFoodOutMul,

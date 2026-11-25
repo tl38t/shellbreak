@@ -121,7 +121,7 @@
   }
   function happyBurn(s) {
     /* /秒 总消耗 = 人口 × 每人消耗。rates 与 tick 共用（同式，防面板撒谎）。
-     * ERA4（2026-10-01）：商人共和国政体幸福度消耗 −30%（govHappyConsumeMul，乘整段）。
+     * ERA4（2026-10-01）：商贸同盟政体幸福度消耗 −30%（govHappyConsumeMul，乘整段）。
      * ⚠️ 2026-10-06：`happyCost` 的入参从 `s.happy` 改成 `happyMech(s)`（剥掉政体/奇观/卡
      *   的偏移）—— 与 tick 的 `_D` 逐项一致。加成不该让居民变贵，那笔账只在真实
      *   结算里算过一次，在这里再算一次就会与实际扣费对不上。
@@ -137,7 +137,7 @@
     return (s.pop || 0) * happyCost(happyMech(s))
       * luxDemandMul(s)                                                            // 2026-10-14 净系数（增耗三项 − 居民减耗，先抵消）
       * (SB.civic ? SB.civic.govHappyConsumeMul(s) : 1)
-      * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1)   // 政体：商人共和国 −30% / 奇观：国会大厦 −10%（政体·奇观乘区，不参与居民侧抵消）
+      * (SB.wonder ? SB.wonder.happyConsumeMul(s) : 1)   // 政体：商贸同盟 −30% / 奇观：共鸣议事堂 −10%（政体·奇观乘区，不参与居民侧抵消）
       /* ERA10 市政《节能减耗》（2026-10-20 用户表「居民幸福度消耗 +50%」）：居民侧增耗乘区 ×1.5。
        * ⚠️ 与上面两条减免是**同一乘区链相乘**（先各自成乘区，最后整体相乘），不做「先加后乘」抵消——
        *    用户表里它是独立的卡面代价，与政体/奇观给的减免互不吞并。
@@ -186,6 +186,7 @@
       /* ERA10（2026-10-20）：大统一方程全产轴同样罩奢侈品（与旧日信仰同在 baseMul 轴，
        * 用户表「除科技、市政、信仰之外的全产」字面包含它；与 happyStep 的 _S 同式）。 */
       * (SB.economy.unifiedMul ? SB.economy.unifiedMul(s) : 1)
+      * (SB.civic && SB.civic.galacticCouncilAllOutMul ? SB.civic.galacticCouncilAllOutMul(s) : 1)
       * (SB.civic ? SB.civic.govLuxuryMul(s) : 1)
       * (1 + SB.economy.upgSum(s, 'luxuryMul'))
       * SB.economy.bankMul(s)
@@ -269,12 +270,23 @@
     for (var i = 0; i < SB.COMPANIES.length; i++) if (SB.COMPANIES[i].res === res) return SB.COMPANIES[i];
     return null;
   }
-  function companyTierIndex(s, res) {
+  /* 公司运营的「等效时长」——「快速扩张」星屑 perk 把实际时长按 1/(1−expansion) 放大。
+   * ⚠️ 单一真源（2026-11-25 修）：等级判定与公司页进度条必须读同一个折算结果。
+   *    旧版公司页自己用原始 s.t−epoch 算等级/进度，而结算在这里折算了 perk，
+   *    导致买满 perk 后真实已升到全国级、面板仍显示地方级「还需 54 分钟」，
+   *    玩家反馈「公司升级后产出/仓储都没变化」。
+   * 返回 null = 公司未成立或已解散（对应 companyTierIndex 的 −1）。 */
+  function companyEffectiveElapsed(s, res) {
     var st = (s && s.companyState && s.companyState[res]) || null;
-    if (!st || !st.epoch || !(st.epoch > 0) || st.closed) return -1;
+    if (!st || !st.epoch || !(st.epoch > 0) || st.closed) return null;
     var elapsed = (s.t || 0) - st.epoch;
     var expansion = Math.max(0, Math.min(0.9, (s.perk && s.perk.starCompanyMaturity) || 0));
-    if (expansion > 0) elapsed /= (1 - expansion);
+    if (!(typeof expansion === 'number' && isFinite(expansion) && expansion > 0)) return elapsed;
+    return elapsed / (1 - expansion);
+  }
+  function companyTierIndex(s, res) {
+    var elapsed = companyEffectiveElapsed(s, res);
+    if (elapsed === null) return -1;
     var c = companyByRes(res);
     var tiers = (c && c.tiers) ? c.tiers : SB.COMPANY_TIERS;
     return SB.companyTierIndex ? SB.companyTierIndex(elapsed, tiers, s) : 0;
@@ -352,7 +364,8 @@
     happyBurn: happyBurn, happyCostPer: happyCostPer, happySupply: happySupply,
     happyMul: happyMul, happyOf: happyOf, happyTier: happyTier, HAPPY_TIERS: HAPPY_TIERS,
     happyTierList: happyTierList,
-    companyTierIndex: companyTierIndex, companyMul: companyMul, companyLuxMul: companyLuxMul,
+    companyTierIndex: companyTierIndex, companyEffectiveElapsed: companyEffectiveElapsed,
+    companyMul: companyMul, companyLuxMul: companyLuxMul,
     companyCraftRatio: companyCraftRatio, companyTechCostSave: companyTechCostSave,
     companyStorageMul: companyStorageMul
   };

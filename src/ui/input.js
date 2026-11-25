@@ -215,6 +215,30 @@
       return;
     }
 
+    /* 终末危机的军事行动：沿用战争行动规则，但由 war.js 跳过战利品/吞并奖励。 */
+    var crisisActionButton = d.crisisAction !== undefined ? t
+      : (t.closest ? t.closest('[data-crisis-action]') : null);
+    if (crisisActionButton && crisisActionButton.dataset && crisisActionButton.dataset.crisisAction) {
+      var crisisActionId = crisisActionButton.dataset.crisisAction;
+      var crisisResult = SB.war && SB.war.executeCrisisAction
+        ? SB.war.executeCrisisAction(s, crisisActionId) : null;
+      if (crisisResult && crisisResult.ok) {
+        var crisisActionNameKey = crisisActionId === 'raid' ? 'ui.war.action.raid'
+          : crisisActionId === 'invasion' ? 'ui.war.action.invasion' : 'ui.war.action.total_war';
+        var crisisOutcomeKey = crisisResult.outcome === 'greatSuccess' ? 'ui.war.outcome.great_success'
+          : crisisResult.outcome === 'success' ? 'ui.war.outcome.success' : 'ui.war.outcome.failure';
+        SB.game.renderAll();
+        SB.game.log(tr('ui.crisis.result.action', {
+          actionName: tr(crisisActionNameKey),
+          outcomeName: tr(crisisOutcomeKey),
+          scaleLoss: SB.economy.fmtAmt(Math.max(0, crisisResult.scaleBefore - crisisResult.scaleAfter)),
+          popLost: SB.economy.fmtAmt(crisisResult.popLost)
+        }));
+        if (crisisResult.defeated) SB.game.log(tr('ui.crisis.result.victory'));
+      } else SB.game.log(tr('ui.crisis.action.unavailable'));
+      return;
+    }
+
     /* 外交与战役页：事件委托处理敌国行动、软实力、商路和吞并。结算始终由 war.js 执行。 */
     var warActionButton = d.warAction !== undefined ? t
       : (t.closest ? t.closest('[data-war-action]') : null);
@@ -319,9 +343,13 @@
       return;
     }
 
-    /* 市政 / 工坊页内的二级标签是纯视图状态；由 render 模块保留跨 2 秒重绘的选择。 */
+    /* 市政 / 工坊 / 挑战页内的二级标签是纯视图状态；由 render 模块保留跨 2 秒重绘的选择。 */
     if (d.civicView) {
       if (SB.ui.render.setCivicView(d.civicView)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.challengeView) {
+      if (SB.ui.render.setChallengeView(d.challengeView)) SB.ui.render.renderPanes();
       return;
     }
     if (d.workshopView) {
@@ -838,6 +866,13 @@
       toggleLaunchMode(SB.game.run());
       return;
     }
+    /* ERA11 恒星锻炉（2026-11-24）：太阳星环暗物质档开关，复用 .btn.tog（同暖石/天穹钻机）。
+     * 只翻转 s.solarRingOn 一个字段；真正的产出/停 θ 判据在 economy.solarRingDarkFlowing，
+     * 下一 tick 生效。按钮在 render-pane-village 只在装了锻炉且有星环等级时出现，这里再守一道防改档。 */
+    if (d.solarRing !== undefined) {
+      toggleSolarRing(SB.game.run());
+      return;
+    }
     /* 三座发射场分别「开几级」：停用数只影响本场耗材、热液能与批次发射量，
      * 本场周期余数保留；全部停用时本场进度暂停。data-launch-dec 停一级，inc 开一级。 */
     if (d.launchInc || d.launchDec) {
@@ -927,9 +962,22 @@
       : (t.closest ? t.closest('[data-perk],[data-star-perk]') : null);
     if (perkBtn && perkBtn.dataset) {
       var perkId = perkBtn.dataset.perk, starPerkId = perkBtn.dataset.starPerk;
+      /* 2026-11-25：星屑节点点图标 = 看详情，不再直接买。节点按钮上的 data-star-perk
+       * 照旧保留（e2e 按它找节点），只把点击语义改到详情气泡。
+       * 已达上限 / 等待前置 / 星屑不足的节点也不再 disabled，照样能点开看完整说明。 */
+      if (starPerkId !== undefined && SB.ui.render && SB.ui.render.showStarPerkInfo) {
+        SB.ui.render.showStarPerkInfo(starPerkId, perkBtn);
+        return;
+      }
       if (perkId !== undefined && SB.prestige.buyPerk(perkId)) {
         SB.game.markDirty(); SB.game.renderAll();
-      } else if (starPerkId !== undefined && SB.prestige.buyStarPerk(starPerkId)) {
+      }
+      return;
+    }
+    /* 详情气泡里的「点亮 · ✧N」：唯一真正扣星屑的入口，仍走同一个 buyStarPerk。 */
+    if (d.starPerkBuy !== undefined) {
+      if (SB.prestige.buyStarPerk(d.starPerkBuy)) {
+        SB.ui.render.hideModal();
         SB.game.markDirty(); SB.game.renderAll();
       }
       return;
@@ -1189,8 +1237,12 @@
      * 泰拉/瑞亚星发射场建好后同一个钮也生效（三座共用 s.launchMode，同一套制造体系）。 */
     if (!s || !(SB.economy && SB.economy.launchLvl && SB.economy.launchLvl(s) > 0)) return false;
     if (!(s.techs && s.techs.adiabatic)) return false;
-    var node = s.launchMode === 'node';
-    s.launchMode = node ? 'sail' : 'node';
+    /* ERA11（2026-11-24 用户拍板顺序）：复用同一个单钮，双态翻转扩成三态循环
+     *   sail → node → probe → sail。「下一档」与按钮文案共用 economy.launchNextMode，
+     *   两处绝不各写一份（三处同源铁律）。 */
+    var next = SB.economy.launchNextMode ? SB.economy.launchNextMode(s)
+      : (s.launchMode === 'sail' ? 'node' : 'sail');
+    s.launchMode = next;
     if (SB.economy.resetLaunchProcs) SB.economy.resetLaunchProcs(s);
     SB.game.markDirty(); SB.game.renderAll();
     var _launchMaterial = SB.economy.launchMaterialPer ? SB.economy.launchMaterialPer(s) : {};
@@ -1203,9 +1255,25 @@
       hydrothermalRate: _launchHydro,
       cycleSeconds: SB.economy.launchCycleOf ? SB.economy.launchCycleOf(s) : 10
     };
-    SB.game.log(node
-      ? tr('ui.log.launch_mode.solar_sail', _launchParams)
-      : tr('ui.log.launch_mode.dyson_node', _launchParams));
+    SB.game.log(tr(next === 'probe' ? 'ui.log.launch_mode.probe'
+      : next === 'node' ? 'ui.log.launch_mode.dyson_node'
+      : 'ui.log.launch_mode.solar_sail', _launchParams));
+    return true;
+  }
+
+  /* ── ERA11 恒星锻炉：太阳星环暗物质档开关 ──────────────────────────
+   * 门控与 render-pane-village 的按钮显示条件、economy.solarRingDarkActive 三件套同源：
+   * 必须装了 upg_stellar_forge 且有太阳星环等级。只翻转 s.solarRingOn，不碰 hot 路径。
+   * ⚠️ 缺料退回 θ 的判据在 economy.solarRingDarkFlowing，这里不重复算；下一 tick 自动生效。 */
+  function toggleSolarRing(s) {
+    if (!s || !(s.upgrades && s.upgrades.upg_stellar_forge)) return false;
+    if (!((s.lvl && s.lvl.solar_ring || 0) > 0)) return false;
+    s.solarRingOn = !s.solarRingOn;
+    SB.game.markDirty(); SB.game.renderAll();
+    SB.game.log(tr(s.solarRingOn
+      ? 'ui.log.solar_ring.dark.started'
+      : 'ui.log.solar_ring.dark.stopped', null,
+      s.solarRingOn ? '太阳星环已切换到暗物质档。' : '太阳星环已切回原 θ 产出。'));
     return true;
   }
 
@@ -1339,7 +1407,7 @@
      *   函数本体已删、导出却还引用 ⇒ IIFE 末尾 ReferenceError ⇒ SB.ui.input 整块没赋上值 ⇒
      *   main.js:10 `SB.ui.input.boot()` 跟着崩 ⇒ 页面只剩空壳（资源/巢穴面板全空）。 */
     boot: boot, toggleSkydrill: toggleSkydrill, toggleDrillMul: toggleDrillMul, toggleGeek: toggleGeek,
-    toggleLaunchMode: toggleLaunchMode,
+    toggleLaunchMode: toggleLaunchMode, toggleSolarRing: toggleSolarRing,
     isFolkControlPointerActive: isFolkControlPointerActive
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -213,10 +213,12 @@
       '<strong>' + tr('ui.workshop.crafting.efficiency_label', null, '工艺制作效率') + ' <b>+' + (((SB.workshop.craftMul(s, {id:'__global__'}) || 1) - 1) * 100).toFixed(0) + '%</b></strong></div>' +
       '<div class="workshop-done-toggle">' + hideDoneBtn(s) + '</div></div></div>';
     if (workshopView === 'upgrades') {
+      var professionalRows = paneToolRows(s, true) + paneUpgradeRows(s, 'professional-tools');
+      if (!professionalRows) professionalRows = paneToolRows(s);
       return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.tools.section_title', null, '职业工具') + '</b>' +
-        '<small>' + tr('ui.workshop.tools.section_note', null, '买断后持续生效；每件工具只作用于对应职业。') + '</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
+        '<small>' + tr('ui.workshop.tools.section_note', null, '买断后持续生效；每件工具只作用于对应职业。') + '</small></header><div class="workshop-grid">' + professionalRows + '</div></section>' +
         '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.upgrades.section_title', null, '工坊升级') + '</b>' +
-        '<small>' + tr('ui.workshop.upgrades.section_note', null, '一次装填，永久生效。') + '</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
+        '<small>' + tr('ui.workshop.upgrades.section_note', null, '一次装填，永久生效。') + '</small></header><div class="workshop-grid">' + paneUpgradeRows(s, 'general') + '</div></section>' +
         (hideDone() ? '<div class="note">' + tr('ui.workshop.hide_completed.upgrades_note', null, '已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。') + '</div>' : '') +
         '<div class="note">' + tr('ui.workshop.upgrades.management_note', null, '工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。') + '</div>';
     }
@@ -412,7 +414,22 @@
     }, '') : '自动制作槽 <b>' + used + '/' + cap + '</b>：' +
       '全部原料有上限的配方：任一原料攒到「上限 × 所选档位」时自动转制，转制当时可造量的该档位%（25 / 50 / 75 / 100%），转完跌回档位以下再攒；' +
       '含无上限原料的配方：沿用批次自动制造，库存够造指定数量时造一整批，多出的材料保留。';
-    return '<div class="note">' + summary + '</div>';
+    var html = '<div class="note">' + summary + '</div>';
+    /* 2026-11-25 验收 PR#1：列出「占着槽但本周目造不了」的配方并给一键停用按钮。
+     * ⚠️ 标题用 locked_occupied 而非旧的 assigned：这份清单只列未解锁的，不是全部占用槽。 */
+    var lockedRows = '';
+    for (var i = 0; i < slots.length; i++) {
+      var slot = slots[i], recipe = SB.workshop.craftById(slot.id);
+      if (!SB.workshop.craftHasPrereqBlock(s, recipe)) continue;
+      var name = recipe ? localizedItemName('craft', recipe) : tr('workshop.craft.recipe.unavailable');
+      lockedRows += '<li><span>' + escAttr(name) + '</span><small>' + tr('ui.workshop.automation_slots.locked_this_run') +
+        '</small><button type="button" class="btn tog" data-aoff="' + escAttr(slot.id) + '" aria-label="' +
+        escAttr(tr('ui.workshop.automation_slots.disable_named', { recipe: name })) + '">' +
+        tr('ui.workshop.automation_slots.disable.button') + '</button></li>';
+    }
+    if (!lockedRows) return html;
+    return html + '<section class="assigned-crafts"><strong>' + tr('ui.workshop.automation_slots.locked_occupied') +
+      '</strong><ul>' + lockedRows + '</ul></section>';
   }
 
   function paneWorkshopLocked() {
@@ -422,7 +439,7 @@
         : '先把工坊立起来（' + SB.habitat.habitatName(SB.game.run()) + '页那一座），这里才会给出加工线。') + '</div></div>';
   }
 
-  function paneToolRows(s) {
+  function paneToolRows(s, bare) {
     var W = SB.workshop, h = '', i, shown = 0;
     for (i = 0; i < SB.TOOLS.length; i++) {
       var t = SB.TOOLS[i];
@@ -462,10 +479,10 @@
         '<button class="btn' + (owned || why ? '' : ' buy') + '" data-tool="' + t.id + '"' +
         (owned || why ? ' disabled' : '') + ' title="' + (whyText || '') + '">' + label + '</button></div>';
     }
-    if (!shown) return '<div class="row"><div class="nm">' +
+    if (!shown) return bare ? '' : '<div class="row"><div class="nm">' +
       tr(hideDone() && doneCount(s) > 0 ? 'ui.workshop.tool.empty.completed' : 'ui.workshop.tool.empty.available', null,
         hideDone() && doneCount(s) > 0 ? '（可买的都买完了）' : '（还没有可买的工具）') + '</div></div>';
-    return h + '<div class="note">' + (englishLocale() ? tr('ui.workshop.tools.requirement_note', null, '')
+    return bare ? h : h + '<div class="note">' + (englishLocale() ? tr('ui.workshop.tools.requirement_note', null, '')
       : '门槛是建成工坊本身，不是青铜术——青铜术是纪元一最贵的科技，等它解锁工具就晚到了。') + '</div>';
   }
 
@@ -477,10 +494,12 @@
    * ⚠️ 形态与上半区的工具最像（一次性装填、装完永久生效），但**存的地方不同**：
    *    工具存 s.tools、升级项存 s.upgrades —— 按「买断」这一语义分别归类，
    *    不共用一个键，将来查「这东西到底买没买」才不会串。 */
-  function paneUpgradeRows(s) {
+  function paneUpgradeRows(s, section) {
     var W = SB.workshop, L = W.upgrades(), h = '', i, shown = 0;
     for (i = 0; i < L.length; i++) {
       var u = L[i];
+      if (section === 'professional-tools' && u.workshopSection !== 'professional-tools') continue;
+      if (section === 'general' && u.workshopSection === 'professional-tools') continue;
       var on = !!(s.upgrades && s.upgrades[u.id]);
       var why = on ? null : W.upgradeBlocked(s, u.id);
       /* ⚠️ 2026-10-05：与工具同口径 —— ① hideDone 开着时跳过已装上的（先判开关）；
@@ -533,6 +552,7 @@
         '<div class="ds">' + _ds + '</div>' +
         '<div class="upgrade-actions">' + _buyBtn + _reqTip + _trackBtn + '</div></div>';
     }
+    if (!shown && section === 'professional-tools') return '';
     if (!shown) return '<div class="row"><div class="nm">' +
       tr(hideDone() && doneCount(s) > 0 ? 'ui.workshop.upgrade.empty.completed' : 'ui.workshop.upgrade.empty.available', null,
         hideDone() && doneCount(s) > 0 ? '（可装的都装完了）' : '（还没有可装的升级项）') + '</div></div>';

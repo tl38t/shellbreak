@@ -92,6 +92,12 @@
      *   exostruct 解锁资源显示（0/s）；实际产出由星空观测站升级（upg_starscope）每 tick +1 提供，耗 1 热液能。
      *   有 CAP_BASE.starExplore 上限键（1e9 占位，见 config.js CAP_BASE.starExplore；ERA7 完工后标定为太空时代结局阈值）。 */
     starExplore:{ name: '星空探索', short: '星', unlock: { tech: 'exostruct' }, storageEra: 6 },
+    /* ERA11（2026-11-21 · spec docs/ERA11_12_SPEC_v0.1.md §4/§5）：暗物质 —— 掀幕后高级制造材料，
+     *   唯一源头 = 深空探针 0.005/s；用于冷冻仓/相对论引擎/四升级/两奇观造价。
+     *   ⚠️ 有上限（不标 kind:'craft'）：CAP_BASE.darkmatter=10，压舱仓 +10/级、大灯塔后灯塔 +5/级。
+     *   storageEra=11 ⇒ 海潮方碑白名单不含、物流仓(era≤7)/城堡(era≤3)/三扩容(capEra≤6)全失效，
+     *   只走压舱仓+（大灯塔后）灯塔一条线（spec §5.1 可达性已静态验算）。 */
+    darkmatter: { name: '暗物质', short: '暗', unlock: { tech: 'deep_space' }, storageEra: 11 },
     /* 科技（科技点）：门控挂在「结绳」(writing) 上，而不是「书写」(scholarT)。
      * 学者职业由免费项结绳解锁、且科技面板在结绳完成时才开门——这正是玩家
      * 开始产出/消耗科技点的时点。若挂在 scholarT，整段前期（凿珊瑚/采石/种植/
@@ -226,7 +232,13 @@
      *   星屑商店门=首座轨道卫星建成，并写入跨周目永久解锁旗。 */
     rocketFuel:   { name: '燃料', short: '燃', kind: 'craft', unlock: { tech: 'refine' } },
     rocketEngine: { name: '火箭引擎', short: '引', kind: 'craft', unlock: { tech: 'crewed' } },
-    stardust:     { name: '星屑', short: '尘', unlock: { build: 'satellite' } }
+    stardust:     { name: '星屑', short: '尘', unlock: { build: 'satellite' } },
+    /* ERA11（2026-11-21 · spec §4）：冷冻仓 / 相对论引擎 —— 工艺制品，对标石梁口径
+     * （kind:'craft'、无 CAP_BASE 键 ⇒ capOf 恒 Infinity、不给 UNIT 键 ⇒ 只能工坊造）。
+     *   冷冻仓 = 暗物质 5 + θ金属 1000 → 1；相对论引擎 = 暗物质 3 + θ金属 500 → 1（见 CRAFTS）。
+     *   两者都是逆时屋/深空探针/船团/透孔仪的造价材料。unlock 挂各自科技。 */
+    cryoPod:          { name: '冷冻仓', short: '冻', kind: 'craft', unlock: { tech: 'omnitemporal_freeze' } },
+    relativisticEngine: { name: '相对论引擎', short: '擎', kind: 'craft', unlock: { tech: 'deep_space' } }
   };
 
   /* ── 工艺制作配方（2026-09-27 用户拍）───────────────────────────────
@@ -360,7 +372,18 @@
       in: { thetaMetal: 100 }, out: 1, res: 'thinafilm',
       /* 2026-10-18 市政表 H2：产出从折算 tiplate 改为独立资源 thinafilm——
        *   魔鱼世界VR 造价「薄膜 ×10」需要它可持有；工艺资源统一无上限。 */
-      desc: '把 θ生物金属压成自适应薄膜。每 100 θ 出 1 卷薄膜（魔鱼世界VR 的建造材料）。' }
+      desc: '把 θ生物金属压成自适应薄膜。每 100 θ 出 1 卷薄膜（魔鱼世界VR 的建造材料）。' },
+
+    /* ── ERA11 工艺配方（2026-11-21 · spec §4，成本待标定）──
+     * 【冷冻仓】暗物质 5 + θ金属 1000 → 1，need='omnitemporal_freeze'（与 RESS.unlock 同门）。
+     * 【相对论引擎】暗物质 3 + θ金属 500 → 1，need='deep_space'。
+     *   两者都是后续建筑/奇观造价材料；工艺资源统一无仓储上限。 */
+    { id: 'craft_cryopod', name: '冷冻仓', need: 'omnitemporal_freeze',
+      in: { darkmatter: 5, thetaMetal: 1000 }, out: 1, res: 'cryoPod',
+      desc: '全相多时态冷冻的工艺制造：暗物质 5 + θ金属 1000 合成 1 座冷冻仓。（成本待标定）' },
+    { id: 'craft_relativisticengine', name: '相对论引擎', need: 'deep_space',
+      in: { darkmatter: 3, thetaMetal: 500 }, out: 1, res: 'relativisticEngine',
+      desc: '深空探索的工艺制造：暗物质 3 + θ金属 500 合成 1 台相对论引擎。（成本待标定）' }
   ];
 
   /* ── 工艺升级项（2026-09-28 用户规格 · era2 第三层）───────────────
@@ -477,13 +500,15 @@
     /* 城堡：need=城堡(科技)。效果：① 议价减耗（hallSaveMul 0.5 ⇒ 每级省耗率 ×1.5，
      *   渐近上限仍取基础 60%、其它仓库叠加到最高 75%；2026-10-29 起换**等比递减**曲线，
      *   不再和容量轴共用 getLimitedDR —— 后者的 0.75 次幂末段会回升，与「越升越少」相反）；
-     *   ② 每级议事厅给纪元三及之前有上限资源 +50 容量（castleCap 50），走 getLimitedDR 衰减。
+     *   ② 每级议事厅给纪元三及之前有上限资源 +50 容量（castleCap 50），走 getLimitedDR 衰减；
+     *      暗物质例外（storageEra 11、CAP_BASE 仅 10）：单独 +2/级并放通 capEra（2026-11-22
+     *      用户拍板），否则通用 +50 会把它撑到荒谬量级。
      *   cost 50 石梁 + 50 硬化珊瑚。 */
     { id: 'upg_castle', name: '城堡', need: 'castle', capEra: 3, upgradesBuilding: 'hall',
       buildingDesc: '每级降低所有建筑下一级造价（越升省得越少）；' +
-        '每级给纪元三及之前有上限资源 +50 容量；市政点 +0.05/级/秒。' +
+        '每级给纪元三及之前有上限资源 +50 容量、暗物质 +2 容量；市政点 +0.05/级/秒。' +
         '装政策卡「王权神授」每级再 +10% 信仰产出',
-      hallSaveMul: 0.5, castleCap: 50,
+      hallSaveMul: 0.5, castleCap: 50, castleCapDarkMatter: 2,
       cost: { stoneBeam: 50, hardCoral: 50 },
       desc: '议事厅升级：降低所有建筑建造成本，每级议事厅给纪元三及之前有上限资源 +50 容量。' },
     /* 马镫：need=马镫(科技，尤里卡=5 名商人)。效果：奢侈品 +50%（luxuryMul 0.5，
@@ -622,19 +647,23 @@
      * 军人产出加成由 war.rate 统一汇总；战争规模损耗加成由 war.executeAction 统一读取。
      * 军用马具同时依赖马具工具与马镫升级；成本里的 science 是科技点。 */
     { id: 'upg_military_harness', name: '军用马具', need: 'horsemanship',
+      workshopSection: 'professional-tools',
       requiresTools: ['tool_harnes'], requiresUpgrades: ['upg_horseshoe'],
       militarySoldierBonus: 0.80,
       cost: { rope: 400, silt: 1000, science: 3000 },
       desc: '军人军力产出 +80%。' },
     { id: 'upg_iron_weapons', name: '铁质武器', need: 'ironwork',
+      workshopSection: 'professional-tools',
       militarySoldierBonus: 0.80,
       cost: { iron: 150 },
       desc: '军人军力产出 +80%。' },
     { id: 'upg_steel_weapons', name: '钢质武器', need: 'metalrefine',
+      workshopSection: 'professional-tools',
       militarySoldierBonus: 1.00,
       cost: { steel: 100 },
       desc: '军人军力产出 +100%。' },
     { id: 'upg_theta_weapons', name: 'θ武器', need: 'biomat',
+      workshopSection: 'professional-tools',
       militarySoldierBonus: 2.00,
       cost: { thetaMetal: 100 },
       desc: '军人军力产出 +200%。' },
@@ -649,7 +678,26 @@
     { id: 'upg_hydrologic_military_assist', name: '全水文军事辅助机械', need: 'protoai',
       militaryEnemyScaleDamageBonus: 0.70,
       cost: { thetaMetal: 500, tiplate: 5000 },
-      desc: '战争行动对敌国规模损耗 +70%。' }
+      desc: '战争行动对敌国规模损耗 +70%。' },
+
+    /* ═════════ ERA11/12 工坊升级（2026-11-21 · spec §4，造价待标定）═════════
+     * ⚠️ 对敌规模伤害走现成 militaryEnemyScaleDamageBonus **加算**字段（与上面三条同通道，
+     *    war.js 汇总后 1+Σbonus），不新造乘区。太阳星环开关与全产+20% 在 P3 接线。 */
+    { id: 'upg_stellar_forge', name: '恒星锻炉', need: 'stellar_smelting',
+      cost: { darkmatter: 30, thinafilm: 1000, tiplate: 50000 },
+      desc: '太阳星环改为可开关：开时消耗 100 热液能 + 200 θ金属/秒，产 0.01 暗物质/秒；关闭时保留原 θ 产出。（造价待标定）' },
+    { id: 'upg_jupiter_cannon', name: '朱庇特大炮', need: 'relativistic_weapon',
+      militaryEnemyScaleDamageBonus: 1.5,
+      cost: { darkmatter: 500 },
+      desc: '朱庇特小行星投射器对敌国规模伤害 +150%。（造价待标定）' },
+    { id: 'upg_causality_strike', name: '因果律打击', need: 'constant_edit',
+      militaryEnemyScaleDamageBonus: 1.0,
+      cost: { darkmatter: 5000 },
+      desc: '对敌国规模伤害 +100%。（造价待标定）' },
+    { id: 'upg_ln_constant', name: '自然对数常数化', need: 'constant_edit',
+      allOutMul: 0.20,
+      cost: { darkmatter: 5000 },
+      desc: '全资源产出 +20%。（造价待标定）' }
   ];
 
   /* ── 奇观（2026-09-27 用户拍）───────────────────────────────────────
@@ -674,9 +722,11 @@
      *                    职业线从建成那一刻起失去意义。用户拍 **2**（≈13 个书手，仍是
      *                    一笔看得见的跃升，但书的产出还占有一席）。
      *   · `effect: { civic: 2 }` —— 只留市政点 +2/秒。⚠️ 旧版 `matMax: 60`（所有材料一次性 +60）
-     *                    已被 2026-10-06 用户拍板**删除**：那是对「大灯塔获得灯塔一半仓储」的误读。
-     *                    正确机制是「大灯塔建成后，**每座灯塔**额外 +60/级」（= 压舱仓一半），
-     *                    由 economy.capOf 的灯塔项读 `BLD.lighthouseCapGreat` 并挂
+     *                    已被 2026-10-06 用户拍板**删除**。
+     *                    ⚠️【2026-11-21 全局修正】此前把「大灯塔获得仓库作用，上限为其一半」的
+     *                    「其」误读成灯塔，于是给灯塔本身加了 +120/级仓储。正确：灯塔 0 仓储；
+     *                    建成大灯塔后灯塔才按**该资源压舱仓每级量的一半**给容量（普通 120/2=60，
+     *                    暗物质 10/2=5）。落点在 economy.capOf 的 `ballastPerLvl(k)/2`，挂
      *                    `wonder.owned('wonder_great_lighthouse')` 条件，随灯塔数量/等级缩放。
      * 【为什么没有全资源产出加成】「灯塔 +1%」是**灯塔建筑的**效果；用户规格里大灯塔
      *   只给了市政点与仓储两件，所以这里没有 globalProd 键。
@@ -764,7 +814,7 @@
      * 【王国大交易所】need=banking（银行业）。两个效果是**两件不同的事**，别合成一个：
      *   · happyBonus 1   —— 幸福度 +1（wonder.js 新出口 happyBonus，由 economy 的 happy 目标值读）；
      *   · tradeSave 0.10 —— 贸易区域建筑的**建造消耗** -10%（costOf 新分支，按 BUILD_ZONE_OF 判分区）。
-     *     ⚠️ 现有只有君主制的全局 buildSave（所有建筑），分区降耗是新机制。
+     *     ⚠️ 现有只有王权制的全局 buildSave（所有建筑），分区降耗是新机制。
      * 【天壳切削器】need=invert（倒置搭建）。效果 cutterMul：`x = 天壳观测站等级`（每级 +1%），
      *   同时作用**科技与市政**两条产出 ⇒ wonder.js 两个出口都要读它，少读一路就是「面板撒谎」。
      *   ⚠️ 待用户确认：x 的单位按**百分点**算（等级 10 ⇒ +10%）；要改比率只动 wonder.js 一处。 */
@@ -829,14 +879,14 @@
      * 【夏'多桑大剧院】needCivic='sharksong'。effect.civic:5 = 每秒 +5 市政点（走 wonder.civicBonus，
      *   绝对量，与现有奇观同通道）；effect.civicSlots:1 = 额外送 1 个政策卡槽（走 civics.wonderCivicSlots，
      *   slotList 叠加，type 用 'wild' 即通用政策槽）。
-     * 【国会大厦】needCivic='socialscience'。effect.happyConsume:0.10 = 幸福度消耗 −10%（走
+     * 【共鸣议事堂】needCivic='socialscience'。effect.happyConsume:0.10 = 幸福度消耗 −10%（走
      *   wonder.happyConsumeMul，economy.happyBurn 读，与 govHappyConsumeMul 同乘区）。
      * ⚠️【cost 为提议值，未拍板】量级对齐 era5 奇观顺延（scaffold/stoneBeam/steelPart 高阶料）。 */
     { id: 'wonder_shadow_theater', name: '夏\'多桑大剧院', era: 5, needCivic: 'sharksong',
       cost: { scaffold: 200, stoneBeam: 1000 },
       effect: { civic: 5, civicSlots: 1 },
       desc: '市政的丰碑：每秒 +5 市政点；额外提供 1 个政策卡槽。' },
-    { id: 'wonder_congress', name: '国会大厦', era: 5, needCivic: 'socialscience',
+    { id: 'wonder_congress', name: '共鸣议事堂', era: 5, needCivic: 'socialscience',
       cost: { scaffold: 300, steelPart: 400 },
       effect: { happyConsume: 0.10 },
       desc: '立法的丰碑：鲛人幸福度消耗 −10%。' },
@@ -878,7 +928,7 @@
     { id: 'wonder_throne', name: '至高圣座', era: 7, need: 'spacestation',
       cost: { rocketEngine: 30 },
       effect: { stationBonus: 3, throneGov: true },
-      desc: '空间站有效等级 +3（免费、不收差价）；按政体分支额外 +10%：教权国信仰 / 平等主义工艺 / 联邦制科技。' },
+      desc: '空间站有效等级 +3（免费、不收差价）；按政体分支额外 +10%：圣座国信仰 / 平权共治工艺 / 盟约制科技。' },
     /* 【博洛西洛漂浮发射场】needCivic=太空竞赛（space_race），与市政《太空竞赛》的 wonder 字段互锁。
      *   效果 mannedRocket:1.0 —— 载人火箭工艺效率 +100%（乘区 ×2，读 wonder.mannedRocketMul）。
      *   cost = 1000 钛金板件 + 80 封闭藻仓（均为 craft 资源，可作奇观 cost，与 rocketEngine/sealbin 同构）。
@@ -940,10 +990,12 @@
      *   · 生物材料研究所产出 +100%：effect.biomatlabOut = 1.0，wonder.js 新增 wonderBiomatlabOut
      *     读数（乘区，默认 1，与纳米技术 biomatlabOut ×1.10 独立相乘 ⇒ 合计 ×2.10），
      *     接 economy.thetaOut（tick/rates 两处同式）。 */
-    { id: 'wonder_jupitor_mas', name: '朱庇特质量加速站', era: 10, need: 'gravity_sling',
+    /* 2026-11-21（spec §4）：显示名「质量加速站」→「小行星投射器」，**id 不变**（存档断链保护）。
+     *   工坊升级《朱庇特大炮》(upg_jupiter_cannon) 建成后，对敌国规模伤害 +150%（P3 接线）。 */
+    { id: 'wonder_jupitor_mas', name: '朱庇特小行星投射器', era: 10, need: 'gravity_sling',
       cost: { strongProp: 20, thinafilm: 100 },
       effect: { biomatlabOut: 1.0 },
-      desc: '气态巨星的质量投射器：每秒耗 20 热液能，生物材料研究所产出 +100%。' },
+      desc: '气态巨星的小行星投射器：每秒耗 20 热液能，生物材料研究所产出 +100%。' },
     { id: 'wonder_terra_core', name: '泰拉中央星核炉芯', era: 10, need: 'reheavfusion',
       cost: { thinafilm: 300, strongProp: 1000, steel: 5000 }, effect: {},
       desc: '星核炉芯池可储存至多 50M 热液能，并抵消流浪泰拉挑战中的冰封。' },
@@ -981,7 +1033,32 @@
     { id: 'wonder_void_mars_foundry', name: '马尔斯铸造宫', era: 1,
       requiresVeilDomain: 'emperor', requiresVeilLevel: 3,
       cost: { thinafilm: 1000 }, effect: {},
-      desc: '整个飞升期间持续存在，轮回后不会消失；工艺效率 +200%。' }
+      desc: '整个飞升期间持续存在，轮回后不会消失；工艺效率 +200%。' },
+
+    /* ═════════ ERA11/12 奇观（2026-11-21 · spec §4，造价待标定）═════════
+     * 效果字段先留空占位，真正的产量/伤害/减耗效果在 P3 接线（wonder.js / economy-rates / war）。
+     * ⚠️ 船团是**幕后累计**：玩家只见暗物质加成与编号，面板不列实体（spec §0 拍板 3）。 */
+    { id: 'starship_armada', name: '恒星际移民船团', era: 11, need: 'near_light_speed',
+      cost: { relativisticEngine: 700, thinafilm: 5000, tiplate: 100000 }, effect: {},
+      desc: '暗物质产量 +10%（跨轮回累加，每次真轮回后可再建一座）。' },
+    { id: 'reality_aperture', name: '现实透孔仪', era: 12, need: 'starfrontier',
+      cost: { relativisticEngine: 3000, darkmatter: 3000, tiplate: 10000, hydro: 300 }, effect: {},
+      desc: '暗物质产量 +30%；每 30 分钟对敌国造成规模上限 5% 的打击。' },
+    { id: 'timeslip_colony', name: '时隙殖民地', era: 12, need: 'constant_edit',
+      cost: { darkmatter: 5000 }, effect: {},
+      desc: '逆时屋建筑消耗 −30%（额外乘区）。' },
+    { id: 'synaptic_ganglion_modification', name: '突触神经节改造', era: 11,
+      needCivic: 'sensory_boundary', cost: { cryoPod: 600, sealbin: 6000, kelp: 40000 },
+      effect: { darkmatterPerPopulation: 0.001 },
+      desc: '暗物质产出 +{bonusPercent}%；加成百分比为当前人口的十分之一。' },
+    { id: 'era12_ring', name: '环带', era: 11,
+      needCivic: 'star_sea_guardian', cost: { relativisticEngine: 700, thinafilm: 5000, tiplate: 100000 },
+      effect: { militaryActionCostMul: 0.60, incomingInvasionSuccessMul: 0.5 },
+      desc: '战争行动的军力消耗 −40%；敌人入侵成功概率减半。' },
+    { id: 'answer_machine', name: '问答机', era: 12,
+      needCivic: 'true_intelligence', cost: { darkmatter: 5000 },
+      effect: { researchCostMul: 0.5 },
+      desc: '下次普通轮回中，科技与市政研究消耗 ×0.5（额外乘区）；该轮回结束时消耗效果。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。
@@ -1054,7 +1131,13 @@
     launchSailUranium: 0.5, launchSailStrongProp: 0.3, launchSailThinafilm: 0.3,
     launchSailHydro: 4,
     dysonNodeUranium: 5, dysonNodeStrongProp: 3, dysonNodeThinafilm: 3, dysonNodeTiplate: 30,
-    dysonNodeHydro: 4 };
+    dysonNodeHydro: 4,
+    /* ERA11 探针模式（2026-11-23 · spec §3.1）：耗材对标 2000 片帆总量摊到 600 秒
+     * = 铀10000/600≈16.67、强工质6000/600=10、薄膜6000/600=10（每级每秒）。
+     * 引擎不换（沿用 strongProp，配方无暗物质，避免「探针→引擎→暗物质→探针」死锁）。
+     * ⚠️ 用户已拍板此口径；吞吐是否喂饱为 P3 后验收项，不在此标定。 */
+    probeUranium: 10000 / 600, probeStrongProp: 6000 / 600, probeThinafilm: 6000 / 600,
+    probeHydro: 4 };
   SB.SEASONS = SEASONS;
   SB.RESS = RESS;
   SB.CRAFTS = CRAFTS;

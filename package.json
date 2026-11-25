@@ -48,6 +48,7 @@
       "assets/talent-icons/**/*",
       "assets/tech-icons/**/*",
       "assets/ui-era/**/*",
+      "assets/veil/**/*",
       "assets/war/**/*",
       "assets/wonders/**/*",
       "!assets/store/**/*",

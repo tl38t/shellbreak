@@ -101,6 +101,18 @@
     { id: 'enemy_6', stage: 6, baseScale: 3125000, popCapPool: 25 },
     { id: 'enemy_7', stage: 7, baseScale: 15625000, popCapPool: 35 }
   ];
+  /* 终末危机（ERA11/12）：每局在掀起帘幕后从三类中随机选一类。
+   * 基准直接引用七阶敌国规模：15,625,000 × 15 = 234,375,000。 */
+  var CRISIS_SCALE_MULTIPLIER = 15;
+  var CRISIS_BASE_SCALE = ENEMIES[ENEMIES.length - 1].baseScale * CRISIS_SCALE_MULTIPLIER;
+  var CRISIS_PRODUCTION_MUL = 0.70;
+  var CRISIS_HYDRO_ADDITIONAL_MUL = 0.70;
+  var CRISIS_POPULATION_CAP_MUL = 0.67;
+  var CRISIS_TYPES = [
+    { id: 'horde', nameKey: 'ui.crisis.name.horde' },
+    { id: 'machine', nameKey: 'ui.crisis.name.machine' },
+    { id: 'voidwalker', nameKey: 'ui.crisis.name.voidwalker' }
+  ];
   /* 2026-11-12：soldierLoss（军人比率损失）改为 popLoss（国家人口比率损失）。
    * 目的：失败/成功的损失不再可被「行动前把军人调去别的岗位」规避 —— 损失按总人口 ceil(pop × popLoss) 计，
    *   无论军人怎么调配都发生。数值由用户拍板：8% 对应最危险档（invasion/totalWar 失败，原 soldierLoss=1.0），
@@ -176,7 +188,8 @@
     var baseSoldierRate = nonNegative(B.soldierMilitaryPower);
     var barracksBonus = nonNegative(B.barracksMilitaryBonusPerLevel);
     /* effJobs 已应用职业信条与族民通用产出乘区，不能在这里重复乘信仰守护。 */
-    var barracksBonusMul = policyEquipped(s, 'card_fleet_review') ? policyNumber(s, 'card_fleet_review', 'barracksBonusMul', 1.5)
+    var barracksBonusMul = policyEquipped(s, 'card_pan_galactic_defense') ? policyNumber(s, 'card_pan_galactic_defense', 'barracksBonusMul', 3)
+      : policyEquipped(s, 'card_fleet_review') ? policyNumber(s, 'card_fleet_review', 'barracksBonusMul', 1.5)
       : policyEquipped(s, 'card_mercenary') ? policyNumber(s, 'card_mercenary', 'barracksBonusMul', 1)
         : policyEquipped(s, 'card_drill') ? policyNumber(s, 'card_drill', 'barracksBonusMul', 0.5) : 0;
     var soldierOutput = soldiers * baseSoldierRate * (1 + barracksLevel * barracksBonus * (1 + barracksBonusMul));
@@ -210,7 +223,8 @@
     soldierOutput *= soldierPactMul * domainSoldierMul * domainFortressMul * creedMilitaryMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var cloneOutput = nonNegative(s.pop) * nonNegative(s.perk && s.perk.cloneMilitaryPowerPerPopulation);
-    var total = (soldierOutput + academyOutput + cloneOutput) * conquestProductionMultiplier(s);
+    var total = (soldierOutput + academyOutput + cloneOutput) * conquestProductionMultiplier(s)
+      * (SB.civic && SB.civic.militaryOutputMul ? SB.civic.militaryOutputMul(s) : 1);
     return isFinite(total) ? Math.max(0, total) : 0;
   }
   /* 军力来源分项（顶栏资源详情弹窗用）。格式与 economy.ratesParts 的 parts 对齐：
@@ -228,7 +242,8 @@
     var academyLevel = nonNegative(s.lvl && s.lvl.military_academy);
     var baseSoldierRate = nonNegative(B.soldierMilitaryPower);
     var barracksBonus = nonNegative(B.barracksMilitaryBonusPerLevel);
-    var barracksBonusMul = policyEquipped(s, 'card_fleet_review') ? policyNumber(s, 'card_fleet_review', 'barracksBonusMul', 1.5)
+    var barracksBonusMul = policyEquipped(s, 'card_pan_galactic_defense') ? policyNumber(s, 'card_pan_galactic_defense', 'barracksBonusMul', 3)
+      : policyEquipped(s, 'card_fleet_review') ? policyNumber(s, 'card_fleet_review', 'barracksBonusMul', 1.5)
       : policyEquipped(s, 'card_mercenary') ? policyNumber(s, 'card_mercenary', 'barracksBonusMul', 1)
         : policyEquipped(s, 'card_drill') ? policyNumber(s, 'card_drill', 'barracksBonusMul', 0.5) : 0;
     var soldierBase = soldiers * baseSoldierRate;
@@ -262,6 +277,8 @@
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var cloneOutput = nonNegative(s.pop) * nonNegative(s.perk && s.perk.cloneMilitaryPowerPerPopulation);
     var conquestMul = conquestProductionMultiplier(s);
+    var civicMilitaryMul = SB.civic && SB.civic.militaryOutputMul ? SB.civic.militaryOutputMul(s) : 1;
+    var militaryLabel = tr('civic.data.galactic_council.name', null, '银河议会');
     var parts = [];
     if (soldierBase > 0) {
       var sm = [];
@@ -273,29 +290,92 @@
       if (domainFortressMul !== 1) sm.push([tr('building.fortress.name'), domainFortressMul]);
       if (creedMilitaryMul !== 1) sm.push([tr('faith.tenet.creed_bingkui.name'), creedMilitaryMul]);
       if (conquestMul !== 1) sm.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
-      parts.push({ l: tr('job.soldier.name'), v: soldierOutput * conquestMul, b: soldierBase, m: sm });
+      if (civicMilitaryMul !== 1) sm.push([militaryLabel, civicMilitaryMul]);
+      parts.push({ l: tr('job.soldier.name'), v: soldierOutput * conquestMul * civicMilitaryMul, b: soldierBase, m: sm });
     }
     if (academyOutput > 0) {
       var am = [];
       if (conquestMul !== 1) am.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
-      parts.push({ l: tr('building.military_academy.name'), v: academyOutput * conquestMul, b: academyOutput, m: am });
+      if (civicMilitaryMul !== 1) am.push([militaryLabel, civicMilitaryMul]);
+      parts.push({ l: tr('building.military_academy.name'), v: academyOutput * conquestMul * civicMilitaryMul, b: academyOutput, m: am });
     }
     if (cloneOutput > 0) {
       var cm = [];
       if (conquestMul !== 1) cm.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
-      parts.push({ l: tr('ui.resource.detail.power.clone_attack', null, '克隆人的进攻'), v: cloneOutput * conquestMul, b: cloneOutput, m: cm });
+      if (civicMilitaryMul !== 1) cm.push([militaryLabel, civicMilitaryMul]);
+      parts.push({ l: tr('ui.resource.detail.power.clone_attack', null, '克隆人的进攻'), v: cloneOutput * conquestMul * civicMilitaryMul, b: cloneOutput, m: cm });
     }
     return parts;
+  }
+  /* ERA12 现实透孔仪（2026-11-23 · spec §4）：建成后每 30 分钟（1800 秒）自动对所有 active 敌国
+   * 造成「规模上限 5%」的打击。与 recoverEnemies 同一遍历/同一 effectiveMaxScale 口径；
+   * 计时器 s.apertureStrikeAcc 局内、随轮回清零；缺键按 0 起算（旧档零行为变化）。
+   * ⚠️ 只在真有奇观时累加计时器——没建透孔仪的局不写这个字段，避免污染存档。 */
+  var APERTURE_STRIKE_SEC = 1800;
+  var APERTURE_STRIKE_RATIO = 0.05;
+  function apertureAutoStrike(s, dt) {
+    if (!wonderOwned(s, 'reality_aperture')) return 0;
+    var state = ensureState(s);
+    if (!state) return 0;
+    if (hasCrisis(s) && !crisisActive(s)) return 0;
+    s.apertureStrikeAcc = (Number(s.apertureStrikeAcc) || 0) + dt;
+    if (s.apertureStrikeAcc < APERTURE_STRIKE_SEC) return 0;
+    var strikes = Math.floor(s.apertureStrikeAcc / APERTURE_STRIKE_SEC);
+    s.apertureStrikeAcc -= strikes * APERTURE_STRIKE_SEC;
+    var totalLoss = 0, key, enemy, cap, loss;
+    if (hasCrisis(s)) {
+      enemy = crisisEnemy(s);
+      cap = effectiveMaxScale(enemy);
+      loss = cap * APERTURE_STRIKE_RATIO * strikes;
+      if (loss <= 0) return 0;
+      var crisisBefore = currentScale(enemy);
+      enemy.currentScale = Math.max(0, crisisBefore - loss);
+      var crisis = crisisOf(s);
+      crisis.currentScale = enemy.currentScale;
+      if (enemy.currentScale <= 0) crisis.defeated = true;
+      return crisisBefore - enemy.currentScale;
+    }
+    for (key in state.enemies) if (Object.prototype.hasOwnProperty.call(state.enemies, key)) {
+      enemy = state.enemies[key];
+      if (!enemy || enemy.status === 'annexed') continue;
+      cap = effectiveMaxScale(enemy);
+      loss = cap * APERTURE_STRIKE_RATIO * strikes;
+      if (loss <= 0) continue;
+      var before = currentScale(enemy);
+      enemy.currentScale = Math.max(0, before - loss);
+      totalLoss += before - enemy.currentScale;
+    }
+    return totalLoss;
   }
   function tick(s, dt, emit, opts) {
     var state = ensureState(s);
     var elapsed = Number(dt);
     if (!state || !isFinite(elapsed) || elapsed <= 0) return 0;
-    syncCampaign(s);
+    if (!hasCrisis(s)) syncCampaign(s);
     var generated = rate(s) * elapsed;
     if (isFinite(generated) && generated > 0) state.power += generated;
+    if (hasCrisis(s)) {
+      var crisisRecord = crisisOf(s);
+      if (crisisRecord && crisisRecord.attackTimerInitialized !== true) {
+        resetInvasion(state);
+        crisisRecord.attackTimerInitialized = true;
+        if (SB.game && SB.game.markDirty) SB.game.markDirty();
+      }
+      var crisisScaleAtStart = crisisActive(s) ? currentScale(crisisEnemy(s)) : 0;
+      if (crisisActive(s)) {
+        var boss = crisisEnemy(s);
+        var crisisRecoveryMul = (SB.challenges && SB.challenges.enemyRecoveryMul)
+          ? SB.challenges.enemyRecoveryMul(s) : 1;
+        recoverEnemy(boss, elapsed, crisisRecoveryMul);
+        crisisOf(s).currentScale = boss.currentScale;
+      }
+      apertureAutoStrike(s, elapsed);
+      advanceInvasion(s, elapsed, emit, !!(opts && opts.deferBreakUI), crisisScaleAtStart);
+      return generated;
+    }
     var invasionEnemy = currentEnemy(s), invasionScaleAtStart = currentScale(invasionEnemy);
     recoverEnemies(s, elapsed);
+    apertureAutoStrike(s, elapsed);
     advanceInvasion(s, elapsed, emit, !!(opts && opts.deferBreakUI), invasionScaleAtStart);
     return generated;
   }
@@ -303,6 +383,8 @@
   function effectiveMaxScale(enemy) {
     if (!enemy) return 0;
     var base = nonNegative(enemy.baseScale);
+    /* 终末危机规模按拍板的 15 × 七阶基准固定；普通敌国的挑战/器官规模修正不缩小它。 */
+    if (enemy.isTerminalCrisis === true) return base;
     var faithReduction = clamp(nonNegative(enemy.faithReduction), 0, 0.30);
     var cultureReduction = clamp(nonNegative(enemy.cultureReduction), 0, 0.30);
     var cap = base * Math.max(0.40, 1 - faithReduction - cultureReduction);
@@ -377,7 +459,7 @@
   }
   function recoverEnemies(s, dt) {
     var state = ensureState(s), key;
-    if (!state) return 0;
+    if (!state || hasCrisis(s)) return 0;
     /* 征服者三档（2026-11-12）：敌方规模恢复速度按档位 ×1.5 / ×2 / ×3。 */
     var mul = (SB.challenges && SB.challenges.enemyRecoveryMul) ? SB.challenges.enemyRecoveryMul(s) : 1;
     var total = 0;
@@ -399,6 +481,7 @@
   }
   function syncCampaign(s) {
     var state = ensureState(s);
+    if (hasCrisis(s)) return null;
     var hasDiplomacy = !!(s && ((s.techs && s.techs.navigation) ||
       (s.civics && s.civics.military_training)));
     if (!state || !hasDiplomacy || state.campaignStage >= ENEMIES.length) return null;
@@ -409,6 +492,7 @@
     return null;
   }
   function currentEnemy(s) {
+    if (hasCrisis(s)) return null;
     var state = ensureState(s);
     return state && state.campaignStage < ENEMIES.length ? enemyOf(s, 'enemy_' + (state.campaignStage + 1)) : null;
   }
@@ -438,12 +522,78 @@
   function randomItem(items) {
     return items && items.length ? items[Math.floor(randomValue() * items.length)] : null;
   }
+  function crisisDefinition(id) {
+    for (var i = 0; i < CRISIS_TYPES.length; i++) if (CRISIS_TYPES[i].id === id) return CRISIS_TYPES[i];
+    return null;
+  }
+  function crisisOf(s) {
+    var crisis = s && s.crisis;
+    return crisis && typeof crisis === 'object' && crisisDefinition(crisis.id) ? crisis : null;
+  }
+  function hasCrisis(s) { return !!crisisOf(s); }
+  function crisisActive(s) {
+    var crisis = crisisOf(s);
+    return !!(crisis && crisis.defeated !== true && nonNegative(crisis.currentScale) > 0);
+  }
+  function crisisEnemy(s) {
+    var crisis = crisisOf(s), definition = crisis && crisisDefinition(crisis.id);
+    if (!crisis || !definition) return null;
+    return {
+      id: 'terminal_crisis_' + definition.id,
+      nameKey: definition.nameKey,
+      isTerminalCrisis: true,
+      stage: 8,
+      baseScale: CRISIS_BASE_SCALE,
+      currentScale: nonNegative(crisis.currentScale),
+      faithReduction: 0,
+      cultureReduction: 0,
+      popCapPool: 0,
+      popCapClaimed: 0,
+      status: crisis.defeated === true ? 'annexed' : 'active'
+    };
+  }
+  function startCrisis(s) {
+    if (!s || !(s.techs && s.techs.beyond_veil)) return null;
+    var existing = crisisOf(s);
+    if (existing) return existing;
+    var selected = randomItem(CRISIS_TYPES);
+    if (!selected) return null;
+    s.crisis = {
+      id: selected.id,
+      currentScale: CRISIS_BASE_SCALE,
+      defeated: false,
+      storySeen: false,
+      attackTimerInitialized: true
+    };
+    resetInvasion(ensureState(s));
+    if (SB.game && SB.game.markDirty) SB.game.markDirty();
+    return s.crisis;
+  }
+  function crisisProductionMul(s) { return crisisActive(s) ? CRISIS_PRODUCTION_MUL : 1; }
+  function crisisAlienOutputMul(s) {
+    var crisis = crisisOf(s);
+    return crisisActive(s) && crisis.id === 'horde' ? 0 : 1;
+  }
+  function crisisRobotOutputMul(s) {
+    var crisis = crisisOf(s);
+    return crisisActive(s) && crisis.id === 'machine' ? 0 : 1;
+  }
+  function crisisHydroOutputMul(s) {
+    var crisis = crisisOf(s), mul = crisisProductionMul(s);
+    return mul * (crisisActive(s) && crisis.id === 'machine' ? CRISIS_HYDRO_ADDITIONAL_MUL : 1);
+  }
+  function crisisPopulationCapMul(s) {
+    var crisis = crisisOf(s);
+    return crisisActive(s) && crisis.id === 'voidwalker' ? CRISIS_POPULATION_CAP_MUL : 1;
+  }
   function enemySuccessChance(s, enemy) {
     var enemyPower = currentScale(enemy);
     if (!(enemyPower > 0)) return 0;
     var defensePower = power(s) + rate(s) * 600;
-    if (!(defensePower > 0)) return 0.80;
-    return clamp(0.25 + 0.25 * (Math.log(enemyPower / defensePower) / Math.LN2), 0, 0.80);
+    var baseChance = !(defensePower > 0) ? 0.80
+      : clamp(0.25 + 0.25 * (Math.log(enemyPower / defensePower) / Math.LN2), 0, 0.80);
+    return baseChance * (SB.wonder && SB.wonder.incomingInvasionSuccessMul
+      ? SB.wonder.incomingInvasionSuccessMul(s) : 1);
   }
   /* 2026-11-14「潮线壁垒」：入侵威胁速率的**唯一落点**。
    * ⚠️ 面板倒计时(invasionStatus)、警告文案(beginInvasionWarning)、实际累积(advanceInvasion)、
@@ -460,9 +610,11 @@
     return INVASION_CYCLE_SECONDS - INVASION_WARNING_SECONDS * clamp(threatRate, 0, 1);
   }
   function invasionStatus(s) {
-    var state = ensureState(s), enemy = currentEnemy(s);
+    var state = ensureState(s), crisisMode = hasCrisis(s);
+    var enemy = crisisMode ? crisisEnemy(s) : currentEnemy(s);
     var maxScale = effectiveMaxScale(enemy);
-    var scale = currentScale(enemy), atRisk = scale > 0;
+    var scale = currentScale(enemy);
+    var atRisk = crisisMode ? crisisActive(s) : scale > 0;
     var threatRate = threatRateOf(s, scale, maxScale);
     var threatTime = threatRate > 0
       ? Math.max(0, (INVASION_CYCLE_SECONDS - (state ? state.invasionThreat : 0)) / threatRate) : 0;
@@ -481,14 +633,14 @@
     var enemyName = translated(report.enemyNameKey) || '';
     var messages = [];
     if (report.type === 'repelled') {
-      messages.push(translated('ui.war.invasion.result.repulsed', {
+      messages.push(translated(report.crisis ? 'ui.crisis.attack.result.repulsed' : 'ui.war.invasion.result.repulsed', {
         enemyName: enemyName, scaleLoss: SB.economy && SB.economy.fmtAmt
           ? SB.economy.fmtAmt(report.scaleLoss) : String(Math.floor(nonNegative(report.scaleLoss)))
       }));
       return messages.filter(Boolean);
     }
     if (report.type !== 'success') return messages;
-    messages.push(translated('ui.war.invasion.result.success', {
+    messages.push(translated(report.crisis ? 'ui.crisis.attack.result.success' : 'ui.war.invasion.result.success', {
       enemyName: enemyName, enemySuccessPercent: report.enemySuccessPercent,
       scaleLoss: SB.economy && SB.economy.fmtAmt ? SB.economy.fmtAmt(report.scaleLoss) : String(report.scaleLoss)
     }));
@@ -599,7 +751,7 @@
     var chance = enemySuccessChance(s, enemy), scaleBefore = currentScale(enemy), succeeded = randomValue() < chance;
     var report = {
       type: succeeded ? 'success' : 'repelled', enemyNameKey: enemy.nameKey,
-      enemySuccessPercent: Math.round(chance * 100)
+      enemySuccessPercent: Math.round(chance * 100), crisis: enemy.isTerminalCrisis === true
     };
     if (succeeded) {
       enemy.currentScale = Math.max(0, scaleBefore * 0.80);
@@ -608,6 +760,10 @@
     } else {
       enemy.currentScale = Math.max(0, scaleBefore * 0.90);
       report.scaleLoss = scaleBefore - enemy.currentScale;
+    }
+    if (report.crisis) {
+      var crisis = crisisOf(s);
+      if (crisis) crisis.currentScale = enemy.currentScale;
     }
     state.invasionThreat = 0;
     state.invasionWarning = 0;
@@ -632,11 +788,12 @@
     }));
   }
   function advanceInvasion(s, elapsed, emit, offlineCatchup, scaleAtStart) {
-    var state = ensureState(s), enemy = currentEnemy(s), remaining = elapsed;
+    var state = ensureState(s), crisisMode = hasCrisis(s);
+    var enemy = crisisMode ? crisisEnemy(s) : currentEnemy(s), remaining = elapsed;
     if (!state) return;
     if (!offlineCatchup) state.offlineInvasionResolved = false;
     if (!s.civics || !s.civics.military_training) { resetInvasion(state); return; }
-    if (!enemy || !enemyAvailable(state, enemy)) { resetInvasion(state); return; }
+    if (!enemy || (crisisMode ? !crisisActive(s) : !enemyAvailable(state, enemy))) { resetInvasion(state); return; }
     if (offlineCatchup && state.offlineInvasionResolved) return;
     if (!(Number(scaleAtStart) > 0)) {
       state.invasionThreat = 0;
@@ -802,10 +959,12 @@
     var extra = (typeof extraCostMul === 'number' && isFinite(extraCostMul) && extraCostMul >= 0) ? extraCostMul : 1;
     /* 武器的批判通关奖励（2026-11-12）：战争行动军力消耗 -10% 永久生效。 */
     var challengeWarCostMul = (SB.challenges && SB.challenges.warCostMul) ? SB.challenges.warCostMul(s) : 1;
-    return maxScale * spec.costShare * faithMul * routeMul * intelligenceMul * extra * challengeWarCostMul;
+    return maxScale * spec.costShare * faithMul * routeMul * intelligenceMul * extra * challengeWarCostMul
+      * (SB.wonder && SB.wonder.ringWarCostMul ? SB.wonder.ringWarCostMul(s) : 1);
   }
   function establishTradeRoute(s) {
     var state = ensureState(s);
+    if (hasCrisis(s)) return { ok: false, reason: 'crisis_active' };
     if (!state || !s.civics || !s.civics.trade) return { ok: false, reason: 'locked' };
     /* 武器的批判挑战（2026-11-12）：整局禁止修建贸易路线。预防性拦截——UI 按钮已禁用，
      * 这里兜底 aibot / 任何旁路调用。 */
@@ -860,6 +1019,7 @@
   }
   function executeSoftPowerAction(s, enemyId, actionId, options) {
     var state = ensureState(s), enemy = enemyOf(s, enemyId), opts = options || {};
+    if (hasCrisis(s)) return { ok: false, reason: 'crisis_active' };
     /* 武器的批判挑战（2026-11-12）：整局禁止软实力（传播文化 / 传道信仰）。预防性拦截——
      * UI 按钮已禁用，这里兜底 aibot / 任何旁路调用。 */
     if (SB.challenges && SB.challenges.softPowerBlocked && SB.challenges.softPowerBlocked(s))
@@ -903,6 +1063,7 @@
   }
   function annexEnemy(s, enemyId, hasMirrorOverride) {
     var state = ensureState(s), enemy = enemyOf(s, enemyId);
+    if (hasCrisis(s)) return { ok: false, reason: 'crisis_active' };
     if (!enemyAvailable(state, enemy)) return { ok: false, reason: 'unavailable' };
     if (enemy.stage !== state.campaignStage + 1) return { ok: false, reason: 'stage_locked' };
     var cost = annexCost(enemy, hasMirrorOverride === true || (hasMirrorOverride !== false && mirrorBuilt(s)));
@@ -957,8 +1118,8 @@
     if (roll < probabilities.failure + probabilities.success) return 'success';
     return 'greatSuccess';
   }
-  function executeAction(s, enemyId, actionId, options) {
-    var state = ensureState(s), enemy = enemyOf(s, enemyId), spec = ACTIONS[actionId];
+  function executeActionForTarget(s, state, enemy, actionId, options, crisisMode) {
+    var spec = ACTIONS[actionId];
     var opts = options || {};
     /* 战争行动被挑战禁用（2026-11-12）：细粒度预防性拦截。批判的武器禁全部；
      * 早打大打打核大战只许全面战争；grubby 只许劫掠。UI 已禁用对应按钮，这里兜底
@@ -966,13 +1127,16 @@
     var warActionReason = SB.challenges && SB.challenges.warActionBlockedReason
       ? SB.challenges.warActionBlockedReason(s, actionId) : null;
     if (warActionReason) return { ok: false, reason: warActionReason };
-    if (!enemyAvailable(state, enemy) || currentScale(enemy) <= 0 || !spec) return { ok: false, reason: 'unavailable' };
+    var targetAvailable = crisisMode
+      ? (hasCrisis(s) && crisisActive(s) && !!enemy)
+      : (!hasCrisis(s) && enemyAvailable(state, enemy));
+    if (!targetAvailable || currentScale(enemy) <= 0 || !spec) return { ok: false, reason: 'unavailable' };
     if (!s.civics || !s.civics[spec.unlockCivic]) return { ok: false, reason: 'locked' };
     var cost = actionCost(s, enemy, actionId, opts.costMultiplier);
     if (!(cost > 0) || state.power + 1e-9 < cost) return { ok: false, reason: 'insufficient_power', cost: cost };
-    var resourceId = randomItem(lootResourceCandidates(s));
-    if (!resourceId) return { ok: false, reason: 'no_loot_resource' };
-    var lootRateBeforeAction = grossResourceRate(s, resourceId);
+    var resourceId = crisisMode ? null : randomItem(lootResourceCandidates(s));
+    if (!crisisMode && !resourceId) return { ok: false, reason: 'no_loot_resource' };
+    var lootRateBeforeAction = crisisMode ? 0 : grossResourceRate(s, resourceId);
     var modifiers = opts.probabilityModifiers || {};
     var odds = actionProbabilities(s, actionId, modifiers);
     var outcomeId = rollOutcome(odds, opts.random);
@@ -1017,24 +1181,37 @@
       s.pop = Math.max(0, nonNegative(s.pop) - lostPop);                   // 总减 lostPop
       if (SB.folk && typeof SB.folk.trimJobsToPop === 'function') SB.folk.trimJobsToPop(s);  // 兜底 jobs ≤ pop
     }
-    var capAward = Math.min(result.popCap, Math.max(0, nonNegative(enemy.popCapPool) - nonNegative(enemy.popCapClaimed)));
-    enemy.popCapClaimed = nonNegative(enemy.popCapClaimed) + capAward;
-    state.popCap += capAward;
+    var capAward = 0;
+    if (!crisisMode) {
+      capAward = Math.min(result.popCap, Math.max(0, nonNegative(enemy.popCapPool) - nonNegative(enemy.popCapClaimed)));
+      enemy.popCapClaimed = nonNegative(enemy.popCapClaimed) + capAward;
+      state.popCap += capAward;
+    }
     /* 2026-11-14「战场回收」：战败时按天赋给保底战利品（0 → 0.50）。
      * ⚠️ opts.lootOnFailure 是历史遗留的「全额」开关（全库零调用方），保留其语义；
      *    新天赋与它取其一、绝不叠乘；未点亮时 warSalvage=0 ⇒ 仍为 0，默认行为零变更。 */
-    var failureLootFrac = opts.lootOnFailure === true ? 1
-      : clamp(nonNegative(s && s.perk && s.perk.warSalvage), 0, 1);
-    var resourceRate = outcomeId === 'failure'
-      ? lootRateBeforeAction * failureLootFrac : lootRateBeforeAction;
-    var lootAmount = resourceRate * spec.lootSeconds;
-    /* grubby 通关奖励（2026-11-12）：战利品产出 +20% 永久生效。 */
-    var lootYieldMul = (SB.challenges && SB.challenges.lootYieldMul) ? SB.challenges.lootYieldMul(s) : 1;
-    lootAmount *= lootYieldMul;
-    var resourceBefore = nonNegative(s.res && s.res[resourceId]);
-    if (lootAmount > 0 && SB.economy.addRes) SB.economy.addRes(s, resourceId, lootAmount);
-    var actualLoot = Math.max(0, nonNegative(s.res && s.res[resourceId]) - resourceBefore);
-    state.tradeRouteLevel = 0;
+    var resourceRate = 0, lootAmount = 0, actualLoot = 0;
+    if (!crisisMode) {
+      var failureLootFrac = opts.lootOnFailure === true ? 1
+        : clamp(nonNegative(s && s.perk && s.perk.warSalvage), 0, 1);
+      resourceRate = outcomeId === 'failure'
+        ? lootRateBeforeAction * failureLootFrac : lootRateBeforeAction;
+      lootAmount = resourceRate * spec.lootSeconds;
+      /* grubby 通关奖励（2026-11-12）：战利品产出 +20% 永久生效。 */
+      var lootYieldMul = (SB.challenges && SB.challenges.lootYieldMul) ? SB.challenges.lootYieldMul(s) : 1;
+      lootAmount *= lootYieldMul;
+      var resourceBefore = nonNegative(s.res && s.res[resourceId]);
+      if (lootAmount > 0 && SB.economy.addRes) SB.economy.addRes(s, resourceId, lootAmount);
+      actualLoot = Math.max(0, nonNegative(s.res && s.res[resourceId]) - resourceBefore);
+      state.tradeRouteLevel = 0;
+    } else {
+      var crisis = crisisOf(s);
+      crisis.currentScale = enemy.currentScale;
+      if (enemy.currentScale <= 0) {
+        crisis.currentScale = 0;
+        crisis.defeated = true;
+      }
+    }
     if (SB.game && SB.game.markDirty) SB.game.markDirty();
     var result = {
       ok: true, action: actionId, outcome: outcomeId, cost: cost, refund: refund,
@@ -1045,12 +1222,31 @@
     };
     /* 结算点即唯一反馈落点：玩家点击（input.js）与 aibot 都走这里，
        不会出现「界面点了有提示、模拟跑起来没有」的分叉。 */
-    notifyWarToast('action', result);
+    if (crisisMode) {
+      result.crisis = true;
+      result.defeated = enemy.currentScale <= 0;
+    } else notifyWarToast('action', result);
     return result;
+  }
+  function executeAction(s, enemyId, actionId, options) {
+    var state = ensureState(s);
+    if (hasCrisis(s)) return { ok: false, reason: 'crisis_active' };
+    return executeActionForTarget(s, state, enemyOf(s, enemyId), actionId, options, false);
+  }
+  function executeCrisisAction(s, actionId, options) {
+    var state = ensureState(s), enemy = crisisEnemy(s);
+    if (!state || !hasCrisis(s) || !enemy) return { ok: false, reason: 'unavailable' };
+    return executeActionForTarget(s, state, enemy, actionId, options, true);
   }
 
   SB.war = {
     ACTIONS: ACTIONS,
+    CRISIS_TYPES: CRISIS_TYPES.map(function (crisis) { return { id: crisis.id, nameKey: crisis.nameKey }; }),
+    CRISIS_SCALE_MULTIPLIER: CRISIS_SCALE_MULTIPLIER,
+    CRISIS_BASE_SCALE: CRISIS_BASE_SCALE,
+    CRISIS_PRODUCTION_MUL: CRISIS_PRODUCTION_MUL,
+    CRISIS_HYDRO_ADDITIONAL_MUL: CRISIS_HYDRO_ADDITIONAL_MUL,
+    CRISIS_POPULATION_CAP_MUL: CRISIS_POPULATION_CAP_MUL,
     ENEMIES: ENEMIES.map(function (enemy) { return { id: enemy.id, stage: enemy.stage, baseScale: enemy.baseScale, popCapPool: enemy.popCapPool }; }),
     POP_CAP_POOLS: POP_CAP_POOLS.slice(),
     ENEMY_NAME_KEYS: ENEMY_NAME_KEYS.slice(),
@@ -1074,6 +1270,17 @@
     registerEnemy: registerEnemy,
     enemy: enemyOf,
     currentEnemy: currentEnemy,
+    hasCrisis: hasCrisis,
+    crisisActive: crisisActive,
+    crisisOf: crisisOf,
+    crisisDefinition: crisisDefinition,
+    crisisEnemy: crisisEnemy,
+    startCrisis: startCrisis,
+    crisisProductionMul: crisisProductionMul,
+    crisisAlienOutputMul: crisisAlienOutputMul,
+    crisisRobotOutputMul: crisisRobotOutputMul,
+    crisisHydroOutputMul: crisisHydroOutputMul,
+    crisisPopulationCapMul: crisisPopulationCapMul,
     invasionStatus: invasionStatus,
     /* 供回归断言直读：面板/警告/结算/阈值共用的威胁速率单点。 */
     threatRateOf: threatRateOf,
@@ -1102,6 +1309,7 @@
     },
     grossResourceRate: grossResourceRate,
     executeAction: executeAction,
+    executeCrisisAction: executeCrisisAction,
     populationCapBonus: function (s) { return nonNegative(s && s.war && s.war.popCap); },
     soldierBaseRate: function () { return nonNegative(SB.BLD && SB.BLD.soldierMilitaryPower); }
   };

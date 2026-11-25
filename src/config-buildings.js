@@ -119,18 +119,18 @@
      *    会让灯塔只放大采集四种，玩家一看「明明说全资源」就成了又一次面板撒谎。
      *    ⚠️ 落点在 economy.globalMul，由 tick 与 rates 两条路同时读（面板 === 结算）。 */
     lighthouseProd: 0.01,  // 灯塔：全资源产出 +1%/级
-    /* 灯塔自己也是仓库（材料仓储 +120/级，与压舱仓同档）。
-     * 【为什么要有这座」大灯塔「的仓储基准】用户规格「大灯塔获得仓库的作用，但资源上限量为
-     *  其一半」——「其」指的就是灯塔。灯塔若不产仓储，大灯塔那「一半」就没有基准可依。
-     *    ⇒ 灯塔 +120/级，大灯塔写死 +60。⚠️ 大灯塔那个数是**常数**（用户拍「写死常数」），
-     *      不随灯塔等级走——后期工坊要加存储上限，走的是 matMax 那条通道，不是这里。 */
-    lighthouseCap: 120,    // 灯塔：其余资源上限 +120/级
-    /* ⚠️ 大灯塔建成后，每座灯塔额外 +60/级 仓储 = 压舱仓(ballastCap 120)的一半。
-     *   【机制，不是 flat】这是**按灯塔等级缩放**的条件增益：建了 N 座、每座 L 级 ⇒
-     *    这层 = N×L×60。挂在大灯塔建成上（SB.wonder.owned(s).wonder_great_lighthouse），
-     *    不建成则 0。替代了旧「所有材料一次性 +60」(matMax:60) 写法（用户 2026-10-06 拍板：
-     *    旧写法是对「灯塔之半」的误读，与压舱仓一半的量纲（每级）对不上）。 */
-    lighthouseCapGreat: 60, // 大灯塔：每座灯塔 +60/级 仓储（= 压舱仓一半）
+    /* ⚠️【2026-11-21 全局修正 · 用户拍板「之前一直做错了」】**灯塔本身不产仓储**（本键=0）。
+     *    旧值 120 来自 2026-09-28 的误读：用户规格「大灯塔获得仓库的作用，但资源上限量为
+     *    其一半」——「其」指**压舱仓**，不是灯塔。旧实现给灯塔加了 120 当基准，是错的。
+     *    正确机制：灯塔仓储恒 0，直到大灯塔建成；建成后灯塔按「该资源压舱仓每级量的一半」
+     *    给容量（普通资源 120/2=60、暗物质 10/2=5）。保留本键=0 供 UI/断言兜底读取。 */
+    lighthouseCap: 0,      // 灯塔本身：其余资源上限 +0/级（仓储全挂在大灯塔建成之后）
+    /* ⚠️ 大灯塔建成后，每座灯塔给 +60/级 仓储 = 普通资源压舱仓(ballastCap 120)的一半。
+     *   【派生，不是写死】economy.capOf 实际读 `ballastPerLvl(k)/2`：普通资源 120/2=60，
+     *    暗物质实装后 10/2=5。本键仅记录普通资源的现值、供 UI/断言引用，勿当全局常量乘。
+     *   【机制，不是 flat】按灯塔等级缩放：建了 N 座、每座 L 级 ⇒ 这层 = N×L×(每级量/2)。
+     *    挂在大灯塔建成上（SB.wonder.owned(s).wonder_great_lighthouse），不建成则 0。 */
+    lighthouseCapGreat: 60, // 大灯塔：普通资源下每座灯塔 +60/级 (= ballastCap/2)
     /* house / house2：两档住房各自的**每级人口上限**（礁口巢 +2、石屋 +4）。
      * 容量 100% 在建筑上，科技只负责解锁下一档住房（照猫国：hut/logHouse/mansion）。
      * ⚠️ 2026-09-26 术语统一「床位 → 人口」（用户原话：床位就是人口，都改成人口）；
@@ -473,7 +473,7 @@
      *   前者在 economy.globalMul（全资源产出，与 tick/rates 两条路都有关），
      *   后者在 economy.capOf（容量）。改任一条前先看 BLD 表里那两处注释。 */
     { id: 'lighthouse', icon: 'assets/building-icons/era-2/era2-lighthouse.png', name: '灯塔',  ratio: 1.15, cost: {stone: 200, silt: 120},
-      desc: '全资源产出 +1%/级，其余资源上限 +120/级',
+      desc: '全资源产出 +1%/级；建成大灯塔后每级仓储 +压舱仓一半',
       requiredTech: ['navigation'] },
     /* ⚠️ 订正（2026-09-29，用户纠正「工坊里有各自升级」）：旧注「工坊现在是空壳」已删——
      *    工坊的内容 = 每座运行中 +5% 工艺制作效率（下方 craftRatio）+ 工坊页全部商品
@@ -925,7 +925,17 @@
     { id: 'reserve', challengeOnly: 'waterpollution', name: '保护区', icon: 'assets/building-icons/era-7/era7-reserve.png', ratio: 2,
       cost: { kelp: 10000, coral: 5000 },
       desc: '每座每秒净化 8 点污染。',
-      requiredCivic: 'protect_earth' }
+      requiredCivic: 'protect_earth' },
+
+    /* ═════════ ERA11/12 建筑（2026-11-21 · spec §3）═════════
+     * 造价全部按用户原表原样抄录、标「待标定」——标定权在用户。 */
+    { id: 'chrono_house', name: '逆时屋', icon: 'assets/building-icons/era-11/era11-chrono-house.png', ratio: 1.5,
+      cost: { cryoPod: 1000, hydro: 100 },
+      /* 效果：人口上限 +1（建筑级，走 economy.popCap 新落点，P3 接）；跨轮回携带见 spec §0 拍板 3。
+       * ⚠️ 原表造价「冷冻仓 1000」= 工艺资源 cryoPod（P2 CRAFTS 新增），不是 id 'cryo_pod'——
+       *    工艺资源的 res 键名见 config-content.js CRAFTS.res。 */
+      desc: '人口上限 +1。本建筑会保留到下一个轮回（失能后不消耗热液能，可用 1/3 资源重新激活）。',
+      requiredTech: ['reverse_time'] }
   ];
 
   /* ⚠️═══ 建筑分区（2026-09-30 用户拍板 · 纯 UI 分区 A 方案）═══
@@ -991,7 +1001,7 @@
     biomatlab: 'workshop', rheamine: 'space', titancloud: 'space',
     /* ERA8（2026-10-19 · B7）：机器人充能站原归工坊区（机器人产线家族）；2026-10-21 用户拍板改归
      *   礁栖核心（核心区）—— 故其等级现计入 coreFaithMul（礁栖核心每级 +10% 信仰）与「我们在此」卡的
-     *   coreSpaceFaithMul（core+space 每级 +10%）两项信仰乘区，且君主制政体下建造 −10%。
+     *   coreSpaceFaithMul（core+space 每级 +10%）两项信仰乘区，且王权制政体下建造 −10%。
      *   ⚠️ 这些是按 zone 自动派生的副作用，非机器人机制本意；若只想挪 UI 分区不想加信仰需另写排除。 */
     robotbay: 'core',
     /* ERA9（2026-10-19）：马尔斯工造中心归星海区（异星制造，与 rheamine/titancloud 同区 ⇒ 吃 spaceCostMul）；

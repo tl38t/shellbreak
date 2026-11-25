@@ -38,6 +38,8 @@
     pure: ['morph', 'growth', 'fastmat', 'forge']
   };
   var GENE_LEVEL_COSTS = [1, 3, 5];
+  var ORGAN_LEVEL_COSTS = [1, 2, 4];
+  var ORGAN_IDS = ['gill', 'heart', 'stomach', 'scale', 'fin', 'tail', 'eye', 'brain', 'throat', 'hand'];
   function geneLv(branch, id) {
     if (!GENE_NODE_IDS[branch] || GENE_NODE_IDS[branch].indexOf(id) < 0) return 0;
     var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
@@ -57,6 +59,29 @@
       for (var i = 0; i < level; i++) total += GENE_LEVEL_COSTS[i];
     });
     return total;
+  }
+  function organInvestmentPoints() {
+    var total = 0;
+    ORGAN_IDS.forEach(function (id) {
+      var level = lv(id);
+      for (var i = 0; i < level; i++) total += ORGAN_LEVEL_COSTS[i];
+    });
+    return total;
+  }
+  function ascensionPathInvestment(path) {
+    if (path === 'gn') return geneInvestmentPoints('supreme') + geneInvestmentPoints('pure');
+    if (path === 'si') return organInvestmentPoints();
+    return 0;
+  }
+  /* All successful Ascension Point purchases report the actual debit here. */
+  function recordSpentPoints(amount) {
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var veil = meta && meta.veil;
+    var debit = Number(amount);
+    if (!veil || typeof veil !== 'object' || !isFinite(debit) || debit <= 0) return false;
+    var spent = Number(veil.spentPoints);
+    veil.spentPoints = (isFinite(spent) && spent >= 0 ? spent : 0) + debit;
+    return true;
   }
   function geneResonanceBonusPct() {
     var supreme = geneInvestmentPoints('supreme'), pure = geneInvestmentPoints('pure');
@@ -189,6 +214,10 @@
   VF.geneLv = geneLv;
   VF.geneLevelCost = function (level) { return GENE_LEVEL_COSTS[level] || 0; };
   VF.geneInvestmentPoints = geneInvestmentPoints;
+  VF.organLevelCost = function (level) { return ORGAN_LEVEL_COSTS[level] || 0; };
+  VF.organInvestmentPoints = organInvestmentPoints;
+  VF.ascensionPathInvestment = ascensionPathInvestment;
+  VF.recordSpentPoints = recordSpentPoints;
   VF.geneResonanceBonusPct = geneResonanceBonusPct;
   VF.geneEffectMul = geneEffectMul;
   VF.geneAmp = geneAmp;

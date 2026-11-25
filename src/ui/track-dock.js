@@ -657,7 +657,7 @@
    * 小框是常驻节点 ⇒ 监听可以**直接挂它自己身上**（不会像 pane 里那样被重画冲掉）。
    * 拖与点必须分开：拖动结束时浏览器不会补 click（指针移动过），
    * 但触屏上偶尔会给一个，所以用 justDragged 兜一层。 */
-  var drag = null, moved = false, justDragged = false, tappedAt = 0;
+  var drag = null, moved = false, justDragged = false, tappedAt = 0, tapTarget = null;
 
   function viewport() {
     return { w: root.innerWidth || 360, h: root.innerHeight || 640 };
@@ -716,6 +716,10 @@
   function onDown(e) {
     var node = el('trackDock'); if (!node) return;
     if (node.classList && node.classList.contains('hidden')) return;
+    /* ⚠️ 2026-11-22 修「多个追踪项点哪个都跳第一个」：下面的 setPointerCapture 会把
+     * pointerup 的 target 改写成整个小框 ⇒ onUp 里的 e.target 找不到 [data-track-go]，
+     * 于是落到 jump('') 的 `key || list[0]` 兜底。必须在按下瞬间记住真正点到的那一行。 */
+    tapTarget = e.target || null;
     /* 「×」不参与拖动：否则想关掉它时手指一抖就变成拖动，点不中关闭。 */
     var t = e.target || {};
     if (t.closest && t.closest('[data-track-clear], [data-track-drop], [data-goto-craft]')) return;
@@ -749,12 +753,13 @@
     if (node && node.classList) node.classList.remove('is-dragging');
     var wasMoved = moved;
     drag = null; moved = false;
+    var downTarget = tapTarget; tapTarget = null;
     if (wasMoved) { savePos(); justDragged = true; return; }
     /* 手指在触屏上未必补一个 click（尤其配了 touch-action:none）⇒ 点按在这里就地处理，
      * 再用 tappedAt 把随后可能到来的那次 click 吃掉，避免「跳两次」。 */
     if (e && e.type === 'pointercancel') return;
     tappedAt = Date.now();
-    act(e && e.target);
+    act(downTarget || (e && e.target));
   }
 
   function bind() {

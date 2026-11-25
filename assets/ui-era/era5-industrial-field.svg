@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" fill="none">
+  <defs>
+    <linearGradient id="steel" x1="520" y1="72" x2="926" y2="552" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d8c18f" stop-opacity=".13"/>
+      <stop offset=".48" stop-color="#9b8060" stop-opacity=".07"/>
+      <stop offset="1" stop-color="#e4773e" stop-opacity=".1"/>
+    </linearGradient>
+    <radialGradient id="kiln" cx="0" cy="0" r="1" gradientTransform="matrix(0 190 -330 0 819 516)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e56f36" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#e56f36" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Warm spill from a furnace bay sits low and behind the working surface. -->
+  <ellipse cx="819" cy="516" rx="330" ry="190" fill="url(#kiln)"/>
+
+  <!-- Pressure-hull plates and load-bearing ribs. -->
+  <g stroke="#d3b77c" stroke-linejoin="bevel">
+    <path d="M478 43h286l28 28v152l-28 28H478l-26-28V71l26-28Z" fill="url(#steel)" stroke-opacity=".2" stroke-width="2"/>
+    <path d="M510 86h220v112H510z" stroke-opacity=".12"/>
+    <path d="M494 242h314v216l-31 30H515l-21-28V242Z" fill="url(#steel)" stroke-opacity=".16" stroke-width="2"/>
+    <path d="M526 274h248v168H526z" stroke-opacity=".1"/>
+    <path d="m480 72 38 38v93l-39 39M764 44l-31 36v118l31 35M496 261l35 35v128l-32 37M808 247l-35 39v127l36 42" stroke-opacity=".16" stroke-width="5"/>
+    <path d="M0 488h348l29-29h72M1000 120H881l-25 25h-62M1000 544H849l-29-29h-89M0 106h152l25 25h72" stroke-opacity=".1" stroke-width="2"/>
+    <path d="M126 0v92l25 25h112M930 0v74l-25 25H810M0 567h126l27-27h150M1000 478h-84l-25 25H784" stroke-opacity=".08" stroke-width="2"/>
+  </g>
+
+  <!-- Recessed cooling louvers; the restrained lines read as machinery at a glance. -->
+  <g stroke="#e2c990" stroke-linecap="square">
+    <path d="M565 119h111M565 133h111M565 147h111M565 161h111" stroke-opacity=".18" stroke-width="3"/>
+    <path d="M565 324h169M565 340h169M565 356h169M565 372h169M565 388h169" stroke-opacity=".13" stroke-width="3"/>
+    <path d="M527 477h244" stroke-opacity=".1" stroke-width="2"/>
+  </g>
+
+  <!-- Captive bolts and small heat status lamps. -->
+  <g stroke="#dfc18a" stroke-width="2">
+    <circle cx="478" cy="66" r="5" fill="#242729" fill-opacity=".8" stroke-opacity=".28"/>
+    <circle cx="762" cy="66" r="5" fill="#242729" fill-opacity=".8" stroke-opacity=".28"/>
+    <circle cx="478" cy="225" r="5" fill="#242729" fill-opacity=".8" stroke-opacity=".28"/>
+    <circle cx="762" cy="225" r="5" fill="#242729" fill-opacity=".8" stroke-opacity=".28"/>
+    <circle cx="497" cy="260" r="5" fill="#242729" fill-opacity=".8" stroke-opacity=".24"/>
+    <circle cx="797" cy="260" r="5" fill="#242729" fill-opacity=".8" stroke-opacity=".24"/>
+    <circle cx="497" cy="452" r="5" fill="#242729" fill-opacity=".8" stroke-opacity=".24"/>
+    <circle cx="797" cy="452" r="5" fill="#242729" fill-opacity=".8" stroke-opacity=".24"/>
+  </g>
+  <g fill="#ed9a4c">
+    <circle cx="709" cy="87" r="3" fill-opacity=".28"/>
+    <circle cx="725" cy="87" r="3" fill-opacity=".12"/>
+    <circle cx="740" cy="87" r="3" fill-opacity=".12"/>
+  </g>
+
+  <!-- A recessed exhaust grille anchors the occasional steam puff. -->
+  <path d="M846 514h91l9 9v54h-100z" fill="#222729" fill-opacity=".38" stroke="#d3b77c" stroke-opacity=".16" stroke-width="2"/>
+  <g stroke="#dfc18a" stroke-linecap="square" stroke-opacity=".2" stroke-width="2">
+    <path d="M861 535h68M861 543h68M861 551h68M861 559h68"/>
+  </g>
+  <g fill="#242729" stroke="#dfc18a" stroke-opacity=".25">
+    <circle cx="854" cy="522" r="3"/><circle cx="938" cy="522" r="3"/>
+  </g>
+</svg>

@@ -298,6 +298,7 @@
         enemySuccessPercent: typeof rawReport.enemySuccessPercent === 'number' && isFinite(rawReport.enemySuccessPercent)
           ? Math.max(0, Math.min(80, rawReport.enemySuccessPercent)) : 0
       };
+      report.crisis = rawReport.crisis === true;
       if (report.type === 'repelled') {
         report.scaleLoss = typeof rawReport.scaleLoss === 'number' && isFinite(rawReport.scaleLoss)
           ? Math.max(0, rawReport.scaleLoss) : 0;
@@ -457,6 +458,22 @@
            (_tdef.cond && _tdef.cond.t && _tdef.cond.t !== 'default' && _tdef.cond.t !== 'always'))) continue;
       out.techs[nid] = true;
     }
+    var rawCrisis = raw.crisis && typeof raw.crisis === 'object' && !Array.isArray(raw.crisis) ? raw.crisis : null;
+    var crisisIds = { horde: true, machine: true, voidwalker: true };
+    var crisisBaseScale = SB.war && Number(SB.war.CRISIS_BASE_SCALE) > 0
+      ? Number(SB.war.CRISIS_BASE_SCALE) : 234375000;
+    if (rawCrisis && crisisIds[rawCrisis.id] && out.techs.beyond_veil) {
+      var crisisDefeated = rawCrisis.defeated === true;
+      var crisisScale = typeof rawCrisis.currentScale === 'number' && isFinite(rawCrisis.currentScale)
+        ? Math.max(0, Math.min(crisisBaseScale, rawCrisis.currentScale)) : crisisBaseScale;
+      out.crisis = {
+        id: rawCrisis.id,
+        currentScale: crisisDefeated ? 0 : crisisScale,
+        defeated: crisisDefeated || crisisScale <= 0,
+        storySeen: rawCrisis.storySeen === true,
+        attackTimerInitialized: rawCrisis.attackTimerInitialized === true
+      };
+    } else out.crisis = null;
     out.techLv = {};
     var rawTechLv = raw.techLv && typeof raw.techLv === 'object' && !Array.isArray(raw.techLv) ? raw.techLv : {};
     for (var tlId in out.techs) {
@@ -480,6 +497,12 @@
     var _policies = SB.POLICIES || [], _pi, _pci;
     for (_pi = 0; _pi < out.cards.length; _pi++) {
       if (!out.cards[_pi]) continue;
+      /* 2026-11-25 验收 PR#1：安那其挑战禁止的卡若已在槽里，读档时一并卸下。
+       * 卡的所有权记在 out.civics，这里只清槽位表，卡还在卡池可重新装备。 */
+      if (SB.civic && SB.civic.cardBlockedByChallenge && SB.civic.cardBlockedByChallenge(out, out.cards[_pi])) {
+        out.cards[_pi] = null;
+        continue;
+      }
       for (_pci = 0; _pci < _policies.length; _pci++) {
         var _policy = _policies[_pci];
         if (_policy.id === out.cards[_pi] && _policy.retiredBy && out.civics[_policy.retiredBy]) {

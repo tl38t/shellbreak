@@ -143,11 +143,17 @@
       return '<div class="note">' + escapeHtml(tr('ui.star_map.locked_hint')) + '</div>';
     return '<div class="starmap-frame-wrap">' +
       '<iframe class="starmap-frame" sandbox="allow-scripts" ' +
-      'src="src/ui/star-map-frame.html?v=10" title="' + escapeHtml(tr('ui.star_map.frame.title')) + '" ' +
+      'src="src/ui/star-map-frame.html?v=11" title="' + escapeHtml(tr('ui.star_map.frame.title')) + '" ' +
       'style="width:100%;height:780px;border:0;border-radius:12px;background:#07111d"></iframe></div>' +
       '<div id="star-map-buildings" class="star-map-buildings"></div>';
   }
 
   parts.paneStarMap = paneStarMap;
   parts.refreshStarMapBuildings = renderSelectedBody;
+  /* 切页签/切前后台时通知 iframe 停或启动画。只发 UI 信号，不碰任何局内或局外状态。 */
+  parts.setStarMapActive = function (on) {
+    var iframe = root.document && root.document.querySelector('#pane-star-map iframe.starmap-frame');
+    if (!iframe || !iframe.contentWindow || !iframe.contentWindow.postMessage) return;
+    iframe.contentWindow.postMessage({ type: 'sb-star-map-active', active: !!on }, '*');
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -25,7 +25,7 @@
   var SB = root.SB || (root.SB = {});
   var UI = SB.ui || (SB.ui = {});
 
-  /* wip = 玩家门禁：卡片常驻锁定态，即便飞升已开启该路径也不放入；效果代码仍可预先接好。
+  /* wip = 玩家门禁：目前仅虚境升华使用；该路径即便已写入 opened 也不会进入，效果代码仍可预先接好。
    * focus = 卡片上的一句话定位（用户 2026-11-18 指定：工业与制造 / 科技与市政 / 采集与生产）。 */
   var PATHS = [
     { id: 'si', name: '硅基承续', focus: '工业与制造',
@@ -34,7 +34,7 @@
     { id: 'vo', name: '虚境升华', focus: '科技与市政', wip: true, preview: true,
       closed: 'assets/veil/veil-gate-vo-closed.webp', open: 'assets/veil/veil-gate-vo-open.webp',
       seal: '已消散', desc: '您听见的那些低语，是我们发出的。' },
-    { id: 'gn', name: '生命织章', focus: '采集与生产', wip: true,
+    { id: 'gn', name: '生命织章', focus: '采集与生产',
       closed: 'assets/veil/veil-gate-gn-closed.jpg', open: 'assets/veil/veil-gate-gn-open.jpg',
       seal: '已封存', desc: '我们一直以为，双螺旋是命运写死的。' }
   ];
@@ -42,20 +42,20 @@
   var STAGES = ['接枝', '置换', '归一'];   // LV1/2/3 命名（v0.2 §2，用户授权我定）
   var GENE_BRANCHES = {
     supreme: [
-      { id: 'lore', pos: 12.1, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
-      { id: 'valor', pos: 31.8, y: 53.5, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
-      { id: 'agility', pos: 50.4, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
-      { id: 'longevity', pos: 67.5, y: 53.5, values: [
+      { id: 'lore', icon: 'assets/veil/gene-icons/gene-lore.png', pos: 12.1, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'valor', icon: 'assets/veil/gene-icons/gene-valor.png', pos: 31.8, y: 53.5, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'agility', icon: 'assets/veil/gene-icons/gene-agility.png', pos: 50.4, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'longevity', icon: 'assets/veil/gene-icons/gene-longevity.png', pos: 67.5, y: 53.5, values: [
         { merchant: 40, freeze: 10, warm: 10 },
         { merchant: 80, freeze: 20, warm: 20 },
         { merchant: 120, freeze: 40, warm: 40 }
       ] }
     ],
     pure: [
-      { id: 'morph', pos: 12.1, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
-      { id: 'growth', pos: 31.8, y: 53.5, values: [{ value: 10 }, { value: 20 }, { value: 30 }] },
-      { id: 'fastmat', pos: 50.4, y: 55, values: [{ value: 60 }, { value: 120 }, { value: 240 }] },
-      { id: 'forge', pos: 67.5, y: 53.5, values: [{ value: 60 }, { value: 120 }, { value: 240 }] }
+      { id: 'morph', icon: 'assets/veil/gene-icons/gene-morph.png', pos: 12.1, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'growth', icon: 'assets/veil/gene-icons/gene-growth.png', pos: 31.8, y: 53.5, values: [{ value: 10 }, { value: 20 }, { value: 30 }] },
+      { id: 'fastmat', icon: 'assets/veil/gene-icons/gene-fastmat.png', pos: 50.4, y: 55, values: [{ value: 60 }, { value: 120 }, { value: 240 }] },
+      { id: 'forge', icon: 'assets/veil/gene-icons/gene-forge.png', pos: 67.5, y: 53.5, values: [{ value: 60 }, { value: 120 }, { value: 240 }] }
     ]
   };
   var geneBranch = 'supreme', geneSelected = 'lore';
@@ -65,8 +65,9 @@
    *    旧实现是 `price × (lv+1)`（每部位一个基准价 1~5），三级成本散成 1/2/3 ~ 5/10/15，
    *    部位间梯度靠 price 拉，读起来乱且不成曲线；现统一成 ×2 递增。
    *    单部位全套 = 1+2+4 = 7，十部位全归一 = 70 点（旧口径 186 点）。 */
-  var LV_COST = [1, 2, 4];
-  function lvCost(lv) { return LV_COST[lv] || 0; }
+  function lvCost(lv) {
+    return SB.veilFx && SB.veilFx.organLevelCost ? SB.veilFx.organLevelCost(lv) : 0;
+  }
 
   /* 十部位三级数据（v0.2 §3 用户方案原样）。
    * 飞升点消耗统一由 LV_COST 决定（1/2/4），部位之间不再有价格差。
@@ -235,6 +236,9 @@
   function geneNodeName(node) {
     return node ? tr('ui.veil.gene.node.' + node.id + '.name', '') : '';
   }
+  function geneNodeDescription(node) {
+    return node ? tr('ui.veil.gene.node.' + node.id + '.description', '') : '';
+  }
   function geneNodes(branch) { return GENE_BRANCHES[branch] || GENE_BRANCHES.supreme; }
   function geneLevelCost(level) {
     return SB.veilFx && SB.veilFx.geneLevelCost ? SB.veilFx.geneLevelCost(level) : 0;
@@ -243,6 +247,9 @@
     var nodes = geneNodes(branch || geneBranch);
     for (var i = 0; i < nodes.length; i++) if (nodes[i].id === id) return nodes[i];
     return null;
+  }
+  function geneNodeIconMarkup(node) {
+    return node && node.icon ? '<img src="' + esc(node.icon) + '" alt="" draggable="false">' : '';
   }
   function geneNodeLevel(id, branch) {
     var b = branch || geneBranch, v = veil();
@@ -283,6 +290,37 @@
       state: geneResonanceStateLabel(), supremePoints: supreme, purePoints: pure, bonusPercent: bonus
     }, '');
   }
+  function geneResonancePoints(branch) {
+    var fx = SB.veilFx || {};
+    return fx.geneInvestmentPoints ? Math.max(0, Number(fx.geneInvestmentPoints(branch)) || 0) : 0;
+  }
+  function geneResonanceVisualState(supreme, pure, bonus) {
+    if (supreme > 0 && pure > 0 && Math.abs(supreme - pure) < 0.0001 && bonus >= 100) return 'is-harmony';
+    if (supreme > pure) return 'is-supreme-leading';
+    if (pure > supreme) return 'is-pure-leading';
+    return 'is-dormant';
+  }
+  function geneBranchIconMarkup(branch) {
+    if (branch === 'pure') {
+      return '<svg class="gene-branch-icon gene-branch-icon-pure" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
+        + '<path d="M13.8 2.2C7.2 2.2 3 5.1 3 9.3c0 2.4 1.6 4.2 3.9 4.2 4 0 6.1-4.2 6.9-11.3Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-linejoin="round" stroke-width="1.2"></path>'
+        + '<path d="M3.4 13.5c2.3-2.6 4.8-4.6 8.7-8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.2"></path></svg>';
+    }
+    return '<svg class="gene-branch-icon gene-branch-icon-supreme" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
+      + '<path d="M8 1.8c-3.2 0-5.6 2.3-5.6 5.4 0 2.4 1.4 4.1 3.2 4.9v1.7h4.8v-1.7c1.8-.8 3.2-2.5 3.2-4.9 0-3.1-2.4-5.4-5.6-5.4Z" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.2"></path>'
+      + '<path d="M8 2.4v9.3M5 5.5c1.3.1 2.2.6 3 1.5m3-1.5C9.7 5.6 8.8 6.1 8 7m-3 2.1c1.2 0 2.2.4 3 1.2m3-1.2c-1.2 0-2.2.4-3 1.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width=".9"></path></svg>';
+  }
+  function geneTaijiMarkup(state) {
+    var help = tr('ui.intro.help.tooltip', '');
+    return '<button type="button" class="gene-resonance-trigger ' + state + '" data-gene-resonance-info'
+      + ' aria-label="' + esc(geneResonanceStatusText()) + '" title="' + esc(help) + '" aria-haspopup="dialog" aria-controls="gene-resonance-dialog">'
+      + '<svg class="gene-taiji-glyph" viewBox="0 0 32 32" aria-hidden="true" focusable="false">'
+      + '<circle class="gene-taiji-pure" cx="16" cy="16" r="14"></circle>'
+      + '<path class="gene-taiji-supreme" d="M16 2 A14 14 0 0 0 16 30 A7 7 0 0 0 16 16 A7 7 0 0 1 16 2 Z"></path>'
+      + '<circle class="gene-taiji-pure-dot" cx="16" cy="9" r="2"></circle>'
+      + '<circle class="gene-taiji-supreme-dot" cx="16" cy="23" r="2"></circle>'
+      + '<circle class="gene-taiji-outline" cx="16" cy="16" r="14"></circle></svg></button>';
+  }
   function geneNodeMarkup(node) {
     var level = geneNodeLevel(node.id), selected = geneSelected === node.id;
     var name = geneNodeName(node), slots = '';
@@ -291,15 +329,24 @@
     return '<button type="button" class="gene-locus' + (selected ? ' is-selected' : '') + '"'
       + ' style="--gene-x:' + node.pos + '%;--gene-y:' + node.y + '%" data-gene-node="' + node.id + '" aria-pressed="' + (selected ? 'true' : 'false') + '"'
       + ' aria-label="' + esc(trp('ui.veil.gene.node.aria', { nodeName: name, level: level }, '')) + '">'
-      + '<span class="gene-locus-core" aria-hidden="true"><i></i><i></i></span>'
+      + '<span class="gene-locus-core" aria-hidden="true">' + geneNodeIconMarkup(node) + '</span>'
       + '<span class="gene-locus-name">' + esc(name) + '</span>'
       + '<span class="gene-locus-ranks" aria-hidden="true">' + slots + '</span>'
       + '<span class="gene-locus-state">' + esc(state) + '</span></button>';
   }
   function geneMarkup(p) {
     var branch = geneBranch === 'pure' ? 'pure' : 'supreme';
+    var supremePoints = geneResonancePoints('supreme'), purePoints = geneResonancePoints('pure');
+    var resonanceBonus = SB.veilFx && SB.veilFx.geneResonanceBonusPct ? Number(SB.veilFx.geneResonanceBonusPct()) || 0 : 0;
+    var resonanceVisualState = geneResonanceVisualState(supremePoints, purePoints, resonanceBonus);
     var nodes = geneNodes(branch), selectedNode = geneNodeById(geneSelected, branch) || nodes[0];
     var level = geneNodeLevel(selectedNode.id, branch), cost = level < 3 ? geneLevelCost(level) : 0;
+    var branchDescription = tr('ui.veil.gene.branch.' + branch + '.description', '');
+    var nodeDescription = geneNodeDescription(selectedNode);
+    var level3Description = branch === 'supreme' && level >= 3
+      ? tr('ui.veil.gene.node.' + selectedNode.id + '.level3', '') : '';
+    var nodeMetaCopy = branch === 'supreme' && level >= 3
+      ? tr('ui.veil.gene.node.' + selectedNode.id + '.meta', '') : '';
     var currentEffect = level > 0 ? geneEffectText(selectedNode, level) : tr('ui.veil.gene.node.unedited', '');
     var nextEffect = level < 3 ? geneEffectText(selectedNode, level + 1) : '';
     var currentAmpNote = geneAmpNote(selectedNode, level);
@@ -311,24 +358,29 @@
       + '<h2>' + esc(pathName(p)) + '</h2></div>'
       + '<div class="gene-demo-banner gene-points-banner"><div class="gene-resonance-summary">'
       + '<p class="gene-resonance-status">' + esc(geneResonanceStatusText()) + '</p>'
-      + '<p class="gene-resonance-rule">' + esc(tr('ui.veil.gene.resonance.rule', '')) + '</p></div>'
+      + '</div>'
       + '<div class="gene-demo-balance">'
       + '<span>' + esc(tr('ui.veil.hub.points_balance', '')) + '</span><b>' + points().toFixed(2) + '</b></div></div>'
       + '<div class="gene-demo-layout" id="gene-demo-tabpanel" role="tabpanel" aria-labelledby="gene-tab-' + branch + '"><section class="gene-sequence-panel">'
-      + '<nav class="gene-branch-tabs" role="tablist">'
+      + '<div class="gene-branch-tabs"><nav class="gene-branch-tablist" role="tablist">'
       + '<button type="button" id="gene-tab-supreme" role="tab" aria-controls="gene-demo-tabpanel" class="gene-branch-tab' + (branch === 'supreme' ? ' is-active' : '') + '"'
       + ' aria-selected="' + (branch === 'supreme' ? 'true' : 'false') + '" data-gene-branch="supreme">'
-      + '<span class="gene-tab-mark" aria-hidden="true"></span>' + esc(tr('ui.veil.gene.branch.supreme', '')) + '</button>'
+      + geneBranchIconMarkup('supreme') + esc(tr('ui.veil.gene.branch.supreme', '')) + '</button>'
       + '<button type="button" id="gene-tab-pure" role="tab" aria-controls="gene-demo-tabpanel" class="gene-branch-tab' + (branch === 'pure' ? ' is-active' : '') + '"'
       + ' aria-selected="' + (branch === 'pure' ? 'true' : 'false') + '" data-gene-branch="pure">'
-      + '<span class="gene-tab-mark" aria-hidden="true"></span>' + esc(tr('ui.veil.gene.branch.pure', '')) + '</button></nav>'
+      + geneBranchIconMarkup('pure') + esc(tr('ui.veil.gene.branch.pure', '')) + '</button>'
+      + '</nav>' + geneTaijiMarkup(resonanceVisualState) + '</div>'
+      + '<p class="gene-branch-description">' + esc(branchDescription) + '</p>'
       + '<div class="gene-sequence" role="group" aria-label="' + esc(trp('ui.veil.gene.track.aria', { count: nodes.length }, '')) + '">'
       + '<img class="gene-sequence-art" src="assets/veil/gene-ascension-bg-v2.png" alt="" aria-hidden="true" draggable="false">'
       + '<div class="gene-loci">' + loci + '</div></div></section>'
       + '<aside class="gene-inspector" aria-live="polite"><div class="gene-inspector-head">'
-      + '<span class="gene-inspector-mark" aria-hidden="true"><i></i><i></i></span><div><h3>'
+      + '<span class="gene-inspector-mark" aria-hidden="true">' + geneNodeIconMarkup(selectedNode) + '</span><div><h3>'
       + esc(geneNodeName(selectedNode)) + '</h3><span class="gene-inspector-level">'
       + esc(level > 0 ? geneLevelLabel(level) : tr('ui.veil.gene.node.unedited', '')) + '</span></div></div>'
+      + '<div class="gene-node-description"><p>' + esc(nodeDescription) + '</p>'
+      + (level3Description ? '<p class="is-level3">' + esc(level3Description) + '</p>' : '') + '</div>'
+      + (nodeMetaCopy ? '<p class="gene-node-meta">' + esc(nodeMetaCopy) + '</p>' : '')
       + '<div class="gene-effect-block is-current"><span class="gene-effect-heading">'
       + esc(tr('ui.veil.gene.effect.current', '')) + '</span><div class="gene-effect-row">'
       + '<span class="gene-effect-rank">' + esc(level > 0 ? geneLevelLabel(level) : '—') + '</span>'
@@ -348,7 +400,17 @@
     } else {
       h += '<div class="gene-max-state">' + esc(tr('ui.veil.gene.action.max', '')) + '</div>';
     }
-    h += '</aside></div></div>';
+    h += '</aside></div>'
+      + '<dialog class="gene-resonance-dialog" id="gene-resonance-dialog" aria-labelledby="gene-resonance-title">'
+      + '<div class="gene-resonance-dialog-card"><header class="gene-resonance-dialog-head"><h3 id="gene-resonance-title">'
+      + esc(geneResonanceStatusText()) + '</h3><form method="dialog"><button type="submit" class="gene-resonance-close" autofocus>'
+      + esc(tr('ui.action.close', '')) + '</button></form></header>'
+      + '<div class="gene-resonance-dialog-stats ' + resonanceVisualState + '">'
+      + '<div class="gene-resonance-stat is-supreme"><span>' + esc(tr('ui.veil.gene.branch.supreme', '')) + '</span><b>' + supremePoints + '</b></div>'
+      + '<span class="gene-resonance-divider" aria-hidden="true"></span>'
+      + '<div class="gene-resonance-stat is-pure"><span>' + esc(tr('ui.veil.gene.branch.pure', '')) + '</span><b>' + purePoints + '</b></div></div>'
+      + '<p class="gene-resonance-dialog-rule">' + esc(tr('ui.veil.gene.resonance.rule', '')) + '</p>'
+      + '</div></dialog></div>';
     return h;
   }
   function voidDomainLv(id) {
@@ -652,6 +714,7 @@
     if (!v.paths.gene || typeof v.paths.gene !== 'object') v.paths.gene = {};
     if (!v.paths.gene[geneBranch] || typeof v.paths.gene[geneBranch] !== 'object') v.paths.gene[geneBranch] = {};
     v.points = Math.max(0, Math.round((Number(v.points) - cost) * 100) / 100);
+    if (SB.veilFx && SB.veilFx.recordSpentPoints) SB.veilFx.recordSpentPoints(cost);
     v.paths.gene[geneBranch][node.id] = level + 1;
     var m = SB.game && SB.game.meta && SB.game.meta();
     if (m && SB.state && SB.state.saveMeta) SB.state.saveMeta(m);
@@ -676,6 +739,7 @@
      * ⚠️ 必须显式 saveMeta：meta 没有「每 tick 自动存」的通道（旧版这里只有 markDirty，
      *    买完器官直接关游戏，飞升点就白花了 —— 花的是跨周目货币，这笔不能靠运气）。 */
     v.points = points() - cost;
+    if (SB.veilFx && SB.veilFx.recordSpentPoints) SB.veilFx.recordSpentPoints(cost);
     if (!v.paths.organ) v.paths.organ = {};
     v.paths.organ[o.id] = lv + 1;
     var m = SB.game && SB.game.meta && SB.game.meta();
@@ -702,6 +766,7 @@
     if (!(random >= 0 && random < 1)) random = 0;
     var domain = remaining[Math.floor(random * remaining.length)];
     v.points = points() - 1;
+    if (SB.veilFx && SB.veilFx.recordSpentPoints) SB.veilFx.recordSpentPoints(1);
     v.paths.void.domains[domain.id] = 1;
     selectedVoidDomain = domain.id;
     voidDialog = { domainId: domain.id, level: 1, viewLevel: 1, type: 'unlock' };
@@ -719,6 +784,7 @@
     var cost = VOID_LEVEL_COST[level];
     if (points() < cost) return false;
     v.points = points() - cost;
+    if (SB.veilFx && SB.veilFx.recordSpentPoints) SB.veilFx.recordSpentPoints(cost);
     if (!v.paths.void || typeof v.paths.void !== 'object' || Array.isArray(v.paths.void)) v.paths.void = {};
     if (!v.paths.void.domains || typeof v.paths.void.domains !== 'object' || Array.isArray(v.paths.void.domains)) v.paths.void.domains = {};
     v.paths.void.domains[id] = level + 1;
@@ -750,6 +816,10 @@
   function onClick(e) {
     var t = e.target && e.target.closest ? e.target : (e.target && e.target.parentElement);
     if (!t || !t.closest) return;
+    var resonanceDialog = t.closest('.gene-resonance-dialog');
+    if (resonanceDialog && t === resonanceDialog && resonanceDialog.open) {
+      resonanceDialog.close(); e.stopPropagation(); return;
+    }
     var act = t.closest('[data-veil-action]');
     if (act) {
       var a = act.getAttribute('data-veil-action');
@@ -762,6 +832,13 @@
       if (va === 'explore') exploreVoid();
       else if (va === 'upgrade') buyVoidLevel(voidAct.getAttribute('data-void-domain'));
       else if (va === 'dialog-continue') closeVoidDialog();
+      e.stopPropagation();
+      return;
+    }
+    var resonanceInfo = t.closest('[data-gene-resonance-info]');
+    if (resonanceInfo && view === 'gn') {
+      var infoDialog = root.document && root.document.getElementById('gene-resonance-dialog');
+      if (infoDialog && !infoDialog.open && infoDialog.showModal) infoDialog.showModal();
       e.stopPropagation();
       return;
     }

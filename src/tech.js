@@ -383,6 +383,26 @@
     return SB.economy.rates(s);
   }
 
+  function ascensionMetaNow() {
+    return (SB.game && SB.game.meta) ? SB.game.meta() : null;
+  }
+  function ascensionPathName(id) {
+    var fallback = id === 'si' ? '硅基承续' : id === 'gn' ? '生命织章' : id;
+    return tr('ui.veil.path.name.' + id, null, fallback);
+  }
+  function ascensionPathInvestment(path) {
+    return SB.veilFx && SB.veilFx.ascensionPathInvestment
+      ? Math.max(0, Number(SB.veilFx.ascensionPathInvestment(path)) || 0) : 0;
+  }
+  function ascensionTotalSpent(meta) {
+    var spent = Number(meta && meta.veil && meta.veil.spentPoints);
+    return isFinite(spent) && spent > 0 ? spent : 0;
+  }
+  function armadaCountThisAscension(s, meta) {
+    return SB.prestige && SB.prestige.armadaCountThisAscension
+      ? SB.prestige.armadaCountThisAscension(s, meta) : 0;
+  }
+
   function condMet(s, c) {
     if (!c) return true;
     if ((c.t === 'gov' || c.t === 'govWildSlots' || c.t === 'govId')
@@ -446,6 +466,27 @@
         return true;
       }
       case 'eraTechs': return eraTechCount(s, c.era) >= c.n;
+      /* ERA11（2026-11-21 · spec §4）：已开启一条飞升路径 = meta.veil.paths.opened 非空。
+       * ⚠️ 读 meta 层（飞升路径是跨周目状态，掀幕清档后仍在），不是局内 s。 */
+      case 'pathOpened': {
+        var m = ascensionMetaNow(), opened = m && m.veil && m.veil.paths && m.veil.paths.opened;
+        return c.id ? !!(opened && opened.indexOf(c.id) >= 0) : !!(opened && opened.length > 0);
+      }
+      case 'armadaAscension': return armadaCountThisAscension(s, ascensionMetaNow()) >= (c.n || 0);
+      case 'ascensionInvestment': return ascensionPathInvestment(c.path) >= (c.n || 0);
+      case 'ascensionSpent': return ascensionTotalSpent(ascensionMetaNow()) >= (c.n || 0);
+      /* ERA12《星海边疆》：天灾系统的击败标记由 war.js 维护。 */
+      case 'cataclysm': {
+        var crisis = SB.war && SB.war.crisisOf ? SB.war.crisisOf(s) : null;
+        return !!(crisis && crisis.defeated === true);
+      }
+      /* 升维隐藏前置：建成现实透孔仪后累计飞升 10 次；进度由 state.js 单源计算。 */
+      case 'ascendReady': {
+        var ascendMeta = ascensionMetaNow();
+        var ascendCount = SB.state && SB.state.ascendProgress
+          ? SB.state.ascendProgress(s, ascendMeta) : 0;
+        return ascendCount >= (c.n || 10);
+      }
       /* `tools` —— **买齐一组指定工具**（2026-09-29 ERA3 学徒制尤里卡）。
        * ⚠️ 查的是 `s.tools[id]`（工坊买断后置真），与 toolMul 同源：工具买了才生效。
        *   ids 是数组，全部为真才算达成（「买齐三件铁制工具」）。 */
@@ -470,7 +511,7 @@
         return !!(s.gov && _gw && _gwt >= (c.n || 7));
       }
       /* `govId` —— **采用某条特定政体**（ERA9 市政《繁荣一统》《共同命运》《神圣之路》的鼓舞
-       *   「使用政体：星际联邦 / 星海共同体 / 寰宇教会」）。与 `gov`/`govWildSlots`（只比槽位数）不是一回事：
+       *   「使用政体：群星盟约 / 星海共融体 / 寰宇教会」）。与 `gov`/`govWildSlots`（只比槽位数）不是一回事：
        *   这里比政体 id 本身。采用即成立，没采用 = 0。 */
       case 'govId': {
         var _gid = (SB.civic && SB.civic.govById) ? SB.civic.govById(c.id) : null;
@@ -581,6 +622,9 @@
        * ⚠️ 读 s.sunSails（发射场每运行满 1 节律 +1，无限累积）；≥ 口径与 built/total 一致
        *    （严格大于则 n+1，一行可改）。 */
       case 'sunSails': return (s.sunSails || 0) >= c.n;
+      /* ERA11（2026-11-23 · spec §3.1）：`probes` —— 深空探针累计发射 ≥ n 枚（《近光速航行》门槛）。
+       * ⚠️ 读 s.probes（发射场探针模式每成功发射按启用等级累加，随轮回清零），与 sunSails 同构。 */
+      case 'probes': return (s.probes || 0) >= c.n;
       /* ERA10（2026-10-20）：`dysonPct` —— 戴森球进度 ≥ n%（近恒星轨道/矢量控制/大统一三项尤里卡）。
        * ⚠️ 口径 = economy.dysonPct（min(帆/10000, 节点/1000)，**双达标取小**，用户拍 Q4）；
        *    必须走 SB.economy 单一读数（tick/面板/此处同源），不在这里重算公式。
@@ -642,10 +686,52 @@
         if (SB.challenges && SB.challenges.ignorePopulationGates(s)) return null;
         return { txt: jobName(c.j) + ' ' + (s.jobs[c.j] || 0) + ' 人 / ' + c.n, now: s.jobs[c.j] || 0, need: c.n };
       case 'techs': return { txt: '已掌握科技 ' + techCount(s) + ' / ' + c.n, now: techCount(s), need: c.n };
+      /* ERA11/12 条件进度与 condMet 共用实际状态，展示当前值和目标值。 */
+      case 'pathOpened': {
+        var _po = ascensionMetaNow(), _opened = _po && _po.veil && _po.veil.paths && _po.veil.paths.opened;
+        var _on = c.id ? !!(_opened && _opened.indexOf(c.id) >= 0) : !!(_opened && _opened.length > 0);
+        return { txt: c.id
+          ? tr('tech.condition.progress.ascension_path_required', { pathName: ascensionPathName(c.id) }, '已开启' + ascensionPathName(c.id) + '途径')
+          : '已开启一条飞升路径', now: _on ? 1 : 0, need: 1 };
+      }
+      case 'armadaAscension': {
+        var _armadas = armadaCountThisAscension(s, ascensionMetaNow());
+        return { txt: tr('tech.condition.progress.armada_ascension', { current: _armadas, required: c.n },
+          '本次飞升船团：' + _armadas + '/' + c.n + ' 座'), now: _armadas, need: c.n };
+      }
+      case 'ascensionInvestment': {
+        var _pathSpent = ascensionPathInvestment(c.path), _pathName = ascensionPathName(c.path);
+        return { txt: tr('tech.condition.progress.ascension_path_investment', {
+          pathName: _pathName, current: _pathSpent, required: c.n
+        }, _pathName + '实际投入：' + _pathSpent + '/' + c.n + ' 飞升点'), now: _pathSpent, need: c.n };
+      }
+      case 'ascensionSpent': {
+        var _spent = ascensionTotalSpent(ascensionMetaNow());
+        return { txt: tr('tech.condition.progress.ascension_spent', { current: _spent, required: c.n },
+          '飞升点实际花费：' + _spent + '/' + c.n + ' 点'), now: _spent, need: c.n };
+      }
+      case 'cataclysm': {
+        var crisis = SB.war && SB.war.crisisOf ? SB.war.crisisOf(s) : null;
+        var defeated = crisis && crisis.defeated === true ? 1 : 0;
+        return { txt: tr('tech.condition.progress.cataclysm_defeated', { current: defeated, required: 1 },
+          '击败终末天灾 ' + defeated + '/1'), now: defeated, need: 1 };
+      }
+      case 'ascendReady': {
+        var ascendMeta = ascensionMetaNow();
+        var ascendCount = SB.state && SB.state.ascendProgress
+          ? SB.state.ascendProgress(s, ascendMeta) : 0;
+        var ascendNeed = c.n || 10;
+        return { txt: tr('tech.condition.progress.ascend_ready', { current: ascendCount, required: ascendNeed },
+          '帷幕开启进度：' + ascendCount + '/' + ascendNeed), now: ascendCount, need: ascendNeed };
+      }
       /* ERA10：太阳帆累计 / 戴森进度（与 condMet 同口径；dysonPct 走 economy 单源，不重算）。 */
       case 'sunSails': {
         var _ss = s.sunSails || 0;
         return { txt: '太阳帆 ' + _ss + ' / ' + c.n, now: _ss, need: c.n };
+      }
+      case 'probes': {
+        var _pb = s.probes || 0;
+        return { txt: '深空探针 ' + _pb + ' / ' + c.n, now: _pb, need: c.n };
       }
       case 'dysonPct': {
         var _dp2 = (SB.economy && SB.economy.dysonPct) ? SB.economy.dysonPct(s) : 0;
@@ -683,14 +769,14 @@
         var _g2 = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
         var _gt2 = 0; if (_g2 && _g2.slots) for (var _gk2 in _g2.slots) _gt2 += _g2.slots[_gk2];
         var _ok = !!(s.gov && _g2 && _gt2 >= (c.wild || 3));
-        return { txt: _ok ? '已启用三槽政体' : '需启用三槽政体（独裁/寡头/古典共和）', now: _ok ? 1 : 0, need: 1 };
+        return { txt: _ok ? '已启用三槽政体' : '需启用三槽政体（独裁/寡头/古典共治）', now: _ok ? 1 : 0, need: 1 };
       }
       /* govWildSlots / anyWonders 的「还差多少」，与 condMet 同口径。 */
       case 'govWildSlots': {
         var _gw2 = (SB.civic && SB.civic.govById) ? SB.civic.govById(s.gov) : null;
         var _cur = 0; if (_gw2 && _gw2.slots) for (var _gwk2 in _gw2.slots) _cur += _gw2.slots[_gwk2];
         var _need = c.n || 7;
-        return { txt: _cur >= _need ? '已启用 ' + _need + ' 槽政体' : '需启用 ' + _need + ' 槽政体（教权国/平等主义/联邦制）', now: _cur, need: _need };
+        return { txt: _cur >= _need ? '已启用 ' + _need + ' 槽政体' : '需启用 ' + _need + ' 槽政体（圣座国/平权共治/盟约制）', now: _cur, need: _need };
       }
       case 'govId': {
         var _gid2 = (SB.civic && SB.civic.govById) ? SB.civic.govById(c.id) : null;
@@ -821,7 +907,24 @@
       case 'pop': key = 'population'; params = { current: now, required: need }; break;
       case 'job': key = 'job_population'; params = { jobName: jobName(c.j), current: now, required: need }; break;
       case 'techs': key = 'technology_count'; params = { current: now, required: need }; break;
+      /* ERA11 新 cond 英文：key 未登记时 tr 回退中文短文案（old.txt）。 */
+      case 'pathOpened':
+        if (c.id) return { txt: tr('tech.condition.progress.ascension_path_required', {
+          pathName: ascensionPathName(c.id)
+        }, old.txt), now: now, need: need };
+        key = 'ascension_path_opened'; break;
+      case 'armadaAscension':
+        return { txt: tr('tech.condition.progress.armada_ascension', { current: now, required: need }, old.txt), now: now, need: need };
+      case 'ascensionInvestment':
+        return { txt: tr('tech.condition.progress.ascension_path_investment', {
+          pathName: ascensionPathName(c.path), current: now, required: need
+        }, old.txt), now: now, need: need };
+      case 'ascensionSpent':
+        return { txt: tr('tech.condition.progress.ascension_spent', { current: now, required: need }, old.txt), now: now, need: need };
+      case 'cataclysm': key = 'cataclysm_defeated'; params = { current: now, required: need }; break;
+      case 'ascendReady': key = 'ascend_ready'; params = { current: now, required: need }; break;
       case 'sunSails': key = 'solar_sails'; params = { current: now, required: need }; break;
+      case 'probes': key = 'deep_space_probes'; params = { current: now, required: need }; break;
       case 'dysonPct': key = 'dyson_sphere'; params = { currentPercent: Number(now).toFixed(1), requiredPercent: need }; break;
       case 'pollution': key = 'pollution'; params = { current: Math.floor(now), required: need }; break;
       case 'pollutionDeaths': key = 'pollution_deaths'; params = { current: now, required: need }; break;
@@ -1139,6 +1242,15 @@
     if (typeof co === 'string') return cur === co;
     return co.indexOf(cur) >= 0;
   }
+  /* 未发布科技门（2026-11-21 用户拍板）：CFG.UNRELEASED_TECHS 里的项**不可研究**，
+   * 但名字显隐照旧走 metOf —— 飞升玩家开了路径 ⇒ pathOpened 尤里卡成立 ⇒ 看到名字，
+   * 点研究才被挡。判据只落在 canStudy / studyBlocked 两个研究口，不碰 visOf/lit/metOf，
+   * 所以「看得到名字、研究不了」正是预期表现，不是 UI 与研究各算各的错位。
+   * ⚠️ 这是**发布开关**：将来推出这些科技时清空 CFG.UNRELEASED_TECHS 即可，本函数不用删。 */
+  function unreleased(t) {
+    var list = SB.CFG && SB.CFG.UNRELEASED_TECHS;
+    return !!(t && list && list.indexOf(t.id) >= 0);
+  }
   function challengeOnlyReason(t) {
     var co = t && t.challengeOnly;
     if (co === true || !co) return '仅限流浪泰拉挑战期间研究';
@@ -1173,6 +1285,7 @@
     if (!t) return false;
     if (techLevel(s, id) >= maxTechLevel(t) || (!isRevealed(s, id) && !metOf(s, t))) return false;
     if (t.era > (s.era || 1)) return false;      // 纪元闸门：不能跳纪元偷研究
+    if (unreleased(t)) return false;             // 未发布科技：看得到名字但点不了研究
     if (!challengeOnlyOk(s, t)) return false;
     /* 尤里卡门禁（2026-09-26 用户拍板「灰掉，必须先达成尤里卡」）。
      * 它才是本文件顶部那条设计（条件达成 ⇒ 整项从「不可研究」变「可研究」）的**真正落实**：
@@ -1200,6 +1313,7 @@
      *   metOf 里含「已掌握 / 曾达成 / 现达成」三档，isRevealed 只是其中一档的标记。 */
     if (!isRevealed(s, id) && !metOf(s, t)) return '未揭露：先达成尤里卡条件';
     if (t.era > (s.era || 1)) return '纪元未到：属于 ' + eraName(t.era) + '，先推进当前纪元';
+    if (unreleased(t)) return '尚未开放：该科技将在后续版本推出';
     /* 文案要指得出**该做什么**，不能只说「不行」：这句话会挂成灰按钮的 title，
      * 而卡片上条件行还写着进度，两者合起来才是完整的一句「你还差什么」。 */
     if (!metOf(s, t)) return '尤里卡未达成：达成条件后才能研究';
@@ -1266,7 +1380,8 @@
     var challengeMul = SB.challenges && SB.challenges.researchCostMul ? SB.challenges.researchCostMul(s) : 1;
     return t.cost * Math.pow(t.costRatio || 1, level) * (1 - disc) * challengeMul
       * (SB.faith && SB.faith.techCostMul ? SB.faith.techCostMul(s) : 1)
-      * (SB.voidFx && SB.voidFx.domainTechCostMul ? SB.voidFx.domainTechCostMul() : 1);
+      * (SB.voidFx && SB.voidFx.domainTechCostMul ? SB.voidFx.domainTechCostMul() : 1)
+      * (SB.wonder && SB.wonder.researchCostMul ? SB.wonder.researchCostMul(s) : 1);
   }
 
   /* 即时扣费研究（用户拍板）。返回 true 表示本次真的掌握。 */
@@ -1565,7 +1680,25 @@
       case 'total': return '建筑总级数 ' + c.n;
       case 'res': return resName(c.r) + ' 存量 ' + c.n;
       case 'gathered': return '累计产出 ' + resName(c.r) + ' ' + c.n;
+      /* ERA11 新 cond 尤里卡文案。⚠️ ascendReady 是隐藏前置——文案不写明条件，只给进度意象。 */
+      case 'pathOpened': return c.id
+        ? tr('tech.condition.description.ascension_path_required', { pathName: ascensionPathName(c.id) },
+          '开启' + ascensionPathName(c.id) + '途径')
+        : '开启一条飞升路径';
+      case 'armadaAscension': return tr('tech.condition.description.armada_ascension', { required: c.n },
+        '在本次飞升中建成恒星际移民船团至少 ' + c.n + ' 座。');
+      case 'ascensionInvestment': return tr('tech.condition.description.ascension_path_investment', {
+        pathName: ascensionPathName(c.path), threshold: Math.max(0, (c.n || 0) - 1)
+      }, '在' + ascensionPathName(c.path) + '中累计实际花费的飞升点超过 ' + Math.max(0, (c.n || 0) - 1) + ' 点。');
+      case 'ascensionSpent': return tr('tech.condition.description.ascension_spent', {
+        threshold: Math.max(0, (c.n || 0) - 1)
+      }, '累计实际花费的飞升点超过 ' + Math.max(0, (c.n || 0) - 1) + ' 点。');
+      case 'cataclysm': return tr('tech.condition.description.cataclysm_defeated', null,
+        '击败终末天灾。');
+      case 'ascendReady': return tr('tech.condition.description.ascend_ready', null,
+        '帷幕完全拉开。');
       case 'sunSails': return '太阳帆累计 ' + c.n;
+      case 'probes': return '深空探针累计 ' + c.n + ' 枚';
       case 'dysonPct': return '戴森球进度 ' + c.n + '%';
       case 'pollution': return '污染存量 ' + c.n;
       case 'pollutionDeaths': return '因污染死亡 ' + (c.n || 1) + ' 人';
@@ -1624,13 +1757,19 @@
   function condText(c) {
     var old = condTextZh(c);
     if (!old || !isEnglishLocale() || !c) return old;
+    if ((c.t === 'pathOpened' && c.id) || c.t === 'armadaAscension'
+        || c.t === 'ascensionInvestment' || c.t === 'ascensionSpent') return old;
     var key = '', params = {};
     switch (c.t) {
       case 'built': key = 'built'; params = { amount: c.n, buildingName: bName(c.b) }; break;
       case 'total': key = 'total_buildings'; params = { totalLevels: c.n }; break;
       case 'res': key = 'resource_stock'; params = { amount: c.n, resourceName: resName(c.r) }; break;
       case 'gathered': key = 'resource_gathered'; params = { amount: c.n, resourceName: resName(c.r) }; break;
+      case 'pathOpened': key = 'ascension_path_opened'; break;
+      case 'cataclysm': key = 'cataclysm_defeated'; break;
+      case 'ascendReady': key = 'ascend_ready'; break;
       case 'sunSails': key = 'solar_sails'; params = { amount: c.n }; break;
+      case 'probes': key = 'deep_space_probes'; params = { amount: c.n }; break;
       case 'dysonPct': key = 'dyson_sphere'; params = { percent: c.n }; break;
       case 'pollution': key = 'pollution'; params = { amount: c.n }; break;
       case 'pollutionDeaths': key = 'pollution_deaths'; params = { count: c.n || 1 }; break;

@@ -1,0 +1,20 @@
+{
+  "titleKey": "ui.finale.cosmic_congratulations",
+  "locale": "en",
+  "title": "YOU DID IT!",
+  "dimensions": "1920x1080",
+  "captureFps": 60,
+  "targetDurationSeconds": 15,
+  "encodedFrames": 900,
+  "averagePlaybackFps": 60,
+  "timecodeScaleNs": 1000000,
+  "recordedDurationSeconds": 15,
+  "renderCallbacks": 900,
+  "renderCallbackFps": 60,
+  "encodingWallSeconds": 54.78,
+  "sampledKeyframes": 60,
+  "keyframeIntervalSeconds": 0.25,
+  "video": "era12-cosmic-finale-en.webm",
+  "videoBytes": 12850690,
+  "contactSheet": "ending-contact-sheet-en.png"
+}

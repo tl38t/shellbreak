@@ -82,7 +82,7 @@
       herd: '「如果天壳之上没有鱼群，那我死后想到鱼群洄游的地方去。」',
       tiddivine: '「……占潮师们被认为是最早的学者……」——《鲛人科学史》',
       mining: '「矿镐敲击在岩石上，发出喀锵、喀锵的声音……」<br>「导演，那时还没有金属工具。」',
-      masonry: '「幸好，暗流纪还不存在公摊面积这个概念。」——联邦笑话一则',
+      masonry: '「幸好，暗流纪还不存在公摊面积这个概念。」——同盟笑话一则',
       bronze: '「武器交击，发出喀锵、喀锵的声音……」<br>「导演，都说了那时还没有金属工具。」',
       thermal: '「渊海水暖藻先知。」',
       lighting: '「啊啊，法的世界充满光芒。」',
@@ -166,7 +166,27 @@
       /* 2026-11-11 战争批次（用户规格「引文」列原文，一字未改）。
        * ⚠️ 本表缺键 = 详情卡静默少一段 b-flavor，不报错、不占位，最容易被漏掉。 */
       siegeT: '「掘之字形壕沟，大炮抵近射击！」——沃邦攻城法',
-      ballistics: '「舰船不要和岸防炮台对射——布吕歇尔。」'
+      ballistics: '「舰船不要和岸防炮台对射——布吕歇尔。」',
+      /* 2026-11-23 ERA11/12 批次（用户表格「引文」列原文，一字未改）：
+       * 共 8 条有引文，《升维》原表明确「不设文案，之后做结局动图」故无键。
+       * 本表是中文兜底原文；英文版另有 locales 词典键 ui.content.tech_flavor.<id>。
+       * ⚠️ constant_edit 含程序变量名 kelp_prod：词典里用占位符 {codeVar} 代替（不写字面值进译文串），
+       *    运行时由下方 TECH_FLAVOR_PARAMS 把 kelp_prod 填回去——其余文字可正常翻译，变量名保持原样。 */
+      deep_space:        '「若我们的世界为虚假，远方的群星是否真实无虚？」',
+      omnitemporal_freeze: '「若我们的世界为虚假，在时光尽头可否窥见真相？」',
+      stellar_smelting:  '「若我们的世界为虚假，真相能否存于星核之中？」',
+      near_light_speed:  '「我们将前往空间的尽头。」',
+      reverse_time:      '「我们将前往时间的尽头。」',
+      relativistic_weapon: '「这是否是您的考验？」',
+      starfrontier:      '「我们的宇宙果然是有边界的。」',
+      constant_edit:     '「kelp_prod，这就是您设置的藻类生产变量名？只需要小小调整……。」'
+    },
+    /* 引文翻译时要填进占位符的参数（key 与 TECH_FLAVOR 的科技 id 对应）。
+     * 只有正文含"不该被翻译的字面值"的引文才需要进这张表。
+     * constant_edit：原表彩蛋里的 kelp_prod 是程序变量名，按 AGENTS.md 不得写进译文串，
+     *   故词典写「{codeVar}，这就是您设置的…」、这里把 'kelp_prod' 当值填入。 */
+    TECH_FLAVOR_PARAMS: {
+      constant_edit: { codeVar: 'kelp_prod' }
     },
     /* 市政文案：与 TECH_FLAVOR 同口径，放在同一份纯展示文案文件里，
      * 由 render-info.js 的 showTreeDetail 在市政详情「效果」段之后渲染（class=b-flavor）。
@@ -219,7 +239,7 @@
       faith_echo: '「在群星间，在帷幕之后……我能听到，我能听到，有什么东西在呼唤。」',
       social_network: '「亲，给我的新推点个赞，好吗？」',
       virtual_reality: '「是不是把Alyx改成3，会好一些？」',
-      space_politics: '「我热爱共和国！一旦危机平息，我将交还你们赋予我的权力！」——银河帝国皇帝帕尔帕廷',
+      space_politics: '「我热爱同盟！一旦危机平息，我将交还你们赋予我的权力！」——银河巨构皇帝帕尔帕廷',
       far_sight: '「物！」',
       star_ruins: '「这些遗迹来自何时？又出自什么文明之手？他们现在又在哪里？」',
       distributed_sov: '「你无权因为运输延迟而指责我，我的意思是，我们是对等的。」',
@@ -278,7 +298,13 @@
     wonder_terra_core: 'assets/wonders/generated-v2/wonder-terra-central-furnace.jpg?v=1',
      wonder_crustplate: 'assets/wonders/generated-v2/wonder-crustplate-v2.png?v=2',
      wonder_climatesat: 'assets/wonders/generated-v2/wonder-climate-regulator-network.png?v=2',
-    wonder_sun_mirror_array: 'assets/wonders/generated-v2/wonder-sun-mirror-array.jpg'
+    wonder_sun_mirror_array: 'assets/wonders/generated-v2/wonder-sun-mirror-array.jpg',
+    starship_armada: 'assets/wonders/generated-v2/wonder-starship-armada.png',
+    reality_aperture: 'assets/wonders/generated-v2/wonder-reality-aperture.png',
+    timeslip_colony: 'assets/wonders/generated-v2/wonder-timeslip-colony.png',
+    synaptic_ganglion_modification: 'assets/wonders/generated-v2/wonder-synaptic-ganglion-modification.png',
+    era12_ring: 'assets/wonders/generated-v2/wonder-era12-ring.png?v=3',
+    answer_machine: 'assets/wonders/generated-v2/wonder-answer-machine.png'
   };
   SB.ui.renderContent.WONDER_FLAVOR = {
     wonder_tide_stele: '镌刻着贤王的丰功伟绩，直至他的王国崩塌',

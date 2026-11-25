@@ -1619,7 +1619,7 @@ const buttons=[...document.querySelectorAll("#star-map-mock .sm-body,#sm-saturn-
 function select(id,notify=true){const d=descriptions[id];if(!d||!_smT(d.title))return;buttons.forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.id===id)));document.getElementById("sm-detail-title").textContent=_smT(d.title);document.getElementById("sm-detail-copy").textContent=_smT(d.copy,d.params);document.getElementById("sm-chips").innerHTML=d.tags.map(key=>'<span class="sm-chip">'+_smEscape(_smT(key))+"</span>").join("");if(notify)window.parent.postMessage({type:"sb-star-map-select-body",body:id},"*")}
 window._smSelectBody=select;
 buttons.forEach(b=>b.addEventListener("click",()=>select(b.dataset.id)));
-select("europa");;const canvases=[...document.querySelectorAll("#star-map-mock .sm-canvas")];const offsets=new WeakMap();canvases.forEach((c,i)=>offsets.set(c,i*.13));let last=performance.now(),_lastDraw=last;const FRAME_MIN=1000/60;function animate(now){requestAnimationFrame(animate);if(document.hidden){last=now;_lastDraw=now;return;}if(now-last>500){last=now;_lastDraw=now;return;}if(now-_lastDraw<FRAME_MIN-0.5)return;_lastDraw=now;const elapsed=Math.min(5,(now-last)/(1000/60));last=now;_lastDraw=now;canvases.forEach(c=>{const type=c.dataset.planet;const speed=type==="titan"?.001:type==="saturn"?.0007:type==="jupiter"?.0008:.0012;const o=(offsets.get(c)+speed*elapsed)%1;offsets.set(c,o);_drawPlanetSphere(c,type,o)});document.querySelectorAll(".sm-body[data-rx]").forEach(b=>{const period=Number(b.dataset.period),phase=Number(b.dataset.phase),a=(now/period*Math.PI*2+phase),rx=Number(b.dataset.rx),ry=Number(b.dataset.ry),tilt=Number(b.dataset.tilt)*Math.PI/180,x=rx*Math.cos(a),y=ry*Math.sin(a),xr=x*Math.cos(tilt)-y*Math.sin(tilt),yr=x*Math.sin(tilt)+y*Math.cos(tilt);b.style.left="calc(50% + "+xr+"px)";b.style.top="calc(53% + "+yr+"px)";b.style.zIndex=Math.sin(a)<0?"1":"3"});document.querySelectorAll("#sm-europa .sm-local-marker").forEach((m)=>{const period=Number(m.dataset.period)||4200,phase=Number(m.dataset.phase)||0,a=now/period*Math.PI*2+phase,x=41*Math.cos(a),y=22*Math.sin(a),t=-18*Math.PI/180,xr=x*Math.cos(t)-y*Math.sin(t),yr=x*Math.sin(t)+y*Math.cos(t);m.style.left="calc(50% + "+xr+"px)";m.style.top="calc(45% + "+yr+"px)";m.style.zIndex=yr<0?"1":"4"})}
+select("europa");;const canvases=[...document.querySelectorAll("#star-map-mock .sm-canvas")];const offsets=new WeakMap();canvases.forEach((c,i)=>offsets.set(c,i*.13));let last=performance.now(),_lastDraw=last;const FRAME_MIN=1000/60;let _smActive=true,_smRafA=0,_smRafB=0;function animate(now){_smRafA=0;if(_smActive)_smRafA=requestAnimationFrame(animate);if(!_smActive||_smView!=="phase1")return;if(document.hidden){last=now;_lastDraw=now;return;}if(now-last>500){last=now;_lastDraw=now;return;}if(now-_lastDraw<FRAME_MIN-0.5)return;_lastDraw=now;const elapsed=Math.min(5,(now-last)/(1000/60));last=now;_lastDraw=now;canvases.forEach(c=>{const type=c.dataset.planet;const speed=type==="titan"?.001:type==="saturn"?.0007:type==="jupiter"?.0008:.0012;const o=(offsets.get(c)+speed*elapsed)%1;offsets.set(c,o);_drawPlanetSphere(c,type,o)});document.querySelectorAll(".sm-body[data-rx]").forEach(b=>{const period=Number(b.dataset.period),phase=Number(b.dataset.phase),a=(now/period*Math.PI*2+phase),rx=Number(b.dataset.rx),ry=Number(b.dataset.ry),tilt=Number(b.dataset.tilt)*Math.PI/180,x=rx*Math.cos(a),y=ry*Math.sin(a),xr=x*Math.cos(tilt)-y*Math.sin(tilt),yr=x*Math.sin(tilt)+y*Math.cos(tilt);b.style.left="calc(50% + "+xr+"px)";b.style.top="calc(53% + "+yr+"px)";b.style.zIndex=Math.sin(a)<0?"1":"3"});document.querySelectorAll("#sm-europa .sm-local-marker").forEach((m)=>{const period=Number(m.dataset.period)||4200,phase=Number(m.dataset.phase)||0,a=now/period*Math.PI*2+phase,x=41*Math.cos(a),y=22*Math.sin(a),t=-18*Math.PI/180,xr=x*Math.cos(t)-y*Math.sin(t),yr=x*Math.sin(t)+y*Math.cos(t);m.style.left="calc(50% + "+xr+"px)";m.style.top="calc(45% + "+yr+"px)";m.style.zIndex=yr<0?"1":"4"})}
 /* 星图「实际接入」：接收父页面（render.js）每周期 postMessage 的真实航天器与星空探索数据，
  * 动态生成欧罗巴局部轨道上的 marker（按 dataset.period/phase 独立相位，避免多颗重叠）。 */
 let _sbLastKey="";
@@ -1803,16 +1803,34 @@ function _smApplyGameData(d){
   const eraTitle=_smView==="phase2"?_smT("ui.star_map.title.era_overview",{eraNumber:_smGame.era}):_smT("ui.star_map.system.saturn.name");if(eraTitle)document.getElementById("sm-era-title").textContent=eraTitle;
 }
 _smCanvas.addEventListener("click",e=>{const rect=_smCanvas.getBoundingClientRect(),x=(e.clientX-rect.left)*_smWidth/rect.width,y=(e.clientY-rect.top)*_smHeight/rect.height;for(let i=_smHits.length-1;i>=0;i--){const h=_smHits[i];if(Math.hypot(x-h.x,y-h.y)<=h.r){_smSelectSystem(h.id);return;}}});
-let _smLastDraw=0;function _smFrame(now){requestAnimationFrame(_smFrame);if(document.hidden||_smView!=="phase2")return;if(now-_smLastDraw<FRAME_MIN-0.5)return;_smLastDraw=now;_smDrawOverview(now);}requestAnimationFrame(_smFrame);
+let _smLastDraw=0;function _smFrame(now){_smRafB=0;if(_smActive)_smRafB=requestAnimationFrame(_smFrame);if(!_smActive||document.hidden||_smView!=="phase2")return;if(now-_smLastDraw<FRAME_MIN-0.5)return;_smLastDraw=now;_smDrawOverview(now);}_smRafB=requestAnimationFrame(_smFrame);
 _smSetView("phase1",false);window.parent.postMessage({type:"sb-star-map-view",view:"phase1"},"*");
+function _smSetActive(on){
+  on=!!on; if(on===_smActive)return;
+  _smActive=on;
+  /* 暂停/恢复都不补播期间积攒的发射动画：清队列、清飞行，计数基线已是最新值。 */
+  _smLaunchQueue.length=0; _smFlight=null; _smFlightCount=0;
+  if(!on){
+    if(_smRafA)cancelAnimationFrame(_smRafA);
+    if(_smRafB)cancelAnimationFrame(_smRafB);
+    _smRafA=0;_smRafB=0;
+  }else{
+    last=performance.now();_lastDraw=last;_smLastDraw=0;
+    /* 只在链条确实不在时点火，避免 false/true 同帧往返累积出多条链。 */
+    if(!_smRafA)_smRafA=requestAnimationFrame(animate);
+    if(!_smRafB)_smRafB=requestAnimationFrame(_smFrame);
+  }
+}
 window.addEventListener("message",(e)=>{
-  const d=e.data; if(!d||d.type!=="sb-spacecraft") return;
+  const d=e.data; if(!d) return;
+  if(d.type==="sb-star-map-active"){_smSetActive(d.active===true);return;}
+  if(d.type!=="sb-spacecraft") return;
   if(d.strings&&d.locale!==_smAppliedLocale)_smApplyLocale(d.strings,d.locale);
   if(Array.isArray(d.list)) applySpacecraft(d.list);
   if(d.star) applyStar(d.star);
   if(d.era!==undefined)_smApplyGameData(d);
 });
-requestAnimationFrame(animate)})();
+_smRafA=requestAnimationFrame(animate)})();
 </script></div>
 <script>
 (() => {

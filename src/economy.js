@@ -189,7 +189,19 @@
       + (SB.civic && SB.civic.popCapPerPopBldg ? SB.civic.popCapPerPopBldg(s) * popBuildLev : 0)  // ERA7 公摊面积卡：人口建筑每级 +0.5 上限
       + (SB.civic && SB.civic.cardPopCapFlat ? SB.civic.cardPopCapFlat(s) : 0) // 人口政策卡：固定上限加值
       + (SB.war && SB.war.populationCapBonus ? SB.war.populationCapBonus(s) : 0) // 战役中获得的人口上限储备
-      + (SB.faith && SB.faith.popCapBonus ? SB.faith.popCapBonus(s) : 0);
+      + (SB.faith && SB.faith.popCapBonus ? SB.faith.popCapBonus(s) : 0)
+      /* ERA11 逆时屋（2026-11-23 · spec §3/§0）：每座 +1 人口上限，与住房同轴相加。
+       * ⚠️ 失能携带的那座不在 s.lvl 里（freshRun 只置 s.chrono.disabled=true），但 spec §0
+       *   明定「人口上限 +1 保留、从未失效」⇒ 这里按 disabled 补 1 座，激活后不重复计。 */
+      + (s.lvl.chrono_house || 0) + ((s.chrono && s.chrono.disabled) ? 1 : 0);
+    var crisisCapMul = (SB.war && SB.war.crisisPopulationCapMul)
+      ? SB.war.crisisPopulationCapMul(s) : 1;
+    if (crisisCapMul < 1) {
+      /* 虚境行者：现有人口上限与后续人口建筑增量统一按剩余比例计算并向上取整；
+       * 逆时屋是明确豁免项，保留其完整加值。 */
+      var chronoCap = (s.lvl.chrono_house || 0) + ((s.chrono && s.chrono.disabled) ? 1 : 0);
+      cap = Math.ceil(Math.max(0, cap - chronoCap) * crisisCapMul) + chronoCap;
+    }
     /* 人口按完整个体计数。公摊面积等效果可能给出 x.5 床位，按要求向上取整；
      * 挑战人口硬上限仍在取整后钳制（当前挑战上限均为整数）。 */
     return Math.min(Math.ceil(cap), SB.challenges ? SB.challenges.populationLimit(s) : Infinity);
@@ -335,6 +347,15 @@
     if (done) m *= 1 + [0, 0.3, 0.5, 0.7][done];
     return m;
   }
+  /* 逐资源的压舱仓每级容量（2026-11-21 修正 + ERA11 实装）。
+   * 默认全局 BLD.ballastCap=120；大灯塔的仓储派生自此值的一半（普通 60 / 暗物质 5）。
+   * ⚠️ 暗物质走独立档：压舱仓 +10/级 = CAP_BASE.darkmatter（用户拍板），与基础上限同源，
+   *    不写死 10。落点集中在这一处，capOf / render-info / e2e 都读它，避免散写特判漂移。 */
+  function ballastPerLvl(k) {
+    if (k === 'darkmatter') return SB.CFG.CAP_BASE.darkmatter;
+    return SB.BLD.ballastCap;
+  }
+
   function capOf(s, k) {
     var base = SB.CFG.CAP_BASE[k];
     if (base === undefined) return Infinity;
@@ -406,17 +427,18 @@
     if (!(typeof matBonus === 'number' && isFinite(matBonus) && matBonus >= 0)) matBonus = 0;
     var matBallast = (typeof s.lvl.ballast === 'number' && isFinite(s.lvl.ballast) && s.lvl.ballast >= 0) ? s.lvl.ballast : 0;
     var matLighthouse = (typeof s.lvl.lighthouse === 'number' && isFinite(s.lvl.lighthouse) && s.lvl.lighthouse >= 0) ? s.lvl.lighthouse : 0;
-    var matCap = base + _sm * (matBallast * SB.BLD.ballastCap
-      /* ⚠️ 2026-09-28 灯塔也仓库（+120/级，与压舱仓同档）。
-       *    【为什么是**并列相加**而不是乘】两座仓是两条独立的容量来源，各自的量纲
-       *       都是「每级 +120」。写成 `(1 + lvl.ballast*120) * (1 + lvl.lighthouse*120)`
-       *       会在两座都盖起来时把效果放大成平方，那是「同一个东西被计价两次」。
-       *    【大灯塔的 +60/级 走这里（灯塔项内），不在这里下面的 matMax】2026-10-06 起改为
-       *       按灯塔等级缩放：大灯塔建成后，灯塔项 = `(lvl.lighthouse) × (lighthouseCap
-       *       + lighthouseCapGreat)`，lighthouseCapGreat=60=压舱仓一半，挂 wonder.owned 条件；
-       *       旧的「matMax:60 一次性」写法已删。 */
-      + matLighthouse * (SB.BLD.lighthouseCap
-        + ((SB.wonder && SB.wonder.owned(s).wonder_great_lighthouse) ? SB.BLD.lighthouseCapGreat : 0)))
+    /* ⚠️ 2026-11-21 全局修正（用户拍板「之前一直做错了」）：**灯塔本身不产仓储**。
+     *    旧实现 `lvl.lighthouse × (lighthouseCap 120 + 大灯塔60)` 把 2026-09-28 的误读
+     *    （「大灯塔获得仓库作用，上限为其一半」中的「其」指压舱仓、非灯塔）当成了机制。
+     *    正确规则：灯塔 0 仓储；建大灯塔后灯塔才按**该资源压舱仓每级量的一半**给容量，
+     *    即 `lvl.lighthouse × (ballastPerLvl(k)/2)`——普通资源 120/2=60，暗物质 10/2=5。
+     *    【为什么派生不写死】大灯塔那档必须随资源走，否则暗物质实装后拿不到 5/级；
+     *    【为什么并列相加】压舱仓与大灯塔后的灯塔是两条独立容量来源，各自量纲「每级 +N」，
+     *    写成相乘会在两座都盖起来时把效果放大成平方 = 同一个东西计价两次。
+     *    【挂 wonder.owned】建大灯塔前灯塔仓储恒 0，不建成则 0。 */
+    var greatLighthouse = (SB.wonder && SB.wonder.owned(s).wonder_great_lighthouse) ? 1 : 0;
+    var matCap = base + _sm * (matBallast * ballastPerLvl(k)
+      + greatLighthouse * matLighthouse * (ballastPerLvl(k) / 2))
       /* ⚠️ 奇观「海潮方碑」的「各材料仓储 +200」。
        *   ⚠️ **只加给材料，不加石梁** —— 石梁是无上限资源（用户拍），给它加 200 没有意义。
        *    ⚠️ 用**白名单**而不是「除 stoneBeam 之外全加」：将来加新资源时，
@@ -515,10 +537,18 @@
 
   /* 城堡容量轴：每级统治核心 +50（装了 upg_castle 才生效），整体过 DR 衰减。 */
   var CASTLE_DR_LIMIT = 1000;
+  /* 城堡容量轴：默认每级 +50（capEra 3 及之前），暗物质例外每级 +2。
+   * ⚠️ 暗物质（storageEra 11）本不在城堡 capEra 3 范围内，且 CAP_BASE 只有 10 ——
+   *    套通用 +50/级会把它撑到荒谬量级。2026-11-22 用户拍板：暗物质单独 +2/级，
+   *    并放通 capEra 门槛；其它资源维持原口径。 */
   function castleCapBonus(s, resourceId) {
     if (!(s.upgrades && s.upgrades.upg_castle)) return 0;
-    if (resourceId && !capEraAllows('upg_castle', resourceId)) return 0;
-    var raw = coreLvl(s) * upgSum(s, 'castleCap');
+    var isDark = resourceId === 'darkmatter';
+    if (!isDark && resourceId && !capEraAllows('upg_castle', resourceId)) return 0;
+    var perLevel = isDark
+      ? upgSum(s, 'castleCapDarkMatter')
+      : upgSum(s, 'castleCap');
+    var raw = coreLvl(s) * perLevel;
     return getLimitedDR(raw, CASTLE_DR_LIMIT);
   }
   function addRes(s, k, v) {
@@ -687,25 +717,29 @@
     var b = null;
     for (var i = 0; i < SB.BUILDINGS.length; i++) if (SB.BUILDINGS[i].id === id) b = SB.BUILDINGS[i];
     var n = s.lvl[id] || 0, o = {}, hm = hallMul(s);
-    /* 君主制建造减耗（2026-09-30 · 市政《行政部门》解锁政体）：只在 zone==='core' 生效，
+    /* 王权制建造减耗（2026-09-30 · 市政《行政部门》解锁政体）：只在 zone==='core' 生效，
      *   乘在这里而不是 habitat.build ⇒ 面板显示的造价与真实扣的是同一笔。
-     *   ⚠️ 与 hallMul **并列相乘**：议事厅是「建筑给的减耗」、君主制是「制度给的」，
+     *   ⚠️ 与 hallMul **并列相乘**：议事厅是「建筑给的减耗」、王权制是「制度给的」，
      *      两条独立来源，谁也不知道谁的存在。 */
     var gm = (SB.civic && SB.civic.govBuildCostMul) ? SB.civic.govBuildCostMul(s, id) : 1;
     /* ⚠️ 2026-09-30 ERA4 · 王国大交易所：**贸易区域**建筑消耗 -10%（effect.tradeSave）。
      *    分区归属读 `b.zone` —— 它来自 BUILD_ZONE_OF（config），是本作分区的唯一真源，
      *    这里不许另写一份「哪些建筑算贸易区」的清单（那是第二份事实来源，必漂）。
-     *    三条减耗彼此独立相乘：议事厅(建筑) × 君主制(制度) × 大交易所(奇观，限贸易区)。 */
+     *    三条减耗彼此独立相乘：议事厅(建筑) × 王权制(制度) × 大交易所(奇观，限贸易区)。 */
     var wm = (b && b.zone === 'trade' && SB.wonder) ? SB.wonder.tradeSaveMul(s) : 1;
+    /* ERA12 时隙殖民地（2026-11-23 · spec §4）：建成后逆时屋建筑消耗 −30%（**额外乘区**，
+     * 不并进 hm/gm/wm）。只针对 chrono_house，不动其它建筑。 */
+    var tsm = (id === 'chrono_house' && SB.wonder && SB.wonder.owned)
+      ? (SB.wonder.owned(s).timeslip_colony ? 0.70 : 1) : 1;
     /* ⚠️ ERA5（2026-10-02）· 倒置搭建（upg_invertbuild）全建筑 −20% 造价（effect.invertBuildSave）；
      *    高压热机管道（upg_thermrecover）额外给**热液汽轮机** −30%（effect.hydroBuildSave）。
-     *    两条独立相乘、且排在 hm/gm/wm 之后 —— 与「议事厅/君主制/大交易所」同一道乘区纪律：
+     *    两条独立相乘、且排在 hm/gm/wm 之后 —— 与「议事厅/王权制/大交易所」同一道乘区纪律：
      *    它们是「制度给的减耗」，互不踩对方的定义域。 */
     var isb = 1 - upgSum(s, 'invertBuildSave');
     var hsb = (id === 'hydroturbine') ? (1 - upgSum(s, 'hydroBuildSave')) : 1;
     /* ⚠️ 2026-10-05 · 匠作省料（perk.buildSave）：全建筑消耗 −1%/级，最多 −20%。
      *   【为什么不并进 isb / hallMul】那三个是「建筑/制度/奇观给的」减耗，这一个是
-     *   **轮回商店给的**——来源不同就该独立相乘，与本函数「议事厅 × 君主制 × 大交易所
+     *   **轮回商店给的**——来源不同就该独立相乘，与本函数「议事厅 × 王权制 × 大交易所
      *   × 倒置搭建」同一条乘区纪律：每条来源各守自己的定义域，谁也不踩谁。
      *   【为什么落在这里而不是 habitat.build】costOf 是面板显示与真实扣费**共用的那一份**，
      *   落在这里 ⇒ 显示的造价与扣的钱天然同源（改 habitat.build 会出现「显示不涨、实扣涨」）。
@@ -778,7 +812,7 @@
     if (!isFinite(_geneRatio) || _geneRatio <= 0) _geneRatio = b.ratio;
     for (var k in b.cost) {
       if (k === 'pop') continue;
-      o[k] = b.cost[k] * Math.pow(_geneRatio, _effN) * hm * gm * wm * isb * hsb * bsb
+      o[k] = b.cost[k] * Math.pow(_geneRatio, _effN) * hm * gm * wm * tsm * isb * hsb * bsb
         * scm * (SB.faith && SB.faith.buildingCostMul ? SB.faith.buildingCostMul(s) : 1)
         * (k === 'scaffold' ? sc : 1) * _freeMul;
     }
@@ -913,6 +947,10 @@
    *    判据：rates() 的每一项必须与 tick 同项在「不烧暖石」时逐位相等。 */
   function seasonMul(s, warmRelief) {
     var raw = season(s).mult;
+    /* 增产季不吃「减产收窄」（2026-11-22 论坛 bug：海潮占卜把暖流季 1.5 倍压成 1.41）。
+     * relief 的语义是「顶回多少减产」，只对 raw < 1 有意义；原先对称套在两侧，
+     * 等于把增产也乘了 (1-relief)。判据：raw >= 1 时无论 relief 多大都原样返回。 */
+    if (raw >= 1) return raw;
     var tech = SB.tech ? SB.tech.mul(s).season : 0;
     var relief = (tech || 0) + (warmRelief || 0);
     if (relief > 1) relief = 1;
@@ -1084,7 +1122,7 @@
   /* 2026-10-23 潮汐之树：旧「矿脉税契」（mineTax，一键管三线）拆成矿工系 + 采石系两条独立轴：
    *   · minerPact（矿工系：金属 silt + 暖石 warmstone，+10%/级）
    *   · quarryPact（采石系：石头 stone，+10%/级）
-   *   ERA6 平等主义（每名鲛人 +0.1% 矿井产出）两条轴都叠加。tick / rates 共享本批函数 ⇒ 面板===结算。 */
+   *   ERA6 平权共治（每名鲛人 +0.1% 矿井产出）两条轴都叠加。tick / rates 共享本批函数 ⇒ 面板===结算。 */
   /* 硅基承续 · 心 LV2/LV3：原为矿工 / 采石工产出 +200/+300%（2026-11-17）。
    * 2026-11-18 用户拍板改为工艺乘区 ×2 / ×2.5，veilFx.jobOutMul 已停用（恒 1），
    * 故这两行只保留 perk / 政体项，veil 乘子恒等不再影响岗位产出（调用点留着避免动结算链）。 */
@@ -1265,9 +1303,14 @@
      * ⚠️ 副作用：铁/钢等加工产出也吃这 30%（globalMul 本就是「全资源产出」乘区）；若需把铁/钢排除出「职业产出」口径，
      *   改为只裹采集/职业那几行（更高改动风险），此处先按「全产出」口径落地。 */
     m *= (SB.civic && SB.civic.cardJobOutMul) ? SB.civic.cardJobOutMul(s) : 1;
-    /* ERA9 市政《分布式主权》→ 政体星际联邦（allOutMul=0.10）：所有产出 +10%。
+    /* ERA9 市政《分布式主权》→ 政体群星盟约（allOutMul=0.10）：所有产出 +10%。
      * 折叠进 globalMul ⇒ tick 与 rates 同式（面板===结算），天然覆盖全资源轴。 */
     m *= (SB.civic && SB.civic.govAllOutMul) ? SB.civic.govAllOutMul(s) : 1;
+    /* ERA12《自然对数常数化》(upg_ln_constant, 2026-11-23 · spec §4)：全资源产出 +20%。
+     * 走 upgSum（与 mineSilt 等升级字段同源），折叠进 globalMul ⇒ tick 与 rates 自动同式。 */
+    m *= 1 + upgSum(s, 'allOutMul');
+    /* ERA11/12 终末危机的全产惩罚共用现有全局产出乘区，保持 tick 与 rates 同步。 */
+    if (SB.war && SB.war.crisisProductionMul) m *= SB.war.crisisProductionMul(s);
     return m;
   }
   /* ERA10（2026-10-20 · 用户 ERA10 表「大统一方程」解锁）：除科技/市政/信仰外的全产加成轴。
@@ -1361,7 +1404,8 @@
       if (!target && ids.length) target = ids[0];
       if (target) s.launchProcs[target] = {
         sail: typeof s.sunSailProc === 'number' && isFinite(s.sunSailProc) ? Math.max(0, s.sunSailProc) : 0,
-        node: typeof s.dysonProc === 'number' && isFinite(s.dysonProc) ? Math.max(0, s.dysonProc) : 0
+        node: typeof s.dysonProc === 'number' && isFinite(s.dysonProc) ? Math.max(0, s.dysonProc) : 0,
+        probe: 0
       };
     }
     for (var j = 0; j < ids.length; j++) {
@@ -1369,17 +1413,21 @@
       if (!p || typeof p !== 'object' || Array.isArray(p)) p = s.launchProcs[ids[j]] = {};
       p.sail = typeof p.sail === 'number' && isFinite(p.sail) ? Math.max(0, p.sail) : 0;
       p.node = typeof p.node === 'number' && isFinite(p.node) ? Math.max(0, p.node) : 0;
+      p.probe = typeof p.probe === 'number' && isFinite(p.probe) ? Math.max(0, p.probe) : 0;
     }
     return s.launchProcs;
   }
-  function launchProcOf(s, id, nodeMode) {
+  /* 第三参是模式字符串 'sail'/'node'/'probe'；为兼容旧调用也接受布尔（true='node'）。
+   * ⚠️ 探针与帆/节点各存独立余数——三模式切换不接续旧进度（与双模式同纪律）。 */
+  function procKey(mode) { return mode === 'probe' ? 'probe' : (mode === 'node' || mode === true) ? 'node' : 'sail'; }
+  function launchProcOf(s, id, mode) {
     var table = launchProcTable(s), p = table[id];
-    return p ? p[nodeMode ? 'node' : 'sail'] : 0;
+    return p ? p[procKey(mode)] : 0;
   }
-  function setLaunchProc(s, id, nodeMode, value) {
+  function setLaunchProc(s, id, mode, value) {
     var table = launchProcTable(s), p = table[id];
     if (!p) return;
-    p[nodeMode ? 'node' : 'sail'] = typeof value === 'number' && isFinite(value) ? Math.max(0, value) : 0;
+    p[procKey(mode)] = typeof value === 'number' && isFinite(value) ? Math.max(0, value) : 0;
   }
   function resetLaunchProcs(s) {
     if (!s) return false;
@@ -1387,15 +1435,45 @@
     for (var i = 0; i < ids.length; i++) {
       table[ids[i]].sail = 0;
       table[ids[i]].node = 0;
+      table[ids[i]].probe = 0;
     }
     return true;
   }
   function launchNodeMode(s) {
     return !!(s && s.launchMode === 'node' && s.techs && s.techs.adiabatic);
   }
-  /* 每个运行等级每秒需要的库存原料；帆/节点模式的材料消耗分别读 UNIT 常量，热液能另走 launchHydroPer。
+  /* ERA11 探针模式科技门（2026-11-23 · spec §3.1）：完成《深空探索》后 s.launchMode 可置 'probe'。
+   * 与 node 同纪律：没学科技恒按其它模式走，防改档把 launchMode 写坏后凭空产探针。 */
+  function launchProbeMode(s) {
+    return !!(s && s.launchMode === 'probe' && s.techs && s.techs.deep_space);
+  }
+  /* 当前发射模式字符串，供 tick / rates / UI 同源判定（优先级：probe > node > sail）。 */
+  function launchModeOf(s) {
+    if (launchProbeMode(s)) return 'probe';
+    if (launchNodeMode(s)) return 'node';
+    return 'sail';
+  }
+  /* 单钮点击后的「下一档」——toggleLaunchMode（input）与按钮文案（render-pane-village）共用这一个函数，
+   * 防两处各写一份循环顺序后漂移。顺序 sail→node→probe→sail；probe 需 deep_space 科技，
+   * 没学时 node 直接回 sail（保持原双态）。⚠️ 用 launchModeOf 而非裸 s.launchMode：改档写了
+   * 未解锁的 probe 时能被归一，防凭空产探针。 */
+  function launchNextMode(s) {
+    var cur = launchModeOf(s);
+    if (cur === 'probe') return 'sail';
+    if (cur === 'sail') return 'node';
+    return (s && s.techs && s.techs.deep_space) ? 'probe' : 'sail';
+  }
+  /* 每个运行等级每秒需要的库存原料；帆/节点/探针模式的材料消耗分别读 UNIT 常量，热液能另走 launchHydroPer。
    * tick 与 rates 共用此表，避免面板和实际扣料分叉。 */
   function launchMaterialPer(s) {
+    if (launchProbeMode(s)) {
+      return {
+        uranium: SB.UNIT.probeUranium || (10000 / 600),
+        strongProp: SB.UNIT.probeStrongProp || 10,
+        thinafilm: SB.UNIT.probeThinafilm || 10,
+        tiplate: 0
+      };
+    }
     if (launchNodeMode(s)) {
       return {
         uranium: SB.UNIT.dysonNodeUranium || 5,
@@ -1414,12 +1492,32 @@
   /* 制造节律（秒）：CFG 基准 + 科技《空间矢量控制》−2s + 政策卡《至高指令》−2s，钳下限 1。
    * ⚠️ 卡字段走 civic.cardLaunchCycle（tech.mul 只认科技表——卡写进科技 mul 是死线）。 */
   function launchCycleOf(s) {
+    /* ERA11 探针模式固定 600 秒/枚（spec §3.1 用户拍板「10 分钟一发」）：
+     * 不吃《空间矢量控制》−2s / 政策卡 / perk 的节律压减——探针是独立档位，节律写死。 */
+    if (launchProbeMode(s)) return SB.CFG.PROBE_CYCLE || 600;
     var base = SB.CFG.LAUNCH_CYCLE || 10;
     var T = (SB.tech && SB.tech.mul) ? SB.tech.mul(s) : null;
     var add = (T ? (T.launchCycle || 0) : 0)
       + ((SB.civic && SB.civic.cardLaunchCycle) ? SB.civic.cardLaunchCycle(s) : 0)
       - ((s.perk && s.perk.starLaunchSpeed) || 0);
     return Math.max(1, base + add);
+  }
+  /* ERA11/12 暗物质产量乘区（2026-11-23 · spec §4，用户拍板的两条来源）：
+   *   船团 starship_armada：每座 +10%，**跨轮回累加**存 meta.armada.bonusTenths（单位 0.1% ⇒ 100=+10%）；
+   *   现实透孔仪 reality_aperture：本局建成即 +30%（奇观不重复，局内随 startRun 清零）。
+   *   太阳星环暗物质档（恒星锻炉开启）也吃这个乘区——所有暗物质产出走同一处。
+   * ⚠️ 船团加成读 meta（权威账本），局内 s.armadaNo 只是显示编号，绝不当乘区源。 */
+  function darkmatterOutMul(s) {
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var armadaTenths = (meta && meta.armada && meta.armada.bonusTenths) || 0;
+    /* ⚠️ owned(s) 只收一个参数、返回整个 wonders 对象——必须再取 [id]，
+     * 不要写 owned(s,'id')（第二参被忽略 ⇒ 拿到 {} 恒 truthy ⇒ 无条件 +30%）。 */
+    var aperture = (SB.wonder && SB.wonder.owned && s) ? !!SB.wonder.owned(s).reality_aperture : 0;
+    var civicAllOut = SB.civic && SB.civic.govAllOutMul ? SB.civic.govAllOutMul(s) : 1;
+    var cardResource = SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'darkmatter') : 1;
+    var synaptic = SB.wonder && SB.wonder.synapticDarkmatterMul ? SB.wonder.synapticDarkmatterMul(s) : 1;
+    return (1 + armadaTenths / 1000) * (1 + (aperture ? 0.30 : 0))
+      * civicAllOut * cardResource * synaptic;
   }
   /* 星屑商店专属乘区：只放大太阳帆带来的热液供给。 */
   function starSailHydroMul(s) {
@@ -1429,7 +1527,10 @@
   }
   function starNuclearHydroMul(s) { return 1 + ((s.perk && s.perk.starNuclearHydro) || 0); }
   function starSolarRingMul(s) { return 1 + ((s.perk && s.perk.starSolarRing) || 0); }
-  function starAlienOutputMul(s) { return 1 + ((s.perk && s.perk.starAlienOutput) || 0); }
+  function starAlienOutputMul(s) {
+    var crisisMul = (SB.war && SB.war.crisisAlienOutputMul) ? SB.war.crisisAlienOutputMul(s) : 1;
+    return crisisMul * (1 + ((s.perk && s.perk.starAlienOutput) || 0));
+  }
   /* 轨道建筑每级分别放大学者与书手产出；调用侧仅套在对应职业产出项。 */
   function starOrbitalJobMul(s) {
     var orbitalLevels = ((s.lvl && s.lvl.satellite) || 0) + ((s.lvl && s.lvl.spacestation) || 0);
@@ -1448,7 +1549,8 @@
   /* 每级每秒热液能耗（flow）：帆模式与节点模式均为 4；再乘政策卡《节能减耗》（−50% ⇒ ×0.5）。
    * tick / rates / hydroAlloc 都调它，绝不各写一份。 */
   function launchHydroPer(s) {
-    var base = launchNodeMode(s) ? (SB.UNIT.dysonNodeHydro || 4) : (SB.UNIT.launchSailHydro || 4);
+    var base = launchProbeMode(s) ? (SB.UNIT.probeHydro || 4)
+      : launchNodeMode(s) ? (SB.UNIT.dysonNodeHydro || 4) : (SB.UNIT.launchSailHydro || 4);
     var m = (SB.civic && SB.civic.cardLaunchHydroMul) ? SB.civic.cardLaunchHydroMul(s) : 1;
     var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
     if (SB.challenges && SB.challenges.launchHydroRewardMul) m *= SB.challenges.launchHydroRewardMul(meta);
@@ -1480,7 +1582,7 @@
     /* 2026-10-25 用户拍板：首名族民免口粮——开局 pop=1 且藻场未建时不饿死，
      * 计费人口 = pop − 1（s.pop 由生育 s.pop++ 整数递增，Math.max 防 0/1）。 */
     return Math.max(0, s.pop - 1) * SB.CFG.FOOD_PER * (1 - save)
-      * (1 - (SB.civic ? SB.civic.govMermanFoodMul(s) : 0))   // ERA6 联邦制：鲛人食物消耗 −10%
+      * (1 - (SB.civic ? SB.civic.govMermanFoodMul(s) : 0))   // ERA6 盟约制：鲛人食物消耗 −10%
       /* 硅基承续 · 胃（2026-11-17）：食物需求 −30/50/70%（独立乘区，SPEC §7-4 新造通道）。
        * ⚠️ 乘在最后、与上面每一项都相乘，不折进 save 那个加法括号 —— 折进去会把
        *    「暖窝藻场减耗」和「器官减耗」并成一条轴，改一个会带动另一个的实际收益。 */
@@ -1985,7 +2087,12 @@
          *   这是本挑战唯一一条「又要产能又不污染」的正路，也是约束型通关的设计支点。 */
         _tideL = s.lvl.tidemachine || 0,
         _solarL = s.lvl.solarstation || 0,
-        _windL = s.lvl.enladofarm || 0;
+        _windL = s.lvl.enladofarm || 0,
+        /* ERA11 恒星锻炉（2026-11-23 · spec §4）：太阳星环切暗物质档后的持续耗流户。
+         * 判据三件套：装了 upg_stellar_forge + 玩家手动开 s.solarRingOn + 有太阳星环等级。
+         * 与 geek 同纪律——只有「真的在烧」才占流，否则面板会谎报。 */
+        ringDarkOwned = !!(s.upgrades && s.upgrades.upg_stellar_forge),
+        ringDarkOn = !!(ringDarkOwned && s.solarRingOn && (s.lvl.solar_ring || 0) > 0);
     /* ERA5 高压热机管道 / 轨道工厂是并联进汽口，不依赖汽轮机是否运行。
      * 在早退判定前读取，才能让只有这条独立供给的状态继续进入分配。 */
     var _press = SB.wonder ? SB.wonder.hydroWonderMul(s) : 0;
@@ -1993,7 +2100,7 @@
      *    而不是 0 —— steelFlow 的 `s.res.hydro = HF.supplyRate` 会把顶栏主数写成 undefined
      *    （解了 metalrefine 但一台汽轮机都没建时就是这样），rates().hydroSupply 同理。
      *    这种缺键不报错、只在面板上变成 NaN/undefined，属于「面板撒谎」家族。 */
-    if (turL <= 0 && _press <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && _tideL <= 0 && _solarL <= 0 && _windL <= 0 && !(geekOn && geekOwned && _geekActive))
+    if (turL <= 0 && _press <= 0 && shopL <= 0 && fisL <= 0 && staL <= 0 && tcL <= 0 && labL <= 0 && robotL <= 0 && bayL <= 0 && satRunL <= 0 && europaL <= 0 && vatL <= 0 && _adCount <= 0 && (s.sunSails || 0) <= 0 && _tideL <= 0 && _solarL <= 0 && _windL <= 0 && !(geekOn && geekOwned && _geekActive) && !ringDarkOn)
       return { supply: 0, supplyRate: 0, turbineRate: 0, pressRate: 0, fissionRate: 0, titancloudRate: 0, sunSailRate: 0,
         /* 水体污染：早退对象也必须**补齐全部键**（少一个键 ⇒ 读它的人拿到 undefined，
          *   面板会显示 NaN —— 与上面那段注释同一条纪律）。 */
@@ -2004,9 +2111,10 @@
         stationDraw: 0, stationRate: 0, satelliteDraw: 0, satelliteRate: 0, labDraw: 0, labRate: 0, robotDraw: 0, robotRate: 0, robotbayDraw: 0, robotbayRate: 0,
         vrDraw: 0, vrRate: 0, europaDraw: 0, europaRate: 0, geekDraw: 0, geekRate: 0,
         jupitorDraw: 0, jupitorRate: 0, vatPoolDraw: 0, vatFlowDraw: 0, vatFlowRate: 0, coreNetRate: 0,
+        ringDraw: 0, ringRate: 0,
         fissionStoneDraw: 0, fissionStoneRate: 0 };
     var supply = 0, rW = 1, turbineSupply = 0, pressSupply = 0, fissionSupply = 0, titancloudSupply = 0;
-    /* 平等主义的每人口热液加成覆盖所有供给源；只在汽轮机/管道上乘会漏掉 ERA7+ 的并联能源。 */
+    /* 平权共治的每人口热液加成覆盖所有供给源；只在汽轮机/管道上乘会漏掉 ERA7+ 的并联能源。 */
     var govHydroMul = SB.civic ? SB.civic.govHydroPerPop(s) : 1;
     /* 硅基承续 · 尾（2026-11-17）：「热液能产出 +50/100/150%」。乘在**全部六个供给源**上
      *   （汽轮机 / 高压热机管道 / 核热厂 / 泰坦气云 / 太阳帆 / 洁净三源），与 govHydroMul 同一覆盖范围。
@@ -2019,6 +2127,11 @@
      *      花飞升点买的器官会变成静默惩罚 —— 与本文件既有的「星屑树乘区豁免」同一条原则。 */
     var veilHydroMul = (SB.veilFx && SB.veilFx.hydroOutMul) ? SB.veilFx.hydroOutMul() : 1;
     if (!(veilHydroMul > 0)) veilHydroMul = 1;
+    /* 热液能走独立流量模型，因此在供给源这里同步承接全产惩罚；
+     * 钢铁狂潮的额外削减由 crisisHydroOutputMul 一并给出。 */
+    var crisisHydroMul = (SB.war && SB.war.crisisHydroOutputMul)
+      ? SB.war.crisisHydroOutputMul(s) : 1;
+    if (!(crisisHydroMul > 0)) crisisHydroMul = 1;
     /* 水体污染（2026-11-02）：脏源**每秒**排放（未乘政策 rateMul / k），与上面几个 supply 局部变量
      * 同源同值（`/dt` 归一）。分两枝返回，是因为装罐填埋只削**汽轮机**那一枝（§1.2 的坑）：
      *   pollutionTurbine = 汽轮机；pollutionOther = 高压热机管道 + 轨道工厂 + 核热厂 + 泰坦气云站。 */
@@ -2041,12 +2154,12 @@
     if (turL > 0) {
       turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _sourceFactor * govHydroMul
         * (SB.faith && SB.faith.turbineOutputMul ? SB.faith.turbineOutputMul(s) : 1)
-        * veilHydroMul;
+        * veilHydroMul * crisisHydroMul;
       /* 排放先从产出里除掉 veilHydroMul：暖石按等级烧，产出涨了燃料没涨 ⇒ 不该多排。 */
       if (dt > 0) pollutionTurbine += turbineSupply / dt / veilHydroMul;
     }
     /* ERA5 并联进汽口：停用汽轮机只停汽轮机本身，不关高压热机管道/轨道工厂。 */
-    pressSupply = _press * _sourceFactor * govHydroMul * veilHydroMul;
+    pressSupply = _press * _sourceFactor * govHydroMul * veilHydroMul * crisisHydroMul;
     supply = turbineSupply + pressSupply;
     if (dt > 0) pollutionOther += pressSupply / dt / veilHydroMul;
     /* ERA7（2026-10-17 · spec §4）：核热厂——每级 +10 热液能/秒，**不烧暖石**的新热液源
@@ -2065,7 +2178,7 @@
       var _fisPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
       var _fisRatio = (s.upgrades && s.upgrades.upg_reheavfusion) ? (1 + fissionStoneRatio) : 1;
       fissionSupply = fisL * (SB.BLD.fissionHydro || 0) * starNuclearHydroMul(s) * dt * _nf
-        * _fisRatio * _fisPM * govHydroMul * veilHydroMul;
+        * _fisRatio * _fisPM * govHydroMul * veilHydroMul * crisisHydroMul;
       supply += fissionSupply;
       /* ⚠️ 下面那行排放**不加** veilHydroMul：铀按等级烧，产出涨了不额外排。 */
       pollutionOther += fisL * (SB.BLD.fissionHydro || 0) * _nf * _fisRatio * _fisPM * govHydroMul;
@@ -2075,7 +2188,7 @@
     if (tcL > 0) {
       var _tcPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
       titancloudSupply = tcL * (SB.BLD.titancloudHydro || 0) * starAlienOutputMul(s) * dt * _tcPM * govHydroMul
-        * veilHydroMul;
+        * veilHydroMul * crisisHydroMul;
       supply += titancloudSupply;
       /* 排放同样豁免星屑树 `starAlienOutputMul`（与核热厂同一条统一原则）。 */
       pollutionOther += tcL * (SB.BLD.titancloudHydro || 0) * _tcPM * govHydroMul;
@@ -2086,7 +2199,7 @@
     var sunSailSupply = 0;
     if ((s.sunSails || 0) > 0) {
       sunSailSupply = (s.sunSails || 0) * (SB.CFG.SUNSAIL_HYDRO || 0.05) * starSailHydroMul(s) * dt
-        * (SB.challenges ? SB.challenges.productionMul(s) : 1) * govHydroMul * veilHydroMul;
+        * (SB.challenges ? SB.challenges.productionMul(s) : 1) * govHydroMul * veilHydroMul * crisisHydroMul;
       supply += sunSailSupply;
     }
     /* 水体污染（2026-11-02）：三座**洁净**热液源 —— 潮汐往复机 +1/s·级、太阳能基站 +3/s·级、
@@ -2097,7 +2210,7 @@
       var _cleanPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
       cleanSupply = (_tideL * (SB.BLD.tideHydro || 0)
         + _solarL * (SB.BLD.solarHydro || 0)
-        + _windL * (SB.BLD.windHydro || 0)) * dt * _cleanPM * govHydroMul * veilHydroMul;
+        + _windL * (SB.BLD.windHydro || 0)) * dt * _cleanPM * govHydroMul * veilHydroMul * crisisHydroMul;
       supply += cleanSupply;
     }
     /* 工坊（低阶科技先吃满）：从本 tick 流里取 min(需求, 供给)。 */
@@ -2242,16 +2355,25 @@
       var _jpLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw);
       jupitorDraw = Math.min(jupitorNeed, _jpLeft);
     }
+    /* ERA11 恒星锻炉 · 太阳星环暗物质档（2026-11-23 · spec §4）：整额 100 热液能/秒才运转，
+     * 最低优先级（…→发射场→G.E.E.K→朱庇特→星环暗物质档）。整额不足则停摆，与 geek 同口径。
+     * ⚠️ 暗物质是否真产出由 tick 的 2f2 段读 ringRate 判定（满供才转）；此处只管占流。 */
+    var ringDraw = 0, ringNeed = 0;
+    if (ringDarkOn) {
+      ringNeed = (SB.CFG.RING_HYDRO || 100) * dt;
+      var _ringLeft = Math.max(0, left - skyDraw - drillDraw - stationDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw - jupitorDraw);
+      if (_ringLeft >= ringNeed - 1e-9) ringDraw = ringNeed;
+    }
     /* 泰拉水舱优先从已蓄能的炉芯池取能，再消耗剩余热液能流；未满足部分不影响人口容量。 */
     var vatNeed = vatL * 100 * dt;
     var coreOwned = !!(SB.wonder && SB.wonder.owned && SB.wonder.owned(s).wonder_terra_core);
     var vatPoolDraw = coreOwned ? Math.min(vatNeed, Math.max(0, (s.res && s.res.coreCharge) || 0)) : 0;
     var vatFlowNeed = Math.max(0, vatNeed - vatPoolDraw);
-    var leftBeforeVat = Math.max(0, left - skyDraw - starDraw - drillDraw - stationDraw - satelliteDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw - jupitorDraw);
+    var leftBeforeVat = Math.max(0, left - skyDraw - starDraw - drillDraw - stationDraw - satelliteDraw - labDraw - robotDraw - robotbayDraw - vrDraw - europaDraw - geekDraw - jupitorDraw - ringDraw);
     var vatFlowDraw = Math.min(vatFlowNeed, leftBeforeVat);
     var leftAfterVat = leftBeforeVat - vatFlowDraw;
     var demand = shopDemand + skyNeed + drillNeed + stationNeed + satelliteNeed + labNeed + robotNeed
-      + robotbayNeed + vrNeed + europaNeed + geekNeed + jupitorNeed + vatFlowDraw;
+      + robotbayNeed + vrNeed + europaNeed + geekNeed + jupitorNeed + ringNeed + vatFlowDraw;
     var demandRate = dt > 0 ? demand / dt : demand;
     var supplyRate = dt > 0 ? supply / dt : supply;
     return { supply: supply, supplyRate: dt > 0 ? supply / dt : supply,
@@ -2297,7 +2419,9 @@
       vrDraw: vrDraw, vrRate: dt > 0 ? vrDraw / dt : vrDraw,
       europaDraw: europaDraw, europaRate: dt > 0 ? europaDraw / dt : europaDraw,
       geekDraw: geekDraw, geekRate: dt > 0 ? geekDraw / dt : geekDraw,
-      jupitorDraw: jupitorDraw, jupitorRate: dt > 0 ? jupitorDraw / dt : jupitorDraw };
+      jupitorDraw: jupitorDraw, jupitorRate: dt > 0 ? jupitorDraw / dt : jupitorDraw,
+      ringNeed: dt > 0 ? ringNeed / dt : ringNeed,
+      ringDraw: ringDraw, ringRate: dt > 0 ? ringDraw / dt : ringDraw };
   }
   /* ═══════════ 水体污染（2026-11-02 · docs/challenge-ocean-pollution-design.md v11）═══════════
    * 【范围】只在 `s.challenge.id === 'waterpollution'` 的周目里生效；基游戏一律恒 0 / 恒 1
@@ -2627,7 +2751,7 @@
      *   漏加 = 顶栏热液能净消耗少算几路（面板撒谎家族）。
      *   ERA10（2026-10-20）：再补 jupitorDraw（朱庇特质量加速站 20/s）——同一个坑，第三次踩到：
      *   hydroAlloc 里算得再准，净速率这一行漏掉就是「面板说没在烧、实际每秒掉 20」。 */
-    var hydro = -(HF.shopDraw + HF.skyDraw + HF.starDraw + HF.drillDraw + HF.stationDraw + HF.labDraw + HF.robotDraw + HF.robotbayDraw + HF.vrDraw + HF.europaDraw + HF.geekDraw + HF.jupitorDraw + HF.vatFlowDraw);
+    var hydro = -(HF.shopDraw + HF.skyDraw + HF.starDraw + HF.drillDraw + HF.stationDraw + HF.labDraw + HF.robotDraw + HF.robotbayDraw + HF.vrDraw + HF.europaDraw + HF.geekDraw + HF.jupitorDraw + HF.ringDraw + HF.vatFlowDraw);
     /* ERA9（2026-10-19）：europaRate 透传（hydroAlloc 的欧罗巴发射场满供判据），供 rates 算发射场库存耗料。
      * ERA9-GEEK（2026-10-21）：geekRate 同上透传 —— GEEK 的**库存耗料**（藻食/金属/石头/珊瑚）在
      *   shell.tickShell ③段直扣，rates 要减掉这四笔必须拿到「热液能是否给满」这一个判据，
@@ -2635,7 +2759,7 @@
      *   要么停摆时也照扣（反向撒谎）。同源取 HF.geekRate，与 tick 的 `_HF2.geekDraw > 0` 等价。 */
     return { steel: steel, steelBase: steelBase, steelCraftMul: steelCraftMul,
       hydro: hydro, hydroSupply: HF.supplyRate, starRate: HF.starRate,
-      europaRate: HF.europaRate, geekRate: HF.geekRate,
+      europaRate: HF.europaRate, geekRate: HF.geekRate, ringRate: HF.ringRate,
       fissionStoneRate: HF.fissionStoneRate, vatFlowRate: HF.vatFlowRate,
       coreNetRate: HF.coreNetRate,
       /* 水体污染（2026-11-02）：把 hydroAlloc 的两枝排放与洁净源供给一起透传。
@@ -2690,13 +2814,44 @@
    * ⚠️ **平产**：不吃 biomatlab 开工率（无原料需求）、不吃 globalMul（字面「每秒生产」），
    *    与 biomatlab 线独立相加。独立成函数是因为 thetaFlow/thetaRate 两处都要读，
    *    且 biomatlab 停工（ratio=0 / lv=0）时这项**照产**——早期 return 会把它静吞掉。 */
-  function solarRingOut(s) {
+  /* ERA11 恒星锻炉 · 太阳星环暗物质档（2026-11-23 · spec §4，2026-11-24 用户拍「缺料自动退回 θ」）：
+   * 「开关亮着」(solarRingDarkActive) 与「暗物质档真正在产」(solarRingDarkFlowing) 是两件事：
+   *   - Active 只判三件套（升级 + 手动开关 + 有星环等级）——决定占不占热液流、按钮显示。
+   *   - Flowing 还要判满供 (HF.ringRate) + θ 库存够——决定「停不停原 θ / 产不产暗物质」。
+   * 旧实现把「停 θ」挂在 Active 上 ⇒ 热液不足或 θ 不够时，θ 被归零、暗物质也产出 0，
+   * 玩家「两边都不产」(2026-11-23 demo 里标出的坑)。现在两处判据统一走 Flowing：
+   * 缺料 ⇒ 原 θ 照产（退回），暗物质 0；满供满料 ⇒ θ 停、暗物质产。
+   * ⚠️ HF 由调用方传：tick 传 s._hydroFlow（steelFlow 当 tick 算好的快照），
+   *    rates 传 steelRate(s) 的 hydroAlloc（dt=1 只读）——绝不在这里自己读 s._hydroFlow，
+   *    否则 rates 被独立调用（AI/面板刷新在 tick 之外）时会拿到旧快照，面板撒谎。 */
+  function solarRingDarkActive(s) {
+    return !!(s && s.upgrades && s.upgrades.upg_stellar_forge && s.solarRingOn && (s.lvl && s.lvl.solar_ring || 0) > 0);
+  }
+  function solarRingDarkThetaNeed(s) {
+    return solarRingDarkActive(s) ? (SB.CFG.RING_THETA || 200) : 0;
+  }
+  /* 「暗物质档真正在烧」= Active + 热液整额满供 + θ 库存够。停 θ 与产暗物质共用这一个判据，
+   * 保证同一 tick 里不会出现「θ 停了但暗物质没产出」的中间态。 */
+  function solarRingDarkFlowing(s, HF) {
+    if (!solarRingDarkActive(s)) return false;
+    var need = SB.CFG.RING_HYDRO || 100;
+    if (!HF || (HF.ringRate || 0) < need - 1e-6) return false;   // 热液能满供才转
+    if ((s.res && s.res.thetaMetal || 0) < (solarRingDarkThetaNeed(s) || 0)) return false; // θ 库存够才转
+    return true;
+  }
+  function solarRingDarkRate(s, HF) {
+    if (!solarRingDarkFlowing(s, HF)) return 0;
+    return (SB.CFG.RING_DARK || 0.01) * darkmatterOutMul(s);
+  }
+  function solarRingOut(s, HF) {
+    /* 只有暗物质档「真正在产」时才停原 θ；开关亮着但缺料时退回原 θ 产出。 */
+    if (solarRingDarkFlowing(s, HF)) return 0;
     return (s.lvl.solar_ring || 0) * (SB.BLD.solarRingOut || 0) * starSolarRingMul(s)
       * (SB.faith && SB.faith.thetaOutputMul ? SB.faith.thetaOutputMul(s) : 1);
   }
-  function thetaFlow(s, dt) {
+  function thetaFlow(s, dt, HF) {
     var q = thetaRatio(s);
-    var _ring = solarRingOut(s) * dt;
+    var _ring = solarRingOut(s, HF) * dt;
     if (q.lv <= 0 || q.ratio <= 0) {
       /* 星环保留路径：biomatlab 没建/没料也照产（加进去再返回，防止早期 return 吞掉）。 */
       if (_ring > 0) addRes(s, 'thetaMetal', _ring);
@@ -2711,16 +2866,16 @@
     addRes(s, 'thetaMetal', out);
     return out + _ring;
   }
-  function thetaRate(s) {
+  function thetaRate(s, HF) {
     var q = thetaRatio(s);
-    var _ring = solarRingOut(s);
+    var _ring = solarRingOut(s, HF);
     if (q.lv <= 0) return _ring;
     return thetaOut(s, q.lv, q.ratio, q.T) + _ring;
   }
-  function thetaRateParts(s) {
+  function thetaRateParts(s, HF) {
     var q = thetaRatio(s);
     return { base: q.lv > 0 ? thetaOutBase(s, q.lv, q.ratio, q.T) : 0,
-      craftMul: metalCraftEfficiencyMul('craft_theta'), ring: solarRingOut(s) };
+      craftMul: metalCraftEfficiencyMul('craft_theta'), ring: solarRingOut(s, HF) };
   }
   /* 只读版 θ产线四种原料的实际消耗率；与 thetaFlow 使用同一个库存开工率。 */
   function thetaInputRates(s) {
@@ -2772,7 +2927,7 @@
         * (1 + (s.lvl.civichall || 0) * (SB.BLD.civicHallRatio || 0))
       + wonderBonus) * globalMul(s)
       * (SB.civic ? SB.civic.cardCivicOutMul(s) : 1)
-      * (SB.civic ? SB.civic.govCivicOutMul(s) : 1);   // ERA6 联邦制：市政产出 +10%
+      * (SB.civic ? SB.civic.govCivicOutMul(s) : 1);   // ERA6 盟约制：市政产出 +10%
     /* ERA4（2026-10-01）：历史哲学完成后，ERA1/2/3 每座奇观 +5 市政点/秒（wonderEraCivicBonus，
      * 绝对量、加在总量上、独立于乘区）。 */
     var lgC = SB.prestige ? SB.prestige.legacy() : null;
@@ -2863,7 +3018,7 @@
      *   · abbeyFaithMul——奇观「圣泰坦尼克修道院」建成时，每完成一个市政 +1%。
      * 都乘在**整段产出**上（含人口基础值），不进 faithMul（那是神庙段自己的乘区）。
      * ERA4（2026-10-01）：天赋神权卡给礁栖核心建筑每级 +10% 信仰（coreFaithMul，乘整段）；
-     *   神权政体按学术区/市政区建筑等级给绝对量加成（theoFaithBonus，加在末尾、独立于乘区）。 */
+     *   神权治理按学术区/市政区建筑等级给绝对量加成（theoFaithBonus，加在末尾、独立于乘区）。 */
     return (base * faithMul(s)
       * (1 + 0.10 * (s.perk.sacrament || 0))
       * (SB.civic && SB.civic.castleFaithMul ? SB.civic.castleFaithMul(s) : 1)
@@ -2941,6 +3096,7 @@
     var _ejM = (SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : null;
     var _S = (_ejM ? (_ejM.merchant || 0) : ((s.jobs.merchant || 0) * folkOutputMul(s)))
       * SB.UNIT.luxury * _tMer * baseMul(s) * unifiedMul(s)
+      * (SB.civic && SB.civic.galacticCouncilAllOutMul ? SB.civic.galacticCouncilAllOutMul(s) : 1)
       * (SB.civic ? SB.civic.govLuxuryMul(s) : 1) * (1 + _uLux) * _lp * merchantGeneMul(s) * _bank
       * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1)
       * (SB.civic ? SB.civic.cardJobOutMul(s) : 1);   // ERA7 延长工时卡：商人产出 +30%（与面板 happySupply 同式，面板===结算）
@@ -3030,11 +3186,14 @@
      * tick/rates 两文件从 P(economyInternals) 取读数，只挂 SB.economy 本体它们拿不到
      * （thetaFlow 首跑 e2e 崩过的同款坑）。 */
     unifiedMul: unifiedMul, globalMulX: globalMulX, dysonPct: dysonPct, dysonFull: dysonFull, solarRingOut: solarRingOut,
+    solarRingDarkActive: solarRingDarkActive, solarRingDarkFlowing: solarRingDarkFlowing,
+    solarRingDarkRate: solarRingDarkRate, solarRingDarkThetaNeed: solarRingDarkThetaNeed,
     /* ERA10 市政（2026-10-20）：三座发射场的单一读数落点——tick 2f 与 rates 都从 P 取，
      * 不在各自文件里重写「求和 / 节律 / 每级耗流」（三处同源铁律）。 */
     launchBids: launchBids, launchLvl: launchLvl, launchActiveLvl: launchActiveLvl,
     launchRunLvl: launchRunLvl, launchProcOf: launchProcOf,
     setLaunchProc: setLaunchProc, resetLaunchProcs: resetLaunchProcs, launchNodeMode: launchNodeMode,
+    launchProbeMode: launchProbeMode, launchModeOf: launchModeOf, launchNextMode: launchNextMode, darkmatterOutMul: darkmatterOutMul,
     launchMaterialPer: launchMaterialPer, launchCycleOf: launchCycleOf, launchHydroPer: launchHydroPer,
     starTerraformDuration: starTerraformDuration, starNuclearHydroMul: starNuclearHydroMul, starAlienOutputMul: starAlienOutputMul,
     starOrbitalJobMul: starOrbitalJobMul,
@@ -3113,6 +3272,7 @@
     launchLvl: launchLvl, launchActiveLvl: launchActiveLvl, launchRunLvl: launchRunLvl,
     launchProcOf: launchProcOf, setLaunchProc: setLaunchProc, resetLaunchProcs: resetLaunchProcs,
     launchNodeMode: launchNodeMode, launchMaterialPer: launchMaterialPer,
+    launchModeOf: launchModeOf, launchProbeMode: launchProbeMode, launchNextMode: launchNextMode,
     launchCycleOf: launchCycleOf, launchHydroPer: launchHydroPer,
     starTerraformDuration: starTerraformDuration, starNuclearHydroMul: starNuclearHydroMul, starAlienOutputMul: starAlienOutputMul,
     starOrbitalJobMul: starOrbitalJobMul,
@@ -3155,7 +3315,7 @@
       /* ⚠️ 2026-10-05 用户报「政体 +1 幸福度没展示」。
        *   【根因】政体/奇观/政策卡的幸福度加成是**常驻偏移量**（进 tick 的 _gb 基线），
        *   早就加进 s.happy 了 —— 但它在 UI 上**完全不可见**：玩家只看到一个总数，
-       *   不知道其中有多少来自政体，于是「采用古典共和 ⇒ 幸福度 +1」这条收益在面板上等于不存在。
+       *   不知道其中有多少来自政体，于是「采用古典共治 ⇒ 幸福度 +1」这条收益在面板上等于不存在。
        *   【为什么要单列而不是只给总数】偏移量是**可开关的**（换政体就消失），
        *   与供需驱动的那部分性质不同。混在一个数里，玩家会以为幸福度只能靠供需爬。
        * ⚠️ 六项之和必须与 tick 里那个 `_gb` **逐项一致**（那是恒定器的基线来源）：

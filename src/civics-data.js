@@ -117,13 +117,13 @@
      * 【cost 定案：750】era2 四项是 250/300/600/500，第三层最深层给最高 750。
      *   这是本次新增、用户未单独拍的 cost —— 沿用「越深越贵」规律，若想调告诉我。
      * 【govs 是新字段（复数）】一个市政解锁**三种**政体（Civ6 政治哲学解锁独裁/
-     *   寡头/古典共和三选一）。原 `gov` 单值只能挂一条 ⇒ 扩成 `govs` 数组，
+     *   寡头/古典共治三选一）。原 `gov` 单值只能挂一条 ⇒ 扩成 `govs` 数组，
      *   govOwned 同步认 `c.govs`。政体采用仍是玩家手动 setGov（research 不自动采用
      *   多政体，避免「研究完政治哲学自动锁死一条政体」）。 */
     { id: 'political', name: '政治哲学', icon: 'assets/civic-icons/era-2/era2-political.png', cost: 1500, era: 2, layer: 5, reqs: ['records', 'theology'],
       boost: { t: 'tech', id: 'engineeringT' },
       govs: ['autocracy', 'oligarchy', 'classical_republic'],
-      desc: '解锁三种政体：独裁统治、寡头统治、古典共和（择一采用）。',
+      desc: '解锁三种政体：铁腕统治、少数共治、古典共治（择一采用）。',
       note: '鼓舞：掌握科技「工程学」。' },
 
     /* ══ 纪元三 · ERA3 市政扩展（2026-09-30 用户规格表，逐格照录）════════
@@ -159,7 +159,7 @@
       note: '鼓舞：生息区建筑合计等级达 100。' },
     { id: 'market', name: '中世纪集市', icon: 'assets/civic-icons/era-3/era3-market.png', cost: 4000, era: 3, layer: 2,
       reqs: ['political'],
-      boost: { t: 'gathered', r: 'luxury', n: 10000 },
+      boost: { t: 'gathered', r: 'luxury', n: 2500 },
       card: 'card_market',
       desc: '解锁政策卡「中世纪集市」；商人同时产出科学 +0.05/秒、市政点 +0.05/秒。',
       note: '鼓舞：累计奢侈品产出达 10000。' },
@@ -190,7 +190,7 @@
       /* 额外效果（2026-10-01 ERA4 设计稿）：书手更名为官员，且行政点（市政点）产出 +50%。
        * 改名是 UI 标签、+50% 走 economy.cultureRate 的 scribeCivicMul（department 完成后 ×1.5）。 */
       scribeRename: true, scribeCivicMul: 0.50,
-      desc: '解锁政体「君主制」（5 槽：礁栖核心建筑建造消耗 −10%），以及建筑「王国潮道」。书手更名为官员，市政点产出 +50%。',
+      desc: '解锁政体「王权制」（5 槽：礁栖核心建筑建造消耗 −10%），以及建筑「王国潮道」。书手更名为官员，市政点产出 +50%。',
       note: '鼓舞：人口达 50。' },
 
     /* ══ 纪元四 · ERA4 市政扩展（2026-10-01 用户设计稿，逐格照录）════════
@@ -199,7 +199,7 @@
      * 【layer 用设计稿原值】探索/归正会 1，其余 2。era4 块的列基准由 layout() 的 eraBase 自动偏移。
      * 【鼓舞 = 硬门禁】与以往同口径：未揭示不能投点。
      * 【7 项参数用户 2026-10-01 全部拍板】① cost 先这样；② 每季发资源 = 所有按时间产出的资源
-     *   （取当前速率 ×60s）；③ 商人共和国 5 槽全万能、幸福度消耗 −30%；④ 神权政体每级学术区建筑
+     *   （取当前速率 ×60s）；③ 商贸同盟 5 槽全万能、幸福度消耗 −30%；④ 神权治理每级学术区建筑
      *   +1 信仰、每级市政区建筑 +0.5 信仰；⑤ 博物馆官员市政点 +20%、三角贸易王国潮道 +100%、
      *   启蒙运动潮纹馆/大学 +100%、神庙 −50%；⑥ 艺术品 5000 市政+100 绳 / 潮纹记录 5000 科技+10 钢零件；
      *   ⑦ 探索鼓舞「完成钢铁仓库升级」= 压舱库扩容 II（upg_ballast_2）。 */
@@ -213,7 +213,7 @@
       gov: 'merchant_republic',
       /* 每季节判定一次：获得任意资源 1min 的产量（economy.seasonTurn 里实现，取 rates() 当前速率）。 */
       seasonGrant: true,
-      desc: '解锁建筑「商队驿站」、政策卡「三角贸易」、政体「商人共和国」；每季节判定一次，获得任意资源 1 分钟产量。',
+      desc: '解锁建筑「商队驿站」、政策卡「三角贸易」、政体「商贸同盟」；每季节判定一次，获得任意资源 1 分钟产量。',
       note: '鼓舞：完成钢铁仓库升级（压舱库扩容 II）。' },
     { id: 'professional_army', name: '职业军队', icon: 'assets/civic-icons/era-4/era4-professional-army.png', cost: 20000, era: 4, layer: 1,
       reqs: ['department'], boost: { t: 'campaignStage', n: 1 },
@@ -250,7 +250,7 @@
       religSlot: 1,
       gov: 'theocracy',
       card: 'card_divine_right',
-      desc: '解锁奇观「欧\'洛瓦宗座教堂」(+1 宗教政策卡槽)、政体「神权政体」、政策卡「天赋神权」。',
+      desc: '解锁奇观「欧\'洛瓦宗座教堂」(+1 宗教政策卡槽)、政体「神权治理」、政策卡「天赋神权」。',
       note: '鼓舞：已建立宗教（70 鲛人已由前置《行政部门》保证）。' },
     { id: 'mercantilism', name: '重商主义', icon: 'assets/civic-icons/era-4/era4-mercantilism.png', cost: 40000, era: 4, layer: 2,
       reqs: ['explore'],
@@ -314,7 +314,7 @@
     { id: 'socialscience', name: '社会科学', icon: 'assets/civic-icons/era-5/era5-socialscience.png', cost: 110000, era: 5, layer: 2, reqs: ['sharksong'],
       boost: { t: 'total', n: 300 },
       wonder: 'wonder_congress',
-      desc: '解锁奇观「国会大厦」（鲛人幸福度消耗 −10%）。',
+      desc: '解锁奇观「共鸣议事堂」（鲛人幸福度消耗 −10%）。',
       note: '鼓舞：建筑总等级达 300。' },
     { id: 'urbanization', name: '城市化', icon: 'assets/civic-icons/era-5/era5-urbanization.png', cost: 120000, era: 5, layer: 2, reqs: ['rationing'],
       boost: { t: 'total', n: 510 },
@@ -367,17 +367,17 @@
     { id: 'theo_merit', name: '神恩与威权', icon: 'assets/civic-icons/era-6/era6-theomerit.png', cost: 420000, era: 6, layer: 3,
       reqs: ['ideology'], boost: { t: 'civic', id: 'ideology' },
       gov: 'theo_state',
-      desc: '解锁政体「教权国」（7 政策卡槽，所有建筑每级 +1 信仰/秒）；采用时弹窗命名、城堡更名「圣座居所」。',
+      desc: '解锁政体「圣座国」（7 政策卡槽，所有建筑每级 +1 信仰/秒）；采用时弹窗命名、城堡更名「圣座居所」。',
       note: '鼓舞：完成市政「意识形态」。' },
     { id: 'egalitarianism', name: '层级理论', icon: 'assets/civic-icons/era-6/era6-egalitarianism.png', cost: 440000, era: 6, layer: 3,
       reqs: ['ideology'], boost: { t: 'civic', id: 'ideology' },
       gov: 'egalitarianism',
-      desc: '解锁政体「平等主义」（7 政策卡槽，每名鲛人 +0.1% 工坊/热液/矿井产出）；采用时弹窗命名、城堡更名「人民大厅」。',
+      desc: '解锁政体「平权共治」（7 政策卡槽，每名鲛人 +0.1% 工坊/热液/矿井产出）；采用时弹窗命名、城堡更名「众生大厅」。',
       note: '鼓舞：完成市政「意识形态」。' },
     { id: 'federalism', name: '权责对等', icon: 'assets/civic-icons/era-6/era6-federalism.png', cost: 460000, era: 6, layer: 3,
       reqs: ['ideology'], boost: { t: 'civic', id: 'ideology' },
       gov: 'federalism',
-      desc: '解锁政体「联邦制」（7 政策卡槽，+10% 科技/市政产出、鲛人食物消耗 −10%）；采用时弹窗命名、城堡更名「国会」。',
+      desc: '解锁政体「盟约制」（7 政策卡槽，+10% 科技/市政产出、鲛人食物消耗 −10%）；采用时弹窗命名、城堡更名「共鸣议事堂」。',
       note: '鼓舞：完成市政「意识形态」。' },
 
     /* ══ ERA7 市政（用户规格表 · 实装）════════════════════════
@@ -395,7 +395,7 @@
     { id: 'modern_thought', name: '现代思潮', icon: 'assets/civic-icons/era-7/era7-modern-thought.png', cost: 450000, era: 7, layer: 1,
       reqs: ['ideology'], boost: { t: 'govWildSlots', n: 7 },
       desc: '解锁政策卡「公摊面积」「延长工时」。',
-      note: '前置：完成市政「意识形态」。鼓舞：启用 7 槽政体（教权国/平等主义/联邦制）。' },
+      note: '前置：完成市政「意识形态」。鼓舞：启用 7 槽政体（圣座国/平权共治/盟约制）。' },
     { id: 'athletics', name: '竞技体育', icon: 'assets/civic-icons/era-7/era7-athletics.png', cost: 500000, era: 7, layer: 2,
       reqs: ['modern_thought'], boost: { t: 'govWildSlots', n: 7 },
       building: 'stadium',
@@ -498,12 +498,12 @@
     { id: 'distributed_sov', name: '分布式主权', icon: 'assets/civic-icons/era-9/era9-distributed.png?v=3', cost: 2000000, era: 9, layer: 1,
       reqs: ['space_politics'], boost: { t: 'lvlSum', ids: ['rheamine', 'titancloud', 'satellite', 'spacestation', 'robotbay', 'biomatlab'], n: 10 },
       gov: 'interstellar_federation',
-      desc: '解锁政体「星际联邦」（9 槽，全产 +10%，幸福度 +1）；国家后缀改为星际联邦。',
+      desc: '解锁政体「群星盟约」（9 槽，全产 +10%，幸福度 +1）；国家后缀改为群星盟约。',
       note: '前置：星际政治。鼓舞：异星/太空建筑（瑞亚/泰坦/卫星/空间站/机械湾/生物材料）合计等级超 10。' },
     { id: 'hypervision', name: '超远见主义', icon: 'assets/civic-icons/era-9/era9-hypervision.png?v=3', cost: 2200000, era: 9, layer: 1,
       reqs: ['space_politics'], boost: { t: 'civic', id: 'far_sight' },
       gov: 'star_sea_coop',
-      desc: '解锁政体「星海合作社」（9 槽，工艺效率 +100%）；国家后缀改为星海共同体。',
+      desc: '解锁政体「星海协作社」（9 槽，工艺效率 +100%）；国家后缀改为星海共融体。',
       note: '前置：星际政治。鼓舞：完成市政「远见主义哲学」。' },
     { id: 'star_faith9', name: '繁星信仰', icon: 'assets/civic-icons/era-9/era9-starfaith.png?v=3', cost: 2200000, era: 9, layer: 1,
       reqs: ['space_politics'], boost: { t: 'built', b: 'temple', n: 30 },
@@ -518,13 +518,13 @@
     { id: 'prosperity_unity', name: '繁荣一统', icon: 'assets/civic-icons/era-9/era9-prosperity.png?v=3', cost: 3000000, era: 9, layer: 2,
       reqs: ['distributed_sov'], boost: { t: 'govId', id: 'interstellar_federation' },
       card: 'card_alien_abundance',
-      desc: '解锁政策卡「上上善道」（异星建筑产出 +40%）；政策卡「联邦枢密院」（广场/歌剧院官员市政点乘区 ×4，取代政治经济学）。',
-      note: '前置：分布式主权。鼓舞：采用政体「星际联邦」。' },
+      desc: '解锁政策卡「上上善道」（异星建筑产出 +40%）；政策卡「星海枢政院」（广场/歌剧院官员市政点乘区 ×4，取代政治经济学）。',
+      note: '前置：分布式主权。鼓舞：采用政体「群星盟约」。' },
     { id: 'common_destiny', name: '共同命运', icon: 'assets/civic-icons/era-9/era9-commondestiny.png?v=3', cost: 3000000, era: 9, layer: 2,
       reqs: ['hypervision'], boost: { t: 'govId', id: 'star_sea_coop' },
       card: 'card_flesh_weak',
       desc: '解锁政策卡「血肉苦弱」（精铁/钢/θ金属产出 +30%）；政策卡「各员一层奋力努力」（工艺效率 +140%、幸福度 −2，取代工业化配给）。',
-      note: '前置：超远见主义。鼓舞：采用政体「星海共同体」。' },
+      note: '前置：超远见主义。鼓舞：采用政体「星海共融体」。' },
     { id: 'sacred_path', name: '神圣之路', icon: 'assets/civic-icons/era-9/era9-sacredpath.png?v=3', cost: 3000000, era: 9, layer: 2,
       reqs: ['star_faith9'], boost: { t: 'govId', id: 'universal_church' },
       card: 'card_mind_over_matter',
@@ -577,6 +577,46 @@
       card: 'card_our_sea',
       desc: '解锁政策卡「我们的海」：信仰与科研产出 −30%，工坊效率翻倍（乘区 ×2）。',
       note: '前置：至高指令。鼓舞：戴森球进度达到 60%。' },
+
+    /* ══ ERA11/12 α/Ω 市政（2026-11-23 · 用户确认 ERA11/12 市政树开放）══
+     * 三条飞升路径和天灾仍按现有门禁；这些市政只读取已存在的路径状态与累计账。
+     * ERA11 ship count is per veil ascension; strict >3 is represented by n:4.
+     * Ascension investment conditions use actually spent points; thresholds >5/>50/>100. */
+    { id: 'truth_revealed', name: '窥见真实', icon: 'assets/civic-icons/era-11/era11-revealing-truth.png', cost: 1000000000, era: 11, layer: 1,
+      reqs: ['our_sea'], boost: { t: 'dysonPct', n: 100 }, cards: ['card_nihilism', 'card_accelerationism'],
+      desc: '解锁政策卡「虚无主义」与「加速主义」。', note: '前置：我们的海。鼓舞：戴森球建设完成。' },
+    { id: 'boundary_inner', name: '拓展边界：内', icon: 'assets/civic-icons/era-11/era11-inner-frontier.png', cost: 10000000000, era: 11, layer: 2, layoutOrder: 0,
+      reqs: ['truth_revealed'], boost: { t: 'pathOpened', id: 'gn' }, card: 'card_gene_adjustment',
+      desc: '解锁政策卡「全民基因调整」。', note: '前置：窥见真实、开启基因飞升途径。' },
+    { id: 'boundary_outer', name: '拓展边界：外', icon: 'assets/civic-icons/era-11/era11-outer-frontier.png', cost: 10000000000, era: 11, layer: 2, layoutOrder: 1,
+      reqs: ['truth_revealed'], boost: { t: 'pathOpened', id: 'si' }, card: 'card_full_cybernetics',
+      desc: '解锁政策卡「全义体化协议」。', note: '前置：窥见真实、开启机械飞升途径。' },
+    { id: 'galactic_council', name: '银河议会', icon: 'assets/civic-icons/era-11/era11-galactic-council.png', cost: 10000000000, era: 11, layer: 2, layoutOrder: 2,
+      reqs: ['truth_revealed'], boost: { t: 'armadaAscension', n: 4 }, cards: ['card_pan_galactic_defense', 'card_pan_galactic_market'],
+      allOutMul: 1.2, militaryOutputMul: 1.3,
+      desc: '全产 +20%，总军力 +30%；解锁政策卡「泛银河共同防卫协定」与「泛银河市场」。',
+      note: '前置：窥见真实。鼓舞：本次飞升中恒星际移民船团累计达到 4 次。' },
+    { id: 'sensory_boundary', name: '感官边界', icon: 'assets/civic-icons/era-11/era11-sensory-boundary.png', cost: 100000000000, era: 11, layer: 3, layoutOrder: 0,
+      reqs: ['boundary_inner'], boost: { t: 'ascensionInvestment', path: 'gn', n: 6 }, wonder: 'synaptic_ganglion_modification',
+      desc: '解锁奇观「突触神经节改造」。', note: '前置：拓展边界：内。鼓舞：基因飞升实际投入超过 5 点。' },
+    { id: 'consciousness_upload', name: '意识上传', icon: 'assets/civic-icons/era-11/era11-consciousness-upload.png', cost: 100000000000, era: 11, layer: 3, layoutOrder: 1,
+      reqs: ['boundary_outer'], boost: { t: 'ascensionInvestment', path: 'si', n: 6 }, card: 'card_brain_in_net',
+      desc: '解锁政策卡「网中之脑」。', note: '前置：拓展边界：外。鼓舞：机械飞升实际投入超过 5 点。' },
+    { id: 'star_sea_guardian', name: '星海卫士', icon: 'assets/civic-icons/era-11/era11-star-sea-guardian.png', cost: 100000000000, era: 11, layer: 3, layoutOrder: 2,
+      reqs: ['galactic_council'], boost: { t: 'cataclysm', n: 75 }, wonder: 'era12_ring',
+      desc: '解锁奇观「环带」。', note: '前置：银河议会。鼓舞：终末天灾当前总额达到 75%（天灾系统暂未开放）。' },
+    { id: 'integration', name: '统合', icon: 'assets/civic-icons/era-12/era12-integration.png', cost: 1000000000000, era: 12, layer: 1,
+      reqs: ['sensory_boundary', 'consciousness_upload', 'star_sea_guardian'], boost: { t: 'ascensionSpent', n: 51 },
+      govs: ['gestalt_consciousness', 'tide_swarm_consciousness'], card: 'card_sandbox_border',
+      desc: '解锁政体「格式塔意识」与「潮群意识」，以及政策卡「飞向沙盒边界」。',
+      note: '前置：感官边界、意识上传、星海卫士。鼓舞：飞升点实际累计花费超过 50 点。' },
+    { id: 'true_intelligence', name: '真智', icon: 'assets/civic-icons/era-12/era12-true-intelligence.png', cost: 10000000000000, era: 12, layer: 2,
+      reqs: ['integration'], boost: { t: 'ascensionSpent', n: 101 }, wonder: 'answer_machine',
+      desc: '解锁奇观「问答机」。', note: '前置：统合。鼓舞：飞升点实际累计花费超过 100 点。' },
+    { id: 'unity', name: '归一', icon: 'assets/civic-icons/era-12/era12-unity.png', cost: 100000000000000, era: 12, layer: 3,
+      reqs: ['true_intelligence'], boost: { t: 'wonders', ids: ['reality_aperture'] },
+      desc: '完成现实透孔仪后，显示距离游戏通关还差多少次飞升。该进度只作提示，不会解锁升维。',
+      note: '前置：真智。鼓舞：完成奇观「现实透孔仪」。' },
 
     /* ══ 水体污染挑战市政（2026-11-02 · docs/challenge-ocean-pollution-design.md §3.3）══
      * 5 条全部 `challengeOnly:'waterpollution'`：
@@ -635,7 +675,7 @@
     sci:  { name: '科研槽', desc: '只吃科研类政策卡——科技产出。' },
     grow: { name: '民生槽', desc: '只吃民生类政策卡——人口与饮食。' },
     /* relig：宗教槽（ERA4 市政《归正会》解锁）。只吃 relig 类政策卡（天赋神权）。
-     * 来源有二：神权政体自带 1 个 + 奇观「欧'洛瓦宗座教堂」再送 1 个（wonder.religSlotBonus）。 */
+     * 来源有二：神权治理自带 1 个 + 奇观「欧'洛瓦宗座教堂」再送 1 个（wonder.religSlotBonus）。 */
     relig: { name: '宗教槽', desc: '只吃宗教类政策卡——信仰相关。' },
     military: { name: '军事槽', desc: '只装军事类政策卡。' }
   };
@@ -644,7 +684,7 @@
    *
    * ⚠️ slots 是**槽位配方**（各类型槽各几个），不是槽位数。2026-09-27 按用户
    *    「政体和政策卡做成文明 6 那样」改的：Civ6 每个政体自带一份配方
-   *    （部落制 = 1 军事 + 1 经济；古典共和 = 2 经济 + 1 外交 + 1 万能），
+   *    （部落制 = 1 军事 + 1 经济；古典共治 = 2 经济 + 1 外交 + 1 万能），
    *    换政体 = 换槽位配方 + 换被动，这才是「政体」这个选择的分量所在。
    *    酋邦制现在是 `{ wild: 1 }` —— 一个万能槽。
    *
@@ -664,42 +704,42 @@
      *    （那是 flow() 通道，政体采用即生效、不依赖装在槽里），而是：
      *      · 独裁的 +10% 工坊效率 → 走 `craftRatio` 加法乘区（workshop.craftRatio 读）；
      *      · 寡头的 +20% 奢侈品产出 → 走 `luxuryMul`（economy 商人行乘，与马具 toolMul 独立）；
-     *      · 古典共和的 +1 幸福度 → 走 `happyBonus` 偏移量（economy happy 段，喂高 happyMul 档）。
+     *      · 古典共治的 +1 幸福度 → 走 `happyBonus` 偏移量（economy happy 段，喂高 happyMul 档）。
      *    这些效果**只有采用该政体时才生效**（govById(s.gov) 读当前政体），没采用 = 0。
      * ⚠️【slots 全用 {wild:1} 是故意的】三种政体都给 1 个万能槽 ⇒ 配方槽数(1) ≤ 状态层
      *    承载(1)，不触发 e2e 那条「换槽要升维状态」的断言（s.card 仍是单值）。
      *    要差异化槽位（独裁给工造槽之类）是下一步，用户没拍 ⇒ 先聚焦三个效果本身。 */
-    { id: 'autocracy', name: '独裁统治', slots: { wild: 1, prod: 1, sci: 1 }, effect: {},
+    { id: 'autocracy', name: '铁腕统治', slots: { wild: 1, prod: 1, sci: 1 }, effect: {},
       craftRatio: 0.10,
       desc: '工艺制作效率 +10%（石梁等工坊产物）。' , flavor: '也有你吗，布鲁图？！' },
-    { id: 'oligarchy', name: '寡头统治', slots: { wild: 1, prod: 1, grow: 1 }, effect: {},
+    { id: 'oligarchy', name: '少数共治', slots: { wild: 1, prod: 1, grow: 1 }, effect: {},
       luxuryMul: 1.2,
       desc: '奢侈品产出 +20%（商人贸易供给）。' , flavor: '有500仙人，乘大铁船至临高…' },
-    { id: 'classical_republic', name: '古典共和', slots: { wild: 1, grow: 1, sci: 1 }, effect: {},
+    { id: 'classical_republic', name: '古典共治', slots: { wild: 1, grow: 1, sci: 1 }, effect: {},
       happyBonus: 1,
       desc: '幸福度 +1（常驻，提高全产乘区档位）。' , flavor: '指卢比孔河为誓。' },
 
-    /* ══ 君主制（2026-09-30 用户规格 · 市政《行政部门》解锁）══════════════
+    /* ══ 王权制（2026-09-30 用户规格 · 市政《行政部门》解锁）══════════════
      * 5 个万能槽（比三种纪元二政体多 2 个）。效果不是平坦加值也不是产出乘区，
      * 而是「礁栖核心建筑建造消耗 −10%」——挂 buildSave 字段，由 govBuildCostMul(s)
      * 读出成 ×0.9 的成本乘数，economy.costOf 对 zone==='core' 的建筑乘上它
      * （costOf 是显示与扣费的唯一来源 ⇒ 面板与结算天然同源）。 */
-    { id: 'monarchy', name: '君主制', slots: { wild: 3, prod: 1, sci: 1 }, effect: {},
+    { id: 'monarchy', name: '王权制', slots: { wild: 3, prod: 1, sci: 1 }, effect: {},
       buildSave: 0.10,
       desc: '5 个政策卡槽；礁栖核心建筑建造消耗 −10%。' , flavor: '朕即国家。' },
 
     /* ══ ERA4 政体（2026-10-01 用户设计稿）════════
-     * 商人共和国：3 万能 + 1 工造 + 1 民生（共 5 槽；与君主制**同数但配方不同**）。
+     * 商贸同盟：3 万能 + 1 工造 + 1 民生（共 5 槽；与王权制**同数但配方不同**）。
      *   ⚠️ 文案曾误写「5 个万能槽」——万能只有 3 个（2026-10-29 玩家报「槽位数量与文本不符」后修正）。
      *   幸福度消耗 −30%（happyConsumeMul 0.7，economy.happyBurn 读）。效果不走平坦加值/秒，是消耗侧的偏移。
-     * 神权政体：3 万能 + 2 宗教槽（relig 槽型，只吃天赋神权卡；宗座教堂奇观 effect.religSlot 再 +1）；
+     * 神权治理：3 万能 + 2 宗教槽（relig 槽型，只吃天赋神权卡；宗座教堂奇观 effect.religSlot 再 +1）；
      *   每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰（faithPerAcademy/faithPerCivic，
      *   economy.faithRate 读，加在基础人口产出之上）。
      *   ⚠️ 文案曾误写「+1 宗教槽」（实际 relig:2，e2e civics.mjs 断言钉的就是 3+2）——2026-10-29 修正。 */
-    { id: 'merchant_republic', name: '商人共和国', slots: { wild: 3, prod: 1, grow: 1 }, effect: {},
+    { id: 'merchant_republic', name: '商贸同盟', slots: { wild: 3, prod: 1, grow: 1 }, effect: {},
       happyConsumeMul: 0.7,
       desc: '5 个政策卡槽（3 万能 + 1 工造 + 1 民生）；幸福度消耗 −30%。' , flavor: '有七省，无联合。' },
-    { id: 'theocracy', name: '神权政体', slots: { wild: 3, relig: 2 }, effect: {},
+    { id: 'theocracy', name: '神权治理', slots: { wild: 3, relig: 2 }, effect: {},
       faithPerAcademy: 1, faithPerCivic: 0.5,
       desc: '3 万能槽 + 2 宗教槽；每级学术区建筑 +1 信仰、每级市政区建筑 +0.5 信仰。' , flavor: '愿你的国降临…' },
 
@@ -708,13 +748,13 @@
      *   theo_state 每建筑 +1 信仰/秒（faithPerBuilding）；egalitarianism 每鲛人 +0.1% 工坊/热液/矿井
      *   （craftPerPop/hydroPerPop/minePerPop）；federalism +10% 科技&市政、鲛人食物 −10%
      *   （civicOutMul/sciOutMul/mermanFoodMul）。采用即生效，没采用 = 0。 */
-    { id: 'theo_state', name: '教权国', slots: { wild: 4, relig: 2, grow: 1 }, effect: {},
+    { id: 'theo_state', name: '圣座国', slots: { wild: 4, relig: 2, grow: 1 }, effect: {},
       faithPerBuilding: 1,
       desc: '7 个政策卡槽；所有建筑每级 +1 信仰/秒。' , flavor: '朕~乃~天~父~' },
-    { id: 'egalitarianism', name: '平等主义', slots: { wild: 4, prod: 2, sci: 1 }, effect: {},
+    { id: 'egalitarianism', name: '平权共治', slots: { wild: 4, prod: 2, sci: 1 }, effect: {},
       craftPerPop: 0.001, hydroPerPop: 0.001, minePerPop: 0.001,
       desc: '7 个政策卡槽；每名鲛人 +0.1% 工坊效率 / +0.1% 热液能产出 / +0.1% 矿井产出。' , flavor: '打破枷锁。' },
-    { id: 'federalism', name: '联邦制', slots: { wild: 4, prod: 1, sci: 1, grow: 1 }, effect: {},
+    { id: 'federalism', name: '盟约制', slots: { wild: 4, prod: 1, sci: 1, grow: 1 }, effect: {},
       civicOutMul: 1.1, sciOutMul: 1.1, mermanFoodMul: 0.10,
       desc: '7 个政策卡槽；科技与市政产出 +10%，鲛人食物消耗 −10%。' , flavor: '无代表，不纳税。' },
 
@@ -723,16 +763,20 @@
      *   interstellar_federation 全产 +10%（allOutMul:1.1，economy.globalMul 读）、幸福度 +1（happyBonus:1）；
      *   star_sea_coop 工艺效率 +100%（craftRatio:1.0，加法轴）；
      *   universal_church 信仰/旧日信仰产出加成 ×1.5（faithMul:1.5 + oldFaithMul:1.5）。
-     * 国家后缀走既有 GOV_TITLE_SUFFIX（civics.js 顶部），三条各加一条（星际联邦/星海共同体/寰宇教会）。 */
-    { id: 'interstellar_federation', name: '星际联邦', slots: { wild: 6, prod: 1, sci: 1, grow: 1 }, effect: {},
+     * 国家后缀走既有 GOV_TITLE_SUFFIX（civics.js 顶部），三条各加一条（群星盟约/星海共融体/寰宇教会）。 */
+    { id: 'interstellar_federation', name: '群星盟约', slots: { wild: 6, prod: 1, sci: 1, grow: 1 }, effect: {},
       allOutMul: 1.1, happyBonus: 1,
       desc: '9 个政策卡槽；全产 +10%，幸福度 +1。' , flavor: '星海一言堂。' },
-    { id: 'star_sea_coop', name: '星海合作社', slots: { wild: 6, prod: 1, sci: 1, grow: 1 }, effect: {},
+    { id: 'star_sea_coop', name: '星海协作社', slots: { wild: 6, prod: 1, sci: 1, grow: 1 }, effect: {},
       craftRatio: 1.0,
       desc: '9 个政策卡槽；工艺效率 +100%。' , flavor: '火星为何如此赤红？' },
     { id: 'universal_church', name: '寰宇教会', slots: { wild: 6, relig: 2, grow: 1 }, effect: {},
       faithMul: 1.5, oldFaithMul: 1.5,
-      desc: '9 个政策卡槽；信仰与旧日信仰产出加成 ×1.5。' , flavor: '……如同行在天上。' }
+      desc: '9 个政策卡槽；信仰与旧日信仰产出加成 ×1.5。' , flavor: '……如同行在天上。' },
+    { id: 'gestalt_consciousness', name: '格式塔意识', slots: { wild: 5, prod: 1, sci: 1, grow: 2, military: 2 }, effect: {},
+      desc: '11 个政策卡槽：5 万能、1 工造、1 科研、2 民生、2 军事。', flavor: '010101001001010100010' },
+    { id: 'tide_swarm_consciousness', name: '潮群意识', slots: { wild: 5, prod: 2, sci: 1, grow: 2, military: 1 }, effect: {},
+      desc: '11 个政策卡槽：5 万能、2 工造、1 科研、2 民生、1 军事。', flavor: '神圣的潮群链接着我们每一个人。' }
   ];
 
   /* 政策卡。effect 同样是平坦加值/秒，且**只有在卡槽里装着它时才生效**。
@@ -873,6 +917,7 @@
     { id: 'card_victory_day_parade', name: '胜利日阅兵', civic: 'professional_army', type: 'military', effect: {},
       desc: '成功的战争行动不会造成军人阵亡。', flavor: '「双鹰旗下。」'},
     { id: 'card_fleet_review', name: '观舰式', civic: 'space_politics', type: 'military', effect: {},
+      retiredBy: 'galactic_council', replacedBy: 'card_pan_galactic_defense',
       barracksBonusMul: 1.5,
       desc: '军营提供的军力加成 +150%，取代「雇佣兵」。', flavor: '「不好，皇家舰队倾巢而出了！」'},
     { id: 'card_scorched_earth', name: '焦土战略', civic: 'ideology', type: 'military', effect: {},
@@ -981,6 +1026,7 @@
       libraryMul: 3, universityMul: 3, templeFaithMul: 0.5, obsSciMul: 1.5,
       desc: '替代「启蒙运动」：潮纹馆科技 ×3、研究所科技 ×3、神庙信仰 −50%、星空观测站产出 ×1.5。', flavor: '我没有看到上帝、天堂或者其他什么玩意。'},
     { id: 'card_transnational', name: '跨国经济', civic: 'planet_village', type: 'grow', effect: {},
+      retiredBy: 'galactic_council', replacedBy: 'card_pan_galactic_market',
       /* 链尾新卡（替代《重商主义》，旧卡 card_mercantilism 的 retiredBy:'planet_village' 已写对）。
        * ⚠️ 2026-10-21 纠错：原误带 `retiredBy:'planet_village'`（=自身 civic）⇒ 解锁即退役、卡库里永远看不到
        *   （与 2026-10-18 card_logistics 同款「方向反了 ⇒ 出生即死」）。本卡是链尾，**不应有 retiredBy**。 */
@@ -1005,6 +1051,7 @@
       faithSatMul: 0.05,
       desc: '每颗轨道卫星使信仰产出 +5%（随卫星升级变强）。', flavor: '……太阳升……'},
     { id: 'card_interlog', name: '洲际物流', civic: 'globalization', type: 'prod', effect: {},
+      retiredBy: 'consciousness_upload', replacedBy: 'card_brain_in_net',
       /* 仓储区建筑容量 ×5（storeMul 走 MUL_FIELD）。退役关系写在旧卡 card_logistics 上
        *   （retiredBy:'globalization'，2026-10-18 用户纠错后补全的 ×2→×3→×5 三级链末环）。 */
       storeMul: 5,
@@ -1032,7 +1079,7 @@
 
     /* ── ERA9 政策卡（2026-10-20 用户规格 · 实装）──
      * 字段通道：planetOutMul（上上善道，cardPlanetOutMul 通用相乘，economy 异星行读）、
-     * squareMul/theaterMul（联邦枢密院，MUL_FIELD + 通用相乘，取代政治经济学）、
+     * squareMul/theaterMul（星海枢政院，MUL_FIELD + 通用相乘，取代政治经济学）、
      * resOutMul（血肉苦弱，新资源乘区 map，economy iron/steel/theta 行读）、
      * craftRatio/happyOffset（各员一层奋力努力，加法轴 + 幸福度偏移，取代工业化配给）、
      * wonderBuildSave（心胜于物，新求和字段，wonder.discountedCost 读）、
@@ -1043,11 +1090,12 @@
     { id: 'card_alien_abundance', name: '上上善道', civic: 'prosperity_unity', type: 'wild', effect: {},
       planetOutMul: 1.4,
       desc: '异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +40%。', flavor: 'For the GREATER GOOD!'},
-    { id: 'card_federal_privy', name: '联邦枢密院', civic: 'prosperity_unity', type: 'grow', effect: {},
+    { id: 'card_federal_privy', name: '星海枢政院', civic: 'prosperity_unity', type: 'grow', effect: {},
       squareMul: 4, theaterMul: 4,
       /* 取代《政治经济学》（retiredBy 设在 card_political_econ 上 = prosperity_unity）。 */
       desc: '广场的市政点乘区 ×4、歌剧院的官员市政点乘区 ×4（取代「政治经济学」）。', flavor: 'ORDER!'},
     { id: 'card_flesh_weak', name: '血肉苦弱', civic: 'common_destiny', type: 'wild', effect: {},
+      retiredBy: 'boundary_outer', replacedBy: 'card_full_cybernetics',
       /* 精铁(iron)/钢(steel)/θ金属(thetaMetal) 产出 +30%（resOutMul map，逐资源相乘）。 */
       resOutMul: { iron: 1.3, steel: 1.3, thetaMetal: 1.3 },
       desc: '精铁、钢、θ金属产出 +30%。', flavor: '机械飞升。'},
@@ -1059,9 +1107,11 @@
       wonderBuildSave: 0.3,
       desc: '奇观建造消耗 −30%。', flavor: '我在此。'},
     { id: 'card_transcendence', name: '超凡入圣', civic: 'sacred_path', type: 'sci', effect: { science: 300 },
+      retiredBy: 'boundary_inner', replacedBy: 'card_gene_adjustment',
       /* 取代《神秘主义》（retiredBy 设在 card_mystic 上 = sacred_path）。 */
       desc: '科技产出 +300/秒（取代「神秘主义」）。', flavor: '愿你也在此。'},
     { id: 'card_interstellar_logi', name: '星际后勤保障', civic: 'solar_logistics', type: 'prod', effect: {},
+      retiredBy: 'integration', replacedBy: 'card_sandbox_border',
       /* 指定配方工艺效率 +100%：火箭引擎(craft_rocketengine) 与 强工质火箭引擎(craft_strongprop)。 */
       craftRatioRecipes: { craft_rocketengine: 1.0, craft_strongprop: 1.0 },
       desc: '火箭引擎、强工质火箭引擎的工艺制作效率 +100%。', flavor: '冷酷的方程式。'},
@@ -1171,11 +1221,40 @@
       retiredBy: 'globalization', replacedBy: 'card_green_movement',
       effect: {},
       desc: '污染产出 −20%。完成《全球化》后由「绿色运动」取代而退役。',
-      flavor: '「伦尼姆，帝国的明珠，但贫民窟的孩子很难在这里的工业废水中活过 14 岁。」' },
+      flavor: '「伦尼姆，巨构的明珠，但贫民窟的孩子很难在这里的工业废水中活过 14 岁。」' },
     { id: 'card_green_movement', name: '绿色运动', civic: 'globalization', type: 'prod', challengeOnly: 'waterpollution',
       effect: {},
       desc: '污染产出 −40%（取代「污染治理」）。',
-      flavor: '「How dare you！」' }
+      flavor: '「How dare you！」' },
+
+    /* ══ ERA11/12 政策卡（2026-11-23 · 已确认槽位、替代链和锁定口径）══ */
+    { id: 'card_nihilism', name: '虚无主义', civic: 'truth_revealed', type: 'grow', effect: {},
+      sciOutMul: 2, civicOutMul: 2, locked: true, mutexGroup: 'permanent_ascension_doctrine',
+      desc: '科技产出 +100%，市政产出 +100%；与「加速主义」互斥，选定后不可卸下。',
+      flavor: '我什么也不是，不从任何地方来，也不到任何地方去。' },
+    { id: 'card_accelerationism', name: '加速主义', civic: 'truth_revealed', type: 'grow', effect: {},
+      resOutMul: { darkmatter: 1.5 }, hydroSupplyMul: 2, locked: true, mutexGroup: 'permanent_ascension_doctrine',
+      desc: '暗物质产出 +50%，热液能供给 +100%；与「虚无主义」互斥，选定后不可卸下。',
+      flavor: 'Faster——Fast than light.' },
+    { id: 'card_gene_adjustment', name: '全民基因调整', civic: 'boundary_inner', type: 'wild', effect: {},
+      jobOutMul: 1.2,
+      desc: '所有岗位产出 +20%（替代「超凡入圣」）。', flavor: '为了蔚蓝澄净的地球。' },
+    { id: 'card_full_cybernetics', name: '全义体化协议', civic: 'boundary_outer', type: 'wild', effect: {},
+      resOutMul: { iron: 1.3, steel: 1.3, thetaMetal: 1.3, darkmatter: 1.3 },
+      desc: '精铁、钢、θ金属、暗物质产出 +30%（替代「血肉苦弱」）。', flavor: 'To the moon.' },
+    { id: 'card_brain_in_net', name: '网中之脑', civic: 'consciousness_upload', type: 'prod', effect: {},
+      storeMul: 7,
+      desc: '仓储区建筑容量 ×7（取代「洲际物流」）。', flavor: '伪人算法。' },
+    { id: 'card_pan_galactic_defense', name: '泛银河共同防卫协定', civic: 'galactic_council', type: 'military', effect: {},
+      barracksBonusMul: 3,
+      desc: '军营提供的军力加成 +300%（替代「观舰式」）。', flavor: '……他们都还处于未来多于过去的年纪。' },
+    { id: 'card_pan_galactic_market', name: '泛银河市场', civic: 'galactic_council', type: 'wild', effect: {},
+      bankMerchantMul: 8,
+      desc: '银行商人产出加成 ×8（取代「跨国经济」）。', flavor: '晨星计划与霸权。' },
+    { id: 'card_sandbox_border', name: '飞向沙盒边界', civic: 'integration', type: 'prod', effect: {},
+      craftRatioRecipes: { craft_rocketengine: 1, craft_strongprop: 1, craft_relativisticengine: 1 },
+      desc: '火箭引擎、强工质火箭引擎、相对论引擎的工艺制作效率 +100%（替代「星际后勤保障」）。',
+      flavor: '飞吧，飞吧，飞向边境之地。' }
   ];
   // Public content tables are shared by migration, UI, and the civic rules module.
   SB.CIVICS = CIVICS;

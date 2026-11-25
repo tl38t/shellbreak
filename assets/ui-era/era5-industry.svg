@@ -1,13 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240" fill="none">
-  <g stroke="#d9b95d" stroke-opacity=".16" stroke-width="1">
-    <path d="M0 0h320M0 40h320M0 80h320M0 120h320M0 160h320M0 200h320M0 239h320"/>
-    <path d="M0 0v240M40 0v240M80 0v240M120 0v240M160 0v240M200 0v240M240 0v240M280 0v240M319 0v240"/>
+  <g stroke="#c48c68" stroke-width="1">
+    <path d="M0 54h112l13 13v55" stroke-opacity=".18"/>
+    <path d="M320 182H211l-15-15v-42" stroke-opacity=".18"/>
+    <path d="M164 0v37l-13 13H66" stroke-opacity=".11"/>
+    <path d="M72 240v-35l15-15h55" stroke-opacity=".11"/>
+    <path d="M0 58h110l11 11v53m4 4v34l-13 13H0" stroke-opacity=".075"/>
+    <path d="M320 178H213l-11-11v-47m-4-4V82l13-13h109" stroke-opacity=".075"/>
   </g>
-  <g stroke="#e4c66f" stroke-opacity=".22" fill="#3b3428" fill-opacity=".56">
-    <circle cx="20" cy="20" r="6"/><circle cx="300" cy="20" r="6"/><circle cx="20" cy="220" r="6"/><circle cx="300" cy="220" r="6"/>
+  <g stroke="#d69b70" stroke-opacity=".22" fill="#242321" fill-opacity=".78">
+    <circle cx="18" cy="18" r="4.5"/><circle cx="302" cy="18" r="4.5"/>
+    <circle cx="18" cy="222" r="4.5"/><circle cx="302" cy="222" r="4.5"/>
   </g>
-  <g stroke="#e6be51" stroke-opacity=".2" stroke-width="4" stroke-dasharray="10 9">
-    <path d="M41 0v9M279 0v9M41 231v9M279 231v9"/>
+  <g stroke="#f1c497" stroke-opacity=".18" stroke-width="1">
+    <path d="m16 18 4-2m280 2 4-2M16 222l4-2m280 2 4-2"/>
+    <path d="M0 1h320M0 239h320" stroke-opacity=".08"/>
   </g>
-  <g stroke="#d9b95d" stroke-opacity=".11"><circle cx="160" cy="120" r="54"/><circle cx="160" cy="120" r="62"/><path d="M160 49v18m0 106v18m-71-71h18m106 0h18"/></g>
 </svg>

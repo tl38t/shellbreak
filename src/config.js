@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.3.1',
+    VERSION: 'Ver1.4.0',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,11 +33,54 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.4.0（2026-11-25 建段）：生命织章（基因飞升）正式开放 + 六处玩家可见修正。
+       * 此前三条路径中「生命织章」的入口被临时门禁挡住（wip），节点结算、双线共鸣、
+       * 三级效果与 Lv3 文案均已实现并接线，但玩家进不去。本次移除 gn 的 wip 门禁，
+       * 并补齐八节点图标、双分支识别图标、共鸣太极弹窗与 Lv3 追加句 / 红字文案。
+       * ⚠️ 2026-11-25 用户拍板：移除原第 3/4 条（奇观无条件加成、太阳星环 θ 停产），
+       *    换入四处已修问题：工坊占槽清单标题、安那其旧档清槽提示、挑战结果本地化、
+       *    四座建筑背景文案归位。被移除的两条语义 key 按纪律保留在词库，只从日志摘掉。
+       * ⚠️ 2026-11-25 追加第六处修正：公司页等级/进度与真实结算同源 —— 买「快速扩张」
+       *    后页面不再滞后一级，产出与仓储上限随晋级正确变化（玩家反馈「升级无效」）。
+       * ⚠️ 本段 7 条；全数组 key 计数 164−2+5=167（_repack.py 断言同步）；三语词库已补齐，
+       *    i18n_text_inventory.xlsx 登记表仍欠账（上轮批量搬运 + 本轮新增/改写），待补。
+       * ⚠️ 本次只做「写日志 + 开放入口」：VERSION / CHANGELOG / index.html ?v / _repack.py 断言
+       *    四项一并做；回归与数值标定待用户当次明说才跑；封包与上传等用户当次明说「发版」。 */
+      { v: 'Ver1.4.0', date: '2026-11-25', items: [
+        'changelog.veil.gene_open',
+        'changelog.fix.auto_slot_prereq',
+        'changelog.fix.workshop_slot_title',
+        'changelog.fix.anarchy_card_unseated',
+        'changelog.fix.challenge_result_i18n',
+        'changelog.fix.building_flavor_alignment',
+        'changelog.fix.company_tier_ui_sync'
+      ] },
+      /* Ver1.3.2（2026-11-22 建段）：大轮回不清挑战。
+       * 用户 11-22 两次拍板定案：先推翻「飞升清普通挑战」，再确认「包括轻车熟路的奖励
+       * 一起不清」。根因：meta.challenges.completed 的档位同时是 12+ 处永久奖励的唯一
+       * 真源（产出 / 星屑 / 初始人口 / 研究成本等全读 tierDone），清档位 = 连奖励一起撤，
+       * 而成就墙的挑战章不撤 ⇒「章在、效果没了」；meta.buildingLvlTotal 同理是「轻车熟路」
+       * 累计真源。故掀幕飞升后两者都保留，本局已达成的挑战也照常结算。
+       * 同段另收三条同批 bug 修复：星图切页签后台空转发烫（上一版 starmap_60fps
+       * 只覆盖「页面隐藏」，漏了游戏内切页签）、灯塔仓储口径、挑战档位惩罚文案。
+       * ⚠️ Ver1.3.0 历史段 changelog.veil.ascension 的「清除除成就之外的所有状态」是
+       *    已上线日志，按惯例不改；新段首条即为对该口径的明文修正。
+       * ⚠️ 本次只做「写日志」：VERSION / CHANGELOG / index.html ?v / _repack.py 断言
+       *    四项一并做；封包与上传等用户当次明说「发版」。 */
+      { v: 'Ver1.3.2', date: '2026-11-22', items: [
+        'changelog.fix.ascension_keep_challenges',
+        'changelog.fix.ascension_keep_second_nature',
+        // —— 同批 bug 修复 ——
+        'changelog.performance.starmap_tab_inactive',
+        'changelog.fix.lighthouse_storage_scope',
+        'changelog.fix.challenge_tier_rule_text'
+      ] },
       /* Ver1.3.1（2026-11-19 建段）：2026-11-20/21 改动合集。
        * 2026-11-21 定稿：图标换新、六项新飞升挑战（第一批三项 + 第二批三项，用户指出不能只写后三项）、
        *   政策卡自动接替、戴森停机、轮回商店折叠、快速跳转改名与两项修复。
-       * ⚠️ 按用户 2026-11-21 拍板：尚未开放的飞升路线（灵能 / 基因）不写进更新日志，
-       *    故删去原 changelog.veil.gene_ascension 条目。仍归同一未发布版本段，版本号不另升。 */
+       * ⚠️ 按用户 2026-11-21 拍板：当时尚未开放的飞升路线（灵能 / 基因）不写进更新日志，
+       *    故删去原 changelog.veil.gene_ascension 条目。生命织章于 2026-11-25 开放后，
+       *    当前路径状态改由 changelog.veil.path_status 表达；此段仍保留当时的版本记录。 */
       { v: 'Ver1.3.1', date: '2026-11-19', items: [
         'changelog.art.achievement_icons_batch',
         'changelog.ascension.six_new',
@@ -326,10 +369,32 @@
         'changelog.copy.deep_sea_fish_farm'
       ] }
     ],
+    /* ---- 未发布科技名单（2026-11-21 用户拍板）----
+     * ERA11 深空六项 + ERA12 三项已写进科技树，但本期不开放研究（打算以后作为新内容推出）。
+     * ⚠️ 只挡 canStudy / studyBlocked 两个「研究」口，**不改名字显隐**：
+     *    名字仍由 metOf（尤里卡）控制 —— 飞升玩家开了路径后，深空三项的 pathOpened
+     *    尤里卡成立，名字照常亮出，只是点研究会被挡（status「暂不可研究」+ title 说明）。
+     * ⚠️ 名单含 era11 的 key（relativistic_weapon）：锁住它 ⇒ era11 永远不 done ⇒
+     *    玩家停在 era11、进不了 era12 —— 这正是「ERA12 不推出」想要的效果。
+     * 发布时：清空本数组即可，tech.js 两处判据自动放行，无需改代码。 */
+    UNRELEASED_TECHS: ['deep_space', 'omnitemporal_freeze', 'stellar_smelting',
+      'near_light_speed', 'reverse_time', 'relativistic_weapon',
+      'starfrontier', 'constant_edit', 'ascend_dimension'],
     // ---- ERA9 星海终局常量 ----
     /* SUNSAIL_HYDRO：太阳帆（星图累加器，s.sunSails，无限）每帆每秒供给的热液能（用户 2026-10-19 确认：0.1→0.05）。
      *   进 hydro 供给侧，与核热厂/泰坦气云并联相加（economy.hydroAlloc sunSailSupply）。 */
     SUNSAIL_HYDRO: 0.05,
+    /* ERA11/12 深空探针（2026-11-23 实装，spec §3.1 用户拍板）：
+     *   PROBE_CYCLE   —— 发射节律 600 秒/枚（10 分钟），不走 launchCycleOf 的矢量控制压减（探针固定节律）。
+     *   PROBE_DARK    —— 每枚探针每秒产暗物质（本局内按枚累加、每枚持续产，×dt 写池）。
+     *   RING_DARK     —— 恒星锻炉开启后太阳星环每秒产暗物质。
+     *   RING_HYDRO / RING_THETA —— 恒星锻炉开启后太阳星环每秒耗热液能 / θ金属（关闭时保留原 θ 产出）。
+     * ⚠️ 全部为用户已拍板值，标定权限仍在用户，此处只做落点。 */
+    PROBE_CYCLE: 600,
+    PROBE_DARK: 0.005,
+    RING_DARK: 0.01,
+    RING_HYDRO: 100,
+    RING_THETA: 200,
     // ---- 天壳 ----
     // 厚度不是随手填的：扫描得出 rational 10.65h / rush 9.80h，都落在 8-14h 带内中部。
     // 它不是「难度」，是「长度」——砍薄只会让玩家更快看到结局。
@@ -749,7 +814,10 @@
       starExplore: 400000,
       /* ERA7（2026-10-17 · spec §2 提议值）：铀 200（对齐 iron/silt 档）。
        *   ⚠️ 星屑 stardust 故意不给键 —— 跨周目局外资源，同 science/culture 口径（capOf 恒 Infinity）。 */
-      uranium: 200 },
+      /* ERA11（2026-11-21 · spec §5）：暗物质基础上限 10；压舱仓 +10/级，大灯塔建成后灯塔 +5/级。
+       *   ⚠️ storageEra=11（见 config-content.js RESS）⇒ 方碑/物流仓/三条扩容仍失效；
+       *      城堡容量 2026-11-22 用户拍板单开 +2/级（castleCapDarkMatter），不受 capEra 3 限制。 */
+      uranium: 200, darkmatter: 10 },
 
     // ---- 族民 ----
     // 对齐猫国开局（js/village.js:3 kittens:0 / jobs 全 0，叙事上是 1 只猫）：

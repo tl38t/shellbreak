@@ -1,0 +1,120 @@
+{
+  "format": "shellbreak-save",
+  "version": 1,
+  "createdAt": 1795570830278,
+  "save": {
+    "meta": {
+      "cycle": 11,
+      "runs": 12,
+      "veil": {
+        "count": 1,
+        "points": 64,
+        "spentPoints": 8,
+        "perks": {},
+        "cycleTide": 0,
+        "cycleStar": 0,
+        "lifetimePoints": 72,
+        "answerMachinePending": false,
+        "answerMachineActive": false,
+        "paths": {
+          "opened": [
+            "gn"
+          ],
+          "organ": {},
+          "void": {},
+          "gene": {
+            "supreme": {
+              "lore": 1,
+              "valor": 1,
+              "agility": 1,
+              "longevity": 1
+            },
+            "pure": {
+              "morph": 1,
+              "growth": 1,
+              "fastmat": 1,
+              "forge": 1
+            }
+          }
+        }
+      }
+    },
+    "run": {
+      "t": 86400,
+      "wallT": 86400,
+      "_ts": 1795570830278,
+      "era": 11,
+      "shell": 400000,
+      "iceShell": 500000,
+      "baseShell": 500000,
+      "pop": 200,
+      "peak": 200,
+      "res": {
+        "kelp": 1000000,
+        "coral": 1000000,
+        "stone": 1000000,
+        "silt": 1000000,
+        "warmstone": 1000000000,
+        "iron": 1000000,
+        "science": 10000000000,
+        "fuel": 1000000,
+        "culture": 10000000000,
+        "steel": 1000000,
+        "hydro": 0,
+        "titanium": 1000000,
+        "thetaMetal": 1000000,
+        "rocketEngine": 1000000,
+        "darkmatter": 1000000
+      },
+      "lvl": {
+        "nest": 60,
+        "barracks": 10,
+        "military_academy": 5,
+        "robotbay": 25,
+        "hydroturbine": 10,
+        "titancloud": 20
+      },
+      "jobs": {
+        "gather": 0,
+        "coralwright": 0,
+        "quarrier": 0,
+        "miner": 50,
+        "scholar": 0,
+        "scribe": 0,
+        "merchant": 0,
+        "soldier": 100
+      },
+      "robotJobs": {
+        "miner": 100
+      },
+      "techs": {
+        "beyond_veil": true,
+        "alien_eng": true,
+        "true_intelligence": true
+      },
+      "civics": {
+        "military_training": true,
+        "professional_army": true,
+        "mobilization": true
+      },
+      "war": {
+        "power": 1000000000,
+        "popCap": 0,
+        "campaignStage": 7,
+        "tradeRouteLevel": 0,
+        "enemies": {}
+      },
+      "crisis": null,
+      "techPopup": true,
+      "civicPopup": true,
+      "faithPopup": true,
+      "workshopPopup": true,
+      "wonderPopup": true,
+      "starMapPopup": true,
+      "companyPopup": true,
+      "diplomacyPopup": true,
+      "challenge": null
+    }
+  },
+  "checksum": "621960b3"
+}

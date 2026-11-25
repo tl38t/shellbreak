@@ -98,6 +98,13 @@
         '<span class="wonder-icon wonder-icon-fallback" aria-hidden="true">✦</span>';
       cards += '<div class="row' + (done ? ' is-owned' : '') + '"' + (done ? ' data-owned="1"' : '') + '>' +
         '<div class="nm">' + icon + '<div class="wonder-name-copy"><div class="wonder-name-line"><button type="button" class="building-name" data-wonder-info="' + w.id + '" aria-haspopup="dialog" title="' + tr('wonder.info.view.title', null, '查看奇观效果与建造条件') + '">' + wonderName + '</button>' + (done ? ' <span class="tag ok">' + tr('wonder.status.built', null, '已建成') + '</span>' : '') +
+          /* ERA11/12 船团编号（spec §0 拍板 3）：已建成时显示 16 进制编号，从 meta 权威账本实时派生。
+           * ⚠️ tr 非英文直接返回 fallback（不做 {no} 替换），故中文把编号拼进 fallback；英文走词典带参。 */
+          (function () {
+            if (!done || w.id !== 'starship_armada' || !SB.wonder || !SB.wonder.armadaNoOf) return '';
+            var no = SB.wonder.armadaNoOf(s);
+            return ' <span class="tag armada-no">' + tr('wonder.armada.no.tag', { no: no }, '第 ' + no + ' 号船团') + '</span>';
+          })() +
           (SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, w) : '') + '</div>' +
         (done ? SB.ui.renderCommon.happyBonusNote(s, 'wonder', w.id) : '') + '</div></div>' +
         '<div class="ds">' + wonderDesc + '<span class="wonder-cost">' + tr('wonder.cost.materials.label', null, '建造材料：') +

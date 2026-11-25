@@ -189,7 +189,13 @@
     var shellFactor = 0.5 + 0.5 * q;
     var K = (SB.CFG.TIDE && SB.CFG.TIDE.LINEAR_K) || 0.04;
     var earned = 1 + Math.floor(dev * K * shellFactor);
-    var challengeCompletions = SB.challenges ? SB.challenges.completedCount(SB.game.meta()) : 0;
+    /* 轮回点通用奖励：每完成一档**轮回挑战** +10%（用户 2026-11-22 拍板选项 4B）。
+     * ⚠️ 口径从 completedCount 收窄到 prestigeTierCount：飞升挑战的 14 档不再计入轮回点，
+     *   它们走自己那条账（veilPeriod 的 ascMul，飞升点 +10%/档）。改前两条账双计，
+     *   飞升挑战通关会同时加飞升点和轮回点。
+     * ⚠️ 减法方向：已通关过飞升挑战的老档，本项倍率会**下降**——这是修正双计，不是丢奖励。 */
+    var challengeCompletions = SB.challenges
+      ? (SB.challenges.prestigeTierCount || SB.challenges.completedCount)(SB.game.meta()) : 0;
     var pointMul = 1 + challengeCompletions * 0.1;
     return {
       P: P, popScore: popScore, buildingScore: bScore,
@@ -316,6 +322,28 @@
       ? SB.state.starEarnedSeed(meta) : meta.stardustEarned;
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
+    /* ═══ ERA11/12 跨轮回账（2026-11-23 · spec §0，唯一写 meta 处）═════════════
+     * ⚠️ 只认真轮回 doBreak；软重置/重开走 startRun，不带这些字段。
+     * 【逆时屋】携带一局、只续一次：本局失能且未重新激活 ⇒ 下局不带（清 carried）；
+     *   本局新建或已重新激活 ⇒ 带到下局（carried=true）。 carried 只存 bool，不存等级/人口。 */
+    if (meta.chrono && typeof meta.chrono === 'object') {
+      var _chronoDisabled = !!(s.chrono && s.chrono.disabled);
+      var _chronoReactivated = !!(s.chrono && s.chrono.reactivated);
+      meta.chrono.carried = (_chronoDisabled && !_chronoReactivated)
+        ? false
+        : (!!(s.lvl && s.lvl.chrono_house > 0) || _chronoReactivated);
+    }
+    /* 【船团】本局建成 ⇒ 跨轮回累计 +1 座、暗物质加成 +10%（100 tenths）。
+     * 建成立即生效靠 darkmatterOutMul 读 bonusTenths，这里只做换局累积。 */
+    if (meta.armada && typeof meta.armada === 'object'
+      && s.wonders && s.wonders.starship_armada) {
+      meta.armada.count = (Number(meta.armada.count) || 0) + 1;
+      meta.armada.cycleCount = (Number(meta.armada.cycleCount) || 0) + 1;
+      meta.armada.bonusTenths = (Number(meta.armada.bonusTenths) || 0) + 100;
+    }
+    if (SB.wonder && SB.wonder.onOrdinaryBreak) SB.wonder.onOrdinaryBreak(meta);
+    /* 【升维基准】不在 doBreak 写——规格 §2 明定「首次建成 reality_aperture 那一 tick 快照
+     * meta.veil.count」，且老档惰性补写也走读取口。落点属 P5（veil 进度接口），此处不碰。 */
     /* 平台成就：合格破壳时解锁「首次轮回」与挑战通关（幂等，由 achv.js 的平台账本去重）。 */
     if (SB.achv && SB.achv.onBreak) SB.achv.onBreak(r, meta);
     SB.state.saveMeta(meta);
@@ -339,8 +367,8 @@
 
   var PATH_IDS = ['si', 'vo', 'gn'];   // 三条飞升路径：硅基承续 / 虚境升华 / 生命织章
 
-  /* 可开启路径真源：虚境升华当前仅提供帷幕内只读预览，不能被飞升解锁。 */
-  var OPENABLE_IDS = ['si'];
+  /* 可开启路径真源：硅基承续与生命织章可解锁；虚境升华当前仅提供只读预览。 */
+  var OPENABLE_IDS = ['si', 'gn'];
 
   /* ── 帷幕周期账（唯一真源）────────────────────────────────────────────────
    * 2026-11-17 修「首次掀幕死锁」：`emptyMeta()` 的 `veil` 必须是 null（#4 口径 A 的
@@ -417,8 +445,8 @@
     var count = ((v && v.count) || 0) + 1;   // 本次掀幕后的重数
     var unopened = PATH_IDS.filter(function (p) { return opened.indexOf(p) < 0; });
     /* 玩家可选池 = 已实装（OPENABLE_IDS）且尚未开启。2026-11-18 改为玩家自选：
-     * 当前仅 si 在池里 ⇒ 首次掀幕玩家「只能选机械飞升」；第 2 次起 si 已开、
-     * 池空 ⇒ 不开新路径但照常掀幕（用户拍板「没可选就不开」）。选哪条由 doVeil
+     * 当前 si / gn 在池里；vo 仍是只读预览。已开启的路径会从可选池移除，
+     * 若池空则不开放新路径但照常掀幕（用户拍板「没可选就不开」）。选哪条由 doVeil
      * 的 chooseId 决定，这里只负责把池交给确认面板渲染单选区。 */
     var selectable = OPENABLE_IDS.filter(function (p) { return opened.indexOf(p) < 0; });
     return {
@@ -479,7 +507,8 @@
     if (!meta.veil || typeof meta.veil !== 'object') {
       meta.veil = {
         count: 0, points: 0, perks: {}, cycleTide: 0, cycleStar: 0,
-        lifetimePoints: 0,
+        lifetimePoints: 0, spentPoints: 0,
+        answerMachinePending: false, answerMachineActive: false,
         paths: { opened: [], organ: {}, void: {}, gene: {} }
       };
     }
@@ -507,9 +536,17 @@
     meta.memorialWonders = {};
     meta.oldArtworkEarnedTotal = 0;
     meta.oldTideStelesEarnedTotal = 0;
-    meta.buildingLvlTotal = {};
+    /* ⚠️ 轻车熟路（bld_* 成就）跨周目累计账**不清**（2026-11-22 用户拍板）：
+     *    meta.buildingLvlTotal 是成就墙进度的真源（achv.recheckBuildings / progressOf），
+     *    清掉会让「章还在、进度倒退回 0」，与「成就不撤」同一口径。 */
     meta.govPassiveCards = {};
     meta.govEverAdopted = {};
+    /* ⚠️ 挑战完成档位**不清**（2026-11-22 用户改判，推翻同日早先的「飞升清账」）：
+     *    档位同时是十余处挑战永久奖励的唯一真源（productionMul / stardustRewardMul /
+     *    scienceCultureMul / startingPopulation / warCostMul 等全读 tierDone），清档位
+     *    等于连奖励一起撤；成就墙的挑战章却照旧保留 ⇒「章在、效果没了」。
+     *    现口径：普通挑战与飞升挑战的档位、永久奖励、挑战页标记一律跨幕保留；
+     *    玩家仍可重打刷榜（award 的 replay 分支不发奖、不写账）。 */
     meta.challengePopupPending = null;
     // veil 自身：点数余额跨重保留；本重飞升树重买、周期账归零，count +1 只增不减
     v.perks = {};
@@ -518,6 +555,7 @@
 
     // ④ 把本周期新得点数加进可用余额；按分取整，兼容广告奖励的 0.1 点增量。
     v.count = (v.count || 0) + 1;
+    if (meta.armada && typeof meta.armada === 'object') meta.armada.cycleCount = 0;
     var carriedPoints = Number(v.points);
     if (!isFinite(carriedPoints) || carriedPoints < 0) carriedPoints = 0;
     v.points = Math.round((carriedPoints + gained) * 100) / 100;
@@ -526,6 +564,23 @@
     // ⑤ 解锁玩家所选路径（2026-11-18 自选；没选 / 没可选则不开，照常掀幕给点）。
     //    chosenPath 已在 ⓪ 校验过合法且未开，这里只写入；三条全开后卡保留为永久入口。
     if (chosenPath) v.paths.opened.push(chosenPath);
+
+    /* ⑤.5 本局挑战结算（含飞升挑战；2026-11-21 用户拍板「必须点飞升才算通关」）。
+     * 终点判定从「研成《掀起帘幕》」改回「掀幕成功」：只有走到这里（玩家真的点了
+     * 底栏《掀起帘幕》按钮、前面所有门槛都过了）才把 veilDone=true 交给 evaluate。
+     * 时机两点都要卡准：
+     *   ① 必须在 ③ 清场（含 challengePopupPending=null）之后 —— 否则 award 刚写的
+     *      完成面板会被清掉，玩家看不到「挑战完成」。
+     *   ② 必须在 ⑥ startRun() 之前 —— 否则 s.challenge 被 freshRun 冲掉，无从判定。
+     * veilDone 走参数透传（不写 s）：evaluate→award→goalMet 只认第三参，
+     * 主循环 / 离线补算 / AI 都只传两参 ⇒ 研成科技本身不会再触发通关。
+     * 幂等：award 内部 s.challengeDone / tierDone 双门槛，重复掀幕不会二次发奖。
+     * ⚠️ 2026-11-22 改判后**不再只挑 ascension 挑战**：档位已不清，本局正在进行的
+     *    普通挑战若已达成 goal，必须在掀幕这一刻照常结算，否则这一局白打。
+     *    veilDone 第三参只有 goal:{t:'veil'} 的飞升挑战读，其它目标天然忽略；
+     *    未达成则 award 返回 null、不写账，破壳型补判仍走 sealRun 的既有门槛。 */
+    if (SB.challenges && SB.challenges.evaluate && s.challenge)
+      SB.challenges.evaluate(s, meta, true);
 
     // ⑥ 落盘 + 重建本局（走 startRun，它负责 runs+1 与 freshRun）
     SB.state.saveMeta(meta);
@@ -865,6 +920,15 @@
     return !!(s && s.religionName && s.religionName.trim());
   }
 
+  function armadaCountThisAscension(s, meta) {
+    if (!meta && SB.game && SB.game.meta) meta = SB.game.meta();
+    if (!s && SB.game && SB.game.run) s = SB.game.run();
+    var armada = meta && meta.armada;
+    var completed = Math.max(0, Math.floor(Number(armada && armada.cycleCount) || 0));
+    var builtThisRun = !!(s && s.wonders && s.wonders.starship_armada);
+    return completed + (builtThisRun ? 1 : 0);
+  }
+
   SB.prestige = {
     breakReport: breakReport,
     doBreak: doBreak,
@@ -873,6 +937,7 @@
     veilPeriod: veilPeriod,
     veilPreview: veilPreview,
     doVeil: doVeil,
+    armadaCountThisAscension: armadaCountThisAscension,
     PATH_IDS: PATH_IDS,
     qualified: qualified,
     legacy: legacy,

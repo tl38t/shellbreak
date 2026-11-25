@@ -54,6 +54,36 @@ if os.path.isfile(_AI_TOOL):
 assert not os.path.exists(_AI_TOOL), '包内 ai-player.js 没排干净（会被扫成联网功能）'
 print('已排除未被 index.html 引用的 src/ai-player.js（含死 fetch）')
 
+# ---------- 政策/影射文案整改重放（2026-11-22 · 审核驳回「影射现实政策」）----------
+# ⚠️ 硬约束：只改 TapTap 包体（活目录），**主仓 src/ 与 electron/ 一字不动** —— Steam 端
+#    走 package.json 的 electron-builder，读的正是主仓 src/，改了就等于改 Steam。
+#    上方 _sync_tree 每次封包都会用主仓 src/ 覆盖活目录，故补丁必须在同步**之后**重放。
+#    必须在 ai-player.js 排除**之后**：那个文件不进包、index.html 无其 ?v，扫到会误报。
+#    规则单一真相源 = tmp/_policy_replace.py（只替换中文显示文案/注释，不碰 id/数值/机制）。
+#    幂等：替换后词已变，下次封包再跑一遍不再命中；?v 只在有实际改动时才 bump。
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location('_policy_replace', os.path.join(REPO, 'tmp', '_policy_replace.py'))
+_pr = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_pr)
+_changed = _pr.apply_to(SRC)   # 返回实际被改写的 js 相对路径列表（相对包根，如 src/xxx.js）
+if _changed:
+    # 内容变了的 js 必须 bump 包内 index.html 的 ?v，否则平台/CDN 缓存旧文案。
+    # ⚠️ 只改活目录的 index.html（主仓 index.html 是 Steam 端入口，不能动）。
+    _idx_path = os.path.join(SRC, 'index.html')
+    with open(_idx_path, encoding='utf-8') as _f:
+        _idx_html = _f.read()
+    for _rel in _changed:
+        _q = _rel.replace('\\', '/')
+        import re as _re2
+        _pat = _re2.compile(r'(["\']' + _re2.escape(_q) + r'\?v=)(\d+)')
+        _m = _pat.search(_idx_html)
+        assert _m, '包内 index.html 找不到 %s 的 ?v（补丁改了内容但无法 bump 缓存）' % _q
+        _idx_html = _pat.sub(lambda mm: mm.group(1) + str(int(mm.group(2)) + 1), _idx_html, count=1)
+    with open(_idx_path, 'w', encoding='utf-8', newline='') as _f:
+        _f.write(_idx_html)
+    print('政策/影射文案整改：重写 %d 个 js，bump 包内 index.html 对应 ?v' % len(_changed))
+else:
+    print('政策/影射文案整改：无命中（已合规或规则已应用）')
+
 # ---------- 运行时素材 ----------
 # ⚠️ 2026-10-26 修复（严重的静默缺图）：原脚本只同步 tech-icons / civic-icons 两个子树，
 #   导致包内 assets 只有 4 个目录（backgrounds/tech-icons/civic-icons/wonders），
@@ -185,22 +215,23 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.3.1'" in _cfg, '包内 config.js 版本号不是 Ver1.3.1'
+assert "VERSION: 'Ver1.4.0'" in _cfg, '包内 config.js 版本号不是 Ver1.4.0'
 
 # ---------- 更新日志本地化守卫（2026-11-06） ----------
 # CFG.CHANGELOG 的 items 已全部改成 i18n 语义 key：中文基准在
 # src/locales/zh-CN.js（进 TapTap 包），英文在 electron/locales/en-US.js
 #（Electron 专属，按规范不进包，故从 REPO 读）。旧守卫逐字搜中文串，
 # key 化后必然失效，这里改成「结构 + key + 双语资源」四重校验：
-#   ① 26 个版本都在（Ver1.3.1 + Ver1.3.0 + Ver1.2.4 + Ver1.2.3 + Ver1.2.2 + Ver1.2.1 + Ver1.2.0 + Ver1.1.1 + Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
-#   ② 恰 155 条语义 key、互不重复；
-#   ③ 包内 zh-CN 与仓库 en-US 都含这 155 个 key 且译文非空；
+#   ① 28 个版本都在（Ver1.4.0 + Ver1.3.2 + Ver1.3.1 + Ver1.3.0 + Ver1.2.4 + Ver1.2.3 + Ver1.2.2 + Ver1.2.1 + Ver1.2.0 + Ver1.1.1 + Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
+#   ② 恰 167 条语义 key、互不重复（Ver1.4.0 原 4 条中移除 wonder_owned_bonus / solar_ring_theta，
+#     换入 4 条新 key 后又追加 company_tier_ui_sync：164-2+5=167）；
+#   ③ 包内 zh-CN 与仓库 en-US 都含这 167 个 key 且译文非空；
 #   ④ 中英文都没有未烘焙的 {placeholder}，且废弃的机械 key 不再被引用。
 import re as _re
 import json as _json
 
 # Ver1.0.18 / Ver1.0.19 只封包、从未上线，已收编进 Ver1.1.0 段，不再作为独立段存在。
-_expected_versions = ['Ver1.3.1', 'Ver1.3.0', 'Ver1.2.4', 'Ver1.2.3', 'Ver1.2.2', 'Ver1.2.1', 'Ver1.2.0', 'Ver1.1.1', 'Ver1.1.0'] + ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
+_expected_versions = ['Ver1.4.0', 'Ver1.3.2', 'Ver1.3.1', 'Ver1.3.0', 'Ver1.2.4', 'Ver1.2.3', 'Ver1.2.2', 'Ver1.2.1', 'Ver1.2.0', 'Ver1.1.1', 'Ver1.1.0'] + ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
 for _v in _expected_versions:
     assert "v: '%s'" % _v in _cfg, '包内 config.js 更新日志缺 %s 条目' % _v
 
@@ -223,8 +254,8 @@ _chg_code = _re.sub(r'//[^\n]*', '', _chg_code)
 assert not _re.search(r'[\u4e00-\u9fff]', _chg_code), \
     '包内 config.js 的 CHANGELOG 仍残留中文硬编码条目（应先登记再引用 key）'
 _chg_keys = _re.findall(r"'((?:changelog|ui\.footer)\.[a-z0-9_.]+)'", _chg_body)
-assert len(_chg_keys) == 155, '包内 config.js 更新日志 key 数应为 155，实为 %d' % len(_chg_keys)
-assert len(set(_chg_keys)) == 155, '包内 config.js 更新日志有重复 key'
+assert len(_chg_keys) == 167, '包内 config.js 更新日志 key 数应为 167，实为 %d' % len(_chg_keys)
+assert len(set(_chg_keys)) == 167, '包内 config.js 更新日志有重复 key'
 
 def _strip_js_block_comments(_txt):
     """词库是 JS 对象字面量，允许 /* */ 注释；json.loads 不接受。
@@ -296,7 +327,7 @@ for _old_key in ['ui.render.anonymous_function.leaderboard',
 for _new_key in ['ui.footer.leaderboard_button', 'ui.footer.changelog_button']:
     assert _new_key in _idx, '包内 index.html 缺页脚语义 key: ' + _new_key
 assert '活动礼包码直接领取' not in _cfg, '包内 config.js 仍残留礼包码那条公开日志（用户要求删）'
-print('更新日志本地化守卫: OK (26 版本 / 155 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
+print('更新日志本地化守卫: OK (28 版本 / 167 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
 
 # ---------- 存档诊断 + 三个 P0（2026-10-29 / Ver1.0.4）----------
 # 这一批全是「玩家报存档没了」的对策，任何一条漏进包里都等于白改，所以逐条钉死。
