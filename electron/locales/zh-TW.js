@@ -605,6 +605,7 @@ window.ShellbreakLocales["zh-TW"] = Object.freeze({
   "changelog.fix.ascension_keep_second_nature": "「輕車熟路」成就的跨週目累計建造等級不再被掀幕飛升清零：先前攢到的進度與對應的首次建造免材料獎勵都會保留，不會因為開新週目而倒退。",
   "changelog.fix.auto_recover_saves": "修復「退出之後存檔就沒了」：啟動時讀不到存檔會先檢查本機備份和 TapTap 雲存檔，不會再直接把你當新玩家開一局新檔。",
   "changelog.fix.auto_slot_prereq": "修復輪迴後自動製作欄被後期配方佔滿的問題：上一局配好的自動槽原本會原樣帶進新周目，而新周目還沒解鎖對應科技，這些配方就一直空轉佔著槽位，想掛早期配方都掛不進去。現在只帶入新周目確實能造的配方，無效槽位一併清掉。",
+  "changelog.fix.auto_slot_reference_error": "修復 Ver1.4.0 移植工坊自動槽清單時漏掉 slots 變數定義的問題：已建成工坊且擁有自動製作槽的舊存檔讀檔時會拋出 ReferenceError，導致遊戲計時器未啟動、資源與人口不漲、面板停在「讀取中」。本次補齊變數定義，讀檔恢復正常。",
   "changelog.fix.auto_workshop_slots": "修復輪迴商店買的「自動工坊」槽位不起效的問題：晚期玩家把三檔都買齊也一點不漲，讀檔之後槽數還會退回 1。現在自動製作槽不再設硬上限，讀檔會按已購買的永久天賦重建。",
   "changelog.fix.background_save": "修復「切到後臺再回來，丟的總是最後幾分鐘」：同一條原因 —— 切後臺時那次儲存從來沒有真正寫成功過。現在兩條通道都會嘗試。",
   "changelog.fix.backup_channels": "修復「本機儲存寫不進去時，兩份備份也一起停了」：主通道失敗時會繼續往另外兩條更可靠的通道寫。",
@@ -5476,4 +5477,4 @@ window.ShellbreakLocales["zh-TW"] = Object.freeze({
   "workshop.wonder.unavailable": "沒有這座奇觀"
 });
 window.ShellbreakLocaleCoverage = window.ShellbreakLocaleCoverage || Object.create(null);
-window.ShellbreakLocaleCoverage["zh-TW"] = Object.freeze({"activeKeys":5471,"approvedKeys":5471,"complete":true});
+window.ShellbreakLocaleCoverage["zh-TW"] = Object.freeze({"activeKeys":5472,"approvedKeys":5472,"complete":true});

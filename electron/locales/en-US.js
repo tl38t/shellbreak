@@ -605,6 +605,7 @@ window.ShellbreakLocales["en-US"] = Object.freeze({
   "changelog.fix.ascension_keep_second_nature": "The Second Nature achievement's building levels accumulated across cycles are no longer reset by ascension. Progress you have built up, along with the free first-build reward it grants, is kept when you start a new cycle.",
   "changelog.fix.auto_recover_saves": "Fixed saves disappearing after quitting the game. If the save cannot be read at startup, the game now checks local backups and TapTap cloud saves before creating a new save.",
   "changelog.fix.auto_slot_prereq": "Fixed reincarnation carrying over unusable recipes into auto-craft slots. Recipes configured in the previous run used to be copied as-is, but their required technologies are reset in the new run, so they sat idle and blocked the slots. Now only recipes actually craftable in the new run are carried over, and invalid slots are cleared.",
+  "changelog.fix.auto_slot_reference_error": "Fixed a missing slots variable introduced while porting the workshop auto-slot list in Ver1.4.0. Saves with a built workshop and unlocked auto slots hit a ReferenceError on load, leaving the game timer stopped, resources and population frozen, and panels stuck on \"Loading\". The variable is restored and saves load normally again.",
   "changelog.fix.auto_workshop_slots": "Fixed the Automatic Workshop slots bought in the Prestige shop having no effect. Late-game players who bought all three tiers saw no increase, and the slot count reset to 1 after loading a save. Crafting slots no longer have a hard cap and are restored from the save.",
   "changelog.fix.background_save": "Fixed recent progress being lost after switching away from the game. The save triggered when the app went to the background could fail to write; the game now tries both save channels.",
   "changelog.fix.backup_channels": "Fixed both backups stopping when local storage failed. The game now tries the two more reliable backup channels even if the primary channel fails.",
@@ -5492,4 +5493,4 @@ window.ShellbreakLocales["en-US"] = Object.freeze({
   "workshop.wonder.unavailable": "Wonder unavailable."
 });
 window.ShellbreakLocaleCoverage = window.ShellbreakLocaleCoverage || Object.create(null);
-window.ShellbreakLocaleCoverage["en-US"] = Object.freeze({"activeKeys":5487,"approvedKeys":5487,"complete":true});
+window.ShellbreakLocaleCoverage["en-US"] = Object.freeze({"activeKeys":5488,"approvedKeys":5488,"complete":true});

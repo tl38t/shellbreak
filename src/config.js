@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.4.0',
+    VERSION: 'Ver1.4.1',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,6 +33,15 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.4.1（2026-11-25 热修）：修复 Ver1.4.0 移植 PR#1 工坊改动时漏掉 `slots` 变量定义。
+       * 已建成工坊且拥有自动制作槽的玩家读档后，工坊面板会抛出 ReferenceError，
+       * 导致主循环计时器未启动、资源/人口不涨、面板停在「读取中」、按钮未接线。
+       * 本次按 PR 原实现补齐 `var slots = s.autoSlots || []` 与 `var used = slots.length`，
+       * 并把空槽判定放宽为 `cap <= 0 && !slots.length`（有槽即显示，不再被未解锁文案吞掉）。
+       * 仅此一处代码改动；VERSION / CHANGELOG / index.html ?v / _repack.py 断言同步。 */
+      { v: 'Ver1.4.1', date: '2026-11-25', items: [
+        'changelog.fix.auto_slot_reference_error'
+      ] },
       /* Ver1.4.0（2026-11-25 建段）：生命织章（基因飞升）正式开放 + 六处玩家可见修正。
        * 此前三条路径中「生命织章」的入口被临时门禁挡住（wip），节点结算、双线共鸣、
        * 三级效果与 Lv3 文案均已实现并接线，但玩家进不去。本次移除 gn 的 wip 门禁，

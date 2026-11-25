@@ -401,13 +401,14 @@
   /* 自动槽的存量提示（挂在「工艺制作」段标题下）：玩家得先知道**有几个槽、从哪来的**。 */
   function autoSlotSummary(s) {
     var cap = SB.workshop.slotCap(s);
-    if (cap <= 0) {
+    var slots = s.autoSlots || [];
+    if (cap <= 0 && !slots.length) {
       var lockedSummary = englishLocale() ? tr('ui.workshop.automation_slots.locked_summary', {
         automaticWorkshopSlots: 1, prestigeShopSlots: 3
       }, '') : '自动制作槽：未解锁。装上工坊升级项「自动工坊」自带 1 个，轮回商店可再买 3 个。';
       return '<div class="note">' + lockedSummary + '</div>';
     }
-    var used = (s.autoSlots && s.autoSlots.length) || 0;
+    var used = slots.length;
     var percentageOptions = SB.workshop.pcts().map(function (percent) { return percent * 100 + '%'; }).join(' / ');
     var summary = englishLocale() ? tr('ui.workshop.automation_slots.summary', {
       usedSlots: used, slotCapacity: cap, percentageOptions: percentageOptions
@@ -418,7 +419,7 @@
     /* 2026-11-25 验收 PR#1：列出「占着槽但本周目造不了」的配方并给一键停用按钮。
      * ⚠️ 标题用 locked_occupied 而非旧的 assigned：这份清单只列未解锁的，不是全部占用槽。 */
     var lockedRows = '';
-    for (var i = 0; i < slots.length; i++) {
+    for (var i = 0; i < used; i++) {
       var slot = slots[i], recipe = SB.workshop.craftById(slot.id);
       if (!SB.workshop.craftHasPrereqBlock(s, recipe)) continue;
       var name = recipe ? localizedItemName('craft', recipe) : tr('workshop.craft.recipe.unavailable');
