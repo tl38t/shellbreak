@@ -26,7 +26,7 @@
 
 ### 本轮完成
 
-- 完成 62 个成就 key 的语言状态；英文 20 条与 `assets/achievements/Steam成就填报清单_v0.1.md` 的 en-US 名称和说明一致。
+- 完成 62 个成就 key 的语言状态；英文 20 条与 `docs/achievements/Steam成就填报清单_v0.1.md` 的 en-US 名称和说明一致。
 - 为原先空缺的 42 条繁中成就文案生成 OpenCC `s2twp` 转换稿；保留其余 20 条已有繁中内容。按项目方要求直接采用，未逐条人工校对。
 - 重导 `src/locales/zh-CN.js`、`electron/locales/en-US.js` 和 `electron/locales/zh-TW.js`。
 - 运行 `python scripts/export_i18n_runtime.py --check --require-complete`，结果为通过；所有词包与底表一致，无未批准的有效目标语言 key。

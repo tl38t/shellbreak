@@ -50,6 +50,7 @@
     /* 工坊页的门是「建成工坊」这座建筑。与科技页同一套两道闸的写法，
      * 免得将来某条直达路径（比如工坊建造成功后的提示）绕过 tab onclick 把灰页签点亮。 */
     if (k === 'workshop' && S && !(S.lvl && S.lvl.workshop > 0)) return;
+    if (k === 'workshop-upgrades' && S && !(S.lvl && S.lvl.workshop > 0)) return;
     /* 奇观页的门是「研究过石工」那项科技（用户要的「第一个就让石工解锁」）。
      * ⚠️ 与上面两道闸同理：就算页签已经因为灰态切换被点亮，直达路径也进不去。 */
     if (k === 'wonder' && S && !(S.techs && S.techs.masonry)) return;
@@ -66,25 +67,32 @@
     /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
-    if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;
+    if (k === 'star-map' && !SB.ui.renderParts.starMapUnlocked(S)) return;
     /* 切走帷幕页时把页内视图退回大厅（不碰 DOM，只改视图状态）：
      * 下次点「帷幕」总是先看到三条路径，而不是上次停留的某个装配台。 */
     if (k !== 'veil' && SB.ui.veilHub && SB.ui.veilHub.leave) SB.ui.veilHub.leave();
+    var prevTab = tab;
     tab = k; dirty = true;
+    if (SB.ui.render && SB.ui.render.setWorkshopView) {
+      if (k === 'workshop-upgrades') SB.ui.render.setWorkshopView('upgrades');
+      else if (prevTab === 'workshop-upgrades') SB.ui.render.setWorkshopView('making');
+    }
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
       var node = document.getElementById('pane-' + keys[i]);
       if (node) node.classList.toggle('hidden', keys[i] !== k);
     }
-    /* ⚠️ 页签高亮也在这里同步。它原先**只**写在 tab 的 onclick 里，于是任何走
-     *    setTab 的路径（最典型的是开门弹窗里那句「去看看」——它直接调 setTab('tech')）
-     *    都只换了 pane，把高亮留在「巢穴」上：页签写着巢穴、底下画着科技。
-     *    放在这里之后，onclick 那段就只剩「点了谁」这一件事，两边不再各记一份状态。
-     *    （2026-09-26 写探针时撞见：截图里科技页是好的，页签却没亮。） */
     var tabs = document.querySelectorAll('.tab');
     for (i = 0; i < tabs.length; i++)
       tabs[i].classList.toggle('on', tabs[i].dataset.tab === k);
+    if (SB.ui.render && SB.ui.render.syncNavShell) SB.ui.render.syncNavShell(k);
+    if (prevTab === 'star-map' && k !== 'star-map' && SB.ui.render.notifyStarMapActive) {
+      SB.ui.render.notifyStarMapActive(false);
+    }
     render();
+    if (k === 'star-map' && SB.ui.render.notifyStarMapActive) {
+      SB.ui.render.notifyStarMapActive(!(typeof document !== 'undefined' && document.hidden));
+    }
   }
   function setSpeed(v) { speed = v; }
   /* 看广告加速倍率：玩家所选档位（speed）× 这个系数。广告时间银行（S.ad.ms）>0 且开关打开时 = MUL，否则 1。
@@ -218,10 +226,19 @@
     if (node) {
       node.innerHTML = logLines.slice().reverse().map(function (x) { return '<div>' + x + '</div>'; }).join('');
     }
+    var latest = document.getElementById('logLatest');
+    if (latest) latest.textContent = '· ' + msg;
   }
-  function clearLog() { logLines = []; var n = document.getElementById('log'); if (n) n.innerHTML = ''; }
+  function clearLog() {
+    logLines = [];
+    var n = document.getElementById('log');
+    if (n) n.innerHTML = '';
+    var latest = document.getElementById('logLatest');
+    if (latest) latest.textContent = '';
+  }
 
   function startRun(options) {
+    resetRunClock();
     /* 旧版本中尚未写入永久解锁旗的存档，也在离开已建卫星的周目时补记。 */
     if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
     /* 局数 / 轮回两个计数在这里彻底分开（2026-11-06 用户拍板）：
@@ -305,6 +322,7 @@
      * 否则「暂停」在破壳后会被静默重置成开。 */
     applyAutoClickPref(S);
     applyAudioPref(S);   // 背景音乐偏好跨周目继承（2026-10-31，同 autoClick 两层范式）
+    if (SB.ui.renderParts && SB.ui.renderParts.resetManualGatherFold) SB.ui.renderParts.resetManualGatherFold();
     SB.state.saveMeta(meta);
     clearLog();
     /* 2026-11-06：cycle 收紧为「合格轮回次数」⇒ 这句话不再能说「第 N 周目」（软重置不会推进
@@ -333,8 +351,11 @@
   }
 
   // 继续未完成的上一周目（刷新页面时）
-  function resumeRun(saved) {
+  function resumeRun(saved, savedAt) {
+    resetRunClock();
     S = saved;
+    delete S._ts;
+    var needsSave = false;
     if (SB.faith && SB.faith.syncRun && SB.faith.syncRun(S)) markDirty();
     /* 季长自愈（2026-10-31）：除了「缺版本号」的老档，还有一种格局要重算 ——
      * meta 已记「流浪泰拉完成」但本局季长还是旧的（seasonRewardAtStart=false）。
@@ -345,7 +366,7 @@
     if (SB.economy && SB.economy.lockSeasonLengths &&
         (!S.seasonLengthsVersion || (_rewardNow && !S.seasonRewardAtStart))) {
       SB.economy.lockSeasonLengths(S, meta, !!S.seasonLengthsVersion);
-      SB.state.saveRun(snapshot(S));
+      needsSave = true;
     }
     /* 兼容更新前已经建成卫星但尚未记永久解锁旗的存档。 */
     if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
@@ -381,7 +402,7 @@
      * 读档后都会「买了却不起效」。按当前 meta 重算整份派生 perk 是幂等的，
      * 不会与购买时即时到账那份叠加 ⇒ 读档即修正，不必等下一个周目。
      * 同步落盘：不写回去的话，玩家下次进游戏还会看到同一份旧值。 */
-    if (SB.state.syncDerivedPerks && SB.state.syncDerivedPerks(S, meta)) SB.state.saveRun(snapshot(S));
+    if (SB.state.syncDerivedPerks && SB.state.syncDerivedPerks(S, meta)) needsSave = true;
     /* 政策卡归位兜底（2026-11-19）：老档可能在换政体/加槽后的旧逻辑下留下错配卡
      * （sci 卡落在 grow 槽、逐槽提示「不对口」）。读档时按最终槽配方归位一次，
      * reseatCards 幂等——卡已在最优槽就不动，不会每次读档反复搬家。 */
@@ -416,6 +437,19 @@
       hours: (S.t / 3600).toFixed(2), shellThickness: Math.round(S.shell)
     }, '已恢复上次进度：已游玩 {hours} 小时，壳厚 {shellThickness}。'));
     renderAll();
+    var cp = S.offlineCheckpoint;
+    S.offlineCheckpoint = null;
+    var gap = savedAt === undefined ? 0 : offlineGap(loop._lastWall, (cp && cp.wallAt) || savedAt);
+    if (cp && cp.left > CATCHUP_EPS) {
+      loop.job = Object.assign({ s: S }, cp);
+      loop.job.adActive = loop.job.adActive || adMul() > 1;
+      extendCatchUp(loop.job, gap);
+      showCatchUpProgress(loop.job);
+    } else if (gap >= CFG.OFFLINE_MIN) {
+      planCatchUp(S, gap, gap < OFFLINE_SETTLE_MIN);
+    }
+    /* 自愈和已认领的离线时长随同一份周目写盘。下次启动从此处接着计算。 */
+    if (needsSave || loop.job) SB.state.saveRun(snapshot(S));
   }
 
   function nextCycle() {
@@ -436,6 +470,7 @@
   /* 硬重置「清空存档」：连 meta 一起抹掉，回第 1 周目的全新档。
    * 这是唯一会毁掉跨周目进度的操作，必须走弹窗 + 显式勾选确认，绝不做静默清空。 */
   function wipeSave() {
+    resetRunClock();
     SB.ui.render.hideModal();
     SB.state.clearRun();
     /* 2026-10-29：尸检副本也要一起清。它是自动留的、玩家不知道它的存在，
@@ -453,6 +488,7 @@
     S = SB.state.freshRun(false);
     applyAutoClickPref(S);   // meta 已重置 ⇒ 偏好归「开」，这里只是让本局与之一致
     applyAudioPref(S);   // 背景音乐偏好：meta 重置后归默认（开 + 满音量）
+    if (SB.ui.renderParts && SB.ui.renderParts.resetManualGatherFold) SB.ui.renderParts.resetManualGatherFold();
     clearLog();
     log(gameText('game.save.cleared.log', { cycleNumber: 1 },
       '存档已清空，回到第 {cycleNumber} 周目。轮回点与破层层级一并抹去。'));
@@ -558,13 +594,14 @@
     return item;
   }
 
-  function render() { if (dirty) { dirty = false; SB.ui.render.renderAll(); } }
+  function render() { if (dirty && !(root.document && root.document.hidden)) { dirty = false; SB.ui.render.renderAll(); } }
   /* ⚠️ 2026-11-07：SB.audio.sync() 是 BGM 的唯一驱动，此前**全仓库零调用** ⇒
    *  跨纪元后音乐永远不换，只有重开游戏重新 init 才会重新选曲（玩家报「第一首切第二首
    *  要重开游戏才行」）。renderAll 由任意交互触发，loop 里 PANE_REFRESH 每 2 秒置脏兜底，
    *  足够驱动阶段切换、池内 shuffle 与后台 ended 被吞掉的补刀。
    *  ⚠️ 必须在 syncAudioSetting() **之前**调：面板读 currentTrack()，顺序反了会晚一帧。 */
   function renderAll() {
+    if (root.document && root.document.hidden) { dirty = true; return; }
     dirty = false;
     SB.ui.render.renderAll();
     if (SB.audio && SB.audio.sync) SB.audio.sync();
@@ -971,17 +1008,8 @@
    *          而无条件的泵等于悄悄把「只在脏标记时重画」变成了「每 0.2 秒重画」）。
    *    面板读数的周期刷新不靠这里，挪到 loop 里的 PANE_REFRESH（**墙钟**，不随倍速放大）。 */
   var TECH_PUMP = 2;
-  /* 补算专用的泵周期（2026-11-17）。
-   * 为什么必须与 TECH_PUMP 分开：泵周期的唯一作用是「揭示/自动化能多快响应」，
-   * 而离线补算期间没人看着面板，一次 8h 补算里泵要跑上万次，其中绝大多数是空扫。
-   * 但 TECH_PUMP 是在线**手感**参数（玩家点建造要 ≤2 秒看到尤里卡），动它等于让在线变钝。
-   * 实测（tmp/_cdp_stepsize.mjs，1h gap）：只把 OFFLINE_STEP 抬到 8 完全无效 ——
-   *   offlineStep 里 `dt = min(dt, TECH_PUMP - j.tp)` 会立刻把它夹回 2 秒；
-   *   两者一起放到 8，步数 4.1× 减少、墙钟 5.1×，且 1h 终态逐字段一致
-   *   （季节/生育/饥荒/暖石/生长期在 offlineStep 里各自独立夹刀，不受泵影响）。
-   * ⚠️ 代价：补算期间自动建造/自动研究的响应从 2 游戏秒放宽到 8 游戏秒。
-   *   对 8h 总量无实质影响，但**前期/中期档**（离线期间还在自动解锁）体感会变钝，
-   *   所以这个数只给补算用。在线与 30× 快进仍走 TECH_PUMP。 */
+  /* 离线每 8 游戏秒运行科技和市政泵，offlineStep 在泵的边界切段。
+   * 在线与在线快进仍沿用 2 游戏秒的周期。 */
   var CATCHUP_PUMP = 8;
   function pumpTech(s, emit) {
     if (!s || !SB.tech || !SB.tech.pump) return;
@@ -1486,21 +1514,66 @@
    * 单一来源同 OFFLINE_STEP：只读 src/config.js 的 CFG.OFFLINE_SETTLE_MIN；
    * e2e 沙箱里 SB.CFG 可能未注入全，兜底 1800 与 config 保持一字不差。 */
   var OFFLINE_SETTLE_MIN = (SB.CFG && SB.CFG.OFFLINE_SETTLE_MIN != null) ? SB.CFG.OFFLINE_SETTLE_MIN : 1800;
+  var MAX_WALL_SECONDS = Number.MAX_SAFE_INTEGER / 1000; // 墙钟时间以毫秒记入存档
   /* 时间真值有两个：
    *   ① 墙钟（Date.now）→ 用来判断「玩家离开过多久」，补算离线收益；
    *   ② 帧钟（performance.now）→ 用来决定这一帧推进多少逻辑时间。
    * 以前只跑「回调次数 × 固定步长」，后台标签页里浏览器把定时器节流到 1 次/秒
    * （Chrome 满 5 分钟进一步降到约 1 次/分），时间就跟着被稀释甚至冻住。 */
   var MAX_STEP = 5;                 // 单次回调最多推进 5 秒逻辑时间，防止切回前台一次算爆
-  var CATCHUP_BUDGET = 225;         // 离线补算每帧的毫秒预算（占空比 = 225 ÷ 主循环间隔250ms = 90%，与旧 100ms/90 同比例，补算墙钟耗时不变）
-  /* ⚠️ 2026-10-13 50→90（用户拍板「ab一起做」的 A 项）：补算期间整个界面被离线闸门
-   *   modal 锁死、无需交互响应，50 当年是保守占位（见 planCatchUp 注的历史：8 时曾 12.5×）。
-   *   90 ⇒ 墙钟 ≈ 纯算量 ÷ 0.9，8h 满档桌面从 ~45s 压到 ~25s（叠加 tech.mul 记忆化后更低）。
-   * ⚠️ 2026-10-20 B 项省电：主循环 100ms→250ms，CATCHUP_BUDGET 同比例 90→225 保住 90% 占空比。 */
+  var CATCHUP_SLICE_MS = 12;        // 浏览器实时补算每帧协作切片预算（~12ms 让出主线程不卡绘制/触控）
+  var CATCHUP_PASSIVE_TICK_MS = 500; // 省电模式下非脏状态 renderTick 节流周期
+  var catchupSliceTimer = 0;
+  var catchupSliceUseRaf = false;
+  function resetRunClock() {
+    if (loop.job && !loop.job.silent) SB.ui.render.hideModal();
+    loop.job = null;
+    cancelCatchUpSlice();
+    loop._lastWall = Date.now();
+    loop._wtPrev = 0;
+    loop._lastAiHidden = false;
+    loop.acc = 0;
+    last = 0;
+  }
+  function cancelCatchUpSlice() {
+    if (!catchupSliceTimer) return;
+    try {
+      if (catchupSliceUseRaf && root.cancelAnimationFrame) root.cancelAnimationFrame(catchupSliceTimer);
+      else if (root.clearTimeout) root.clearTimeout(catchupSliceTimer);
+    } catch (e) {}
+    catchupSliceTimer = 0;
+    catchupSliceUseRaf = false;
+  }
+  function scheduleCatchUpSlice() {
+    if (!loop.job || catchupSliceTimer) return;
+    if (typeof root.requestAnimationFrame === 'function' && !(typeof document !== 'undefined' && document.hidden)) {
+      catchupSliceUseRaf = true;
+      catchupSliceTimer = root.requestAnimationFrame(runCatchUpSlice);
+    } else if (typeof root.setTimeout === 'function') {
+      catchupSliceUseRaf = false;
+      catchupSliceTimer = root.setTimeout(runCatchUpSlice, 4);
+    }
+  }
+  function runCatchUpSlice() {
+    catchupSliceTimer = 0;
+    catchupSliceUseRaf = false;
+    if (suppressExitSave || !loop.job || !S) return;
+    var hidden = root.document && root.document.hidden;
+    accountOfflineGap(Date.now(), (hidden || loop._lastAiHidden) && isAiRunning());
+    drainCatchUp(CATCHUP_SLICE_MS);
+    if (loop.job) scheduleCatchUpSlice();
+    else { last = 0; loop.acc = 0; }
+  }
+  /* ⚠️ 2026-10-13 50→90（用户拍板「ab一起做」的 A 项）；2026-10-20 B 项主循环 100ms→250ms。 */
   var PANE_REFRESH = 2000;          // 面板（整块重画那种）的刷新周期，毫秒 **墙钟**
   var TICK_MS = 250;                // 主循环间隔（2026-10-20 B 项省电：10Hz→4Hz）。模拟靠 loop.acc 墙钟累加器驱动，降频不影响推进速度。
 
+  function isAiRunning() {
+    return !!(SB.aiPlayer && SB.aiPlayer.isRunning && SB.aiPlayer.isRunning());
+  }
+
   function loop() {
+    if (suppressExitSave) return;
     var now = (root.performance && performance.now) ? performance.now() : Date.now();
     var wall = Date.now();
     var batchStart = now, batchTicks = 0, batchFastTicks = 0;
@@ -1510,29 +1583,18 @@
     /* 浏览器会把后台标签页的 interval 降到每分钟一次。AI 正在运行时，这段间隔
      * 仍应按当前游戏倍速结算；否则页面一隐藏就被误当成普通离线，回到 1×并弹出
      * 离线结算遮罩。只认浏览器内 AI 的运行状态，不改变暂停 AI 时的离线规则。 */
-    var aiRunning = !!(SB.aiPlayer && SB.aiPlayer.isRunning && SB.aiPlayer.isRunning());
+    var aiRunning = isAiRunning();
     var hiddenAI = !!(document && document.hidden && aiRunning);
     var resumedHiddenAI = !!(!document.hidden && loop._lastAiHidden && aiRunning);
     var acceleratedBackgroundAI = hiddenAI || resumedHiddenAI;
     loop._lastAiHidden = hiddenAI;
 
-    /* 离开过的间隙：后台期间定时器基本不跑，这里在下次回调时才算得出来，
-     * 于是「离线补算」和「切回前台补算」是同一条路径。 */
-    /* ⚠️ 2026-11-03（玩家报「挑战中破壳后游戏卡着不动」）：这里原带 `!S.broken`。
-     *   破壳后 ERA10 是正文内容（发射场 → 戴森球 → 星图），离开一段同样要给离线收益；
-     *   带 broken 门等于「破壳后切后台 = 白挂」。真正的暂停由各模块自判（削壳/钻机/星空槽）。
-     *   同批拆掉的还有：主循环 while(1131)、广告时间银行、UI 刷新、自动存档、退出 flush。 */
-    if (S && loop._lastWall) {
-      var gap = (wall - loop._lastWall) / 1000;
-      /* 2026-10-24 分级离线：gap ≥ OFFLINE_MIN 都要补算（挂机收益一分不少），
-       * 但 gap < OFFLINE_SETTLE_MIN（30min，用户拍板）时静默补算——
-       * 回个消息、切窗几分钟不该被「离线结算三连」糊脸。 */
-      if (gap >= SB.CFG.OFFLINE_MIN && !loop.job && !acceleratedBackgroundAI) {
-        planCatchUp(S, gap, gap < OFFLINE_SETTLE_MIN);
-      }
+    accountOfflineGap(wall, acceleratedBackgroundAI);
+    var catchingUp = !!loop.job;
+    if (catchingUp) {
+      drainCatchUp(CATCHUP_SLICE_MS);
+      if (loop.job) scheduleCatchUpSlice();
     }
-    if (loop.job) drainCatchUp(CATCHUP_BUDGET);
-    loop._lastWall = wall;
 
     /* 排行榜墙钟计时（wallT）：**真实流逝秒**，不吃游戏倍速。
      * ⚠️ 为什么不能用上面的 elapsed：它被 MAX_STEP 截断（单帧最多 5 秒），
@@ -1540,7 +1602,7 @@
      * ⚠️ 为什么不用 s.t：那是逻辑秒，吃倍速（广告 2× 等），拿它当「最快通关」
      *   等于奖励氪金与挂机。
      * ⚠️ 离线也照涨（游戏本就支持离线补算）；要「有效游玩时长」得再扣离线段，那是另一口径。
-     * ⚠️ 补算期间（loop.job）同样要涨 —— 墙钟确实在走，且 offlineCap 已封顶。 */
+     * ⚠️ 补算期间（loop.job）同样要涨 —— 墙钟确实在走。 */
     /* 排行榜墙钟计时：破壳后照走（同一批拆门：破壳不是本局终点）。 */
     if (S && loop._wtPrev) {
       var wtGap = (wall - loop._wtPrev) / 1000;
@@ -1563,39 +1625,17 @@
     var rawElapsed = Math.max(0, (now - last) / 1000);
     var elapsed = Math.min(acceleratedBackgroundAI ? SB.CFG.OFFLINE_MIN : MAX_STEP, rawElapsed);
     last = now;
-    /* ══ 2026-11-17 补算期总闸门（玩家报「离线 8h 回来补算 10 分钟、进度十几秒才涨 1%、
-     *    最后 80% 卡没了」）══
-     * 【为什么需要】补算不是独立循环，它挂在主循环里：每 250ms 只拿前 CATCHUP_BUDGET(225ms)
-     *   算数，剩下的 renderAll / renderTick / tickStar / 点击事件 / 新手引导 / 挑战判定
-     *   全排在它**后面**同一轮里。于是真实周期 = 225 + X ms，补算的占空比被 X 稀释成
-     *   225/(225+X)。而这段时间整个界面被离线闸门 modal 盖死，玩家根本看不见重建结果
-     *   ⇒ 这些工作是纯浪费，只会把补算的墙钟拖长。
-     * 【闸门盖着就该什么都不画】补算期间直接 return，算完那一帧自然回落到完整流程
-     *   （那时 loop.job 已由 finishCatchUp 清掉），全量重建也就自动补上了。
-     * ⚠️ 保留三件事，缺一个就出问题：
-     *   ① loop.acc 归零 —— 补算期流逝的墙钟已在 drainCatchUp 里按真实秒算过，
-     *      不能再攒进 acc 等补算结束按实时推第二遍（原实现会攒到 backlogCap=60 秒，
-     *      补算一结束就一口气多推 60 秒，是既有的重复计时）。
-     *   ② loop._lastPane **不更新** —— 于是补算结束的第一个 now - _lastPane 必然 ≥
-     *      PANE_REFRESH，PANE_REFRESH 那条分支会自动置脏并触发那一次「补做全量」，
-     *      不需要另写调用点（少一处就少一处漂移）。
-     *   ③ 存档不能停 —— 它是「补算中途被杀、重启还能续算」的唯一保障：snapshot 里的 _ts
-     *      与已推进进度是同一次落盘，重启后 gap 从 _ts 起算。频率 5s→30s：
-     *      8h 补算只落 4 次左右，被杀最多丢 30 秒，换回来的主线程时间更值。 */
-    if (loop.job) {
+    /* 这一帧只做补算。清空在线积压，避免结算后重复推进同一段时间。
+     * 面板刷新延至在线恢复，剩余任务每 30 秒落一次检查点。 */
+    if (catchingUp) {
       loop.acc = 0;
-      if (now - (loop._lastSave || 0) > 30000) {
+      if (loop.job && now - (loop._lastSave || 0) > 30000) {
         loop._lastSave = now;
         SB.state.saveRun(snapshot(S));
       }
       return;
     }
-    /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
-     * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。 */
-    /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
-     * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。
-     * ⚠️ 只在**在线**扣：离线补算期间（loop.job=true）由 drainCatchUp 按真实离线秒统一扣减（且吃 2×），
-     *    这里加 !loop.job 守卫，避免离线时既被 nibble 又不给 2× 进度的双重错账。 */
+    /* 在线按真实时间扣减广告余额，归零时刷新状态。离线余额由 drainCatchUp 结算。 */
     if (!loop.job && S && S.ad && S.ad.on && S.ad.ms > 0) {
       var adWas = S.ad.ms > 0;
       S.ad.ms = Math.max(0, S.ad.ms - elapsed * 1000);
@@ -1684,7 +1724,7 @@
        * 无 DOM / 未激活时内部早退，不影响正常循环与 e2e。破壳后引导早已走完，留在本门内。 */
       if (SB.onboarding && SB.onboarding.tick) SB.onboarding.tick(S);
     }
-    if (S) {
+    if (S && !(root.document && root.document.hidden)) {
       /* 面板读数的周期刷新：**墙钟** 2 秒一次，与倍速无关。
        * 【为什么不在泵里顺手置脏】泵按逻辑秒节流，10× 速下等于 0.2 秒一趟，
        * 那是拿「整块重建五个 pane（含 33 个节点的科技长卷）」当代价去刷几个数字，
@@ -1699,7 +1739,21 @@
           loop._lastPane = now; dirty = true;
         }
       }
-      if (dirty) renderAll(); else SB.ui.render.renderTick();
+      if (dirty) {
+        loop._lastPassiveTick = now;
+        renderAll();
+      } else {
+        var ps = !!(SB.ui && SB.ui.theme && SB.ui.theme.isPowerSave && SB.ui.theme.isPowerSave());
+        if (!ps || !loop._lastPassiveTick || now - loop._lastPassiveTick >= CATCHUP_PASSIVE_TICK_MS) {
+          loop._lastPassiveTick = now;
+          SB.ui.render.renderTick();
+        }
+      }
+    } else if (S && now - (loop._lastPane || 0) >= PANE_REFRESH) {
+      loop._lastPane = now;
+      if (SB.audio && SB.audio.sync) SB.audio.sync();
+    }
+    if (S) {
       /* 自动采集点击（轮回商店 autoClick，N 次/真实秒）：只在线（!loop.job），用帧钟 elapsed 累计，
        * 不随倍速放大——倍速只加快世界、不加快自动点击节奏。
        * 破壳后照跑：这是玩家花钱买的常驻能力，破壳不退还、也不该停。 */
@@ -1717,11 +1771,6 @@
     }
   }
 
-  function offlineCap(s) {
-    var step = SB.CFG.OFFLINE_PERK_STEP || 0;
-    var lv = (s && s.perk && s.perk.offline) || 0;
-    return SB.CFG.OFFLINE_CAP * (1 + step * lv);
-  }
   function gameText(key, params, fallback) {
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
     if (value) return value;
@@ -1748,68 +1797,106 @@
   }
   function RESS_KEYS() { return SB.RESS ? Object.keys(SB.RESS) : []; }
 
-  /* 离线补算：稳定区间按事件边界批量调用经济 tick，
-   * 季节、科技/市政泵、生育、饥饿死亡和食物耗尽处切开；最大步长与泵周期同为 2 秒。
-   * 8 小时无暖石低库存段时，tick 调用从 288000 次降至约 14400 次（约 20×）；
-   * 结果允许小幅近似误差，随机冻伤也按子步累计概率处理。
-   * 仍拆成「计划 → 每帧只花 CATCHUP_BUDGET 毫秒 → 做完发一条播报」。
-   * 墙钟耗时 = 纯算量 ÷ 占空比，占空比 = CATCHUP_BUDGET ÷ 主循环间隔(250ms)。
-   *   CATCHUP_BUDGET=90 ⇒ 占空比约 90% ⇒ 纯算量摊到约 1.11 倍墙钟。
-   * 配合 economy.tick 内聚合缓存（globalMul/gatherMul 等每 tick 只算一次）+
-   * tech.mul 按 techVer 记忆化（2026-10-13，省掉每 tick 12 次全表重扫），
-   * 当前调用量及与 0.1 秒基准的差异由 sim/offline-fastforward.mjs 对照。 */
+  function offlineGap(wall, from) {
+    if (typeof from !== 'number' || !(from > 0 && from <= Number.MAX_SAFE_INTEGER)) return 0;
+    var gap = (wall - from) / 1000;
+    return gap > 0 && gap <= MAX_WALL_SECONDS ? gap : 0;
+  }
+  function accountOfflineGap(wall, acceleratedBackgroundAI) {
+    var gap = offlineGap(wall, loop._lastWall);
+    loop._lastWall = wall;
+    if (!S || acceleratedBackgroundAI || gap < CFG.OFFLINE_MIN) return false;
+    if (loop.job) {
+      extendCatchUp(loop.job, gap);
+      showCatchUpProgress(loop.job);
+    } else {
+      planCatchUp(S, gap, gap < OFFLINE_SETTLE_MIN);
+    }
+    if (!loop.job) return false;
+    loop._lastSave = root.performance && root.performance.now ? root.performance.now() : wall;
+    SB.state.saveRun(snapshot(S));
+    return true;
+  }
+
+  /* 新间隙只能填补待补余额腾出的空间，已经推进的时长留在结算中。 */
+  function extendCatchUp(j, gap) {
+    if (gap < CFG.OFFLINE_MIN) return;
+    var add = Math.min(gap, j.cap - j.left);
+    var uncounted = gap - add;
+    j.left = Math.min(j.cap, j.left + add);
+    j.total = Math.min(MAX_WALL_SECONDS, j.total + add);
+    j.uncountedSecs = Math.min(MAX_WALL_SECONDS, j.uncountedSecs + uncounted);
+    j.silent = j.silent && gap < OFFLINE_SETTLE_MIN && j.uncountedSecs === 0;
+    j.adActive = j.adActive || adMul() > 1;
+  }
+
   function planCatchUp(s, gap, silent) {
-    var cap = offlineCap(s);
-    var secs = Math.max(0, Math.min(gap, cap));   // 真实离线秒（已封顶）
-    if (secs <= 0) return;
+    if (!s || s !== S || loop.job || typeof gap !== 'number' || !(gap > 0 && gap <= MAX_WALL_SECONDS)) return;
+    var cap = CFG.OFFLINE_CAP;
+    var secs = Math.min(gap, cap);
     var before = {}, k;
     for (k in s.res) before[k] = s.res[k];
-    var adActive = !!(s.ad && s.ad.on && s.ad.ms > 0);  // 起点若双倍银行在线，整段按覆盖情况吃 2×
     loop.job = {
-      s: s, left: secs, total: secs, secs: secs, cap: cap, adActive: adActive,
-      uncountedSecs: Math.max(0, gap - secs),
+      s: s, left: secs, total: secs, cap: cap, tp: 0, adActive: adMul() > 1,
+      uncountedSecs: gap - secs,
       before: before, bPop: s.pop, bShell: s.shell,
       bFam: s.famineDeaths, bFrost: s.frostDeaths,
       /* 2026-11-03：破壳不再是补算终点，改成「记一笔」——
        *   bBroke = 进入补算时是否已经破壳（已经破的老档不该再补播一次破壳动画）
        *   brokeDuring = 本次补算期间是否破了壳（补算结束后据此补播动画与结果面板） */
       bBroke: !!s.broken, brokeDuring: false,
-      silent: !!silent
+      silent: !!silent && secs === gap
     };
-    /* 2026-10-24 分级离线（用户拍板 30min）：短暂离开走静默补算——不锁界面、不弹闸门。
-     * gap < OFFLINE_SETTLE_MIN 时补算量只有几百毫秒（30min 游戏秒封顶，一帧无感），
-     * 玩家回来直接接着玩；日志留一行备查，结算报告也不弹（短暂离开不需要汇报）。
-     * ⚠️ 破壳 / 戴森这类终局事件照弹（finishCatchUp 的 breakReport 分支不读 silent）——
-     *    那是里程碑时刻，不是「离开汇报」。 */
-    if (loop.job.silent) {
-      log(gameText('game.offline.catchup.started_log', { duration: fmtDur(secs), boostNote: '' }, '离开 {duration}，正在后台补算…{boostNote}'));
-      if (adActive) log(gameText('game.offline.settlement.ad_boost_applied', null, '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。'));
-      if (secs < gap) log(gameText('game.offline.catchup.cap_notice', {
-        capDuration: fmtDur(cap), uncountedDuration: fmtDur(gap - secs)
-      }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。'));
-      return;
+    showCatchUpProgress(loop.job);
+  }
+
+  function showCatchUpProgress(j) {
+    var capNotice = j.uncountedSecs > 0 ? gameText('game.offline.catchup.cap_notice', {
+      capDuration: fmtDur(j.cap), uncountedDuration: fmtDur(j.uncountedSecs)
+    }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。') : '';
+    var adNotice = j.adActive ? gameText('game.offline.settlement.ad_boost_applied', null,
+      '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。') : '';
+    if (!j.silent) {
+      SB.ui.render.showOfflineModal({
+        title: gameText('game.offline.catchup.progress_label', null, '离线进度补算中…'),
+        body: '<div class="note">' + gameText('game.offline.catchup.modal_description', null,
+          '正在补算你离开期间的进度（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，长时段按分段方式近似推进）。') + '</div>' +
+          '<div class="note" style="margin-top:8px;color:var(--dim)">' + gameText('game.offline.modal.duration_summary', {
+            duration: fmtDur(j.total), capNote: '', boostNote: ''
+          }, '离线时长 {duration}') + '</div>' +
+          (capNotice ? '<div class="note">' + capNotice + '</div>' : '') +
+          (adNotice ? '<div class="note is-boost">' + adNotice + '</div>' : ''),
+        showProgress: true
+      });
+      SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);
     }
-    /* 离线闸门：补算期间锁住整个界面（#modal 全屏遮罩挡点击），不给确认按钮，
-     * 强制等算完（用户 2026-09-29：「离线回来先算完才能操作」）。 */
-    SB.ui.render.showOfflineModal({
-      title: gameText('game.offline.catchup.progress_label', null, '离线进度补算中…'),
-      body: '<div class="note">' + gameText('game.offline.catchup.modal_description', null,
-        '正在补算你离开期间的进度（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，长时段按分段方式近似推进）。') + '</div>' +
-            '<div class="note" style="margin-top:8px;color:var(--dim)">' + gameText('game.offline.modal.duration_summary', {
-              duration: fmtDur(secs), capNote: '', boostNote: ''
-            }, '离线时长 {duration}') + '</div>' +
-            (secs < gap ? '<div class="note">' + gameText('game.offline.catchup.cap_notice', {
-              capDuration: fmtDur(cap), uncountedDuration: fmtDur(gap - secs)
-            }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。') + '</div>' : '') +
-            (adActive ? '<div class="note is-boost">' + gameText('game.offline.settlement.ad_boost_applied', null,
-              '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。') + '</div>' : ''),
-      showProgress: true
-    });
-    log(gameText('game.offline.catchup.started_log', { duration: fmtDur(secs), boostNote: '' }, '离开 {duration}，正在后台补算…{boostNote}'));
-    if (adActive) log(gameText('game.offline.settlement.ad_boost_applied', null, '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。'));
-    if (secs < gap) log(gameText('game.offline.catchup.cap_notice', {
-      capDuration: fmtDur(cap), uncountedDuration: fmtDur(gap - secs)
-    }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。'));
+    log(gameText('game.offline.catchup.started_log', { duration: fmtDur(j.left), boostNote: '' }, '离开 {duration}，正在后台补算…{boostNote}'));
+    if (adNotice) log(adNotice);
+    if (capNotice) log(capNotice);
+  }
+
+  function serializeCatchUpCheckpoint(s) {
+    var j = loop.job;
+    if (!j || j.s !== s || !(j.left > CATCHUP_EPS) || j.breakReached) return null;
+    return {
+      v: 2,
+      left: j.left,
+      total: j.total,
+      secs: j.total,
+      cap: j.cap,
+      wallAt: loop._lastWall,
+      tp: j.tp || 0,
+      adActive: !!j.adActive,
+      uncountedSecs: j.uncountedSecs || 0,
+      before: Object.assign({}, j.before),
+      bPop: j.bPop,
+      bShell: j.bShell,
+      bFam: j.bFam,
+      bFrost: j.bFrost,
+      bBroke: !!j.bBroke,
+      brokeDuring: !!j.brokeDuring,
+      silent: !!j.silent
+    };
   }
   /* 分段快进：稳定区间最多跨过一个 2 秒泵周期；事件跨越点提前切开。
    * 暖石还会被熔炉等系统消耗。若本块其他暖石净消耗可能让保温库存跨过阈值，
@@ -1836,7 +1923,7 @@
     }
     var warmCold = s.warmOn && SB.economy.season(s).mult < 1;
     if (warmCold && s.warmOn && s.res.warmstone > 0) {
-      var warmstoneRate = SB.economy.rates(s).warmstone || 0;
+      var warmstoneRate = SB.economyRateParts.warmstoneRate(s) || 0;
       var warmRate = SB.economy.warmRate(s);          // 2026-11-05：动态费率，与 tick 同源
       var reliefRate = SB.economy.warmBurningNow(s) ? warmRate : 0;
       var otherDrain = Math.max(0, -(warmstoneRate + reliefRate));
@@ -1855,14 +1942,11 @@
   function drainCatchUp(budgetMs) {
     var j = loop.job; if (!j) return;
     if (j.s !== S) { loop.job = null; return; }   // 补算途中重开了周目，作废这一批
-    /* ⚠️ 预算基准必须叫 tStart，**绝不能叫 t0**：内层曾写成 `var t0 = j.s.t`，
-     * var 在函数作用域内不分块 ⇒ 第一轮内层就把外层 t0 覆盖成游戏逻辑秒（十万量级），
-     * `Date.now() - t0` 立刻远超 budgetMs ⇒ 每次调用只做一轮外层迭代、内层一口气算完整段，
-     * 225ms 预算形同虚设（晚期局单条长任务 4471ms，界面整段冻结）。 */
+    /* 切片预算用墙钟毫秒，积分用游戏秒。 */
     var tStart = Date.now();
-    /* 离线补算按「真实秒」记账、按事件块推进：每块最多 OFFLINE_STEP 个游戏秒，
-     * 广告银行覆盖时按 2× 换算真实时长，并在余额归零处切段后回落 1×。
-     * 旧循环每次只推进 1 个真实秒，导致 1× 时 dt 永远 <=1 秒；现在可跨真实秒批量结算。 */
+    j.draining = true;
+    /* 用真实秒记录待补算时长，用不超过 CATCHUP_STEP 的游戏秒推进。
+     * 广告余额归零时切段，后续按 1× 结算。 */
     while (j.left > CATCHUP_EPS && !j.breakReached && Date.now() - tStart < budgetMs) {
       var mul = adMul();
       /* ⚠️ 2026-11-07 客户「离线结算进度条卡死」：双倍段把银行扣到只剩 1ulp 正残差时
@@ -1882,7 +1966,7 @@
         // 食物/人口积分器在 0.1s 微步内自行推进 happyStep（与食物同栅格重采样），故 tick 侧
         // 同时跳过 food 与 happy（skipFoodPop + skipHappy），避免 happy/奢侈品被双重推进。
         SB.economy.tick(j.s, dt, null, { skipFoodPop: true, skipHappy: true, deferBreakUI: true });   // 其他资源/season/pump/shell 仍走原 tick；food/happy 交给积分器
-        SB.offline.integrateFoodPop(j.s, dt, { t0: tPrev }, null);  // 食物/人口 + 幸福度：事件边界闭式积分（替代 tick 内联 food/happy 段）
+        SB.offline.integrateFoodPop(j.s, dt, { t0: tPrev, reuseJobs: true }, null);
         if (j.s._seasonGrantPending) { SB.economy.seasonGrant(j.s); j.s._seasonGrantPending = false; }
         if (SB.challenges && SB.challenges.evaluate) SB.challenges.evaluate(j.s, meta);
         j.tp = (j.tp || 0) + dt;
@@ -1898,12 +1982,8 @@
         if (!j.brokeDuring && !j.bBroke && j.s.broken) j.brokeDuring = true;
         /* 星空槽在破壳后独立于 economy.tick 推进；按同一事件块累计，线性速率结果不变。 */
         SB.shell.tickStar(j.s, dt, null);
-        /* 预算让出：内层过去不检查时间（只有外层查），一段 8 小时补算会在一帧里算到底。
-         * 每 64 步查一次 Date.now()，超预算就带着已完成的 realDone 退出，
-         * 余量留给下一帧 —— 界面从「冻 4.5 秒」变成逐帧推进、进度条能走动。
-         * ⚠️ 只在这里 break 内层，外面那句 `j.left = Math.max(0, j.left - realDone)` 必须照常执行，
-         *    否则这一帧算的那部分会被丢掉（时间白算、还得多算一遍）。 */
-        if ((++inner & 63) === 0 && Date.now() - tStart >= budgetMs) break;
+        /* 每四步检查预算。退出内层后扣除已完成的真实秒，剩余留给下一切片。 */
+        if ((++inner & 3) === 0 && Date.now() - tStart >= budgetMs) break;
       }
       j.left = Math.max(0, j.left - realDone);
       /* 通用护栏（2026-11-07）：本轮没推进出任何有意义的真实秒，说明切段口径把
@@ -1915,11 +1995,32 @@
     }
     /* 残渣夹零：不收这一下，进度条会停在 99.99999999% 而不是 100%。 */
     if (j.left <= CATCHUP_EPS) j.left = 0;
+    j.draining = false;
+    if (j.savePending && j.left > 0 && !j.breakReached) {
+      j.savePending = false;
+      SB.state.saveRun(snapshot(j.s));
+    }
     if (j.total && !j.silent) SB.ui.render.setOfflineProgress((j.total - j.left) / j.total);   // 静默补算没有闸门 modal 可报，跳过进度条
     if (j.left <= 0 || j.breakReached) finishCatchUp(j);
   }
+  function hasPendingBreakChoice(s) {
+    if (!(s && s.broken && s.shellOpened && !s.breakSettled && s.challenge && s.challengeDone && !s.challengeReleased)) return false;
+    var challenge = SB.challenges && SB.challenges.byId(s.challenge.id);
+    return !!(challenge && !challenge.goal);
+  }
+  function currentBreakReport(s) {
+    var report = SB.prestige.breakReport(s);
+    if (!SB.prestige.qualified(s)) { report.tidePoints = 0; report.locked = true; }
+    if (s.challengeOutcome) {
+      if (s.challengeOutcome.failed) report.challengeFailure = s.challengeOutcome;
+      else report.challengeClear = s.challengeOutcome;
+    }
+    return report;
+  }
   function finishCatchUp(j) {
     loop.job = null;
+    cancelCatchUpSlice();
+    if (j && j.s) j.s.offlineCheckpoint = null;
     if (SB.war && SB.war.drainInvasionReports) {
       var invasionMessages = SB.war.drainInvasionReports(j.s);
       for (var invasionMessageIndex = 0; invasionMessageIndex < invasionMessages.length; invasionMessageIndex++)
@@ -1933,12 +2034,10 @@
       /* 破壳事件先落盘，避免动画期间被杀丢掉挑战判定与 seal。 */
       SB.state.saveRun(snapshot(j.s));
       renderAll();
-      breakReport = SB.prestige.breakReport(j.s);
-      if (!SB.prestige.qualified(j.s)) { breakReport.tidePoints = 0; breakReport.locked = true; }
-      if (j.s.challengeOutcome) {
-        if (j.s.challengeOutcome.failed) breakReport.challengeFailure = j.s.challengeOutcome;
-        else breakReport.challengeClear = j.s.challengeOutcome;
-      }
+      breakReport = currentBreakReport(j.s);
+    } else if (j && j.s && j.s === S && SB.state && SB.state.saveRun) {
+      /* 补算完结立刻落盘清除 offlineCheckpoint，防止 5 秒自动存档前刷新重复续算。 */
+      SB.state.saveRun(snapshot(j.s));
     }
     /* 2026-10-24 分级离线：静默补算且无终局事件 ⇒ 不弹结算报告，日志一行交代完事。
      * 有 breakReport（离开期间破壳）时不走这里——破壳动画 + 结果窗照弹，见下。 */
@@ -1951,6 +2050,17 @@
     });
     else showSettlement();
   }
+  function showCatchUpEvents(j, showedBreakResult) {
+    var s = j.s;
+    if (s !== S) return;
+    function showOtherEvents() {
+      if (s !== S) return;
+      maybeSciencePopup(s); maybeReligionPopup(s); maybeTabUnlockPopups(s); markDirty(); fireDysonPending(j);
+    }
+    if (!showedBreakResult && hasPendingBreakChoice(s)) {
+      SB.ui.render.showBreakResult(currentBreakReport(s), showOtherEvents);
+    } else showOtherEvents();
+  }
   /* 静默补算的一句话交代：时长 + 超上限未计入 + 人口 / 饿死 / 冻死异动。
    * 资源明细不进日志——想要明细看面板即可，短暂离开不配一份小作文。
    * 收尾与非静默结算的 onOk 对齐：科研 / 宗教 / 解锁播报与戴森终局在补算期间是挂起状态
@@ -1960,7 +2070,7 @@
     var s = j.s;
     var separator = SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' ? ' · ' : '，';
     var params = {
-      duration: fmtDur(j.secs),
+      duration: fmtDur(j.total),
       uncountedNotice: j.uncountedSecs > 0 ? separator + gameText('game.offline.catchup.cap_notice', {
         capDuration: fmtDur(j.cap), uncountedDuration: fmtDur(j.uncountedSecs)
       }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。') : '',
@@ -1969,12 +2079,10 @@
       frostDeaths: s.frostDeaths > j.bFrost ? separator + gameText('game.offline.frost_deaths_summary', { count: s.frostDeaths - j.bFrost }, '冻死 {count}') : ''
     };
     log(gameText('game.offline.silent_summary.log', params, '后台补算完成（离开 {duration}）{uncountedNotice}{populationChange}{famineDeaths}{frostDeaths}。'));
-    maybeSciencePopup(s); maybeReligionPopup(s); maybeTabUnlockPopups(s); markDirty(); fireDysonPending(j);
+    showCatchUpEvents(j, false);
   }
   function fireDysonPending(j) {
-    /* 离线补算期间达成的戴森竣工：结算窗关闭后再播胜利窗，避免被共用 #modal 的离线结算覆盖。
-     * 见 economy-tick.js dysonDone 块 deferBreakUI 分支（离线只挂 dysonPopupPending，不置 seen）。
-     * 破壳与竣工在同一段离线补算里互斥（破壳即终止补算），故不与 breakReport 叠加。 */
+    /* 离线达成的戴森竣工延后到结算窗关闭时展示。 */
     if (!j || !j.s || !j.s.dysonPopupPending) return;
     var s = j.s;
     s.dysonPopupSeen = true;
@@ -2055,7 +2163,7 @@
     if (j.uncountedSecs > 0) noteRows += '<div class="offline-footnote">' + html(text('game.offline.settlement.uncounted_note', {
       uncountedDuration: fmtDur(j.uncountedSecs)
     }, '超出单次离线上限的 {uncountedDuration} 未计入本次结算。')) + '</div>';
-    var settledSecs = j.breakReached ? Math.max(0, j.secs - j.left) : j.secs;
+    var settledSecs = j.breakReached ? Math.max(0, j.total - j.left) : j.total;
     if (j.breakReached && j.left > 0) noteRows += '<div class="offline-footnote">' + html(text('game.offline.settlement.break_remaining_note', {
       remainingDuration: fmtDur(j.left)
     }, '破壳后剩余 {remainingDuration} 未继续补算。')) + '</div>';
@@ -2090,9 +2198,7 @@
       summary: true,
       ok: text('game.offline.report.continue.action', null, '继续'),
       onOk: function () {
-        /* 2026-11-03：破壳结果已经在这张面板之前播过（finishCatchUp：动画 → 结果窗 → 本面板），
-         * 这里不再重复弹结算面板，只补播被离线遮罩盖住的叙事与终局事件。 */
-        maybeSciencePopup(j.s); maybeReligionPopup(j.s); maybeTabUnlockPopups(j.s); markDirty(); fireDysonPending(j);
+        showCatchUpEvents(j, !!breakReport);
       }
     });
     if (modalShown === false && breakReport) SB.ui.render.showBreakResult(breakReport);
@@ -2103,15 +2209,26 @@
    * `_cutBase` / `_cutMir` 是削壳累计量（漏存会让破壳面板少算刷新前的部分）。
    * 真正需要排除的临时字段请显式写进 TEMP_KEYS；未登记的字段一律落盘
    * （migrateRun 会按 freshRun 的键过滤未知顶层字段，写进去也不会污染下次读取）。 */
-  var TEMP_KEYS = ['_ts', '_repairedResources'];   // 诊断字段只在本次读档提示，不进入存档
+  var TEMP_KEYS = ['_ts', '_repairedResources', 'offlineCheckpoint'];   // 诊断与运行期补算快照显式按状态生成，不直接复用旧字段
   function snapshot(s) {
     var o = {}, k;
     for (k in s) if (TEMP_KEYS.indexOf(k) < 0) o[k] = s[k];
-    o._ts = Date.now();   // 离线补算的墙钟真值，随存档一起落盘
+    var cp = serializeCatchUpCheckpoint(s);
+    if (cp) o.offlineCheckpoint = cp;
+    o._ts = Date.now();
     return o;
   }
 
-  /* 导入前先完整验证，并在同一个同步事务里保留现有原始存档。 */
+  function saveChallengeProgress(s) {
+    /* 破壳或挑战达成可能发生在一步的中间，等这个切片的时长和广告余额都记账后再保存。 */
+    if (loop.job && loop.job.s === s && loop.job.draining) {
+      loop.job.savePending = true;
+    } else {
+      SB.state.saveRun(snapshot(s));
+    }
+  }
+
+  /* 导入先验证存档内容和本机备份，再替换主档。 */
   /* 给一份「从外部进来的」存档换成本机的最大序号（2026-10-30）。
    * 【为什么必须有】启动合并三源时按 seq 比新旧（save-storage 的 scanSaveCandidates），
    *   而外部存档带的是**上一台设备 / 上一次会话**的号，本机那份刚把它顶掉的新档
@@ -2123,6 +2240,33 @@
       if (SB.store && SB.store.nextNativeRevision) run._saveSeq = SB.store.nextNativeRevision();
     } catch (e) {}
     return run;
+  }
+  function stampImportedTime(run) {
+    run._ts = Date.now();
+    if (run.offlineCheckpoint) run.offlineCheckpoint.wallAt = run._ts;
+  }
+  function installXhsSave(metaRaw, runRaw, recovery) {
+    if (suppressExitSave) return false;
+    // 暂停在线与离线保存，直到平台写入和回读完成。
+    suppressExitSave = true;
+    return Promise.resolve().then(function () {
+      return root.shellbreakXhsStorage.replaceSavePair(metaRaw, runRaw);
+    }).then(function (result) {
+      if (result.unavailable) throw gameError('save.xhs_storage.unavailable', null, '');
+      if (result.backupFailed) {
+        throw gameError(recovery ? 'game.save.restore_backup_failed' : 'game.save.import_backup_failed',
+          { error: result.error }, recovery ? '无法先备份当前原始存档，恢复已取消：{error}' : '无法先备份当前存档，导入已取消：{error}');
+      }
+      if (!result.ok) {
+        throw gameError(recovery ? 'game.save.restore_write_failed' : 'game.save.import_write_failed',
+          { error: result.error }, recovery ? '恢复原始存档失败，现有数据已另存到本机备份：{error}' : '导入写入失败，已尝试恢复当前存档：{error}');
+      }
+      root.location.reload();
+      return true;
+    }).catch(function (error) {
+      suppressExitSave = false;
+      throw error;
+    });
   }
   function installImportedSave(bundle) {
     if (!bundle || bundle.format !== 'shellbreak-save' || bundle.version !== 1 || !bundle.save)
@@ -2143,7 +2287,9 @@
      *   seq 比新旧 ⇒ 刚导入的好档会输给刚把它顶掉的那个新档，等于白导。
      *   导入后立刻取一个新号，让这份在所有通道里都赢。 */
     stampFreshSeq(incomingRun);
+    stampImportedTime(incomingRun);
     var serializedMeta = JSON.stringify(incomingMeta), serializedRun = JSON.stringify(incomingRun);
+    if (root.shellbreakXhsStorage) return installXhsSave(serializedMeta, serializedRun, false);
     if (!root.localStorage) throw gameError('save.import.error.local_storage_unavailable.restore', null,
       '本机存储不可用，未恢复。');
     var oldMetaRaw, oldRunRaw;
@@ -2240,8 +2386,7 @@
    * ⚠️ 与 startRun 的区别：**不**动 `meta.runs` / `meta.cycle`（接管已有的局，不是开新局；
    *   2026-11-06 起 startRun 只涨 runs，cycle 由 prestige.doBreak 管），也**不**做
    *   startRun 的「建筑等级并入跨周目账本」—— 这是「接管已有的局」，不是「开新局」。
-   * ⚠️ 故意**不**设 `loop._lastWall`：恢复路径不该顺手给玩家补一笔离线结算（可能为负），
-   *   等同「刚上线」。`_ts` 一并删掉，避免残留在下次快照里。 */
+   * 外部存档只恢复自带的未完成补算，新的离线时段从本机接管时起计。 */
   function adoptBundle(bundle) {
     if (!bundle || bundle.format !== 'shellbreak-save' || bundle.version !== 1 || !bundle.save) {
       throw new Error('云存档格式或版本不受支持。');
@@ -2258,7 +2403,7 @@
     try { meta = inMeta; inRun = SB.state.migrateRun(rawRun); }
     finally { meta = oldMeta; }
     if (!inRun || typeof inRun !== 'object') throw new Error('云存档迁移失败。');
-    delete inRun._ts;
+    stampImportedTime(inRun);
     /* 换本机最大号：云档的 seq 属于来源设备，不换就可能输给刚被顶掉的那份新档
      * （与 installImportedSave 同一判据，见 stampFreshSeq）。 */
     stampFreshSeq(inRun);
@@ -2287,6 +2432,7 @@
         || !(raw.run === null || typeof raw.run === 'string')
         || (raw.meta === null && raw.run === null))
       throw gameError('save.import.error.invalid_recovery_bundle', null, '原始救援包格式无效。');
+    if (root.shellbreakXhsStorage) return installXhsSave(raw.meta, raw.run, true);
     if (!root.localStorage) throw gameError('save.import.error.local_storage_unavailable.restore', null,
       '本机存储不可用，未恢复。');
     var oldMetaRaw, oldRunRaw;
@@ -2380,15 +2526,7 @@
       }
     }
     if (saved && (!saved.broken || saved.shellOpened || saved.breakSettled) && saved.shell !== undefined) {
-      /* 启动时的离线补算：存档里记了墙钟时间戳 _ts（snapshot 写入），
-       * 这一次性补完（沿用 economy.tick 同一条路径），随后 _lastWall 对齐到「现在」
-       * ——否则接下来每帧都会把这个已被补掉的间隙再补一遍。 */
-      /* 把「上次存档的墙钟时刻」直接当作 _lastWall：下一个回调就会算出真实的离线间隙，
-       * 于是启动补算与运行期补算共用同一条路径（boot 里不写第二套判定）。 */
-      var ts = saved._ts;
-      delete saved._ts;
-      if (typeof ts === 'number' && ts > 0) loop._lastWall = ts;
-      resumeRun(saved);
+      resumeRun(saved, saved._ts || 0);
       return 'resumed';
     }
     if (saved) {
@@ -2979,18 +3117,11 @@
      * ⚠️ 但「挑战已判定、玩家还没选解除/轮回」是另一回事：他上次是直接关掉了游戏，
      *   那张面板必须补回来。否则限制一直生效、又找不到入口 —— 挑战页要首次轮回后才开，
      *   玩家会被自己的挑战锁死在这一局。 */
-    var pendingChallengeUI = !!(S && S.broken && S.shellOpened && !S.breakSettled
-      && S.challenge && S.challengeDone && !S.challengeReleased
-      && SB.challenges && SB.challenges.byId(S.challenge.id));
-    if (pendingChallengeUI) {
-      var pendingReport = SB.prestige.breakReport(S);
-      if (!SB.prestige.qualified(S)) { pendingReport.tidePoints = 0; pendingReport.locked = true; }
-      if (S.challengeOutcome) {
-        if (S.challengeOutcome.failed) pendingReport.challengeFailure = S.challengeOutcome;
-        else pendingReport.challengeClear = S.challengeOutcome;
-      }
-      SB.ui.render.showBreakResult(pendingReport);
-    } else {
+    var pendingChallengeUI = hasPendingBreakChoice(S);
+    var catchupModalActive = !!(loop.job && !loop.job.silent);
+    if (pendingChallengeUI && !loop.job) {
+      SB.ui.render.showBreakResult(currentBreakReport(S));
+    } else if (!catchupModalActive && !pendingChallengeUI) {
       if (S && S.broken && S.shellOpened && !S.breakSettled) {
         log(gameText('game.run.shell_broken.continue.log', null,
           '天壳已破。发射场、戴森球、星图与星空槽可以继续建设；想结算时点底栏「轮回」。'));
@@ -3034,7 +3165,8 @@
     /* 帷幕之后 · 掀幕按钮（学完《掀起帘幕》才由 renderBreakBtn 显示）。 */
     var _btnVeil = document.getElementById('btnVeil');
     if (_btnVeil) _btnVeil.onclick = function () { askVeil(); };
-    document.getElementById('btnWipe').onclick = function () {
+    var _btnWipe = document.getElementById('btnWipe');
+    if (_btnWipe) _btnWipe.onclick = function () {
       SB.ui.render.confirmPanel({
         title: gameText('save.clear.confirm.title', null, '清空存档？'),
         body: '<div class="warnbox">' + gameHtml(gameText('save.clear.confirm.warning', null,
@@ -3123,7 +3255,17 @@
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。
      * ⚠️ 2026-11-03：去掉 `!S.broken`。破壳后 broken 长期为真 ⇒ 这一条曾让「破壳后的
      *   ERA10 进度」在切后台 / 关页面时整体丢失（自动存档那条同批拆门）。 */
-    function flush() { if (!suppressExitSave && S) SB.state.saveRun(snapshot(S)); }
+    function flush() {
+      if (suppressExitSave || !S) return;
+      /* 挂起后退出事件可能先于主循环。无检查点时先认领长间隙，避免新存档时间盖掉它。 */
+      if (!loop.job) {
+        var wall = Date.now();
+        var hidden = root.document && root.document.hidden;
+        if (offlineGap(wall, loop._lastWall) >= CFG.OFFLINE_MIN &&
+            !((hidden || loop._lastAiHidden) && isAiRunning()) && accountOfflineGap(wall, false)) return;
+      }
+      SB.state.saveRun(snapshot(S));
+    }
     function flushAndVerifyXhs() {
       var storage = root.shellbreakXhsStorage;
       if (!storage || !storage.flushAndVerify) return;
@@ -3152,7 +3294,14 @@
       /* A 项省电：切后台/锁屏时给 <html> 打 vis-hidden，CSS 据此暂停所有 infinite 动画
        * （atmosphere-drift / p0-tide 等），GPU 合成线程随之 idle，不再空转发热。 */
       if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!document.hidden);
+      if (tab === 'star-map' && SB.ui && SB.ui.render && SB.ui.render.notifyStarMapActive) {
+        SB.ui.render.notifyStarMapActive(!document.hidden);
+      }
       if (document.hidden) flushOnExit();
+      else if (S && !loop.job) {
+        loop._lastPane = root.performance && root.performance.now ? root.performance.now() : Date.now();
+        renderAll();
+      }
     });
     /* 初始态同步一次（极端情况：页面在 hidden 状态下完成首次渲染）。 */
     if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!(document && document.hidden));
@@ -3242,23 +3391,29 @@
     if (!pv) return;
     if (pv.cycleStar < 1000) {
       SB.ui.render.confirmPanel({
-        title: '尚不能掀起帘幕',
-        body: '<div class="warnbox">本帷幕周期累计星屑 ' + Math.round(pv.cycleStar)
-          + ' / 1000，尚未满足《掀起帘幕》的尤里卡。请继续积累星屑。</div>',
-        ok: '知道了'
+        title: gameText('ui.veil.confirm.insufficient.title', null, '尚不能掀起帘幕'),
+        body: '<div class="warnbox">' + gameText('ui.veil.confirm.insufficient.body', {
+          currentStardust: Math.round(pv.cycleStar),
+          thresholdStardust: 1000
+        }, '本帷幕周期累计星屑 ' + Math.round(pv.cycleStar) + ' / 1000，尚未满足《掀起帘幕》的尤里卡。请继续积累星屑。') + '</div>',
+        ok: gameText('ui.action.confirm_understood', null, '知道了')
       });
       return;
     }
     /* 本局未结算部分单列一行（2026-11-17）：掀幕发生在局内，这笔收益会被并入飞升点，
      * 但它同时是「将失去的资产」的一部分，不分开写玩家会算不平账。 */
     var pendingLine = pv.pendingActive
-      ? '<div class="note">其中本局尚未结算：<b>' + pv.pendingTide.toFixed(2) + ' 轮回点</b> + <b>'
-        + Math.round(pv.pendingStar) + ' 星屑</b>（掀幕时一并计入飞升点）。</div>'
+      ? '<div class="note">' + gameText('ui.veil.confirm.pending_line', {
+        pendingTide: pv.pendingTide.toFixed(2),
+        pendingStar: Math.round(pv.pendingStar)
+      }, '其中本局尚未结算：<b>' + pv.pendingTide.toFixed(2) + ' 轮回点</b> + <b>'
+        + Math.round(pv.pendingStar) + ' 星屑</b>（掀幕时一并计入飞升点）。') + '</div>'
       : '';
     var pathName = function (id) {
       var p = (SB.ui.veilHub && SB.ui.veilHub.PATHS ? SB.ui.veilHub.PATHS : []).filter(function (x) { return x.id === id; })[0];
       return p ? gameText('ui.veil.path.name.' + p.id, null, p.name) : id;
     };
+    var isEn = !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
     /* 路径选择区（2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」）：
      * 有可选 → 原生 radio 单选，默认选中第一项（当前只有 si）；其余未实装项置灰不可选。
      * 池空（第 2 次起，si 已开）→ 不开新路径、不放单选区，只写一行灰字说明，飞升点照给。*/
@@ -3277,25 +3432,31 @@
         .map(function (p) { return pathName(p.id); });
       var wipTip = wipNames.length
         ? '<div class="note" style="color:var(--dim);margin-top:2px">'
-          + gameText('ui.veil.hub.wip_paths_note', { pathNames: wipNames.join('、') }, '') + '</div>'
+          + gameText('ui.veil.hub.wip_paths_note', { pathNames: wipNames.join(isEn ? ', ' : '、') }, '') + '</div>'
         : '';
-      pickBlock = '<div class="note" style="margin-top:10px"><b>选择本次要开启的飞升路径：</b></div>'
+      pickBlock = '<div class="note" style="margin-top:10px"><b>' + gameText('ui.veil.confirm.pick_path_heading', null, '选择本次要开启的飞升路径：') + '</b></div>'
         + opts + wipTip;
     } else {
       pickBlock = '<div class="note" style="color:var(--dim);margin-top:10px">'
         + gameText('ui.veil.hub.no_openable_paths_note', null, '') + '</div>';
     }
-    var body = '<div class="warnbox">当幕布掀起，本重轮回的一切将归零重来：'
-      + '<b>' + pv.cycleTide.toFixed(2) + ' 轮回点</b>、<b>' + Math.round(pv.cycleStar)
-      + ' 星屑</b>，以及潮汐之树、星屑商店与四项旧日遗产。本局也从 ERA1 重开。</div>'
+    var body = '<div class="warnbox">' + gameText('ui.veil.confirm.reset_warning', {
+      cycleTide: pv.cycleTide.toFixed(2),
+      cycleStar: Math.round(pv.cycleStar)
+    }, '当幕布掀起，本重轮回的一切将归零重来：<b>' + pv.cycleTide.toFixed(2) + ' 轮回点</b>、<b>' + Math.round(pv.cycleStar)
+      + ' 星屑</b>，以及潮汐之树、星屑商店与四项旧日遗产。本局也从 ERA1 重开。') + '</div>'
       + pendingLine
-      + '<div class="note">你将获得 <b>' + pv.points.toFixed(2) + ' 飞升点</b>，进入第 <b>' + pv.count
-      + '</b> 重帷幕。</div>'
+      + '<div class="note">' + gameText('ui.veil.confirm.gain_summary', {
+        gainedPoints: pv.points.toFixed(2),
+        veilCount: pv.count
+      }, '你将获得 <b>' + pv.points.toFixed(2) + ' 飞升点</b>，进入第 <b>' + pv.count + '</b> 重帷幕。') + '</div>'
       + pickBlock
-      + '<div class="note">保留：成就、挑战记录、轮回次数、商店解锁、自动研究设置。</div>';
+      + '<div class="note">' + gameText('ui.veil.confirm.keep_summary', null, '保留：成就、挑战记录、轮回次数、商店解锁、自动研究设置。') + '</div>';
     SB.ui.render.confirmPanel({
-      title: '掀起帘幕 · 进入大轮回？',
-      body: body, ok: '掀起帘幕', danger: true,
+      title: gameText('ui.veil.confirm.title', null, '掀起帘幕 · 进入大轮回？'),
+      body: body,
+      ok: gameText('ui.veil.confirm.ok', null, '掀起帘幕'),
+      danger: true,
       onOk: function () {
         /* 在 hideModal 之前把选中值读出来 —— confirmPanel 的 okBtn.onclick 先 hideModal()
          * 再调 onOk()；虽然 hideModal 不清空 innerHTML，但显式先读更稳、也便于无 DOM 的桩。 */
@@ -3307,8 +3468,11 @@
           /* 掀幕后自动打开帷幕主界面，让玩家立刻看到新解锁的路径（下位稿 §7「掀幕后引导」）。 */
           if (r && SB.ui.veilHub && SB.ui.veilHub.open) SB.ui.veilHub.open();
         } catch (err) {
-          SB.ui.render.confirmPanel({ title: '掀幕失败', body: '<div class="warnbox">'
-            + String(err && err.message || err) + '</div>', ok: '知道了' });
+          SB.ui.render.confirmPanel({
+            title: gameText('ui.veil.confirm.failed_title', null, '掀幕失败'),
+            body: '<div class="warnbox">' + String(err && err.message || err) + '</div>',
+            ok: gameText('ui.action.confirm_understood', null, '知道了')
+          });
         }
       }
     });
@@ -3356,6 +3520,7 @@
     maybeDiplomacyPopup: maybeDiplomacyPopup,   /* 供 e2e 直接钉住双门与一次性旗标 */
     maybeGovNamingPopup: maybeGovNamingPopup, confirmGovName: confirmGovName,
     render: render, renderAll: renderAll, boot: boot, snapshot: snapshot,
+    saveChallengeProgress: saveChallengeProgress,
     installImportedSave: installImportedSave, restoreRawSave: restoreRawSave,
     /* 2026-10-28 P0：云端救援的就地接管入口（不 reload）。导出供 e2e 直接钉住
      * 「接管后 S/meta 正确、且没有触发 reload」。 */

@@ -96,22 +96,22 @@
     function p(key, fallback, cls) {
       return '<p' + (cls ? ' class="' + cls + '"' : '') + '>' + htmlText(tr(key, fallback)) + '</p>';
     }
-    return p('ui.onboarding.welcome.identity', '你是深海无光海渊中的一只鲛人。') +
-      p('ui.onboarding.welcome.world', '你抬起头来，幽深的重重海水之上，头顶的「天壳」隔绝了群星，也挡住了文明向上的途径。') +
-      p('ui.onboarding.welcome.goal', '你的目标只有一个：一路向上，凿穿天壳，带文明升上星空。') +
-      '<div class="ob-howto"><span class="ob-howto-h">' + htmlText(tr('ui.onboarding.welcome.how_to_play.heading', '── 具体怎么做 ──')) + '</span><ul>' +
-        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.buildings', '建造建筑 —— 它们有的会自动产出资源，有的能提高人口上限，有的能提高资源产出，有的能用低级资源制造高级资源；')) + '</li>' +
-        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.jobs', '为族民分配工作，生产所需的资源；')) + '</li>' +
-        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.research', '研究科技、市政，获取加成，解锁新的建筑、新的奇观、新的政体、新的政策卡；')) + '</li>' +
-        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.governments', '政体具有政策槽，可以选择需要的政策卡加入政策槽中，获取加成；越后期解锁的政体，拥有越多的政策槽；')) + '</li>' +
-        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.wonders', '某些奇观会提供永久政策槽；')) + '</li>' +
-        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.policy_upgrades', '某些政策卡将会在研究市政后得到升级；')) + '</li>' +
-        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.midgame', '游戏中期的目标是打破冰壳，你需要建设奇观钻机，将之击碎；')) + '</li>' +
-        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.endgame', '游戏的最终目标是建设戴森球——当然，你还有另一个选择…')) + '</li>' +
+    return p('ui.onboarding.welcome.identity', '你是无光海渊中的一只鲛人。') +
+      p('ui.onboarding.welcome.world', '抬头望去，重重深水之上，一层厚重的「天壳」封死了群星，也挡住了文明向上的去路。') +
+      p('ui.onboarding.welcome.goal', '你要做的只有一件事：一路向上，凿穿天壳，把文明送进星空。') +
+      '<div class="ob-howto"><span class="ob-howto-h">' + htmlText(tr('ui.onboarding.welcome.how_to_play.heading', '── 起步指南 ──')) + '</span><ul>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.buildings', '建造设施：自动产出基础资源、扩张人口上限、放大产能，或把原料加工为进阶物资；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.jobs', '分配族民岗位，按当前缺口调配采集、采矿、科研与工艺人力；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.research', '推进科技与市政，解锁新建筑、奇观、政体与政策卡；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.governments', '切换政体并填入政策卡以激活加成，越后期的政体政策槽越多；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.wonders', '部分奇观会提供永久政策槽或强力全局效果；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.policy_upgrades', '部分早期政策卡会随新市政迭代升级；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.midgame', '中期目标是建造奇观「天穹钻机」，凿穿头顶的冰壳；')) + '</li>' +
+        '<li>' + htmlText(tr('ui.onboarding.welcome.how_to_play.endgame', '最终目标是建成戴森球——当然，你也可以走向另一条路……')) + '</li>' +
       '</ul></div>' +
-      p('ui.onboarding.welcome.prestige_note', '注意：如果您觉得进度推进有些困难，那可以在研究完「神学」市政后选择重启轮回，通过获取的轮回点与星屑购买局外加成，并投身新的轮回。', 'ob-note') +
-      p('ui.onboarding.welcome.challenge_note', '另外，您还可以在新的轮回中启用带着各式限制条件的挑战模式，一旦挑战成功，您在之后的轮回中也会获得相应的加成。', 'ob-note') +
-      p('ui.onboarding.welcome.call_to_action', '那么，就让我们从建造第一个深海藻场开始吧…', 'ob-cta');
+      p('ui.onboarding.welcome.prestige_note', '如果推进遇到瓶颈，完成《神学》市政后即可结算轮回，用轮回点与星屑换取永久强化，再启新局。', 'ob-note') +
+      p('ui.onboarding.welcome.challenge_note', '开启新轮回时还可以附带各类限制挑战，通关即可赢得永久加成。', 'ob-note') +
+      p('ui.onboarding.welcome.call_to_action', '就从第一座深海藻场开始吧。', 'ob-cta');
   }
 
   /* ---------------- 走查步（§2.2，1 基） ----------------

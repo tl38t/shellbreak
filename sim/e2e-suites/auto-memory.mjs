@@ -104,6 +104,47 @@ export function run({ SB, check }) {
   check('旧档（无 memAuto）轮回后照样带上自动开关与工坊槽',
     sLegacy.autoUpg.kelp === true && sLegacy.autoSlots.some(x => x.id === 'raft'));
 
+  const fresh = SB.state.freshRun();
+  fresh.perk.autoCraft = 3;
+  fresh.lvl.workshop = 1;
+  const inherited = ['craft_scaffold', 'craft_artwork', 'craft_tidal_record'];
+  G.applyAutoMemory(fresh, { autoSlots: inherited.map(id => ({ id, batch: 1 })) });
+  const originalRun = G.run;
+  const workshop = SB.ui.renderParts;
+  try {
+    G.run = () => fresh;
+    workshop.toggleCraftOnlyReady();
+    const full = workshop.paneWorkshop();
+    check('只看可造时，三个未解锁的继承槽也分别提供停用按钮',
+      inherited.every(id => full.includes('data-aoff="' + id + '"') && !full.includes('data-info-id="' + id + '"')));
+    const W = SB.workshop;
+    check('停用脚手架后可把腾出的槽分给石梁', W.clearSlot(fresh, inherited[0]) &&
+      fresh.autoSlots.length === 2 && W.setSlot(fresh, 'craft_stonebeam', 0.5));
+    const mixedList = workshop.paneWorkshop().match(/<section class="assigned-crafts">([\s\S]*?)<\/section>/);
+    check('占槽清单仅列未解锁配方，已解锁但缺石头的石梁不列入',
+      mixedList && Array.from(mixedList[1].matchAll(/data-aoff="([^"]+)"/g), m => m[1]).join(',') ===
+      'craft_artwork,craft_tidal_record');
+    fresh.res.stone = SB.economy.capOf(fresh, 'stone');
+    const before = fresh.res.stoneBeam;
+    check('石梁自动产出，另两个未解锁配方继续占槽',
+      W.autoTick(fresh) > 0 && fresh.res.stoneBeam > before &&
+      fresh.autoSlots.map(slot => slot.id).join(',') === 'craft_artwork,craft_tidal_record,craft_stonebeam');
+    fresh.civics.historiography = true;
+    const unlocked = workshop.paneWorkshop();
+    check('最后的占槽配方解锁后收起清单，石梁仍可在配方卡停用',
+      !unlocked.includes('class="assigned-crafts"') && unlocked.includes('data-aoff="craft_stonebeam"') &&
+      fresh.autoSlots.length === 3);
+    fresh.civics.historiography = false;
+    W.clearSlot(fresh, 'craft_artwork');
+    W.clearSlot(fresh, 'craft_tidal_record');
+    check('停用最后一个未解锁配方也会收起清单，已分配的石梁继续占槽',
+      !workshop.paneWorkshop().includes('class="assigned-crafts"') &&
+      fresh.autoSlots.length === 1 && fresh.autoSlots[0].id === 'craft_stonebeam');
+  } finally {
+    workshop.toggleCraftOnlyReady();
+    G.run = originalRun;
+  }
+
   /* ── 还原现场 ── */
   liveMeta.memAuto = savedMemAuto;
   liveMeta.autoResearch = savedResearch;

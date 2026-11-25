@@ -595,7 +595,7 @@
     { id: 'hydrocarbur', name: '海流锻钢', icon: 'assets/tech-icons/era-4/era4-hydrocarbur.png', era: 4, cost: 55000, branch: 'survive', key: false, reqs: ['thermo'], layer: 5,
       cond: { t: 'built', b: 'hydroshop', n: 3 },
       eff: { steelMul: 0.30 },
-      note: '用洋流的机械力锻打钢坯（海上版锻钢）。钢产出 ×1.30（新乘区 steelMul，与废钢锻造加法叠加）。' },
+      note: '借助洋流的机械力锻打钢坯。钢产出 ×1.30（与废钢锻造叠加）。' },
 
     { id: 'ventrecir', name: '热泉回流', icon: 'assets/tech-icons/era-4/era4-ventrecir.png', era: 4, cost: 45000, branch: 'survive', key: false, reqs: ['physics'], layer: 5,
       cond: { t: 'built', b: 'furnace', n: 5 },
@@ -902,7 +902,7 @@
       eff: { unlockBuild: ['titancloud'] },
       /* 建筑「泰坦星气云采集站」（BUILDINGS.titancloud requiredTech 双写）
        * + 奇观「萨图恩巨星气行星轨道采集站」（wonder_saturn，need:'gascloud'）。 */
-      unlockDesc: '解锁建筑「泰坦星气云采集站」与奇观「萨图恩巨星气行星轨道采集站」（热液 +30/燃料 +30/星空 +10 每秒）。' },
+      unlockDesc: '解锁建筑「泰坦星气云采集站」与奇观「萨图恩气态巨行星轨道采集站」（热液 +30/燃料 +30/星空 +10 每秒）。' },
 
     { id: 'protoai', name: '初级人工智能', icon: 'assets/tech-icons/era-8/era8-protoai.png', era: 8, cost: 4400000, branch: 'know', key: false, reqs: ['robotics'], layer: 16,
       cond: { t: 'pop', n: 70 },

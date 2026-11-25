@@ -450,18 +450,18 @@
    * 不传 chooseId 的旧调用（如历史 e2e）行为变为「不开路径」，符合新的默认语义。 */
   function doVeil(s, emit, chooseId) {
     var meta = SB.game && SB.game.meta && SB.game.meta();
-    if (!meta) throw new Error('无法读取跨周目存档');
-    if (!s || !s.techs || !s.techs.beyond_veil) throw new Error('尚未学成《掀起帘幕》');
+    if (!meta) throw new Error(tr('ui.veil.error.no_meta', null, '无法读取跨周目存档'));
+    if (!s || !s.techs || !s.techs.beyond_veil) throw new Error(tr('ui.veil.error.no_tech', null, '尚未学成《掀起帘幕》'));
     /* ⓪ 路径选择校验（Must be before ANY mutation —— 抛错时账本必须一字未动）。
      * 先看当前 opened：首次掀幕 v 还不存在时视为空数组。 */
     var openedNow = (meta.veil && meta.veil.paths && meta.veil.paths.opened) || [];
     var chosenPath = null;
     if (chooseId !== undefined && chooseId !== null && chooseId !== '') {
       if (OPENABLE_IDS.indexOf(chooseId) < 0) {
-        throw new Error('路径「' + chooseId + '」尚不可开启');
+        throw new Error(tr('ui.veil.error.path_unavailable', { pathId: chooseId }, '路径「' + chooseId + '」尚不可开启'));
       }
       if (openedNow.indexOf(chooseId) >= 0) {
-        throw new Error('路径「' + chooseId + '」已开启，无需重复开启');
+        throw new Error(tr('ui.veil.error.path_opened', { pathId: chooseId }, '路径「' + chooseId + '」已开启，无需重复开启'));
       }
       chosenPath = chooseId;
     }
@@ -471,7 +471,9 @@
      * 门禁也用这份账，而不是 v.cycleStar：首次掀幕 v 还不存在。 */
     var per = veilPeriod(meta, s);
     if (per.star < 1000) {
-      throw new Error('本周期星屑不足 1000（当前 ' + Math.round(per.star) + '），无法掀幕');
+      throw new Error(tr('ui.veil.error.insufficient_stardust', {
+        threshold: 1000, current: Math.round(per.star)
+      }, '本周期星屑不足 1000（当前 ' + Math.round(per.star) + '），无法掀幕'));
     }
     var gained = per.points;
 

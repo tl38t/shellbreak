@@ -45,12 +45,14 @@ import { run as runStarMapAnim } from './e2e-suites/star-map-anim.mjs';
 import { run as runTideShellDrive } from './e2e-suites/tide-shell-drive.mjs';
 import { run as runTideDrillOverdrive } from './e2e-suites/tide-drill-overdrive.mjs';
 import { run as runChallengePrereq } from './e2e-suites/challenge-prereq.mjs';
+import { run as runChallengeI18n } from './e2e-suites/challenge-i18n.mjs';
 import { run as runTechUnlockTag } from './e2e-suites/tech-unlock-tag.mjs';
 /* 2026-11-05：追踪坞工坊产物「去制造」跳转（用户反馈）。 */
 import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
 import { run as runTrackUpgrade } from './e2e-suites/track-upgrade.mjs';
 import { run as runMetaRenderGuard } from './e2e-suites/meta-render-guard.mjs';
 import { run as runWarCampaign } from './e2e-suites/war-campaign.mjs';
+import { run as runDiplomacyI18n } from './e2e-suites/diplomacy-i18n.mjs';
 /* 2026-11-14：军事/文化轮回点节点（第 9 树「枕戈待旦」+ 政经往来「文教节流」）。 */
 import { run as runMilitaryPerks } from './e2e-suites/military-perks.mjs';
 /* 2026-11-17：帷幕之后·大轮回（ERA11）—— 放全量最尾部：它会真掀幕（清账本 + startRun），
@@ -107,10 +109,78 @@ function pending(name, reason) {
 }
 
 /* ---------------- 假 DOM ---------------- */
+function attrToDataKey(attr) {
+  return attr.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
+}
+function escHtml(v) {
+  return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function serializeAttrs(el) {
+  const out = [];
+  if (el.id && !String(el.id).startsWith('new-')) out.push('id="' + escHtml(el.id) + '"');
+  const cls = el._classes && el._classes.size ? Array.from(el._classes).join(' ') : '';
+  if (cls) out.push('class="' + escHtml(cls) + '"');
+  const attrs = el._attrs || {};
+  for (const k in attrs) {
+    if (k === 'id' || k === 'class') continue;
+    out.push(k + '="' + escHtml(attrs[k]) + '"');
+  }
+  const ds = el.dataset || {};
+  for (const dk in ds) {
+    const ak = 'data-' + String(dk).replace(/[A-Z]/g, ch => '-' + ch.toLowerCase());
+    if (!(ak in attrs)) out.push(ak + '="' + escHtml(ds[dk]) + '"');
+  }
+  return out.length ? ' ' + out.join(' ') : '';
+}
+function serializeChildren(el) {
+  let out = '';
+  for (let i = 0; i < el.children.length; i++) {
+    const c = el.children[i];
+    if (!c) continue;
+    if (c.nodeType === 3) {
+      out += escHtml(c.textContent);
+      continue;
+    }
+    const tag = c.tag || 'div';
+    const inner = c._html !== '' ? c._html : (c.children.length ? serializeChildren(c) : escHtml(c._text || ''));
+    out += '<' + tag + serializeAttrs(c) + '>' + inner + '</' + tag + '>';
+  }
+  return out;
+}
+function matchSimpleSelector(node, sel) {
+  if (!node || node.nodeType !== 1 || !sel) return false;
+  if (sel.charAt(0) === '#') return node.id === sel.slice(1);
+  if (sel.charAt(0) === '.') return node._classes && node._classes.has(sel.slice(1));
+  const am = /^\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(sel);
+  if (am) {
+    const av = node.getAttribute ? node.getAttribute(am[1]) : null;
+    return am[2] !== undefined ? av === am[2] : av !== null;
+  }
+  if (sel.indexOf('.') > 0) {
+    const parts = sel.split('.');
+    return String(node.tag || '').toLowerCase() === parts[0].toLowerCase()
+      && parts.slice(1).every(c => node._classes && node._classes.has(c));
+  }
+  return String(node.tag || '').toLowerCase() === sel.toLowerCase();
+}
+function findInChildren(rootEl, sel) {
+  for (let i = 0; i < rootEl.children.length; i++) {
+    const c = rootEl.children[i];
+    if (matchSimpleSelector(c, sel)) return c;
+    if (c.children && c.children.length) {
+      const hit = findInChildren(c, sel);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
 function mkEl(id) {
+  const isText = id === '#text';
   const el = {
-    id, _html: '', textContent: '', value: '', checked: false,
-    dataset: {}, style: { setProperty() {}, removeProperty() {}, getPropertyValue() { return ''; } }, children: [], onclick: null,
+    id, nodeType: isText ? 3 : 1, _html: '', _text: '', value: '', checked: false,
+    _attrs: Object.create(null), dataset: {},
+    style: { setProperty() {}, removeProperty() {}, getPropertyValue() { return ''; } },
+    children: [], parentNode: null, onclick: null,
     _classes: new Set(id === 'modal' ? ['hidden'] : []),
     classList: {
       add(c) { el._classes.add(c); },
@@ -126,40 +196,107 @@ function mkEl(id) {
      *    在 e2e 里全是假绿。 */
     options: [],
     appendChild(c) {
+      if (!c) return c;
+      if (c.parentNode && c.parentNode !== el && typeof c.parentNode.removeChild === 'function') {
+        c.parentNode.removeChild(c);
+      }
+      c.parentNode = el;
       el.children.push(c);
-      if (c && c.tag === 'option') el.options.push(c);
+      if (c.tag === 'option' && el.options.indexOf(c) < 0) el.options.push(c);
+      if (el._onMut) el._onMut('appendChild', c);
+      return c;
     },
-    removeChild() {},
+    removeChild(c) {
+      const idx = el.children.indexOf(c);
+      if (idx >= 0) el.children.splice(idx, 1);
+      if (c && c.parentNode === el) c.parentNode = null;
+      if (c && c.tag === 'option') {
+        const oi = el.options.indexOf(c);
+        if (oi >= 0) el.options.splice(oi, 1);
+      }
+      if (el._onMut) el._onMut('removeChild', c);
+      return c;
+    },
     addEventListener() {},
-    setAttribute() {},
-    getAttribute() { return null; },
+    setAttribute(k, v) {
+      const sv = String(v);
+      el._attrs[k] = sv;
+      if (k === 'class') el.className = sv;
+      else if (k === 'id') el.id = sv;
+      else if (k && k.indexOf('data-') === 0) el.dataset[attrToDataKey(k)] = sv;
+    },
+    getAttribute(k) {
+      if (k === 'class') return (el._classes.size || 'class' in el._attrs) ? el.className : null;
+      if (k === 'id') return el.id || null;
+      if (k in el._attrs) return el._attrs[k];
+      if (k && k.indexOf('data-') === 0) {
+        const dk = attrToDataKey(k);
+        if (dk in el.dataset) return String(el.dataset[dk]);
+      }
+      return null;
+    },
+    removeAttribute(k) {
+      delete el._attrs[k];
+      if (k === 'class') el._classes.clear();
+      else if (k && k.indexOf('data-') === 0) delete el.dataset[attrToDataKey(k)];
+    },
     /* ⚠️ 2026-10-06 补 `querySelector`（幸福度面板那条改动带进来的 `meter.querySelector('.happy-meter')`），
      *   缺它 ⇒ boot 期 renderHappy 直接抛 `querySelector is not a function`，
-     *   整份 e2e 在第 200 行就断掉（表现为「启动即抛错」，但**与当轮改动无关**，极易误判）。
-     *   判据：桩上缺一个真实 DOM 有的方法 ⇒ 任何 `el.querySelector(...)` 都会炸；
-     *   这类失败必须与「基线也炸」一起看，别急着改被测代码。
-     *   实现：只认 `.class` 与 `#id` 两种选择器（本作 UI 代码只用这两种），
-     *   在 `_html` 里按 class 名找，命中就返回**同一个**记忆化元素（与 doc 级查询同口径）。 */
+     *   整份 e2e 在第 200 行就断掉（表现为「启动即抛错」，但**与当轮改动无关**，极易误判）。 */
     querySelector(sel) {
       if (typeof sel === 'string' && sel.charAt(0) === '#') {
         return doc.getElementById(sel.slice(1));
       }
+      if (el.children.length) {
+        const hit = findInChildren(el, String(sel || '').trim());
+        if (hit) return hit;
+      }
       const cls = String(sel || '').replace(/^[.#]/, '');
       if (!cls) return null;
-      /* 真实 DOM 里 select 的是**当前子树**里的元素；桩没有真正的树，
-       *   所以按 innerHTML 里出现过这个 class 名来判定「命中」，
-       *   并把它存进 _q 缓存 ⇒ 同一选择器两次拿到同一对象（可继续被改，语义同真实 DOM）。 */
       if (String(el._html || '').indexOf(cls) >= 0) {
         if (!el._q) el._q = {};
         if (!el._q[cls]) el._q[cls] = mkEl(cls);
         return el._q[cls];
       }
       return null;
+    },
+    querySelectorAll() {
+      return [];
     }
   };
+  Object.defineProperty(el, 'className', {
+    get() { return Array.from(el._classes).join(' '); },
+    set(v) { el._classes = new Set(String(v || '').trim().split(/\s+/).filter(Boolean)); }
+  });
+  Object.defineProperty(el, 'textContent', {
+    get() {
+      if (el.nodeType === 3) return el._text;
+      if (el.children.length) return el.children.map(c => c.textContent).join('');
+      if (el._text !== '') return el._text;
+      return el._html ? el._html.replace(/<[^>]+>/g, '') : '';
+    },
+    set(v) {
+      el._text = String(v == null ? '' : v);
+      if (el.nodeType !== 3) {
+        el._html = '';
+        el.children.length = 0;
+        el.options.length = 0;
+      }
+    }
+  });
   Object.defineProperty(el, 'innerHTML', {
-    get() { return el._html; },
-    set(v) { el._html = String(v); }
+    get() {
+      if (el._html !== '') return el._html;
+      if (el.children.length) return serializeChildren(el);
+      return '';
+    },
+    set(v) {
+      el._html = String(v);
+      el._text = '';
+      el.children.length = 0;
+      el.options.length = 0;
+      if (el._onMut) el._onMut('innerHTML', v);
+    }
   });
   return el;
 }
@@ -198,7 +335,7 @@ function makeDoc() {
          *        从「挑战与成就」拆出的新页签。三个都补上，表与 index.html 对齐。 */
         /* 2026-11-11 补 diplomacy：战争系统开发线新增页签时漏进这张硬编码表，
          * 于是 syncTabLocks 的外交锁态在 e2e 里永远测不到（夹具与 index.html 不同步）。 */
-        out = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'company', 'meta', 'challenges', 'star-map', 'achievements'].map((t, i) => {
+        out = ['village', 'workshop', 'folk', 'tech', 'civic', 'workshop-upgrades', 'star-map', 'wonder', 'diplomacy', 'faith', 'company', 'meta', 'veil', 'challenges', 'achievements'].map((t, i) => {
           const e = mkEl('tab-' + t); e.dataset.tab = t; e._tab = i; return e;
         });
       } else if (sel === '.spd') {
@@ -265,7 +402,7 @@ try {
 }
 
 const doc = sandbox.document;
-const g = (id) => doc.getElementById(id)._html || '';
+const g = (id) => doc.getElementById(id).innerHTML || '';
 const step = sandbox._intervals[0];
 
 /* 新手引导（docs/ONBOARDING_DESIGN_v0.1.md §2.7）：加载即挂载、默认开启、
@@ -293,7 +430,8 @@ if (process.argv.includes('--offline-only')) {
 /* 战争结果提示（2026-11-11）：toast 三处触发点 + 军力储备/军人口径 + 真 DOM 上屏取证。
  * 沿用其它 --xxx-only 惯例，单独跑免得每次都等整局 bot。 */
 if (process.argv.includes('--war-only')) {
-  runWarCampaign({ SB, check, noop, doc });
+  runWarCampaign({ SB, check, noop, doc, timers: sandbox._timeouts });
+  runDiplomacyI18n({ check });
   const failedWar = checks.filter(c => !c.ok);
   console.log(`\n战争系统测试：${checks.length - failedWar.length}/${checks.length} 通过`);
   process.exit(failedWar.length || errors.length ? 1 : 0);
@@ -371,6 +509,7 @@ if (process.argv.includes('--military-perks-only')) {
 /* 流浪泰拉「第 15 周目」开启前置（2026-11-05）：门禁、卡片、确认面板、常驻条同源。 */
 if (process.argv.includes('--challenge-prereq-only')) {
   runChallengePrereq({ SB, check, g, doc });
+  runChallengeI18n({ check });
   const failedPre = checks.filter(c => !c.ok);
   console.log(`\n挑战开启前置测试：${checks.length - failedPre.length}/${checks.length} 通过`);
   process.exit(failedPre.length || errors.length ? 1 : 0);
@@ -421,7 +560,7 @@ if (process.argv.includes('--pollution-only')) {
  * 之后才执行，改一行动辄等三分钟，定位性能回归时等于没法迭代。
  * 独立入口**不复制实现**，只提前跑同一个套件（与上面两个 only 同一套纪律）。 */
 if (process.argv.includes('--perf-only')) {
-  runOfflineCatchupFinish({ SB, check });
+  runOfflineCatchupFinish({ SB, check, loadAll });
   const failedPerf = checks.filter(c => !c.ok);
   console.log(`\n离线补算性能：${checks.length - failedPerf.length}/${checks.length} 通过`);
   process.exit(failedPerf.length ? 1 : 0);
@@ -438,9 +577,9 @@ if (process.argv.includes('--redeem-only')) {
 }
 
 /* 破壳后推进专项（2026-11-03）：玩家报「破壳后卡着不动」的回归锁。
- * 只跑源码判据 + 两条行为判据，秒级迭代；**不复制实现**。 */
+ * 单独运行破壳后的推进和存档检查。 */
 if (process.argv.includes('--break-only')) {
-  runBreakContinue({ SB, check });
+  runBreakContinue({ SB, check, doc });
   const failedBreak = checks.filter(c => !c.ok);
   console.log(`\n破壳后推进：${checks.length - failedBreak.length}/${checks.length} 通过`);
   process.exit(failedBreak.length || errors.length ? 1 : 0);
@@ -494,7 +633,9 @@ function clickJob(job, d) {
   return s.jobs[job] !== before;
 }
 function tabOn(k) {
-  for (const fn of doc._ev['click'] || []) fn({ target: { dataset: { tab: k } } });
+  const tn = doc.querySelector('.tab[data-tab="' + k + '"]');
+  if (tn && typeof tn.onclick === 'function') tn.onclick();
+  else if (SB.game && SB.game.setTab) SB.game.setTab(k);
 }
 
 /* ---------------- 帧驱动 ---------------- */
@@ -783,6 +924,8 @@ console.log('\n=== 开局解锁链 ===');
    *    economy 侧因为有 `(s.jobs.x || 0)` 保护而没出 NaN，所以这次是**静默的假动作**：
    *    玩家看得见职业行，点 ＋ 雇不到人，而没有任何报错。根因已修（state 补键 + render 补 || 0）。 */
   {
+    const _prevFolkTab = SB.game.getTab();
+    SB.game.setTab('folk');
     SB.ui.render.renderPanes();
     const html = doc.getElementById('pane-folk').innerHTML;
     const ids = SB.JOBS.map(j => j.id);
@@ -792,12 +935,15 @@ console.log('\n=== 开局解锁链 ===');
     check('族民页只渲染已解锁的职业（未解锁的整行不出现）',
       shown.join() === want.join() && shown.indexOf('gather') >= 0 && want.length < ids.length,
       '渲染=' + shown.join('/') + ' 应为=' + want.join('/') + '（共 ' + ids.length + ' 个职业）');
+    SB.game.setTab(_prevFolkTab);
   }
   /* 改称机制上屏：掌握「种植」后，族民页上采集者那一行的**显示名**要变成农民。
    * 这条是补上一个静默失效——jobName 原先只有科技页在读，族民页直接印数据表的 name，
    * 于是同一个职业在两页上叫两个名字。测渲染字符串里有没有那个名字，而不是测
    * folk.jobName 的返回值（后者早就对了，坏的是「没人调用它」）。 */
   {
+    const _prevFolkTab2 = SB.game.getTab();
+    SB.game.setTab('folk');
     SB.ui.render.renderPanes();
     const plain = doc.getElementById('pane-folk').innerHTML;
     const hadOldName = plain.indexOf('采集者') >= 0, hadNewName = plain.indexOf('农民') >= 0;
@@ -809,6 +955,7 @@ console.log('\n=== 开局解锁链 ===');
       '改称前=采集者(' + hadOldName + ')/农民(' + hadNewName + ') 改称后含农民=' + (grown.indexOf('农民') >= 0));
     delete s.techs.plant;
     SB.ui.render.renderPanes();
+    SB.game.setTab(_prevFolkTab2);
   }
 
   /* ironWill（猫国：无猫不饿死）× 首名族民免口粮（2026-10-25 用户拍板）：
@@ -2451,7 +2598,7 @@ console.log('\n=== 轮回遗产科技同构（tick === rates）===');
   m.memorialWonders = bak.mw;   // 还原，不污染后续存档断言
 }
 
-await runPersistence({ SB, check, sandbox, doc, makeDoc, loadAll, errors });
+await runPersistence({ SB, check, sandbox, doc, makeDoc, loadAll, errors, store });
 /* 设备级 UI 偏好（2026-11-05）：放在硬重置之后，正好能证明「清档不清」；
  * 它用 loadNoDom 开独立会话，不继承主沙箱的 SB，不会污染后面的 boot-gate。 */
 await runUiPrefs({ SB, check, sandbox, loadNoDom, g });
@@ -2676,6 +2823,8 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
  * ⚠️ 断言必须在**活着的这一局**上 render（pane 画的是 SB.game.run()），跑完还原 lvl/seen。 */
 {
   const sVc = SB.game.run();
+  const tabBak = SB.game.getTab();
+  SB.game.setTab('village');
   const lvBak = Object.assign({}, sVc.lvl), seenBak = Object.assign({}, sVc.seen);
   sVc.lvl.nest = 1; sVc.lvl.kelp = 1;    // core / food 各露一座
   if (!SB.ui.render.buildingIconsShown()) SB.ui.render.toggleBuildingIcons();
@@ -2685,10 +2834,14 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
     /class="bztitle" data-zfold="core"[^>]*style="--hc:#4dd8e6"/.test(vHtml), '');
   check('巢穴页内区标题按区取色（生息区=绿 #4ade80）',
     /class="bztitle" data-zfold="food"[^>]*style="--hc:#4ade80"/.test(vHtml), '');
+  function zoneClasses(html, zone) {
+    const re = new RegExp('<div class="([^"]*)" data-zone="' + zone + '"><div class="bztitle" data-zfold="' +
+      zone + '"[^>]*>[\\s\\S]*?</div><div class="bzbody">');
+    const match = re.exec(html);
+    return match ? match[1].split(/\s+/) : [];
+  }
   check('巢穴页内分区可折叠（.bzone[data-zone] 包 .bztitle + .bzbody）',
-    /<div class="bzone" data-zone="core">/.test(vHtml) &&
-    /<div class="bzone" data-zone="food">/.test(vHtml) &&
-    /class="bzbody"/.test(vHtml), '');
+    zoneClasses(vHtml, 'core').includes('bzone') && zoneClasses(vHtml, 'food').includes('bzone'), '');
   check('ERA1已解锁建筑行显示各自的图标',
     vHtml.includes('assets/building-icons/era-1/era1-nest.png') &&
     vHtml.includes('assets/building-icons/era-1/era1-kelp.png'), '');
@@ -2703,16 +2856,17 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
   check('再次点击开关可恢复图标',
     SB.ui.render.buildingIconsShown() && vIconsOn.includes('era1-nest.png'), '');
   /* 折叠真源是 ZONE_FOLDED：翻一次 → 重画 → 该区带 folded，且**只动那一个区**。 */
-  const coreBefore = /<div class="bzone folded" data-zone="core">/.test(vHtml);
-  const foodBefore = /<div class="bzone folded" data-zone="food">/.test(vHtml);
+  const coreBefore = zoneClasses(vHtml, 'core').includes('folded');
+  const foodBefore = zoneClasses(vHtml, 'food').includes('folded');
   SB.ui.render.toggleZoneFold('core');
   SB.game.markDirty(); SB.ui.render.renderPanes();
   const vFold = doc.getElementById('pane-village-body').innerHTML;
   check('折叠某区：重画后该区带 folded，且只动该区（状态重拼，不怕 2 秒重画）',
-    /<div class="bzone folded" data-zone="core">/.test(vFold) === !coreBefore &&
-    /<div class="bzone folded" data-zone="food">/.test(vFold) === foodBefore, '');
+    zoneClasses(vFold, 'core').includes('folded') === !coreBefore &&
+    zoneClasses(vFold, 'food').includes('folded') === foodBefore, '');
   SB.ui.render.toggleZoneFold('core');   // 翻回原状，别把状态漏给后面的断言
   sVc.lvl = lvBak; sVc.seen = seenBak;
+  if (tabBak) SB.game.setTab(tabBak);
   SB.game.markDirty(); SB.ui.render.renderPanes();
 }
 
@@ -2723,6 +2877,8 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
  * ⚠️ 别改成测 predicate：坏掉的正是「没人把升级门接进模板」。 */
 {
   const sSp = SB.game.run();
+  const tabBak = SB.game.getTab();
+  SB.game.setTab('village');
   const lvBak = Object.assign({}, sSp.lvl);
   const upBak = Object.assign({}, sSp.upgrades || {});
   sSp.lvl.siltpit = 2; sSp.lvl.workshop = 2;      // 与真实建成态一致（lv>0 才渲染整行）
@@ -2742,6 +2898,7 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
     offWs && hOn.indexOf('data-workshop-inc') >= 0,
     '无升级仍出现=' + !offWs + ' 有升级未出现=' + (hOn.indexOf('data-workshop-inc') < 0));
   sSp.lvl = lvBak; sSp.upgrades = upBak;
+  if (tabBak) SB.game.setTab(tabBak);
   SB.game.markDirty(); SB.ui.render.renderPanes();
 }
 
@@ -2767,7 +2924,7 @@ runUiAccessibility({ SB, check, noop, doc, g, fs, path, ROOT, drainStoryModals }
 
 runCalendarWarmstone({ SB, check, noop, doc, g, fs, path, ROOT, fire });
 runOfflineFastForward({ SB, check, sandbox });
-runOfflineCatchupFinish({ SB, check });        // 2026-10-30：补算必须收尾（浮点残渣活锁回归锁）
+runOfflineCatchupFinish({ SB, check, loadAll });        // 2026-10-30：补算必须收尾（浮点残渣活锁回归锁）
 
 runWorkshopEconomy({ SB, check, noop, doc, g, fs, path, ROOT, fire, pending, sandbox });
 
@@ -3058,7 +3215,7 @@ runChallenges({ SB, check, noop });
  * 但仍放在全量尾部，避免影响前面「整局时长 / 成就」这类共享状态的断言。 */
 runWaterPollution({ SB, check, noop, dom: g });
 /* 2026-11-03：破壳后推进/存档回归锁。放尾部：它会临时把主 fixture 置 broken 再还原。 */
-runBreakContinue({ SB, check });
+runBreakContinue({ SB, check, doc });
 runAiStrategy({ SB, check, noop });
 /* 2026-11-05：星屑商店「天外重压」。放全量最尾部——它会临时改 meta.starPerks
  * 与当前局的 perk.thin / iceShell，虽然自带 finally 还原，也别压在整局 bot 前面。 */
@@ -3078,6 +3235,7 @@ runTideDrillOverdrive({ SB, check, g });
 /* 2026-11-05：挑战开启前置。放全量最尾部——它会临时改 meta.cycle 与当前局的
  * s.challenge，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runChallengePrereq({ SB, check, g, doc });
+runChallengeI18n({ check });
 /* 2026-11-08：科技「解锁建筑」列表挑战专属标注（金属精炼/外星工程混解锁的反例回归锁）。 */
 runTechUnlockTag({ SB, check });
 /* 2026-11-08：轮回商店渲染守卫（"一闪一闪" 闪烁回归锁）。放全量最尾部：hook 假 DOM
@@ -3087,7 +3245,8 @@ runHeritageClearNodes({ SB, check });/* 2026-11-05：追踪坞「去制造」跳
  * renderPanes 等并在 finally 还原，不压在整局 bot 前面。 */
 runTrackCraftJump({ SB, check, g, sandbox });
 /* 战争系统回归放在最尾部：每项都用独立周目，不依赖整局 bot 状态。 */
-runWarCampaign({ SB, check, noop, doc });
+runWarCampaign({ SB, check, noop, doc, timers: sandbox._timeouts });
+runDiplomacyI18n({ check });
 /* 2026-11-14：军事/文化轮回点节点。放全量最尾部——它临时改 meta.perks 并跑
  * 真实 executeAction，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runMilitaryPerks({ SB, check, noop });

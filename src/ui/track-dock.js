@@ -39,6 +39,8 @@
                           * 每帧重算一次 costOf 纯属白烧 —— 5Hz 已比 tick 快。 */
   var MAX = 4;           /* 用户 2026-10-30 拍板：同时最多 4 个目标 */
   var SEP = '|';
+  var returnTarget = null;
+  var lastMiniSig = '';
 
   function doc() { return root.document || null; }
   function el(id) { var d = doc(); return d ? d.getElementById(id) : null; }
@@ -197,7 +199,7 @@
       if (!c) return null;
       if (SB.workshop.craftBlocked) {
         var why2 = SB.workshop.craftBlocked(s, id);
-        if (why2 && /^需要先/.test(why2)) return null;     // 未解锁
+        if ((SB.workshop.craftHasPrereqBlock && SB.workshop.craftHasPrereqBlock(s, c)) || (why2 && /^需要先/.test(why2))) return null;     // 未解锁
       }
       var rowsC = costRows(s, c.in);
       var craftInfo = infoParts();
@@ -219,7 +221,7 @@
       if (!u) return null;
       if (s.upgrades && s.upgrades[id]) return null;            // 已装上
       var uwhy = SB.workshop.upgradeBlocked ? SB.workshop.upgradeBlocked(s, id) : null;
-      if (uwhy && /^需要先/.test(uwhy)) return null;          // 未解锁（科技 / 市政）
+      if ((SB.workshop.upgradeHasPrereqBlock && SB.workshop.upgradeHasPrereqBlock(s, u)) || (uwhy && /^需要先/.test(uwhy))) return null;          // 未解锁（科技 / 市政）
       var rowsU = costRows(s, SB.workshop.upgradeCost(s, id));
       var readyU = allOk(rowsU);
       var upInfo = infoParts();
@@ -296,17 +298,6 @@
     return true;
   }
 
-  /* 工坊产物资源键集合（从 SB.CRAFTS 自动提取，新增配方自动覆盖）。
-   * 用来判断「这一行资源是不是得去工坊造的」——只有工坊产物才在追踪坞里给「去制造」链接。 */
-  var _craftRes = null;
-  function craftResSet() {
-    if (_craftRes) return _craftRes;
-    _craftRes = {};
-    var L = SB.CRAFTS || (SB.workshop && SB.workshop.crafts && SB.workshop.crafts()) || [];
-    for (var ci = 0; ci < L.length; ci++) if (L[ci] && L[ci].res) _craftRes[L[ci].res] = 1;
-    return _craftRes;
-  }
-
   /* ── 绘制 ─────────────────────────────────────────────────── */
   var lastHtml = '', lastState = '', lastMs = 0;
   /* 跳转高亮的「目标 + 截止时间」。为什么要记而不是直接 add 类：
@@ -360,10 +351,11 @@
     /* 工坊产物 + 不足 ⇒ 给一个「去制造」链接，点它跳工坊制造页并滚到对应配方。
      * 只给「不足」的（够了的没必要去造）；普通资源（石头/珊瑚/科技点）不在 CRAFT_RES 里，不显示。
      * 工坊没建成时降级成灰色不可点（标题说明原因），避免点了跳到一个还没解锁的页。 */
-    var craftLinks = [], builtW = s && s.lvl && s.lvl.workshop > 0, crset = craftResSet();
+    var craftLinks = [], builtW = s && s.lvl && s.lvl.workshop > 0;
     for (i = 0; i < info.rows.length; i++) {
       r = info.rows[i];
-      if (r.k && r.short && crset[r.k]) {
+      var recipe = r.short && r.k && SB.workshop.craftByResource(r.k);
+      if (recipe && (!builtW || !SB.workshop.craftHasPrereqBlock(s, recipe))) {
         if (builtW) {
           craftLinks.push('<a class="td-goto-craft" data-goto-craft="' + esc(r.k) + '" title="' +
             esc(tr('ui.track_dock.craft.goto.tooltip', { resourceName: r.name }, '去工坊制作 {resourceName}')) + '">' +
@@ -426,6 +418,7 @@
       if (emptyBox) emptyBox.innerHTML = '';
       if (!node.classList || !node.classList.contains('hidden')) cls(node, true);
       lastHtml = ''; lastState = '';
+      paintMiniHud([]);
       return;
     }
 
@@ -434,6 +427,7 @@
       if (!alive[i].info.ready) allReady = false;
       html += rowHtml(alive[i], s);
     }
+    paintMiniHud(alive);
     /* 整块比字符串：只有真变了才写 innerHTML。
      * 每帧重写会让长按选中失败、也会把 :active 打断（同原实现的理由）。 */
     if (html !== lastHtml) {
@@ -566,11 +560,88 @@
    *    所以这里串三次 rAF：切页 → 展开分区 → 滚动。
    * ⚠️ 分区折叠时行节点仍在 DOM 里（只是 .bzbody 被 CSS 隐藏），
    *    所以「先查行、再拿它祖先的分区 id」这条路是可行的，不用另存区名。 */
+  function paintMiniHud(alive) {
+    var mini = el('hudTrackMini');
+    if (!mini) return;
+    if (!alive || !alive.length) {
+      if (!mini.hidden) mini.hidden = true;
+      lastMiniSig = '';
+      return;
+    }
+    var top = alive[0];
+    var inf = top.info;
+    var readyCls = !!inf.ready;
+    var label = inf.title || '';
+    if (inf.ready) {
+      label = tr('ui.hud.track_ready_prefix', { title: label }, '★ 可建: {title}');
+    } else if (inf.parts && inf.parts.length) {
+      label += ' · ' + inf.parts[0].text;
+    }
+    var sig = (readyCls ? '1' : '0') + '|' + top.key + '|' + label;
+    if (sig !== lastMiniSig) {
+      lastMiniSig = sig;
+      mini.textContent = label;
+      mini.setAttribute('data-track-go', top.key);
+      if (mini.classList) mini.classList.toggle('is-ready', readyCls);
+    }
+    if (mini.hidden) mini.hidden = false;
+  }
+
   /* 追踪坞里「去制造」链接：跳到工坊制造子页并把对应配方滚到视野中。
    * 与 jump 的 craft 分支同一条落点，只是按「产物资源键」定位而不是配方 id。 */
-  function gotoCraft(res) {
+  function setReturnTarget(target) {
+    if (!target || !target.anchor) { returnTarget = null; return null; }
+    returnTarget = {
+      tab: target.tab || 'village',
+      anchor: String(target.anchor),
+      label: target.label ? String(target.label) : ''
+    };
+    return returnTarget;
+  }
+  function getReturnTarget() {
+    return returnTarget;
+  }
+  function clearReturnTarget() {
+    returnTarget = null;
+  }
+  function revealBuilding(node) {
+    if (!node || !node.closest) return;
+    var row = node.closest('.bld-row');
+    var parts = SB.ui.renderParts;
+    var filter = parts.getVillageFilter();
+    if (row && ((filter === 'ready' && !row.classList.contains('is-ready')) ||
+        (filter === 'running' && !row.classList.contains('is-owned')))) {
+      parts.setVillageFilter('all');
+    }
+    var zone = node.closest('.bzone');
+    var id = zone && zone.dataset && zone.dataset.zone;
+    if (id && SB.ui.render.isZoneFolded(id)) {
+      SB.ui.render.toggleZoneFold(id);
+      SB.ui.render.renderPanes();
+    }
+  }
+  function goBack() {
+    var tgt = returnTarget;
+    if (!tgt || !tgt.anchor) return false;
+    returnTarget = null;
+    if (SB.game && SB.game.setTab) SB.game.setTab(tgt.tab || 'village');
+    if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+    var raf = root.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+    raf(function () {
+      var dd = doc();
+      var node = dd ? dd.querySelector(tgt.anchor) : null;
+      if (tgt.tab === 'village') revealBuilding(node);
+      raf(function () { scrollTo(tgt.anchor); });
+    });
+    return true;
+  }
+
+  function gotoCraft(res, retTarget) {
     var s = run();
-    if (!s || !res) return;
+    var recipe = SB.workshop.craftByResource(res);
+    if (!s || SB.workshop.craftHasPrereqBlock(s, recipe)) return;
+    SB.ui.renderParts.revealCraft(s, recipe);
+    if (retTarget && retTarget.anchor) setReturnTarget(retTarget);
     if (SB.game && SB.game.setTab) SB.game.setTab('workshop');
     if (SB.ui.render && SB.ui.render.setWorkshopView) {
       try { SB.ui.render.setWorkshopView('making'); } catch (e) {}
@@ -594,19 +665,8 @@
       if (SB.game && SB.game.setTab) SB.game.setTab('village');
       raf(function () {
         var sel = '#pane-village [data-build="' + info.id + '"]';
-        /* ⚠️ 2026-11-18：这里原写 `var node = d.querySelector(sel)` —— 本函数里**没有** `d`
-         * （同文件 syncFlash / scrollTo / syncButtons 都是先 `var d = doc()`，这一支漏了）。
-         * 后果不是「找不到节点」，而是抛 ReferenceError：rAF 回调里抛 ⇒ 控制台一条红字、
-         * 界面毫无反应 ⇒ 表现为「点追踪框里的建筑行跳不过去」，而且永远不会被 e2e 抓到
-         * （无 DOM 沙箱里 el() 直接返回 null，这条分支根本走不到）。 */
         var dd = doc();
-        var node = dd ? dd.querySelector(sel) : null;
-        var zone = node && node.closest ? node.closest('.bzone') : null;
-        var zid = zone && zone.dataset ? zone.dataset.zone : '';
-        if (zid && SB.ui.render && SB.ui.render.isZoneFolded && SB.ui.render.isZoneFolded(zid)) {
-          SB.ui.render.toggleZoneFold(zid);
-          if (SB.ui.render.renderPanes) SB.ui.render.renderPanes();
-        }
+        revealBuilding(dd && dd.querySelector(sel));
         raf(function () { scrollTo(sel); });
       });
       return;
@@ -617,24 +677,18 @@
       return;
     }
     if (info.kind === 'craft') {
-      if (SB.game && SB.game.setTab) SB.game.setTab('workshop');
-      /* 工坊有二级标签（制造 / 升级项）。配方只可能在「制造」那一侧，
-       * 停在「升级项」时切过去，否则滚到一个不存在的节点、看起来像点了没反应。 */
-      if (SB.ui.render && SB.ui.render.setWorkshopView) {
-        try { SB.ui.render.setWorkshopView('making'); } catch (e) {}
-      }
-      if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
-      raf(function () { raf(function () { scrollTo('#pane-workshop [data-craft="' + info.id + '"]'); }); });
+      var recipe = SB.workshop.craftById(info.id);
+      if (recipe) gotoCraft(recipe.res);
       return;
     }
     if (info.kind === 'upgrade') {
-      if (SB.game && SB.game.setTab) SB.game.setTab('workshop');
-      /* 升级项在「升级项」子视图，停在「制造」时切过去，否则滚不到对应行、像点了没反应。 */
+      if (SB.game && SB.game.setTab) SB.game.setTab('workshop-upgrades');
+      /* 升级项已拆到一级页签「工坊升级」，同时保持 setWorkshopView('upgrades') 让未读与回退口径一致。 */
       if (SB.ui.render && SB.ui.render.setWorkshopView) {
         try { SB.ui.render.setWorkshopView('upgrades'); } catch (e2) {}
       }
       if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
-      raf(function () { raf(function () { scrollTo('#pane-workshop [data-upgrade="' + info.id + '"]'); }); });
+      raf(function () { raf(function () { scrollTo('#pane-workshop-upgrades [data-upgrade="' + info.id + '"]'); }); });
       return;
     }
     if (info.kind === 'tech' || info.kind === 'civic') {
@@ -782,7 +836,9 @@
 
   ui.track = {
     init: bind, paint: paint, track: track, untrack: drop, clear: clear, jump: jump,
-    gotoCraft: gotoCraft, resolve: resolve, costRows: costRows, isTracked: isTracked, keys: keys,
+    gotoCraft: gotoCraft, setReturnTarget: setReturnTarget, getReturnTarget: getReturnTarget,
+    clearReturnTarget: clearReturnTarget, goBack: goBack,
+    resolve: resolve, costRows: costRows, isTracked: isTracked, keys: keys,
     syncButtons: syncButtons, hint: hint, MAX: MAX
   };
 })(typeof window !== 'undefined' ? window : globalThis);

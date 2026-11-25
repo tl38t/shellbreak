@@ -86,7 +86,7 @@
    * 【为什么它不能塞进 #envVolcano】那个容器每帧重画、纯读数。按钮在里面会被反复换掉，
    *   input.js 是 document 级委托，换掉之后 pointerup 落在已移除的元素上 ⇒ 那次点击整个丢。
    * 【怎么做到「也每帧刷、又不丢点击」】状态签名节流：
-   *   签名 = 开/关 × 寒流季/非 × 正在烧/否 —— 三个量一季最多变几次，
+   *   签名含开关、寒流、禁火、燃烧、折叠和语言，日常读数刷新时保持不变，
    *   签名不变就**一个 DOM 节点都不动**，按钮元素始终在位。
    *   库存数字（每帧都可能变）走独立 span 的 textContent 单独刷，不进签名。
    * ⚠️ 别把库存数字并回签名：暖石烧起来时它每秒变 10 次（STEP=0.1），
@@ -107,14 +107,29 @@
   }
 
   var warmSig = '';
+  var expandedWarmRun = null;
+  function canFoldWarm(s) {
+    return !!(s && s.era >= 6); // 初生纪起将气候说明收进可展开行
+  }
+  function toggleWarmFold(s) {
+    if (!canFoldWarm(s) || !(s.techs && s.techs.thermal)) return;
+    expandedWarmRun = expandedWarmRun === s ? null : s;
+    renderWarm(s);
+  }
   function renderWarm(s) {
     var box = el('envWarm'); if (!box) return;
     var hasThermal = !!(s.techs && s.techs.thermal);
     if (!hasThermal) {
-      if (warmSig !== '') { warmSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+      expandedWarmRun = null;
+      if (box.style.display !== 'none') box.style.display = 'none';
+      if (warmSig !== '') { warmSig = ''; box.innerHTML = ''; }
       return;
     }
-    box.style.display = '';
+    if (box.style.display === 'none') box.style.display = '';
+    var foldable = canFoldWarm(s);
+    if (!foldable || expandedWarmRun !== s) expandedWarmRun = null;
+    var collapsed = foldable && !expandedWarmRun;
+    var foldSig = foldable ? (collapsed ? 'c' : 'e') : '-';
     /* 闸的判据在 economy.warmBurningNow（mult<1），这里只做展示层的归类：
      * 用 season 而不是 burning 反推「非寒流季」——烧不烧还叠加了石够不够，
      * 反推会把「石不够」误报成「不在寒流季」，提示就自相矛盾了。 */
@@ -122,28 +137,44 @@
     var challengeBlocksHeating = !!(SB.challenges && SB.challenges.warmHeatingBlocked(s));
     var burning = SB.economy.warmBurning(s);
     var sig = (s.warmOn ? 'on' : 'off') + '|' + (inCold ? 'c' : 'w') + '|' +
-      (challengeBlocksHeating ? 'x' : '-') + '|' + (burning ? 'b' : '-') + '|' + activeLocale();
+      (challengeBlocksHeating ? 'x' : '-') + '|' + (burning ? 'b' : '-') + '|' + foldSig + '|' + activeLocale();
     if (sig !== warmSig) {
       warmSig = sig;
-      box.innerHTML = '<div><div class="nm">' + tr('environment.warmstone.switch.name', null, '暖石开关') + ' <span class="tag" id="envWarmWs">0</span></div>' +
-        '<div class="ds">' + tr('environment.warmstone.insulation.tip', {
-          warmstoneRate: '<span id="envWarmRate">' + warmRateText(SB.economy.warmRate(s)) + '</span>'
+      var active = root.document.activeElement;
+      var focusedControl = active && active.dataset &&
+        (active.dataset.warmFold ? '[data-warm-fold]' : active.dataset.warm ? '[data-warm]' : '');
+      var status = challengeBlocksHeating
+        ? tr('environment.warmstone.status.challenge_disabled', null, '寒流禁用')
+        : s.warmOn
+          ? tr('environment.warmstone.status.enabled', null, '已启用')
+          : tr('environment.warmstone.status.disabled', null, '已停用');
+      var foldButton = foldable
+        ? '<button type="button" class="btn" data-warm-fold="1" aria-expanded="' + !collapsed +
+          '" aria-describedby="envWarmLabel">' +
+          (collapsed ? tr('village.gather.expand') : tr('village.gather.collapse')) + '</button>'
+        : '';
+      var warmInfo = collapsed
+        ? '<div class="ds"' + (burning ? ' style="color:var(--amber)"' : '') + '>' + status + '</div>'
+        : '<div class="ds">' + tr('environment.warmstone.insulation.tip', {
+          warmstoneRate: '<span id="envWarmRate"></span>'
         }, '保温法：烧暖石（{warmstoneRate}/秒），只在寒流季生效——部分抵消藻场减产（无法完全抵消）。寒流季若触发冰封期，冻伤会归零。暖石同时支撑这两种效果；其他季节不消耗暖石。') +
-        (challengeBlocksHeating ? '<br>' + tr('environment.warmstone.challenge.note', null, '寒流禁火挑战：寒流季保温法停用；热泉炉和热液设备仍照常运行。') : '') +
-        '</div></div>' +
-        /* 按钮文案 = **当前状态**（底色表态：绿=启用 / 灰=停用），不是「点了会怎样」——
-         * 原先写「开/关」两可，玩家读不出此刻到底是开是关（用户 2026-09-30 报）。
-         * 正在烧时再加琥珀色侧标，把「已启用」与「真在烧」两个状态分开。 */
-        '<button class="btn tog' + (s.warmOn ? ' on' : '') + (burning ? ' burning' : '') +
-        '" data-warm="1"' + (challengeBlocksHeating ? ' disabled' : '') +
-        ' title="' + (challengeBlocksHeating
-          ? tr('environment.warmstone.challenge.toggle_title', null, '寒流禁火挑战：寒流季禁止保温燃烧')
-          : tr('environment.warmstone.toggle_title', null, '点击切换启用 / 停用')) + '">' +
-        (challengeBlocksHeating
-          ? tr('environment.warmstone.status.challenge_disabled', null, '寒流禁用')
-          : s.warmOn
-            ? tr('environment.warmstone.status.enabled', null, '已启用')
-            : tr('environment.warmstone.status.disabled', null, '已停用')) + '</button>';
+          (challengeBlocksHeating ? '<br>' + tr('environment.warmstone.challenge.note', null, '寒流禁火挑战：寒流季保温法停用；热泉炉和热液设备仍照常运行。') : '') +
+          '</div>';
+      var control = collapsed
+        ? foldButton
+        : '<button type="button" class="btn tog' + (s.warmOn ? ' on' : '') + (burning ? ' burning' : '') +
+          '" data-warm="1"' + (challengeBlocksHeating ? ' disabled' : '') +
+          ' title="' + (challengeBlocksHeating
+            ? tr('environment.warmstone.challenge.toggle_title', null, '寒流禁火挑战：寒流季禁止保温燃烧')
+            : tr('environment.warmstone.toggle_title', null, '点击切换启用 / 停用')) + '">' + status + '</button>';
+      box.innerHTML = '<div><div class="nm"><span id="envWarmLabel">' +
+        tr('environment.warmstone.switch.name', null, '暖石开关') +
+        '</span> <span class="tag" id="envWarmWs">0</span>' + (collapsed ? '' : ' ' + foldButton) +
+        '</div>' + warmInfo + '</div>' + control;
+      if (focusedControl) {
+        var nextControl = box.querySelector(focusedControl);
+        if (nextControl && !nextControl.disabled) nextControl.focus({ preventScroll: true });
+      }
     }
     /* 库存数字单独刷：不进签名，所以烧起来时它是唯一在动的节点，按钮不动。
      * 费率同理（随破壳系数变化），也走独立 span，绝不并回签名。 */
@@ -838,6 +869,7 @@
   }
   parts.renderEnv = renderEnv;
   parts.renderWarm = renderWarm;
+  parts.toggleWarmFold = toggleWarmFold;
   parts.renderCore = renderCore;
   parts.renderDrill = renderDrill;
   parts.renderGeek = renderGeek;

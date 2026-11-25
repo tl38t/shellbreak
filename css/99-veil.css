@@ -17,13 +17,15 @@
 .vh-inner{width:100%;background:var(--panel,#0d1725);border:1px solid var(--line,#20344a);
   border-radius:16px;padding:18px 20px 20px}
 .vh-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:6px}
-.vh-hd h2{margin:0;font-size:24px;letter-spacing:.14em;
+.vh-hd h2{font-family:var(--font-display-zh);margin:0;font-size:24px;letter-spacing:.12em;
   background:linear-gradient(90deg,#c9a6ff,#8fd9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+html[lang^="en"] .vh-hd h2{font-family:var(--font-display-en);letter-spacing:.015em}
 .vh-sub{margin:4px 0 0;font-size:13px;color:var(--dim,#8fa9bd)}
 /* 页签形态后不再有「关闭」语义：右上是飞升点余额，二级视图左上角是「返回帷幕」。 */
 .vh-points{flex:none;text-align:right;padding:6px 12px;border-radius:10px;
   border:1px solid rgba(160,120,230,.34);background:rgba(112,68,162,.14)}
-.vh-points span{display:block;font-size:10px;letter-spacing:.14em;color:var(--dim2,#64809a)}
+.vh-points span{display:block;font-size:11px;letter-spacing:.08em;color:var(--dim2,#64809a)}
+html[lang^="en"] .vh-points span{letter-spacing:.04em}
 .vh-points b{font-size:19px;color:#c9a6ff;font-variant-numeric:tabular-nums}
 .vm-back{background:transparent;border:1px solid var(--line,#20344a);color:var(--dim,#8fa9bd);
   padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;flex:none}

@@ -475,11 +475,14 @@
     if (Array.isArray(raw.cards)) out.cards = raw.cards.map(function (x) { return x || null; });
     else if (raw.card) out.cards = [raw.card];
     else out.cards = [];
-    /* 迁移旧存档中的退役卡：新卡说明「取代」但旧档可能仍把两张都留在槽里。
-     * 保留槽位索引、只把失效卡清空；效果层也会检查 cardOwned 作第二道防线。 */
+    /* 保留槽位索引，清除已退役或当前挑战禁止装备的卡。 */
     var _policies = SB.POLICIES || [], _pi, _pci;
     for (_pi = 0; _pi < out.cards.length; _pi++) {
       if (!out.cards[_pi]) continue;
+      if (SB.civic && SB.civic.cardBlockedByChallenge && SB.civic.cardBlockedByChallenge(out, out.cards[_pi])) {
+        out.cards[_pi] = null;
+        continue;
+      }
       for (_pci = 0; _pci < _policies.length; _pci++) {
         var _policy = _policies[_pci];
         if (_policy.id === out.cards[_pi] && _policy.retiredBy && out.civics[_policy.retiredBy]) {
@@ -683,6 +686,63 @@
         if (out.techLv) delete out.techLv[_illegal[_di]];
       }
       if (_illegal.length) out.techVer = (out.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
+    }
+
+    var rawAd = raw.ad, adMs = rawAd && rawAd.ms;
+    var adCapMs = ((SB.CFG.AD && SB.CFG.AD.BOOST_CAP_MIN) || 360) * 60000;
+    out.ad = {
+      ms: Number.isFinite(adMs) && adMs > 0 ? Math.min(adMs, adCapMs) : 0,
+      on: !rawAd || rawAd.on !== false
+    };
+
+    var pumpPeriod = (SB.CFG && SB.CFG.OFFLINE_CATCHUP_PUMP > 0) ? SB.CFG.OFFLINE_CATCHUP_PUMP : 8;
+    var maxWallSeconds = Number.MAX_SAFE_INTEGER / 1000;
+    var rawCp = raw.offlineCheckpoint;
+    if (rawCp && typeof rawCp === 'object' && !Array.isArray(rawCp) && (rawCp.v === 1 || rawCp.v === 2)
+        && typeof rawCp.left === 'number' && isFinite(rawCp.left) && rawCp.left > 0
+        && typeof rawCp.secs === 'number' && rawCp.secs > 0 && rawCp.secs <= maxWallSeconds
+        && rawCp.left <= rawCp.secs + 1e-6
+        && typeof rawCp.bPop === 'number' && isFinite(rawCp.bPop) && rawCp.bPop >= 0
+        && typeof rawCp.bShell === 'number' && isFinite(rawCp.bShell) && rawCp.bShell >= 0
+        && typeof rawCp.bFam === 'number' && isFinite(rawCp.bFam) && rawCp.bFam >= 0
+        && typeof rawCp.bFrost === 'number' && isFinite(rawCp.bFrost) && rawCp.bFrost >= 0) {
+      var cleanBefore = {}, bKey;
+      var rawBefore = rawCp.before && typeof rawCp.before === 'object' ? rawCp.before : null;
+      for (bKey in base.res) {
+        var bv = rawBefore ? rawBefore[bKey] : undefined;
+        cleanBefore[bKey] = (typeof bv === 'number' && isFinite(bv) && bv >= 0) ? bv : out.res[bKey];
+      }
+      var tpVal = (typeof rawCp.tp === 'number' && isFinite(rawCp.tp) && rawCp.tp >= 0 && rawCp.tp < pumpPeriod) ? rawCp.tp : 0;
+      /* 存档中的 cap 只是上次报告的口径。采用现行上限，只裁剪还未推进的秒数。 */
+      var cap = SB.CFG.OFFLINE_CAP;
+      var rawLeft = Math.min(rawCp.left, rawCp.secs);
+      var left = Math.min(rawLeft, cap);
+      var excess = rawLeft - left;
+      var total = excess > 0 ? rawCp.secs - rawLeft + left : rawCp.secs;
+      var previousUncounted = Number.isFinite(rawCp.uncountedSecs) && rawCp.uncountedSecs > 0 ? rawCp.uncountedSecs : 0;
+      var uncounted = Math.min(maxWallSeconds, previousUncounted + excess);
+      out.offlineCheckpoint = {
+        v: 2,
+        left: left,
+        total: total,
+        secs: total,
+        cap: cap,
+        wallAt: rawCp.v === 2 && typeof rawCp.wallAt === 'number' && rawCp.wallAt > 0 && rawCp.wallAt <= Number.MAX_SAFE_INTEGER
+          ? rawCp.wallAt : 0,
+        tp: tpVal,
+        adActive: rawCp.adActive === true,
+        uncountedSecs: uncounted,
+        before: cleanBefore,
+        bPop: rawCp.bPop,
+        bShell: rawCp.bShell,
+        bFam: rawCp.bFam,
+        bFrost: rawCp.bFrost,
+        bBroke: rawCp.bBroke === true,
+        brokeDuring: rawCp.brokeDuring === true,
+        silent: rawCp.silent === true && uncounted === 0
+      };
+    } else {
+      out.offlineCheckpoint = null;
     }
 
     return out;

@@ -8,7 +8,7 @@
  *
  * 两类判据，缺一不可：
  *   ① 源码判据（**剥注释后**）：那些门不许回来；
- *   ② 行为判据：broken 状态下 economy.tick 仍推进、手动存档仍成功。
+ *   ② 行为判据：broken 状态下 economy.tick 仍推进，后台和手动存档都可落盘。
  * ⚠️ 源码判据必须先剥注释：这两个文件里到处是「原本是 `!S.broken`」这类历史注记，
  *   不剥就会把注释判成代码 —— 静态 grep 假警报同样算 bug。
  */
@@ -23,7 +23,7 @@ function stripComments(src) {
     .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 
-export function run({ SB, check }) {
+export function run({ SB, check, doc }) {
   console.log('\n=== 破壳不是本局终点（2026-11-03 回归锁）===');
 
   const gameSrc = stripComments(fs.readFileSync(path.join(ROOT, 'src/game.js'), 'utf8'));
@@ -41,10 +41,7 @@ export function run({ SB, check }) {
     !/function tick\(s, dt, emit, opts\) \{\s*if \(s\.broken\) return;/.test(tickSrc),
     'tick 首行无 if (s.broken) return;');
 
-  /* ③ 存档：退出 flush / 自动存档 / 手动保存 / 云备份四条通道都不许带 broken 门。 */
-  check('退出 flush 在 broken 时仍落盘',
-    /function flush\(\) \{ if \(!suppressExitSave && S\) SB\.state\.saveRun/.test(gameSrc),
-    'flush 只看 suppressExitSave');
+  /* ③ 自动存档、手动保存和云备份都保持破壳后可用。 */
   check('自动存档在 broken 时仍跑',
     /if \(S && now - \(loop\._lastSave \|\| 0\) > 5000\) \{/.test(gameSrc)
       && !/S && !S\.broken && now - \(loop\._lastSave/.test(gameSrc),
@@ -95,21 +92,28 @@ export function run({ SB, check }) {
       bad || ('pop=' + s2.pop + ' t=' + s2.t.toFixed(1)));
   }
 
-  /* ⑤ 行为：手动保存通道对 broken 局放行。
-   *   用主 fixture 临时置 broken，测完立刻还原并重新落盘 —— 放在全量尾部跑，
-   *   避免影响后面依赖存档内容的套件。 */
+  /* ⑤ 破壳后切到后台以及手动保存。测完恢复周目状态和原存档。 */
   {
-    const S = SB.game.run();
-    const hadBroken = !!(S && S.broken);
-    let ok = null, err = null;
-    if (S) {
-      S.broken = true;
-      try { ok = SB.saveTransfer.saveNow(); } catch (e) { err = e; }
-      S.broken = hadBroken;
+    const s = SB.game.run(), key = SB.CFG.RUN_KEY;
+    const original = { t: s.t, broken: s.broken, shell: s.shell, shellOpened: s.shellOpened, breakSettled: s.breakSettled };
+    const originalSave = SB.store.readLocal(key), hidden = doc.hidden;
+    const newTime = s.t + 1;
+    let flushed, ok;
+    try {
+      Object.assign(s, { t: newTime, broken: true, shell: 0, shellOpened: true, breakSettled: false });
+      doc.hidden = true;
+      for (const listener of doc._ev.visibilitychange || []) listener();
+      flushed = JSON.parse(SB.store.readLocal(key));
+      ok = SB.saveTransfer.saveNow();
+    } finally {
+      doc.hidden = hidden;
+      Object.assign(s, original);
+      if (originalSave === null) SB.store.removeLocal(key);
+      else SB.store.writeLocal(key, originalSave);
     }
-    check('broken 局手动保存返回成功',
-      !!S && !err && ok === true,
-      err ? String(err && err.message) : ('saveNow=' + ok));
+    check('破壳后切到后台立即落盘', flushed?.t === newTime && flushed.broken && flushed.shell === 0 &&
+      flushed.shellOpened && !flushed.breakSettled);
+    check('broken 局手动保存返回成功', ok === true, 'saveNow=' + ok);
   }
 
   /* ⑥ G.E.E.K（星球重构机）：破壳后必须继续改造 —— 2026-11-04 玩家报「更新后破壳

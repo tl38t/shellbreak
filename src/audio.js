@@ -108,7 +108,7 @@
     try {
       el = new A();
       el.loop = false;                 // ⚠️ shuffle 靠 ended；loop=true 时 ended 不触发
-      el.preload = 'auto';
+      el.preload = 'metadata';
       el.volume = 0;
       // 资源加载失败（404 / 格式不支持）只静默标记，不让它抛到主循环
       el.addEventListener('error', function () { el._failed = true; });
@@ -230,8 +230,8 @@
      *    ended shuffle / 破壳 / 轮回全部短路。唯一能改变曲目的是 setTrack() 或存档里值变了。 */
     if (m) {
       if (!activeId) {
-        if (pendingId !== m) { pendingId = m; ensureEl(track(m)); }
-        if (!gestureReady) return;           // 手势前只预建，绝不起播
+        if (pendingId !== m) pendingId = m;
+        if (!gestureReady) return;           // 手势前只记录待播曲目，不触发音频资源下载与播放
         crossfadeTo(m);
         return;
       }
@@ -263,10 +263,9 @@
     if (!pool) return;
 
     if (!activeId) {
-      // 手势前只预建、绝不起播（play() 在无手势上下文里必被拒）
+      // 手势前只抽定曲目，不提前下载数 MB 音频资源；真正加载和起播等首次手势。
       if (!pendingId || pool.tracks.indexOf(pendingId) < 0) {
         pendingId = pickFrom(pool);
-        ensureEl(track(pendingId));
       }
       if (!gestureReady) return;
       crossfadeTo(pendingId);
@@ -311,14 +310,22 @@
   function armOnGesture() {
     if (armed || !enabled()) return;
     armed = true;
-    var fire = function () {
+    var fire = function (event) {
+      if (!event.isTrusted) return;
+      /* 鼠标按下、触屏抬起时浏览器才授予播放权限。 */
+      if (event.type === 'pointerdown' && event.pointerType !== 'mouse') return;
+      if (event.type === 'pointerup' && event.pointerType === 'mouse') return;
+      var activation = root.navigator && root.navigator.userActivation;
+      if (activation && !activation.isActive) return;
       gestureReady = true;
       sync();   // 这时 play() 在用户手势上下文里，浏览器允许
     };
     try {
       root.addEventListener('pointerdown', fire, true);
+      root.addEventListener('pointerup', fire, true);
       root.addEventListener('keydown', fire, true);
-      root.addEventListener('touchstart', fire, true);
+      root.addEventListener('touchend', fire, true);
+      if (!root.PointerEvent) root.addEventListener('mousedown', fire, true);
     } catch (e) { armed = false; }
   }
 
@@ -337,11 +344,10 @@
 
   function init() {
     if (!enabled()) return;
-    /* 只预建元素、抽定开局曲，绝不调 play()。真正起播交给 armOnGesture 那次手势。
-     * ⚠️ 读档后开局就带手动偏好时，预建的必须是锁定曲，否则首帧面板会显示错曲名。 */
+    /* 只抽定开局曲，不预先拉取整首音频文件；真正加载与起播交给 armOnGesture 那次手势。
+     * ⚠️ 读档后开局就带手动偏好时，pendingId 仍固定到锁定曲，首帧面板曲名不变。 */
     if (!pendingId) {
       pendingId = manualId() || pickFrom(poolFor(S()));
-      ensureEl(track(pendingId));
     }
     armOnGesture();
   }

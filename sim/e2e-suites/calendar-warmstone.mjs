@@ -428,6 +428,42 @@ console.log('\n=== 历法读数与暖石开关 ===');
   fire({ dataset: { warm: '1' } });
   check('点开关：状态真的翻转', ui.warmOn !== on, 'warmOn=' + ui.warmOn);
 
+  const warmEra = ui.era;
+  const warmOn = ui.warmOn;
+  const warmStock = ui.res.warmstone;
+  try {
+    ui.era = 5;
+    SB.game.renderAll();
+    check('初生纪前：暖石直接显示保温开关和说明',
+      g('envWarm').includes('data-warm="1"') && g('envWarm').includes('id="envWarmRate"') &&
+      !g('envWarm').includes('data-warm-fold'), '');
+
+    ui.era = 6;
+    SB.game.renderAll();
+    check('初生纪：暖石默认收起，标题、库存及状态仍可见',
+      g('envWarm').includes('aria-expanded="false"') && g('envWarm').includes('id="envWarmWs"') &&
+      g('envWarm').includes(warmOn ? '已启用' : '已停用') &&
+      !g('envWarm').includes('data-warm="1"') && !g('envWarm').includes('id="envWarmRate"'), '');
+
+    fire({ dataset: { warmFold: '1' } });
+    ui.res.warmstone += 1;
+    SB.game.renderAll();
+    check('展开暖石后重渲染仍露出保温开关与费率',
+      g('envWarm').includes('aria-expanded="true"') && g('envWarm').includes('data-warm="1"') &&
+      g('envWarm').includes('id="envWarmRate"'), '');
+    fire({ dataset: { warm: '1' } });
+    check('后期展开的保温开关仍修改本局状态', ui.warmOn !== warmOn, 'warmOn=' + ui.warmOn);
+    fire({ dataset: { warmFold: '1' } });
+    check('再次收起暖石保留实际保温状态',
+      g('envWarm').includes('aria-expanded="false"') && ui.warmOn !== warmOn &&
+      g('envWarm').includes(ui.warmOn ? '已启用' : '已停用'), '');
+  } finally {
+    ui.era = warmEra;
+    ui.warmOn = warmOn;
+    ui.res.warmstone = warmStock;
+    SB.game.renderAll();
+  }
+
   /* ④ 树真的是「文明 6 那种」几何，不是列表换皮。
    * ⚠️ 用户 2026-09-26 连续两次纠正同一件事：先做成了带「第 N 层」标题的竖排分桶列表
    *    （列表里层一和层二读起来是上下并列，看不出先后），驳回；再做成横卷。

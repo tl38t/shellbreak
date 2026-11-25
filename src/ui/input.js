@@ -183,8 +183,78 @@
      * 都**不许**点外面就关 —— 那是需要玩家明确选择的)。这条策略与搬动前完全一致，
      * 只换了位置，没改语义。 */
     if (t.id === 'modal' && t.classList &&
-        (t.classList.contains('tree-modal') || t.classList.contains('gov-picker-modal'))) {
+        (t.classList.contains('tree-modal') || t.classList.contains('gov-picker-modal') ||
+         t.classList.contains('exchange-modal'))) {
       SB.ui.render.hideModal();
+      return;
+    }
+    var setOpenBtn = t.closest && t.closest('[data-settings-open]');
+    if (setOpenBtn || d.settingsOpen !== undefined) {
+      if (SB.ui.render && SB.ui.render.setSettingsOpen) SB.ui.render.setSettingsOpen(true);
+      return;
+    }
+    var setCloseBtn = t.closest && t.closest('[data-settings-close]');
+    if (setCloseBtn || d.settingsClose !== undefined) {
+      if (SB.ui.render && SB.ui.render.setSettingsOpen) SB.ui.render.setSettingsOpen(false);
+      return;
+    }
+    var setTabBtn = t.closest && t.closest('[data-settings-tab]');
+    if (setTabBtn && setTabBtn.dataset && setTabBtn.dataset.settingsTab) {
+      if (SB.ui.render && SB.ui.render.setSettingsTab) SB.ui.render.setSettingsTab(setTabBtn.dataset.settingsTab);
+      return;
+    }
+    var ovOpen = t.closest && t.closest('[data-overview-open]');
+    if (ovOpen || d.overviewOpen !== undefined) {
+      if (SB.ui.render && SB.ui.render.setOverviewDrawerOpen) SB.ui.render.setOverviewDrawerOpen(true);
+      return;
+    }
+    var ovToggle = t.closest && t.closest('[data-overview-toggle]');
+    if (ovToggle || d.overviewToggle !== undefined) {
+      var isOvOpen = root.document && root.document.body && root.document.body.classList && root.document.body.classList.contains('overview-drawer-open');
+      if (SB.ui.render && SB.ui.render.setOverviewDrawerOpen) SB.ui.render.setOverviewDrawerOpen(!isOvOpen);
+      return;
+    }
+    var ovClose = t.closest && t.closest('[data-overview-close]');
+    if (ovClose || d.overviewClose !== undefined) {
+      if (SB.ui.render && SB.ui.render.setOverviewDrawerOpen) SB.ui.render.setOverviewDrawerOpen(false);
+      return;
+    }
+    var logToggleBtn = t.closest && t.closest('[data-log-toggle]');
+    if (logToggleBtn || d.logToggle !== undefined) {
+      var lp = root.document && root.document.getElementById ? root.document.getElementById('logPanel') : null;
+      if (lp && lp.classList) {
+        var nextLogOpen = !lp.classList.contains('is-open');
+        lp.classList.toggle('is-open', nextLogOpen);
+        var ltBtn = logToggleBtn || t;
+        if (ltBtn.setAttribute) ltBtn.setAttribute('aria-expanded', nextLogOpen ? 'true' : 'false');
+        ltBtn.textContent = tr(nextLogOpen ? 'ui.log.history.collapse' : 'ui.log.history.expand') || (nextLogOpen ? '收起' : '日志');
+      }
+      return;
+    }
+    var navGroupBtn = t.closest && t.closest('[data-nav-group-btn]');
+    if (navGroupBtn && navGroupBtn.dataset && navGroupBtn.dataset.navGroupBtn) {
+      if (!navGroupBtn.disabled && SB.ui.render && SB.ui.render.activateNavGroup) {
+        SB.ui.render.activateNavGroup(navGroupBtn.dataset.navGroupBtn);
+      }
+      return;
+    }
+    var hudActBtn = t.closest && t.closest('[data-hud-action]');
+    if (hudActBtn && hudActBtn.dataset && hudActBtn.dataset.hudAction) {
+      var mainActEl = root.document && root.document.getElementById
+        ? root.document.getElementById(hudActBtn.dataset.hudAction === 'cycle' ? 'btnCycle' : 'btnBreak') : null;
+      if (mainActEl && !mainActEl.disabled && mainActEl.onclick) mainActEl.onclick();
+      return;
+    }
+    var hudAdBtn = t.closest && t.closest('[data-hud-ad]');
+    if (hudAdBtn && hudAdBtn.dataset && hudAdBtn.dataset.hudAd) {
+      var mainAdEl = root.document && root.document.getElementById
+        ? root.document.getElementById(hudAdBtn.dataset.hudAd === 'toggle' ? 'btnAdToggle' : 'btnAd') : null;
+      if (mainAdEl && mainAdEl.onclick) mainAdEl.onclick();
+      return;
+    }
+    var trackMini = t.closest && t.closest('#hudTrackMini[data-track-go]');
+    if (trackMini && SB.ui.track && SB.ui.track.jump) {
+      SB.ui.track.jump(trackMini.getAttribute('data-track-go') || '');
       return;
     }
 
@@ -204,9 +274,9 @@
     if (heritagePick && heritagePick.dataset) {
       var hpIdx = Number(heritagePick.dataset.heritagePick);
       var hpId = heritagePick.dataset.heritageCard;
-      var hpName = SB.heritage && SB.heritage.nameOf ? SB.heritage.nameOf(hpId) : hpId;
       var hpOk = SB.war && SB.war.chooseHeritage ? SB.war.chooseHeritage(s, hpIdx, hpId) : false;
       if (hpOk) {
+        var hpName = SB.ui.renderParts.research.policyName(SB.heritage.policyById(hpId));
         SB.game.markDirty(); SB.game.renderAll();
         SB.game.log(tr('ui.heritage.picked', { name: hpName }));
       }
@@ -234,7 +304,7 @@
         SB.game.log(tr('ui.war.result.action', {
           actionName: tr(actionNameKey), outcomeName: tr(outcomeKey),
           scaleLoss: SB.economy.fmtAmt(actionResult.scaleLoss),
-          popLost: SB.economy.fmtAmt(actionResult.popLost),
+          soldiersLost: SB.economy.fmtAmt(actionResult.popLost),
           lootAmount: SB.economy.fmtAmt(actionResult.lootAmount),
           resourceName: localizedResourceName,
           populationCapAward: actionResult.populationCapAward
@@ -325,7 +395,9 @@
       return;
     }
     if (d.workshopView) {
-      if (SB.ui.render.setWorkshopView(d.workshopView)) SB.ui.render.renderPanes();
+      if (SB.ui.render.setWorkshopView) SB.ui.render.setWorkshopView(d.workshopView);
+      if (SB.game && SB.game.setTab) SB.game.setTab(d.workshopView === 'upgrades' ? 'workshop-upgrades' : 'workshop');
+      if (SB.ui.render.renderPanes) SB.ui.render.renderPanes();
       return;
     }
     var govPickerOpen = t.closest && t.closest('[data-gov-picker-open]');
@@ -340,14 +412,58 @@
       SB.ui.render.renderPanes();
       return;
     }
+    if (d.villageFilter && SB.ui.render.setVillageFilter) {
+      if (SB.ui.render.setVillageFilter(d.villageFilter)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.villageDensity && SB.ui.render.setVillageDensity) {
+      SB.ui.render.setVillageDensity(d.villageDensity);
+      return;
+    }
+    if (d.folkFilter && SB.ui.render.setFolkFilter) {
+      if (SB.ui.render.setFolkFilter(d.folkFilter)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.folkDensity && SB.ui.render.setFolkDensity) {
+      if (SB.ui.render.setFolkDensity(d.folkDensity)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.craftOnlyReady !== undefined && SB.ui.render.toggleCraftOnlyReady) {
+      SB.ui.render.toggleCraftOnlyReady();
+      SB.ui.render.renderPanes();
+      return;
+    }
+    var gotoCraftBtn = t.closest && t.closest('[data-goto-craft-res]');
+    if (gotoCraftBtn && gotoCraftBtn.dataset && gotoCraftBtn.dataset.gotoCraftRes) {
+      var retBld = gotoCraftBtn.dataset.returnBld || '';
+      var retTarget = retBld ? { tab: 'village', anchor: '[data-build="' + retBld + '"]', label: buildingName(retBld) } : null;
+      if (SB.ui.track && SB.ui.track.gotoCraft) SB.ui.track.gotoCraft(gotoCraftBtn.dataset.gotoCraftRes, retTarget);
+      return;
+    }
+    if (d.craftReturn !== undefined && SB.ui.track && SB.ui.track.goBack) {
+      SB.ui.track.goBack();
+      return;
+    }
+    if (d.craftReturnDismiss !== undefined && SB.ui.track && SB.ui.track.clearReturnTarget) {
+      SB.ui.track.clearReturnTarget();
+      SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.researchView && SB.ui.render.setResearchView) {
+      if (SB.ui.render.setResearchView(d.researchView)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.researchFilter && SB.ui.render.setResearchFilter) {
+      if (SB.ui.render.setResearchFilter(d.researchFilter)) SB.ui.render.renderPanes();
+      return;
+    }
+    var jumpPreBtn = t.closest && t.closest('[data-jump-prereq]');
+    if (jumpPreBtn && jumpPreBtn.dataset && jumpPreBtn.dataset.jumpPrereq && SB.ui.render.jumpResearchPrereq) {
+      SB.ui.render.jumpResearchPrereq(jumpPreBtn.dataset.jumpPrereq);
+      return;
+    }
 
-    /* 主页面分区卡片的折叠开关（2026-09-30 用户：各个区域可折叠，参考文明6）。
-     * 纯视图动作：只翻卡片元素上的 folded 类（状态记在 render 模块里、可持久化），
-     * **不碰任何游戏状态**，所以不 markDirty、也不补跑科技泵。
-     * ⚠️ 走 document 级委托是必须的：卡片标题会随 pane 每 2 秒的重画被换掉，
-     *    挂在标题节点上的监听随第一次重画一起失效（不报错、只是点不动了）。 */
-    /* 点标题里的 ▾ 箭头 / 文字时 target 是 <span>，d.fold 取不到 ⇒ 往上 closest 兜底
-     * （2026-11-18：玩家报「各区没法折叠」，真实浏览器复现箭头点击丢事件）。 */
+    /* 标题内的文字和图标都通过外层按钮处理折叠。 */
     var foldBtn = d.fold !== undefined ? t : (t.closest && t.closest('[data-fold]'));
     var foldKey = foldBtn && foldBtn.dataset ? foldBtn.dataset.fold : undefined;
     if (foldKey !== undefined && foldKey !== null && foldKey !== '') {
@@ -386,15 +502,7 @@
       SB.ui.render.renderPanes();
       return;
     }
-    /* 工坊「隐藏已完成」（2026-10-05 用户「工坊要能隐藏显示已经完成项目」）：
-     * 同样是纯视图动作（只翻 SB.store 的设备级偏好，2026-11-05 起不再写裸 localStorage），不碰游戏状态。
-     * ⚠️ 与上面两个折叠分支的**关键差别**：卡片/区折叠是翻 DOM 上已有的类，
-     *    而这个开关是「渲染时**跳不跳过这一行**」决定的 ⇒ **必须重画才生效**。
-     *    忘了这次重画的话，按钮的文字会变（因为开关自身在标题行里）
-     *    但列表不变 —— 看起来像只改字不生效。
-     * ⚠️ 这里调 `renderPanes()` 而**不是** `renderAll()`：工坊面板写在 `#pane-workshop`，
-     *    由 renderPanes 填（renderAll 只管顶栏资源与总页）。
-     *    顶栏本来会跟着 2 秒节流重画，但开关要**立即**反馈，不能等。 */
+    /* 已完成项在生成列表时过滤，切换后立即刷新面板。 */
     if (d.hidedone !== undefined && d.hidedone !== null && d.hidedone !== '') {
       SB.ui.render.toggleHideDone();
       SB.ui.render.renderPanes();
@@ -809,6 +917,10 @@
       if (SB.ui.render.techGoEra(+eraValue)) { SB.game.markDirty(); SB.game.renderAll(); }
       return;
     }
+    if (d.warmFold) {
+      SB.ui.renderParts.toggleWarmFold(SB.game.run());
+      return;
+    }
     if (d.warm) {
       toggleWarm(SB.game.run());
       return;
@@ -935,13 +1047,18 @@
       return;
     }
     if (d.starExchange) {
-      /* 档位只从视图态读一次；实际成交笔数由 prestige 层按各自方向的余额钳制，
-       * 不从 DOM 上的 data-* 读（防伪造 / 防余额已变时扣错）。 */
-      var exWant = SB.ui.render.exchangeStep();
-      var exchanged = d.starExchange === 'tide-to-stardust'
-        ? SB.prestige.exchangeTideForStardust(exWant)
-        : d.starExchange === 'stardust-to-tide' ? SB.prestige.exchangeStardustForTide(exWant) : 0;
-      if (exchanged > 0) { SB.game.markDirty(); SB.game.renderAll(); }
+      /* 点兑换不再立刻按固定步长扣款，而是弹出滑动条确认框，同时以当前档位作为滑块初值。 */
+      if (SB.ui.render && SB.ui.render.openStarExchangeModal) {
+        SB.ui.render.openStarExchangeModal(d.starExchange);
+      }
+      return;
+    }
+    var gatherFoldBtn = d.gatherFold !== undefined ? t : (t.closest && t.closest('[data-gather-fold]'));
+    if (gatherFoldBtn) {
+      if (SB.ui.render && SB.ui.render.toggleManualGatherFold) {
+        SB.ui.render.toggleManualGatherFold();
+        SB.ui.render.renderPanes();
+      }
       return;
     }
     if (d.challengeRelease) {

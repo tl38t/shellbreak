@@ -28,8 +28,8 @@
     card_craft: '工坊效率 +20%（工艺制作产出）。',
     card_mystic: '科技产出 +0.3/秒。',
     card_town_meeting: '人口上限 +3，人口生产时间 −50%。',
-    card_drama: '广场的市政点乘区 ×2（即「广场效果 +100%」）。',
-    card_theology: '神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。',
+    card_drama: '广场市政点产出 ×2（广场效果 +100%）。',
+    card_theology: '神庙信仰产出 ×2（神庙效果 +100%）。',
     card_records: '潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。',
     card_sovereign: '城堡每级增加 10% 信仰产出。',
     card_monastery: '人口产出信仰 +50%。',
@@ -43,7 +43,7 @@
     card_official_business: '根据商路等级大幅降低战争行动的军力消耗。',
     card_enlightenment: '潮纹馆、大学的科技加成 +100%，神庙信仰加成 −50%。',
     card_rationing: '幸福度 −1；工坊（工艺制作）效率 +40%。',
-    card_political_econ: '广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5。',
+    card_political_econ: '广场市政点产出 ×2.5，歌剧院官员市政点产出 ×2.5。',
     card_logistics: '仓储区建筑容量 ×3。',
     card_city_supply: '人口上限 +5，人口生产时间 −50%。',
     card_mobilization: '每点闲置鲛人 +1% 破壳系数（破壳速度随之提升）。',
@@ -58,7 +58,7 @@
     card_we_are_here: '礁栖核心、星海区所有建筑每级 +10% 信仰产出。',
     card_social_network: '每名鲛人 +3 市政点/秒；但奢侈品消耗 +80%。',
     card_fever: '星空探索速率 +x%，x = 人口数（%）。',
-    card_federal_privy: '广场的市政点乘区 ×4、歌剧院的官员市政点乘区 ×4。',
+    card_federal_privy: '广场市政点产出 ×4，歌剧院官员市政点产出 ×4。',
     card_egal_work: '工艺效率 +140%、幸福度 −2。',
     card_transcendence: '科技产出 +300/秒。',
     card_brilliant_star_map: '人口信仰产出 −50%、科技产出 ×3.5。',
@@ -280,6 +280,10 @@
       if (!s) return fn.apply(null, arguments);
       var real = fn.apply(null, arguments);
       if (shadowBusy) return real;
+      // 已初始化且没有传承时，直接返回当前卡槽的效果。旧档仍由 ownedIds 检查并补齐。
+      var heritage = s.war && s.war.heritage;
+      if (heritage && typeof heritage === 'object' && Array.isArray(heritage.owned) &&
+          heritage.owned.length === 0 && Array.isArray(heritage.pending)) return real;
       var owned = ownedIds(s);
       if (!owned.length) return real;
       if (SPECIAL_SUM[name]) return real + SPECIAL_SUM[name](s, owned);

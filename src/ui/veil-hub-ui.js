@@ -396,25 +396,41 @@
     return { k: 'ready', cost: cost, lv: lv };
   }
 
+  function organStageName(index) {
+    var keys = ['graft', 'replace', 'unify'];
+    return tr('ui.veil.organ.stage.' + (keys[index] || 'graft'), STAGES[index] || '');
+  }
+  function organField(o, field, fallback) {
+    return tr('ui.veil.organ.' + o.id + '.' + field, fallback);
+  }
+  function organLevelDesc(o, ci) {
+    return tr('ui.veil.organ.' + o.id + '.lv' + (ci + 1), (o.lv[ci] && o.lv[ci].d) || '');
+  }
+
   function organMarkup() {
     var h = '<div class="vo-rig-wrap"><div class="vo-left"><div class="vo-rig">'
-      + '<img class="vo-body" src="assets/veil/si-organ/body.png" alt="潮汐机偶身体底图">';
+      + '<img class="vo-body" src="assets/veil/si-organ/body.png" alt="' + esc(tr('ui.veil.organ.body_alt', '潮汐机偶身体底图')) + '">';
     ORGANS.forEach(function (o) {
       var lv = organLevel(o.id);
+      var oFull = organField(o, 'full', o.full);
+      var stLabel = lv ? organStageName(lv - 1) : tr('ui.veil.organ.unmodified', '未改造');
       h += '<button type="button" class="vo-pt lv' + lv + (selectedOrgan === o.id ? ' sel' : '') + '"'
         + ' data-organ="' + o.id + '" style="left:' + o.x + '%;top:' + o.y + '%"'
-        + ' title="' + esc(o.no + ' ' + o.full + ' · ' + (lv ? STAGES[lv - 1] : '未改造')) + '">'
+        + ' title="' + esc(o.no + ' ' + oFull + ' · ' + stLabel) + '">'
         + '<span class="pi" style="background-image:url(' + o.img + ')"></span>'
         + '<span class="pn">' + o.no + '</span></button>';
     });
-    h += '</div><div class="vo-progress">改造进度 <b>' + ORGANS.reduce(function (n, o) { return n + (organLevel(o.id) ? 1 : 0); }, 0) + ' / 10</b></div></div>';
+    h += '</div><div class="vo-progress">' + esc(tr('ui.veil.organ.progress', '改造进度'))
+      + ' <b>' + ORGANS.reduce(function (n, o) { return n + (organLevel(o.id) ? 1 : 0); }, 0) + ' / 10</b></div></div>';
 
     var o = byId(selectedOrgan) || ORGANS[0], st = organState(o), lv = organLevel(o.id);
-    h += '<div class="vo-detail"><div class="vo-detail-hd"><h3>' + esc(o.no + ' · ' + o.full) + '</h3>'
-      + '<span class="vo-part">' + esc(o.part) + '</span></div>';
+    var selFull = organField(o, 'full', o.full);
+    var selPart = organField(o, 'part', o.part);
+    h += '<div class="vo-detail"><div class="vo-detail-hd"><h3>' + esc(o.no + ' · ' + selFull) + '</h3>'
+      + '<span class="vo-part">' + esc(selPart) + '</span></div>';
     h += '<div class="vo-stages">';
     STAGES.forEach(function (s, i) {
-      h += '<span class="vo-stage' + (lv > i ? ' done' : (lv === i ? ' cur' : '')) + '">' + s + '</span>';
+      h += '<span class="vo-stage' + (lv > i ? ' done' : (lv === i ? ' cur' : '')) + '">' + esc(organStageName(i)) + '</span>';
     });
     h += '</div>';
     /* 三级效果**全部展开**（2026-11-17 用户要求：后面等级也要能看，不能锁住）。
@@ -427,15 +443,18 @@
      * ⚠️ 用 background-image 而不是 <img>：面板每 2 秒可能整块重写，<img> 会闪，背景图走缓存。 */
     var cards = '';
     for (var ci = 0; ci < 3; ci++) {
-      var L = o.lv[ci];
       var cls = ci < lv ? '' : (ci === lv ? ' next' : ' dim');
-      var tag = ci < lv ? ' · 已达成'
-        : (ci === lv ? ' · 当前 · 需 ' + lvCost(ci) + ' 点' : ' · 未接枝 · 需 ' + lvCost(ci) + ' 点');
-      var one = '<div class="vo-effect' + cls + '"><div class="vo-effect-hd">' + esc(STAGES[ci] + tag) + '</div>'
-        + '<p>' + esc(L.d) + '</p></div>';
+      var costN = lvCost(ci);
+      var tag = ci < lv
+        ? tr('ui.veil.organ.tier.done', ' · 已达成')
+        : (ci === lv
+          ? trp('ui.veil.organ.tier.current', { cost: costN }, ' · 当前 · 需 ' + costN + ' 点')
+          : trp('ui.veil.organ.tier.locked', { cost: costN }, ' · 未接枝 · 需 ' + costN + ' 点'));
+      var one = '<div class="vo-effect' + cls + '"><div class="vo-effect-hd">' + esc(organStageName(ci) + tag) + '</div>'
+        + '<p>' + esc(organLevelDesc(o, ci)) + '</p></div>';
       if (ci === 0) {
         cards += '<div class="vo-art-row">'
-          + '<div class="org-fig" style="background-image:url(\'' + o.img + '\')" title="' + esc(o.full) + '"></div>'
+          + '<div class="org-fig" style="background-image:url(\'' + o.img + '\')" title="' + esc(selFull) + '"></div>'
           + '<div class="vo-art-col">' + one + '</div></div>';
       } else {
         cards += one;
@@ -443,11 +462,11 @@
     }
     h += cards;
     /* LV3 红字（v0.2 §4）：单句只在该部位归一（LV3）时显示，一字不改。 */
-    if (lv >= 3) h += '<div class="vo-red">' + esc(o.red) + '</div>';
-    h += '<div class="vo-actions"><span class="vo-cost">飞升点 <b>' + points().toFixed(2) + '</b></span>';
-    var btnTxt = st.k === 'max' ? '已归一'
-      : st.k === 'poor' ? ('飞升点不足（需 ' + st.cost + '）')
-      : ('铆接 · ' + STAGES[lv] + '（' + st.cost + ' 点）');
+    if (lv >= 3) h += '<div class="vo-red">' + esc(organField(o, 'red', o.red)) + '</div>';
+    h += '<div class="vo-actions"><span class="vo-cost">' + esc(tr('ui.veil.hub.points_balance', '飞升点')) + ' <b>' + points().toFixed(2) + '</b></span>';
+    var btnTxt = st.k === 'max' ? tr('ui.veil.organ.btn.max', '已归一')
+      : st.k === 'poor' ? trp('ui.veil.organ.btn.poor', { cost: st.cost }, '飞升点不足（需 ' + st.cost + '）')
+      : trp('ui.veil.organ.btn.rivet', { stageName: organStageName(lv), cost: st.cost }, '铆接 · ' + STAGES[lv] + '（' + st.cost + ' 点）');
     h += '<button type="button" class="vo-commit" data-veil-action="organ-buy"' + (st.k !== 'ready' ? ' disabled' : '') + '>' + esc(btnTxt) + '</button>'
       + '</div></div></div>';   // vo-actions / vo-detail / vo-rig-wrap
     return h;
@@ -558,7 +577,7 @@
     else if (p.id === 'vo') return voidMarkup(p);
     else if (p.id === 'gn') return geneMarkup(p);
     else h += '<div class="vm-placeholder"><h3>' + esc(pathName(p)) + '</h3>'
-      + '<p>' + esc(p.desc) + '</p><p class="vm-todo">该飞升路径的操作界面尚未实装，敬请期待。</p></div>';
+      + '<p>' + esc(tr('ui.veil.path.desc.' + p.id, p.desc)) + '</p><p class="vm-todo">' + esc(tr('ui.veil.hub.wip', '开发中 · 敬请期待')) + '</p></div>';
     h += '</div></div>';
     return h;
   }
@@ -682,8 +701,12 @@
     if (m && SB.state && SB.state.saveMeta) SB.state.saveMeta(m);
     SB.game.markDirty && SB.game.markDirty();
     repaint();
-    SB.game.log && SB.game.log(tr('ui.veil.organ.done', null,
-      o.no + ' ' + o.name + ' 已铆接至「' + STAGES[lv] + '」，消耗 ' + cost + ' 飞升点。'));
+    SB.game.log && SB.game.log(trp('ui.veil.organ.riveted_log', {
+      organNo: o.no,
+      organName: organField(o, 'name', o.name),
+      stageName: organStageName(lv),
+      cost: cost
+    }, o.no + ' ' + o.name + ' 已铆接至「' + STAGES[lv] + '」，消耗 ' + cost + ' 飞升点。'));
   }
 
   function firstLitVoidDomain() {

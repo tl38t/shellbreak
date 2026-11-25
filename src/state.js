@@ -781,7 +781,9 @@
        * ⚠️ **必须出现在这张表里**：`state-migrate.migrateRun` 是
        *    `for (k in raw) if (k in base)` 的白名单，freshRun 里没有的键会在读档时
        *    被静默丢掉 —— 表现是「每次重启追踪就没了」，且不报任何错（同族坑见 JUDGMENTS 五点）。 */
-      track: ''
+      track: '',
+      /* 离线补算检查点：随存档保存累计已计时长、剩余时长、结算基线和计时墙钟，补算完成后清除。 */
+      offlineCheckpoint: null
     };
   }
 

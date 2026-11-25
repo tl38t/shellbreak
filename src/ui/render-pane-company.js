@@ -24,8 +24,8 @@
     if (value && !/\{[A-Za-z0-9_]+\}/.test(value)) return value;
     return formatFallback(fallback, params);
   }
-  function englishLocale() {
-    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  function nonDefaultLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN');
   }
   function industryKey(company) {
     return COMPANY_INDUSTRY[company && company.id] || '';
@@ -40,7 +40,7 @@
     return slug ? tr('company.tier.' + slug, null, fallback || (tier && tier.name) || '') : (fallback || (tier && tier.name) || '');
   }
   function nodeName(type, id, fallback) {
-    if (!englishLocale() || !id) return fallback || id || '';
+    if (!nonDefaultLocale() || !id) return fallback || id || '';
     var key = type === 'tech' ? 'tech.' + id + '.name' : 'civic.data.' + id + '.name';
     return tr(key, null, fallback || id);
   }
@@ -59,7 +59,7 @@
     return tr('company.prerequisite.fallback', null, '解锁前置');
   }
   function localizedCompanyName(name, slug) {
-    if (!englishLocale() || !name || !slug) return name || '';
+    if (!nonDefaultLocale() || !name || !slug) return name || '';
     var map = seedNameMaps[slug];
     if (!map) {
       map = seedNameMaps[slug] = Object.create(null);

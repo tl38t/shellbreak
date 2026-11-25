@@ -26,7 +26,7 @@
   var OFFLINE_DELAY = 500;   /* 离线结算报表 modal 先渲染，再弹，避免盖住报表顶部 */
 
   var active = [];           /* 自维护的活跃 toast，见上方环境纪律 */
-  var lastResult = null;     /* { text, variant } 供 render-pane-war.js 常驻行读 */
+  var lastEvent = null;
   var pendingOffline = [];   /* 离线入侵报告：延迟弹但立即写常驻行 */
 
   function tr(key, params, fallback) {
@@ -102,7 +102,7 @@
     /* 常驻行复用现有完整日志文案（已含全部字段），不另造一条口径 */
     var lastText = tr('ui.war.result.action', {
       actionName: actionName(result.action), outcomeName: outcomeName(result.outcome),
-      scaleLoss: fmt(result.scaleLoss), popLost: fmt(popLost),
+      scaleLoss: fmt(result.scaleLoss), soldiersLost: fmt(popLost),
       lootAmount: fmt(lootAmount), resourceName: resourceName(result.resourceId),
       populationCapAward: popCap
     }, '');
@@ -143,7 +143,16 @@
   }
 
   /* ── DOM 渲染（无 DOM 环境整体 no-op）──────────────────────────────────── */
-  function render(model) {
+  function localizedModel(event) {
+    var locale = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+    if (!event.model || event.locale !== locale) {
+      event.locale = locale;
+      event.model = event.kind === 'action' ? actionModel(event.payload) : invasionModel(event.payload, event.offline);
+    }
+    return event.model;
+  }
+  function render(event) {
+    var model = localizedModel(event);
     var doc = root.document;
     if (!doc || !doc.createElement || !doc.getElementById) return;
     var stack = doc.getElementById(STACK_ID);
@@ -158,43 +167,52 @@
 
     var hd = doc.createElement('div'); hd.className = 'war-toast-hd';
     var ico = doc.createElement('span'); ico.className = 'war-toast-ico'; ico.textContent = model.icon;
-    var title = doc.createElement('span'); title.className = 'war-toast-title'; title.textContent = model.title;
+    var title = doc.createElement('span'); title.className = 'war-toast-title';
     var close = doc.createElement('button');
     close.className = 'war-toast-x'; close.textContent = '×';
-    if (close.setAttribute) close.setAttribute('aria-label', tr('ui.action.close', null, '关闭'));
     hd.appendChild(ico); hd.appendChild(title); hd.appendChild(close);
 
     var body = doc.createElement('div'); body.className = 'war-toast-body';
+    var rows = [];
     for (var i = 0; i < model.lines.length; i++) {
       var row = doc.createElement('div');
       row.className = 'war-toast-line ' + model.lines[i].cls;
-      row.textContent = model.lines[i].text;
+      rows.push(row);
       body.appendChild(row);
     }
+    function refreshText() {
+      var text = localizedModel(event);
+      title.textContent = text.title;
+      if (close.setAttribute) close.setAttribute('aria-label', tr('ui.action.close', null, '关闭'));
+      for (var i = 0; i < rows.length; i++) rows[i].textContent = text.lines[i].text;
+    }
+    refreshText();
     /* 进度条纯 CSS 动画，JS 只设 duration —— 不依赖 requestAnimationFrame */
     var bar = doc.createElement('i');
     bar.className = 'war-toast-bar';
     if (bar.style) bar.style.animationDuration = model.ttl + 'ms';
     el.appendChild(hd); el.appendChild(body); el.appendChild(bar);
     stack.appendChild(el);
-    active.push(el);
+    var entry = { node: el, refresh: refreshText };
+    active.push(entry);
 
     /* 用 active[] 裁堆叠；绝不读 stack.children.length（假 DOM 不缩短） */
     while (active.length > MAX_VISIBLE) {
       var oldest = active.shift();
-      if (stack.removeChild) stack.removeChild(oldest);
+      if (stack.removeChild) stack.removeChild(oldest.node);
     }
 
     var closed = false;
     function dismiss() {
       if (closed) return;
       closed = true;
-      var at = active.indexOf(el);
-      if (at >= 0) active.splice(at, 1);
+      var at = active.indexOf(entry);
+      if (at < 0) return; // 堆满或清空时已经移除。
+      active.splice(at, 1);
       if (el.classList && el.classList.add) el.classList.add('is-out');
       /* vm 沙箱可能不注入 setTimeout；守卫后组件退化为「常驻不自动退」，绝不抛错。 */
       if (root.setTimeout) root.setTimeout(function () {
-        if (stack && stack.removeChild) stack.removeChild(el);
+        if (el.parentNode === stack && stack.removeChild) stack.removeChild(el);
       }, 320);
     }
     if (close.addEventListener) close.addEventListener('click', dismiss);
@@ -206,39 +224,44 @@
    *   opts.offline = true 时延迟渲染（离线报表 modal 先出现），但常驻行立即更新。
    * 返回 model（便于回归断言取结构化文案）；无 DOM 环境仍返回 model，只是不画。 */
   function showWarToast(kind, payload, opts) {
-    if (!payload) return null;
-    var options = opts || {};
-    var model = kind === 'action' ? actionModel(payload)
-      : kind === 'invasion' ? invasionModel(payload, !!options.offline) : null;
-    if (!model) return null;
-    lastResult = { text: model.lastText, variant: model.variant };
-    if (options.offline) {
-      pendingOffline.push(model);
+    if (!payload || (kind !== 'action' && kind !== 'invasion')) return null;
+    var event = { kind: kind, payload: payload, offline: !!(opts && opts.offline) };
+    lastEvent = event;
+    if (event.offline) {
+      pendingOffline.push(event);
       if (root.setTimeout) {
         root.setTimeout(function () {
-          var at = pendingOffline.indexOf(model);
-          if (at >= 0) pendingOffline.splice(at, 1);
-          render(model);
+          var at = pendingOffline.indexOf(event);
+          if (at < 0) return;
+          pendingOffline.splice(at, 1);
+          render(event);
         }, OFFLINE_DELAY);
       }
     } else {
-      render(model);
+      render(event);
     }
-    return model;
+    return localizedModel(event);
   }
 
-  function lastWarResult() { return lastResult; }
+  function lastWarResult() {
+    if (!lastEvent) return null;
+    var model = localizedModel(lastEvent);
+    return { text: model.lastText, variant: model.variant };
+  }
   function clearWarToasts() {
     var doc = root.document;
     var stack = doc && doc.getElementById ? doc.getElementById(STACK_ID) : null;
     for (var i = 0; i < active.length; i++) {
-      if (stack && stack.removeChild) stack.removeChild(active[i]);
+      if (stack && stack.removeChild) stack.removeChild(active[i].node);
     }
     active = [];
     pendingOffline = [];
-    lastResult = null;
+    lastEvent = null;
   }
 
+  if (root.addEventListener) root.addEventListener('shellbreak:locale-changed', function () {
+    active.forEach(function (entry) { entry.refresh(); });
+  });
   SB.ui.showWarToast = showWarToast;
   SB.ui.lastWarResult = lastWarResult;
   SB.ui.clearWarToasts = clearWarToasts;

@@ -1,5 +1,4 @@
-/* 星图面板：动画星图在 iframe 中；选择天体后，父页面在 iframe 下方渲染该星球的建筑，
- * 建造 / 升级 / 启停直接复用巢穴建筑列表的 data-build 与 data-*-inc/dec 委托动作。 */
+/* 星图面板与天体建筑。建造、升级和启停复用巢穴建筑的 data-build 与 data-*-inc/dec 委托动作。 */
 (function (root) {
   'use strict';
   var SB = root.SB || (root.SB = {});
@@ -7,6 +6,7 @@
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
   var selectedBody = 'europa';
   var starMapView = 'phase1';
+  var mountedMap = null;
   var BODY_BUILDINGS = {
     europa: ['satellite', 'spacestation'],
     rhea: ['rheamine'],
@@ -114,12 +114,12 @@
     panel.innerHTML = html;
   }
 
-  function onStarMapMessage(event) {
-    var iframe = root.document && root.document.querySelector('#pane-star-map iframe.starmap-frame');
-    var data = event && event.data;
-    if (!iframe || event.source !== iframe.contentWindow || !data) return;
-    if (data.type === 'sb-star-map-height') {
-      iframe.style.height = Math.max(600, Math.min(1200, Number(data.height) || 780)) + 'px';
+  function receiveStarMapMessage(data) {
+    if (!data) return;
+    if (data.type === 'sb-star-map-ready' || data.type === 'sb-star-map-visible') {
+      var active = SB.game.getTab() === 'star-map' && !root.document.hidden;
+      if (data.type === 'sb-star-map-ready') SB.ui.render.notifyStarMapActive(active);
+      if (active) SB.ui.render.syncStarMapGameData();
       return;
     }
     if (data.type === 'sb-star-map-view') {
@@ -135,19 +135,34 @@
     selectedBody = data.body;
     renderSelectedBody(SB.game && SB.game.run ? SB.game.run() : null);
   }
-  if (root.addEventListener) root.addEventListener('message', onStarMapMessage);
+  function mountStarMap(pane) {
+    if (mountedMap) mountedMap.dispose();
+    selectedBody = 'europa';
+    starMapView = 'phase1';
+    mountedMap = parts.starMapHost ? parts.starMapHost.mount(pane, receiveStarMapMessage) : null;
+  }
+
+  function sendStarMapMessage(data) {
+    if (mountedMap) mountedMap.update(data);
+  }
+
+  function starMapUnlocked(s) {
+    var platform = root.shellbreakPlatform;
+    var preview = platform && platform.runtime === 'xiaohongshu' && platform.testUnlockStarMap === true;
+    return !!(parts.starMapHost && s && (preview || ((s.shellOpened || s.breakSettled) && s.shell <= 0)));
+  }
 
   function paneStarMap() {
     var s = SB.game && SB.game.run ? SB.game.run() : null;
-    if (!s || !(s.shellOpened || s.breakSettled) || s.shell > 0)
+    if (!starMapUnlocked(s))
       return '<div class="note">' + escapeHtml(tr('ui.star_map.locked_hint')) + '</div>';
-    return '<div class="starmap-frame-wrap">' +
-      '<iframe class="starmap-frame" sandbox="allow-scripts" ' +
-      'src="src/ui/star-map-frame.html?v=10" title="' + escapeHtml(tr('ui.star_map.frame.title')) + '" ' +
-      'style="width:100%;height:780px;border:0;border-radius:12px;background:#07111d"></iframe></div>' +
-      '<div id="star-map-buildings" class="star-map-buildings"></div>';
+    var map = parts.starMapHost.markup(escapeHtml(tr('ui.star_map.frame.title')));
+    return map + '<div id="star-map-buildings" class="star-map-buildings"></div>';
   }
 
+  parts.starMapUnlocked = starMapUnlocked;
+  parts.mountStarMap = mountStarMap;
+  parts.sendStarMapMessage = sendStarMapMessage;
   parts.paneStarMap = paneStarMap;
   parts.refreshStarMapBuildings = renderSelectedBody;
 })(typeof window !== 'undefined' ? window : globalThis);

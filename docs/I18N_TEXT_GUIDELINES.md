@@ -13,10 +13,10 @@
 
 ## 平台范围
 
-- 翻译文案只在 Steam/Electron 构建中启用。Steam/Electron 可以选择已支持的目标语言。
-- TapTap 端始终显示简体中文：忽略系统语言和其他端保存的语言偏好，不显示语言切换入口。TapTap 专用提示也保持中文。
-- 平台判断必须使用明确的构建/运行时标记；不能只靠浏览器语言或 UA 推断。平台缺失、未知或无法确认时一律回退简体中文，不能误把翻译带到 TapTap。
-- 文案底表里的译文列是 Steam/Electron 资源；规则和回归检查要覆盖「Steam/Electron 可切换、TapTap 固定中文」两种路径。
+- 标准 Web 入口和 Steam/Electron 可手动选择已校对的语言。Web 默认简体中文，Steam/Electron 另可跟随 Steam 语言。
+- TapTap 与小红书端始终显示简体中文：忽略系统语言和其他端保存的语言偏好，不显示语言切换入口。TapTap 专用提示也保持中文。
+- 平台判断必须使用明确的构建/运行时标记；不能只靠浏览器语言或 UA 推断。普通 Web 由标准入口声明词库地址，Steam/Electron 由预加载桥标识。未知宿主或缺少发行标识时使用简体中文。
+- 台账中的译文供标准 Web 和 Steam/Electron 使用。回归覆盖语言切换、重载偏好，以及 TapTap 和小红书固定简中。
 - TapTap 专属且 Steam/Electron 不提供的功能不需要英文译文：英文单元格留空，英文状态标为「平台不适用」，并在上下文注明 TapTap 专属；Steam/Electron 界面不得引用这类文案。
 - 游戏内繁体中文（zh-TW）单独维护在「繁體中文（zh-TW，游戏内）」及其状态列中；Steam 商店繁体中文列只用于商店文案，不能代替游戏内译文。
 - 目标语言只有在所有当前有效的语义 key 都有「已校对」译文后才算可发布。缺译在运行时回退简体中文；繁中选项仅在繁中词典完整时显示。上包前运行 `python scripts/export_i18n_runtime.py --check --require-complete`。

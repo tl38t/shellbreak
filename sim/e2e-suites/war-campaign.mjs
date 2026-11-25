@@ -1,7 +1,7 @@
 /* e2e suite: war campaign rules, invasion timing, and diplomacy rendering. */
 import { readFileSync } from 'node:fs';
 
-export function run({ SB, check, noop, doc }) {
+export function run({ SB, check, noop, doc, timers }) {
   console.log('\n=== War campaign ===');
 
   /* ===== 外交页「页签问号 intro」+「开门叙事弹窗」接线回归锁（2026-11-11） =====
@@ -407,6 +407,10 @@ export function run({ SB, check, noop, doc }) {
 
       /* ② 口径核心：军力储备行三档逐字相同，军人阵亡另起一行，不混为一个量。 */
       const mFail = realToast('action', failedAction);
+      const expireFailed = timers[timers.length - 1];
+      const visibleToasts = () => Array.from(doc.getElementById('warToastStack').children || [])
+        .filter(e => e.classList && e.classList.contains('war-toast'));
+      const failedToast = doc && visibleToasts().find(e => e.classList.contains('is-fail'));
       const mSuccess = realToast('action', Object.assign({}, failedAction, { outcome: 'success' }));
       const mGreat = realToast('action', Object.assign({}, failedAction, { outcome: 'greatSuccess' }));
       const costRow = m => m.lines.filter(l => l.cls.indexOf('is-cost') >= 0)[0];
@@ -456,12 +460,12 @@ export function run({ SB, check, noop, doc }) {
       }
       /* ⑤ 真 DOM 上屏取证：toast 挂到 #warToastStack 且变体 class 上屏。 */
       if (doc) {
-        const stack = doc.getElementById('warToastStack');
-        const toastEls = (stack.children || []).filter(e => e.className &&
-          String(e.className).indexOf('war-toast') >= 0);
+        const toastEls = visibleToasts();
+        const pending = timers.length;
+        expireFailed();
         check('toast 真实挂到 #warToastStack 且变体 class 上屏（失败/被攻入）',
-          toastEls.length >= 1 && toastEls.some(e => e.classList.contains('is-fail')) &&
-          toastEls.some(e => e.classList.contains('is-breach')),
+          !!failedToast && toastEls.some(e => e.classList.contains('is-breach')) &&
+          toastEls.length <= 4 && !toastEls.includes(failedToast) && timers.length === pending,
           JSON.stringify({ count: toastEls.length, classes: toastEls.map(e => e.className) }));
       }
     }

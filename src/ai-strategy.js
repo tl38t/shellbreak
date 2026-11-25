@@ -1002,7 +1002,8 @@
     var climateWonderTarget = waterPollutionWonderTarget(s);
     if (climateWonderTarget) {
       var climateWonderBlocked = SB.workshop.wonderBlocked(s, climateWonderTarget.id);
-      if (climateWonderBlocked && /^还缺建筑等级/.test(climateWonderBlocked)) {
+      if (climateWonderBlocked && (/^还缺建筑等级/.test(climateWonderBlocked) ||
+          (SB.workshop.wonderBuildCostMissing && SB.workshop.wonderBuildCostMissing(s, climateWonderTarget.id)))) {
         var climateBuildLacks = SB.wonder && SB.wonder.buildCostLack
           ? SB.wonder.buildCostLack(s, climateWonderTarget.id) : [];
         for (var cbi = 0; cbi < climateBuildLacks.length; cbi++) {

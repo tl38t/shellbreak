@@ -1536,7 +1536,7 @@ console.log('\n=== 市政 ===');
     const oldShell = loop.shell;
     loop.broken = true; loop.shell = 0; loop.upgrades.upg_starscope = true;
     SB.ui.render.renderShell();
-    var shellTxt = (doc.getElementById('shellTxt') || {})._html || '';
+    var shellTxt = (doc.getElementById('shellTxt') || {}).innerHTML || '';
     check('星空槽：破壳后 renderShell 显示星空槽进度（含 STAR_CAP 目标数值）',
       shellTxt.indexOf('星空槽') >= 0 && shellTxt.indexOf(SB.CFG.STAR_CAP.toLocaleString()) >= 0, 'snip=' + shellTxt.slice(0, 80));
 
@@ -1552,11 +1552,8 @@ console.log('\n=== 市政 ===');
     loop.spacecraft = [{ id: 'europa-1', type: 'satellite', body: 'europa', name: '欧罗巴一号', launchedAt: 42 },
       { id: 'saturn-1', type: 'station', body: 'saturn', name: '土星站', launchedAt: 84 }];
     const mapHTML = SB.ui.renderParts.paneStarMap();
-    /* 2026-10-17 星图改版：视觉换成 GPT 制作的 iframe 动画星图（star-map-frame.html），
-     * 发射记录尚未接入 frame（占位期）⇒ 断言改为「iframe 挂载 + 记录不被清空」；
-     * 待 frame 接入游戏状态后，把「发射记录上屏」的展示断言加回来。 */
-    check('星图：破壳后挂载 iframe 动画星图（star-map-frame.html?v=2）',
-      mapHTML.indexOf('<iframe') >= 0 && mapHTML.indexOf('star-map-frame.html?v=2') >= 0,
+    check('星图：破壳后挂载带版本号的 iframe 动画星图',
+      /<iframe\b[^>]*\bsrc="src\/ui\/star-map-frame\.html\?v=\d+"/.test(mapHTML),
       'snip=' + mapHTML.slice(0, 120));
     check('星图：本周目发射记录仍在（frame 接入后上屏）',
       loop.spacecraft.length === 2 && loop.spacecraft[0].name === '欧罗巴一号' && loop.spacecraft[1].name === '土星站');
@@ -1601,11 +1598,11 @@ console.log('\n=== 市政 ===');
     SB.companyState(cpRun, 'coral').epoch = 1;
     cpRun.t = 1;
     cpRun.companyNames = SB.pickCompanyNames();
+    SB.game.setTab('company');
     SB.ui.render.renderPanes();
     const cpBody = (doc.getElementById('pane-company-body') || {})._html || '';
     check('公司页：宏观经济学后渲染出两家公司（非空、且藻食公司非"未命名"）',
       cpBody.indexOf('藻食') >= 0 && cpBody.indexOf('未命名') < 0, 'len=' + cpBody.length);
-    SB.game.setTab('company');
     check('公司页：setTab("company") 后 #pane-company 不再 hidden',
       !(doc.getElementById('pane-company')._classes || new Set()).has('hidden'));
 
@@ -2181,6 +2178,9 @@ console.log('\n=== 市政 ===');
     Math.abs(adopt.res.culture - (5000 - _topC / 5)) < 1e-9,
     'culture=' + adopt.res.culture + ' 收费=' + (_topC / 5));
 
+  const _prevCivHall = SB.game.run().lvl.hall;
+  if (!(_prevCivHall > 0)) SB.game.run().lvl.hall = 1;
+  SB.game.setTab('civic');
   SB.ui.render.setCivicView('tree');
   SB.game.markDirty(); SB.game.render();
   const civicPane = g('pane-civic');
@@ -2210,6 +2210,7 @@ console.log('\n=== 市政 ===');
       ' civicScroll / techScroll 容器没找到');
   }
   SB.ui.render.setCivicView('government');
+  SB.game.run().lvl.hall = _prevCivHall;
   SB.game.markDirty(); SB.game.render();
 }
 

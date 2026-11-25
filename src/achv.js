@@ -6,7 +6,7 @@
  *   mgr.unlockAchievement({ achievementId }) —— 解锁（平台侧幂等，重复调用不报错）。
  *
  * TapTap 成就 ID 由后台创建后回填到 SB.CFG.ACHV；Steam 成就通过 Electron preload
- *   的白名单桥接发送 API Name。两类 ID 不共用，见 assets/achievements/ 的填报清单。
+ *   的白名单桥接发送 API Name。两类 ID 不共用，见 docs/achievements/ 的平台填报清单。
  *
  * ── 与 rank.js / ad.js 同一套边界纪律（2026-10-15）──────────────────────
  *   生产环境**缺少当前平台的 SDK / API Name ⇒ 不调用、绝不"假装成功"**。
@@ -41,76 +41,76 @@
    * icon 为游戏内成就墙用图；12 条文明里程碑有专属图标，挑战成就复用挑战徽章。
    *   后续新定义若没有 icon，成就墙才会显示徽记占位（render-pane-challenges.js）。 */
   var DEFS_BASE = [
-    { key: 'cold',         challengeAchievement: true, steamApiName: 'SHELLBREAK_COLD', name: '寒流禁火', icon: 'assets/achievements/achv-cold.png',
+    { key: 'cold',         challengeAchievement: true, steamApiName: 'SHELLBREAK_COLD', name: '寒流禁火', icon: 'assets/achievements/thumbs/achv-cold.webp',
       desc: '在「寒流禁火」的限制下完成一次轮回。' },
-    { key: 'small',        challengeAchievement: true, steamApiName: 'SHELLBREAK_SMALL', name: '小国寡民', icon: 'assets/achievements/achv-small.png',
+    { key: 'small',        challengeAchievement: true, steamApiName: 'SHELLBREAK_SMALL', name: '小国寡民', icon: 'assets/achievements/thumbs/achv-small.webp',
       desc: '在「小国寡民」的限制下完成一次轮回。' },
-    { key: 'science',      challengeAchievement: true, steamApiName: 'SHELLBREAK_SCIENCE', name: '忽视科文', icon: 'assets/achievements/achv-science.png',
+    { key: 'science',      challengeAchievement: true, steamApiName: 'SHELLBREAK_SCIENCE', name: '忽视科文', icon: 'assets/achievements/thumbs/achv-science.webp',
       desc: '三档全通——把学者与抄写员的人数一路压到最低。' },
-    { key: 'abyss',        challengeAchievement: true, steamApiName: 'SHELLBREAK_ABYSS', name: '深渊重压', icon: 'assets/achievements/achv-abyss.png',
+    { key: 'abyss',        challengeAchievement: true, steamApiName: 'SHELLBREAK_ABYSS', name: '深渊重压', icon: 'assets/achievements/thumbs/achv-abyss.webp',
       desc: '三档全通——在全产出大幅削减下走完整局。' },
-    { key: 'firstRebirth', steamApiName: 'SHELLBREAK_FIRST_REBIRTH', name: '首次轮回', icon: 'assets/achievements/achv-first-rebirth.png',
-      desc: '第一次完成真正的轮回结算——推倒重来，是深渊文明的成人礼。' },
-    { key: 'shellBreak',   steamApiName: 'SHELLBREAK_SHELL_BREAK', name: '首次破壳', icon: 'assets/achievements/achv-shell-break.png',
-      desc: '第一次真正凿穿天壳。冰层崩塌的那一刻，深海之上第一次照进星光。' },
-    { key: 'dysonEnd',     steamApiName: 'SHELLBREAK_DYSON_END', name: '控星之人', icon: 'assets/achievements/achv-dyson-end.png',
-      desc: '建成完整的戴森球，把整颗恒星纳入掌心——在未飞升虚境的那条路上，这就是文明的顶点。' },
-    { key: 'voidEnd',      steamApiName: 'SHELLBREAK_VOID_END', name: '虚境飞升', icon: 'assets/achievements/achv-void-end.png',
-      desc: '掌握《飞升虚境》之后竣工戴森球——文明没有停步星海，而是跃入了虚境之中。' },
-    { key: 'speedrun',     challengeAchievement: true, steamApiName: 'SHELLBREAK_SPEEDRUN', name: '逐光竞速', icon: 'assets/achievements/achv-speedrun.png',
-      desc: '在「逐光竞速」挑战的 4 小时档内凿穿天壳——与时间赛跑，并且跑赢。' },
-    { key: 'driftTerra',   challengeAchievement: true, steamApiName: 'SHELLBREAK_DRIFT_TERRA', name: '流浪泰拉', icon: 'assets/achievements/achv-drift-terra.png?v=2',
+    { key: 'firstRebirth', steamApiName: 'SHELLBREAK_FIRST_REBIRTH', name: '首次轮回', icon: 'assets/achievements/thumbs/achv-first-rebirth.webp',
+      desc: '完成第一次合格的轮回结算。带着旧海的记忆，重新出发。' },
+    { key: 'shellBreak',   steamApiName: 'SHELLBREAK_SHELL_BREAK', name: '首次破壳', icon: 'assets/achievements/thumbs/achv-shell-break.webp',
+      desc: '第一次凿穿天壳。冰层碎裂之时，星光第一次落进深海。' },
+    { key: 'dysonEnd',     steamApiName: 'SHELLBREAK_DYSON_END', name: '控星之人', icon: 'assets/achievements/thumbs/achv-dyson-end.webp',
+      desc: '在未踏入虚境的前提下建成完整戴森球，把整颗恒星收入囊中。' },
+    { key: 'voidEnd',      steamApiName: 'SHELLBREAK_VOID_END', name: '虚境飞升', icon: 'assets/achievements/thumbs/achv-void-end.webp',
+      desc: '掌握《飞升虚境》后竣工戴森球，携整个文明跃入虚境。' },
+    { key: 'speedrun',     challengeAchievement: true, steamApiName: 'SHELLBREAK_SPEEDRUN', name: '逐光竞速', icon: 'assets/achievements/thumbs/achv-speedrun.webp',
+      desc: '在「逐光竞速」4 小时档内凿穿天壳。' },
+    { key: 'driftTerra',   challengeAchievement: true, steamApiName: 'SHELLBREAK_DRIFT_TERRA', name: '流浪泰拉', icon: 'assets/achievements/thumbs/achv-drift-terra.webp',
       desc: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能。' },
     /* 2026-11-03 补登记：水体污染 2026-11-02 实装时只做了挑战定义，**漏了成就条目**
      *   （achv.js 无定义 + CFG.ACHV 无键 + waterpollution 定义无 onComplete）⇒
      *   通关能发奖励、能写 meta.challenges.completed，但成就墙与平台都不会亮。
      * icon 复用挑战徽章（64×64 SVG，img 自动缩放），暂不另做 PNG。 */
-    { key: 'pollutionClear', challengeAchievement: true, steamApiName: 'SHELLBREAK_POLLUTION_CLEAR', name: '海渊澄明', icon: 'assets/challenges/challenge-waterpollution-illustrated.webp',
-      desc: '在「水体污染」挑战里让戴森球竣工——带着最脏的海，走到了群星之间。' },
+    { key: 'pollutionClear', challengeAchievement: true, steamApiName: 'SHELLBREAK_POLLUTION_CLEAR', name: '海渊澄明', icon: 'assets/challenges/thumbs/challenge-waterpollution-illustrated.webp',
+      desc: '在「水体污染」挑战中让戴森球竣工。哪怕身处最浑浊的海，也要望见群星。' },
     /* 新增的挑战专属成就，文案由 i18n 词条提供；图标复用对应挑战徽章。 */
     { key: 'challengeDysonRush', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_DYSON_RUSH', icon: 'assets/challenges/challenge-speedrun.svg' },
-    { key: 'challengeAnarchy', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_ANARCHY', icon: 'assets/challenges/challenge-anarchy.png' },
-    { key: 'challengeGoodOldDays', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_GOOD_OLD_DAYS', icon: 'assets/challenges/challenge-good-old-days.png' },
-    { key: 'challengeThreeLaunchSites', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_THREE_LAUNCH_SITES', icon: 'assets/challenges/challenge-three-launch-sites.png' },
-    { key: 'challengeEternityMoment', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_ETERNITY_MOMENT', icon: 'assets/challenges/challenge-eternity-moment.png' },
-    { key: 'challengePacifist', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_PACIFIST', icon: 'assets/challenges/challenge-pacifist-illustrated.webp' },
-    { key: 'challengeWeaponCritique', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_WEAPON_CRITIQUE', icon: 'assets/challenges/challenge-weapon-critique-illustrated.webp' },
-    { key: 'challengeTotalWarDoctrine', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_TOTALWAR_DOCTRINE', icon: 'assets/challenges/challenge-totalwar-doctrine-illustrated.webp' },
-    { key: 'challengeRaider', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_RAIDER', icon: 'assets/challenges/challenge-raider-illustrated.webp' },
-    { key: 'challengeConqueror', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_CONQUEROR', icon: 'assets/challenges/challenge-conqueror-illustrated.webp' },
+    { key: 'challengeAnarchy', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_ANARCHY', icon: 'assets/challenges/thumbs/challenge-anarchy.webp' },
+    { key: 'challengeGoodOldDays', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_GOOD_OLD_DAYS', icon: 'assets/challenges/thumbs/challenge-good-old-days.webp' },
+    { key: 'challengeThreeLaunchSites', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_THREE_LAUNCH_SITES', icon: 'assets/challenges/thumbs/challenge-three-launch-sites.webp' },
+    { key: 'challengeEternityMoment', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_ETERNITY_MOMENT', icon: 'assets/challenges/thumbs/challenge-eternity-moment.webp' },
+    { key: 'challengePacifist', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_PACIFIST', icon: 'assets/challenges/thumbs/challenge-pacifist-illustrated.webp' },
+    { key: 'challengeWeaponCritique', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_WEAPON_CRITIQUE', icon: 'assets/challenges/thumbs/challenge-weapon-critique-illustrated.webp' },
+    { key: 'challengeTotalWarDoctrine', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_TOTALWAR_DOCTRINE', icon: 'assets/challenges/thumbs/challenge-totalwar-doctrine-illustrated.webp' },
+    { key: 'challengeRaider', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_RAIDER', icon: 'assets/challenges/thumbs/challenge-raider-illustrated.webp' },
+    { key: 'challengeConqueror', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_CONQUEROR', icon: 'assets/challenges/thumbs/challenge-conqueror-illustrated.webp' },
     /* 飞升挑战系列（2026-11-20）：三项本地成就，文案由 i18n 词条提供，图标复用挑战徽章。
      * ⚠️ 平台 ID 暂不建：config.ACHV 不加映射键 ⇒ TapTap 侧 idOf 返回 ''、不请求平台解锁；
      *   本地账本 meta.achv[key] 照常记（成就墙真源与 ID 无关）。Steam 侧有 steamApiName 可解锁。 */
-    { key: 'challengeVeilRush', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_RUSH', name: '飞升竞速', icon: 'assets/challenges/challenge-veil-sprint-illustrated.png',
+    { key: 'challengeVeilRush', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_RUSH', name: '飞升竞速', icon: 'assets/challenges/thumbs/challenge-veil-sprint-illustrated.webp',
       desc: '在 8 小时档内研成《掀起帘幕》——以最快速度抵达帷幕之后。' },
-    { key: 'challengeVeilAbyss', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_ABYSS', name: '飞升苦旅', icon: 'assets/challenges/challenge-veil-abyss-illustrated.png',
+    { key: 'challengeVeilAbyss', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_ABYSS', name: '飞升苦旅', icon: 'assets/challenges/thumbs/challenge-veil-abyss-illustrated.webp',
       desc: '在全产出削减 60% 的重压下研成《掀起帘幕》——负重抵达群星。' },
-    { key: 'challengeVeilStarve', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_STARVE', name: '宇宙空洞', icon: 'assets/challenges/challenge-veil-starve-illustrated.png',
+    { key: 'challengeVeilStarve', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_STARVE', name: '宇宙空洞', icon: 'assets/challenges/thumbs/challenge-veil-starve-illustrated.webp',
       desc: '在星屑结算收益削减 60% 的虚空中研成《掀起帘幕》——于枯竭处掀幕。' },
     /* 飞升挑战第二批（2026-11-20）：无神论 / 动荡年代 / 繁盛市场今在此。
      * ⚠️ 平台 ID 不建（同上）：不写 CFG.ACHV 映射，本地账本照常记。图标待出图替换。 */
-    { key: 'challengeVeilNoFaith', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_NOFAITH', name: '无神论', icon: 'assets/challenges/challenge-veil-nofaith-illustrated.png',
+    { key: 'challengeVeilNoFaith', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_NOFAITH', name: '无神论', icon: 'assets/challenges/thumbs/challenge-veil-nofaith-illustrated.webp',
       desc: '不装备任何信条、弃绝一切信仰全产加成，以无神之身研成《掀起帘幕》。' },
-    { key: 'challengeVeilTurmoil', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_TURMOIL', name: '动荡年代', icon: 'assets/challenges/challenge-veil-turmoil-illustrated.png',
+    { key: 'challengeVeilTurmoil', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_TURMOIL', name: '动荡年代', icon: 'assets/challenges/thumbs/challenge-veil-turmoil-illustrated.webp',
       desc: '幸福度恒为动荡最低档，仍要在最深的不安中研成《掀起帘幕》。' },
-    { key: 'challengeVeilCramped', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_CRAMPED', name: '繁盛市场今在此', icon: 'assets/challenges/challenge-veil-cramped-illustrated.png',
+    { key: 'challengeVeilCramped', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_CRAMPED', name: '繁盛市场今在此', icon: 'assets/challenges/thumbs/challenge-veil-cramped-illustrated.webp',
       desc: '在所有仓储上限被压缩 70% 的逼仄仓廪里研成《掀起帘幕》——螺蛳壳里做道场。' },
-    { key: 'starComplete', steamApiName: 'SHELLBREAK_STAR_COMPLETE', name: '太空时代', icon: 'assets/achievements/achv-star-complete.png',
-      desc: '破壳之后把星空槽完全填满——深海的族民，终于把目光投向了整片星海。' },
-    { key: 'religion',     steamApiName: 'SHELLBREAK_RELIGION', name: '立教', icon: 'assets/achievements/achv-religion.png',
-      desc: '第一次为你的文明命名——从这一刻起，轮回之门为之开启。' },
-    { key: 'rebirth10',    steamApiName: 'SHELLBREAK_REBIRTH_10', name: '十次轮回', icon: 'assets/achievements/achv-rebirth-10.png',
-      desc: '完成十次真正的轮回结算——每一次推倒重来，都比上一次走得更远。' },
-    { key: 'relic10',      steamApiName: 'SHELLBREAK_RELIC_10', name: '旧日遗珍', icon: 'assets/achievements/achv-relic-10.png',
-      desc: '让十座独特奇观跨周目入藏纪念馆——旧日的辉煌，没有被遗忘。' },
-    { key: 'relic25',      steamApiName: 'SHELLBREAK_RELIC_25', name: '遗珍全集', icon: 'assets/achievements/achv-relic-25.png',
-      desc: '二十五座独特奇观全部入藏——整部文明史，都收进了这座纪念馆。' },
-    { key: 'techAll',      steamApiName: 'SHELLBREAK_TECH_ALL', name: '科技大成', icon: 'assets/achievements/achv-tech-all.png',
-      desc: '在同一个周目内掌握全部 83 项科技——从结绳记事到大统一方程，一条路走到头。' },
-    { key: 'civicAll',     steamApiName: 'SHELLBREAK_CIVIC_ALL', name: '市政大成', icon: 'assets/achievements/achv-civic-all.png',
-      desc: '在同一个周目内完成全部 69 项市政——从法典到神们自己，一个都不落下。' },
-    { key: 'halfDyson',    steamApiName: 'SHELLBREAK_HALF_DYSON', name: '半程星环', icon: 'assets/achievements/achv-half-dyson.png',
-      desc: '戴森球进度达到 50%——半个恒星已经属于你，剩下的只是时间问题。' }
+    { key: 'starComplete', steamApiName: 'SHELLBREAK_STAR_COMPLETE', name: '太空时代', icon: 'assets/achievements/thumbs/achv-star-complete.webp',
+      desc: '破壳之后填满全部星空槽，将深海的目光投向整片星海。' },
+    { key: 'religion',     steamApiName: 'SHELLBREAK_RELIGION', name: '立教', icon: 'assets/achievements/thumbs/achv-religion.webp',
+      desc: '首次为你的文明命名，推开轮回之门。' },
+    { key: 'rebirth10',    steamApiName: 'SHELLBREAK_REBIRTH_10', name: '十次轮回', icon: 'assets/achievements/thumbs/achv-rebirth-10.webp',
+      desc: '累计完成十次合格的轮回结算。' },
+    { key: 'relic10',      steamApiName: 'SHELLBREAK_RELIC_10', name: '旧日遗珍', icon: 'assets/achievements/thumbs/achv-relic-10.webp',
+      desc: '跨周目将十座独特奇观收入纪念馆。' },
+    { key: 'relic25',      steamApiName: 'SHELLBREAK_RELIC_25', name: '遗珍全集', icon: 'assets/achievements/thumbs/achv-relic-25.webp',
+      desc: '将全部二十五座独特奇观收入纪念馆，留存一整部文明史。' },
+    { key: 'techAll',      steamApiName: 'SHELLBREAK_TECH_ALL', name: '科技大成', icon: 'assets/achievements/thumbs/achv-tech-all.webp',
+      desc: '在单个周目内研成全部 83 项科技，从结绳记事直抵大统一方程。' },
+    { key: 'civicAll',     steamApiName: 'SHELLBREAK_CIVIC_ALL', name: '市政大成', icon: 'assets/achievements/thumbs/achv-civic-all.webp',
+      desc: '在单个周目内完成全部 69 项市政，从法典直抵神们自己。' },
+    { key: 'halfDyson',    steamApiName: 'SHELLBREAK_HALF_DYSON', name: '半程星环', icon: 'assets/achievements/thumbs/achv-half-dyson.webp',
+      desc: '戴森球进度达到 50%。半颗恒星已在掌中。' }
   ];
 
   /* 56 条「<建筑名>：轻车熟路」从 SB.BUILDINGS 自动派生——新增建筑自动获得成就槽位，

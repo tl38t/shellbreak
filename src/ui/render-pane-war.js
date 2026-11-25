@@ -71,11 +71,12 @@
       for (var i = 0; i < sorted.length; i++) {
         var r = sorted[i], id = typeof r === 'string' ? r : (r && r.id);
         if (!id) continue;
+        var card = parts.research.heritageCard(s, id);
         var st = (r && typeof r.stage === 'number' && r.stage >= 1 && r.stage <= 7) ? r.stage : (i + 1);
         out += '<article class="heritage-card is-owned">' +
           '<span class="heritage-card-stage">' + esc(h.roman(st)) + '</span>' +
-          '<div class="heritage-card-name">' + esc(h.nameOf(id)) + '</div>' +
-          '<div class="heritage-card-desc">' + esc(h.descOf(id)) + '</div>' +
+          '<div class="heritage-card-name">' + esc(card.name) + '</div>' +
+          '<div class="heritage-card-desc">' + esc(card.desc) + '</div>' +
           '<span class="heritage-effective">' + esc(tr('ui.heritage.effective') || '已生效') +
           '</span></article>';
       }

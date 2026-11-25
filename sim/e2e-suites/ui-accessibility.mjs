@@ -8,7 +8,7 @@ drainStoryModals();
     SB.ui.render.techTabOpen() === false &&
     (SB.game.setTab('tech'), SB.game.getTab() !== 'tech'), 'tab=' + SB.game.getTab());
   check('开局：科技面板渲染「未翻开」空态而不是空白',
-    g('pane-tech').indexOf('未翻开') !== -1, g('pane-tech').slice(0, 50).replace(/\n/g, ' '));
+    (SB.ui.render.paneTech ? SB.ui.render.paneTech() : g('pane-tech')).indexOf('未翻开') !== -1, g('pane-tech').slice(0, 50).replace(/\n/g, ' '));
 
   /* 尤里卡播报的**时机**（用户 2026-09-26：尤里卡等解锁科技之后一起展示）。
    * 三条断言分别钉「不开门不播」「但揭示照常」「开了门一次性摊开且相邻」。 */

@@ -881,6 +881,23 @@
     writeLocal(PREF_KEY, txt);
     return mirrorWrite(PREF_KEY, txt).then(function () { return v; });
   }
+  function prefGetStr(key, allowed, dflt) {
+    var v = prefLocal()[key];
+    if (typeof v !== 'string') return dflt;
+    if (Array.isArray(allowed) && allowed.length && allowed.indexOf(v) < 0) return dflt;
+    return v;
+  }
+  function prefSetStr(key, val, allowed) {
+    var v = typeof val === 'string' ? val : String(val == null ? '' : val);
+    if (Array.isArray(allowed) && allowed.length && allowed.indexOf(v) < 0) return Promise.resolve(v);
+    var o = prefLocal();
+    o[key] = v;
+    o._at = Date.now();
+    prefDirty = true;
+    var txt = JSON.stringify(o);
+    writeLocal(PREF_KEY, txt);
+    return mirrorWrite(PREF_KEY, txt).then(function () { return v; });
+  }
   /* 从 ②③ 备份救回「localStorage 被容器清掉」的那份。
    * ⚠️ 没有 setTimeout 的沙箱里 bounded() 会抛，直接跳过 —— 那是纯逻辑脚本，没有 tap。 */
   function prefHydrate() {
@@ -948,7 +965,7 @@
     emergencyClear: emergencyClear,
     DIAG_KEY: DIAG_KEY, EMERG_KEY: EMERG_KEY,
     /* ⑤ 设备级 UI 偏好（2026-11-05）：不进存档、清档不清、默认 false。 */
-    prefGet: prefGet, prefSet: prefSet, prefHydrate: prefHydrate, PREF_KEY: PREF_KEY,
+    prefGet: prefGet, prefSet: prefSet, prefGetStr: prefGetStr, prefSetStr: prefSetStr, prefHydrate: prefHydrate, PREF_KEY: PREF_KEY,
     status: status
   };
 })(typeof window !== 'undefined' ? window : globalThis);

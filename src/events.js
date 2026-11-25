@@ -74,7 +74,7 @@
     {
       id: 'fireVent',
       name: '深海火喷泉',
-      copy: '海床骤然裂开一道炽红缝隙，熔融的岩与铁顺着热泉喷涌而出——趁余热未散，采石与锻铁皆得厚报。',
+      copy: '海床裂开一道新缝，滚烫的岩浆与富铁矿液随热泉涌出——趁余热未散，赶紧多采几船。',
       weight: 0.25,
       /* 采石 / 采矿后：stone 解锁 {tech:'quarry'}，silt 解锁 {tech:'mining'}。 */
       unlock: function (s) { return !!(s.techs && s.techs.mining && s.techs.quarry); },
@@ -89,7 +89,7 @@
     {
       id: 'faithVision',
       name: '信仰显圣',
-      copy: '幽蓝神光自祭坛深处浮起，先祖的低语穿透水幕——信仰如潮奔涌，万物亦随之丰沛一时。',
+      copy: '幽蓝的光晕自祭坛升起，水幕中似乎传来先祖的低语，整座聚落一时士气大振。',
       weight: 0.15,
       /* 神学完成后（resUnlocked('faith') ⇔ s.civics.theology，与信仰行 / 产出线同源）。 */
       unlock: function (s) { return !!(s.civics && s.civics.theology); },
@@ -105,7 +105,7 @@
     {
       id: 'tideStone',
       name: '潮信石',
-      copy: '一块刻满潮汐纹路的礁石随浪浮起，上面记载着族群迁徙的古老契约——读懂它，便读懂了治国之道。',
+      copy: '一块刻满古老潮纹的礁石随暗流漂进港区，上面记着族群早年迁徙的盟约与规矩。',
       weight: 0.20,
       /* 历法 / 观潮后：calendar + tiddivine。 */
       unlock: function (s) { return !!(s.techs && s.techs.calendar && s.techs.tiddivine); },

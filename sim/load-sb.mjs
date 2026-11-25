@@ -81,6 +81,18 @@ export function loadNoDom(sandbox = {}) {
   return { ctx, SB: ctx.SB };
 }
 
+// 在同一沙箱内使用发行词库和指定 UI 模块，覆盖切换语言后的动态文案。
+export function loadLocalizedGame(modules) {
+  const browser = { ShellbreakLocaleUrls: {} };
+  browser.window = browser;
+  const { ctx, SB } = loadNoDom(browser);
+  const locales = ['src/locales/zh-CN.js', 'electron/locales/en-US.js', 'electron/locales/zh-TW.js', 'src/i18n.js'];
+  for (const file of locales.concat(modules)) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), ctx, { filename: file });
+  }
+  return SB;
+}
+
 /* 加载 index.html 中声明的全部脚本（按真实顺序），供假 DOM 端到端使用。
  * src/main.js 会自动 boot，调用方可在 boot 前注入假 DOM。 */
 export function loadAll(sandbox) {

@@ -120,16 +120,18 @@
     label.appendChild(name);
     details.appendChild(label);
 
-    var luxOut = null, luxBurn = null, faith = null;
+    var luxOut = null, luxBurn = null, luxOutPrefix = null, luxBurnPrefix = null, faith = null;
     if (k === 'luxury') {
       var lux = d.createElement('i');
       lux.className = 'sd';
-      lux.appendChild(d.createTextNode('产 '));
+      luxOutPrefix = d.createTextNode(tr('ui.res.luxury.out_short', null, '产') + ' ');
+      lux.appendChild(luxOutPrefix);
       luxOut = d.createElement('span');
       luxOut.className = 'lux-out';
       luxOut.textContent = '0.00';
       lux.appendChild(luxOut);
-      lux.appendChild(d.createTextNode(' · 耗 '));
+      luxBurnPrefix = d.createTextNode(' · ' + tr('ui.res.luxury.burn_short', null, '耗') + ' ');
+      lux.appendChild(luxBurnPrefix);
       luxBurn = d.createElement('span');
       luxBurn.className = 'lux-burn';
       luxBurn.textContent = '0.00';
@@ -151,7 +153,10 @@
     content.appendChild(details);
     box.appendChild(icon(d, k));
     box.appendChild(content);
-    CELLS[k] = { box: box, value: value, cap: cap, rate: rate, name: name, luxOut: luxOut, luxBurn: luxBurn, faith: faith };
+    CELLS[k] = {
+      box: box, value: value, cap: cap, rate: rate, name: name,
+      luxOut: luxOut, luxBurn: luxBurn, luxOutPrefix: luxOutPrefix, luxBurnPrefix: luxBurnPrefix, faith: faith
+    };
     return box;
   }
   function fill(d, hostId, nodes) {
@@ -165,6 +170,10 @@
     if (t) t.textContent = tr('ui.pane.resources.title', null, '资源');
     for (var k in CELLS) {
       if (Object.prototype.hasOwnProperty.call(CELLS, k)) setText(CELLS[k].name, resourceName(k, LAST_S));
+    }
+    if (CELLS.luxury && CELLS.luxury.luxOutPrefix) {
+      setText(CELLS.luxury.luxOutPrefix, tr('ui.res.luxury.out_short', null, '产') + ' ');
+      setText(CELLS.luxury.luxBurnPrefix, ' · ' + tr('ui.res.luxury.burn_short', null, '耗') + ' ');
     }
   }
   /* 页签快速跳转（2026-11-20 用户反馈）：按钮镜像主界面 .tab 清单，不另立名单。
@@ -370,13 +379,17 @@
       c.rate.hidden = true;
     }
     if (c.luxOut && LL) {
+      if (c.luxOutPrefix) setText(c.luxOutPrefix, tr('ui.res.luxury.out_short', null, '产') + ' ');
+      if (c.luxBurnPrefix) setText(c.luxBurnPrefix, ' · ' + tr('ui.res.luxury.burn_short', null, '耗') + ' ');
       setText(c.luxOut, LL.out.toFixed(2));
       setText(c.luxBurn, LL.burn.toFixed(2));
     }
     if (c.faith) {
       if (fam > 1) {
         c.faith.hidden = false;
-        setText(c.faith, '全产+' + Math.round((fam - 1) * 100) + '%');
+        setText(c.faith, tr('ui.res.faith.all_prod_short', {
+          percent: Math.round((fam - 1) * 100)
+        }, '全产+' + Math.round((fam - 1) * 100) + '%'));
       } else {
         c.faith.hidden = true;
       }
@@ -385,9 +398,7 @@
   function paint(s, rate) {
     LAST_S = s || LAST_S;
     LAST_RATE = rate || LAST_RATE;
-    if (!LAST_S) return;
-    build();
-    if (!BUILT || !isOpen()) return;
+    if (!LAST_S || !BUILT || !isOpen()) return;
     syncJumps();   // 主 tab 的锁态/高亮会变（解锁、切页），每帧镜像
     addPowerCell(LAST_S);
     var need = E().foodUse ? E().foodUse(LAST_S) : 0;
@@ -415,7 +426,6 @@
       root.addEventListener('shellbreak:locale-changed', function () { if (BUILT) labels(); });
       root.addEventListener('resize', function () { if (isOpen()) applyPos(); });
     }
-    build();
   }
 
   ui.walkPanel = {

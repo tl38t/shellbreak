@@ -47,8 +47,6 @@ console.log('\n=== 点击时间事件系统 ===');
   const s3 = SB.state.freshRun(false);
   s3.jobs.scholar = 2;                                   // 学者产科技，无科技门槛
   const rateSci = SB.economy.rates(s3).science;
-  check('claim 无活动事件时安全返回 false（不抛错、不改状态）',
-    ev.claim(s3, noop) === false);
   ev.forceSpawn('skyTremor');
   check('forceSpawn 后 getActive 返回该事件定义',
     !!ev.getActive() && ev.getActive().id === 'skyTremor',
@@ -60,6 +58,9 @@ console.log('\n=== 点击时间事件系统 ===');
     'sci ' + sciBefore.toFixed(2) + ' → ' + (s3.res.science || 0).toFixed(2) +
     '（rate=' + rateSci.toFixed(4) + ' ×600=' + (rateSci * 600).toFixed(2) + '）');
   check('claim 后活动事件被清空（getActive 回 null）', ev.getActive() === null);
+  const afterClaim = JSON.stringify(s3);
+  check('claim 无活动事件时安全返回 false（不抛错、不改状态）',
+    ev.claim(s3, noop) === false && JSON.stringify(s3) === afterClaim);
 
   /* ③ 信仰显圣：信仰奖励 + 临时全产 buff 进 globalMul（×1.10）且过期回收。 */
   const s4 = SB.state.freshRun(false);

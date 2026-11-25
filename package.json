@@ -7,13 +7,16 @@
   "packageManager": "pnpm@11.25.0",
   "scripts": {
     "start": "electron .",
+    "assets:thumbs": "python3 scripts/build_list_thumbs.py",
+    "build:web": "node scripts/build_web_release.mjs",
     "package:win": "electron-builder --win nsis --x64",
     "package:dir": "electron-builder --dir --win --x64",
     "package:steam": "electron-builder --win nsis --x64 --config.directories.output=dist/steam-build-temp && node scripts/prepare_steam_depot.cjs"
   },
   "devDependencies": {
     "electron": "45.2.3",
-    "electron-builder": "26.18.1"
+    "electron-builder": "26.18.1",
+    "esbuild": "^0.27.7"
   },
   "build": {
     "appId": "com.shellbreak.deepsea",
@@ -47,7 +50,9 @@
       "assets/resource-icons/**/*",
       "assets/talent-icons/**/*",
       "assets/tech-icons/**/*",
+      "assets/ui/**/*",
       "assets/ui-era/**/*",
+      "assets/veil/**/*",
       "assets/war/**/*",
       "assets/wonders/**/*",
       "!assets/store/**/*",

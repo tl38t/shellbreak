@@ -1,9 +1,9 @@
-/* 天壳 / SHELLBREAK — 存档导入导出与 TapTap 云存档。
- * 普通网页只提供文件/存档码；云存档严格依赖 TapTap 小游戏运行时，不做假成功兜底。 */
+/* 存档文件、存档码与 TapTap 云存档。文件下载和剪贴板由宿主提供。 */
 (function (root) {
   'use strict';
   var SB = root.SB || (root.SB = {});
   var CFG = SB.CFG;
+  var output = SB.saveTransferOutput;
   var FORMAT = 'shellbreak-save', FORMAT_VERSION = 1;
   var CLOUD_NAME = 'shellbreak_main', CLOUD_PREVIOUS = 'shellbreak_previous';
   var CLOUD_FILE = 'shellbreak-save-v1.json';
@@ -93,13 +93,6 @@
       throw new Error(tr('save.import.error.checksum', null, '存档校验失败，内容可能不完整或已损坏。'));
     if (!value.save.meta || !value.save.run) throw new Error(tr('save.import.error.missing_progress', null, '存档缺少跨周目或本周目数据。'));
     return value;
-  }
-  function downloadFile(name, contents) {
-    var blob = new Blob([contents], { type: 'application/json;charset=utf-8' });
-    var url = root.URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = name; a.style.display = 'none';
-    document.body.appendChild(a); a.click(); a.remove();
-    root.setTimeout(function () { root.URL.revokeObjectURL(url); }, 1000);
   }
   function bytesFromText(text) {
     if (root.TextEncoder) return new root.TextEncoder().encode(text);
@@ -350,16 +343,15 @@
        * 看着像内容坏了。选完再把视口拨回顶部，选中的内容不受影响。 */
       try { box.scrollTop = 0; } catch (e) {}
     }
-    var nav = root.navigator;
-    if (nav && nav.clipboard && nav.clipboard.writeText) {
-      nav.clipboard.writeText(text).then(function () {
+    var copied = output && output.copyText(text);
+    if (copied) {
+      return copied.then(function () {
         setStatus(tr('save.diag.copied', null, '诊断信息已复制到剪贴板，直接粘贴发给开发者即可。'));
       }, function () {
         setStatus(tr('save.diag.clipboard_denied', null, '浏览器未授权剪贴板：上面文本框里已生成诊断信息，请手动复制。'));
       });
-    } else {
-      setStatus(tr('save.diag.manual_copy', null, '上面文本框里已生成诊断信息，请手动复制。'));
     }
+    setStatus(tr('save.diag.manual_copy', null, '上面文本框里已生成诊断信息，请手动复制。'));
   }
   /* 尸检副本导出：只在「上次启动读不到存档」时才存在。
    * ⚠️ 只导出、**永不自动恢复** —— 自动恢复等于让清掉的档自己爬回来。 */
@@ -385,7 +377,8 @@
         metaBackup: null, runBackup: null };
       var bundle = { format: FORMAT, version: FORMAT_VERSION, createdAt: Date.now(),
         recovery: true, raw: raw, checksum: crc32(JSON.stringify(raw)) };
-      downloadFile('shellbreak-emergency-' + new Date().toISOString().slice(0, 10) + '.json',
+      if (!output) return writeSaveCode(bundle, 'save.export.emergency.failed', '导出旧档副本失败：{error}');
+      output.downloadJSON('shellbreak-emergency-' + new Date().toISOString().slice(0, 10) + '.json',
         JSON.stringify(bundle, null, 2));
       setStatus(tr('save.export.emergency.success', null, '旧档副本已导出。把它发给开发者，或从「从文件导入」直接恢复。'));
     } catch (e) { setStatus(tr('save.export.emergency.failed', { error: e.message || e }, '导出旧档副本失败：{error}'), true); }
@@ -411,11 +404,8 @@
         /* 旧档副本（2026-10-29）：只在「上次启动读不到存档」时才出现，没有就返回空串。 */
         emergencyHTML() +
         '<div class="save-manager-actions">' +
-          /* 2026-10-29 手动保存：独占第一行（CSS 里跨两列），因为它是玩家最想点的那个。
-           * 「导出存档文件」原先是 `.btn.buy`（只是想让它显眼），现在主位让给「立即保存」，
-           * 它退回普通按钮 —— 两个主色按钮并排会互相削弱。 */
           '<button type="button" class="btn buy save-manager-primary" data-save-action="save-now">' + tr('save.action.save_now', null, '立即保存') + '</button>' +
-          '<button type="button" class="btn" data-save-action="export-file">' + tr('save.export.file.action', null, '导出存档文件') + '</button>' +
+          (output ? '<button type="button" class="btn" data-save-action="export-file">' + tr('save.export.file.action', null, '导出存档文件') + '</button>' : '') +
           '<button type="button" class="btn" data-save-action="export-code">' + tr('save.export.code.action', null, '生成并复制存档码') + '</button>' +
           '<button type="button" class="btn" data-save-action="import-file">' + tr('save.import.file.action', null, '从文件导入') + '</button>' +
           '<button type="button" class="btn" data-save-action="import-code">' + tr('save.import.code.action', null, '从存档码导入') + '</button>' +
@@ -462,7 +452,7 @@
     if (busy) return;
     var box = document.getElementById('saveCodeBox');
     if (action === 'save-now') return saveNow();
-    if (action === 'export-file') return exportFile();
+    if (action === 'export-file') return output ? exportFile() : exportCode();
     if (action === 'export-code') return exportCode();
     if (action === 'import-file') { document.getElementById('saveFileInput').click(); return; }
     if (action === 'import-code') return importCode(box.value);
@@ -477,7 +467,7 @@
       /* 2026-10-29：导出的存档文件顺带带上诊断信息 —— 玩家发文件给我们时，
        * 不用再教他单独去点「复制诊断信息」，一条文件就是完整证据。 */
       try { bundle.diagnostics = diagnosticsText(); } catch (e) {}
-      downloadFile('shellbreak-save-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(bundle, null, 2));
+      output.downloadJSON('shellbreak-save-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(bundle, null, 2));
       setStatus(tr(bundle.recovery ? 'save.export.file.recovery_success' : 'save.export.file.success', null,
         bundle.recovery ? '游戏读档异常：已导出包含本地原始主档和备份的救援文件。' : '存档文件已导出。建议另存到游戏目录以外的位置。'));
     } catch (e) { setStatus(tr('save.export.file.failed', { error: e.message || e }, '导出存档文件失败：{error}'), true); }
@@ -485,24 +475,31 @@
   function exportCode() {
     var bundle;
     try { bundle = exportBundle(); } catch (e) { setStatus(tr('save.export.code.failed', { error: e.message || e }, '生成存档码失败：{error}'), true); return; }
+    return writeSaveCode(bundle, 'save.export.code.failed', '生成存档码失败：{error}');
+  }
+  function writeSaveCode(bundle, failureKey, failureText) {
     setBusy(true); setStatus(tr('save.export.code.progress', null, '正在压缩并生成存档码…'));
-    encodeSaveCode(bundle).then(function (code) {
+    return Promise.resolve().then(function () { return encodeSaveCode(bundle); }).then(function (code) {
       var box = document.getElementById('saveCodeBox');
       if (box) box.value = code;
-      if (root.navigator && root.navigator.clipboard && root.navigator.clipboard.writeText) {
-          return root.navigator.clipboard.writeText(code).then(function () {
-            setStatus(tr(bundle.recovery ? 'save.export.recovery_code.copied' : 'save.export.code.copied', null,
-              bundle.recovery ? '原始存档救援码已生成并复制到剪贴板。' : '存档码已生成并复制到剪贴板。'));
-          }, function () {
-          if (box) { box.focus(); box.select(); }
-          setStatus(tr(bundle.recovery ? 'save.export.recovery_code.manual_copy' : 'save.export.code.clipboard_denied', null,
-            bundle.recovery ? '原始存档救援码已生成；请手动复制文本框内容。' : '存档码已生成；浏览器未授权剪贴板，请手动复制文本框内容。'));
+      var copied = output && output.copyText(code);
+      function manualCopy(denied) {
+        if (box) { box.focus(); box.select(); }
+        var key = denied ? 'save.export.code.clipboard_denied' : 'save.export.code.manual_copy';
+        var fallback = denied ? '存档码已生成；浏览器未授权剪贴板，请手动复制文本框内容。' : '存档码已生成；请手动复制文本框内容。';
+        setStatus(tr(bundle.recovery ? 'save.export.recovery_code.manual_copy' : key, null,
+          bundle.recovery ? '原始存档救援码已生成；请手动复制文本框内容。' : fallback));
+      }
+      if (copied) {
+        return copied.then(function () {
+          setStatus(tr(bundle.recovery ? 'save.export.recovery_code.copied' : 'save.export.code.copied', null,
+            bundle.recovery ? '原始存档救援码已生成并复制到剪贴板。' : '存档码已生成并复制到剪贴板。'));
+        }, function () {
+          manualCopy(true);
         });
       }
-      if (box) { box.focus(); box.select(); }
-      setStatus(tr(bundle.recovery ? 'save.export.recovery_code.manual_copy' : 'save.export.code.manual_copy', null,
-        bundle.recovery ? '原始存档救援码已生成；请手动复制文本框内容。' : '存档码已生成；请手动复制文本框内容。'));
-    }).catch(function (e) { setStatus(tr('save.export.code.failed', { error: e.message || e }, '生成存档码失败：{error}'), true); })
+      manualCopy(false);
+    }).catch(function (e) { setStatus(tr(failureKey, { error: e.message || e }, failureText), true); })
       .then(function () { setBusy(false); });
   }
   function onFileSelected(event) {
@@ -528,9 +525,23 @@
       setBusy(false); setStatus(tr('save.import.failed', { error: e.message || e }, '导入失败：{error}'), true);
     });
   }
+  function applyImportedSave(install, failureKey, failureText) {
+    if (busy) return;
+    function failed(error) {
+      setBusy(false);
+      openPanel();
+      setStatus(localizedFailure(error, failureKey, failureText), true);
+    }
+    try {
+      var pending = install();
+      if (pending && typeof pending.then === 'function') {
+        setBusy(true);
+        pending.then(function () { setBusy(false); }, failed);
+      }
+    } catch (error) { failed(error); }
+  }
   function confirmImport(bundle, source) {
     var box = document.getElementById('modalBox');
-    var local = localStore();
     /* 2026-11-06：这里要显示的是「第几周目」= 局数 runs；meta.cycle 已收紧为「合格轮回次数」，
      * 拿它当周目号会在软重置过的档上少报。老包无 runs ⇒ 回落 cycle（那时 cycle 就是局数）。 */
     var _im = bundle.save && bundle.save.meta;
@@ -541,12 +552,10 @@
         '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="saveImportCancel">' + tr('save.action.cancel', null, '取消') + '</button>' +
         '<button type="button" class="btn" id="saveRestoreMain"' + (bundle.raw.meta === null && bundle.raw.run === null ? ' disabled' : '') + '>' + tr('save.import.recovery.restore_primary', null, '还原包内主档') + '</button>' +
         '<button type="button" class="btn buy" id="saveRestoreBackup"' + (bundle.raw.metaBackup === null && bundle.raw.runBackup === null ? ' disabled' : '') + '>' + tr('save.import.recovery.restore_backup', null, '还原包内备份') + '</button></div>';
-      document.getElementById('saveImportCancel').onclick = openPanel;
+      document.getElementById('saveImportCancel').onclick = function () { if (!busy) openPanel(); };
       function restorePair(metaRaw, runRaw) {
-        if (!local) { openPanel(); setStatus(tr('save.import.error.local_storage_unavailable.restore', null, '本机存储不可用，未恢复。'), true); return; }
-        try { SB.game.restoreRawSave({ meta: metaRaw, run: runRaw }); }
-        catch (e) { openPanel(); setStatus(localizedFailure(e, 'game.save.restore_write_failed',
-          '恢复原始存档失败，现有数据已另存到本机备份：{error}'), true); }
+        applyImportedSave(function () { return SB.game.restoreRawSave({ meta: metaRaw, run: runRaw }); },
+          'game.save.restore_write_failed', '恢复原始存档失败，现有数据已另存到本机备份：{error}');
       }
       document.getElementById('saveRestoreMain').onclick = function () { restorePair(bundle.raw.meta, bundle.raw.run); };
       document.getElementById('saveRestoreBackup').onclick = function () { restorePair(bundle.raw.metaBackup, bundle.raw.runBackup); };
@@ -559,11 +568,9 @@
         runs ? '即将从{sourceLabel}导入第 {cycleNumber} 周目存档。导入后当前本地进度会被替换；程序会先把当前原始存档保存到本机备份键。' : '即将从{sourceLabel}导入存档。导入后当前本地进度会被替换；程序会先把当前原始存档保存到本机备份键。')) + '</div>' +
       '<div class="save-manager-status">' + tr('save.import.confirm.reload', null, '确认后页面会自动重载。若本机存储无法先备份，导入会中止。') + '</div>' +
       '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="saveImportCancel">' + tr('save.action.cancel', null, '取消') + '</button><button type="button" class="btn buy" id="saveImportConfirm">' + tr('save.action.backup_and_import', null, '备份并导入') + '</button></div>';
-    document.getElementById('saveImportCancel').onclick = openPanel;
+    document.getElementById('saveImportCancel').onclick = function () { if (!busy) openPanel(); };
     document.getElementById('saveImportConfirm').onclick = function () {
-      if (!local) { openPanel(); setStatus(tr('save.import.error.local_storage_unavailable.restore', null, '本机存储不可用，未导入。'), true); return; }
-      try { SB.game.installImportedSave(bundle); }
-      catch (e) { openPanel(); setStatus(localizedFailure(e, 'save.import.failed', '导入失败：{error}'), true); }
+      applyImportedSave(function () { return SB.game.installImportedSave(bundle); }, 'save.import.failed', '导入失败：{error}');
     };
   }
 

@@ -164,15 +164,16 @@
    *   ④ 冻伤掷骰一次（与 tick 第 7 步同，锚定 0.1s 栅格）。
    * 在 0.1s 栅格上重采样 happy，才能与「逐 0.1s tick」参考路径逐位一致——
    * 否则在 2s 整块吃「开场 happy」会让 foodRate 系统性偏高（实测 +13.6 kelp/2s）。 */
-  function foodAdvanceMicro(s, mdt, at, emit) {
+  function foodAdvanceMicro(s, mdt, at, emit, effectiveJobs) {
     var CFG = SB.CFG;
+    var jobsChanged = false;
     s._happySnap = s.happy;                       // ① 冻开场 happy（与 tick line 43 同）
-    if (SB.economy.happyStep) SB.economy.happyStep(s, mdt); // ② 与 tick 第 4c 步同，在食物/人口变化之前
+    if (SB.economy.happyStep) SB.economy.happyStep(s, mdt, effectiveJobs); // ② 在食物/人口变化之前
     var cold = P.isCold(s) ? P.coldSeasonMul(s) : 1;
     if (cold < 1) s.coldTicks = (s.coldTicks || 0) + mdt;
     var warm = P.warmRelief(s, mdt);              // ③ 暖石顶回（含扣石副作用，与 tick 同）
     s.warmBurning = warm > 0;
-    var produce = P.foodRate(s, cold, warm);      // 建筑+职业，已含 globalMul（用开场 happy）
+    var produce = P.foodRate(s, cold, warm, effectiveJobs); // 建筑+职业，使用开场 happy
     var consume = P.foodUse(s);                   // s.pop × FOOD_PER × 减免（与 happy 无关）
     P.addRes(s, 'kelp', produce * mdt);           // 与 tick: addRes(s,'kelp', foodRate*dt) 同
     s.res.kelp -= consume * mdt;                  // 与 tick: s.res.kelp -= foodUse*dt 同
@@ -182,13 +183,14 @@
       if (s.famine >= 60 && s.pop > 1) {
         s.pop--; s.famine = 0; s.famineDeaths++;
         if (SB.folk && SB.folk.reconcile) SB.folk.reconcile(s);
+        jobsChanged = true;
         if (emit) emit(tr('ui.log.famine.death', null, '藻食耗尽，有人饿死了。'), at + mdt);
       }
     } else {
       s.famine = 0;
     }
     // ---- 生育（与 tick 第 6 步同）----
-    if (!SB.economy.isFull(s) && s.res.kelp > CFG.GROW_KEEP) {
+    if (s.res.kelp > CFG.GROW_KEEP && !SB.economy.isFull(s)) {
       s._grow = (s._grow || 0) + mdt;
       var growNeed = SB.economy.growthDuration(s);
       if (s._grow >= growNeed) { s._grow = 0; s.pop++; if (emit) emit(tr('ui.log.population.birth', null, '生育：一名族民降生。'), at + mdt); }
@@ -204,6 +206,7 @@
       if (risk > 0 && (SB.rng ? SB.rng() : Math.random()) < risk) {
         s.pop--; s.frostDeaths++;
         if (SB.folk && SB.folk.reconcile) SB.folk.reconcile(s);
+        jobsChanged = true;
         if (emit) emit(tr('ui.log.frostbite.death', null, '冰封期冻死了一名族民。'), at + mdt);
       }
     }
@@ -214,7 +217,8 @@
      *   所以微步 0.1s 与 at 传不传都不影响口径；两处入口同一个实现才不会漂。
      * ⚠️ 污染**存量**不在这里积分（economy-tick 的 step 2b-2 已经用整段 dt 一次算完）。
      * ⚠️ 非挑战周目首行即 return false，零开销。 */
-    if (SB.economy && SB.economy.pollutionRollDeath) SB.economy.pollutionRollDeath(s, mdt, emit, at + mdt);
+    var pollutionDeath = SB.economy && SB.economy.pollutionRollDeath && SB.economy.pollutionRollDeath(s, mdt, emit, at + mdt);
+    return jobsChanged || pollutionDeath;
   }
 
   /* 下一个确定性事件边界的逻辑秒偏移（相对当前 s.t，>0）。
@@ -279,9 +283,9 @@
    * 暖期宏步推进必须切在穿零点之前——否则一整块宏步会把 kelp 推成负、饥荒起点被吞。
    * 暖期（cold>=1）暖石顶回恒为 0，故 produce 用 foodRate(s,1,0) 直接算，不调 warmRelief
    * （warmRelief 带扣石副作用，边界探测里调它会污染暖石存量）。 */
-  function kelpZeroLeft(s) {
+  function kelpZeroLeft(s, effectiveJobs) {
     if (s.res.kelp <= 0) return 0;
-    var produce = P.foodRate(s, 1, 0);
+    var produce = P.foodRate(s, 1, 0, effectiveJobs);
     var consume = P.foodUse(s);
     var net = consume - produce;
     if (net <= 1e-12) return Infinity;                     // 净产出非负：kelp 不会穿零
@@ -293,15 +297,15 @@
    *       季节切换（frozen 翻转）。
    * 冻伤（概率性）与污染死亡（挑战周目概率性）不在这里——它们只在 cold<1 / challenge 时
    * 发生，而暖期快速通道已用 cold>=1 + !challenge 两道闸排除，故暖期宏步内根本不掷骰。 */
-  function foodEventLeft(s) {
+  function foodEventLeft(s, effectiveJobs) {
     var CFG = SB.CFG;
     var b = foodNextBoundary(s);          // 饿死（kelp<=0 时）/ 生育阈值
-    var kz = kelpZeroLeft(s);            // kelp 穿零（饥荒起点）
+    var kz = kelpZeroLeft(s, effectiveJobs); // kelp 穿零（饥荒起点）
     if (kz < b) b = kz;
     /* kelp 跌穿 GROW_KEEP：生育门控 `kelp > GROW_KEEP` 会翻转（>则累计 _grow，≤则清零）。
      * 宏步用「步首 kelp」判门控，若步内跌穿会因近似而错判 ⇒ 在跌穿点前切回 0.1s 细步。 */
     if (!SB.economy.isFull(s) && s.res.kelp > CFG.GROW_KEEP) {
-      var produce = P.foodRate(s, 1, 0);
+      var produce = P.foodRate(s, 1, 0, effectiveJobs);
       var consume = P.foodUse(s);
       var net = consume - produce;
       if (net > 1e-12) {
@@ -322,18 +326,18 @@
    *   happyStep(dt)（dt 感知，与逐 0.1s 调用逐位等价）+ 单次 foodRate 推进 kelp + 生育阈值累计。
    * 仍走与 foodAdvanceMicro 完全相同的子函数（happyStep / foodRate / foodUse），
    * 只是把 0.1s 微步合并成至多 WARM_STEP 秒的一段，调用次数减少 WARM_STEP/0.1。 */
-  function foodAdvanceWarm(s, mdt, at, emit) {
+  function foodAdvanceWarm(s, mdt, at, emit, effectiveJobs) {
     var CFG = SB.CFG;
     s._happySnap = s.happy;                                  // 与 foodAdvanceMicro 同语义
     /* 暖期快速通道：用「步中 happy」估算 foodRate，抵消 happy 在宏步内漂移造成的系统性偏差。
      * happyStep 对 dt 线性：先走半步（s.happy 现为步中），按步中 happy 算产出，再走半步到步末，
      * 与单次 happyStep(mdt) 等价（总漂移相同），但 foodRate 取的是时间中点的 happy ≈ 时间均值，
      * 大幅压低「用步末 happy 高估产出」带来的 kelp 累积偏差（从而不级联改写下个周期的离散事件）。 */
-    if (SB.economy.happyStep) SB.economy.happyStep(s, mdt * 0.5);
+    if (SB.economy.happyStep) SB.economy.happyStep(s, mdt * 0.5, effectiveJobs);
     var warm = 0;                                            // 暖期 cold>=1 ⇒ warmBurningNow=false，恒为 0（不调 warmRelief 避免扣石副作用）
     s.warmBurning = false;
-    var produce = P.foodRate(s, 1, warm);                    // 暖期 cold=1，用步中 happy
-    if (SB.economy.happyStep) SB.economy.happyStep(s, mdt * 0.5);  // 推进到步末
+    var produce = P.foodRate(s, 1, warm, effectiveJobs);      // 暖期 cold=1，用步中 happy
+    if (SB.economy.happyStep) SB.economy.happyStep(s, mdt * 0.5, effectiveJobs);  // 推进到步末
     var consume = P.foodUse(s);                              // 只依赖 pop（宏步内恒定），与 happy 无关
     P.addRes(s, 'kelp', produce * mdt);
     s.res.kelp -= consume * mdt;
@@ -372,7 +376,10 @@
     var at = (typeof opts.t0 === 'number') ? opts.t0 : s.t;
     var remaining = dt, guard = 0;
     var WARM_STEP = (SB.CFG && SB.CFG.OFFLINE_FOOD_WARM_STEP) || 1.0;
+    /* 一段离线积分里，职业产出人数只在死亡退岗时改变。生育只增加闲置人口。 */
+    var effectiveJobs = null;
     while (remaining > 1e-9 && guard++ < 1000000) {
+      if (opts.reuseJobs && !effectiveJobs) effectiveJobs = SB.folk.effJobs(s);
       // 暖期快速通道：cold>=1（无冻伤）+ 非挑战（无污染概率死亡）+ kelp>0（非饥荒，famine 恒 0）。
       // 三条保证宏步内无概率/离散死亡事件，可安全用单次 foodRate 推进整段；
       // 唯一离散事件（kelp 穿零 / 生育阈值 / 季节切换）由 foodEventLeft 切在 0.1s 栅格前。
@@ -385,7 +392,7 @@
        * 否则（evLeft 小，说明 kelp 正逼近 0 / GROW_KEEP / 季节边界，处于 contested 区）
        * 直接走细步，牺牲速度换精确，避免连续量近似级联改写下个周期的离散事件。 */
       if (cold >= 1 && !challenge && s.res.kelp > 1e-9) {
-        var evLeft = foodEventLeft(s);
+        var evLeft = foodEventLeft(s, effectiveJobs);
         /* 宏步资格只看「是否还在事件边界附近（evLeft>STEP 即可）」，绝不能被 WARM_STEP 卡。
          * 原写法 `evLeft > WARM_STEP` 会导致：当 evLeft 落在 (旧档,新档] 区间时，小步长走宏步、
          * 大步长反被逼回细步 → 步子越大「被迫细步」的带宽越宽 → 细步迭代越多 → foodRate
@@ -395,7 +402,7 @@
         if (evLeft > STEP + 1e-9) {
           var adv = Math.min(remaining, evLeft, WARM_STEP);
           if (adv > STEP + 1e-9) {
-            foodAdvanceWarm(s, adv, at, emit);
+            foodAdvanceWarm(s, adv, at, emit, effectiveJobs);
             at += adv; remaining -= adv;
             continue;
           }
@@ -408,7 +415,7 @@
       var toGrid = gridIndex * STEP - at;
       if (toGrid <= 1e-9) toGrid = STEP;
       var mdt = Math.min(toGrid, remaining);
-      foodAdvanceMicro(s, mdt, at, emit);
+      if (foodAdvanceMicro(s, mdt, at, emit, effectiveJobs)) effectiveJobs = null;
       at += mdt;
       remaining -= mdt;
     }

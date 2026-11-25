@@ -518,7 +518,7 @@
     { id: 'prosperity_unity', name: '繁荣一统', icon: 'assets/civic-icons/era-9/era9-prosperity.png?v=3', cost: 3000000, era: 9, layer: 2,
       reqs: ['distributed_sov'], boost: { t: 'govId', id: 'interstellar_federation' },
       card: 'card_alien_abundance',
-      desc: '解锁政策卡「上上善道」（异星建筑产出 +40%）；政策卡「联邦枢密院」（广场/歌剧院官员市政点乘区 ×4，取代政治经济学）。',
+      desc: '解锁政策卡「上上善道」（异星建筑产出 +40%）；政策卡「联邦枢密院」（广场与歌剧院官员市政点产出 ×4，取代政治经济学）。',
       note: '前置：分布式主权。鼓舞：采用政体「星际联邦」。' },
     { id: 'common_destiny', name: '共同命运', icon: 'assets/civic-icons/era-9/era9-commondestiny.png?v=3', cost: 3000000, era: 9, layer: 2,
       reqs: ['hypervision'], boost: { t: 'govId', id: 'star_sea_coop' },
@@ -677,7 +677,7 @@
       desc: '奢侈品产出 +20%（商人贸易供给）。' , flavor: '有500仙人，乘大铁船至临高…' },
     { id: 'classical_republic', name: '古典共和', slots: { wild: 1, grow: 1, sci: 1 }, effect: {},
       happyBonus: 1,
-      desc: '幸福度 +1（常驻，提高全产乘区档位）。' , flavor: '指卢比孔河为誓。' },
+      desc: '幸福度 +1（常驻，提升全局产出档位）。' , flavor: '指卢比孔河为誓。' },
 
     /* ══ 君主制（2026-09-30 用户规格 · 市政《行政部门》解锁）══════════════
      * 5 个万能槽（比三种纪元二政体多 2 个）。效果不是平坦加值也不是产出乘区，
@@ -769,7 +769,7 @@
        *   retiredBy 指向**后继卡的 civic id**（与 card_records→enlightenment 等先例同方向）。
        *   ⚠️ 原漏写此字段 ⇒ 戏剧与诗歌在政治经济学出来后从不消失（用户报 bug，2026-10-21 补）。 */
       retiredBy: 'rationing', replacedBy: 'card_political_econ',
-      desc: '广场的市政点乘区 ×2（即「广场效果 +100%」）。完成《工业化配给》后由「政治经济学」取代而退役。', flavor: '这是一个问题。'},
+      desc: '广场市政点产出 ×2（广场效果 +100%）。完成《工业化配给》后由「政治经济学」取代而退役。', flavor: '这是一个问题。'},
     /* ⚠️⚠️【effect 空壳与 squareMul / templeMul 是**刻意**的，不是漏装】
      *    与《戏剧与诗歌》那一条同一个道理：政策卡的 `effect` 走的是 `flow()` 那条
      *    平坦加值/秒的通道，而「效果 +100%」是**乘区**。塞进平坦通道会变成
@@ -783,7 +783,7 @@
       effect: {}, templeMul: 2,
       /* 被《星球村》市政完成后退役（由 card_future_theology 上位替代：神庙信仰 ×5、科技 −30%）。 */
       retiredBy: 'planet_village', replacedBy: 'card_future_theology',
-      desc: '神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。完成《星球村》后退役。', flavor: '教宗无谬？'},
+      desc: '神庙信仰产出 ×2（神庙效果 +100%）。完成《星球村》后退役。', flavor: '教宗无谬？'},
     { id: 'card_records',  name: '历史记录', civic: 'records', type: 'sci',
       effect: {}, libraryMul: 2,
       /* retiredBy（2026-10-01 ERA4）：市政《启蒙运动》完成后这张卡退役——
@@ -899,7 +899,7 @@
     { id: 'card_political_econ', name: '政治经济学', civic: 'rationing', type: 'grow', effect: {},
       /* 替代《戏剧与诗歌》（retiredBy）：广场效果 ×2.5（squareMul）+ 歌剧院效果 ×2.5（theaterMul，新通道）。 */
       retiredBy: 'prosperity_unity', replacedBy: 'card_federal_privy', squareMul: 2.5, theaterMul: 2.5,
-      desc: '广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5（取代「戏剧与诗歌」）。', flavor: '可能性之兽。'},
+      desc: '广场市政点产出 ×2.5，歌剧院官员市政点产出 ×2.5（取代「戏剧与诗歌」）。', flavor: '可能性之兽。'},
     { id: 'card_logistics', name: '基础物流建设', civic: 'urbanization', type: 'prod', effect: {},
       /* 2026-10-18 用户纠错 + 链补全：原 retiredBy:'market' 方向反了（ERA2 市政淘汰 ERA5 卡 ⇒ 出生即死）。
        *   修正后替代链：中世纪集市 ×2 →(城市化)→ 本卡 ×3 →(全球化)→ 洲际物流 ×5（card_interlog）。 */
@@ -1046,7 +1046,7 @@
     { id: 'card_federal_privy', name: '联邦枢密院', civic: 'prosperity_unity', type: 'grow', effect: {},
       squareMul: 4, theaterMul: 4,
       /* 取代《政治经济学》（retiredBy 设在 card_political_econ 上 = prosperity_unity）。 */
-      desc: '广场的市政点乘区 ×4、歌剧院的官员市政点乘区 ×4（取代「政治经济学」）。', flavor: 'ORDER!'},
+      desc: '广场市政点产出 ×4，歌剧院官员市政点产出 ×4（取代「政治经济学」）。', flavor: 'ORDER!'},
     { id: 'card_flesh_weak', name: '血肉苦弱', civic: 'common_destiny', type: 'wild', effect: {},
       /* 精铁(iron)/钢(steel)/θ金属(thetaMetal) 产出 +30%（resOutMul map，逐资源相乘）。 */
       resOutMul: { iron: 1.3, steel: 1.3, thetaMetal: 1.3 },
@@ -1095,7 +1095,7 @@
       desc: '发射场热液能消耗 −50%；居民幸福度消耗 +50%。', flavor: '不惜一切代价。'},
     { id: 'card_our_sea', name: '我们的海', civic: 'our_sea', type: 'wild', effect: {},
       sciOutMul: 0.70, faithOutMul: 0.70, craftMul: 2,
-      desc: '信仰、科研产出 −30%；工坊效率翻倍（乘区 ×2）。', flavor: '…直抵群星。'},
+      desc: '信仰、科研产出 −30%；工坊效率翻倍（独立 ×2）。', flavor: '…直抵群星。'},
 
     /* ── ERA2-7 扩卡（2026-10-22 用户拍板「实装」）──
      * 不涉及新市政，全部挂在已有市政下。两张奇观减耗卡走 retiredBy 替代链（征夫发役→王室特许）。
@@ -1105,11 +1105,11 @@
     { id: 'card_corvee', name: '征夫发役', civic: 'craft',
       retiredBy: 'guild', replacedBy: 'card_royal_charter',
       wonderBuildSaveEra: 0.20, wonderEraCap: 3,
-      desc: '纪元 1–3 奇观建造消耗 −20%。完成《职业行会》后由「王室特许」取代而退役。', flavor: '消耗建造者一次使用次数，为奇观建造提供20%进度。' },
+      desc: '纪元 1–3 奇观建造消耗 −20%。完成《职业行会》后由「王室特许」取代而退役。', flavor: '消耗建造者一次使用次数，为奇观建造提供20%进度。', flavorParams: { wonderConstructionProgressPercent: 20 } },
     /* 王室特许：纪元 1–5 奇观建造消耗 −20%（取代征夫发役，覆盖到 era5）。挂《职业行会》(guild)，无 retiredBy（链尾）。 */
     { id: 'card_royal_charter', name: '王室特许', civic: 'guild',
       wonderBuildSaveEra: 0.20, wonderEraCap: 5,
-      desc: '纪元 1–5 奇观建造消耗 −20%（取代「征夫发役」）。', flavor: '消耗一位大工程师，提供215产能。' },
+      desc: '纪元 1–5 奇观建造消耗 −20%（取代「征夫发役」）。', flavor: '消耗一位大工程师，提供215产能。', flavorParams: { greatEngineerProduction: 215 } },
     /* 五年计划：精铁 + 钢 产出 +30%。挂《工业化配给》(rationing)，复用 resOutMul 通道（economy iron/steel 行已读 cardResOutMul，零代码）。 */
     { id: 'card_five_year', name: '五年计划', civic: 'rationing', type: 'prod',
       resOutMul: { iron: 1.30, steel: 1.30 },
@@ -1157,7 +1157,7 @@
       flavor: '「求主欣然地使他得享安息与永福……」' },
     { id: 'card_protect_planet', name: '保护星球', civic: 'protect_earth', type: 'grow', challengeOnly: 'waterpollution',
       effect: {},
-      desc: '每名鲙人每秒净化 0.1 点污染。',
+      desc: '每名鲛人每秒净化 0.1 点污染。',
       flavor: '「我们的星球，我们的摇篮。」' },
     { id: 'card_last_resort', name: '最终手段', civic: 'our_cradle', type: 'grow', challengeOnly: 'waterpollution',
       effect: {},

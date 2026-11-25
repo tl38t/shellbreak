@@ -118,7 +118,7 @@ input.relname.locked{opacity:.85;border-color:#b13bd6;color:#f3c8ff;background:r
  * 走 document 委托（data-furnace-dec/inc），pane 每 2 秒重画也不丢点击。
  * .on 表示当前至少有一座在运行（铁在产）。读数用等宽数字，避免跳动。 */
 .furnctl{display:inline-flex;align-items:center;gap:6px;margin-left:8px}
-.furnctl .fbtn{width:22px;height:22px;line-height:1;padding:0;border-radius:5px;
+.furnctl .fbtn{width:26px;height:26px;line-height:1;padding:0;border-radius:5px;
   background:#123a52;border:1px solid #1d5a7d;color:var(--cyan);cursor:pointer;font-size:14px}
 .furnctl .fbtn:disabled{opacity:.35;cursor:not-allowed}
 .furnctl .fnum{font-size:12px;font-variant-numeric:tabular-nums;color:var(--txt);min-width:54px;text-align:center}
@@ -127,6 +127,15 @@ input.relname.locked{opacity:.85;border-color:#b13bd6;color:#f3c8ff;background:r
  * 让玩家在调座数的那一行就看到会烧多少石，而不是去环境卡说明段里读文案。 */
 .furnctl .fdraw{font-size:11px;color:var(--dim);margin-left:4px;font-variant-numeric:tabular-nums}
 
+.assigned-crafts { margin: 8px 0 12px; }
+.assigned-crafts ul { list-style: none; padding: 0; margin: 4px 0 0; }
+.assigned-crafts li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.assigned-crafts li span { overflow-wrap: anywhere; }
+.assigned-crafts small { color: var(--dim); }
+.assigned-crafts button { margin-inline-start: auto; }
+@media (pointer: coarse) {
+  .assigned-crafts button { min-height: 44px; }
+}
 /* 工坊自动制作槽的档位行（2026-10-07）：配方行下面独立一行，与上面四颗制造按钮分开
  * ——两者语义不同（手动造几份 vs 满仓后自动转制多少），挤在一行会被读成同一组按钮。
  * .asl 是行首那个「自动」标签；档位按钮复用 .tog/.on（绿=当前档）。 */
@@ -175,7 +184,7 @@ input.relname.locked{opacity:.85;border-color:#b13bd6;color:#f3c8ff;background:r
 .hydro-shortage[hidden]{display:none}
 .hydro-shortage>b{color:var(--red);font-size:11px}
 .hydro-shortage>span{color:var(--txt);overflow-wrap:anywhere}
-.hydro-foot{margin-top:6px;color:var(--dim);font-size:9px;line-height:1.4;text-align:right}
+.hydro-foot{margin-top:6px;color:var(--dim);font-size:11px;line-height:1.4;text-align:right}
 #hydroFlowHint{color:var(--dim)}
 html[data-ui-theme="day"] .hydro-panel{border-color:#aec8c8;
   background:linear-gradient(115deg,rgba(233,246,242,.96),rgba(246,250,248,.98) 62%,rgba(228,240,237,.96));

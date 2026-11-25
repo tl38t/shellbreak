@@ -325,17 +325,23 @@ console.log('\n=== 工坊：青铜工具 ===');
 
   /* 镐的落点是 stone + silt + warmstone 三行，所以金属与暖石要一起验
    * —— 只乘 stone 那一行会让「暖石」这款伴生品漏掉工具加成。 */
-  const rSilt0 = SB.economy.rates(wt).silt, rWarm0 = SB.economy.rates(wt).warmstone;
+  const beforePick = SB.economy.ratesParts(wt);
   wt.tools.tool_pick = true;
   check('青铜镐抬石头产出 ×1.8（采石工那条线）',
     Math.abs(SB.economy.rates(wt).stone / rStone0 - 1.8) < 1e-9,
     rStone0.toFixed(2) + ' → ' + SB.economy.rates(wt).stone.toFixed(2));
-  check('青铜镐同时管采矿：金属一同 ×1.8',
-    Math.abs(SB.economy.rates(wt).silt / rSilt0 - 1.8) < 1e-9,
-    rSilt0.toFixed(2) + ' → ' + SB.economy.rates(wt).silt.toFixed(2));
+  // 矿镐只放大矿工的产出。已开炉的周目同时有原料消耗，面板净值只增加对应的产出差额。
+  const afterPick = SB.economy.ratesParts(wt);
+  function pickBoostsProduction(resource, line) {
+    const before = beforePick.parts[resource].find(part => part.l === line)?.v;
+    const after = afterPick.parts[resource].find(part => part.l === line)?.v;
+    const netGain = afterPick.rate[resource] - beforePick.rate[resource];
+    return before > 0 && Math.abs(after / before - 1.8) < 1e-9 &&
+      Math.abs(netGain - (after - before)) < 1e-9;
+  }
+  check('青铜镐同时管采矿：金属一同 ×1.8', pickBoostsProduction('silt', '矿工'));
   check('青铜镐同时管伴生暖石（三行一起，漏一行就是「买了镐暖石没变」）',
-    Math.abs(SB.economy.rates(wt).warmstone / rWarm0 - 1.8) < 1e-9,
-    rWarm0.toFixed(2) + ' → ' + SB.economy.rates(wt).warmstone.toFixed(2));
+    pickBoostsProduction('warmstone', '矿工伴生'));
   check('🚨 买了斧头又买镐，珊瑚仍是 ×1.8 —— 采石工具不许回头抬珊瑚',
     Math.abs(SB.economy.rates(wt).coral / rCoral0 - 1.8) < 1e-9,
     rCoral0.toFixed(2) + ' → ' + SB.economy.rates(wt).coral.toFixed(2));
@@ -357,20 +363,26 @@ console.log('\n=== 工坊：青铜工具 ===');
   /* ⑧ 工坊界面 —— 用户拍板的是「建成工坊**开工坊界面**」，
    *    所以面板必须真的存在、真的会跟着状态翻，不能只是数据层对。 */
   wt.tools = {}; wt.lvl.workshop = 0;
+  SB.game.setTab('village');
+  const lockedPaneBefore = doc.getElementById('pane-workshop').innerHTML;
+  const lockedTab = doc.querySelector('.tab[data-tab="workshop"]');
   SB.game.setTab('workshop');
   check('没建工坊时进不去（灰页签就是点不动，不是装饰）',
     SB.game.getTab() !== 'workshop', 'tab=' + SB.game.getTab());
   check('没建工坊时面板写着「尚未建成」，不给玩家一块空白',
-    /尚未建成/.test(doc.getElementById('pane-workshop').innerHTML));
+    lockedTab && lockedTab.classList.contains('locked') && /工坊/.test(lockedTab.title) &&
+    /尚未建成/.test(SB.ui.renderParts.paneWorkshop()) &&
+    doc.getElementById('pane-workshop').innerHTML === lockedPaneBefore);
 
   wt.lvl.workshop = 1;
-  SB.ui.render.setWorkshopView('upgrades');
   SB.game.setTab('workshop');
-  check('建成工坊后页签放行', SB.game.getTab() === 'workshop', 'tab=' + SB.game.getTab());
+  check('建成工坊后「工坊制造」页签放行', SB.game.getTab() === 'workshop', 'tab=' + SB.game.getTab());
+  SB.game.setTab('workshop-upgrades');
+  check('建成工坊后「工坊升级」页签放行', SB.game.getTab() === 'workshop-upgrades', 'tab=' + SB.game.getTab());
   wt.res.coral = 9999; wt.res.silt = 9999;
-  SB.game.setTab('workshop');
-  const wpane = doc.getElementById('pane-workshop').innerHTML;
-  check('工坊页列出三件工具，成本逐条摊开（够钱时也让看清要多少）',
+  SB.game.setTab('workshop-upgrades');
+  const wpane = doc.getElementById('pane-workshop-upgrades').innerHTML;
+  check('工坊升级页列出三件工具，成本逐条摊开（够钱时也让看清要多少）',
     ['青铜镰', '青铜斧', '青铜镐'].every(n => wpane.indexOf(n) >= 0) &&
     /珊瑚 150/.test(wpane) && /珊瑚 200/.test(wpane) && /金属 50/.test(wpane),
     '三件齐 / 150·200·50');
@@ -379,8 +391,8 @@ console.log('\n=== 工坊：青铜工具 ===');
     wBtnBefore ? wBtnBefore[0] : '找不到按钮');
 
   wt.res.coral = 0; wt.res.silt = 0;
-  SB.game.setTab('workshop');
-  const wMsg = doc.getElementById('pane-workshop').innerHTML;
+  SB.game.setTab('workshop-upgrades');
+  const wMsg = doc.getElementById('pane-workshop-upgrades').innerHTML;
   /* ⚠️ ⚠️ 换成**受控复验**（2026-09-28 踩到）：上面那次渲染读的是全局 run()，而本文件
    *    前面几段断言改过它的 `techs.ironwork` 与 `lvl.workshop` —— 于是「面板上每件工具
    *    为什么是这个文案」变成一道随用例顺序漂移的题：同一件工具，此刻叫「买不起」、
@@ -402,8 +414,8 @@ console.log('\n=== 工坊：青铜工具 ===');
     g.techs.metalrefine = true;
     g.techs.biomat = true;
     g.res.iron = 0; g.res.coral = 0; g.res.silt = 0; g.res.steel = 0; g.res.thetaMetal = 0;
-    SB.game.setTab('workshop');
-    const msg = doc.getElementById('pane-workshop').innerHTML;
+    SB.game.setTab('workshop-upgrades');
+    const msg = doc.getElementById('pane-workshop-upgrades').innerHTML;
     g.res.iron = bakIron; g.res.steel = bakSteel; g.res.thetaMetal = bakTheta;
     if (!bakTech) delete g.techs.ironwork;
     if (!bakHorse) delete g.techs.horsemanship;
@@ -453,21 +465,21 @@ console.log('\n=== 工坊：青铜工具 ===');
     g.techs.engineeringT = true;      // 过了科技门，只剩钱不够
     g.lvl.workshop = 1;
     g.res.ironBracket = 0; g.res.rope = 0;
-    SB.ui.render.setWorkshopView('making');
     SB.game.setTab('workshop');
     const makePane = doc.getElementById('pane-workshop').innerHTML;
-    check('工坊「制造」页签只显示可重复制造的配方',
-      /data-workshop-view="making"[^>]*aria-pressed="true"/.test(makePane) &&
+    check('「工坊制造」一级页签只显示可重复制造的配方（无二级子标签切换栏）',
+      !/panel-subtabs/.test(makePane) &&
       /工艺制作/.test(makePane) && !/data-tool="/.test(makePane) &&
       !/data-upgrade="upg_ballast_1"/.test(makePane),
-      '配方=' + /工艺制作/.test(makePane) + ' 工具混入=' + /data-tool="/.test(makePane) +
+      '配方=' + /工艺制作/.test(makePane) + ' 二级栏=' + /panel-subtabs/.test(makePane) +
+      ' 工具混入=' + /data-tool="/.test(makePane) +
       ' 工坊升级混入=' + /data-upgrade="upg_ballast_1"/.test(makePane));
-    fire({ dataset: { workshopView: 'upgrades' } });
-    const pane0 = doc.getElementById('pane-workshop').innerHTML;
-    check('点击工坊「升级项」切换并显示工具与工坊升级',
+    SB.game.setTab('workshop-upgrades');
+    const pane0 = doc.getElementById('pane-workshop-upgrades').innerHTML;
+    check('「工坊升级」一级页签直接显示工具与工坊升级（无二级子标签切换栏）',
+      !/panel-subtabs/.test(pane0) &&
       /工坊升级/.test(pane0) &&
       /职业工具/.test(pane0) && /data-tool="/.test(pane0) &&
-      /data-workshop-view="upgrades"[^>]*aria-pressed="true"/.test(pane0) &&
       pane0.indexOf('data-upgrade="upg_ballast_1"') >= 0 &&
       pane0.indexOf('data-upgrade="upg_kelpstore_1"') >= 0,
       '工坊升级区=' + /工坊升级/.test(pane0) + ' 工具区=' + /职业工具/.test(pane0) + '，按钮=' +
@@ -489,12 +501,12 @@ console.log('\n=== 工坊：青铜工具 ===');
         : '找不到按钮');
 
     g.res.ironBracket = 50; g.res.rope = 50;
-    SB.game.setTab('workshop');
+    SB.game.setTab('workshop-upgrades');
     fire({ dataset: { upgrade: 'upg_ballast_1' } });
-    const pane1 = doc.getElementById('pane-workshop').innerHTML;
+    const pane1 = doc.getElementById('pane-workshop-upgrades').innerHTML;
     check('点「装上」真的装上了：s.upgrades 落袋 + 面板改口「已装上」+ 铁制支架+绳扣掉',
       !!(g.upgrades && g.upgrades.upg_ballast_1) &&
-      (pane1.match(/已装上/g) || []).length === 1 &&
+      upgLabel(pane1, 'upg_ballast_1') === '已装上' &&
       (g.res.ironBracket || 0) === 0 && (g.res.rope || 0) === 0,
       'upgrades=' + JSON.stringify(g.upgrades) +
       ' ironBracket=' + (g.res.ironBracket || 0) + ' rope=' + (g.res.rope || 0));
@@ -503,8 +515,7 @@ console.log('\n=== 工坊：青铜工具 ===');
     if (!bak.lvl) g.lvl.workshop = 0;
     g.res.ironBracket = bak.bracket; g.res.rope = bak.rope;
     g.upgrades = bak.upg;
-    SB.ui.render.setWorkshopView('upgrades');
-    SB.game.setTab('workshop');
+    SB.game.setTab('workshop-upgrades');
   }
 
   /* ═════════ 灯塔 / 大灯塔 / 全资源乘区（2026-09-28）═════════
@@ -683,9 +694,9 @@ console.log('\n=== 工坊：青铜工具 ===');
   }
 
   wt.res.coral = 9999; wt.res.silt = 9999;
-  SB.game.setTab('workshop');
+  SB.game.setTab('workshop-upgrades');
   fire({ dataset: { tool: 'tool_sickle' } });
-  const wAfter = doc.getElementById('pane-workshop').innerHTML;
+  const wAfter = doc.getElementById('pane-workshop-upgrades').innerHTML;
   check('点「买下」真的买到手：数据落袋 + 面板改口「已买下」',
     !!wt.tools.tool_sickle && (wAfter.match(/已买下/g) || []).length === 1,
     JSON.stringify(wt.tools));
@@ -1143,59 +1154,51 @@ console.log('\n=== 工坊：青铜工具 ===');
       stMax && Math.abs(predMax - realMax) < 1e-9 && predMax > 0,
       'stepOut=' + predMax + ' craft=' + realMax + '（12345 石 ÷ 100 ⇒ 123 份 × 1.05）');
 
-    /* ── 升级项页签「已完成 n / 共 m」+ 未读 NEW（2026-10-17 用户）──
-     * 核心三条：① 页签现算 n/m（doneCount 同源）；② 有未读项时页签角标 NEW，
-     *   且**只在人不在升级项页签上**才亮（正在看就别挂 NEW）；③ 行级 NEW 仅在进入
-     *   页签的快照里打、离开时整批落盘，落盘后角标消失。
-     * ⚠️ workshopView / pendingNew 是跨用例 module 级状态（前面 第⑧⑨ 块动过），
-     *   所以开头先归位到一个干净基态：清 localStorage → 进 upgrades 快照全部 → 回
-     *   making 落盘全部 → 再清空 seen。这样终态是「seen 空、pendingNew=null、
-     *   workshopView='making'」，最符合「玩家从新开局第一次进工坊」的语义。 */
+    /* 已读与实际呈现的工具、升级同步。旧版会把尚未揭示的条目也写入已读数组。 */
     {
-      const RP = SB.ui.renderParts;
-      const SEEN = 'sb.wsSeen.v1';
-      const total = SB.TOOLS.length + SB.workshop.upgrades().length;
-      /* 干净基态（见上段注） */
-      try { sandbox.localStorage.removeItem(SEEN); } catch (e) {}
-      RP.setWorkshopView('upgrades');   // 快照全部未读 → pendingNew = 全部键
-      RP.setWorkshopView('making');     // 落盘全部 → localStorage 满；pendingNew=null
-      try { sandbox.localStorage.removeItem(SEEN); } catch (e) {}  // 现在清空 seen，保留干净基态
-
+      const RP = SB.ui.renderParts, store = sandbox.localStorage;
+      const seenKey = 'sb.wsSeen.v2', legacyKey = 'sb.wsSeen.v1';
       const s = SB.game.run();
-      s.lvl.workshop = 1;               // 建成工坊，解锁面板
-      s.tools = {}; s.upgrades = {};    // 尚未买断任何东西 ⇒ n = 0
+      const later = 'upg_ballast_1', oldTech = s.techs.engineeringT;
+      s.lvl.workshop = 1;
+      s.tools = {}; s.upgrades = {};
+      delete s.techs.engineeringT;
+      SB.game.setTab('workshop');
+      store.removeItem(seenKey);
+      store.setItem(legacyKey, JSON.stringify(['t:' + SB.TOOLS[0].id, 'u:' + later]));
+      const tm1 = RP.upgradeTabMeta(s);
+      const migrated = JSON.parse(store.getItem(seenKey));
+      check('旧工坊已读迁移保留已揭示的记录，未解锁条目仍可在将来提示',
+        migrated.includes('t:' + SB.TOOLS[0].id) && !migrated.includes('u:' + later));
+      check('升级项页签元数据提供「已完成 0 / 已揭晓 m」进度口径',
+        /^已完成 0 \/ 已揭晓 \d+$/.test(tm1.cnt) && tm1.done === 0 && tm1.total > 0);
+      check('有未读升级项且人不在升级页时 fresh=true（点亮一级页签 NEW）', tm1.fresh);
 
-      /* (1) 未读态、停在「制造」页签：页签写「已完成 0 / 共 m」并带 NEW 角标 */
-      RP.setWorkshopView('making');
-      const tabHtml = RP.paneWorkshop();
-      check('升级项页签显示「已完成 0 / 共 m」计分母（n/m 同源 doneCount，含未解锁项）',
-        tabHtml.indexOf('已完成 0 / 共 ' + total) >= 0,
-        '期望含「已完成 0 / 共 ' + total + '」，实际片段=' + (tabHtml.match(/已完成 \d+ \/ 共 \d+/) || [''])[0]);
-      check('有未读升级项时页签带 NEW 角标（且人不在升级项页签上）',
-        /class="subnew"[^>]*>NEW/.test(tabHtml),
-        'tab 里是否含 subnew: ' + /subnew/.test(tabHtml));
+      SB.game.setTab('workshop-upgrades');
+      const html = RP.paneWorkshopUpgrades(), tm2 = RP.upgradeTabMeta(s);
+      const displayed = Array.from(html.matchAll(/ data-(tool|upgrade)="([^"]+)"/g),
+        match => (match[1] === 'tool' ? 't:' : 'u:') + match[2]);
+      check('进入「工坊升级」后行前带 NEW（工具/升级项各自），且页签 fresh 消掉（正在看）',
+        /class="tag new">NEW/.test(html) && !tm2.fresh && html.includes(tm2.cnt));
+      SB.game.setTab('workshop');
+      const seen = JSON.parse(store.getItem(seenKey));
+      check('离开工坊升级仅将展示过的条目标为已读',
+        displayed.length > 0 && seen.length === displayed.length && displayed.every(key => seen.includes(key)) &&
+        !seen.includes('u:' + later));
+      check('落盘后回到「工坊制造」页签，未读角标消失（进度计数保留）',
+        !RP.upgradeTabMeta(s).fresh && tm2.total === displayed.length);
 
-      /* (2) 进入升级项页签：行级 NEW 打在尚未看过的条目前；页签角标此时应消失（正在看） */
-      RP.setWorkshopView('upgrades');
-      const upHtml = RP.paneWorkshop();
-      check('进入升级项后行前带 NEW（工具/升级项各自），且页签角标消掉（正在看就不该还挂 NEW）',
-        /class="tag new">NEW/.test(upHtml) && !/class="subnew"[^>]*>NEW/.test(upHtml),
-        '行内 NEW: ' + /tag new/.test(upHtml) + '，页签角标仍在: ' + /subnew/.test(upHtml));
-
-      /* (3) 离开升级项 ⇒ 整批落盘；再回制造页签时角标消失 */
-      RP.setWorkshopView('making');
-      const seen = JSON.parse((sandbox.localStorage.getItem(SEEN) || '[]'));
-      check('离开升级项页签时把未读项整批落盘（localStorage 记满全部条目键）',
-        seen.length === total &&
-        seen.indexOf('t:' + SB.TOOLS[0].id) >= 0 &&
-        seen.indexOf('u:' + SB.workshop.upgrades()[0].id) >= 0,
-        'seen 数量=' + seen.length + ' / 期望 ' + total);
-      const tab2 = RP.paneWorkshop();
-      check('落盘后回到制造页签，未读角标消失（已完成 0 / 共 m 仍保留）',
-        !/class="subnew"[^>]*>NEW/.test(tab2) && tab2.indexOf('已完成 0 / 共 ' + total) >= 0,
-        '角标仍在: ' + /subnew/.test(tab2));
+      s.techs.engineeringT = true;
+      check('新科技揭示的升级会重新点亮页签 NEW', RP.upgradeTabMeta(s).fresh);
+      SB.game.setTab('workshop-upgrades');
+      const newHtml = RP.paneWorkshopUpgrades();
+      const newRow = newHtml.split('<div class="row"').find(row => row.includes('data-upgrade="' + later + '"'));
+      check('首次揭示的压舱库扩容与未读标记同时展示', !!newRow && /class="tag new">NEW/.test(newRow));
+      SB.game.setTab('workshop');
+      check('查看后新升级落盘并熄灭角标', JSON.parse(store.getItem(seenKey)).includes('u:' + later) && !RP.upgradeTabMeta(s).fresh);
+      if (oldTech === undefined) delete s.techs.engineeringT; else s.techs.engineeringT = oldTech;
+      store.removeItem(legacyKey);
     }
-
 
     /* ④ 石梁无仓储上限——**用户拍的设计**，用断言钉住，
      *    免得将来有人顺手补个上限，还以为在修 bug。 */

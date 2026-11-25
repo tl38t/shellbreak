@@ -4,7 +4,7 @@
  * 【定案口径】
  *   · 抽到即生效、单纯收藏墙；不做分类、不做品阶、不做风味文案；阶数戳 Ⅰ–Ⅶ 只标来源阶。
  *   · 只做本局层，轮回由 freshRun 清零；不做跨周目永久层。
- *   · 卡面文案读 SB.heritage.descOf(id)（清洗表，源 POLICIES[].desc 一字不动）。
+ *   · 弹窗与收藏墙共用传承卡的名称和效果说明。
  *
  * 【为什么是独立浮层】
  *   #pane-diplomacy 每 2 秒墙钟整块 innerHTML 重写 ⇒ 弹窗内嵌会被冲掉；
@@ -155,8 +155,7 @@
     if (!pend.length) { closeHeritageDraft(); return null; }
     var d = pend[0], opts = [];
     for (var i = 0; i < d.options.length; i++) {
-      var id = d.options[i];
-      opts.push({ id: id, name: h.nameOf(id), desc: h.descOf(id) });
+      opts.push(SB.ui.renderParts.research.heritageCard(s, d.options[i]));
     }
     current = {
       stage: (typeof d.stage === 'number' && d.stage >= 1 && d.stage <= 7) ? d.stage : 1,

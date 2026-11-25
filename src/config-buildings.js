@@ -678,7 +678,7 @@
       desc: '建成后，学者科技产出随本局削壳进度提高：每削薄 5% +1%，最高 +20%（不随等级叠加）',
       requiredTech: ['shellwatch'] },
     { id: 'coralfarm', icon: 'assets/building-icons/era-4/era4-coralfarm.png', name: '速生珊瑚林', ratio: 2.5, cost: { kelp: 1000 },
-      desc: '每级珊瑚匠产出 +10%（职业专精建筑，与工具乘区独立相乘）',
+      desc: '每级珊瑚匠产出 +10%（职业专精加成，与工具加成独立相乘）',
       requiredTech: ['printing'] },
     { id: 'bank', icon: 'assets/building-icons/era-4/era4-bank.png', name: '银行', ratio: 2, cost: { steel: 30, stoneBeam: 400 },
       desc: '每级商人产出 +10%（走奢侈品供给那一侧）',
@@ -737,7 +737,7 @@
      *   tick/rates（科技）/cultureRate（市政）三处同式读；不再依赖商人或中世纪集市。
      *   ⚠️【cost 为提议值，未拍板】。 */
     { id: 'hotforge', icon: 'assets/building-icons/era-5/era5-hotforge.png', name: '热锻工厂', ratio: 1.5, cost: { steel: 400, titanium: 150 },
-      desc: '工艺制作效率 +7%/级（加法乘区，与工坊级/奇观/科技同一条轴）',
+      desc: '工艺制作效率 +7%/级（与工坊等级、奇观和科技同类加算）',
       requiredTech: ['industrialize'] },
     { id: 'school', icon: 'assets/building-icons/era-5/era5-school.png', name: '学校', ratio: 1.15, cost: { steel: 300, titanium: 200 },
       desc: '每名鲛人 +0.1 科技/s、+0.1 市政点/s（每级；由 BLD.schoolMermanSci/schoolMermanCivic 读）',

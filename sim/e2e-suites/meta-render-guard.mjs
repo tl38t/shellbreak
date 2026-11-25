@@ -63,10 +63,12 @@ export function run({ SB, check, doc }) {
   };
 
   const m = SB.game.meta();
+  const prevTab = SB.game.getTab ? SB.game.getTab() : 'village';
   const keepShop = m.shopUnlocked;
   const keepTide = m.tide;
   try {
     m.shopUnlocked = true;   // 让 meta 页渲染完整内容（含余额摘要），状态确定且内容丰富
+    if (SB.game.setTab) SB.game.setTab('meta');
 
     // 基准态：先渲染一次，把守卫落到已知基准（写或不写都行，不断言绝对值）
     SB.ui.render.renderPanes();
@@ -91,6 +93,7 @@ export function run({ SB, check, doc }) {
     check('内容变化后稳定态再次渲染不重写', wStable2 === 0,
       '稳定态新增写入=' + wStable2);
   } finally {
+    if (SB.game.setTab && prevTab && prevTab !== 'meta') SB.game.setTab(prevTab);
     doc.getElementById = origGetById;   // 还原，避免影响同进程后续套件 / 收尾
     m.shopUnlocked = keepShop;
     m.tide = keepTide;

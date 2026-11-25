@@ -8,9 +8,30 @@
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
-    } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=83"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=78"><\/script><script src="electron/locales/zh-TW.js?v=27"><\/script>' : '') + '<script src="src/i18n.js?v=4"><\/script>');
+  } catch (e) {}
+  /*HEAD_LOCALE_LOADER_START*/(function () {
+    var p = window.shellbreakPlatform;
+    var isElectron = !!(p && p.runtime === 'electron');
+    var locEnabled = !p || ((isElectron || p.runtime === 'web') && p.localizationEnabled === true);
+    var savedLoc = '';
+    try { savedLoc = localStorage.getItem('shellbreak.locale') || ''; } catch (e) {}
+    if (locEnabled) {
+      window.ShellbreakLocaleUrls = {
+        'en-US': 'electron/locales/en-US.js?v=90',
+        'zh-TW': 'electron/locales/zh-TW.js?v=40'
+      };
+    }
+    var scripts = '<script src="src/locales/zh-CN.js?v=95"><\/script>';
+    if (locEnabled && isElectron) {
+      scripts += '<script src="electron/locales/en-US.js?v=90"><\/script><script src="electron/locales/zh-TW.js?v=40"><\/script>';
+    } else if (locEnabled && (savedLoc === 'en-US' || savedLoc === 'zh-TW')) {
+      scripts += '<scr' + 'ipt src="' + window.ShellbreakLocaleUrls[savedLoc] + '"><\/scr' + 'ipt>';
+    }
+    scripts += '<script src="src/i18n.js?v=8"><\/script>';
+    document.write(scripts);
+  })();/*HEAD_LOCALE_LOADER_END*/
 </script>
-<link rel="stylesheet" href="css/main.css?v=348" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=357" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -33,119 +54,119 @@
         <button type="button" data-ui-theme-choice="day" aria-pressed="false" data-i18n="ui.theme.day">☀ 日间</button>
         <button type="button" data-ui-theme-choice="night" aria-pressed="true" data-i18n="ui.theme.night">☾ 夜间</button>
       </div>
-      <details class="ui-settings">
+      <details class="ui-settings" id="uiSettings">
         <summary aria-label="界面设置" data-i18n-aria-label="ui.settings.open.accessible_label" data-i18n="ui.settings.open.label">⚙ 设置</summary>
-        <div class="ui-settings-popover" role="group" aria-label="界面效果" data-i18n-aria-label="ui.settings.effects.accessible_label">
-          <div id="localeSettingBlock" hidden></div><div class="ui-settings-title" data-i18n="ui.settings.effects.title">界面效果</div>
-          <label class="ui-setting-row">
-            <input type="checkbox" data-ui-effect="deep-bubbles">
-            <span><b data-i18n="ui.settings.bubbles.label">气泡上浮动画</b><small data-bubbles-hint data-i18n="ui.settings.bubbles.hint">只在暗流纪偶尔上浮</small></span>
-          </label>
-          <div class="ui-settings-title" data-i18n="ui.settings.display.title">显示</div>
-          <label class="ui-setting-row ui-setting-row--select">
-            <span><b data-i18n="ui.settings.ui_scale.label">界面缩放</b><small data-i18n="ui.settings.ui_scale.hint">仅桌面横屏生效；文字与图标同比例放大，页面会变长。不影响游戏进度。</small></span>
-            <select data-ui-resolution class="ui-resolution-select" data-i18n-aria-label="ui.settings.ui_scale.label">
-              <option value="auto" data-i18n="ui.settings.ui_scale.auto">自适应（默认）</option>
-              <option value="s100" data-i18n="ui.settings.ui_scale.s100">100%（原生）</option>
-              <option value="s115" data-i18n="ui.settings.ui_scale.s115">115%（略放大）</option>
-              <option value="s130" data-i18n="ui.settings.ui_scale.s130">130%（明显放大）</option>
-              <option value="s150" data-i18n="ui.settings.ui_scale.s150">150%（最大）</option>
-            </select>
-          </label>
-          <label class="ui-setting-row ui-setting-row--select">
-            <span><b data-i18n="ui.settings.number_format.label">大数字显示格式</b><small data-i18n="ui.settings.number_format.hint">资源与成本数值过大时的缩写方式：紧凑（K/M/B/T）或科学计数法。</small></span>
-            <select data-ui-number-format class="ui-resolution-select" data-i18n-aria-label="ui.settings.number_format.label">
-              <option value="compact" data-i18n="ui.settings.number_format.compact">紧凑 (K/M/B/T)</option>
-              <option value="sci" data-i18n="ui.settings.number_format.sci">科学计数法</option>
-            </select>
-          </label>
-          <div class="ui-settings-title" data-i18n="ui.settings.automation.title">自动</div>
-          <!-- 自动点击开关（2026-10-28 用户要求「设置栏里也加一个自动点击开关，没有研究就提示在轮回商店购买」）。
-               ⚠️ 结构**静态**，状态全部由 game.js 的 syncAutoClickSetting() 用 textContent / checked /
-                  disabled / class 增量更新 —— 这里绝不能被整块重写，否则玩家点的那一下会被换掉（同 envWarm 纪律）。
-               未拥有 perks 时 input 被 disabled ⇒ 不会产生 change 事件；整行仍可点，点了跳「轮回商店」。 -->
-          <label class="ui-setting-row" id="autoClickRow">
-            <input type="checkbox" id="autoClickToggle">
-            <span><b data-i18n="ui.settings.auto_click.label">自动点击</b><small id="autoClickHint" data-i18n="ui.status.auto_click.loading">读取中…</small></span>
-          </label>
-          <!-- 三类自动化跨周目记忆开关（2026-11-18 用户拍）：默认全开。
-               ⚠️ 结构静态，状态由 game.js 的 syncAutoMemorySetting() 只写 checked —— 不整块重写。
-               关掉后「下个周目」生效：建筑自动开关 / 工坊自动槽清空、自动研究重置为关。 -->
-          <label class="ui-setting-row">
-            <input type="checkbox" id="memAutoUpgToggle" checked>
-            <span><b data-i18n="ui.settings.mem_upg.label">记忆建筑自动开关</b><small data-i18n="ui.settings.mem_upg.hint">轮回后保留各建筑的「自动建造 / 升级」开关</small></span>
-          </label>
-          <label class="ui-setting-row">
-            <input type="checkbox" id="memAutoSlotsToggle" checked>
-            <span><b data-i18n="ui.settings.mem_slots.label">记忆工坊自动槽</b><small data-i18n="ui.settings.mem_slots.hint">轮回后保留工坊自动制作的配方与档位</small></span>
-          </label>
-          <label class="ui-setting-row">
-            <input type="checkbox" id="memAutoResearchToggle" checked>
-            <span><b data-i18n="ui.settings.mem_research.label">记忆自动研究</b><small data-i18n="ui.settings.mem_research.hint">轮回后保留科技 / 市政的自动研究开关</small></span>
-          </label>
-          <div class="ui-settings-title" data-i18n="ui.settings.tutorial.title">引导</div>
-          <label class="ui-setting-row">
-            <input type="checkbox" data-onboarding-toggle checked>
-            <span><b data-i18n="ui.settings.onboarding.label">新手引导</b><small data-i18n="ui.settings.onboarding.hint">首局逐步高亮操作指引，可随时关闭（关闭后不再自动出现）。</small></span>
-          </label>
-          <label class="ui-setting-row">
-            <input type="checkbox" data-tab-unlock-stories-toggle checked>
-            <span><b data-i18n="ui.settings.tab_unlock_stories.label">标签页解锁介绍与跳转</b><small data-i18n="ui.settings.tab_unlock_stories.hint">关闭后，解锁各系统页签时不再弹出引导介绍，也不会自动跳转到该页。</small></span>
-          </label>
-          <!-- 音乐（2026-10-31 新增）：静音 + 音量 + 当前曲目。
-               ⚠️ 结构**静态**，状态全部由 game.js 的 syncAudioSetting() 用 checked / value / textContent
-                  增量更新 —— 与自动点击同一纪律，绝不能被整块重写（否则玩家正在拖的滑块会被换掉）。
-               曲名/作者不写死在此，全部来自 config.js 的 CFG.AUDIO，由 syncAudioSetting 拼出。 -->
-          <div class="ui-settings-title" data-i18n="ui.settings.music.title">音乐</div>
-          <label class="ui-setting-row">
-            <input type="checkbox" id="audioMuteToggle">
-            <span><b data-i18n="ui.settings.audio.mute">静音 BGM</b><small data-i18n="ui.settings.audio.mute.hint">关闭所有背景音乐（破壳前/后两首都会停）</small></span>
-          </label>
-          <label class="ui-setting-row ui-setting-row--slider">
-            <span><b data-i18n="ui.settings.audio.volume.label">BGM 音量</b></span>
-            <input type="range" id="audioVolume" min="0" max="100" value="100" step="1" class="audio-volume-slider" aria-label="BGM 音量" data-i18n-aria-label="ui.settings.audio.volume.accessible_label">
-          </label>
-          <!-- 手动选曲（2026-11-07）：锁定某首即压过一切自动切歌，直到改回「自动」。
-               ⚠️ 结构静态、option 由 game.js 的 bindAudioSetting() 一次性建（曲名来自 CFG.AUDIO），
-                  syncAudioSetting() 只增量刷 value / textContent —— 与音量滑块同一纪律。
-               标题来自登记表语义 key；选项在首次绑定时创建，之后由 syncAudioTrackSelect() 按当前 locale 刷新。 -->
-          <label class="ui-setting-row ui-setting-row--select">
-            <span><b id="audioTrackLabel" data-i18n="game.audio.track_select.label">曲目选择</b></span>
-            <select id="audioTrackSelect" class="ui-resolution-select" aria-label="曲目选择" data-i18n-aria-label="game.audio.track_select.label"></select>
-          </label>
-          <small class="ui-setting-hint" id="audioNowPlaying" data-i18n="ui.settings.audio.now_playing.loading">读取中…</small>
-          <!-- 兑换码（2026-11-07 起：本地礼包码，全程本机入账；TDS 平台通道已下线）。
-               ⚠️ 这是**通用**兑换入口，以后办别的活动还用它 ⇒ 文案不写奖励类型、不写「补偿」。
-               ⚠️ 整块由 src/redeem.js 的 boot() 控制显隐：CFG.REDEEM.LOCAL_GRANTS 为空
-                  就把整块 display:none（连标题一起），不留一个空标题或死按钮。 -->
-          <div id="redeemSettingBlock">
-            <div class="ui-settings-title" data-i18n="ui.settings.redeem.title">兑换码</div>
-            <div class="ui-settings-actions">
-              <button type="button" class="ui-setting-btn" id="btnSettingsRedeem" data-i18n="ui.settings.redeem.open">输入兑换码</button>
+        <div class="ui-settings-popover" id="uiSettingsPopover" data-active-settings="display" role="dialog" aria-label="界面设置" data-i18n-aria-label="ui.settings.effects.accessible_label">
+          <div class="ui-settings-head">
+            <strong data-i18n="ui.settings.open.accessible_label">界面设置</strong>
+            <button type="button" class="modal-x" data-settings-close="1" aria-label="关闭" data-i18n-aria-label="ui.action.close">×</button>
+          </div>
+          <div class="ui-settings-tabs" role="tablist">
+            <button type="button" class="ui-settings-tab on" data-settings-tab="display" aria-selected="true" data-i18n="ui.settings.tab.display">显示</button>
+            <button type="button" class="ui-settings-tab" data-settings-tab="auto" aria-selected="false" data-i18n="ui.settings.tab.automation">自动化</button>
+            <button type="button" class="ui-settings-tab" data-settings-tab="audio" aria-selected="false" data-i18n="ui.settings.tab.audio">音频</button>
+            <button type="button" class="ui-settings-tab" data-settings-tab="saves" aria-selected="false" data-i18n="ui.settings.tab.saves">存档</button>
+          </div>
+          <div class="ui-settings-scroll">
+            <div class="ui-settings-pane" data-settings-pane="display">
+              <div id="localeSettingBlock" hidden></div><div class="ui-settings-title" data-i18n="ui.settings.effects.title">界面效果</div>
+              <label class="ui-setting-row">
+                <input type="checkbox" data-ui-effect="deep-bubbles">
+                <span><b data-i18n="ui.settings.bubbles.label">气泡上浮动画</b><small data-bubbles-hint data-i18n="ui.settings.bubbles.hint">只在暗流纪偶尔上浮</small></span>
+              </label>
+              <label class="ui-setting-row ui-setting-row--select">
+                <span><b data-i18n="ui.settings.power_save.label">省电模式</b><small data-i18n="ui.settings.power_save.hint">关闭背景飘动与磨砂滤镜，降低星图帧率并放缓后台读数刷新（移动端默认自动开启）。</small></span>
+                <select data-ui-power-save class="ui-resolution-select" data-i18n-aria-label="ui.settings.power_save.label">
+                  <option value="auto" data-i18n="ui.settings.power_save.auto">自动（移动端开启）</option>
+                  <option value="on" data-i18n="ui.settings.power_save.on">始终开启</option>
+                  <option value="off" data-i18n="ui.settings.power_save.off">关闭（全特效）</option>
+                </select>
+              </label>
+              <div class="ui-settings-title" data-i18n="ui.settings.display.title">显示</div>
+              <label class="ui-setting-row ui-setting-row--select">
+                <span><b data-i18n="ui.settings.ui_scale.label">界面缩放</b><small data-i18n="ui.settings.ui_scale.hint">仅桌面横屏生效；文字与图标同比例放大，页面会变长。不影响游戏进度。</small></span>
+                <select data-ui-resolution class="ui-resolution-select" data-i18n-aria-label="ui.settings.ui_scale.label">
+                  <option value="auto" data-i18n="ui.settings.ui_scale.auto">自适应（默认）</option>
+                  <option value="s100" data-i18n="ui.settings.ui_scale.s100">100%（原生）</option>
+                  <option value="s115" data-i18n="ui.settings.ui_scale.s115">115%（略放大）</option>
+                  <option value="s130" data-i18n="ui.settings.ui_scale.s130">130%（明显放大）</option>
+                  <option value="s150" data-i18n="ui.settings.ui_scale.s150">150%（最大）</option>
+                </select>
+              </label>
+              <label class="ui-setting-row ui-setting-row--select">
+                <span><b data-i18n="ui.settings.number_format.label">大数字显示格式</b><small data-i18n="ui.settings.number_format.hint">资源与成本数值过大时的缩写方式：紧凑（K/M/B/T）或科学计数法。</small></span>
+                <select data-ui-number-format class="ui-resolution-select" data-i18n-aria-label="ui.settings.number_format.label">
+                  <option value="compact" data-i18n="ui.settings.number_format.compact">紧凑 (K/M/B/T)</option>
+                  <option value="sci" data-i18n="ui.settings.number_format.sci">科学计数法</option>
+                </select>
+              </label>
+            </div>
+            <div class="ui-settings-pane" data-settings-pane="auto">
+              <div class="ui-settings-title" data-i18n="ui.settings.automation.title">自动</div>
+              <label class="ui-setting-row" id="autoClickRow">
+                <input type="checkbox" id="autoClickToggle">
+                <span><b data-i18n="ui.settings.auto_click.label">自动点击</b><small id="autoClickHint" data-i18n="ui.status.auto_click.loading">读取中…</small></span>
+              </label>
+              <label class="ui-setting-row">
+                <input type="checkbox" id="memAutoUpgToggle" checked>
+                <span><b data-i18n="ui.settings.mem_upg.label">记忆建筑自动开关</b><small data-i18n="ui.settings.mem_upg.hint">轮回后保留各建筑的「自动建造 / 升级」开关</small></span>
+              </label>
+              <label class="ui-setting-row">
+                <input type="checkbox" id="memAutoSlotsToggle" checked>
+                <span><b data-i18n="ui.settings.mem_slots.label">记忆工坊自动槽</b><small data-i18n="ui.settings.mem_slots.hint">轮回后保留工坊自动制作的配方与档位</small></span>
+              </label>
+              <label class="ui-setting-row">
+                <input type="checkbox" id="memAutoResearchToggle" checked>
+                <span><b data-i18n="ui.settings.mem_research.label">记忆自动研究</b><small data-i18n="ui.settings.mem_research.hint">轮回后保留科技 / 市政的自动研究开关</small></span>
+              </label>
+              <div class="ui-settings-title" data-i18n="ui.settings.tutorial.title">引导</div>
+              <label class="ui-setting-row">
+                <input type="checkbox" data-onboarding-toggle checked>
+                <span><b data-i18n="ui.settings.onboarding.label">新手引导</b><small data-i18n="ui.settings.onboarding.hint">首局逐步高亮操作指引，可随时关闭（关闭后不再自动出现）。</small></span>
+              </label>
+              <label class="ui-setting-row">
+                <input type="checkbox" data-tab-unlock-stories-toggle checked>
+                <span><b data-i18n="ui.settings.tab_unlock_stories.label">标签页解锁介绍与跳转</b><small data-i18n="ui.settings.tab_unlock_stories.hint">关闭后，解锁各系统页签时不再弹出引导介绍，也不会自动跳转到该页。</small></span>
+              </label>
+            </div>
+            <div class="ui-settings-pane" data-settings-pane="audio">
+              <div class="ui-settings-title" data-i18n="ui.settings.music.title">音乐</div>
+              <label class="ui-setting-row">
+                <input type="checkbox" id="audioMuteToggle">
+                <span><b data-i18n="ui.settings.audio.mute">静音 BGM</b><small data-i18n="ui.settings.audio.mute.hint">关闭所有背景音乐（破壳前/后两首都会停）</small></span>
+              </label>
+              <label class="ui-setting-row ui-setting-row--slider">
+                <span><b data-i18n="ui.settings.audio.volume.label">BGM 音量</b></span>
+                <input type="range" id="audioVolume" min="0" max="100" value="100" step="1" class="audio-volume-slider" aria-label="BGM 音量" data-i18n-aria-label="ui.settings.audio.volume.accessible_label">
+              </label>
+              <label class="ui-setting-row ui-setting-row--select">
+                <span><b id="audioTrackLabel" data-i18n="game.audio.track_select.label">曲目选择</b></span>
+                <select id="audioTrackSelect" class="ui-resolution-select" aria-label="曲目选择" data-i18n-aria-label="game.audio.track_select.label"></select>
+              </label>
+              <small class="ui-setting-hint" id="audioNowPlaying" data-i18n="ui.settings.audio.now_playing.loading">读取中…</small>
+            </div>
+            <div class="ui-settings-pane" data-settings-pane="saves">
+              <div id="redeemSettingBlock">
+                <div class="ui-settings-title" data-i18n="ui.settings.redeem.title">兑换码</div>
+                <div class="ui-settings-actions">
+                  <button type="button" class="ui-setting-btn" id="btnSettingsRedeem" data-i18n="ui.settings.redeem.open">输入兑换码</button>
+                </div>
+              </div>
+              <div id="terraReplayBlock" hidden>
+                <div class="ui-settings-title" data-i18n="ui.settings.ending_replay.title">通关演出</div>
+                <div class="ui-settings-actions">
+                  <button type="button" class="ui-setting-btn" id="btnReplayTerra" data-i18n="ui.settings.ending_replay.open">回看《流浪泰拉》</button>
+                </div>
+              </div>
+              <div class="ui-settings-title" data-i18n="ui.settings.saves.title">存档</div>
+              <div class="ui-settings-actions">
+                <button type="button" class="ui-setting-btn" id="btnSettingsSaveNow" data-i18n="save.action.save_now">立即保存</button>
+                <button type="button" class="ui-setting-btn" id="btnSettingsSaveManager" data-i18n="save.action.manage">存档管理</button>
+                <button type="button" class="ui-setting-btn ui-setting-btn--danger" id="btnSettingsWipe" data-i18n="save.action.erase">清空存档</button>
+              </div>
+              <small class="ui-setting-hint" id="saveNowHint" data-i18n="save.autosave.hint">进度每 5 秒自动保存一次</small>
             </div>
           </div>
-          <!-- 通关演出回看（2026-11-03 用户要求「放到设置里，想再看可以反复播放」）。
-               起因：重复挑战通关刻意不弹庆祝面板，第二次通关的人再也看不到这段演出。
-               ⚠️ 默认 hidden，由 render.js 的 syncTerraReplayRow() 按「已通关《流浪泰拉》」
-                  显隐 —— 未通关不剧透，也不留一个点了没反应的死按钮。
-               ⚠️ 结构静态、只有 hidden 被改；按钮 onclick 由 bindSettingsExtras() 接，
-                  与自动点击/音乐那两块同一条纪律：这里不许被整块重写。 -->
-          <div id="terraReplayBlock" hidden>
-            <div class="ui-settings-title" data-i18n="ui.settings.ending_replay.title">通关演出</div>
-            <div class="ui-settings-actions">
-              <button type="button" class="ui-setting-btn" id="btnReplayTerra" data-i18n="ui.settings.ending_replay.open">回看《流浪泰拉》</button>
-            </div>
-          </div>
-          <div class="ui-settings-title" data-i18n="ui.settings.saves.title">存档</div>
-          <div class="ui-settings-actions">
-            <button type="button" class="ui-setting-btn" id="btnSettingsSaveNow" data-i18n="save.action.save_now">立即保存</button>
-            <button type="button" class="ui-setting-btn" id="btnSettingsSaveManager" data-i18n="save.action.manage">存档管理</button>
-            <button type="button" class="ui-setting-btn ui-setting-btn--danger" id="btnSettingsWipe" data-i18n="save.action.erase">清空存档</button>
-          </div>
-          <!-- 手动保存反馈位（2026-10-29）：设置面板里没有状态行，所以单开一行小字。
-               默认文案说明自动保存节奏；点完变成「已保存 · HH:MM」或失败的真实原因。
-               ⚠️ 只由 save-transfer.js 的 saveNowFeedback 改 textContent，不许塞 HTML。 -->
-          <small class="ui-setting-hint" id="saveNowHint" data-i18n="save.autosave.hint">进度每 5 秒自动保存一次</small>
         </div>
       </details>
     </div>
@@ -162,6 +183,30 @@
     <button class="btn big" data-omen="claim" id="omenBtn" data-i18n="ui.omen.collect">拾取</button>
   </div>
 
+  <div class="mobile-hud" id="mobileHud">
+    <div class="mhud-row1">
+      <button type="button" class="mhud-shell" id="hudShellChip" data-overview-open="1">
+        <i class="mhud-shell-fill" id="hudShellFill"></i>
+        <span class="mhud-shell-txt" id="hudShellTxt"><span data-i18n="ui.shell.thickness.label">天壳 · 冰封层厚度</span> 100%</span>
+      </button>
+      <button type="button" class="mhud-pill mhud-pill--action" id="hudActionPill" disabled><span data-i18n="ui.render.render_break_btn.break_through_the_ice_shell">凿穿冰壳</span></button>
+      <button type="button" class="mhud-pill mhud-pill--ad" id="hudAdPill" hidden><span data-i18n="ui.ad.boost.toggle.default">2× 加速</span></button>
+      <button type="button" class="mhud-pill" id="btnMobileDrawer" data-overview-toggle="1" data-i18n="ui.hud.overview_button">概览</button>
+      <button type="button" class="mhud-pill mhud-pill--icon" id="btnOpenSettingsMobile" data-settings-open="1" aria-label="界面设置" data-i18n-aria-label="ui.settings.open.accessible_label">⚙</button>
+    </div>
+    <div class="mhud-row2">
+      <div class="hud-quick-res" id="hudQuickRes"></div>
+      <button type="button" class="hud-track-mini" id="hudTrackMini" hidden></button>
+    </div>
+  </div>
+
+  <div class="shell-main">
+  <div class="shell-drawer-backdrop hidden" id="overviewBackdrop" data-overview-close="1"></div>
+  <aside class="shell-overview-drawer" id="overviewDrawer" aria-label="资源与环境概览" data-i18n-aria-label="ui.hud.overview_title">
+    <div class="drawer-hd">
+      <strong data-i18n="ui.hud.overview_title">资源与自然环境</strong>
+      <button type="button" class="modal-x" id="btnCloseOverviewDrawer" data-overview-close="1" aria-label="关闭" data-i18n-aria-label="ui.action.close">×</button>
+    </div>
   <!-- 资源卡（2026-09-30）：加可折叠彩色标题条（data-fold=res，见 render.js CARD_META）。
        #res 网格与 #res-craft-wrap 由渲染层填，标题是静态 HTML，不被 2 秒刷新冲掉。 -->
   <div class="overview-grid" data-page-node-id="OverviewGridP0">
@@ -218,31 +263,41 @@
     <div id="envHydro" class="envsplit" style="display:none" data-page-node-id="EnvHydro01"></div>
   </div>
   </div>
+  </aside>
+
+  <section class="shell-workspace">
+  <nav class="app-nav-groups" id="appNavGroups" hidden aria-label="导航分组" data-i18n-aria-label="ui.nav.groups.aria_label">
+    <button type="button" class="nav-group-btn on" data-nav-group-btn="colony"><span class="nav-g-ic" aria-hidden="true">⌂</span><span data-i18n="ui.nav.group.core">核心</span></button>
+    <button type="button" class="nav-group-btn" data-nav-group-btn="industry"><span class="nav-g-ic" aria-hidden="true">⚒</span><span data-i18n="ui.nav.group.progress">发展</span></button>
+    <button type="button" class="nav-group-btn" data-nav-group-btn="faith"><span class="nav-g-ic" aria-hidden="true">✦</span><span data-i18n="ui.nav.group.realm">外务</span></button>
+    <button type="button" class="nav-group-btn" data-nav-group-btn="cycle"><span class="nav-g-ic" aria-hidden="true">↺</span><span data-i18n="ui.nav.group.cycle">轮回</span></button>
+  </nav>
 
   <!-- 2026-10-05 系统指引：每个页签旁挂一个「?」按钮，点击弹出该系统的介绍（intro-mask #introPop）。
        ⚠️ 巢穴页签的 id 下移到内层 span：renderAll 用 villageTabName.textContent 写纪元名，
           若 id 在 .tab 上会把「?」按钮一起清掉 —— 所以 id 只挂在 span 上。 -->
-  <div class="tabs" data-page-node-id="Iwq243yLf7atqw3YKGoPWL">
-    <div class="tab on" data-tab="village"><span class="tab-icon" data-icon="habitat" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3.5 19.5v-3.2a8.5 8.5 0 0 1 17 0v3.2"/><path d="M6 19.5v-2.7a6 6 0 0 1 12 0v2.7M9 19.5v-2.1a3 3 0 0 1 6 0v2.1M3 19.5h18"/><path d="M9 8.4 12 5l3 3.4"/></svg></span><span id="villageTabName" data-i18n="ui.habitat.name" data-page-node-id="BSR2cRGflazOwzxnhvPnJ3">巢穴</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('village')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab" data-tab="folk" data-page-node-id="S1PgmZRsoxXJOq6GZkGuGV"><span class="tab-icon" data-icon="folk" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1.2a5.5 5.5 0 0 1 11 0V19z"/><path d="M16 5.5a3 3 0 0 1 0 5.8M17 14a4 4 0 0 1 3.5 4v1"/></svg></span><span id="folkTabName" data-i18n="ui.pane.people.title">族民</span><i class="growbar" id="growbar" title=""></i><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('folk')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-tech" data-tab="tech" title="建成 5 座深海藻场后开启，才知道明天是什么" data-i18n-title="ui.render.sync_tab_locks.build_five_kelp_farms_to_see_what_tomorrow_holds" data-page-node-id="rILZuBt5zAaFz2Kz16ijXA"><span class="tab-icon" data-icon="research" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M9 3.5h6M10 3.5v6l-5.4 8.2A1.8 1.8 0 0 0 6.1 20h11.8a1.8 1.8 0 0 0 1.5-2.3L14 9.5v-6"/><path d="M7.2 15h9.6M9 17.8h6"/></svg></span><span data-i18n="ui.pane.research.title">科技</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('tech')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-civic" data-tab="civic" title="建成议事厅后开启（议事厅由「石工」解锁）" data-i18n-title="ui.render.sync_tab_locks.unlock_after_building_the_council_hall_unlocked" data-page-node-id="CivTab01CivicLocks"><span class="tab-icon" data-icon="civic" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m3.5 9 8.5-5 8.5 5zM5 20h14M7 9v9m5-9v9m5-9v9M4 21.5h16"/></svg></span><span data-i18n="ui.pane.civics.title">市政</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('civic')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+  <div class="tabs" data-active-group="colony" data-page-node-id="Iwq243yLf7atqw3YKGoPWL">
+    <div class="tab on" data-tab="village" data-nav-group="colony" data-nav-tier="core"><span class="tab-icon" data-icon="habitat" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3.5 19.5v-3.2a8.5 8.5 0 0 1 17 0v3.2"/><path d="M6 19.5v-2.7a6 6 0 0 1 12 0v2.7M9 19.5v-2.1a3 3 0 0 1 6 0v2.1M3 19.5h18"/><path d="M9 8.4 12 5l3 3.4"/></svg></span><span id="villageTabName" data-i18n="ui.habitat.name" data-page-node-id="BSR2cRGflazOwzxnhvPnJ3">巢穴</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('village')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-workshop" data-tab="workshop" data-nav-group="colony" data-nav-tier="core" title="建成工坊后开启" data-i18n-title="ui.render.sync_tab_locks.build_a_workshop_to_unlock_this_tab" data-page-node-id="WrkTab01Workshop"><span class="tab-icon" data-icon="workshop" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M14 4.5a5 5 0 0 0-6.3 6.3l-4.5 4.5a2.1 2.1 0 0 0 3 3l4.5-4.5A5 5 0 0 0 17 7.5l-3 3-3-3 3-3Z"/><path d="m15.5 15.5 4 4"/></svg></span><span data-i18n="ui.tab.workshop_craft">工坊制造</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab" data-tab="folk" data-nav-group="colony" data-nav-tier="core" data-page-node-id="S1PgmZRsoxXJOq6GZkGuGV"><span class="tab-icon" data-icon="folk" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1.2a5.5 5.5 0 0 1 11 0V19z"/><path d="M16 5.5a3 3 0 0 1 0 5.8M17 14a4 4 0 0 1 3.5 4v1"/></svg></span><span id="folkTabName" data-i18n="ui.pane.people.title">族民</span><i class="growbar" id="growbar" title=""></i><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('folk')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-tech" data-tab="tech" data-nav-group="industry" data-nav-tier="core" title="建成 5 座深海藻场后开启，才知道明天是什么" data-i18n-title="ui.render.sync_tab_locks.build_five_kelp_farms_to_see_what_tomorrow_holds" data-page-node-id="rILZuBt5zAaFz2Kz16ijXA"><span class="tab-icon" data-icon="research" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M9 3.5h6M10 3.5v6l-5.4 8.2A1.8 1.8 0 0 0 6.1 20h11.8a1.8 1.8 0 0 0 1.5-2.3L14 9.5v-6"/><path d="M7.2 15h9.6M9 17.8h6"/></svg></span><span data-i18n="ui.pane.research.title">科技</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('tech')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-civic" data-tab="civic" data-nav-group="industry" data-nav-tier="core" title="建成议事厅后开启（议事厅由「石工」解锁）" data-i18n-title="ui.render.sync_tab_locks.unlock_after_building_the_council_hall_unlocked" data-page-node-id="CivTab01CivicLocks"><span class="tab-icon" data-icon="civic" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m3.5 9 8.5-5 8.5 5zM5 20h14M7 9v9m5-9v9m5-9v9M4 21.5h16"/></svg></span><span data-i18n="ui.pane.civics.title">市政</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('civic')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-workshop-upgrades" data-tab="workshop-upgrades" data-nav-group="industry" data-nav-tier="core" title="建成工坊后开启" data-i18n-title="ui.render.sync_tab_locks.build_a_workshop_to_unlock_this_tab" data-page-node-id="WrkUpgTab01"><span class="tab-icon" data-icon="workshop-upgrades" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M12 3.5v11"/><path d="m7.5 8 4.5-4.5L16.5 8"/><rect x="5" y="16.5" width="14" height="3.5" rx="1"/></svg></span><span data-i18n="ui.tab.workshop_upgrades">工坊升级</span><span class="tab-new" id="tabWorkshopUpgradesNew" hidden>NEW</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop-upgrades')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-star-map" data-tab="star-map" data-nav-group="colony" data-nav-tier="core" title="凿穿天壳后开启星图" data-i18n-title="ui.render.sync_tab_locks.break_through_the_shell_to_unlock_the"><span class="tab-icon" data-icon="starmap" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12" r="2.1"/><ellipse cx="12" cy="12" rx="9" ry="4.2" transform="rotate(-28 12 12)"/><path d="M5.8 6.5h.1m12 10h.1M18.5 5.5v2m-1-.9h2"/></svg></span><span data-i18n="ui.pane.star_map.title">星图</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('star-map')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-wonder" data-tab="wonder" data-nav-group="industry" data-nav-tier="mid" title="研究「石工」后开启" data-i18n-title="ui.render.sync_tab_locks.research_masonry_to_unlock_this_tab" data-page-node-id="WdrTab01Wonder"><span class="tab-icon" data-icon="wonder" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m12 3.5 2.3 5.1 5.6.5-4.2 3.8 1.2 5.5-4.9-2.9-4.9 2.9 1.2-5.5-4.2-3.8 5.6-.5z"/><path d="M7.5 20.5h9"/></svg></span><span data-i18n="ui.pane.wonders.title">奇观</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-diplomacy" data-tab="diplomacy" data-nav-group="faith" data-nav-tier="mid" title="完成「导航」或「军事训练」后开放外交。" data-i18n-title="ui.war.campaign.locked"><span class="tab-icon" data-icon="diplomacy" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 5.5h10a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H9l-4 3v-3.4a3 3 0 0 1-1-2.2v-3.4a3 3 0 0 1 3-3Z"/><path d="M14.5 9.5h2a3.5 3.5 0 0 1 3.5 3.5v2.5a3 3 0 0 1-1 2.2v2.3l-3-2h-3"/></svg></span><span data-i18n="ui.pane.diplomacy.title">外交</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('diplomacy')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <!-- 信仰页签（2026-09-30 用户：「单独起一个信仰面板」）：与巢穴/科技/市政并列。
          门 = 完成《神学》，与资源行 / 产出线同源（resUnlocked(s,'faith') ⇔ s.civics.theology）。 -->
-    <div class="tab locked" id="tab-faith" data-tab="faith" title="研究「神学」后开启信仰页" data-i18n-title="ui.render.sync_tab_locks.research_theology_to_unlock_the_faith_tab" data-page-node-id="FaithTab01Faith"><span class="tab-icon" data-icon="faith" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M12 3.5c4.8 3.3 7.2 6.1 7.2 9a7.2 7.2 0 0 1-14.4 0c0-2.9 2.4-5.7 7.2-9Z"/><path d="M8.7 13.3c.4 1.8 1.5 2.8 3.3 3M12 7v2.5"/></svg></span><span data-i18n="ui.pane.faith.title">信仰</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('faith')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-diplomacy" data-tab="diplomacy" title="完成「导航」或「军事训练」后开放外交。" data-i18n-title="ui.war.campaign.locked"><span class="tab-icon" data-icon="diplomacy" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 5.5h10a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H9l-4 3v-3.4a3 3 0 0 1-1-2.2v-3.4a3 3 0 0 1 3-3Z"/><path d="M14.5 9.5h2a3.5 3.5 0 0 1 3.5 3.5v2.5a3 3 0 0 1-1 2.2v2.3l-3-2h-3"/></svg></span><span data-i18n="ui.pane.diplomacy.title">外交</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('diplomacy')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-workshop" data-tab="workshop" title="建成工坊后开启" data-i18n-title="ui.render.sync_tab_locks.build_a_workshop_to_unlock_this_tab" data-page-node-id="WrkTab01Workshop"><span class="tab-icon" data-icon="workshop" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M14 4.5a5 5 0 0 0-6.3 6.3l-4.5 4.5a2.1 2.1 0 0 0 3 3l4.5-4.5A5 5 0 0 0 17 7.5l-3 3-3-3 3-3Z"/><path d="m15.5 15.5 4 4"/></svg></span><span data-i18n="ui.workshop.title">工坊</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('workshop')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-wonder" data-tab="wonder" title="研究「石工」后开启" data-i18n-title="ui.render.sync_tab_locks.research_masonry_to_unlock_this_tab" data-page-node-id="WdrTab01Wonder"><span class="tab-icon" data-icon="wonder" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m12 3.5 2.3 5.1 5.6.5-4.2 3.8 1.2 5.5-4.9-2.9-4.9 2.9 1.2-5.5-4.2-3.8 5.6-.5z"/><path d="M7.5 20.5h9"/></svg></span><span data-i18n="ui.pane.wonders.title">奇观</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('wonder')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab locked" id="tab-star-map" data-tab="star-map" title="凿穿天壳后开启星图" data-i18n-title="ui.render.sync_tab_locks.break_through_the_shell_to_unlock_the"><span class="tab-icon" data-icon="starmap" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12" r="2.1"/><ellipse cx="12" cy="12" rx="9" ry="4.2" transform="rotate(-28 12 12)"/><path d="M5.8 6.5h.1m12 10h.1M18.5 5.5v2m-1-.9h2"/></svg></span><span data-i18n="ui.pane.star_map.title">星图</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('star-map')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-faith" data-tab="faith" data-nav-group="faith" data-nav-tier="mid" title="研究「神学」后开启信仰页" data-i18n-title="ui.render.sync_tab_locks.research_theology_to_unlock_the_faith_tab" data-page-node-id="FaithTab01Faith"><span class="tab-icon" data-icon="faith" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M12 3.5c4.8 3.3 7.2 6.1 7.2 9a7.2 7.2 0 0 1-14.4 0c0-2.9 2.4-5.7 7.2-9Z"/><path d="M8.7 13.3c.4 1.8 1.5 2.8 3.3 3M12 7v2.5"/></svg></span><span data-i18n="ui.pane.faith.title">信仰</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('faith')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <!-- 公司页签（ERA6 市政《宏观经济学》解锁）：与科技/市政并列，门 = 拥有《宏观经济学》。 -->
-    <div class="tab locked" id="tab-company" data-tab="company" title="研究「宏观经济学」后开启公司页" data-i18n-title="ui.render.sync_tab_locks.research_macroeconomics_to_unlock_the_companies_" data-page-node-id="CmpTab01Company"><span class="tab-icon" data-icon="company" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 19.5V12h4v7.5m4 0V8h4v11.5m4 0V4.5h3v15"/><path d="M3.5 20.5h18M4.5 9 10 6l4 1.5 5-4"/></svg></span><span data-i18n="ui.pane.companies.title">公司</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('company')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
-    <div class="tab" data-tab="meta" title="首次轮回或建成首座轨道卫星后开启" data-i18n-title="ui.render.sync_tab_locks.unlock_after_your_first_prestige_or_after" data-page-node-id="SAoezNHHudwE2etBXXpCrl"><span class="tab-icon" data-icon="meta" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M7 7.5a7 7 0 0 1 11.8 2M17 4.5l2 5-5 .3M17 16.5a7 7 0 0 1-11.8-2M7 19.5l-2-5 5-.3"/></svg></span><span data-i18n="ui.pane.prestige_shop.title">轮回商店</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-company" data-tab="company" data-nav-group="faith" data-nav-tier="mid" title="研究「宏观经济学」后开启公司页" data-i18n-title="ui.render.sync_tab_locks.research_macroeconomics_to_unlock_the_companies_" data-page-node-id="CmpTab01Company"><span class="tab-icon" data-icon="company" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 19.5V12h4v7.5m4 0V8h4v11.5m4 0V4.5h3v15"/><path d="M3.5 20.5h18M4.5 9 10 6l4 1.5 5-4"/></svg></span><span data-i18n="ui.pane.companies.title">公司</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('company')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab" data-tab="meta" data-nav-group="cycle" data-nav-tier="meta" title="首次轮回或建成首座轨道卫星后开启" data-i18n-title="ui.render.sync_tab_locks.unlock_after_your_first_prestige_or_after" data-page-node-id="SAoezNHHudwE2etBXXpCrl"><span class="tab-icon" data-icon="meta" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M7 7.5a7 7 0 0 1 11.8 2M17 4.5l2 5-5 .3M17 16.5a7 7 0 0 1-11.8-2M7 19.5l-2-5 5-.3"/></svg></span><span data-i18n="ui.pane.prestige_shop.title">轮回商店</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('meta')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <!-- 帷幕之后（2026-11-17 晚）：独立页签，不是弹窗。门 = 已掀过幕（meta.veil），
          未掀幕时置灰，title 说明条件（与科技/市政/工坊同一套灰态语言）。 -->
-    <div class="tab locked" id="tab-veil" data-tab="veil" title="掀起帘幕、开启第一重帷幕后开放" data-i18n-title="ui.pane.veil.locked_hint"><span class="tab-icon" data-icon="veil" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 4.2c2.3 3.6 3.2 7.6 3.2 11.4c0 2.4-.9 3.6-3.2 4.4"/><path d="M20 4.2c-2.3 3.6-3.2 7.6-3.2 11.4c0 2.4.9 3.6 3.2 4.4"/><path d="M12 9.2v5.6"/><path d="M10.2 11.4 12 9.2l1.8 2.2"/></svg></span><span data-i18n="ui.pane.veil.title">帷幕</span></div>
-    <div class="tab locked" data-tab="challenges" title="首次轮回后开启挑战" data-i18n-title="ui.render.sync_tab_locks.unlocks_after_your_first_prestige"><span class="tab-icon" data-icon="challenge" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M5 21V4m1 1h12l-2.5 3L18 11H6"/><path d="M5 21h5"/></svg></span><span data-i18n="ui.pane.challenges.title">挑战</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('challenges')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-veil" data-tab="veil" data-nav-group="cycle" data-nav-tier="meta" title="掀起帘幕、开启第一重帷幕后开放" data-i18n-title="ui.pane.veil.locked_hint"><span class="tab-icon" data-icon="veil" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 4.2c2.3 3.6 3.2 7.6 3.2 11.4c0 2.4-.9 3.6-3.2 4.4"/><path d="M20 4.2c-2.3 3.6-3.2 7.6-3.2 11.4c0 2.4.9 3.6 3.2 4.4"/><path d="M12 9.2v5.6"/><path d="M10.2 11.4 12 9.2l1.8 2.2"/></svg></span><span data-i18n="ui.pane.veil.title">帷幕</span></div>
+    <div class="tab locked" id="tab-challenges" data-tab="challenges" data-nav-group="cycle" data-nav-tier="meta" title="首次轮回后开启挑战" data-i18n-title="ui.render.sync_tab_locks.unlocks_after_your_first_prestige"><span class="tab-icon" data-icon="challenge" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M5 21V4m1 1h12l-2.5 3L18 11H6"/><path d="M5 21h5"/></svg></span><span data-i18n="ui.pane.challenges.title">挑战</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('challenges')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
     <!-- 成就独立页签（2026-10-24 用户要求）：门与挑战同为首次轮回。 -->
-    <div class="tab locked" data-tab="achievements" title="首次轮回后开启成就" data-i18n-title="ui.render.sync_tab_locks.unlocks_after_your_first_prestige_sb_005137"><span class="tab-icon" data-icon="achievement" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="9" r="5.5"/><path d="m8.5 14-1 6 4.5-2.4 4.5 2.4-1-6M10 9l1.4 1.4L14.5 7"/></svg></span><span data-i18n="ui.pane.achievements.title">成就</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('achievements')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
+    <div class="tab locked" id="tab-achievements" data-tab="achievements" data-nav-group="cycle" data-nav-tier="meta" title="首次轮回后开启成就" data-i18n-title="ui.render.sync_tab_locks.unlocks_after_your_first_prestige_sb_005137"><span class="tab-icon" data-icon="achievement" aria-hidden="true"><svg class="tab-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="9" r="5.5"/><path d="m8.5 14-1 6 4.5-2.4 4.5 2.4-1-6M10 9l1.4 1.4L14.5 7"/></svg></span><span data-i18n="ui.pane.achievements.title">成就</span><button type="button" class="qbtn" onclick="event.stopPropagation();SB.ui.openIntro('achievements')" title="这是什么？" data-i18n-title="ui.intro.help.tooltip">?</button></div>
   </div>
 
   <section class="challenge-notice" id="challengeNotice" hidden aria-label="当前挑战" data-i18n-aria-label="ui.challenge.notice.aria_label">
@@ -275,6 +330,7 @@
   </div>
   <div class="card hidden" id="pane-diplomacy"></div>
   <div class="card hidden" id="pane-workshop" data-page-node-id="PaneWrk01Workshop"></div>
+  <div class="card hidden" id="pane-workshop-upgrades" data-page-node-id="PaneWrkUpg01Workshop"></div>
   <div class="card hidden" id="pane-wonder" data-page-node-id="PaneWdr01Wonder"></div>
   <div class="card hidden" id="pane-star-map"></div>
   <!-- 公司页（ERA6 市政《宏观经济学》解锁）：静态标题 + 可重写正文 #pane-company-body（仿信仰页，避免 2 秒刷新冲掉标题）。 -->
@@ -289,8 +345,10 @@
   <div class="card hidden" id="pane-challenges"></div>
   <!-- 成就墙页（2026-10-24）：与挑战页拆成两个页签，门同为首次轮回。 -->
   <div class="card hidden" id="pane-achievements"></div>
+  </section>
 
-  <div class="card" data-page-node-id="v486295fD7Ww5xIRjRWFIF">
+  <aside class="shell-console">
+  <div class="card foot-card" data-page-node-id="v486295fD7Ww5xIRjRWFIF">
     <div class="foot" data-page-node-id="Mup8CMe6kDpRa78GiFXAQ6">
       <span class="ad-ctrl" id="adCtrl" data-page-node-id="AdCtrl01">
         <button class="btn ad-watch" id="btnAd" data-page-node-id="AdWatch01" data-i18n="ui.ad.boost.watch.initial" data-i18n-title="ui.ad.boost.watch.tooltip">看广告</button>
@@ -324,7 +382,15 @@
       <button class="big veil-break" id="btnVeil" data-i18n="ui.veil.break_button">掀起帘幕</button>
       <span id="veilHint" style="font-size:12px;color:var(--dim)"></span>
     </div>
-    <div class="log" id="log" data-page-node-id="IX7irOvtve8VlhblV4gx2P"></div>
+    <div class="log-panel" id="logPanel">
+      <div class="log-ticker-bar">
+        <div class="log-latest" id="logLatest"></div>
+        <button type="button" class="btn log-toggle-btn" id="btnLogToggle" data-log-toggle="1" aria-expanded="false" data-i18n="ui.log.history.expand">日志</button>
+      </div>
+      <div class="log" id="log" data-page-node-id="IX7irOvtve8VlhblV4gx2P"></div>
+    </div>
+  </div>
+  </aside>
   </div>
 </div>
 
@@ -369,7 +435,7 @@
      ⚠️ 不复用 warToastStack（role=status 是播报层，塞可交互控件语义不对）；
      ⚠️ 不内嵌 #pane-diplomacy（每 2 秒整块重画会冲掉玩家正在选的榜）。
      榜单状态只存 s.war.heritage.pending，本容器只是渲染层，关掉重开不丢。 -->
-<div class="heritage-draft-layer hidden" id="heritageDraftLayer" role="dialog" aria-modal="false" aria-label="择取传承"></div>
+<div class="heritage-draft-layer hidden" id="heritageDraftLayer" role="dialog" aria-modal="false" aria-label="择取传承" data-i18n-aria-label="ui.heritage.draft_title"></div>
 <!-- 帷幕之后（2026-11-17 晚形态变更）：原 #veilHub / #veilModal 两层遮罩已删除，
      现为普通页签 #pane-veil（见上方 pane 容器）。 -->
 <div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
@@ -383,95 +449,97 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=244"></script>
+<script src="src/config.js?v=247"></script>
 <script src="src/config-catalog.js?v=21"></script>
-<script src="src/config-content.js?v=41"></script>
-<script src="src/config-buildings.js?v=50"></script>
+<script src="src/config-content.js?v=43"></script>
+<script src="src/config-buildings.js?v=51"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=160"></script>
-<script src="src/tech.js?v=140"></script>
+<script src="src/techs.js?v=161"></script>
+<script src="src/tech.js?v=145"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
-<script src="src/civics-data.js?v=41"></script>
-<script src="src/civics.js?v=150"></script>
+<script src="src/civics-data.js?v=43"></script>
+<script src="src/civics.js?v=154"></script>
 <!-- 传承（2026-11-11）：必须在 civics.js 之后（install() 运行时包装 SB.civic 的效果出口），
      且早于 state-migrate.js（读档白名单校验要用 isPoolCard）与 war.js（吞并发榜）。 -->
-<script src="src/heritage.js?v=2"></script>
+<script src="src/heritage.js?v=4"></script>
 <!-- 公司系统数据层（ERA6 市政《宏观经济学》解锁）：独立行业 / 名字池，无依赖，
      必须早于 game.js（泵里调 SB.pickCompanyNames）与 render.js（公司页读 SB.COMPANIES）。 -->
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
-<script src="src/save-storage.js?v=12"></script>
-<script src="src/state-migrate.js?v=40"></script>
-<script src="src/state.js?v=198"></script>
+<script src="src/save-storage.js?v=13"></script>
+<script src="src/state-migrate.js?v=44"></script>
+<script src="src/state.js?v=199"></script>
 <!-- 硅基承续 · 十部位效果通道（2026-11-17）：只管跨周目器官等级 → 生产乘区的映射。
      必须排在 state.js（提供 SB.game.meta）之后、economy/workshop/shell/war 之前 ——
      那些文件在 tick 首帧就调 SB.veilFx.*，晚加载会在第一帧抛 undefined。 -->
 <script src="src/veil-effects.js?v=5"></script>
-<script src="src/workshop.js?v=134"></script>
-<script src="src/wonder.js?v=116"></script>
+<script src="src/workshop.js?v=136"></script>
+<script src="src/wonder.js?v=117"></script>
 <script src="src/economy-social.js?v=14"></script>
-<script src="src/economy.js?v=228"></script>
+<script src="src/economy.js?v=230"></script>
 <script src="src/faith-text.js?v=2"></script>
 <script src="src/faith.js?v=5"></script>
-<script src="src/economy-rates.js?v=37"></script>
+<script src="src/economy-rates.js?v=40"></script>
 <script src="src/economy-tick.js?v=35"></script>
-<script src="src/offline-scheduler.js?v=7"></script>
+<script src="src/offline-scheduler.js?v=8"></script>
 <!-- 点击时间事件系统（天壳震动 / 深海火喷泉 / 信仰显圣 / 潮信石）。只依赖 SB.economy / SB.game，
      运行期才调用，加载顺序只需在 game.js 之前即可。 -->
-<script src="src/events.js?v=2"></script>
+<script src="src/events.js?v=3"></script>
 <script src="src/autoplay.js?v=4"></script>
-<script src="src/audio.js?v=3"></script>
+<script src="src/audio.js?v=4"></script>
 <script src="src/shell.js?v=120"></script>
-<script src="src/habitat.js?v=117"></script>
+<script src="src/habitat.js?v=118"></script>
 <script src="src/folk.js?v=110"></script>
 <script src="src/war.js?v=31"></script>
-<script src="src/prestige.js?v=147"></script>
-<script src="src/challenges.js?v=36"></script>
+<script src="src/prestige.js?v=148"></script>
+<script src="src/challenges.js?v=39"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
-<script src="src/ui/render-content.js?v=25"></script>
-<script src="src/ui/render-common.js?v=10"></script>
-<script src="src/ui/render-info.js?v=57"></script>
-<script src="src/ui/render-pane-research.js?v=53"></script>
-<script src="src/ui/render-pane-village.js?v=50"></script>
-<script src="src/ui/render-pane-folk.js?v=8"></script>
+<script src="src/ui/render-content.js?v=28"></script>
+<script src="src/ui/render-common.js?v=13"></script>
+<script src="src/ui/render-info.js?v=61"></script>
+<script src="src/ui/render-pane-research.js?v=60"></script>
+<script src="src/ui/render-pane-village.js?v=57"></script>
+<script src="src/ui/render-pane-folk.js?v=9"></script>
 <script src="src/ui/render-talent-tree.js?v=7"></script>
-<script src="src/ui/render-pane-meta.js?v=23"></script>
-<script src="src/ui/render-pane-challenges.js?v=35"></script>
-<script src="src/ui/render-pane-company.js?v=5"></script>
+<script src="src/ui/render-pane-meta.js?v=24"></script>
+<script src="src/ui/render-pane-challenges.js?v=39"></script>
+<script src="src/ui/render-pane-company.js?v=6"></script>
 <script src="src/ui/render-pane-faith.js?v=7"></script>
-<script src="src/ui/render-pane-war.js?v=18"></script>
+<script src="src/ui/render-pane-war.js?v=19"></script>
 <!-- 传承三选一浮层：状态只在 s.war.heritage，容器独立于 2 秒重画的面板。 -->
-<script src="src/ui/heritage-draft.js?v=2"></script>
+<script src="src/ui/heritage-draft.js?v=3"></script>
 <!-- 战争结果轻量提示（2026-11-11）：纯 UI 组件，只被结算点在运行期调用，
      不依赖加载顺序；放在战争面板之后便于对照。无 DOM 环境自动 no-op。 -->
-<script src="src/ui/war-toast.js?v=3"></script>
-<script src="src/ui/render-pane-wonder.js?v=15"></script>
-<script src="src/ui/render-pane-star-map.js?v=15"></script>
-<script src="src/ui/render-pane-workshop.js?v=27"></script>
-<script src="src/ui/render-environment.js?v=29"></script>
-<script src="src/ui/render.js?v=318"></script>
+<script src="src/ui/war-toast.js?v=6"></script>
+<script src="src/ui/render-pane-wonder.js?v=16"></script>
+<script src="src/ui/render-pane-star-map.js?v=17"></script>
+<script src="src/ui/star-map-iframe.js?v=1"></script>
+<script src="src/ui/render-pane-workshop.js?v=34"></script>
+<script src="src/ui/render-environment.js?v=30"></script>
+<script src="src/ui/render.js?v=331"></script>
 <!-- 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层弹窗 + 硅基装配台。
      加载早于 game.js；它对 SB.game 的读取都在运行期（点按钮时），无加载期依赖。 -->
-<script src="src/ui/veil-hub-ui.js?v=20"></script>
+<script src="src/ui/veil-hub-ui.js?v=21"></script>
 <!-- 随行资源面板：常驻骨架 + 惰性建网格；必须在 render.js 之后（renderRes 调它的 paint）。 -->
-<script src="src/ui/walk-panel.js?v=7"></script>
-<script src="src/ui/track-dock.js?v=14"></script>
-<script src="src/onboarding.js?v=2"></script>
-<script src="src/game.js?v=212"></script>
-<script src="src/save-transfer.js?v=21"></script>
+<script src="src/ui/walk-panel.js?v=9"></script>
+<script src="src/ui/track-dock.js?v=18"></script>
+<script src="src/onboarding.js?v=3"></script>
+<script src="src/game.js?v=221"></script>
+<script src="src/save-transfer-browser.js?v=1"></script>
+<script src="src/save-transfer.js?v=22"></script>
 <script src="src/redeem.js?v=6"></script>
-<script src="src/ui/input.js?v=199"></script>
-<script src="src/ai-strategy.js?v=96"></script>
-<script src="src/ui/theme.js?v=8"></script>
+<script src="src/ui/input.js?v=205"></script>
+<script src="src/ai-strategy.js?v=97"></script>
+<script src="src/ui/theme.js?v=9"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=3"></script>
-<script src="src/achv.js?v=18"></script>
+<script src="src/achv.js?v=20"></script>
 <script src="src/main.js?v=103"></script>
 <!-- 现场诊断浮层（2026-10-27）：连点标题 5 次开启，或 URL 带 ?diag。默认零风险、不进任何正常路径。 -->
 <script src="src/ui/diag.js?v=3"></script>

@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
 from collections import Counter
 from pathlib import Path
 from PIL import Image
+
+from xhs_star_map import extract_star_map, replace_index_script
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,10 +26,15 @@ ASSET_FALLBACKS = {
 
 def ignore_nonportable(source_dir: str, names: list[str]) -> set[str]:
     base = Path(source_dir)
-    return {
+    ignored = {
         name for name in names
         if name.startswith(".") or name.lower() == ".ds_store" or (base / name).is_symlink()
     }
+    if base.resolve() == (ROOT / "src").resolve():
+        ignored.update(("ai-player.js", "save-transfer-browser.js"))
+    if base.resolve() == (ROOT / "src" / "ui").resolve():
+        ignored.update(("star-map-iframe.js", "star-map-frame.html"))
+    return ignored
 
 
 def main() -> None:
@@ -51,6 +59,15 @@ def main() -> None:
     shutil.copy2(ROOT / "platform" / "xiaohongshu" / "reward.js", PACKAGE / "src" / "xhs-reward.js")
     shutil.copy2(ROOT / "platform" / "xiaohongshu" / "storage.js", PACKAGE / "src" / "xhs-storage.js")
     shutil.copy2(ROOT / "platform" / "xiaohongshu" / "csp-adapter.js", PACKAGE / "src" / "xhs-csp-adapter.js")
+    platform_version = hashlib.sha256((PACKAGE / "src" / "xhs-platform.js").read_bytes()).hexdigest()[:12]
+    storage_version = hashlib.sha256((PACKAGE / "src" / "xhs-storage.js").read_bytes()).hexdigest()[:12]
+    zh_locale_version = hashlib.sha256((PACKAGE / "src" / "locales" / "zh-CN.js").read_bytes()).hexdigest()[:12]
+
+    star_map_source = ROOT / "src" / "ui" / "star-map-frame.html"
+    star_map_css, star_map_runtime = extract_star_map(star_map_source.read_text(encoding="utf-8"))
+    (PACKAGE / "css" / "xhs-star-map.css").write_text(star_map_css + "\n", encoding="utf-8")
+    (PACKAGE / "src" / "ui" / "xhs-star-map.js").write_text(star_map_runtime, encoding="utf-8")
+    star_map_version = hashlib.sha256(star_map_runtime.encode("utf-8")).hexdigest()[:12]
 
     path_map: dict[str, str] = {}
     for row in manifest["converted"]:
@@ -88,9 +105,9 @@ def main() -> None:
         if file.name == "index.html":
             updated, replaced = re.subn(
                 r"<script>\s*.*?</script>",
-                '<script src="src/xhs-platform.js"></script>\n'
-                '<script src="src/xhs-storage.js"></script>\n'
-                '<script src="src/locales/zh-CN.js?v=73"></script>\n'
+                f'<script src="src/xhs-platform.js?v={platform_version}"></script>\n'
+                f'<script src="src/xhs-storage.js?v={storage_version}"></script>\n'
+                f'<script src="src/locales/zh-CN.js?v={zh_locale_version}"></script>\n'
                 '<script src="src/xhs-reward-locale.js"></script>\n'
                 '<script src="src/i18n.js?v=4"></script>\n'
                 '<script src="src/xhs-csp-adapter.js"></script>\n'
@@ -101,6 +118,18 @@ def main() -> None:
             )
             if replaced != 1:
                 raise SystemExit("Expected to replace exactly one inline startup script in index.html")
+            updated = replace_index_script(updated, "src/save-transfer-browser.js", "")
+            updated = replace_index_script(
+                updated, "src/ui/star-map-iframe.js",
+                f'<script src="src/ui/xhs-star-map.js?v={star_map_version}"></script>',
+            )
+            updated, css_tag_count = re.subn(
+                r'(<link\b[^>]+href="css/main\.css[^"]*"[^>]*>)',
+                r'\1\n<link rel="stylesheet" href="css/xhs-star-map.css">',
+                updated,
+            )
+            if css_tag_count != 1:
+                raise SystemExit("Expected one main stylesheet in index.html")
             prefix = 'onclick="event.stopPropagation();SB.ui.openIntro('
             while prefix in updated:
                 start = updated.index(prefix)
@@ -130,7 +159,7 @@ def main() -> None:
             if source_rel != output_rel:
                 updated = updated.replace("assets/" + source_rel, "assets/" + output_rel)
         if updated != original:
-            file.write_text(updated, encoding="utf-8", newline="")
+            file.write_bytes(updated.encode("utf-8"))
 
     excluded_refs: Counter[str] = Counter()
     text_blobs = [(p.relative_to(PACKAGE).as_posix(), p.read_text(encoding="utf-8", errors="ignore")) for p in text_files]
@@ -163,7 +192,7 @@ def main() -> None:
         "htmlInlineEventAttributes": sum(sum(blob.count(token) for token in (" onclick=", " onchange=", " oninput=", " onsubmit=")) for name, blob in text_blobs if name.endswith(".html")),
         "jsInlineEventAttributeLiterals": sum(sum(blob.count(token) for token in ("onclick=", "onchange=", "oninput=", "onsubmit=")) for name, blob in text_blobs if name.endswith(".js")),
         "status": "staged-not-uploadable" if excluded_refs or missing_literal_refs else "staged-needs-platform-audit",
-        "note": "This staging copy is not a final MiniTool ZIP. CSP and platform storage adaptation are still required.",
+        "note": "The MiniTool runtime and single-page Star Map are staged. Run the release build to package assets and validate the ZIP.",
     }
     report_path = DIST / "xhs-build-report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

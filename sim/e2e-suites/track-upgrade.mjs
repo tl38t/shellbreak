@@ -108,11 +108,11 @@ export function run({ SB, check, sandbox }) {
       ROOT.requestAnimationFrame = saved.raf;
       ROOT.document = saved.doc;
     }
-    check('jump 切到工坊页（setTab=workshop）', captured.setTab === 'workshop', 'setTab=' + captured.setTab);
-    check('jump 切到「升级项」子视图（setWorkshopView=upgrades）', captured.view === 'upgrades', 'view=' + captured.view);
+    check('jump 切到「工坊升级」页（setTab=workshop-upgrades）', captured.setTab === 'workshop-upgrades', 'setTab=' + captured.setTab);
+    check('jump 同步「升级项」状态（setWorkshopView=upgrades）', captured.view === 'upgrades', 'view=' + captured.view);
     check('jump 触发了面板重画（renderPanes 被调用）', captured.panes >= 1, 'panes=' + captured.panes);
     check('jump 按 data-upgrade 锚点定位升级项行',
-      captured.sel === '#pane-workshop [data-upgrade="' + matU.id + '"]', 'sel=' + captured.sel);
+      captured.sel === '#pane-workshop-upgrades [data-upgrade="' + matU.id + '"]', 'sel=' + captured.sel);
   }
 
   /* ④ 脏值稳妥：未知 kind / 不存在的升级 id → null，绝不抛 */

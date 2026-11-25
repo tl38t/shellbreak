@@ -22,15 +22,15 @@
   function reduced() {
     var q = (root.location && root.location.search) || '';
     if (/[?&]fx=off(?:&|$)/.test(q)) return true;
+    var ds = root.document && root.document.documentElement && root.document.documentElement.dataset;
+    if (ds && ds.powerSave === 'on') return true;
     return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
 
-  function preload(list) {
-    if (!root.Image) return;
-    for (var i = 0; i < list.length; i++) {
-      var im = new root.Image();
-      im.src = list[i];
-    }
+  function preloadOne(url) {
+    if (!root.Image || !url) return;
+    var im = new root.Image();
+    im.src = url;
   }
 
   function setScene(url, immediate) {
@@ -58,10 +58,15 @@
   function startTimer() {
     stopTimer();
     if (reduced() || document.hidden) return;
+    var list = frames[currentEra];
+    if (list && list[1]) preloadOne(list[1]);
     timer = root.setInterval(function () {
-      if (!frames[currentEra] || frames[currentEra].length < 2) return;
-      frameIndex = (frameIndex + 1) % frames[currentEra].length;
-      setScene(frames[currentEra][frameIndex], false);
+      var curList = frames[currentEra];
+      if (!curList || curList.length < 2) return;
+      frameIndex = (frameIndex + 1) % curList.length;
+      setScene(curList[frameIndex], false);
+      var upcoming = curList[(frameIndex + 1) % curList.length];
+      preloadOne(upcoming);
     }, INTERVAL);
   }
 
@@ -71,7 +76,7 @@
     currentEra = frames[era] ? era : 5;
     frameIndex = 0;
     var list = frames[currentEra];
-    preload(list);
+    preloadOne(list[0]);
     document.body.setAttribute('data-bg-era', String(era));
     setScene(list[0], !active);
     startTimer();
@@ -83,6 +88,19 @@
     var era = Math.max(1, Math.min(8, +(s && s.era) || 1));
     var sceneEra = frames[era] ? era : 5;
     if (sceneEra !== currentEra) applyEra(era);
+  }
+
+  function refresh() {
+    if (reduced()) {
+      stopTimer();
+      var list = frames[currentEra];
+      if (list && list[0] && frameIndex !== 0) {
+        frameIndex = 0;
+        setScene(list[0], true);
+      }
+      return;
+    }
+    startTimer();
   }
 
   function boot() {
@@ -98,5 +116,5 @@
   }
 
   SB.ui = SB.ui || {};
-  SB.ui.background = { boot: boot, sync: sync, applyEra: applyEra };
+  SB.ui.background = { boot: boot, sync: sync, applyEra: applyEra, refresh: refresh };
 })(typeof window !== 'undefined' ? window : globalThis);

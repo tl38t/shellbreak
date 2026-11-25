@@ -11,7 +11,6 @@ import re
 import shutil
 import zipfile
 from collections import defaultdict
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +23,6 @@ SOURCE = DIST / "package"
 PACKAGE = DIST / "package-release-r2"
 ARCHIVE = DIST / "shellbreak-xhs-release-r2.zip"
 REPORT = DIST / "xhs-release-report-r2.json"
-STAR_MAP_SOURCE = ROOT / "src" / "ui" / "star-map-frame.html"
 MAX_FILES = 200
 MAX_ZIP_BYTES = 10 * 1024 * 1024
 STATIC_IMAGE_QUALITY = 74
@@ -62,231 +60,17 @@ def reset_dir(path: Path) -> None:
     path.mkdir(parents=True)
 
 
-class _RootDivParser(HTMLParser):
-    def __init__(self, source: str, target_id: str) -> None:
-        super().__init__(convert_charrefs=False)
-        self.source = source
-        self.offsets = [0]
-        for line in source.splitlines(keepends=True):
-            self.offsets.append(self.offsets[-1] + len(line))
-        self.target_id = target_id
-        self.start: int | None = None
-        self.end: int | None = None
-        self.depth = 0
-
-    def _offset(self) -> int:
-        line, col = self.getpos()
-        return self.offsets[min(line - 1, len(self.offsets) - 1)] + col
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if self.end is not None:
-            return
-        attr = dict(attrs)
-        if self.start is None and tag == "div" and attr.get("id") == self.target_id:
-            self.start = self._offset()
-            self.depth = 1
-        elif self.start is not None and tag == "div":
-            self.depth += 1
-
-    def handle_endtag(self, tag: str) -> None:
-        if self.start is None or self.end is not None or tag != "div":
-            return
-        self.depth -= 1
-        if self.depth == 0:
-            close = self.source.find(">", self._offset())
-            if close < 0:
-                raise SystemExit("Could not close the star-map root element")
-            self.end = close + 1
-
-
-def extract_star_map(source: str) -> tuple[str, str, str]:
-    parser = _RootDivParser(source, "star-map-mock")
-    parser.feed(source)
-    if parser.start is None or parser.end is None:
-        raise SystemExit("Could not locate the star-map root element")
-    markup = source[parser.start:parser.end]
-
-    style_blocks = re.findall(r"<style\b[^>]*>([\s\S]*?)</style\s*>", source, re.IGNORECASE)
-    styles = [style.strip() for style in style_blocks if "#star-map-mock" in style]
-    if not styles:
-        raise SystemExit("Could not extract the star-map styles")
-    css = "\n\n".join(styles)
-
-    markup = re.sub(r"<style\b[^>]*>[\s\S]*?</style\s*>", "", markup, flags=re.IGNORECASE)
-    markup = re.sub(r"<script\b[^>]*>[\s\S]*?</script\s*>", "", markup, flags=re.IGNORECASE)
-    if re.search(r"<\s*(?:iframe|object)\b|\son[a-z]+\s*=", markup, flags=re.IGNORECASE):
-        raise SystemExit("The extracted star-map markup contains a blocked element or inline handler")
-
-    scripts = re.findall(r"<script\b[^>]*>([\s\S]*?)</script\s*>", source, re.IGNORECASE)
-    runtime = next((script for script in scripts if "_PLANET_SPEEDS" in script and "_smApplyGameData" in script), None)
-    if runtime is None:
-        raise SystemExit("Could not locate the complete star-map runtime")
-    if "window.parent.postMessage(" not in runtime:
-        raise SystemExit("Expected the star-map parent messaging bridge")
-
-    runtime = runtime.replace("window.parent.postMessage(", "window.postMessage(")
-    runtime, n = re.subn(
-        r"if\(document\.hidden\)\{last=now;_lastDraw=now;return;\}",
-        "if(document.hidden||!document.getElementById('star-map-mock')||!document.getElementById('star-map-mock').getClientRects().length){last=now;_lastDraw=now;return;}",
-        runtime,
-        count=1,
-    )
-    if n != 1:
-        raise SystemExit("Could not pause star-map rendering while its pane is hidden")
-    runtime, n = re.subn(
-        r"requestAnimationFrame\(animate\)\}\)\(\);\s*$",
-        "requestAnimationFrame(animate);window._smResize=_smResize})();\n",
-        runtime,
-        count=1,
-    )
-    if n != 1:
-        raise SystemExit("Could not expose the star-map resize handler")
-
-    wrapped = (
-        "(function(root){'use strict';var SB=root.SB||(root.SB={});SB.ui=SB.ui||{};"
-        "SB.ui.renderParts=SB.ui.renderParts||{};var mounted=false;"
-        "SB.ui.renderParts.mountXhsStarMap=function(){"
-        "if(mounted||!root.document.getElementById('star-map-mock'))return;mounted=true;"
-        "(function(){\n" + runtime + "\n}).call(root);};})(window);\n"
-    )
-    return markup, css, wrapped
-
-
-def build_native_star_map() -> dict[str, int]:
-    markup, css, runtime = extract_star_map(STAR_MAP_SOURCE.read_text(encoding="utf-8"))
-    (PACKAGE / "css" / "xhs-star-map.css").write_text(css + "\n", encoding="utf-8")
-    (PACKAGE / "src" / "ui" / "xhs-star-map.js").write_text(runtime, encoding="utf-8")
-
-    pane_path = PACKAGE / "src" / "ui" / "render-pane-star-map.js"
-    pane = pane_path.read_text(encoding="utf-8")
-    pane = pane.replace(
-        "if (!iframe || event.source !== iframe.contentWindow || !data) return;",
-        "var inlineMap = !iframe && event.source === root && root.document.getElementById('star-map-mock');\n"
-        "    if ((!inlineMap && (!iframe || event.source !== iframe.contentWindow)) || !data) return;",
-    )
-    pane = pane.replace(
-        "iframe.style.height = Math.max(600, Math.min(1200, Number(data.height) || 780)) + 'px';",
-        "if (iframe) iframe.style.height = Math.max(600, Math.min(1200, Number(data.height) || 780)) + 'px';",
-    )
-    pattern = re.compile(r"  function paneStarMap\(\) \{[\s\S]*?\n  \}\n\n  parts\.paneStarMap = paneStarMap;")
-    replacement = (
-        "  function starMapUnlocked(s) {\n"
-        "    return !!(s && (s.shellOpened || s.breakSettled) && s.shell <= 0);\n"
-        "  }\n\n"
-        "  function paneStarMap() {\n"
-        "    var s = SB.game && SB.game.run ? SB.game.run() : null;\n"
-        "    if (!starMapUnlocked(s)) return '<div class=\"note\">' + escapeHtml(tr('ui.star_map.locked_hint')) + '</div>';\n"
-        "    return '" + json.dumps(markup, ensure_ascii=False) + "' +\n"
-        "      '<div id=\"star-map-buildings\" class=\"star-map-buildings\"></div>';\n"
-        "  }\n\n"
-        "  function syncStarMapVisibility(s) {\n"
-        "    var map = root.document && root.document.getElementById('star-map-mock');\n"
-        "    var panel = root.document && root.document.getElementById('star-map-buildings');\n"
-        "    if (!starMapUnlocked(s)) { if (panel) panel.style.display = 'none'; return; }\n"
-        "    if (panel && starMapView !== 'phase2') renderSelectedBody(s);\n"
-        "    if (map && map.getClientRects().length && root._smResize) root._smResize();\n"
-        "  }\n\n"
-        "  parts.paneStarMap = paneStarMap;\n"
-        "  parts.syncStarMapVisibility = syncStarMapVisibility;"
-    )
-    pane, n = pattern.subn(lambda _match: replacement, pane, count=1)
-    if n != 1 or "parts.syncStarMapVisibility = syncStarMapVisibility" not in pane:
-        raise SystemExit("Could not adapt the star-map pane to the single-page container")
-    pane_path.write_text(pane, encoding="utf-8", newline="")
-
-    render_path = PACKAGE / "src" / "ui" / "render.js"
-    render = render_path.read_text(encoding="utf-8")
-    old_html = "if (smHtml !== lastStarMapHTML) { node.innerHTML = smHtml; lastStarMapHTML = smHtml; }"
-    new_html = (
-        "if (smHtml !== lastStarMapHTML) { node.innerHTML = smHtml; lastStarMapHTML = smHtml; "
-        "if (SB.ui.renderParts.mountXhsStarMap) SB.ui.renderParts.mountXhsStarMap(); }\n"
-        "        if (SB.ui.renderParts.syncStarMapVisibility) SB.ui.renderParts.syncStarMapVisibility(SB.game && SB.game.run ? SB.game.run() : null);"
-    )
-    if old_html not in render:
-        raise SystemExit("Could not find the star-map pane refresh point")
-    render = render.replace(old_html, new_html, 1)
-    old_target = "var _ifr = node.querySelector('iframe');\n          if (_ifr && _ifr.contentWindow) {"
-    new_target = (
-        "var _ifr = node.querySelector('iframe');\n"
-        "          var _smTarget = _ifr && _ifr.contentWindow ? _ifr.contentWindow : root;\n"
-        "          if (_smTarget && _smTarget.postMessage) {"
-    )
-    if old_target not in render:
-        raise SystemExit("Could not locate the star-map state bridge")
-    render = render.replace(old_target, new_target, 1)
-    render = render.replace("_ifr.contentWindow.postMessage({\n              type: 'sb-spacecraft',", "_smTarget.postMessage({\n              type: 'sb-spacecraft',", 1)
-    if "_smTarget.postMessage" not in render or "syncStarMapVisibility" not in render:
-        raise SystemExit("The single-page star-map state bridge is incomplete")
-    render_path.write_text(render, encoding="utf-8", newline="")
-
+def enable_test_only_star_map_unlock() -> None:
     index_path = PACKAGE / "index.html"
     index = index_path.read_text(encoding="utf-8")
-    css_tag = '<link rel="stylesheet" href="css/xhs-star-map.css">\n'
-    if "css/xhs-star-map.css" not in index:
-        index, n = re.subn(r'(<link[^>]+href="css/main\.css[^>]*>\s*)', lambda m: m.group(1) + css_tag, index, count=1)
-        if n != 1:
-            raise SystemExit("Could not link the XHS star-map stylesheet")
-    script_tag = '<script src="src/ui/xhs-star-map.js"></script>\n'
-    if "src/ui/xhs-star-map.js" not in index:
-        index, n = re.subn(
-            r'(<script\s+src="src/ui/render-pane-star-map\.js(?:\?[^\"]*)?"\s*></script>\s*)',
-            lambda m: m.group(1) + script_tag,
-            index,
-            count=1,
-        )
-        if n != 1:
-            raise SystemExit("Could not link the XHS star-map runtime")
-    index_path.write_text(index, encoding="utf-8", newline="")
-    return {"stylesChars": len(css), "markupChars": len(markup), "runtimeChars": len(runtime)}
-
-
-def enable_test_only_star_map_unlock() -> dict[str, bool]:
-    """Open the Star Map only in this explicitly named test-preview package."""
-    platform_path = PACKAGE / "src" / "xhs-platform.js"
-    platform = platform_path.read_text(encoding="utf-8")
-    anchor = "    localizationEnabled: false"
-    if platform.count(anchor) != 1:
-        raise SystemExit("Could not add the test-only Star Map flag to the XHS runtime")
-    platform = platform.replace(anchor, anchor + ",\n    testUnlockStarMap: true", 1)
-    platform_path.write_text(platform, encoding="utf-8", newline="")
-
-    replacements = {
-        "src/game.js": [
-            (
-                "if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;",
-                "if (k === 'star-map' && S && !(root.shellbreakPlatform && root.shellbreakPlatform.testUnlockStarMap === true) && !(S.shellOpened && S.shell <= 0)) return;",
-            ),
-        ],
-        "src/ui/render.js": [
-            (
-                "if (_smS && (_smS.shellOpened || _smS.breakSettled) && _smS.shell <= 0) {",
-                "if (_smS && ((root.shellbreakPlatform && root.shellbreakPlatform.testUnlockStarMap === true) || ((_smS.shellOpened || _smS.breakSettled) && _smS.shell <= 0))) {",
-            ),
-            (
-                "var ss = res(), sop = !!(ss && (ss.shellOpened || ss.breakSettled) && ss.shell <= 0);",
-                "var ss = res(), sop = !!((root.shellbreakPlatform && root.shellbreakPlatform.testUnlockStarMap === true) || (ss && (ss.shellOpened || ss.breakSettled) && ss.shell <= 0));",
-            ),
-            (
-                "if (node.dataset.tab === 'star-map' && !(res() && (res().shellOpened || res().breakSettled) && res().shell <= 0)) return;",
-                "if (node.dataset.tab === 'star-map' && !(root.shellbreakPlatform && root.shellbreakPlatform.testUnlockStarMap === true) && !(res() && (res().shellOpened || res().breakSettled) && res().shell <= 0)) return;",
-            ),
-        ],
-        "src/ui/render-pane-star-map.js": [
-            (
-                "return !!(s && (s.shellOpened || s.breakSettled) && s.shell <= 0);",
-                "return !!((root.shellbreakPlatform && root.shellbreakPlatform.testUnlockStarMap === true) || (s && (s.shellOpened || s.breakSettled) && s.shell <= 0));",
-            ),
-        ],
-    }
-    for relative, pairs in replacements.items():
-        path = PACKAGE / relative
-        text = path.read_text(encoding="utf-8")
-        for old, new in pairs:
-            if text.count(old) != 1:
-                raise SystemExit(f"Could not apply test-only Star Map patch in {relative}: {old}")
-            text = text.replace(old, new, 1)
-        path.write_text(text, encoding="utf-8", newline="")
-    return {"enabled": True, "storyPopupStillUsesProgressionGate": True}
+    index, count = re.subn(
+        r'(<script src="src/xhs-platform\.js(?:\?[^"]*)?")(?=></script>)',
+        r'\1 data-test-unlock-star-map',
+        index,
+    )
+    if count != 1:
+        raise SystemExit("Could not set the MiniTool preview's Star Map flag")
+    index_path.write_bytes(index.encode("utf-8"))
 
 
 def embed_static_rasters(files: list[Path], source_assets: Path) -> dict[str, str]:
@@ -406,7 +190,7 @@ def pack_assets() -> dict[str, Any]:
 
         updated = ASSET_REFERENCE.sub(replace_ref, original)
         if updated != text_path.read_text(encoding="utf-8"):
-            text_path.write_text(updated, encoding="utf-8", newline="")
+            text_path.write_bytes(updated.encode("utf-8"))
 
     unresolved: list[str] = []
     for text_path in text_files:
@@ -429,88 +213,27 @@ def pack_assets() -> dict[str, Any]:
     }
 
 
-def patch_xhs_save_io() -> dict[str, int]:
-    path = PACKAGE / "src" / "save-transfer.js"
-    text = path.read_text(encoding="utf-8")
+def check_platform_entries() -> tuple[dict[str, int], dict[str, bool]]:
+    index = (PACKAGE / "index.html").read_text(encoding="utf-8")
+    pane = (PACKAGE / "src" / "ui" / "render-pane-star-map.js").read_text(encoding="utf-8")
+    save_transfer = (PACKAGE / "src" / "save-transfer.js").read_text(encoding="utf-8")
+    css = PACKAGE / "css" / "xhs-star-map.css"
+    runtime = PACKAGE / "src" / "ui" / "xhs-star-map.js"
 
-    text, download_helper = re.subn(r"  function downloadFile\(name, contents\) \{[\s\S]*?\n  \}\n", "", text, count=1)
-    if download_helper != 1:
-        raise SystemExit("Could not remove the unsupported file-download helper")
-
-    copy_diag = (
-        "  function copyDiag() {\n"
-        "    var text = diagnosticsText();\n"
-        "    var box = document.getElementById('saveDiagBox');\n"
-        "    if (box) { box.value = text; box.focus(); try { box.select(); } catch (e) {} try { box.scrollTop = 0; } catch (e) {} }\n"
-        "    setStatus(tr('save.diag.manual_copy', null, '上面文本框里已生成诊断信息，请手动复制。'));\n"
-        "  }"
+    if not css.is_file() or not runtime.is_file() or "xhs-star-map.js" not in index or "xhs-star-map.css" not in index:
+        raise SystemExit("The staged MiniTool is missing its single-page Star Map. Run scripts/stage_xhs_build.py again.")
+    if "star-map-iframe.js" in index or (PACKAGE / "src" / "ui" / "star-map-iframe.js").exists() or re.search(r"<\s*(?:iframe|object)\b", pane, flags=re.I):
+        raise SystemExit("The staged MiniTool contains the browser Star Map. Run scripts/stage_xhs_build.py again.")
+    if "save-transfer-browser.js" in index or (PACKAGE / "src" / "save-transfer-browser.js").exists() or any(
+        token in save_transfer for token in ("navigator.clipboard", ".download =", "createObjectURL", "downloadFile(")
+    ):
+        raise SystemExit("The staged MiniTool contains browser save output. Run scripts/stage_xhs_build.py again.")
+    if "data-test-unlock-star-map" in index:
+        raise SystemExit("A test-only Star Map flag leaked into the staging copy.")
+    return (
+        {"stylesChars": len(css.read_text(encoding="utf-8").rstrip()), "runtimeChars": len(runtime.read_text(encoding="utf-8"))},
+        {"manualCopy": True, "fileExport": False, "fileImport": True},
     )
-    text, copy_diag_count = re.subn(r"  function copyDiag\(\) \{[\s\S]*?\n  \}", lambda _m: copy_diag, text, count=1)
-    if copy_diag_count != 1:
-        raise SystemExit("Could not adapt diagnostics copy to manual text selection")
-
-    export_code = (
-        "  function exportCode() {\n"
-        "    var bundle;\n"
-        "    try { bundle = exportBundle(); } catch (e) { setStatus(tr('save.export.code.failed', { error: e.message || e }, '生成存档码失败：{error}'), true); return; }\n"
-        "    setBusy(true); setStatus(tr('save.export.code.progress', null, '正在压缩并生成存档码…'));\n"
-        "    encodeSaveCode(bundle).then(function (code) {\n"
-        "      var box = document.getElementById('saveCodeBox');\n"
-        "      if (box) { box.value = code; box.focus(); box.select(); }\n"
-        "      setStatus(tr(bundle.recovery ? 'save.export.recovery_code.manual_copy' : 'save.export.code.manual_copy', null,\n"
-        "        bundle.recovery ? '原始存档救援码已生成；请手动复制文本框内容。' : '存档码已生成；请手动复制文本框内容。'));\n"
-        "    }).catch(function (e) { setStatus(tr('save.export.code.failed', { error: e.message || e }, '生成存档码失败：{error}'), true); })\n"
-        "      .then(function () { setBusy(false); });\n"
-        "  }"
-    )
-    text, export_code_count = re.subn(r"  function exportCode\(\) \{[\s\S]*?\n  \}", lambda _m: export_code, text, count=1)
-    if export_code_count != 1:
-        raise SystemExit("Could not adapt save-code export to manual text selection")
-
-    export_emergency = (
-        "  function exportEmergency() {\n"
-        "    var em = null;\n"
-        "    try { em = SB.store && SB.store.emergencyLoad ? SB.store.emergencyLoad() : null; } catch (e) {}\n"
-        "    if (!em) { setStatus(tr('save.export.no_emergency_copy', null, '没有可导出的旧档副本。'), true); return; }\n"
-        "    try {\n"
-        "      var raw = { meta: em.meta === undefined ? null : em.meta, run: em.run === undefined ? null : em.run, metaBackup: null, runBackup: null };\n"
-        "      var bundle = { format: FORMAT, version: FORMAT_VERSION, createdAt: Date.now(), recovery: true, raw: raw, checksum: crc32(JSON.stringify(raw)) };\n"
-        "      setBusy(true); encodeSaveCode(bundle).then(function (code) {\n"
-        "        var box = document.getElementById('saveCodeBox');\n"
-        "        if (box) { box.value = code; box.focus(); box.select(); }\n"
-        "        setStatus(tr('save.export.recovery_code.manual_copy', null, '原始存档救援码已生成；请手动复制文本框内容。'));\n"
-        "      }).catch(function (e) { setStatus(tr('save.export.emergency.failed', { error: e.message || e }, '导出旧档副本失败：{error}'), true); })\n"
-        "        .then(function () { setBusy(false); });\n"
-        "    } catch (e) { setStatus(tr('save.export.emergency.failed', { error: e.message || e }, '导出旧档副本失败：{error}'), true); }\n"
-        "  }"
-    )
-    text, export_emergency_count = re.subn(r"  function exportEmergency\(\) \{[\s\S]*?\n  \}", lambda _m: export_emergency, text, count=1)
-    if export_emergency_count != 1:
-        raise SystemExit("Could not adapt emergency-save export to a recovery code")
-
-    text, export_file_function = re.subn(r"  function exportFile\(\) \{[\s\S]*?\n  \}\n", "", text, count=1)
-    if export_file_function != 1:
-        raise SystemExit("Could not remove the unsupported file-export function")
-
-    text, export_file_button = re.subn(
-        r"\s*'<button type=\"button\" class=\"btn\" data-save-action=\"export-file\">' \+ tr\('save\.export\.file\.action',[\s\S]*?\+\s*\n",
-        "\n",
-        text,
-        count=1,
-    )
-    if export_file_button != 1:
-        raise SystemExit("Could not remove the unsupported file-export button")
-    text = text.replace("if (action === 'export-file') return exportFile();", "if (action === 'export-file') return exportCode();", 1)
-    path.write_text(text, encoding="utf-8", newline="")
-
-    if any(token in text for token in ("navigator.clipboard", "a.download", "createObjectURL", "downloadFile(")):
-        raise SystemExit("Unsupported clipboard or download behavior remains in save-transfer.js")
-    return {
-        "downloadHelperRemoved": download_helper,
-        "manualCopyAdapters": copy_diag_count + export_code_count + export_emergency_count,
-        "fileExportFunctionsRemoved": export_file_function,
-        "fileExportButtonsRemoved": export_file_button,
-    }
 
 
 def build_zip(test_unlock_star_map: bool = False) -> dict[str, Any]:
@@ -527,19 +250,14 @@ def build_zip(test_unlock_star_map: bool = False) -> dict[str, Any]:
         if src.is_dir():
             def ignore(directory: str, names: list[str]) -> set[str]:
                 base = Path(directory)
-                ignored = {name for name in names if name.startswith(".") or name == "__MACOSX" or (base / name).is_symlink()}
-                if Path(directory).resolve() == (SOURCE / "src").resolve():
-                    ignored.add("ai-player.js")
-                if Path(directory).resolve() == (SOURCE / "src" / "ui").resolve():
-                    ignored.add("star-map-frame.html")
-                return ignored
+                return {name for name in names if name.startswith(".") or name == "__MACOSX" or (base / name).is_symlink()}
             shutil.copytree(src, dst, ignore=ignore)
         else:
             shutil.copy2(src, dst)
 
-    star_map = build_native_star_map()
-    test_star_map = enable_test_only_star_map_unlock() if test_unlock_star_map else {"enabled": False}
-    save_io = patch_xhs_save_io()
+    star_map, save_io = check_platform_entries()
+    if test_unlock_star_map:
+        enable_test_only_star_map_unlock()
     assets = pack_assets()
     file_list = sorted(path for path in PACKAGE.rglob("*") if path.is_file())
     bad_types = [path.relative_to(PACKAGE).as_posix() for path in file_list if path.suffix.lower() not in SUPPORTED_SUFFIXES]
@@ -574,7 +292,7 @@ def build_zip(test_unlock_star_map: bool = False) -> dict[str, Any]:
         "unsafeZipPaths": unsafe,
         "zipIntegrityError": bad_member,
         "nativeStarMap": star_map,
-        "testOnlyStarMapUnlock": test_star_map,
+        "testOnlyStarMapUnlock": {"enabled": test_unlock_star_map},
         "xhsSaveIo": save_io,
         "assets": assets,
         "rasterEncoding": {"format": "WebP", "quality": STATIC_IMAGE_QUALITY, "alphaQuality": STATIC_IMAGE_ALPHA_QUALITY, "embedding": "individual-data-uri"},

@@ -28,6 +28,22 @@
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
     return value || fallback || '';
   }
+  function isEnglishLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  }
+  function nonDefaultLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN');
+  }
+  function techDisplayName(id) {
+    var t = SB.tech && SB.tech.byId ? SB.tech.byId(id) : null;
+    var fb = t ? t.name : id;
+    return nonDefaultLocale() ? tr('tech.' + id + '.name', null, fb) : fb;
+  }
+  function civicDisplayName(id) {
+    var fb = '市政';
+    if (SB.CIVICS) for (var i = 0; i < SB.CIVICS.length; i++) if (SB.CIVICS[i].id === id) { fb = SB.CIVICS[i].name; break; }
+    return nonDefaultLocale() ? tr('civic.data.' + id + '.name', null, fb) : fb;
+  }
   function infoParts() {
     return SB.ui && SB.ui.renderParts && SB.ui.renderParts.info || null;
   }
@@ -227,6 +243,17 @@
     var L = craftRows(), i;
     for (i = 0; i < L.length; i++) if (L[i].id === id) return L[i];
     return null;
+  }
+
+  var indexedCrafts, craftsByResource;
+  function craftByResource(resource) {
+    var recipes = craftRows();
+    if (recipes !== indexedCrafts) {
+      indexedCrafts = recipes;
+      craftsByResource = Object.create(null);
+      for (var i = 0; i < recipes.length; i++) craftsByResource[recipes[i].res] = recipes[i];
+    }
+    return craftsByResource[resource] || null;
   }
 
   /* 库存最多能造几个：**每种原料分别算「总量÷单价」，取最小的那个**。
@@ -521,11 +548,18 @@
     return made;
   }
 
+  function craftHasPrereqBlock(s, c) {
+    if (!c) return true;
+    if (!(s.lvl && s.lvl.workshop > 0)) return true;
+    if (c.need && !(s.techs && s.techs[c.need])) return true;
+    if (c.needCivic && !(s.civics && s.civics[c.needCivic])) return true;
+    return false;
+  }
   /* 为什么造不了 —— 与 blocked 同口径，要说得出该做什么。 */
   function craftBlocked(s, id) {
     var c = craftById(id);
-    if (!c) return '没有这道配方';
-    if (!(s.lvl && s.lvl.workshop > 0)) return '需要先建成工坊';
+    if (!c) return tr('workshop.craft.recipe.unavailable', null, '没有这道配方');
+    if (!(s.lvl && s.lvl.workshop > 0)) return tr('workshop.requirement.workshop', null, '需要先建成工坊');
     /* ── `c.need` 这道门（2026-09-28 补）──
      * ⚠️ 读之前它是个**死字段**：craftBlocked 从头到尾不读 need，所以 CRAFTS 表上
      *    写着 need 也不会有任何作用 —— 与 TOOLS[].need 那次是同一种病（见 blocked 那条注）。
@@ -537,20 +571,19 @@
      * ⚠️ 顺带一提：石梁原来的 `need:'workshop'` 已删（见 config 那条注）—— 它指向的
      *    科技在 techs.js 里不存在，这道门一起就会把石梁永久锁死。 */
     if (c.need && !(s.techs && s.techs[c.need])) {
-      var ct = SB.tech && SB.tech.byId ? SB.tech.byId(c.need) : null;
-      return '需要先研究「' + (ct ? ct.name : c.need) + '」';
+      var tn = techDisplayName(c.need);
+      return tr('workshop.requirement.technology', { technologyName: tn }, '需要先研究「' + tn + '」');
     }
     /* ── `c.needCivic` 这道门（2026-10-01 ERA4 补）──
      * 与 WONDERS[].needCivic 同构（workshop.wonderBlocked 已读它）：判 **已完成**的市政。
      * 历史哲学解锁的两张工艺配方走这道门，避免写成 tech id 被 craftBlocked 的 need 门永久锁死。
      * 报市政**名**而不是 id，与上面 need 那道同口径。 */
     if (c.needCivic && !(s.civics && s.civics[c.needCivic])) {
-      var cn = '市政';
-      if (SB.CIVICS) for (var _ci = 0; _ci < SB.CIVICS.length; _ci++) if (SB.CIVICS[_ci].id === c.needCivic) { cn = SB.CIVICS[_ci].name; break; }
-      return '需要先完成市政「' + cn + '」';
+      var cn = civicDisplayName(c.needCivic);
+      return tr('workshop.requirement.civic', { civicName: cn }, '需要先完成市政「' + cn + '」');
     }
     var lack = lackText(s, c.in);
-    if (lack) return '还缺 ' + lack;
+    if (lack) return tr('workshop.cost_missing', { missingResources: lack }, '还缺 ' + lack);
     return null;
   }
 
@@ -588,14 +621,20 @@
     })) return true;
     return false;
   }
+  function upgradeHasPrereqBlock(s, u) {
+    if (!u) return false;
+    if (u.need && !(s.techs && s.techs[u.need])) return true;
+    if (u.needCivic && !(s.civics && s.civics[u.needCivic])) return true;
+    return false;
+  }
   function upgradeBlocked(s, id) {
     var u = upgradeById(id);
-    if (!u) return '没有这项升级';
-    if (s.upgrades && s.upgrades[id]) return '已经装上了';
+    if (!u) return tr('workshop.upgrade.unavailable', null, '没有这项升级');
+    if (s.upgrades && s.upgrades[id]) return tr('workshop.upgrade.already_installed', null, '已经装上了');
     /* `u.need` 同样是真字段，由这里真读（与 tool 的 need 同构）。 */
     if (u.need && !(s.techs && s.techs[u.need])) {
-      var ut = SB.tech && SB.tech.byId ? SB.tech.byId(u.need) : null;
-      return '需要先研究「' + (ut ? ut.name : u.need) + '」';
+      var utn = techDisplayName(u.need);
+      return tr('workshop.requirement.technology', { technologyName: utn }, '需要先研究「' + utn + '」');
     }
     /* ── `u.needCivic` 这道门（2026-10-17 新增 · 市政《工坊学校》解锁「精炼钢厂」）──
      * 与 crafts 表的 needCivic（workshop.craftBlocked 已读）同构：判 **已完成**的市政。
@@ -603,9 +642,8 @@
      * ⚠️ 返回的提示以「需要先」开头 ⇒ 升级项列表（render-pane-workshop.js:335）会把它
      *    **隐藏**直到该市政完成，与 craft 的 needCivic 行为一致（未解锁不显示）。 */
     if (u.needCivic && !(s.civics && s.civics[u.needCivic])) {
-      var un = '市政';
-      if (SB.CIVICS) for (var _ui = 0; _ui < SB.CIVICS.length; _ui++) if (SB.CIVICS[_ui].id === u.needCivic) { un = SB.CIVICS[_ui].name; break; }
-      return '需要先完成市政「' + un + '」';
+      var un = civicDisplayName(u.needCivic);
+      return tr('workshop.requirement.civic', { civicName: un }, '需要先完成市政「' + un + '」');
     }
     if (upgradeRequirementMissing(s, u)) {
       /* ⚠️ fallback 不能省：`tr` 在词库未加载时返回 ''，而 upgradeCanBuy 判的是 `!== null`
@@ -615,7 +653,7 @@
         '先完成「马具」工具和「马镫」升级。');
     }
     var lack = lackText(s, upgradeCost(s, id));
-    if (lack) return '还缺 ' + lack;
+    if (lack) return tr('workshop.cost_missing', { missingResources: lack }, '还缺 ' + lack);
     return null;
   }
   function upgradeCanBuy(s, id) { return upgradeBlocked(s, id) === null; }
@@ -660,9 +698,26 @@
     for (i = 0; i < L.length; i++) if (L[i].id === id) return L[i];
     return null;
   }
+  function wonderBuildCostMissing(s, id) {
+    var w = wonderById(id);
+    if (!w) return false;
+    if ((s.wonders && s.wonders[id]) || (SB.voidFx && SB.voidFx.wonderOwned && SB.voidFx.wonderOwned(id))) return false;
+    if (w.requiresVeilDomain && (!SB.voidFx || !SB.voidFx.domainLv
+      || SB.voidFx.domainLv(w.requiresVeilDomain) < (w.requiresVeilLevel || 1))) return false;
+    if (w.need && s.techs && !s.techs[w.need]) return false;
+    if (w.needCivic && s.civics && !s.civics[w.needCivic]) return false;
+    if (w.challengeOnly) {
+      var _co = w.challengeOnly, _cur = s.challenge && s.challenge.id;
+      var _ok = _co === true ? _cur === 'drift_terra'
+        : (typeof _co === 'string' ? _cur === _co : _co.indexOf(_cur) >= 0);
+      if (!_ok) return false;
+    }
+    if (lackText(s, SB.wonder ? SB.wonder.discountedCost(s, id) : w.cost)) return false;
+    return !!(SB.wonder && SB.wonder.buildCostLack && SB.wonder.buildCostLack(s, id).length);
+  }
   function wonderBlocked(s, id) {
     var w = wonderById(id);
-    if (!w) return '没有这座奇观';
+    if (!w) return tr('workshop.wonder.unavailable', null, '没有这座奇观');
     if ((s.wonders && s.wonders[id]) || (SB.voidFx && SB.voidFx.wonderOwned && SB.voidFx.wonderOwned(id)))
       return tr('workshop.wonder.already_built', null, '已经建成了');
     if (w.requiresVeilDomain && (!SB.voidFx || !SB.voidFx.domainLv
@@ -680,16 +735,15 @@
      *    落回打不出名字时（need 指向一个已删的科技 id）它打的是 **id 而不是 undefined**，
      *    这样悬空的 need 至少在界面上露得出来，不会变成一个看不懂的空门。 */
     if (w.need && s.techs && !s.techs[w.need]) {
-      var t = SB.tech && SB.tech.byId ? SB.tech.byId(w.need) : null;
-      return '需要先研究「' + (t ? t.name : w.need) + '」';
+      var wtn = techDisplayName(w.need);
+      return tr('workshop.requirement.technology', { technologyName: wtn }, '需要先研究「' + wtn + '」');
     }
     /* 市政门（2026-09-30 ERA3）：圣泰坦尼克修道院 / 大巴扎的解锁权在市政身上
      *   （needCivic 字段，与建筑的 requiredCivic 同名同口径——判 s.civics **已完成**，
      *    不是 civShown 已揭示；揭示只发机会，市政点花出去才算完成）。 */
     if (w.needCivic && s.civics && !s.civics[w.needCivic]) {
-      var cn = null;
-      if (SB.CIVICS) for (var ci = 0; ci < SB.CIVICS.length; ci++) if (SB.CIVICS[ci].id === w.needCivic) cn = SB.CIVICS[ci].name;
-      return '需要先完成市政「' + (cn || w.needCivic) + '」';
+      var cn = civicDisplayName(w.needCivic);
+      return tr('workshop.requirement.civic', { civicName: cn }, '需要先完成市政「' + cn + '」');
     }
     /* 挑战专属奇观（2026-11-02）：与建筑/_科技/_市政同一道白名单门。
      * 星球气候调节卫星网靠《我们的摇篮》解锁，而那条市政本身就是挑战专属 ⇒
@@ -698,10 +752,10 @@
       var _co = w.challengeOnly, _cur = s.challenge && s.challenge.id;
       var _ok = _co === true ? _cur === 'drift_terra'
         : (typeof _co === 'string' ? _cur === _co : _co.indexOf(_cur) >= 0);
-      if (!_ok) return '仅限水体污染挑战期间建造';
+      if (!_ok) return tr('workshop.wonder.challenge_only', null, '仅限水体污染挑战期间建造');
     }
     var lack = lackText(s, SB.wonder ? SB.wonder.discountedCost(s, id) : w.cost);
-    if (lack) return '还缺 ' + lack;
+    if (lack) return tr('workshop.cost_missing', { missingResources: lack }, '还缺 ' + lack);
     /* 建造价里的建筑等级成分（2026-11-02 · costBuild）。
      * ⚠️ 必须排在资源不足之**后**：两者都不满足时先报资源是历史口径
      *   （老玩家习惯「还缺 X」），而建筑等级是新概念，放在后面才不会把
@@ -713,7 +767,9 @@
         for (var _bi = 0; _bi < _bl.length; _bi++) {
           _bt.push(SB.wonder.buildCostText(s, id) || (_bl[_bi].id + ' ' + _bl[_bi].need + ' 级'));
         }
-        return '还缺建筑等级：' + _bt[0];
+        return tr('workshop.wonder.building_levels_missing', {
+          buildingRequirements: _bt[0]
+        }, '还缺建筑等级：' + _bt[0]);
       }
     }
     return null;
@@ -772,20 +828,26 @@
     return true;
   }
 
+  function toolHasPrereqBlock(s, t) {
+    if (!t || t.wip) return false;
+    if (!(s.lvl && s.lvl.workshop > 0)) return true;
+    if (t.need && !(s.techs && s.techs[t.need])) return true;
+    return false;
+  }
   /* 为什么买不了 —— 要说得出**该做什么**，与 tech.studyBlocked / civic.cardBlocked 同口径。 */
   function blocked(s, id) {
     var t = byId(id);
-    if (!t) return '没有这项工具';
+    if (!t) return tr('workshop.tool.unavailable', null, '没有这项工具');
     /* ⚠️ `wip` 那道门排在**所有**门之前（2026-09-28 用户拍「暂时做个不能点的占位」）。
      *    顺序是有意的：先于「建成工坊」与 `need`，于是玩家看到的是「尚未设计」而不是
      *    「还缺 XX」—— 前者会让人问「这是什么」，后者会让人以为自己攒钱攒得不够。
      *    ⚠️ 只拦 blocked / canBuy，不动列表渲染：占位件要**看得见**，只是点不动。
      *    ⚠️ 摘掉 wip 就等于上线，效果必须已经在 config 里写全（target / bonus / desc）。 */
-    if (t.wip) return '尚未设计（效果待定）';
-    if (s.tools && s.tools[id]) return '已经买过了';
+    if (t.wip) return tr('workshop.tool.work_in_progress', null, '尚未设计（效果待定）');
+    if (s.tools && s.tools[id]) return tr('workshop.tool.already_purchased', null, '已经买过了');
     /* 门槛 = 建成工坊（用户拍板）。不是青铜术：它是 era1 最贵的科技（cost 600，
      *  按 1 学者 0.15/s 要攒约 67 分钟），挂上去工具会晚到玩家已经打完半个 era1。 */
-    if (!(s.lvl && s.lvl.workshop > 0)) return '需要先建成工坊';
+    if (!(s.lvl && s.lvl.workshop > 0)) return tr('workshop.requirement.workshop', null, '需要先建成工坊');
     /* ⚠️ `t.need` 到这里**才第一次被真正读到**（2026-09-28）。
      *    ⚠️ 改之前它是个死字段：blocked 只认上面那句硬编码的「建成工坊」，从头到尾
      *       不读 need。于是任你在 config 的 TOOLS 表里写 need 也不会有任何作用 ——
@@ -794,11 +856,11 @@
      *    ⚠️ 顺序是刻意的：工坊那道门排在 need 前面。工具在工坊页买，工坊没建连页面都
      *       进不去；先报「建成工坊」，玩家才不会在工坊页里撞见一条看不懂的科技提示。 */
     if (t.need && !(s.techs && s.techs[t.need])) {
-      var nt = SB.tech && SB.tech.byId ? SB.tech.byId(t.need) : null;
-      return '需要先研究「' + (nt ? nt.name : t.need) + '」';
+      var ntn = techDisplayName(t.need);
+      return tr('workshop.requirement.technology', { technologyName: ntn }, '需要先研究「' + ntn + '」');
     }
     var lack = lackText(s, t.cost);
-    if (lack) return '还缺 ' + lack;
+    if (lack) return tr('workshop.cost_missing', { missingResources: lack }, '还缺 ' + lack);
     return null;
   }
   function canBuy(s, id) { return blocked(s, id) === null; }
@@ -808,10 +870,17 @@
     var out = [], k;
     for (k in cost) {
       var have = (s.res && s.res[k]) || 0;
-      if (have < cost[k]) out.push((SB.RESS && SB.RESS[k] ? SB.RESS[k].name : k) +
-        ' ' + cost[k] + '（现有 ' + Math.floor(have) + '）');
+      if (have < cost[k]) {
+        var fallbackName = (SB.RESS && SB.RESS[k] ? SB.RESS[k].name : k);
+        var rName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, fallbackName) : fallbackName;
+        out.push(tr('workshop.cost_item', {
+          resourceName: rName,
+          requiredAmount: cost[k],
+          currentAmount: Math.floor(have)
+        }, rName + ' ' + cost[k] + '（现有 ' + Math.floor(have) + '）'));
+      }
     }
-    return out.join('、');
+    return out.join(isEnglishLocale() ? ', ' : '、');
   }
 
   function buy(s, id, emit) {
@@ -837,9 +906,11 @@
   SB.workshop = {
     tools: tools, byId: byId,
     blocked: blocked, canBuy: canBuy, buy: buy,
+    toolHasPrereqBlock: toolHasPrereqBlock,
     lackText: lackText,
     /* 工艺制作下半区 */
-    crafts: craftRows, craftById: craftById,
+    crafts: craftRows, craftById: craftById, craftByResource: craftByResource,
+    craftHasPrereqBlock: craftHasPrereqBlock,
     craftRatio: craftRatio, craftMul: craftMul, craftCostMul: craftCostMul,
     maxCraftable: maxCraftable, stepAmt: stepAmt, stepOut: stepOut, craftBlocked: craftBlocked,
     craft: craft, steps: CRAFT_STEPS,
@@ -852,9 +923,10 @@
     upgrades: upgradeRows, upgradeById: upgradeById,
     upgradeCost: upgradeCost, upgradeBlocked: upgradeBlocked, upgradeCanBuy: upgradeCanBuy,
     upgradeRequirementMissing: upgradeRequirementMissing,
+    upgradeHasPrereqBlock: upgradeHasPrereqBlock,
     upgradeBuy: upgradeBuy, hasPurchasable: hasPurchasable,
     /* 奇观 */
     wonders: list, wonderById: wonderById,
-    wonderBlocked: wonderBlocked, build: buildWonder
+    wonderBlocked: wonderBlocked, wonderBuildCostMissing: wonderBuildCostMissing, build: buildWonder
   };
 })(typeof window !== 'undefined' ? window : globalThis);

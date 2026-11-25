@@ -1,27 +1,26 @@
-# ===== 禁止进仓：docs 下的工具产物（记忆纪律，2026-09-28 实测）=====
+# 文档导出和本地草稿
 docs/**/*.xlsx
 docs/**/*.ref/
 
-# ===== 演示页（记忆：是否进仓待用户拍板；默认不进仓）=====
+# 独立演示页
 tech-tree-demo.html
 
-# ===== 打包产物 / 截图（2026-10-15 用户拍板：不入库，体积大且可重生成）=====
+# 发行包、依赖和本机文件
 TAPTAP-H5-OUTPUT/
 
-# ===== Electron desktop build artifacts =====
+.DS_Store
+Thumbs.db
 node_modules/
-/* 2026-11-17：dist/ 下实际有 electron/steam/steam-depot/steam-upload 四套产物共 2.5GB，
-   原规则只挡了 dist/electron/，其余三项一直挂在 untracked 里反复出现在 git status。 */
 dist/
 截图/
 
-# ===== 本地/商店素材：非运行时，_repack.py 已明确排除（assets/store 不上传）=====
+# 商店提交素材
 assets/store/
 
-# ===== 破壳背景草稿：未被任何代码引用（orphan 美术稿），不参与 H5/Electron 运行时 =====
+# 破壳分镜草稿
 assets/backgrounds/breakthrough/engraved-*/
 
-# ===== 本机调试 / 导出中间产物（不入库）=====
+# 本机调试、会话记录和导出文件
 demo_*.html
 *_demo.html
 *-demo.html

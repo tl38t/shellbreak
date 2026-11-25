@@ -68,9 +68,11 @@ body::after{width:32vw;height:32vw;right:-12vw;top:20vh;opacity:.15;animation-de
 .brandmark::before,.brandmark::after{content:"";position:absolute;background:var(--cyan);border-radius:99px;opacity:.9}
 .brandmark::before{width:20px;height:2px;left:10px;top:13px;transform:rotate(-27deg)}
 .brandmark::after{width:15px;height:2px;left:14px;top:24px;transform:rotate(33deg)}
-h1{font-size:22px;line-height:1.2;letter-spacing:3px;margin:0 0 3px;font-weight:760}
-h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
+h1{font-family:var(--font-display-zh);font-size:22px;line-height:1.2;letter-spacing:.12em;margin:0 0 3px;font-weight:700}
+html[lang^="en"] h1{font-family:var(--font-display-en);font-size:21px;line-height:1.18;letter-spacing:.015em;font-weight:700}
+h1 small{font-family:var(--font-ui);font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 .sub{font-size:12px;color:var(--dim);margin:0}
+html[lang^="en"] .sub{font-size:12.5px;letter-spacing:.01em;line-height:1.4}
 
 .overview-grid{display:grid;grid-template-columns:minmax(0,1.14fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
 .overview-grid > .card{margin-bottom:0}
@@ -149,7 +151,7 @@ h1 small{font-size:11px;color:var(--dim);letter-spacing:0;font-weight:500}
 .qbtn{width:17px;height:17px;margin-left:1px;background:rgba(14,34,51,.84);border-color:#2a5a7d;color:var(--cyan)}
 .qbtn:hover{background:#123a52;border-color:var(--cyan);box-shadow:0 0 7px rgba(105,226,223,.35)}
 
-#pane-village,#pane-folk,#pane-tech,#pane-civic,#pane-faith,#pane-workshop,#pane-wonder,#pane-dig,#pane-meta{padding:16px 18px}
+#pane-village,#pane-folk,#pane-tech,#pane-civic,#pane-faith,#pane-workshop,#pane-workshop-upgrades,#pane-wonder,#pane-dig,#pane-meta{padding:16px 18px}
 .bzone{margin-top:17px}
 .bzone:first-of-type{margin-top:2px}
 .bztitle{font-size:11px;letter-spacing:1.8px;margin:0 2px 6px;padding-left:10px}
@@ -277,14 +279,15 @@ html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-t
   .overview-grid{grid-template-columns:1fr}
   .tabs{overflow:visible;flex-wrap:wrap;justify-content:flex-start}
   .tab{flex:0 0 auto;white-space:nowrap;max-width:100%}
-  #pane-village,#pane-folk,#pane-tech,#pane-civic,#pane-faith,#pane-workshop,#pane-wonder,#pane-dig,#pane-meta{padding:14px}
+  #pane-village,#pane-folk,#pane-tech,#pane-civic,#pane-faith,#pane-workshop,#pane-workshop-upgrades,#pane-wonder,#pane-dig,#pane-meta{padding:14px}
   #pane-village .bzone .row .nm,#star-map-buildings .row .nm{grid-template-columns:minmax(0,1fr);gap:5px}
   #pane-village .bzone .row .bld-label,#star-map-buildings .row .bld-label{width:100%}
   #pane-village .bzone .row .bld-ops,#star-map-buildings .row .bld-ops{grid-column:1;min-height:26px}
   #star-map-buildings .row{grid-template-columns:minmax(0,1fr);gap:9px}
   #star-map-buildings .row>.btn.buy{width:100%;min-width:0}
   .brandline{margin-bottom:17px}
-  h1{font-size:20px}
+  h1{font-size:20px;letter-spacing:.08em}
+  html[lang^="en"] h1{font-size:18px;letter-spacing:.01em}
 }
 @media (min-width:761px) and (max-width:900px){
   #pane-village .bzone .row .nm,#star-map-buildings .row .nm{grid-template-columns:minmax(0,1fr);row-gap:7px}
@@ -323,31 +326,42 @@ html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-t
 @media (prefers-reduced-motion:reduce){body::before,body::after{animation:none}.res,.btn,.happy-marker{transition:none}}
 
 /* 发射场共用进度：只显示一条，避免三座发射场重复展示同一全局累积值。 */
-#pane-village .launch-progress{display:grid;grid-template-columns:auto minmax(40px,.4fr) 30px minmax(40px,.6fr);align-items:center;gap:5px;min-width:0;margin:0;color:var(--dim);font-size:9px;line-height:1.1;font-variant-numeric:tabular-nums}
+#pane-village .launch-progress{display:grid;grid-template-columns:auto minmax(40px,.4fr) 30px minmax(40px,.6fr);align-items:center;gap:5px;min-width:0;margin:0;color:var(--dim);font-size:11px;line-height:1.25;font-variant-numeric:tabular-nums}
 
-/* 有运行座数和资源消耗的建筑：缩小座数按钮；消耗文字完整换行，并统一预留两行高度。 */
-#pane-village .bzone .row .bld-ops:has(.fdraw) .furnctl{width:min(100%,620px);max-width:100%;flex:0 1 620px;flex-wrap:wrap;gap:4px 6px;margin:0}
-#pane-village .bzone .row .bld-ops:has(.fdraw) .fbtn{flex:0 0 18px;width:18px;height:18px;line-height:1;padding:0;border-radius:4px;font-size:12px}
-#pane-village .bzone .row .bld-ops:has(.fdraw) .fnum{flex:0 0 48px;min-width:48px;font-size:10px}
-#pane-village .bzone .row .bld-ops:has(.fdraw) .fdraw{display:block;flex:0 1 100%;width:100%;max-width:100%;min-width:0;min-height:2.5em;box-sizing:border-box;margin:0;font-size:9px;line-height:1.25;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
-/* 工坊行带资源消耗说明时使用18px步进按钮和10px计数；发射场复用同一组尺寸。 */
+/* 有运行座数和资源消耗的建筑：消耗文字完整换行，并统一预留两行高度；移动端及触控设备保持可点热区。 */
+#pane-village .bzone .row .bld-ops:has(.fdraw) .furnctl{width:min(100%,620px);max-width:100%;flex:0 1 620px;flex-wrap:wrap;gap:6px 8px;margin:0}
+#pane-village .bzone .row .bld-ops:has(.fdraw) .fbtn{flex:0 0 26px;width:26px;height:26px;line-height:1;padding:0;border-radius:5px;font-size:14px}
+#pane-village .bzone .row .bld-ops:has(.fdraw) .fnum{flex:0 0 54px;min-width:54px;font-size:11px}
+#pane-village .bzone .row .bld-ops:has(.fdraw) .fdraw{display:block;flex:0 1 100%;width:100%;max-width:100%;min-width:0;min-height:2.5em;box-sizing:border-box;margin:0;font-size:11px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
+/* 工坊行带资源消耗说明时与发射场复用步进控制。 */
 #pane-village .bzone .row .bld-ops:has(.launch-progress){position:static;flex-wrap:wrap;align-items:flex-start;gap:4px 7px;min-height:0}
 #pane-village .bzone .row .bld-ops:has(.launch-progress)>.lack-tag{flex:0 1 auto;max-width:100%;white-space:normal;overflow-wrap:anywhere}
 #pane-village .bzone .row .bld-ops .furnctl.launch-count{flex:0 0 auto;width:auto;min-width:0;max-width:none;gap:6px;margin:0}
-#pane-village .bzone .row .bld-ops .furnctl.launch-count .fbtn{flex:0 0 18px;width:18px;min-width:18px;max-width:18px;height:18px;min-height:18px;max-height:18px;box-sizing:border-box;padding:0;border-radius:4px;font-size:12px;line-height:1}
-#pane-village .bzone .row .bld-ops .furnctl.launch-count .fnum{flex:0 0 48px;min-width:48px;font-size:10px}
+#pane-village .bzone .row .bld-ops .furnctl.launch-count .fbtn{flex:0 0 26px;width:26px;min-width:26px;max-width:26px;height:26px;min-height:26px;max-height:26px;box-sizing:border-box;padding:0;border-radius:5px;font-size:14px;line-height:1}
+#pane-village .bzone .row .bld-ops .furnctl.launch-count .fnum{flex:0 0 54px;min-width:54px;font-size:11px}
 #pane-village .bzone .row .bld-label:has(.launch-mode-anchor){position:static}
 #pane-village .bzone .row .launch-mode-anchor{position:static;display:flex}
 #pane-village .bzone .row .launch-mode-anchor .furnctl.launch-mode{display:flex;flex:0 0 auto;width:auto;min-width:0;max-width:none;flex-wrap:nowrap;gap:0;margin:0}
-#pane-village .bzone .row .launch-mode-anchor .launch-mode-toggle{display:inline-flex;align-items:center;justify-content:center;gap:3px;flex:0 0 auto;width:auto;min-width:0;height:20px;padding:0 6px;white-space:nowrap;font-size:9px;font-weight:700;line-height:1}
+#pane-village .bzone .row .launch-mode-anchor .launch-mode-toggle{display:inline-flex;align-items:center;justify-content:center;gap:3px;flex:0 0 auto;width:auto;min-width:0;min-height:24px;padding:2px 8px;white-space:nowrap;font-size:11px;font-weight:700;line-height:1.2}
 #pane-village .bzone .row .launch-mode-anchor .launch-mode-swap{color:var(--cyan);font-size:12px;line-height:1}
+#pane-village .bzone .row .launch-mode-anchor .launch-mode-tip{top:calc(100% + 4px);right:0;left:auto;max-width:240px;font-size:11px;line-height:1.4;white-space:normal;pointer-events:none}
 #pane-village .bzone .row .bld-ops .furnctl.launch-count{position:static}
 #pane-village .bzone .row .bld-ops .launch-progress{position:static;flex:1 1 100%;width:100%;box-sizing:border-box;grid-template-columns:auto minmax(40px,.35fr) 30px minmax(0,.65fr)}
 #pane-village .bzone .row .launch-consumption{display:block;min-width:0;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere}
 #pane-village .launch-progress-track{height:6px;overflow:hidden;border-radius:999px;background:rgba(111,136,168,.2)}
 #pane-village .launch-progress-track i{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width .12s linear}
 #pane-village .launch-progress-value{text-align:right;color:var(--cyan)}
-#pane-village .launch-consumption{min-width:0;color:var(--dim);font-size:9px;line-height:1.2;white-space:normal;overflow-wrap:anywhere}
+#pane-village .launch-consumption{min-width:0;color:var(--dim);font-size:11px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:760px),(pointer:coarse){
+  .furnctl{gap:8px}
+  .furnctl .fbtn,
+  #pane-village .bzone .row .bld-ops:has(.fdraw) .fbtn,
+  #pane-village .bzone .row .bld-ops .furnctl.launch-count .fbtn{flex:0 0 36px;width:36px;min-width:36px;max-width:36px;height:36px;min-height:36px;max-height:36px;border-radius:7px;font-size:16px}
+  .furnctl .fnum,
+  #pane-village .bzone .row .bld-ops:has(.fdraw) .fnum,
+  #pane-village .bzone .row .bld-ops .furnctl.launch-count .fnum{flex:0 0 58px;min-width:58px;font-size:12px}
+  #pane-village .bzone .row .launch-mode-anchor .launch-mode-toggle{min-height:36px;padding:6px 12px;font-size:12px}
+}
 html[data-ui-theme="day"] #pane-village .launch-progress{color:#607777}
 html[data-ui-theme="day"] #pane-village .launch-progress-track{background:rgba(58,91,96,.18)}
 html[data-ui-theme="day"] #pane-village .launch-progress-value{color:#187b7a}
@@ -365,3 +379,14 @@ html[data-ui-theme="day"] #pane-village .launch-progress-value{color:#187b7a}
 #pane-village .bzone .row .buy-actions>.track-toggle.on{background:#155b38;border-color:#43bb78;color:#c5f4d6}
 html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.track-toggle{background:#eaf1f6;border-color:#a9c3d4;color:#3d6076}
 html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.track-toggle.on{background:#c9efd5;border-color:#378b57;color:#15542e}
+
+/* ── Global typography rhythm, numeric alignment, Luxury & English controls ── */
+.cardhd,.secttl,.bztitle{font-family:var(--font-ui);font-variant-numeric:tabular-nums}
+.res b,.res i.cap,.res i.rate,.res i.sd,.furnctl .fnum{font-variant-numeric:tabular-nums}
+.res i.cap,.res i.rate,.res i.sd{font-size:11px;font-style:normal;margin-left:0}
+.res i.sd{white-space:nowrap}
+html[lang^="en"] .cardhd,html[lang^="en"] .secttl,html[lang^="en"] .bztitle,html[lang^="en"] .restitle{letter-spacing:.03em}
+html[lang^="en"] #pane-village .bzone .row .buy-actions>.auto-upgrade-toggle{flex:0 0 46px;width:46px;min-width:46px;font-size:11px}
+html[lang^="en"] #pane-village .bzone .row .buy-actions>.track-toggle{flex:0 0 54px;width:54px;min-width:54px;font-size:10.5px}
+html[lang^="en"] #pane-village .bzone .row .bld-label .tag{width:auto;min-width:64px;padding:1px 7px}
+html[lang^="en"] #pane-village .bzone .row .bld-ops>.btn.tog{width:auto;min-width:104px;padding-left:10px;padding-right:10px}

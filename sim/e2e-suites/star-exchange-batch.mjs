@@ -13,7 +13,7 @@
  * 不 mock SB：夹具只改 SB.game.meta() 账本字段 / 临时替换 saveMeta / 临时改 CFG，
  * 全部走 prestige.* 与 ui.render.paneStarDome() 生产路径；try/finally 里逐项还原。
  */
-export function run({ SB, check }) {
+export function run({ SB, check, sandbox }) {
   console.log('\n=== 星屑炼金：双向批量兑换 ===');
   const P = SB.prestige, R = SB.ui.render;
   const meta = SB.game.meta();
@@ -167,6 +167,45 @@ export function run({ SB, check }) {
       (html0.match(/兑换 ×0/g) || []).length === 2,
       'disabled=' + (html0.match(/disabled title="余额不足，无法兑换"/g) || []).length);
     backToStepOne();
+
+    /* ── ⑦ 滑动条确认弹窗：openStarExchangeModal ─────────────── */
+    if (sandbox && sandbox.document && sandbox.document.getElementById) {
+      reset({ tide: 250, stardust: 3 });
+      const doc = sandbox.document;
+      const modal = doc.getElementById('modal');
+      const box = doc.getElementById('modalBox');
+      const fake = {
+        starExchangeRange: { value: '1', oninput: null },
+        starExchangeNum: { value: '1', oninput: null, onchange: null, onkeydown: null },
+        starExchangePreview: { innerHTML: '' },
+        starExchangePresets: { addEventListener() {}, querySelectorAll() { return []; } },
+        starExchangeConfirm: { onclick: null },
+        starExchangeCancel: { onclick: null }
+      };
+      const origGet = doc.getElementById.bind(doc);
+      doc.getElementById = (id) => (fake[id] || origGet(id));
+      try {
+        const opened = R.openStarExchangeModal('tide-to-stardust');
+        check('滑动条弹窗可正常打开且预渲染 range max="25"',
+          opened === true && modal && !modal.classList.contains('hidden') &&
+          box.innerHTML.indexOf('id="starExchangeRange"') >= 0 &&
+          box.innerHTML.indexOf('max="25"') >= 0,
+          'opened=' + opened);
+        fake.starExchangeRange.value = '12';
+        if (fake.starExchangeRange.oninput) fake.starExchangeRange.oninput();
+        check('拖动滑动条到 12 笔 ⇒ 同步输入框并实时预览「消耗 120 轮回点 → 获得 12 星屑」',
+          fake.starExchangeNum.value === '12' &&
+          fake.starExchangePreview.innerHTML.indexOf('120 轮回点 → 获得 12 星屑') >= 0,
+          fake.starExchangePreview.innerHTML);
+        if (fake.starExchangeConfirm.onclick) fake.starExchangeConfirm.onclick();
+        check('点击确认兑换 ⇒ 按滑动条数量入账并关闭弹窗',
+          meta.tide === 130 && meta.stardust === 15 && modal.classList.contains('hidden'),
+          JSON.stringify({ tide: meta.tide, sd: meta.stardust }));
+      } finally {
+        doc.getElementById = origGet;
+        if (modal && modal.classList) modal.classList.add('hidden');
+      }
+    }
   } finally {
     /* 逐项还原：账本、汇率、落盘函数、步长视图态。 */
     for (const k in keepMeta) meta[k] = keepMeta[k];

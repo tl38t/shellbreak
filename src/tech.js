@@ -25,16 +25,21 @@
   'use strict';
   var SB = root.SB || (root.SB = {});
 
-  function isEnglishLocale() {
-    return !!(SB.i18n && SB.i18n.isEnabled && SB.i18n.isEnabled() &&
-      SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  function activeNonDefaultLocale() {
+    var loc = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+    return (SB.i18n && SB.i18n.isEnabled && SB.i18n.isEnabled() && loc !== 'zh-CN') ? loc : '';
   }
-  function hasEnglishKey(key) {
-    var english = root.ShellbreakLocales && root.ShellbreakLocales['en-US'];
-    return !!(english && typeof english[key] === 'string');
+  function isEnglishLocale() { return activeNonDefaultLocale() === 'en-US'; }
+  function isLocalizedLocale() { return !!activeNonDefaultLocale(); }
+  function hasLocaleKey(loc, key) {
+    var resolved = SB.i18n && SB.i18n.resolveKey ? SB.i18n.resolveKey(key) : key;
+    var dict = loc && root.ShellbreakLocales && root.ShellbreakLocales[loc];
+    return !!(dict && typeof dict[resolved] === 'string');
   }
+  function hasActiveLocaleKey(key) { return hasLocaleKey(activeNonDefaultLocale(), key); }
   function tr(key, params, fallback) {
-    var value = isEnglishLocale() && hasEnglishKey(key) && SB.i18n.t
+    var loc = activeNonDefaultLocale();
+    var value = loc && hasLocaleKey(loc, key) && SB.i18n.t
       ? SB.i18n.t(key, params) : '';
     return value || fallback || '';
   }
@@ -808,11 +813,11 @@
 
   function condShort(s, c) {
     var old = condShortZh(s, c);
-    if (!old || !isEnglishLocale() || !c) return old;
+    if (!old || !isLocalizedLocale() || !c) return old;
     var key = '', params = {}, now = old.now, need = old.need, txt;
     switch (c.t) {
       case 'built': key = 'built'; params = { buildingName: bName(c.b), current: now, required: need }; break;
-      case 'all': return { txt: tr('tech.condition.progress.all_needed', { conditions: (c.of || []).map(condText).join('; ') }, old.txt), now: now, need: need };
+      case 'all': return { txt: tr('tech.condition.progress.all_needed', { conditions: (c.of || []).map(condText).join(isEnglishLocale() ? '; ' : '；') }, old.txt), now: now, need: need };
       case 'geekTerra': return { txt: tr(s.geek && s.geek.terraDone ? 'tech.condition.geek_terra.complete' : 'tech.condition.geek_terra.required', null, old.txt), now: now, need: need };
       case 'total': key = 'total_buildings'; params = { current: now, required: need }; break;
       case 'res': key = 'resource_stock'; params = { resourceName: resName(c.r), current: Math.floor(now), required: need }; break;
@@ -881,50 +886,68 @@
   }
 
   function bName(id) {
-    for (var i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++) {
-      if (SB.BUILDINGS[i].id === id) {
-        return SB.i18n && SB.i18n.buildingName
-          ? SB.i18n.buildingName(id, SB.BUILDINGS[i].name)
-          : localizedName('building.' + (id === 'rheamine' ? 'rhea_mine' : snakeCase(id)) + '.name', SB.BUILDINGS[i].name);
+    if (SB.BUILDINGS) {
+      for (var i = 0; i < SB.BUILDINGS.length; i++) {
+        if (SB.BUILDINGS[i].id === id) {
+          return SB.i18n && SB.i18n.buildingName
+            ? SB.i18n.buildingName(id, SB.BUILDINGS[i].name)
+            : localizedName('building.' + (id === 'rheamine' ? 'rhea_mine' : snakeCase(id)) + '.name', SB.BUILDINGS[i].name);
+        }
       }
     }
-    return '未知建筑';
+    return tr('tree.node.unknown_building', null, '未知建筑');
   }
   function upgradeName(id) {
     var upgrades = SB.UPGRADES || [];
     for (var i = 0; i < upgrades.length; i++) if (upgrades[i].id === id) {
       var key = 'upgrade.' + snakeCase(id) + '.name';
-      if (!hasEnglishKey(key)) key = 'content.' + snakeCase(id) + '.name';
+      if (!hasActiveLocaleKey(key)) key = 'content.' + snakeCase(id) + '.name';
       return localizedName(key, upgrades[i].name);
     }
-    return '未知工坊升级';
+    return tr('tree.node.unknown_upgrade', null, '未知工坊升级');
   }
   function techName(id) {
     var item = byId(id);
-    return item ? localizedName('tech.' + id + '.name', item.name) : '未知科技';
+    return item ? localizedName('tech.' + id + '.name', item.name) : tr('tree.node.unknown_tech', null, '未知科技');
   }
   function civicName(id) {
     var civics = SB.CIVICS || [];
     for (var i = 0; i < civics.length; i++)
       if (civics[i].id === id) return localizedName('civic.data.' + id + '.name', civics[i].name);
-    return '未知市政';
+    return tr('tree.node.unknown_civic', null, '未知市政');
   }
   /* ERA10（2026-10-20）：政策卡 id → 中文名（`card` 条件用；与 civicName 同构）。
    * ⚠️ 别用 SB.civic.policyById —— 那是 civic 模块内部函数、不保证已加载；
    *   条件文案在渲染期调用，而 SB.POLICIES 是数据表、加载顺序更早，读它最稳。 */
   function policyName(id) {
     var ps = SB.POLICIES || [];
-    for (var i = 0; i < ps.length; i++)
-      if (ps[i].id === id) return localizedName('policy.card.' + id + '.name', ps[i].name);
-    return '未知政策卡';
+    var research = SB.ui && SB.ui.renderParts && SB.ui.renderParts.research;
+    for (var i = 0; i < ps.length; i++) {
+      if (ps[i].id === id) {
+        return research && typeof research.policyName === 'function'
+          ? research.policyName(ps[i])
+          : localizedName('policy.card.' + id + '.name', ps[i].name);
+      }
+    }
+    return tr('tree.node.unknown_policy', null, '未知政策卡');
   }
   /* `wonders` 条件的 id 列表 → 中文名列表。键是完整配置 id（wonder_xxx），
    * 面板不能把生 id 印给玩家（2026-10-07 截图里印成「shellcutter、presspipe」就是这病）。 */
   function _wNames(ids) {
     var out = [], i, w;
+    var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
+    var runState = SB.game && SB.game.run ? SB.game.run() : null;
     for (i = 0; i < ids.length; i++) {
       w = (SB.wonder && SB.wonder.byId) ? SB.wonder.byId(ids[i]) : null;
-      out.push(w ? localizedName('wonder.' + snakeCase(ids[i]).replace(/^wonder_/, '') + '.name', w.name) : '未知奇观');
+      if (!w) {
+        out.push('未知奇观');
+      } else if (info && typeof info.localizedWonderName === 'function') {
+        out.push(info.localizedWonderName(runState, ids[i], w.name));
+      } else if (SB.i18n && typeof SB.i18n.contentName === 'function') {
+        out.push(SB.i18n.contentName(ids[i], w.name));
+      } else {
+        out.push(localizedName('wonder.' + snakeCase(ids[i]).replace(/^wonder_/, '') + '.name', w.name));
+      }
     }
     return out.join(isEnglishLocale() ? ', ' : '、');
   }
@@ -939,11 +962,10 @@
   };
   function resName(id) {
     var item = SB.RESS && SB.RESS[id], fallback = item ? item.name : '未知资源';
+    var loc = activeNonDefaultLocale();
+    if (!loc) return fallback;
     var key = RESOURCE_NAME_KEYS[id] || 'resource.' + snakeCase(id) + '.name';
-    if (!root.ShellbreakLocales || !root.ShellbreakLocales['en-US'] || !root.ShellbreakLocales['en-US'][key]) {
-      var contentKey = 'content.' + snakeCase(id) + '.name';
-      if (root.ShellbreakLocales && root.ShellbreakLocales['en-US'] && root.ShellbreakLocales['en-US'][contentKey]) key = contentKey;
-    }
+    if (!hasLocaleKey(loc, key)) key = 'content.' + snakeCase(id) + '.name';
     return localizedName(key, fallback);
   }
   /* `rate` 类尤里卡条件的读数显示名。
@@ -1141,7 +1163,10 @@
   }
   function challengeOnlyReason(t) {
     var co = t && t.challengeOnly;
-    if (co === true || !co) return '仅限流浪泰拉挑战期间研究';
+    if (co === true || !co) {
+      var terra = challengeName('drift_terra', '流浪泰拉');
+      return tr('tech.challenge_only.blocked', { challengeNames: terra }, '仅限' + terra + '挑战期间研究');
+    }
     /* ⚠️ 字符串**必须先包成数组**（2026-11-02 e2e 当场抓到）：裸写 `co.length` 对
      *   'waterpollution' 得到 14，于是按**字符**逐个查挑战 ⇒ 文案渲染成
      *   「仅限w / a / t / e / r…挑战期间研究」。civics / habitat 两处同族函数
@@ -1150,9 +1175,10 @@
     var names = [];
     for (var i = 0; i < list.length; i++) {
       var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
-      names.push(c ? c.name : list[i]);
+      names.push(challengeName(list[i], c ? c.name : list[i]));
     }
-    return '仅限' + names.join(' / ') + '挑战期间研究';
+    return tr('tech.challenge_only.blocked', { challengeNames: names.join(' / ') },
+      '仅限' + names.join(' / ') + '挑战期间研究');
   }
   function reqsMet(s, t) {
     if (!t.reqs) return true;
@@ -1167,63 +1193,58 @@
   }
   function maxTechLevel(t) { return t && t.maxLevel > 0 ? Math.floor(t.maxLevel) : 1; }
 
-  /* 能否研究。四条门禁缺一不可：已揭示 / 本纪元内 / 尤里卡达成过 / 前置已掌握。 */
+  /* 原因用于卡片状态和研究门禁。可读提示按当前语言生成。 */
+  function studyBlockKind(s, t) {
+    if (techLevel(s, t.id) >= maxTechLevel(t)) return 'mastered';
+    if (!challengeOnlyOk(s, t)) return 'challenge';
+    var met = metOf(s, t);
+    if (!isRevealed(s, t.id) && !met) return 'hidden';
+    if (t.era > (s.era || 1)) return 'era';
+    if (!met) return 'eureka';
+    if (!reqsMet(s, t)) return 'prerequisites';
+    if (!resCostMet(s, t)) return 'material';
+    if (!SB.economy.enough(s.res.science, researchCost(s, t))) return 'science';
+    return '';
+  }
   function canStudy(s, id) {
     var t = byId(id);
-    if (!t) return false;
-    if (techLevel(s, id) >= maxTechLevel(t) || (!isRevealed(s, id) && !metOf(s, t))) return false;
-    if (t.era > (s.era || 1)) return false;      // 纪元闸门：不能跳纪元偷研究
-    if (!challengeOnlyOk(s, t)) return false;
-    /* 尤里卡门禁（2026-09-26 用户拍板「灰掉，必须先达成尤里卡」）。
-     * 它才是本文件顶部那条设计（条件达成 ⇒ 整项从「不可研究」变「可研究」）的**真正落实**：
-     * 在此之前那只是纸面条款 —— revealEra 会在进纪元时把整批节点刷成「已揭示」，
-     * 于是条件没达成的科技照样买得到。 */
-    if (!metOf(s, t)) return false;
-    if (!reqsMet(s, t)) return false;
-    /* ⚠️ 必须与 study 的扣费同口 researchCost（2026-10-17 用户拍板实装折扣断链）：
-     *   旧版裸读 t.cost ⇒ 建科研所后「科技点在折后价~原价之间」时本函数 false、
-     *   而 studyBlocked（折扣口）判 null ⇒ 红点亮、点了没反应，且折扣从未让人更早买得起。 */
-    if (!resCostMet(s, t)) return false;
-    return SB.economy.enough(s.res.science, researchCost(s, t));
+    return !!t && !studyBlockKind(s, t);
+  }
+  function studyBlockText(s, t, kind) {
+    switch (kind) {
+      case 'mastered': return tr('tech.study.status.mastered', null, '已掌握');
+      case 'challenge': return challengeOnlyReason(t);
+      case 'hidden': return tr('tech.study.hidden.eureka_required', null, '未揭露：先达成尤里卡条件');
+      case 'era':
+        var era = eraName(t.era);
+        return tr('tech.era_locked.blocked', { eraName: era }, '纪元未到：属于 ' + era + '，先推进当前纪元');
+      case 'eureka': return tr('tech.study.eureka_required', null, '尤里卡未达成：达成条件后才能研究');
+      case 'prerequisites':
+        var names = t.reqs.filter(function (id) { return !s.techs[id]; }).map(techName).join(isEnglishLocale() ? ', ' : '、');
+        return tr('tech.prerequisites.blocked', { technologyNames: names }, '缺少前置科技：' + names);
+      case 'material':
+        var lack = resCostLack(s, t);
+        var name = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(lack.r, resName(lack.r)) : resName(lack.r);
+        var current = SB.economy.fmtAmt(s.res[lack.r] || 0), required = SB.economy.fmtAmt(lack.n);
+        return tr('tech.material_cost.blocked', { resourceName: name, current: current, required: required },
+          '材料不足：' + name + ' 现有 ' + current + ' / 需求 ' + required);
+      case 'science':
+        var science = SB.economy.fmtAmt(s.res.science), cost = SB.economy.fmtAmt(researchCost(s, t));
+        return tr('tech.research_points.blocked', { current: science, required: cost },
+          '科技点不足：现有 ' + science + ' / 需求 ' + cost);
+      default: return null;
+    }
   }
   function studyBlocked(s, id) {
     var t = byId(id);
-    if (!t) return null;
-    if (techLevel(s, id) >= maxTechLevel(t)) return '已掌握';
-    /* 挑战门排在**最前**（2026-11-02 调整，对齐 civics.blocked 的同一顺序）：
-     *   「你在基游戏，这棵枝永远研究不了」是结构事实，「先达成尤里卡」是实现路径，
-     *   后者对一个永远不会揭示的节点等于误导 —— 玩家会去攒尤里卡，攒完还是灰。
-     *   ⚠️ 顺序也决定 UI 灰按钮的 title；改这里前先看 render-pane-research 的暗态分支。 */
-    if (!challengeOnlyOk(s, t)) return challengeOnlyReason(t);
-    /* ⚠️ 与渲染同源（2026-11-03）：原先只认 isRevealed（eureka 标记），可该标记在读档后
-     *   对所有**已掌握**节点都是缺失的（见 discover 顶部那段）⇒ 多级科技升不了且不报原因。
-     *   metOf 里含「已掌握 / 曾达成 / 现达成」三档，isRevealed 只是其中一档的标记。 */
-    if (!isRevealed(s, id) && !metOf(s, t)) return '未揭露：先达成尤里卡条件';
-    if (t.era > (s.era || 1)) return '纪元未到：属于 ' + eraName(t.era) + '，先推进当前纪元';
-    /* 文案要指得出**该做什么**，不能只说「不行」：这句话会挂成灰按钮的 title，
-     * 而卡片上条件行还写着进度，两者合起来才是完整的一句「你还差什么」。 */
-    if (!metOf(s, t)) return '尤里卡未达成：达成条件后才能研究';
-    if (!reqsMet(s, t)) return '缺少前置科技：' + t.reqs.map(function (r) { return byId(r).name; }).join('、');
-    /* 材料门排在科技点门**之前**：材料是可以靠攒解决的确定门槛，科技点是主进度，
-     * 先报材料玩家才知道该去开矿而不是干等。 */
-    var _lack = resCostLack(s, t);
-    if (_lack) {
-      var _lackName = (SB.RESS && SB.RESS[_lack.r] && SB.RESS[_lack.r].name) || _lack.r;
-      return '材料不足：' + _lackName + ' 现有 ' + SB.economy.fmtAmt(s.res[_lack.r] || 0) +
-        ' / 需求 ' + SB.economy.fmtAmt(_lack.n);
-    }
-    if (!SB.economy.enough(s.res.science, researchCost(s, t))) return '科技点不足：现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(researchCost(s, t));
-    return null;
+    return t ? studyBlockText(s, t, studyBlockKind(s, t)) : null;
   }
-
-  /* 是否存在「当前即可研究」的科技（面板已开 + 有未掌握且 studyBlocked 为 null 的项）。
-   * 供页签红点用，复用 studyBlocked 这唯一门禁，与节点「可研究」状态同源。 */
+  /* 页签红点与研究按钮共用条件，仅在展示原因时生成文案。 */
   function hasResearchable(s) {
     if (!s || !panelOpen(s)) return false;
     var T = SB.TECHS || [], i;
     for (i = 0; i < T.length; i++) {
-      if (techLevel(s, T[i].id) >= maxTechLevel(T[i])) continue;
-      if (studyBlocked(s, T[i].id) === null) return true;
+      if (!studyBlockKind(s, T[i])) return true;
     }
     return false;
   }
@@ -1375,7 +1396,7 @@
   }
 
   function translatedTemplate(key, source, special) {
-    if (!isEnglishLocale() || !hasEnglishKey(key)) return '';
+    if (!isLocalizedLocale() || !hasActiveLocaleKey(key)) return '';
     var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
     var params = info && info.englishTemplateParams
       ? info.englishTemplateParams(key, source, special) : (special || {});
@@ -1384,7 +1405,7 @@
   }
   function localizedEffectSummary(t, includeUnlockDesc) {
     includeUnlockDesc = includeUnlockDesc !== false;
-    if (!isEnglishLocale()) {
+    if (!isLocalizedLocale()) {
       var source = effectText(t);
       if (source === '（无直接效果）') source = t.effectDesc || '无直接数值加成';
       if (includeUnlockDesc && t.unlockDesc) source += '；' + t.unlockDesc;
@@ -1418,12 +1439,12 @@
             if (recipeLine) out.push(recipeLine);
           }
         } else if (k === 'unlockBuild') {
-          var buildingNames = (v || []).map(function (b) { return bName(b) + coBuildTagHtml(b); }).join(', ');
+          var buildingNames = (v || []).map(function (b) { return bName(b) + coBuildTagHtml(b); }).join(isEnglishLocale() ? ', ' : '、');
           var buildingLine = translatedTemplate('tech.effect.unlock_buildings', '', { buildingNames: buildingNames });
-          if (!buildingLine) buildingLine = 'Unlocks buildings: ' + buildingNames;
+          if (!buildingLine) buildingLine = (isEnglishLocale() ? 'Unlocks buildings: ' : '解鎖建築：') + buildingNames;
           if (buildingLine) out.push(buildingLine);
         } else if (k === 'unlockJob') {
-          var jobNames = (v || []).map(jobName).join(', ');
+          var jobNames = (v || []).map(jobName).join(isEnglishLocale() ? ', ' : '、');
           var jobLine = translatedTemplate('tech.effect.unlock_jobs', '', { jobNames: jobNames });
           if (jobLine) out.push(jobLine);
         } else if (k === 'season') {
@@ -1433,7 +1454,7 @@
           if (seasonLine) out.push(seasonLine);
         } else {
           key = labelKeys[k] ? 'tech.effect.label.' + labelKeys[k] : '';
-          if (!key || !hasEnglishKey(key)) continue;
+          if (!key || !hasActiveLocaleKey(key)) continue;
           var effectName = tr(key, null, '');
           var effectLine = ADD[k]
             ? tr('tech.effect.additive', { effectName: effectName,
@@ -1443,11 +1464,16 @@
           if (effectLine && !/\{[A-Za-z0-9_]+\}/.test(effectLine)) out.push(effectLine);
         }
       }
-      summary = out.join('; ') || tr('tech.effect.none', null, 'No direct effect.');
+      summary = out.join(isEnglishLocale() ? '; ' : '；') || tr('tech.effect.none', null, 'No direct effect.');
     }
-    if (includeUnlockDesc && t.unlockDesc && hasEnglishKey('tech.' + t.id + '.unlock_desc')) {
-      var unlock = translatedTemplate('tech.' + t.id + '.unlock_desc', t.unlockDesc);
-      if (unlock) summary += '; ' + unlock;
+    if (includeUnlockDesc && t.unlockDesc) {
+      var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
+      var unlock = info && info.localizedTechUnlockDescription
+        ? info.localizedTechUnlockDescription(t)
+        : (hasActiveLocaleKey('tech.' + t.id + '.unlock_desc')
+          ? translatedTemplate('tech.' + t.id + '.unlock_desc', t.unlockDesc)
+          : '');
+      if (unlock) summary += (isEnglishLocale() ? '; ' : '；') + unlock;
     }
     return summary || tr('tech.effect.no_direct_numeric_bonus', null, 'No direct numerical bonus.');
   }
@@ -1497,7 +1523,7 @@
     if (!slug) return era[field] || '';
     var key = field === 'description' && era.id === 5
       ? 'research.era.shellbreak.description' : 'tech.era.' + slug + '.' + field;
-    if (!hasEnglishKey(key)) return era[field] || '';
+    if (!hasActiveLocaleKey(key)) return era[field] || '';
     var params = era.id === 5 && field === 'description' ? { shellThicknessPercent: 25 } : null;
     return tr(key, params, era[field] || '');
   }
@@ -1623,7 +1649,7 @@
   }
   function condText(c) {
     var old = condTextZh(c);
-    if (!old || !isEnglishLocale() || !c) return old;
+    if (!old || !isLocalizedLocale() || !c) return old;
     var key = '', params = {};
     switch (c.t) {
       case 'built': key = 'built'; params = { amount: c.n, buildingName: bName(c.b) }; break;
@@ -1677,7 +1703,7 @@
   function jobName(id) {
     for (var i = 0; SB.JOBS && i < SB.JOBS.length; i++) if (SB.JOBS[i].id === id) {
       var key = 'job.' + id + '.name';
-      if (!hasEnglishKey(key)) key = 'job.name.' + id;
+      if (!hasActiveLocaleKey(key)) key = 'job.name.' + id;
       return localizedName(key, SB.JOBS[i].name);
     }
     return '未知职业';
@@ -1747,7 +1773,7 @@
     metOf: metOf,
     panelOpen: panelOpen, popupSeen: popupSeen, markPopupSeen: markPopupSeen,
     reqsMet: reqsMet, known: known, level: techLevel, maxLevel: maxTechLevel,
-    canStudy: canStudy, study: study, studyBlocked: studyBlocked, hasResearchable: hasResearchable, effectText: effectText,
+    canStudy: canStudy, study: study, studyBlocked: studyBlocked, studyBlockKind: studyBlockKind, studyBlockText: studyBlockText, hasResearchable: hasResearchable, effectText: effectText,
     effectDisplayText: function (t) { return localizedEffectSummary(t, false); },
     /* researchCost（2026-10-17）：科技消耗的唯一折扣口（科研所 researchLabSave），供 UI 显示与门禁共用。 */
     researchCost: researchCost, resCostList: resCostList, resCostMet: resCostMet, resCostLack: resCostLack,

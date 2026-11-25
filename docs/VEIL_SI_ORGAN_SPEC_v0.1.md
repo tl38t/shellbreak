@@ -308,7 +308,6 @@ CP 的 Cyberware Capacity 是**硬上限**（装不下就置灰）。本作是�
 - 新增 `tmp/veil-organ-demo.html`（可点 demo，不接生产代码）；**B 版已换成真底图 `tmp/veil-art/veil-si-body-plate.webp`**，坐标按 §5.1.1 重排
 - 新增 `tmp/veil-organ-390-shell.html`（窄屏验证壳）
 - 新增 `tmp/veil-art/veil-si-body-align-B.png` / `veil-si-body-head-B.png`（B 版 10 点叠图与头颈放大 2× 取证）
-- 追加 `.workbuddy/memory/2026-11-14.md`
 
 **小可见圆补验**：`.pt` 44px 透明触区 + `.face` 30px 可见圆；`?riveted=2` 五状态截图复核，六状态色 / 铆钉横条 / 呼吸环全部保留，`PROBE` 仍 `pass44=true`、控制台零报错；裁切放大 2× 后 08 贴合冠鳍尖、10 压在右手腕，10 枚编号逐字可读。
 

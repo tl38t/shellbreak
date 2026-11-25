@@ -22,23 +22,38 @@
     for (i = 0; i < L.length; i++) if (L[i].id === id) return L[i];
     return null;
   }
+  function tr(key, params, fallback) {
+    var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
+    return value || fallback || '';
+  }
+  function nonDefaultLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN');
+  }
   var THRONE_GOV = {
-    theo_state: { name: '至高圣座', effect: '信仰产出 +10%' },
-    egalitarianism: { name: '太空共同体', effect: '工坊工艺效率 +10%' },
-    federalism: { name: '国际空间站', effect: '科技产出 +10%' }
+    theo_state: { nameKey: 'wonder.supreme_throne.name', effectKey: 'wonder.supreme_throne.government_bonus.faith', name: '至高圣座', effect: '信仰产出 +10%' },
+    egalitarianism: { nameKey: 'wonder.supreme_throne.name.space_collective', effectKey: 'wonder.supreme_throne.government_bonus.crafting', name: '太空共同体', effect: '工坊工艺效率 +10%' },
+    federalism: { nameKey: 'wonder.supreme_throne.name.international_space_station', effectKey: 'wonder.supreme_throne.government_bonus.research', name: '国际空间站', effect: '科技产出 +10%' }
   };
   function displayName(s, id) {
     var w = byId(id);
     if (!w) return id;
-    if (id === 'wonder_throne' && s && THRONE_GOV[s.gov]) return THRONE_GOV[s.gov].name;
-    return w.name;
+    if (id === 'wonder_throne' && s && THRONE_GOV[s.gov]) {
+      var branch = THRONE_GOV[s.gov];
+      return nonDefaultLocale() ? tr(branch.nameKey, null, branch.name) : branch.name;
+    }
+    return nonDefaultLocale() && SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(id, w.name) : w.name;
   }
   function displayDesc(s, id) {
     var w = byId(id);
     if (!w || id !== 'wonder_throne') return w ? w.desc : '';
     var branch = s && THRONE_GOV[s.gov];
-    if (!branch) return '空间站有效等级 +3（免费、不收差价）；当前政体未提供额外分支加成。';
-    return '空间站有效等级 +3（免费、不收差价）；' + branch.effect + '。';
+    if (!branch) {
+      return tr('wonder.supreme_throne.description.no_branch', { stationLevelBonus: 3 },
+        '空间站有效等级 +3（免费、不收差价）；当前政体未提供额外分支加成。');
+    }
+    var branchEffect = nonDefaultLocale() ? tr(branch.effectKey, { bonusPercent: 10 }, branch.effect) : branch.effect;
+    return tr('wonder.supreme_throne.description.branch', { stationLevelBonus: 3, branchEffect: branchEffect },
+      '空间站有效等级 +3（免费、不收差价）；' + branch.effect + '。');
   }
   function owned(s) { return (s.wonders && typeof s.wonders === 'object') ? s.wonders : {}; }
   function crustplateMineMul(s) { return owned(s).wonder_crustplate ? 1.3 : 1; }
@@ -309,14 +324,20 @@
     return out;
   }
   function buildName(id) {
-    var i;
-    for (i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++) if (SB.BUILDINGS[i].id === id) return SB.BUILDINGS[i].name;
-    return id;
+    var i, fb = id;
+    for (i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++) if (SB.BUILDINGS[i].id === id) { fb = SB.BUILDINGS[i].name; break; }
+    return nonDefaultLocale() && SB.i18n && SB.i18n.buildingName ? SB.i18n.buildingName(id, fb) : fb;
   }
   function buildCostText(s, id) {
     var need = buildCostNeed(s, id), parts = [];
     if (!need) return '';
-    for (var k in need) parts.push(buildName(k) + ' ' + need[k] + ' 级');
+    for (var k in need) {
+      var bn = buildName(k);
+      parts.push(tr('ui.wonder.build_cost.building_levels', {
+        buildingName: bn,
+        requiredLevels: need[k]
+      }, bn + ' ' + need[k] + ' 级'));
+    }
     return parts.join(' + ');
   }
   /* 实扣：只在 buildWonder 里调。夹 0 是必要的 ——

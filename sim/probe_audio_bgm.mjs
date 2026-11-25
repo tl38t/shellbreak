@@ -69,7 +69,7 @@ const keyRegistered = k => masterXml.includes(k) && zhDict.includes('"' + k + '"
 function mkHarness(opts = {}) {
   const els = [];
   const handlers = {};
-  const state = { blocked: !!opts.blocked };
+  const state = { blocked: !!opts.blocked, activation: true };
   class FakeAudio {
     constructor() {
       this.loop = true; this.preload = ''; this.volume = 0; this.src = '';
@@ -91,6 +91,8 @@ function mkHarness(opts = {}) {
   globalThis.window = {
     SB,
     Audio: FakeAudio,
+    PointerEvent: function () {},
+    navigator: { userActivation: { get isActive() { return state.activation; } } },
     performance: { now: () => Date.now() },
     addEventListener: (t, f) => { (handlers[t] || (handlers[t] = [])).push(f); },
     removeEventListener: (t, f) => { if (handlers[t]) handlers[t] = handlers[t].filter(x => x !== f); }
@@ -100,7 +102,10 @@ function mkHarness(opts = {}) {
   s.era = 1; s.broken = false; s.audioMuted = false; s.audioVolume = 1;
   SB.game = { run: () => s };
   SB.audio.init();
-  return { SB, s, els, handlers, state, A: SB.audio, fire: () => (handlers.pointerdown[0] || (() => {}))() };
+  function fire(type = 'pointerdown', { pointerType = 'mouse', isTrusted = true } = {}) {
+    (handlers[type] || []).forEach(f => f({ type, pointerType, isTrusted }));
+  }
+  return { SB, s, els, handlers, state, A: SB.audio, fire };
 }
 const elFor = (h, id) => {
   const f = AUD.tracks[id] && AUD.tracks[id].file;
@@ -153,11 +158,16 @@ console.log('\n=== C. 手势前不起播 ===');
 let threw = null;
 try { h.A.sync(); } catch (e) { threw = e; }
 ok('init() + 一次 sync() 不抛', threw === null, threw ? String(threw) : 'ok');
-ok('★ 手势前未触发 play（init 只预建元素）', h.els.every(e => e.plays === 0),
-  'play=' + h.els.reduce((n, e) => n + e.plays, 0));
-ok('已挂常驻 pointerdown / keydown / touchstart',
-  ['pointerdown', 'keydown', 'touchstart'].every(t => (h.handlers[t] || []).length === 1),
+ok('手势前尚未创建音频元素', h.els.length === 0, 'elements=' + h.els.length);
+ok('已挂常驻 pointerdown / pointerup / keydown / touchend',
+  ['pointerdown', 'pointerup', 'keydown', 'touchend'].every(t => (h.handlers[t] || []).length === 1),
   'handlers=' + Object.keys(h.handlers).join(','));
+h.fire('pointerdown', { isTrusted: false });
+h.fire('pointerdown', { pointerType: 'touch' });
+h.state.activation = false;
+h.fire('keydown');
+ok('合成事件、触屏按下和未授予权限的按键均推迟音频加载', h.els.length === 0);
+h.state.activation = true;
 const first = h.A.currentTrack();
 ok('开局曲目属于 era1 池（under_ice）',
   !!first && !!poolOf(first.id) && poolOf(first.id).id === 'under_ice', first ? first.id : 'null');
@@ -382,6 +392,12 @@ threw = null;
 try { SB2.audio.init(); SB2.audio.sync(); SB2.audio.setVolume(0.3); } catch (e) { threw = e; }
 ok('无 Audio 时 init/sync/setVolume 静默降级', threw === null, threw ? String(threw) : 'ok');
 ok('无 Audio 时 enabled() === false', SB2.audio.enabled() === false);
+
+const touch = mkHarness();
+touch.fire('pointerdown', { pointerType: 'touch' });
+touch.fire('pointerup', { pointerType: 'touch' });
+touch.fire('touchend', { pointerType: 'touch' });
+ok('触屏首个已获权限的抬起只创建并起播一次', touch.els.length === 1 && touch.els[0].plays === 1);
 
 console.log('\n' + (fail === 0 ? 'ALL PASS' : 'FAILED ' + fail));
 process.exitCode = fail ? 1 : 0;

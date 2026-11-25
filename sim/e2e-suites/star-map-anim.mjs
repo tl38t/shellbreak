@@ -1,129 +1,172 @@
-/* 星图动画：高刷屏死锁回归锁（2026-11-16）
- *
- * ⚠️ 本套件**只写不跑**：用户 2026-11-15 09:14 明令「别跑 e2e，等我说跑再跑」，
- *    全量与 --xxx-only 单套件都须等当次明说「跑」。下面断言只是先落盘。
- *
- * 事故根因（452bd873 / Ver1.2.2「星图发热修复」引入）：
- *   star-map-frame.html 的 animate() 加了三条早退（document.hidden / now-last>500 /
- *   now-_lastDraw<FRAME_MIN-0.5），但 requestAnimationFrame(animate) 写在函数末尾，
- *   任一早退命中就不再调度下一帧 ⇒ 动画永久停。60Hz 下首帧间隔 16.67ms>16.167 侥幸
- *   不命中，90/120/144Hz 下首帧间隔 11.11/8.33/6.94ms 全部命中 ⇒ 天体停在 CSS 默认
- *   left:50%/top:53%，标签糊成一团（玩家截图实证）。
- *   修复：把 rAF 调度提到 animate 函数开头（与同文件 _smFrame 对称）。
- *
- * 反 mock 纪律：不复制 animate 实现，直接读生产 star-map-frame.html，用花括号配对
- *   抽出真实 animate 函数体，注入受控 requestAnimationFrame / document / canvases，
- *   在 vm 里跑真实代码。断言「链条持续」+「天体位置被设置」+「节流仍生效」。
- */
+/* 用受控的浏览器时钟和可见性事件执行生产星图脚本，覆盖高刷、停用、切视图与恢复。 */
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { ROOT } from '../load-sb.mjs';
 
-/* 花括号配对抽取函数体（忽略字符串/注释里的括号——本函数体内无字符串常量含裸 {}）。 */
-function extractFunctionBody(src, signature) {
-  const start = src.indexOf(signature);
-  if (start < 0) return null;
-  const open = src.indexOf('{', start + signature.length - 1);
-  if (open < 0) return null;
-  let depth = 0;
-  for (let i = open; i < src.length; i++) {
-    const c = src[i];
-    if (c === '{') depth++;
-    else if (c === '}') {
-      depth--;
-      if (depth === 0) return src.slice(open + 1, i);
+function fixture(script) {
+  const pending = new Map(), elements = new Map(), messages = [];
+  const stats = { moons: 0, overview: 0, flights: 0 };
+  let requestID = 0, now = 0, intersect;
+  function element(id) {
+    if (!elements.has(id)) {
+      const events = {};
+      elements.set(id, {
+        hidden: false, isConnected: true, dataset: {}, style: {},
+        classList: { toggle() {} },
+        addEventListener(type, callback) { events[type] = callback; },
+        click() { events.click?.(); },
+        querySelectorAll: () => []
+      });
     }
+    return elements.get(id);
   }
-  return null;
+  const localMap = element('local-map'), canvas = element('sm-system-canvas');
+  const europa = element('sm-europa');
+  europa.dataset = { period: '38000', phase: '1.3', rx: '250', ry: '138', tilt: '27' };
+  let left = '';
+  Object.defineProperty(europa.style, 'left', {
+    get: () => left,
+    set(value) { left = value; stats.moons++; }
+  });
+  const gradient = () => ({ addColorStop() {} });
+  canvas.getContext = () => new Proxy({
+    clearRect() { stats.overview++; },
+    quadraticCurveTo() { stats.flights++; },
+    createLinearGradient: gradient,
+    createRadialGradient: gradient
+  }, { get: (target, key) => target[key] || (() => {}) });
+  canvas.getBoundingClientRect = () => ({ width: 640, height: 430 });
+
+  const documentEvents = {}, windowEvents = {};
+  const document = {
+    hidden: false,
+    getElementById: element,
+    querySelector: selector => selector === '#sm-phase1 .sm-map' ? localMap : null,
+    querySelectorAll: selector => selector === '#sm-phase1 .sm-body[data-rx]' ? [europa] : [],
+    addEventListener(type, callback) { documentEvents[type] = callback; }
+  };
+  const host = { postMessage: data => messages.push(data) };
+  const window = {
+    parent: host,
+    addEventListener(type, callback) { windowEvents[type] = callback; }
+  };
+  vm.runInNewContext(script, {
+    window, document,
+    IntersectionObserver: class {
+      constructor(callback) { intersect = callback; }
+      observe() {}
+    },
+    ResizeObserver: class { observe() {} },
+    requestAnimationFrame(callback) {
+      const id = ++requestID;
+      pending.set(id, callback);
+      return id;
+    },
+    cancelAnimationFrame(id) { pending.delete(id); }
+  }, { filename: 'star-map-frame.html' });
+
+  function update(data) { windowEvents.message({ source: host, data }); }
+  return {
+    stats, pending, europa, messages,
+    view: () => window._smGetView(),
+    click: id => element(id).click(),
+    setActive(active, powerSave = false) { update({ type: 'sb-star-map-active', active, powerSave }); },
+    setSails(sunSails, era = 9) {
+      update({ type: 'sb-spacecraft', era, sunSails, launchpads: { terra: 1 } });
+    },
+    setIntersecting(view, visible) {
+      const target = view === 'phase2' ? canvas : localMap;
+      intersect([{ target, isIntersecting: visible, intersectionRatio: visible ? 0.5 : 0 }]);
+    },
+    setHidden(hidden) {
+      document.hidden = hidden;
+      documentEvents.visibilitychange();
+    },
+    tick(hz, count = 1) {
+      for (let i = 0; i < count; i++) {
+        now += 1000 / hz;
+        for (const id of [...pending.keys()]) {
+          const callback = pending.get(id);
+          if (!callback) continue;
+          pending.delete(id);
+          callback(now);
+        }
+      }
+    }
+  };
 }
 
-export function run({ SB, check }) {
-  console.log('\n=== 星图动画：高刷屏死锁回归 ===');
-  const framePath = path.join(ROOT, 'src/ui/star-map-frame.html');
-  const src = fs.readFileSync(framePath, 'utf8');
-  const body = extractFunctionBody(src, 'function animate(now)');
+export function run({ check }) {
+  console.log('\n=== 星图动画启停与高刷回归 ===');
+  const source = fs.readFileSync(path.join(ROOT, 'src/ui/star-map-frame.html'), 'utf8');
+  const runtime = /<script id="star-map-runtime">([\s\S]*?)<\/script>/.exec(source)?.[1];
+  const entry = /<script id="star-map-frame-entry">([\s\S]*?)<\/script>/.exec(source)?.[1];
+  check('星图动画：读取生产运行时和 iframe 入口', !!runtime && !!entry);
+  if (!runtime || !entry) return;
 
-  check('星图动画：能从生产 HTML 抽到 animate 函数体', !!body && body.length > 200,
-    'body=' + (body ? body.length : 'null'));
-  if (!body) return;
+  const f = fixture(runtime + '\n' + entry);
+  f.setIntersecting('phase1', true);
+  check('星图动画：iframe 等待宿主启用', f.pending.size === 0 && f.messages[0]?.type === 'sb-star-map-ready');
+  f.setActive(true);
+  f.tick(120, 120);
+  check('星图动画：120Hz 下卫星视图连续绘制并限于 60fps',
+    f.pending.size === 1 && f.stats.moons === 60 && f.europa.style.left.startsWith('calc(50%'),
+    'draws=' + f.stats.moons);
+  const moonDraws = f.stats.moons;
+  f.setActive(true, true);
+  f.tick(120, 120);
+  check('星图动画：切换省电模式后以 30fps 绘制', f.stats.moons - moonDraws === 30);
+  const originalRequest = f.pending.keys().next().value;
+  for (let i = 0; i < 5; i++) f.setActive(true);
+  check('星图动画：重复启用沿用原回调', f.pending.size === 1 && f.pending.has(originalRequest));
+  f.setActive(false);
+  check('星图动画：切离页签立即取消排帧', f.pending.size === 0);
 
-  /* 判据 1（机制锁）：rAF 调度必须出现在所有早退 return 之前。
-   * 直接抽函数体文本判「首个语句是 requestAnimationFrame(animate)」——
-   * 这条锁住"再把 rAF 挪回末尾"的复发，比行为测试更早、更稳。 */
-  const firstNonSpace = body.trimStart();
-  const rafStartsFirst = /^requestAnimationFrame\(\s*animate\s*\)\s*;/.test(firstNonSpace);
-  check('星图动画：rAF 调度在 animate 开头（三个早退之前）', rafStartsFirst,
-    'first=' + firstNonSpace.slice(0, 70));
-  const rafCount = (body.match(/requestAnimationFrame\(\s*animate\s*\)/g) || []).length;
-  check('星图动画：animate 体内 rAF 调度恰好 1 次（开头，无末尾重复）', rafCount === 1,
-    'count=' + rafCount);
+  f.setActive(true);
+  const afterResume = f.stats.moons;
+  f.tick(60, 6);
+  check('星图动画：切回卫星视图继续绘制', f.stats.moons === afterResume + 6);
+  f.setSails(40);
+  check('星图动画：解锁总览时取消卫星回调，等待总览画布可见',
+    f.view() === 'phase2' && f.pending.size === 0);
+  f.setIntersecting('phase2', true);
+  f.setSails(40);
+  const phase1Draws = f.stats.moons;
+  f.tick(60, 6);
+  check('星图动画：总览可见时只绘制总览',
+    f.pending.size === 1 && f.stats.overview === 6 && f.stats.moons === phase1Draws);
 
-  /* 判据 2（行为锁）：在 120Hz 帧间隔下跑真实函数体，链条必须持续。
-   * 受控环境：rAF 只登记回调不自动跑；外部按 step 推进 now 驱动。 */
-  function runAtHz(hz) {
-    const step = 1000 / hz;
-    const FRAME_MIN = 1000 / 60;
-    let last = 0, _lastDraw = 0, frames = 0, drew = 0;
-    let pending = null;
-    const raf = (cb) => { pending = cb; frames++; };
-    const canvases = []; // 真实函数体对 canvases.forEach 调用；空数组即可
-    /* 假元素带真实天体 dataset：period/phase/rx/ry/tilt 与生产 HTML 一致，
-     * 否则 Number(undefined) 产出 NaN，会把 left 写成 calc(50% + NaNpx) 假警报。 */
-    const bodyEl = {
-      style: { left: '', top: '', zIndex: '' },
-      dataset: { period: '38000', phase: '1.3', rx: '250', ry: '138', tilt: '27' }
-    };
-    const markerEl = {
-      style: { left: '', top: '', zIndex: '' },
-      dataset: { period: '4200', phase: '0' }
-    };
-    const documentStub = {
-      hidden: false,
-      querySelectorAll(sel) {
-        if (String(sel).indexOf('sm-body') >= 0) return [bodyEl];
-        if (String(sel).indexOf('marker') >= 0) return [markerEl];
-        return [];
-      }
-    };
-    const offsets = new WeakMap();
-    const drawPlanet = () => {};
-    const context = vm.createContext({
-      requestAnimationFrame: raf, document: documentStub, canvases, offsets,
-      _drawPlanetSphere: drawPlanet, FRAME_MIN, Math, Number, String
-    });
-    /* 包装成具名函数 animate，使函数体内的 requestAnimationFrame(animate) 自引用成立；
-     * last/_lastDraw 用 let 声明在同一闭包作用域，保证跨帧可变、与生产一致。 */
-    const wrapper = new vm.Script(
-      '(function(){let last=0,_lastDraw=0;return function animate(now){' + body + '\n};})()'
-    ).runInContext(context);
-    // 先登记首帧
-    wrapper(0);
-    let t = 0;
-    // 最多推进 60 帧；每次取出 pending 回调并用递增 now 调用
-    for (let i = 0; i < 60 && pending; i++) {
-      const cb = pending; pending = null;
-      t += step;
-      cb(t);
-    }
-    // 天体位置被设置过 = 至少画过一帧（left 形如 calc(50% + ...px)）
-    drew = /calc\(50%/.test(bodyEl.style.left) ? frames : 0;
-    return { frames, drew, bodyLeft: bodyEl.style.left };
+  f.setSails(44);
+  f.tick(60);
+  check('星图动画：可见时收到新增太阳帆会绘制发射轨迹', f.stats.flights === 1);
+  f.setIntersecting('phase2', false);
+  check('星图动画：画布滚出视口后立即取消排帧', f.pending.size === 0);
+  f.setSails(60);
+  f.tick(60, 120);
+  const visibilityReports = f.messages.filter(d => d.type === 'sb-star-map-visible').length;
+  f.setIntersecting('phase2', true);
+  f.setSails(70);
+  f.tick(60, 6);
+  check('星图动画：滚回时请求当前进度，隐藏期间的发射不补播',
+    f.messages.filter(d => d.type === 'sb-star-map-visible').length === visibilityReports + 1 &&
+    f.stats.overview === 13 && f.stats.flights === 1);
+
+  f.setHidden(true);
+  check('星图动画：文档进入后台后取消排帧', f.pending.size === 0);
+  f.setHidden(false);
+  check('星图动画：文档恢复时继续绘制总览',
+    f.pending.size === 1 && f.pending.values().next().value.name === '_smFrame');
+  f.click('sm-crumb-saturn');
+  for (let i = 0; i < 5; i++) {
+    f.setActive(false);
+    f.setActive(true);
   }
+  f.setSails(78);
+  check('星图动画：反复切页后只保留一个卫星回调，刷新存档时保留视图',
+    f.view() === 'phase1' && f.pending.size === 1 && f.pending.values().next().value.name === 'animate');
 
-  const hz120 = runAtHz(120);
-  check('星图动画：120Hz 下 rAF 链条持续（非 1 帧即死锁）', hz120.frames >= 50,
-    'frames=' + hz120.frames);
-  check('星图动画：120Hz 下天体位置被真实设置（left=calc(50% + ...)）',
-    /calc\(50%/.test(hz120.bodyLeft), 'left=' + JSON.stringify(hz120.bodyLeft));
-
-  const hz60 = runAtHz(60);
-  check('星图动画：60Hz 下同样持续调度（未破坏原路径）', hz60.frames >= 50,
-    'frames=' + hz60.frames);
-
-  /* 判据 3（cache-buster）：改过的 iframe 必须 bump ?v=10，否则玩家拿旧缓存仍坏。 */
-  const paneSrc = fs.readFileSync(path.join(ROOT, 'src/ui/render-pane-star-map.js'), 'utf8');
-  check('星图动画：iframe 引用已 bump 到 ?v=10',
-    paneSrc.indexOf('star-map-frame.html?v=10') >= 0 && paneSrc.indexOf('?v=9') < 0,
-    'has v10=' + (paneSrc.indexOf('?v=10') >= 0));
+  const pane = fs.readFileSync(path.join(ROOT, 'src/ui/star-map-iframe.js'), 'utf8');
+  const version = Number(/star-map-frame\.html\?v=(\d+)/.exec(pane)?.[1]);
+  check('星图动画：iframe 地址带新缓存版本', version >= 11, 'v=' + version);
 }

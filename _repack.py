@@ -1,27 +1,29 @@
-"""重打 TapTap 上传包 rc03（壳厚 10w → 50w 后）。
-
-包结构硬规范（rc01 解析失败实证）：
-  解压后必须**只有一个文件夹**，index.html 在那一层里。
-判据两条：
-  ① 顶层条目数 == 1，且下一层有 index.html
-  ② **真解压到 %TEMP% 再 listdir** —— 不信任 zip 目录表
-"""
+"""构建 TapTap 单目录上传包，解压成品并校验入口、运行素材与平台约束。"""
+import argparse
+import json
+import subprocess
+from pathlib import Path
 import os
 import shutil
+import tempfile
 import zipfile
 
-SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
-OUT = os.environ.get('SB_TAPTAP_OUT',
-    r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc34-v1.0.7.zip')
+_PARSER = argparse.ArgumentParser(add_help=False)
+_PARSER.add_argument('--repo')
+_PARSER.add_argument('--src')
+_PARSER.add_argument('--out')
+_ARGS, _ = _PARSER.parse_known_args()
+
+REPO = os.path.abspath(_ARGS.repo or os.environ.get('SB_REPO') or os.path.dirname(os.path.abspath(__file__)))
+stage_path = _ARGS.src or os.environ.get('SB_TAPTAP_SRC')
+stage_tmp = None if stage_path else tempfile.TemporaryDirectory(prefix='shellbreak-taptap-stage-')
+SRC = os.path.abspath(stage_path or os.path.join(stage_tmp.name, 'shellbreak'))
+OUT = os.path.abspath(_ARGS.out or os.environ.get('SB_TAPTAP_OUT') or os.path.join(REPO, 'dist', 'taptap', 'Shellbreak-TapTap.zip'))
 TOP = 'shellbreak'
 
-# ---------- 打包前：自动同步源码 → 包目录 ----------
-#⚠️ 2026-10-07 教训：包目录是**拷贝**，只改 src/ 会打出旧代码（壳厚 500000 那次差点踩）。
-#   封包前无条件从仓库根重新同步，不靠人记得手动 cp。
-REPO = r'D:/shellbreak'
 os.makedirs(SRC, exist_ok=True)
 def _sync_tree(src, dst):
-    """增量同步：逐文件删除 dst 中源已不存在的文件(规避 safe-delete 批量删除阈值)，再覆盖复制。"""
+    """同步到打包暂存目录，并移除源中已不存在的文件。"""
     if os.path.isdir(dst):
         for root, dirs, files in os.walk(dst, topdown=False):
             for fn in files:
@@ -54,30 +56,10 @@ if os.path.isfile(_AI_TOOL):
 assert not os.path.exists(_AI_TOOL), '包内 ai-player.js 没排干净（会被扫成联网功能）'
 print('已排除未被 index.html 引用的 src/ai-player.js（含死 fetch）')
 
-# ---------- 运行时素材 ----------
-# ⚠️ 2026-10-26 修复（严重的静默缺图）：原脚本只同步 tech-icons / civic-icons 两个子树，
-#   导致包内 assets 只有 4 个目录（backgrounds/tech-icons/civic-icons/wonders），
-#   而实际被引用的还有 fonts（标题字体 Ma_Shan_Zheng）、building-icons（69 处）、
-#   resource-icons（34 处）、achievements（22 处）、ui-era、talent-icons、challenges、
-#   company-icons、brand、dyson —— 线上是 404 缺图，而封包断言只查 config.js 文本、
-#   完全查不出来。改为按白名单遍历，**排除 assets/store（66M 本地商店素材，不上传）**。
+# 源码可以引用的运行素材目录，成品校验也使用这份清单。
 ASSET_DIRS = ['achievements', 'audio', 'backgrounds', 'brand', 'building-icons', 'challenges',
               'civic-icons', 'company-icons', 'dyson', 'faith-tenets', 'fonts', 'resource-icons',
               'talent-icons', 'tech-icons', 'ui', 'ui-era', 'veil', 'war', 'wonders']
-# ⚠️ 2026-11-18 新增 veil（硅基承续十部位图 organ-01~10.webp + 三道门徽，见 veil-hub-ui.js）
-#    与 ui（科技/市政树纪元边框 tech-frames/frame-1~6.png，见 50-module-polish.css）。
-#    两者漏进白名单 = 反向守卫拦下封包 / 线上装配台部位图与纪元边框全 404。这是继信条、
-#    战争之后同类事故的正确修法：补白名单，不放宽守卫。
-#    （ui 的引用在 acf759cb 已入库但未发版，rc54 首次打包才暴露；素材是 git-tracked 真运行时资源。）
-# ⚠️ 2026-10-31 新增 audio（BGM 压缩包，见 src/audio.js + CFG.AUDIO）。漏进白名单 = 线上静默缺音乐，
-#    与 2026-10-26「静默缺图」同类事故：封包断言只查 config 文本，查不出缺整个文件夹。
-# ⚠️ 2026-11-09 新增 faith-tenets（31 张信条图标 / 0.9 MB，见 src/faith.js + docs/FAITH_TENET_ICONS.md）。
-#    11-06 信条系统入库时漏登记本白名单 ⇒ rc43~rc47 五个包全部缺整个目录、31 个图标全 404；
-#    玩家看到「图标一直闪」（renderPanes 每 2 秒整块重写 innerHTML，img 反复重建反复 404）。
-#    这是 10-26 的同构复发第二次，光加白名单只修当前一次，下方守卫已同步改成反向校验。
-# ⚠️ 2026-11-12 新增 war（7 张敌国肖像，见 src/ui/render-pane-war.js:36 enemyPortraitUrl）。
-#    战争系统 11-11 入库时又漏登记本白名单 ⇒ 反向校验会当场拦下封包（rc49 之前没打过含战争的包）。
-#    这是同构复发第三次：反向守卫正确报错，修法是补白名单，不是放宽守卫。
 for _d in ASSET_DIRS:
     _sync_tree(os.path.join(REPO, 'assets', _d), os.path.join(SRC, 'assets', _d))
 print('已自动同步 assets/ 的 %d 个子树 -> 包目录（store 本地素材除外）' % len(ASSET_DIRS))
@@ -185,22 +167,22 @@ assert 'if (SB.onboarding && SB.onboarding.start) SB.onboarding.start(S);' in _g
 assert 'maybeTabUnlockPopups(S);' in _gm, '包内 game.js 的解锁叙事自动弹没接回去'
 
 _cfg = _read('src/config.js')
-assert "VERSION: 'Ver1.3.1'" in _cfg, '包内 config.js 版本号不是 Ver1.3.1'
+assert "VERSION: 'Ver1.3.2'" in _cfg, '包内 config.js 版本号不是 Ver1.3.2'
 
 # ---------- 更新日志本地化守卫（2026-11-06） ----------
 # CFG.CHANGELOG 的 items 已全部改成 i18n 语义 key：中文基准在
 # src/locales/zh-CN.js（进 TapTap 包），英文在 electron/locales/en-US.js
 #（Electron 专属，按规范不进包，故从 REPO 读）。旧守卫逐字搜中文串，
 # key 化后必然失效，这里改成「结构 + key + 双语资源」四重校验：
-#   ① 26 个版本都在（Ver1.3.1 + Ver1.3.0 + Ver1.2.4 + Ver1.2.3 + Ver1.2.2 + Ver1.2.1 + Ver1.2.0 + Ver1.1.1 + Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
-#   ② 恰 155 条语义 key、互不重复；
-#   ③ 包内 zh-CN 与仓库 en-US 都含这 155 个 key 且译文非空；
+#   ① 27 个版本都在（Ver1.3.2 + Ver1.3.1 + Ver1.3.0 + Ver1.2.4 + Ver1.2.3 + Ver1.2.2 + Ver1.2.1 + Ver1.2.0 + Ver1.1.1 + Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
+#   ② 共 164 条语义 key，互不重复；
+#   ③ 包内 zh-CN 与仓库 en-US 均含全部条目且译文非空；
 #   ④ 中英文都没有未烘焙的 {placeholder}，且废弃的机械 key 不再被引用。
 import re as _re
 import json as _json
 
 # Ver1.0.18 / Ver1.0.19 只封包、从未上线，已收编进 Ver1.1.0 段，不再作为独立段存在。
-_expected_versions = ['Ver1.3.1', 'Ver1.3.0', 'Ver1.2.4', 'Ver1.2.3', 'Ver1.2.2', 'Ver1.2.1', 'Ver1.2.0', 'Ver1.1.1', 'Ver1.1.0'] + ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
+_expected_versions = ['Ver1.3.2', 'Ver1.3.1', 'Ver1.3.0', 'Ver1.2.4', 'Ver1.2.3', 'Ver1.2.2', 'Ver1.2.1', 'Ver1.2.0', 'Ver1.1.1', 'Ver1.1.0'] + ['Ver1.0.%d' % _n for _n in range(17, 0, -1)]
 for _v in _expected_versions:
     assert "v: '%s'" % _v in _cfg, '包内 config.js 更新日志缺 %s 条目' % _v
 
@@ -223,8 +205,9 @@ _chg_code = _re.sub(r'//[^\n]*', '', _chg_code)
 assert not _re.search(r'[\u4e00-\u9fff]', _chg_code), \
     '包内 config.js 的 CHANGELOG 仍残留中文硬编码条目（应先登记再引用 key）'
 _chg_keys = _re.findall(r"'((?:changelog|ui\.footer)\.[a-z0-9_.]+)'", _chg_body)
-assert len(_chg_keys) == 155, '包内 config.js 更新日志 key 数应为 155，实为 %d' % len(_chg_keys)
-assert len(set(_chg_keys)) == 155, '包内 config.js 更新日志有重复 key'
+_expected_changelog_keys = 164
+assert len(_chg_keys) == _expected_changelog_keys, '包内 config.js 更新日志 key 数应为 %d，实为 %d' % (_expected_changelog_keys, len(_chg_keys))
+assert len(set(_chg_keys)) == len(_chg_keys), '包内 config.js 更新日志有重复 key'
 
 def _strip_js_block_comments(_txt):
     """词库是 JS 对象字面量，允许 /* */ 注释；json.loads 不接受。
@@ -296,7 +279,7 @@ for _old_key in ['ui.render.anonymous_function.leaderboard',
 for _new_key in ['ui.footer.leaderboard_button', 'ui.footer.changelog_button']:
     assert _new_key in _idx, '包内 index.html 缺页脚语义 key: ' + _new_key
 assert '活动礼包码直接领取' not in _cfg, '包内 config.js 仍残留礼包码那条公开日志（用户要求删）'
-print('更新日志本地化守卫: OK (26 版本 / 155 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
+print('更新日志本地化守卫: OK (%d 版本 / %d key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)' % (len(_expected_versions), len(_chg_keys)))
 
 # ---------- 存档诊断 + 三个 P0（2026-10-29 / Ver1.0.4）----------
 # 这一批全是「玩家报存档没了」的对策，任何一条漏进包里都等于白改，所以逐条钉死。
@@ -494,7 +477,7 @@ def _assert_assets(_src_root, _whitelist):
     写成具名函数，便于 tmp/ 下的探针直接 exec 生产函数本体做回归，不复制逻辑。"""
     import os as _os, re as _re, glob as _glob
     _src_files = []
-    for _pat in ('index.html', 'src/**/*.js', 'src/**/*.html', 'css/**/*.css'):
+    for _pat in ('index.html', 'app.min.js', 'src/**/*.js', 'src/**/*.html', 'css/**/*.css'):
         _src_files += _glob.glob(_os.path.join(_src_root, _pat), recursive=True)
     assert _src_files, '包内找不到待扫描的源码文件（assets 反向校验无法执行）'
     _ref_dirs = set()
@@ -533,7 +516,7 @@ print('素材检查: OK (白名单 %d 个子树 + 源码反向引用 %d 个目�
 #      ② 唯一白名单 = http(s)://www.w3.org/2000/svg（SVG 命名空间字符串，不是请求）；
 #      ③ 额外钉死自述字样：包里不许出现会让人以为存在联网能力的说明文本；
 #      ④ tap.* 平台服务 API 只**清点并打印**，不作失败判据（官方口径不算联网游戏）。
-#    收紧 CSP 时仍别把 'unsafe-inline' / blob: data: 删掉 —— 星图有 6 段内联 <script>，
+#    收紧 CSP 时仍别把 'unsafe-inline' / blob: data: 删掉 —— 星图使用内联 <script>，
 #    删掉就是 iframe 白屏。
 import re as _re
 _FETCH_B = _re.compile(rb'\bfetch\s*\(')
@@ -542,16 +525,6 @@ _SELF_TELL_B = _re.compile(r'联网功能|ICP\s*核准|静态扫描|网络请求
 _TAP_NET_B = _re.compile(
     rb'\b(?:root\.)?tap\.(getCloudSaveManager|createAchievementManager|'
     rb'createRewardedVideoAd|getLeaderboardManager)')
-# ---------- 包体剔除：assets 下的开发文档（.md 文案/填报清单，非运行时资源）----------
-# ⚠️ 2026-11-08：assets/achievements 里混入了 3 份开发文档（Steam 成就填报清单 / 填报清单 /
-#   成就文案），它们不是游戏运行时资源，却被 ASSET_DIRS 白名单整体 sync 进包；其中
-#   Steam成就填报清单_v0.1.md 含 partner.steamgames.com 外部链接，触发「零外部特征」扫描。
-#   这些文档应归位到 docs/，此处仅从包体剔除（不动仓库文件）。
-for _ad in ('Steam成就填报清单_v0.1.md', '填报清单.md', '成就文案_v0.1.md'):
-    _adp = os.path.join(SRC, 'assets', 'achievements', _ad)
-    if os.path.isfile(_adp):
-        try: os.remove(_adp)
-        except OSError: pass
 # ⚠️ 2026-11-18：字体目录里的 OFL 许可证 txt（含 github / scripts.sil.org 外部 URL）不是
 #    运行时资源（真正被引用的是 Ma_Shan_Zheng.woff2），却因 fonts 整目录白名单被同步进包，
 #    触发「零外部特征」扫描。许可证应留在仓库，仅从包体剔除所有 fonts/*.txt。
@@ -561,95 +534,82 @@ if os.path.isdir(_FONTS_DIR):
         if _fn.lower().endswith('.txt'):
             try: os.remove(os.path.join(_FONTS_DIR, _fn))
             except OSError: pass
-_net_hits, _self_hits, _tap_net_count = [], [], 0
-for _nroot, _ndirs, _nfiles in os.walk(SRC):
-    for _nfn in _nfiles:
-        _np = os.path.join(_nroot, _nfn)
-        with open(_np, 'rb') as _nf:
-            _blob = _nf.read()
-        _rel = os.path.relpath(_np, SRC).replace(os.sep, '/')
-        for _m in _FETCH_B.finditer(_blob):
-            _net_hits.append('%s@%d fetch(' % (_rel, _m.start()))
-        for _m in _EXTURL_B.finditer(_blob):
-            _sample = _blob[_m.start():_m.start() + 56].decode('latin1').split()[0]
-            _net_hits.append('%s@%d %s' % (_rel, _m.start(), _sample))
-        for _m in _SELF_TELL_B.finditer(_blob):
-            _self_hits.append('%s@%d %s' % (_rel, _m.start(), _m.group().decode('utf-8', 'replace')))
-        _tap_net_count += len(_TAP_NET_B.findall(_blob))
-assert not _net_hits, '包内仍有 fetch / 非白名单外部 URL：%s' % ', '.join(_net_hits[:8])
-assert not _self_hits, '包内仍有联网自述字样：%s' % ', '.join(_self_hits[:8])
+def _verify_network_features(directory):
+    _net_hits, _self_hits, _tap_net_count = [], [], 0
+    for _nroot, _ndirs, _nfiles in os.walk(directory):
+        for _nfn in _nfiles:
+            _np = os.path.join(_nroot, _nfn)
+            with open(_np, 'rb') as _nf:
+                _blob = _nf.read()
+            _rel = os.path.relpath(_np, directory).replace(os.sep, '/')
+            for _m in _FETCH_B.finditer(_blob):
+                _net_hits.append('%s@%d fetch(' % (_rel, _m.start()))
+            for _m in _EXTURL_B.finditer(_blob):
+                _sample = _blob[_m.start():_m.start() + 56].decode('latin1').split()[0]
+                _net_hits.append('%s@%d %s' % (_rel, _m.start(), _sample))
+            for _m in _SELF_TELL_B.finditer(_blob):
+                _self_hits.append('%s@%d %s' % (_rel, _m.start(), _m.group().decode('utf-8', 'replace')))
+            _tap_net_count += len(_TAP_NET_B.findall(_blob))
+    assert not _net_hits, '包内仍有 fetch / 非白名单外部 URL：%s' % ', '.join(_net_hits[:8])
+    assert not _self_hits, '包内仍有联网自述字样：%s' % ', '.join(_self_hits[:8])
+    return _tap_net_count
+
+_tap_net_count = _verify_network_features(SRC)
 _rd = _read('src/redeem.js')
 assert "api: ''" in _rd, '包内 redeem.js 缺平台通道下线锚点（可能又活了）'
 assert 'function platformReady() { return false; }' in _rd, '包内 redeem.js 的 platformReady 不是恒 false'
 _sm = _read('src/ui/star-map-frame.html')
 assert 'cdnjs.cloudflare.com' not in _sm and 'unpkg.com' not in _sm, '包内星图 CSP 又把 CDN 域名加回来了'
 assert "'unsafe-inline'" in _sm and 'blob: data:' in _sm, \
-    '包内星图 CSP 收紧过头：6 段内联脚本会被禁、iframe 白屏'
+    '包内星图 CSP 收紧过头：内联脚本会被禁、iframe 白屏'
 assert not os.path.exists(_AI_TOOL), '包内 ai-player.js 没排干净'
 print('包体零外部特征: OK (全文件类型 / 不剥注释 / fetch=0 / 非白名单URL=0 / 自述=0 '
       '/ 平台通道锚点 / CSP 必要指令 / ai-player 已排除 / tap 平台服务 %d 处仅清点)'
       % _tap_net_count)
 
-# ---------- 打包 ----------
-n = 0
-with zipfile.ZipFile(OUT, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-    for root, dirs, files in os.walk(SRC):
-        dirs.sort()
-        files.sort()
-        for fn in files:
-            p = os.path.join(root, fn)
-            rel = os.path.relpath(p, SRC).replace(os.sep, '/')
-            z.write(p, f'{TOP}/{rel}')
-            n += 1
-print(f'files = {n}  sizeKB = {round(os.path.getsize(OUT) / 1024, 1)}')
+# 从已执行渠道检查的源码合包，再从实际 ZIP 读取上传物并验收。
+out = Path(OUT)
+out.parent.mkdir(parents=True, exist_ok=True)
+with tempfile.TemporaryDirectory(prefix='shellbreak-taptap-', dir=out.parent) as work:
+    bundle = Path(work) / 'release'
+    subprocess.run(['node', os.path.join(REPO, 'scripts', 'build_web_release.mjs'),
+                    '--taptap', SRC, str(bundle)], check=True)
+    candidate = Path(work) / 'upload.zip'
+    with zipfile.ZipFile(candidate, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+        for entry in sorted(bundle.rglob('*')):
+            if entry.is_file():
+                archive.write(entry, TOP + '/' + entry.relative_to(bundle).as_posix())
 
-# ---------- 判据 ①：zip 目录表 ----------
-with zipfile.ZipFile(OUT) as z:
-    names = z.namelist()
-    tops = sorted({x.split('/')[0] for x in names})
-    print('①顶层 =', tops, 'count =', len(tops), '->', 'PASS' if len(tops) == 1 else 'FAIL')
-    print('  index.html =', [x for x in names if x.endswith('/index.html')])
-    print('  根下游离文件 =', [x for x in names if '/' not in x.rstrip('/')])
-    junk = [x for x in names if any(s in x for s in ('.DS_Store', 'assets/store/', 'shots/', '__MACOSX'))]
-    print('  垃圾条目 =', junk)
+    unpacked = Path(work) / 'unpacked'
+    with zipfile.ZipFile(candidate) as archive:
+        names = archive.namelist()
+        assert names and all(name.startswith(TOP + '/') for name in names), 'ZIP 顶层目录错误'
+        archive.extractall(unpacked)
+    root = unpacked / TOP
+    assert list(unpacked.iterdir()) == [root]
+    files = {p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file()}
+    assert len(files) == len(names)
+    assert {f for f in files if not f.startswith('assets/')} == {
+        'index.html', 'app.min.js', 'css/app.min.css', 'locales/zh-CN.min.js',
+        'locales/i18n.min.js', 'src/ui/star-map-frame.html'}, '渠道代码或语言包清单不符'
+    assert all(p.parts[1] in ASSET_DIRS for p in map(Path, files) if p.parts[0] == 'assets')
+    _assert_assets(str(root), ASSET_DIRS)
+    _verify_network_features(root)
 
-# ---------- 判据 ②：真解压 ----------
-TMP = os.path.join(os.environ['TEMP'], 'sb-rc03-unzip-verify')
-if os.path.isdir(TMP):
-    shutil.rmtree(TMP)
-os.makedirs(TMP)
-with zipfile.ZipFile(OUT) as z:
-    z.extractall(TMP)
-entries = os.listdir(TMP)
-dirs = [e for e in entries if os.path.isdir(os.path.join(TMP, e))]
-files = [e for e in entries if os.path.isfile(os.path.join(TMP, e))]
-print('② 解压根下 =', entries, '文件夹 =', dirs, '游离文件 =', files)
-print('  ->', 'PASS' if len(dirs) == 1 and not files else 'FAIL')
-
-root = os.path.join(TMP, dirs[0])
-inner = sorted(os.listdir(root))
-print('  该层内容 =', inner)
-print('  index.html 在里面 ->', 'PASS' if 'index.html' in inner else 'FAIL')
-
-total = sum(len(f) for _, _, f in os.walk(root))
-print('  解压后文件总数 =', total, '(打包写入 %d)' % n, '->', 'PASS' if total == n else 'FAIL')
-
-# ---------- 判据 ③：解压出来的壳厚必须是 50 万、广告位必须已回填 ----------
-with open(os.path.join(root, 'src', 'config.js'), encoding='utf-8') as f:
-    lines = [ln.strip() for ln in f]
-got = [ln for ln in lines if 'ICE_SHELL:' in ln]
-print('③ 解压后 config.js 壳厚 =', got, '->', 'PASS' if 'ICE_SHELL: 500000' in got[0] else 'FAIL')
-sid = [ln for ln in lines if 'SPACE_ID:' in ln]
-print('   解压后 AD.SPACE_ID   =', sid,
-      '->', 'PASS' if sid and "'1054324'" in sid[0] else 'FAIL')
-
-# ---------- 判据 ④：解压后的 index.html 不能带手动倍速、必须带广告控件 ----------
-with open(os.path.join(root, 'index.html'), encoding='utf-8') as f:
-    idx2 = f.read()
-print('④ 解压后 data-spd 数量  =', idx2.count('data-spd'), '->', 'PASS' if 'data-spd' not in idx2 else 'FAIL')
-print('   解压后广告控件 btnAd  =', 'PASS' if 'id="btnAd"' in idx2 else 'FAIL')
-print('   解压后 config 版本号  =',
-      [ln.strip() for ln in idx2.split('\n') if 'src/config.js?v=' in ln])
-
-shutil.rmtree(TMP)
-print('\n临时验证目录已清理')
+    html = (root / 'index.html').read_text(encoding='utf-8')
+    assert 'data-spd' not in html and 'id="btnAd"' in html
+    references = _re.findall(r'<script\s+src="([^"?]+)(?:\?[^"]*)?"', html)
+    assert references == ['locales/zh-CN.min.js', 'locales/i18n.min.js', 'app.min.js']
+    assert _re.search(r'href="css/app\.min\.css\?v=[0-9a-f]+"', html)
+    verify_config = """
+        const fs = require('node:fs'), vm = require('node:vm');
+        const state = {document: {readyState: 'loading', addEventListener() {},
+          getElementById() {return null}, querySelector() {return null}, querySelectorAll() {return []}}};
+        state.window = state;
+        for (const path of process.argv.slice(1)) vm.runInNewContext(fs.readFileSync(path, 'utf8'), state);
+        console.log(JSON.stringify([state.SB.CFG.ICE_SHELL, state.SB.CFG.AD.SPACE_ID]));
+    """
+    config = subprocess.check_output(['node', '-e', verify_config, *references], cwd=root, text=True)
+    assert json.loads(config) == [500000, '1054324'], '合包游戏配置与渠道配置不符'
+    os.replace(candidate, out)
+print(f'TapTap ZIP 验收通过：{out}，{len(files)} 个文件，{out.stat().st_size:,} 字节')

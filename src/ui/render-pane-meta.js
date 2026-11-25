@@ -75,6 +75,9 @@
   function englishLocale() {
     return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
   }
+  function nonDefaultLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN');
+  }
   function snakeCase(value) {
     return String(value || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
   }
@@ -93,17 +96,18 @@
   function perkLocaleKey(perk, field) {
     var nameKey = perkNameKey(perk && perk.name) || ('prestige.tide_tree.' + snakeCase(perk && perk.id) + '.name');
     if (field === 'name') return nameKey;
+    var active = SB.i18n && SB.i18n.getLocale && root.ShellbreakLocales && root.ShellbreakLocales[SB.i18n.getLocale()] || {};
     var en = root.ShellbreakLocales && root.ShellbreakLocales['en-US'] || {};
     var direct = nameKey.replace(/\.name$/, '.description');
-    if (typeof en[direct] === 'string') return direct;
+    if (typeof active[direct] === 'string' || typeof en[direct] === 'string') return direct;
     return 'prestige.tide_tree.' + snakeCase(perk && perk.id) + '.description';
   }
   function localizedPerkName(perk) {
-    if (!perk || !englishLocale()) return perk ? perk.name : '';
+    if (!perk || !nonDefaultLocale()) return perk ? perk.name : '';
     return tr(perkLocaleKey(perk, 'name'), null, perk.name);
   }
   function localizedPerkDescription(perk, state, meta) {
-    if (!perk || !englishLocale()) return perk ? perk.desc : '';
+    if (!perk || !nonDefaultLocale()) return perk ? perk.desc : '';
     var key = perkLocaleKey(perk, 'description'), special = {};
     if (perk.id === 'autoClick') special.clickRate = Math.min(perk.n || 1, Math.max(1, (state && state.lv) || 0));
     if (perk.dyn === 'loop5') {

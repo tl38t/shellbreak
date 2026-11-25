@@ -12,13 +12,21 @@
   --red:#ff5f6d; --green:#4ade80; --violet:#a78bfa;
 }
 *{box-sizing:border-box}
+:root{
+  --font-ui:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",sans-serif;
+  --font-display-zh:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong",Georgia,serif;
+  --font-display-en:"Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif;
+  --font-mono:ui-monospace,"SFMono-Regular","Cascadia Mono",Menlo,Consolas,monospace;
+}
 body{
   margin:0;background:var(--bg);color:var(--txt);
-  font:14px/1.5 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font:14px/1.5 var(--font-ui);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
 .wrap{max-width:1080px;margin:0 auto;padding:16px}
-h1{font-size:19px;margin:0 0 2px;letter-spacing:2px}
-h1 small{font-size:12px;color:var(--dim);letter-spacing:0}
+h1{font-family:var(--font-display-zh);font-size:19px;margin:0 0 2px;letter-spacing:.12em}
+html[lang^="en"] h1{font-family:var(--font-display-en);letter-spacing:.015em}
+h1 small{font-family:var(--font-ui);font-size:12px;color:var(--dim);letter-spacing:0}
 .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
@@ -34,7 +42,8 @@ h1 small{font-size:12px;color:var(--dim);letter-spacing:0}
 .res i.rate.down{color:var(--red)}
 /* 奢侈品行「产 X · 耗 Y」：小一号斜体（2026-10-05 用户拍板）——
  * 与 .cap 同字号但真斜体，颜色比 rate 更淡：它是解释性注脚，不是主读数。 */
-.res i.sd{font-style:italic;font-size:10px;color:var(--dim);margin-left:5px;font-variant-numeric:tabular-nums}
+.res i.sd{font-style:normal;font-size:11px;color:var(--dim);margin-left:5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.res i.sd .lux-out,.res i.sd .lux-burn{display:inline;min-height:0;font-size:inherit;font-weight:650;font-style:normal;line-height:inherit}
 /* ── 手机端 ⓘ 信息按钮（方案 C，2026-10-21 用户「补一个」）───────────────────────
  * 背景：奢侈品行那句长解释为了卡片等高收进了 `title` ⇒ 桌面 hover 能看到，**手机端没有入口**。
  * 规则（跨端约定，勿改）：

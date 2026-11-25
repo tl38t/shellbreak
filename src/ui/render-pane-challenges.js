@@ -20,9 +20,6 @@
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params || {}) : '';
     return value || fallback || '';
   }
-  function englishLocale() {
-    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
-  }
   function definitionId(id) {
     return id === 'waterpollution' ? 'water_pollution' : id;
   }
@@ -44,8 +41,8 @@
     } else if (field === 'summary' || field === 'rule') {
       key = 'challenge.definition.' + id + '.' + field;
       fallback = def[field] || '';
-      if (def.id === 'science' && !englishLocale()) {
-        var scribeName = SB.folk.jobName(SB.game.run(), 'scribe');
+      if (def.id === 'science') {
+        var scribeName = SB.folk.localizedJobName(SB.game.run(), 'scribe');
         key = field === 'summary' ? 'ui.challenge.summary.science' : 'ui.challenge.rule.science';
         return tr(key, { scribeName: scribeName }, fallback);
       }
@@ -69,6 +66,7 @@
         return tr(key, { engineCount: 50, energyAmount: '50M' }, fallback);
       }
       if (def.id === 'three_launch_sites') key = 'challenge.definition.three_launch_sites.goal';
+      else if (def.id === 'conqueror') key = 'challenge.definition.conqueror.goalText';
       /* 飞升挑战系列（2026-11-20）：终点是研成《掀起帘幕》科技，不是戴森球/虚境飞升。
        * ⚠️ 必须在此拦截，否则会落进最后的 dyson_verge_ascent 分支显示「完成戴森球工程」。 */
       else if (def.id === 'veil_rush' || def.id === 'veil_abyss' || def.id === 'veil_starve'
@@ -78,7 +76,13 @@
         key = 'challenge.definition.goal.verge_ascent';
       else key = 'challenge.definition.goal.dyson_verge_ascent';
     } else if (field === 'tierLabel') {
-      fallback = def.tiers[tierIndex].label;
+      var tier = def.tiers[tierIndex];
+      fallback = tier.label;
+      if (tier.labelKey) return tr(tier.labelKey, {}, fallback);
+      if (def.tiers.length === 1) {
+        var namedTier = tr('challenge.definition.' + id + '.tier.label');
+        if (namedTier) return namedTier;
+      }
       var labels = {
         '完成挑战': 'challenge.definition.tier.complete',
         '第一档': 'challenge.definition.tier.tier_1',
@@ -89,10 +93,6 @@
         '8 小时档': 'challenge.definition.tier.8_hours',
         '4 小时档': 'challenge.definition.tier.4_hours',
         '星际远航': 'game.challenge.wandering_terra.tier1.name',
-        '海渊澄明': 'challenge.definition.water_pollution.tier.label',
-        '无政府纪元': 'challenge.definition.anarchy.tier.label',
-        '旧制永存': 'challenge.definition.good_old_days.tier.label',
-        '三地并举': 'challenge.definition.three_launch_sites.tier.label',
         '五倍永恒': 'challenge.definition.eternity_moment.tier_5',
         '十倍永恒': 'challenge.definition.eternity_moment.tier_10',
         '二十倍永恒': 'challenge.definition.eternity_moment.tier_20'
@@ -141,7 +141,6 @@
   function progressLine(s, api, def, tier) {
     var completed = tr('ui.challenge.progress.completed', {}, '挑战已达成 · 永久奖励已生效');
     if (s.challengeDone) return completed;
-    var scribeName = SB.folk.jobName(s, 'scribe');
     if (def.id === 'drift_terra') {
       var prereq = api.prereqState ? api.prereqState(def.id) : null;
       return tr('ui.challenge.progress.drift_terra', {
@@ -210,7 +209,7 @@
     if (def.id === 'science') return tr('ui.challenge.progress.science', {
       scholarCount: (s.jobs && s.jobs.scholar) || 0,
       tierCap: tier.cap,
-      scribeName: scribeName,
+      scribeName: SB.folk.localizedJobName(s, 'scribe'),
       scribeCount: (s.jobs && s.jobs.scribe) || 0
     }, '');
     if (def.id === 'small') return tr('ui.challenge.progress.small_country', {
@@ -270,9 +269,9 @@
     }
 
     h += '<section class="challenge-grid">';
+    var scribeName = SB.folk.localizedJobName(s, 'scribe');
     for (var i = 0; i < orderedList.length; i++) {
       var d = orderedList[i], done = api.tierDone(d.id, m), isActive = active && active.id === d.id;
-      var scribeName = SB.folk.jobName(s, 'scribe');
       var summary = definitionText(d, 'summary');
       var rule = definitionText(d, 'rule');
       var challengeName = definitionText(d, 'name');
@@ -288,9 +287,10 @@
           (d.tiers.length > 1 ? 'next_tier_available' : 'not_completed');
       var status = challengeStatus(statusKey);
       var goalText = definitionText(d, 'goalText');
+      var thumbSrc = d.badgeThumb || d.badge;
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
-      h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + d.badge + '" alt="">' +
-        (exhausted ? '<img class="challenge-completion-medal" src="assets/challenges/challenge-completion-medal-v1.png" alt="">' : '') + '</span>' +
+      h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + thumbSrc + '" alt="" loading="lazy" decoding="async">' +
+        (exhausted ? '<img class="challenge-completion-medal" src="assets/challenges/thumbs/challenge-completion-medal-v1.webp" alt="" loading="lazy" decoding="async">' : '') + '</span>' +
         '<div class="challenge-card-name"><h3>' + challengeName + '</h3><small>' + definitionText(d, 'kind') + ' · ' + summary + '</small></div>' +
         '<span class="challenge-status' + (exhausted ? ' done' : activeTimedOut ? ' failed' : isActive ? ' active' : gateBlocked ? ' locked' : '') + '">' + status + '</span></header>';
       h += '<div class="challenge-card-rule"><div class="challenge-rule-item"><small>' + tr('ui.challenge.run.restrictions', {}, '本轮限制') +
@@ -345,7 +345,7 @@
           }, '');
           var tierLabel = definitionText(d, 'tierLabel', ti);
           var tierHTML = '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? (activeTimedOut ? ' active failed' : ' active') : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
-            '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + d.badge + '" alt=""><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
+            '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + thumbSrc + '" alt="" loading="lazy" decoding="async"><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
             '<div><b>' + tierLabel + '</b><span>' + tierState + '</span></div><small>' + tierRule + '</small>' +
             '<em>' + tr('ui.challenge.reward.tier', {
               rewardDescription: definitionText(d, 'reward', ti)
@@ -355,7 +355,7 @@
         }
       h += '<details class="challenge-tier-details"' + (CHALLENGE_TIER_OPEN[d.id] ? ' open' : '') +
         ' ontoggle="SB.ui.renderParts.setChallengeTierOpen(\'' + d.id + '\',this.open)"><summary>' + focusTierHTML +
-          '<span class="challenge-tier-expand">' + tr('ui.challenge.tiers.expand', {}, '') + '</span></summary>' +
+          '<span class="challenge-tier-expand">' + tr('ui.challenge.tiers.expand', {}, '查看全部档位') + '</span></summary>' +
           '<div class="challenge-tiers">' + otherTierHTML + '</div></details>';
       } else {
         h += '<div class="challenge-reward"><small>' + tr('ui.challenge.reward.permanent', {}, '永久奖励') +
@@ -452,6 +452,12 @@
   }
   loadAchvFold();
 
+  var ACHV_LOCALE_SLUGS = {
+    challengeVeilNoFaith: 'challenge_veil_nofaith',
+    rebirth10: 'rebirth_10',
+    relic10: 'relic_10',
+    relic25: 'relic_25'
+  };
   function achievementText(def, field) {
     if (!def) return '';
     var property = field === 'title' ? 'name' : 'desc';
@@ -463,7 +469,7 @@
     }
     if (def.key === 'driftTerra' && field === 'title')
       return tr('challenge.definition.drift_terra.name', {}, fallback);
-    var slug = String(def.key || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+    var slug = ACHV_LOCALE_SLUGS[def.key] || String(def.key || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
     return tr('achievement.' + slug + '.' + field, {}, fallback);
   }
 
@@ -476,11 +482,11 @@
     var prog = earned ? null : progress;
     var title = achievementText(def, 'title'), description = achievementText(def, 'description');
     var icon = def.icon
-      ? '<img src="' + def.icon + '" alt="">'
+      ? '<img src="' + def.icon + '" alt="" loading="lazy" decoding="async">'
       : '<i class="achv-item-badge" aria-hidden="true">' + (def.bld ? '◈' : '★') + '</i>';
     var h = '<div class="achv-item' + (earned ? ' is-earned' : '') + (def.key === 'voidEnd' ? ' is-void-ending' : '') + '">';
     h += '<span class="achv-item-icon">' + icon + (earned
-      ? '<img class="achv-earned-medal" src="assets/achievements/achievement-earned-medal-v1.png" alt="" aria-hidden="true">'
+      ? '<img class="achv-earned-medal" src="assets/achievements/thumbs/achievement-earned-medal-v1.webp" alt="" loading="lazy" decoding="async" aria-hidden="true">'
       : '') + '</span>';
     h += '<div class="achv-item-body"><b>' + title + '</b><small>' + description + '</small>';
     if (prog) {

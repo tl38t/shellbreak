@@ -77,10 +77,14 @@ export async function run({ SB, check, makeDoc, loadAll, errors }) {
     sb.window = sb; sb.globalThis = sb;
     const d = makeDoc();
     d.readyState = 'loading';
-    let onReady = null;
-    d.addEventListener = (ev, fn) => { if (ev === 'DOMContentLoaded') onReady = fn; };
+    const onReady = [];
+    d.addEventListener = (ev, fn) => { if (ev === 'DOMContentLoaded') onReady.push(fn); };
     sb.document = d;
-    sb.__boot = () => { if (onReady) { const f = onReady; onReady = null; f(); } };
+    sb.__boot = () => {
+      if (!onReady.length) return;
+      d.readyState = 'complete';
+      onReady.splice(0, onReady.length).forEach(f => f());
+    };
     /* 只跑「当前这一代」定时器：poll 每跑一次会再排一个，一次全跑会死循环。 */
     sb.__flush = () => {
       const batch = q.splice(0, q.length);

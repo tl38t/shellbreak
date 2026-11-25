@@ -879,6 +879,26 @@ export function run({ SB, check, noop }) {
         'released=' + midRun.challengeReleased);
     }
     {
+      const raw = SB.state.freshRun(false);
+      raw.gov = 'theocracy';
+      raw.civics.mobilization = true;
+      raw.civics.void_faith = true;
+      raw.cards = ['card_heat_priority', 'card_cycle_terminus'];
+      raw.challenge = { id: 'anarchy', tier: 0 };
+      const active = SB.state.migrateRun(raw);
+      const single = SB.state.migrateRun({ ...raw, cards: undefined, card: 'card_heat_priority' });
+      check('进行中的安那其旧档卸下禁装卡并保留轮回之终末',
+        active.cards[0] === null && active.card === null && active.cards[1] === 'card_cycle_terminus' &&
+        single.cards[0] === null && single.card === null && SB.civic.cardHydroMul(active) === 1 &&
+        SB.civic.cardFaithAllProdDouble(active) === 2);
+
+      const completed = SB.state.migrateRun({ ...raw, challengeDone: true });
+      const other = SB.state.migrateRun({ ...raw, challenge: { id: 'pacifist', tier: 0 } });
+      const normal = SB.state.migrateRun({ ...raw, challenge: null });
+      check('安那其已结束、其它挑战与普通周目的政策卡维持原有效果',
+        [completed, other, normal].every(s => s.card === 'card_heat_priority' && SB.civic.cardHydroMul(s) === 2));
+    }
+    {
       /* 2026-11-03：水体污染 2026-11-02 实装时**漏了成就条目**（achv.js 无定义 + CFG.ACHV 无键
        * + 挑战定义无 onComplete）⇒ 通关能发奖励、能写 meta.challenges.completed，但成就墙与
        * 平台都不会亮。这里钉三处：定义存在、达成时写本地账本、CFG 里留了占位键。 */

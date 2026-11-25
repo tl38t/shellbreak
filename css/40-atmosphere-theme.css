@@ -337,7 +337,7 @@ html[data-era="1"][data-deep-bubbles="on"] .era1-bubbles { display:block; }
 .ui-setting-row input { flex:none; margin:3px 0 0; }
 .ui-setting-row span { display:grid; gap:2px; }
 .ui-setting-row b { color:var(--txt); font-size:12px; }
-.ui-setting-row small { color:var(--dim); font-size:10px; line-height:1.45; }
+.ui-setting-row small { color:var(--dim); font-size:11px; line-height:1.45; }
 .ui-setting-row--select { align-items:center; cursor:default; margin-top:4px; }
 /* 音乐段音量滑块（2026-10-31）：与 --select 同档「整行不可点、控件自己可拖」。
  * 滑块占满整行宽度，accent-color 跟随主题青色；窄屏下 min-width 保证仍可精细拖动。 */
@@ -394,5 +394,32 @@ html[data-ui-theme="day"] .era1-bubbles i { border-color:rgba(39,139,144,.28); b
 }
 @media (prefers-reduced-motion:reduce) {
   .era1-bubbles { display:none !important; }
+}
+html[data-power-save="on"] .atmosphere-scene {
+  animation:none !important;
+  transition:none !important;
+  filter:none !important;
+}
+html[data-power-save="on"] .era1-bubbles { display:none !important; }
+html[data-power-save="on"] body::before,
+html[data-power-save="on"] body::after,
+html[data-power-save="on"] .hydro-live i,
+html[data-power-save="on"] .tree-civic .technode.tree-node.open,
+html[data-power-save="on"] #pane-tech .tree-tech .technode.tree-node.open,
+html[data-power-save="on"] #pane-village .bld-row.void-altar.void-lv-3 .btn.buy::after,
+html[data-power-save="on"][data-era] .cardhd::before,
+html[data-power-save="on"][data-era] .cardhd::after,
+html[data-power-save="on"] .dyson-stage.is-current .dyson-stage-fill::after {
+  animation:none !important;
+}
+html[data-power-save="on"] .modal,
+html[data-power-save="on"] .intro-mask,
+html[data-power-save="on"] .modal.story-modal,
+html[data-power-save="on"] .modal.break-modal,
+html[data-power-save="on"] .modal.tree-modal,
+html[data-power-save="on"] .modal.gov-picker-modal,
+html[data-power-save="on"] .modal.void-ending-modal,
+html[data-power-save="on"] .void-dialog-scrim {
+  backdrop-filter:none !important;
 }
 

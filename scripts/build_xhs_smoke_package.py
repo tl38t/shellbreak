@@ -15,6 +15,8 @@ import zipfile
 from pathlib import Path
 from typing import Iterable
 
+from xhs_star_map import replace_index_script
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist" / "xiaohongshu"
@@ -123,7 +125,7 @@ def patch_references(package: Path, retained: set[str]) -> tuple[int, list[str]]
 
         text = ASSET_REFERENCE.sub(replace, text)
         if text != original:
-            path.write_text(text, encoding="utf-8", newline="")
+            path.write_bytes(text.encode("utf-8"))
 
     for path in package.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in {".html", ".js", ".css", ".json"}:
@@ -137,55 +139,29 @@ def patch_references(package: Path, retained: set[str]) -> tuple[int, list[str]]
 
 
 def patch_container_blockers(package: Path) -> dict[str, int]:
-    result = {"removedExtraHtml": 0, "removedStarMapTab": 0, "disabledStarMapIframe": 0, "removedStarMapPostMessageBranch": 0}
-    extra_html = package / "src" / "ui" / "star-map-frame.html"
-    if extra_html.exists():
-        extra_html.unlink()
-        result["removedExtraHtml"] = 1
-
-    tab_path = package / "index.html"
-    index_text = tab_path.read_text(encoding="utf-8")
-    index_text, result["removedStarMapTab"] = re.subn(
-        r"\s*<div class=\"tab locked\" id=\"tab-star-map\"[\s\S]*?</div>",
+    star_map_css = "css/xhs-star-map.css"
+    star_map_runtime = "src/ui/xhs-star-map.js"
+    index_path = package / "index.html"
+    index = index_path.read_text(encoding="utf-8")
+    index, stylesheets_removed = re.subn(
+        rf'<link\s+rel\s*=\s*"stylesheet"\s+href\s*=\s*"{re.escape(star_map_css)}(?:\?[^"]*)?"\s*/?>',
         "",
-        index_text,
-        count=1,
+        index,
     )
-    if result["removedStarMapTab"] != 1:
-        raise SystemExit("Could not remove the test-only star-map tab from the XHS package")
-    tab_path.write_text(index_text, encoding="utf-8", newline="")
-
-    game_path = package / "src" / "game.js"
-    game_text = game_path.read_text(encoding="utf-8")
-    old_gate = "if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;"
-    if old_gate not in game_text:
-        raise SystemExit("Could not safely reroute the unsupported star-map tab")
-    game_text = game_text.replace(old_gate, "if (k === 'star-map') k = 'village';", 1)
-    game_path.write_text(game_text, encoding="utf-8", newline="")
-
-    pane_path = package / "src" / "ui" / "render-pane-star-map.js"
-    pane_path.write_text(
-        "(function(root){'use strict';var SB=root.SB||(root.SB={});SB.ui=SB.ui||{};"
-        "var parts=SB.ui.renderParts||(SB.ui.renderParts={});parts.paneStarMap=function(){return '';};"
-        "})(window);\n",
-        encoding="utf-8",
-        newline="",
+    if stylesheets_removed != 1:
+        raise SystemExit("Expected one star-map stylesheet in the XHS smoke package")
+    index = replace_index_script(index, star_map_runtime, "")
+    index, tab_removed = re.subn(
+        r'\s*<div class="tab locked" id="tab-star-map"[\s\S]*?</div>',
+        "",
+        index,
     )
-    result["disabledStarMapIframe"] = 1
-
-    render_path = package / "src" / "ui" / "render.js"
-    render_text = render_path.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"      if \(k === 'star-map'\) \{[\s\S]*?(?=      \} else if \(k === 'folk')"
-    )
-    render_text, result["removedStarMapPostMessageBranch"] = pattern.subn(
-        "      if (k === 'star-map') {\n        node.innerHTML = cardHeadHTML(k);\n",
-        render_text,
-        count=1,
-    )
-    if result["removedStarMapPostMessageBranch"] != 1:
-        raise SystemExit("Could not safely remove the unsupported star-map iframe bridge")
-    render_path.write_text(render_text, encoding="utf-8", newline="")
+    if tab_removed != 1:
+        raise SystemExit("Could not remove the star-map tab from the XHS smoke package")
+    for file_name in (star_map_css, star_map_runtime):
+        (package / file_name).unlink()
+    index_path.write_bytes(index.encode("utf-8"))
+    result = {"removedStarMapTab": tab_removed, "removedStarMapAssets": 2}
 
     # Keep stale TapTap implementation notes from looking like active forbidden markup
     # to simple package scanners. These are comment-only edits in the test copy.
@@ -194,12 +170,12 @@ def patch_container_blockers(package: Path) -> dict[str, int]:
     error_text = error_text.replace("<script>", "script tag")
     error_text = error_text.replace("<iframe>", "embedded frame")
     error_text = error_text.replace("<img>", "image tag")
-    error_log.write_text(error_text, encoding="utf-8", newline="")
+    error_log.write_bytes(error_text.encode("utf-8"))
 
     render_content = package / "src" / "ui" / "render-content.js"
     content_text = render_content.read_text(encoding="utf-8")
     content_text = content_text.replace("onclick=\"SB.ui.openIntro('KEY')\"", "intro event key")
-    render_content.write_text(content_text, encoding="utf-8", newline="")
+    render_content.write_bytes(content_text.encode("utf-8"))
     return result
 
 
@@ -268,7 +244,7 @@ def main() -> None:
         "zipEntryCount": archive_count,
         "zipIntegrityError": bad_member,
         "rootIndexHtml": has_root_entry,
-        "visualScope": "Starter, resource, company, talent and selected UI art retained; optional and later-era illustrations use a shared placeholder. The star-map iframe feature is omitted in this test-only package.",
+        "visualScope": "Starter, resource, company, talent and selected UI art retained; optional and later-era illustrations use a shared placeholder. The Star Map is omitted in this test-only package.",
     }
     if file_count > MAX_PACKAGE_FILES:
         report["status"] = "failed-file-count"

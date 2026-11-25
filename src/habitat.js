@@ -100,16 +100,27 @@
     var tid = buildTechOf(bid);
     return !tid || !!s.techs[tid];
   }
+  function nonDefaultLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN');
+  }
   function techNameOf(tid) {
     if (!SB.TECHS) return null;
-    for (var i = 0; i < SB.TECHS.length; i++) if (SB.TECHS[i].id === tid) return SB.TECHS[i].name;
+    for (var i = 0; i < SB.TECHS.length; i++) {
+      if (SB.TECHS[i].id === tid) {
+        return nonDefaultLocale() ? tr('tech.' + tid + '.name', null, SB.TECHS[i].name) : SB.TECHS[i].name;
+      }
+    }
     return null;
   }
   /* 市政名（2026-09-28 · requiredCivic 的解锁理由要用）。与 techNameOf 同型：
    * 找不到返回 null —— 调用方会退化成显示 id，至少不会把 undefined 印给玩家看。 */
   function civicNameOf(cid) {
     if (!SB.CIVICS) return null;
-    for (var i = 0; i < SB.CIVICS.length; i++) if (SB.CIVICS[i].id === cid) return SB.CIVICS[i].name;
+    for (var i = 0; i < SB.CIVICS.length; i++) {
+      if (SB.CIVICS[i].id === cid) {
+        return nonDefaultLocale() ? tr('civic.data.' + cid + '.name', null, SB.CIVICS[i].name) : SB.CIVICS[i].name;
+      }
+    }
     return null;
   }
 
@@ -148,8 +159,11 @@
     var list = (co === true || !co) ? ['drift_terra'] : (typeof co === 'string' ? [co] : co);
     var names = [];
     for (var i = 0; i < list.length; i++) {
-      var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
-      names.push(c ? c.name : list[i]);
+      var id = list[i];
+      var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(id) : null;
+      var fb = c ? c.name : id;
+      var key = id === 'waterpollution' ? 'challenge.water_pollution.name' : ('challenge.definition.' + id + '.name');
+      names.push(nonDefaultLocale() ? tr(key, null, fb) : fb);
     }
     return names.join(' / ');
   }
@@ -193,16 +207,18 @@
   // 给 UI 用的解锁理由：为什么要灰掉
   function lockReason(s, b) {
     if (b.noChallenge && s && s.challenge && b.noChallenge.indexOf(s.challenge.id) >= 0)
-      return '流浪泰拉挑战期间不可建造';
+      return tr('building.lock.wandering_terra', null, '流浪泰拉挑战期间不可建造');
     /* 挑战专属建筑：排在科技/市政墙**之前** —— 先说「这周目根本没有这座建筑」，
      * 再说「还差什么科技」，否则玩家会以为研究完那几个科技就能建。 */
-    if (!challengeAllows(s, b)) return '仅限' + challengeOnlyName(b.challengeOnly) + '挑战期间建造';
+    if (!challengeAllows(s, b)) {
+      var cName = challengeOnlyName(b.challengeOnly);
+      return tr('building.lock.challenge_only', { challengeName: cName }, '仅限' + cName + '挑战期间建造');
+    }
     if (b.requiredTech) {
       for (var i = 0; i < b.requiredTech.length; i++) {
         if (!s.techs[b.requiredTech[i]]) {
-          var t = b.requiredTech[i], nm = null;
-          for (var j = 0; SB.TECHS && j < SB.TECHS.length; j++) if (SB.TECHS[j].id === t) nm = SB.TECHS[j].name;
-          return '需先掌握科技：' + (nm || t);
+          var t = b.requiredTech[i], nm = techNameOf(t);
+          return tr('building.lock.required_tech', { technologyName: nm || t }, '需先掌握科技：' + (nm || t));
         }
       }
     }
@@ -210,24 +226,31 @@
      * 「先花 200 市政点把《戏剧与诗歌》做完」是玩家当下就能执行的，
      * 而「再攒 150 珊瑚」只是时间问题，两种都列的顺序不该让时间问题抢在前。 */
     if (b.requiredCivic && !(s.civics && s.civics[b.requiredCivic])) {
-      return '需先完成市政：' + civicNameOf(b.requiredCivic);
+      var cn = civicNameOf(b.requiredCivic) || b.requiredCivic;
+      return tr('building.lock.required_civic', { civicName: cn }, '需先完成市政：' + cn);
     }
     /* 王国潮道的跨建筑钳制：与 build() 同一条判定（两边不同源就会出现「按钮亮着点了没反应」）。 */
     if (b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0)) {
-      return '等级不能超过灯塔（当前灯塔 ' + (s.lvl.lighthouse || 0) + ' 级）';
+      var lhLv = (s.lvl.lighthouse || 0);
+      return tr('building.lock.lighthouse_level', { lighthouseLevel: lhLv }, '等级不能超过灯塔（当前灯塔 ' + lhLv + ' 级）');
     }
     if (b.unlockScheme && !SB.economy.enough(s.res[b.unlockScheme.name], b.unlockScheme.threshold)) {
-      return SB.RESS[b.unlockScheme.name].name + ' ' + Math.floor(s.res[b.unlockScheme.name]) +
-        ' / ' + b.unlockScheme.threshold;
+      var rKey = b.unlockScheme.name;
+      var rFb = (SB.RESS && SB.RESS[rKey] ? SB.RESS[rKey].name : rKey);
+      var rNm = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(rKey, rFb) : rFb;
+      return rNm + ' ' + Math.floor(s.res[rKey]) + ' / ' + b.unlockScheme.threshold;
     }
     /* 解锁理由按「从硬到软」报：科技与纪元是明确的墙，资源量只是时间问题。 */
     var tid = buildTechOf(b.id);
-    if (tid && !s.techs[tid]) return '需先掌握科技：' + techNameOf(tid);
+    if (tid && !s.techs[tid]) {
+      var tnm = techNameOf(tid) || tid;
+      return tr('building.lock.required_tech', { technologyName: tnm }, '需先掌握科技：' + tnm);
+    }
     if (b.requiredTech) {
       for (var i2 = 0; i2 < b.requiredTech.length; i2++) {
         if (!s.techs[b.requiredTech[i2]]) {
-          var tn = techNameOf(b.requiredTech[i2]);
-          return '需先掌握科技：' + (tn || b.requiredTech[i2]);
+          var tn = techNameOf(b.requiredTech[i2]) || b.requiredTech[i2];
+          return tr('building.lock.required_tech', { technologyName: tn }, '需先掌握科技：' + tn);
         }
       }
     }

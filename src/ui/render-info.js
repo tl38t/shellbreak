@@ -13,6 +13,9 @@
   function englishLocale() {
     return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
   }
+  function nonDefaultLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN');
+  }
   function localizedBuildingName(id, fallback) {
     return SB.i18n && SB.i18n.buildingName
       ? SB.i18n.buildingName(id, fallback) : (fallback || '');
@@ -29,7 +32,7 @@
       wonder_void_mars_foundry: 'wonder.void_mars_foundry.name'
     };
     if (voidWonderNames[id]) return tr(voidWonderNames[id], null, fallback || id || '');
-    if (!englishLocale()) return fallback || id || '';
+    if (!nonDefaultLocale()) return fallback || id || '';
     var throneNames = {
       theo_state: 'wonder.supreme_throne.name',
       egalitarianism: 'wonder.supreme_throne.name.space_collective',
@@ -55,43 +58,47 @@
     return String(id || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
   }
   function localizedWorkshopItemName(type, id, fallback) {
-    if (!englishLocale()) return fallback || id || '';
+    if (!nonDefaultLocale()) return fallback || id || '';
     if (type === 'tool') return tr('tool.' + workshopItemSlug(id) + '.name', null, fallback || id || '');
     if (type === 'craft' && id === 'craft_strongprop') return tr('resource.strong_propellant_rocket_engine.name', null, fallback || id || '');
     if (type === 'craft' && id === 'craft_thinafilm') return tr('resource.theta_metal_adaptive_film.name', null, fallback || id || '');
     return SB.i18n && SB.i18n.contentName
       ? SB.i18n.contentName(id, fallback) : (fallback || id || '');
   }
-  var policyLocaleNameKeys = null;
+  var policyLocaleNameKeys = Object.create(null);
   function localizedPolicyKey(name, field) {
-    if (!policyLocaleNameKeys) {
-      policyLocaleNameKeys = Object.create(null);
-      var locales = root.ShellbreakLocales || {}, zh = locales['zh-CN'] || {}, en = locales['en-US'] || {};
+    var activeCode = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'en-US';
+    if (!policyLocaleNameKeys[activeCode]) {
+      var map = policyLocaleNameKeys[activeCode] = Object.create(null);
+      var locales = root.ShellbreakLocales || {}, zh = locales['zh-CN'] || {};
+      var target = locales[activeCode] || locales['en-US'] || {};
       for (var key in zh) {
         if (Object.prototype.hasOwnProperty.call(zh, key) && key.indexOf('policy.card.') === 0 &&
-            /\.name$/.test(key) && typeof en[key] === 'string' && !Object.prototype.hasOwnProperty.call(policyLocaleNameKeys, zh[key])) {
-          policyLocaleNameKeys[zh[key]] = key;
+            /\.name$/.test(key) && typeof target[key] === 'string' && !Object.prototype.hasOwnProperty.call(map, zh[key])) {
+          map[zh[key]] = key;
         }
       }
     }
-    var nameKey = policyLocaleNameKeys[name];
+    var nameKey = policyLocaleNameKeys[activeCode][name];
     return nameKey ? nameKey.slice(0, -'.name'.length) + '.' + field : '';
   }
   function localizedPolicyName(policy) {
-    if (!policy || !englishLocale()) return policy ? (policy.name || '') : '';
+    if (!policy || !nonDefaultLocale()) return policy ? (policy.name || '') : '';
     var research = SB.ui && SB.ui.renderParts && SB.ui.renderParts.research;
     if (research && typeof research.policyName === 'function') return research.policyName(policy);
     var key = localizedPolicyKey(policy.name, 'name');
     return key ? tr(key, null, policy.name) : (policy.name || '');
   }
   function localizedContentDescription(key, fallback, params) {
-    if (!englishLocale()) return fallback || '';
+    if (!nonDefaultLocale()) return fallback || '';
     var value = tr(key, params || {}, '');
     return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : (fallback || '');
   }
   function englishTemplateParams(key, source, special) {
-    var locales = root.ShellbreakLocales || {}, en = locales['en-US'] || {};
-    var template = en[key];
+    var locales = root.ShellbreakLocales || {};
+    var activeCode = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'en-US';
+    var dict = locales[activeCode] || locales['en-US'] || {};
+    var template = typeof dict[key] === 'string' ? dict[key] : (locales['en-US'] && locales['en-US'][key]);
     if (typeof template !== 'string') return null;
     var names = [], seen = Object.create(null), match, re = /\{([A-Za-z0-9_]+)\}/g;
     while ((match = re.exec(template))) {
@@ -106,7 +113,14 @@
     var values = [], numberRe = /(?:[+＋×xX−-]\s*)?\d[\d,]*(?:\.\d+)?\s*(?:%|[KMB])?/g;
     while ((match = numberRe.exec(String(source || '')))) values.push(match[0].trim());
     if (values.length !== numericNames.length) return null;
-    for (var j = 0; j < numericNames.length; j++) params[numericNames[j]] = formatDescriptionValue(numericNames[j], values[j]);
+    for (var j = 0; j < numericNames.length; j++) {
+      var paramName = numericNames[j];
+      var formatted = formatDescriptionValue(paramName, values[j]);
+      if (template.indexOf('{' + paramName + '}%') >= 0) formatted = formatted.replace(/%$/, '');
+      if (template.indexOf('×{' + paramName + '}') >= 0) formatted = formatted.replace(/^[×xX]/, '');
+      if (template.indexOf('+{' + paramName + '}') >= 0) formatted = formatted.replace(/^[+＋]/, '');
+      params[paramName] = formatted;
+    }
     return params;
   }
   function formatDescriptionValue(name, token) {
@@ -120,7 +134,7 @@
     return n;
   }
   function localizedMissingMaterials(s, cost) {
-    if (!englishLocale() || !s || !cost) return '';
+    if (!nonDefaultLocale() || !s || !cost) return '';
     var parts = [], key;
     for (key in cost) {
       if (!Object.prototype.hasOwnProperty.call(cost, key)) continue;
@@ -135,10 +149,10 @@
         requiredAmount: SB.economy && SB.economy.fmtAmt ? SB.economy.fmtAmt(cost[key]) : cost[key]
       }, ''));
     }
-    return parts.join('; ');
+    return parts.join(englishLocale() ? '; ' : '；');
   }
   function localizedWorkshopRequirement(item, s, type, why) {
-    if (!englishLocale() || !item || !why) return why || '';
+    if (!nonDefaultLocale() || !item || !why) return why || '';
     if (type === 'tool' && item.wip) return tr('workshop.tool.work_in_progress', null, why);
     if ((type === 'tool' || type === 'upgrade' || type === 'craft') &&
         !(s.lvl && s.lvl.workshop > 0)) {
@@ -182,7 +196,7 @@
         domainName: tr('domain.' + w.requiresVeilDomain + '.name', null, '')
       }, why);
     }
-    if (!englishLocale()) return why || '';
+    if (!nonDefaultLocale()) return why || '';
     if (w.need && !(s.techs && s.techs[w.need])) {
       var tech = SB.tech && SB.tech.byId ? SB.tech.byId(w.need) : null;
       return tr('workshop.requirement.technology', {
@@ -215,14 +229,14 @@
           }, buildingName + ' · Level ' + lack.need));
         }
         return tr('workshop.wonder.building_levels_missing', {
-          buildingRequirements: requirements.join('; ')
+          buildingRequirements: requirements.join(englishLocale() ? '; ' : '；')
         }, why);
       }
     }
     return missing || tr('ui.status.conditions_not_met', null, why);
   }
   function localizedWonderBuildCost(s, id) {
-    if (!englishLocale() || !SB.wonder.buildCostNeed) return SB.wonder.buildCostText(s, id);
+    if (!nonDefaultLocale() || !SB.wonder.buildCostNeed) return SB.wonder.buildCostText(s, id);
     var need = SB.wonder.buildCostNeed(s, id), parts = [];
     if (!need) return '';
     for (var key in need) {
@@ -233,7 +247,7 @@
         buildingName: name, requiredLevels: need[key]
       }, name + ' · Level ' + need[key]));
     }
-    return parts.join('; ');
+    return parts.join(englishLocale() ? '; ' : '；');
   }
   function wonderHasRequirementBlock(s, w) {
     if (!w) return false;
@@ -254,7 +268,7 @@
       wonder_void_mars_foundry: 'wonder.void_mars_foundry.description'
     };
     if (voidWonderDescriptions[id]) return tr(voidWonderDescriptions[id], null, fallback || '');
-    if (!englishLocale()) return fallback || '';
+    if (!nonDefaultLocale()) return fallback || '';
     if (id === 'wonder_throne') {
       var branch = s && s.gov === 'theo_state' ? 'faith'
         : s && s.gov === 'egalitarianism' ? 'crafting'
@@ -273,8 +287,15 @@
         : (config.GEEK_TERRA_SECONDS || 3600);
       var upgradeText = tr('tech.ecological_restoration.unlock_desc', { levelThreshold: 3 }, '');
       var listStart = upgradeText.indexOf('upgrade costs for '), listEnd = upgradeText.indexOf(' reset', listStart);
+      var zhListMatch = listStart < 0 ? upgradeText.match(/改造[後后]，([^的]+)的/) : null;
+      var affectedList = (listStart >= 0 && listEnd > listStart)
+        ? upgradeText.slice(listStart + 'upgrade costs for '.length, listEnd)
+        : (zhListMatch ? zhListMatch[1] : '');
       var reductions = String(fallback || '').match(/恩克拉多斯下调(?:最多)?\s*(\d+)\s*级、泰拉再下调\s*(\d+)\s*级[\s\S]*?廉租社区单独为\s*(\d+)\s*级\s*\/\s*合计\s*(\d+)\s*级/);
-      function levelReduction(value) { value = Number(value) || 0; return value + (value === 1 ? ' level' : ' levels'); }
+      function levelReduction(value) {
+        value = Number(value) || 0;
+        return englishLocale() ? (value + (value === 1 ? ' level' : ' levels')) : (value + ' 級');
+      }
       function durationText(seconds) {
         seconds = Math.max(0, Math.floor((Number(seconds) || 0) + 0.5));
         var hours = Math.floor(seconds / 3600), minutes = Math.floor((seconds % 3600) / 60), remainder = seconds % 60;
@@ -282,14 +303,14 @@
         if (remainder) return tr('game.duration.minutes_seconds', { minutes: minutes, seconds: remainder }, minutes + ' min ' + remainder + ' sec');
         return tr('save.time.duration.minutes', { count: minutes }, minutes + ' min');
       }
-      if (listStart >= 0 && listEnd > listStart && reductions) {
+      if (affectedList && reductions) {
         return localizedContentDescription('wonder.geek.description', fallback || '', {
           environmentCardName: tr('ui.pane.environment.title', null, '自然环境'),
           worldAName: tr('ui.star_map.body.enceladus.name', null, '恩克拉多斯'),
           worldBName: tr('ui.star_map.body.terra.name', null, '泰拉'),
           worldATime: durationText(enceladusTime),
           worldBTime: durationText(terraTime),
-          affectedBuildingList: upgradeText.slice(listStart + 'upgrade costs for '.length, listEnd),
+          affectedBuildingList: affectedList,
           worldAReduction: levelReduction(reductions[1]),
           worldBAdditionalReduction: levelReduction(reductions[2]),
           communityReduction: levelReduction(reductions[3]),
@@ -301,6 +322,14 @@
     var special = {};
     if (id === 'wonder_albada') special.populationPercent = String(Math.max(0, Number(s && s.pop) || 0)) + '%';
     if (id === 'wonder_shellcutter') special.observatoryLevelPercent = String(Math.max(0, Number(s && s.lvl && s.lvl.observatory) || 0)) + '%';
+    if (id === 'wonder_voyager' || id === 'wonder_khalifa') {
+      var useEnWonder = englishLocale();
+      special.thresholdPercent = '25%';
+      special.earlyExplorationRate = useEnWonder ? '100' : '+100';
+      special.lateExplorationRate = useEnWonder ? '25' : '+25';
+      if (id === 'wonder_voyager') special.scholarBonus = useEnWonder ? '10%' : '+10%';
+      else special.scribeBonus = useEnWonder ? '10%' : '+10%';
+    }
     var params = englishTemplateParams(key, fallback, special);
     return localizedContentDescription(key, fallback || '', params || {});
   }
@@ -349,7 +378,7 @@
     return localizedContentDescription(key, item.desc || '', params || {});
   }
   function localizedTreeNodeName(type, id, fallback) {
-    if (!englishLocale()) return fallback || id || '';
+    if (!nonDefaultLocale()) return fallback || id || '';
     var key = type === 'tech' ? 'tech.' + id + '.name' : 'civic.data.' + id + '.name';
     return tr(key, null, fallback || id || '');
   }
@@ -359,6 +388,57 @@
       if (SB.CIVICS[i].id === id) return SB.CIVICS[i];
     }
     return null;
+  }
+  function localizedTechUnlockDescription(item) {
+    if (!item || !item.unlockDesc) return '';
+    if (!nonDefaultLocale()) return item.unlockDesc;
+    var key = 'tech.' + item.id + '.unlock_desc';
+    var enLoc = englishLocale(), special = {};
+    if (item.id === 'castle') {
+      special = enLoc
+        ? { capacityPerLevel: '50', eraCount: '3', civicRate: '0.05' }
+        : { capacityPerLevel: '+50', eraCount: '三', civicRate: '+0.05/秒' };
+    } else if (item.id === 'architect') {
+      special = enLoc
+        ? { capacityPerLevel: '200', eraCount: '7' }
+        : { capacityPerLevel: '+200', eraCount: '七' };
+    } else if (item.id === 'deepspace') {
+      special = {
+        thresholdPercent: '25%',
+        earlyExplorationRate: enLoc ? '100' : '+100',
+        lateExplorationRate: enLoc ? '25' : '+25',
+        scholarBonus: enLoc ? '10%' : '+10%'
+      };
+    } else if (item.id === 'protoai') {
+      special = { robotPopulation: '4', robotOutputBonus: '20%' };
+    } else if (item.id === 'ecological_restoration') {
+      special = { levelThreshold: enLoc ? '3' : '三' };
+    } else if (item.id === 'microwave_heat') {
+      special = {
+        cycleSeconds: enLoc ? '10s' : '10',
+        uraniumRate: '0.5',
+        engineRate: '0.3',
+        filmRate: '0.3',
+        hydrothermalRate: '4',
+        sailHydrothermalRate: '+0.05'
+      };
+    } else if (item.id === 'terraform') {
+      special = { terraformTime: '1h', levelThreshold: enLoc ? '5' : '五' };
+    } else if (item.id === 'interlog') {
+      special = {
+        effectPercent1: enLoc ? '20%' : '+20%',
+        cardMultiplier: '×1.3',
+        addedMultiplier: '0.2',
+        combinedMultiplier: '1.5'
+      };
+    } else if (item.id === 'heir_of_stars') {
+      special = {
+        stardustBonus: '+100%',
+        craftingBonusPerStardust: enLoc ? '1%' : 'x%'
+      };
+    }
+    var params = englishTemplateParams(key, item.unlockDesc, special);
+    return localizedContentDescription(key, item.unlockDesc, params || {});
   }
   function localizedCivicDescription(item) {
     if (!item) return '';
@@ -465,7 +545,7 @@
       var techLabel = tr('wonder.requirement.technology_label', null, '（科技）');
       var techStatus = tr(s.techs && s.techs[techIds[i]] ? 'ui.status.met' : 'ui.status.not_met', null,
         s.techs && s.techs[techIds[i]] ? '已满足' : '未满足');
-      add(techName + techLabel + ' · ' + techStatus, !!(s.techs && s.techs[techIds[i]]));
+      add(techName + (englishLocale() ? ' ' : '') + techLabel + ' · ' + techStatus, !!(s.techs && s.techs[techIds[i]]));
     }
 
     civicIds = idList(b.requiredCivic);
@@ -475,7 +555,7 @@
       var civicLabel = tr('wonder.requirement.civic_label', null, '（市政）');
       var civicMet = !!(s.civics && s.civics[civicIds[i]]);
       var civicStatus = tr(civicMet ? 'ui.status.met' : 'ui.status.not_met', null, civicMet ? '已满足' : '未满足');
-      add(civicName + civicLabel + ' · ' + civicStatus, civicMet);
+      add(civicName + (englishLocale() ? ' ' : '') + civicLabel + ' · ' + civicStatus, civicMet);
     }
 
     var requiredBuilding = b.need ? SB.habitat.buildingById(b.need) : null;
@@ -495,7 +575,7 @@
       : '<p>' + tr('building.info.requirement.none', null, '无额外建筑前置') + '</p>';
   }
   function localizedStaticText(key, fallback) {
-    if (!englishLocale()) return fallback || '';
+    if (!nonDefaultLocale()) return fallback || '';
     var value = tr(key, null, '');
     return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : (fallback || '');
   }
@@ -534,7 +614,13 @@
     function addName(name, id, type) {
       if (name) names.push({ name: name, id: id, type: type });
     }
-    if (linkWorkshopTab) addName('工坊', 'workshop', 'workshopTab');
+    if (linkWorkshopTab) {
+      addName('工坊', 'workshop', 'workshopTab');
+      if (nonDefaultLocale()) {
+        addName(tr('ui.tab.workshop', null, 'Workshop'), 'workshop', 'workshopTab');
+        addName(tr('ui.tab.workshop_craft', null, 'Crafting'), 'workshop', 'workshopTab');
+      }
+    }
     for (i = 0; i < list.length; i++) {
       addName(list[i].name, list[i].id, 'build');
       var localizedBuilding = localizedBuildingName(list[i].id, list[i].name);
@@ -685,8 +771,7 @@
       : item.desc;
     if (!tech) effect = localizedCivicDescription(item);
     var unlockText = tech && item.unlockDesc
-      ? localizedContentDescription('tech.' + id + '.unlock_desc', item.unlockDesc,
-        englishTemplateParams('tech.' + id + '.unlock_desc', item.unlockDesc))
+      ? localizedTechUnlockDescription(item)
       : '';
     var unlockSection = tech && item.unlockDesc
       ? '<section class="tree-detail-section"><h4>' + tr('tree.detail.heading.unlocks', null, '解锁内容') + '</h4><p>' +
@@ -953,9 +1038,77 @@
         Math.round((_robotAIMult - 1) * 100) + '%，且按人口数量产出信仰。耗热液能 ' +
         _robotBayHydro + '/秒/级。');
     }
-    var _staticDescription = tr('building.' + String(b.id || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase() + '.description');
-    if (_staticDescription && _staticDescription.indexOf('{') < 0) return _staticDescription;
-    return b.desc || '';
+    if (!nonDefaultLocale()) return b.desc || '';
+    var _B = SB.BLD || {};
+    var _slug = String(b.id || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+    var _descKey = (_id === 'terra_launch' || _id === 'enceladus_launch')
+      ? 'building.planetary_launch_site.description'
+      : 'building.' + _slug + '.description';
+    var _explicitParams = null;
+    if (_id === 'hall') {
+      _explicitParams = { resourceCapacityPerLevel: '50', maxCappedEra: englishLocale() ? '3' : '三' };
+    } else if (_id === 'caravanserai') {
+      _explicitParams = { luxuryUpkeepReductionPerLevel: '1' };
+    } else if (_id === 'satellite') {
+      _explicitParams = {
+        starExplorationPerSecond: _B.satelliteStar != null ? _B.satelliteStar : 5,
+        scholarOutputBonusPerLevel: Math.round((_B.satelliteScholar != null ? _B.satelliteScholar : 0.25) * 100),
+        hydroEnergyConsumptionPerSecond: _B.satelliteHydro != null ? _B.satelliteHydro : 1
+      };
+    } else if (_id === 'spacestation') {
+      _explicitParams = {
+        starExplorationPerSecond: _B.stationStar != null ? _B.stationStar : 10,
+        hydroEnergyConsumptionPerSecond: _B.stationHydro != null ? _B.stationHydro : 2
+      };
+    } else if (_id === 'biomatlab') {
+      _explicitParams = {
+        thetaMetalOutputPerSecond: _B.biomatlabOutRate != null ? _B.biomatlabOutRate : 0.0625,
+        kelpCostPerLevel: _B.biomatlabKelp != null ? _B.biomatlabKelp : 100,
+        ironCostPerLevel: _B.biomatlabIron != null ? _B.biomatlabIron : 4,
+        titaniumCostPerLevel: _B.biomatlabTi != null ? _B.biomatlabTi : 2,
+        uraniumCostPerLevel: _B.biomatlabU != null ? _B.biomatlabU : 0.35,
+        hydroEnergyConsumptionPerSecond: _B.biomatlabHydro != null ? _B.biomatlabHydro : 3
+      };
+    } else if (_id === 'rheamine') {
+      _explicitParams = {
+        stoneBeamOutputPerSecond: _B.rheamineBeam != null ? _B.rheamineBeam : 2.5,
+        hardenedCoralOutputPerSecond: _B.rheamineCoral != null ? _B.rheamineCoral : 2.5,
+        uraniumOutputPerSecond: _B.rheamineUranium != null ? _B.rheamineUranium : 0.25
+      };
+    } else if (_id === 'titancloud') {
+      _explicitParams = {
+        hydroEnergyOutputPerSecond: _B.titancloudHydro != null ? _B.titancloudHydro : 6,
+        fuelOutputPerSecond: _B.titancloudFuel != null ? _B.titancloudFuel : 5
+      };
+    } else if (_id === 'mars_workshop') {
+      _explicitParams = {
+        titaniumComponentOutputPerSecond: _B.marsTiplate != null ? _B.marsTiplate : 3,
+        titaniumOutputPerSecond: _B.marsTitanium != null ? _B.marsTitanium : 2
+      };
+    } else if (_id === 'void_altar') {
+      var _vc = b.popCostByLevel || [30, 75, 200];
+      _explicitParams = {
+        firstLevelPopulationCost: _vc[0] != null ? _vc[0] : 30,
+        secondLevelPopulationCost: _vc[1] != null ? _vc[1] : 75,
+        thirdLevelPopulationCost: _vc[2] != null ? _vc[2] : 200,
+        altarLevelCount: b.maxLvl || _vc.length || 3
+      };
+    } else if (_id === 'europa_launch' || _id === 'terra_launch' || _id === 'enceladus_launch') {
+      _explicitParams = {
+        uraniumPerLevel: 0.5,
+        enginePerLevel: 0.3,
+        filmPerLevel: 0.3,
+        hydroEnergyPerLevel: 4,
+        nodeUraniumPerLevel: 5,
+        nodeEnginePerLevel: 3,
+        nodeFilmPerLevel: 3,
+        titaniumPlatePerLevel: 30,
+        nodeHydroEnergyPerLevel: 4,
+        baseCostLevel: 1
+      };
+    }
+    var _descParams = englishTemplateParams(_descKey, b.desc, _explicitParams);
+    return localizedContentDescription(_descKey, b.desc || '', _descParams || {});
   }
 
   /* 建筑信息卡「效果」段：把每座建筑的「每级基础量 × 当前等级 = 当前总量」写清楚，
@@ -1352,7 +1505,7 @@
         ? tr('building.consume.shortage.stopped', { resourceName: lackName }, '。当前状态：缺' + lackName + '，已停产（没有产出）')
         : tr('building.consume.shortage.reduced', { resourceName: lackName, loadPct: loadPct }, '。当前状态：缺' + lackName + '，只能按 ' + loadPct + '% 负荷运转');
     }
-    return parts.join(englishLocale() ? '; ' : '；') + tr('building.consume.full_load.note', null,
+    return parts.join(englishLocale() ? '; ' : '；') + (englishLocale() ? ' ' : '') + tr('building.consume.full_load.note', null,
       '（满负荷运转：按当前开着的座数折算，缺料按比例降产）') + stateTxt;
   }
 
@@ -1539,7 +1692,7 @@
     var desc = localizedWorkshopItemDescription(type, item);
     if (type === 'craft') {
       var mul = W.craftMul(s, item);
-      if (englishLocale() && !/[\u3400-\u9fff]/.test(desc)) {
+      if (nonDefaultLocale() && (!englishLocale() || !/[\u3400-\u9fff]/.test(desc))) {
         var outputName = SB.i18n && SB.i18n.resourceName
           ? SB.i18n.resourceName(item.res, SB.RESS[item.res] ? SB.RESS[item.res].name : item.res)
           : (SB.RESS[item.res] ? SB.RESS[item.res].name : item.res);
@@ -1588,6 +1741,7 @@
     localizedWorkshopItemDescription: localizedWorkshopItemDescription,
     localizedWorkshopRequirement: localizedWorkshopRequirement,
     workshopHasRequirementBlock: workshopHasRequirementBlock,
+    localizedTechUnlockDescription: localizedTechUnlockDescription,
     englishTemplateParams: englishTemplateParams
   };
 })(typeof window !== 'undefined' ? window : globalThis);

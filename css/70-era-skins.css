@@ -490,9 +490,11 @@ html[data-era] .modal.offline-summary-modal .box {
   font-size: 22px;
 }
 .offline-report-heading { min-width: 0; }
-.offline-report-kicker,.offline-section-kicker { color: #75cfd0; font-size: 9px; font-weight: 800; letter-spacing: 1.7px; }
-.offline-report-heading h2 { margin: 4px 0 3px; color: #effbfb; font-size: 22px; letter-spacing: .04em; }
-.offline-report-heading p { margin: 0; color: #9bb7c3; font-size: 11px; line-height: 1.5; }
+.offline-report-kicker,.offline-section-kicker { color: #75cfd0; font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+html[lang^="en"] .offline-report-kicker,html[lang^="en"] .offline-section-kicker { letter-spacing: .07em; }
+.offline-report-heading h2 { font-family: var(--font-display-zh); margin: 4px 0 3px; color: #effbfb; font-size: 22px; letter-spacing: .04em; }
+html[lang^="en"] .offline-report-heading h2 { font-family: var(--font-display-en); letter-spacing: .015em; }
+.offline-report-heading p { margin: 0; color: #9bb7c3; font-size: 12px; line-height: 1.5; }
 .offline-duration-card {
   display: flex;
   min-width: 120px;
@@ -504,14 +506,14 @@ html[data-era] .modal.offline-summary-modal .box {
   background: linear-gradient(145deg, rgba(112,83,41,.2), rgba(36,47,52,.35));
   text-align: right;
 }
-.offline-duration-card span { color: #b9c9c7; font-size: 9px; }
+.offline-duration-card span { color: #b9c9c7; font-size: 11px; }
 .offline-duration-card strong { color: #f1d99d; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .offline-report-scroll { display: grid; min-height: 0; flex: 1 1 auto; gap: 16px; overflow: auto; overscroll-behavior: contain; padding: 19px 25px 21px; }
 .offline-report-section { min-width: 0; }
 .offline-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .offline-section-heading h3 { margin: 3px 0 0; color: #e5f2f4; font-size: 14px; }
-.offline-section-kicker { color: #7296a5; font-size: 8px; letter-spacing: 1.45px; }
-.offline-report-badge,.offline-resource-count { padding: 5px 9px; border: 1px solid rgba(125,201,192,.2); border-radius: 99px; background: rgba(36,110,103,.12); color: #9fdbca; font-size: 9px; white-space: nowrap; }
+.offline-section-kicker { color: #7296a5; font-size: 10.5px; letter-spacing: .08em; }
+.offline-report-badge,.offline-resource-count { padding: 5px 9px; border: 1px solid rgba(125,201,192,.2); border-radius: 99px; background: rgba(36,110,103,.12); color: #9fdbca; font-size: 11px; white-space: nowrap; }
 .offline-stat-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
 .offline-stat-card,.offline-stable-card {
   min-width: 0;
@@ -521,17 +523,17 @@ html[data-era] .modal.offline-summary-modal .box {
   background: linear-gradient(145deg, rgba(21,52,70,.66), rgba(11,31,49,.72));
 }
 .offline-stat-card { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; }
-.offline-stat-card>span { color: #a8c1ca; font-size: 10px; }
+.offline-stat-card>span { color: #a8c1ca; font-size: 11.5px; }
 .offline-stat-card>strong { grid-column: 2; grid-row: 1 / span 2; color: #e8f8f5; font-size: 23px; font-variant-numeric: tabular-nums; }
-.offline-stat-card small { color: #829eaa; font-size: 9px; }
-.offline-stat-card small b { margin-left: 5px; font-size: 10px; font-variant-numeric: tabular-nums; }
+.offline-stat-card small { color: #829eaa; font-size: 10.5px; }
+.offline-stat-card small b { margin-left: 5px; font-size: 11px; font-variant-numeric: tabular-nums; }
 .offline-stat-card .is-positive { color: #83dfbc; }
 .offline-stat-card .is-negative { color: #f2a08e; }
 .offline-stable-card { display: flex; align-items: center; gap: 11px; grid-column: 1 / -1; }
 .offline-stable-mark { display: grid; width: 27px; height: 27px; flex: none; place-items: center; border-radius: 9px; background: rgba(83,188,148,.12); color: #91dfb7; font-size: 14px; }
 .offline-stable-card strong,.offline-stable-card small { display: block; }
-.offline-stable-card strong { color: #d8eee8; font-size: 11px; }
-.offline-stable-card small { margin-top: 3px; color: #829eaa; font-size: 9px; }
+.offline-stable-card strong { color: #d8eee8; font-size: 12px; }
+.offline-stable-card small { margin-top: 3px; color: #829eaa; font-size: 11px; }
 .offline-incidents { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .offline-incident { padding: 6px 9px; border: 1px solid rgba(239,160,125,.22); border-radius: 8px; background: rgba(133,57,48,.14); color: #eeb09a; font-size: 9px; }
 .offline-incident.is-cold { border-color: rgba(122,189,222,.22); background: rgba(37,91,122,.16); color: #9dccdf; }
@@ -876,12 +878,18 @@ html[data-era] #card-res .res-details {
   line-height: 1.3;
 }
 html[data-era] #card-res .res-label .res-name { color: var(--pilot-copy); }
+html[data-era] #card-res #res-craft .res-name,
+html[lang^="en"][data-era] #card-res .res-name { overflow-wrap: normal; word-break: normal; }
 html[data-era] #card-res .res i.cap { color: var(--dim); font-size: 11px; }
 html[data-era] #card-res .res i.rate { font-size: 11px; font-weight: 650; }
+html[data-era] .overview-grid .res i.sd,
+html[data-era] #card-res .res i.sd { font-style: normal; font-size: 11px; font-weight: 600; line-height: 1.25; white-space: nowrap; color: var(--dim); font-variant-numeric: tabular-nums; }
+html[data-era] .overview-grid .res i.sd .lux-out,
+html[data-era] .overview-grid .res i.sd .lux-burn { display: inline; min-height: 0; font-size: inherit; font-weight: 650; font-style: normal; line-height: inherit; }
+html[data-era] .overview-grid .res i.sd .lux-out { color: var(--green); }
+html[data-era] .overview-grid .res i.sd .lux-burn { color: var(--red); }
 
-/* Keep the resource archive at three columns at every window size.
- * Compact the resource rows against the actual panel width so a narrow window
- * does not turn the archive into a long single-column list. */
+/* Compact the resource rows against the panel width. */
 @container resource-panel (max-width: 760px) {
   #card-res > #res,
   #card-res #res-craft,
@@ -902,11 +910,13 @@ html[data-era] #card-res .res i.rate { font-size: 11px; font-weight: 650; }
     overflow-wrap: anywhere;
   }
   #card-res .res-details,
-  html[data-era] #card-res .res-details { gap: 2px 4px; font-size: clamp(8px, 1.5cqi, 10px); }
+  html[data-era] #card-res .res-details { gap: 2px 4px; font-size: clamp(9px, 1.55cqi, 10.5px); }
   #card-res .res i.cap,
   #card-res .res i.rate,
+  #card-res .res i.sd,
   html[data-era] #card-res .res i.cap,
-  html[data-era] #card-res .res i.rate { font-size: clamp(8px, 1.45cqi, 10px); }
+  html[data-era] #card-res .res i.rate,
+  html[data-era] #card-res .res i.sd { font-size: clamp(9px, 1.5cqi, 10.5px); }
 }
 
 @container resource-panel (max-width: 420px) {
@@ -945,13 +955,22 @@ html[data-era] #card-res .res i.rate { font-size: 11px; font-weight: 650; }
     grid-row: 2;
     min-height: 0;
     gap: 1px 3px;
-    font-size: clamp(7px, 1.7cqi, 8px);
+    font-size: clamp(8.5px, 1.8cqi, 9.5px);
     line-height: 1.2;
   }
   #card-res .res i.cap,
   #card-res .res i.rate,
+  #card-res .res i.sd,
   html[data-era] #card-res .res i.cap,
-  html[data-era] #card-res .res i.rate { font-size: clamp(7px, 1.6cqi, 8px); }
+  html[data-era] #card-res .res i.rate,
+  html[data-era] #card-res .res i.sd { font-size: clamp(8.5px, 1.75cqi, 9.5px); }
+
+  html[lang^="en"][data-era] #card-res .res > .res-icon { grid-row: 1; }
+  html[lang^="en"][data-era] #card-res .res-content > b { grid-column: 2; }
+  html[lang^="en"][data-era] #card-res .res-details { grid-column: 1 / -1; }
+}
+@container resource-panel (max-width: 275px) {
+  html[lang^="en"][data-era] #card-res #res-craft { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 html[data-era] #card-res #res-craft-wrap {
   margin-top: 13px;
@@ -1015,11 +1034,23 @@ html[data-era] #card-env .env-tier--core {
 }
 html[data-era] #card-env .shellbar {
   align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   margin: 2px 0 6px;
   padding-bottom: 0;
   border-bottom: 0;
 }
+html[data-era] #card-env .shellbar > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 html[data-era] #card-env #shellTxt { font-variant-numeric: tabular-nums; }
+@container environment-card (max-width: 420px) {
+  html[data-era] #card-env #shellTxt:has(.dyson-stage-badge) .cap {
+    display: block;
+    margin-top: 3px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--pilot-copy);
+  }
+}
 html[data-era] #card-env .shellwrap {
   position: relative;
   overflow: hidden;
@@ -1159,7 +1190,17 @@ html[data-era] #card-env .hydro-metric + .hydro-metric {
   border-left: 1px solid color-mix(in srgb, var(--pilot-edge) 52%, transparent);
 }
 html[data-era] #card-env .hydro-metric>span { font-size: 10px; letter-spacing: .04em; }
-html[data-era] #card-env .hydro-metric>b { font-size: 20px; }
+html[data-era] #card-env .hydro-metric>b { flex-wrap: wrap; row-gap: 0; font-size: 20px; }
+html[data-era] #card-env .hydro-metric>b > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+html[data-era] #card-env .hydro-metric>b small { white-space: nowrap; }
+@container hydro-flow (max-width: 360px) {
+  html[data-era] #card-env .hydro-metric { justify-content: flex-end; padding-inline: clamp(5px, 2cqi, 7px); }
+  html[data-era] #card-env .hydro-metric>b {
+    flex-flow: column nowrap;
+    align-items: flex-start;
+    font-size: clamp(13px, 5.5cqi, 18px);
+  }
+}
 html[data-era] #card-env .hydro-metric-balance {
   background: linear-gradient(110deg,
     color-mix(in srgb, var(--era-accent) 10%, transparent), transparent 86%);

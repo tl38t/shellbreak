@@ -6,15 +6,15 @@
   var SB = root.SB || (root.SB = {});
 
   var DEFINITIONS = [
-    { id: 'cold', achievementKey: 'cold', name: '寒流禁火', icon: '❄', badge: 'assets/challenges/challenge-cold.webp', kind: '单次挑战',
+    { id: 'cold', achievementKey: 'cold', name: '寒流禁火', icon: '❄', badge: 'assets/challenges/challenge-cold.webp', badgeThumb: 'assets/challenges/thumbs/challenge-cold.webp', kind: '单次挑战',
       summary: '寒流压境，保温法停用，暖石产出降低。',
       rule: '寒流季禁止启用保温法；本轮暖石产出 -30%',
       reward: '永久暖石产出 +20%', tiers: [{ label: '完成挑战', cap: null }] },
-    { id: 'small', achievementKey: 'small', name: '小国寡民', icon: '◉', badge: 'assets/challenges/challenge-small.webp', kind: '单次挑战',
+    { id: 'small', achievementKey: 'small', name: '小国寡民', icon: '◉', badge: 'assets/challenges/challenge-small.webp', badgeThumb: 'assets/challenges/thumbs/challenge-small.webp', kind: '单次挑战',
       summary: '人口上限 15，忽略科技与市政中的人口门槛。',
       rule: '人口不得超过 15；科技与市政的总人口、职业人数门槛豁免', reward: '永久初始人口 +3 · 生育时间 -50%',
       tiers: [{ label: '完成挑战', cap: 15 }] },
-    { id: 'science', achievementKey: 'science', name: '忽视科文', icon: '⌘', badge: 'assets/challenges/challenge-science.webp', kind: '三档挑战',
+    { id: 'science', achievementKey: 'science', name: '忽视科文', icon: '⌘', badge: 'assets/challenges/challenge-science.webp', badgeThumb: 'assets/challenges/thumbs/challenge-science.webp', kind: '三档挑战',
       summary: '限制学者与书手人数，考验基础经营。',
       rule: '学者与书手岗位人数各不得超过本档上限',
       rewards: ['科文产出 +50%', '科文产出 +100%', '科文产出 +200%'],
@@ -23,7 +23,7 @@
         { label: '第二档', cap: 10 },
         { label: '第三档', cap: 5 }
       ] },
-    { id: 'abyss', achievementKey: 'abyss', name: '深渊重压', icon: '⬇', badge: 'assets/challenges/challenge-abyss.webp', kind: '三档挑战',
+    { id: 'abyss', achievementKey: 'abyss', name: '深渊重压', icon: '⬇', badge: 'assets/challenges/challenge-abyss.webp', badgeThumb: 'assets/challenges/thumbs/challenge-abyss.webp', kind: '三档挑战',
       summary: '全局产出被压低，仍需推进文明。', rule: '本轮全产出降低',
       rewards: ['全产出 +20%', '全产出 +40%', '全产出 +60%'],
       tiers: [
@@ -31,7 +31,7 @@
         { label: '第二档', cap: 0.40 },
         { label: '第三档', cap: 0.60 }
       ] },
-    { id: 'speedrun', achievementKey: 'speedrun', name: '逐光竞速', icon: '⏱', badge: 'assets/challenges/challenge-speedrun-illustrated.webp', kind: '三档限时挑战',
+    { id: 'speedrun', achievementKey: 'speedrun', name: '逐光竞速', icon: '⏱', badge: 'assets/challenges/challenge-speedrun-illustrated.webp', badgeThumb: 'assets/challenges/thumbs/challenge-speedrun-illustrated.webp', kind: '三档限时挑战',
       timed: true,
       summary: '与时间赛跑，在期限内完成《神学》并凿穿天壳；退出游戏后计时仍继续。',
       rule: '从开始挑战起按现实时间计时，离线时间也计入；超时后本轮不能领取竞速奖励。',
@@ -64,7 +64,7 @@
         { label: '8 小时档', cap: 8 * 60 * 60 },
         { label: '4 小时档', cap: 4 * 60 * 60 }
       ] },
-    { id: 'drift_terra', achievementKey: 'driftTerra', name: '流浪泰拉', icon: '🪐', badge: 'assets/challenges/challenge-drift_terra-v3.png?v=2', kind: '单次挑战',
+    { id: 'drift_terra', achievementKey: 'driftTerra', name: '流浪泰拉', icon: '🪐', badge: 'assets/challenges/challenge-drift_terra-v3.png?v=2', badgeThumb: 'assets/challenges/thumbs/challenge-drift_terra-v3.webp', kind: '单次挑战',
       summary: '泰拉脱离轨道流浪，严冬将至。',
       rule: '寒流季必定冰封且持续时间 ×2；太阳帆热液能产出 ×0.5。允许烧暖石；建成星核炉芯后解除冰封。',
       reward: '永久暖流季全产 +30% · 寒流季时长 ×0.5 · G.E.E.K 环境改造时间 ×0.5',
@@ -91,9 +91,9 @@
      * ⚠️ 通用奖励「每档 +10% 轮回点获取」不在 reward 文案里（用户定案 R）：那是六项挑战
      *   共享的规则，由 prestige.breakReport 的 challengePointMul 统一给，写进单项文案会让人
      *   以为只有这项才给。 */
-    { id: 'waterpollution', achievementKey: 'pollutionClear', name: '水体污染', icon: '☣', badge: 'assets/challenges/challenge-waterpollution-illustrated.webp', kind: '单次挑战',
+    { id: 'waterpollution', achievementKey: 'pollutionClear', name: '水体污染', icon: '☣', badge: 'assets/challenges/challenge-waterpollution-illustrated.webp', badgeThumb: 'assets/challenges/thumbs/challenge-waterpollution-illustrated.webp', kind: '单次挑战',
       summary: '热液能产出即排污，五个阶段逐级侵蚀幸福、藻食与人口。',
-      rule: '热液能建筑每秒排放与产出等值的污染（星屑树乘区不计）；污染达 1000 / 4 万 / 16 万 / 640 万依次进入浊流、赤潮、死区、腐渊，逐级扣幸福、削藻食与珊瑚，并按秒掷死亡；每名死者永久提高幸福消耗（墓地限额内 0.3%、超限 3%）。',
+      rule: '热液能建筑每秒排放与产出等值的污染（不计星屑树加成）；污染达 1000 / 4 万 / 16 万 / 640 万依次进入浊流、赤潮、死区、腐渊，逐级扣幸福、削藻食与珊瑚，并按秒掷死亡；每名死者永久提高幸福消耗（墓地限额内 0.3%、超限 3%）。',
       reward: '永久星屑产出 +10% · 商人奢侈品产出 +50% · 初始人口 +2',
       goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成飞升虚境亦算）',
       /* 排行榜「最低污染通关」（db 待建 · CFG.RANK.MAP.pollution，asc + best）：
@@ -101,13 +101,13 @@
        * 「通关时海有多脏」，峰值会随经营风格抖动，不可比。 */
       rankKey: 'pollution', rankValue: function (s) { return Math.round(s.pollution || 0); },
       tiers: [{ label: '海渊澄明', cap: null }] },
-    { id: 'anarchy', achievementKey: 'challengeAnarchy', name: '安那其主义', icon: '⚑', badge: 'assets/challenges/challenge-anarchy.png', kind: '终局挑战',
+    { id: 'anarchy', achievementKey: 'challengeAnarchy', name: '安那其主义', icon: '⚑', badge: 'assets/challenges/challenge-anarchy.png', badgeThumb: 'assets/challenges/thumbs/challenge-anarchy.webp', kind: '终局挑战',
       summary: '废除政策卡制度，只留下虚境信仰。',
       rule: '全程不得装备政策卡；「轮回之终末」是唯一例外。',
       reward: '永久星屑获取 +10% · 所有政体 +1 万能政策槽',
       goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成虚境飞升亦算）',
       tiers: [{ label: '无政府纪元', cap: null }] },
-    { id: 'good_old_days', achievementKey: 'challengeGoodOldDays', name: '美好旧日', icon: '⌛', badge: 'assets/challenges/challenge-good-old-days.png', kind: '终局挑战',
+    { id: 'good_old_days', achievementKey: 'challengeGoodOldDays', name: '美好旧日', icon: '⌛', badge: 'assets/challenges/challenge-good-old-days.png', badgeThumb: 'assets/challenges/thumbs/challenge-good-old-days.webp', kind: '终局挑战',
       summary: '始终保持酋邦制，沿用最初的社会秩序。',
       rule: '全程保持酋邦制；本挑战豁免要求采用多槽或指定政体的科技、市政门槛。',
       reward: '永久星屑获取 +10% · 解锁已采用政体的被动卡',
@@ -117,13 +117,13 @@
           SB.civic.unlockAdoptedGovPassiveCards(meta, s.govAdopted);
       },
       tiers: [{ label: '旧制永存', cap: null }] },
-    { id: 'three_launch_sites', achievementKey: 'challengeThreeLaunchSites', name: '三地发射网', icon: '🚀', badge: 'assets/challenges/challenge-three-launch-sites.png', kind: '终局挑战',
+    { id: 'three_launch_sites', achievementKey: 'challengeThreeLaunchSites', name: '三地发射网', icon: '🚀', badge: 'assets/challenges/challenge-three-launch-sites.png', badgeThumb: 'assets/challenges/thumbs/challenge-three-launch-sites.webp', kind: '终局挑战',
       summary: '三座行星发射场都要扩建到十一级。',
       rule: '戴森球竣工时，欧罗巴、泰拉、恩克拉多斯发射场都必须达到 11 级。',
       reward: '永久星屑获取 +10% · 三座发射场热液能消耗 -10%',
       goal: { t: 'dysonLaunchSites' }, goalText: '戴森球竣工时三座轨道发射场都达到 11 级（虚境飞升亦算）',
       tiers: [{ label: '三地并举', cap: null }] },
-    { id: 'eternity_moment', achievementKey: 'challengeEternityMoment', name: '掌控永远与须臾程度的能力', icon: '☾', badge: 'assets/challenges/challenge-eternity-moment.png', kind: '三档终局挑战',
+    { id: 'eternity_moment', achievementKey: 'challengeEternityMoment', name: '掌控永远与须臾程度的能力', icon: '☾', badge: 'assets/challenges/challenge-eternity-moment.png', badgeThumb: 'assets/challenges/thumbs/challenge-eternity-moment.webp', kind: '三档终局挑战',
       summary: '研究与终局工程目标依档位提高五、十或二十倍。',
       rule: '科技与市政研究点成本乘以本档倍率；冰壳厚度、星空探索、太阳帆和戴森节点目标也乘以本档倍率。尤里卡、前置条件与科技额外材料成本不变。',
       rewards: [
@@ -147,7 +147,7 @@
      *    正常游玩不可能违规，故不像 anarchy 那样需要「违规计数」兜底。
      * ⚠️ 奖励沿用终局挑战惯例基线「永久星屑获取 +10%」+ 自选副奖 C「软实力成本 -20%」
      *    （softPowerCost 读 tierDone('pacifist') 永久生效，见 war.js）。 */
-    { id: 'pacifist', achievementKey: 'challengePacifist', name: '批判的武器', icon: '🕊', badge: 'assets/challenges/challenge-pacifist-illustrated.webp', kind: '终局挑战',
+    { id: 'pacifist', achievementKey: 'challengePacifist', name: '批判的武器', icon: '🕊', badge: 'assets/challenges/challenge-pacifist-illustrated.webp', badgeThumb: 'assets/challenges/thumbs/challenge-pacifist-illustrated.webp', kind: '终局挑战',
       summary: '整局不发动任何战争行动，以和平手段推进文明。',
       rule: '全程不得进行劫掠 / 入侵 / 全面战争；吞并与软实力（传播文化、传道信仰）不受限制，可照常使用。',
       reward: '永久星屑获取 +10% · 软实力（信仰 / 文化渗透）成本 -20%',
@@ -160,7 +160,7 @@
      *    顶部直接 return 拦截；UI 对应按钮也禁用并提示原因。
      * ⚠️ 奖励沿用终局挑战惯例基线「永久星屑获取 +10%」+ 副奖「战争行动军力消耗 -10%」
      *    （actionCost 读 tierDone('weapon_critique') 永久生效，见 war.js）。 */
-    { id: 'weapon_critique', achievementKey: 'challengeWeaponCritique', name: '武器的批判', icon: '⚔', badge: 'assets/challenges/challenge-weapon-critique-illustrated.webp', kind: '终局挑战',
+    { id: 'weapon_critique', achievementKey: 'challengeWeaponCritique', name: '武器的批判', icon: '⚔', badge: 'assets/challenges/challenge-weapon-critique-illustrated.webp', badgeThumb: 'assets/challenges/thumbs/challenge-weapon-critique-illustrated.webp', kind: '终局挑战',
       summary: '以武力推进文明，拒绝文化与信仰的渗透，也拒绝商路贸易。',
       rule: '全程不得进行传播文化 / 传道信仰（软实力），也不得修建贸易路线；战争行动与吞并不受限制。',
       reward: '永久星屑获取 +10% · 战争行动军力消耗 -10%',
@@ -169,7 +169,7 @@
     /* ── 早打，大打，打核大战（2026-11-12 实装）────────────────────────────
      * 与批判的武器 / 武器的批判正交：只许发动「全面战争」，劫掠与入侵被禁。
      * 约束在整局（含破壳后）生效，goal 型 active 一直返回到 challengeDone。 */
-    { id: 'totalwar_doctrine', achievementKey: 'challengeTotalWarDoctrine', name: '早打，大打，打核大战', icon: '☢', badge: 'assets/challenges/challenge-totalwar-doctrine-illustrated.webp', kind: '终局挑战',
+    { id: 'totalwar_doctrine', achievementKey: 'challengeTotalWarDoctrine', name: '早打，大打，打核大战', icon: '☢', badge: 'assets/challenges/challenge-totalwar-doctrine-illustrated.webp', badgeThumb: 'assets/challenges/thumbs/challenge-totalwar-doctrine-illustrated.webp', kind: '终局挑战',
       summary: '只许发动全面战争，以最猛烈的手段碾碎一切。',
       rule: '全程只能进行「全面战争」；劫掠与入侵被禁止。',
       reward: '永久星屑获取 +10% · 士兵职业产出 +15%',
@@ -177,7 +177,7 @@
       tiers: [{ label: '核平', cap: null }] },
     /* ── grubby（2026-11-12 实装）──────────────────────────────────────────
      * 只许劫掠，入侵与全面战争被禁。与批判的武器 / 武器的批判正交。 */
-    { id: 'raider', achievementKey: 'challengeRaider', name: 'grubby', icon: '🪙', badge: 'assets/challenges/challenge-raider-illustrated.webp', kind: '终局挑战',
+    { id: 'raider', achievementKey: 'challengeRaider', name: 'grubby', icon: '🪙', badge: 'assets/challenges/challenge-raider-illustrated.webp', badgeThumb: 'assets/challenges/thumbs/challenge-raider-illustrated.webp', kind: '终局挑战',
       summary: '只许劫掠，绝不做长期占领。',
       rule: '全程只能进行「劫掠」；入侵与全面战争被禁止。',
       reward: '永久星屑获取 +10% · 战利品产出 +20%',
@@ -189,7 +189,7 @@
      *    status==='annexed' 的数量 ≥ 7。这是 goal 引擎的唯一改动，其它 goal 型
      *    （drift_terra / waterpollution / dyson_rush / 批判的武器 / 武器的批判）不受影响。
      * ⚠️ 敌方恢复倍率由 enemyRecoveryMul 在 war.js 的 recoverEnemy 应用，读 activeTier(s).cap。 */
-    { id: 'conqueror', achievementKey: 'challengeConqueror', name: '征服者', icon: '👑', badge: 'assets/challenges/challenge-conqueror-illustrated.webp', kind: '三档挑战',
+    { id: 'conqueror', achievementKey: 'challengeConqueror', name: '征服者', icon: '👑', badge: 'assets/challenges/challenge-conqueror-illustrated.webp', badgeThumb: 'assets/challenges/thumbs/challenge-conqueror-illustrated.webp', kind: '三档挑战',
       summary: '吞并全部七个敌国，以铁蹄踏平星海。',
       rule: '戴森球竣工时，必须已吞并全部 7 个敌国；本挑战敌方规模恢复速度按档位 ×1.5 / ×2 / ×3。',
       rewards: [
@@ -200,9 +200,9 @@
       goal: { t: 'all', of: [{ t: 'dyson' }, { t: 'annex', n: 7 }] },
       goalText: '完成戴森球工程（虚境飞升亦算），并已吞并全部 7 个敌国',
       tiers: [
-        { label: '一档', cap: 1.5 },
-        { label: '二档', cap: 2 },
-        { label: '三档', cap: 3 }
+        { label: '一档', labelKey: 'challenge.definition.conqueror.tier_1.5', cap: 1.5 },
+        { label: '二档', labelKey: 'challenge.definition.conqueror.tier_2', cap: 2 },
+        { label: '三档', labelKey: 'challenge.definition.conqueror.tier_3', cap: 3 }
       ] },
     /* ── 飞升挑战系列（2026-11-20 实装，docs/CHALLENGE_VEIL_RUSH_DESIGN v0.4 + CHALLENGE_ASCENSION_POOL v0.7）──
      * 三项共同：终点 = 研成《掀起帘幕》科技（goal {t:'tech',id:'beyond_veil'}），
@@ -213,7 +213,7 @@
      *   三项都带 ascension:true，供 ascensionTierCount 计入「每档 +10% 飞升点」通用奖励
      *   （挂 prestige.veilPeriod().points，绝不碰轮回点的 challengePointMul）。
      *   平台榜单 / 成就 ID 均暂不建：不填 rankKey（不提交不存在的榜）；achievementKey 只记本地账本。 */
-    { id: 'veil_rush', achievementKey: 'challengeVeilRush', name: '飞升竞速', icon: '⏳', badge: 'assets/challenges/challenge-veil-sprint-illustrated.png', kind: '三档限时挑战',
+    { id: 'veil_rush', achievementKey: 'challengeVeilRush', name: '飞升竞速', icon: '⏳', badge: 'assets/challenges/challenge-veil-sprint-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-sprint-illustrated.webp', kind: '三档限时挑战',
       timed: true, ascension: true,
       summary: '在计时归零前研成《掀起帘幕》；退出游戏后计时仍继续。',
       rule: '从开始挑战起按现实时间计时，离线时间也计入；超时后本档不能领取竞速奖励。',
@@ -224,7 +224,7 @@
         { label: '16 小时档', cap: 16 * 60 * 60 },
         { label: '8 小时档', cap: 8 * 60 * 60 }
       ] },
-    { id: 'veil_abyss', achievementKey: 'challengeVeilAbyss', name: '飞升苦旅', icon: '⛓', badge: 'assets/challenges/challenge-veil-abyss-illustrated.png', kind: '三档挑战',
+    { id: 'veil_abyss', achievementKey: 'challengeVeilAbyss', name: '飞升苦旅', icon: '⛓', badge: 'assets/challenges/challenge-veil-abyss-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-abyss-illustrated.webp', kind: '三档挑战',
       ascension: true,
       summary: '全产出被压低，仍需一路研成《掀起帘幕》。',
       rule: '本轮全产出降低，直至研成《掀起帘幕》。',
@@ -235,7 +235,7 @@
         { label: '第二档', cap: 0.40 },
         { label: '第三档', cap: 0.60 }
       ] },
-    { id: 'veil_starve', achievementKey: 'challengeVeilStarve', name: '宇宙空洞', icon: '🕳', badge: 'assets/challenges/challenge-veil-starve-illustrated.png', kind: '三档挑战',
+    { id: 'veil_starve', achievementKey: 'challengeVeilStarve', name: '宇宙空洞', icon: '🕳', badge: 'assets/challenges/challenge-veil-starve-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-starve-illustrated.webp', kind: '三档挑战',
       ascension: true,
       summary: '星屑结算收益被压低，仍需一路研成《掀起帘幕》。',
       rule: '本轮破壳星屑结算收益降低，直至研成《掀起帘幕》。',
@@ -253,21 +253,21 @@
      * ⚠️ 档数：无神论 / 动荡年代为**单档固定**（tiers 一条 cap:null，各贡献飞升点 +0.1），
      *    繁盛市场为三档（cap 0.3/0.5/0.7，+0.3）——用户 17:44 拍「1和5哪来的三档」。
      * ⚠️ badge 暂用已存在的 veil 图标占位（用户将出图）：出图后按文档文件名替换三处 badge。 */
-    { id: 'veil_nofaith', achievementKey: 'challengeVeilNoFaith', name: '无神论', icon: '🚫', badge: 'assets/challenges/challenge-veil-nofaith-illustrated.png', kind: '终局挑战',
+    { id: 'veil_nofaith', achievementKey: 'challengeVeilNoFaith', name: '无神论', icon: '🚫', badge: 'assets/challenges/challenge-veil-nofaith-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-nofaith-illustrated.webp', kind: '终局挑战',
       ascension: true,
       summary: '弃绝一切信条与信仰之助，以无神之身抵达帘幕之后。',
       rule: '全程不得装备任何信条；信仰的两条全产加成（局内存量档 + 跨局旧日信仰档）均失效。',
       reward: '永久信仰产出 +50% · 信条抽选多一个候选（三选一变四选一）',
       goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
       tiers: [{ label: '完成挑战', cap: null }] },
-    { id: 'veil_turmoil', achievementKey: 'challengeVeilTurmoil', name: '动荡年代', icon: '🌊', badge: 'assets/challenges/challenge-veil-turmoil-illustrated.png', kind: '终局挑战',
+    { id: 'veil_turmoil', achievementKey: 'challengeVeilTurmoil', name: '动荡年代', icon: '🌊', badge: 'assets/challenges/challenge-veil-turmoil-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-turmoil-illustrated.webp', kind: '终局挑战',
       ascension: true,
       summary: '在最深的动荡里，依然把文明推向群星。',
       rule: '幸福度恒为最低档（动荡 ×0.80），奢侈品与奇观均无法抬升；直至研成《掀起帘幕》。',
       reward: '永久幸福度 +1',
       goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
       tiers: [{ label: '完成挑战', cap: null }] },
-    { id: 'veil_cramped', achievementKey: 'challengeVeilCramped', name: '繁盛市场今在此', icon: '🏪', badge: 'assets/challenges/challenge-veil-cramped-illustrated.png', kind: '三档挑战',
+    { id: 'veil_cramped', achievementKey: 'challengeVeilCramped', name: '繁盛市场今在此', icon: '🏪', badge: 'assets/challenges/challenge-veil-cramped-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-cramped-illustrated.webp', kind: '三档挑战',
       ascension: true,
       summary: '仓廪逼仄偏要开成繁盛市场，把有限空间用到极致。',
       rule: '全部有上限资源的仓储上限 −30% / −50% / −70%（科研点等无上限资源不受影响）。',
@@ -598,6 +598,13 @@
    * ⚠️ 副作用若写在**本局**（s.xxx）上，onComplete 里还得自己 saveRun —— 见下面那段注。
    * ⚠️ 重复达成（replay）分支**一个字都不写账本**：meta.challenges.completed 保持原值
    *   ⇒ completedCount() 不变 ⇒「每档 +10% 轮回点获取」不会被重复领取（用户定案 R）。 */
+  function saveChallengeRun(s) {
+    if (SB.game && SB.game.run && SB.game.run() === s && SB.game.saveChallengeProgress) {
+      SB.game.saveChallengeProgress(s);
+    } else if (SB.state && SB.state.saveRun) {
+      SB.state.saveRun(s);
+    }
+  }
   function award(s, meta) {
     var ch = s && s.challenge, d = ch && BY_ID[ch.id];
     if (!d || !d.goal || s.challengeDone) return null;
@@ -620,7 +627,7 @@
         SB.rank.submitRun([{ key: d.rankKey, value: d.rankValue ? d.rankValue(s) : 0 }]);
       /* ⛔ 不写 meta.challengePopupPending：那会重播四段分镜，并弹出「永久奖励已生效」——
        *   重复挑战根本没发奖，那句话是假的。 */
-      if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
+      saveChallengeRun(s);
       if (SB.game && SB.game.log) SB.game.log(challengeTr('challenge.award.replay_log', {
         challengeName: challengeDisplayText(d, 'name'),
         goalText: challengeDisplayText(d, 'goalText')
@@ -646,7 +653,7 @@
      * 不立刻落盘 ⇒ 自动存档（5 秒）之间刷新 / 切后台被杀 ⇒ 读回来是「已完成 + 旧季长」，
      * 而 resumeRun 只在 seasonLengthsVersion 缺失时重算 ⇒ 寒流 600→300 这条奖励静默丢失
      * （2026-10-31 检查发现）。这一行是奖励入账的一部分，不是可选的保险。 */
-    if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
+    saveChallengeRun(s);
     if (SB.game && SB.game.log) SB.game.log(challengeTr('challenge.award.success_log', {
       challengeName: challengeDisplayText(d, 'name'),
       goalText: challengeDisplayText(d, 'goalText')
@@ -666,8 +673,7 @@
     s.challengeDone = true;
     s.challengeOutcome = out;
     if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
-    if (SB.state && SB.state.saveRun && SB.game && SB.game.run && SB.game.run() === s)
-      SB.state.saveRun(SB.game.snapshot(s));
+    if (SB.game && SB.game.run && SB.game.run() === s) saveChallengeRun(s);
     if (SB.game && SB.game.log) {
       var def = BY_ID[out.id], challengeName = challengeDisplayText(def, 'name');
       var message = out.failed
@@ -855,7 +861,7 @@
           '限时 ' + formatClock(t.cap) + ' · 离线计时') + '. ' + challengeDisplayText(d, 'goalText')
       : d.id === 'science'
         ? challengeTr('ui.challenge.tier_rule.science', {
-            scribeName: SB.folk.jobName(s, 'scribe'),
+            scribeName: SB.folk.localizedJobName(s, 'scribe'),
             staffCap: t.cap
           }, '学者与书手各不得超过 ' + t.cap + ' 人')
         : d.id === 'abyss'

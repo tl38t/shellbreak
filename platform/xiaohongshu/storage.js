@@ -371,21 +371,67 @@
       return Promise.all(unique.map(waitQueue)).then(function (queueResults) {
         if (queueResults.some(function (ok) { return !ok; }))
           return { ok: false, error: lastError || 'storage_write_failed' };
+        var nativeKeys = unique.some(function (key) { return expected[key] === null; })
+          ? apiCall('getStorageInfo').then(function (info) {
+            if (!Array.isArray(info.keys)) throw new Error('getStorageInfo returned invalid keys');
+            return info.keys.map(String);
+          })
+          : null;
         return Promise.all(unique.map(function (key) {
-          return readNativeValue(key).then(function (value) {
-            return { key: key, ok: value === expected[key] };
-          }, function (error) {
+          var check = expected[key] === null
+            ? nativeKeys.then(function (keys) { return keys.indexOf(key) < 0; })
+            : readNativeValue(key).then(function (value) { return value === expected[key]; });
+          return check.catch(function (error) {
             lastError = errorText(error);
-            return { key: key, ok: false };
+            return false;
           });
         })).then(function (checks) {
-          var ok = checks.every(function (item) { return item.ok; });
+          var ok = checks.every(Boolean);
           if (!ok) {
             writeFailed++;
             if (!lastError) lastError = 'storage_readback_mismatch';
             notify();
           }
           return { ok: ok, error: ok ? '' : lastError };
+        });
+      });
+    });
+  }
+
+  function replaceSavePair(metaRaw, runRaw) {
+    if (mode !== 'native' || !nativeReady) {
+      return Promise.resolve({ ok: false, unavailable: true, error: lastError || mode });
+    }
+    var cfg = root.SB.CFG;
+    var keys = [cfg.SAVE_KEY, cfg.RUN_KEY];
+    var backupKeys = [cfg.SAVE_BACKUP_KEY, cfg.RUN_BACKUP_KEY];
+    var previous = keys.map(function (key) { return facade.getItem(key); });
+    var backups = [];
+    previous.forEach(function (value, i) {
+      if (value === null) return;
+      facade.setItem(backupKeys[i], value);
+      backups.push(backupKeys[i]);
+    });
+    function writePair(pair) {
+      keys.forEach(function (key, i) {
+        if (pair[i] === null) facade.removeItem(key);
+        else facade.setItem(key, pair[i]);
+      });
+    }
+    function verify(expectedKeys) {
+      return flushAndVerify(expectedKeys).catch(function (error) {
+        return { ok: false, error: errorText(error) };
+      });
+    }
+    // 两个备份都读回一致后才覆盖主档。主档失败时恢复原值并等待回读。
+    return verify(backups).then(function (backup) {
+      if (!backup.ok) return { ok: false, backupFailed: true, error: backup.error };
+      writePair([metaRaw, runRaw]);
+      return verify(keys).then(function (updated) {
+        if (updated.ok) return updated;
+        writePair(previous);
+        return verify(keys).then(function (rollback) {
+          return { ok: false, error: rollback.ok ? updated.error : rollback.error || updated.error };
         });
       });
     });
@@ -405,6 +451,7 @@
       };
     },
     flushAndVerify: flushAndVerify,
+    replaceSavePair: replaceSavePair,
     flush: function (keys) {
       return ready.then(function () {
         if (mode !== 'native' || !nativeReady) return false;

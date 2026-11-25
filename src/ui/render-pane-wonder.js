@@ -7,8 +7,11 @@
   function englishLocale() {
     return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
   }
+  function nonDefaultLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN');
+  }
   function tr(key, params, fallback) {
-    if (!englishLocale()) return fallback || '';
+    if (!nonDefaultLocale()) return fallback || '';
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
     return value || fallback || '';
   }

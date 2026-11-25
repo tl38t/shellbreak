@@ -9,6 +9,35 @@
     return SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
   }
 
+  var FOLK_FILTER_ALLOWED = ['all', 'assigned'];
+  var FOLK_DENSITY_ALLOWED = ['detail', 'compact'];
+  var folkFilterFallback = 'all';
+  var folkDensityFallback = 'detail';
+  function getFolkFilter() {
+    var S = SB.store;
+    if (S && S.prefGetStr) return S.prefGetStr('folk.filter', FOLK_FILTER_ALLOWED, 'all');
+    return folkFilterFallback;
+  }
+  function setFolkFilter(val) {
+    if (FOLK_FILTER_ALLOWED.indexOf(val) < 0) return false;
+    folkFilterFallback = val;
+    var S = SB.store;
+    if (S && S.prefSetStr) S.prefSetStr('folk.filter', val, FOLK_FILTER_ALLOWED);
+    return true;
+  }
+  function getFolkDensity() {
+    var S = SB.store;
+    if (S && S.prefGetStr) return S.prefGetStr('folk.density', FOLK_DENSITY_ALLOWED, 'detail');
+    return folkDensityFallback;
+  }
+  function setFolkDensity(val) {
+    if (FOLK_DENSITY_ALLOWED.indexOf(val) < 0) return false;
+    folkDensityFallback = val;
+    var S = SB.store;
+    if (S && S.prefSetStr) S.prefSetStr('folk.density', val, FOLK_DENSITY_ALLOWED);
+    return true;
+  }
+
   function jobDescription(job) {
     var params = job.id === 'soldier' && SB.war
       ? { baseMilitaryPower: SB.war.soldierBaseRate().toFixed(1) } : null;
@@ -67,8 +96,19 @@
     /* 照猫国：族民默认闲置，＋ 雇 / − 退。没有闲置时 ＋ 禁用，
      * 职业总和永远 ≤ pop——不搞「减 A 立刻补给 B」的转移制。 */
     var idle = SB.folk.idle(s);
+    var fFilter = getFolkFilter();
+    var fDensity = getFolkDensity();
     var stepSizeOptions = '×1 → ×5 → ×10';
     var stp = SB.ui.render.jobStep();
+    h += '<div class="pane-toolbar" role="toolbar">' +
+      '<div class="pane-filter-group">' +
+        '<button type="button" class="pane-pill' + (fFilter === 'all' ? ' on' : '') + '" data-folk-filter="all" aria-pressed="' + (fFilter === 'all') + '">' + (tr('village.filter.all') || '全部') + '</button>' +
+        '<button type="button" class="pane-pill' + (fFilter === 'assigned' ? ' on' : '') + '" data-folk-filter="assigned" aria-pressed="' + (fFilter === 'assigned') + '">' + (tr('folk.filter.assigned') || '已在岗') + '</button>' +
+      '</div>' +
+      '<div class="pane-density-group">' +
+        '<button type="button" class="pane-pill' + (fDensity === 'detail' ? ' on' : '') + '" data-folk-density="detail" aria-pressed="' + (fDensity === 'detail') + '">' + (tr('village.density.detail') || '详细') + '</button>' +
+        '<button type="button" class="pane-pill' + (fDensity === 'compact' ? ' on' : '') + '" data-folk-density="compact" aria-pressed="' + (fDensity === 'compact') + '">' + (tr('village.density.compact') || '简洁') + '</button>' +
+      '</div></div>';
     h += '<div class="row folk-idle folk-workforce-head"><div><div class="nm">' + tr('ui.folk.idle_people.summary', {
       idlePeopleCount: idle
     }) + '</div><div class="ds">' + tr('ui.folk.idle_people.hint') + '</div></div>' +
@@ -85,6 +125,7 @@
      * 【为什么带 `s.jobs[j.id] > 0`】防御老档：若某人卡在未解锁职业上（早期版本的档），
      *   行必须留下来，否则那个人从界面上凭空消失、玩家只能在闲置池里看到总数对不上。 */
     h += '<div class="folk-job-grid">';
+    var folkShown = 0;
     for (var i = 0; i < SB.JOBS.length; i++) {
       var j = SB.JOBS[i];
       /* ⚠️ `|| 0` 不是可省的小节：它是**根因侧的第二道闸**。2026-09-28 加商人时，
@@ -94,6 +135,7 @@
        *    已经反复漏过；UI 不该把「存档一定给全了键」当前提。补这个 `|| 0` 是
        *    让下一份漏键至少不会长成「看得见但按不动」的哑控件。 */
       if ((s.jobs[j.id] || 0) <= 0 && !SB.folk.jobUnlocked(s, j.id)) continue;
+      if (fFilter === 'assigned' && (s.jobs[j.id] || 0) <= 0) continue;
       /* ⚠️ 名字必须走 `SB.folk.jobName(s, id)` 而不是 `j.name`：采集者在掌握「种植」之后
        * 要改称「农民」（用户 2026-09-26 拍板：是同一个人换了身份，不是多一个职业）。
        * 改称机制写在 folk.js（FARM_JOB / FARM_TECH / FARM_NAME），但这里原先直接印
@@ -105,7 +147,7 @@
       var jobLimitReason = SB.folk.jobLimitReason(s, j.id);
       h += '<div class="row folk-job-row" data-job-row="' + j.id + '"><div><div class="nm">' + SB.folk.localizedJobName(s, j.id) +
         ' <b id="j-' + j.id + '">' + s.jobs[j.id] + '</b>' + (isFinite(jobLimit) ? ' / ' + jobLimit : '') + '</div>' +
-        '<div class="ds">' + jobDescription(j, s) + '</div></div>' +
+        '<div class="ds"' + (fDensity === 'compact' ? ' hidden' : '') + '>' + jobDescription(j, s) + '</div></div>' +
         '<div class="folk-job-controls">' +
         /* 2026-11-14：步长按钮已提升到闲置人口栏，全局人类/机器人共用；
          * 职业行只保留实际分配动作，减少重复控件和视觉噪声。
@@ -115,6 +157,10 @@
         '<button class="btn" data-job="' + j.id + '" data-d="' + stp + '"' + (idle <= 0 || atJobLimit ? ' disabled' : '') +
           ' title="' + (jobLimitReason || tr('ui.folk.job.assign.tooltip', { stepSize: stp })) + '">＋</button>' +
         '</div></div>';
+      folkShown++;
+    }
+    if (!folkShown) {
+      h += '<div class="row"><div class="ds">' + (tr('village.filter.empty') || '当前筛选下没有可显示的条目，可点上方「全部」查看。') + '</div></div>';
     }
     h += '</div>';
     /* ERA8（2026-10-19 · B7）：机器人分配段。机器人是独立池，仅能担任非书手/学者的岗位，
@@ -163,4 +209,6 @@
   }
 
   parts.paneFolk = paneFolk;
+  parts.setFolkFilter = setFolkFilter;
+  parts.setFolkDensity = setFolkDensity;
 })(typeof window !== 'undefined' ? window : globalThis);

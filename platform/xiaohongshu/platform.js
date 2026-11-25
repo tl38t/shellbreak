@@ -4,6 +4,7 @@
   root.shellbreakPlatform = {
     runtime: 'xiaohongshu',
     localizationEnabled: false,
+    testUnlockStarMap: !!(document.currentScript && document.currentScript.hasAttribute('data-test-unlock-star-map')),
     /* Set true only after the MiniTool publish config shows reward is enabled. */
     rewardAuthorEnabled: false
   };

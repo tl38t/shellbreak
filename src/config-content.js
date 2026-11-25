@@ -78,7 +78,7 @@
     tiplate:    { name: '钛金板件', short: '板', kind: 'craft', unlock: { tech: 'minipump' } },
     /* ERA8（2026-10-18）：θ生物金属是普通库存资源，由生物材料研究所制造，基础仓储上限 200；
      *   与工艺资源区分开，不标 kind:'craft'。解锁权挂科技『生物材料』（biomat）。 */
-    thetaMetal: { name: 'θ生物金属', short: 'θ', unlock: { tech: 'biomat' }, storageEra: 8 },
+    thetaMetal: { name: 'θ生物金属', short: 'θ金属', unlock: { tech: 'biomat' }, storageEra: 8 },
     /* ERA8 市政（2026-10-18 · 用户市政表 H2 拍板）：θ金属自适应薄膜成为**可持有资源**——
      *   上一波实装时工艺产出折算成了钛金板件（避免「无 CAP 无去处的工艺资源」），
      *   但用户市政表《虚拟现实》解锁的奇观「魔鱼世界VR」造价是「薄膜 ×10」，
@@ -425,23 +425,8 @@
      * ⚠️ 城堡/大学「不设上限、衰减抄猫国 getLimitedDR」（用户 2026-09-29 拍）：
      *   升级本身可反复装（need 满足即可再装），但 castleCap 那一条走 getLimitedDR 衰减，
      *   所以「每级 +50」的实际增量随总量渐近收口，不会无限膨胀。数值等用户拍。 */
-    /* ⚠️⚠️【建筑升级型 = 同一座建筑改名字，不是新建筑】2026-10-06 用户两次纠偏定死这条。
-     *   本表有四项的 desc 是「X升级：…」，它们的真实语义是**那座建筑买下之后就地改名**：
-     *     upg_fishbonemine 砂矿坑 → 鱼骨矿井 →（upg_deepmine）→ 深层矿井
-     *     upg_university  研究所 → 大学
-     *     upg_castle      议事厅 → 城堡
-     *   ⇒ 面板上永远是**同一行**：id / 等级键 / 造价曲线全都不变，只换显示名与效果文案。
-     *   【`upgradesBuilding` 字段】声明「我顶替哪座建筑」。render 读它决定这一行叫什么，
-     *      读数层（costOf / 各效果函数）压根不关心名字 —— 名字是纯 UI 表现。
-     *   【为什么不写在 render 里硬编码三段 if】三处各写一遍判据 = 三份会漂的事实来源。
-     *      声明在数据侧、判定在 UI 侧，两者分离，加第四个这种升级时只改这张表。
-     *   ⚠️ 别再把「X由Y升级而来」读成「另造一座 X 建筑」——本轮已因此返工两次，
-     *      第一次还 e2e 全绿（见 .workbuddy/memory/2026-10-06.md 判据一）。
-     *   【`upgradesBuilding` vs `buildingDesc` 两个字段的分工】前者说「我顶替哪座建筑」
-     *      （判定用），后者是**升级之后那一行该显示的完整效果文案**（显示用）。
-     *      为什么要后者而不是直接复用 `desc`：`desc` 的主语是「砂矿坑升级：…」，写在升级
-     *      面板里是正确的主语（它确实是在说升级什么），但同一句显示在建筑行上时，
-     *      那一行已经叫「鱼骨矿井」了，主语自相矛盾。⇒ 两处各用各的文案。 */
+    /* upgradesBuilding 指向被替代的建筑。升级沿用其 ID、等级和造价。
+     * 多级升级显示最后一级的名称。buildingDesc 是升级后建筑行的说明，desc 用于升级面板。 */
     /* 鱼骨矿井（砂矿坑升级）：need=学徒制（学徒制的尤里卡=买齐三件铁制工具 ⇒ 研究完即解锁）。
      *   效果：矿工金属 +50%（mineSilt 0.5）、暖石 +100%（mineWarm 1.0，即 ×2）。
      *   cost 50 铁制支架 + 50 硬化珊瑚（用户规格终值）。 */
@@ -566,7 +551,7 @@
     { id: 'upg_warmalgalfarm', name: '温水藻场升级', need: 'sealbin',
       algalfarmSci: 0.5,
       cost: { tiplate: 300, science: 200000 },
-      desc: '温水藻场：每级（× 藻场等级）额外 +0.5 科技/秒，不受季节、耗 0.05 热液能（首版简化为科学加成）。' },
+      desc: '温水藻场每级额外产出 +0.5 科技/秒（按藻场等级倍增），不受季节影响，耗 0.05 热液能/秒。' },
 
     /* ── ERA7 工艺升级（2026-10-21 调整 · 自动化钻探）──
      * 【自动化钻探】在巢穴面板启停砂矿坑；每座运行矿坑给钛、铀对应产线的自身份额 +100%，
@@ -589,7 +574,7 @@
     { id: 'upg_boomcraft', name: '可控爆炸工艺', need: 'crewed',
       cost: { tiplate: 400, resonantDrill: 200, science: 1000000 },
       boomcraftMul: 0.05,
-      desc: '工艺制作产出 ×1.05（新增乘区，不影响成本）。' },
+      desc: '工艺制作产出 ×1.05（独立倍率，不增加材料消耗）。' },
     /* ERA7（spec §4）：复合型工厂 —— +1 自动工艺槽位（workshop.slotCap 同源叠加）。
      *   cost 科技点 2,100,000 = 《复合型工厂》自身 cost；材料提议值。 */
     { id: 'upg_complexf', name: '复合型工厂', need: 'complexf',
@@ -886,7 +871,7 @@
     { id: 'wonder_bolocillo', name: '博洛西洛漂浮发射场', era: 7, needCivic: 'space_race',
       cost: { tiplate: 1000, sealbin: 80 },
       effect: { mannedRocket: 1.0 },
-      desc: '载人火箭工艺效率 +100%（工艺制作乘区 ×2，economy 载人火箭工艺段读 wonder.mannedRocketMul）。' },
+      desc: '载人火箭工艺效率 +100%（独立倍率 ×2）。' },
     { id: 'wonder_goddard_rod', name: '上帝之杖', era: 7, need: 'crewed',
       cost: { tiplate: 4000, rocketEngine: 50 },
       effect: { soldierOutputBonus: 0.10, spacecraftSoldierOutputBonus: 0.05 },
@@ -908,7 +893,7 @@
       cost: { rocketEngine: 100, tiplate: 1600 },
       effect: {},
       desc: '星际探测的起点：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为每秒 +25 且学者产出 +10%。' },
-    { id: 'wonder_saturn', name: '萨图恩巨星气行星轨道采集站', era: 8, need: 'gascloud',
+    { id: 'wonder_saturn', name: '萨图恩气态巨行星轨道采集站', era: 8, need: 'gascloud',
       cost: { thetaMetal: 500, rocketEngine: 50 },
       effect: { hydroBonus: 30, fuelBonus: 30, starBonus: 10 },
       desc: '气态巨行星的轨道工厂：热液能 +30/秒、燃料 +30/秒、星空探索 +10/秒。' },

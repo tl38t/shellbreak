@@ -273,7 +273,6 @@
 - 新增 `tmp/veil-art/veil-si-rig-guide.png`（**clean 构图骨架，上传 Gemini 用**）
 - 新增 `tmp/veil-art/veil-si-rig-align.png`（叠 10 热区的对位版，**不上传**）
 - **B 路线追加**：`tmp/veil-art/veil-si-body-plate.webp`（900×1380 / q=85 / 47,106 B，demo 实际底图）、`veil-si-body-align-B.png`（B 版 10 点叠图）、`veil-si-body-head-B.png`（头颈放大 2×）；`tmp/veil-organ-demo.html` 换真底图 + 坐标重排 + `PROBE` 真实 DOM 最小中心距
-- 追加 `.workbuddy/memory/2026-11-14.md`
 
 **验证**：骨架图 900×1380，整体正面直立 / 垂直居中 / 零文字零标注零边框；头颈区裁切放大 2× 后 08/07/01/09/02 五点两两不重叠、编号清晰，鳃缝已从「疑似闭眼」改成颈侧短线；两版背景硬边椭圆光晕已移除（避免 Gemini 当成构图元素）。一键复制页经 headless Chrome `file://` 验证，控制台零报错。
 

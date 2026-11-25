@@ -1,11 +1,12 @@
 /* e2e suite: save, refresh, migration, reset; uses the caller's shared run fixture. */
-export async function run({ SB, check, sandbox, doc, makeDoc, loadAll, errors }) {
+export async function run({ SB, check, sandbox, doc, makeDoc, loadAll, errors, store }) {
 
 /* ---------------- 存档恢复 ---------------- */
 console.log('\n=== 刷新恢复（localStorage）===');
 const savedMeta = JSON.parse(sandbox.localStorage.getItem(SB.CFG.SAVE_KEY) || '{}');
 check('跨周目存档已落盘', !!savedMeta && savedMeta.perks && typeof savedMeta.perks === 'object', 'tide=' + (savedMeta.tide || 0).toFixed(2));
-check('周目存档已落盘', !!sandbox.localStorage.getItem(SB.CFG.RUN_KEY));
+const savedRun = JSON.parse(sandbox.localStorage.getItem(SB.CFG.RUN_KEY) || 'null');
+check('周目存档已落盘', !!savedRun);
 
 /* ⚠️⚠️ 刷新恢复这一节有两个坑，都不是「测刷新」，而是「把第一份沙箱弄坏了」：
  *
@@ -20,14 +21,20 @@ check('周目存档已落盘', !!sandbox.localStorage.getItem(SB.CFG.RUN_KEY));
  *          挂到新的 doc 上。若再犯 ② 的错（共用 doc），就等于「一次点击被两个 onClick
  *          各消费一遍」—— 暖石开关开了又关、净变化 0，而且这类症状只在跑完这一节
  *          之后才出现，前面全绿、恰好最后一节红。
- *      ⇒ 刷新 = **新上下文 + 同一份 localStorage**，别的什么都不继承。这里显式列出
+ *      ⇒ 刷新 = **新上下文 + 刷新时刻的存档内容**，别的什么都不继承。这里显式列出
  *        要带过去的东西，SB 一律不带。
  */
+// 旧页已被刷新。新页能写入自己的存储，后续用例继续使用原来的页面。
+const reloadedStore = new Map(store);
 const sandbox2 = {
   console, Math, Date, JSON, Object, Array, String, Number, Boolean, Set, Map,
   isNaN, parseInt, parseFloat,
   performance: sandbox.performance,
-  localStorage: sandbox.localStorage,      // 刷新前后同一份存档，这正是要测的
+  localStorage: {
+    getItem: key => reloadedStore.get(key) ?? null,
+    setItem: (key, value) => reloadedStore.set(key, value),
+    removeItem: key => reloadedStore.delete(key)
+  },
   document: makeDoc(),                     // 刷新后是新 document
   _intervals: [],
   setInterval(fn) { sandbox2._intervals.push(fn); return sandbox2._intervals.length; },
@@ -36,6 +43,7 @@ const sandbox2 = {
   setTimeout(fn) { sandbox2._timeouts.push(fn); return sandbox2._timeouts.length; },
   clearTimeout() {}
 };
+sandbox2.window = sandbox2;
 let SB2;
 try {
   const loaded = await loadAll(sandbox2);
@@ -44,8 +52,9 @@ try {
   errors.push('恢复加载异常: ' + e.message + '\n' + e.stack);
   console.log('  · 恢复加载抛错:', e.message);
 }
-check('刷新后可从存档恢复', !!(SB2 && SB2.game && SB2.game.run() && SB2.game.run().lvl),
-  SB2 && SB2.game.run() ? '恢复建筑级 ' + SB2.game.run().lvl.kelp : '');
+const restoredRun = SB2 && SB2.game && SB2.game.run();
+check('刷新后可从存档恢复', !!(savedRun && restoredRun && restoredRun.t === savedRun.t &&
+  restoredRun.lvl.kelp === savedRun.lvl.kelp), restoredRun ? '恢复建筑级 ' + restoredRun.lvl.kelp : '');
 
 /* ---------------- 存档迁移 ---------------- */
 /* 用户真实事故：P1 加了 weir/warmnest/ballast 三个新 lvl 键后，旧档载入全是

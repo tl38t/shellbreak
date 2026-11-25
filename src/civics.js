@@ -113,17 +113,7 @@
     return POLICIES;
   }
   function policyList(s) { return ensureGovPassiveCards(s); }
-  /* 政策按 id 查表：原来是线性扫描，被调用方放大成 O(卡槽数 × 政策数 × 字段数)。
-   * ⚠️ 为什么必须加索引（2026-11-17，玩家「后期离线 8h 加载 10 分钟」的根因）：
-   *   cardFieldMul / cardFieldSum 对 s.cards 逐槽（后期 11 槽）**每张卡扫两遍**——
-   *   cardEffective 内部 policyById 一次，取 cd 又一次——而 cardFieldMul 本身按乘区字段
-   *   被调十几次，rates() 又每步调 2.3 次。79 条政策 × 11 卡 × 2 遍 × N 字段。
-   *   实测占补算 CPU 的 49~65%，改成索引后每步 8.46ms → 2.31ms（3.7×），
-   *   8h 补算 126s → 43s。前期卡槽只有 1~2 个，所以早期完全看不出来 —— 这是乘法不是加法。
-   * ⚠️ POLICIES 只在**尾部 push**（addGovPassiveCard），数组身份不变 ⇒ 用长度判失效即可；
-   *   若将来允许改写已有条目的 id，这里必须改成显式失效，否则会返回旧对象。
-   * ⚠️ 语义必须与线性扫描**逐字一致**：未命中（含 id 为 null / 空槽）仍走下面
-   *   GOV_PASSIVE_CARD_PREFIX 那段动态补卡分支，最后返回 null。 */
+  /* 政体被动卡只追加到 POLICIES 末尾，因此用长度判断索引是否需要重建。 */
   var _polIdx = null, _polIdxLen = -1;
   function policyById(id) {
     if (_polIdxLen !== POLICIES.length || !_polIdx) {
@@ -403,13 +393,14 @@
    * 统一纪律：只读 s.cards，没装 = 返回基准值（1），绝不污染产线（与 castleFaithMul 同构）。
    * cardCivicOutMul / cardSciOutMul：热能优先卡把市政/科技产出 ×0.5（civicOutMul/sciOutMul 字段）。
    * cardHydroMul：热能优先卡把热液能供给 ×2（hydroSupplyMul 字段）。
-   * cardHappyOffset：工业化配给卡幸福度 −1（happyOffset 字段，求和进恒温器 _gb 基线）。 */
+   * cardHappyOffset：工业化配给卡幸福度 −1（happyOffset 字段，求和进恒温器 _gb 基线）。
+   * 已按槽遍历，直接读取卡定义与退役状态。 */
   function cardFieldMul(s, field) {
     var m = 1, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!cardEffective(s, arr[i])) continue;
+      if (!arr[i]) continue;
       cd = policyById(arr[i]);
-      if (cd && typeof cd[field] === 'number') m *= cd[field];
+      if (cd && typeof cd[field] === 'number' && !cardRetired(s, cd)) m *= cd[field];
     }
     return m;
   }
@@ -418,9 +409,9 @@
   function cardFieldSum(s, field) {
     var m = 0, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!cardEffective(s, arr[i])) continue;
+      if (!arr[i]) continue;
       cd = policyById(arr[i]);
-      if (cd && typeof cd[field] === 'number') m += cd[field];
+      if (cd && typeof cd[field] === 'number' && !cardRetired(s, cd)) m += cd[field];
     }
     return m;
   }
@@ -676,13 +667,14 @@
   }
   /* 虚境信仰（card_cycle_terminus，locked 卡）：信仰更名「虚境」并锁死。
    * 装填该卡后，信仰资源名强制为「虚境」，玩家改名框失效（覆盖并锁死，不可逆）。 */
-  /* 锚定名：显示层（faithDisplayName）与权威态（s.religionName，装卡时补写）共用同一常量，避免漂移。 */
+  /* 存档保留锚定名，显示时按当前语言取词。 */
   var VOID_FAITH_NAME = '虚境';
   function faithNameLocked(s) {
     return cardEffective(s, 'card_cycle_terminus');
   }
   function faithDisplayName(s) {
-    return faithNameLocked(s) ? VOID_FAITH_NAME : ((s && s.religionName) || '').trim();
+    if (!faithNameLocked(s)) return ((s && s.religionName) || '').trim();
+    return (SB.i18n && SB.i18n.t && SB.i18n.t('civic.faith.name.verge')) || VOID_FAITH_NAME;
   }
   /* 虚拟现实卡（craftRatioPerPop 1）：工坊效率加法轴 −1%×人口（用户确认加算、Q1 不设护栏）。
    * 返回**负的加值**，workshop.craftRatio 源⑩直加（轴上正源：工坊级/热锻级/科技/政体/卡/perk）。 */
@@ -1398,8 +1390,11 @@
     s.cards = out;
     s.card = out[0] || null;              // 仅第 0 号槽镜像，勿读（2026-10-14 钉）
     if (emit && (moved || dropped.length)) {
-      emit(tr('civic.policy.reseat.log', {
-        movedCount: moved, droppedCount: dropped.length, droppedNames: dropped.join('、')
+      var key = dropped.length ? 'civic.policy.reseat.with_dropped.log' : 'civic.policy.reseat.log';
+      emit(tr(key, {
+        movedCount: moved,
+        droppedCount: dropped.length,
+        droppedNames: dropped.join((SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US') ? ', ' : '、')
       }, '政策卡已按新槽位自动归位' + (moved ? '（调整 ' + moved + ' 张）' : '') +
         (dropped.length ? '；' + dropped.join('、') + ' 无对口槽，已免费卸回卡池' : '') + '。'));
     }
@@ -1446,13 +1441,17 @@
     return false;
   }
 
+  function cardBlockedByChallenge(s, id) {
+    var active = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
+    return !!(active && active.id === 'anarchy' && id !== 'card_cycle_terminus');
+  }
+
   function cardBlocked(s, id, slot) {
     var clear = (id === null || id === undefined);
     if (!clear) {
       var p = policyById(id);
       if (!p) return '没有这张卡';
-      var activeChallenge = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
-      if (activeChallenge && activeChallenge.id === 'anarchy' && id !== 'card_cycle_terminus')
+      if (cardBlockedByChallenge(s, id))
         return '安那其主义挑战只允许装备「轮回之终末」';
       if (inSlot(s, id)) return null;                 // 已经在某槽里 ⇒ 幂等
       if (!cardOwned(s, id)) {
@@ -1844,6 +1843,7 @@
     cardOwned: cardOwned, govOwned: govOwned,
     /* 2026-11-09：效果层与 UI 共用的「此刻是否生效 / 是否已退役」两个权威判据。 */
     cardEffective: cardEffective, cardRetired: cardRetired,
+    cardBlockedByChallenge: cardBlockedByChallenge,
     cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
     removeCard: removeCard, ensureCards: ensureCards, reseatCards: reseatCards,
     govFirstAdoptionFree: govFirstAdoptionFree,

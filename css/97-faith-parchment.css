@@ -92,6 +92,13 @@
   letter-spacing: .4px;
   overflow-wrap: anywhere;
 }
+html[lang^="en"] #pane-faith .faith-tenet-title {
+  font-family: var(--font-display-en);
+  font-size: clamp(24px, 2.4vw, 32px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: .01em;
+}
 
 #pane-faith .faith-tenet-choice .faith-tenet-icon {
   width: clamp(144px, 11vw, 180px);
@@ -209,6 +216,13 @@
   font-size: 26px;
   font-weight: 400;
   line-height: 1.2;
+}
+html[lang^="en"] #pane-faith .faith-tenet-established-card b {
+  font-family: var(--font-display-en);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: .01em;
 }
 
 #pane-faith .faith-tenet-established-card span {

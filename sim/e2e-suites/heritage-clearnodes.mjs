@@ -53,10 +53,9 @@ export function run({ SB, check }) {
 
   const mySB = {
     i18n: { t: () => '' },
+    ui: { renderParts: { research: { heritageCard: (_, id) => ({ id, name: id, desc: 'desc:' + id }) } } },
     heritage: {
       pendingOf: (s) => s._pend || [],
-      nameOf: (id) => id,
-      descOf: (id) => 'desc:' + id,
       roman: (n) => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'][(n | 0) - 1] || String(n),
     },
   };

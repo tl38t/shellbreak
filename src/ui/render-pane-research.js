@@ -2,14 +2,19 @@
 (function (root) {
   'use strict';
   var SB = root.SB || (root.SB = {});
-  function englishLocaleEnabled() {
+  function activeLocaleCode() {
     return SB.i18n && SB.i18n.isEnabled && SB.i18n.isEnabled() &&
-      SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US';
+      SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+  }
+  function englishLocaleEnabled() {
+    return activeLocaleCode() === 'en-US';
+  }
+  function nonDefaultLocaleEnabled() {
+    return activeLocaleCode() !== 'zh-CN';
   }
   function tr(key, params, fallback) {
-    var english = root.ShellbreakLocales && root.ShellbreakLocales['en-US'];
-    var value = englishLocaleEnabled() && english && typeof english[key] === 'string' && SB.i18n.t
-      ? SB.i18n.t(key, params) : '';
+    if (!nonDefaultLocaleEnabled()) return fallback || '';
+    var value = SB.i18n.t(key, params);
     return value || fallback || '';
   }
   function trComplete(key, params, fallback) {
@@ -23,16 +28,17 @@
   }
   var exactLocaleKeyCache = Object.create(null);
   function exactLocaleKey(prefix, suffix, sourceValue) {
-    var cacheKey = prefix + '|' + suffix;
+    var loc = activeLocaleCode();
+    var cacheKey = loc + '|' + prefix + '|' + suffix;
     var map = exactLocaleKeyCache[cacheKey];
     if (!map) {
       map = Object.create(null);
       var zh = root.ShellbreakLocales && root.ShellbreakLocales['zh-CN'] || {};
-      var en = root.ShellbreakLocales && root.ShellbreakLocales['en-US'] || {};
+      var target = root.ShellbreakLocales && root.ShellbreakLocales[loc] || {};
       var keys = Object.keys(zh);
       for (var i = 0; i < keys.length; i++) {
         var key = keys[i];
-        if (key.indexOf(prefix) !== 0 || key.slice(-suffix.length) !== suffix || typeof en[key] !== 'string') continue;
+        if (key.indexOf(prefix) !== 0 || key.slice(-suffix.length) !== suffix || typeof target[key] !== 'string') continue;
         if (typeof zh[key] === 'string' && !Object.prototype.hasOwnProperty.call(map, zh[key])) map[zh[key]] = key;
       }
       exactLocaleKeyCache[cacheKey] = map;
@@ -173,9 +179,12 @@
     if (typeof policy.shellSpeedPerIdle === 'number') p.hatchSpeedBonusPerIdleMerfolkPercent = Math.round(policy.shellSpeedPerIdle * 100);
     if (typeof policy.civicPerPop === 'number') p.civicPointsPerMerfolkPerSecond = policy.civicPerPop;
     if (typeof policy.luxConsumeMul === 'number') {
-      p.luxuryGoodsConsumptionIncreasePercent = Math.round((policy.luxConsumeMul - 1) * 100);
-      p.luxuryGoodsConsumptionIncreasePerCardPercent = p.luxuryGoodsConsumptionIncreasePercent;
-      p.luxuryGoodsConsumptionReductionPercent = Math.round((1 - policy.luxConsumeMul) * 100);
+      // 公摊面积、延长工时的卡面按总倍率标示，其余卡面按增减量标示。
+      var totalMultiplier = policy.id === 'card_public_share' || policy.id === 'card_overtime';
+      var luxuryChange = Math.round((policy.luxConsumeMul - (totalMultiplier ? 1 : 0)) * 100);
+      p.luxuryGoodsConsumptionIncreasePercent = luxuryChange;
+      p.luxuryGoodsConsumptionIncreasePerCardPercent = luxuryChange;
+      p.luxuryGoodsConsumptionReductionPercent = -luxuryChange;
     }
     if (typeof policy.happyOffset === 'number') p.happinessPenalty = Math.abs(policy.happyOffset);
     if (typeof policy.jobOutMul === 'number') p.jobOutputBonusPercent = Math.round((policy.jobOutMul - 1) * 100);
@@ -189,11 +198,15 @@
     if (typeof policy.spaceBuildSave === 'number') p.spaceBuildingConstructionCostReductionPercent = Math.round(policy.spaceBuildSave * 100);
     if (typeof policy.canalMul === 'number') p.royalCanalEffectBonusPercent = Math.round((policy.canalMul - 1) * 100);
     if (typeof policy.wonderLuxSave === 'number') p.luxuryGoodsConsumptionReductionPerWonderPercent = Math.round(policy.wonderLuxSave * 100);
-    if (typeof policy.faithSatMul === 'number') p.faithOutputBonusPerSatellitePercent = Math.round((policy.faithSatMul - 1) * 100);
-    if (typeof policy.coreSpaceFaithMul === 'number') p.faithOutputBonusPerZoneBuildingLevelPercent = Math.round((policy.coreSpaceFaithMul - 1) * 100);
-    if (typeof policy.craftRatioPerPop === 'number') p.workshopCraftingEfficiencyPenaltyPerPersonPercent = Math.round(policy.craftRatioPerPop * 100);
+    if (typeof policy.faithSatMul === 'number') p.faithOutputBonusPerSatellitePercent = Math.round(policy.faithSatMul * 100);
+    if (typeof policy.coreSpaceFaithMul === 'number') p.faithOutputBonusPerZoneBuildingLevelPercent = Math.round(policy.coreSpaceFaithMul * 100);
+    if (typeof policy.barracksBonusMul === 'number') p.barracksBonusPercent = Math.round(policy.barracksBonusMul * 100);
+    if (typeof policy.craftRatioPerPop === 'number') p.workshopCraftingEfficiencyPenaltyPerPersonPercent = policy.craftRatioPerPop;
     if (typeof policy.craftMul === 'number') p.workshopCraftingEfficiencyMultiplier = policy.craftMul;
-    if (typeof policy.starPerPop === 'number') p.explorationRateBonusPercent = Math.round(policy.starPerPop * 100);
+    if (typeof policy.starPerPop === 'number') {
+      p.explorationRateBonusPerMerfolkPercent = policy.starPerPop;
+      p.explorationRateBonusPercent = policy.starPerPop * ((s && s.pop) || 0);
+    }
     if (typeof policy.planetOutMul === 'number') p.alienBuildingOutputBonusPercent = Math.round((policy.planetOutMul - 1) * 100);
     if (typeof policy.breakStardustMul === 'number') p.stardustGainMultiplier = policy.breakStardustMul;
     if (typeof policy.foodOutMul === 'number') p.foodProductionMultiplier = policy.foodOutMul;
@@ -209,7 +222,7 @@
         p.artifactCraftingEfficiencyBonusPercent = Math.round(policy.craftRatioRecipes[recipes[0]] * 100);
       }
     }
-    if (typeof policy.liveCompCivic === 'number' && s) p.populationCount = s.pop || 0;
+    if (typeof policy.liveCompCivic === 'number') p.populationCount = (s && s.pop) || 0;
     if (policy.serfKelpMul !== undefined || policy.serfWarmMul !== undefined) p.crossBuildingEffectBonusPercent = 1;
     if (policy.id === 'card_sovereign' && SB.BLD) p.faithOutputBonusPerCastleLevelPercent = Math.round((SB.BLD.castleFaithRatio || 0) * 100);
     if (policy.id === 'card_serfdom' && SB.BLD) p.crossBuildingEffectBonusPercent = Math.round((SB.BLD.serfCrossRatio || 0) * 100);
@@ -227,9 +240,9 @@
       if (guildCard && typeof guildCard.craftRatio === 'number')
         p.replacedCraftingEfficiencyBonusPercent = Math.round(guildCard.craftRatio * 100);
     }
-    if (policy.id === 'card_live_comp' && s) {
-      p.populationCount = s.pop || 0;
-      p.stadiumLevel = s.lvl && s.lvl.stadium || 0;
+    if (policy.id === 'card_live_comp') {
+      p.populationCount = (s && s.pop) || 0;
+      p.stadiumLevel = (s && s.lvl && s.lvl.stadium) || 0;
     }
     if (policy.id === 'card_no_god_here' && typeof policy.universityMul === 'number')
       p.researchInstituteResearchMultiplier = policy.universityMul;
@@ -275,10 +288,24 @@
     return policyText(policy, 'desc', policyParams(policy, s), policy && policy.desc || '');
   }
   function policyFlavor(policy) {
-    return policyText(policy, 'flavor', null, policy && policy.flavor || '');
+    return policyText(policy, policy && policy.flavorParams ? 'action' : 'flavor',
+      policy && policy.flavorParams, policy && policy.flavor || '');
   }
   function policyName(policy) {
     return policyText(policy, 'name', null, policy && policy.name || '');
+  }
+  function heritageCard(s, id) {
+    var h = SB.heritage, policy = h.policyById(id);
+    if (!policy) return { id: id, name: id, desc: '' };
+    var desc;
+    if (Object.prototype.hasOwnProperty.call(h.HERITAGE_DESC, id)) {
+      var key = 'heritage.' + id + '.desc';
+      desc = SB.i18n && SB.i18n.t ? SB.i18n.t(key, policyParams(policy, s)) : '';
+      if (!desc) desc = h.descOf(id);
+    } else {
+      desc = policyDesc(policy, s);
+    }
+    return { id: id, name: policyName(policy), desc: desc };
   }
   function policyBlockedText(s, policy, why) {
     if (!why) return '';
@@ -314,10 +341,103 @@
   function res() { return SB.game.run(); }
   var techViewEra = 0;
   var civicViewEra = 0, civicEraChosen = false;
+  var RESEARCH_VIEW_ALLOWED = ['auto', 'list', 'tree'];
+  var RESEARCH_FILTER_ALLOWED = ['all', 'ready', 'unrevealed'];
+  var researchViewFallback = 'auto';
+  var researchFilterFallback = 'all';
+  function getResearchViewMode() {
+    var S = SB.store;
+    if (S && S.prefGetStr) return S.prefGetStr('research.view', RESEARCH_VIEW_ALLOWED, 'auto');
+    return researchViewFallback;
+  }
+  function setResearchView(v) {
+    if (RESEARCH_VIEW_ALLOWED.indexOf(v) < 0) return false;
+    researchViewFallback = v;
+    var S = SB.store;
+    if (S && S.prefSetStr) S.prefSetStr('research.view', v, RESEARCH_VIEW_ALLOWED);
+    return true;
+  }
+  function getResearchFilter() {
+    var S = SB.store;
+    if (S && S.prefGetStr) return S.prefGetStr('research.filter', RESEARCH_FILTER_ALLOWED, 'all');
+    return researchFilterFallback;
+  }
+  function setResearchFilter(v) {
+    if (RESEARCH_FILTER_ALLOWED.indexOf(v) < 0) return false;
+    researchFilterFallback = v;
+    var S = SB.store;
+    if (S && S.prefSetStr) S.prefSetStr('research.filter', v, RESEARCH_FILTER_ALLOWED);
+    return true;
+  }
+  function resolvedResearchView() {
+    var mode = getResearchViewMode();
+    if (mode === 'tree' || mode === 'list') return mode;
+    var w = (root && typeof root.innerWidth === 'number') ? root.innerWidth : 0;
+    return (w > 0 && w <= 760) ? 'list' : 'tree';
+  }
+  function researchToolbarHTML(isList) {
+    var mode = getResearchViewMode();
+    var flt = getResearchFilter();
+    var h = '<div class="research-toolbar" role="toolbar" aria-label="' + tr('research.toolbar.aria_label', null, '视图与筛选') + '">';
+    h += '<div class="pane-filter-group">' +
+      '<button type="button" class="pane-pill' + (mode === 'auto' ? ' on' : '') + '" data-research-view="auto" aria-pressed="' + (mode === 'auto') + '">' + tr('research.view.auto', null, '自适应') + '</button>' +
+      '<button type="button" class="pane-pill' + (mode === 'list' ? ' on' : '') + '" data-research-view="list" aria-pressed="' + (mode === 'list') + '">' + tr('research.view.list', null, '列表') + '</button>' +
+      '<button type="button" class="pane-pill' + (mode === 'tree' ? ' on' : '') + '" data-research-view="tree" aria-pressed="' + (mode === 'tree') + '">' + tr('research.view.tree', null, '长卷') + '</button>' +
+      '</div>';
+    if (isList) {
+      h += '<div class="pane-filter-group">' +
+        '<button type="button" class="pane-pill' + (flt === 'all' ? ' on' : '') + '" data-research-filter="all" aria-pressed="' + (flt === 'all') + '">' + tr('village.filter.all', null, '全部') + '</button>' +
+        '<button type="button" class="pane-pill' + (flt === 'ready' ? ' on' : '') + '" data-research-filter="ready" aria-pressed="' + (flt === 'ready') + '">' + tr('research.filter.ready', null, '可研究') + '</button>' +
+        '<button type="button" class="pane-pill' + (flt === 'unrevealed' ? ' on' : '') + '" data-research-filter="unrevealed" aria-pressed="' + (flt === 'unrevealed') + '">' + tr('research.filter.unrevealed', null, '未揭示') + '</button>' +
+        '</div>';
+    }
+    return h + '</div>';
+  }
+  function firstMissingPrereq(doneMap, item) {
+    var reqs = item && item.reqs ? item.reqs : [];
+    for (var i = 0; i < reqs.length; i++) {
+      if (reqs[i] && (!doneMap || !doneMap[reqs[i]])) return reqs[i];
+    }
+    return '';
+  }
+  function jumpResearchPrereq(spec) {
+    if (!spec) return false;
+    var p = String(spec).indexOf(':');
+    if (p < 0) return false;
+    var kind = spec.slice(0, p), id = spec.slice(p + 1);
+    if (!id) return false;
+    if (getResearchFilter() !== 'all') setResearchFilter('all');
+    var s = res();
+    if (resolvedResearchView() === 'tree') {
+      if (kind === 'tech') {
+        var t = SB.tech && SB.tech.byId ? SB.tech.byId(id) : null;
+        if (t && t.era) techGoEra(t.era);
+      } else if (kind === 'civic') {
+        var C = SB.CIVICS || [], c = null;
+        for (var i = 0; i < C.length; i++) if (C[i].id === id) { c = C[i]; break; }
+        if (c && c.era) civicGoEra(c.era);
+      }
+      if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+      return true;
+    }
+    if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+    var raf = root.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+    raf(function () {
+      var doc = root.document;
+      var target = doc && doc.getElementById ? doc.getElementById((kind === 'tech' ? 'techlist-' : 'civiclist-') + id) : null;
+      if (target && target.scrollIntoView) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (target && target.classList) {
+        target.classList.remove('is-jump-flash');
+        void target.offsetWidth;
+        target.classList.add('is-jump-flash');
+      }
+    });
+    return true;
+  }
   var ERA_LOCALE_SLUGS = {
     1: 'undercurrent', 2: 'coldfire', 3: 'sulfur_vent', 4: 'ocean_current',
     5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration',
-    9: 'seeking_light', 10: 'starforging'
+    9: 'seeking_light', 10: 'starforging', 11: 'alpha'
   };
   function techName(technology) {
     return tr('tech.' + technology.id + '.name', null, technology.name);
@@ -342,7 +462,7 @@
         };
       }
     }
-    return { id: n, name: n + ' 纪元', motto: '', color: '#6FE3D2', desc: '' };
+    return { id: n, name: tr('research.era.name.fallback', { eraId: n }, n + ' 纪元'), motto: '', color: '#6FE3D2', desc: '' };
   }
   /* ── 自动研究拨动开关（2026-11-01 用户：「把按钮改到科技、市政界面，做成拨动开关」）
    * 开关从「轮回商店 → 天赋树节点下方」搬到**用得着它的那一页**：玩家决定要不要开自动
@@ -585,10 +705,11 @@
         ' data-track-toggle="tech:' + t.id + '" aria-label="' + tr('research.tech.track_eureka.aria_label', null, '追踪尤里卡条件') + '"' +
         ' title="' + tr(_tk ? 'tree.track.stop' : 'tree.track.eureka', null, _tk ? '取消追踪尤里卡' : '追踪尤里卡') + '">★</span>';
     }
-    var why = done ? null : SB.tech.studyBlocked(s, t.id);
+    var blockKind = done ? '' : SB.tech.studyBlockKind(s, t);
+    var why = SB.tech.studyBlockText(s, t, blockKind);
     /* The study gate returns a specific science shortage reason after all reveal,
      * era, prerequisite, and material gates pass. Keep it as a separate card state. */
-    var scienceShort = !done && lit && typeof why === 'string' && why.indexOf('科技点不足：') === 0;
+    var scienceShort = lit && blockKind === 'science';
     var scienceNow = scienceShort ? Math.max(0, Number(s && s.res && s.res.science) || 0) : 0;
     var scienceCost = scienceShort ? SB.tech.researchCost(s, t) : 0;
     var sciencePct = scienceCost > 0 ? Math.max(0, Math.min(100, scienceNow / scienceCost * 100)) : 0;
@@ -821,6 +942,79 @@
     return h + '</div>';
   }
 
+  function techList(s) {
+    var era = s.era || 1, E = SB.ERAS || [], T = SB.TECHS || [], flt = getResearchFilter();
+    var h = '<div class="research-list-eras">';
+    var totalShown = 0;
+    for (var e = 1; e <= era && e <= E.length; e++) {
+      var er = eraOf(e), cards = '', st = eraStats(s, e);
+      for (var i = 0; i < T.length; i++) {
+        var t = T[i];
+        if ((t.era || 1) !== e || !visOf(s, t, era)) continue;
+        var lv = SB.tech.level(s, t.id), maxLv = SB.tech.maxLevel(t);
+        var done = lv >= maxLv;
+        var lit = SB.tech.metOf(s, t);
+        var blockKind = done ? '' : SB.tech.studyBlockKind(s, t);
+        var why = SB.tech.studyBlockText(s, t, blockKind);
+        if (flt === 'ready' && (done || !lit || why)) continue;
+        if (flt === 'unrevealed' && (done || lit)) continue;
+        var sciShort = lit && blockKind === 'science';
+        var status = done ? tr('tree.detail.status.mastered', null, '已掌握')
+          : (lv > 0 && !done) ? tr('research.tech.partial_level.status', { level: lv, maxLevel: maxLv }, '等级 ' + lv + '/' + maxLv)
+          : !lit ? tr('tree.detail.status.unrevealed', null, '未揭示')
+          : sciShort ? tr('tree.detail.status.not_enough_research_points', null, '科技点不足')
+          : why ? tr('tree.detail.status.unavailable', null, '暂不可研究')
+          : tr('tree.detail.status.ready_to_research', null, '可研究');
+        var nodeTitle = lit ? techName(t) : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技');
+        var eureka = t.cond && t.cond.t !== 'default' && !lit ? SB.tech.condShort(s, t.cond) : null;
+        var _lk = 'tech:' + t.id, _liveCond = !!(t.cond && LIVE_COND_TYPES[t.cond.t]);
+        var condLine = '';
+        if (!lit) {
+          condLine = '<div class="research-list-card-desc"' + (_liveCond ? ' data-live-cond="' + _lk + '"' : '') + '>' +
+            tr('tree.condition.eureka.heading', null, '尤里卡') + ' · ' + (eureka ? eureka.txt : tr('tree.condition.eureka.default', null, '达成条件后揭示')) + '</div>';
+          if (eureka && eureka.need > 0) {
+            var ep = Math.max(0, Math.min(100, eureka.now / eureka.need * 100));
+            condLine += '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i data-live-bar style="width:' + ep.toFixed(1) + '%"></i></span><b' +
+              (_liveCond ? ' data-live-pct="' + _lk + '"' : '') + '>' + ep.toFixed(0) + '%</b></span>';
+          }
+        } else {
+          var info = SB.ui.renderParts.info;
+          var unlock = t.unlockDesc ? info.localizedTechUnlockDescription(t) : '';
+          var effect = !unlock || t.effectDesc || Object.keys(t.eff || {}).length ? SB.tech.effectDisplayText(t) : '';
+          condLine = '<div class="research-list-card-desc">' + effect +
+            (effect && unlock ? '<br>' : '') + escapeHTML(unlock) + '</div>';
+          if (why && !sciShort) condLine += '<div class="research-list-card-desc">' + escapeHTML(why) + '</div>';
+          if (sciShort) {
+            var scCost = SB.tech.researchCost(s, t), scNow = Math.max(0, Number(s.res && s.res.science) || 0);
+            var scPct = scCost > 0 ? Math.max(0, Math.min(100, scNow / scCost * 100)) : 0;
+            condLine += '<span class="tree-science-meter"><span class="tree-science-values"><span>' + tr('content.science.name', null, '科技') + '</span><b data-live-num="' + _lk + '">' +
+              SB.economy.fmtAmt(scNow) + '</b><i>/</i><b>' + SB.economy.fmtAmt(scCost) + '</b></span><span class="tree-science-track"><i data-live-bar data-live-sci="' + _lk + '" style="width:' + scPct.toFixed(1) + '%"></i></span></span>';
+          }
+        }
+        var missPre = !done && lit && why ? firstMissingPrereq(s.techs, t) : '';
+        var starHtml = (!lit && t.cond && t.cond.t !== 'default')
+          ? '<span class="tree-track' + ((SB.ui.track && SB.ui.track.isTracked && SB.ui.track.isTracked('tech', t.id)) ? ' on' : '') +
+            '" role="button" data-track-toggle="tech:' + t.id + '" title="' + tr('tree.track.eureka', null, '追踪尤里卡') + '">★</span>' : '';
+        var prereqHtml = missPre ? '<button type="button" class="btn research-prereq-btn" data-jump-prereq="tech:' + missPre + '">' + tr('research.prereq.jump', null, '看前置') + '</button>' : '';
+        cards += '<article class="research-list-card' + (done ? ' is-done' : !lit ? ' is-unrevealed' : !why ? ' is-ready' : '') +
+          '" id="techlist-' + t.id + '" data-tree-node="1" data-tree-type="tech" data-tree-id="' + t.id + '">' +
+          '<div class="research-list-card-top"><span class="research-list-card-name">' + escapeHTML(nodeTitle) + '</span>' +
+          '<span class="research-list-card-status">' + escapeHTML(status) + '</span></div>' +
+          condLine +
+          '<div class="research-list-card-foot">' + (lit ? '<span>' + escapeHTML(tr('content.science.name', null, '科技') + ' ' + SB.economy.fmtAmt(SB.tech.researchCost(s, t))) + '</span>' : '') +
+          '<div class="research-list-actions">' + prereqHtml + starHtml + '</div></div></article>';
+        totalShown++;
+      }
+      if (cards) {
+        h += '<section class="research-era-group"><header class="research-era-head"><span class="research-era-title" style="color:' + er.color + '">' +
+          (er.glyph || '') + ' ' + escapeHTML(er.name) + '</span><span class="research-era-count">' + st.learned + '/' + st.total + '</span></header>' +
+          '<div class="research-list-cards">' + cards + '</div></section>';
+      }
+    }
+    if (!totalShown) h += '<div class="row"><div class="ds">' + tr('research.list.empty', null, '当前筛选下没有可显示的科技项目。') + '</div></div>';
+    return h + '</div>';
+  }
+
   function paneTech() {
     var s = res();
     /* 门与 tab 的灰读同一份派生值（SB.tech.panelOpen），不在这里另算一次。 */
@@ -831,8 +1025,13 @@
     var sel = (techViewEra >= 1 && techViewEra <= E.length) ? techViewEra : era;
     techViewEra = sel;
 
-    var h = autoResearchSwitch('tech') + eraNav(s, era, sel);
-    h += techTree(s, sel);
+    var isList = resolvedResearchView() === 'list';
+    var h = autoResearchSwitch('tech') + researchToolbarHTML(isList);
+    if (isList) {
+      h += techList(s);
+    } else {
+      h += eraNav(s, era, sel) + techTree(s, sel);
+    }
     h += '<div class="note">' + tr('research.technology.explanation.note', null,
       '尤里卡只「揭示」节点本身，不折算研究进度（设计已定）。研究是即时扣费：科技够了点一下就掌握，没有队列。') + '</div>';
     return h;
@@ -896,7 +1095,7 @@
     var scribeName = SB.folk.jobName(s, 'scribe');
     return '<div class="secttl">' + tr('ui.research.type.civics', null, '市政') + '</div>' +
       '<div class="row"><div class="nm">' + tr('civic.page.locked.title', null, '市政页未开启') + '</div>' +
-      '<div class="ds">' + (SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US'
+      '<div class="ds">' + (nonDefaultLocaleEnabled()
         ? tr('civic.panel.council_hall.prerequisite', null, why || '') : (why || '')) + '</div></div>' +
       '<div class="note">' + tr('civic.pane.unlock_hint', { scribeJob: tr('job.name.scribe', null, scribeName) },
         '议事厅由「石工」解锁，它同时是' + scribeName + '这个职业的来源——建起来之后这里会给出：政体、政策卡槽，以及三条市政。') + '</div>';
@@ -1010,12 +1209,19 @@
     var n = 0, k, out = [];
     for (k in (g.slots || {})) {
       if (!(g.slots[k] > 0)) continue;
-      out.push(englishLocaleEnabled()
-        ? g.slots[k] + ' ' + slotTypeLabel(k) + ' ' + (g.slots[k] === 1 ? 'slot' : 'slots')
+      out.push(nonDefaultLocaleEnabled()
+        ? (englishLocaleEnabled()
+          ? g.slots[k] + ' ' + slotTypeLabel(k) + ' ' + (g.slots[k] === 1 ? 'slot' : 'slots')
+          : g.slots[k] + ' ' + slotName(k))
         : g.slots[k] + ' ' + SB.civic.slotTypeName(k));
       n += g.slots[k];
     }
-    if (hasAnarchyBonusSlot()) { out.push(englishLocaleEnabled() ? '1 Universal slot' : '1 万能槽（安那其主义奖励）'); n++; }
+    if (hasAnarchyBonusSlot()) {
+      out.push(englishLocaleEnabled() ? '1 Universal slot'
+        : nonDefaultLocaleEnabled() ? '1 ' + slotName('wild') + '（安那其主義獎勵）'
+          : '1 万能槽（安那其主义奖励）');
+      n++;
+    }
     if (!n) return tr('civic.policy.slots.none', null, '不提供政策卡槽');
     return out.join(englishLocaleEnabled() ? ' + ' : ' ＋ ');
   }
@@ -1043,8 +1249,8 @@
     var C = SB.civic, list = C.slotList(s), i;
     var armedCard = SB.ui.render.armedCard();
     var emptyCount = emptyCivicSlotCount(s, C, list);
-    var emptySlotText = englishLocaleEnabled()
-      ? tr('civic.policy.slot.empty', null, '空槽') + ': ' + emptyCount
+    var emptySlotText = nonDefaultLocaleEnabled()
+      ? tr('civic.policy.slot.empty', null, '空槽') + (englishLocaleEnabled() ? ': ' : ' ') + emptyCount
       : '空槽 ' + emptyCount;
     var h = '<div class="secttl civic-policy-heading">' + tr('civic.policy.slots.heading', null, '政策卡槽') + ' <span class="tag">' + list.length + '</span>' +
       (emptyCount > 0 ? '<span class="civic-slot-warning"><i aria-hidden="true"></i>' + emptySlotText + '</span>' : '') + '</div>';
@@ -1281,8 +1487,70 @@
    *   ② 节点是三态（已完成 / 已揭示 / 未揭露），比科技的「亮 / 不亮」多一档：
    *      未揭露时**藏名字与 desc**，与科技一致；差别在于市政的「鼓舞」是揭示的前置，
    *      所以未揭露态要连鼓舞条件与进度一起摆出来，玩家的下一步动作才是明确的。 */
+  function civicList(s) {
+    var C = SB.CIVICS || [], Civ = SB.civic, E = SB.ERAS || [], flt = getResearchFilter();
+    var visibleEra = Civ.visibleEra ? Civ.visibleEra(s) : (s.era || 1);
+    var h = '<div class="research-list-eras">';
+    var totalShown = 0;
+    for (var e = 1; e <= visibleEra && e <= E.length; e++) {
+      var er = eraOf(e), cards = '', st = civicEraStats(s, e);
+      for (var i = 0; i < C.length; i++) {
+        var c = C[i];
+        if ((c.era || 1) !== e) continue;
+        if (c.challengeOnly && Civ.challengeAllows && !Civ.challengeAllows(s, c)) continue;
+        var done = !!(s.civics && s.civics[c.id]);
+        var rev = Civ.isRevealed(s, c.id);
+        var why = done ? null : Civ.blocked(s, c);
+        if (flt === 'ready' && (done || !rev || why)) continue;
+        if (flt === 'unrevealed' && (done || rev)) continue;
+        var status = done ? tr('tree.detail.status.mastered', null, '已掌握')
+          : !rev ? tr('tree.detail.status.unrevealed', null, '未揭示')
+          : why ? tr('tree.detail.status.unavailable', null, '暂不可研究')
+          : tr('tree.detail.status.ready_to_research', null, '可研究');
+        var title = rev ? civicName(c) : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.civic', null, '市政') }, '未揭露的市政');
+        var boost = !rev && c.boost ? SB.tech.condShort(s, c.boost) : null;
+        var _ck = 'civic:' + c.id, _cLive = !!(c.boost && LIVE_COND_TYPES[c.boost.t]);
+        var descHtml = '';
+        if (!rev) {
+          descHtml = '<div class="research-list-card-desc"' + (_cLive ? ' data-live-cond="' + _ck + '"' : '') + '>' +
+            tr('tree.condition.inspiration.heading', null, '鼓舞') + ' · ' + (boost ? boost.txt : c.boost ? tr('civic.reveal.inspiration.condition_hint', null, '达成鼓舞条件后揭示') : tr('civic.boost.not_required', null, '无需鼓舞')) + '</div>';
+          if (boost && boost.need > 0) {
+            var bp = Math.max(0, Math.min(100, boost.now / boost.need * 100));
+            descHtml += '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i data-live-bar style="width:' + bp.toFixed(1) + '%"></i></span><b' +
+              (_cLive ? ' data-live-pct="' + _ck + '"' : '') + '>' + bp.toFixed(0) + '%</b></span>';
+          }
+        } else {
+          descHtml = '<div class="research-list-card-desc">' + escapeHTML(trComplete('civic.data.' + c.id + '.description', null, c.desc || '')) + '</div>';
+        }
+        var missPre = !done && rev && why ? firstMissingPrereq(s.civics, c) : '';
+        var starHtml = (!rev && c.boost && c.boost.t !== 'default')
+          ? '<span class="tree-track' + ((SB.ui.track && SB.ui.track.isTracked && SB.ui.track.isTracked('civic', c.id)) ? ' on' : '') +
+            '" role="button" data-track-toggle="civic:' + c.id + '" title="' + tr('tree.track.inspiration', null, '追踪鼓舞') + '">★</span>' : '';
+        var prereqHtml = missPre ? '<button type="button" class="btn research-prereq-btn" data-jump-prereq="civic:' + missPre + '">' + tr('research.prereq.jump', null, '看前置') + '</button>' : '';
+        cards += '<article class="research-list-card' + (done ? ' is-done' : !rev ? ' is-unrevealed' : !why ? ' is-ready' : '') +
+          '" id="civiclist-' + c.id + '" data-tree-node="1" data-tree-type="civic" data-tree-id="' + c.id + '">' +
+          '<div class="research-list-card-top"><span class="research-list-card-name">' + escapeHTML(title) + '</span>' +
+          '<span class="research-list-card-status">' + escapeHTML(status) + '</span></div>' +
+          descHtml +
+          '<div class="research-list-card-foot">' + (rev ? '<span>' + escapeHTML((tr('content.culture.name', null, '市政点')) + ' ' + SB.economy.fmtAmt(c.cost || 0)) + '</span>' : '') +
+          '<div class="research-list-actions">' + prereqHtml + starHtml + '</div></div></article>';
+        totalShown++;
+      }
+      if (cards) {
+        h += '<section class="research-era-group"><header class="research-era-head"><span class="research-era-title" style="color:' + er.color + '">' +
+          (er.glyph || '') + ' ' + escapeHTML(er.name) + '</span><span class="research-era-count">' + st.completed + '/' + st.total + '</span></header>' +
+          '<div class="research-list-cards">' + cards + '</div></section>';
+      }
+    }
+    if (!totalShown) h += '<div class="row"><div class="ds">' + tr('research.civic.list.empty', null, '当前筛选下没有可显示的市政项目。') + '</div></div>';
+    h += '</div><div class="note"><span data-live-num="civic:points">' + civicPointsNote(s) + '</span></div>';
+    return h;
+  }
+
   function civicTree(s) {
     if (!SB.civic || !SB.civic.layout) return '<div class="note">' + tr('civic.tree.geometry_not_loaded', null, '市政树几何尚未加载。') + '</div>';
+    var isList = resolvedResearchView() === 'list';
+    if (isList) return researchToolbarHTML(true) + civicList(s);
     var desktop = !!(SB.tech && SB.tech.isDesktopTreeViewport && SB.tech.isDesktopTreeViewport());
     var L = SB.civic.layout(desktop), G = L.geo;
     var gameEra = s.era || 1, E = SB.ERAS || [];
@@ -1309,7 +1577,7 @@
     }
     var treeH = G.PADY * 2 + treeMaxRow * L.rowPitch + G.H;
 
-    var h = civicEraNav(s, gameEra, visibleEra, sel) + civicEraDetail(s, gameEra, visibleEra, sel) +
+    var h = researchToolbarHTML(false) + civicEraNav(s, gameEra, visibleEra, sel) + civicEraDetail(s, gameEra, visibleEra, sel) +
       '<div class="techscroll tree-civic" id="civicScroll"><div class="techcanvas"' +
       ' style="width:' + treeW + 'px;height:' + treeH + 'px">';
 
@@ -1480,12 +1748,14 @@
    *   data-live-num  → 科技点余额（卡面）/ 市政点注脚（笔记行）
    * ⚠️ 假 DOM（e2e）没有 querySelectorAll：判 typeof 直接返回，绝不抛错 ——
    *    否则 boot 期 renderPanes 会把整份回归带崩（与 talentScroll 那条同因）。 */
-  function paintLive(s) {
+  function paintLive(s, scope) {
     if (!s) return;
-    var doc = (typeof document !== 'undefined') ? document : null;
-    if (!doc || typeof doc.querySelectorAll !== 'function') return;
+    var rootNode = (scope && typeof scope.querySelectorAll === 'function')
+      ? scope
+      : ((typeof document !== 'undefined') ? document : null);
+    if (!rootNode || typeof rootNode.querySelectorAll !== 'function') return;
     var els;
-    try { els = doc.querySelectorAll('[data-live-cond],[data-live-pct],[data-live-num],[data-live-sci]'); }
+    try { els = rootNode.querySelectorAll('[data-live-cond],[data-live-pct],[data-live-num],[data-live-sci]'); }
     catch (e) { return; }
     if (!els || !els.length) return;
     var headingCache = {};
@@ -1564,7 +1834,7 @@
     paneTech: paneTech, paneCivic: paneCivic,
     /* 活数值原地回填（render.js 每次 renderPanes 结束调一次）。 */
     paintLive: paintLive,
-    policyName: policyName, policyDesc: policyDesc, policyFlavor: policyFlavor,
+    policyName: policyName, policyDesc: policyDesc, policyFlavor: policyFlavor, heritageCard: heritageCard,
     /* 2026-11-01：科技 / 市政页顶部的自动研究拨动开关。回归直接调它断言
      * 「已买=可拨、未买=锁态」，不必先把科技面板的门打开（paneTech 在未开门时
      * 整页换成 paneTechLocked，开关根本不出现 —— 那会测成「没开门 ⇒ 没开关」）。 */
@@ -1575,6 +1845,8 @@
     setCivicView: setCivicView, civicNoticeState: civicNoticeState,
     armCard: armCard, disarmCard: disarmCard, getArmedCard: getArmedCard,
     cycleJobStep: cycleJobStep, getJobStep: getJobStep,
-    techGoEra: techGoEra, civicGoEra: civicGoEra
+    techGoEra: techGoEra, civicGoEra: civicGoEra,
+    setResearchView: setResearchView, setResearchFilter: setResearchFilter,
+    jumpResearchPrereq: jumpResearchPrereq
   };
 })(typeof window !== 'undefined' ? window : globalThis);

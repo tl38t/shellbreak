@@ -5,11 +5,11 @@
 
 ## 项目现状
 
-- 当前入口是纯前端网页 `index.html`，README 描述为双击运行、无构建步骤；尚未看到 Steam 可上传的桌面发行包。
+- 游戏页面入口是 `index.html`，桌面壳的构建方式见 [Electron 发行说明](ELECTRON_PACKAGE.md)。
 - 已生成面向 Ver1.2.2 的 Electron Windows x64 安装器 `dist/electron/Shellbreak-Desktop-1.2.2-Setup.exe`。当前接入 en-US / zh-TW 静态界面、设置内语言切换与 Steam 游戏语言读取；Steam 功能适配与发行验收仍需完成。
 - 已生成 SteamPipe 用 Windows x64 内容目录 `dist/steam-depot/win-unpacked/`；Steam depot 内容根目录使用该文件夹，启动项为 `Shellbreak.exe`。它不是 NSIS 安装器，也不包含开发用 `steam_appid.txt`；尚未通过 Steam 客户端做真实启动验收。
 - 代码中仍有 TapTap 专属能力：激励广告、成就、兑换码、TapTap 云存档。Electron 排行榜已复用现有 12 个逻辑榜单与计分点，改走 Steamworks；TapTap ID 与 Steam 榜单名/成绩各自独立。Steamworks 榜单后台配置和真实客户端验收仍待完成；其他 TapTap 专属功能仍需逐项迁移、替换或移除。
-- Steam 素材按「渊海群星：深海文明建设」制作；`index.html` 浏览器标题与页头主标题已同步为新名。README、TapTap 物料和部分历史文档仍保留旧名，后续如统一改名需逐项核对。
+- Steam 素材按「渊海群星：深海文明建设」制作；`index.html` 浏览器标题与页头主标题已同步为新名。部分 TapTap 物料和历史文档仍保留旧名，后续如统一改名需逐项核对。
 - 用户确认首发包含全部当前可玩内容，后续不计划追加游戏内容；商店描述按完整单人作品表述，不承诺未来扩展。
 - 已有一套 TapTap 宣传物料和 25 秒实机录屏；当前 Steam 候选截图只有 3 张，尺寸均为 1600×900，不符合 Steam 截图最低尺寸和数量要求。
 - 现有素材索引与提交说明：`assets/store/2026-relaunch/TapTap-上架物料/README-提交清单.md`。

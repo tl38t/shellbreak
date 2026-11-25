@@ -13,26 +13,21 @@
   'use strict';
 
   var CFG = {
-    /* ---- 版本号与更新日志（2026-10-27 恢复）----
-     * VERSION = 当前构建版本号；CHANGELOG = 最新在前，游戏内「更新日志」面板渲染这张表。
-     * ⚠️ 2026-11-06 本地化：items 里存的是 i18n 语义 key，不是中文原文。中文基准与英文译文都在 i18n_text_inventory.xlsx / src/locales/zh-CN.js / electron/locales/en-US.js，
-     *   由 render.js 的 openChangelog() 经 SB.i18n.t() 取词。改文案先改登记表再重新生成词库，不要在这里写回中文硬编码。
-     * ⚠️ 版本号口径（2026-10-27 用户拍板改动）：对外版本名改为 `Ver1.0.1`，
-     *   取代此前 `v0.MAJOR.MINOR`（原约定 2026-10-11 立，2026-10-27 废止）。
-     *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
-     * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
-     *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.3.1',
-    /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
-     *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
-     *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
-     *   对应的三段代码（bootUi 的弹窗包一层、installTouchPing、input.js 的按下即关）
-     *   一并删除；更新日志**红点**与「更新日志」按钮入口保留。 */
-    /* entering（2026-10-28 语义变更）：meta.seenVersion 与之不等 ⇒ 该版本有未读更新
-     *   ⇒ 页脚「更新日志」按钮亮**红点**（不再是自动弹窗，见 game.js hasUnreadChangelog）；
-     *   玩家点开面板后才写回 seenVersion 熄灯。
-     * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
+    /* 更新日志按版本倒序排列。items 引用登记表中的 i18n key。 */
+    VERSION: 'Ver1.3.2',
+    /* 玩家打开更新日志后写入 meta.seenVersion，清除当前版本的未读提示。 */
     CHANGELOG: [
+      { v: 'Ver1.3.2', date: '2026-11-24', items: [
+        'changelog.performance.offline_checkpoint',
+        'changelog.performance.boot_and_assets',
+        'changelog.performance.power_save_and_render',
+        'changelog.ui.responsive_shell_and_nav',
+        'changelog.ui.filters_and_craft_roundtrip',
+        'changelog.ui.mobile_research_list',
+        'changelog.ui.stardust_exchange_confirmation',
+        'changelog.fix.craft_jump_touch_and_toast',
+        'changelog.i18n.web_and_desktop'
+      ] },
       /* Ver1.3.1（2026-11-19 建段）：2026-11-20/21 改动合集。
        * 2026-11-21 定稿：图标换新、六项新飞升挑战（第一批三项 + 第二批三项，用户指出不能只写后三项）、
        *   政策卡自动接替、戴森停机、轮回商店折叠、快速跳转改名与两项修复。
@@ -76,11 +71,6 @@
       { v: 'Ver1.2.4', date: '2026-11-16', items: [
         'changelog.ui.walk_panel'
       ] },
-      /* Ver1.2.3（2026-11-15）：Ver1.2.2 上线之后的 8 条玩家可见改动合集。
-       * 排序沿用玩家要求：新增类置段首，其余按「界面 → 修复」分组。
-       * ⚠️ 本次只做「写日志」：VERSION 同步升到 Ver1.2.3；index.html ?v bump、
-       *    _repack.py 的版本断言 / 版本清单 / 131→139 条 key 断言、封包与上传，
-       *    一律留到用户当次明说「发版」时统一做（见 .workbuddy/memory）。 */
       { v: 'Ver1.2.3', date: '2026-11-15', items: [
         // —— 新增 ——
         'changelog.stardust.exchange_batch',
@@ -509,7 +499,7 @@
     /* ---- 2026-10-24 成就扩充（设计稿 docs/ACHV_DESIGN_v0.3.md）：+57 条 ----
      * ⛔ 全部占位 '0'：TapTap 后台建成后逐条回填真 ID（MCP 无建成就工具）。
      *    未回填期间 unlockOnce 只记本地账本（meta.achv，成就墙真源），不发平台请求。
-     *    名称/简介来源《assets/achievements/成就文案_v0.1.md》（待评审）；
+     *    名称/简介来源《docs/achievements/成就文案_v0.1.md》（待评审）；
      *    展示文案在 src/achv.js DEFS_BASE（改键名两处同改）。 */
     /* —— 通用 12 条 —— */
     shellBreak: '0',          // 首次破壳（占位）
@@ -861,20 +851,10 @@
      *   「开得起就等于真的安全」比「减 99% 还要继续掉人」读得懂；
      *   真正的约束是石量与费率，不是这条系数。 */
     WARM_FREEZE_CAP: 0.5,
-    /* ---- 离线 / 后台补算（2026-09-25 实现）----
-     * 主循环此前只按「回调次数 × 固定步长」推进，完全不看真实经过时间，
-     * 于是关掉页面、刷新、切到后台标签页都会让时间蒸发。这里引入墙钟真值。
-     * ⚠️ 这两个数是**保守占位值**，不是标定结果：离线收益到底该给多少属于经济时长债，
-     * 与 BURN / 地热产能 / 时长窗那批一起最后统一算。改动前勿当成既定设计。 */
-    OFFLINE_MIN: 60,              // 间隙小于 1 分钟不补算，免得刷新一下就补一大截
-    /* 2026-10-24 分级离线（用户拍板 30min）：gap ≥ OFFLINE_MIN 一律补算（挂机收益一秒不丢），
-     * 但只有 ≥ 本值才值得弹「离线闸门 + 结算报告」；更短的离开（回消息 / 切窗 / 锁屏一小会儿）
-     * 走静默补算——不锁界面、不弹报告，日志留一行。
-     * ⚠️ 这是 UX 门槛不是经济常数：不影响任何产出速率与 8-14h 时长窗核算，
-     *    别和上面两个「保守占位值」混为一谈。 */
-    OFFLINE_SETTLE_MIN: 1800,     // 离开 30 分钟以内算「短暂」，静默补算不弹离线结算
-    OFFLINE_CAP: 8 * 3600,        // 单次补算上限 8 小时（超出部分按 0 计）
-    OFFLINE_PERK_STEP: 0.25,      // 轮回商店「离潮计时」每级给单次离线上限 +25%（ perk.offline 由商店购买）
+    /* 前后台和重启均按实际离开秒数认领，新增间隙只填补待算余额的空位。 */
+    OFFLINE_MIN: 60,              // 间隙至少 1 分钟才计入
+    OFFLINE_SETTLE_MIN: 1800,     // 满 30 分钟或有超限时间时显示结算报告
+    OFFLINE_CAP: 8 * 3600,        // 待补余额上限，已结算的进度保留
     OFFLINE_STEP: 2,              // 离线分段快进最大步长（逻辑秒）。单一来源：game.js / 离线调度器均只读此处，避免两套常量漂移
     /* 补算专用分段步长（2026-11-17）。**为什么必须与 OFFLINE_STEP 分开**：
      *   OFFLINE_STEP 同时被「在线 30× 快进」用（game.js 的 fastOnline 分支每段也要 ≤2 秒，
