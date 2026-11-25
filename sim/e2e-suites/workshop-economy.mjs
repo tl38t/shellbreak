@@ -1335,4 +1335,51 @@ console.log('\n=== 轮回 loop5：轮回工巧 / 轮回炉火 ===');
   }
 }
 
+  /* ---------------- 自动槽摘要：cap>0 分支必须能渲染（Ver1.4.1 热修回归锁） ---------------- *
+   * ⚠️ 2026-11-25 Ver1.4.0 发布事故：搬运 PR#1 时只摘了「占槽清单循环」那段，
+   *    漏掉函数开头的 `var slots = s.autoSlots || []`，导致 cap>0 的存档一渲染工坊页
+   *    就抛 `ReferenceError: slots is not defined` —— 读档时计时器尚未启动，资源/人口
+   *    不涨、面板停「读取中」、按钮未接线。
+   *    e2e 此前所有工坊夹具只设 lvl.workshop=1，没有任何自动槽来源 ⇒ slotCap=0 ⇒
+   *    autoSlotSummary 在 `if (cap <= 0)` 早退 ⇒ 那行代码一次都没执行过 ⇒ 带病发布。
+   *    本块专门把 cap 顶到 >0 再渲染工坊页，锁死这条分支。
+   *    ⚠️ check 只记 bool、不捕获异常：这里自己 try/catch 转成红一条，
+   *       避免真回归时整轮崩溃、拿不到「通过 N/M」汇总。 */
+  console.log('\n=== 工坊：自动槽摘要渲染（cap>0 回归锁） ===');
+  {
+    const s = SB.game.run();
+    const keepLvl = s.lvl.workshop;
+    const keepUpgrades = s.upgrades;
+    const keepAutoshop = s.upgrades && s.upgrades.upg_autoshop;
+    const keepSlots = s.autoSlots;
+    const keepTab = SB.game.getTab();
+    let err = null, html = '', capAtRender = -1;
+    try {
+      s.lvl.workshop = 1;
+      s.upgrades = s.upgrades || {};
+      s.upgrades.upg_autoshop = true;            // slotCap>0：强制走 autoSlotSummary 的 cap>0 分支
+      s.autoSlots = [{ id: 'craft_rope', pct: 0.75 }];
+      capAtRender = SB.workshop.slotCap(s);
+      SB.game.setTab('workshop');
+      SB.ui.render.renderPanes();
+      html = doc.getElementById('pane-workshop').innerHTML;
+    } catch (e) {
+      err = e;
+    } finally {
+      s.lvl.workshop = keepLvl;
+      if (s.upgrades) {
+        if (keepAutoshop === undefined) delete s.upgrades.upg_autoshop;
+        else s.upgrades.upg_autoshop = keepAutoshop;
+      }
+      s.upgrades = keepUpgrades;
+      s.autoSlots = keepSlots;
+      SB.game.setTab(keepTab);
+    }
+    check('自动槽已解锁时渲染工坊页不抛 ReferenceError（Ver1.4.1 回归锁）',
+      !err, err ? (err.name + ': ' + err.message) : 'cap=' + capAtRender);
+    check('自动槽摘要文案上屏（确认 cap>0 分支真的执行，不是早退假绿）',
+      !err && /自动制作槽/.test(html),
+      err ? ('抛异常: ' + err.message) : ('html 长度=' + html.length + ' 片段=' + html.slice(0, 80)));
+  }
+
 }
