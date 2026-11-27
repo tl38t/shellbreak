@@ -1172,7 +1172,20 @@
        * 换码就跑 `node tmp/_mkcode.mjs <新码>` 把对应 h 换掉即可。 */
       { h: '5e26a421982e561596e1eddd85c0aa5b41af6920', stardust: 100, label: '星屑礼包' },
       { h: '3dbd9f2adb8016eeaabaaeca34a51da00e4f8dab', stardust: 100, label: '星屑礼包' },
-      { h: 'f6ff4232fc87ea28e07da661c6ded4878f2a08f4', stardust: 100, label: '星屑礼包' }
+      { h: 'f6ff4232fc87ea28e07da661c6ded4878f2a08f4', stardust: 100, label: '星屑礼包' },
+      /* 2026-11-15 生成、2026-11-27 入包：十条 100 星屑本地码。
+       * 明文只留在开发者本地清单 `tmp/stardust_codes_20261115.txt`，这里只有哈希。
+       * ⚠️ 明文**不许**写进任何注释——包是明文 JS，注释一样会被解包读到。 */
+      { h: '4aeae645b35563d8b80fc70de5fcea4bd5cfcf2b', stardust: 100, label: '星屑礼包' },
+      { h: '566db4c334d4ee8cf3319d7c4610edbd478df86f', stardust: 100, label: '星屑礼包' },
+      { h: '5c8eaa6227e9035f97d645a6af98a96d74e38101', stardust: 100, label: '星屑礼包' },
+      { h: '6d227aa9f8a17cb1d624dae5f041b3aebe35600c', stardust: 100, label: '星屑礼包' },
+      { h: '38d85c095e6dc6ef1162f485c96e4601f5adcfc3', stardust: 100, label: '星屑礼包' },
+      { h: 'a35e2667d73505047a93c76ad6162156b5bc8094', stardust: 100, label: '星屑礼包' },
+      { h: '288fab3ab18dfa59813e5710b755f115214a0ca8', stardust: 100, label: '星屑礼包' },
+      { h: '77f106abf06404980b91692b99abb17f267d0db7', stardust: 100, label: '星屑礼包' },
+      { h: 'a487ea5339a8063827aecef0999de289868dfdcf', stardust: 100, label: '星屑礼包' },
+      { h: 'b852de13878933427dc9dc873115524ffb7f6af6', stardust: 100, label: '星屑礼包' }
     ]
 
     /* ⚠️ 这里**故意不设 CHARACTER_ID**：TDS 的 character_id 是「游戏用户 ID」，平台按
