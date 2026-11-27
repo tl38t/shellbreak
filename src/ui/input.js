@@ -191,6 +191,15 @@
     var s = run();
     if (!s) return;
 
+    var chronoActivateButton = t.closest && t.closest('button[data-chrono-activate]');
+    if (!chronoActivateButton && d.chronoActivate !== undefined) chronoActivateButton = t;
+    if (chronoActivateButton) {
+      if (!chronoActivateButton.disabled && SB.habitat.activateChrono(s, emit)) {
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
+
     /* 传承（2026-11-11）：待选常驻条 → 打开独立浮层；卡面「择取」→ 单一逻辑入口。
      * ⚠️ 浮层不在 #pane-diplomacy 内（面板每 2 秒整块重画），榜单状态只在 s.war.heritage。 */
     var heritageOpen = d.heritageOpen !== undefined ? t
@@ -962,12 +971,22 @@
       : (t.closest ? t.closest('[data-perk],[data-star-perk]') : null);
     if (perkBtn && perkBtn.dataset) {
       var perkId = perkBtn.dataset.perk, starPerkId = perkBtn.dataset.starPerk;
-      /* 2026-11-25：星屑节点点图标 = 看详情，不再直接买。节点按钮上的 data-star-perk
-       * 照旧保留（e2e 按它找节点），只把点击语义改到详情气泡。
-       * 已达上限 / 等待前置 / 星屑不足的节点也不再 disabled，照样能点开看完整说明。 */
-      if (starPerkId !== undefined && SB.ui.render && SB.ui.render.showStarPerkInfo) {
+      /* 2026-11-25：详情弹窗受设置开关控制（SB.uiPrefs.perkDetailPopupsEnabled，默认开）。
+       * 开 → 点节点看详情（满级/等前置/积分不足也能看），购买移进气泡；
+       * 关 → 完整回到 Ver1.4.0 前行为：点节点一击购买，按钮由渲染层按同样开关灰掉。
+       * ⚠️ 开关只在这里和渲染层读，弹窗内 [data-*-perk-buy] 始终是唯一购买入口的另一条路。 */
+      var detailPopups = (!SB.uiPrefs || SB.uiPrefs.perkDetailPopupsEnabled());
+      if (detailPopups && starPerkId !== undefined && SB.ui.render && SB.ui.render.showStarPerkInfo) {
         SB.ui.render.showStarPerkInfo(starPerkId, perkBtn);
         return;
+      }
+      if (detailPopups && perkId !== undefined && SB.ui.render && SB.ui.render.showTidePerkInfo) {
+        SB.ui.render.showTidePerkInfo(perkId, perkBtn);
+        return;
+      }
+      /* 关掉开关后的直买路径：星屑走 buyStarPerk、轮回点走 buyPerk，与 Ver1.4.0 前逐字一致。 */
+      if (starPerkId !== undefined && SB.prestige.buyStarPerk(starPerkId)) {
+        SB.game.markDirty(); SB.game.renderAll();
       }
       if (perkId !== undefined && SB.prestige.buyPerk(perkId)) {
         SB.game.markDirty(); SB.game.renderAll();
@@ -977,6 +996,14 @@
     /* 详情气泡里的「点亮 · ✧N」：唯一真正扣星屑的入口，仍走同一个 buyStarPerk。 */
     if (d.starPerkBuy !== undefined) {
       if (SB.prestige.buyStarPerk(d.starPerkBuy)) {
+        SB.ui.render.hideModal();
+        SB.game.markDirty(); SB.game.renderAll();
+      }
+      return;
+    }
+    /* 轮回点详情气泡里的「点亮 · ✧N」：唯一扣轮回点的入口，与旧节点按钮共用 buyPerk。 */
+    if (d.tidePerkBuy !== undefined) {
+      if (SB.prestige.buyPerk(d.tidePerkBuy)) {
         SB.ui.render.hideModal();
         SB.game.markDirty(); SB.game.renderAll();
       }

@@ -68,8 +68,9 @@ export function run({ SB, check, g, doc }) {
     check('blackhistory 是 winter 的 reqs（前置链没断，15 次轮回确实是通关链首）',
       !!black && (SB.TECHS || []).some(t => t.id === 'winter' && (t.reqs || []).indexOf('blackhistory') >= 0),
       'winter.reqs=' + JSON.stringify(((SB.TECHS || []).find(t => t.id === 'winter') || {}).reqs));
-    check('其余 16 项挑战均无 prereq（门禁不误伤）',
-      api.list().length === 17 && api.list().filter(d => d.prereq).length === 1,
+    /* 2026-11-27：挑战总数 17 → 27（11-19 六项飞升 + 11-27 第二批四项），名字与数字同步。 */
+    check('其余 26 项挑战均无 prereq（门禁不误伤）',
+      api.list().length === 27 && api.list().filter(d => d.prereq).length === 1,
       '带前置项数=' + api.list().filter(d => d.prereq).length);
 
     /* ── 2. 边界：after 取决于「本局会不会结算」 ────────────────────── */
@@ -153,8 +154,9 @@ export function run({ SB, check, g, doc }) {
       paneLow.indexOf('challenge-status locked') >= 0 &&
       paneLow.indexOf('data-challenge-start="drift_terra"') < 0,
       'starts=' + starts(paneLow));
-    check('低轮回卡片：入口数 16（17 项减去被挡住的流浪泰拉）',
-      starts(paneLow) === 16, 'starts=' + starts(paneLow));
+    /* 2026-11-27：总数 17 → 27 ⇒ 未被挡住时 18 个入口，挡住流浪泰拉后 17 个（实测）。 */
+    check('低轮回卡片：入口数 17（18 项减去被挡住的流浪泰拉）',
+      starts(paneLow) === 17, 'starts=' + starts(paneLow));
     check('规则区的「开启前置」行只出现一次（不误加到别的挑战）',
       (paneLow.match(/<small>开启前置<\/small>/g) || []).length === 1,
       '次数=' + (paneLow.match(/<small>开启前置<\/small>/g) || []).length);
@@ -164,17 +166,17 @@ export function run({ SB, check, g, doc }) {
 
     meta.cycle = 14;
     const paneOk = SB.ui.render.paneChallenges();
-    check('第 14 次轮回 + 会结算：前置显示已满足，入口恢复 17 个且流浪泰拉可点',
+    check('第 14 次轮回 + 会结算：前置显示已满足，入口恢复 18 个且流浪泰拉可点',
       paneOk.indexOf('已满足') >= 0 && paneOk.indexOf('>轮回不足<') < 0 &&
-      starts(paneOk) === 17 && paneOk.indexOf('data-challenge-start="drift_terra"') >= 0,
+      starts(paneOk) === 18 && paneOk.indexOf('data-challenge-start="drift_terra"') >= 0,
       'starts=' + starts(paneOk));
 
     /* 同一 cycle、但本局不会结算 ⇒ 卡片必须退回「还差 1 次」。
      * 这一条是「重开本周目不再算轮回」在 UI 上的直接体现。 */
     setWillBreak(false);
     const paneNoBreak = SB.ui.render.paneChallenges();
-    check('第 14 次轮回 + 不结算：卡片退回「还差 1 次」，入口只剩 11 个',
-      paneNoBreak.indexOf('还差 1 次') >= 0 && starts(paneNoBreak) === 11 &&
+    check('第 14 次轮回 + 不结算：卡片退回「还差 1 次」，入口只剩 17 个',
+      paneNoBreak.indexOf('还差 1 次') >= 0 && starts(paneNoBreak) === 17 &&
       paneNoBreak.indexOf('data-challenge-start="drift_terra"') < 0,
       'starts=' + starts(paneNoBreak));
 

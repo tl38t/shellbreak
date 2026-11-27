@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.4.1',
+    VERSION: 'Ver1.4.2',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,6 +33,38 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.4.2（2026-11-25）本段对外 7 条，逐条对应：
+       * ① 轮回商店补齐星屑商店同款节点详情气泡（点开看效果/成本/前置，购买移入气泡）
+       *    → changelog.fix.tide_perk_detail；
+       * ② 设置里一个开关同时管星屑/轮回商店的节点详情弹窗，默认开、关掉完整恢复旧交互
+       *    → changelog.ui.perk_detail_toggle；
+       * ③ 生命织章全部节点基础数值砍半，双线共鸣规则不变——满和谐(+100%)才回到改前标值
+       *    → changelog.balance.gene_half；
+       * ④ 2026-11-27 追加（本版未发版，故并入同段而非新开 Ver1.4.3）：第二批四项飞升挑战
+       *    （时间钳形攻势 / 新难题 / 一往无前 / 寸土寸金，各带成就章）
+       *    → changelog.challenge.veil_four_new；
+       * ⑤ 飞升挑战跨普通轮回续接 + 飞升周期账本基准 → changelog.challenge.ascension_persist；
+       * ⑥ 市政卡解锁图标 → changelog.ui.civic_unlock_icons；
+       * ⑦ 手机端巢穴两态跳动修复 → changelog.fix.village_mobile_jump。
+       * ⚠️ 本版**实装但用户拍板不写进对外日志**的三项（词条保留、此处不引用）：
+       *    升维终局十一段分镜（含最后一幕 15 秒星空画布动画）→ changelog.finale.ascension_open；
+       *    逆时屋按座结算 → changelog.chrono.multi_house；
+       *    升维节点 N/10 数字面板 → changelog.ui.unity_progress。
+       *    三个 key 仍在三语词库与登记表（SB 编号已分配，按 i18n 规范不删退役 key）。
+       * ⚠️ 升维结局文案此前只补了中文，英文/繁中玩家会看到 key 名；本版连同
+       *    ui.finale.ascension.* 15 条 + ui.finale.cosmic_congratulations 一并补齐三语（与是否写日志无关）。
+       * ⚠️ 本段 7 条；全数组 key 计数 168+7=175（_repack.py 断言同步）。 */
+      { v: 'Ver1.4.2', date: '2026-11-25', items: [
+        'changelog.fix.tide_perk_detail',
+        'changelog.ui.perk_detail_toggle',
+        'changelog.balance.gene_half',
+        // —— 2026-11-27 追加：第二批飞升挑战与配套系统 ——
+        'changelog.challenge.veil_four_new',
+        'changelog.challenge.ascension_persist',
+        // —— 同批 UI 与修复 ——
+        'changelog.ui.civic_unlock_icons',
+        'changelog.fix.village_mobile_jump'
+      ] },
       /* Ver1.4.1（2026-11-25 热修）：修复 Ver1.4.0 移植 PR#1 工坊改动时漏掉 `slots` 变量定义。
        * 已建成工坊且拥有自动制作槽的玩家读档后，工坊面板会抛出 ReferenceError，
        * 导致主循环计时器未启动、资源/人口不涨、面板停在「读取中」、按钮未接线。
@@ -1199,6 +1231,23 @@
   var NS = (root.SB = root.SB || {});
   NS.CFG = CFG;
   /* NS.TECHS / NS.ERAS 不再在这里赋值——它们由 src/techs.js 提供（加载顺序在 config 之后）。 */
+
+  /* 纯 UI 偏好读取（2026-11-25）：天赋节点（星屑 / 轮回点）详情弹窗开关。
+   * ⚠️ 与主题/缩放/引导同类：只存 localStorage，不进存档、不影响任何数值。
+   * ⚠️ 默认开（v !== '0'）：老玩家升级后交互不变；关掉则两个商店都回到「点节点一击购买」，
+   *    满级 / 等前置 / 积分不足的节点恢复 disabled（与 Ver1.4.0 前完全一致）。
+   * ⚠️ 放在 config.js 是因为它加载最早——render.js / input.js / theme.js 都能在加载期读到。
+   *    读失败（无 window / 隐私模式禁 localStorage）一律当开，绝不因偏好读不到把商店锁死。 */
+  var PERK_POPUP_KEY = 'shellbreak.perkDetailPopups';
+  var UI_PREFS = NS.uiPrefs = NS.uiPrefs || {};
+  UI_PREFS.perkDetailPopupsEnabled = function () {
+    try {
+      return root.localStorage && root.localStorage.getItem(PERK_POPUP_KEY) !== '0';
+    } catch (e) {
+      return true;
+    }
+  };
+  UI_PREFS.PERK_POPUP_KEY = PERK_POPUP_KEY;
 
 
   /* ⚠️ 工艺升级表的导出顺序有讲究：workshop.js 读 SB.UPGRADES，而它是在

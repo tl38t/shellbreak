@@ -40,22 +40,24 @@
   ];
 
   var STAGES = ['接枝', '置换', '归一'];   // LV1/2/3 命名（v0.2 §2，用户授权我定）
+  /* 2026-11-25 平衡：基础数值全部砍半，与 src/veil-effects.js 的生效表逐项对齐。
+   * 共鸣加成规则不变，面板显示仍会再乘 (1 + bonus/100)，满和谐即回到改前标值。 */
   var GENE_BRANCHES = {
     supreme: [
-      { id: 'lore', icon: 'assets/veil/gene-icons/gene-lore.png', pos: 12.1, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
-      { id: 'valor', icon: 'assets/veil/gene-icons/gene-valor.png', pos: 31.8, y: 53.5, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
-      { id: 'agility', icon: 'assets/veil/gene-icons/gene-agility.png', pos: 50.4, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'lore', icon: 'assets/veil/gene-icons/gene-lore.png', pos: 12.1, y: 55, values: [{ value: 10 }, { value: 20 }, { value: 30 }] },
+      { id: 'valor', icon: 'assets/veil/gene-icons/gene-valor.png', pos: 31.8, y: 53.5, values: [{ value: 10 }, { value: 20 }, { value: 30 }] },
+      { id: 'agility', icon: 'assets/veil/gene-icons/gene-agility.png', pos: 50.4, y: 55, values: [{ value: 10 }, { value: 20 }, { value: 30 }] },
       { id: 'longevity', icon: 'assets/veil/gene-icons/gene-longevity.png', pos: 67.5, y: 53.5, values: [
+        { merchant: 20, freeze: 5, warm: 5 },
         { merchant: 40, freeze: 10, warm: 10 },
-        { merchant: 80, freeze: 20, warm: 20 },
-        { merchant: 120, freeze: 40, warm: 40 }
+        { merchant: 60, freeze: 20, warm: 20 }
       ] }
     ],
     pure: [
-      { id: 'morph', icon: 'assets/veil/gene-icons/gene-morph.png', pos: 12.1, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
-      { id: 'growth', icon: 'assets/veil/gene-icons/gene-growth.png', pos: 31.8, y: 53.5, values: [{ value: 10 }, { value: 20 }, { value: 30 }] },
-      { id: 'fastmat', icon: 'assets/veil/gene-icons/gene-fastmat.png', pos: 50.4, y: 55, values: [{ value: 60 }, { value: 120 }, { value: 240 }] },
-      { id: 'forge', icon: 'assets/veil/gene-icons/gene-forge.png', pos: 67.5, y: 53.5, values: [{ value: 60 }, { value: 120 }, { value: 240 }] }
+      { id: 'morph', icon: 'assets/veil/gene-icons/gene-morph.png', pos: 12.1, y: 55, values: [{ value: 10 }, { value: 20 }, { value: 30 }] },
+      { id: 'growth', icon: 'assets/veil/gene-icons/gene-growth.png', pos: 31.8, y: 53.5, values: [{ value: 5 }, { value: 10 }, { value: 15 }] },
+      { id: 'fastmat', icon: 'assets/veil/gene-icons/gene-fastmat.png', pos: 50.4, y: 55, values: [{ value: 30 }, { value: 60 }, { value: 120 }] },
+      { id: 'forge', icon: 'assets/veil/gene-icons/gene-forge.png', pos: 67.5, y: 53.5, values: [{ value: 30 }, { value: 60 }, { value: 120 }] }
     ]
   };
   var geneBranch = 'supreme', geneSelected = 'lore';
@@ -273,7 +275,7 @@
     if (level < 3 || !isOpen('si') || !node || ['valor', 'agility', 'longevity'].indexOf(node.id) < 0) return '';
     var bonus = SB.veilFx && SB.veilFx.geneResonanceBonusPct
       ? Number(SB.veilFx.geneResonanceBonusPct()) || 0 : 0;
-    return trp('ui.veil.gene.effect.si_amplification', { value: Math.round(20 * (1 + bonus / 100)) }, '');
+    return trp('ui.veil.gene.effect.si_amplification', { value: Math.round(10 * (1 + bonus / 100)) }, '');
   }
   function geneResonanceStateLabel() {
     var fx = SB.veilFx || {};

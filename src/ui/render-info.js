@@ -681,9 +681,9 @@
     /* 科技详情必须展示数据里的真实尤里卡条件（item.cond）。
      * 玩家效果与解锁说明走独立字段，不用设计备注或第三方对标文案兜底。 */
     var condition = tech
-      ? (item.cond ? (SB.tech.condText(item.cond) || tr('tree.condition.eureka.default', null, '尤里卡条件')) : tr('tree.condition.eureka.not_required', null, '无需尤里卡'))
+      ? (item.cond ? (SB.tech.condText(item.cond, s) || tr('tree.condition.eureka.default', null, '尤里卡条件')) : tr('tree.condition.eureka.not_required', null, '无需尤里卡'))
       : item.boost
-        ? (englishLocale() ? (SB.tech.condText(item.boost) || SB.civic.boostText(s, item)) : SB.civic.boostText(s, item))
+        ? (englishLocale() ? (SB.tech.condText(item.boost, s) || SB.civic.boostText(s, item)) : SB.civic.boostText(s, item))
         : localizedStaticText('civic.data.' + id + '.inspiration', '无需鼓舞');
     var conditionProgress = tech && !revealed && short ? short.txt : '';
     var progress = short && short.need > 0 && !done
@@ -701,6 +701,33 @@
       ? (SB.tech.effectDisplayText ? SB.tech.effectDisplayText(item) : SB.tech.effectText(item))
       : item.desc;
     if (!tech) effect = localizedCivicDescription(item, s);
+    var unityAscendProgress = !tech && id === 'unity' && revealed
+      && SB.state && typeof SB.state.ascendProgress === 'function' && SB.game && SB.game.meta
+      ? SB.state.ascendProgress(s, SB.game.meta()) : null;
+    function unityAscendDigitRow(value, sizeClass) {
+      var html = '', index, digit, column, row;
+      for (index = 0; index < value.length; index++) {
+        digit = Number(value.charAt(index));
+        column = digit % 5;
+        row = digit >= 5 ? 1 : 0;
+        html += '<span class="unity-ascend-glyph ' + sizeClass + '" style="background-position:' +
+          (column * 25) + '% ' + (row * 100) + '%" aria-hidden="true"></span>';
+      }
+      return html;
+    }
+    var unityAscendAria = effect;
+    if (unityAscendProgress !== null) {
+      unityAscendAria += ' · ' + tr('ui.veil.hub.ascend.progress', {
+        current: unityAscendProgress, total: 10
+      }, '第 ' + unityAscendProgress + '/10 次');
+    }
+    var effectSection = unityAscendProgress !== null
+      ? '<section class="tree-detail-section unity-ascend-number-panel"><div class="unity-ascend-number" role="img" aria-label="' + escapeInfoText(unityAscendAria) + '">' +
+        '<span class="unity-ascend-current">' + unityAscendDigitRow(('0' + unityAscendProgress).slice(-2), 'current') + '</span>' +
+        '<span class="unity-ascend-divider" aria-hidden="true"></span>' +
+        '<span class="unity-ascend-total">' + unityAscendDigitRow('10', 'total') + '</span></div></section>'
+      : '<section class="tree-detail-section"><h4>' + tr('ui.section.effects', null, '效果') + '</h4><p>' +
+        (revealed ? linkInfoNames(effect, !tech && /工坊配方/.test(effect)) : tr('tree.detail.hidden_content_hint', null, '达成揭示条件后显示。')) + '</p></section>';
     var unlockText = tech && item.unlockDesc
       ? localizedContentDescription('tech.' + id + '.unlock_desc', item.unlockDesc,
         englishTemplateParams('tech.' + id + '.unlock_desc', item.unlockDesc))
@@ -817,8 +844,7 @@
       (canTrack ? '<button type="button" class="btn tree-track-btn' + (trackOn ? ' on' : '') +
         '" data-track-kind="btn" data-track-toggle="' + trackKind + ':' + id + '">' +
         tr(trackOn ? 'tree.track.stop' : tech ? 'tree.track.eureka' : 'tree.track.inspiration', null, trackOn ? '取消追踪' : '追踪' + (tech ? '尤里卡' : '鼓舞')) + '</button>' : '') + '</section>' +
-      '<section class="tree-detail-section"><h4>' + tr('ui.section.effects', null, '效果') + '</h4><p>' +
-      (revealed ? linkInfoNames(effect, !tech && /工坊配方/.test(effect)) : tr('tree.detail.hidden_content_hint', null, '达成揭示条件后显示。')) + '</p></section>' +
+      effectSection +
       unlockSection +
       '<section class="tree-detail-section"><h4>' + tr('tree.detail.heading.prerequisites', null, '前置节点') + '</h4><div class="tree-reqs">' + reqHtml + '</div></section>' +
       (tech && revealed && TECH_FLAVOR[id] ? '<p class="b-flavor">' + localizedStaticText('ui.content.tech_flavor.' + id, TECH_FLAVOR[id], TECH_FLAVOR_PARAMS[id]) + '</p>' : '') +

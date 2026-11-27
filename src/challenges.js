@@ -280,7 +280,46 @@
         { label: '第一档', cap: 0.30 },
         { label: '第二档', cap: 0.50 },
         { label: '第三档', cap: 0.70 }
-      ] }
+      ] },
+    { id: 'veil_temporal_pincer', achievementKey: 'challengeVeilTemporalPincer', name: '时间钳形攻势', icon: '⏳', badge: 'assets/challenges/challenge-veil-temporal-pincer.png', kind: '三档挑战',
+      ascension: true,
+      summary: '开局拥有失能逆时屋，却要承受高昂的人口扩张成本。',
+      rule: '第一、二、三档开局分别获得 20、15、10 座失能逆时屋；人口上限建筑建造消耗分别 +200%、+400%、+600%；增加人口上限的政策卡不可用。',
+      rewards: ['永久飞升点获取 +10%；通关后永久将失能逆时屋的激活资源消耗降至其基础建造资源的 1/10', '永久飞升点获取 +10%；通关后永久将失能逆时屋的激活资源消耗降至其基础建造资源的 1/10', '永久飞升点获取 +10%；通关后永久将失能逆时屋的激活资源消耗降至其基础建造资源的 1/10'],
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
+      tiers: [
+        { label: '第一档', disabledChronoHouses: 20, populationBuildingSurcharge: 2 },
+        { label: '第二档', disabledChronoHouses: 15, populationBuildingSurcharge: 4 },
+        { label: '第三档', disabledChronoHouses: 10, populationBuildingSurcharge: 6 }
+      ] },
+    { id: 'veil_eternity_moment', achievementKey: 'challengeVeilEternityMoment', name: '新难题', icon: '☾', badge: 'assets/challenges/challenge-veil-eternity-moment.png', kind: '三档挑战',
+      ascension: true,
+      summary: '从破壳到掀幕的飞升需求，都会按档位提高五、十或二十倍。',
+      rule: '科技与市政研究点成本、天壳厚度，以及掀起帘幕所需的飞升周期星屑门槛（基础 1000）均乘以本档倍率；尤里卡、前置条件和科技额外材料成本不变。',
+      rewards: ['永久飞升点获取 +10%；永久全产 +10%', '永久飞升点获取 +10%；永久全产 +20%', '永久飞升点获取 +10%；永久全产 +30%'],
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
+      tiers: [
+        { label: '五倍档', cap: 5 },
+        { label: '十倍档', cap: 10 },
+        { label: '二十倍档', cap: 20 }
+      ] },
+    { id: 'veil_one_way', achievementKey: 'challengeVeilOneWay', name: '一往无前', icon: '⛵', badge: 'assets/challenges/challenge-veil-one-way.png', kind: '三档挑战',
+      ascension: true, storageCapacityBonusPerTier: 0.12,
+      summary: '从新的飞升周期出发，在轮回次数耗尽前掀起帘幕。',
+      rule: '在 3/2/1 次合格轮回内掀起帘幕；第 3/2/1 次轮回后仍可在新周目完成飞升，超过次数上限则挑战失败。',
+      rewards: ['永久仓储上限 +12%', '永久仓储上限 +24%', '永久仓储上限 +36%'],
+      goal: { t: 'veil' }, goalText: '掀起帘幕，完成飞升',
+      tiers: [
+        { label: '三次轮回档', rebirthLimit: 3 },
+        { label: '两次轮回档', rebirthLimit: 2 },
+        { label: '一次轮回档', rebirthLimit: 1 }
+      ] },
+    { id: 'land_gold', achievementKey: 'challengeLandGold', name: '寸土寸金', icon: '▦', badge: 'assets/challenges/challenge-land-gold.png', kind: '无限档挑战',
+      infiniteTiers: true,
+      buildingCostSurchargePerTier: 0.5, storageCapacityBonusPerTier: 0.05,
+      summary: '建筑成本随档位提高，仓储奖励逐档累积。',
+      rule: '所有建筑成本按档位提高；每完成一档，永久提高有上限资源的仓储上限。',
+      reward: '', tiers: [{ label: '', buildingCostSurcharge: 0.5 }] }
   ];
   var BY_ID = {};
   for (var i = 0; i < DEFINITIONS.length; i++) BY_ID[DEFINITIONS[i].id] = DEFINITIONS[i];
@@ -292,15 +331,62 @@
     anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0, pacifist: false,
     weapon_critique: false, totalwar_doctrine: false, raider: false, conqueror: 0,
     veil_rush: 0, veil_abyss: 0, veil_starve: 0,
-    veil_nofaith: false, veil_turmoil: false, veil_cramped: 0 } }; }
+    veil_nofaith: false, veil_turmoil: false, veil_cramped: 0, veil_temporal_pincer: 0, veil_eternity_moment: 0, veil_one_way: 0, land_gold: 0 } }; }
   function progress(meta) {
     var c = meta && meta.challenges && meta.challenges.completed;
     return c || emptyProgress().completed;
   }
+  function tierLimit(id) {
+    var d = typeof id === 'string' ? BY_ID[id] : id;
+    return d ? (d.infiniteTiers ? Infinity : d.tiers.length) : 0;
+  }
+  function normalizeTierIndex(id, value) {
+    var d = typeof id === 'string' ? BY_ID[id] : id;
+    if (!d) return 0;
+    var n = Number(value);
+    if (!isFinite(n)) n = 0;
+    n = Math.max(0, Math.floor(n));
+    return d.infiniteTiers ? n : Math.min(d.tiers.length - 1, n);
+  }
+  function tierAt(id, index) {
+    var d = typeof id === 'string' ? BY_ID[id] : id;
+    if (!d || !d.tiers.length) return null;
+    var n = normalizeTierIndex(d, index);
+    if (!d.infiniteTiers) return d.tiers[n];
+    return { label: '', buildingCostSurcharge: (Number(d.buildingCostSurchargePerTier) || 0.5) * (n + 1) };
+  }
   function tierDone(id, meta) {
     var c = progress(meta), d = BY_ID[id];
     if (!d) return 0;
+    if (d.infiniteTiers) {
+      var count = Number(c[id]);
+      return isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+    }
     return d.tiers.length === 1 ? (c[id] ? 1 : 0) : Math.max(0, Math.min(d.tiers.length, c[id] | 0));
+  }
+  function oneWayRebirthCount(s, meta) {
+    var challenge = s && s.challenge;
+    if (!challenge || challenge.id !== 'veil_one_way') return 0;
+    meta = meta || (SB.game && SB.game.meta ? SB.game.meta() : null);
+    var now = Number(meta && meta.rebirths), start = Number(challenge.startRebirths);
+    if (!isFinite(now)) now = 0;
+    if (!isFinite(start)) start = now;
+    return Math.max(0, Math.floor(now - start));
+  }
+  function onQualifiedRebirth(s, meta) {
+    var challenge = s && s.challenge, d = challenge && BY_ID[challenge.id];
+    if (!d || d.id !== 'veil_one_way' || s.challengeDone) return null;
+    var tierIndex = normalizeTierIndex(d, challenge.tier), tier = tierAt(d, tierIndex);
+    var used = oneWayRebirthCount(s, meta);
+    if (used <= tier.rebirthLimit) return null;
+    var outcome = { id: d.id, name: d.name, tier: tierIndex,
+      label: challengeDisplayText(d, 'tierLabel', tierIndex), failed: true,
+      reason: 'rebirth_limit', rebirthCount: used, rebirthLimit: tier.rebirthLimit };
+    s.challengeDone = true;
+    s.challengeOutcome = outcome;
+    if (meta && meta.activeAscensionChallenge && meta.activeAscensionChallenge.id === d.id)
+      meta.activeAscensionChallenge = null;
+    return outcome;
   }
   function completedCount(meta) {
     var n = 0;
@@ -364,13 +450,13 @@
     s.challengeReleased = true;
     if (SB.game && SB.game.log)
       SB.game.log(challengeTr('challenge.release.log', {
-        challengeName: challengeDisplayText(d, 'name')
+        challengeName: challengeDisplayText(d, 'name', a.tier)
       }, '已解除「' + d.name + '」的限制，本局按正常规则继续（之后无法再打开）。'));
     return true;
   }
   function activeTier(s) {
     var a = active(s), d = a && BY_ID[a.id];
-    return a && d ? d.tiers[Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0))] : null;
+    return a && d ? tierAt(d, a.tier) : null;
   }
   function ignorePopulationGates(s) {
     var a = active(s);
@@ -453,7 +539,8 @@
    *        · starPct 凭空变大 ⇒ 星屑结算、群星与神明信仰、星空尤里卡全被重算。
    *      ⚠️ 判定与面板之间还隔着 4 段分镜（render.showDysonEnding 0/1500/3200/4900ms），
    *          showDysonCompletePanel 读分母时 challengeDone 早已是 true，塌陷必然发生。
-   *   ⇒ 目标类（shellTarget / starCap / dysonSailCap / dysonNodeCap）一律读这里。
+   *   ⇒ 永远与须臾终局挑战的四个目标（shellTarget / starCap / dysonSailCap / dysonNodeCap）读这里；
+   *      飞升版新难题的壳厚与星屑门槛使用 veilRequirementMul，不改变戴森目标。
    * multiplier(s) ——「限制是否仍生效」，依赖 active()，达成/解除后掉回 1。
    *   供限制类使用（researchCostMul）；研究成本 ×5 在达成后解除并叠加永久折扣是设计意图。
    * ⚠️ 禁止把任一出口改成直接乘 CFG 常量、或换用另一个读数 —— 口径分裂正是本次 bug 根因。 */
@@ -463,9 +550,22 @@
     var tier = d.tiers[Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0))];
     return tier && tier.cap ? tier.cap : 1;
   }
+  function veilRequirementMul(s) {
+    var a = s && s.challenge, d = a && a.id === 'veil_eternity_moment' && BY_ID[a.id];
+    if (!d) return 1;
+    var tier = d.tiers[Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0))];
+    return tier && tier.cap ? tier.cap : 1;
+  }
+  function shellTargetMultiplier(s) {
+    return s && s.challenge && s.challenge.id === 'veil_eternity_moment'
+      ? veilRequirementMul(s) : recordedMultiplier(s);
+  }
+  function veilStarThreshold(s) { return 1000 * veilRequirementMul(s); }
   function multiplier(s) {
     var a = active(s);
-    return a && a.id === 'eternity_moment' ? recordedMultiplier(s) : 1;
+    if (!a) return 1;
+    return a.id === 'eternity_moment' ? recordedMultiplier(s)
+      : a.id === 'veil_eternity_moment' ? veilRequirementMul(s) : 1;
   }
   /* 目标分母 = 基础常量 × 本局档位快照。竣工面板 / 挑战页进度 / 星屑结算 / 信仰加成 /
    * 星空尤里卡 / 戴森竣工判据 / AI bot 全部经由这三个函数，达成前后必须恒等。 */
@@ -475,10 +575,10 @@
   function shellTarget(s) {
     var base = Number(s && s.baseShell) || Number(SB.CFG.ICE_SHELL) || 0;
     var thin = (s && s.perk && s.perk.thin) || 0;
-    return Math.round(base * Math.max(0.1, 1 - 0.1 * thin) * recordedMultiplier(s));
+    return Math.round(base * Math.max(0.1, 1 - 0.1 * thin) * shellTargetMultiplier(s));
   }
   function applyShellTarget(s) {
-    if (!s || !s.challenge || s.challenge.id !== 'eternity_moment') return false;
+    if (!s || !s.challenge || (s.challenge.id !== 'eternity_moment' && s.challenge.id !== 'veil_eternity_moment')) return false;
     s.iceShell = shellTarget(s);
     s.shell = s.iceShell;
     return true;
@@ -530,6 +630,9 @@
      * 不复用 speedDone 那一档账本 —— 两项挑战各有自己的 completed 计数。 */
     var rushDone = tierDone('dyson_rush', meta);
     if (rushDone) m *= 1 + [0, 0.05, 0.10, 0.15][rushDone];
+    /* 新难题：三档永久全产奖励按已通最高档生效，+10/20/30%。 */
+    var veilEternityMomentDone = tierDone('veil_eternity_moment', meta);
+    if (veilEternityMomentDone) m *= 1 + [0, 0.10, 0.20, 0.30][veilEternityMomentDone];
     /* 飞升苦旅（2026-11-20）：奖励 +20/40/60% 与限制 -20/40/60% 各一行，
      * 不并进 abyss（一次改一项）。限制由 active() 管：goal 型研成瞬间 challengeDone ⇒ 返回 null ⇒ 限制自动结束。 */
     var veilAbyssDone = tierDone('veil_abyss', meta);
@@ -537,6 +640,18 @@
     if (a && a.id === 'veil_abyss') m *= 1 - activeTier(s).cap;
     if (a && a.id === 'abyss') m *= 1 - activeTier(s).cap;
     return m;
+  }
+  /* 时间钳形攻势：档位 cap surcharge 是额外加收比例，因此 +200% 返回 ×3。 */
+  function populationBuildingCostMul(s) {
+    var a = active(s), tier = activeTier(s);
+    if (!a || a.id !== 'veil_temporal_pincer' || !tier) return 1;
+    var surcharge = Number(tier.populationBuildingSurcharge) || 0;
+    return 1 + Math.max(0, surcharge);
+  }
+  function buildingCostMul(s) {
+    var a = active(s), tier = activeTier(s);
+    if (!a || a.id !== 'land_gold' || !tier) return 1;
+    return 1 + Math.max(0, Number(tier.buildingCostSurcharge) || 0);
   }
   function scienceCultureMul(s) {
     var done = tierDone('science', SB.game && SB.game.meta ? SB.game.meta() : null);
@@ -627,11 +742,12 @@
      *    少了这一行，超时后 goalMet(dyson) 仍可能成立 ⇒ 玩家超时通关照样领奖。
      *    判据与那处同源：tiers[当前档].cap，由 timedOut() 统一读。 */
     if (d.timed && timedOut(s)) return null;
-    var tier = Math.max(0, Math.min(d.tiers.length - 1, ch.tier | 0));
-    var replay = ch.replay === true || tierDone(d.id, meta) >= d.tiers.length;
+    var tier = normalizeTierIndex(d, ch.tier);
+    if (d.id === 'veil_one_way' && oneWayRebirthCount(s, meta) > tierAt(d, tier).rebirthLimit) return null;
+    var replay = !d.infiniteTiers && (ch.replay === true || tierDone(d.id, meta) >= tierLimit(d));
     if (replay) {
       if (!goalMet(s, d.goal, veilDone)) return null;
-      var replayOutcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
+      var replayOutcome = { id: d.id, name: d.name, tier: tier, label: challengeDisplayText(d, 'tierLabel', tier),
         reward: null, goalText: d.goalText, replay: true };
       s.challengeDone = true;
       s.challengeOutcome = replayOutcome;
@@ -643,7 +759,7 @@
        *   重复挑战根本没发奖，那句话是假的。 */
       if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
       if (SB.game && SB.game.log) SB.game.log(challengeTr('challenge.award.replay_log', {
-        challengeName: challengeDisplayText(d, 'name'),
+        challengeName: challengeDisplayText(d, 'name', tier),
         goalText: challengeDisplayText(d, 'goalText')
       }, '再次达成' + d.name + '：' + d.goalText + '。本局不重复发奖；如有对应排行榜，则会更新成绩。'));
       return replayOutcome;
@@ -651,14 +767,14 @@
     if (tier !== tierDone(d.id, meta) || !goalMet(s, d.goal, veilDone)) return null;
     if (!meta.challenges) meta.challenges = emptyProgress();
     meta.challenges.completed = meta.challenges.completed || {};
-    meta.challenges.completed[d.id] = d.tiers.length === 1 ? true : tier + 1;
-    var outcome = { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label, reward: rewardFor(d, tier), goalText: d.goalText };
+    meta.challenges.completed[d.id] = d.tiers.length === 1 && !d.infiniteTiers ? true : tier + 1;
+    var outcome = { id: d.id, name: d.name, tier: tier, label: challengeDisplayText(d, 'tierLabel', tier), reward: rewardFor(d, tier), goalText: d.goalText };
     s.challengeDone = true;
     s.challengeOutcome = outcome;
     meta.challengePopupPending = outcome;
     if (d.onComplete) d.onComplete(s, meta);
     /* 每项挑战都有一个专属成就；分档挑战只在最高档首次完成时解锁。 */
-    if (tier === d.tiers.length - 1 && d.achievementKey && SB.achv && SB.achv.unlockOnce)
+    if ((d.infiniteTiers ? tier === 0 : tier === d.tiers.length - 1) && d.achievementKey && SB.achv && SB.achv.unlockOnce)
       SB.achv.unlockOnce(d.achievementKey, meta);
     if (d.rankKey && SB.rank && SB.rank.submitRun)
       SB.rank.submitRun([{ key: d.rankKey, value: d.rankValue ? d.rankValue(s) : 0 }]);
@@ -669,7 +785,7 @@
      * （2026-10-31 检查发现）。这一行是奖励入账的一部分，不是可选的保险。 */
     if (SB.state && SB.state.saveRun) SB.state.saveRun(s);
     if (SB.game && SB.game.log) SB.game.log(challengeTr('challenge.award.success_log', {
-      challengeName: challengeDisplayText(d, 'name'),
+      challengeName: challengeDisplayText(d, 'name', tier),
       goalText: challengeDisplayText(d, 'goalText')
     }, d.name + '挑战达成：' + d.goalText + '。永久奖励已生效。'));
     return outcome;
@@ -690,7 +806,7 @@
     if (SB.state && SB.state.saveRun && SB.game && SB.game.run && SB.game.run() === s)
       SB.state.saveRun(SB.game.snapshot(s));
     if (SB.game && SB.game.log) {
-      var def = BY_ID[out.id], challengeName = challengeDisplayText(def, 'name');
+      var def = BY_ID[out.id], challengeName = challengeDisplayText(def, 'name', out.tier);
       var message = out.failed
         ? challengeTr('challenge.seal.failure_log', {
             challengeName: challengeName,
@@ -724,6 +840,7 @@
     return null;
   }
   function rewardFor(d, tier) {
+    if (d.infiniteTiers) return challengeDisplayText(d, 'reward', tier);
     return d.tiers.length === 1 ? d.reward : d.rewards[tier];
   }
   function elapsedSeconds(s) {
@@ -742,7 +859,7 @@
   function timedOut(s) {
     var challenge = s && s.challenge, d = challenge && BY_ID[challenge.id];
     if (!challenge || !d || !d.timed) return false;
-    var tier = d.tiers[Math.max(0, Math.min(d.tiers.length - 1, challenge.tier | 0))];
+    var tier = tierAt(d, challenge.tier);
     return elapsedSeconds(s) >= tier.cap;
   }
   function formatClock(seconds) {
@@ -763,11 +880,11 @@
   function startTier(id, meta) {
     var d = BY_ID[id];
     if (!d) return 0;
-    return Math.max(0, Math.min(d.tiers.length - 1, tierDone(id, meta)));
+    return d.infiniteTiers ? tierDone(id, meta) : Math.max(0, Math.min(d.tiers.length - 1, tierDone(id, meta)));
   }
   function isReplay(id, meta) {
     var d = BY_ID[id];
-    return !!d && tierDone(id, meta) >= d.tiers.length;
+    return !!d && !d.infiniteTiers && tierDone(id, meta) >= tierLimit(d);
   }
   /* ── 挑战开启前置（2026-11-05 · 流浪泰拉第 15 次轮回）──────────────────────
    * ⚠️ 口径（2026-11-06 改）：点「结算并挑战」→ begin() 先 doBreak → startRun()。
@@ -804,7 +921,17 @@
     if (renderParts && typeof renderParts.challengeDefinitionText === 'function')
       return renderParts.challengeDefinitionText(def, field, tierIndex);
     if (!def) return '';
-    if (field === 'tierLabel' && def.tiers[tierIndex]) return def.tiers[tierIndex].label;
+    if (field === 'tierLabel' && def.infiniteTiers)
+      return challengeTr('challenge.definition.land_gold.tier_label', { tierNumber: Number(tierIndex) + 1 }, String(Number(tierIndex) + 1));
+    if (field === 'name' && def.infiniteTiers && Number(tierIndex) > 0)
+      return challengeTr('challenge.definition.land_gold.name_tiered', { tierNumber: Number(tierIndex) + 1 }, def.name);
+    if (field === 'name' && def.infiniteTiers)
+      return challengeTr('challenge.definition.land_gold.name', {}, def.name);
+    if (field === 'reward' && def.infiniteTiers)
+      return challengeTr('challenge.definition.land_gold.reward', {
+        storageCapacityPercent: 100 * (Number(def.storageCapacityBonusPerTier) || 0.05)
+      }, '');
+    if (field === 'tierLabel' && tierAt(def, tierIndex)) return tierAt(def, tierIndex).label;
     if (field === 'reward' && def.tiers.length > 1) return def.rewards[tierIndex] || '';
     return def[field] || '';
   }
@@ -836,7 +963,7 @@
   function canStartFresh(id, s, meta) {
     var d = BY_ID[id];
     if (!d || active(s)) return false;
-    return tierDone(id, meta) < d.tiers.length && prereqOk(id, meta, willBreakFrom(s));
+    return (d.infiniteTiers || tierDone(id, meta) < tierLimit(d)) && prereqOk(id, meta, willBreakFrom(s));
   }
   function begin(id) {
     var s = SB.game.run(), meta = SB.game.meta(), d = BY_ID[id];
@@ -850,28 +977,42 @@
      *   轮回点与星屑一分不发（确认面板却按 breakReport 承诺了一个数字）。
      *   破壳前的提前轮回也必须照常结算，故不能改成「必须已破壳」。
      *   重复结算不必在这里防：prestige.doBreak 首行有 breakSettled 幂等早退。 */
-    if (s && !s.breakSettled && SB.prestige.qualified(s))
-      SB.prestige.doBreak(s, SB.game.emit, { silent: true, challengeStart: true });
-    SB.game.startRun({ challenge: { id: id, tier: tier, replay: replay } });
+    var challenge = { id: id, tier: tier, replay: replay };
+    if (d.ascension) {
+      if (!SB.prestige.beginAscensionCycle) return false;
+      SB.prestige.beginAscensionCycle(s, SB.game.emit, challenge);
+    } else {
+      if (s && !s.breakSettled && SB.prestige.qualified(s))
+        SB.prestige.doBreak(s, SB.game.emit, { silent: true, challengeStart: true });
+      SB.game.startRun({ challenge: challenge });
+    }
     SB.game.setTab('challenges');
     SB.game.log(challengeTr(replay ? 'challenge.begin.replay_log' : 'challenge.begin.start_log', {
-      challengeName: challengeDisplayText(d, 'name'),
+      challengeName: challengeDisplayText(d, 'name', tier),
       tierName: challengeDisplayText(d, 'tierLabel', tier)
     }, replay
-      ? '再次挑战：' + d.name + ' · ' + d.tiers[tier].label + '（不重复发放奖励；如有对应排行榜，则会更新成绩）。'
-      : '挑战开始：' + d.name + ' · ' + d.tiers[tier].label));
+      ? '再次挑战：' + d.name + ' · ' + challengeDisplayText(d, 'tierLabel', tier) + '（不重复发放奖励；如有对应排行榜，则会更新成绩）。'
+      : '挑战开始：' + d.name + ' · ' + challengeDisplayText(d, 'tierLabel', tier)));
     SB.game.renderAll();
     return true;
   }
   function prepareStart(id) {
     var s = SB.game.run(), meta = SB.game.meta(), d = BY_ID[id];
     if (!canStart(id, s, meta)) return false;
-    var tier = startTier(id, meta), replay = isReplay(id, meta), t = d.tiers[tier];
-    var qualified = SB.prestige.qualified(s), report = qualified ? SB.prestige.breakReport(s) : null;
+    var tier = startTier(id, meta), replay = isReplay(id, meta), t = tierAt(d, tier);
+    var qualified = SB.prestige.qualified(s);
+    var report = !d.ascension && qualified ? SB.prestige.breakReport(s) : null;
     var payout = report ? report.tidePoints : 0;
+    var ascensionReady = !!(d.ascension && SB.prestige.veilReady && SB.prestige.veilReady(meta, s));
+    var ascensionPayout = ascensionReady && SB.prestige.veilPeriod
+      ? SB.prestige.veilPeriod(meta, s).points : 0;
     /* 2026-11-07 泛化：两项限时挑战共用「必须在 X 内 + 各自终点」；
      * 破壳型（逐光竞速）没有 goalText ⇒ 回落原文案，goal 型（星海竞速）读自己的 goalText。 */
-    var selectedRule = d.timed
+    var selectedRule = d.id === 'land_gold'
+      ? challengeDisplayText(d, 'rule') + ' ' + challengeTr('ui.challenge.tier_rule.land_gold', {
+          buildingCostIncreasePercent: Math.round(t.buildingCostSurcharge * 100)
+        }, '')
+      : d.timed
       ? challengeTr('ui.challenge.tier_rule.speedrun', { timeLimit: formatClock(t.cap) },
           '限时 ' + formatClock(t.cap) + ' · 离线计时') + '. ' + challengeDisplayText(d, 'goalText')
       : d.id === 'science'
@@ -885,7 +1026,7 @@
             }, '本轮全产出 -' + Math.round(t.cap * 100) + '%')
           : challengeDisplayText(d, 'rule');
     var prereqLine = prereqText(id, meta);
-    var challengeName = challengeDisplayText(d, 'name');
+    var challengeName = challengeDisplayText(d, 'name', tier);
     var tierName = challengeDisplayText(d, 'tierLabel', tier);
     var currentRunNotice = challengeTr('ui.challenge.start.confirm.current_run_notice', {},
       '当前周目将自动结算并重开。');
@@ -895,22 +1036,39 @@
         }, '预计获得 <b>' + payout.toFixed(2) + ' 轮回点</b>。')
       : challengeTr('ui.challenge.start.confirm.theology_required', {},
           '尚未完成《神学》，本次不会获得轮回点。');
-    var resetNotice = challengeTr('ui.challenge.start.confirm.reset_notice', {},
-      '本局进度会重置；轮回点、已完成挑战与永久奖励保留。');
+    var startNotice = d.ascension
+      ? challengeTr(ascensionReady
+          ? 'ui.challenge.start.confirm.ascension_cycle_ready'
+          : 'ui.challenge.start.confirm.ascension_cycle_unready', {
+            ascensionPointPayout: ascensionPayout.toFixed(2)
+          })
+      : currentRunNotice + ' ' + rewardNotice;
+    var resetNotice = d.ascension
+      ? challengeTr('ui.challenge.start.confirm.ascension_cycle_reset_notice', {})
+      : challengeTr('ui.challenge.start.confirm.reset_notice', {},
+          '本局进度会重置；轮回点、已完成挑战与永久奖励保留。');
     var replayNotice = replay
       ? '<br>' + challengeTr('ui.challenge.start.confirm.replay_notice', {},
           '本次为重复挑战：通关不再发放永久奖励，也不会再次提高轮回点获取，只刷新排行榜成绩。')
       : '';
+    var title = replay
+      ? challengeTr('ui.challenge.start.confirm.title.replay', {}, '再次开始这项挑战？')
+      : d.ascension
+        ? challengeTr('ui.challenge.start.confirm.title.ascension_fresh', {})
+        : challengeTr('ui.challenge.start.confirm.title.fresh', {}, '结算并开始挑战？');
+    var action = replay
+      ? challengeTr('ui.challenge.start.confirm.button.replay', {}, '再次挑战')
+      : d.ascension
+        ? challengeTr('ui.challenge.start.confirm.button.start_ascension', {})
+        : challengeTr('ui.challenge.start.confirm.button.settle_and_start', {}, '结算并开始');
     SB.ui.render.confirmPanel({
-      title: challengeTr(replay ? 'ui.challenge.start.confirm.title.replay' : 'ui.challenge.start.confirm.title.fresh', {},
-        replay ? '再次开始这项挑战？' : '结算并开始挑战？'),
-      body: '<div class="warnbox">' + currentRunNotice + ' ' + rewardNotice +
+      title: title,
+      body: '<div class="warnbox">' + startNotice +
         '</div><div class="note"><b>' + challengeName + ' · ' + tierName +
         (replay ? challengeTr('ui.challenge.start.confirm.replay_tag', {}, ' · 重复挑战') : '') + '</b><br>' +
         selectedRule + (prereqLine ? '<br>' + prereqLine : '') + '</div>' +
         '<div class="note">' + resetNotice + replayNotice + '</div>',
-      ok: challengeTr(replay ? 'ui.challenge.start.confirm.button.replay' : 'ui.challenge.start.confirm.button.settle_and_start', {},
-        replay ? '再次挑战' : '结算并开始'),
+      ok: action,
       onOk: function () { begin(id); }
     });
     return true;
@@ -947,45 +1105,47 @@
     if (d && d.goal) return null; // goal 挑战由 evaluate() 即时结算，不依赖破壳/轮回
     if (!d || !s || s.shell > 0) return null;
     var seal0 = sealOverride || s.challengeSeal || null;
-    var tier = Math.max(0, Math.min(d.tiers.length - 1, a.tier | 0));
+    var tier = normalizeTierIndex(d, a.tier);
     /* 重打：tierDone 已等于 length，常规判据 `tier !== tierDone` 会把这次通关整个吞掉。
      * 标记优先读 s.challenge.replay（存档迁移会保留它），读不到再按进度反推，
      * 避免「老档里一局没标 replay 的重打局」白打。 */
-    var replay = a.replay === true || tierDone(d.id, meta) >= d.tiers.length;
+    var replay = !d.infiniteTiers && (a.replay === true || tierDone(d.id, meta) >= tierLimit(d));
     if (!replay && tier !== tierDone(d.id, meta)) return null;
     var elapsed = (seal0 && typeof seal0.elapsed === 'number' && seal0.elapsed >= 0)
       ? seal0.elapsed : elapsedSeconds(s);
-    if (d.id === 'speedrun' && elapsed >= d.tiers[tier].cap)
-      return { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
-        failed: true, elapsed: elapsed, limit: d.tiers[tier].cap };
+    var selectedTier = tierAt(d, tier);
+    if (d.id === 'speedrun' && elapsed >= selectedTier.cap)
+      return { id: d.id, name: d.name, tier: tier, label: challengeDisplayText(d, 'tierLabel', tier),
+        failed: true, elapsed: elapsed, limit: selectedTier.cap };
     if (!SB.prestige.qualified(s)) return null;
     if (d.id === 'science') {
       /* 岗位上限必须读破壳快照：破壳后挑战限制自动解除（active() 的 !s.broken），
        * 玩家此时可以随便把学者堆回上限以上 —— 用实时值判会把已赢的局判成输。 */
-      var capS = d.tiers[tier].cap;
+      var capS = selectedTier.cap;
       var schN = seal0 ? seal0.scholar : ((s.jobs && s.jobs.scholar) || 0);
       var scrN = seal0 ? seal0.scribe : ((s.jobs && s.jobs.scribe) || 0);
       if (schN > capS || scrN > capS) return null;
     }
     if (d.id === 'small') {
       var peakN = seal0 ? seal0.peak : (s.peak || s.pop);
-      if (peakN > d.tiers[tier].cap) return null;
+      if (peakN > selectedTier.cap) return null;
     }
     /* 重打只报成绩，**一个字都不写账本**：meta.challenges.completed 保持原值 ⇒
      * completedCount() 不变 ⇒「每档 +10% 轮回点获取」不会被重复领取（用户拍板口径）。 */
-    if (replay) return { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label,
+    if (replay) return { id: d.id, name: d.name, tier: tier, label: challengeDisplayText(d, 'tierLabel', tier),
       replay: true, reward: null };
     var c = progress(meta);
-    if (d.tiers.length === 1) c[d.id] = true;
-    else c[d.id] = Math.max(c[d.id] | 0, tier + 1);
+    if (d.tiers.length === 1 && !d.infiniteTiers) c[d.id] = true;
+    else c[d.id] = Math.max(Number(c[d.id]) || 0, tier + 1);
     if (!meta.challenges) meta.challenges = emptyProgress();
     meta.challenges.completed = c;
-    return { id: d.id, name: d.name, tier: tier, label: d.tiers[tier].label, reward: rewardFor(d, tier) };
+    return { id: d.id, name: d.name, tier: tier, label: challengeDisplayText(d, 'tierLabel', tier), reward: rewardFor(d, tier) };
   }
 
   SB.challenges = {
     list: function () { return DEFINITIONS; }, byId: function (id) { return BY_ID[id] || null; },
     progress: progress, tierDone: tierDone, completedCount: completedCount,
+    tierLimit: tierLimit, tierAt: tierAt, normalizeTierIndex: normalizeTierIndex,
     ascensionTierCount: ascensionTierCount, prestigeTierCount: prestigeTierCount,
     active: active, activeTier: activeTier,     ignorePopulationGates: ignorePopulationGates,
     bypassGovernmentGates: bypassGovernmentGates, governmentLocked: governmentLocked,
@@ -994,15 +1154,16 @@
     enemyRecoveryMul: enemyRecoveryMul, warCostMul: warCostMul,
     soldierOutputMul: soldierOutputMul, lootYieldMul: lootYieldMul,
     enemyScaleCapMul: enemyScaleCapMul,
-    /* 限制口径 / 档位快照口径。shellMultiplier 是历史别名（壳厚目标最早只用在这一处），
-     * 保留不删；新代码请用语义明确的 runMultiplier。 */
-    multiplier: multiplier, runMultiplier: recordedMultiplier, shellMultiplier: recordedMultiplier,
+    /* 限制口径 / 档位快照口径。runMultiplier 保留永远与须臾终局挑战的旧口径；
+     * shellMultiplier 是历史 API，现返回实际壳厚分母倍率（含飞升版新难题）。 */
+    multiplier: multiplier, runMultiplier: recordedMultiplier, shellMultiplier: shellTargetMultiplier,
+    veilRequirementMul: veilRequirementMul, veilStarThreshold: veilStarThreshold,
     starCap: starCap, dysonSailCap: dysonSailCap, dysonNodeCap: dysonNodeCap,
     shellTarget: shellTarget, applyShellTarget: applyShellTarget,
     researchCostMul: researchCostMul, stardustRewardMul: stardustRewardMul,
     launchHydroRewardMul: launchHydroRewardMul,
     jobLimit: jobLimit, jobLimitReason: jobLimitReason, jobLimitExceeded: jobLimitExceeded,
-    productionMul: productionMul, scienceCultureMul: scienceCultureMul,
+    productionMul: productionMul, populationBuildingCostMul: populationBuildingCostMul, buildingCostMul: buildingCostMul, scienceCultureMul: scienceCultureMul,
     warmstoneMul: warmstoneMul, populationLimit: populationLimit,
     growthDuration: growthDuration, startingPopulation: startingPopulation,
     elapsedSeconds: elapsedSeconds, remainingSeconds: remainingSeconds, timedOut: timedOut, formatClock: formatClock,
@@ -1010,6 +1171,7 @@
     prereqState: prereqState, prereqText: prereqText, prereqOk: prereqOk,
     startTier: startTier, isReplay: isReplay,
     begin: begin, prepareStart: prepareStart,
+    oneWayRebirthCount: oneWayRebirthCount, onQualifiedRebirth: onQualifiedRebirth,
     resolveRun: resolveRun, rewardFor: rewardFor, goalMet: goalMet, evaluate: evaluate,
     seal: seal, sealRun: sealRun, release: release,
     entered: function (s, id) { return !!(s && s.challenge && s.challenge.id === id); }

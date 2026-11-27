@@ -18,14 +18,36 @@
     if (raw.challenge && typeof raw.challenge === 'object' && SB.challenges && SB.challenges.byId(raw.challenge.id)) {
       var challengeDef = SB.challenges.byId(raw.challenge.id);
       out.challenge = { id: raw.challenge.id,
-        tier: Math.max(0, Math.min(challengeDef.tiers.length - 1, raw.challenge.tier | 0)),
+        tier: SB.challenges.normalizeTierIndex
+          ? SB.challenges.normalizeTierIndex(challengeDef, raw.challenge.tier)
+          : Math.max(0, Math.min(challengeDef.tiers.length - 1, raw.challenge.tier | 0)),
         /* 2026-11-02 挑战可重打：replay 标记必须一起带过来。此处的 challenge 是
          * **白名单重建**（不是 for-in 拷贝），漏写就等于读档后「重复挑战」变回普通挑战，
          * 通关会被当成首次通关去写 meta。 */
         replay: raw.challenge.replay === true,
         startedAt: typeof raw.challenge.startedAt === 'number' && isFinite(raw.challenge.startedAt) && raw.challenge.startedAt > 0
           ? raw.challenge.startedAt : 0 };
+      if (raw.challenge.id === 'veil_one_way' && typeof raw.challenge.startRebirths === 'number'
+          && isFinite(raw.challenge.startRebirths) && raw.challenge.startRebirths >= 0)
+        out.challenge.startRebirths = Math.max(0, Math.floor(Number(raw.challenge.startRebirths)));
     } else out.challenge = null;
+    /* ERA11 逆时屋数量迁移：旧档的 disabled/reactivated 两个布尔值各代表一座。
+     * 携带但尚未激活的仍记作失能；已经重新激活的转入 reactivatedCount。 */
+    if (raw.chrono && typeof raw.chrono === 'object' && !Array.isArray(raw.chrono)) {
+      var rawDisabledChrono = Number(raw.chrono.disabledCount);
+      var rawReactivatedChrono = Number(raw.chrono.reactivatedCount);
+      if (isFinite(rawDisabledChrono) || isFinite(rawReactivatedChrono)) {
+        out.chrono = {
+          disabledCount: isFinite(rawDisabledChrono) ? Math.max(0, Math.floor(rawDisabledChrono)) : 0,
+          reactivatedCount: isFinite(rawReactivatedChrono) ? Math.max(0, Math.floor(rawReactivatedChrono)) : 0
+        };
+      } else {
+        out.chrono = {
+          disabledCount: raw.chrono.disabled === true && raw.chrono.reactivated !== true ? 1 : 0,
+          reactivatedCount: raw.chrono.reactivated === true ? 1 : 0
+        };
+      }
+    }
     /* ⚠️ 2026-11-02：原先写死 `out.challenge.id === 'drift_terra'`，新增 goal 型挑战
      *   （水体污染）后，读档会把 challengeDone 抹成 false ⇒ **本局可以重复领奖**
      *   （重放结算分镜 + 重复写 meta）。判据改成「有挑战 且 该挑战靠 goal 即时结算」——
@@ -584,6 +606,8 @@
       var bid = SB.BUILDINGS[si].id;
       if (raw.seen && raw.seen[bid]) out.seen[bid] = 1;
     }
+    if (out.chrono && ((out.chrono.disabledCount || 0) + (out.chrono.reactivatedCount || 0) > 0))
+      out.seen.chrono_house = 1;
     var nums = ['t', 'wallT', 'shell', 'iceShell', 'baseShell', 'pop', 'peak', 'coldTicks',
       'deaths', 'frostDeaths', 'famineDeaths', 'famine', 'happy'];
     for (var i = 0; i < nums.length; i++) {

@@ -1150,7 +1150,7 @@
      * 已按用户 2026-11-23 拍板走非译文通道 → src/ui/render-content.js 的 TECH_FLAVOR.constant_edit，不建 i18n key。 */
     { id: 'ascend_dimension', name: '升维', icon: 'assets/tech-icons/era-12/era12-ascend-dimension.png', era: 12, cost: 100000000000000, branch: 'know', reqs: ['constant_edit'], layer: 28, treeRow: 0,
       cond: { t: 'ascendReady' },
-      eff: {}, unlockDesc: '游戏通关演出（占位，预留 meta 记账）。（成本 1E14 待标定）' }
+      eff: {}, unlockDesc: '' }
   ];
 
   var BRANCHES = [

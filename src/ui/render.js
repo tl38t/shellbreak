@@ -692,14 +692,14 @@
     var api = SB.challenges, def = outcome && api && api.byId(outcome.id);
     if (!def || !api.displayText) return outcome || {};
     var tier = outcome.tier;
-    if (!Number.isInteger(tier) || !def.tiers[tier]) {
+    if (!Number.isInteger(tier) || (!def.infiniteTiers && !def.tiers[tier])) {
       tier = def.tiers.findIndex(function (item) { return item.label === outcome.label; });
       if (tier < 0 && def.tiers.length === 1) tier = 0;
     }
     return {
-      name: api.displayText(def, 'name'),
+      name: api.displayText(def, 'name', tier),
       label: tier >= 0 ? api.displayText(def, 'tierLabel', tier) : outcome.label,
-      reward: outcome.reward && tier >= 0 && outcome.reward === api.rewardFor(def, tier)
+      reward: outcome.reward && tier >= 0 && (def.infiniteTiers || outcome.reward === api.rewardFor(def, tier))
         ? api.displayText(def, 'reward', tier) : outcome.reward,
       goalText: outcome.goalText && outcome.goalText === def.goalText
         ? api.displayText(def, 'goalText') : outcome.goalText
@@ -1117,6 +1117,142 @@
     play();
   }
 
+  /* 升维终局：逐幕呈现玩家回到现实后听见星辰的故事。继续按钮由玩家掌控阅读节奏，
+   * 跳过会直达最后一句；只有按下结束按钮才写入跨周目通关记账。 */
+  function showAscensionEnding(s, force) {
+    if (!root.document) return false;
+    var modal = el('modal'), box = el('modalBox');
+    if (!modal || !box || !modal.classList || (!force && !modal.classList.contains('hidden'))) return false;
+    var scenes = [
+      'ui.finale.ascension.scene.play_time',
+      'ui.finale.ascension.scene.incremental_game',
+      'ui.finale.ascension.scene.restless',
+      'ui.finale.ascension.scene.first_bubble',
+      'ui.finale.ascension.scene.flash',
+      'ui.finale.ascension.scene.new_star',
+      'ui.finale.ascension.scene.back_to_bed',
+      'ui.finale.ascension.scene.star_of_bethlehem',
+      'ui.finale.ascension.scene.heat_death',
+      'ui.finale.ascension.scene.last_words',
+      'ui.finale.cosmic_congratulations'
+    ];
+    clearBreakAnimation();
+    clearDysonAnimation();
+    resetModalChrome();
+    box.innerHTML =
+      '<section class="ascension-finale">' +
+        '<div class="ascension-finale-stage" id="ascensionFinaleStage" data-scene="play_time">' +
+          '<div class="ascension-finale-atmosphere" aria-hidden="true"></div>' +
+          '<div class="ascension-finale-bubbles" aria-hidden="true"><i></i><i></i><i></i></div>' +
+          '<div class="ascension-finale-flare" aria-hidden="true"></div>' +
+          '<canvas class="ascension-finale-canvas" id="ascensionFinaleCanvas" width="1920" height="1080" aria-hidden="true" hidden></canvas>' +
+          '<p class="ascension-finale-copy" id="ascensionFinaleCopy" aria-live="polite" aria-atomic="true"></p>' +
+          '<div class="ascension-finale-progress" aria-hidden="true"><i id="ascensionFinaleProgressFill"></i></div>' +
+        '</div>' +
+        '<div class="break-controls">' +
+          '<button class="btn" id="ascensionFinaleSkip" type="button"></button>' +
+          '<button class="btn big" id="ascensionFinaleNext" type="button"></button>' +
+        '</div>' +
+      '</section>';
+    modal.classList.add('ascension-finale-modal', 'break-modal');
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', tr('ui.finale.ascension.aria_label'));
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+
+    var stage = el('ascensionFinaleStage');
+    var copy = el('ascensionFinaleCopy');
+    var canvas = el('ascensionFinaleCanvas');
+    var fill = el('ascensionFinaleProgressFill');
+    var skip = el('ascensionFinaleSkip');
+    var next = el('ascensionFinaleNext');
+    var sceneIndex = 0;
+    var cosmicAnimation = null;
+    function setScene(index) {
+      sceneIndex = Math.max(0, Math.min(scenes.length - 1, index));
+      var key = scenes[sceneIndex];
+      if (stage) stage.dataset.scene = key.slice(key.lastIndexOf('.') + 1);
+      var isCosmicFinale = sceneIndex === scenes.length - 1;
+      if (copy) {
+        copy.textContent = tr(key);
+        if (copy.classList) copy.classList.toggle('is-final', false);
+      }
+      if (canvas) {
+        canvas.hidden = !isCosmicFinale;
+      }
+      if (cosmicAnimation && cosmicAnimation.stop) {
+        cosmicAnimation.stop();
+        cosmicAnimation = null;
+      }
+      if (isCosmicFinale) {
+        var cosmicFinale = SB.ui && SB.ui.cosmicFinale;
+        cosmicAnimation = cosmicFinale && cosmicFinale.mount ? cosmicFinale.mount(canvas, {
+          title: tr(key),
+          locale: SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN',
+          backgroundUrl: 'assets/backgrounds/finale/cosmic-ending-background.png',
+          onProgress: function (ratio) {
+            if (fill) fill.style.width = ((scenes.length - 1 + ratio) / scenes.length * 100) + '%';
+          },
+          onError: function () {
+            if (canvas) canvas.hidden = true;
+            if (stage) stage.dataset.scene = 'congratulations';
+            if (copy) {
+              copy.textContent = tr(key);
+              if (copy.classList) copy.classList.add('is-final');
+            }
+            if (fill) fill.style.width = '100%';
+          }
+        }) : null;
+        if (!cosmicAnimation) {
+          if (canvas) canvas.hidden = true;
+          if (stage) stage.dataset.scene = 'congratulations';
+          if (copy) {
+            copy.textContent = tr(key);
+            if (copy.classList) copy.classList.add('is-final');
+          }
+          if (fill) fill.style.width = '100%';
+        }
+      } else if (fill) fill.style.width = ((sceneIndex + 1) / scenes.length * 100) + '%';
+      if (next) next.textContent = tr(sceneIndex === scenes.length - 1
+        ? 'ui.finale.ascension.action.finish' : 'ui.finale.ascension.action.next');
+      if (skip) {
+        if (sceneIndex === scenes.length - 1) {
+          skip.setAttribute('hidden', 'hidden');
+          if (next && next.focus) next.focus();
+        }
+        else skip.removeAttribute('hidden');
+      }
+    }
+    if (skip) {
+      skip.textContent = tr('ui.finale.ascension.action.skip');
+      skip.onclick = function () { setScene(scenes.length - 1); };
+    }
+    if (next) next.onclick = function () {
+      if (sceneIndex === scenes.length - 1) {
+        if (cosmicAnimation && cosmicAnimation.stop) cosmicAnimation.stop();
+        if (SB.game && SB.game.completeAscensionEnding) SB.game.completeAscensionEnding();
+        hideModal();
+      } else setScene(sceneIndex + 1);
+    };
+    box.onkeydown = function (event) {
+      if (!modal.classList.contains('ascension-finale-modal') || event.key !== 'Tab' || !next) return;
+      if (sceneIndex === scenes.length - 1) {
+        event.preventDefault();
+        next.focus();
+      } else if (event.shiftKey && root.document.activeElement === skip) {
+        event.preventDefault();
+        next.focus();
+      } else if (!event.shiftKey && root.document.activeElement === next) {
+        event.preventDefault();
+        skip.focus();
+      }
+    };
+    setScene(0);
+    if (next && next.focus) next.focus();
+    return true;
+  }
+
 
   var researchParts = SB.ui.renderParts.research;
   var paneTech = researchParts.paneTech;
@@ -1414,12 +1550,17 @@
           rankText: ss.lv + '/' + (isFinite(ss.max) ? ss.max : '∞'),
           status: starStatus,
           cost: starCost,
-          /* 2026-11-25：所有星屑节点都要能点开详情（已达上限 / 等待前置 / 星屑不足也一样），
-           * 所以不再给 button 加 disabled；购买入口移到气泡内的 [data-star-perk-buy]。
-           * e2e 靠 data-star-perk 选节点，这个属性保持原样。 */
-          state: starState, disabled: false,
+          /* 2026-11-25：详情弹窗受设置开关控制（SB.uiPrefs.perkDetailPopupsEnabled，默认开）。
+           * 开 → 所有节点都能点开详情（含满级/等前置/星屑不足），购买进气泡；
+           * 关 → 完整回到 Ver1.4.0 前行为：disabled = done||locked||!afford，点节点一击购买。
+           * e2e 靠 data-star-perk 选节点，这个属性两种模式都保持原样。 */
+          state: starState,
+          disabled: (SB.uiPrefs && !SB.uiPrefs.perkDetailPopupsEnabled())
+            ? !!(ss.done || ss.locked || !ss.afford) : false,
           glyph: tree.icon, iconSrc: starPerkIconSrc(sp),
-          attr: 'data-star-perk="' + sp.id + '" aria-haspopup="dialog"', title: starName
+          attr: 'data-star-perk="' + sp.id + '"' +
+            ((!SB.uiPrefs || SB.uiPrefs.perkDetailPopupsEnabled()) ? ' aria-haspopup="dialog"' : ''),
+          title: starName
         });
       }
       h += SB.ui.talentTreeMarkup({
@@ -1515,6 +1656,42 @@
       ? '<img src="' + htmlText(iconSrc) + '" alt="" aria-hidden="true" decoding="async">' : '✧';
     info.openInfoCard(htmlText(name), mark, { cls: stateCls, text: htmlText(stateText) },
       body, action, iconSrc ? 'has-image' : '', 'star-perk-modal');
+    var modal = el('modal'), box = el('modalBox');
+    if (!modal || !box) return;
+    modal.classList.add('star-perk-modal');
+    box.classList.add('star-perk-box');
+    if (starPerkAnchor && starPerkAnchor.classList) starPerkAnchor.classList.remove('is-anchor');
+    starPerkAnchor = anchor || null;
+    if (starPerkAnchor && starPerkAnchor.classList) starPerkAnchor.classList.add('is-anchor');
+    positionStarPerkPop();
+  }
+
+  /* 轮回点节点详情气泡（2026-11-25 补齐星屑商店同款交互）。
+   * 【为什么补】Ver1.4.0 只把 [data-star-perk] 改成「点开详情 → 气泡内购买」；
+   *   轮回商店仍是一击即买，且满级/等待前置/积攒中的节点还被 disabled，完整效果与前置看不到。
+   * 【复用】数据读 render-pane-meta.js 的 metaPerkInfo（与列表同一套本地化/成本/前置），
+   *   外壳和锚点定位直接复用星屑气泡的 .star-perk-modal / .star-perk-box，不新增 CSS。 */
+  function showTidePerkInfo(id, anchor) {
+    var parts = SB.ui.renderParts, info = parts && parts.info;
+    if (!parts || !parts.metaPerkInfo || !info || !info.openInfoCard) return;
+    var d = parts.metaPerkInfo(id);
+    if (!d) return;
+    var body = '<div class="tree-cost"><span>' + htmlText(tr('ui.section.current_level', null, '当前等级')) +
+      '</span><b>' + htmlText(d.rankText) + '</b></div>' +
+      '<div class="tree-cost"><span>' + htmlText(tr('tree.detail.heading.research_cost', null, '本次研究成本')) +
+      '</span><b>' + htmlText(d.costText) + '</b></div>' +
+      '<section class="tree-detail-section"><h4>' + htmlText(tr('ui.section.effects', null, '效果')) +
+      '</h4><p>' + htmlText(d.desc) + '</p></section>' +
+      (d.prereqNames ? '<section class="tree-detail-section"><h4>' +
+        htmlText(tr('tree.detail.heading.prerequisites', null, '前置节点')) + '</h4><p>' +
+        htmlText(d.prereqNames) + '</p></section>' : '');
+    var buyLabel = d.disabled ? d.stateText : d.stateText + ' · ' + d.costText;
+    var action = '<button class="btn buy" type="button" data-tide-perk-buy="' + htmlText(d.id) + '"' +
+      (d.disabled ? ' disabled' : '') + '>' + htmlText(buyLabel) + '</button>';
+    var mark = d.iconSrc
+      ? '<img src="' + htmlText(d.iconSrc) + '" alt="" aria-hidden="true" decoding="async">' : '✧';
+    info.openInfoCard(htmlText(d.name), mark, { cls: d.stateCls, text: htmlText(d.stateText) },
+      body, action, d.iconSrc ? 'has-image' : '', 'star-perk-modal');
     var modal = el('modal'), box = el('modalBox');
     if (!modal || !box) return;
     modal.classList.add('star-perk-modal');
@@ -1982,21 +2159,25 @@
      * 与确认面板、最终结算**同源**（2026-11-17 修：此前这里直读 v.cycleTide，
      * 未掀幕档 v 是 null ⇒ 提示恒为「0 轮回点 + 0 星屑」，与门禁各算一套）。 */
     var vf = el('veilFoot'), vb = el('btnVeil'), vh = el('veilHint');
-    var canVeil = !!(s.techs && s.techs.beyond_veil);
+    var canVeil = !!(s.techs && s.techs.beyond_veil)
+      || !!(SB.prestige && SB.prestige.veilReady && SB.prestige.veilReady(SB.game.meta(), s));
     if (vf) vf.hidden = !canVeil;
     if (vb) vb.disabled = !canVeil;
     if (vh && canVeil && SB.prestige && SB.prestige.veilPeriod) {
       var per = SB.prestige.veilPeriod(null, s);
-      var txt;
-      if (per.star < 1000) {
-        txt = '星屑 ' + Math.round(per.star) + ' / 1000，未满足《掀起帘幕》尤里卡'
-          + ' · 当前预估 ' + per.points.toFixed(2) + ' 飞升点';
-      } else {
-        txt = '当前掀幕预估：' + per.points.toFixed(2) + ' 飞升点（本周期 '
-          + Math.round(per.tide) + ' 轮回点 + ' + Math.round(per.star) + ' 星屑）';
-      }
+      var threshold = SB.challenges && SB.challenges.veilStarThreshold
+        ? SB.challenges.veilStarThreshold(s) : 1000;
+      var txt = per.star < threshold
+        ? tr('ui.veil.hint.insufficient', {
+            currentStardust: Math.round(per.star), thresholdStardust: Math.round(threshold),
+            estimatedPoints: per.points.toFixed(2)
+          }, '星屑 ' + Math.round(per.star) + ' / ' + Math.round(threshold) + '，未满足《掀起帘幕》尤里卡 · 当前预估 ' + per.points.toFixed(2) + ' 飞升点')
+        : tr('ui.veil.hint.preview', {
+            estimatedPoints: per.points.toFixed(2), cycleTide: Math.round(per.tide), cycleStar: Math.round(per.star)
+          }, '当前掀幕预估：' + per.points.toFixed(2) + ' 飞升点（本周期 ' + Math.round(per.tide) + ' 轮回点 + ' + Math.round(per.star) + ' 星屑）');
       /* 未结算的本局收益也计入 —— 明说一句，免得玩家以为「踢掉本局数字会变」是 bug。 */
-      if (per.pending && per.pending.active) txt += ' · 含本局未结算';
+      if (per.pending && per.pending.active)
+        txt += tr('ui.veil.hint.pending_suffix', {}, ' · 含本局未结算');
       vh.textContent = txt;
     }
 
@@ -2811,7 +2992,7 @@
     /* 挑战块：goal 型（流浪泰拉 / 水体污染）终点不在破壳，破壳时不该出块。 */
     var ch = '';
     if (cd && !cd.goal) {
-      var tier = Math.max(0, Math.min(cd.tiers.length - 1, a.tier | 0));
+      var tier = SB.challenges.normalizeTierIndex(a.id, a.tier);
       var cls = '', head = '', badge = '', body = '';
       if (r.challengeClear) {
         cls = ' ok';
@@ -2937,11 +3118,24 @@
         reward: clearText.reward || '', prestigePointBonus: '10%'
       }, '挑战通关：{challengeName} · {tierName}。永久奖励：{reward}。之后轮回点获取增加 {prestigePointBonus}。')) + '</div>';
     var failureText = challengeOutcomeText(r.challengeFailure);
-    var challengeFailureNote = r.challengeFailure ? '<div class="note" style="color:var(--red)">' + htmlText(tr('ui.challenge.result.failed_time', {
-      challengeName: failureText.name || '', tierName: failureText.label || '',
-      elapsedTime: SB.challenges.formatClock(r.challengeFailure.elapsed),
-      timeLimit: SB.challenges.formatClock(r.challengeFailure.limit)
-    }, '挑战未通关：{challengeName} · {tierName} 超时（用时 {elapsedTime}，限时 {timeLimit}），本档奖励未领取。重开本周目后可重试。')) + '</div>' : '';
+    var challengeFailureText = '';
+    if (r.challengeFailure) {
+      if (r.challengeFailure.reason === 'rebirth_limit') {
+        challengeFailureText = tr('ui.challenge.result.failed_rebirth_limit', {
+          challengeName: failureText.name || '', tierName: failureText.label || '',
+          rebirthCount: r.challengeFailure.rebirthCount,
+          rebirthLimit: r.challengeFailure.rebirthLimit
+        }, '');
+      } else {
+        challengeFailureText = tr('ui.challenge.result.failed_time', {
+          challengeName: failureText.name || '', tierName: failureText.label || '',
+          elapsedTime: SB.challenges.formatClock(r.challengeFailure.elapsed),
+          timeLimit: SB.challenges.formatClock(r.challengeFailure.limit)
+        }, '');
+      }
+    }
+    var challengeFailureNote = challengeFailureText
+      ? '<div class="note" style="color:var(--red)">' + htmlText(challengeFailureText) + '</div>' : '';
     if (challengeFailureNote) extra += challengeFailureNote;
     if (r.relicTourism) extra += '<div class="note">' + htmlText(tr('ui.prestige.legacy.wonders', {
       wonderCount: r.relicTourism, researchBonus: '1%'
@@ -3009,8 +3203,8 @@
    * 【纪律】凡是往 #modal 里写内容的函数，写之前先 resetModalChrome()，再 add 自己的变体类。
    *   不许再靠「记得删掉哪几个类」——漏删 offline-summary-modal 正是这样发生的。 */
   var MODAL_VARIANT_CLASSES = ['offline-summary-modal', 'tree-modal', 'tree-tech', 'tree-civic',
-    'break-modal', 'void-ending-modal', 'terra-ending-modal', 'void-civic-modal', 'story-modal', 'story-crisis', 'gov-picker-modal',
-    /* 星屑天赋详情气泡（2026-11-25）：锚定被点节点，必须随归一化一起清掉，
+    'break-modal', 'void-ending-modal', 'terra-ending-modal', 'ascension-finale-modal', 'void-civic-modal', 'story-modal', 'story-crisis', 'gov-picker-modal',
+    /* 星屑/轮回天赋详情气泡（2026-11-25/26）：锚定被点节点，必须随归一化一起清掉，
      *   否则下一张普通弹窗会继承 fixed 定位和箭头伪元素。 */
     'star-perk-modal',
     /* 2026-11-17：补算闸门专用。见 showOfflineModal 里的 is-catchup 注 —— 它是唯一
@@ -3033,7 +3227,7 @@
     }
   }
 
-  /* 星屑天赋详情气泡当前锚点（2026-11-25）：只存 DOM 引用，不进存档。
+  /* 星屑/轮回天赋详情气泡当前锚点（2026-11-25/26）：只存 DOM 引用，不进存档。
    * 关弹窗时必须摘掉高亮并清空，否则下次 resize 会给已经关掉的按钮重新定位。 */
   var starPerkAnchor = null;
 
@@ -3583,8 +3777,9 @@
      * 只读 economy.ratesParts，不写游戏状态。 */
     showResDetail: showResDetail,
     showBreakPanel: showBreakPanel, showBreakResult: showBreakResult, showBreakAnimation: showBreakAnimation, hideModal: hideModal, confirmPanel: confirmPanel,
-    /* 星屑天赋详情气泡：input.js 的 [data-star-perk] 委托调它；只读渲染，不写状态。 */
+    /* 天赋详情气泡：input.js 的 [data-star-perk] / [data-perk] 委托调它们；只读渲染，不写状态。 */
     showStarPerkInfo: showStarPerkInfo,
+    showTidePerkInfo: showTidePerkInfo,
     /* 2026-11-05：导出供回归直接断言挑战开启前置的常驻条文案（与 paneChallenges 同手法）。 */
     renderChallengeNotice: renderChallengeNotice,
     /* 弹窗外壳归一化（2026-10-29）：导出给 render-info.js（树图详情卡）/ game.js（政体命名框）/
@@ -3606,6 +3801,7 @@
     showDysonComplete: showDysonComplete,
     /* ERA10 市政《飞升虚境》：戴森竣工时若已掌握该市政，走这个乱码结局弹窗（tick 侧分叉调用）。 */
     showAscendVoid: showAscendVoid,
+    showAscensionEnding: showAscensionEnding,
     voidCorrupt: voidCorrupt,
     storyPanel: storyPanel, techTabOpen: techTabOpen, syncTabLocks: syncTabLocks,
     initTabs: initTabs, initSpeeds: initSpeeds, techGoEra: techGoEra, scheduleTechJumpTo: scheduleTechJumpTo,

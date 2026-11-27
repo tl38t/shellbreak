@@ -23,23 +23,57 @@
   function englishLocale() {
     return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
   }
+  function tierNumberText(value) {
+    var n = Math.max(1, Math.floor(Number(value) || 1));
+    if (englishLocale()) return String(n);
+    if (n > 9999999999999999) return String(n);
+    var digits = '零一二三四五六七八九', units = ['', '十', '百', '千'], bigUnits = ['', '万', '亿', '兆'];
+    function section(value) {
+      var out = '', zeroPending = false, started = false;
+      for (var place = 3; place >= 0; place--) {
+        var digit = Math.floor(value / Math.pow(10, place)) % 10;
+        if (!digit) { if (started && value % Math.pow(10, place) > 0) zeroPending = true; continue; }
+        if (zeroPending) out += digits.charAt(0);
+        if (!(place === 1 && digit === 1 && !started)) out += digits.charAt(digit);
+        out += units[place];
+        started = true;
+        zeroPending = false;
+      }
+      return out;
+    }
+    var groups = [];
+    while (n > 0) { groups.push(n % 10000); n = Math.floor(n / 10000); }
+    var out = '', skipped = false;
+    for (var i = groups.length - 1; i >= 0; i--) {
+      var group = groups[i];
+      if (!group) { if (out) skipped = true; continue; }
+      if (out && (skipped || group < 1000)) out += digits.charAt(0);
+      out += section(group) + (bigUnits[i] || '');
+      skipped = false;
+    }
+    return out;
+  }
   function definitionId(id) {
     return id === 'waterpollution' ? 'water_pollution' : id;
   }
   function definitionText(def, field, tierIndex) {
-    var id = definitionId(def.id), key = '', fallback = '';
+    var id = definitionId(def.id), key = '', fallback = '', params = {};
     if (field === 'kind') {
       var kinds = {
         '单次挑战': 'single_tier',
         '三档挑战': 'three_tier',
         '三档限时挑战': 'three_tier_timed',
         '终局挑战': 'endgame',
-        '三档终局挑战': 'three_tier_endgame'
+        '三档终局挑战': 'three_tier_endgame',
+        '无限档挑战': 'unlimited_tier'
       };
       key = 'challenge.definition.kind.' + kinds[def.kind];
       fallback = def.kind;
     } else if (field === 'name') {
-      key = def.id === 'waterpollution' ? 'challenge.water_pollution.name' : 'challenge.definition.' + id + '.name';
+      if (def.id === 'land_gold' && Number(tierIndex) > 0) {
+        key = 'challenge.definition.land_gold.name_tiered';
+        params = { tierNumber: tierNumberText(Number(tierIndex) + 1) };
+      } else key = def.id === 'waterpollution' ? 'challenge.water_pollution.name' : 'challenge.definition.' + id + '.name';
       fallback = def.name;
     } else if (field === 'summary' || field === 'rule') {
       key = 'challenge.definition.' + id + '.' + field;
@@ -50,9 +84,16 @@
         return tr(key, { scribeName: scribeName }, fallback);
       }
     } else if (field === 'reward') {
-      if (def.tiers.length === 1) {
+      if (def.id === 'land_gold') {
+        key = 'challenge.definition.land_gold.reward';
+        params = { storageCapacityPercent: 100 * (Number(def.storageCapacityBonusPerTier) || 0.05) };
+        fallback = '';
+      } else if (def.tiers.length === 1) {
         key = 'challenge.definition.' + id + '.reward';
         fallback = def.reward || '';
+      } else if (def.id === 'veil_temporal_pincer') {
+        key = 'challenge.definition.veil_temporal_pincer.reward';
+        fallback = def.rewards[tierIndex] || '';
       } else if (def.id === 'speedrun' || def.id === 'dyson_rush') {
         var rewardPercent = [5, 10, 15][tierIndex] || 5;
         key = 'challenge.definition.reward.all_production_' + rewardPercent + '_permanent';
@@ -72,13 +113,18 @@
       /* 飞升挑战系列（2026-11-20）：终点是研成《掀起帘幕》科技，不是戴森球/虚境飞升。
        * ⚠️ 必须在此拦截，否则会落进最后的 dyson_verge_ascent 分支显示「完成戴森球工程」。 */
       else if (def.id === 'veil_rush' || def.id === 'veil_abyss' || def.id === 'veil_starve'
-        || def.id === 'veil_nofaith' || def.id === 'veil_turmoil' || def.id === 'veil_cramped')
+        || def.id === 'veil_nofaith' || def.id === 'veil_turmoil' || def.id === 'veil_cramped'
+        || def.id === 'veil_temporal_pincer' || def.id === 'veil_eternity_moment' || def.id === 'veil_one_way')
         key = 'challenge.definition.goal.veil_tech';
       else if (def.id === 'anarchy' || def.id === 'good_old_days' || def.id === 'eternity_moment')
         key = 'challenge.definition.goal.verge_ascent';
       else key = 'challenge.definition.goal.dyson_verge_ascent';
     } else if (field === 'tierLabel') {
-      fallback = def.tiers[tierIndex].label;
+      if (def.infiniteTiers) {
+        key = 'challenge.definition.land_gold.tier_label';
+        params = { tierNumber: tierNumberText(Number(tierIndex) + 1) };
+        fallback = String(Number(tierIndex) + 1);
+      } else fallback = def.tiers[tierIndex].label;
       var labels = {
         '完成挑战': 'challenge.definition.tier.complete',
         '第一档': 'challenge.definition.tier.tier_1',
@@ -95,11 +141,17 @@
         '三地并举': 'challenge.definition.three_launch_sites.tier.label',
         '五倍永恒': 'challenge.definition.eternity_moment.tier_5',
         '十倍永恒': 'challenge.definition.eternity_moment.tier_10',
-        '二十倍永恒': 'challenge.definition.eternity_moment.tier_20'
+        '二十倍永恒': 'challenge.definition.eternity_moment.tier_20',
+        '五倍档': 'challenge.definition.veil_eternity_moment.tier_5',
+        '十倍档': 'challenge.definition.veil_eternity_moment.tier_10',
+        '二十倍档': 'challenge.definition.veil_eternity_moment.tier_20',
+        '三次轮回档': 'challenge.definition.veil_one_way.tier_3_rebirths',
+        '两次轮回档': 'challenge.definition.veil_one_way.tier_2_rebirths',
+        '一次轮回档': 'challenge.definition.veil_one_way.tier_1_rebirth'
       };
-      key = labels[fallback] || '';
+      if (!def.infiniteTiers) key = labels[fallback] || '';
     }
-    return tr(key, {}, fallback);
+    return tr(key, params, fallback);
   }
   parts.challengeDefinitionText = definitionText;
   if (SB.challenges) SB.challenges.displayText = definitionText;
@@ -141,6 +193,13 @@
   function progressLine(s, api, def, tier) {
     var completed = tr('ui.challenge.progress.completed', {}, '挑战已达成 · 永久奖励已生效');
     if (s.challengeDone) return completed;
+    if (def.id === 'veil_one_way') {
+      var rebirthLimit = Number(tier && tier.rebirthLimit) || 0;
+      return tr('ui.challenge.progress.veil_one_way', {
+        rebirthCount: api.oneWayRebirthCount ? api.oneWayRebirthCount(s) : 0,
+        rebirthLimit: rebirthLimit
+      }, '');
+    }
     var scribeName = SB.folk.jobName(s, 'scribe');
     if (def.id === 'drift_terra') {
       var prereq = api.prereqState ? api.prereqState(def.id) : null;
@@ -265,7 +324,9 @@
     var gi;
     for (gi = 0; gi < list.length; gi++) {
       var gdef = list[gi], gk = challengeGroupOf(gdef);
-      groups[gk].total += gdef.tiers.length;
+      var limit = api.tierLimit(gdef.id);
+      groups[gk].total = limit === Infinity || groups[gk].total === Infinity
+        ? Infinity : groups[gk].total + limit;
       groups[gk].done += api.tierDone(gdef.id, m);
     }
     var view = challengeView === 'ascension' ? 'ascension' : 'prestige';
@@ -279,7 +340,7 @@
       function phase(def) {
         if (active && active.id === def.id) return 0;
         var done = api.tierDone(def.id, m);
-        if (done >= def.tiers.length) return 3;
+        if (done >= api.tierLimit(def.id)) return 3;
         if (active) return 2;
         var prereq = api.prereqState(def.id, m);
         return prereq && !prereq.ok ? 2 : 1;
@@ -288,8 +349,9 @@
     });
 
     var bonusPercent = cur.done * 10;
-    var ratioText = tr('ui.challenge.overview.tier_ratio', { done: cur.done, total: cur.total },
-      cur.done + ' / ' + cur.total + ' 档');
+    var totalLabel = cur.total === Infinity ? '∞' : cur.total;
+    var ratioText = tr('ui.challenge.overview.tier_ratio', { done: cur.done, total: totalLabel },
+      cur.done + ' / ' + totalLabel + ' 档');
     var rateLabel = isAsc ? tr('ui.challenge.overview.ascension_points', {}, '飞升点获取')
       : tr('ui.challenge.overview.prestige_points', {}, '轮回点获取');
     var h = '<section class="challenge-overview"><div class="challenge-overview-title">' +
@@ -316,7 +378,7 @@
         '" data-challenge-view="' + v + '" aria-pressed="' + on + '">' +
         (v === 'ascension' ? tr('ui.challenge.subtab.ascension', {}, '飞升挑战')
           : tr('ui.challenge.subtab.prestige', {}, '轮回挑战')) +
-        '<span class="subcnt">' + vc.done + ' / ' + vc.total + '</span></button>';
+        '<span class="subcnt">' + vc.done + ' / ' + (vc.total === Infinity ? '∞' : vc.total) + '</span></button>';
     }
     h += '</div>';
 
@@ -324,8 +386,8 @@
      * 解决「切过去看不到自己那局」的困惑。 */
     if (active && activeGroup && activeGroup !== view) {
       var ad = api.byId(active.id);
-      var adTier = Math.max(0, Math.min(Number(active.tier) || 0, ad.tiers.length - 1));
-      var adName = definitionText(ad, 'name'), adTierName = definitionText(ad, 'tierLabel', adTier);
+      var adTier = api.normalizeTierIndex(active.id, active.tier);
+      var adName = definitionText(ad, 'name', adTier), adTierName = definitionText(ad, 'tierLabel', adTier);
       h += '<div class="challenge-cross"><span>' +
         tr('ui.challenge.cross.active_notice', { challengeName: adName, tierName: adTierName },
           '进行中：' + adName + ' · ' + adTierName) + '</span>' +
@@ -350,8 +412,10 @@
       var scribeName = SB.folk.jobName(s, 'scribe');
       var summary = definitionText(d, 'summary');
       var rule = definitionText(d, 'rule');
-      var challengeName = definitionText(d, 'name');
-      var exhausted = done >= d.tiers.length, next = Math.min(done, d.tiers.length - 1);
+      var tierCount = api.tierLimit(d.id);
+      var exhausted = done >= tierCount, next = d.infiniteTiers ? done : Math.min(done, tierCount - 1);
+      var selectedTierIndex = isActive ? api.normalizeTierIndex(d.id, active.tier) : next;
+      var challengeName = definitionText(d, 'name', selectedTierIndex);
       var blocked = !!active && !isActive;
       /* 开启前置（2026-11-05）：只挡「还没开始」的入口；已在进行中的档不受影响，
        * 老档 / 改档也要能继续看到自己的进度，而不是被门禁静默抹掉。 */
@@ -360,7 +424,7 @@
       var statusKey = isActive ? (activeTimedOut ? 'tier_timed_out' : s.challengeDone ? 'goal_met' :
         active.replay === true ? 'replay_in_progress' : 'challenge_in_progress') :
         exhausted ? 'all_tiers_complete' : blocked ? 'waiting_for_current' : gateBlocked ? 'locked' :
-          (d.tiers.length > 1 ? 'next_tier_available' : 'not_completed');
+          (tierCount > 1 ? 'next_tier_available' : 'not_completed');
       var status = challengeStatus(statusKey);
       var goalText = definitionText(d, 'goalText');
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
@@ -375,17 +439,20 @@
           prerequisiteText(api, d.id, m) + '</p>' : '') +
         '<div class="challenge-rule-item"><small>' + tr('ui.challenge.goal.label', {}, '通关目标') + '</small><p>' + goalText + '</p></div></div>';
       if (isActive) {
-        var progressTier = d.tiers[active.tier] || d.tiers[0];
+        var progressTier = api.tierAt(d.id, active.tier);
         var liveProgress = progressLine(s, api, d, progressTier);
         if (liveProgress && liveProgress !== goalText)
           h += '<div class="challenge-progress' + (activeTimedOut ? ' is-failed' : '') + '">' + liveProgress + '</div>';
       }
 
-      if (d.tiers.length > 1) {
-        var focusTierIndex = isActive ? Math.max(0, Math.min(Number(active.tier) || 0, d.tiers.length - 1)) : next;
+      if (tierCount > 1) {
+        var focusTierIndex = selectedTierIndex;
         var focusTierHTML = '', otherTierHTML = '';
-        for (var ti = 0; ti < d.tiers.length; ti++) {
-          var td = d.tiers[ti], tierActive = isActive && active.tier === ti;
+        var tierIndexes = [];
+        if (d.infiniteTiers) tierIndexes.push(focusTierIndex);
+        else for (var tix = 0; tix < d.tiers.length; tix++) tierIndexes.push(tix);
+        for (var tix = 0; tix < tierIndexes.length; tix++) {
+          var ti = tierIndexes[tix], td = api.tierAt(d.id, ti), tierActive = isActive && Number(active.tier) === ti;
           var tierState = tierActive ? challengeStatus(activeTimedOut ? 'tier_timed_out' : 'challenge_in_progress') :
             ti < done ? challengeStatus('tier_cleared') :
               ti === done && !blocked && !exhausted ? challengeStatus('next_tier') : challengeStatus('locked');
@@ -395,7 +462,9 @@
            *    「本轮全产出 −150% / −200% / −300%」，数学上不可能，也与卡头
            *    「本轮限制：敌方规模恢复速度按档位 ×1.5 / ×2 / ×3」自相矛盾。
            *    奖励文案同源问题在三语词库的 conqueror.reward.tier_*（改后对齐 def.rewards）。 */
-          var tierRule = d.id === 'science' ? tr('ui.challenge.tier_rule.science', {
+          var tierRule = d.id === 'veil_one_way' ? '' : d.id === 'land_gold' ? tr('ui.challenge.tier_rule.land_gold', {
+            buildingCostIncreasePercent: Math.round(td.buildingCostSurcharge * 100)
+          }, '') : d.id === 'science' ? tr('ui.challenge.tier_rule.science', {
             scribeName: scribeName,
             staffCap: td.cap
           }, '') : d.timed ? tr('ui.challenge.tier_rule.speedrun', {
@@ -403,7 +472,9 @@
           }, '') : d.id === 'eternity_moment' ? tr('ui.challenge.tier_rule.eternity_moment', {
             researchCostMultiplier: td.cap,
             endgameGoalMultiplier: td.cap
-          }, '') : d.id === 'conqueror' ? tr('ui.challenge.tier_rule.conqueror', {
+          }, '') : d.id === 'veil_eternity_moment' ? tr('ui.challenge.tier_rule.veil_eternity_moment', {
+            challengeMultiplier: td.cap
+          }, '研究成本 ×' + td.cap + ' · 天壳与掀幕星屑门槛 ×' + td.cap) : d.id === 'conqueror' ? tr('ui.challenge.tier_rule.conqueror', {
             recoveryMultiplier: td.cap
           }, '敌方规模恢复 ×' + td.cap) :
           /* ⚠️ 2026-11-21 档位惩罚文案同源：这两条 cap 都不是「全产出惩罚」。
@@ -419,8 +490,9 @@
             productionPenaltyPercent: Math.round(td.cap * 100)
           }, '');
           var tierLabel = definitionText(d, 'tierLabel', ti);
+          var medalNumber = d.infiniteTiers ? tierNumberText(ti + 1) : ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti];
           var tierHTML = '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? (activeTimedOut ? ' active failed' : ' active') : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
-            '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + d.badge + '" alt=""><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
+            '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + d.badge + '" alt=""><i>' + medalNumber + '</i></span>' +
             '<div><b>' + tierLabel + '</b><span>' + tierState + '</span></div><small>' + tierRule + '</small>' +
             '<em>' + tr('ui.challenge.reward.tier', {
               rewardDescription: definitionText(d, 'reward', ti)
@@ -428,7 +500,8 @@
           if (ti === focusTierIndex) focusTierHTML = tierHTML;
           else otherTierHTML += tierHTML;
         }
-      h += '<details class="challenge-tier-details"' + (CHALLENGE_TIER_OPEN[d.id] ? ' open' : '') +
+      if (d.infiniteTiers) h += '<div class="challenge-tiers challenge-tiers-infinite">' + focusTierHTML + '</div>';
+      else h += '<details class="challenge-tier-details"' + (CHALLENGE_TIER_OPEN[d.id] ? ' open' : '') +
         ' ontoggle="SB.ui.renderParts.setChallengeTierOpen(\'' + d.id + '\',this.open)"><summary>' + focusTierHTML +
           '<span class="challenge-tier-expand">' + tr('ui.challenge.tiers.expand', {}, '') + '</span></summary>' +
           '<div class="challenge-tiers">' + otherTierHTML + '</div></details>';

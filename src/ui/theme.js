@@ -150,6 +150,23 @@
         if (SB.onboarding && SB.onboarding.setEnabled) SB.onboarding.setEnabled(on);
       });
     }
+    /* ---- 天赋节点详情弹窗开关（localStorage 'shellbreak.perkDetailPopups'，默认开）----
+     * 2026-11-25：同时控制星屑商店与轮回商店。结构静态、状态只写 checked；
+     * 关掉后两个商店的节点恢复 disabled + 一击购买（与 Ver1.4.0 前一致）。
+     * ⚠️ 读值统一走 SB.uiPrefs.perkDetailPopupsEnabled()（config.js 定义），不在这里重写默认值逻辑；
+     *    偏好变更后必须 renderPanes() 重绘 —— disabled / aria-haspopup 是渲染期决定的。 */
+    var pdpToggle = root.document.querySelector('#perkDetailPopupsToggle');
+    if (pdpToggle) {
+      pdpToggle.checked = !!(SB.uiPrefs && SB.uiPrefs.perkDetailPopupsEnabled());
+      root.document.addEventListener('change', function (event) {
+        if (!event.target || event.target.id !== 'perkDetailPopupsToggle') return;
+        var on = event.target.checked;
+        try {
+          if (root.localStorage) root.localStorage.setItem('shellbreak.perkDetailPopups', on ? '1' : '0');
+        } catch (e) {}
+        if (SB.ui && SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+      });
+    }
     // ---- 标签页解锁叙事开关（localStorage 'shellbreak.tabUnlockStories'，默认开）----
     var tusToggle = root.document.querySelector('[data-tab-unlock-stories-toggle]');
     if (tusToggle) {

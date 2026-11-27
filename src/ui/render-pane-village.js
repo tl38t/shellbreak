@@ -195,7 +195,11 @@
         /* 显示口径与信息卡「效果」段一致；卡片仍由 CSS 限行，点建筑名可看完整效果。 */
         var c = SB.economy.costOf(s, b.id);
         var ok = SB.economy.canAfford(s, c);
-        var blocked = !SB.habitat.needMet(s, b);
+        var chronoDisabledCount = b.id === 'chrono_house' ? SB.habitat.chronoDisabledCount(s) : 0;
+        var chronoReactivatedCount = b.id === 'chrono_house' ? SB.habitat.chronoReactivatedCount(s) : 0;
+        var chronoBuildLocked = b.id === 'chrono_house' && chronoDisabledCount > 0;
+        var chronoTechLocked = b.id === 'chrono_house' && !(s.techs && s.techs.reverse_time);
+        var blocked = !SB.habitat.needMet(s, b) || chronoBuildLocked || chronoTechLocked;
         /* 按钮文案**一律带成本**。旧写法是「够钱写『建造』、不够才写成本」，于是
          * 恰好在最该看成本的那一刻（攒够了）成本从按钮上消失，而按钮宽度还会随库存
          * 反复跳变（够 → 变窄 → 花掉 → 又变宽），点起来像在躲手指。
@@ -204,7 +208,11 @@
          * 前置没满足时只说「需 XX」——那时按钮点不动，成本不是当下该看的信息。 */
         var neededBuilding = b.need ? SB.habitat.buildingById(b.need) : null;
         var neededName = neededBuilding ? buildingName(neededBuilding.id, neededBuilding.name) : '';
-        var label = blocked
+        var label = chronoBuildLocked
+          ? tr('village.chrono.activation.build_locked', null, '请先激活失能逆时屋，之后才能建造新逆时屋。')
+          : chronoTechLocked
+          ? tr('village.chrono.activation.tech_locked', null, '需先研究逆时技术，才能激活失能逆时屋或建造新逆时屋。')
+          : blocked
           ? tr('village.building.requirement.needs', { requiredBuilding: neededName }, '需 ' + neededName)
           : tr(lv > 0 ? 'village.building.action.upgrade' : 'village.building.action.build', null, lv > 0 ? '升级' : '建造') + ' ' + SB.economy.buildCostTxt(s, b.id, c, true);
         /* ⚠️ buildCostTxt 第 4 参 = true（2026-11-16）：成本串里的「已有」逐 tick 在变，
@@ -652,10 +660,37 @@
          * 直接塞第三个子元素会被 1fr 拉成整条横幅（本文件 :540-546 的既有病历）。 */
         var _coTagHTML = (SB.ui.renderCommon && SB.ui.renderCommon.challengeTag)
           ? SB.ui.renderCommon.challengeTag(s, b) : '';
+        var chronoStatusHTML = '', chronoActivationHTML = '';
+        if (b.id === 'chrono_house' && chronoDisabledCount + chronoReactivatedCount > 0) {
+          chronoStatusHTML = '<span class="tag chrono-house-status">' + htmlText(tr('village.chrono.activation.status', {
+            disabledCount: chronoDisabledCount, reactivatedCount: chronoReactivatedCount
+          }, '失能 ' + chronoDisabledCount + ' 座 · 已激活 ' + chronoReactivatedCount + ' 座')) + '</span>';
+          if (chronoDisabledCount > 0) {
+            var chronoMode = SB.habitat.chronoActivationMode();
+            var activationCount = chronoMode === 'batch' ? chronoDisabledCount : 1;
+            var activationCost = SB.habitat.chronoActivationCost(s, activationCount);
+            var activationCostText = SB.economy.costOwnedTxt(s, activationCost, true);
+            var activationTechLocked = !(s.techs && s.techs.reverse_time);
+            var activationCostTitle = activationTechLocked
+              ? tr('village.chrono.activation.tech_locked', null,
+                '需先研究逆时技术，才能激活失能逆时屋或建造新逆时屋。')
+              : tr('village.chrono.activation.button.tooltip', {
+                activationCount: activationCount,
+                resourceCostList: SB.economy.costTxt(activationCost)
+              }, '本次激活 ' + activationCount + ' 座，费用：' + SB.economy.costTxt(activationCost) + '。');
+            var activationKey = chronoMode === 'batch'
+              ? 'village.chrono.activation.action.batch' : 'village.chrono.activation.action.single';
+            var activationFallback = chronoMode === 'batch' ? '激活全部失能逆时屋' : '激活一座失能逆时屋';
+            chronoActivationHTML = '<button type="button" class="btn chrono-activate" data-chrono-activate="1"' +
+              (activationTechLocked || !SB.economy.canAfford(s, activationCost) ? ' disabled' : '') +
+              ' title="' + htmlText(activationCostTitle) + '">' + htmlText(tr(activationKey, null, activationFallback)) + '</button>' +
+              '<span class="launch-consumption chrono-activation-cost">' + activationCostText + '</span>';
+          }
+        }
         /* 运行数量控制和建筑名/等级共用标题行，避免把控制器单独撑成一整行。
          * 进度条/缺料状态仍留在 bld-ops；仅移动已有的 ± 控件，不更改事件委托。 */
         var _inlineRunControlsHTML = siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + ringToggleBtn;
-        var _bldOpsHTML = _lpLackHTML + launchProgressHTML;
+        var _bldOpsHTML = _lpLackHTML + launchProgressHTML + chronoStatusHTML + chronoActivationHTML;
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
           '" aria-haspopup="dialog" title="' + htmlText(tr('village.building.info.tooltip', { buildingName: dispName }, '查看' + dispName + '的效果与建造信息')) + '">' + htmlText(dispName) + '</button>' +

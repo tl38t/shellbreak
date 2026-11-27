@@ -23,7 +23,12 @@ export function run({ SB, check, noop }) {
     /* 2026-11-07：星海竞速（限时戴森）⇒ 11 → 12。 */
     /* 2026-11-12：和平主义者（终局挑战）实装 ⇒ 12 → 13。 */
     /* 2026-11-12：批判的武器（原名和平主义者）+ 武器的批判 + 早打大打打核大战 + grubby + 征服者 ⇒ 13 → 17。 */
-    check('十七类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 17 &&
+    /* 2026-11-19：Ver1.3.1 六项飞升挑战（veil_rush / veil_abyss / veil_starve / veil_nofaith /
+     *   veil_turmoil / veil_cramped）⇒ 17 → 23。当时这条断言没跟上，一直红着（跑 2026-11-25
+     *   的 pass1-3 日志实测「挑战数=23」），属于断言滞后而非功能问题。 */
+    /* 2026-11-27：Ver1.4.2 第二批四项飞升挑战（veil_temporal_pincer / veil_eternity_moment /
+     *   veil_one_way / land_gold）⇒ 23 → 27。同批把 17/16 一起校准到实测值。 */
+    check('二十七类挑战已注册；全部通关后仍可开（重打），但「新档」入口关闭', api.list().length === 27 &&
       api.canStartFresh('science', s, meta) && api.canStart('science', s, meta) &&
       !api.canStartFresh('science', s, { challenges: { completed: { science: 3 } } }) &&
       api.canStart('science', s, { challenges: { completed: { science: 3 } } }),
@@ -32,8 +37,10 @@ export function run({ SB, check, noop }) {
     /* 2026-11-05：流浪泰拉加了「第 15 周目」开启前置 ⇒ 前置未满足时它不给开始按钮，
      * 入口数是 10 而不是 11。这是规格变更，不是把断言放宽：仍逐项点名 11 个挑战，
      * 期望值由生产门禁同源给出（不许在这里再写死一个数字掩盖分叉）。 */
-    const expectedStarts = api.prereqOk('drift_terra', meta) ? 17 : 16;
-    check('挑战独立页展示十六项挑战与首次开始入口',
+    /* 2026-11-27：入口数校准到实测（挑战总数 17 → 27 后，未挡住/挡住流浪泰拉 = 18 / 17）。
+     *   实测来源：headless Chrome 真实 paneChallenges()，cycle=14+会结算 ⇒ 18、cycle=13 ⇒ 17。 */
+    const expectedStarts = api.prereqOk('drift_terra', meta) ? 18 : 17;
+    check('挑战独立页展示二十七项挑战与首次开始入口',
       ['寒流禁火', '小国寡民', '忽视科文', '深渊重压', '流浪泰拉', '水体污染'].every(name => pane.includes(name)) &&
       pane.includes('暖石产出 -30%') && pane.includes('学者、书手各 ≤ 15 人') &&
       pane.includes('总人口、职业人数门槛豁免') &&
@@ -273,9 +280,11 @@ export function run({ SB, check, noop }) {
      * 改成「再次挑战」；未通关的分档挑战仍只放下一档。旧断言要求 cold/small 无按钮，
      * 已被这条规则推翻，故整条重写而不是删掉。 */
     /* 入口数 = 挑战总数（2026-11-02 加水体污染后 6 → 7；2026-11-04 加四项终局挑战后 7 → 11）。
-     * 2026-11-05：再减去被「第 15 周目」前置挡住的流浪泰拉（口径同上，同源读门禁）。 */
+     * 2026-11-05：再减去被「第 15 周目」前置挡住的流浪泰拉（口径同上，同源读门禁）。
+     * 2026-11-27：挑战总数 17 → 27（11-19 六项飞升 + 11-27 第二批四项）⇒ 18 / 17；
+     *   本行原先写 12 / 11 是 11-05 时点残留，早就不等于实测值（跑前日志一直红）。 */
     check('已通关的挑战保留「再次挑战」入口，未通关的分档挑战只放下一档',
-      (pane.match(/data-challenge-start=/g) || []).length === (api.prereqOk('drift_terra', meta) ? 12 : 11) &&
+      (pane.match(/data-challenge-start=/g) || []).length === (api.prereqOk('drift_terra', meta) ? 18 : 17) &&
       pane.includes('再次挑战 · 完成挑战') && pane.includes('结算并挑战 · 第二档') &&
       !pane.includes('此挑战入口已关闭'),
       '入口数=' + ((pane.match(/data-challenge-start=/g) || []).length));

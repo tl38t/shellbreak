@@ -159,4 +159,29 @@ export function run({ SB, check }) {
   check('TIDE_TREE 全表每个节点仍对应唯一购买按钮（含新链）',
     (SB.TIDE_TREE || []).every(p => (html.match(new RegExp('data-perk="' + p.id + '"', 'g')) || []).length === 1),
     '节点总数=' + (SB.TIDE_TREE || []).length);
+
+  /* ⑥ 2026-11-25 漏搬回归：星屑商店改成「点节点看详情 → 气泡内购买」时，轮回商店
+   *   仍是一击即买，且满级/锁前置/积攒中节点被 disabled ⇒ 完整效果和前置永远看不到。
+   *   这里钉住节点按钮本身（不靠模拟点击），以及详情数据与弹窗入口已接线。 */
+  const nodeButtonTag = (id) => {
+    const i = html.indexOf('data-perk="' + id + '"');
+    if (i < 0) return '';
+    return html.slice(html.lastIndexOf('<button', i), html.indexOf('>', i) + 1);
+  };
+  check('轮回点节点与星屑同款：全部可点开详情，带 aria-haspopup 且不再 disabled',
+    (SB.TIDE_TREE || []).every(p => {
+      const tag = nodeButtonTag(p.id);
+      return tag.indexOf('aria-haspopup="dialog"') >= 0 && !/\sdisabled(?:\s|=|>)/.test(tag);
+    }), '节点总数=' + (SB.TIDE_TREE || []).length);
+  check('轮回点详情弹窗已接线：showTidePerkInfo + metaPerkInfo 双入口都在',
+    typeof SB.ui.render.showTidePerkInfo === 'function' &&
+    typeof SB.ui.renderParts.metaPerkInfo === 'function', '');
+  const tideDetail = typeof SB.ui.renderParts.metaPerkInfo === 'function'
+    ? SB.ui.renderParts.metaPerkInfo(IDS[0]) : null;
+  check('轮回点详情数据复用列表真源：名字/描述/等级/成本/前置都齐全',
+    !!tideDetail && tideDetail.id === IDS[0] &&
+    typeof tideDetail.name === 'string' && tideDetail.name.length > 0 &&
+    typeof tideDetail.desc === 'string' && typeof tideDetail.rankText === 'string' &&
+    typeof tideDetail.costText === 'string' && typeof tideDetail.prereqNames === 'string',
+    tideDetail ? tideDetail.id + ' / ' + tideDetail.rankText + ' / ' + tideDetail.costText : 'NO_DETAIL');
 }

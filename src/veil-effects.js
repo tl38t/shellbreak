@@ -106,7 +106,8 @@
     var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
     var opened = m && m.veil && m.veil.paths && m.veil.paths.opened;
     return Array.isArray(opened) && opened.indexOf('si') >= 0 && geneLv(link[0], link[1]) >= 3
-      ? 1 + 0.2 * geneEffectMul() : 1;
+      /* 2026-11-25 平衡：联动基础 +20% → +10%，满和谐(×2)后回到 +20%。 */
+      ? 1 + 0.1 * geneEffectMul() : 1;
   }
   function amplifyOutputMul(mult, organId) { return 1 + (mult - 1) * geneAmp(organId); }
   function amplifyCutMul(mult, organId) { return 1 - (1 - mult) * geneAmp(organId); }
@@ -211,6 +212,12 @@
   VF.enemyCapMul = function () { return lv('throat') >= 3 ? 0.8 : 1; };
 
   /* ── 生命织章 · 跨周目节点效果 ─────────────────────────────────────── */
+  /* 2026-11-25 平衡（用户拍板）：下方全部节点基础数值统一砍半；共鸣规则不变
+   * （半和谐 +50% / 满和谐 +100%，仍是 ×(1+bonus/100)）。
+   * 故满和谐后 = 改前的「基础标值」，未满和谐一律只有原来的一半。
+   * ⚠️ 展示表 src/ui/veil-hub-ui.js 的 GENE_BRANCHES.values 必须同步，
+   *    否则面板标的数字与实际收益脱节。
+   * ⚠️ 本段之后的 voidFx 五神领域数值不属于基因飞升，不在本次调整内。 */
   VF.geneLv = geneLv;
   VF.geneLevelCost = function (level) { return GENE_LEVEL_COSTS[level] || 0; };
   VF.geneInvestmentPoints = geneInvestmentPoints;
@@ -221,17 +228,17 @@
   VF.geneResonanceBonusPct = geneResonanceBonusPct;
   VF.geneEffectMul = geneEffectMul;
   VF.geneAmp = geneAmp;
-  VF.geneScholarMul = function () { return 1 + geneTier('supreme', 'lore', [20, 40, 60]) / 100; };
+  VF.geneScholarMul = function () { return 1 + geneTier('supreme', 'lore', [10, 20, 30]) / 100; };
   VF.geneScribeMul = VF.geneScholarMul;
   VF.genePopFaithMul = VF.geneScholarMul;
-  VF.geneValorMul = function () { return 1 + geneTier('supreme', 'valor', [20, 40, 60]) / 100; };
-  VF.geneAgilityMul = function () { return 1 + geneTier('supreme', 'agility', [20, 40, 60]) / 100; };
-  VF.geneMerchantMul = function () { return 1 + geneTier('supreme', 'longevity', [40, 80, 120]) / 100; };
-  VF.geneFreezeCut = function () { return geneTier('supreme', 'longevity', [10, 20, 40]) / 100; };
+  VF.geneValorMul = function () { return 1 + geneTier('supreme', 'valor', [10, 20, 30]) / 100; };
+  VF.geneAgilityMul = function () { return 1 + geneTier('supreme', 'agility', [10, 20, 30]) / 100; };
+  VF.geneMerchantMul = function () { return 1 + geneTier('supreme', 'longevity', [20, 40, 60]) / 100; };
+  VF.geneFreezeCut = function () { return geneTier('supreme', 'longevity', [5, 10, 20]) / 100; };
   VF.geneWarmCut = VF.geneFreezeCut;
-  VF.geneUpgradeCostMul = function () { return 1 - geneTier('pure', 'morph', [20, 40, 60]) / 100; };
-  VF.geneBuildingGrowthCut = function () { return geneTier('pure', 'growth', [10, 20, 30]) / 100; };
-  VF.geneFastmatMul = function () { return 1 + geneTier('pure', 'fastmat', [60, 120, 240]) / 100; };
+  VF.geneUpgradeCostMul = function () { return 1 - geneTier('pure', 'morph', [10, 20, 30]) / 100; };
+  VF.geneBuildingGrowthCut = function () { return geneTier('pure', 'growth', [5, 10, 15]) / 100; };
+  VF.geneFastmatMul = function () { return 1 + geneTier('pure', 'fastmat', [30, 60, 120]) / 100; };
   VF.geneForgeCraft = function (recipeId, outRes) {
     var keys = [recipeId, outRes], applies = false;
     function has(id) {
@@ -241,7 +248,7 @@
     if (has('craft_iron') || has('iron')) applies = true;
     else if (has('craft_steel') || has('steel')) applies = true;
     else if (has('craft_theta') || has('theta') || has('thetaMetal')) applies = true;
-    return applies ? geneTier('pure', 'forge', [60, 120, 240]) / 100 : 0;
+    return applies ? geneTier('pure', 'forge', [30, 60, 120]) / 100 : 0;
   };
   /* 原始金属产线和工坊配方共用同一配方加法轴。 */
   VF.metalRecipeAdd = function (recipeId) {

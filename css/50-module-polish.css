@@ -1928,24 +1928,24 @@ html[data-ui-theme="day"] .war-archive{--archive-gold:#806329;--archive-jade:#26
 }
 @media (prefers-reduced-motion:reduce){.war-archive-current-track i,.war-archive-bar i{transition:none}}
 
-/* Revealed technology cards show building / wonder artwork instead of repeating long effects. */
-  #pane-tech .tree-tech .tree-unlock-icons{display:flex;align-items:center;gap:5px;min-width:0;min-height:22px;max-width:100%;overflow:hidden}
-  #pane-tech .tree-tech .tree-unlock-icon{position:relative;display:grid;place-items:center;flex:0 0 22px;width:22px;height:22px;
-    overflow:hidden;border:1px solid color-mix(in srgb,var(--tech-era-metal,#72b5aa) 58%,var(--line));
-    background:linear-gradient(145deg,color-mix(in srgb,var(--panel2) 88%,var(--tech-era-metal,#72b5aa) 12%),var(--panel));
+/* Revealed technology and civic cards show building / wonder artwork instead of repeating long effects. */
+  #pane-tech .tree-tech .tree-unlock-icons,#pane-civic #civicScroll .tree-unlock-icons{display:flex;align-items:center;gap:5px;min-width:0;min-height:22px;max-width:100%;overflow:hidden}
+  #pane-tech .tree-tech .tree-unlock-icon,#pane-civic #civicScroll .tree-unlock-icon{position:relative;display:grid;place-items:center;flex:0 0 22px;width:22px;height:22px;
+    overflow:hidden;border:1px solid color-mix(in srgb,var(--tree-accent,var(--tech-era-metal,#72b5aa)) 58%,var(--line));
+    background:linear-gradient(145deg,color-mix(in srgb,var(--panel2) 88%,var(--tree-accent,var(--tech-era-metal,#72b5aa)) 12%),var(--panel));
     box-shadow:inset 0 1px rgba(255,255,255,.1),0 1px 3px rgba(0,0,0,.18)}
-  #pane-tech .tree-tech .tree-unlock-icon.building{border-radius:3px}
-  #pane-tech .tree-tech .tree-unlock-icon.wonder{border:1px solid color-mix(in srgb,#ddb96b 78%,var(--line));border-radius:50%;
+  #pane-tech .tree-tech .tree-unlock-icon.building,#pane-civic #civicScroll .tree-unlock-icon.building{border-radius:3px}
+  #pane-tech .tree-tech .tree-unlock-icon.wonder,#pane-civic #civicScroll .tree-unlock-icon.wonder{border:1px solid color-mix(in srgb,#ddb96b 78%,var(--line));border-radius:50%;
     background:linear-gradient(145deg,color-mix(in srgb,#ddb96b 17%,var(--panel2)),var(--panel))}
-  #pane-tech .tree-tech .tree-unlock-icon img{display:block;width:100%;height:100%;object-fit:cover}
-  #pane-tech .tree-tech .tree-unlock-icon.building img{padding:1px;object-fit:contain}
-  #pane-tech .tree-tech .tree-unlock-fallback{color:var(--tech-era-metal,#72b5aa);font-size:14px;line-height:1}
-  #pane-tech .tree-tech .tree-unlock-icon.wonder .tree-unlock-fallback{color:#e7c77b}
-  #pane-tech .tree-tech .tree-unlock-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  #pane-tech .tree-tech .tree-unlock-icon img,#pane-civic #civicScroll .tree-unlock-icon img{display:block;width:100%;height:100%;object-fit:cover}
+  #pane-tech .tree-tech .tree-unlock-icon.building img,#pane-civic #civicScroll .tree-unlock-icon.building img{padding:1px;object-fit:contain}
+  #pane-tech .tree-tech .tree-unlock-fallback,#pane-civic #civicScroll .tree-unlock-fallback{color:var(--tree-accent,var(--tech-era-metal,#72b5aa));font-size:14px;line-height:1}
+  #pane-tech .tree-tech .tree-unlock-icon.wonder .tree-unlock-fallback,#pane-civic #civicScroll .tree-unlock-icon.wonder .tree-unlock-fallback{color:#e7c77b}
+  #pane-tech .tree-tech .tree-unlock-sr,#pane-civic #civicScroll .tree-unlock-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
     clip:rect(0,0,0,0);white-space:nowrap;border:0}
-  html[data-ui-theme="day"] #pane-tech .tree-tech .tree-unlock-icon{background:linear-gradient(145deg,#fffdf3,#e5e9df);
+  html[data-ui-theme="day"] #pane-tech .tree-tech .tree-unlock-icon,html[data-ui-theme="day"] #pane-civic #civicScroll .tree-unlock-icon{background:linear-gradient(145deg,#fffdf3,#e5e9df);
     box-shadow:inset 0 1px #fff,0 1px 3px rgba(57,76,70,.14)}
-  html[data-ui-theme="day"] #pane-tech .tree-tech .tree-unlock-icon.wonder{background:linear-gradient(145deg,#fff6df,#e9e2ce)}
+  html[data-ui-theme="day"] #pane-tech .tree-tech .tree-unlock-icon.wonder,html[data-ui-theme="day"] #pane-civic #civicScroll .tree-unlock-icon.wonder{background:linear-gradient(145deg,#fff6df,#e9e2ce)}
 
 /* 科技页桌面整理：保留横向依赖图，把纪元导航、节点和详情从通用发光卡片收回到研究路线图。 */
 @media (min-width:761px){
@@ -2573,3 +2573,43 @@ html[data-ui-theme="day"] .war-archive.crisis-archive{--archive-gold:#8e535a;--a
   .crisis-defense-head .crisis-power{width:100%}
 }
 @media(prefers-reduced-motion:reduce){.war-archive.crisis-archive .war-archive-current-track i{animation:none}}
+
+/* 升维终局：从床边的微光转到伯利恒的一颗星，再铺开宇宙星海。 */
+.modal.ascension-finale-modal{background:radial-gradient(ellipse at 50% 42%,rgba(25,55,83,.34),rgba(2,7,15,.94) 74%);backdrop-filter:blur(9px)}
+.modal.ascension-finale-modal.break-modal .box{width:min(860px,100%);max-width:860px;border-color:rgba(163,203,218,.34);background:#050c15;box-shadow:0 24px 90px rgba(0,0,0,.68),0 0 48px rgba(79,132,165,.12)}
+.ascension-finale{width:100%;color:#e6edf4}
+.ascension-finale-stage{position:relative;display:flex;box-sizing:border-box;align-items:center;justify-content:center;height:min(66vh,560px);min-height:340px;overflow:hidden;isolation:isolate;background:radial-gradient(ellipse at 50% 72%,rgba(18,36,54,.48),transparent 58%),linear-gradient(160deg,#050a12,#07111d 56%,#03070d);transition:background 1.2s ease}
+.ascension-finale-stage::after{position:absolute;z-index:1;top:18%;left:73%;width:4px;height:4px;border-radius:50%;background:#fff7df;box-shadow:0 0 8px 2px rgba(255,246,207,.95),0 0 22px 8px rgba(193,219,255,.42);content:"";opacity:0;transform:scale(.55);transition:opacity 1.4s ease,transform 1.4s ease}
+.ascension-finale-atmosphere{position:absolute;z-index:0;inset:0;background-image:radial-gradient(1px 1px at 12% 24%,rgba(226,240,255,.8) 55%,transparent 100%),radial-gradient(1px 1px at 27% 71%,rgba(214,231,250,.72) 55%,transparent 100%),radial-gradient(1px 1px at 39% 15%,rgba(255,244,211,.8) 55%,transparent 100%),radial-gradient(1px 1px at 53% 83%,rgba(218,235,255,.8) 55%,transparent 100%),radial-gradient(1px 1px at 69% 36%,rgba(221,239,255,.72) 55%,transparent 100%),radial-gradient(1px 1px at 81% 67%,rgba(255,242,208,.78) 55%,transparent 100%),radial-gradient(1px 1px at 93% 18%,rgba(224,240,255,.8) 55%,transparent 100%),radial-gradient(1px 1px at 89% 88%,rgba(211,229,249,.72) 55%,transparent 100%);opacity:0;transition:opacity 1.6s ease}
+.ascension-finale-stage[data-scene="play_time"]{background:radial-gradient(ellipse at 19% 54%,rgba(61,103,131,.24),transparent 42%),linear-gradient(160deg,#050a12,#07111d 56%,#03070d)}
+.ascension-finale-stage[data-scene="star_of_bethlehem"]::after,.ascension-finale-stage[data-scene="heat_death"]::after,.ascension-finale-stage[data-scene="last_words"]::after,.ascension-finale-stage[data-scene="congratulations"]::after{opacity:1;transform:scale(1)}
+.ascension-finale-stage[data-scene="star_of_bethlehem"] .ascension-finale-atmosphere{opacity:.2}
+.ascension-finale-stage[data-scene="heat_death"] .ascension-finale-atmosphere,.ascension-finale-stage[data-scene="last_words"] .ascension-finale-atmosphere{opacity:.82}
+.ascension-finale-stage[data-scene="congratulations"]{background:radial-gradient(ellipse at 73% 18%,rgba(255,226,159,.13),transparent 35%),linear-gradient(160deg,#040912,#081322 60%,#03070d)}
+.ascension-finale-stage[data-scene="congratulations"] .ascension-finale-atmosphere{opacity:1}
+.ascension-finale-copy{position:relative;z-index:2;box-sizing:border-box;width:min(720px,calc(100% - 60px));max-height:calc(100% - 78px);margin:0;padding:4px 5px;overflow-y:auto;overscroll-behavior:contain;color:#e5edf4;font-size:clamp(14px,1.55vw,18px);font-weight:400;line-height:1.9;white-space:pre-line;text-shadow:0 2px 14px rgba(0,0,0,.9);scrollbar-color:rgba(169,205,222,.36) transparent;scrollbar-width:thin}
+.ascension-finale-copy.is-final{color:#fff1c7;font-size:clamp(30px,6vw,50px);font-weight:600;letter-spacing:.14em;line-height:1.5;text-align:center;text-shadow:0 0 18px rgba(255,226,157,.34),0 2px 16px #000}
+.ascension-finale-canvas{position:absolute;z-index:2;inset:0;display:none;width:100%;height:100%;object-fit:contain;background:#020711}
+.ascension-finale-canvas[hidden]{display:none!important}
+.ascension-finale-stage[data-scene="cosmic_congratulations"] .ascension-finale-canvas{display:block}
+.ascension-finale-stage[data-scene="cosmic_congratulations"] .ascension-finale-copy{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%);border:0;white-space:nowrap}
+.ascension-finale-stage[data-scene="cosmic_congratulations"]::after{opacity:0}
+.ascension-finale-bubbles{position:absolute;z-index:1;top:36%;left:14%;width:90px;height:150px;opacity:0;transition:opacity .5s ease}
+.ascension-finale-stage[data-scene="first_bubble"] .ascension-finale-bubbles{opacity:.85}
+.ascension-finale-bubbles i{position:absolute;bottom:0;left:15px;width:7px;height:7px;border:1px solid rgba(180,225,238,.66);border-radius:50%;background:rgba(164,224,239,.16);box-shadow:0 0 9px rgba(142,217,240,.24);animation:ascensionBubbleRise 1.8s ease-in infinite}
+.ascension-finale-bubbles i:nth-child(2){left:46px;bottom:-15px;width:5px;height:5px;animation-delay:.45s;animation-duration:1.5s}
+.ascension-finale-bubbles i:nth-child(3){left:67px;bottom:-8px;width:9px;height:9px;animation-delay:.8s;animation-duration:2.1s}
+.ascension-finale-flare{position:absolute;z-index:1;top:47%;left:18%;width:3px;height:3px;border-radius:50%;background:#fff;box-shadow:0 0 7px 3px rgba(255,255,255,.95),0 0 20px 10px rgba(211,235,255,.54),0 0 65px 25px rgba(180,220,255,.2);opacity:0}
+.ascension-finale-stage[data-scene="flash"] .ascension-finale-flare{animation:ascensionFlare .78s ease-out both}
+.ascension-finale-stage[data-scene="new_star"] .ascension-finale-flare{opacity:.55;transform:scale(.72)}
+.ascension-finale-progress{position:absolute;z-index:3;right:clamp(22px,5vw,44px);bottom:22px;left:clamp(22px,5vw,44px);height:2px;overflow:hidden;background:rgba(192,216,231,.15)}
+.ascension-finale-progress i{display:block;width:0;height:100%;background:linear-gradient(90deg,#7ca9c7,#fff0c0);box-shadow:0 0 9px rgba(220,238,255,.42);transition:width .55s ease}
+.ascension-finale-modal .break-controls{min-height:62px;border-color:rgba(154,190,210,.14);background:linear-gradient(180deg,#081522,#060d17)}
+.ascension-finale-modal .break-controls .btn{min-width:112px;border-color:rgba(161,192,211,.28);color:#d3e3ed}
+.ascension-finale-modal .break-controls .btn.big{border:0;background:linear-gradient(105deg,#476c86,#7898ad);color:#f7fbff}
+.ascension-finale-modal .break-controls .btn:focus-visible{outline:2px solid #fff0c0;outline-offset:3px;box-shadow:0 0 0 5px rgba(132,183,211,.25)}
+.ascension-finale-modal .break-controls button[hidden]{display:none}
+@keyframes ascensionBubbleRise{0%{transform:translate(0,8px) scale(.7);opacity:0}18%{opacity:.8}82%{opacity:.55}100%{transform:translate(13px,-126px) scale(1.2);opacity:0}}
+@keyframes ascensionFlare{0%{opacity:0;transform:scale(.35)}12%{opacity:1;transform:scale(1.25)}38%{opacity:.68;transform:scale(1)}100%{opacity:0;transform:scale(.55)}}
+@media(max-width:650px){.modal.ascension-finale-modal.break-modal{align-items:flex-end;padding:0}.modal.ascension-finale-modal.break-modal .box{width:100%;max-width:none;border-radius:16px 16px 0 0}.ascension-finale-stage{height:min(65dvh,560px);min-height:270px}.ascension-finale-copy{width:calc(100% - 36px);max-height:calc(100% - 68px);font-size:14px;line-height:1.8}.ascension-finale-bubbles{left:5%}.ascension-finale-flare{left:10%}.ascension-finale-progress{right:18px;bottom:17px;left:18px}.ascension-finale-modal .break-controls{padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))}.ascension-finale-modal .break-controls .btn{flex:1 1 auto;min-width:0}}
+@media(prefers-reduced-motion:reduce){.ascension-finale-stage,.ascension-finale-stage::after,.ascension-finale-atmosphere,.ascension-finale-bubbles,.ascension-finale-bubbles i,.ascension-finale-progress i{animation:none;transition:none}.ascension-finale-stage[data-scene="flash"] .ascension-finale-flare{animation:none;opacity:.42}.ascension-finale-stage[data-scene="new_star"] .ascension-finale-flare{opacity:.52}}

@@ -574,7 +574,7 @@
     if (targetCondition) {
       if (targetCondition.t === 'rate') {
         var targetRate = Number(economyRates[targetCondition.r]) || 0;
-        targetConditionProgress = { txt: (SB.tech.condText(targetCondition) || targetCondition.r) +
+        targetConditionProgress = { txt: (SB.tech.condText(targetCondition, s) || targetCondition.r) +
           ' ' + targetRate.toFixed(2) + ' / 秒 · 需 ' + targetCondition.n,
           now: targetRate, need: targetCondition.n };
       } else if (SB.tech.condShort) targetConditionProgress = SB.tech.condShort(s, targetCondition);

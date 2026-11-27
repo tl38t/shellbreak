@@ -477,13 +477,17 @@
     return null;
   }
 
-  /* 桌面科技卡只用实体图标预览建筑 / 奇观解锁，不在卡面重复效果说明。
-   * 建筑来源是科技效应中的 unlockBuild；奇观来源是奇观表的 need 科技门。
-   * 未揭露节点不调用此函数，因此不会从解锁图标泄漏未知科技内容。 */
-  function techUnlockIcons(s, t) {
+  /* 科技 / 市政树卡用实体图标预览建筑 / 奇观解锁，不重复效果长文。
+   * 科技从 unlockBuild 与奇观 need 字段取；市政从 building / wonder 字段取。
+   * 未揭露节点不调用此函数，因此不会从解锁图标泄漏未知内容。 */
+  function treeUnlockIcons(s, node, nodeType) {
+    var isTech = nodeType === 'tech';
     var items = [], seen = Object.create(null), defs = SB.BUILDINGS || [], wonders = SB.WONDERS || [];
-    var eff = t && t.eff || {}, unlockBuild = eff.unlockBuild || [], i, id, item, art;
+    var eff = isTech && node && node.eff || {};
+    var unlockBuild = isTech ? (eff.unlockBuild || []) : ((node && node.building) || []);
+    var unlockWonder = isTech ? [] : ((node && node.wonder) || []), i, id, item, art;
     if (!Array.isArray(unlockBuild)) unlockBuild = [unlockBuild];
+    if (!Array.isArray(unlockWonder)) unlockWonder = [unlockWonder];
     function available(def, isBuilding) {
       if (!def || !def.id) return false;
       if (def.challengeOnly && SB.civic && SB.civic.challengeAllows && !SB.civic.challengeAllows(s, def)) return false;
@@ -511,7 +515,7 @@
     }
     for (i = 0; i < wonders.length; i++) {
       item = wonders[i];
-      if (!item || item.need !== t.id || !available(item, false) || seen['w:' + item.id]) continue;
+      if (!item || (isTech ? item.need !== node.id : unlockWonder.indexOf(item.id) < 0) || !available(item, false) || seen['w:' + item.id]) continue;
       seen['w:' + item.id] = true;
       art = SB.ui && SB.ui.renderContent && SB.ui.renderContent.WONDER_ART
         ? (SB.ui.renderContent.WONDER_ART[item.id] || '') : '';
@@ -521,7 +525,7 @@
     var icons = '<span class="tree-unlock-icons" aria-hidden="true">', descriptions = [];
     for (i = 0; i < items.length; i++) {
       item = items[i];
-      var describeId = 'tech-unlock-' + escapeHTML(t.id) + '-' + i;
+      var describeId = nodeType + '-unlock-' + escapeHTML(node.id) + '-' + i;
       descriptions.push(describeId);
       icons += '<span class="tree-unlock-icon ' + item.kind + '" title="' + escapeHTML(item.name) + '">' +
         (item.icon
@@ -534,6 +538,8 @@
     }
     return { html: icons, describedBy: descriptions.join(' ') };
   }
+  function techUnlockIcons(s, t) { return treeUnlockIcons(s, t, 'tech'); }
+  function civicUnlockIcons(s, c) { return treeUnlockIcons(s, c, 'civic'); }
 
   /* 可见性 = 「这个节点在图上有位置」。判据只有一条：**当前纪元与更早的纪元全部上图**，
    * 未来纪元不上图（那纪元的悬念留到抵达时）。
@@ -1584,6 +1590,7 @@
   function civicNode(s, c, cell, w, hh, desktop) {
     var C = SB.civic, done = !!s.civics[c.id], rev = C.isRevealed(s, c.id);
     var localizedName = civicName(c);
+    var unlockPreview = rev ? civicUnlockIcons(s, c) : { html: '', describedBy: '' };
     var why = done ? null : C.blocked(s, c);
     var boost = !rev ? SB.tech.condShort(s, c.boost) : null;
     /* 追踪鼓舞（同 techNode 的那条 ★，判据换成 civic.isRevealed）。 */
@@ -1607,6 +1614,8 @@
       (/^(void_faith|void_explore|ascend_void)$/.test(c.id) ? ' void-path-node' : '');
     /* 与 techNode 同口径：角标另起一行，不占 .tnhd 里名字的宽度。 */
     var _coHTML = SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, c) : '';
+    var unlockDescriptionAttr = unlockPreview.describedBy
+      ? ' aria-describedby="' + unlockPreview.describedBy + '"' : '';
     var h = '<button type="button" class="' + cls + '" id="civicrow-' + c.id + '"' +
       ' data-node="' + c.id + '" data-x="' + cell.x + '" data-y="' + cell.y + '"' +
       ' data-layer="' + cell.layer + '"' +
@@ -1614,7 +1623,7 @@
       ' data-tree-node="1" data-tree-type="civic" data-tree-id="' + c.id + '"' +
       ' aria-label="' + tr('research.tree.node.aria_label', {
         nodeName: rev ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.civic', null, '市政') }, '未揭露的市政'), nodeStatus: status
-      }, (rev ? localizedName : '未揭露的市政') + '，' + status + '，打开详情') + '"' +
+      }, (rev ? localizedName : '未揭露的市政') + '，' + status + '，打开详情') + '"' + unlockDescriptionAttr +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w +
       'px;height:' + hh + 'px">';
     var title = rev ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.civic', null, '市政') }, '未揭露的市政');
@@ -1629,7 +1638,7 @@
     var civicIcon = SB.ui.renderCommon.treeIconHTML(c, rev, 'tree-node-icon civic-icon');
     h += '<span class="tree-node-main"><span class="tree-node-art">' + (civicIcon || '<span class="tree-node-art-placeholder" aria-hidden="true"></span>') +
       '</span><span class="tree-node-copy"><span class="tnhd"><span class="tnm">' + title + '</span></span>' +
-      (_coHTML ? '<span class="co-tag-wrap">' + _coHTML + '</span>' : '') + civicClue + '</span></span>';
+      (_coHTML ? '<span class="co-tag-wrap">' + _coHTML + '</span>' : '') + unlockPreview.html + civicClue + '</span></span>';
     h += '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
       '<span class="tree-node-status">' + status + '</span>' + trackStar +
       '<span class="tree-open-hint">' + tr('tree.detail.open_hint', null, '查看详情　›') + '</span></span></button>';

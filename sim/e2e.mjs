@@ -56,6 +56,8 @@ import { run as runMilitaryPerks } from './e2e-suites/military-perks.mjs';
 /* 2026-11-17：帷幕之后·大轮回（ERA11）—— 放全量最尾部：它会真掀幕（清账本 + startRun），
  * 自带 finally 快照还原，绝不能压在整局 bot 前面。 */
 import { run as runVeil } from './e2e-suites/veil.mjs';
+/* 2026-11-25：升维终局演出三语文案 + 轮回商店详情气泡接线回归（防 Ver1.4.0/1.4.1 漏同步复发）。 */
+import { run as runAscensionFinale } from './e2e-suites/ascension-finale.mjs';
 /* 2026-11-12：clearNodes 嵌套节点 bug 的防回归锁。自带 faithful DOM 桩加载真实
  * heritage-draft.js，不依赖 e2e 共享的 no-op 假 DOM（那个桩的 removeChild 是空实现，
  * 正是当初漏掉本 bug 的原因）。 */
@@ -131,8 +133,17 @@ function mkEl(id) {
     },
     removeChild() {},
     addEventListener() {},
-    setAttribute() {},
-    getAttribute() { return null; },
+    /* ⚠️ 2026-11-25 补：真实 DOM 有 setAttribute/getAttribute/removeAttribute/hasAttribute，
+     * 桩上原本 set 是空操作、get 恒 null、remove 根本不存在。升维终局
+     * showAscensionEnding 调 skip.removeAttribute('hidden') 时整份 e2e 在 boot 期
+     * 抛 TypeError 断掉（且 Node 退出码 1 被 retry 脚本误判成「跑完」）。
+     * 这里按真实语义存一份属性表：set 后 get 能读回、remove 后回到 null。
+     * 判据同 2026-10-06 的 querySelector：桩缺能力要补桩，别改被测代码迎合。 */
+    _attrs: {},
+    setAttribute(k, v) { el._attrs[String(k)] = String(v); },
+    getAttribute(k) { return Object.prototype.hasOwnProperty.call(el._attrs, String(k)) ? el._attrs[String(k)] : null; },
+    removeAttribute(k) { delete el._attrs[String(k)]; },
+    hasAttribute(k) { return Object.prototype.hasOwnProperty.call(el._attrs, String(k)); },
     /* ⚠️ 2026-10-06 补 `querySelector`（幸福度面板那条改动带进来的 `meter.querySelector('.happy-meter')`），
      *   缺它 ⇒ boot 期 renderHappy 直接抛 `querySelector is not a function`，
      *   整份 e2e 在第 200 行就断掉（表现为「启动即抛错」，但**与当轮改动无关**，极易误判）。
@@ -3093,6 +3104,8 @@ runWarCampaign({ SB, check, noop, doc });
 runMilitaryPerks({ SB, check, noop });
 /* 2026-11-17：帷幕之后（ERA11 大轮回）。全量最后一个 suite——见文件头说明。 */
 runVeil({ SB, check });
+/* 2026-11-25：升维终局 + 轮回商店详情气泡（只读断言，不改 meta / 不触发演出）。 */
+runAscensionFinale({ SB, check, fs, path, ROOT, sandbox });
 console.log('\n================ 汇总 ================');
 // B 档基线：首局（原始时代 → 破冰重置）挂机 8-14 小时 —— 全局标定，默认挂起
 defer('单局时长落在 8-14 小时', runHours >= 8 && runHours <= 14, runHours.toFixed(2) + 'h');

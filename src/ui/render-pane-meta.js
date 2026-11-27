@@ -176,6 +176,43 @@
     return '';
   }
 
+  /* 轮回点节点详情弹窗的数据真源（2026-11-25 补齐星屑商店同款交互）。
+   * 只返回字符串/状态，不碰 DOM、不写游戏状态：弹窗外壳由 render.js 的 showTidePerkInfo
+   * 复用星屑气泡（同一套锚定 + resetModalChrome 归一化）。
+   * ⚠️ 名字/描述/成本/前置必须与 paneMeta 读同一批 localized* 函数，
+   *    否则「列表一行」和「点开详情」会出现两套口径。 */
+  function metaPerkInfo(id) {
+    var defs = SB.TIDE_TREE || [], perk = null, i;
+    for (i = 0; i < defs.length; i++) if (defs[i].id === id) { perk = defs[i]; break; }
+    if (!perk || !SB.prestige || !SB.prestige.perkState) return null;
+    var st = SB.prestige.perkState(id);
+    if (!st) return null;
+    var m = SB.game && SB.game.meta ? SB.game.meta() : null;
+    function nameOf(pid) {
+      var found = null;
+      for (var j = 0; j < defs.length; j++) if (defs[j].id === pid) { found = defs[j]; break; }
+      return found ? localizedPerkName(found) : pid;
+    }
+    var stateKey = st.done ? 'ui.prestige.talent.status.max_level'
+      : st.locked ? 'ui.prestige.talent.status.waiting_prerequisites'
+      : st.afford ? 'ui.prestige.talent.status.ready' : 'ui.prestige.talent.status.earn_points';
+    var stateText = tr(stateKey, null,
+      st.done ? '已满级' : st.locked ? '等待前置' : st.afford ? '可以点亮' : '积攒轮回点');
+    var prereqNames = (st.prerequisites || []).map(nameOf).join(englishLocale() ? ', ' : '、');
+    return {
+      id: id,
+      name: localizedPerkName(perk),
+      desc: localizedPerkDescription(perk, st, m),
+      stateText: stateText,
+      stateCls: st.done ? 'done' : st.locked ? 'locked' : 'ready',
+      rankText: st.lv + '/' + (isFinite(st.max) ? st.max : '∞'),
+      costText: st.done ? stateText : tr('ui.prestige.talent.next_cost', { cost: st.next }, '✧ {cost} 点'),
+      prereqNames: prereqNames,
+      iconSrc: perkIconSrc(perk),
+      disabled: !!(st.done || st.locked || !st.afford)
+    };
+  }
+
   function paneMeta() {
     var m = SB.game.meta();
     var lg = SB.prestige.legacy();
@@ -307,8 +344,16 @@
           nestName: localizedPrerequisites,
           rank: st.lv, rankText: st.lv + '/' + (isFinite(st.max) ? st.max : '∞'),
           status: status, cost: localizedCost,
-          state: nodeState, disabled: st.done || st.locked || !st.afford,
-          glyph: group.icon, iconSrc: perkIconSrc(p), attr: 'data-perk="' + p.id + '"',
+          /* 2026-11-25：详情弹窗受设置开关控制（SB.uiPrefs.perkDetailPopupsEnabled，默认开）。
+           * 开 → 所有节点都能点开详情（含满级/等前置/积攒中），购买进气泡；
+           * 关 → 完整回到 Ver1.4.0 前行为：disabled = done||locked||!afford，点节点一击购买。
+           * e2e 靠 data-perk 找节点，这个属性两种模式都保持原样。 */
+          state: nodeState,
+          disabled: (SB.uiPrefs && !SB.uiPrefs.perkDetailPopupsEnabled())
+            ? !!(st.done || st.locked || !st.afford) : false,
+          glyph: group.icon, iconSrc: perkIconSrc(p),
+          attr: 'data-perk="' + p.id + '"' +
+            ((!SB.uiPrefs || SB.uiPrefs.perkDetailPopupsEnabled()) ? ' aria-haspopup="dialog"' : ''),
           title: localizedName + ' · ' + (SUBMAP[p.subtree] || p.subtree), extraHtml: extraHtml + dynBadge
         });
       }
@@ -327,6 +372,7 @@
   }
 
   parts.paneMeta = paneMeta;
+  parts.metaPerkInfo = metaPerkInfo;
   parts.toggleTreeFold = toggleTreeFold;
   parts.isTreeFolded = function (key) { return !!TREE_FOLD[key]; };
 })(typeof window !== 'undefined' ? window : globalThis);

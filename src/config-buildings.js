@@ -314,7 +314,7 @@
      * 成本：猫国 hut = wood 5（材料线）⇒ 本作 **coral 5**。人口建筑吃材料、不吃食物，
      * 这样「养人」不与「吃饭」抢同一笔预算，两条线各自独立（猫国即如此）。 */
     { id: 'nest', icon: 'assets/building-icons/era-1/era1-nest.png',     name: '礁口巢',   ratio: 2.50, cost: {coral: 5},    desc: '人口上限 +2，住满后不再生育',
-      defaultUnlockable: true },
+      defaultUnlockable: true, populationCapBuilding: true },
     /* ---- 住房第二档（猫国 Log House 的对应物，2026-09-26 新增）----
      * 【为什么要有第二档】礁口巢 ratio 2.5 是指数：第 5 座就要 390 珊瑚、第 7 座 2441，
      * 光靠它撑不到破壳，所以要有第二档接人口。
@@ -351,7 +351,7 @@
      *   （建筑侧 requiredTech 与科技侧 masonry 的 eff.unlockBuild 指向同一项，见 e2e
      *   「建筑解锁来源」三条断言）。玩家研究完石工立刻就能建，卡点只剩「买不买得起」。 */
     { id: 'coralhouse', icon: 'assets/building-icons/era-1/era1-coralhouse.png', name: '石屋', ratio: 2.5, cost: {stone: 100}, desc: '人口上限 +4/级，可一路铺',
-      requiredTech: ['masonry'] },
+      requiredTech: ['masonry'], populationCapBuilding: true },
     /* ---- 矿砂线（猫国 minerals，与珊瑚是两条独立的线）----
      * 采集者只产藻食之后，矿砂曾一度没有任何来源：furnace 转不出精铁，
      * iron 恒为 0，geyser（要 iron 62）与 miracle（要 iron 300）永远建不起来，
@@ -757,7 +757,7 @@
       requiredCivic: 'sharksong' },
     { id: 'tenement', icon: 'assets/building-icons/era-5/era5-tenement.png', name: '廉租社区', ratio: 3, cost: { scaffold: 25, steel: 100 },
       desc: '人口上限 +10/级（由 popCap 读）；每级额外 +5% 居民奢侈品消耗（增耗，economy.tenementLuxAdd 读）。',
-      requiredCivic: 'urbanization' },
+      requiredCivic: 'urbanization', populationCapBuilding: true },
     /* ── ERA6（2026-10 实装）：科研所（chemistry 解锁，双写一致）：
      *   每级**学者**科技产出 +10%（researchLabSci，tick/rates 同式），且使研究科技消耗 −2%/级
      *   （researchLabSave，由 tech.study 读）。造价全 tiplate。
@@ -846,7 +846,7 @@
      *   requiredTech='near_star_orbit' 与科技侧 eff.unlockBuild 双写（解锁权两处同源，e2e 三断言口径）。 */
     { id: 'solar_ring', stardustFacility: true, icon: 'assets/building-icons/era-10/era10-solar-ring-v2.png', name: '太阳星环', ratio: 1.5, cost: { thetaMetal: 300, sealbin: 20 },
       desc: '近恒星轨道环：每秒产 0.05 θ金属/级；人口上限 +1/级。',
-      requiredTech: ['near_star_orbit'] },
+      requiredTech: ['near_star_orbit'], populationCapBuilding: true },
 
     /* ── ERA10 市政（2026-10-20 用户规格 · 实装）──
      * 【泰拉星轨道发射场 / 恩克拉多斯星轨道发射场】（市政《公共工程局》解锁）
@@ -883,7 +883,7 @@
     { id: 'terra_vat', icon: 'assets/building-icons/era-10/era10-terra-vat.png', name: '泰拉地壳密闭水舱巨构', ratio: 1.5,
       cost: { tiplate: 3000, thetaMetal: 500, stoneBeam: 100000, resonantDrill: 1000 },
       desc: '每级增加 20 人口上限，并每秒消耗 100 热液能；优先取自星核炉芯池，池空后占用热液能流。停用即断电：该座的人口上限立刻消失，超出上限的族民会陆续离开。',
-      requiredTech: ['winter'] },
+      requiredTech: ['winter'], populationCapBuilding: true },
     { id: 'terra_engine', icon: 'assets/building-icons/era-10/era10-terra-engine.png', name: '行星发动机', ratio: 1,
       cost: { thetaMetal: 10000, strongProp: 1000, tiplate: 7500, resonantDrill: 4000 },
       desc: '把泰拉推离原有轨道。建成 50 座并灌满星核炉芯池，即完成流浪泰拉挑战。',
@@ -929,12 +929,12 @@
 
     /* ═════════ ERA11/12 建筑（2026-11-21 · spec §3）═════════
      * 造价全部按用户原表原样抄录、标「待标定」——标定权在用户。 */
-    { id: 'chrono_house', name: '逆时屋', icon: 'assets/building-icons/era-11/era11-chrono-house.png', ratio: 1.5,
+    { id: 'chrono_house', name: '逆时屋', icon: 'assets/building-icons/era-11/era11-chrono-house.png', ratio: 1.5, populationCapBuilding: true,
       cost: { cryoPod: 1000, hydro: 100 },
       /* 效果：人口上限 +1（建筑级，走 economy.popCap 新落点，P3 接）；跨轮回携带见 spec §0 拍板 3。
        * ⚠️ 原表造价「冷冻仓 1000」= 工艺资源 cryoPod（P2 CRAFTS 新增），不是 id 'cryo_pod'——
        *    工艺资源的 res 键名见 config-content.js CRAFTS.res。 */
-      desc: '人口上限 +1。本建筑会保留到下一个轮回（失能后不消耗热液能，可用 1/3 资源重新激活）。',
+      desc: '人口上限 +1。携带至新轮回的逆时屋会失能；每座需支付逆时屋基础建造资源的三分之一激活后才能继续携带。',
       requiredTech: ['reverse_time'] }
   ];
 

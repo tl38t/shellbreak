@@ -52,6 +52,8 @@
 
     return { tide: 0, spent: 0, tideEarnedTotal: 0, perks: {}, cycle: 0, runs: 0, layers: 0, techLog: {}, lastRun: null,
       veil: veilDefault,
+      /* 未建飞升账本时，用历史累计量的基准划分本次飞升周期；飞升挑战可不发点直接开新周期。 */
+      veilCycleTideSeed: 0, veilCycleStarSeed: 0, veilReady: false,
       religionSeen: false, shopUnlocked: false, stardustShopUnlocked: false,
       /* 新手引导「已完整播过」标记（docs/ONBOARDING_DESIGN_v0.1.md）：跨周目永久。
        * 与 religionSeen 同侧——一旦置真，本安装二周目不再弹欢迎层 / 走查脚本。
@@ -74,7 +76,7 @@
         waterpollution: false, anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0, pacifist: false,
         weapon_critique: false, totalwar_doctrine: false, raider: false, conqueror: 0,
         veil_rush: 0, veil_abyss: 0, veil_starve: 0,
-        veil_nofaith: false, veil_turmoil: false, veil_cramped: 0 } },
+        veil_nofaith: false, veil_turmoil: false, veil_cramped: 0, veil_one_way: 0, land_gold: 0 } },
       /* 美好旧日解锁后，首次采用的各政体会永久生成对应被动政策卡。 */
       govPassiveCards: {},
       govEverAdopted: {},
@@ -92,14 +94,16 @@
        * chrono / armada 只由 prestige.doBreak（真轮回）写入；激活逆时屋/建船团只写局内态，
        *    软重置两者都不写。veil.ascendBaseline 是例外，由 ensureAscendBaseline 首次写入。
        *    局内 s.chrono 与 s.armadaNo 全是这里派生的缓存，不参与累加。
-       * chrono.carried  = 是否有携带中的失能逆时屋（bool，不存等级/人口值）
+       * chrono.carriedCount = 携带中的失能逆时屋数量（不存建筑等级）
+       * chrono.activationMode = 激活方式偏好（individual / batch，跨轮回保留）
        * armada.count    = 恒星际船团累计建造数（决定下一座编号）
        * armada.cycleCount = 本次飞升中已完成普通轮回的船团数
        * armada.bonusTenths = 累计暗物质产量加成，单位 0.1%（+10% = 100）
        * veil.ascendBaseline = 首次建成现实透孔仪时的飞升次数快照（见 veil 段，null=未达成） */
-      chrono: { carried: false },
+      chrono: { carriedCount: 0, activationMode: 'individual' },
+      activeAscensionChallenge: null,
       armada: { count: 0, cycleCount: 0, bonusTenths: 0 },
-      /* 升维终局 meta 记账：用户「以后做、先占位」——只留字段与注释，不接线（pending P5）。 */
+      /* 升维通关记账：玩家完成结局演出后置真，跨普通轮回保留；清空存档时归零。 */
       ascendDone: false,
       /* 更新日志（2026-10-27 恢复）：上次看过弹窗的版本号。空串 / 缺键 = 从未看过 ⇒ 首次进入会弹。
        * 存 meta（跨周目保留），软重置不触发重复弹；清空存档会归零 ⇒ 重装后还会弹一次。
@@ -262,9 +266,8 @@
   /* ── 星屑「累计结算发放量」的种子口径（ERA11 #4 口径 A · 2026-11-17 实装）───────
    * s.got.stardust 被三处消费：工坊效率（workshop.js:130，无封顶）、
    * 《继承繁星之人》与《掀起帘幕》的 gathered 尤里卡、AI 策略判断。
-   *   · 未掀幕档 → meta.stardustEarned（历史累计，**老口径不变**）：
-   *     上线瞬间所有存量档都没有 veil 账本，若一律切新口径，玩家只是更新版本、
-   *     下次开新局就发现尤里卡灭了、工坊效率掉下来，而他什么都没点。
+   *   · 未掀幕档 → meta.stardustEarned - meta.veilCycleStarSeed：默认种子为 0，旧档仍读历史累计；
+   *     飞升挑战未达门槛而先开新周期时，种子会隔离被丢弃周期的历史，避免下局继续继承。
    *   · 已掀幕档 → meta.veil.cycleStar（本帷幕周期累计）：
    *     掀幕就是「删档重来」，历史 300 星屑若继续 seed，新局第一帧就白送尤里卡、
    *     工坊 +300%，且随历史总量越滚越大永不回落。
@@ -275,7 +278,7 @@
     if (!meta) return 0;
     if (meta.veil && typeof meta.veil === 'object')
       return Math.max(0, Math.floor(Number(meta.veil.cycleStar) || 0));
-    return Math.max(0, Math.floor(Number(meta.stardustEarned) || 0));
+    return Math.max(0, Math.floor((Number(meta.stardustEarned) || 0) - (Number(meta.veilCycleStarSeed) || 0)));
   }
 
   /* 生成一周目。inherit: true 时继承上一周目的增益（轮回点/破层级/已购增益）。
@@ -302,6 +305,7 @@
     /* 星屑跨周目局外资源：freshRun 把累计结算发放量 seed 进 got.stardust；余额兑换不改变尤里卡进度。 */
     var _meta = null;
     try { if (SB.game && SB.game.meta) _meta = SB.game.meta(); } catch (e) { _meta = null; }
+    var _chronoCarryCount = _meta && _meta.chrono ? Math.max(0, Math.floor(Number(_meta.chrono.carriedCount) || 0)) : 0;
     return {
       t: 0,
       /* wallT = 墙钟秒（真实流逝的时间），排行榜专用。
@@ -514,7 +518,7 @@
       /* seen = 建筑「曾经露过头」的黑名单（habitat.reveal 写入，UI 判可见用）。
        * 没有它，玩家把库存花到 unlockRatio 阈值以下时，刚冒出来的建筑会当场消失。
        * 与 lvl/jobs 同理：新增字段要同时在 freshRun 与 migrateRun 两边补上。 */
-      seen: {},
+      seen: _chronoCarryCount > 0 ? { chrono_house: 1 } : {},
       /* 暖石开关（保温法那道开关）。与玩家显式拨的其他开关同套设计：
        *   ① 它不是存档里推演出来的量，玩家显式拨的；
        *   ② 拨了也未必生效（暖石不够 / 不在惩罚季），所以旁边必须显示「正在烧 / 石不够」。
@@ -722,12 +726,10 @@
        *    工具在工坊上半区（买断，改职业产出）；奇观在「奇观」栏（买断，改全局效率与仓储）。
        * ⚠️ 老档靠 migrateRun 补（tools 那条注的 fixTable 口径，这里同样按 ref 遍历兜底）。 */
       wonders: {},
-      /* ERA11/12 本局派生态（2026-11-21 · spec §0 状态归属表）：由 meta 权威账本派生，
-       *   换局按这里重建；激活逆时屋/建船团只改这些局内字段，绝不回写 meta。
-       * chrono.disabled   本局是否存在携带的失能逆时屋（= meta.chrono.carried）
-       * chrono.reactivated 本局是否已花 1/3 资源重新激活（激活后允许建造 + 可再携带一局）
+      /* ERA11/12 本局派生态：携带逆时屋逐座记录；激活后数量从 disabledCount 转入 reactivatedCount。
+       * 换局按 meta 重建；激活只改局内态，真正轮回时由 prestige.doBreak 决定下轮携带数。
        * armadaNo          本局船团显示编号（十六进制串，仅显示；加成读 meta.armada.bonusTenths） */
-      chrono: { disabled: !!( _meta && _meta.chrono && _meta.chrono.carried ), reactivated: false },
+      chrono: { disabledCount: _chronoCarryCount, reactivatedCount: 0 },
       armadaNo: '',
       /* 工艺升级项（2026-09-28 · era2 第三层）：`{ upg_ballast_1: true }`，键是 config.UPGRADES 的 id。
        * ⚠️ 与 tools / wonders 同属「买断表」，但**形态又不同**：工具改职业产出、奇观改全局效率，
@@ -853,6 +855,11 @@
     m.stardust = Math.max(0, Math.floor(m.stardust));
     if (!(typeof m.stardustEarned === 'number' && isFinite(m.stardustEarned))) m.stardustEarned = m.stardust;
     m.stardustEarned = Math.max(0, Math.floor(m.stardustEarned));
+    var _veilTideSeed = Number(m.veilCycleTideSeed);
+    m.veilCycleTideSeed = (isFinite(_veilTideSeed) && _veilTideSeed >= 0) ? _veilTideSeed : 0;
+    var _veilStarSeed = Number(m.veilCycleStarSeed);
+    m.veilCycleStarSeed = (isFinite(_veilStarSeed) && _veilStarSeed >= 0) ? Math.floor(_veilStarSeed) : 0;
+    m.veilReady = m.veilReady === true;
     /* 帷幕之后账本（2026-11-16）：null = 未掀幕老档，对象 = 已掀幕。逐字段收口，
      * 不把 null 换成空对象——#4「账本是否存在」判据靠它区分（下位稿 §6.3）。
      * paths.opened 只认 si/vo/gn 三种合法 id，脏值丢弃；organ/void/gene 为进度字典。 */
@@ -912,8 +919,30 @@
     } else m.veil = null;
     /* ERA11/12 跨局账本清洗（2026-11-21）：脏值一律丢弃/归零，不污染产量结算。
      * veil.ascendBaseline 住在 veil 对象里（未掀幕 veil=null 时无处存，按 null 处理）。 */
-    if (!m.chrono || typeof m.chrono !== 'object' || Array.isArray(m.chrono)) m.chrono = { carried: false };
-    m.chrono.carried = m.chrono.carried === true;
+    if (!m.chrono || typeof m.chrono !== 'object' || Array.isArray(m.chrono)) m.chrono = {};
+    var _carriedChrono = m.chrono.carriedCount;
+    if (!isFinite(Number(_carriedChrono)) || Number(_carriedChrono) < 0) {
+      var _legacyChrono = m.chrono.carried;
+      _carriedChrono = _legacyChrono === true ? 1 : (typeof _legacyChrono === 'number' ? _legacyChrono : 0);
+    }
+    m.chrono.carriedCount = Math.max(0, Math.floor(Number(_carriedChrono) || 0));
+    m.chrono.activationMode = m.chrono.activationMode === 'batch' ? 'batch' : 'individual';
+    delete m.chrono.carried;
+    var _activeAsc = m.activeAscensionChallenge;
+    if (_activeAsc && typeof _activeAsc === 'object' && !Array.isArray(_activeAsc)
+        && typeof _activeAsc.id === 'string' && isFinite(Number(_activeAsc.tier))
+        && isFinite(Number(_activeAsc.startedAt)) && Number(_activeAsc.startedAt) > 0) {
+      var normalizedAscensionChallenge = {
+        id: _activeAsc.id,
+        tier: Math.max(0, Math.floor(Number(_activeAsc.tier))),
+        replay: _activeAsc.replay === true,
+        startedAt: Number(_activeAsc.startedAt)
+      };
+      if (_activeAsc.id === 'veil_one_way' && typeof _activeAsc.startRebirths === 'number'
+          && isFinite(_activeAsc.startRebirths) && _activeAsc.startRebirths >= 0)
+        normalizedAscensionChallenge.startRebirths = Math.max(0, Math.floor(Number(_activeAsc.startRebirths)));
+      m.activeAscensionChallenge = normalizedAscensionChallenge;
+    } else m.activeAscensionChallenge = null;
     if (!m.armada || typeof m.armada !== 'object' || Array.isArray(m.armada)) m.armada = { count: 0, cycleCount: 0, bonusTenths: 0 };
     var _ac = Number(m.armada.count);
     m.armada.count = (isFinite(_ac) && _ac >= 0) ? Math.floor(_ac) : 0;
@@ -1028,7 +1057,7 @@
       anarchy: true, good_old_days: true, three_launch_sites: true, eternity_moment: true, pacifist: true,
       weapon_critique: true, totalwar_doctrine: true, raider: true, conqueror: true,
       veil_rush: true, veil_abyss: true, veil_starve: true,
-      veil_nofaith: true, veil_turmoil: true, veil_cramped: true };
+      veil_nofaith: true, veil_turmoil: true, veil_cramped: true, veil_eternity_moment: true, veil_one_way: true, land_gold: true };
     /* ⚠️ conqueror 是三档挑战，不入 singleTier，completed 走数值夹取（0/1/2/3）。 */
     var singleTierChallenges = { cold: true, small: true, drift_terra: true, waterpollution: true,
       anarchy: true, good_old_days: true, three_launch_sites: true, pacifist: true,
@@ -1037,7 +1066,10 @@
     for (var challengeId in challengeIds) {
       var completed = m.challenges.completed[challengeId];
       if (singleTierChallenges[challengeId]) m.challenges.completed[challengeId] = completed === true;
-      else m.challenges.completed[challengeId] = Math.max(0, Math.min(3, completed | 0));
+      else if (challengeId === 'land_gold') {
+        var landGoldDone = Number(completed);
+        m.challenges.completed[challengeId] = isFinite(landGoldDone) ? Math.max(0, Math.floor(landGoldDone)) : 0;
+      } else m.challenges.completed[challengeId] = Math.max(0, Math.min(3, completed | 0));
     }
     if (!m.govPassiveCards || typeof m.govPassiveCards !== 'object' || Array.isArray(m.govPassiveCards)) m.govPassiveCards = {};
     if (!m.govEverAdopted || typeof m.govEverAdopted !== 'object' || Array.isArray(m.govEverAdopted)) m.govEverAdopted = {};

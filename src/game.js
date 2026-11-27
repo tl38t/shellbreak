@@ -10,6 +10,7 @@
   var S = null;
   var meta = SB.state.loadMeta();
   var suppressExitSave = false;
+  var bootUiReady = false;
   var speed = 1;
   var tab = 'village';
   var dirty = true;
@@ -309,13 +310,60 @@
         if (typeof _blv === 'number' && _blv > 0) _blt[_blk] = (_blt[_blk] || 0) + _blv;
       }
     }
-    if (options && options.challenge) {
-      S.challenge = { id: options.challenge.id, tier: options.challenge.tier | 0, startedAt: Date.now(), replay: options.challenge.replay === true };
-      /* 新挑战必须从未解除态起算（2026-11-03）：限制是否生效靠 challengeReleased 判，
-       * 万一将来 S 不是 freshRun 造出来的，残留的 true 会让整局限制形同不存在。 */
+    var runChallenge = options && options.challenge ? options.challenge : null;
+    var explicitChallengeStart = !!runChallenge;
+    if (!runChallenge && meta.activeAscensionChallenge) runChallenge = meta.activeAscensionChallenge;
+    /* 旧版本只把飞升挑战放在本局存档里。升级后第一次换局时补进周期账本，
+     * 之后普通轮回/重开都能继续同一个飞升挑战。 */
+    if (!runChallenge && !meta.activeAscensionChallenge && prev && prev.challenge && !prev.challengeDone) {
+      var prevChallengeDef = SB.challenges && SB.challenges.byId ? SB.challenges.byId(prev.challenge.id) : null;
+      if (prevChallengeDef && prevChallengeDef.ascension) runChallenge = prev.challenge;
+    }
+    var runChallengeDef = runChallenge && SB.challenges && SB.challenges.byId
+      ? SB.challenges.byId(runChallenge.id) : null;
+    if (runChallenge && runChallengeDef) {
+      var runTier = SB.challenges.normalizeTierIndex
+        ? SB.challenges.normalizeTierIndex(runChallengeDef, runChallenge.tier)
+        : Math.max(0, Math.min(runChallengeDef.tiers.length - 1, runChallenge.tier | 0));
+      var runStartedAt = Number(runChallenge.startedAt);
+      if (!(runStartedAt > 0) || !isFinite(runStartedAt)) runStartedAt = Date.now();
+      if (runChallengeDef.ascension) {
+        var storedChallenge = !explicitChallengeStart && meta.activeAscensionChallenge;
+        if (storedChallenge && storedChallenge.id === runChallenge.id && (storedChallenge.tier | 0) === runTier
+            && Number(storedChallenge.startedAt) > 0)
+          runStartedAt = Number(storedChallenge.startedAt);
+        var challengeStartRebirths = null;
+        if (runChallenge.id === 'veil_one_way') {
+          challengeStartRebirths = Number(runChallenge.startRebirths);
+          if (explicitChallengeStart) challengeStartRebirths = Number(meta.rebirths) || 0;
+          else if (storedChallenge && storedChallenge.id === runChallenge.id
+              && isFinite(Number(storedChallenge.startRebirths)))
+            challengeStartRebirths = Number(storedChallenge.startRebirths);
+          else if (!isFinite(challengeStartRebirths)) challengeStartRebirths = Number(meta.rebirths) || 0;
+          challengeStartRebirths = Math.max(0, Math.floor(challengeStartRebirths));
+        }
+        meta.activeAscensionChallenge = {
+          id: runChallenge.id, tier: runTier,
+          replay: runChallenge.replay === true, startedAt: runStartedAt
+        };
+        if (runChallenge.id === 'veil_one_way') meta.activeAscensionChallenge.startRebirths = challengeStartRebirths;
+      } else {
+        meta.activeAscensionChallenge = null;
+      }
+      S.challenge = { id: runChallenge.id, tier: runTier, startedAt: runStartedAt, replay: runChallenge.replay === true };
+      if (runChallenge.id === 'veil_one_way') S.challenge.startRebirths = challengeStartRebirths;
+      /* 新挑战必须从未解除态起算；飞升挑战在普通轮回之间持续有效。 */
       S.challengeReleased = false;
-      /* 掌控永远与须臾：冰壳目标依档位放大，周目初始壳与后续归一化都以此为准。 */
       if (SB.challenges && SB.challenges.applyShellTarget) SB.challenges.applyShellTarget(S);
+      if (explicitChallengeStart && runChallenge.id === 'veil_temporal_pincer') {
+        var initialChronoCount = Math.max(0, Math.floor(Number(runChallengeDef.tiers[runTier].disabledChronoHouses) || 0));
+        if (initialChronoCount > 0) {
+          S.chrono.disabledCount = (S.chrono.disabledCount || 0) + initialChronoCount;
+          S.seen.chrono_house = 1;
+        }
+      }
+    } else if (explicitChallengeStart) {
+      meta.activeAscensionChallenge = null;
     }
     if (SB.economy && SB.economy.lockSeasonLengths) SB.economy.lockSeasonLengths(S, meta);
     /* ⚠️ 2026-11-02（玩家报「轮回工巧 / 轮回炉火还是没生效」）：
@@ -594,10 +642,27 @@
   function renderAll() {
     dirty = false;
     SB.ui.render.renderAll();
+    fireAscensionEnding();
     if (SB.audio && SB.audio.sync) SB.audio.sync();
     syncAutoClickSetting();
+    syncChronoActivationSetting();
     syncAutoMemorySetting();
     syncAudioSetting();
+  }
+  /* 升维科技是最终结局的唯一入口。若另一张共用 #modal 的面板正在显示，先让它结束；
+   * 循环的下一次完整重绘会再检查，不让结局文案被其他弹窗覆盖。 */
+  function fireAscensionEnding() {
+    if (!bootUiReady || !S || !S.techs || !S.techs.ascend_dimension || !meta || meta.ascendDone) return;
+    var modal = root.document && root.document.getElementById('modal');
+    if (!modal || !modal.classList || !modal.classList.contains('hidden')) return;
+    var show = SB.ui && SB.ui.render && SB.ui.render.showAscensionEnding;
+    if (typeof show === 'function') show(S);
+  }
+  function completeAscensionEnding() {
+    if (!meta || meta.ascendDone) return false;
+    meta.ascendDone = true;
+    SB.state.saveMeta(meta);
+    return true;
   }
   function markDirty() { dirty = true; }
 
@@ -756,6 +821,23 @@
       log(gameText('game.autoclick.shop_open.navigate.log', { perkBranch: branch, perkName: perk },
         '已跳到轮回商店：在「{perkBranch}」里购买「{perkName}」即可自动点击。'));
     });
+  }
+
+  function syncChronoActivationSetting() {
+    if (!document) return;
+    var select = document.getElementById('chronoActivationMode');
+    if (select) select.value = meta && meta.chrono && meta.chrono.activationMode === 'batch' ? 'batch' : 'individual';
+  }
+  function bindChronoActivationSetting() {
+    if (!document) return;
+    var select = document.getElementById('chronoActivationMode');
+    if (!select) return;
+    select.onchange = function () {
+      if (!meta.chrono || typeof meta.chrono !== 'object') meta.chrono = { carriedCount: 0, activationMode: 'individual' };
+      meta.chrono.activationMode = select.value === 'batch' ? 'batch' : 'individual';
+      SB.state.saveMeta(meta);
+      syncChronoActivationSetting();
+    };
   }
 
   /* ── 三类自动化记忆开关：设置面板绑定 + 增量同步（照抄自动点击的静态结构纪律）──
@@ -3193,6 +3275,8 @@
      * 那个 disabled 的 checkbox 就是这么自动解禁的，不需要买家自己去通知 UI。 */
     bindAutoClickSetting();
     syncAutoClickSetting();
+    bindChronoActivationSetting();
+    syncChronoActivationSetting();
     /* ⚙ 设置 → 三类自动化跨周目记忆开关（2026-11-18）：绑定 + 首帧同步。 */
     bindAutoMemorySetting();
     syncAutoMemorySetting();
@@ -3248,6 +3332,13 @@
     }
     markActive();
     if (root.setInterval) root.setInterval(loop, TICK_MS);
+    /* 启动时的解锁叙事 / 引导都已完成接线；若存档已研究升维，用终局演出收束启动弹窗。 */
+    bootUiReady = true;
+    if (S && S.techs && S.techs.ascend_dimension && meta && !meta.ascendDone) {
+      var finaleModal = document.getElementById('modal');
+      var finaleShow = SB.ui && SB.ui.render && SB.ui.render.showAscensionEnding;
+      if (finaleModal && finaleShow) finaleShow(S, true);
+    }
   }
 
   /* ERA10（2026-10-20）：轮回确认流程 —— 顶栏「重置/轮回」钮与戴森球通关弹窗的「立即轮回」钮
@@ -3286,7 +3377,7 @@
     }, '当前这局的进度会全部作废：{runSummary}。')) + '</div>';
     /* ERA11 逆时屋（2026-11-23 · spec §0 拍板 3 第 4 步）：携带的失能逆时屋未重新激活就轮回 ⇒ 丢失。
      * 只在真轮回（qual）且确有失能未激活单位时提示，纯展示不改账本。 */
-    if (qual && S0 && S0.chrono && S0.chrono.disabled && !S0.chrono.reactivated) {
+    if (qual && S0 && S0.chrono && Number(S0.chrono.disabledCount) > 0) {
       resetBody += '<div class="warnbox">' + gameHtml(gameText('game.reset.chrono.disabled_warning', {},
         '失能逆时屋未激活，本次轮回后不会保留。')) + '</div>';
     }
@@ -3333,8 +3424,10 @@
    * 明写「将得多少飞升点 / 将失去什么 / 开第几条路径」，与结算同源 veilPreview()。 */
   function askVeil() {
     var S0 = SB.game.run();
-    if (!S0 || !S0.techs || !S0.techs.beyond_veil) return;
     if (!SB.prestige || !SB.prestige.veilPreview) return;
+    var hasVeilTech = !!(S0 && S0.techs && S0.techs.beyond_veil);
+    var veilReady = !!(S0 && SB.prestige.veilReady && SB.prestige.veilReady(SB.game.meta(), S0));
+    if (!S0 || (!hasVeilTech && !veilReady)) return;
     var pv = SB.prestige.veilPreview(S0);
     if (!pv) return;
     if (pv.cycleStar < 1000) {
@@ -3415,6 +3508,7 @@
     /* 2026-11-25：导出供回归断言读档提示的一次性消费（与 showHoverInfo 同手法）。 */
     reportUnseatedChallengeCards: reportUnseatedChallengeCards,
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
+    completeAscensionEnding: completeAscensionEnding,
     stardustShopUnlocked: stardustShopUnlocked, unlockStardustShop: unlockStardustShop,
     getSpeed: function () { return speed; },
     runtimeStatus: function () {

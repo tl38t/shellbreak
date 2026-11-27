@@ -282,8 +282,14 @@
   function cardRetired(s, p) {
     return !!(p && p.retiredBy && s && s.civics && s.civics[p.retiredBy]);
   }
+  function populationCapPolicyBlocked(s, id) {
+    var active = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
+    if (!active || active.id !== 'veil_temporal_pincer') return false;
+    var p = policyById(id);
+    return !!(p && (typeof p.popCapFlat === 'number' || typeof p.popCapPerPopBldg === 'number'));
+  }
   function cardEffective(s, id) {
-    return !!(id && cardSlotted(s, id) && !cardRetired(s, policyById(id)));
+    return !!(id && cardSlotted(s, id) && !cardRetired(s, policyById(id)) && !populationCapPolicyBlocked(s, id));
   }
   function installedGovPassiveSources(s) {
     var out = [], arr = (s && s.cards) || [];
@@ -1465,7 +1471,8 @@
    * 里管「新装卡」，已在槽里的旧卡没人管 ⇒ 读档后禁装卡继续生效）。单一判据，两处共用。 */
   function cardBlockedByChallenge(s, id) {
     var active = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
-    return !!(active && active.id === 'anarchy' && id !== 'card_cycle_terminus');
+    return !!((active && active.id === 'anarchy' && id !== 'card_cycle_terminus')
+      || populationCapPolicyBlocked(s, id));
   }
 
   function cardBlocked(s, id, slot) {
@@ -1473,6 +1480,9 @@
     if (!clear) {
       var p = policyById(id);
       if (!p) return '没有这张卡';
+      if (populationCapPolicyBlocked(s, id))
+        return tr('civic.policy.challenge.population_cap_blocked', null,
+          '时间钳形攻势挑战期间，增加人口上限的政策卡不可用。');
       if (cardBlockedByChallenge(s, id))
         return '安那其主义挑战只允许装备「轮回之终末」';
       if (inSlot(s, id)) return null;                 // 已经在某槽里 ⇒ 幂等
@@ -1791,7 +1801,7 @@
    *    鼓舞一旦达成过就永久算数（rate 类条件会回落），与揭示的判据必须同源。 */
   function boostText(s, c) {
     if (!c.boost) return tr('civic.boost.not_required', null, '无需鼓舞');
-    var conditionDescription = SB.tech && SB.tech.condText ? SB.tech.condText(c.boost) : boostDesc(c);
+    var conditionDescription = SB.tech && SB.tech.condText ? SB.tech.condText(c.boost, s) : boostDesc(c);
     if (boostMet(s, c)) return tr('civic.boost.achieved', { conditionDescription: conditionDescription },
       '鼓舞已达成：' + conditionDescription);
     var d = condShort(s, c.boost);

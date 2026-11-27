@@ -17,6 +17,41 @@
     return null;
   }
 
+  function chronoDisabledCount(s) {
+    return s && s.chrono ? Math.max(0, Math.floor(Number(s.chrono.disabledCount) || 0)) : 0;
+  }
+  function chronoReactivatedCount(s) {
+    return s && s.chrono ? Math.max(0, Math.floor(Number(s.chrono.reactivatedCount) || 0)) : 0;
+  }
+  function chronoActivationMode() {
+    var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
+    return meta && meta.chrono && meta.chrono.activationMode === 'batch' ? 'batch' : 'individual';
+  }
+  function chronoActivationCost(s, count) {
+    var def = buildingById('chrono_house'), amount = Math.max(0, Math.floor(Number(count) || 0)), cost = {};
+    if (!def || !def.cost || !amount) return cost;
+    var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
+    var discountUnlocked = !!(SB.challenges && SB.challenges.tierDone && SB.challenges.tierDone('veil_temporal_pincer', meta) > 0);
+    var costPerHouseDivisor = discountUnlocked ? 10 : 3;
+    for (var key in def.cost) if (key !== 'pop' && def.cost[key] > 0) cost[key] = def.cost[key] * amount / costPerHouseDivisor;
+    return cost;
+  }
+  function activateChrono(s, emit) {
+    var disabled = chronoDisabledCount(s);
+    if (!s || disabled <= 0 || !s.chrono || !(s.techs && s.techs.reverse_time)) return false;
+    var amount = chronoActivationMode() === 'batch' ? disabled : 1;
+    var cost = chronoActivationCost(s, amount);
+    if (!SB.economy.canAfford(s, cost)) return false;
+    SB.economy.pay(s, cost);
+    s.chrono.disabledCount = disabled - amount;
+    s.chrono.reactivatedCount = chronoReactivatedCount(s) + amount;
+    if (emit) emit(tr('village.chrono.activation.log', {
+      activatedCount: amount,
+      resourceCostList: SB.economy.costTxt(cost)
+    }, '已激活失能逆时屋 ×' + amount + '，花费：' + SB.economy.costTxt(cost) + '。'));
+    return true;
+  }
+
   /* 聚落名字：随纪元演进（家在长大：兽居 → 厝 → 镇 → 城 → 国）。
    * 纯显示层，s.era 在存档里现成（见 state.js），零迁移。
    * 命名与纪元 motto 咬合：
@@ -197,6 +232,9 @@
     /* 挑战专属建筑：排在科技/市政墙**之前** —— 先说「这周目根本没有这座建筑」，
      * 再说「还差什么科技」，否则玩家会以为研究完那几个科技就能建。 */
     if (!challengeAllows(s, b)) return '仅限' + challengeOnlyName(b.challengeOnly) + '挑战期间建造';
+    if (b.id === 'chrono_house' && chronoDisabledCount(s) > 0)
+      return tr('village.chrono.activation.build_locked', null,
+        '请先激活失能逆时屋，之后才能建造新逆时屋。');
     if (b.requiredTech) {
       for (var i = 0; i < b.requiredTech.length; i++) {
         if (!s.techs[b.requiredTech[i]]) {
@@ -301,6 +339,7 @@
   function build(s, id, emit) {
     var b = buildingById(id);
     if (!b || !unlocked(s, b)) return false;
+    if (id === 'chrono_house' && chronoDisabledCount(s) > 0) return false;
     if (!needMet(s, b)) return false;
     /* ERA10 市政（2026-10-20 · 虚境祭坛 `maxLvl:3`）：全仓第一条等级上限。
      * ⚠️ 拦在这里而不是 UI：autoTick 走的也是 build()，UI 灰按钮只挡手动点击，
@@ -448,6 +487,9 @@
     /* freeFirstBuild（2026-10-28）：轻车熟路首建免费的**唯一判据**。economy.costOf 用它把
      *   资源项乘 0，render 用它把按钮文案换成「免费」—— 两处都读这一个函数，不各写一份。 */
     freeFirstBuild: freeFirstBuild,
-    autoZoneUnlocked: autoZoneUnlocked, autoTick: autoTick, habitatName: habitatName
+    autoZoneUnlocked: autoZoneUnlocked, autoTick: autoTick, habitatName: habitatName,
+    chronoDisabledCount: chronoDisabledCount, chronoReactivatedCount: chronoReactivatedCount,
+    chronoActivationMode: chronoActivationMode, chronoActivationCost: chronoActivationCost,
+    activateChrono: activateChrono
   };
 })(typeof window !== 'undefined' ? window : globalThis);

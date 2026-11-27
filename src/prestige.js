@@ -261,6 +261,9 @@
      * rebirths 是合格轮回计数器（软重置 / 神学前重置 / 未过资格门全不计）。
      * ⚠️ 老档无此键 ⇒ 从 0 起算，不追溯（历史轮回次数无法从 cycle 反推，见设计稿 §四·4）。 */
     meta.rebirths = (meta.rebirths || 0) + 1;
+    /* 一往无前按本飞升周期内已完成的合格轮回计数；超出档位上限后，结算报告会带回失败结果。 */
+    if (SB.challenges && SB.challenges.onQualifiedRebirth)
+      SB.challenges.onQualifiedRebirth(s, meta);
     /* 2026-11-06 用户拍板：`meta.cycle` 从「局数」收紧为「**合格轮回次数**」，与 rebirths
      * 同侧同源 —— 这是它唯一 +1 的地方（startRun 只涨 runs，不再涨 cycle）。
      * 收紧的原因是 cycle 是老口径下唯一被收益读的点：潮汐之树 dyn:'loop5'（0.05×cycle，
@@ -320,18 +323,20 @@
      * 掀幕后=本帷幕周期累计。与 state.js 的 freshRun 同一个函数，杜绝两套口径。 */
     if (s.got) s.got.stardust = (SB.state && SB.state.starEarnedSeed)
       ? SB.state.starEarnedSeed(meta) : meta.stardustEarned;
+    /* 飞升资格按整个飞升周期锁存：任一已达门槛的周目结算后，后续普通轮回不撤销资格。 */
+    var veilThreshold = SB.challenges && SB.challenges.veilStarThreshold
+      ? SB.challenges.veilStarThreshold(s) : 1000;
+    if (!meta.veilReady && s.techs && s.techs.beyond_veil && veilPeriod(meta, null).star >= veilThreshold)
+      meta.veilReady = true;
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
-    /* ═══ ERA11/12 跨轮回账（2026-11-23 · spec §0，唯一写 meta 处）═════════════
-     * ⚠️ 只认真轮回 doBreak；软重置/重开走 startRun，不带这些字段。
-     * 【逆时屋】携带一局、只续一次：本局失能且未重新激活 ⇒ 下局不带（清 carried）；
-     *   本局新建或已重新激活 ⇒ 带到下局（carried=true）。 carried 只存 bool，不存等级/人口。 */
+    /* ═══ ERA11/12 跨轮回账（2026-11-23 · spec §0）════════════════════════════
+     * ⚠️ 只认真轮回 doBreak；软重置/重开走 startRun，不写这份账。
+     * 【逆时屋】本局新建及已激活的携带屋进入下局；未激活的携带屋会在本次轮回后丢失。 */
     if (meta.chrono && typeof meta.chrono === 'object') {
-      var _chronoDisabled = !!(s.chrono && s.chrono.disabled);
-      var _chronoReactivated = !!(s.chrono && s.chrono.reactivated);
-      meta.chrono.carried = (_chronoDisabled && !_chronoReactivated)
-        ? false
-        : (!!(s.lvl && s.lvl.chrono_house > 0) || _chronoReactivated);
+      var _chronoReactivatedCount = s.chrono ? Math.max(0, Math.floor(Number(s.chrono.reactivatedCount) || 0)) : 0;
+      var _chronoBuiltCount = s.lvl ? Math.max(0, Math.floor(Number(s.lvl.chrono_house) || 0)) : 0;
+      meta.chrono.carriedCount = _chronoReactivatedCount + _chronoBuiltCount;
     }
     /* 【船团】本局建成 ⇒ 跨轮回累计 +1 座、暗物质加成 +10%（100 tenths）。
      * 建成立即生效靠 darkmatterOutMul 读 bonusTenths，这里只做换局累积。 */
@@ -379,10 +384,11 @@
    *
    * 引导口径（已与用户 2026-11-17 报的阻塞一致，具体金额待其复核）：
    *   · 账本已存在 → cycleTide / cycleStar。
-   *   · 账本不存在（首次掀幕）→ 以「存档至今累计」为第一段周期起点：
-   *     meta.tideEarnedTotal / meta.stardustEarned。理由是这第一段周期就是从存档
-   *     创建到此刻，而不是从某个并不存在的「上次掀幕」算起；且星屑侧的起点与
-   *     《掀起帘幕》尤里卡读的 s.got.stardust（= meta.stardustEarned）**同源**，
+   *   · 账本不存在（首次掀幕）→ 以历史累计量减去当前周期基准作为周期账：
+   *     meta.tideEarnedTotal - veilCycleTideSeed / meta.stardustEarned - veilCycleStarSeed。
+   *     新档基准为 0，因此首次掀幕仍按存档至今累计；未达门槛的飞升挑战若先开新周期，
+   *     会把旧累计存成基准，避免旧周期被丢弃的资源以后再算进飞升点。星屑侧仍与
+   *     《掀起帘幕》尤里卡读的 s.got.stardust 使用同一个周期基准，二者始终**同源**，
    *     所以「尤里卡点亮」与「够得着 1000 门槛」必然同时成立，不会再出第二个死锁。
    *   · 两种情形都要再加**本周目尚未结算的收益**（qualified 且未 breakSettled）：
    *     掀幕发生在局内，不并入就等于「打穿一整局却换不来一点飞升点」
@@ -393,8 +399,10 @@
   function veilPeriod(meta, s) {
     meta = meta || (SB.game && SB.game.meta && SB.game.meta()) || {};
     var v = (meta.veil && typeof meta.veil === 'object') ? meta.veil : null;
-    var baseTide = v ? (v.cycleTide || 0) : (Number(meta.tideEarnedTotal) || 0);
-    var baseStar = v ? (v.cycleStar || 0) : (Number(meta.stardustEarned) || 0);
+    var baseTide = v ? (v.cycleTide || 0)
+      : Math.max(0, (Number(meta.tideEarnedTotal) || 0) - (Number(meta.veilCycleTideSeed) || 0));
+    var baseStar = v ? (v.cycleStar || 0)
+      : Math.max(0, (Number(meta.stardustEarned) || 0) - (Number(meta.veilCycleStarSeed) || 0));
     if (s === undefined) s = (SB.game && SB.game.run) ? SB.game.run() : null;
     var tide = baseTide, star = baseStar;
     var pending = { tide: 0, star: 0, active: false };
@@ -424,6 +432,16 @@
       pending: pending,
       points: Math.round((tide / 10000 + star / 1000) * ascMul * 100) / 100
     };
+  }
+
+  /* 本周目已达门槛，或本飞升周期曾经有周目达标后锁存的资格。 */
+  function veilReady(meta, s) {
+    meta = meta || (SB.game && SB.game.meta && SB.game.meta()) || {};
+    if (meta.veilReady === true) return true;
+    if (s === undefined) s = (SB.game && SB.game.run) ? SB.game.run() : null;
+    var threshold = SB.challenges && SB.challenges.veilStarThreshold
+      ? SB.challenges.veilStarThreshold(s) : 1000;
+    return !!(s && s.techs && s.techs.beyond_veil && veilPeriod(meta, s).star >= threshold);
   }
 
   /* 飞升点预估（下位稿 §3，用户拍板不取整、留两位小数）。
@@ -467,7 +485,7 @@
     };
   }
 
-  /* 掀幕：原子事务。学完《掀起帘幕》且周期星屑 ≥1000 才可调用（门在 UI 侧，这里再兜一层）。
+  /* 掀幕：原子事务。当前周目学成《掀起帘幕》且周期星屑 ≥1000，或本飞升周期已锁存资格。
    * 顺序不可换（上位稿 §3.1）：先算点 → 清资产 → 发点建账 → 解锁路径 → startRun 重建本局。
    * 任何一步失败都抛错、不改状态——但这里全是同步纯内存操作，理论上不会中途失败。
    *
@@ -476,10 +494,11 @@
    *   · 省略 / null / 池空 → 不开新路径但照常掀幕（用户拍板「没可选就不开」）；
    *   · 非法 id（已开 / 未实装 / 不存在的字符串）→ 抛错，绝不悄悄开另一条。
    * 不传 chooseId 的旧调用（如历史 e2e）行为变为「不开路径」，符合新的默认语义。 */
-  function doVeil(s, emit, chooseId) {
+  function doVeil(s, emit, chooseId, options) {
     var meta = SB.game && SB.game.meta && SB.game.meta();
     if (!meta) throw new Error('无法读取跨周目存档');
-    if (!s || !s.techs || !s.techs.beyond_veil) throw new Error('尚未学成《掀起帘幕》');
+    if (!(s && s.techs && s.techs.beyond_veil) && meta.veilReady !== true)
+      throw new Error('尚未学成《掀起帘幕》');
     /* ⓪ 路径选择校验（Must be before ANY mutation —— 抛错时账本必须一字未动）。
      * 先看当前 opened：首次掀幕 v 还不存在时视为空数组。 */
     var openedNow = (meta.veil && meta.veil.paths && meta.veil.paths.opened) || [];
@@ -498,8 +517,12 @@
      *    首次掀幕那笔「存档至今累计」的引导种子就丢了（回归到 0 点）。
      * 门禁也用这份账，而不是 v.cycleStar：首次掀幕 v 还不存在。 */
     var per = veilPeriod(meta, s);
-    if (per.star < 1000) {
-      throw new Error('本周期星屑不足 1000（当前 ' + Math.round(per.star) + '），无法掀幕');
+    var threshold = SB.challenges && SB.challenges.veilStarThreshold
+      ? SB.challenges.veilStarThreshold(s) : 1000;
+    if (per.star < threshold) {
+      throw new Error(tr('ui.veil.error.insufficient_stardust', {
+        threshold: Math.round(threshold), current: Math.round(per.star)
+      }, '本周期星屑不足 ' + Math.round(threshold) + '（当前 ' + Math.round(per.star) + '），无法掀幕'));
     }
     var gained = per.points;
 
@@ -530,6 +553,9 @@
     meta.perks = {};
     meta.stardust = 0;
     meta.starPerks = emptyStarPerks();
+    meta.veilCycleTideSeed = 0;
+    meta.veilCycleStarSeed = 0;
+    meta.veilReady = false;
     meta.techLog = {};
     meta.lastRun = null;
     meta.oldFaith = 0;
@@ -581,10 +607,13 @@
      *    未达成则 award 返回 null、不写账，破壳型补判仍走 sealRun 的既有门槛。 */
     if (SB.challenges && SB.challenges.evaluate && s.challenge)
       SB.challenges.evaluate(s, meta, true);
+    /* 掀幕结束当前飞升挑战；beginAscensionCycle 传入的新挑战会由后续 startRun 写入账本。 */
+    if (!(options && options.challenge)) meta.activeAscensionChallenge = null;
 
     // ⑥ 落盘 + 重建本局（走 startRun，它负责 runs+1 与 freshRun）
     SB.state.saveMeta(meta);
-    if (SB.game && SB.game.startRun) SB.game.startRun();
+    if (SB.game && SB.game.startRun) SB.game.startRun(options && options.challenge
+      ? { challenge: options.challenge } : undefined);
     /* 枯荣起始奖励只在真实掀幕后发放，不能放进 startRun（那样普通重开也会反复领取）。
      * 轮回点同时记余额和历史获得量；星屑只增加余额，不计入累计结算/商店台账。 */
     var startingTide = SB.voidFx && SB.voidFx.startTide ? SB.voidFx.startTide() : 0;
@@ -627,6 +656,52 @@
     var cur = (SB.game && SB.game.meta && SB.game.meta().starPerks) || {};
     for (var k in cur) out[k] = 0;
     return out;
+  }
+
+  /* 飞升挑战总是从新的飞升周期开局。
+   * 若周期曾达掀幕门槛，走真实掀幕并结算飞升点；否则只丢弃旧周期，不增加掀幕次数或点数。 */
+  function beginAscensionCycle(s, emit, challenge) {
+    var meta = SB.game && SB.game.meta && SB.game.meta();
+    if (!meta) throw new Error(tr('ui.veil.error.no_meta', {}, '无法读取跨周目存档'));
+    var challengeOptions = challenge ? { challenge: challenge } : null;
+    if (veilReady(meta, s)) return doVeil(s, emit, null, challengeOptions);
+
+    /* 没有飞升门槛时仍沿用普通挑战的周目结算：结算产生的周期资产会在下方清空，
+     * 但合格轮回次数和其他跨周期账照常记入。 */
+    if (s && !s.breakSettled && qualified(s))
+      doBreak(s, null, { silent: true, challengeStart: true });
+    if (veilReady(meta, null)) return doVeil(s, emit, null, challengeOptions);
+
+    /* 未达门槛也要切新周期。无飞升账本的老档用历史累计基准隔离被丢弃周期，
+     * 避免下一次达标时把旧星屑或轮回点重新算进飞升点。 */
+    var hasVeilLedger = !!(meta.veil && typeof meta.veil === 'object');
+    meta.veilCycleTideSeed = hasVeilLedger ? 0 : Math.max(0, Number(meta.tideEarnedTotal) || 0);
+    meta.veilCycleStarSeed = hasVeilLedger ? 0 : Math.max(0, Number(meta.stardustEarned) || 0);
+    meta.spent = (meta.spent || 0) + (Number(meta.tide) || 0);
+    meta.tide = 0;
+    meta.perks = {};
+    meta.stardust = 0;
+    meta.starPerks = emptyStarPerks();
+    meta.techLog = {};
+    meta.lastRun = null;
+    meta.oldFaith = 0;
+    meta.memorialWonders = {};
+    meta.oldArtworkEarnedTotal = 0;
+    meta.oldTideStelesEarnedTotal = 0;
+    meta.govPassiveCards = {};
+    meta.govEverAdopted = {};
+    meta.challengePopupPending = null;
+    meta.veilReady = false;
+    if (meta.veil && typeof meta.veil === 'object') {
+      meta.veil.perks = {};
+      meta.veil.cycleTide = 0;
+      meta.veil.cycleStar = 0;
+    }
+    if (meta.armada && typeof meta.armada === 'object') meta.armada.cycleCount = 0;
+    if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    if (SB.game && SB.game.startRun) SB.game.startRun(challengeOptions || undefined);
+    if (SB.saveTransfer && SB.saveTransfer.backupSoon) SB.saveTransfer.backupSoon();
+    return { points: 0, count: meta.veil && meta.veil.count || 0, cycleTide: 0, cycleStar: 0 };
   }
 
   /* ── 轮回商店 ───────────────────────────────────────────────────────────
@@ -935,8 +1010,10 @@
     /* 帷幕之后（二层 prestige） */
     estimateVeilPoints: estimateVeilPoints,
     veilPeriod: veilPeriod,
+    veilReady: veilReady,
     veilPreview: veilPreview,
     doVeil: doVeil,
+    beginAscensionCycle: beginAscensionCycle,
     armadaCountThisAscension: armadaCountThisAscension,
     PATH_IDS: PATH_IDS,
     qualified: qualified,

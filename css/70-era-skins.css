@@ -1583,23 +1583,41 @@ html[data-era] #pane-village .bzone .bzbody > .row.is-maxed .btn.buy:disabled {
   }
 }
 
-/* ── 手机端巢穴按钮区：够/不够两态同高（C 方案，2026-11-18）────────────────
- * 病根：≤760px 时 .buy-actions 占满整行且 flex-wrap:wrap；资源不够会同时多出
- * 差额行 + 追踪按钮，把按钮区从 53px 撑到 100px，攒资源临界点反复横跳。
- * 修法：① 差额行改单行小字、与按钮同排、可省略；② 追踪按钮图标化（46→30px）；
- *       ③ 按钮区强制单行 nowrap，两态高度锁定一致。只作用于手机端 + 巢穴，桌面不动。 */
+/* ── 手机端巢穴按钮区：够/不够两态同高（E 方案，2026-11-26）────────────────
+ * 病根（2026-11-18 C 方案没除干净）：≤760px 时差额条与「自动/升级/追踪」同排且
+ * 参与挤压 —— 材料不足那一刻凭空多出 111px 差额条，`justify-content:flex-end`
+ * 把整串右推 51px；升级按钮被挤窄 176→125→111→92 ⇒ 成本串 2→3→4 行 ⇒ 按钮
+ * 44→55→70 ⇒ 整行 124→135→150，攒资源临界点反复上下跳 11~26px。
+ * 玩家录屏（2026-11-26）确认：「自动」按钮本身恒 44×40、文字始终横排，它只是
+ * 被差值条推右 + 被变高的升级按钮带着垂直居中下沉 —— 真变量只有升级按钮。
+ * 修法（E 案）：① 差额条改为**绝对定位**在按钮区首行、常驻 18px 高（脱离文档流，
+ * 存在与否都不改变其余元素宽度）；② 按钮区 padding-top 常驻 22px 承接该行，
+ * 「够」态留空、「不足」态填「还差 X」，两态总高一致；③ 差额条不占位 ⇒ 升级
+ * 按钮两态同宽 ⇒ 成本串行数、按钮高度一致。
+ * 实测（390/360/340/320 四档 × 单/双/三项资源 = 24 组）：rowH、buy、auto 坐标
+ * 两态逐像素一致。代价：每行相对旧「够」态 +16px 空高（差额行常驻）。
+ * 只作用于手机端 + 巢穴，桌面端一字不动。 */
 @media (max-width: 760px) {
   html[data-era] #pane-village .bzone .bzbody > .row > .buy-actions {
+    position: relative;
     flex-wrap: nowrap;
     gap: 5px;
-    padding-top: 6px;
+    /* 差额行常驻高度：18px 行 + 4px 间隔，够/不够两态都占这一格 */
+    padding-top: 22px;
   }
-  /* 差额行：不再 flex:1 1 180px 独占一行；单行 + 可收缩省略 */
+  /* 差额行：绝对定位到首行、脱离文档流 —— 有它没它都不挤压右侧按钮 */
   html[data-era] #pane-village .bzone .bzbody > .row > .buy-actions > .bld-shortfalls {
-    flex: 0 1 auto;
-    min-width: 0;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 18px;
+    flex: none;
     margin: 0;
     flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 5px;
     overflow: hidden;
     white-space: nowrap;
   }
@@ -1619,7 +1637,9 @@ html[data-era] #pane-village .bzone .bzbody > .row.is-maxed .btn.buy:disabled {
    * overflow 裁掉，玩家看到「升级」的「升」字没了、文字从卡片外开始。
    * 改 `flex:1 1 auto` 后按钮吃满剩余宽度，内部文字走 50-module-polish.css 里已有的
    * `.bld-action-label{white-space:normal;overflow-wrap:anywhere}` 折行。
-   * 实测：390 宽下 36 行卡片零溢出，总高不变（4967px）。 */
+   * 实测：390 宽下 36 行卡片零溢出，总高不变（4967px）。
+   * ⚠️ 2026-11-26（E 案）：差额条已脱离文档流 ⇒ 按钮宽度不再由「有没有差额条」
+   * 决定，`flex:1 1 auto` 下两态必然同宽，这里不需要再锁死 px 宽度。 */
   html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .btn.buy {
     flex: 1 1 auto;
     min-width: 92px;

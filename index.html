@@ -8,9 +8,9 @@
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
-    } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=99"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=90"><\/script><script src="electron/locales/zh-TW.js?v=40"><\/script>' : '') + '<script src="src/i18n.js?v=4"><\/script>');
+    } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=106"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=96"><\/script><script src="electron/locales/zh-TW.js?v=46"><\/script>' : '') + '<script src="src/i18n.js?v=4"><\/script>');
 </script>
-  <link rel="stylesheet" href="css/main.css?v=385" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+  <link rel="stylesheet" href="css/main.css?v=391" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -59,6 +59,13 @@
               <option value="sci" data-i18n="ui.settings.number_format.sci">科学计数法</option>
             </select>
           </label>
+          <!-- 天赋节点详情弹窗开关（2026-11-25）：控制星屑商店与轮回商店点节点的行为。
+               ⚠️ 结构静态，状态由 theme.js 按 shellbreak.perkDetailPopups 增量写 checked，默认开。
+               关掉后两个商店都回到「点节点一击购买」，满级/等前置/积分不足的节点重新灰掉。 -->
+          <label class="ui-setting-row">
+            <input type="checkbox" id="perkDetailPopupsToggle" checked>
+            <span><b data-i18n="ui.settings.perk_detail_popups.label">天赋节点详情弹窗</b><small data-i18n="ui.settings.perk_detail_popups.hint">开启时点星屑 / 轮回商店节点先看完整说明，在弹窗内购买；关闭后点节点直接购买。</small></span>
+          </label>
           <div class="ui-settings-title" data-i18n="ui.settings.automation.title">自动</div>
           <!-- 自动点击开关（2026-10-28 用户要求「设置栏里也加一个自动点击开关，没有研究就提示在轮回商店购买」）。
                ⚠️ 结构**静态**，状态全部由 game.js 的 syncAutoClickSetting() 用 textContent / checked /
@@ -67,6 +74,13 @@
           <label class="ui-setting-row" id="autoClickRow">
             <input type="checkbox" id="autoClickToggle">
             <span><b data-i18n="ui.settings.auto_click.label">自动点击</b><small id="autoClickHint" data-i18n="ui.status.auto_click.loading">读取中…</small></span>
+          </label>
+          <label class="ui-setting-row ui-setting-row--select">
+            <span><b data-i18n="ui.settings.chrono.mode.label">逆时屋激活方式</b><small data-i18n="ui.settings.chrono.mode.hint">逐座激活时每次恢复一座；整批激活时一次恢复全部失能逆时屋。此偏好跨轮回保留。</small></span>
+            <select id="chronoActivationMode" class="ui-resolution-select" data-i18n-aria-label="ui.settings.chrono.mode.label">
+              <option value="individual" data-i18n="ui.settings.chrono.mode.individual">逐座激活</option>
+              <option value="batch" data-i18n="ui.settings.chrono.mode.batch">整批激活</option>
+            </select>
           </label>
           <!-- 三类自动化跨周目记忆开关（2026-11-18 用户拍）：默认全开。
                ⚠️ 结构静态，状态由 game.js 的 syncAutoMemorySetting() 只写 checked —— 不整块重写。
@@ -383,19 +397,19 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=252"></script>
+<script src="src/config.js?v=257"></script>
 <script src="src/config-catalog.js?v=21"></script>
 <script src="src/config-content.js?v=45"></script>
-<script src="src/config-buildings.js?v=52"></script>
+<script src="src/config-buildings.js?v=53"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
-<script src="src/techs.js?v=163"></script>
-<script src="src/tech.js?v=143"></script>
+<script src="src/techs.js?v=165"></script>
+<script src="src/tech.js?v=144"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
 <script src="src/civics-data.js?v=44"></script>
-<script src="src/civics.js?v=152"></script>
+<script src="src/civics.js?v=154"></script>
 <!-- 传承（2026-11-11）：必须在 civics.js 之后（install() 运行时包装 SB.civic 的效果出口），
      且早于 state-migrate.js（读档白名单校验要用 isPoolCard）与 war.js（吞并发榜）。 -->
 <script src="src/heritage.js?v=2"></script>
@@ -404,16 +418,16 @@
 <script src="src/companies.js?v=6"></script>
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/save-storage.js?v=12"></script>
-<script src="src/state-migrate.js?v=42"></script>
-<script src="src/state.js?v=202"></script>
+<script src="src/state-migrate.js?v=45"></script>
+<script src="src/state.js?v=207"></script>
 <!-- 硅基承续 · 十部位效果通道（2026-11-17）：只管跨周目器官等级 → 生产乘区的映射。
      必须排在 state.js（提供 SB.game.meta）之后、economy/workshop/shell/war 之前 ——
      那些文件在 tick 首帧就调 SB.veilFx.*，晚加载会在第一帧抛 undefined。 -->
-<script src="src/veil-effects.js?v=6"></script>
+<script src="src/veil-effects.js?v=7"></script>
 <script src="src/workshop.js?v=138"></script>
 <script src="src/wonder.js?v=118"></script>
 <script src="src/economy-social.js?v=16"></script>
-<script src="src/economy.js?v=232"></script>
+<script src="src/economy.js?v=235"></script>
 <script src="src/faith-text.js?v=2"></script>
 <script src="src/faith.js?v=5"></script>
 <script src="src/economy-rates.js?v=39"></script>
@@ -425,23 +439,23 @@
 <script src="src/autoplay.js?v=4"></script>
 <script src="src/audio.js?v=3"></script>
 <script src="src/shell.js?v=120"></script>
-<script src="src/habitat.js?v=118"></script>
+<script src="src/habitat.js?v=120"></script>
 <script src="src/folk.js?v=111"></script>
 <script src="src/war.js?v=32"></script>
-<script src="src/prestige.js?v=151"></script>
-<script src="src/challenges.js?v=39"></script>
+<script src="src/prestige.js?v=154"></script>
+<script src="src/challenges.js?v=45"></script>
 <script src="src/auto-research.js?v=2"></script>
 <!-- Renderer parts are classic global scripts, not ES modules: content/common/pane APIs
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
 <script src="src/ui/render-content.js?v=27"></script>
 <script src="src/ui/render-common.js?v=10"></script>
-<script src="src/ui/render-info.js?v=60"></script>
-<script src="src/ui/render-pane-research.js?v=56"></script>
-<script src="src/ui/render-pane-village.js?v=51"></script>
+<script src="src/ui/render-info.js?v=64"></script>
+<script src="src/ui/render-pane-research.js?v=57"></script>
+<script src="src/ui/render-pane-village.js?v=52"></script>
 <script src="src/ui/render-pane-folk.js?v=8"></script>
 <script src="src/ui/render-talent-tree.js?v=7"></script>
-<script src="src/ui/render-pane-meta.js?v=23"></script>
-<script src="src/ui/render-pane-challenges.js?v=36"></script>
+<script src="src/ui/render-pane-meta.js?v=25"></script>
+<script src="src/ui/render-pane-challenges.js?v=40"></script>
 <script src="src/ui/render-pane-company.js?v=6"></script>
 <script src="src/ui/render-pane-faith.js?v=7"></script>
 <script src="src/ui/render-pane-war.js?v=24"></script>
@@ -454,25 +468,26 @@
 <script src="src/ui/render-pane-star-map.js?v=16"></script>
 <script src="src/ui/render-pane-workshop.js?v=30"></script>
 <script src="src/ui/render-environment.js?v=29"></script>
-<script src="src/ui/render.js?v=324"></script>
+<script src="src/ui/cosmic-finale.js?v=5"></script>
+<script src="src/ui/render.js?v=333"></script>
 <!-- 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层弹窗 + 硅基装配台。
      加载早于 game.js；它对 SB.game 的读取都在运行期（点按钮时），无加载期依赖。 -->
-<script src="src/ui/veil-hub-ui.js?v=21"></script>
+<script src="src/ui/veil-hub-ui.js?v=22"></script>
 <!-- 随行资源面板：常驻骨架 + 惰性建网格；必须在 render.js 之后（renderRes 调它的 paint）。 -->
 <script src="src/ui/walk-panel.js?v=7"></script>
 <script src="src/ui/track-dock.js?v=15"></script>
 <script src="src/onboarding.js?v=2"></script>
-<script src="src/game.js?v=217"></script>
+<script src="src/game.js?v=222"></script>
 <script src="src/save-transfer.js?v=21"></script>
 <script src="src/redeem.js?v=6"></script>
-<script src="src/ui/input.js?v=201"></script>
+<script src="src/ui/input.js?v=203"></script>
 <script src="src/ai-strategy.js?v=97"></script>
-<script src="src/ui/theme.js?v=8"></script>
+<script src="src/ui/theme.js?v=9"></script>
 <script src="src/ui/background.js?v=3"></script>
 <script src="src/ui/era5-steam.js?v=2"></script>
 <script src="src/ad.js?v=3"></script>
 <script src="src/rank.js?v=3"></script>
-<script src="src/achv.js?v=18"></script>
+<script src="src/achv.js?v=23"></script>
 <script src="src/main.js?v=103"></script>
 <!-- 现场诊断浮层（2026-10-27）：连点标题 5 次开启，或 URL 带 ?diag。默认零风险、不进任何正常路径。 -->
 <script src="src/ui/diag.js?v=3"></script>

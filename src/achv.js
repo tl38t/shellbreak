@@ -35,7 +35,7 @@
   var inited = false;
   var derivedCache = null;
 
-  /* 29 条静态成就定义（17 项挑战专属 + 12 项轮回/文明里程碑）。
+  /* 31 条静态成就定义（19 项挑战专属 + 12 项轮回/文明里程碑）。
    * 键必须与 SB.CFG.ACHV 一致（改键名两处同改）。
    * name / desc 是旧条目的回退文案，游戏内当前展示文案来自 i18n 语义键。
    * icon 为游戏内成就墙用图；12 条文明里程碑有专属图标，挑战成就复用挑战徽章。
@@ -95,6 +95,11 @@
       desc: '幸福度恒为动荡最低档，仍要在最深的不安中研成《掀起帘幕》。' },
     { key: 'challengeVeilCramped', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_CRAMPED', name: '繁盛市场今在此', icon: 'assets/challenges/challenge-veil-cramped-illustrated.png',
       desc: '在所有仓储上限被压缩 70% 的逼仄仓廪里研成《掀起帘幕》——螺蛳壳里做道场。' },
+    { key: 'challengeVeilTemporalPincer', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_TEMPORAL_PINCER', name: '时间钳形攻势', icon: 'assets/challenges/challenge-veil-temporal-pincer.png',
+      desc: '从 10 座失能逆时屋开局，并在所有人口建筑建造消耗 +600% 时掀起帘幕。' },
+    { key: 'challengeVeilEternityMoment', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_ETERNITY_MOMENT', icon: 'assets/challenges/challenge-veil-eternity-moment.png' },
+    { key: 'challengeVeilOneWay', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_ONE_WAY', icon: 'assets/challenges/challenge-veil-one-way.png' },
+    { key: 'challengeLandGold', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_LAND_GOLD', icon: 'assets/challenges/challenge-land-gold.png' },
     { key: 'starComplete', steamApiName: 'SHELLBREAK_STAR_COMPLETE', name: '太空时代', icon: 'assets/achievements/achv-star-complete.png',
       desc: '破壳之后把星空槽完全填满——深海的族民，终于把目光投向了整片星海。' },
     { key: 'religion',     steamApiName: 'SHELLBREAK_RELIGION', name: '立教', icon: 'assets/achievements/achv-religion.png',
@@ -329,7 +334,7 @@
     var defs = C.list();
     for (var i = 0; i < defs.length; i++) {
       var d = defs[i];
-      if (d.achievementKey && C.tierDone(d.id, meta) >= d.tiers.length)
+      if (d.achievementKey && (d.infiniteTiers ? C.tierDone(d.id, meta) > 0 : C.tierDone(d.id, meta) >= d.tiers.length))
         unlockOnce(d.achievementKey, meta);
     }
   }
@@ -439,7 +444,8 @@
     var clr = report && report.challengeClear;
     if (clr && SB.challenges) {
       var d = SB.challenges.byId(clr.id);
-      if (d && clr.tier === d.tiers.length - 1) unlockOnce(d.achievementKey || clr.id, meta);
+      if (d && (d.infiniteTiers ? clr.tier === 0 : clr.tier === d.tiers.length - 1))
+        unlockOnce(d.achievementKey || clr.id, meta);
     }
     sweepMeta(meta);
   }

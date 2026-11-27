@@ -175,6 +175,23 @@
 .tree-detail-section h4{margin:0 0 6px;color:#9eb4c4;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
 .tree-detail-section p{margin:0;color:#d5e2eb;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
 .tree-detail-section small{display:block;margin-top:5px;color:var(--dim);font-size:10px}
+.tree-detail-section.unity-ascend-number-panel{position:relative;min-height:100px;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  border-color:color-mix(in srgb,var(--era-accent,#E8D9FF) 36%,var(--line));
+  background:radial-gradient(ellipse at 50% 48%,color-mix(in srgb,var(--era-accent,#E8D9FF) 10%,transparent),transparent 68%),
+    linear-gradient(145deg,color-mix(in srgb,var(--era-accent,#E8D9FF) 5%,var(--panel2)),var(--panel));
+  box-shadow:inset 0 1px rgba(255,255,255,.07),inset 0 0 24px color-mix(in srgb,var(--era-accent,#E8D9FF) 5%,transparent)}
+.tree-detail-section.unity-ascend-number-panel::before{content:"";position:absolute;inset:6px;pointer-events:none;border:1px solid color-mix(in srgb,var(--era-accent,#E8D9FF) 14%,transparent);
+  border-radius:8px}
+.unity-ascend-number{position:relative;display:flex;align-items:center;gap:6px;min-height:88px;line-height:1}
+.unity-ascend-current,.unity-ascend-total{display:flex;align-items:center;justify-content:center;flex:none}
+.unity-ascend-glyph{display:block;flex:none;background-image:url("../assets/ui/unity-ascend-digits.png?v=1");background-repeat:no-repeat;background-size:500% 200%}
+.unity-ascend-glyph.current{width:50px;height:58px;filter:drop-shadow(0 2px 1px rgba(10,13,24,.62)) drop-shadow(0 0 5px rgba(177,164,244,.22))}
+.unity-ascend-glyph.total{width:25px;height:31px;opacity:.92;filter:drop-shadow(0 1px 1px rgba(10,13,24,.58))}
+.unity-ascend-divider{position:relative;width:2px;height:32px;flex:none;margin:0 4px;border-radius:2px;transform:rotate(18deg);
+  background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--era-accent,#E8D9FF) 68%,var(--era-accent-soft,#80DFCF)),transparent)}
+.unity-ascend-divider::before,.unity-ascend-divider::after{content:"";position:absolute;left:-1px;width:4px;height:4px;border-radius:50%;background:var(--era-accent-soft,#80DFCF)}
+.unity-ascend-divider::before{top:1px}.unity-ascend-divider::after{bottom:1px}
+html[data-ui-theme="day"] .unity-ascend-glyph{filter:drop-shadow(0 1px 2px rgba(32,43,65,.42))}
 /* 追踪尤里卡 / 鼓舞（2026-10-30）：树卡底部状态行里那颗 ★。
  * ⚠️ 它是 span 不是 button（卡片本身是 <button>，HTML 不许嵌套），点按走 input.js 的 document 委托；
  *    `margin-left:auto` 与「查看详情」各自 auto ⇒ 两者平分剩余空隙，★ 落在状态文字右侧。

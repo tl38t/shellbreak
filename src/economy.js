@@ -153,6 +153,9 @@
    * 加在末尾、用 `|| 0` 兜空 —— s.perk 在 freshRun 总被 emptyPerks 初始化（已含 startPop:0）。 */
   function popCap(s) {
     var p = s.perk || {};
+    var chronoRunCount = s.chrono
+      ? Math.max(0, Math.floor(Number(s.chrono.disabledCount) || 0)) + Math.max(0, Math.floor(Number(s.chrono.reactivatedCount) || 0))
+      : 0;
     var popBuildLev = (s.lvl.nest || 0) + (s.lvl.coralhouse || 0) + (s.lvl.tenement || 0);
     var cap = SB.BLD.houseBase
       + s.lvl.nest * SB.BLD.house
@@ -190,16 +193,14 @@
       + (SB.civic && SB.civic.cardPopCapFlat ? SB.civic.cardPopCapFlat(s) : 0) // 人口政策卡：固定上限加值
       + (SB.war && SB.war.populationCapBonus ? SB.war.populationCapBonus(s) : 0) // 战役中获得的人口上限储备
       + (SB.faith && SB.faith.popCapBonus ? SB.faith.popCapBonus(s) : 0)
-      /* ERA11 逆时屋（2026-11-23 · spec §3/§0）：每座 +1 人口上限，与住房同轴相加。
-       * ⚠️ 失能携带的那座不在 s.lvl 里（freshRun 只置 s.chrono.disabled=true），但 spec §0
-       *   明定「人口上限 +1 保留、从未失效」⇒ 这里按 disabled 补 1 座，激活后不重复计。 */
-      + (s.lvl.chrono_house || 0) + ((s.chrono && s.chrono.disabled) ? 1 : 0);
+      /* ERA11 逆时屋：建筑等级、携带的失能数量和已激活数量各占一份人口上限。 */
+      + (s.lvl.chrono_house || 0) + chronoRunCount;
     var crisisCapMul = (SB.war && SB.war.crisisPopulationCapMul)
       ? SB.war.crisisPopulationCapMul(s) : 1;
     if (crisisCapMul < 1) {
       /* 虚境行者：现有人口上限与后续人口建筑增量统一按剩余比例计算并向上取整；
        * 逆时屋是明确豁免项，保留其完整加值。 */
-      var chronoCap = (s.lvl.chrono_house || 0) + ((s.chrono && s.chrono.disabled) ? 1 : 0);
+      var chronoCap = (s.lvl.chrono_house || 0) + chronoRunCount;
       cap = Math.ceil(Math.max(0, cap - chronoCap) * crisisCapMul) + chronoCap;
     }
     /* 人口按完整个体计数。公摊面积等效果可能给出 x.5 床位，按要求向上取整；
@@ -347,6 +348,26 @@
     if (done) m *= 1 + [0, 0.3, 0.5, 0.7][done];
     return m;
   }
+  /* 寸土寸金奖励：每完成一档，永久扩大所有有上限资源的仓储；starExplore 是结局阈值。 */
+  function landGoldStorageCapMul(k) {
+    if (k === 'starExplore') return 1;
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var done = (SB.challenges && SB.challenges.tierDone) ? SB.challenges.tierDone('land_gold', meta) : 0;
+    var def = SB.challenges && SB.challenges.byId ? SB.challenges.byId('land_gold') : null;
+    var bonusPerTier = def && Number(def.storageCapacityBonusPerTier);
+    if (!(bonusPerTier > 0 && isFinite(bonusPerTier))) bonusPerTier = 0.05;
+    return done > 0 ? 1 + bonusPerTier * done : 1;
+  }
+  /* 一往无前奖励：每通关一档永久增加 12% 仓储；结局阈值不参与仓储加成。 */
+  function veilOneWayStorageCapMul(k) {
+    if (k === 'starExplore') return 1;
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var done = (SB.challenges && SB.challenges.tierDone) ? SB.challenges.tierDone('veil_one_way', meta) : 0;
+    var def = SB.challenges && SB.challenges.byId ? SB.challenges.byId('veil_one_way') : null;
+    var bonusPerTier = def && Number(def.storageCapacityBonusPerTier);
+    if (!(bonusPerTier > 0 && isFinite(bonusPerTier))) bonusPerTier = 0.12;
+    return done > 0 ? 1 + bonusPerTier * done : 1;
+  }
   /* 逐资源的压舱仓每级容量（2026-11-21 修正 + ERA11 实装）。
    * 默认全局 BLD.ballastCap=120；大灯塔的仓储派生自此值的一半（普通 60 / 暗物质 5）。
    * ⚠️ 暗物质走独立档：压舱仓 +10/级 = CAP_BASE.darkmatter（用户拍板），与基础上限同源，
@@ -404,6 +425,8 @@
         * capUpgradeMul(s, 'upg_kelpstore_2', k)   /* 2026-10-01 II 级扩容：与压舱库 II 同构，补上这条乘法轴（漏接 = 死升级） */
         * matMul
         * _stor                                    /* 2026-10-31 仓储公司容量乘区 */
+        * landGoldStorageCapMul(k)
+        * veilOneWayStorageCapMul(k)
         * veilCrampedCapMul(s, k);                 /* 繁盛市场今在此：本局限制 × 永久奖励 */
     }
     /* 其余有上限资源：基础 + 压舱仓 + 通用扩容；表外资源已在上方直接返回 Infinity。 */
@@ -465,6 +488,8 @@
     var cap = (matCap + matCastle) * capUpgradeMul(s, 'upg_ballast_1', k)
       * capUpgradeMul(s, 'upg_ballast_2', k) * capUpgradeMul(s, 'upg_alloy_warehouse', k) * matMul
       * _stor                                  /* 2026-10-31 仓储公司容量乘区（starExplore 已在上方排除） */
+      * landGoldStorageCapMul(k)
+      * veilOneWayStorageCapMul(k)
       * veilCrampedCapMul(s, k);               /* 繁盛市场今在此：本局限制 × 永久奖励 */
     return (typeof cap === 'number' && isFinite(cap) && cap >= 0) ? cap : base;
   }
@@ -731,6 +756,11 @@
      * 不并进 hm/gm/wm）。只针对 chrono_house，不动其它建筑。 */
     var tsm = (id === 'chrono_house' && SB.wonder && SB.wonder.owned)
       ? (SB.wonder.owned(s).timeslip_colony ? 0.70 : 1) : 1;
+    /* 时间钳形攻势：仅给明确标记的加人口上限建筑加收挑战成本；普通折扣仍照常生效。 */
+    var populationChallengeMul = (b && b.populationCapBuilding && SB.challenges && SB.challenges.populationBuildingCostMul)
+      ? SB.challenges.populationBuildingCostMul(s) : 1;
+    var allBuildingChallengeMul = (SB.challenges && SB.challenges.buildingCostMul)
+      ? SB.challenges.buildingCostMul(s) : 1;
     /* ⚠️ ERA5（2026-10-02）· 倒置搭建（upg_invertbuild）全建筑 −20% 造价（effect.invertBuildSave）；
      *    高压热机管道（upg_thermrecover）额外给**热液汽轮机** −30%（effect.hydroBuildSave）。
      *    两条独立相乘、且排在 hm/gm/wm 之后 —— 与「议事厅/王权制/大交易所」同一道乘区纪律：
@@ -796,6 +826,7 @@
     } else if (b.cost && typeof b.cost.pop === 'number' && b.cost.pop > 0) {
       o.pop = b.cost.pop;
     }
+    if (typeof o.pop === 'number') o.pop *= allBuildingChallengeMul;
     /* ⚠️ 轻车熟路首建免费（2026-10-28 用户拍板，判据在 SB.habitat.freeFirstBuild）：
      *   `n === 0`（本局还没建过）且该建筑的「轻车熟路」成就已达成 ⇒ 资源项乘 0。
      *   【为什么落在这里】costOf 是「面板显示」与「真实扣费」的**唯一共用入口**（本文件反复
@@ -812,7 +843,7 @@
     if (!isFinite(_geneRatio) || _geneRatio <= 0) _geneRatio = b.ratio;
     for (var k in b.cost) {
       if (k === 'pop') continue;
-      o[k] = b.cost[k] * Math.pow(_geneRatio, _effN) * hm * gm * wm * tsm * isb * hsb * bsb
+      o[k] = b.cost[k] * Math.pow(_geneRatio, _effN) * hm * gm * wm * tsm * isb * hsb * bsb * populationChallengeMul * allBuildingChallengeMul
         * scm * (SB.faith && SB.faith.buildingCostMul ? SB.faith.buildingCostMul(s) : 1)
         * (k === 'scaffold' ? sc : 1) * _freeMul;
     }

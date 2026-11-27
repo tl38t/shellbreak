@@ -403,6 +403,14 @@
       ? SB.prestige.armadaCountThisAscension(s, meta) : 0;
   }
 
+  function conditionRequirement(s, c) {
+    var need = Number(c && c.n) || 0;
+    if (c && c.t === 'gathered' && c.r === 'stardust'
+        && SB.challenges && SB.challenges.veilRequirementMul)
+      need *= SB.challenges.veilRequirementMul(s);
+    return need;
+  }
+
   function condMet(s, c) {
     if (!c) return true;
     if ((c.t === 'gov' || c.t === 'govWildSlots' || c.t === 'govId')
@@ -419,7 +427,7 @@
         for (var k in s.lvl) n += s.lvl[k];
         return n >= c.n;
       case 'res': return s.res[c.r] >= c.n;
-      case 'gathered': return (s.got && s.got[c.r] || 0) >= c.n;
+      case 'gathered': return (s.got && s.got[c.r] || 0) >= conditionRequirement(s, c);
       case 'rate': {
         /* rates() 不算便宜（要跑一遍完整算式），判定与文案共用同一次结果，
          * 免得每帧重复算两遍还可能算出两个不同的数。
@@ -659,7 +667,7 @@
         return { txt: '建成 ' + bName(c.b) + ' ' + now + ' / ' + c.n, now: now, need: c.n };
       case 'all': {
         var allOk = condMet(s, c);
-        return { txt: allOk ? '组合条件已达成' : '需同时满足：' + (c.of || []).map(condText).join('；'), now: allOk ? 1 : 0, need: 1 };
+        return { txt: allOk ? '组合条件已达成' : '需同时满足：' + (c.of || []).map(function (sub) { return condText(sub, s); }).join('；'), now: allOk ? 1 : 0, need: 1 };
       }
       case 'geekTerra': {
         var terraDone = !!(s.geek && s.geek.terraDone);
@@ -670,8 +678,11 @@
         return { txt: '建筑总级数 ' + n + ' / ' + c.n, now: n, need: c.n };
       case 'res': return { txt: '存量 ' + resName(c.r) + ' ' + Math.floor(s.res[c.r]) + ' / ' + c.n,
         now: Math.floor(s.res[c.r]), need: c.n };
-      case 'gathered': return { txt: '累计产出 ' + resName(c.r) + ' ' + Math.floor(s.got && s.got[c.r] || 0) + ' / ' + c.n,
-        now: Math.floor(s.got && s.got[c.r] || 0), need: c.n };
+      case 'gathered': {
+        var gatheredNeed = conditionRequirement(s, c);
+        return { txt: '累计产出 ' + resName(c.r) + ' ' + Math.floor(s.got && s.got[c.r] || 0) + ' / ' + gatheredNeed,
+          now: Math.floor(s.got && s.got[c.r] || 0), need: gatheredNeed };
+      }
       case 'rate': {
         var r = (SB.economy && SB.economy.rates) ? (SB.economy.rates(s)[c.r] || 0) : 0;
         return { txt: rateName(c.r) + ' ' + r.toFixed(2) + ' / 秒 · 需 ' + c.n, now: r, need: c.n };
@@ -898,7 +909,7 @@
     var key = '', params = {}, now = old.now, need = old.need, txt;
     switch (c.t) {
       case 'built': key = 'built'; params = { buildingName: bName(c.b), current: now, required: need }; break;
-      case 'all': return { txt: tr('tech.condition.progress.all_needed', { conditions: (c.of || []).map(condText).join('; ') }, old.txt), now: now, need: need };
+      case 'all': return { txt: tr('tech.condition.progress.all_needed', { conditions: (c.of || []).map(function (sub) { return condText(sub, s); }).join('; ') }, old.txt), now: now, need: need };
       case 'geekTerra': return { txt: tr(s.geek && s.geek.terraDone ? 'tech.condition.geek_terra.complete' : 'tech.condition.geek_terra.required', null, old.txt), now: now, need: need };
       case 'total': key = 'total_buildings'; params = { current: now, required: need }; break;
       case 'res': key = 'resource_stock'; params = { resourceName: resName(c.r), current: Math.floor(now), required: need }; break;
@@ -1631,7 +1642,7 @@
      * 攒下的那些由 flushEureka 在开门那一刻一次性摊开（见 game.js 的 maybeSciencePopup）。
      * ⚠️ 只管播报：discover 照常揭示，面板一开该亮的都是亮的。 */
     if (emit && popupSeen(s)) {
-      for (i = 0; i < got.length; i++) emit(eurekaLine(got[i]));
+      for (i = 0; i < got.length; i++) emit(eurekaLine(got[i], s));
     }
     settleFree(s);          // 揭示路径不止 discover 一条，见那个函数上方的注释
     if (eraProgress(s).done) advanceEra(s, emit);
@@ -1642,8 +1653,8 @@
    * ⚠️ 默认条件（`{t:'default'}`，开局即揭示的那几项）没有「条件」可报，
    *    原先的拼法照样接一个破折号 ⇒ 打出「尤里卡：凿珊瑚 ——  已达成」这种半个句子
    *    （condText 对 default 返回空串，破折号后面就空了）。没有条件就别留那个破折号。 */
-  function eurekaLine(t) {
-    var c = condText(t.cond);
+  function eurekaLine(t, s) {
+    var c = condText(t.cond, s);
     return c
       ? tr('tech.eureka.log.with_condition', {
         technologyName: techName(t.id), conditionDescription: c
@@ -1664,7 +1675,7 @@
       var t = T[i];
       if (t.era > (s.era || 1)) continue;      // 未来纪元的不报：它们此刻还没转可见
       if (!isRevealed(s, t.id)) continue;
-      if (emit) emit(eurekaLine(t));
+      if (emit) emit(eurekaLine(t, s));
       n++;
     }
     return n;
@@ -1673,13 +1684,13 @@
   /* 尤里卡条件的纯文案——**不碰状态**（不读 s，也不调 rates()）。
    * 播报是在游戏循环里同步发的，那里拿不到一个「稳定可读」的状态快照，
    * 让 condText 去读 s 只会把 UI 那套惰性求值带回循环里。 */
-  function condTextZh(c) {
+  function condTextZh(c, s) {
     if (!c || c.t === 'default') return '';
     switch (c.t) {
       case 'built': return '建成 ' + bName(c.b) + ' ×' + c.n;
       case 'total': return '建筑总级数 ' + c.n;
       case 'res': return resName(c.r) + ' 存量 ' + c.n;
-      case 'gathered': return '累计产出 ' + resName(c.r) + ' ' + c.n;
+      case 'gathered': return '累计产出 ' + resName(c.r) + ' ' + conditionRequirement(s, c);
       /* ERA11 新 cond 尤里卡文案。⚠️ ascendReady 是隐藏前置——文案不写明条件，只给进度意象。 */
       case 'pathOpened': return c.id
         ? tr('tech.condition.description.ascension_path_required', { pathName: ascensionPathName(c.id) },
@@ -1746,7 +1757,7 @@
       /* ERA9 新条件类型的纯文案（不碰状态）。 */
       case 'geekEnceladus': return '星球重构机 完成恩克拉多斯星改造';
       case 'geekTerra': return '星球重构机 完成泰拉改造';
-      case 'all': return (c.of || []).map(condText).join(' 且 ');
+      case 'all': return (c.of || []).map(function (sub) { return condText(sub, s); }).join(' 且 ');
       case 'challenge': {
         var _ctD = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(c.id) : null;
         return '进入挑战「' + (_ctD ? _ctD.name : c.id) + '」';
@@ -1754,8 +1765,8 @@
     }
     return '';
   }
-  function condText(c) {
-    var old = condTextZh(c);
+  function condText(c, s) {
+    var old = condTextZh(c, s);
     if (!old || !isEnglishLocale() || !c) return old;
     if ((c.t === 'pathOpened' && c.id) || c.t === 'armadaAscension'
         || c.t === 'ascensionInvestment' || c.t === 'ascensionSpent') return old;
@@ -1764,7 +1775,7 @@
       case 'built': key = 'built'; params = { amount: c.n, buildingName: bName(c.b) }; break;
       case 'total': key = 'total_buildings'; params = { totalLevels: c.n }; break;
       case 'res': key = 'resource_stock'; params = { amount: c.n, resourceName: resName(c.r) }; break;
-      case 'gathered': key = 'resource_gathered'; params = { amount: c.n, resourceName: resName(c.r) }; break;
+      case 'gathered': key = 'resource_gathered'; params = { amount: conditionRequirement(s, c), resourceName: resName(c.r) }; break;
       case 'pathOpened': key = 'ascension_path_opened'; break;
       case 'cataclysm': key = 'cataclysm_defeated'; break;
       case 'ascendReady': key = 'ascend_ready'; break;
@@ -1804,7 +1815,7 @@
       case 'lvlSum': key = 'related_building_levels'; params = { totalLevels: c.n, buildingName: bName(c.ids[0]) }; break;
       case 'geekEnceladus': return tr('tech.condition.geek_enceladus.description', null, old);
       case 'geekTerra': return tr('tech.condition.geek_terra.description', null, old);
-      case 'all': key = 'all'; params = { conditionDescriptions: (c.of || []).map(condText).join('; ') }; break;
+      case 'all': key = 'all'; params = { conditionDescriptions: (c.of || []).map(function (sub) { return condText(sub, s); }).join('; ') }; break;
       case 'challenge': {
         var challenge = SB.challenges && SB.challenges.byId ? SB.challenges.byId(c.id) : null;
         key = 'challenge'; params = { challengeName: challengeName(c.id, challenge && challenge.name || c.id) }; break;
