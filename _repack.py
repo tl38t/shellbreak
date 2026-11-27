@@ -223,8 +223,12 @@ assert "VERSION: 'Ver1.4.2'" in _cfg, '包内 config.js 版本号不是 Ver1.4.2
 #（Electron 专属，按规范不进包，故从 REPO 读）。旧守卫逐字搜中文串，
 # key 化后必然失效，这里改成「结构 + key + 双语资源」四重校验：
 #   ① 30 个版本都在（Ver1.4.2 + Ver1.4.1 + Ver1.4.0 + Ver1.3.2 + Ver1.3.1 + Ver1.3.0 + Ver1.2.4 + Ver1.2.3 + Ver1.2.2 + Ver1.2.1 + Ver1.2.0 + Ver1.1.1 + Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
-#   ② 恰 178 条语义 key、互不重复（Ver1.4.1 为 168 条；Ver1.4.2 首批追加 finale_ascension_open / tide_perk_detail / ui.perk_detail_toggle / balance.gene_half，11-27 追加第二批 6 条：168+4+6=178）；
-#   ③ 包内 zh-CN 与仓库 en-US 都含这 178 个 key 且译文非空；
+#   ② 恰 175 条语义 key、互不重复（Ver1.4.1 为 168 条；Ver1.4.2 追加 tide_perk_detail /
+#      ui.perk_detail_toggle / balance.gene_half 3 条 + 11-27 第二批 4 条
+#      （veil_four_new / ascension_persist / civic_unlock_icons / village_mobile_jump）：
+#      168+3+4=175。另 3 条（finale_ascension_open / chrono.multi_house / ui.unity_progress）
+#      实装但用户拍板不写进对外日志，词条留在词库、此处不计入）；
+#   ③ 包内 zh-CN 与仓库 en-US 都含这 175 个 key 且译文非空；
 #   ④ 中英文都没有未烘焙的 {placeholder}，且废弃的机械 key 不再被引用。
 import re as _re
 import json as _json

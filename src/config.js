@@ -1199,9 +1199,9 @@
        * 明文写法（仅供本地调试，**发版前必须换回 h**）：
        *   { code: 'YOUR-CODE-HERE', stardust: 50, label: '星屑礼包' } */
       { h: 'fe97c807f70f509ea85b8f3b3a340535951baede', stardust: 50, label: '星屑礼包' },
-      /* 2026-11-12 追加三条 100 星屑乱码码（仅开发者私下持有明文，包内只存哈希）。
-       * 明文码：XQ7K-2MP9-D4RT-V8LZ / B6NH-3WC8-Y1F5-S2KE / V9ZR-4TD7-L6QM-5XPB
-       * 换码就跑 `node tmp/_mkcode.mjs <新码>` 把对应 h 换掉即可。 */
+      /* 2026-11-12 追加三条 100 星屑码（仅开发者私下持有明文，包内只存哈希）。
+       * ⚠️ 明文**不许**回写到注释：包是明文 JS，注释一样会被解包读到（2026-11-27 已清）。
+       * 明文只在开发者本地保管；换码就跑 `node tmp/_mkcode.mjs <新码>` 把对应 h 换掉即可。 */
       { h: '5e26a421982e561596e1eddd85c0aa5b41af6920', stardust: 100, label: '星屑礼包' },
       { h: '3dbd9f2adb8016eeaabaaeca34a51da00e4f8dab', stardust: 100, label: '星屑礼包' },
       { h: 'f6ff4232fc87ea28e07da661c6ded4878f2a08f4', stardust: 100, label: '星屑礼包' },
