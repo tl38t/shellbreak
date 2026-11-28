@@ -303,8 +303,24 @@
    *   存 DOM 上会被冲掉（与 civicView / workshopView 同一手法）。
    * ⚠️ 默认停在「轮回挑战」（1A）：飞升挑战是进阶内容，不该抢首屏。 */
   var challengeView = 'prestige';
+  function ascensionViewUnlocked(meta, s, active) {
+    var veilCount = Number(meta && meta.veil && meta.veil.count);
+    if (isFinite(veilCount) && veilCount > 0) return true;
+
+    /* 旧版把飞升挑战进度只存本局，后来才迁到 meta.activeAscensionChallenge。
+     * 两个来源都检查，确保正在进行旧版挑战的存档不会被新门槛拦住。 */
+    var challenges = SB.challenges;
+    var current = active || (s && !s.challengeDone ? s.challenge : null);
+    var currentDef = current && challenges && challenges.byId ? challenges.byId(current.id) : null;
+    if (currentDef && currentDef.ascension) return true;
+    var stored = meta && meta.activeAscensionChallenge;
+    var storedDef = stored && challenges && challenges.byId ? challenges.byId(stored.id) : null;
+    return !!(storedDef && storedDef.ascension);
+  }
   function setChallengeView(view) {
     if (view !== 'prestige' && view !== 'ascension') return false;
+    if (view === 'ascension' && SB.game
+        && !ascensionViewUnlocked(SB.game.meta(), SB.game.run(), null)) return false;
     if (challengeView === view) return false;
     challengeView = view;
     return true;
@@ -316,6 +332,7 @@
     var s = SB.game.run(), m = SB.game.meta(), api = SB.challenges;
     var list = api.list(), active = api.active(s);
     var activeGroup = active ? challengeGroupOf(api.byId(active.id)) : null;
+    var ascensionUnlocked = ascensionViewUnlocked(m, s, active);
     /* 两组各算一份：已通关档数 / 总档数。徽标与概览统计都吃这一份，避免两套口径。 */
     var groups = {
       prestige: { done: 0, total: 0 },
@@ -329,6 +346,7 @@
         ? Infinity : groups[gk].total + limit;
       groups[gk].done += api.tierDone(gdef.id, m);
     }
+    if (challengeView === 'ascension' && !ascensionUnlocked) challengeView = 'prestige';
     var view = challengeView === 'ascension' ? 'ascension' : 'prestige';
     var cur = groups[view], isAsc = view === 'ascension';
 
@@ -373,9 +391,12 @@
     var views = ['prestige', 'ascension'];
     for (gi = 0; gi < views.length; gi++) {
       var v = views[gi], vc = groups[v], on = view === v;
+      var locked = v === 'ascension' && !ascensionUnlocked;
       h += '<button type="button" class="subtab' + (on ? ' on' : '') +
+        (locked ? ' locked' : '') +
         (activeGroup === v && !on ? ' avail' : '') +
-        '" data-challenge-view="' + v + '" aria-pressed="' + on + '">' +
+        '" data-challenge-view="' + v + '" aria-pressed="' + on + '"' +
+        (locked ? ' disabled aria-disabled="true"' : '') + '>' +
         (v === 'ascension' ? tr('ui.challenge.subtab.ascension', {}, '飞升挑战')
           : tr('ui.challenge.subtab.prestige', {}, '轮回挑战')) +
         '<span class="subcnt">' + vc.done + ' / ' + (vc.total === Infinity ? '∞' : vc.total) + '</span></button>';

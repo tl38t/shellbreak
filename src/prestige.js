@@ -614,24 +614,7 @@
     SB.state.saveMeta(meta);
     if (SB.game && SB.game.startRun) SB.game.startRun(options && options.challenge
       ? { challenge: options.challenge } : undefined);
-    /* 枯荣起始奖励只在真实掀幕后发放，不能放进 startRun（那样普通重开也会反复领取）。
-     * 轮回点同时记余额和历史获得量；星屑只增加余额，不计入累计结算/商店台账。 */
-    var startingTide = SB.voidFx && SB.voidFx.startTide ? SB.voidFx.startTide() : 0;
-    var startingStardust = SB.voidFx && SB.voidFx.startStardust ? SB.voidFx.startStardust() : 0;
-    if (startingTide > 0) {
-      meta.tide = (meta.tide || 0) + startingTide;
-      meta.tideEarnedTotal = (meta.tideEarnedTotal || 0) + startingTide;
-    }
-    if (startingStardust > 0) meta.stardust = (meta.stardust || 0) + startingStardust;
-    /* 宇宙空洞奖励（2026-11-20）：每重掀幕给新局初始星屑余额（20/40/60，按跨周目档位）。
-     * ⚠️ 只加 meta.stardust 可消费余额，绝不写 meta.stardustEarned（排行榜「最多星屑」与尤里卡 seed 台账），
-     *    也不写 s.got.stardust。设计意图：防止玩家飞升后一点星屑都没有。
-     * ⚠️ 这是「doVeil 全文逐字未改」原则的唯一例外 —— 只在此加一段读档加余额，
-     *    不碰路径选择 / popup 顺序 / 清场字段 / 那套作废的 t:'veil' 插桩。 */
-    var veilStarveTier = SB.challenges && SB.challenges.tierDone ? SB.challenges.tierDone('veil_starve', meta) : 0;
-    var veilStarveStart = veilStarveTier ? [0, 20, 40, 60][veilStarveTier] : 0;
-    if (veilStarveStart > 0) meta.stardust = (meta.stardust || 0) + veilStarveStart;
-    if ((startingTide > 0 || startingStardust > 0 || veilStarveStart > 0) && SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    grantAscensionStartRewards(meta);
     if (SB.saveTransfer && SB.saveTransfer.backupSoon) SB.saveTransfer.backupSoon();
 
     (emit || function () {})(tr('ui.veil.break_done', {
@@ -658,11 +641,36 @@
     return out;
   }
 
+  /* 飞升挑战新周目和真实掀幕使用同一组开局奖励，不能随入口分叉漏发。 */
+  function grantAscensionStartRewards(meta) {
+    if (!meta) return false;
+    var startingTide = SB.voidFx && SB.voidFx.startTide ? SB.voidFx.startTide() : 0;
+    var startingStardust = SB.voidFx && SB.voidFx.startStardust ? SB.voidFx.startStardust() : 0;
+    if (startingTide > 0) {
+      meta.tide = (meta.tide || 0) + startingTide;
+      meta.tideEarnedTotal = (meta.tideEarnedTotal || 0) + startingTide;
+      /* 没有 veil 账本时，起始轮回点不是本周期结算收益，不应进入下次掀幕点数。 */
+      if (!(meta.veil && typeof meta.veil === 'object'))
+        meta.veilCycleTideSeed = Math.max(0, Number(meta.tideEarnedTotal) || 0);
+    }
+    if (startingStardust > 0) meta.stardust = (meta.stardust || 0) + startingStardust;
+    /* 宇宙空洞：每个新飞升周目按已完成档位发放 20/40/60 星屑余额。
+     * 只写可消费余额；不计入累计结算、排行榜或本局星屑种子。 */
+    var veilStarveTier = SB.challenges && SB.challenges.tierDone ? SB.challenges.tierDone('veil_starve', meta) : 0;
+    var veilStarveStart = veilStarveTier ? [0, 20, 40, 60][veilStarveTier] : 0;
+    if (veilStarveStart > 0) meta.stardust = (meta.stardust || 0) + veilStarveStart;
+    var changed = startingTide > 0 || startingStardust > 0 || veilStarveStart > 0;
+    if (changed && SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    return changed;
+  }
+
   /* 飞升挑战总是从新的飞升周期开局。
    * 若周期曾达掀幕门槛，走真实掀幕并结算飞升点；否则只丢弃旧周期，不增加掀幕次数或点数。 */
   function beginAscensionCycle(s, emit, challenge) {
     var meta = SB.game && SB.game.meta && SB.game.meta();
     if (!meta) throw new Error(tr('ui.veil.error.no_meta', {}, '无法读取跨周目存档'));
+    var veilCount = Number(meta.veil && meta.veil.count);
+    if (!isFinite(veilCount) || veilCount < 1) return false;
     var challengeOptions = challenge ? { challenge: challenge } : null;
     if (veilReady(meta, s)) return doVeil(s, emit, null, challengeOptions);
 
@@ -700,6 +708,7 @@
     if (meta.armada && typeof meta.armada === 'object') meta.armada.cycleCount = 0;
     if (SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
     if (SB.game && SB.game.startRun) SB.game.startRun(challengeOptions || undefined);
+    grantAscensionStartRewards(meta);
     if (SB.saveTransfer && SB.saveTransfer.backupSoon) SB.saveTransfer.backupSoon();
     return { points: 0, count: meta.veil && meta.veil.count || 0, cycleTide: 0, cycleStar: 0 };
   }

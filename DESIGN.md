@@ -1,6 +1,6 @@
 # 天壳 UI 设计基线
 
-Updated: 2026-11-21
+Updated: 2026-11-27
 
 ## Direction
 
@@ -55,6 +55,9 @@ Updated: 2026-11-21
 - Eras 3 and 4 share the same forged-metal skin: soot-dark worked metal, bevelled copper edges, warm accent, and restrained kiln glow. Use the same palette, texture, panel shapes, and resource-row treatment in both eras; do not use cyan accents or chart/current overlays for Era 4.
 - Era 5 is a deep-sea heavy-industry skin, distinct from the shared Era 3–4 forge treatment: pressure-rated machine plates, dark steel, aged brass, and localized furnace glow. Let exposed panel backgrounds show joined hull plates, captive bolts, and cooling louvers through `assets/ui-era/era5-industrial-field.svg`; keep the drawing faint behind cards and controls. Keep black-yellow warning paint sparse on resource and building-module edges; do not stripe panel borders, title markers, buttons, or the natural-environment meter. Preserve the 25% shell-thickness limit as a narrow amber tick. Avoid adding the pipe-header illustration to the interface; use the Era 5 field illustration as the atmospheric art anchor and keep values readable.
 - Era 11 (α / 帷幕之后) uses pale veil lavender `#E8D9FF` with spectral cyan `#80DFCF` and `assets/ui-era/era11-veil.svg`; the split curtain seam and scattered lights should remain subtle behind resource values.
+- Era 12 (Ω) has a visual skin in `css/70-era-skins.css`; game content remains unreleased and locked by `src/config.js`. Carry forward the shared deep-navy interface and painterly technology-icon family. Night tokens: accent `#A6E7FF`, soft accent `#C4F0FF`, wash `rgba(73, 180, 246, .075)`, line `rgba(166, 231, 255, .32)`, edge `rgba(196, 240, 255, .18)`, glow `rgba(73, 180, 246, .09)`, witness `#FFDFB2`. Day tokens: accent `#3B6575`, soft accent `#547D8B`, wash `rgba(59, 101, 117, .07)`, line `rgba(59, 101, 117, .36)`, edge `rgba(59, 101, 117, .2)`, glow `rgba(59, 101, 117, .08)`. Cards and controls keep the shared 10px / 6px geometry and use the shared `--panel`, `--panel2`, and `--bg` surfaces. `assets/ui-era/era12-boundary.svg` supplies the open orbital boundary for the resource archive, while `assets/ui-era/era12-stars.svg` is a very low-density texture. Reserve the star-written phrase and final single point of light for the ending sequence. Do not turn ordinary resource panels into a bright nebula or add a permanent animated starfield.
+- Keep α and Ω visually distinct by material and motion, not by replacing the game's shared layout: α is a translucent, parted veil over a surviving deep-sea civilization; Ω is a sparse, legible star field in which the civilization reaches beyond its universe. The detailed visual grammar and reference map live in `docs/ERA11_12_DESIGN_LANGUAGE_v0.1.md`.
+- Preserve the icon-art split already established in `docs/ERA11_12_ART_PROMPTS_v0.1.md`: technology/building icons stay in the painterly badge family; curtain progress and the finale may use spatial, cinematic compositions. Never put UI text inside icons or atmospheric art.
 
 ## Spacing, alignment, and shape
 

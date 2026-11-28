@@ -166,6 +166,21 @@
   --era-button-hi: #826ba8;
   --era-button-lo: #3f365b;
 }
+:root[data-era="12"] {
+  --era-accent: #a6e7ff;
+  --era-accent-soft: #c4f0ff;
+  --era-witness: #ffdfb2;
+  --era-wash: rgba(73, 180, 246, .075);
+  --era-line: rgba(166, 231, 255, .32);
+  --era-glow: rgba(73, 180, 246, .09);
+  --era-edge: rgba(196, 240, 255, .18);
+  --era-texture: url("../assets/ui-era/era12-stars.svg");
+  --era-panel-radius: 10px;
+  --era-button-radius: 6px;
+  --era-button-base: #0d1727;
+  --era-button-hi: #112036;
+  --era-button-lo: #070d18;
+}
 
 /* Shared hierarchy and readable state colors. */
 html[data-era] .card,
@@ -441,6 +456,14 @@ html[data-era="11"] .card {
   background-size: auto, auto, 320px 240px;
   box-shadow: inset 0 0 0 1px rgba(224, 212, 255, .1), inset 0 1px var(--era-edge), 0 12px 30px var(--era-glow);
 }
+html[data-era="12"] .card {
+  background-image:
+    radial-gradient(ellipse at 88% 0%, color-mix(in srgb, var(--era-accent) 7%, transparent), transparent 58%),
+    linear-gradient(145deg, var(--era-wash), var(--panel) 78%),
+    var(--era-texture);
+  background-size: auto, auto, 320px 240px;
+  box-shadow: inset 0 1px var(--era-edge), 0 12px 30px var(--pilot-shadow);
+}
 html[data-era="11"] .cardhd::before {
   width: 4px;
   border-radius: 1px;
@@ -449,6 +472,15 @@ html[data-era="11"] .cardhd::before {
 }
 html[data-era="11"] .tab.on {
   box-shadow: inset 0 -2px var(--era-accent), 0 0 14px var(--era-glow);
+}
+html[data-era="12"] .cardhd::before {
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--era-accent-soft), var(--era-accent));
+  box-shadow: 0 0 8px var(--era-glow);
+}
+html[data-era="12"] .tab.on {
+  box-shadow: inset 0 -2px var(--era-accent), 0 0 10px var(--era-glow);
 }
 html[data-era="10"] .shellwrap.dyson-progress { border-color: rgba(79,209,201,.45); background: #092326; box-shadow: inset 0 0 8px rgba(24,102,96,.32),0 0 11px rgba(48,168,154,.1); }
 html[data-era="10"] .shellwrap.dyson-progress #shellFill { display: none; }
@@ -482,6 +514,7 @@ html[data-ui-theme="day"][data-era="8"] { --era-accent:#584b91; --era-accent-sof
 html[data-ui-theme="day"][data-era="9"] { --era-accent:#285b3d; --era-accent-soft:#526e45; --era-line:rgba(48,105,66,.38); --era-edge:rgba(55,112,71,.2); --era-wash:rgba(105,153,87,.09); --era-glow:rgba(59,126,77,.08); --era-button-hi:#3c7651; --era-button-lo:#28583d; }
 html[data-ui-theme="day"][data-era="10"] { --era-accent:#76551b; --era-accent-soft:#386d4b; --era-line:rgba(119,88,31,.4); --era-edge:rgba(119,88,31,.2); --era-wash:rgba(176,144,64,.085); --era-glow:rgba(140,106,38,.08); --era-button-hi:#82602a; --era-button-lo:#4a603f; }
 html[data-ui-theme="day"][data-era="11"] { --era-accent:#604a88; --era-accent-soft:#28796c; --era-line:rgba(96,74,136,.4); --era-edge:rgba(96,74,136,.2); --era-wash:rgba(117,87,159,.09); --era-glow:rgba(96,74,136,.08); --era-button-hi:#74609b; --era-button-lo:#4d456c; }
+html[data-ui-theme="day"][data-era="12"] { --era-accent:#3b6575; --era-accent-soft:#547d8b; --era-line:rgba(59,101,117,.36); --era-edge:rgba(59,101,117,.2); --era-wash:rgba(59,101,117,.07); --era-glow:rgba(59,101,117,.08); --era-button-hi:#547d8b; --era-button-lo:#35515e; }
 
 html[data-ui-theme="day"][data-era] .card,
 html[data-ui-theme="day"][data-era] .modal .box,
@@ -504,6 +537,7 @@ html[data-ui-theme="day"][data-era="10"] .card { background-image:radial-gradien
 html[data-ui-theme="day"][data-era="9"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) { background-image:linear-gradient(135deg,rgba(105,153,87,.11),#e6eddf),var(--era-texture); }
 html[data-ui-theme="day"][data-era="10"] .btn:not(:disabled):not(.danger):not(.ad-watch):not(.tog.on) { background-image:repeating-linear-gradient(90deg,transparent 0 12px,rgba(119,88,31,.045) 12px 13px),linear-gradient(135deg,rgba(176,144,64,.09),#f0ebdd),var(--era-texture); }
 html[data-ui-theme="day"][data-era="11"] .card { background-image: radial-gradient(ellipse at 50% 0%,rgba(96,74,136,.08),transparent 66%),linear-gradient(145deg,var(--era-wash),var(--panel) 76%),var(--era-texture); }
+html[data-ui-theme="day"][data-era="12"] .card { background-image: radial-gradient(ellipse at 88% 0%,rgba(59,101,117,.06),transparent 58%),linear-gradient(145deg,var(--era-wash),var(--panel) 78%),var(--era-texture); }
 @media (prefers-reduced-motion: reduce) {
   html[data-era] .card, html[data-era] .btn, html[data-era] .tab { transition: none; }
   html[data-era="7"] .cardhd::before, html[data-era="8"] .cardhd::before,
@@ -1680,6 +1714,7 @@ html[data-era="8"] { --era-archive-art: url("../assets/backgrounds/sequence/era-
 html[data-era="9"] { --era-archive-art: url("../assets/backgrounds/sequence/era-9/technology-field.webp?v=2"); }
 html[data-era="10"] { --era-archive-art: url("../assets/backgrounds/sequence/era-10/technology-field.webp?v=2"); }
 html[data-era="11"] { --era-archive-art: url("../assets/ui-era/era11-veil.svg"); }
+html[data-era="12"] { --era-archive-art: url("../assets/ui-era/era12-boundary.svg"); }
 
 html[data-era] .overview-grid > #card-res {
   position: relative;
@@ -1889,6 +1924,24 @@ html[data-era="11"] #card-res .res {
   border-radius: 15px 3px 15px 3px;
   background-image: linear-gradient(90deg, rgba(128, 223, 207, .14), rgba(232, 217, 255, .13) 52%, rgba(19, 26, 43, .72) 86%), var(--era-texture);
   box-shadow: inset 3px 0 rgba(128, 223, 207, .62), inset 0 1px rgba(232, 217, 255, .24);
+}
+html[data-era="12"] .overview-grid > #card-res {
+  background-image:
+    linear-gradient(105deg,
+      color-mix(in srgb, var(--pilot-surface-card) 95%, transparent) 0%,
+      color-mix(in srgb, var(--pilot-surface-card) 88%, transparent) 47%,
+      color-mix(in srgb, var(--pilot-surface-card) 64%, transparent) 100%),
+    radial-gradient(ellipse at 86% 78%, color-mix(in srgb, var(--era-accent) 9%, transparent), transparent 46%),
+    var(--era-archive-art);
+}
+html[data-era="12"] #card-res .res {
+  border-color: color-mix(in srgb, var(--era-accent) 28%, var(--pilot-edge));
+  background-image:
+    linear-gradient(115deg,
+      color-mix(in srgb, var(--era-accent) 8%, transparent),
+      color-mix(in srgb, var(--pilot-surface-item) 91%, transparent) 74%),
+    var(--era-texture);
+  box-shadow: inset 2px 0 color-mix(in srgb, var(--era-accent) 48%, transparent), inset 0 1px var(--era-edge);
 }
 
 /* Era 5 base surfaces. The full heavy-industry skin is defined at the end of this file;

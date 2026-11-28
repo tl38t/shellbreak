@@ -123,12 +123,12 @@
      *    会因 keysOf(10) 空 ⇒ done 恒真而瞬跳两级（见 ERA11 spec §7 #1 硬阻塞）。 */
     { id: 11, name: 'α', motto: '帷幕之后', color: '#E8D9FF', glyph: 'Α',
       desc: '以轮回为阶' },
-    /* ERA12（Ω，2026-11-21 · spec docs/ERA11_12_SPEC_v0.1.md §1）：名称/口号/配色为提议值，待用户拍。
+    /* ERA12（Ω，2026-11-21 · spec docs/ERA11_12_SPEC_v0.1.md §1）：名称/口号仍为提议值；配色沿用设计基线。
      * 六项科技（starfrontier → ascend_dimension，layer 26–28）全在掀幕清档后从 era1 重爬至此。
      * ⚠️ era11 的 key 已从 beyond_veil 后移到 era11 最后一项（relativistic_weapon，见 P2）——
      *    否则加本纪元后 E.length=12，学完 beyond_veil 会被 advanceEra 瞬间推到 era12，
      *    跳过 era11 六项科技阶段。era12 本身零 key ⇒ 抵达即终点（p.era>=E.length 自然停）。 */
-    { id: 12, name: 'Ω', motto: '边界之外', color: '#FFE9A8', glyph: 'Ω',
+    { id: 12, name: 'Ω', motto: '边界之外', color: '#A6E7FF', glyph: 'Ω',
       desc: '向帷幕之外' }
   ];
 

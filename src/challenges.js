@@ -958,6 +958,11 @@
   function canStart(id, s, meta) {
     var d = BY_ID[id];
     if (!d || active(s)) return false;
+    if (d.ascension) {
+      meta = meta || (SB.game && SB.game.meta ? SB.game.meta() : null);
+      var veilCount = Number(meta && meta.veil && meta.veil.count);
+      if (!isFinite(veilCount) || veilCount < 1) return false;
+    }
     return prereqOk(id, meta, willBreakFrom(s));
   }
   function canStartFresh(id, s, meta) {
@@ -980,7 +985,7 @@
     var challenge = { id: id, tier: tier, replay: replay };
     if (d.ascension) {
       if (!SB.prestige.beginAscensionCycle) return false;
-      SB.prestige.beginAscensionCycle(s, SB.game.emit, challenge);
+      if (SB.prestige.beginAscensionCycle(s, SB.game.emit, challenge) === false) return false;
     } else {
       if (s && !s.breakSettled && SB.prestige.qualified(s))
         SB.prestige.doBreak(s, SB.game.emit, { silent: true, challengeStart: true });

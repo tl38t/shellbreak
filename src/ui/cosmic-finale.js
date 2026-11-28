@@ -344,7 +344,7 @@
       ctx.font = COPY_LOCALE === 'en'
         ? '700 96px Arial, sans-serif'
         : '700 104px "Microsoft YaHei", "Noto Sans CJK SC", "SimHei", sans-serif';
-      ctx.fillStyle = '#fff0c8';
+      ctx.fillStyle = '#ffdfb2';
       ctx.shadowColor = 'rgba(205,231,255,.92)';
       ctx.shadowBlur = 28;
       ctx.fillText(title, W / 2, H * 0.73, TITLE_W);

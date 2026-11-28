@@ -3478,11 +3478,13 @@
     var body = '<div class="warnbox">当幕布掀起，本重轮回的一切将归零重来：'
       + '<b>' + pv.cycleTide.toFixed(2) + ' 轮回点</b>、<b>' + Math.round(pv.cycleStar)
       + ' 星屑</b>，以及潮汐之树、星屑商店与四项旧日遗产。本局也从 ERA1 重开。</div>'
+      + '<div class="note">' + gameText('ui.veil.confirm.keep_summary') + '</div>'
       + pendingLine
       + '<div class="note">你将获得 <b>' + pv.points.toFixed(2) + ' 飞升点</b>，进入第 <b>' + pv.count
       + '</b> 重帷幕。</div>'
-      + pickBlock
-      + '<div class="note">保留：成就、挑战记录、轮回次数、商店解锁、自动研究设置。</div>';
+      + '<div class="note">' + gameText('ui.veil.confirm.accumulate_more') + '</div>'
+      + '<div class="note">' + gameText('ui.veil.confirm.balance_carryover') + '</div>'
+      + pickBlock;
     SB.ui.render.confirmPanel({
       title: '掀起帘幕 · 进入大轮回？',
       body: body, ok: '掀起帘幕', danger: true,
