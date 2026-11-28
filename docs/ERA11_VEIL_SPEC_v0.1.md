@@ -68,9 +68,10 @@
 | `tide`、`perks`、`stardust`、`starPerks` | `tideEarnedTotal`、`stardustEarned`（#1 要的历史记录） |
 | `veil.perks`（#3 重买）、`veil.cycleTide` / `veil.cycleStar` 归零 | `veil.points` 余额跨掀幕保留并加上本次新得点数；`cycle`、`runs`、`rebirths`、`layers` |
 | 四项旧日遗产：`oldFaith`、`memorialWonders`、`oldArtworkEarnedTotal`、`oldTideStelesEarnedTotal`（#2） | `achv`、`achievements`、`challenges.completed`、`redeemed` |
-| `techLog`、`buildingLvlTotal`、`govPassiveCards`、`govEverAdopted`、`lastRun`、`track`、`challengePopupPending` | `seenVersion`、`onboardSeen`、`compensationTotal`、`driftTerraVersion` |
+| `techLog`、`buildingLvlTotal`、`lastRun`、`track`、`challengePopupPending` | `seenVersion`、`onboardSeen`、`compensationTotal`、`driftTerraVersion` |
 | 本局 `s` 全部（走 `startRun` 重建） | `religionSeen`、`shopUnlocked`、`stardustShopUnlocked` |
 | | `perksVersion`、`starPerksVersion`、`autoResearch`、`skydrillMul`、`adRebirth` |
+| | `govPassiveCards`、`govEverAdopted`（2026-11-28 改判，见下） |
 | | `veil.count`（第几重帷幕，只增不减） |
 
 **四条不能清的理由**：
@@ -81,7 +82,9 @@
 4. `cycle`——`loop5`（`0.05×cycle`）、《黑历史蓝图》尤里卡 ≥15、市政鼓舞 3/7/10/15、艺术品 +10%/cycle、轮回次数榜、流浪泰拉 `prereq:{t:'cycle',n:15}`（`challenges.js:79`）共 6 处读它；`normalizeMeta:865` 会把 <1 拉回 1，`hasProgress`（`state.js:877`）靠 `cycle>1` 判「有进度」，清了会误触三态扫描「不确定一律不开新局」。
    ⚠️ 见 §8 已知例外。
 
-`govEverAdopted` 放「清」列的理由：只清 `govPassiveCards` 而留它，「首次采用政体时生成被动卡」不会重跑 ⇒ 卡永久丢失，比两个都清更怪。
+`govEverAdopted` 与 `govPassiveCards` 曾放「清」列：只清 `govPassiveCards` 而留 `govEverAdopted`，「首次采用政体时生成被动卡」不会重跑 ⇒ 卡永久丢失，比两个都清更怪。
+
+**2026-11-28 改判（用户拍板）**：两张表改为**跨帷幕保留**。理由：《美好旧日》的奖励文案承诺「永久解锁你在各周目采用过的政体的被动卡」(`zh-CN.js` 的 `changelog.challenge.good_old_days`)，而清表 = 每飞升一次奖励归零；且 `govEverAdopted` 一并清掉后连重建依据都没有（`civics.unlockAdoptedGovPassiveCards` 只按现存记录补卡）。两表同进同出，`ensureGovPassiveCards` 每次读档按 `govPassiveCards` 重新 push 卡，不会出现「有标记没卡」的中间态。落点：`prestige.js` 的 `doVeil` 与 `beginAscensionCycle` 均不再清。
 
 ---
 

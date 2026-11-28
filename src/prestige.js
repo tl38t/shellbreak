@@ -565,8 +565,11 @@
     /* ⚠️ 轻车熟路（bld_* 成就）跨周目累计账**不清**（2026-11-22 用户拍板）：
      *    meta.buildingLvlTotal 是成就墙进度的真源（achv.recheckBuildings / progressOf），
      *    清掉会让「章还在、进度倒退回 0」，与「成就不撤」同一口径。 */
-    meta.govPassiveCards = {};
-    meta.govEverAdopted = {};
+    /* ⚠️ 政体被动卡解锁表（govPassiveCards / govEverAdopted）**不清**（2026-11-28 用户拍板）：
+     *    旧规格 §2「清」列把这两张表列进每次飞升要清的状态，但《美好旧日》的奖励文案写的是
+     *    「永久解锁你在各周目采用过的政体的被动卡」——清表 = 每飞升一次奖励归零；而且
+     *    govEverAdopted 一并清掉后连重建依据都没了（civics.unlockAdoptedGovPassiveCards
+     *    只按现存记录补卡）。按「挑战奖励必须真发得出去」的口径，改为跨帷幕保留。 */
     /* ⚠️ 挑战完成档位**不清**（2026-11-22 用户改判，推翻同日早先的「飞升清账」）：
      *    档位同时是十余处挑战永久奖励的唯一真源（productionMul / stardustRewardMul /
      *    scienceCultureMul / startingPopulation / warCostMul 等全读 tierDone），清档位
@@ -696,8 +699,8 @@
     meta.memorialWonders = {};
     meta.oldArtworkEarnedTotal = 0;
     meta.oldTideStelesEarnedTotal = 0;
-    meta.govPassiveCards = {};
-    meta.govEverAdopted = {};
+    /* 政体被动卡解锁表与「采用过哪些政体」跨帷幕保留（2026-11-28 用户拍板）：
+     * 与 doVeil 处同一理由——《美好旧日》承诺的是永久解锁，清掉等于奖励归零。 */
     meta.challengePopupPending = null;
     meta.veilReady = false;
     if (meta.veil && typeof meta.veil === 'object') {

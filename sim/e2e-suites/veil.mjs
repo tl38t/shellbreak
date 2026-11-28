@@ -272,6 +272,22 @@ export function run({ SB, check }) {
       near(sB.got.stardust, SB.state.starEarnedSeed(M)),
       'got=' + sB.got.stardust + ' seed=' + SB.state.starEarnedSeed(M));
 
+    /* ---------------- ⑦.5 政体被动卡跨帷幕保留（2026-11-28 用户拍板） ----------------
+     * 《美好旧日》的奖励文案承诺「永久解锁你在各周目采用过的政体的被动卡」，而旧规格把
+     * govPassiveCards / govEverAdopted 列进「清」列 ⇒ 每飞升一次奖励归零，且记录被清后
+     * civics.unlockAdoptedGovPassiveCards 没有任何重建依据。这里钉死「掀幕不清这两张表」。 */
+    M.govPassiveCards = { tribe: true };
+    M.govEverAdopted = { tribe: true };
+    const sGov = SB.game.run();
+    sGov.techs.beyond_veil = true;
+    sGov.civics.theology = false;
+    M.veil.cycleStar = 1000; M.veil.cycleTide = 0;
+    SB.prestige.doVeil(sGov, () => {});
+    check('政体被动卡解锁表跨帷幕保留（否则《美好旧日》的永久奖励每次飞升归零）',
+      !!(M.govPassiveCards && M.govPassiveCards.tribe === true)
+        && !!(M.govEverAdopted && M.govEverAdopted.tribe === true),
+      'passive=' + JSON.stringify(M.govPassiveCards) + ' ever=' + JSON.stringify(M.govEverAdopted));
+
     /* ---------------- ⑧ UI：帷幕是独立页签，不是弹窗 ---------------- */
     /* 2026-11-17 晚用户拍板：「加一个新的标签，就叫帷幕，点了就切换到帷幕页面，不是弹窗那种」。
      * 原先落在轮回商店页底部的 .meta-veil 入口卡已随本次改动删除 —— 这里改钉新形态：

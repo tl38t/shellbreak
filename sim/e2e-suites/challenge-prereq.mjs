@@ -125,9 +125,17 @@ export function run({ SB, check, g, doc }) {
       'canStart=' + api.canStart('drift_terra', fF, { cycle: 14 }));
     check('cycle=15 + 不结算：放行（已经够数，不靠本局结算）',
       api.canStart('drift_terra', fF, { cycle: 15 }), 'canStart=' + api.canStart('drift_terra', fF, { cycle: 15 }));
-    check('cycle=0：其余 10 项挑战仍可开',
+    /* 2026-11-28：飞升挑战新增门槛「至少真正掀过一次幕」（meta.veil.count ≥ 1）。
+     * 旧写法只传 { cycle: 0 }，没有 veil 账本 ⇒ 6 项 ascension 必然 false，这条会假红。
+     * 已掀幕档照旧全放行；另补一条「未掀幕只锁飞升项」的反向锁，防止门槛撒到普通挑战上。 */
+    check('cycle=0 + 已掀幕：其余挑战（除流浪泰拉）仍可开',
       api.list().filter(d => d.id !== 'drift_terra')
-        .every(d => api.canStart(d.id, fF, { cycle: 0 })), '其他挑战不受影响');
+        .every(d => api.canStart(d.id, fF, { cycle: 0, veil: { count: 1 } })), '其他挑战不受影响');
+    check('未掀幕：飞升挑战全锁，普通挑战不受影响',
+      api.list().filter(d => d.ascension).length > 0
+      && api.list().filter(d => d.ascension).every(d => !api.canStart(d.id, fF, { cycle: 0 }))
+      && api.list().filter(d => !d.ascension && d.id !== 'drift_terra')
+        .every(d => api.canStart(d.id, fF, { cycle: 0 })), '飞升门槛只作用于 ascension 项');
     fT.challenge = { id: 'waterpollution', tier: 0 };
     check('已有进行中挑战时仍为 false（active 的原语义没丢）',
       !api.canStart('drift_terra', fT, { cycle: 14 }), 'active 优先');

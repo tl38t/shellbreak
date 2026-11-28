@@ -3770,6 +3770,7 @@ window.ShellbreakLocales["en-US"] = Object.freeze({
   "ui.challenge.status.timed_out": "Timed Out",
   "ui.challenge.status.waiting_for_current": "Waiting for the Current Challenge to End",
   "ui.challenge.subtab.ascension": "Ascension Trials",
+  "ui.challenge.ascension_locked_hint": "Ascension Trials unlock after you lift the Veil once (the great cycle).",
   "ui.challenge.subtab.prestige": "Prestige Trials",
   "ui.challenge.subtabs.aria_label": "Challenge sections",
   "ui.challenge.summary.science": "Limits the Scholar and {scribeName} job counts to test core management.",

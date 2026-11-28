@@ -3773,6 +3773,7 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "ui.challenge.status.timed_out": "已超时",
   "ui.challenge.status.waiting_for_current": "等待当前挑战结束",
   "ui.challenge.subtab.ascension": "飞升挑战",
+  "ui.challenge.ascension_locked_hint": "飞升挑战需要先完成一次「掀起帘幕」（大轮回）后才会解锁。",
   "ui.challenge.subtab.prestige": "轮回挑战",
   "ui.challenge.subtabs.aria_label": "挑战分区",
   "ui.challenge.summary.science": "限制学者与{scribeName}岗位人数，考验基础经营。",

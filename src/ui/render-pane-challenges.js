@@ -403,6 +403,14 @@
     }
     h += '</div>';
 
+    /* 锁定原因（2026-11-28）：只把按钮置灰不写理由 = 玩家点不动也不知道差什么。
+     * 判据来自 docs/JUDGMENTS.md「按钮灰且不写原因」那一类，锁必须有可见的解释。 */
+    if (!ascensionUnlocked) {
+      h += '<div class="note challenge-locked-note">' +
+        tr('ui.challenge.ascension_locked_hint', {},
+          '飞升挑战需要先完成一次「掀起帘幕」（大轮回）后才会解锁。') + '</div>';
+    }
+
     /* 跨分区提示（3A）：进行中的挑战在另一组时，本组顶部给一条窄条 + 「查看」直达，
      * 解决「切过去看不到自己那局」的困惑。 */
     if (active && activeGroup && activeGroup !== view) {
