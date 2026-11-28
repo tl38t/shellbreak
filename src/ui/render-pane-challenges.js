@@ -333,18 +333,25 @@
     var list = api.list(), active = api.active(s);
     var activeGroup = active ? challengeGroupOf(api.byId(active.id)) : null;
     var ascensionUnlocked = ascensionViewUnlocked(m, s, active);
-    /* 两组各算一份：已通关档数 / 总档数。徽标与概览统计都吃这一份，避免两套口径。 */
+    /* 两组各算一份：已通关档数 / 总档数。徽标与概览统计都吃这一份，避免两套口径。
+     * ⚠️ 无限档挑战（land_gold「寸土寸金」）按**二值**计价（2026-11-28 用户拍板）：
+     *   分母记 1、分子记 min(已通关,1)。旧写法把 tierLimit 的 Infinity 直接当分母，
+     *   页面上出现「0 / ∞」，玩家读不出还剩多少、也不知道通关过没有。
+     *   `raw` 保留**真实**累加档数：它等于 challenges.prestigeTierCount / ascensionTierCount，
+     *   而「每档 +10% 轮回点」的实际奖励正是按真实档数算的（prestige.js:198）。
+     *   两者不能合并 —— 把 raw 也压成 1 会让面板上的 +N% 与真实到手收益对不上。 */
     var groups = {
-      prestige: { done: 0, total: 0 },
-      ascension: { done: 0, total: 0 }
+      prestige: { done: 0, total: 0, raw: 0 },
+      ascension: { done: 0, total: 0, raw: 0 }
     };
     var gi;
     for (gi = 0; gi < list.length; gi++) {
       var gdef = list[gi], gk = challengeGroupOf(gdef);
-      var limit = api.tierLimit(gdef.id);
-      groups[gk].total = limit === Infinity || groups[gk].total === Infinity
-        ? Infinity : groups[gk].total + limit;
-      groups[gk].done += api.tierDone(gdef.id, m);
+      var limit = api.tierLimit(gdef.id), cleared = api.tierDone(gdef.id, m);
+      var binary = limit === Infinity;
+      groups[gk].total += binary ? 1 : limit;
+      groups[gk].done += binary ? (cleared > 0 ? 1 : 0) : cleared;
+      groups[gk].raw += cleared;
     }
     if (challengeView === 'ascension' && !ascensionUnlocked) challengeView = 'prestige';
     var view = challengeView === 'ascension' ? 'ascension' : 'prestige';
@@ -366,10 +373,10 @@
       return phase(a) - phase(b);
     });
 
-    var bonusPercent = cur.done * 10;
-    var totalLabel = cur.total === Infinity ? '∞' : cur.total;
-    var ratioText = tr('ui.challenge.overview.tier_ratio', { done: cur.done, total: totalLabel },
-      cur.done + ' / ' + totalLabel + ' 档');
+    /* 奖励百分比走 raw（真实档数），不走展示用的 done：无限档每多通一档仍然 +10%。 */
+    var bonusPercent = cur.raw * 10;
+    var ratioText = tr('ui.challenge.overview.tier_ratio', { done: cur.done, total: cur.total },
+      cur.done + ' / ' + cur.total + ' 档');
     var rateLabel = isAsc ? tr('ui.challenge.overview.ascension_points', {}, '飞升点获取')
       : tr('ui.challenge.overview.prestige_points', {}, '轮回点获取');
     var h = '<section class="challenge-overview"><div class="challenge-overview-title">' +
@@ -399,7 +406,7 @@
         (locked ? ' disabled aria-disabled="true"' : '') + '>' +
         (v === 'ascension' ? tr('ui.challenge.subtab.ascension', {}, '飞升挑战')
           : tr('ui.challenge.subtab.prestige', {}, '轮回挑战')) +
-        '<span class="subcnt">' + vc.done + ' / ' + (vc.total === Infinity ? '∞' : vc.total) + '</span></button>';
+        '<span class="subcnt">' + vc.done + ' / ' + vc.total + '</span></button>';
     }
     h += '</div>';
 

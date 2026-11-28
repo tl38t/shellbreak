@@ -281,7 +281,7 @@
         { label: '第二档', cap: 0.50 },
         { label: '第三档', cap: 0.70 }
       ] },
-    { id: 'veil_temporal_pincer', achievementKey: 'challengeVeilTemporalPincer', name: '时间钳形攻势', icon: '⏳', badge: 'assets/challenges/challenge-veil-temporal-pincer.png', kind: '三档挑战',
+    { id: 'veil_temporal_pincer', achievementKey: 'challengeVeilTemporalPincer', name: '时间钳形攻势', icon: '⏳', badge: 'assets/challenges/challenge-veil-temporal-pincer.webp', kind: '三档挑战',
       ascension: true,
       summary: '开局拥有失能逆时屋，却要承受高昂的人口扩张成本。',
       rule: '第一、二、三档开局分别获得 20、15、10 座失能逆时屋；人口上限建筑建造消耗分别 +200%、+400%、+600%；增加人口上限的政策卡不可用。',
@@ -292,7 +292,7 @@
         { label: '第二档', disabledChronoHouses: 15, populationBuildingSurcharge: 4 },
         { label: '第三档', disabledChronoHouses: 10, populationBuildingSurcharge: 6 }
       ] },
-    { id: 'veil_eternity_moment', achievementKey: 'challengeVeilEternityMoment', name: '新难题', icon: '☾', badge: 'assets/challenges/challenge-veil-eternity-moment.png', kind: '三档挑战',
+    { id: 'veil_eternity_moment', achievementKey: 'challengeVeilEternityMoment', name: '新难题', icon: '☾', badge: 'assets/challenges/challenge-veil-eternity-moment.webp', kind: '三档挑战',
       ascension: true,
       summary: '从破壳到掀幕的飞升需求，都会按档位提高五、十或二十倍。',
       rule: '科技与市政研究点成本、天壳厚度，以及掀起帘幕所需的飞升周期星屑门槛（基础 1000）均乘以本档倍率；尤里卡、前置条件和科技额外材料成本不变。',
@@ -303,7 +303,7 @@
         { label: '十倍档', cap: 10 },
         { label: '二十倍档', cap: 20 }
       ] },
-    { id: 'veil_one_way', achievementKey: 'challengeVeilOneWay', name: '一往无前', icon: '⛵', badge: 'assets/challenges/challenge-veil-one-way.png', kind: '三档挑战',
+    { id: 'veil_one_way', achievementKey: 'challengeVeilOneWay', name: '一往无前', icon: '⛵', badge: 'assets/challenges/challenge-veil-one-way.webp', kind: '三档挑战',
       ascension: true, storageCapacityBonusPerTier: 0.12,
       summary: '从新的飞升周期出发，在轮回次数耗尽前掀起帘幕。',
       rule: '在 3/2/1 次合格轮回内掀起帘幕；第 3/2/1 次轮回后仍可在新周目完成飞升，超过次数上限则挑战失败。',
@@ -314,7 +314,7 @@
         { label: '两次轮回档', rebirthLimit: 2 },
         { label: '一次轮回档', rebirthLimit: 1 }
       ] },
-    { id: 'land_gold', achievementKey: 'challengeLandGold', name: '寸土寸金', icon: '▦', badge: 'assets/challenges/challenge-land-gold.png', kind: '无限档挑战',
+    { id: 'land_gold', achievementKey: 'challengeLandGold', name: '寸土寸金', icon: '▦', badge: 'assets/challenges/challenge-land-gold.webp', kind: '无限档挑战',
       infiniteTiers: true,
       buildingCostSurchargePerTier: 0.5, storageCapacityBonusPerTier: 0.05,
       summary: '建筑成本随档位提高，仓储奖励逐档累积。',

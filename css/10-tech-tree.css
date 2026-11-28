@@ -184,7 +184,7 @@
   border-radius:8px}
 .unity-ascend-number{position:relative;display:flex;align-items:center;gap:6px;min-height:88px;line-height:1}
 .unity-ascend-current,.unity-ascend-total{display:flex;align-items:center;justify-content:center;flex:none}
-.unity-ascend-glyph{display:block;flex:none;background-image:url("../assets/ui/unity-ascend-digits.png?v=1");background-repeat:no-repeat;background-size:500% 200%}
+.unity-ascend-glyph{display:block;flex:none;background-image:url("../assets/ui/unity-ascend-digits.webp?v=2");background-repeat:no-repeat;background-size:500% 200%}
 .unity-ascend-glyph.current{width:50px;height:58px;filter:drop-shadow(0 2px 1px rgba(10,13,24,.62)) drop-shadow(0 0 5px rgba(177,164,244,.22))}
 .unity-ascend-glyph.total{width:25px;height:31px;opacity:.92;filter:drop-shadow(0 1px 1px rgba(10,13,24,.58))}
 .unity-ascend-divider{position:relative;width:2px;height:32px;flex:none;margin:0 4px;border-radius:2px;transform:rotate(18deg);
